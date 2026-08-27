@@ -21,6 +21,32 @@
 //! Getting that wrong in each `Core` member separately is exactly the kind of
 //! hand-written refcount protocol Stage 6's valgrind leg exists to catch, so
 //! there is one implementation and no second one.
+//!
+//! # What is *not* checked here, and what closing it costs
+//!
+//! **A closure's declared parameter types are checked by nobody**, and that is
+//! a priority-1 hole rather than a rough edge: [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
+//! § 1 gives `callable` no parameter list, so no checker can compare a call
+//! site against the body it will reach, and the compiled `invoke` reads
+//! argument slot *i* at its own declared representation. Hand it a mismatch
+//! and the callee reinterprets the payload — an `int` read as an `MwlStr`
+//! pointer is an arbitrary dereference, not a fault.
+//!
+//! It is reachable from safe MWL today and was before `$f(...)` lowered:
+//! `Core\Arr::map($ints, fn (string $s): string => $s)` over an `array<int>`
+//! dies inside `crate::string` on a misaligned pointer. [`mwl_call_closure`]
+//! widens *who* can reach it, not *whether*, and adds no way to reach it that
+//! `Core\Arr::map` did not already have.
+//!
+//! Closing it means the closure object carrying its parameter tags the way it
+//! already carries its arity ([`CLOSURE_ARITY_SLOT`]) — a second reserved slot
+//! written by `mwl_ir::lower::lower_closure` from the declared types, and one
+//! tag comparison per argument here, throwing the [`crate::ThrownClass::Logic`]
+//! `LogicError` [`mwl_call_closure`] already answers a bad arity with.
+//! That is a per-call cost on the callback path (priority 3) bought for
+//! priority 1, which is the direction AGENTS.md's ordering names, and it is
+//! the only design that works at all while `callable` stays unparameterized.
+//! It is not done here because it moves a slot layout three crates agree on.
 
 use crate::abi::{Fault, MwlFn, OK};
 use crate::ctx::Ctx;
@@ -105,6 +131,74 @@ pub fn call_closure(ctx: &mut Ctx, closure: Value, args: &[Value]) -> Result<Val
         debug_assert_ne!(status, OK, "call reports Err only for a non-OK status");
         Fault::Pending(status)
     })
+}
+
+/// `mwl_ir::Helper::CallClosure` — ADR 0031's `$fn(...)`, which is compiled
+/// code's own way into [`call_closure`]. `args[0]` is the closure and
+/// `args[1..argc]` the arguments it was called with, in written order.
+///
+/// **The one helper that takes a count.** Every other one's arity is a
+/// literal in its [`crate::mwl_helper!`] expansion, because a conversion or a
+/// comparison has the same shape at every call site; a closure call's arity is
+/// the *call site's*, so it travels beside the slot and this function is
+/// written out rather than generated. `mwl-codegen`'s `Signatures::helper_variadic`
+/// is the other half of that ABI.
+///
+/// Too *many* arguments is not an error: [`call_closure`] trims to the
+/// arity the closure recorded, which is spec § 2's "every callback receives
+/// `($value, $key)` and may declare fewer parameters" and is also PHP's own
+/// answer for extra positional arguments to a userland function. Too *few* is
+/// the catchable `LogicError` below rather than the engine fault
+/// [`call_closure`] answers a native caller with: a `callable` carries no
+/// parameter list for the checker to count against
+/// ([ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
+/// § 1), so a program can reach it, and a program-reachable failure is a
+/// throw ([ADR 0002](../../../docs/adr/0002-error-propagation.md)).
+///
+/// # Safety
+///
+/// `ctx`, `args` and `out` must each be non-null, aligned and valid for the
+/// duration of the call; `args` must point at `argc` initialized values, of
+/// which there must be at least one; and `out` must be writable. Compiled MWL
+/// code satisfies all of it by construction.
+#[expect(
+    unsafe_code,
+    reason = "the helper ABI's pointer contract, discharged exactly where \
+              `mwl_helper!` discharges it for every fixed-arity helper"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mwl_call_closure(
+    ctx: *mut Ctx,
+    args: *const Value,
+    argc: usize,
+    out: *mut Value,
+) -> i32 {
+    let body = |ctx: &mut Ctx, args: &[Value]| {
+        let Some((closure, passed)) = args.split_first() else {
+            return Err(Fault::fatal(
+                "internal error: a closure call reached the runtime with no closure at all",
+            ));
+        };
+        let arity = closure_arity(*closure)?;
+        if passed.len() < arity {
+            return Err(Fault::thrown_as(
+                crate::ThrownClass::Logic,
+                format!(
+                    "too few arguments to a `callable`: it declares {arity} parameter(s), \
+                     {} given",
+                    passed.len()
+                ),
+            ));
+        }
+        call_closure(ctx, *closure, passed)
+    };
+    #[expect(
+        unsafe_code,
+        reason = "the caller's contract is exactly `run_helper`'s"
+    )]
+    unsafe {
+        crate::run_helper(ctx, args, argc, out, body)
+    }
 }
 
 /// How many parameters `closure` declares — [`CLOSURE_ARITY_SLOT`], read

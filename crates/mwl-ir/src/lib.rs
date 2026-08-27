@@ -291,9 +291,18 @@
 //!    the single value the parameter receives — see
 //!    `mwl_stdlib::registry::CoreTy::Variadic` for why that shape rather than a
 //!    second, count-carrying calling convention.
-//! 9. **A closure literal lowers; `$f(...)` does not.** The only caller today
-//!    is native `Core` code going through `mwl_runtime::mwl_closure_call`.
-//!    ADR 0031 § 3's self-name is parsed and ignored. Neither half of `&$x` is
+//! 9. **A closure literal lowers, and so does `$f(...)`; what nothing checks
+//!    is the argument *types*.** The call is one [`ir::Helper::CallClosure`]
+//!    — `mwl_runtime::call_closure`, the same entry point native `Core` code
+//!    reaches a callback through, so there is one body and not a second
+//!    convention beside it ([`lower::Lowering::lower_closure_call`]). ADR 0031
+//!    § 3's self-name is still parsed and ignored, and a `name:` or `...`
+//!    argument panics here for gap 8's reason. The type gap is **not** this
+//!    crate's to close and is older than this lowering — a `callable` carries
+//!    no parameter list (§ 1), so a closure declaring `string $s` reads a
+//!    caller's `int` payload as a pointer whether that caller is `$f(1)` or
+//!    `Core\Arr::map` over an `array<int>`; `mwl_runtime::closure`'s module
+//!    doc owns it and states what closing it costs. Neither half of `&$x` is
 //!    a gap any more: a closure *capturing* an enclosing `&$x` parameter takes
 //!    § 2's by-value snapshot of the cell — one [`ir::InstKind::RefLoad`] at
 //!    the literal, at the pointee type, retained like any other captured

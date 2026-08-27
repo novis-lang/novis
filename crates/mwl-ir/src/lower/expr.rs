@@ -308,11 +308,17 @@ impl<'a> Lowering<'a> {
             // unreachable by construction; it exists because this dispatch is
             // total in `(ValueId, Ty)`.
             ExprKind::Exit(arg) => self.lower_exit(arg.as_deref(), env, cur),
+            // `$fn(...)` — a closure called through the variable holding it,
+            // which is one `Helper::CallClosure` and not a lowered `Call`:
+            // ADR 0031 § 1 gives `callable` no parameter list, so there is no
+            // resolved target to name. See `Self::lower_closure_call`.
+            ExprKind::Call { callee, args } => self.lower_closure_call(callee, args, env, cur),
             other => panic!(
                 "mwl-ir's control-flow slice only lowers literals, locals, unary/binary \
                  operators, `new`, a static or instance method call, property access, a static \
                  property, an array literal, an array-element read, `instanceof`, `isset`, \
-                 `empty`, an enum case, an increment, an assignment, `print`, `exit` and an \
+                 `empty`, an enum case, an increment, an assignment, `print`, `exit`, a call \
+                 through a `callable` and an \
                  `as` conversion — got {other:?}; \
                  see the crate docs' known gaps"
             ),

@@ -1734,6 +1734,41 @@ pub enum Helper {
     /// row, so **≈+8 ns per comparison** — priority 1 bought with priority 3,
     /// which is the ordering AGENTS.md states.
     SecretEq,
+    /// `$fn(...)` —
+    /// [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)'s
+    /// closure, called through the variable holding it. `args[0]` is the
+    /// closure object and `args[1..]` its arguments in written order.
+    ///
+    /// **The one variadic [`Helper`]**, and the reason the row exists at all
+    /// rather than this being an [`InstKind::Call`]: there is no resolved
+    /// target to name. `callable` carries no parameter list
+    /// ([ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
+    /// § 1), so the checker types the call `mixed` and cannot say which
+    /// function a variable holds; what answers both questions is the closure
+    /// object itself, whose class declares the one `invoke`
+    /// `mwl_runtime::call_closure` reaches through. That helper is the same
+    /// one every `Core` member taking a `callable` already calls, so a
+    /// closure invoked from MWL and one invoked from a native member take the
+    /// identical path.
+    ///
+    /// Being variadic, it is the one helper whose argument count is not baked
+    /// into `mwl_runtime`'s own declaration: `mwl-codegen` passes the count
+    /// beside the argument slot, which is `Signatures::helper_variadic` there
+    /// and one extra parameter on `mwl_call_closure` here.
+    ///
+    /// Arguments are **borrowed**, the treatment every helper's are given:
+    /// `call_closure` retains the receiver and each argument it actually
+    /// passes, and the callee's own exit sweep releases those, so the caller
+    /// keeps owning exactly what it lowered. The result is a fresh
+    /// [`crate::ty::Ty::Tagged`] nothing else owns — the callee's return
+    /// value, transferred — and it is typed `Tagged` because `mixed` is the
+    /// only answer the checker has for a call whose target it cannot name.
+    ///
+    /// Fallible, so it is emitted through
+    /// `crate::lower::Lowering::emit_fallible` and carries ADR 0002's error
+    /// edge: the closure's own throw or fault travels back as
+    /// `Fault::Pending`, unchanged.
+    CallClosure,
 }
 
 /// A binary arithmetic or comparison operator, already resolved to a single

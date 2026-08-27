@@ -1,4 +1,4 @@
-//! Call lowering: argument ownership, ADR 0063 R2's options bag flattened at the site, and a `&$x` argument staged and written back.
+//! Call lowering: argument ownership, ADR 0063 R2's options bag flattened at the site, a `&$x` argument staged and written back, and `$fn(...)` through the one helper a `Core` member's callback already takes.
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory so a
 //! session editing one area does not carry the rest in context. Every item
@@ -611,6 +611,81 @@ impl<'a> Lowering<'a> {
             mwl_types::ConstArg::Built { .. } => unreachable!(),
         };
         self.emit(cur, ty, kind)
+    }
+    /// `$fn(...)` —
+    /// [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)'s
+    /// closure, called through the variable holding it.
+    ///
+    /// One [`Helper::CallClosure`], with the closure at `args[0]` and its
+    /// arguments after it in written order — which is
+    /// `mwl_runtime::call_closure`, the same entry point every `Core` member
+    /// taking a `callable` already reaches, so a closure invoked from MWL
+    /// takes no second path into a compiled body. It is deliberately **not**
+    /// an [`InstKind::Call`]: § 1 gives `callable` no parameter list, so
+    /// there is no resolved target to name, no per-argument expected type to
+    /// lower against and no arity to check, and the closure object's own
+    /// `invoke` answers all three at run time.
+    ///
+    /// Ownership is [`Self::account_for_arg`]'s borrowed column, the closure
+    /// itself included: `call_closure` retains everything it passes and the
+    /// callee's exit sweep releases that, so this frame keeps owning exactly
+    /// what it lowered. Whatever the expression built is released after the
+    /// call, and on the error edge by the landing block — the shape a `Core`
+    /// member's arguments already have.
+    ///
+    /// # Panics
+    ///
+    /// Panics for a `name:`, `...` or first-class-callable argument list, the
+    /// way [`Self::lower_call_args`] does for a resolved call: there is no
+    /// signature to map one against here at all, so the checker's own gap
+    /// (see the crate docs' known gaps) is not something this can lower
+    /// around.
+    pub(super) fn lower_closure_call(
+        &mut self,
+        callee: &Expr,
+        args: &CallArgs,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let CallArgs::List(list) = args else {
+            panic!(
+                "mwl-ir only lowers a plain positional argument list for a call through a \
+                 `callable` — got {args:?}; see the crate docs' known gaps"
+            );
+        };
+        // Before the closure, not before the argument list: a freshly built
+        // one — `(fn (): int => 7)()` — is this frame's temporary too, and an
+        // argument that throws while it is in flight has to drop it.
+        let mark = self.temporaries_mark();
+        let (closure, closure_ty) = self.lower_expr(callee, None, env, cur);
+        let aliasing = self.aliasing_read(callee);
+        self.account_for_arg(closure, closure_ty, ArgOwnership::Borrowed, aliasing, *cur);
+        let mut values = vec![closure];
+        for arg in list {
+            assert!(
+                arg.name.is_none() && !arg.spread,
+                "mwl-ir does not yet lower a named or spread argument to a call through a \
+                 `callable`; see the crate docs' known gaps"
+            );
+            let (v, ty) = self.lower_expr(&arg.value, None, env, cur);
+            let aliasing = self.aliasing_read(&arg.value);
+            self.account_for_arg(v, ty, ArgOwnership::Borrowed, aliasing, *cur);
+            values.push(v);
+        }
+        // `Ty::Tagged` because `mixed` is the only answer the checker has for
+        // a call whose target it cannot name — `mwl_types::expr`'s own
+        // `ExprKind::Call` arm.
+        let called = self.emit_fallible(
+            *cur,
+            Ty::Tagged,
+            InstKind::HelperCall {
+                helper: Helper::CallClosure,
+                args: values,
+            },
+            env,
+        );
+        self.release_temporaries_since(mark, *cur);
+        called
     }
     /// Records `v` as a reference this frame owns and nothing else can find —
     /// see [`Self::owned_temporaries`], which owns the whole protocol.

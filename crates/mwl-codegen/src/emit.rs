@@ -530,7 +530,14 @@ impl Emitter<'_, '_> {
             }
             InstKind::HelperCall { helper, args } => {
                 let symbol = helper_symbol(*helper)?;
-                return self.emit_helper(cur, inst, symbol, args);
+                // One row of the table is variadic — the closure call, whose
+                // arity is the call site's and not the helper's — so it is
+                // the one that passes a count. See `mwl_ir::Helper::CallClosure`.
+                let sig = match helper {
+                    Helper::CallClosure => RuntimeSig::HelperVariadic,
+                    _ => RuntimeSig::Helper,
+                };
+                return self.emit_helper(cur, inst, symbol, args, sig);
             }
             // A `Core` member is native Rust behind the same ADR 0002 helper
             // entry point every runtime helper uses, so it needs no path of
@@ -538,7 +545,7 @@ impl Emitter<'_, '_> {
             // instead of one this crate's own `Helper` table does. See
             // `mwl_ir::ir::InstKind::CoreCall`.
             InstKind::CoreCall { symbol, args } => {
-                return self.emit_helper(cur, inst, symbol, args);
+                return self.emit_helper(cur, inst, symbol, args, RuntimeSig::Helper);
             }
             InstKind::Call {
                 target,
@@ -744,7 +751,7 @@ impl Emitter<'_, '_> {
                     AbsentKey::Throws => "mwl_array_required_get",
                     AbsentKey::Null => "mwl_array_optional_get",
                 };
-                return self.emit_helper(cur, inst, symbol, &[*array, *key]);
+                return self.emit_helper(cur, inst, symbol, &[*array, *key], RuntimeSig::Helper);
             }
             InstKind::ArraySet { array, key, value } => {
                 // The key operand's own representation picks the primitive,
@@ -1786,12 +1793,19 @@ impl Emitter<'_, '_> {
     /// One runtime helper call, in ADR 0002's shape: the arguments
     /// materialized into a stack slot of 16-byte [`mwl_runtime::Value`]s, a
     /// second slot for the result, and the status check after.
+    ///
+    /// `sig` is [`RuntimeSig::Helper`] for all but one row of the table.
+    /// [`RuntimeSig::HelperVariadic`] is the same call with the argument
+    /// **count** passed beside the slot, which one helper needs because its
+    /// arity is a property of the call site rather than of its own
+    /// declaration — see `mwl_ir::Helper::CallClosure`, the only one so far.
     fn emit_helper(
         &mut self,
         cur: Block,
         inst: &Inst,
         symbol: &'static str,
         args: &[ValueId],
+        sig: RuntimeSig,
     ) -> Result<Block, CodegenError> {
         let count =
             i32::try_from(args.len()).map_err(|_| internal("a helper call past i32 args"))?;
@@ -1823,8 +1837,16 @@ impl Emitter<'_, '_> {
         ));
         let out_p = self.b.ins().stack_addr(types::I64, out_slot, 0);
 
-        let callee = self.runtime_ref(symbol, RuntimeSig::Helper)?;
-        let call = self.b.ins().call(callee, &[self.ctx_p, args_p, out_p]);
+        let callee = self.runtime_ref(symbol, sig)?;
+        let call = match sig {
+            RuntimeSig::HelperVariadic => {
+                let argc = self.b.ins().iconst(types::I64, i64::from(count));
+                self.b
+                    .ins()
+                    .call(callee, &[self.ctx_p, args_p, argc, out_p])
+            }
+            _ => self.b.ins().call(callee, &[self.ctx_p, args_p, out_p]),
+        };
         let status = self.b.inst_results(call)[0];
         let cont = self.emit_status_check(status, inst.on_error)?;
 
@@ -3103,6 +3125,7 @@ impl Emitter<'_, '_> {
         }
         let signature = match sig {
             RuntimeSig::Helper => &self.sigs.helper,
+            RuntimeSig::HelperVariadic => &self.sigs.helper_variadic,
             RuntimeSig::Safepoint => &self.sigs.safepoint,
             RuntimeSig::StackCheck => &self.sigs.stack_check,
             RuntimeSig::Probe => &self.sigs.probe,
@@ -3160,6 +3183,7 @@ enum Callee {
 #[derive(Clone, Copy)]
 enum RuntimeSig {
     Helper,
+    HelperVariadic,
     Safepoint,
     StackCheck,
     Probe,
@@ -3212,6 +3236,7 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::NumericCmp => "mwl_numeric_cmp",
         Helper::NumericLtEq => "mwl_numeric_lt_eq",
         Helper::SecretEq => "mwl_secret_eq",
+        Helper::CallClosure => "mwl_call_closure",
         Helper::BytesTruthy => "mwl_bytes_truthy",
         Helper::ArrayTruthy => "mwl_array_truthy",
         Helper::ValueTruthy => "mwl_value_truthy",

@@ -586,6 +586,13 @@ impl Classes {
 struct Signatures {
     /// ADR 0002's calling convention — `(ctx, args, out) -> status`.
     helper: Signature,
+    /// `(ctx, args, argc, out) -> status` — [`Self::helper`] with the
+    /// argument **count** passed beside the slot, for the one helper whose
+    /// arity belongs to the call site rather than to its own declaration:
+    /// `mwl_runtime::mwl_call_closure`, which is `mwl_ir::Helper::CallClosure`
+    /// and ADR 0031's `$fn(...)`. Every other helper's arity is a literal in
+    /// its `mwl_helper!` expansion, so no count crosses the boundary at all.
+    helper_variadic: Signature,
     /// `mwl_safepoint(ctx) -> status`.
     safepoint: Signature,
     /// `mwl_stack_check(ctx, sp) -> status` —
@@ -969,6 +976,13 @@ impl Signatures {
         helper.params.push(AbiParam::new(ptr)); // out
         helper.returns.push(AbiParam::new(types::I32)); // status
 
+        let mut helper_variadic = module.make_signature();
+        helper_variadic.params.push(AbiParam::new(ptr)); // ctx
+        helper_variadic.params.push(AbiParam::new(ptr)); // args
+        helper_variadic.params.push(AbiParam::new(ptr)); // argc
+        helper_variadic.params.push(AbiParam::new(ptr)); // out
+        helper_variadic.returns.push(AbiParam::new(types::I32)); // status
+
         let mut safepoint = module.make_signature();
         safepoint.params.push(AbiParam::new(ptr));
         safepoint.returns.push(AbiParam::new(types::I32));
@@ -1111,6 +1125,7 @@ impl Signatures {
 
         Self {
             helper,
+            helper_variadic,
             safepoint,
             stack_check,
             probe,

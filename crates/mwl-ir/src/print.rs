@@ -502,5 +502,6 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::NumericCmp => "numeric_cmp",
         Helper::NumericLtEq => "numeric_lt_eq",
         Helper::SecretEq => "secret_eq",
+        Helper::CallClosure => "call_closure",
     }
 }
