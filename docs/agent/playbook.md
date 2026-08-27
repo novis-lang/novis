@@ -1735,6 +1735,21 @@ sibling in the same namespace unqualified.
   closure to a `Core` member must spell the element type and the parameter type *the same*, and a
   crash with no MWL frame in it is this before it is anything else. `mwl_runtime::closure`'s module
   doc owns the hole and what closing it costs.
+- **An integer literal in an array-literal element position keeps `int`, whatever the array's
+  declared element type says.** `array<uint> $u = [7, 8];` compiles and its elements carry the
+  **`int`** tag, while `array<uint> $u = [7 as uint, 8 as uint];` carries `uint` — so a sweep whose
+  point is the `int`/`uint` split silently asks the wrong question on the bare-literal row and
+  answers plausibly. ADR 0054 § 2's "a numeric literal is untyped until placed" is applied at a
+  parameter and at a binding but not at an element, and the only place it is observable today is a
+  `callable`'s parameter-tag check, `Core\Reflect::typeOf` not existing yet. Convert in the literal
+  whenever the tag is the subject.
+- **A promoted constructor property does not exist as a property.**
+  `final class M { public function constructor(public string $name) {} }` compiles, and `$m->name`
+  is then `E0405: `M` has no property named `name`` from anywhere, including inside the class — so
+  a scratch file that reaches for one gets a diagnostic naming the *property* and reads as a typo
+  rather than as the missing feature it is. Declare the field (`public string $name = "m";`) when
+  the case only needs an object with a field; `tests/conformance/core/out-capture-refuses-a-through-that-answers-anything-but-the-carrier.mwlt`'s
+  `Impostor` has a promoted one and gets away with it only because it never reads it.
 
 ## Divergences and refusals already pinned
 

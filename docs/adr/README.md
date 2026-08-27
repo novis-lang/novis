@@ -474,6 +474,31 @@ with runtime-checked arguments, at `mixed`'s cost" is deferred for `callable` an
 `object`. Refusing is the reversible half of that pair: a later decision can turn this diagnostic into
 dispatch, while a program that already dispatched could not be taken back.
 
+**A closure parameter naming a class is checked for objecthood and nothing more, and the closure's own
+entry is the boundary that pays to close it.** `mwl_ir::lower::param_tag_nibble` gives every class name —
+and `object`, and a shape — the same nibble 7, a nibble naming a representation and four bits having no
+room for a label, so `mwl_runtime::closure::check_param_tags` refuses a `string $c` handed a
+`Core\Cli\Text` and accepts an unrelated `Marker $c` handed the same value
+(`tests/conformance/core/out-a-callback-object-parameter-is-checked-by-representation-not-by-class.mwlt`
+pins that line as it is drawn today). That acceptance is the **only** way a named-class binding comes to
+hold an instance of another class: every other position is checked where it is written, and
+[0036](0036-anonymous-object-shapes.md) § 4's erased receiver carries no label at all and therefore defers
+to a name-keyed fetch. A binding that *does* carry a label is read and written at a fixed offset, so the
+lie is a type confusion rather than a wrong answer — two `final` classes and one wrong `Core\Arr::filter`
+callback write an `int` over a `string` field and the next read dereferences it — which is
+[0004](0004-memory-for-simplicity.md)'s priority 1 and not a matter of taste.
+
+Two boundaries could pay, and the cheaper one is not the safer one's equal. Making every named-class
+property access name-keyed closes it everywhere and spends priority 3 in every program, most of which
+never write a closure at all. Checking the argument against the parameter's declared class **at the
+closure's entry** spends one `mwl_object_instanceof` — already one flattened linear scan of the ancestry
+(`mwl_runtime::object::MwlObj::is_instance_of`) — per class-declared parameter per call, and only in the
+position where nothing else looked. The second is the one to build: `mwl_ir::lower::closure` knows each
+parameter's declared class and `lower_expr` already emits that call-and-branch for `$x instanceof C`, so
+the refusal is a `LogicError` in the sentence shape `check_param_tags` already writes. The tag word is
+unchanged and gains no class channel — a per-closure-instance list of descriptors would spend an
+allocation at every closure literal to answer a question the body's first block can ask for free.
+
 **A `&$x` parameter belongs only to a frame the call site outlives.** A by-reference parameter is a
 contract between the two ends of one call: `mwl_ir::lower::call` stages a cell at the site, hands the callee
 its address, and copies back when the call returns — sound precisely because the callee's frame dies first.

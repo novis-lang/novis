@@ -2,52 +2,51 @@
 
 ## State
 
-**M4 — language completeness.** The closure tag check is now pinned on both of its edges, from MWL.
-`mwl_runtime::closure::check_param_tags` compares the *representation* a parameter erases to and never
-its declared type, so `mixed` and every `?T` are `Ty::Tagged` → `FN_PARAM_TAG_ANY` and admit any
-argument while the bare twin of each is refused with `LogicError`; `param_tag_nibble`'s doc comment
-(`crates/mwl-ir/src/lower/mod.rs:2705`) is the one home for why a nullable declaration checks nothing.
-ADR 0007 § 2's one implicit widening is applied inside that same check
-(`crates/mwl-runtime/src/closure.rs:387`) and stops at 2^53 on both signs and for `uint` as well as
-`int` — 2^54 is refused although an `f64` represents it exactly, because the bound is the range over
-which every integer is representable rather than this integer's own luck. Both new cases assert an
-ordered accept/refuse string rather than a total, so a pair that flipped fails rather than balancing.
+**M4 — language completeness.** Both remaining edges of the closure tag check are pinned from MWL.
+An **object** argument reaches it through `Core\Out::capture($body, {through: $fn})`, and the line
+it draws is objecthood and nothing finer: every non-object representation refuses by name while
+`object`, `mixed`, `?T` and *any class at all* accept. An **enum** parameter is its backing integer
+(`crates/mwl-ir/src/lower/mod.rs:2734`), so an enum, that integer and any other enum over the same
+backing are one representation, while `int` and `uint` are still told apart.
 
-Not yet asked anywhere: whether the `object` nibble distinguishes classes, and whether the wrong
-*position* in `reduce`'s three arguments is what its refusal names. Those are the next group.
+**A wrong-class closure parameter is a type confusion, and it is the session's real finding.**
+Two `final` classes and one wrong `Core\Arr::filter` callback write an `int` over a `string` field
+and the next read dereferences it — `misaligned pointer dereference: address must be a multiple of
+0x8 but is 0x5`, from a program with no `unsafe` in it. This is the only way a named-class binding
+comes to hold another class's instance, and `docs/adr/README.md` § *Decisions taken at project
+start* owns the decision: the **closure's own entry** pays, not every property access. That
+paragraph is the specification for the next group; `param_tag_nibble`'s doc comment points at it.
 
-`verify.py` green — conformance 622, differential 173.
+`verify.py` green — conformance 624, differential 173.
 
 ## Next group
 
-**The tag check's last two edges, and what a refusal names.** The file set:
-`tests/conformance/core/`, `crates/mwl-runtime/src/closure.rs:325` (`check_param_tags`),
-`crates/mwl-ir/src/lower/mod.rs:2705` (`param_tag_nibble`), `crates/mwl-stdlib/src/arr.rs:2611`.
+**Close the type confusion at the closure's entry.** The file set:
+`crates/mwl-ir/src/lower/closure.rs:59` (`param_tags_word`), `crates/mwl-ir/src/lower/mod.rs:2727`
+(`param_tag_nibble`), `crates/mwl-runtime/src/closure.rs:325` (`check_param_tags`),
+`crates/mwl-runtime/src/object.rs:1020` (`MwlObj::is_instance_of`), `tests/conformance/core/`.
 
-- [ ] **An `object` parameter is checked as an object and not as its class.** `Ty::Object` is nibble 7
-      (`crates/mwl-ir/src/lower/mod.rs:2718`) and the tag carries no class label, so a callback
-      declaring the *wrong* class accepts the argument and only fails later, at a member it does not
-      have. Reach the check with an object argument through `Core\Out::capture($body, {through: $fn})` —
-      the playbook's § *Writing MWL itself* owns that spelling — and pin both halves: a `string $c`
-      refuses, a `?Core\Cli\Text $c` accepts, and so does a different class. ADR 0007 § 2, ADR 0031 § 1.
-- [ ] **`reduce` counts positions, not roles.** The carry is argument 1, the element 2 and the key 3
-      (`crates/mwl-stdlib/src/arr.rs:2611`), and `check_param_tags` names the *position* in its message
-      (`crates/mwl-runtime/src/closure.rs:400`) because a `callable` has no parameter names to name.
-      Pin that a wrong declaration in each of the three positions is refused independently, and that the
-      seed's type is what argument 1 has to match rather than the element's. ADR 0069 § 5, ADR 0031 § 1.
-- [ ] **An enum rides as its backing integer, so the check cannot tell them apart.**
-      `Ty::Int | Ty::Enum(EnumRepr::Int) => 2` (`crates/mwl-ir/src/lower/mod.rs:2713`) is the decision;
-      what is unproven is whether an `array<SomeEnum>` reaches a `Core\Arr` callback at all. One scratch
-      run under `.agent-tmp/` settles it — if it does not lower, put it in the backlog and take the
-      first two. ADR 0010, ADR 0007 § 4.
+- [ ] **A closure parameter naming a class checks the argument's class at entry.**
+      `mwl_ir::lower::closure` knows the declared class and `lower_expr` already emits the
+      `mwl_value_instanceof` call-and-branch for `$x instanceof C`; emit the same at the body's
+      first block, one per class-declared parameter, throwing `LogicError` in the sentence shape
+      `crates/mwl-runtime/src/closure.rs:402` already writes. The tag word gains no class channel.
+      `docs/adr/README.md` § *Decisions taken at project start*, second new paragraph.
+- [ ] **`out-a-callback-object-parameter-is-checked-by-representation-not-by-class.mwlt` flips and
+      is renamed.** Its `Marker`/`?Marker` rows go `y`→`n` (a `?T` still accepts — it erases to
+      `Ty::Tagged` before any class survives), and its "**the class half is a hole**" comment block
+      becomes the statement of the check. A subclass and an interface both accepting is the new
+      case's other half, `is_instance_of` being a flattened ancestry scan.
+- [ ] **`reduce` counts positions, not roles** — carried over untaken. The carry is argument 1, the
+      element 2 and the key 3, and the refusal names the position rather than the role.
+      `crates/mwl-stdlib/src/arr.rs:2611`.
 
 ## Backlog
 
-- A closure called through the variable holding it panics `mwl-ir` — `docs/agent/playbook.md`
-  § *Writing MWL itself*.
-- `array<T> as array<U>` does not lower (`crates/mwl-ir/src/lower/expr.rs:877`), which is ADR 0007
-  § 2's one missing conversion row.
-- A spread argument does not lower (`crates/mwl-ir/src/lower/call.rs:75`).
-- `Core\Reflect::typeOf` is not implemented, so no case can ask a value its own type — ADR 0007 § 4
-  names it, and the absence is why the two cases landed here observe a representation through a
-  *boundary* (a value `float` refuses and `?float` takes) rather than by asking.
+- A promoted constructor property is not readable — `public function constructor(public string $name)`
+  then `$m->name` is `E0405`. ADR 0030 owns the spelling; playbook § *Writing MWL itself*.
+- An integer literal in an array-literal element position keeps `int` against a declared
+  `array<uint>`. ADR 0054 § 2; playbook § *Writing MWL itself*.
+- `Core\Reflect::typeOf` does not exist, so a value's tag is observable only through a `callable`
+  parameter today. ADR 0007 § 4 names it; `docs/spec/01-core-library.md` owns the member.
+- The `[context]` manifest printed everything this item needed; no field was missing.

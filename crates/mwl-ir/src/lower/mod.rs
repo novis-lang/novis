@@ -2713,6 +2713,17 @@ pub const FN_PARAM_TAG_ANY: u8 = 12;
 /// exists to give the bodies that do not.
 /// `tests/conformance/core/arr-a-mixed-or-nullable-callback-parameter-is-unchecked.mwlt`
 /// pins both halves from MWL.
+///
+/// [`Ty::Object`]'s nibble is the one row where "a representation and not a
+/// declared type" is a **hole** rather than the answer. Every class name
+/// erases onto it, so a closure declaring the wrong class is admitted — and
+/// unlike ADR 0036 § 4's erased receiver, which has no label and therefore
+/// defers to a name-keyed fetch, a named-class binding is read and written at
+/// a *fixed offset* against a label nothing verified. `docs/adr/README.md`
+/// § *Decisions taken at project start* owns which boundary is to pay for
+/// that and why, and
+/// `tests/conformance/core/out-a-callback-object-parameter-is-checked-by-representation-not-by-class.mwlt`
+/// pins the line as it is drawn today.
 pub fn param_tag_nibble(ty: Ty) -> u8 {
     match ty {
         // `Ref` and `ClassDesc` ride in the payload of an otherwise-`null`
@@ -2720,7 +2731,11 @@ pub fn param_tag_nibble(ty: Ty) -> u8 {
         // declared type, and a `&$x` parameter is refused before it gets here.
         Ty::Null | Ty::Ref | Ty::ClassDesc => 0,
         Ty::Bool => 1,
-        // ADR 0010's enum travels as its backing integer, tag included.
+        // ADR 0010's enum travels as its backing integer, tag included, so
+        // these two rows are why an enum and its backing type are one
+        // representation here and two enums over one backing are as well —
+        // `tests/conformance/core/arr-a-callback-enum-parameter-is-its-backing-integer.mwlt`
+        // pins the agreement, and the `int`/`uint` split that keeps it exact.
         Ty::Int | Ty::Enum(EnumRepr::Int) => 2,
         Ty::Uint | Ty::Enum(EnumRepr::Uint) => 3,
         Ty::Float => 4,
