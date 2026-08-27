@@ -601,6 +601,14 @@ pub(super) fn check_array_literal(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> TypeId {
+    // An expectation's `null` arm is not something the literal has to satisfy:
+    // `?array<string> $m = ["k" => "v"];` places an `array<string>`, and `null`
+    // is the *other* thing the binding may hold. Strip it before looking for
+    // the `Ty::Array` — the same `without_null` `narrow` and
+    // `report_unsubscriptable` make — or the expectation is a `Ty::Union`, no
+    // element type is found, and every element is checked against nothing while
+    // the literal falls back to `array<mixed>` and fails at the binding.
+    let expected = expected.map(|id| env.interner.without_null(id));
     let elem_expected = expected.and_then(|id| match env.interner.get(id) {
         Ty::Array(elem) => Some(*elem),
         _ => None,

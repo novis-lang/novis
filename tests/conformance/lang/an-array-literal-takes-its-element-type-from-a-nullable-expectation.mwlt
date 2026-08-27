@@ -1,0 +1,60 @@
+--TEST--
+An array literal placed against a `?array<T>` expectation is an `array<T>` — in a binding, a `return` and an argument (ADR 0007 §§ 2, 5; ADR 0066)
+--FILE--
+<?mwl
+// ADR 0066: `?T` is `null|T`, and the `null` arm is the *other* thing the
+// binding may hold — never something the value being placed has to satisfy.
+?array<string> $m = ["k" => "v"];
+if ($m != null) {
+    echo $m["k"], "\n";
+}
+
+// The element type really reaches the elements: `Core\Str::repeat` takes a
+// `uint`, and an untyped numeric literal only becomes one by being placed
+// (ADR 0007 § 2). An `array<mixed>` fallback would not compile at all.
+?array<uint> $u = ["a" => 3];
+if ($u != null) {
+    echo Core\Str::repeat("*", $u["a"]), "\n";
+}
+
+final class Row {
+    // A `return` position carries the same expectation a binding does.
+    public static function make(): ?array<array<string>> {
+        return ["r" => ["c" => "deep"]];
+    }
+
+    // ...and so does an argument.
+    public static function pick(?array<string> $a): string {
+        if ($a != null) {
+            return $a["k"];
+        }
+        return "none";
+    }
+}
+
+?array<array<string>> $n = Row::make();
+if ($n != null) {
+    echo Core\Json::encode($n), "\n";
+}
+
+echo Row::pick(["k" => "w"]), "\n";
+echo Row::pick(null), "\n";
+
+// A stored `null` still satisfies a nullable *element* type, and an empty
+// literal is an array rather than `null`.
+?array<?string> $q = ["k" => null];
+if ($q != null) {
+    echo Core\Json::encode($q), "\n";
+}
+?array<string> $e = [];
+if ($e != null) {
+    echo "empty-is-not-null\n";
+}
+--EXPECT--
+v
+***
+{"r":{"c":"deep"}}
+w
+none
+{"k":null}
+empty-is-not-null
