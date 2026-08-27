@@ -547,6 +547,21 @@ is why" — is this file.
   `target/debug/mwl.exe` in one call told the whole story, where editing the site the item named
   would have closed nothing. Ask every spelling that reaches the same lowering before you believe
   the item's, and `git log -S` on the code the item quotes says whether its half already landed.
+- **`wsl.exe -- bash /mnt/<drive>/<repo>/…` from the Bash tool needs `MSYS_NO_PATHCONV=1` in front of it.**
+  Git Bash rewrites a `/mnt/…` argument into a Windows path *before* `wsl.exe` sees it, so
+  `tools/leak-check.sh`'s own documented invocation fails with
+  `bash: C:/Program Files/Git/mnt/<drive>/<repo>/tools/leak-check.sh: No such file or directory`, which reads
+  as a missing file rather than as a mangled argument. The prefix is the whole fix; the script and
+  the paths it is handed are right.
+- **A `splice.py` anchor copied out of `peek.py`'s output can carry a line break `peek` added.**
+  `peek` wraps a long prose line for display, so a two-line anchor taken from a `.md` file may be
+  one line on disk — the refusal then reads *"the anchor matches for its first 100 character(s) …
+  the file has: ' pass', the anchor wants: ''"*, which is that wrap and nothing else. Keep a prose
+  anchor inside one displayed line, or take it from `grep -n`.
+- **`holes.py` keys on the refusal *phrase*, not on the macro.** A site reworded from `panic!` to
+  `unreachable!` still counts as a language hole while its message says "only lowers", "does not
+  lower" or "no lowering for" (`tools/holes.py`'s `REFUSAL`) — so a session that proves a site dead
+  has to word the proof without those, or the tool keeps handing the site to the next session.
 
 ## Running things
 

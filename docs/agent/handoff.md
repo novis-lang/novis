@@ -2,61 +2,54 @@
 
 ## State
 
-**M4 — language completeness.** `unset()` now has exactly one shape that lowers and no shape that
-panics, and `mwl_types::expr::members::check_unset_target`
-(`crates/mwl-types/src/expr/members.rs:676`) is that rule's only home.
+**M4 — language completeness.** The write-target rule has a fourth entry and no shape below it that
+panics. An element write whose root is not a **place** — `$h->rows()["a"] = "y"`, `[1, 2]["0"] = "z"`,
+a ternary — is `E0700` at `mwl_types::expr::assign::check_write_target`
+(`crates/mwl-types/src/expr/assign.rs:432`), and `is_a_place` beside it is that rule's only home:
+exactly the roots `write_back_array` can re-point. It is the one of the four PHP does *not* refuse
+(8.5 writes into the temporary and discards it silently), so **ADR 0007 § 7 row 15** records the
+divergence.
 
-**The rule is "an array element of a named holder", and ADR 0028 § 3 states it.** A declared
-property, static or instance, is `E0413` — the static half is new, and it names the class that
-*declares* the slot, out of the `ExprInfo::StaticProperty` entry the check itself recorded. Every
-other operand is the new `E0234`, whose two halves are the same rule from either side: a bare local
-has no "undefined again" state to return to (ADR 0007 § 1), and a subscript of a temporary has no
-slot for ADR 0007 § 5's separated array to land in. A subscript chain is additionally run through
-`check_write_target`, so `unset($obj->hooked[0])` and `unset($shape->rows[0])` take the same
-`E0478`/`E0480` the assignments already take.
+**The `E04xx` band is full and the decision is taken.** The types band continues at **`E07xx`**,
+opening at `E0700`; `E0500` is never issued, its digits reading as IR-and-codegen.
+`docs/adr/README.md` § *Decisions taken at project start* owns the reasoning, and `tools/brief.py`
+now prints a filled band as `FULL at E0499` rather than handing out the number past its end. `E08xx`
+is unallocated.
 
-**Two lowering gaps closed with it, both in the holder half.** A static property is now the *third*
-root `write_back_array` (`crates/mwl-ir/src/lower/mod.rs:1960`) can re-point — it is already durable
-storage by `is_aliasing_read`, so the "no retain and no release" paragraph holds unchanged — which
-also makes `Holder::$rows["a"] = "y";` lower. And `lower_unset`
-(`crates/mwl-ir/src/lower/stmt.rs:1232`) flattens a nested target the way `lower_store` does, with
-one deliberate difference: a level is read with `AbsentKey::Throws` rather than vivified through
-`Helper::ArrayRowForWrite`, because a removal that first creates the row it removes from leaves an
-entry neither language puts there. `unset($g["nope"]["0"])` therefore throws (ADR 0007 § 7 row 11)
-and leaves the count unmoved. `tools/leak-check.sh` clean over both, exit 0.
+**Parentheses are transparent to what an expression *is*.**
+`mwl_syntax::ast::Expr::unparenthesized` is that rule's one home, and both walks that ask it go
+through it now — the write-back root, and `Lowering::aliasing_read`. That closed a live
+double-release: `array<string> $b = ($a);` printed correctly and exited **127**, and `($a)["0"] = "y"`
+panicked. Both run, `tools/leak-check.sh` clean over them, exit 0.
 
-**Measured, so it is not re-derived**: what still reaches `write_back_array`'s catch-all
-(`crates/mwl-ir/src/lower/mod.rs:2028`) is exactly *a root that is not a place* —
-`Holder::rows()["a"] = "y";` — and nothing else. `check_write_target` has no fourth entry for it,
-and adding one needs a code the types band cannot supply: `E04xx` is full at `E0499`, `E0500` is the
-last number the max+1 rule yields, and `E0501` is already `mwl-ir`'s. **The band needs a decision
-before a second new types diagnostic**, and the slice below is where it falls due.
+**An increment passes the parser's gate too**, so `$h->n()++` is `E0105` where it is written rather
+than an assertion inside `lower_read_modify_write`, and `lower_store`'s catch-all
+(`crates/mwl-ir/src/lower/stmt.rs:1171`) is proven dead — it is an `unreachable!` carrying the proof.
+Measured, so it is not re-derived: `$b = $a++` and `$c = ++$a` over a local already lower and print
+PHP's answers.
 
 ## Next group
 
-**The write-target half, all in files this session had open.** The file set:
-`crates/mwl-ir/src/lower/stmt.rs`, `crates/mwl-ir/src/lower/mod.rs`,
-`crates/mwl-types/src/expr/assign.rs`, `tests/conformance/`.
+**The two remaining assertions in the write path, both in one file.** The file set:
+`crates/mwl-ir/src/lower/stmt.rs`, `crates/mwl-types/src/expr/assign.rs`, `tests/conformance/lang/`.
 
-- [ ] **An element write whose root is not a place** — `Holder::rows()["a"] = "y";` panics at
-      `crates/mwl-ir/src/lower/mod.rs:2028`. It is `check_write_target`'s missing fourth entry
-      (`crates/mwl-types/src/expr/assign.rs:432`), PHP refusing the same spelling as "temporary
-      expression in write context". Take the `E04xx` band decision in the same slice — a paragraph
-      in `docs/adr/README.md` § *Decisions taken at project start*, per the goal's standing
-      decisions — since this is the diagnostic that spends `E0500`.
-- [ ] **Prove `lower_store`'s catch-all dead, or find what reaches it** —
-      `crates/mwl-ir/src/lower/stmt.rs:1171`. The three arms above it are a local, a
-      compile-time-known property and an element; a static property already lowers, so what is left
-      is whatever the slice above refuses, plus anything the reassignment path reaches that `unset`
-      does not.
-- [ ] **Goal item 7 — `$x++` / `--$x` in both positions** (`mwl-ir` gap 16) —
-      `crates/mwl-ir/src/lower/stmt.rs:435` (`lower_incdec_stmt`), `:454` (`lower_incdec`),
-      `:494` (`lower_read_modify_write`).
+- [ ] **Prove `lower_read_modify_write`'s assertion dead, or find what reaches it** —
+      `crates/mwl-ir/src/lower/stmt.rs:507` asserts `reevaluable_target`
+      (`crates/mwl-ir/src/lower/stmt.rs:1516`). The kinds that can arrive are now exactly the four
+      `mwl_syntax`'s `is_assignable` (`crates/mwl-syntax/src/parser/mod.rs:435`) admits, minus a
+      chain whose root `E0700` refuses; `(new H())->n += 1;` already lowers, staged. The open
+      question is a subscript chain over a property of a temporary.
+- [ ] **`stmt.rs:909` — a property assignment target with no declaring class recorded** — find the
+      spelling that reaches it or word it as the invariant it is (`python tools/holes.py --item 7`
+      lists it).
+- [ ] **`stmt.rs:1198` — an intermediate level of a nested element write with no element type
+      recorded** — same shape of question, same file, same tool.
 
 ## Backlog
 
-- The `E04xx` band is full at `E0499`; `E0500` is the last number and the band needs a successor —
-  `crates/mwl-diagnostics/src/lib.rs`'s own table is the legend to extend.
-- `holes.py` lists 2 unattributed refusal sites in `crates/mwl-codegen/src/ty.rs:116,121` — no item
-  anchors that file (`docs/agent/loop-goal.md`).
-- 14 of 32 named `.mwlt` cases still to write (`python tools/loop.py --list`).
+- `($a) = 5;` and `($a)++;` are `E0105`, and PHP refuses both as parse errors — settled, do not
+  re-open (`crates/mwl-syntax/src/parser/expr.rs`'s `require_write_target`).
+- `E08xx` is unallocated; the next band to fill takes it — `docs/adr/README.md`.
+- ADR 0007 § 2's `array<T> as array<U>` still does not lower, which is what blocks several depth
+  cases — `docs/agent/playbook.md`.
+- `python tools/holes.py` is the live worklist; `--item N` prints one in full.

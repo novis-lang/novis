@@ -154,6 +154,37 @@ impl<'src, 'd> Parser<'src, 'd> {
         lhs
     }
 
+    /// Reports [`code::E_INVALID_ASSIGN_TARGET`] unless `target` is a place —
+    /// the one syntactic gate every write spelling passes through.
+    ///
+    /// An **increment** needs it for the same reason an assignment does, and
+    /// used not to have it: `mwl_ir::lower` desugars `$x++` into the
+    /// `$x = $x + 1` a compound assignment becomes, so a target it cannot
+    /// write to is a target it cannot read-modify-write either, and
+    /// `$h->rows()++` reached that rewrite's own assertion instead of a
+    /// diagnostic. PHP refuses the identical shapes — *"Can't use method
+    /// return value in write context"* — so this is where the four increment
+    /// arms in [`Self::parse_unary`] and [`Self::parse_postfix`] join the two
+    /// assignment ones.
+    ///
+    /// Parentheses are deliberately **not** peeled here: PHP refuses `($a) = 5`
+    /// and `($a)++` outright, at parse time, and the only spelling that does
+    /// write through them is a whole subscript chain (`($a)[0] = 2`, whose
+    /// target is the `Index` this already admits) — which
+    /// `mwl_types::expr::assign::check_write_target` then resolves with
+    /// [`Expr::unparenthesized`], at the level where it means something.
+    fn require_write_target(&mut self, target: &Expr) {
+        if !is_assignable(target) {
+            self.diags.report(
+                Diagnostic::error(
+                    code::E_INVALID_ASSIGN_TARGET,
+                    "this expression cannot be assigned to",
+                )
+                .with_primary(target.span, "not a valid assignment target"),
+            );
+        }
+    }
+
     /// Right-recursive on its own operand (`$a = $b = $c = ...`), so a long
     /// chain of `=` needs the same recursion guard as the array-literal
     /// nesting that originally motivated it — see [`Self::guarded`].
@@ -181,15 +212,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             _ => return target,
         };
         self.bump();
-        if !is_assignable(&target) {
-            self.diags.report(
-                Diagnostic::error(
-                    code::E_INVALID_ASSIGN_TARGET,
-                    "this expression cannot be assigned to",
-                )
-                .with_primary(target.span, "not a valid assignment target"),
-            );
-        }
+        self.require_write_target(&target);
         // `target = &value` binds by reference; PHP has no `&`-form of a
         // compound operator (`+=&` is not a thing), so this only applies to
         // plain `=`.
@@ -463,6 +486,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             TokenKind::PlusPlus => {
                 let start = self.bump().span;
                 let expr = self.parse_unary();
+                self.require_write_target(&expr);
                 let span = start.to(expr.span);
                 Expr {
                     span,
@@ -475,6 +499,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             TokenKind::MinusMinus => {
                 let start = self.bump().span;
                 let expr = self.parse_unary();
+                self.require_write_target(&expr);
                 let span = start.to(expr.span);
                 Expr {
                     span,
@@ -605,6 +630,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 }
                 TokenKind::PlusPlus => {
                     self.bump();
+                    self.require_write_target(&e);
                     let span = e.span.to(self.last_span);
                     e = Expr {
                         span,
@@ -616,6 +642,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 }
                 TokenKind::MinusMinus => {
                     self.bump();
+                    self.require_write_target(&e);
                     let span = e.span.to(self.last_span);
                     e = Expr {
                         span,
