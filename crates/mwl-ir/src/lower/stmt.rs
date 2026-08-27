@@ -302,10 +302,19 @@ impl<'a> Lowering<'a> {
             ExprKind::Print(operand) => {
                 self.lower_print(operand, env, cur);
             }
+            // `isset($a);` on its own line answers a [`Ty::Bool`] nobody
+            // reads, which is why it is here rather than left to the panic:
+            // its operands are still *evaluated*, so a subscript key writing
+            // a local (`isset($a[$i++]);`) writes it exactly where PHP does.
+            // Nothing to release — see `Self::lower_isset_operand`, which
+            // already accounts for every operand it reads.
+            ExprKind::Isset(operands) => {
+                self.lower_isset(operands, env, cur);
+            }
             other => panic!(
                 "mwl-ir's control-flow slice only lowers a plain `$x = expr;` reassignment, a \
-                 bare call/`new`, `print`, or a discarded shape literal as an expression \
-                 statement — got {other:?}; see the crate docs' known gaps"
+                 bare call/`new`, `print`, `isset`, or a discarded shape literal as an \
+                 expression statement — got {other:?}; see the crate docs' known gaps"
             ),
         }
     }

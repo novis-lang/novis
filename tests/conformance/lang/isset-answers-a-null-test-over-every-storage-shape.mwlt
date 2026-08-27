@@ -1,0 +1,81 @@
+--TEST--
+`isset(...)` is `!= null` over a local, a `mixed`, a property, an element and a chain, and a list of operands is a short-circuiting conjunction — ADR 0028 § 3, ADR 0007 § 7 row 11
+--FILE--
+<?mwl
+final class Counter {
+    public int $reads = 0;
+    public ?string $tag;
+    public string $name = "boxy";
+    public function constructor() {
+        $this->tag = null;
+    }
+    public function bump(): string {
+        $this->reads = $this->reads + 1;
+        return "0";
+    }
+}
+
+// ADR 0028 § 3: the whole semantics is `$x != null`. A binding whose declared
+// type holds no `null` is always `true` and costs no test at all.
+?string $a = null;
+?string $b = "x";
+string $s = "plain";
+mixed $m = null;
+echo isset($a) ? "y" : "n", isset($b) ? "y" : "n",
+    isset($s) ? "y" : "n", isset($m) ? "y" : "n", "\n";
+
+// A property is storage like any other: a nullable one reflects what was last
+// assigned, and a non-nullable one is always `true` because ADR 0022 makes it
+// definitely initialised. A static property is in the accepted set too, and
+// is left out here only because `mwl-ir` lowers no read of one yet.
+Counter $c = new Counter();
+echo isset($c->tag) ? "y" : "n", isset($c->name) ? "y" : "n";
+$c->tag = "here";
+echo isset($c->tag) ? "y" : "n", "\n";
+
+// ADR 0007 § 7 row 11's throw is off under an `isset`, the same way it is
+// under a `??` — an absent key is exactly what this construct asks about, so
+// reporting it by throwing would refuse the question.
+array<string> $arr = ["k" => "v"];
+echo isset($arr["k"]) ? "y" : "n", isset($arr["nope"]) ? "y" : "n", "\n";
+
+// A stored `null` is indistinguishable from an absent key here: `isset` asks
+// `!= null` and both answer it the same way.
+array<?string> $holes = ["here" => "v", "empty" => null];
+echo isset($holes["here"]) ? "y" : "n", isset($holes["empty"]) ? "y" : "n", "\n";
+
+// Every level of a chain is guarded, not only the outermost one, and an
+// untested `?array<T>` needs no `!= null` first.
+array<array<string>> $grid = ["r" => ["c" => "v"]];
+?array<string> $maybe = null;
+echo isset($grid["r"]["c"]) ? "y" : "n", isset($grid["r"]["z"]) ? "y" : "n",
+    isset($grid["q"]["c"]) ? "y" : "n", isset($maybe["k"]) ? "y" : "n", "\n";
+
+// The list is a conjunction, evaluated left to right and short-circuiting:
+// the first `false` operand is the last one evaluated at all, which is
+// observable through the side effect in `Counter::bump`.
+echo isset($a, $arr[$c->bump()]) ? "y" : "n", " ", $c->reads, "\n";
+echo isset($b, $arr[$c->bump()]) ? "y" : "n", " ", $c->reads, "\n";
+echo isset($b, $s, $a) ? "y" : "n", isset($b, $s) ? "y" : "n", "\n";
+
+// It is an ordinary `bool` expression, so it composes with a condition, with
+// `&&` and with `!` like any other.
+if (isset($b) && !isset($a)) {
+    echo "composed\n";
+}
+
+// And it is a statement too. Nothing reads the answer, but the operands are
+// still evaluated, so a subscript key with a side effect still runs.
+isset($arr[$c->bump()]);
+echo $c->reads, "\n";
+--EXPECT--
+nyyn
+nyy
+yn
+yn
+ynnn
+n 0
+n 1
+ny
+composed
+2

@@ -26,17 +26,18 @@
 //! | [`literals`] | how a literal takes its type from its position |
 //! | [`members`] | a property, class constant or enum case, and who diagnoses it |
 //! | [`operators`] | ADR 0007 § 4's result table and the refusals layered on it |
+//! | [`presence`] | ADR 0028 § 3's `isset(...)`, and what its operands may be |
 //! | [`quals`] | ADR 0024's `tainted`, ADR 0033's `secret`, and their sinks |
 //!
 //! Two fallbacks are deliberate and belong to no module. A method/static call
 //! not statically resolvable to a known signature — an unresolved receiver, a
 //! dynamic member name, a `Core`-namespaced target with no modeled stdlib
 //! signature — types as `mixed` with no diagnostic, the same way this checker
-//! only ever reports what it can be sure of. `isset(...)`/`empty(...)` go
-//! further: PHP tolerates an unset operand there by design, and whether that
-//! still holds once every local is declared and flow-checked is an open
-//! language question beyond this slice, so their operands are left entirely
-//! unchecked rather than guessed at.
+//! only ever reports what it can be sure of. `empty(...)` is the other: its
+//! operand is still left entirely unchecked, which is [`presence`]'s next
+//! slice rather than a decision — `isset(...)`'s operands are checked there
+//! now, and PHP's "an unset operand is tolerated" is answered by ADR 0007
+//! § 1 instead, every local being declared before it can be named at all.
 
 use mwl_diagnostics::{Diagnostic, SourceFile, Span, code};
 use mwl_hir::{ClassGraph, QName, SymbolKind};
@@ -65,6 +66,7 @@ mod iteration;
 mod literals;
 mod members;
 mod operators;
+mod presence;
 mod quals;
 
 use self::{
@@ -445,7 +447,16 @@ pub(super) fn infer(
             check_expr(inner, None, live, scope, ctx, env);
             env.interner.never()
         }
-        ExprKind::Isset(_) | ExprKind::Empty(_) => env.interner.bool_ty(),
+        // ADR 0028 § 3: `isset($x)` is `$x != null`, and a list of operands
+        // is the conjunction — so every one of them is checked, and every
+        // subscript under one is a guarded read. `presence` owns both rules.
+        ExprKind::Isset(operands) => {
+            for operand in operands {
+                presence::check_isset_operand(operand, live, scope, ctx, env);
+            }
+            env.interner.bool_ty()
+        }
+        ExprKind::Empty(_) => env.interner.bool_ty(),
         ExprKind::Exit(opt) => {
             if let Some(e) = opt {
                 check_expr(e, None, live, scope, ctx, env);

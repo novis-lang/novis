@@ -289,12 +289,15 @@ impl<'a> Lowering<'a> {
             // PHP's one expression-valued output construct — see
             // `Self::lower_print` for why its answer is always `1`.
             ExprKind::Print(operand) => self.lower_print(operand, env, cur),
+            // ADR 0028 § 3's `isset($x)` is `$x != null`, and a list of them
+            // is the conjunction — see `Self::lower_isset`.
+            ExprKind::Isset(operands) => (self.lower_isset(operands, env, cur), Ty::Bool),
             other => panic!(
                 "mwl-ir's control-flow slice only lowers literals, locals, unary/binary \
                  operators, `new`, a static or instance method call, property access, an array \
-                 literal, an array-element read, `instanceof`, an enum case, an increment, an \
-                 assignment, `print` and an `as` conversion — got {other:?}; see the crate \
-                 docs' known gaps"
+                 literal, an array-element read, `instanceof`, `isset`, an enum case, an \
+                 increment, an assignment, `print` and an `as` conversion — got {other:?}; \
+                 see the crate docs' known gaps"
             ),
         }
     }
@@ -1554,6 +1557,113 @@ impl<'a> Lowering<'a> {
         );
         *cur = merge_block;
         (value, result_repr)
+    }
+    /// `isset($a, $b, …)` — ADR 0028 § 3: each operand is `!= null`, and the
+    /// list is their conjunction, evaluated left to right and **short-circuit**
+    /// exactly as PHP's is. That is observable rather than an optimisation:
+    /// `isset($a, $b[$i++])` leaves `$i` alone when `$a` is `null`, so the
+    /// tail is lowered on one edge only, in the same branch/merge shape
+    /// [`Self::lower_and`] uses, and the recursion is over the tail rather
+    /// than a fold so a three-operand `isset` short-circuits at either point.
+    ///
+    /// No operand can *throw* on absence: `mwl_types::expr::presence` marks
+    /// every subscript level under an `isset` in `Env::coalesce_guarded`, the
+    /// same set `??` fills, so ADR 0007 § 7 row 11's throw is off for exactly
+    /// the reads this construct exists to ask about.
+    pub(super) fn lower_isset(
+        &mut self,
+        operands: &[Expr],
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> ValueId {
+        let (first, rest) = operands
+            .split_first()
+            .expect("mwl-ir: `mwl_syntax`'s `parse_isset` always parses at least one operand");
+        let first_v = self.lower_isset_operand(first, env, cur);
+        if rest.is_empty() {
+            return first_v;
+        }
+        let first_end = *cur;
+        let short_v = self.emit(first_end, Ty::Bool, InstKind::ConstBool(false)).0;
+
+        let rest_block = self.new_block();
+        let merge_block = self.new_block();
+        let rest_edge = self.ids.next_edge(rest[0].span);
+        let short_edge = self.ids.next_edge(first.span);
+        self.seal(
+            first_end,
+            Terminator::Branch {
+                cond: first_v,
+                then_block: rest_block,
+                then_edge: rest_edge,
+                else_block: merge_block,
+                else_edge: short_edge,
+            },
+        );
+
+        // The tail runs on one edge only, so it rebinds into its own copy and
+        // the two edges are reconciled at the merge — [`Self::lower_and`]'s own
+        // rule, and what `isset($a, $b[$i++])` needs to write `$i` exactly
+        // where PHP writes it.
+        let pre_env = env.clone();
+        let mut rest_env = pre_env.clone();
+        let mut rest_cur = rest_block;
+        let rest_v = self.lower_isset(rest, &mut rest_env, &mut rest_cur);
+        let rest_end = rest_cur;
+        self.seal(rest_end, Terminator::Jump(merge_block));
+        *env = self.merge_envs(
+            merge_block,
+            &[(first_end, pre_env.clone()), (rest_end, rest_env)],
+            &pre_env,
+        );
+
+        let (result, _) = self.emit(
+            merge_block,
+            Ty::Bool,
+            InstKind::Phi {
+                incoming: vec![(first_end, short_v), (rest_end, rest_v)],
+            },
+        );
+        *cur = merge_block;
+        result
+    }
+    /// One `isset` operand's own answer: `!= null`, decided by the operand's
+    /// *representation* wherever that already settles it.
+    ///
+    /// Only a [`Ty::Tagged`] operand can hold `null` at run time, so every
+    /// other one is a constant — `true` for a value that exists by its own
+    /// declaration (ADR 0022 makes a declared property definitely initialised,
+    /// ADR 0007 § 1 a local), `false` for the literal `null`'s own
+    /// [`Ty::Null`]. That is the same short-circuit on representation
+    /// [`Self::lower_coalesce`] takes, and it is why `isset` costs nothing at
+    /// all on a non-nullable operand.
+    fn lower_isset_operand(&mut self, operand: &Expr, env: &mut Env, cur: &mut BlockId) -> ValueId {
+        let (v, ty) = self.lower_expr(operand, None, env, cur);
+        let present = match ty {
+            Ty::Null => self.emit(*cur, Ty::Bool, InstKind::ConstBool(false)).0,
+            Ty::Tagged => {
+                let is_null = self.emit(*cur, Ty::Bool, InstKind::IsNull { operand: v }).0;
+                self.emit(
+                    *cur,
+                    Ty::Bool,
+                    InstKind::UnOp {
+                        op: UnOp::Not,
+                        operand: is_null,
+                    },
+                )
+                .0
+            }
+            _ => self.emit(*cur, Ty::Bool, InstKind::ConstBool(true)).0,
+        };
+        // The operand is only read, so a fresh one nothing else owns — an
+        // element read off a temporary, a `get` hook's return — is released
+        // once the test has read it. Same rule [`Self::lower_instanceof`]
+        // applies to its own subject, and the answer being a [`Ty::Bool`] is
+        // what makes "right after" safe.
+        if !self.aliasing_read(operand) && ty.is_refcounted() {
+            self.emit_release(*cur, v);
+        }
+        present
     }
     /// `!expr` — ADR 0035's truthy table applied to `expr`, then negated;
     /// always produces [`Ty::Bool`] regardless of `expr`'s own type, unlike a

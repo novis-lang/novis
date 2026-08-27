@@ -1009,6 +1009,19 @@ pub mod code {
     /// test is dead code that reads as a live question. `mixed`, `object`, a
     /// shape, a class and any union holding one all keep the run-time test.
     pub const E_INSTANCEOF_SUBJECT_NOT_OBJECT: Code = Code::new("E0497");
+    /// An `isset(...)` operand that names no storage — `isset(f())`,
+    /// `isset($a + 1)`, `isset(Foo::BAR)`.
+    ///
+    /// PHP refuses the identical shape at compile time, and its own message
+    /// names the replacement: *"Cannot use isset() on the result of an
+    /// expression (you can use `null !== expression` instead)"*. ADR 0028 § 3
+    /// fixes `isset($x)` as `$x != null`, so an operand that is already a
+    /// value rather than a place has nothing `isset` can ask that `!= null`
+    /// does not ask more plainly.
+    ///
+    /// The accepted set is PHP's: a variable, a subscript, a property (`?->`
+    /// included), a static property, and any of those in parentheses.
+    pub const E_ISSET_NOT_A_VARIABLE: Code = Code::new("E0498");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.
