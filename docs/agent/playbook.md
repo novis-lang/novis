@@ -498,6 +498,15 @@ is why" — is this file.
   happily print `E0500`, which belongs to another phase; do not take it. Widening the band
   (`E04xxx`, or a second types band) is a decision the session that needs one takes, in
   `docs/adr/README.md` § *Decisions taken at project start*, with the reason.
+- **A `## Next group` item's rationale is a hypothesis, not a specification, and one `php -r`
+  settles it.** The `exit` item said "`finally` must still run, which is what makes this an
+  unwind rather than a `return`" — and PHP runs no `finally` on an `exit` at all:
+  `php -r 'try { exit(3); } finally { echo "f"; }'` prints nothing and exits 3. So the
+  expensive framing (a fourth unwind kind, a `finally` ladder that has to distinguish it) was
+  the wrong one, and the cheap shape — a helper whose success is a non-`OK` status, riding the
+  status check that already exists — was PHP-exact. Priority 2 decides these and PHP is on
+  `PATH`: run the twin *before* costing the design. Same rule the neighbouring
+  `loop-goal.toml` bullet states for a check's comment, one file over.
 
 ## Running things
 

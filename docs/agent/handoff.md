@@ -2,59 +2,58 @@
 
 ## State
 
-**M4 — language completeness.** A `static` property now has storage, read and write, end to
-end: the checker records `ExprInfo::StaticProperty` (`crates/mwl-types/src/expr/mod.rs:265`),
-`mwl_ir::ir::Program::statics` fixes one slot per declared static, `InstKind::StaticGet`/
-`StaticSet` name it by `(declaring class, name)`, and `mwl-codegen` resolves that pair to an
-index into a per-request `Value` vector reached through `mwl_runtime::STATICS_OFFSET` — two
-loads and no call, the `FieldGet` shape with the context in place of a receiver.
+**M4 — language completeness.** `exit` and `exit(...)` run, end to end. `mwl_runtime::EXITED`
+is a fourth ABI status beside `OK`/`THROWN`/`FATAL` (`crates/mwl-runtime/src/abi.rs:37`) and
+the status the program named rides out on `Ctx::exit_code`. The construct lowers to a single
+`Helper::Exit` call (`crates/mwl-ir/src/lower/expr.rs:@lower_exit`) whose *success* is that
+non-`OK` status, so the ADR 0002 status check `mwl-codegen` already emits takes the site's
+error edge: the frame's live locals are released in its landing block, and every caller's own
+check propagates it onward for nothing.
 
-**The storage is request-scoped**, armed by `Unit::install_in` and released by `Ctx`'s `Drop`.
-`docs/adr/README.md` § *Decisions taken at project start* owns the decision (priority 1: a
-process-global static is a channel from one request into the next); `mwl_runtime::ctx`'s
-module docs own the mechanism and what it spends.
+**No `catch` sees it and no `finally` runs** — `Terminator::Catch` admits only `THROWN`, and
+every copy of a `finally` body lives behind that comparison. That is PHP's own behaviour,
+checked against `php -r` rather than assumed; the item that scheduled this work asserted the
+opposite, and the playbook now says so. `docs/adr/README.md` § *Decisions taken at project
+start* owns the decision and what it costs.
 
-Two shapes are refused rather than answered wrongly: a non-nullable static with no
-initializer is `E0409` at its declaration (no constructor can discharge an obligation on
-storage that is not any instance's), and `static::$prop` is `E0499` — PHP re-resolves it
-against the *called* class, which this slot layout cannot express. `E0499` is **the last
-code in the `E04xx` band**; see the playbook.
+The operand carries both of PHP's spellings: an `int` is the process status, a `string` is a
+message written first with the status left at `0`. Anything else is `E0401` at the operand
+(`crates/mwl-types/src/expr/mod.rs:496`) — no new diagnostic code was claimed, because
+**`E0499` is still the last code in the `E04xx` band** and a band decision is owed before the
+next types diagnostic. `mwl run` maps `EXITED` to the low byte of the code and reports nothing.
 
-`verify.py` 6 of 6 green — conformance **612**, differential **173**, 1633 unit tests.
-`tools/leak-check.sh` clean over a fixture that assigns a `string` static from itself.
+`verify.py` 6 of 6 green — conformance **614**, differential 173. `tools/leak-check.sh` clean
+over a fixture that `exit(7)`s out of a nested frame holding a `string` local.
 
 ## Next group
 
-**`exit` first, then late static binding for a static property.** They share no files; `exit`
-is the item this session did not reach and is a feature that was never built, while the
-late-binding hole is one this session created the diagnostic for and named the shape of.
+**`object` as a declared type, in the two crates that erase it.** They share the
+representation map: `crates/mwl-ir/src/lower/mod.rs` and `crates/mwl-codegen/src/ty.rs`. The
+standing decisions already settle the design — "`object` erases to the same pointer a named
+class does" — so what is left is the two erasure arms and the two codegen rows, plus finding
+whether anything below reads a class label.
 
-- [ ] **`exit` and `exit(...)` need a distinguished unwind.** `ExprKind::Exit` is
-      `crates/mwl-syntax/src/ast.rs:851`; it reaches `lower_expr_stmt`
-      (`crates/mwl-ir/src/lower/stmt.rs:225`) and `lower_expr`'s catch-all
-      (`crates/mwl-ir/src/lower/expr.rs:300`) with no arm. The status vocabulary is
-      `crates/mwl-runtime/src/abi.rs:35` (`OK`/`THROWN`/`FATAL`) and the terminators are
-      `crates/mwl-ir/src/ir.rs:1822` — decide whether `exit` is a fourth status or a
-      `FATAL` carrying an exit code, and record it in `docs/adr/README.md`
-      § *Decisions taken at project start*. `finally` must still run, which is what makes
-      this an unwind rather than a `return`.
-- [ ] **`static::$prop` could resolve like PHP instead of being refused.** It needs a
-      per-class static slot table hanging off the `ClassDesc` rather than the flat
-      unit-wide vector `mwl_ir::ir::Program::statics` is today
-      (`crates/mwl-ir/src/ir.rs:22`), plus a runtime lookup keyed on the late-static-binding
-      class the callee already carries in slot 0 (`crates/mwl-ir/src/lower/mod.rs:677`).
-      Only a subclass that *redeclares* the static observes the difference. The refusal is
-      `crates/mwl-types/src/expr/mod.rs:265` and its case is
-      `tests/conformance/reject/a-static-property-is-refused-uninitialized-and-late-bound.mwlt`.
+- [ ] **`erase_checked_ty` has no `object` arm.** `crates/mwl-ir/src/lower/mod.rs:2206` is the
+      map; the two refusals are `crates/mwl-ir/src/lower/mod.rs:2399` (a declared type) and
+      `crates/mwl-ir/src/lower/mod.rs:2482` (a resolved call's parameter or return). Watch the
+      playbook's "two edits, and the second one panics somewhere else" bullet — it is this
+      exact function.
+- [ ] **`mwl-codegen`'s representation map refuses the same two shapes.**
+      `crates/mwl-codegen/src/ty.rs:116` ("the static tag of a tagged value") and
+      `crates/mwl-codegen/src/ty.rs:121` ("a value of representation `{ty:?}` crossing a call
+      boundary") are the sites `holes.py` reports as attributed to no item at all. Whatever
+      `object` erases to above has to land here, or the feature fails one crate later.
 
 ## Backlog
 
-- The `E04xx` band is exhausted at `E0499` — the next type diagnostic needs a band decision
-  (`docs/adr/README.md` § *Decisions taken at project start*).
-- `ExprInfo::StaticProperty`'s write side goes through `lower_store`'s new arm
-  (`crates/mwl-ir/src/lower/stmt.rs`); a compound `Class::$p += 1` was not exercised and
-  may reach `lower_read_modify_write`'s staged-target path, which has no static arm.
-- `docs/spec/02-php-migration.md` has not been re-scored since statics landed —
-  `python tools/check-migration.py`.
-- `holes.py` still reads 24 sites / 6 items: no worklist item named the static property, so
-  the count is unchanged by this session.
+- `static::$prop` is `E0499` rather than PHP's called-class resolution — the slot layout keys
+  on the declaring class; `docs/adr/README.md` § *Decisions taken at project start*.
+- **`E0499` is the last `E04xx` code.** The next types diagnostic needs a band decision in
+  `crates/mwl-diagnostics/src/lib.rs`; this session sidestepped it by reusing `E0401`.
+- `exit` has no `tests/differential/` case pinning the `finally` skip against PHP directly —
+  the agreement was checked by hand and is pinned only in `tests/conformance/lang/`.
+- Item 1, ADR 0007 § 4's promotion table: 11 refusal sites, the largest single item left
+  (`python tools/holes.py --item 1`).
+- Item 7, `$x++`/`--$x`: 5 sites. Item 16, a named or spread argument: 1 site, checker half
+  first per the standing decisions.
+- `tests/conformance/` still owes 17 of the 32 named cases (`python tools/holes.py --cases`).
