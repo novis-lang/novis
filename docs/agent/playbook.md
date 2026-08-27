@@ -427,6 +427,14 @@ is why" — is this file.
   written. The tool's totals are right; only the attribution is a guess. When an item's prose
   names a shape, grep the shape (`grep -rn '&\$x' crates/mwl-ir/src`) before believing the site
   list is the whole item.
+- **`holes.py` counts a site by the *words* in its message, so an assert that has become an
+  internal-consistency check still reads as a hole until it stops saying "does not lower".** The
+  regex is `does not (yet )?lower|only lowers|no lowering for` (`tools/holes.py`, `REFUSAL`), and
+  nothing else marks a site as decided — there is no allowlist and no attribute. So the last edit
+  of a slice that answers a hole *at the checker* is to reword the assert the way item 19's three
+  were reworded: state what reached lowering and name the code that refuses it ("… reached
+  lowering: … refuses this where it is written, as `E0494`"). Skip it and the worklist you quote in
+  the plan is one higher than the tree.
 
 ## Running things
 
@@ -564,6 +572,12 @@ is why" — is this file.
   **PowerShell** tool instead and it works unchanged; `MSYS_NO_PATHCONV=1` is the other way and is one
   more thing to remember. The same rewrite applies to any `/mnt/...` or `/tmp/...` argument handed to
   `wsl.exe` from Bash.
+- **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh …` from the Bash tool dies with
+  *"C:/Program Files/Git/mnt/<drive>/<repo>/… No such file or directory"***, because Git Bash rewrites any
+  argument that looks like a Unix path before `wsl.exe` ever sees it. The script's own header shows
+  the invocation and cannot show this, since it is the *caller's* shell that mangles it. Prefix the
+  call with `MSYS_NO_PATHCONV=1` and it runs unchanged; the fixture paths after it are relative and
+  survive either way.
 
 ## Adding a `Core` member
 

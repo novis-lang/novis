@@ -65,8 +65,8 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 592 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
-> and `reject`) and `tests/differential` × 165, `fuzz/`, `tools/`, `benches/abi-probe`.
+> `run`), `tests/conformance` × 593 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> and `reject`) and `tests/differential` × 166, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
 > SDK 10.0.26100 for linking, PHP 8.5.9 as the differential oracle — on the Windows `PATH` and
@@ -357,12 +357,27 @@
 > of `&$x`. The third site went with them and needed no rule of its own: only `lower_method`'s
 > parameter loop ever binds a `Ty::Ref`, so with E0492 standing no `&$x` binding can be live across
 > a `yield`, and `lower_yield`'s assert is an internal-consistency check now rather than a hole.
-> **What item 19 still owes is a lowering, not a refusal**: a closure *capturing* an enclosing `&$x`
-> parameter (`crates/mwl-ir/src/lower/expr.rs:2839`) should snapshot the cell's value at the
-> literal, which is ADR 0031 § 2's by-value capture and one `RefLoad` — `holes.py` attributes that
-> site to item 17, because it shares `lower/expr.rs`. `python tools/holes.py` is down to **29 sites
-> and 7 items**. **M4S Part I is the floor, not the frontier**: conformance is at 592 of the goal's
-> new 750 and differential at 165 of 165, `python tools/gaps.py` still ranks the thin classes, and a
+> **Item 19 is closed outright, and its last piece was a lowering rather than a refusal**: a closure
+> *capturing* an enclosing `&$x` parameter takes ADR 0031 § 2's by-value snapshot — one
+> `InstKind::RefLoad` at the literal, at the pointee representation `Lowering::pointee_of`
+> remembers, then the same retain every refcounted capture already takes, so the environment object
+> owns its own reference and the closure is safe to outlive the call that staged the cell. Copying
+> is what makes it safe, and it is also what PHP's arrow function does (capture by value at
+> creation), so every row is byte-identical and pinned that way in
+> `tests/differential/lang/a-closure-capturing-a-by-reference-parameter-snapshots-it.mwlt`;
+> `tools/leak-check.sh` is green over a fixture that returns the closure and invokes it after the
+> frame that staged the cell is gone. **An object literal writing one field name twice is E0494**,
+> where it is written rather than a panic below it: a shape's fields are a set, and the two sides
+> would not even agree on which write survives — `mwl_types` interns the shape reading the *first*
+> of the pair, while the class `mwl-ir` synthesizes carries one slot per name and would keep the
+> last. PHP's nearest neighbour is a duplicate *array* key, where the last write wins silently, and
+> that reading is deliberately not carried over: an array is a map and a shape is a record.
+> `mwl_types::expr::literals::check_object_literal` owns the rule and its reasoning, the duplicate's
+> own initializer is still checked so its errors arrive in the same run, and ADR 0063 R2's options
+> bag — written with the same braces — keeps its own `E0304` at the argument checker, so one
+> spelling has two owners and neither reports twice. `python tools/holes.py` is down to **27 sites
+> and 7 items**. **M4S Part I is the floor, not the frontier**: conformance is at 593 of the goal's
+> new 750 and differential at 166 of 165, `python tools/gaps.py` still ranks the thin classes, and a
 > `Core` depth slice is a legitimate slice when a group is blocked — never a reason to leave a
 > language item unfinished. `docs/spec/02-php-migration.md` is 31% classified (`python
 > tools/check-migration.py`).
