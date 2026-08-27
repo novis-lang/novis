@@ -351,33 +351,63 @@
 > `tests/differential/lang/a-reference-argument-matches-phps.mwlt`, which deliberately writes no
 > read to the *left* of such a call: that is the operand-order divergence `Lowering::pending_refs`
 > owns, PHP's manual leaves it undefined, and it is not a difference to pin. **An abandoned
-> generator's `finally` has an entry point now**, which is item 13's first half and the half that
-> had the design call in it. Every generator's state class carries a fourth synthesized method,
-> `{name}$gen::unwind`, and one more `Ty::Int` field, `gen#unwind`: `unwind` reads the parked state,
-> and where that state names an actual suspension — anything above `0`, since `0` is "never entered"
-> and so no `try` has been entered either — it raises the flag and re-enters `advance()`, whose
-> entry switch lands on that suspension's own resume block. A resume block that sits inside a
-> `finally`-owning region grows a branch on the flag, and its unwind arm is lowered as **exactly
-> what `return;` lowers to at that point** — `run_pending_finallys` over every enclosing region,
-> innermost first, then `finish_generator` — so the ladder, the per-binding releases and the exit
-> are the body's own rather than a second copy of the rules. A suspension owing nothing grows no
-> branch at all, which is why a generator with no `finally` lowers byte-identically to before. **It
-> is not a destructor and re-opens nothing in ADR 0028 § 2**, whose body now says so in its own
-> paragraph: no class declares anything, no method name is recognized, no object gains a lifecycle
-> hook, and the only code that runs is code the program had already entered and suspended inside.
-> One convention is deliberately inverted and it is the reason the design works: **`unwind` borrows
-> argument 0**, alone among compiled methods, because the release path reaches it at the moment a
-> count has already hit zero — a consuming convention would ask that caller for a reference it no
-> longer has, and `advance`'s own release on the way out would then cross zero a second time and
-> re-enter the release path on the allocation it is already dismantling. The retain inside `unwind`
-> pairs with that release, so the count it is handed is the count it leaves behind. What is still
-> open is the other end, `mwl-ir` gap 18's remaining sentence: `mwl_runtime::object::dismantle` does
-> not look the method up, so a `break` out of a `foreach` still leaves the frame parked and prints
-> nothing. Three live tools **are** the worklist and no session re-derives one: `python
-> tools/holes.py` reads the refusal sites out of `mwl-ir` and `mwl-codegen` and attributes each to
-> its item (`--item N` for one in full), `python tools/loop.py --list` prints the named `.mwlt`
-> cases each stage still owes, and `python tools/check-migration.py` scores
-> `docs/spec/02-php-migration.md`.
+> generator's `finally` runs**, which is item 13 whole and the item that had the design call in it.
+> Every generator's state class carries a fourth synthesized method, `{name}$gen::gen#unwind`, and
+> one more `Ty::Int` field, `gen#unwind`: the method reads the parked state, and where that state
+> names an actual suspension — anything above `0`, since `0` is "never entered" and so no `try` has
+> been entered either — it raises the flag and re-enters `advance()`, whose entry switch lands on
+> that suspension's own resume block. A resume block that sits inside a `finally`-owning region
+> grows a branch on the flag, and its unwind arm is lowered as **exactly what `return;` lowers to at
+> that point** — `run_pending_finallys` over every enclosing region, innermost first, then
+> `finish_generator` — so the ladder, the per-binding releases and the exit are the body's own
+> rather than a second copy of the rules. A suspension owing nothing grows no branch at all, which
+> is why a generator with no `finally` lowers byte-identically to before. **It is not a destructor
+> and re-opens nothing in ADR 0028 § 2**, whose body now says so in its own paragraph: no class
+> declares anything, no method name is recognized, no object gains a lifecycle hook, and the only
+> code that runs is code the program had already entered and suspended inside. One convention is
+> deliberately inverted and it is the reason the design works: **`unwind` borrows argument 0**,
+> alone among compiled methods, because the release path reaches it at the moment a count has
+> already hit zero — a consuming convention would ask that caller for a reference it no longer has,
+> and `advance`'s own release on the way out would then cross zero a second time and re-enter the
+> release path on the allocation it is already dismantling. The retain inside `unwind` pairs with
+> that release, so the count it is handed is the count it leaves behind. The other end is now
+> `mwl_runtime::object::dismantle`, which calls that entry point before it sweeps the field slots —
+> where the parked locals the `finally` body reads still are — and three decisions make the call
+> safe, each recorded where it is made rather than in an ADR. **The name is unspellable**: the
+> method is `gen#unwind` rather than `unwind`, because the probe is made against *every* dying
+> object's class and a name a program could declare would turn a user method into the destructor ADR
+> 0028 § 2 says MWL does not have. **It is a descriptor field, not a probe**:
+> `ClassTable::set_methods` resolves the one row once per class into `ClassDesc::unwind`, the
+> precedent `ClassDesc::renderer` set, so a dying object that is not a generator pays a null test
+> rather than a binary search over its whole method table. **The entry point resumes only a
+> suspension that owes a `finally`** — the state values whose resume block grew an unwind arm are
+> collected while `advance()` is lowered and tested for membership, because a `state > 0` test
+> resumes a suspension that owes nothing and carries on running the body, which is the opposite of
+> abandoning it; a generator with no owed state carries no entry point and no method row at all,
+> which is what keeps it lowering exactly as it did. **The count is resurrected to one first**,
+> since `gen#unwind` borrows and `advance()` releases — a pair that would otherwise cross zero and
+> re-enter the release path on the allocation already being dismantled — and the allocation is freed
+> below whatever the count then reads. The context the call needs comes from the thread rather than
+> from a parameter: `mwl_runtime::ctx::CurrentCtx` is installed by `abi::call`, the one door from
+> Rust into compiled code, because threading a context through every release primitive would put a
+> parameter on the hot path of every decrement in the language to serve the one release in ten
+> thousand that frees a suspended generator. One divergence from PHP is left and it is deliberate: a
+> throw escaping such a `finally` is **discarded**, a release having no error edge to report it on
+> and a landing pad's own in-flight exception being the thing that would otherwise be replaced —
+> `Ctx::with_pending_set_aside` is that decision's home, ADR 0028 § 2's own paragraph now says so
+> instead of claiming an error edge it does not have, and surfacing it wants ADR 0020's ladder. Item
+> 13's two named cases land with it,
+> `tests/conformance/iter/an-abandoned-generator-runs-the-finally-it-is-suspended-inside.mwlt` over
+> six shapes — abandoned inside the region, drained (the `finally` runs once and the release does
+> not re-run it), never entered, two nested regions innermost first, and a suspension the region
+> does not cover, which owes nothing — and the oracle twin
+> `tests/differential/iter/an-abandoned-generators-finally-matches-phps.mwlt`, which adds an
+> abandonment made while an exception is in flight and agrees with PHP 8.5.9 byte for byte.
+> Valgrind-clean over four scratch fixtures covering the same shapes, the throwing `finally` among
+> them. Three live tools **are** the worklist and no session re-derives one: `python tools/holes.py`
+> reads the refusal sites out of `mwl-ir` and `mwl-codegen` and attributes each to its item (`--item
+> N` for one in full), `python tools/loop.py --list` prints the named `.mwlt` cases each stage still
+> owes, and `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

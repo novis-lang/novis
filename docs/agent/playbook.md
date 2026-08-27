@@ -620,6 +620,13 @@ is why" — is this file.
   accepting *every* pending snapshot still applies whichever way you accept: run
   `git status --short` first, and any `.snap.new` you did not just produce is one to
   delete rather than to accept.
+- **`cargo insta accept` does not exist on this box** — `cargo-insta` is not installed, and the
+  failure reads as a mistyped cargo subcommand rather than as a missing tool. The pending
+  snapshots are still written, as `*.snap.new` beside the `*.snap` (not `.pending-snap`), and
+  accepting one by hand is copying it over its neighbour minus the `assertion_line:` header line
+  insta strips. `diff` each pair first: that is the review the tool would have shown you, and the
+  neighbouring bullet's warning about accepting a *previous* session's leftovers applies to a
+  by-hand sweep exactly as much.
 
 ## Running things
 
