@@ -119,3 +119,92 @@ fn a_negative_literal_into_a_uint_local_is_an_ordinary_type_mismatch() {
         "{diags:?}"
     );
 }
+
+/// ADR 0007 § 4's "either operand a `float`" row, read as a *widening*: a
+/// mixed-representation arithmetic pair produces the wider of the two, so it
+/// lands in a `float` binding and is refused at an `int` one. Both operand
+/// orders and both integer tags, because the row is stated over "either
+/// operand" and says nothing about which side it is on.
+#[test]
+fn a_mixed_numeric_pair_widens_the_narrower_operand() {
+    let widened = check_in_method(
+        "int $i = 1;\nuint $u = 1;\nfloat $f = 1.5;\n\
+         float $a = $i + $f;\nfloat $b = $f * $i;\n\
+         float $c = $u - $f;\nfloat $d = $f + $u;\n",
+    );
+    assert!(!widened.has_errors(), "{widened:?}");
+
+    // The widening only ever runs toward `float`. Nothing narrows the pair
+    // back to fit a declaration — that would be the implicit conversion
+    // ADR 0007 § 2 has exactly one of, and this is not it.
+    let narrowed = check_in_method("int $i = 1;\nfloat $f = 1.5;\nint $n = $i + $f;\n");
+    assert!(
+        narrowed
+            .iter()
+            .any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{narrowed:?}"
+    );
+}
+
+/// The comparison rows widen the same pairs the arithmetic rows do — and one
+/// more, since `int` against `uint` is exact in the mathematical integers and
+/// is the pair § 4 refuses to *add*. What they produce is `bool`, never the
+/// widened operand type, which is the half a table keyed on the operands
+/// alone would get wrong.
+#[test]
+fn a_mixed_numeric_comparison_widens_the_same_way() {
+    let compared = check_in_method(
+        "int $i = 1;\nuint $u = 1;\nfloat $f = 1.5;\n\
+         bool $a = $i < $f;\nbool $b = $f >= $u;\n\
+         bool $c = $i <= $u;\nbool $d = $u > $i;\n",
+    );
+    assert!(!compared.has_errors(), "{compared:?}");
+
+    // The same `int`/`uint` pair, under `+`, is still the refusal its own
+    // neighbour above pins — comparing is widened, arithmetic is not.
+    let added = check_in_method("int $i = 1;\nuint $u = 1;\nint $n = $i + $u;\n");
+    assert!(
+        added
+            .iter()
+            .any(|d| d.code == Some(code::E_INT_UINT_ARITHMETIC)),
+        "{added:?}"
+    );
+
+    let mistyped = check_in_method("int $i = 1;\nfloat $f = 1.5;\nfloat $n = $i < $f;\n");
+    assert!(
+        mistyped
+            .iter()
+            .any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{mistyped:?}"
+    );
+}
+
+/// ADR 0007 § 4: `int / int` is the union `int|float` — PHP-exact, `6/3`
+/// being an integer and `7/2` a float — and § 2's one implicit conversion is
+/// what absorbs it, **at the binding**, never at the operator. So the
+/// quotient lands in a declared `float` and is a diagnostic at a declared
+/// `int`, which is the ADR's own worked example both ways round.
+#[test]
+fn an_integer_division_is_a_union_widened_at_its_binding() {
+    let widened = check_in_method(
+        "int $a = 7;\nint $b = 2;\nuint $c = 7;\nuint $d = 2;\n\
+         float $q = $a / $b;\nfloat $r = $c / $d;\n",
+    );
+    assert!(!widened.has_errors(), "{widened:?}");
+
+    // Widening at the binding is the only thing that absorbs the union: the
+    // operator itself keeps it, so an `int` declaration cannot take it.
+    let kept = check_in_method("int $a = 7;\nint $b = 2;\nint $q = $a / $b;\n");
+    assert!(
+        kept.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{kept:?}"
+    );
+
+    let kept_uint = check_in_method("uint $a = 7;\nuint $b = 2;\nuint $q = $a / $b;\n");
+    assert!(
+        kept_uint
+            .iter()
+            .any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{kept_uint:?}"
+    );
+}
