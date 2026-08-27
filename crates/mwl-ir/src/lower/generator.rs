@@ -174,7 +174,7 @@ impl<'a> Lowering<'a> {
             .len();
         let state = i64::try_from(index + 1).expect("far fewer than i64::MAX yields in one body");
         let (state_v, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(state));
-        self.emit_field_set(*cur, gen_v, class, GEN_STATE.to_owned(), state_v);
+        self.emit_field_set(*cur, gen_v, class.clone(), GEN_STATE.to_owned(), state_v);
         self.release_all_locals(*cur, env, None);
         let (t, _) = self.emit(*cur, Ty::Bool, InstKind::ConstBool(true));
         self.seal(*cur, Terminator::Return(Some(t)));
@@ -191,8 +191,65 @@ impl<'a> Lowering<'a> {
             let rv = self.reload_field(resume, &name, lty);
             next.insert(name, (rv, lty));
         }
+
+        // The resume-to-unwind test, and the one place [`GEN_UNWIND`] is read.
+        // Emitted only where this suspension point sits inside a protected
+        // region that owns a `finally`: everywhere else an abandoned generator
+        // owes nothing, so there is nothing for the entry point to resume
+        // *into* and the branch would be a test no run can take. See
+        // [`lower_generator`] § *An abandoned generator runs its `finally`*.
+        let mut carry_on = resume;
+        if self.try_stack.iter().any(|frame| frame.finally.is_some()) {
+            let owed = self.new_block();
+            let resumed = self.new_block();
+            let (flag, _) = self.emit(
+                resume,
+                Ty::Int,
+                InstKind::FieldGet {
+                    object: gen_v,
+                    class,
+                    field: GEN_UNWIND.to_owned(),
+                },
+            );
+            let (zero, _) = self.emit(resume, Ty::Int, InstKind::ConstInt(0));
+            let (abandoned, _) = self.emit(
+                resume,
+                Ty::Bool,
+                InstKind::BinOp {
+                    op: BinOp::NotEq,
+                    lhs: flag,
+                    rhs: zero,
+                },
+            );
+            let owed_edge = self.ids.next_edge(value.span);
+            let resumed_edge = self.ids.next_edge(value.span);
+            self.seal(
+                resume,
+                Terminator::Branch {
+                    cond: abandoned,
+                    then_block: owed,
+                    then_edge: owed_edge,
+                    else_block: resumed,
+                    else_edge: resumed_edge,
+                },
+            );
+            // Exactly what `return;` lowers to at this same point (see
+            // `Lowering::lower_stmt`'s generator arm): every enclosing
+            // `finally` in turn, innermost first, then the frame left the way
+            // running off the end leaves it. The env is cloned because those
+            // bodies bind and rebind like any other statements, and the
+            // resumption path below must see the reloaded bindings unchanged.
+            let mut unwind_env = next.clone();
+            let mut unwind_cur = owed;
+            self.run_pending_finallys(&mut unwind_cur, &mut unwind_env);
+            if !self.is_terminated(unwind_cur) {
+                self.finish_generator(unwind_cur, &unwind_env);
+            }
+            carry_on = resumed;
+        }
+
         *env = next;
-        *cur = resume;
+        *cur = carry_on;
     }
 }
 
@@ -212,6 +269,19 @@ pub(super) const GEN_STATE: &str = "gen#state";
 /// The most recently yielded element, which [`GEN_CURRENT_METHOD`] reads.
 pub(super) const GEN_CURRENT: &str = "gen#current";
 
+/// Set to `1` by [`GEN_UNWIND_METHOD`] and read by every suspension point
+/// inside a `finally`-owning region: `0` means an ordinary resumption, and
+/// anything else means "you are being abandoned — run what you owe and
+/// finish". See [`lower_generator`] § *An abandoned generator runs its
+/// `finally`*.
+///
+/// **Cost:** one field slot on every generator's state object, whether or not
+/// its body has a `finally` at all — the factory is lowered before the body,
+/// so what the body turns out to owe is not yet known when the field list is
+/// fixed. Eight bytes per *suspended* generator, which is O(in-flight) and
+/// last in AGENTS.md's priority ordering.
+pub(super) const GEN_UNWIND: &str = "gen#unwind";
+
 pub(super) const GEN_SELF: &str = "gen#self";
 
 /// The state value meaning "this generator has finished" — any value no
@@ -223,6 +293,12 @@ pub(super) const GEN_ADVANCE: &str = "advance";
 
 /// `Iterator<T>::current`'s name.
 pub(super) const GEN_CURRENT_METHOD: &str = "current";
+
+/// The resume-to-unwind entry point's name in the state class's method table,
+/// which is how the release path reaches it — see
+/// [`lower_generator_unwind`]. It is not a member of `Iterator<T>`: no source
+/// program can name it, `Iterator` declaring only `advance` and `current`.
+pub(super) const GEN_UNWIND_METHOD: &str = "unwind";
 
 /// One generator's synthesized state class, accumulated while its
 /// `advance()` body is lowered — see [`lower_generator`].
@@ -271,6 +347,7 @@ impl GenFrame {
 /// * `{name}$gen::advance` holds the original body, cut into resumption
 ///   segments at each `yield`.
 /// * `{name}$gen::current` returns the last yielded element.
+/// * `{name}$gen::unwind` is the resume-to-unwind entry point — see below.
 /// * `{name}$gen` is the state class those two are methods of. `$` cannot
 ///   appear in an MWL identifier, so the label can never collide with a
 ///   user class.
@@ -298,6 +375,43 @@ impl GenFrame {
 /// Spilling *everything* rather than only what is live across the `yield` is
 /// deliberate: liveness would be an analysis this crate does not have, and
 /// what it would buy is fewer stores in a routine that is already returning.
+///
+/// # An abandoned generator runs its `finally`
+///
+/// A generator suspended inside `try { … } finally { … }` and then dropped
+/// still owes that `finally` body. PHP resumes such a generator in a
+/// return-like mode and prints it, and priority 2 (PHP-compatible observable
+/// behaviour) outranks priority 4 (simplicity), so MWL does the same.
+///
+/// The mechanism is one field and one entry point, both of them ordinary:
+///
+/// * [`GEN_UNWIND`] is a flag on the state object, `0` until something sets
+///   it.
+/// * [`lower_generator_unwind`] builds `{name}$gen::unwind`, which sets that
+///   flag and calls `advance()` — but only when the parked state says the
+///   generator is actually *suspended*. A state of `0` means the body has
+///   never been entered, so no `try` has been entered either and there is
+///   nothing to run; [`GEN_DONE`] means it has already finished. Both are
+///   PHP's answers too.
+/// * Each suspension point inside a `finally`-owning region reloads its
+///   bindings as it always did, then branches on that flag. The unwind arm is
+///   lowered as exactly what `return;` lowers to at that same point —
+///   [`Lowering::run_pending_finallys`] over every enclosing region, innermost
+///   first, then [`Lowering::finish_generator`] — so the ladder, the release
+///   of each binding and the exit are the ones the body already had, not a
+///   second copy of the rules.
+///
+/// **This is not a destructor**, and it re-opens nothing in
+/// [ADR 0028](../../../docs/adr/0028-closing-the-remaining-magic-methods.md)
+/// § 2: no user code runs that the program did not already suspend inside, no
+/// `__destruct` is recognized on any class, and a generator's state class gains
+/// no lifecycle hook a user class could ever declare. `unwind` resumes a
+/// suspended frame; it does not tear an object down.
+///
+/// **`unwind` borrows its receiver**, alone among compiled methods, so that
+/// the release path can call it at the moment a count has already reached
+/// zero without that count crossing zero a second time.
+/// [`lower_generator_unwind`] states the argument in full.
 ///
 /// # Ownership, and why it never dangles
 ///
@@ -333,6 +447,7 @@ pub(super) fn lower_generator(
     let mut fields = vec![
         (GEN_STATE.to_owned(), Ty::Int),
         (GEN_CURRENT.to_owned(), elem),
+        (GEN_UNWIND.to_owned(), Ty::Int),
     ];
     let factory = lower_generator_factory(
         name,
@@ -358,8 +473,9 @@ pub(super) fn lower_generator(
     );
     let (mut advance, fields) = advance;
     let current = lower_generator_current(&class, elem, src);
+    let unwind = lower_generator_unwind(&class, m, src, exprs, checked_types, enums);
 
-    let mut functions = vec![factory, advance.function, current];
+    let mut functions = vec![factory, advance.function, current, unwind];
     functions.append(&mut advance.closures);
     let mut classes = advance.classes;
     classes.push(crate::ir::Class {
@@ -377,7 +493,8 @@ pub(super) fn lower_generator(
         conforms: vec![mwl_hir_iterator_label()],
         methods: vec![
             (GEN_ADVANCE.to_owned(), class.clone()),
-            (GEN_CURRENT_METHOD.to_owned(), class),
+            (GEN_CURRENT_METHOD.to_owned(), class.clone()),
+            (GEN_UNWIND_METHOD.to_owned(), class),
         ],
         // A generator state class is synthesized, so nothing wrote an
         // attribute on it, and no source property to carry a default.
@@ -462,6 +579,9 @@ pub(super) fn lower_generator_factory(
     );
     let (zero, _) = low.emit(entry, Ty::Int, InstKind::ConstInt(0));
     low.emit_field_set(entry, gen_v, class.to_owned(), GEN_STATE.to_owned(), zero);
+    // Written rather than left at the `New`'s null payload, because the flag
+    // is read as a plain `Ty::Int` at every suspension point that tests it.
+    low.emit_field_set(entry, gen_v, class.to_owned(), GEN_UNWIND.to_owned(), zero);
 
     // Every stored parameter *transfers* the reference the caller handed this
     // frame — the field owns it from here, and there is no release to pair,
@@ -546,12 +666,12 @@ pub(super) fn lower_generator_advance(
     let start = low.new_block();
     let exhausted = low.new_block();
 
-    // Everything the factory parked, minus the two reserved slots, is what
+    // Everything the factory parked, minus the three reserved slots, is what
     // state 0 reloads — the same shape a resume block reloads, so the body
     // sees one kind of binding rather than two.
     let seeded: Vec<(String, Ty)> = fields
         .iter()
-        .filter(|(n, _)| n != GEN_STATE && n != GEN_CURRENT)
+        .filter(|(n, _)| n != GEN_STATE && n != GEN_CURRENT && n != GEN_UNWIND)
         .cloned()
         .collect();
     low.generator = Some(GenFrame {
@@ -692,6 +812,116 @@ pub(super) fn lower_generator_current(class: &str, elem: Ty, src: &SourceFile) -
             term: Terminator::Return(Some(value)),
         }],
         entry: block,
+        stmt_spans,
+        edge_spans,
+    }
+}
+
+/// The resume-to-unwind entry point: `{class}::unwind`, which the release
+/// path calls on a generator that is being dropped.
+///
+/// Three blocks and no user code of its own. It reads the parked state, and
+/// where that state names a suspension point — anything above `0`, state `0`
+/// being "never entered" and [`GEN_DONE`] being `-1` — it raises the
+/// [`GEN_UNWIND`] flag and re-enters [`GEN_ADVANCE`], whose entry switch lands
+/// on that suspension's own resume block. The branch there takes the unwind
+/// arm, runs every enclosing `finally` and finishes the generator, so this
+/// function never has to know anything about the body it is unwinding.
+///
+/// Why it is a fourth *method* rather than something the release path does
+/// itself: the flag's slot index and the entry switch's encoding are both
+/// facts of this transform, and a runtime that had to know either would be
+/// holding a copy of [`lower_generator`]'s protocol. A method table entry is
+/// a name, which is the only thing the release path should need.
+///
+/// **Argument 0 is borrowed, and this is the one compiled method of which that
+/// is true** — every other owns its parameters, which is why
+/// [`Lowering::emit_iface_call`] retains before calling `advance` or
+/// `current`. It is inverted here because of who calls it: the release path
+/// reaches this at the moment a count has already hit zero, so a convention
+/// that made this function consume a reference would ask that caller to hand
+/// over one it no longer has, and the release `advance()` performs on its way
+/// out would then cross zero a second time and re-enter the release path on
+/// the very allocation it is already dismantling. Borrowing removes the
+/// crossing rather than guarding it: the retain here pairs with `advance`'s
+/// own release, so the count this function is handed is the count it leaves
+/// behind, whatever that count is.
+///
+/// An exception thrown by a `finally` body on the way out propagates to the
+/// caller: the call names no landing block because this frame owns nothing
+/// left to release at that point.
+pub(super) fn lower_generator_unwind(
+    class: &str,
+    m: &MethodMember,
+    src: &SourceFile,
+    exprs: &ExprTypeTable,
+    checked_types: &TypeInterner,
+    enums: &EnumTable,
+) -> Function {
+    let label = format!("{class}::{GEN_UNWIND_METHOD}");
+    let mut low = Lowering::new(&label, src, Ty::Void, exprs, checked_types, enums);
+    let entry = low.new_block();
+    low.emit_safepoint(entry);
+    let (gen_v, _) = low.emit(entry, Ty::Object, InstKind::Param(0));
+    let (state_v, _) = low.emit(
+        entry,
+        Ty::Int,
+        InstKind::FieldGet {
+            object: gen_v,
+            class: class.to_owned(),
+            field: GEN_STATE.to_owned(),
+        },
+    );
+    let (zero, _) = low.emit(entry, Ty::Int, InstKind::ConstInt(0));
+    let (suspended, _) = low.emit(
+        entry,
+        Ty::Bool,
+        InstKind::BinOp {
+            op: BinOp::Gt,
+            lhs: state_v,
+            rhs: zero,
+        },
+    );
+    let resume = low.new_block();
+    let nothing_owed = low.new_block();
+    let resume_edge = low.ids.next_edge(m.name);
+    let nothing_edge = low.ids.next_edge(m.name);
+    low.seal(
+        entry,
+        Terminator::Branch {
+            cond: suspended,
+            then_block: resume,
+            then_edge: resume_edge,
+            else_block: nothing_owed,
+            else_edge: nothing_edge,
+        },
+    );
+
+    let (one, _) = low.emit(resume, Ty::Int, InstKind::ConstInt(1));
+    low.emit_field_set(resume, gen_v, class.to_owned(), GEN_UNWIND.to_owned(), one);
+    // The retain is what makes argument 0 *borrowed* — see this function's own
+    // doc comment for why this one method inverts the convention.
+    low.emit_retain(resume, gen_v);
+    low.emit(
+        resume,
+        Ty::Bool,
+        InstKind::Call {
+            target: format!("{class}::{GEN_ADVANCE}"),
+            receiver: Some(gen_v),
+            args: Vec::new(),
+        },
+    );
+    low.seal(resume, Terminator::Return(None));
+
+    low.seal(nothing_owed, Terminator::Return(None));
+
+    let (blocks, stmt_spans, edge_spans) = low.finish();
+    Function {
+        name: label,
+        params: vec![Ty::Object],
+        ret: Ty::Void,
+        blocks,
+        entry,
         stmt_spans,
         edge_spans,
     }

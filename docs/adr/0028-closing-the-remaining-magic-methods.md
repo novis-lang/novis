@@ -123,8 +123,19 @@ Object cleanup that PHP code currently puts in `__destruct` — closing a file h
 flushing a buffer — becomes an explicit method (`$conn->close()`, a project's own name), called by whoever
 holds the reference when they are actually done with it. The underlying host `resource` a `resource`-typed
 value wraps is still reclaimed correctly by the runtime when nothing references it — that is memory
-management, an implementation detail this ADR does not touch — but no *user-level* code runs at that moment,
-because there is no destructor left to run it.
+management, an implementation detail this ADR does not touch — but no *user-level* cleanup runs at that
+moment, because there is no destructor left to declare it in.
+
+**A suspended generator's `finally` is the one thing that does run when a refcount hits zero, and it is not
+a destructor.** [ADR 0053](0053-iteration-and-generators.md) § 4's state machine can be dropped while parked
+inside a `try { … yield … } finally { … }`, and PHP resumes such a generator in a return-like mode so the
+`finally` prints; MWL does the same, because PHP-compatible observable behaviour outranks simplicity in the
+priority ordering. Nothing above is weakened by it: no class declares anything, no method name is
+recognized, no object gains a lifecycle hook, and the only code that runs is code the program had **already
+entered** and suspended inside — the release path resumes a frame rather than tearing an object down. Both
+arguments above survive unchanged for that reason: the resumption is an ordinary call with an ordinary error
+edge, so a throw has the call site 0002 asks for, and it touches exactly the one frame being dropped rather
+than walking anything. `mwl_ir::lower::generator`'s module doc owns the mechanism.
 
 ### 3. `__isset`/`__unset` need no replacement — and `unset()` on an object property is refused
 

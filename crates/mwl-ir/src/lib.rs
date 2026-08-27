@@ -407,19 +407,21 @@
 //!     declaring a local that shadows an outer one is not distinguished from a
 //!     reassignment. Not observable for any program in scope today, but worth
 //!     knowing before trusting `Env` further.
-//! 18. **An abandoned generator never runs the `finally` it is suspended
-//!     inside.** A `break` out of a `foreach` leaves the state machine parked
-//!     at its `yield` and nothing resumes it; PHP resumes the generator in a
-//!     return-like mode when it is destroyed, so a `try { … yield … } finally`
-//!     prints its `finally` there and not here. The two suites pin the halves
-//!     that do agree — `tests/differential/iter/a-generators-finally-matches-phps.mwlt`
+//! 18. **An abandoned generator's `finally` has an entry point, and nothing
+//!     calls it yet.** `{name}$gen::unwind` is on every generator's state
+//!     class and in its method table: it raises the `gen#unwind` flag and
+//!     re-enters `advance()`, whose resume block for a suspension inside a
+//!     `finally`-owning region takes the unwind arm and runs exactly what
+//!     `return;` runs at that point. [`lower::generator::lower_generator`]
+//!     § *An abandoned generator runs its `finally`* owns the mechanism, and
+//!     [ADR 0028](../../../docs/adr/0028-closing-the-remaining-magic-methods.md)
+//!     § 2 records why it is not the destructor MWL does not have. What is
+//!     missing is the other end: `mwl_runtime::object`'s release path does not
+//!     look that method up, so a `break` out of a `foreach` still leaves the
+//!     frame parked and the `finally` unprinted. The two suites pin the halves
+//!     that already agree — `tests/differential/iter/a-generators-finally-matches-phps.mwlt`
 //!     for a drained generator and `…/a-generator-abandoned-by-break-matches-php.mwlt`
-//!     for a body with no protected region — so only the suspended-inside-a-`finally`
-//!     case is open. Closing it wants a "resume to unwind" entry point on the
-//!     state machine plus a release-path call to it, which is the first thing
-//!     in this crate that looks like a destructor
-//!     ([ADR 0028](../../../docs/adr/0028-closing-the-remaining-magic-methods.md)
-//!     says MWL has none), so it is a design call, not a patch.
+//!     for a body with no protected region.
 //! 19. **ADR 0090 is built; what a cross-representation pair still cannot do
 //!     is *arithmetic*.** Every row of §§ 2, 3 and 5 lowers: `===`/`!==` no
 //!     longer lex, `== null` takes

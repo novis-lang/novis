@@ -2491,6 +2491,32 @@ class G {
     assert_snapshot!(print_program(&p, map.file(file)));
 }
 
+/// An abandoned generator runs the `finally` it is suspended inside — the
+/// resume-to-unwind entry point plus the arm each suspension point grows
+/// for it, which `lower_generator` § *An abandoned generator runs its
+/// `finally`* owns. The suspension inside the `try` branches on
+/// `gen#unwind` and lowers a copy of the `finally` body on the arm that
+/// takes it; the one after the region has nothing owed and grows no
+/// branch at all.
+#[test]
+fn an_abandoned_generator_resumes_into_the_finally_it_is_suspended_inside() {
+    let (p, map, file) = lower_program(
+        "<?mwl
+class G {
+  static function two(): Iterator<int> {
+    try {
+      yield 1;
+    } finally {
+      echo \"closing\";
+    }
+    yield 2;
+  }
+}
+",
+    );
+    assert_snapshot!(print_program(&p, map.file(file)));
+}
+
 /// ADR 0031's `fn` literal, lowered: the literal site allocates the
 /// captured-environment object and stores a *retained* snapshot of each
 /// capture into it, and the body becomes that class's one `invoke`, which
