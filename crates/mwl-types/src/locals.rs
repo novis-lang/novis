@@ -83,9 +83,13 @@ use mwl_diagnostics::{Diagnostic, Span, code};
 use mwl_syntax::ast::{DestructureElement, DestructureTarget, Expr, ExprKind, Stmt, StmtKind};
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::expr::{check_expr, check_return, check_unset_target, require_stringable};
+use crate::expr::{
+    check_array_key_type, check_expr, check_return, check_unset_target, is_assignable,
+    report_mismatch, require_stringable,
+};
+use crate::expr_table::ExprInfo;
 use crate::lower::{lower_optional_type, lower_type};
-use crate::ty::TypeId;
+use crate::ty::{Ty, TypeId};
 use crate::{Ctx, Env, span_text, strip_sigil};
 
 /// One local variable's declared type and where it was declared.
@@ -916,8 +920,8 @@ pub(crate) fn check_stmt(
             }
         }
         StmtKind::Destructure { target, value } => {
-            check_expr(value, None, live, scope, ctx, env);
-            walk_destructure_target(target, live, scope, ctx, env);
+            let subject = check_expr(value, None, live, scope, ctx, env);
+            walk_destructure_target(target, Some(subject), value.span, live, scope, ctx, env);
         }
         StmtKind::Global(_) | StmtKind::Goto(_) | StmtKind::StaticLocal { .. } => {
             // Already rejected constructs (ADR 0008 § 5 / "makes the CFG
@@ -969,32 +973,136 @@ fn nested_type_declaration(kind: &str, name: Span, env: &mut Env<'_>) {
     );
 }
 
+/// ADR 0007 § 3.3's destructuring target, against the type of the value being
+/// taken apart.
+///
+/// **Every element is an element read.** `[int $a, int $b] = $pair` is
+/// `$pair[0]` and `$pair[1]`, keyed exactly as ADR 0007 § 5 normalizes them,
+/// so this asks a subscript's own three questions at a statement that writes
+/// no subscript:
+///
+/// * the value must be an `array<T>` — a `mixed`, a scalar or an untested
+///   `?array<T>` names no element type, which is [`code::E_SUBSCRIPT_ON_NON_ARRAY`]'s
+///   rule verbatim and gets its code;
+/// * the element type must be assignable to what the leaf declares
+///   ([`code::E_TYPE_MISMATCH`]), the same direction and the same covariance a
+///   `foreach` value binding gets from [`crate::expr::check_foreach_value`];
+/// * a leaf may not bind by reference ([`code::E_ARRAY_ELEMENT_BY_REFERENCE`]) —
+///   an aliasing element has no owner under ADR 0031 § 2 and ADR 0023, which
+///   is that code's rule for an array *literal*'s element and is unchanged
+///   here, the leaf being the same element from the other side.
+///
+/// `subject` is `None` once an enclosing level has already refused: the walk
+/// still declares every binding below it — a name that exists is what keeps
+/// the rest of the body from reporting a second wave of undeclared-variable
+/// errors — but asks nothing more about types it no longer knows.
+///
+/// It also **records each leaf's element type in the expression table under
+/// the leaf's own span**, the same [`ExprInfo::Index`] entry `crate::expr`
+/// records for a subscript, because `mwl_ir::lower` lowers the read at the
+/// element's representation and coerces to the declared one, and a
+/// destructuring statement writes no expression it could hang that on.
 fn walk_destructure_target(
     target: &DestructureTarget,
+    subject: Option<TypeId>,
+    subject_span: Span,
     live: &mut FxHashSet<String>,
     scope: &mut LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
+    let elem_ty = subject.and_then(|subject| match env.interner.get(subject) {
+        Ty::Array(elem) => Some(*elem),
+        _ => {
+            let found = env.interner.describe(subject);
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_SUBSCRIPT_ON_NON_ARRAY,
+                    format!("cannot destructure `{found}`"),
+                )
+                .with_primary(subject_span, format!("this is `{found}`"))
+                .with_help(
+                    "destructuring reads elements out of an `array<T>` — declare one, or read \
+                     the value out by hand",
+                ),
+            );
+            None
+        }
+    });
     for element in &target.elements {
         match element {
             DestructureElement::Skip => {}
-            DestructureElement::Leaf { key, ty, name, .. } => {
-                if let Some(k) = key {
-                    check_expr(k, None, live, scope, ctx, env);
+            DestructureElement::Leaf {
+                key,
+                ty,
+                by_ref,
+                name,
+                span,
+            } => {
+                check_destructure_key(key.as_ref(), live, scope, ctx, env);
+                if *by_ref {
+                    report_by_ref_leaf(*span, env);
                 }
                 let declared = lower_optional_type(ty.as_ref(), ctx, env);
+                if let Some(elem_ty) = elem_ty {
+                    if is_assignable(elem_ty, declared, env.interner, env.graph, env.signatures) {
+                        env.exprs.record(
+                            *span,
+                            ExprInfo::Index {
+                                elem_ty,
+                                guarded: false,
+                            },
+                        );
+                    } else {
+                        report_mismatch(*span, declared, elem_ty, env);
+                    }
+                }
                 let name_str = strip_sigil(span_text(env.src, *name)).to_owned();
                 declare_binding(scope, &name_str, declared, *name, false, env);
                 live.insert(name_str);
             }
-            DestructureElement::Nested { key, target, .. } => {
-                if let Some(k) = key {
-                    check_expr(k, None, live, scope, ctx, env);
-                }
-                walk_destructure_target(target, live, scope, ctx, env);
+            DestructureElement::Nested { key, target, span } => {
+                check_destructure_key(key.as_ref(), live, scope, ctx, env);
+                walk_destructure_target(target, elem_ty, *span, live, scope, ctx, env);
             }
             _ => {}
         }
     }
+}
+
+/// A destructuring element's explicit `key =>`, checked as the array key it
+/// is — the same [`code::E_ARRAY_KEY_INVALID_TYPE`] question a subscript and an
+/// array literal's explicit key both already answer, asked here because
+/// `mwl_ir::lower::Lowering::lower_array_key` trusts all three call sites
+/// alike and panics on a key it cannot render.
+fn check_destructure_key(
+    key: Option<&Expr>,
+    live: &mut FxHashSet<String>,
+    scope: &mut LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    let Some(key) = key else {
+        return;
+    };
+    let key_ty = check_expr(key, None, live, scope, ctx, env);
+    check_array_key_type(key_ty, key.span, env);
+}
+
+/// `[int &$x] = $pair;` — refused, with [`code::E_ARRAY_ELEMENT_BY_REFERENCE`]'s
+/// own rule and its own code, because it is that rule's other side: PHP's
+/// leaf aliases the element it came from, and ADR 0031 § 2 leaves no binding
+/// that aliases another for it to be.
+fn report_by_ref_leaf(span: Span, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ARRAY_ELEMENT_BY_REFERENCE,
+            "a destructuring leaf cannot bind by reference",
+        )
+        .with_primary(span, "this would alias the element it was read from")
+        .with_help(
+            "drop the `&` — the leaf is a copy, exactly as an array literal's element is; to \
+             share one mutable cell, put it in an object (ADR 0031 § 2)",
+        ),
+    );
 }

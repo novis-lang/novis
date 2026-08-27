@@ -1,0 +1,63 @@
+--TEST--
+A destructuring leaf is an element read, so it takes a subscript's own refusals — `E0482` for a value with no elements, `E0401` for an element type the leaf does not declare, and `E0483` for a leaf that would alias what it read — ADR 0007 §§ 3.3 and 5, ADR 0031 § 2
+--FILE--
+<?mwl
+array<int> $pair = [1, 2];
+// The element type is checked against what the leaf declares, in the
+// same direction and with the same covariance a `foreach` value binding
+// gets: an `int` element does not satisfy a `string` binding.
+[string $wrong] = $pair;
+// ADR 0031 § 2 removed by-reference capture and ADR 0023 makes an
+// element a copy, so a leaf that aliased the entry it was read from
+// would have no owner in either rule — the array literal's own `&value`
+// refusal, arrived at from the other side.
+[int &$aliased] = $pair;
+// Destructuring reads elements, so a value that names no element type
+// has nothing to take apart. This is `E0482`'s rule verbatim, which is
+// why it is `E0482`'s code.
+[int $notAnArray] = 7;
+// A `mixed` is the same answer for the same reason: ADR 0007 § 2 makes
+// it the one unchecked position, and an unchecked position names no
+// element type either.
+mixed $anything = 5;
+[int $fromMixed] = $anything;
+// A nested target is checked against the element it takes apart, at
+// every depth.
+array<array<int>> $nest = [[1]];
+[[string $deep]] = $nest;
+echo "unreached\n";
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `int`
+  --> %s:6:2
+  |
+6 | [string $wrong] = $pair;
+  |  ^^^^^^^^^^^^^ this is `int`
+
+error[E0483]: a destructuring leaf cannot bind by reference
+   --> %s:11:2
+   |
+11 | [int &$aliased] = $pair;
+   |  ^^^^^^^^^^^^^ this would alias the element it was read from
+   = help: drop the `&` — the leaf is a copy, exactly as an array literal's element is; to share one mutable cell, put it in an object (ADR 0031 § 2)
+
+error[E0482]: cannot destructure `int`
+   --> %s:15:21
+   |
+15 | [int $notAnArray] = 7;
+   |                     ^ this is `int`
+   = help: destructuring reads elements out of an `array<T>` — declare one, or read the value out by hand
+
+error[E0482]: cannot destructure `mixed`
+   --> %s:20:20
+   |
+20 | [int $fromMixed] = $anything;
+   |                    ^^^^^^^^^ this is `mixed`
+   = help: destructuring reads elements out of an `array<T>` — declare one, or read the value out by hand
+
+error[E0401]: expected `string`, found `int`
+   --> %s:24:3
+   |
+24 | [[string $deep]] = $nest;
+   |   ^^^^^^^^^^^^ this is `int`
+
+error: aborting due to 5 errors

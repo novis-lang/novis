@@ -815,7 +815,7 @@ fn report_by_reference_element(item: &ArrayItem, env: &mut Env<'_>) {
 /// split `division_result`/`bitwise_result` already draw for an operand pair
 /// they don't recognize; ADR 0007 § 5's own runtime normalization/throw
 /// covers it once a value arrives through `mixed`.
-pub(super) fn check_array_key_type(key_ty: TypeId, span: Span, env: &mut Env<'_>) {
+pub(crate) fn check_array_key_type(key_ty: TypeId, span: Span, env: &mut Env<'_>) {
     if matches!(env.interner.get(key_ty), Ty::Float | Ty::Bool | Ty::Null) {
         env.diags.report(
             Diagnostic::error(

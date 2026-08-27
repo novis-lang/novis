@@ -542,10 +542,14 @@ impl ExprTypeTable {
     }
 
     /// Records `info` for the expression at `span`, returning its freshly
-    /// assigned [`ExprId`]. Only [`crate::expr`] calls this, at the same
-    /// point it already resolved `info` for its own type-checking purposes —
-    /// see the module docs for why nothing outside this crate ever
-    /// constructs an entry directly.
+    /// assigned [`ExprId`]. [`crate::expr`] calls this at the same point it
+    /// already resolved `info` for its own type-checking purposes — see the
+    /// module docs for why nothing outside this crate ever constructs an
+    /// entry directly. [`crate::locals`] has the one other call site, for
+    /// the one thing that resolves an element type at a span holding no
+    /// expression: a destructuring leaf, which gets the same
+    /// [`ExprInfo::Index`] entry the subscript it is spelled out of would
+    /// (see `walk_destructure_target`).
     ///
     /// If `span` was already recorded (not expected in the current single
     /// left-to-right walk, but not a correctness hazard either way), the new

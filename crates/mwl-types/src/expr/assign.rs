@@ -254,7 +254,7 @@ pub(super) fn shape_satisfied(
     }
 }
 
-pub(super) fn report_mismatch(span: Span, expected: TypeId, actual: TypeId, env: &mut Env<'_>) {
+pub(crate) fn report_mismatch(span: Span, expected: TypeId, actual: TypeId, env: &mut Env<'_>) {
     let expected_desc = env.interner.describe(expected);
     let actual_desc = env.interner.describe(actual);
     env.diags.report(

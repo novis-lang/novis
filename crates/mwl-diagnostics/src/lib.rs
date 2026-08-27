@@ -867,7 +867,9 @@ pub mod code {
     /// element read as a zero value — which is § 7 row 8 one storage kind
     /// along, not a new judgement.
     pub const E_APPEND_IN_READ_POSITION: Code = Code::new("E0481");
-    /// `$x[…]` where `$x` is not an `array<T>`.
+    /// `$x[…]` where `$x` is not an `array<T>`, and `[…] = $x;` — ADR 0007
+    /// § 3.3's destructuring — for the same reason: every leaf is an element
+    /// read, so a value with no elements has nothing to take apart.
     ///
     /// ADR 0007 § 5 checks an element read and write against the array's
     /// *declared* element type, so a base that declares none — a `mixed`, a
@@ -878,7 +880,9 @@ pub mod code {
     /// an exception: ADR 0009 § 2 indexes one by grapheme cluster through
     /// `Core\Str`, not through a subscript.
     pub const E_SUBSCRIPT_ON_NON_ARRAY: Code = Code::new("E0482");
-    /// `&value` as an element of an array literal.
+    /// `&value` as an element of an array literal, or `[int &$x] = $pair;`
+    /// as a destructuring leaf — the same element from the other side, and
+    /// the same answer.
     ///
     /// PHP's `[&$x]` stores a reference, so writing the element writes
     /// `$x` too. MWL has nowhere to put one: ADR 0031 § 2 removed

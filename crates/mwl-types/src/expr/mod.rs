@@ -77,9 +77,9 @@ use self::{
 // the split: the same names, at the same path, whichever module now holds
 // them.
 pub(crate) use self::{
-    assign::{check_return, is_assignable},
+    assign::{check_return, is_assignable, report_mismatch},
     iteration::{check_foreach_by_ref, check_foreach_key, check_foreach_value, foreach_source},
-    literals::int_literal_digits,
+    literals::{check_array_key_type, int_literal_digits},
     members::{check_unset_target, is_this_receiver},
     operators::{reject_disjoint_equality, require_stringable},
 };
