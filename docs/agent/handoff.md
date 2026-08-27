@@ -2,55 +2,63 @@
 
 ## State
 
-**M4 — language completeness.** Item 20 is closed: `foreach (… as &$v)` lowers as a
-write-through — each rebinding of `$v` stores the entry it came from where the write is
-written, so `break`, `return` and a throw all leave standing what the body already wrote.
-Every row is byte-identical to PHP. `python tools/holes.py` is at **32 sites**; the five it
-still lists under item 7 and the eleven under item 1 are other items' catch-alls, not their
-own.
+**M4 — language completeness.** Item 19 is closed as **two refusals**, not a lowering: a
+`&$x` parameter is a contract between the two ends of one call, and the two
+declarations that break that ordering are refused where they are written. A generator
+declaring one is **E0492**, a closure declaring one is **E0493**. The third site needed
+no rule — only `lower_method`'s parameter loop ever binds a `Ty::Ref`, so with E0492
+standing no `&$x` binding can be live across a `yield`, and `lower_yield`'s assert is an
+internal-consistency check now. `python tools/holes.py` is at **29 sites, 7 items**.
 
-`verify.py` 6 of 6 green — conformance **590**, differential **165**, 1629 unit tests.
-`tools/leak-check.sh` green over a by-reference loop with refcounted elements, a nested one,
-a `&$x` parameter subject, a generator yielding inside one, and a throw with a written entry
-live.
+`verify.py` 6 of 6 green — conformance **592**, differential **165**, 1629 unit tests.
+No new refcount edge, so no `leak-check.sh` run was owed: both slices only report.
 
-Three facts recorded where they belong rather than here: the write-through rule and why it
-is not a copy-back are `lower_foreach`'s own doc comment; the two refusals are
-`mwl_types::expr::iteration::check_foreach_by_ref` (E0490/E0491), which states them as
-`check_by_ref_arg`'s two obligations arrived at from the same direction; and the trap that
-cost this session its one wrong answer is the new playbook bullet on `env.insert`.
+Three facts recorded where they belong rather than here: the frame-lifetime rule and why
+it is not a lowering we declined to write are `docs/adr/README.md` § *Decisions taken at
+project start*; each code's own reasoning is its `Code::new` doc comment in
+`mwl-diagnostics`; and the three asserts that are now internal-consistency checks say so
+in `lower_generator`, `lower_yield` and `lower_closure`'s own `# Panics` sections.
+
+**What item 19 still owes is a lowering**: a closure *capturing* an enclosing `&$x`
+parameter. ADR 0031 § 2's capture is by value, so it is a snapshot of the cell at the
+literal — one `RefLoad`, not a refusal. It is the next group's first slice.
+
+**Gap in the pack**: `[context] adrs` printed ADR 0031 § 2 but not § 4 (`callable` is
+opaque) or ADR 0053 § 4 (calling a generator runs no user code), which are the two
+sections both refusals actually rest on. Both were reachable second-hand from
+`check_fn_literal`'s and `check.rs`'s own doc comments, but the manifest should name
+them.
 
 ## Next group
 
-**Item 19 — a closure or a generator written where a `&$x` parameter is in scope.** One
-file set: `crates/mwl-ir/src/lower/generator.rs` and `crates/mwl-ir/src/lower/closure.rs`,
-with `Lowering::ref_locals`/`pointee_of` (`crates/mwl-ir/src/lower/mod.rs:1902`) the side
-table all three read. `python tools/holes.py --item 19` is the item; ADR 0031 § 2 gives the
-language no by-reference *capture*, so what closes here is the parameter's **value**.
+**The `lower/expr.rs` refusals, which `holes.py` files under item 17 because they share
+the file.** One file set: `crates/mwl-ir/src/lower/expr.rs`, with
+`crates/mwl-ir/src/lower/closure.rs` and `Lowering::pointee_of`
+(`crates/mwl-ir/src/lower/mod.rs:1941`) for the first slice.
 
-- [ ] **A generator method with a `&$x` parameter** — `crates/mwl-ir/src/lower/generator.rs:469`
-      (`lower_generator`'s parameter loop, anchor `:312`). The panic's own reasoning is that
-      the cell is caller-staged and stops existing when the factory returns, which is a
-      *rule*, not a missing lowering: take the decision (§ *Standing decisions* pre-authorizes
-      it), refuse it with a new `E04xx` naming the frame lifetime, and record the paragraph in
-      `docs/adr/README.md` § *Decisions taken at project start*.
-- [ ] **A `&$x` binding live across a `yield`** — `crates/mwl-ir/src/lower/generator.rs:154`
-      (the spill loop). The refusal above closes this one at the parameter, so this becomes an
-      internal assert naming E04xx rather than a hole — check that a generator *body* has no
-      other way to bind a `Ty::Ref` before assuming it.
-- [ ] **A closure with a `&$x` parameter** — `crates/mwl-ir/src/lower/closure.rs:159`. Nothing
-      calls a closure through a signature yet (`mwl-ir` gap 1), so this is the same wall as
-      calling one through the variable holding it; if it is still blocked, refuse it beside the
-      generator's rule and say so, rather than leaving a panic.
+- [ ] **A closure capturing an enclosing `&$x` parameter** —
+      `crates/mwl-ir/src/lower/expr.rs:2839`, the assert inside `lower_closure_literal`'s
+      capture loop (`:2828`). This one is a **lowering**, not a refusal: ADR 0031 § 2
+      captures by value, so the field takes a snapshot of the cell's current value. The
+      move already exists one arm away — a `Ty::Ref` variable read is a `RefLoad` at
+      `pointee_of(name)` (`expr.rs:139`), and the capture is that read plus the retain
+      the loop already emits for a refcounted value. `crates/mwl-ir/src/lib.rs`'s gap 9
+      states what is owed. Closes item 19 outright.
+- [ ] **An object literal writing one field name twice** —
+      `crates/mwl-ir/src/lower/expr.rs:3474`. ADR 0036 § 2; the panic says `mwl_types`
+      records the shape with the later value, so the answer is a diagnostic where it is
+      written, in the same shape as this session's two.
+- [ ] **A property access with no resolved declaring class** —
+      `crates/mwl-ir/src/lower/expr.rs:3345`. Judge it first: E0477 and E0480 already
+      refuse an erased receiver by name, so this may be an internal-consistency reword
+      like `lower_yield`'s rather than a new rule.
 
 ## Backlog
-- `mwl-ir` gap 1, `Class::method(...)` — `crates/mwl-ir/src/lower/call.rs:85`; blocks a
-  callback named once and handed to several members (playbook bullet).
-- Item 25's two sites are `lower_decl_type`/`lower_checked_ty` catch-alls whose uncovered
-  shapes (`decimal`, `never`, `iterable`, `self`/`static`/`parent`, a shape, an intersection
-  as a *declared* type) no item names — `docs/agent/loop-goal.md` item 25.
-- `mwl-codegen/src/ty.rs:116`/`:121` are unattributed by `holes.py` and no item names them.
-- 17 named `.mwlt` cases still to write — `python tools/holes.py --cases`.
-- ADR 0007 § 5's remaining keyed-literal divergence: a positional element after an explicit
-  `int`-looking key numbers from its own position.
-- `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).
+
+- Item 7's five sites are one coherent group in `crates/mwl-ir/src/lower/stmt.rs` — the
+  nullsafe property assignment target at `:664` is the headline (`python tools/holes.py --item 7`).
+- The 2 unattributed sites, `crates/mwl-codegen/src/ty.rs:116` and `:121` — no item in
+  `docs/agent/loop-goal.md` names them.
+- `Class::method(...)`, the first-class callable spelling — `mwl-ir` gap 1, `crates/mwl-ir/src/lib.rs`.
+- 17 of the 32 named `.mwlt` cases are still to write — `python tools/holes.py --cases`.
+- `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.

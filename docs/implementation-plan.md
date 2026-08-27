@@ -65,7 +65,7 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 590 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> `run`), `tests/conformance` × 592 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
 > and `reject`) and `tests/differential` × 165, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -342,11 +342,30 @@
 > read being covariant where a write is not. Every row is byte-identical to PHP, including an entry
 > the body appends mid-loop and a throw with a written entry live, and it is pinned that way in
 > `tests/differential/lang/a-foreach-by-reference-matches-phps.mwlt`; `tools/leak-check.sh` is green
-> over all three fixtures. `python tools/holes.py` is down to **32 sites**. **M4S Part I is the
-> floor, not the frontier**: conformance is at 590 of the goal's new 750 and differential at 165 of
-> 165, `python tools/gaps.py` still ranks the thin classes, and a `Core` depth slice is a legitimate
-> slice when a group is blocked — never a reason to leave a language item unfinished.
-> `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).
+> over all three fixtures. `python tools/holes.py` is down to **32 sites**. **Item 19 is closed, and
+> it split into two refusals rather than a lowering.** A `&$x` parameter is a contract between the
+> two ends of one call — the site stages the cell, the callee's frame dies first, the site copies
+> back — and the two declarations that break that ordering are refused where they are written. A
+> **generator** declaring one is **E0492** (`mwl_types::check::check_generator_by_ref_params`):
+> calling one runs none of the body, so the staged cell is gone before the first `advance()` while
+> the parked frame would still be addressing it. A **closure** declaring one is **E0493**
+> (`mwl_types::expr::calls::report_by_reference_parameter`): its type is `callable` and carries no
+> parameter list, so no call site could know to stage anything, and ADR 0031 § 2's by-value capture
+> lets it outlive every frame in scope where it was written. The decision paragraph is
+> `docs/adr/README.md` § *Decisions taken at project start*, and neither is a lowering left
+> unwritten — copying the value in would stop being a reference, which is the whole observable point
+> of `&$x`. The third site went with them and needed no rule of its own: only `lower_method`'s
+> parameter loop ever binds a `Ty::Ref`, so with E0492 standing no `&$x` binding can be live across
+> a `yield`, and `lower_yield`'s assert is an internal-consistency check now rather than a hole.
+> **What item 19 still owes is a lowering, not a refusal**: a closure *capturing* an enclosing `&$x`
+> parameter (`crates/mwl-ir/src/lower/expr.rs:2839`) should snapshot the cell's value at the
+> literal, which is ADR 0031 § 2's by-value capture and one `RefLoad` — `holes.py` attributes that
+> site to item 17, because it shares `lower/expr.rs`. `python tools/holes.py` is down to **29 sites
+> and 7 items**. **M4S Part I is the floor, not the frontier**: conformance is at 592 of the goal's
+> new 750 and differential at 165 of 165, `python tools/gaps.py` still ranks the thin classes, and a
+> `Core` depth slice is a legitimate slice when a group is blocked — never a reason to leave a
+> language item unfinished. `docs/spec/02-php-migration.md` is 31% classified (`python
+> tools/check-migration.py`).
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the ones

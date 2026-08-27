@@ -420,6 +420,13 @@ is why" — is this file.
   call comes back with nothing at all. Name the roots (`grep -rn <pat> crates docs tests`), or use
   the harness `Grep` tool, which respects the ignore file. `python tools/peek.py
   "crates/**/*.rs:re:pattern"` is the version that answers several such questions in one call.
+- **`holes.py --item N` groups a refusal site by the *file* an item anchors, so an item's own
+  site living in a file another item names is silently filed under that other item.** Item 19
+  printed three sites and had four: the closure-capture panic is in `lower/expr.rs`, which item
+  17 anchors, so it is listed there and the item reads as closed when its headline half is not
+  written. The tool's totals are right; only the attribution is a guess. When an item's prose
+  names a shape, grep the shape (`grep -rn '&\$x' crates/mwl-ir/src`) before believing the site
+  list is the whole item.
 
 ## Running things
 

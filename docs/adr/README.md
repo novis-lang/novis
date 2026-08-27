@@ -460,6 +460,24 @@ with runtime-checked arguments, at `mixed`'s cost" is deferred for `callable` an
 `object`. Refusing is the reversible half of that pair: a later decision can turn this diagnostic into
 dispatch, while a program that already dispatched could not be taken back.
 
+**A `&$x` parameter belongs only to a frame the call site outlives.** A by-reference parameter is a
+contract between the two ends of one call: `mwl_ir::lower::call` stages a cell at the site, hands the callee
+its address, and copies back when the call returns — sound precisely because the callee's frame dies first.
+Two declarations break that ordering, and both are refused where they are written rather than lowered. A
+**generator** inverts it outright: calling one runs none of the body, it allocates the state object and
+returns ([0053](0053-iteration-and-generators.md) § 4), so the staged cell is gone before the first
+`advance()` while the parked frame would still be addressing it — `E0492`,
+`mwl_types::check::check_generator_by_ref_params`. A **closure** has no call site that could stage anything:
+its type is `callable` and nothing else ([0031](0031-callable-is-the-only-closure-type.md) § 4), carrying no
+parameter list for a site to read, and § 2's by-value capture lets it outlive every frame in scope where it
+was written — `E0493`, `mwl_types::expr::calls::report_by_reference_parameter`. Neither is a lowering we
+chose not to write: there is no representation either could keep instead, because copying the value in would
+stop being a reference, which is the whole observable point of `&$x`. The replacements are the ones those
+ADRs already name — for shared mutable state, § 2's ordinary object captured by value; for a generator,
+taking the value and `yield`ing what the body computes from it. **Capturing** an enclosing `&$x` parameter
+is a different question and is *not* refused: § 2's capture is by value, so what it owes is a snapshot of
+the cell's value at the literal, which `mwl-ir` has not written yet (its gap 9).
+
 **Architecture assumptions are tested, not remembered.** Several decisions here rest on how Cranelift,
 `corosensei` and Wasmtime behave rather than on our own code, and a dependency bump can invalidate them
 silently. `benches/abi-probe/` checks them on every CI run, including the *premise* of
