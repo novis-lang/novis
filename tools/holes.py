@@ -1,0 +1,320 @@
+#!/usr/bin/env python3
+"""Every shape the language still refuses, as a worklist a session can take an item off.
+
+M4's frontier is not coverage and not depth: it is the set of shapes that compile in the front end
+and then refuse below it -- `mwl-ir` panics naming itself, `mwl-codegen` returns
+`CodegenError::Unsupported`, or the checker types an expression nothing lowers. `gaps.py` answers
+"which claim is the corpus missing"; this answers "which shape does the language not have yet", and
+the two never overlap.
+
+The list is derived, never copied. Three live sources:
+
+*   **The refusal sites themselves**, read out of `crates/mwl-ir/src/` and `crates/mwl-codegen/src/`.
+    A site is a `panic!`/`todo!`/`unimplemented!` whose message names a shape, or a
+    `CodegenError::Unsupported`. This is the honest inventory: a hole that stops panicking has left
+    it, and one somebody adds appears without anyone updating a list.
+
+*   **The goal's item list**, read out of `docs/agent/loop-goal.md`. Every numbered item carries its
+    `crates/…/file.rs:NN` anchors, so a site is attributed to the item whose anchors sit in the same
+    file. A site no item claims is the interesting output -- it is either a hole nobody scheduled or
+    a decision nobody wrote down, and both are worth a session's attention before the code is.
+
+*   **The artefacts each stage owes**, read out of `loop-goal.toml`'s `cases` lists. A named `.mwlt`
+    case that is not on disk is one item's remaining proof.
+
+Nothing here is a gate. `tools/loop.py` decides whether the goal is met; this only says where the
+work is, so that no session spends its context re-deriving it.
+
+    python tools/holes.py                  the summary: sites per item, and what is unattributed
+    python tools/holes.py --item 7         one item -- its anchors, its refusal sites, its cases
+    python tools/holes.py --unattributed   only the sites no item claims
+    python tools/holes.py --cases          only the `.mwlt`/differential artefacts still missing
+    python tools/holes.py --sites          every site, file by file, with its message
+    python tools/holes.py --json           one JSON object instead
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+GOAL_MD = ROOT / "docs" / "agent" / "loop-goal.md"
+GOAL_TOML = ROOT / "docs" / "agent" / "loop-goal.toml"
+
+# Where a refusal can live. Both crates lower; nothing else does.
+SOURCES = ["crates/mwl-ir/src", "crates/mwl-codegen/src"]
+
+# A message is a refusal when it names a SHAPE this crate will not lower. Both crates say so in one
+# of three house phrasings, and the phrasing is the key rather than the macro: the same sentence
+# appears under `panic!`, under `assert!`'s second argument and inside a `CodegenError::Unsupported`,
+# and keying on the macro missed two thirds of them.
+REFUSAL = re.compile(r"does not (?:yet )?lower|only lowers|no lowering for", re.IGNORECASE)
+# Everything `CodegenError::Unsupported` carries is a refusal too, and most of it does not use those
+# words -- `integer `/`, whose ... has no single IR representation` is one. Read the literal after
+# the constructor instead.
+UNSUPPORTED = re.compile(r"CodegenError::Unsupported")
+# ...except the ones that are engine bugs wearing the same type. A unit that holds a call and not
+# its callee was assembled wrong; that is nobody's language hole.
+ENGINE = re.compile(r"this is a bug|declares no (?:descriptor|slot)|which this unit", re.IGNORECASE)
+ANCHOR = re.compile(r"(crates/[A-Za-z0-9_\-./]+\.rs):(\d+)")
+ITEM = re.compile(r"^(\d+)\. \*\*(.+?)\*\*", re.MULTILINE)
+# A backticked snake_case word in an item's prose is how it names the function it changes --
+# `lower_binary`, `emit_binop`, `landing_block`. That is a far sharper key than a line number,
+# which every edit above the site moves.
+NAMED_FN = re.compile(r"`([a-z_][a-z0-9_]{4,})`")
+DEFINES_FN = re.compile(r"^\s*(?:pub(?:\([^)]*\))?\s+)?(?:const\s+)?(?:async\s+)?(?:unsafe\s+)?"
+                        r"(?:extern\s+\"[^\"]+\"\s+)?fn\s+([a-z_][a-z0-9_]*)")
+
+
+def rel(path: Path) -> str:
+    return path.relative_to(ROOT).as_posix()
+
+
+def literals(text: str):
+    """Every string literal in `text` that is not inside a comment, as (line, body).
+
+    Rust wraps a long message across lines with a trailing backslash, so a literal is read to its
+    closing quote rather than to the end of the line -- reading one line gives half a sentence. The
+    comment skip is what keeps a crate's own *Known gaps* prose, which says "does not lower" in
+    nearly every entry, out of the inventory of things that actually refuse."""
+    i, line, bol = 0, 1, 0
+    while i < len(text):
+        ch = text[i]
+        if ch == "\n":
+            line, bol, i = line + 1, i + 1, i + 1
+            continue
+        if ch == "/" and text[i:i + 2] == "//":
+            nl = text.find("\n", i)
+            i = len(text) if nl < 0 else nl
+            continue
+        if ch != '"':
+            i += 1
+            continue
+        start, started = i, line
+        out, i = [], i + 1
+        while i < len(text):
+            ch = text[i]
+            if ch == "\\":
+                nxt = text[i + 1] if i + 1 < len(text) else ""
+                if nxt == "\n":
+                    line, i = line + 1, i + 2
+                    while i < len(text) and text[i] in " \t":
+                        i += 1
+                    continue
+                out.append(nxt)
+                i += 2
+                continue
+            if ch == "\n":
+                line, i = line + 1, i + 1
+                out.append(" ")
+                continue
+            if ch == '"':
+                i += 1
+                break
+            out.append(ch)
+            i += 1
+        yield started, start, re.sub(r"\s+", " ", "".join(out)).strip()
+
+
+def sites() -> list[dict]:
+    """Every refusal site under `SOURCES`, in file order."""
+    found = []
+    for source in SOURCES:
+        for path in sorted((ROOT / source).rglob("*.rs")):
+            text = path.read_text(encoding="utf-8", errors="replace")
+            lines = text.split("\n")
+            for line, at, message in literals(text):
+                # A `CodegenError::Unsupported` says what it refuses in the literal it carries,
+                # which is rarely one of the three phrasings -- so look back over the constructor.
+                near = text[max(0, at - 160):at]
+                if not (REFUSAL.search(message) or UNSUPPORTED.search(near)):
+                    continue
+                # `#[error("mwl-codegen does not lower {0} yet")]` is the variant's Display impl,
+                # not a site: the sites are the places that CONSTRUCT it, and they are counted.
+                if ENGINE.search(message) or near.rstrip().endswith("#[error("):
+                    continue
+                found.append({
+                    "file": rel(path),
+                    "line": line,
+                    "fn": enclosing_fn(lines, line),
+                    "message": message or "(no literal message at the site)",
+                })
+    return found
+
+
+def enclosing_fn(lines: list[str], line: int) -> str:
+    """The name of the function a site sits in, or "" when it sits at file scope."""
+    for n in range(min(line, len(lines)) - 1, -1, -1):
+        found = DEFINES_FN.match(lines[n])
+        if found:
+            return found.group(1)
+    return ""
+
+
+def items() -> list[dict]:
+    """The goal's numbered items, with the anchors each one names."""
+    if not GOAL_MD.exists():
+        return []
+    text = GOAL_MD.read_text(encoding="utf-8", errors="replace")
+    marks = list(ITEM.finditer(text))
+    out = []
+    for n, match in enumerate(marks):
+        end = marks[n + 1].start() if n + 1 < len(marks) else len(text)
+        body = text[match.start():end]
+        anchors = [(f, int(line)) for f, line in ANCHOR.findall(body)]
+        out.append({
+            "n": int(match.group(1)),
+            "title": re.sub(r"\s+", " ", match.group(2)).strip(),
+            "files": sorted({f for f, _ in anchors}),
+            "anchors": [f"{f}:{line}" for f, line in anchors],
+            "functions": sorted(set(NAMED_FN.findall(body))),
+        })
+    return out
+
+
+def named_cases() -> list[dict]:
+    """Every `.mwlt` artefact `loop-goal.toml` names, and whether it is on disk yet."""
+    try:
+        import tomllib
+    except ModuleNotFoundError:  # pragma: no cover -- 3.10 and older
+        return []
+    if not GOAL_TOML.exists():
+        return []
+    spec = tomllib.loads(GOAL_TOML.read_text(encoding="utf-8", errors="replace"))
+    out = []
+    for check in spec.get("check", []):
+        for case in check.get("cases", []):
+            out.append({
+                "suite": check.get("name", "?"),
+                "stage": check.get("stage", "?"),
+                "path": case,
+                "written": (ROOT / case).exists(),
+            })
+    return out
+
+
+def attribute(found: list[dict], scheduled: list[dict]) -> dict[int, list[dict]]:
+    """Map each site onto the item that claims it.
+
+    By the **enclosing function** first, because that is what an item's prose actually names and it
+    survives every edit above the site; by nearest anchor in the same file only as a fallback, and
+    such a site is marked `by="file"` so nobody reads a guess as a fact. A site neither claims is
+    left unattributed, which is the answer worth printing: it is a hole nobody scheduled or a
+    decision nobody wrote down."""
+    by_item: dict[int, list[dict]] = {}
+    for site in found:
+        claimed, how = None, ""
+        for item in scheduled:
+            if site["fn"] and site["fn"] in item["functions"]:
+                claimed, how = item["n"], "fn"
+                break
+        if claimed is None:
+            distance = None
+            for item in scheduled:
+                for anchor in item["anchors"]:
+                    path, _, line = anchor.rpartition(":")
+                    if path != site["file"]:
+                        continue
+                    gap = abs(int(line) - site["line"])
+                    if distance is None or gap < distance:
+                        claimed, how, distance = item["n"], "file", gap
+        by_item.setdefault(claimed if claimed is not None else 0, []).append(dict(site, by=how))
+    return by_item
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--item", type=int, help="one item: its anchors, its sites and its cases")
+    ap.add_argument("--unattributed", action="store_true", help="only sites no item claims")
+    ap.add_argument("--cases", action="store_true", help="only the named cases not yet written")
+    ap.add_argument("--sites", action="store_true", help="every site, file by file")
+    ap.add_argument("--json", action="store_true", help="one JSON object instead")
+    opts = ap.parse_args()
+
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
+    found, scheduled, cases = sites(), items(), named_cases()
+    by_item = attribute(found, scheduled)
+    absent = [c for c in cases if not c["written"]]
+
+    if opts.json:
+        print(json.dumps({
+            "sites": found,
+            "items": [dict(i, sites=len(by_item.get(i["n"], []))) for i in scheduled],
+            "unattributed": by_item.get(0, []),
+            "cases": cases,
+        }, indent=2))
+        return 0
+
+    if opts.item is not None:
+        one = next((i for i in scheduled if i["n"] == opts.item), None)
+        if one is None:
+            print(f"no item {opts.item} in {rel(GOAL_MD)}")
+            return 1
+        print(f"item {one['n']}: {one['title']}\n")
+        print("  anchors")
+        for anchor in one["anchors"] or ["(none -- add them to the goal)"]:
+            print(f"    {anchor}")
+        mine = by_item.get(one["n"], [])
+        print(f"\n  refusal sites in those files: {len(mine)}")
+        for site in mine:
+            print(f"    {site['file']}:{site['line']}  {site['message'][:110]}")
+        owed = [c for c in absent if any(word in c["path"] for word in one["title"].lower().split() if len(word) > 5)]
+        if owed:
+            print("\n  cases that may belong to it (name match, judge it yourself)")
+            for case in owed:
+                print(f"    {case['path']}")
+        return 0
+
+    if opts.cases:
+        print(f"{len(absent)} of {len(cases)} named case(s) not written yet\n")
+        for case in absent:
+            print(f"  [{case['stage']}] {case['path']}")
+        return 0
+
+    if opts.sites or opts.unattributed:
+        show = by_item.get(0, []) if opts.unattributed else found
+        head = "unattributed refusal site" if opts.unattributed else "refusal site"
+        print(f"{len(show)} {head}(s)\n")
+        current = ""
+        for site in show:
+            if site["file"] != current:
+                current = site["file"]
+                print(f"  {current}")
+            print(f"    :{site['line']}  {site['message'][:110]}")
+        if opts.unattributed and show:
+            print("\nEach is a hole nobody scheduled or a decision nobody wrote down. Both are the")
+            print("goal's business before the code is -- loop-goal.md § What \"no holes\" means.")
+        return 0
+
+    print(f"{len(found)} refusal site(s) across {len(SOURCES)} crate(s), "
+          f"{len(scheduled)} scheduled item(s), "
+          f"{len(absent)} of {len(cases)} named case(s) still to write\n")
+
+    print("  ITEMS WITH A REFUSAL SITE STILL STANDING")
+    live = [i for i in scheduled if by_item.get(i["n"])]
+    for item in live:
+        print(f"    {item['n']:>3}  {len(by_item[item['n']]):>2} site(s)  {item['title'][:88]}")
+    if not live:
+        print("    none -- every scheduled item's files are clean")
+
+    orphan = by_item.get(0, [])
+    print(f"\n  UNATTRIBUTED: {len(orphan)} site(s) in files no item anchors")
+    for site in orphan[:12]:
+        print(f"    {site['file']}:{site['line']}  {site['message'][:88]}")
+    if len(orphan) > 12:
+        print(f"    ... and {len(orphan) - 12} more (--unattributed)")
+
+    print(f"\n  {len(absent)} named case(s) still to write (--cases)")
+    print("\n  python tools/holes.py --item N     one item in full")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

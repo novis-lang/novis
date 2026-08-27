@@ -112,6 +112,13 @@ Check kinds:
 
 `exit = "nonzero"` inverts the exit expectation for the fixtures that fail by design.
 
+`cases = [...]` on an `mwl-suite` check is the `.mwlt` twin of `cargo-named`, and exists for the same
+reason: each named case must be **on disk and not skipped**, because a suite is green when a case was
+never written, and `min_passing` cannot tell "the corpus grew" from "the corpus grew somewhere else". A
+`--ORACLE--` whose probe fails skips silently, and the `SKIP` line is the only place that shows.
+Unlike `min_passing`, which is a stopping condition and is held back to the end of the sweep, a missing
+or skipped named case fails on the spot: it is one item's missing proof, not a count.
+
 The `exact`/`ordered`/`contains`/`min-bytes` checks run **once per leg**. On Windows there are two legs,
 native and WSL, because a JIT is exactly where a calling-convention divergence between two targets hides;
 the WSL leg runs only once the native one is fully green, so a broken iteration is cheap. On Linux the

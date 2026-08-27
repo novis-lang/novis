@@ -1092,6 +1092,21 @@ class Goal:
                 return f"{label}: no 'N passed, M failed' summary line in the output"
             if int(m.group(2)) != 0:
                 return f"{label}: {m.group(2)} case(s) failed"
+            # `cases` is the `.mwlt` twin of `cargo-named`, and it exists for the same reason: a
+            # suite is green when a case was never written, and `min_passing` cannot tell the
+            # difference between "the corpus grew" and "the corpus grew somewhere else". A named
+            # case must be on disk AND not have been skipped -- an `--ORACLE--` whose probe fails
+            # skips silently, and the SKIP line is the only place that shows.
+            #
+            # Path separators are normalized both ways: `mwl test` prints whatever the platform's
+            # `Path::display` gives it, so the same case is `tests/…` here and `tests\…` there.
+            flat = both.replace("\\", "/")
+            for case in c.get("cases", []):
+                want = case.replace("\\", "/")
+                if not (ROOT / case).exists():
+                    return f"{label}: case {want} is not written yet"
+                if f"SKIP {want}" in flat:
+                    return f"{label}: case {want} was skipped, so nothing ran it"
             if int(m.group(1)) < c["min_passing"]:
                 # Held, not returned. A `min_passing` threshold is the loop's STOPPING condition --
                 # "is the corpus big enough yet" -- and not a correctness signal; the two lines
@@ -1748,6 +1763,14 @@ def run_cli():
             driver = "mwl" if c["kind"] == "mwl-suite" else "cargo"
             say(f"  [{c.get('stage', '?')}] {c['kind']:<11} {c['name']}: "
                 f"{driver} {' '.join(c['args'])}")
+            # Named cases are the half of a suite check that a session can act on: each is one
+            # item's artefact, and the ones not yet on disk are the worklist.
+            cases = c.get("cases", [])
+            if cases:
+                absent = [p for p in cases if not (ROOT / p).exists()]
+                say(f"      {len(cases)} named case(s), {len(absent)} not written yet", C.GRAY)
+                for path in absent:
+                    say(f"        - {path}", C.GRAY)
         skipped = ", ".join(sorted(goal.valgrind_skip)) or "nothing"
         say(f"  valgrind sweep over every fixture except: {skipped}")
         return 0
