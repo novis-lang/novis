@@ -197,6 +197,11 @@ pub(super) fn lower_closure(
         env.insert(name.clone(), (v, *ty));
     }
 
+    // Every parameter is bound in `entry` — `InstKind::Param` is an
+    // entry-block instruction — and the class checks run afterwards, from
+    // `cur`, so that each one's throw path sees the *whole* parameter list in
+    // `env` and releases the frame rather than the prefix bound so far.
+    let mut class_checks: Vec<(usize, ValueId, String, Span)> = Vec::new();
     for (i, p) in fn_expr.params.iter().enumerate() {
         assert!(
             !p.by_ref,
@@ -212,8 +217,14 @@ pub(super) fn lower_closure(
         let index = u32::try_from(i + 1).expect("far more parameters than a call could ever take");
         let pname = strip_sigil(span_text(src, p.name)).to_owned();
         let (v, _) = low.emit(entry, ty, InstKind::Param(index));
+        if let Some(class) = declared_class(decl_ty, exprs, checked_types) {
+            class_checks.push((i, v, class, decl_ty.span));
+        }
         env.insert(pname, (v, ty));
         param_tys.push(ty);
+    }
+    for (i, value, class, span) in class_checks {
+        cur = check_param_class(&mut low, cur, i, value, &class, span, &mut env);
     }
 
     match &fn_expr.body {
@@ -277,4 +288,126 @@ pub(super) fn lower_closure(
         .collect(),
         more,
     )
+}
+
+/// The class an argument must be an instance of to satisfy this parameter, or
+/// `None` where nothing at the entry can check it.
+///
+/// The declaration has to be a class *name* and nothing wider: `object`, a
+/// shape and `?C` alike erase to a representation that names no class — a `?C`
+/// through [`Ty::Tagged`], which is why the nullable spelling still accepts
+/// anything an object-or-null slot can hold. See
+/// [`super::param_tag_nibble`] for the four-bit half of the same question.
+///
+/// A `Core` class is the one named class that answers `None`: it has no
+/// descriptor in the unit — `mwl_codegen`'s class table is built from
+/// `mwl_types::layout`, which holds the declared tree — so an `instanceof`
+/// against one has nothing to compare and does not exist as a spelling either
+/// (`E0496` at the checker). That leaves a `Core\Cli\Text $c` parameter
+/// checked for objecthood alone, which `docs/adr/README.md` § *Decisions taken
+/// at project start* records as the remainder rather than the rule.
+fn declared_class(
+    ty: &Type,
+    exprs: &ExprTypeTable,
+    checked_types: &TypeInterner,
+) -> Option<String> {
+    let id = exprs.declared_ty(ty.span)?;
+    match checked_types.get(id) {
+        // `QName` is destructured here rather than passed on: `mwl-hir` is a
+        // dev-dependency of this crate, so a helper naming the type in its
+        // signature would not compile.
+        CheckedTy::Class(qname, _) if !qname.is_core() => Some(qname.to_string()),
+        _ => None,
+    }
+}
+
+/// The class check one class-declared closure parameter runs at the body's
+/// first block, returning the block the body continues in.
+///
+/// `mwl_runtime::closure::check_param_tags` compares representations, and a
+/// four-bit nibble has no room for a class label, so every class name arrives
+/// as the same "an object" — a lie a named-class binding then reads and writes
+/// at a *fixed offset*, which is a type confusion rather than a wrong answer.
+/// `docs/adr/README.md` § *Decisions taken at project start* owns why the
+/// closure's entry is the boundary that pays: one
+/// `mwl_runtime::object::MwlObj::is_instance_of` per class-declared parameter
+/// per call, in the one position nothing else looked, rather than a name-keyed
+/// fetch at every named-class property access in every program.
+///
+/// The refusal is the sentence `check_param_tags` already writes, with the
+/// declared class where a representation would be. What arrived is *not*
+/// named: no IR instruction reads an object's class name — the runtime's
+/// `mwl_object_class_name` has no [`InstKind`] wrapping it — and adding one to
+/// widen a message is a new value shape for a diagnostic's sake. The ADR
+/// paragraph records that as the message's known limit.
+fn check_param_class(
+    low: &mut Lowering<'_>,
+    cur: BlockId,
+    index: usize,
+    value: ValueId,
+    class: &str,
+    span: Span,
+    env: &mut Env,
+) -> BlockId {
+    // A closure literal's body has no enclosing statement of its own, so the
+    // parameter's annotation is what `write_throw_location` and
+    // `Lowering::frame_label` render — the closure's own line, rather than the
+    // file's first.
+    low.cur_stmt_span = span;
+    let (is_instance, _) = low.emit(
+        cur,
+        Ty::Bool,
+        InstKind::InstanceOf {
+            value,
+            class: class.to_owned(),
+        },
+    );
+    let body = low.new_block();
+    let refused = low.new_block();
+    let body_edge = low.ids.next_edge(span);
+    let refused_edge = low.ids.next_edge(span);
+    low.seal(
+        cur,
+        Terminator::Branch {
+            cond: is_instance,
+            then_block: body,
+            then_edge: body_edge,
+            else_block: refused,
+            else_edge: refused_edge,
+        },
+    );
+    let (message, _) = low.emit(
+        refused,
+        Ty::Str,
+        InstKind::ConstStr(format!(
+            "argument {} to a `callable` must be of type {class}, another class given",
+            index + 1
+        )),
+    );
+    // Argument 2 is the `{previous}` bag flattened to its own `null` default,
+    // widened into the `Ty::Tagged` slot spec § 10's `Throwable|null` erases
+    // to — the same list `Lowering::lower_match`'s unmatched throw builds by
+    // hand, and for the same reason.
+    let (absent, _) = low.emit(refused, Ty::Null, InstKind::ConstNull);
+    let absent = low.coerce(refused, absent, Ty::Null, Ty::Tagged, env);
+    let (exception, _) = low.emit_fallible(
+        refused,
+        Ty::Object,
+        InstKind::New {
+            class: "LogicError".to_owned(),
+            ctor: Some(THROWABLE_CTOR.to_owned()),
+            args: vec![message, absent],
+        },
+        env,
+    );
+    low.write_throw_location(refused, exception);
+    let landing = low.landing_block(env);
+    low.seal(
+        refused,
+        Terminator::Throw {
+            value: exception,
+            landing,
+        },
+    );
+    body
 }

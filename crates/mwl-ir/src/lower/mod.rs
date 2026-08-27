@@ -2714,16 +2714,18 @@ pub const FN_PARAM_TAG_ANY: u8 = 12;
 /// `tests/conformance/core/arr-a-mixed-or-nullable-callback-parameter-is-unchecked.mwlt`
 /// pins both halves from MWL.
 ///
-/// [`Ty::Object`]'s nibble is the one row where "a representation and not a
-/// declared type" is a **hole** rather than the answer. Every class name
-/// erases onto it, so a closure declaring the wrong class is admitted — and
-/// unlike ADR 0036 § 4's erased receiver, which has no label and therefore
-/// defers to a name-keyed fetch, a named-class binding is read and written at
-/// a *fixed offset* against a label nothing verified. `docs/adr/README.md`
-/// § *Decisions taken at project start* owns which boundary is to pay for
-/// that and why, and
-/// `tests/conformance/core/out-a-callback-object-parameter-is-checked-by-representation-not-by-class.mwlt`
-/// pins the line as it is drawn today.
+/// [`Ty::Object`]'s nibble is the one row where the representation is not the
+/// whole answer. Every class name erases onto it, so this word admits a
+/// closure declaring the wrong class — and a named-class binding, unlike ADR
+/// 0036 § 4's erased receiver, is read and written at a *fixed offset* against
+/// its label, so admitting one is a type confusion rather than a wrong answer.
+/// The label four bits have no room for is checked at the closure's **entry**
+/// instead, one `instanceof` per class-declared parameter
+/// (`lower::closure::check_param_class`); `docs/adr/README.md` § *Decisions
+/// taken at project start* owns why that boundary pays rather than every
+/// named-class property access, and
+/// `tests/conformance/core/out-a-callback-parameter-naming-a-class-checks-the-argument-class-at-entry.mwlt`
+/// pins both lines — this one around objecthood, that one around ancestry.
 pub fn param_tag_nibble(ty: Ty) -> u8 {
     match ty {
         // `Ref` and `ClassDesc` ride in the payload of an otherwise-`null`

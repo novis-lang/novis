@@ -474,30 +474,41 @@ with runtime-checked arguments, at `mixed`'s cost" is deferred for `callable` an
 `object`. Refusing is the reversible half of that pair: a later decision can turn this diagnostic into
 dispatch, while a program that already dispatched could not be taken back.
 
-**A closure parameter naming a class is checked for objecthood and nothing more, and the closure's own
-entry is the boundary that pays to close it.** `mwl_ir::lower::param_tag_nibble` gives every class name —
-and `object`, and a shape — the same nibble 7, a nibble naming a representation and four bits having no
-room for a label, so `mwl_runtime::closure::check_param_tags` refuses a `string $c` handed a
-`Core\Cli\Text` and accepts an unrelated `Marker $c` handed the same value
-(`tests/conformance/core/out-a-callback-object-parameter-is-checked-by-representation-not-by-class.mwlt`
-pins that line as it is drawn today). That acceptance is the **only** way a named-class binding comes to
-hold an instance of another class: every other position is checked where it is written, and
+**A closure parameter naming a class is checked against the argument's own ancestry, at the closure's
+entry.** `mwl_ir::lower::param_tag_nibble` gives every class name — and `object`, and a shape — the same
+nibble 7, a nibble naming a representation and four bits having no room for a label, so
+`mwl_runtime::closure::check_param_tags` refuses a `string $c` handed a `Core\Cli\Text` and would accept
+an unrelated `Marker $c` handed the same value. That acceptance was the **only** way a named-class binding
+came to hold an instance of another class: every other position is checked where it is written, and
 [0036](0036-anonymous-object-shapes.md) § 4's erased receiver carries no label at all and therefore defers
 to a name-keyed fetch. A binding that *does* carry a label is read and written at a fixed offset, so the
 lie is a type confusion rather than a wrong answer — two `final` classes and one wrong `Core\Arr::filter`
-callback write an `int` over a `string` field and the next read dereferences it — which is
+callback wrote an `int` over a `string` field and the next read dereferenced it — which is
 [0004](0004-memory-for-simplicity.md)'s priority 1 and not a matter of taste.
 
 Two boundaries could pay, and the cheaper one is not the safer one's equal. Making every named-class
-property access name-keyed closes it everywhere and spends priority 3 in every program, most of which
+property access name-keyed would close it everywhere and spend priority 3 in every program, most of which
 never write a closure at all. Checking the argument against the parameter's declared class **at the
-closure's entry** spends one `mwl_object_instanceof` — already one flattened linear scan of the ancestry
+closure's entry** spends one `mwl_object_instanceof` — one flattened linear scan of the ancestry
 (`mwl_runtime::object::MwlObj::is_instance_of`) — per class-declared parameter per call, and only in the
-position where nothing else looked. The second is the one to build: `mwl_ir::lower::closure` knows each
-parameter's declared class and `lower_expr` already emits that call-and-branch for `$x instanceof C`, so
-the refusal is a `LogicError` in the sentence shape `check_param_tags` already writes. The tag word is
-unchanged and gains no class channel — a per-closure-instance list of descriptors would spend an
-allocation at every closure literal to answer a question the body's first block can ask for free.
+position where nothing else looked. That is what `mwl_ir::lower::closure::check_param_class` emits: the
+body's first block branches on the same `instanceof` `$x instanceof C` lowers to, and the miss throws a
+`LogicError` in the sentence shape `check_param_tags` already writes. The tag word is unchanged and gains
+no class channel — a per-closure-instance list of descriptors would spend an allocation at every closure
+literal to answer a question the body's first block asks for free. Both lines are pinned from MWL by
+`tests/conformance/core/out-a-callback-parameter-naming-a-class-checks-the-argument-class-at-entry.mwlt`:
+the tag word's around objecthood, the entry check's around ancestry, so a parent class and an implemented
+interface both accept the instance an exact class does.
+
+Three things the entry check deliberately does not do. A **`?C` parameter is unchecked on both lines**,
+erasing to `mwl_ir::Ty::Tagged` before any class survives — the same nothing `mixed` gets, and for the
+same reason. A **`Core` class** parameter keeps the objecthood-only check: a unit's class table is
+`mwl_types::layout`'s declared tree, so there is no descriptor to compare against, and `instanceof` over a
+`Core` class is not a spelling the checker admits either (`E0496`) — the only argument that could exercise
+the row is the carrier a `Core` member hands its own callback, which is already of that class. And the
+refusal **does not name the class that arrived**: no IR instruction reads an object's class name, so
+widening `must be of type Marker, another class given` to PHP's `…, App\Holder given` means a new value
+shape in `mwl-ir` and `mwl-codegen`, worth taking when something other than a message wants one.
 
 **A `&$x` parameter belongs only to a frame the call site outlives.** A by-reference parameter is a
 contract between the two ends of one call: `mwl_ir::lower::call` stages a cell at the site, hands the callee
