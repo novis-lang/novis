@@ -1374,6 +1374,16 @@ sibling in the same namespace unqualified.
   `$mathMinRefused` from the first draft; a `.mwlt` case tends to want several near-identical names
   at once (one `catch` binding per clause, since they are all function-scoped) and that is exactly
   where the underscore creeps in.
+- **ADR 0007 § 2's one implicit conversion was not implemented at all, and it reads as a
+  division problem until you probe a plain assignment.** `float $x = $n;` over an `int $n`
+  was `E0401: expected float, found int` — `mwl_types::expr::assign::is_assignable` had no
+  `int`/`uint` → `float` row and no rule for a *union* source against a non-union target, so
+  ADR 0007 § 4's `int|float` quotient could not reach a declared `float` either. Both rows are
+  there now, with `mwl_ir::lower::Lowering::coerce` performing the conversion — and that is
+  the shape of the trap for anything similar: the widening **throws** above 2^53, so it could
+  not live in `coerce` until `&Env` was threaded through all 17 of its call sites *and*
+  `close_nullsafe`, which had none of its own. A conversion that can fail needs the frame's
+  landing block, and `coerce` was written when none of its rows could fail.
 
 ## Divergences and refusals already pinned
 

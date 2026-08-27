@@ -65,8 +65,8 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 552 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
-> and `reject`) and `tests/differential` × 159, `fuzz/`, `tools/`, `benches/abi-probe`.
+> `run`), `tests/conformance` × 554 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> and `reject`) and `tests/differential` × 161, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
 > SDK 10.0.26100 for linking, PHP 8.5.9 as the differential oracle — on the Windows `PATH` and
@@ -116,20 +116,22 @@
 > it**: it reads the refusal sites out of `mwl-ir` and `mwl-codegen` live, attributes each to the
 > item whose prose names its function, and prints what no item claims (45 sites, 13 items, 2
 > unattributed today). `--item N` is one item in full. `python tools/loop.py --list` prints the 32
-> named `.mwlt` cases each stage owes and which are still to write. **The biggest single hole is the
-> operator table**: `1 + 1.5` does not compile, integer `/` does not compile, and integer
-> `+`/`-`/`*` wrap where ADR 0007 § 4 says they throw — so Stage 0 is those, and `tools/loop.py`
-> runs it before the program legs, because every fixture and every case in every stage below is
-> written against those rules. **Unbuilt in the library**, none of it a registration gap:
-> `Core\Json::decodeAs<T>`'s wider codec-reachable set and its two default-bearing rows
-> (`mwl_stdlib::json` gaps), ADR 0088's qualifier classification (`mwl_stdlib::hash`'s module doc),
-> and ADR 0086 § 1's substitution table (M8, `crates/mwl-stdlib/src/cli.rs` gap 1). **Decided and
-> unbuilt, and out of this goal's scope** — ADRs 0091, 0092 § 2's log levels, 0093, 0097 and 0100 §
-> 3; their work is M6, M7, M8 and M10. **M4S Part I is the floor, not the frontier**: conformance is
-> at 552 of the goal's new 750 and differential at 159 of 165, `python tools/gaps.py` still ranks
-> the thin classes, and a `Core` depth slice is a legitimate slice when a group is blocked — never a
-> reason to leave a language item unfinished. `docs/spec/02-php-migration.md` is 31% classified
-> (`python tools/check-migration.py`).
+> named `.mwlt` cases each stage owes and which are still to write. **Stage 0 is the operator table,
+> and two thirds of it is closed**: ADR 0007 § 4's promotion rows run (`1 + 1.5`, `$n < $f`, and §
+> 2's implicit widening at a binding) and integer `/` answers PHP's `int|float`, so what is left of
+> Stage 0 is integer `+`/`-`/`*` wrapping where ADR 0007 § 4 says they throw, plus the bitwise
+> operators that have no `BinOp` variant at all. Even so, `tools/loop.py` runs it before the program
+> legs, because every fixture and every case in every stage below is written against those rules.
+> **Unbuilt in the library**, none of it a registration gap: `Core\Json::decodeAs<T>`'s wider
+> codec-reachable set and its two default-bearing rows (`mwl_stdlib::json` gaps), ADR 0088's
+> qualifier classification (`mwl_stdlib::hash`'s module doc), and ADR 0086 § 1's substitution table
+> (M8, `crates/mwl-stdlib/src/cli.rs` gap 1). **Decided and unbuilt, and out of this goal's scope**
+> — ADRs 0091, 0092 § 2's log levels, 0093, 0097 and 0100 § 3; their work is M6, M7, M8 and M10.
+> **M4S Part I is the floor, not the frontier**: conformance is at 554 of the goal's new 750 and
+> differential at 161 of 165, `python tools/gaps.py` still ranks the thin classes, and a `Core`
+> depth slice is a legitimate slice when a group is blocked — never a reason to leave a language
+> item unfinished. `docs/spec/02-php-migration.md` is 31% classified (`python
+> tools/check-migration.py`).
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the ones
