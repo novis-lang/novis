@@ -382,8 +382,8 @@
 //!     scalar operand, and only ADR 0013's *object* form lowers. `**` is not a
 //!     gap: ADR 0054 § 3 makes a `decimal` base a compile error, and
 //!     `mwl_types` reports it.
-//! 16. **`$x++` and `--$x` do not lower, and a compound assignment inherits
-//!     whatever its binary form is missing.**
+//! 16. **A compound assignment inherits whatever its binary form is missing,
+//!     which today is `**=` and nothing else.**
 //!     [`lower::Lowering::lower_compound_assignment`] rewrites
 //!     `$x op= e` into the `$x = $x op e` it means, so an operator gains its
 //!     compound form exactly when its binary form lowers (`.=` on a plain
@@ -393,15 +393,30 @@
 //!     have their [`ir::BinOp`]/[`ir::UnOp`] variants, so `&=`, `|=`, `^=`,
 //!     `<<=` and `>>=` cost nothing — which leaves `**=` out for the same
 //!     reason `**` itself is: [`ir::BinOp`] has no row for it, so
-//!     [`lower::Lowering::lower_expr`] panics naming the operator. The rewrite
-//!     also reads its target twice, so
-//!     `is_reevaluable_target` refuses `f()->count += 1` rather than calling
-//!     `f()` twice where PHP calls it once; closing that means splitting the
-//!     target's address computation out of
-//!     [`lower::Lowering::lower_reassignment`]. An increment needs the same
-//!     split for a second reason: its `1` has no source span to build an
-//!     [`mwl_syntax::ast::ExprKind::Int`] from, so it cannot be desugared
-//!     into an AST node the way every other compound form is.
+//!     [`lower::Lowering::lower_expr`] panics naming the operator. `$x++` and
+//!     `--$x` lower through that same rewrite, because the target's **address**
+//!     is computed before the rewrite is built
+//!     ([`lower::Lowering::stage_target_address`]): staging is what makes a
+//!     target re-readable, and it is also what gives the implicit `1` a
+//!     representation to be emitted at, that `1` having no source span to
+//!     build an [`mwl_syntax::ast::ExprKind::Int`] from. So
+//!     `Box::make()->count += 1` calls `make()` once, and
+//!     [`lower::Lowering::lower_read_modify_write`]'s own assertion has no
+//!     reachable target left at all — its doc comment carries that proof, and
+//!     `tests/conformance/lang/a-compound-assignments-target-is-evaluated-once.mwlt`
+//!     the observable half.
+//!
+//!     One level further down was open until the same staging reached it: an
+//!     element write whose root is a *property* used to lower that property's
+//!     receiver twice, once to read the array and once in
+//!     [`lower::Lowering::write_back_array`] to store the separated copy back,
+//!     so `$b->self()->rows["k"] = "z"` ran `self()` twice and
+//!     `$b->self()->grid["r"]["k"] .= "b"` three times where PHP runs it once.
+//!     [`lower::Lowering::lower_store`]'s element arm now stages the root's
+//!     address itself, and `stage_address_of` descends a property or element
+//!     level rather than staging the level's *value*, which is what leaves the
+//!     slot visible to the write-back at all. Pinned by
+//!     `tests/conformance/lang/an-element-writes-holder-is-evaluated-once.mwlt`.
 //! 17. **The environment is one flat, function-wide map**, so a nested block
 //!     declaring a local that shadows an outer one is not distinguished from a
 //!     reassignment. Not observable for any program in scope today, but worth

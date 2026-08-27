@@ -1,0 +1,71 @@
+--TEST--
+An array-element write evaluates the receiver under its root holder exactly once, whichever spelling writes it and however deep the chain is — ADR 0007 § 5 and § 7 row 15
+--FILE--
+<?mwl
+// ADR 0007 § 5 separates the array before an element is written, so the write
+// is not finished until the separated copy has been put back into whatever
+// held it (`mwl_ir::lower::Lowering::write_back_array`). That re-points the
+// holder by lowering the holder's own *receiver* a second time, which is why
+// `mwl_ir::lower::Lowering::lower_store` stages that receiver before it reads
+// the root: without the staging, `$b->self()->rows["k"] = "z"` ran `self()`
+// twice and `$b->self()->grid["r"]["k"] .= "b"` three times.
+//
+// PHP 8.5.9 evaluates it once, in every row below that it accepts, so this is
+// agreement rather than a choice. The last line is the one it does not
+// accept — *"Cannot use temporary expression in write context"* for a `new`
+// receiver specifically, where a call-returning one is fine — and § 7 row 15
+// owns why MWL takes it anyway: the field is a slot in a heap object, so the
+// write lands in real storage whatever happens to the handle.
+class Box {
+    public array<string> $rows;
+    public array<array<string>> $grid;
+
+    public function constructor() {
+        echo "construct\n";
+        array<string> $seed = ["k" => "a"];
+        $this->rows = $seed;
+        array<array<string>> $g = ["r" => $seed];
+        $this->grid = $g;
+    }
+
+    public function self(): Box {
+        echo "self()\n";
+        return $this;
+    }
+}
+
+Box $b = new Box();
+
+// A plain `=`, which stages nothing else at all.
+$b->self()->rows["k"] = "z";
+echo $b->rows["k"], "\n";
+
+// The compound spelling, whose rewrite writes the target down twice.
+$b->self()->rows["k"] .= "!";
+echo $b->rows["k"], "\n";
+
+// The append form, which lowers no key at all.
+$b->self()->rows[] = "q";
+echo $b->rows["0"], "\n";
+
+// One level deeper: the descent and the climb each re-point a level, and the
+// receiver is still evaluated once.
+$b->self()->grid["r"]["k"] .= "b";
+echo $b->grid["r"]["k"], "\n";
+
+// A `new` receiver: constructed once, written into, and discarded — `$b` is
+// untouched, so the line before it is what the last `echo` still prints.
+(new Box())->rows["k"] .= "b";
+echo $b->rows["k"], "\n";
+--EXPECT--
+construct
+self()
+z
+self()
+z!
+self()
+q
+self()
+ab
+construct
+z!

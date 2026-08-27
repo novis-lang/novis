@@ -479,9 +479,19 @@ impl<'a> Lowering<'a> {
     ///
     /// # Panics
     ///
-    /// Panics naming the target when it is not one
-    /// [`Self::reevaluable_target`] accepts even after staging — a nullsafe
-    /// path, or a call in a position staging does not reach.
+    /// The assertion below has **no shape that reaches it**, and the proof is
+    /// three gates deep rather than one, which is why it is asserted rather
+    /// than assumed. `mwl_syntax`'s `Parser::require_write_target` admits
+    /// exactly a variable, a subscript, a property and a static property as a
+    /// write target (`E0105` for anything else, an increment included), and
+    /// `mwl_types::expr::assign::check_write_target` then refuses the nullsafe
+    /// property (`E0479`) and the element write whose root is not a place
+    /// (`E0700`). Of what survives, a variable and a `Class::$prop` are
+    /// re-readable on their own, and the two composite shapes each carry
+    /// exactly one level that is not — the property's receiver, the
+    /// subscript's base and key — which [`Self::stage_target_address`] has
+    /// just staged. A target that trips it therefore reports a gate that
+    /// admitted a shape it does not model, not a lowering gap.
     ///
     /// `extra_owner` is [`Self::lower_store`]'s, passed straight through: the
     /// `new` half is the value that landed in the target, so a value position
@@ -506,9 +516,13 @@ impl<'a> Lowering<'a> {
         self.stage_target_address(target, env, cur);
         assert!(
             self.reevaluable_target(target),
-            "mwl-ir lowers a compound assignment by rewriting it to `$x = $x op e`, which reads \
-             the target twice, so its target must be a local, `$this`, `Class::$prop`, or a \
-             property/element path over those — got {:?}; see the crate docs' known gaps",
+            "mwl-ir stages a compound assignment's target address before rewriting it to \
+             `$x = $x op e`, which leaves every target the two phases in front of this admit \
+             re-evaluable — a local and a `Class::$prop` on their own, a property or an element \
+             path because the one level of it that is not was just staged. {:?} arrived anyway, \
+             so `mwl_syntax`'s `Parser::require_write_target` or \
+             `mwl_types::expr::assign::check_write_target` admitted a shape it does not model; \
+             see this function's own doc comment for the whole proof",
             target.kind
         );
         let reads = self.staged_mark();
@@ -611,11 +625,25 @@ impl<'a> Lowering<'a> {
     }
     /// One receiver or base: staged when it cannot be re-read, walked into
     /// when it can — so a `$this->a->b` path stages nothing at all.
+    ///
+    /// A property or an element level is **always** walked into rather than
+    /// staged, whether or not it is re-readable on its own. What has to be
+    /// evaluated once is the receiver underneath it; the level itself names a
+    /// *slot*, and staging its value would hide that slot from
+    /// [`Self::write_back_array`], which re-points the holder by lowering the
+    /// receiver again. Staging the read instead of the receiver is what made
+    /// `$b->self()->rows["k"] .= "x"` call `self()` twice — once for the read
+    /// and once for the write-back — where PHP calls it once.
     fn stage_address_of(&mut self, e: &Expr, env: &mut Env, cur: &mut BlockId) {
-        if self.reevaluable_target(e) {
-            self.stage_target_address(e, env, cur);
-        } else {
-            self.stage_value_of(e, env, cur);
+        match &e.kind {
+            ExprKind::PropertyAccess {
+                nullsafe: false, ..
+            }
+            | ExprKind::Index { .. } => {
+                self.stage_target_address(e, env, cur);
+            }
+            _ if self.reevaluable_target(e) => self.stage_target_address(e, env, cur),
+            _ => self.stage_value_of(e, env, cur),
         }
     }
     fn stage_value_of(&mut self, e: &Expr, env: &mut Env, cur: &mut BlockId) {
@@ -1073,6 +1101,19 @@ impl<'a> Lowering<'a> {
                     root = inner.unparenthesized();
                 }
                 levels.reverse();
+                // `E0700` leaves the root a place, so the only thing under it
+                // that can run user code is a receiver — and
+                // `Self::write_back_array` lowers that receiver a *second*
+                // time, to re-point the slot it names. Staging it here is what
+                // keeps `$b->self()->rows["k"] = "y"` calling `self()` once,
+                // the count PHP has. A write arriving from
+                // `Self::lower_read_modify_write` has already staged it, and
+                // `Self::stage_target_address` then finds the entry and adds
+                // nothing; the release below is the same bracket that function
+                // puts around the whole rewrite, one scope in.
+                let temporaries = self.temporaries_mark();
+                let addresses = self.staged_mark();
+                self.stage_target_address(root, env, cur);
                 let (root_v, _) = self.lower_expr(root, None, env, cur);
                 // Every key, then the value: left to right, each exactly
                 // once, and every retain deferred until nothing that can
@@ -1166,6 +1207,8 @@ impl<'a> Lowering<'a> {
                     };
                 }
                 self.write_back_array(root, written, env, cur);
+                self.unstage_to(addresses);
+                self.release_temporaries_since(temporaries, *cur);
                 (v, elem_ty)
             }
             other => unreachable!(

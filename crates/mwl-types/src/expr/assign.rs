@@ -530,7 +530,12 @@ pub(super) fn check_write_target(target: &Expr, env: &mut Env<'_>) {
 /// property of a *temporary* receiver (`(new H)->rows["a"] = "y"`) is a place
 /// too and deliberately so: the field belongs to a heap object with reference
 /// semantics, so the write lands in real storage whatever happens to the
-/// handle afterwards, which is PHP's answer as well.
+/// handle afterwards. That is the one place this rule is *wider* than PHP's —
+/// 8.5.9 refuses a `new` in a write context outright (*"Cannot use temporary
+/// expression in write context"*), while accepting the same write through a
+/// call-returning receiver (`make()->rows["a"] = "y"`) — and ADR 0007 § 7 row
+/// 15 records it: accepting where PHP refuses loses no program that ran, and
+/// the storage the separated array goes back into is real either way.
 ///
 /// `ExprKind::Error` is here so a parse error takes one diagnostic rather than
 /// two. Parentheses never reach it, [`Expr::unparenthesized`] having peeled

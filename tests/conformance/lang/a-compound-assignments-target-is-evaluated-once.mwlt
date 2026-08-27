@@ -1,0 +1,87 @@
+--TEST--
+A compound assignment computes its target's address once, whichever shape the target has and whichever of the three spellings writes it — ADR 0007 § 3 and § 4
+--FILE--
+<?mwl
+// `mwl_ir::lower::Lowering::lower_read_modify_write` rewrites `$t ⊕= e` into
+// the `$t = $t ⊕ e` it means, which writes the target down twice — so every
+// level of the target that cannot be re-read is lowered once and staged
+// first (`Lowering::stage_target_address`). What this pins is the *count*: a
+// receiver and a key that run user code print once per statement, not once
+// per side of the rewrite, and `$x++`/`--$x` agree because they desugar into
+// the same rewrite.
+//
+// It is also the observable half of the proof that the rewrite's own
+// assertion cannot fire: every target `mwl_syntax`'s
+// `Parser::require_write_target` admits and `mwl_types`' `check_write_target`
+// does not refuse appears below, and each one lowers.
+class Keys {
+    public static array<int> $counts = [];
+
+    public static function k(): string {
+        echo "k()\n";
+        return "k";
+    }
+}
+
+class Box {
+    public int $n = 1;
+    public array<int> $counts;
+
+    public function constructor() {
+        array<int> $seed = ["k" => 1];
+        $this->counts = $seed;
+    }
+
+    public function self(): Box {
+        echo "self()\n";
+        return $this;
+    }
+}
+
+Box $b = new Box();
+array<int> $a = ["k" => 1];
+array<array<int>> $grid = ["r" => $a];
+
+// A property whose receiver runs user code: staged, so `self()` runs once for
+// each spelling rather than twice, which is PHP's count as well.
+$b->self()->n += 1;
+$b->self()->n++;
+--$b->self()->n;
+echo $b->n, "\n";
+
+// A subscript whose *key* runs user code, staged the same way.
+$a[Keys::k()] += 1;
+$a[Keys::k()]++;
+--$a[Keys::k()];
+echo $a["k"], "\n";
+
+// The roots that need no staging at all: a local through parentheses, a
+// nested element, a static property, a property of a local. An element write
+// whose root is a property of a *temporary* is deliberately absent — it
+// lowers, but re-lowers its holder's receiver, which is `mwl-ir`'s own known
+// gap 16 rather than something to freeze here.
+($a)["k"] += 1;
+echo $a["k"], "\n";
+
+$grid["r"]["k"] += 1;
+echo $grid["r"]["k"], "\n";
+
+Keys::$counts["k"] = 1;
+Keys::$counts["k"] += 1;
+echo Keys::$counts["k"], "\n";
+
+$b->counts["k"]++;
+echo $b->counts["k"], "\n";
+--EXPECT--
+self()
+self()
+self()
+2
+k()
+k()
+k()
+2
+3
+2
+2
+2
