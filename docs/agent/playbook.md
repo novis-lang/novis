@@ -1469,6 +1469,16 @@ sibling in the same namespace unqualified.
   already says for the shapes it does mean to refuse. A **local** `?object $m = null;` is fine — it
   is only the property-default folder that refuses the `null` literal, and it refuses it for every
   `?T`, not just for an object one.
+- **A write through a property has *two* receivers to untag, and the second one fails in
+  cranelift rather than panicking.** `$m->rows = [...]` through a narrowed `?T` local works
+  because `lower_reassignment`'s property arm calls `untag_receiver`; `$m->rows["0"] = "w"`
+  goes back through the property a second time, in `write_back_array`'s own arm, and that one
+  had no such call — so the `FieldSet` stored through a 128-bit "pointer" and the whole
+  function was rejected with *"invalid pointer width (got 128, expected 64)"*. That message,
+  with `i128` named as the failing operand, **is** the signature of a missing
+  `InstKind::Untag`: read it as "a tagged value reached an instruction that wanted an object",
+  not as a codegen bug. Nothing above catches it, because the checker is happy and the lowering
+  never panics.
 
 ## Divergences and refusals already pinned
 
