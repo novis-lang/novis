@@ -371,6 +371,25 @@ pub mod code {
     /// itself is diagnosed, since one that silently discovers nothing is the
     /// worst outcome on offer.
     pub const E_AUTOLOAD_GLOB_SHAPE: Code = Code::new("E0318");
+    /// A bare name used where a value is expected — `PHP_EOL`, `MY_LIMIT` —
+    /// which in PHP would be a global constant fetch.
+    /// [ADR 0011](../../../docs/adr/0011-functions-and-constants-are-class-members.md)
+    /// § 3 removed that storage row outright: a constant is always a class
+    /// constant, so there is no name for this to resolve against and nothing
+    /// below the resolver to lower it to.
+    pub const E_NO_GLOBAL_CONSTANT: Code = Code::new("E0319");
+    /// A bare name called as a function — `strlen($s)` — which in PHP would
+    /// be a global function call. ADR 0011 § 1: every callable is a method,
+    /// with no exception for built-ins, which live under the reserved `Core`
+    /// namespace. Split from [`E_NO_GLOBAL_CONSTANT`] because the two carry
+    /// different replacements even though the callee is the same node.
+    pub const E_NO_FREE_FUNCTION: Code = Code::new("E0320");
+    /// `self`, `static` or `parent` written where a value is expected, rather
+    /// than on the left of a `::`. Each of the three names a *class*, and a
+    /// class is not a value in MWL — there is no class-object reflection
+    /// handle ([ADR 0011](../../../docs/adr/0011-functions-and-constants-are-class-members.md)
+    /// puts every reflective question on `Core\Reflect` instead).
+    pub const E_CLASS_NAME_NOT_A_VALUE: Code = Code::new("E0321");
 
     // --- E04xx types -------------------------------------------------------
     /// A value whose type cannot be what this position requires.

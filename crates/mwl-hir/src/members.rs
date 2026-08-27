@@ -7,6 +7,18 @@
 //! gives a callable/constant no bare-name fallback to fall into instead, so
 //! there is nothing else a `Class::member` reference could mean.
 //!
+//! That same ADR's other half is refused here too, and it is the reason
+//! [`walk_class_side`] exists: a **bare name in value position** (`PHP_EOL`)
+//! is `E0319` and a **bare name called** (`strlen($s)`) is `E0320`, since
+//! ADR 0011 §§ 1 and 3 removed the global-function and global-constant
+//! storage rows outright — and `self`/`static`/`parent` in value position is
+//! `E0321`, all three naming a class where a value is expected. All four are
+//! the *same* [`ExprKind`]s that mean a class on the left of a `::`, so every
+//! class-side position skips the value-position walk rather than recursing
+//! into it. Reported here, in resolution, rather than in `mwl-types`: the
+//! mistake is that the name resolves against nothing, which needs no type,
+//! and the `E04xx` band has two numbers left.
+//!
 //! Also carries M2 item 5, the property-access counterpart: `$this->name`
 //! must name an instance property actually declared on the enclosing class
 //! or reached the same way through [`ClassGraph`], per
@@ -268,6 +280,7 @@ impl MemberResolver {
             symbols,
             graph,
             table: &self.table,
+            refused_toplevel: refused_toplevel_names(stmts, src),
             diags,
         };
         check_stmts(stmts, src, None, &[], &FxHashMap::default(), &mut env);
@@ -289,7 +302,32 @@ struct Env<'a> {
     symbols: &'a SymbolTable,
     graph: &'a ClassGraph,
     table: &'a MemberTable,
+    /// Every name this file declared as a top-level `function` or `const` —
+    /// both already refused by the parser (`E0215`/`E0216`). Calling or
+    /// reading one is the same mistake seen from its use site, so `E0320` and
+    /// `E0319` skip a name in here rather than reporting the cascade.
+    refused_toplevel: FxHashSet<String>,
     diags: &'a mut Diagnostics,
+}
+
+/// The names in [`Env::refused_toplevel`], collected before the walk so a use
+/// site written *above* its declaration is suppressed too.
+fn refused_toplevel_names(stmts: &[Stmt], src: &SourceFile) -> FxHashSet<String> {
+    let mut out = FxHashSet::default();
+    for stmt in stmts {
+        match &stmt.kind {
+            StmtKind::TopLevelFunction(method) => {
+                out.insert(src.span_text(method.name).unwrap_or_default().to_owned());
+            }
+            StmtKind::TopLevelConst(consts) => {
+                for c in consts {
+                    out.insert(src.span_text(c.name).unwrap_or_default().to_owned());
+                }
+            }
+            _ => {}
+        }
+    }
+    out
 }
 
 fn check_stmts(
@@ -608,10 +646,35 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         ExprKind::Conversion { expr, .. } => e!(expr),
         ExprKind::InstanceOf { expr, class } => {
             e!(expr);
-            e!(class);
+            walk_class_side(class, src, ctx, env);
         }
+        // A bare `strlen($s)` is ADR 0011 § 1's removed row, not a call on a
+        // value: the callee is reported here rather than recursed into, so
+        // that it names the *function* replacement instead of the constant
+        // one `ExprKind::ConstFetch`'s own arm below would give it.
         ExprKind::Call { callee, args } => {
-            e!(callee);
+            match &callee.kind {
+                ExprKind::ConstFetch(name) => {
+                    let text = name_text(src, name);
+                    if !env.refused_toplevel.contains(text) {
+                        env.diags.report(
+                            Diagnostic::error(
+                                code::E_NO_FREE_FUNCTION,
+                                format!("`{text}` is not a function that exists"),
+                            )
+                            .with_primary(callee.span, "no free function has this name")
+                            .with_help(
+                                "ADR 0011 § 1: every callable is a method, and the built-ins \
+                                 live under the reserved `Core` namespace — \
+                                 `Core\\Str::length($s)`, or `use Core\\Str;` and then \
+                                 `Str::length($s)`. `docs/spec/02-php-migration.md` maps PHP's \
+                                 own name to its `Core` member",
+                            ),
+                        );
+                    }
+                }
+                _ => e!(callee),
+            }
             walk_args(args, src, ctx, env);
         }
         ExprKind::MethodCall {
@@ -630,7 +693,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
             args,
             ..
         } => {
-            e!(class);
+            walk_class_side(class, src, ctx, env);
             walk_member_name(method, src, ctx, env);
             walk_args(args, src, ctx, env);
             if let MemberName::Ident(name_span) = method {
@@ -662,7 +725,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
             }
         }
         ExprKind::StaticPropertyAccess { class, name } => {
-            e!(class);
+            walk_class_side(class, src, ctx, env);
             let text = src.span_text(*name).unwrap_or_default();
             check_member_ref(
                 class,
@@ -674,7 +737,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
             );
         }
         ExprKind::ClassConstAccess { class, name } => {
-            e!(class);
+            walk_class_side(class, src, ctx, env);
             check_member_ref(
                 class,
                 src.span_text(*name).unwrap_or_default(),
@@ -684,7 +747,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                 env,
             );
         }
-        ExprKind::ClassNameConst { class } => e!(class),
+        ExprKind::ClassNameConst { class } => walk_class_side(class, src, ctx, env),
         ExprKind::Index { base, index } => {
             e!(base);
             if let Some(index) = index {
@@ -735,8 +798,69 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
             }
         }
         ExprKind::Require { path } => e!(path),
+        // The two name-shaped expressions that only ever mean a class are
+        // refused here, in value position, because every position where they
+        // *do* mean a class goes through `walk_class_side` instead and never
+        // reaches this match at all.
+        ExprKind::ConstFetch(name) => {
+            let text = name_text(src, name);
+            if !env.refused_toplevel.contains(text) {
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_NO_GLOBAL_CONSTANT,
+                        format!("`{text}` is not a constant that exists"),
+                    )
+                    .with_primary(expr.span, "no global constant has this name")
+                    .with_help(
+                        "ADR 0011 § 3: a constant always belongs to a class, so there is no \
+                         global one to fetch — write `Class::NAME`, and for a PHP built-in the \
+                         `Core` member `docs/spec/02-php-migration.md` maps it to (`PHP_EOL` is \
+                         `Core\\Env::EOL`)",
+                    ),
+                );
+            }
+        }
+        ExprKind::SelfExpr | ExprKind::StaticExpr | ExprKind::ParentExpr => {
+            let written = match &expr.kind {
+                ExprKind::SelfExpr => "self",
+                ExprKind::StaticExpr => "static",
+                _ => "parent",
+            };
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_CLASS_NAME_NOT_A_VALUE,
+                    format!("`{written}` names a class, and a class is not a value"),
+                )
+                .with_primary(expr.span, "used where a value is expected")
+                .with_help(format!(
+                    "write `{written}::` and the member wanted — a method call, a constant or a \
+                     static property. There is no class handle to pass around: ADR 0011 puts \
+                     every reflective question on `Core\\Reflect` instead"
+                )),
+            );
+        }
         _ => {}
     }
+}
+
+/// Walks the left-hand side of a `::`, an `instanceof`'s right-hand side, and
+/// every other position that names a *class* rather than producing a value.
+///
+/// The four name-shaped [`ExprKind`]s — `self`, `static`, `parent` and a bare
+/// name — mean a class here and nothing else, so they are skipped rather than
+/// walked: [`walk_expr`]'s own arms for them report `E0319`/`E0321`, which are
+/// about *value* position and would fire on every `Foo::bar()` in the program
+/// if a class side recursed. A dynamic class side (`$name::foo()`, a
+/// parenthesized expression) is an ordinary value and is walked; whether it is
+/// an *allowed* class side is `mwl_types`' question, not this pass's.
+fn walk_class_side(class: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    if matches!(
+        class.kind,
+        ExprKind::SelfExpr | ExprKind::StaticExpr | ExprKind::ParentExpr | ExprKind::ConstFetch(_)
+    ) {
+        return;
+    }
+    walk_expr(class, src, ctx, env);
 }
 
 /// Resolves `class_expr` to a real class-side [`QName`] the same way
