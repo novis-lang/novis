@@ -65,7 +65,7 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 584 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> `run`), `tests/conformance` × 586 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
 > and `reject`) and `tests/differential` × 163, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -277,12 +277,32 @@
 > subject is **borrowed**, so a freshly-built one is staged as an owned temporary, and the array
 > under construction is staged too and re-pointed after every write — it is named by no local, so
 > without that its throwing edges had nothing to release. `python tools/holes.py` is down to **34
-> sites**; item 17 still lists 5, all of them other items' panics that share `lower/expr.rs`. **M4S
-> Part I is the floor, not the frontier**: conformance is at 584 of the goal's new 750 and
-> differential at 163 of 165, `python tools/gaps.py` still ranks the thin classes, and a `Core`
-> depth slice is a legitimate slice when a group is blocked — never a reason to leave a language
-> item unfinished. `docs/spec/02-php-migration.md` is 31% classified (`python
-> tools/check-migration.py`).
+> sites**; item 17 still lists 5, all of them other items' panics that share `lower/expr.rs`. **Item
+> 16's checker half is closed.** A `name:` or `...` call argument is mapped to the parameter it
+> fills before anything is typed, and that mapping is the fact `mwl-ir` cannot re-derive — a name
+> resolves against `MethodSig::param_names`, which no later pass holds — so it is recorded as
+> `ExprInfo`'s new `ArgSlot` list on `ResolvedCall::arg_slots`. A named argument is checked against
+> *its own* parameter, so an out-of-order list type-checks and a mis-named one is an ordinary
+> `E0401` at the parameter the name reached. Five refusals came with it and PHP shares four: a
+> positional argument after a `name:` or `...` is **E0488**, a parameter filled twice is **E0487**,
+> a name reaching no fillable parameter is **E0486**, and a `...` with no variadic tail left to land
+> in — the callee declares none, or a fixed parameter is still unfilled — is **E0489**, because how
+> many entries an array holds is a run-time fact and a spread that could fill a fixed parameter
+> would leave the call's arity uncheckable. **E0485 is the one rule PHP has no counterpart for**: a
+> `Core` member's parameters are types in `mwl_stdlib::registry` and carry no names at all, ADR 0063
+> R2's options bag being its by-name surface, so `param_names` is `None` there and a `name:` is told
+> to write the bag instead. A spread's subject takes the tail's element type one level up as its
+> *expectation*, `array<that>` — which is why **E0484 has no call-site twin**: that code is what a
+> position with no `array<T>` expectation is left with, and a variadic parameter always has one, so
+> `...$s` over a `string` is `expected array<T>, found string`, the same mistake named better. The
+> arity check for a named list names the unfilled parameter rather than counting, and is suppressed
+> behind any argument that reached no parameter at all, one mistake being one diagnostic. **The
+> lowering half is untouched**: `crates/mwl-ir/src/lower/call.rs:75` still asserts, so a well-typed
+> `f(...$xs)` reaches it and panics exactly as before. **M4S Part I is the floor, not the
+> frontier**: conformance is at 586 of the goal's new 750 and differential at 163 of 165, `python
+> tools/gaps.py` still ranks the thin classes, and a `Core` depth slice is a legitimate slice when a
+> group is blocked — never a reason to leave a language item unfinished.
+> `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the ones

@@ -2,64 +2,70 @@
 
 ## State
 
-**M4 — language completeness.** The array-literal element list is finished: item 17 is
-closed, its `&value` half as `E0483` and its `...spread` half as a lowering plus the key
-semantics it needed.
+**M4 — language completeness.** Item 16 is half closed: a **named** or **spread** call
+argument now type-checks, with the parameter it fills settled by the checker and handed
+down. The lowering half is still open, so a well-typed `f(...$xs)` still panics at
+`crates/mwl-ir/src/lower/call.rs:75` — unchanged, not a regression.
 
-`[...$a]` is one `InstKind::ArraySpread` (`crates/mwl-ir/src/lower/expr.rs:3645`), which
-`mwl-codegen` emits as one call to `mwl_runtime::array`'s `mwl_array_spread` — the
-runtime walks the subject once and owns which keys survive. **The key rule is ADR 0007
-§ 5's**, folded into its own bullet there: an integer-looking key is renumbered under the
-destination's append counter, every other key is preserved. ADR 0069's Context paragraph
-carries the one sentence that keeps the two consistent (a spread is written at the site;
-`merge($a, $b)` is a name). `tests/differential/lang/an-array-literal-spread-renumbers-like-php.mwlt`
-pins twelve rows against PHP, the append refusal included, all byte-identical.
+The mapping is `mwl_types::expr_table::ArgSlot` (`Param(i)` / `Spread(i)` / `Unresolved`),
+one entry per written argument, recorded on `ResolvedCall::arg_slots`. `mwl-ir` cannot
+re-derive it: a name resolves against `MethodSig::param_names`, a new
+`Option<Vec<String>>` that is `None` for every signature with no source names — every
+`Core` row, the synthesized `Throwable` constructor, the seeded interfaces. `None` is not
+`Some(vec![])`, and that is the whole reason it is an `Option`: it is what makes
+**E0485** ("write ADR 0063 R2's options bag") a different diagnostic from **E0486**
+("no such parameter") at a zero-parameter user method.
 
-Refcounts, valgrind-green over `.agent-tmp/spread-all.mwl` on both throwing edges: the
-subject is **borrowed** (a fresh producer is staged as an owned temporary and released
-after the copy), each entry copied is retained by the runtime, and the array under
-construction is now itself staged and re-pointed after every write —
-`Lowering::retarget_temporary`/`forget_temporary` in `lower/call.rs:496`. That last one
-fixes the keyed shape too: a literal whose element expression throws used to leave the
-half-built array named by nothing.
+The rules and their reasons are on `mwl_types::expr::args::map_arguments`
+(`crates/mwl-types/src/expr/args.rs:145`), which is reached only by a list containing a
+`name:` or a `...` — an all-positional list keeps its own identity mapping and its own
+count-against-count arity message, so no existing call site's diagnostic moved. New
+codes: **E0485**–**E0489**. Two findings worth not re-deriving: **E0484 has no call-site
+twin** (a variadic parameter always supplies an `array<T>` expectation, so the mismatch
+is the better `E0401` — `declared_for`'s doc comment owns it, and the item's own text
+predicted otherwise), and a spread binds a *generic* variadic tail for free, `array<T>`
+against the subject's own array type being the same rule one element at a time.
 
-`verify.py` 6 of 6 green — conformance **584**, differential **163**. `python
-tools/holes.py` is at **34 sites**; item 17's own line is gone and the 5 it still lists
-are other items' panics sharing `lower/expr.rs`.
+`verify.py` 6 of 6 green — conformance **586**, differential **163**, 1629 unit tests.
+`python tools/holes.py` is unmoved at **34 sites**: this slice added no lowering.
 
 ## Next group
 
-**The call-argument spread**, item 16, in the order `loop-goal.md` § *Standing decisions*
-fixes — checker first, lowering second. The two halves share nothing but the shape, so
-they are two file sets, and the checker half is where to start.
+**Item 16's lowering half first** — it is the only thing standing between a checked
+`f(...$xs)`/`f(name: v)` and a program that runs, and everything it needs is now on disk.
+It and the third slice are two file sets; take the third only with room left.
 
-- [ ] **Item 16's checker half: a named or spread *call* argument type-checks** —
-      `crates/mwl-types/src/expr/args.rs:38` (`check_args_typed`) and `:117`
-      (`check_arg`). The spread half is `check_spread_element`
-      (`crates/mwl-types/src/expr/literals.rs:668`) one position along: a variadic
-      parameter's element type is the expectation, and a subject that is not an
-      `array<T>` takes the same refusal (`E0484`). A **named** argument needs the
-      parameter matched by name and a resolved per-argument type recorded, which is the
-      fact `crates/mwl-ir/src/lower/call.rs:75` panics for the absence of.
-- [ ] **Item 16's lowering half** — `crates/mwl-ir/src/lower/call.rs:75`, once the
-      checker records a per-argument type. A spread argument into a **variadic**
-      parameter is `lower_variadic_tail` plus this session's `InstKind::ArraySpread`:
-      the tail already builds one fresh array, and a spread element of it is the same
-      copy. A spread into a fixed parameter list needs the subject's length at compile
-      time and does not have it — refuse it by name rather than lowering it.
-- [ ] **A positional element after an explicit key still numbers from its own
-      position** — `crates/mwl-ir/src/lower/expr.rs:3645`'s keyed shape, the one
-      divergence a spread-carrying literal no longer shares. `[1, "k" => 2, 3]` puts `3`
-      at `"1"` where PHP puts it at `"2"`, and the fix is the `ArrayAppend` the spread
-      path already takes. `lower::tests::a_positional_element_after_an_explicit_key_keeps_its_own_position_counter`
-      is the snapshot that pins the current answer, and `ir::InstKind::ArrayNew`'s doc
-      comment is where it is written down as deliberate.
+- [ ] **Item 16's lowering half: reorder by `arg_slots`** — `crates/mwl-ir/src/lower/call.rs:60`
+      (`lower_call_args`, whose `assert!` at `:75` is the panic) and `:219`
+      (`lower_variadic_tail`). Read `ResolvedCall::arg_slots` through
+      `ArgSig` (`crates/mwl-ir/src/lower/mod.rs:1193`), which today copies only
+      `param_tys`/`by_ref`/`variadic`/`defaults` off the resolved call. The checker
+      guarantees the shape: every slot is `Param(i)` or `Spread(i)`, at most one argument
+      per fixed parameter, every `Spread` lands at the variadic index with every fixed
+      parameter already filled — so the lowering never has to refuse anything, it has to
+      *place* each lowered value at its parameter's ABI position and fall back to
+      `emit_const_arg` for a parameter no slot named.
+- [ ] **The spread's own entries into the variadic tail** — same file. The tail already
+      builds one fresh array; a `Spread` contributes its subject's entries to that array,
+      which is the `InstKind::ArraySpread` (`crates/mwl-ir/src/lower/expr.rs:3645`) and
+      the `mwl_array_spread` helper item 17 landed. Watch the refcount edge item 17
+      already paid for: the subject is **borrowed**, so a freshly-built one is staged as
+      an owned temporary, and the array under construction is staged and re-pointed
+      after every write.
+- [ ] **A positional element after an explicit key still numbers from its own position**
+      — `crates/mwl-ir/src/lower/expr.rs:3657`'s keyed shape, the one divergence a
+      spread-carrying literal no longer shares. `[1, "k" => 2, 3]` puts `3` at `"1"`
+      where PHP puts it at `"2"`, and the fix is the `ArrayAppend` the spread path
+      already takes. `lower::tests::a_positional_element_after_an_explicit_key_keeps_its_own_position_counter`
+      pins the current answer and `ir::InstKind::ArrayNew`'s doc comment records it as
+      deliberate.
 
 ## Backlog
 
-- Item 1's 11 sites are catch-alls only — `mwl-codegen` gap, `docs/implementation-plan.md`.
-- Items 4, 6, 7: the bitwise operators, `<=>`, `$x++` — `python tools/holes.py --item N`.
-- Item 19/20: a `&$x` parameter under a closure, and `foreach (… as &$v)`.
-- The two unattributed `mwl-codegen/src/ty.rs` sites belong to no item yet — `holes.py`.
-- `Core\Json::decodeAs<T>`'s wider codec-reachable set — `mwl_stdlib::json` gaps.
-- 20 of the 32 named `.mwlt` cases are still to write — `python tools/loop.py --list`.
+- `mwl-ir` gap 1: `Class::method(...)` first-class callable panics — `mwl-ir`'s crate docs.
+- Calling a closure through the variable holding it does not lower — `mwl-ir`'s crate docs.
+- ADR 0007 § 2's `array<T> as array<U>` conversion row does not lower — `lower/expr.rs:877`.
+- `lower_decl_type`/`lower_checked_ty` catch-alls: `decimal`, `never`, `iterable`,
+  `self`/`static`/`parent`, a shape and an intersection as a *declared* type — no item names them.
+- An abandoned generator's `finally` (loop-goal § *Standing decisions*) is still unbuilt.
+- `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.
