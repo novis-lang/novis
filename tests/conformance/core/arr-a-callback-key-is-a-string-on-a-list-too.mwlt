@@ -1,0 +1,107 @@
+--TEST--
+Every Core\Arr callback is handed its key as a `string` over a list, where the key is a position, and every one of them refuses an `int $k` — ADR 0069 § 5, ADR 0007 §§ 2, 5
+--FILE--
+<?mwl
+// The depth claim is *agreement about a type*. ADR 0069 § 5 makes the `$key` a
+// callback receives a `string` in every member and over every array shape, and
+// a list is the one shape where that costs something: `SlotKey::Index` holds
+// the position, so the decimal is rendered for the call and for nothing else
+// (`crates/mwl-stdlib/src/arr.rs`'s module doc owns the mechanism). A member
+// that handed the position on unrendered would still answer plausibly on its
+// own line — the keys would read the same — so what is asserted here is both
+// sides of the rule at once: every member accepts `string $k` over a list and
+// reports the same keys, and every member refuses `int $k`. Only a `string`
+// passes both halves; the neighbouring
+// `arr-every-callback-is-offered-value-and-key` asks the arity question, over
+// a map, and never asks what a wrong declaration does.
+
+// A packed list: every key below is a position that was never stored as one.
+array<int> $list = [10, 20, 30, 40];
+array<int> $partner = ["p" => 10, "q" => 60];
+array<int> $twin = [0, 0, 0, 0];
+
+// Each entry is one member's report of the keys it offered, recovered from
+// whatever that member does with what the callback returned.
+array<string> $seen = [
+    Core\Str::join(Core\Arr::keys(Core\Arr::filter($list,
+        fn(int $v, string $k) => $k == "0" || $k == "1" || $k == "2" || $k == "3")), ","),
+    Core\Str::join(Core\Arr::values(Core\Arr::map($list, fn(int $v, string $k) => $k)), ","),
+    Core\Str::join(Core\Arr::keys(Core\Arr::mapKeys($list, fn(int $v, string $k) => $k)), ","),
+    Core\Str::join(Core\Arr::keys(Core\Arr::groupBy($list, fn(int $v, string $k) => $k)), ","),
+    Core\Str::join(Core\Arr::keys(Core\Arr::countBy($list, {by: fn(int $v, string $k) => $k})), ","),
+    // The fold has no answer of its own to read the keys back out of, so it
+    // builds one: a leading separator, dropped by the slice.
+    Core\Str::slice(Core\Arr::reduce($list,
+        fn(string $c, int $v, string $k) => $c . "," . $k, ""), 1),
+    Core\Str::join(Core\Arr::keys(Core\Arr::unique($list, {by: fn(int $v, string $k) => $k})), ","),
+    Core\Str::join(Core\Arr::keys(Core\Arr::diff($list, $partner, {by: fn(int $v, string $k) => $k})), ","),
+    Core\Str::join(Core\Arr::keys(Core\Arr::intersect($list, $twin, {by: fn(int $v, string $k) => $k})), ","),
+];
+
+// Counted against the literal the keys of a four-element list have to be, not
+// against each other, so nine members agreeing on the wrong string still fails.
+var $same = 0;
+foreach ($seen as string $report) {
+    if ($report == "0,1,2,3") {
+        $same = $same + 1;
+    }
+}
+echo $seen["0"], "\n";
+echo $same, " of ", Core\Arr::count($seen), "\n";
+
+// The four members that answer about one entry rather than a list have no
+// answer to read keys out of: they are asked for the entry whose key is "2",
+// which is a string comparison against a position.
+echo Core\Arr::find($list, fn(int $v, string $k) => $k == "2") ?? -1, "|",
+     Core\Arr::findKey($list, fn(int $v, string $k) => $k == "2") ?? "none", "|",
+     Core\Arr::any($list, fn(int $v, string $k) => $k == "2") as string, "|",
+     Core\Arr::all($list, fn(int $v, string $k) => $k == "2") as string, "\n";
+
+// `sort` reorders, so its report is its own answer's order — sorting a list
+// *by* its rendered key is what leaves the order alone.
+echo Core\Str::join(Core\Arr::keys(Core\Arr::sort($list,
+    {by: fn(int $v, string $k) => $k, preserveKeys: true})), ","), "\n";
+
+// The other half. `mwl_runtime::call_closure` checks each argument against the
+// tags the closure declared, so a callback writing `int $k` throws
+// `LogicError` — ADR 0007 § 2 has no implicit `string` → `int` conversion, and
+// the only widening it does admit runs the other way. Both counters are
+// incremented from inside the same fourteen blocks, so a member that quietly
+// stopped offering a key raises `asked` without raising `refused`.
+var $asked = 0;
+var $refused = 0;
+try { $asked = $asked + 1; Core\Arr::filter($list, fn(int $v, int $k) => $v > 10); }
+catch (LogicError $e) { $refused = $refused + 1; }
+try { $asked = $asked + 1; Core\Arr::map($list, fn(int $v, int $k) => $v); }
+catch (LogicError $e) { $refused = $refused + 1; }
+try { $asked = $asked + 1; Core\Arr::mapKeys($list, fn(int $v, int $k) => $v as string); }
+catch (LogicError $e) { $refused = $refused + 1; }
+try { $asked = $asked + 1; Core\Arr::groupBy($list, fn(int $v, int $k) => $v); }
+catch (LogicError $e) { $refused = $refused + 1; }
+try { $asked = $asked + 1; Core\Arr::countBy($list, {by: fn(int $v, int $k) => $v}); }
+catch (LogicError $e) { $refused = $refused + 1; }
+try { $asked = $asked + 1; Core\Arr::reduce($list, fn(int $c, int $v, int $k) => $c + $v, 0); }
+catch (LogicError $e) { $refused = $refused + 1; }
+try { $asked = $asked + 1; Core\Arr::find($list, fn(int $v, int $k) => $v > 10); }
+catch (LogicError $e) { $refused = $refused + 1; }
+try { $asked = $asked + 1; Core\Arr::findKey($list, fn(int $v, int $k) => $v > 10); }
+catch (LogicError $e) { $refused = $refused + 1; }
+try { $asked = $asked + 1; Core\Arr::any($list, fn(int $v, int $k) => $v > 10); }
+catch (LogicError $e) { $refused = $refused + 1; }
+try { $asked = $asked + 1; Core\Arr::all($list, fn(int $v, int $k) => $v > 10); }
+catch (LogicError $e) { $refused = $refused + 1; }
+try { $asked = $asked + 1; Core\Arr::unique($list, {by: fn(int $v, int $k) => $v}); }
+catch (LogicError $e) { $refused = $refused + 1; }
+try { $asked = $asked + 1; Core\Arr::sort($list, {by: fn(int $v, int $k) => $v}); }
+catch (LogicError $e) { $refused = $refused + 1; }
+try { $asked = $asked + 1; Core\Arr::diff($list, $partner, {by: fn(int $v, int $k) => $v}); }
+catch (LogicError $e) { $refused = $refused + 1; }
+try { $asked = $asked + 1; Core\Arr::intersect($list, $twin, {by: fn(int $v, int $k) => $v}); }
+catch (LogicError $e) { $refused = $refused + 1; }
+echo $refused, " of ", $asked, " refused\n";
+--EXPECT--
+0,1,2,3
+9 of 9
+30|2|1|
+0,1,2,3
+14 of 14 refused
