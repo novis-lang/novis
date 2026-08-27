@@ -26,7 +26,7 @@ class Apply {
         return $out;
     }
 
-    public static function bump(int &$slot, int $by): int {
+    public static function bump(inout int $slot, int $by): int {
         $slot = $slot + $by;
 
         return $slot;
@@ -46,10 +46,10 @@ array<int> $joined = [1, ...$extra];
 echo "elements=" . Core\Arr::count($joined) . "\n";
 
 int $slot = 5;
-echo "byref=" . Apply::bump($slot, 2) . " then " . $slot . "\n";
+echo "byref=" . Apply::bump(inout $slot, 2) . " then " . $slot . "\n";
 
 array<int> $nums = [1, 2, 3];
-foreach ($nums as int &$each) {
+foreach ($nums as inout int $each) {
     $each = $each * 10;
 }
 

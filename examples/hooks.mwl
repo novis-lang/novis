@@ -16,7 +16,7 @@ class Counter implements Stringable {
 }
 
 class Adder {
-    public static function bump(int &$slot): void {
+    public static function bump(inout int $slot): void {
         $slot = $slot + 5;
     }
 }
@@ -29,5 +29,5 @@ echo $c->doubled . "\n";
 echo $c->toString() . "\n";
 
 int $n = 1;
-Adder::bump($n);
+Adder::bump(inout $n);
 echo "n=" . $n . "\n";

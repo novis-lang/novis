@@ -3,26 +3,26 @@
 --FILE--
 <?mwl
 final class Walk {
-    public static function bump(int &$n): void {
+    public static function bump(inout int $n): void {
         $n = $n + 100;
     }
 }
 
 array<int> $written = [1, 2, 3];
 array<int> $copy = $written;
-foreach ($written as int &$w) {
+foreach ($written as inout int $w) {
     $w = $w * 2;
 }
 echo Core\Json::encode($written), " ", Core\Json::encode($copy), "\n";
 
 array<int> $mixed = ["k" => 1, 2, "3" => 5];
-foreach ($mixed as int &$m) {
+foreach ($mixed as inout int $m) {
     $m = $m + 10;
 }
 echo Core\Json::encode($mixed), "\n";
 
 array<int> $grown = [1];
-foreach ($grown as int &$g) {
+foreach ($grown as inout int $g) {
     if ($g == 1) {
         $grown["1"] = 2;
     }
@@ -31,7 +31,7 @@ foreach ($grown as int &$g) {
 echo Core\Json::encode($grown), "\n";
 
 array<int> $stopped = [1, 2, 3, 4];
-foreach ($stopped as int &$s) {
+foreach ($stopped as inout int $s) {
     if ($s == 3) {
         break;
     }
@@ -41,7 +41,7 @@ echo Core\Json::encode($stopped), "\n";
 
 array<string> $thrown = ["a", "b"];
 try {
-    foreach ($thrown as string &$t) {
+    foreach ($thrown as inout string $t) {
         $t = "z";
         throw new RuntimeError("stop");
     }
@@ -51,16 +51,16 @@ try {
 echo Core\Json::encode($thrown), "\n";
 
 array<array<int>> $grid = [[1, 2], [3, 4]];
-foreach ($grid as array<int> &$row) {
-    foreach ($row as int &$cell) {
+foreach ($grid as inout array<int> $row) {
+    foreach ($row as inout int $cell) {
         $cell = $cell * 10;
     }
 }
 echo Core\Json::encode($grid), "\n";
 
 array<int> $bumped = [3, 4];
-foreach ($bumped as int &$b) {
-    Walk::bump($b);
+foreach ($bumped as inout int $b) {
+    Walk::bump(inout $b);
 }
 echo Core\Json::encode($bumped), "\n";
 --ORACLE--

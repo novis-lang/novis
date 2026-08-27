@@ -596,6 +596,13 @@ is why" — is this file.
   Name a stage that must be reported first `0`-something (`"0a inout"`), and say in the block's comment
   that the digit is load-bearing, or the next person renames it back. `python tools/loop.py --list` prints
   the real run order and is the only way to see this.
+- **`cargo insta` is not installed in this environment**, so a snapshot the playbook's
+  `cargo insta accept` bullet assumes you can accept has to be accepted by hand: `cargo test`
+  writes each new one beside its `.snap` as `.snap.new`, and accepting it is replacing the `.snap`
+  with that file minus the `assertion_line:` header field, whose `source:` line also differs (the
+  new one names the test file, the old one names the module). Doing that for the six pending at
+  once is a five-line script; doing it by hand is two calls per snapshot. `cargo install
+  cargo-insta` would fix it once for every future session and nobody has run it.
 
 ## Running things
 

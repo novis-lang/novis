@@ -3,7 +3,7 @@ a compound assignment through a `&$x` parameter updates the caller's own binding
 --FILE--
 <?mwl
 class Bump {
-    public static function twice(int &$n, string &$s): void {
+    public static function twice(inout int $n, inout string $s): void {
         $n += 2;
         $s .= "!";
     }
@@ -11,8 +11,8 @@ class Bump {
 
 int $count = 5;
 var $label = "go";
-Bump::twice($count, $label);
-Bump::twice($count, $label);
+Bump::twice(inout $count, inout $label);
+Bump::twice(inout $count, inout $label);
 echo $count, "\n";
 echo $label, "\n";
 --EXPECT--

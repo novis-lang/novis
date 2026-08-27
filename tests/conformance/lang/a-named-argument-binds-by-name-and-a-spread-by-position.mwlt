@@ -36,7 +36,7 @@ final class Box {
     public function render(string $open = "[", string $close = "]"): string {
         return $open . $this->tag . ":" . $this->size as string . $close;
     }
-    public static function bump(int &$n, int $by = 1): void {
+    public static function bump(inout int $n, int $by = 1): void {
         $n = $n + $by;
     }
 }
@@ -60,7 +60,7 @@ echo $b->render(close: ">", open: "<"), "\n";
 
 // A `&$n` parameter written second by name still aliases the local it names.
 int $n = 5;
-Box::bump(by: 3, n: $n);
+Box::bump(by: 3, inout n: $n);
 echo $n as string, "\n";
 
 // A `...` binds by *position*, not by name: it lands wholly in the variadic

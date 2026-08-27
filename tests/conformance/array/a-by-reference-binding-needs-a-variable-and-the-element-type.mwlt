@@ -25,14 +25,14 @@ final class Rows {
     }
 }
 
-foreach (Rows::of() as int &$fresh) {
+foreach (Rows::of() as inout int $fresh) {
     $fresh = 0;
 }
-foreach (new Seq() as int &$step) {
+foreach (new Seq() as inout int $step) {
     $step = 0;
 }
 array<int> $counts = [1, 2];
-foreach ($counts as mixed &$wide) {
+foreach ($counts as inout mixed $wide) {
     $wide = 0;
 }
 echo "unreachable\n";

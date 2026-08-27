@@ -6,7 +6,7 @@ final class Adder {
     // The whole case is written around this member: the callee writes its
     // slot, and the copy-back that makes the write visible lands where the
     // call is rather than at the end of the statement.
-    public static function bump(int &$slot): int {
+    public static function bump(inout int $slot): int {
         $slot = $slot + 1;
 
         return $slot;
@@ -22,7 +22,7 @@ final class Box {
 
     // A property holder: `stage_ref_arg` lowers the receiver exactly once and
     // remembers it, so the copy-back writes back through the same object.
-    public static function grow(string &$cell, string $piece): string {
+    public static function grow(inout string $cell, string $piece): string {
         $cell = $cell . $piece;
 
         return $cell;
@@ -32,38 +32,38 @@ final class Box {
 // A read sequenced to the right of the call, inside one statement, sees the
 // written-back value — this is the shape the whole rule is named for.
 int $n = 5;
-echo "right=", Adder::bump($n), " ", $n, "\n";
+echo "right=", Adder::bump(inout $n), " ", $n, "\n";
 
 // Two calls in one statement: the second stages the holder afresh and so reads
 // what the first wrote back, and the trailing read sees both.
 int $m = 5;
-echo "two=", Adder::bump($m), " ", Adder::bump($m), " ", $m, "\n";
+echo "two=", Adder::bump(inout $m), " ", Adder::bump(inout $m), " ", $m, "\n";
 
 // Calls nest, so the staging is a stack: the outer call's mark is taken before
 // the inner call's argument list is lowered at all, and the inner copy-back
 // still lands at the inner call. 5 -> bump gives 6, and the second operand
 // reads that 6, so the sum is 12 rather than 11.
 int $k = 5;
-echo "nested=", Adder::sum(Adder::bump($k), $k), "\n";
+echo "nested=", Adder::sum(Adder::bump(inout $k), $k), "\n";
 
 // A condition is an expression position, not a statement: the copy-back has
 // landed by the time the branch is taken.
 int $c = 5;
-if (Adder::bump($c) == 6) {
+if (Adder::bump(inout $c) == 6) {
     echo "cond=", $c, "\n";
 }
 
 // An array-literal element is one too, and the element to its right reads the
 // written-back value while the literal is still being built.
 int $e = 5;
-array<int> $xs = [Adder::bump($e), $e];
+array<int> $xs = [Adder::bump(inout $e), $e];
 echo "element=", $xs["0"], " ", $xs["1"], "\n";
 
 // A `while` header runs its call once per iteration, so the loop terminates on
 // the callee's own writes rather than on anything the body does.
 int $w = 0;
 int $steps = 0;
-while (Adder::bump($w) < 4) {
+while (Adder::bump(inout $w) < 4) {
     $steps = $steps + $w;
 }
 echo "while=", $w, " ", $steps, "\n";
@@ -71,7 +71,7 @@ echo "while=", $w, " ", $steps, "\n";
 // The other holder kind: the copy-back re-points a property of the receiver
 // the argument was read through, and the read after the call sees it.
 var $b = new Box();
-echo "holder=", Box::grow($b->tag, "z"), " ", $b->tag, "\n";
+echo "holder=", Box::grow(inout $b->tag, "z"), " ", $b->tag, "\n";
 --EXPECT--
 right=6 6
 two=6 7 7

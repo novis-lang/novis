@@ -11,7 +11,7 @@ A method whose body contains `yield` may not declare a `&$x` parameter, while an
 // value in would stop being a reference, which is the whole observable point.
 final class Feed {
     // Reported once per by-reference parameter, not once per method.
-    public static function walk(int &$seen, int &$last): Iterator<int> {
+    public static function walk(inout int $seen, inout int $last): Iterator<int> {
         $seen = 1;
         yield 1;
         $last = 2;
@@ -20,22 +20,22 @@ final class Feed {
 
     // No `yield`, so this frame *is* the call — unaffected, and it is what a
     // by-reference parameter still lowers to.
-    public static function bump(int &$n): void {
+    public static function bump(inout int $n): void {
         $n = $n + 1;
     }
 }
 
 int $seen = 0;
-foreach (Feed::walk($seen, $seen) as int $v) {
+foreach (Feed::walk(inout $seen, inout $seen) as int $v) {
     echo $v, "\n";
 }
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0492]: a generator cannot take `$seen` by reference
-   --> case.mwl:11:38
+error[E0492]: a generator cannot take `$seen` as `inout`
+   --> case.mwl:11:43
 %A
-error[E0492]: a generator cannot take `$last` by reference
-   --> case.mwl:11:50
+error[E0492]: a generator cannot take `$last` as `inout`
+   --> case.mwl:11:60
 %A
 error: aborting due to 2 errors

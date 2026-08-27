@@ -41,27 +41,46 @@
 > [docs/agent/loop-goal.md](agent/loop-goal.md), behind one surface change taken ahead of them: [ADR
 > 0107](adr/0107-by-reference-parameters-are-spelled-inout-at-both-ends.md) retires `&` as a
 > by-reference marker in favour of `inout`, written before the type and again at the call site, and
-> the goal's Stage 0a is its four items — the front end and three diagnostics, the checker's
-> call-site rule, the mechanical rename, and the corpus. It is first because a case authored in the
-> old spelling is authored twice, and because M4B is deferred behind this goal exactly so its
-> `.lspt` suite is written against the finished surface. A hole is a shape that compiles in the
-> front end and then refuses below it; it is closed when it either runs with a fixture or a `.mwlt`
-> case pinning what it prints, or is refused by a **diagnostic that names the rule** — never by a
-> panic. The statement dispatch has no shape left that the checker accepts: ADR 0007 § 3.3's `[int
-> $a, string $b] = $pair;` lowers as the subscripts it is spelled out of and refuses what one
-> refuses (`E0482`/`E0401`/`E0483`), inline HTML lowers over its raw span, a nested
-> `class`/`interface`/`enum` is `E0233`, an increment takes its write target's own
-> `E0479`/`E0478`/`E0480`, `unset()` is narrowed to an array element of a named holder and refuses
-> every other operand (`E0234`, plus `E0413` for a static property), an element write whose root is
-> only a temporary is `E0700` — the first code of the `E07xx` band the full `E04xx` one continues in
-> — an increment's own target passes the parser's `E0105` gate like every other write spelling, the
-> read-modify-write rewrite's own assertion has no reachable target left — its doc comment carries
-> the proof, and `mwl_types`' two write-target refusals are two thirds of it — an element write
-> evaluates the receiver under its root holder exactly once, PHP 8.5.9's own count, a computed
-> member name (`->$name` / `->{expr}`) is `E0235` where it is written and an undeclared property is
-> `E0405` on every class kind, which together leave the property-write panic no reachable target,
-> all four write spellings — `=`, `⊕=`, an increment and `unset()` — agree on the three
-> element-write holders that are no slot and take exactly one diagnostic each for it, an
+> **that surface is now the tree's**: `inout` parses in the modifier slot of a parameter, a
+> `foreach` value binding and a destructuring leaf, `Arg` carries the same word at the call, and
+> every `&` that meant by-reference is `E0237` naming the fix — including the two *returning* forms
+> (`function &f()`, `&get`) that `inout` does not replace at all, since a method hands back a value
+> rather than a place, and whose AST variants are deleted with them. The checker owns the call site:
+> an argument binding an `inout` parameter must say so (`E0713`) and one binding a by-value
+> parameter, a spread's entries or anything reached through a `callable` must not (`E0714`), so the
+> write a callee makes to its caller's storage is visible where the call is written. The three
+> spellings refused because the language has no such thing keep their own codes and deliberately do
+> not become `E0237` — `$a = &$b` is `E0701`, `[&$x]` and its destructuring twin are `E0483`, `use
+> (&$y)` is `E0224` — because `inout` is not what replaces any of them, and each gains the new word
+> in its help text. `Parser::at_intersection_amp` is the one thing ADR 0107 said would be deleted
+> and is not: with the fourth meaning gone an `&` in a type always *means* an intersection, but the
+> type parser is what reaches `int &$x` first, and a lookahead that consumes it leaves the site
+> above nothing to report — so § 3's own text is corrected rather than left disagreeing with the
+> tree. The 12 `.mwlt` cases and both examples that spelled `&$` are rewritten **with their expected
+> output unchanged**, which is the check that this ADR changed no semantics; what is left of Stage
+> 0a is item 46's mechanical `by_ref` → `inout` rename through the prose and identifiers of
+> `mwl-ir`, `mwl-types` and `mwl-stdlib` — every *compile-necessary* read of the renamed AST fields
+> already moved — and item 47's own new case,
+> `tests/conformance/lang/a-by-reference-argument-is-written-inout-at-both-ends.mwlt`, plus the 15
+> doc files. It is first because a case authored in the old spelling is authored twice, and because
+> M4B is deferred behind this goal exactly so its `.lspt` suite is written against the finished
+> surface. A hole is a shape that compiles in the front end and then refuses below it; it is closed
+> when it either runs with a fixture or a `.mwlt` case pinning what it prints, or is refused by a
+> **diagnostic that names the rule** — never by a panic. The statement dispatch has no shape left
+> that the checker accepts: ADR 0007 § 3.3's `[int $a, string $b] = $pair;` lowers as the subscripts
+> it is spelled out of and refuses what one refuses (`E0482`/`E0401`/`E0483`), inline HTML lowers
+> over its raw span, a nested `class`/`interface`/`enum` is `E0233`, an increment takes its write
+> target's own `E0479`/`E0478`/`E0480`, `unset()` is narrowed to an array element of a named holder
+> and refuses every other operand (`E0234`, plus `E0413` for a static property), an element write
+> whose root is only a temporary is `E0700` — the first code of the `E07xx` band the full `E04xx`
+> one continues in — an increment's own target passes the parser's `E0105` gate like every other
+> write spelling, the read-modify-write rewrite's own assertion has no reachable target left — its
+> doc comment carries the proof, and `mwl_types`' two write-target refusals are two thirds of it —
+> an element write evaluates the receiver under its root holder exactly once, PHP 8.5.9's own count,
+> a computed member name (`->$name` / `->{expr}`) is `E0235` where it is written and an undeclared
+> property is `E0405` on every class kind, which together leave the property-write panic no
+> reachable target, all four write spellings — `=`, `⊕=`, an increment and `unset()` — agree on the
+> three element-write holders that are no slot and take exactly one diagnostic each for it, an
 > intermediate level of a nested element write is `E0482` unless it is an array of its own, which
 > together leave `write_back_array`'s and `row_ty_of`'s panics no reachable target either, and `int
 > $x;` and `;` both lower, all seven declaration spellings — `class`, `interface`, `enum`, `type`,
