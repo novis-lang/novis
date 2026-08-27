@@ -287,7 +287,10 @@ pub use array::{
     mwl_array_next_slot, mwl_array_release, mwl_array_retain, mwl_array_set, mwl_array_set_index,
     mwl_array_unset, mwl_array_value_at,
 };
-pub use closure::{CLOSURE_ARITY_SLOT, CLOSURE_INVOKE, call_closure, closure_arity};
+pub use closure::{
+    CLOSURE_ARITY_SLOT, CLOSURE_INVOKE, CLOSURE_PARAM_TAG_ANY, CLOSURE_PARAM_TAGS_SLOT,
+    call_closure, closure_arity,
+};
 pub use ctx::{
     CARRIER_CLI_TEXT, CARRIER_HTML_MARKUP, CARRIER_TEXT_SLOT, Ctx, DEBUG_FLAGS_OFFSET, DebugFlags,
     ErrorClass, FaultSite, OutputSink, SAFEPOINT_OFFSET, STACK_CEILING, STACK_LIMIT_OFFSET,

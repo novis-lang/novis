@@ -306,12 +306,17 @@ fn list_of(count: usize) -> mwl_runtime::Value {
 
 /// A closure value whose `invoke` is a plain Rust function.
 ///
-/// `mwl_runtime::call_closure` reads exactly two things off a closure — slot
-/// `CLOSURE_ARITY_SLOT`, and the `CLOSURE_INVOKE` method's address in its
-/// class — so a test in this crate can hand a `Core` member a `callable`
-/// without a compiler in front of it. Everything else in
-/// `mwl_ir::lower::lower_closure`'s representation is captured state, and a
-/// native callback captures nothing.
+/// `mwl_runtime::call_closure` reads exactly three things off a closure — slot
+/// `CLOSURE_ARITY_SLOT`, slot `CLOSURE_PARAM_TAGS_SLOT`, and the
+/// `CLOSURE_INVOKE` method's address in its class — so a test in this crate
+/// can hand a `Core` member a `callable` without a compiler in front of it.
+/// Everything else in `mwl_ir::lower::lower_closure`'s representation is
+/// captured state, and a native callback captures nothing.
+///
+/// Every parameter is recorded as `CLOSURE_PARAM_TAG_ANY`, which is what a
+/// `mixed` one gets: the callback below is a Rust function taking whatever the
+/// member hands it, so there is no declared type for the tag check to hold it
+/// to.
 ///
 /// The table is leaked because a descriptor's *address* is its identity and it
 /// must outlive every instance made from it, which is the rule
@@ -320,7 +325,7 @@ fn list_of(count: usize) -> mwl_runtime::Value {
 #[cfg(debug_assertions)]
 fn closure_of(arity: usize, invoke: mwl_runtime::MwlFn) -> mwl_runtime::Value {
     let mut table = mwl_runtime::ClassTable::new();
-    let id = table.define("{closure}", &["arity"], &[]);
+    let id = table.define("{closure}", &["arity", "params"], &[]);
     table.set_methods(
         id,
         vec![(mwl_runtime::CLOSURE_INVOKE.to_owned(), invoke as *const u8)],
@@ -335,6 +340,14 @@ fn closure_of(arity: usize, invoke: mwl_runtime::MwlFn) -> mwl_runtime::Value {
     object.set_field(
         mwl_runtime::CLOSURE_ARITY_SLOT,
         mwl_runtime::Value::int(i64::try_from(arity).expect("a small arity")),
+    );
+    let mut tags: u64 = 0;
+    for parameter in 0..arity {
+        tags |= u64::from(mwl_runtime::CLOSURE_PARAM_TAG_ANY) << (parameter * 4);
+    }
+    object.set_field(
+        mwl_runtime::CLOSURE_PARAM_TAGS_SLOT,
+        mwl_runtime::Value::int(i64::from_ne_bytes(tags.to_ne_bytes())),
     );
     mwl_runtime::Value::object(object)
 }

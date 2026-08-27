@@ -22,36 +22,33 @@
 //! hand-written refcount protocol Stage 6's valgrind leg exists to catch, so
 //! there is one implementation and no second one.
 //!
-//! # What is *not* checked here, and what closing it costs
+//! # Why the parameter types are checked here, of all places
 //!
-//! **A closure's declared parameter types are checked by nobody**, and that is
-//! a priority-1 hole rather than a rough edge: [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
-//! § 1 gives `callable` no parameter list, so no checker can compare a call
-//! site against the body it will reach, and the compiled `invoke` reads
-//! argument slot *i* at its own declared representation. Hand it a mismatch
-//! and the callee reinterprets the payload — an `int` read as an `MwlStr`
-//! pointer is an arbitrary dereference, not a fault.
-//!
-//! It is reachable from safe MWL today and was before `$f(...)` lowered:
+//! [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md) § 1
+//! gives `callable` no parameter list, so **no checker can compare a call site
+//! against the body it will reach**, and the compiled `invoke` reads argument
+//! slot *i* at its own declared representation. Hand it a mismatch and the
+//! callee reinterprets the payload — an `int` read as an `MwlStr` pointer is
+//! an arbitrary dereference, not a fault, and
 //! `Core\Arr::map($ints, fn (string $s): string => $s)` over an `array<int>`
-//! dies inside `crate::string` on a misaligned pointer. [`mwl_call_closure`]
-//! widens *who* can reach it, not *whether*, and adds no way to reach it that
-//! `Core\Arr::map` did not already have.
+//! is all it takes to write one.
 //!
-//! Closing it means the closure object carrying its parameter tags the way it
-//! already carries its arity ([`CLOSURE_ARITY_SLOT`]) — a second reserved slot
-//! written by `mwl_ir::lower::lower_closure` from the declared types, and one
-//! tag comparison per argument here, throwing the [`crate::ThrownClass::Logic`]
-//! `LogicError` [`mwl_call_closure`] already answers a bad arity with.
-//! That is a per-call cost on the callback path (priority 3) bought for
-//! priority 1, which is the direction AGENTS.md's ordering names, and it is
-//! the only design that works at all while `callable` stays unparameterized.
-//! It is not done here because it moves a slot layout three crates agree on.
+//! So the closure object carries its parameter tags
+//! ([`CLOSURE_PARAM_TAGS_SLOT`]) the way it already carries its arity
+//! ([`CLOSURE_ARITY_SLOT`]), written at the literal by
+//! `mwl_ir::lower::lower_closure_literal` from the declared types, and
+//! [`check_param_tags`] compares one against each argument on the way in —
+//! throwing the [`crate::ThrownClass::Logic`] `LogicError` [`mwl_call_closure`]
+//! answers a bad arity with. It sits in [`call_closure`] because that is the
+//! one path *both* callers take, a `Core` member's callback and ADR 0031's
+//! `$fn(...)` alike; putting it in either caller would leave the other one
+//! holding the hole. What it costs, and the one conversion it refuses that
+//! ADR 0007 admits, are that function's own doc comment.
 
 use crate::abi::{Fault, MwlFn, OK};
 use crate::ctx::Ctx;
 use crate::object::{ClassDesc, MwlObj};
-use crate::value::Value;
+use crate::value::{Tag, Value};
 
 /// The one method a closure's captured-environment class answers. Must agree
 /// with `mwl_ir::lower`'s own constant; `mwl-codegen`'s
@@ -67,6 +64,33 @@ pub const CLOSURE_INVOKE: &str = "invoke";
 /// `a_closure_object_carries_its_own_arity_in_slot_zero` holds the two
 /// together.
 pub const CLOSURE_ARITY_SLOT: usize = 0;
+
+/// The field slot holding which tag each of a closure's parameters requires —
+/// always the second, and read by index for the same reason
+/// [`CLOSURE_ARITY_SLOT`] is.
+///
+/// The payload is an `int` carrying one nibble per parameter, parameter 0 in
+/// the least significant four bits, and each nibble is the [`Tag`]
+/// discriminant an argument in that position must carry — so reading one costs
+/// a shift and a mask and needs no table here. `mwl_ir::lower`'s
+/// `FN_PARAM_TAGS` is the definition side and owns why the object carries this
+/// at all; `mwl-codegen`'s `param_tag_nibbles_are_the_runtime_tag_bytes` holds
+/// its map against the tag bytes compiled code actually writes.
+pub const CLOSURE_PARAM_TAGS_SLOT: usize = 1;
+
+/// The one [`CLOSURE_PARAM_TAGS_SLOT`] nibble that is not a [`Tag`]: the
+/// parameter is `mixed`, `?T` or another union, whose representation *is* a
+/// tag chosen at run time, so no argument can be wrong for it.
+///
+/// Twelve is the first number past the tag roster and can therefore never
+/// collide with one — [`Tag::from_byte`] answering `None` for it is half of
+/// `mwl-codegen`'s `the_any_nibble_denotes_no_tag_at_all`.
+pub const CLOSURE_PARAM_TAG_ANY: u8 = 12;
+
+/// How many parameters [`CLOSURE_PARAM_TAGS_SLOT`] can describe: one nibble
+/// each in a 64-bit payload. A closure declaring more cannot be called —
+/// [`check_param_tags`] says why refusing is the answer.
+const CLOSURE_PARAM_TAGS_CAPACITY: usize = 16;
 
 /// Calls the closure `closure` with as many leading `args` as it declares
 /// parameters, borrowing every one of them.
@@ -91,6 +115,9 @@ pub const CLOSURE_ARITY_SLOT: usize = 0;
 /// [`Fault::Pending`] carrying the callee's own status when the closure
 /// throws or faults, so the exception the callee recorded in `ctx` reaches
 /// the request unchanged rather than being replaced by a message from here.
+/// [`Fault::Thrown`] for an argument whose tag is not the one the closure
+/// declares in that position — [`check_param_tags`], which runs before
+/// anything is retained or passed.
 /// [`Fault::Fatal`] when `closure` is not a closure value at all, or declares
 /// more parameters than the caller has to offer — both engine faults: the
 /// checker only admits an ADR 0027 closure value where a `callable` is
@@ -105,6 +132,7 @@ pub fn call_closure(ctx: &mut Ctx, closure: Value, args: &[Value]) -> Result<Val
             args.len()
         ))
     })?;
+    check_param_tags(closure, args)?;
     #[expect(
         unsafe_code,
         reason = "the address came out of a live descriptor's method table, \
@@ -236,6 +264,118 @@ pub fn closure_arity(closure: Value) -> Result<usize, Fault> {
     })?;
     usize::try_from(arity)
         .map_err(|_| Fault::fatal("internal error: a `callable` recorded a negative arity"))
+}
+
+/// Refuses `args` unless every one of them carries the tag the closure's
+/// corresponding parameter declares — the check that stands in for the one no
+/// checker can make.
+///
+/// [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md) § 1
+/// gives `callable` no parameter list, so a call site has nothing to compare
+/// against and the compiled `invoke` reads argument slot *i* at its own
+/// declared representation — an `int` handed to a `string` parameter is
+/// dereferenced as an `MwlStr` pointer. This is the one place that can still
+/// tell, because the closure object carries what the literal declared
+/// (`mwl_ir::lower`'s `FN_PARAM_TAGS`), and it is on the path *both* callers
+/// take: a `Core` member's callback and ADR 0031's `$fn(...)` alike.
+///
+/// One shift, one mask and one byte comparison per argument, on the callback
+/// path — priority 3 spent on priority 1, which is the direction AGENTS.md's
+/// ordering names, and the only design available while `callable` stays
+/// unparameterized.
+///
+/// # Known gap
+///
+/// The comparison is exact, so an `int` argument to a `float` parameter throws
+/// rather than widening, which is the one implicit conversion
+/// [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 2 admits at a
+/// parameter position. Closing it means converting the value here under that
+/// ADR's 2^53 rule — `crate::helpers`'s `int_to_float` row is the one
+/// implementation — and until then a throw is the answer, because the
+/// alternative it replaced was reading the payload at the wrong width.
+///
+/// # Errors
+///
+/// [`Fault::Thrown`] carrying [`crate::ThrownClass::Logic`] for a mismatched
+/// argument, and for a closure declaring more parameters than
+/// [`CLOSURE_PARAM_TAGS_CAPACITY`] can record — a program can reach both and a
+/// program-reachable failure is a throw
+/// ([ADR 0002](../../../docs/adr/0002-error-propagation.md)). Refusing the
+/// call in the second case is deliberate: passing an argument whose declared
+/// tag was never written down is exactly the read this function exists to
+/// prevent, and no spec callback comes close to sixteen parameters.
+///
+/// [`Fault::Fatal`] when the closure is not a closure value, when its tag slot
+/// does not hold an `int`, or when either side carries a byte that denotes no
+/// representation at all — each of those is a compiler or runtime bug rather
+/// than something a program can write.
+fn check_param_tags(closure: Value, args: &[Value]) -> Result<(), Fault> {
+    let ptr = closure.obj_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "internal error: a `callable` argument carried tag {} rather than an object",
+            closure.tag_byte()
+        ))
+    })?;
+    #[expect(
+        unsafe_code,
+        reason = "the caller owns a reference to this object, and the slot \
+                  index is one every closure class has by construction"
+    )]
+    let slot = unsafe { crate::object::mwl_object_field_get(ptr, CLOSURE_PARAM_TAGS_SLOT) };
+    let word = slot.as_int().ok_or_else(|| {
+        Fault::fatal(format!(
+            "internal error: a `callable`'s parameter-tag slot carried tag {} rather than an int",
+            slot.tag_byte()
+        ))
+    })?;
+    // The sixteenth nibble sits in the sign bit; the slot holds the same 64
+    // bits either way, and only the nibbles are ever read.
+    let word = u64::from_ne_bytes(word.to_ne_bytes());
+
+    for (i, arg) in args.iter().enumerate() {
+        if i >= CLOSURE_PARAM_TAGS_CAPACITY {
+            return Err(Fault::thrown_as(
+                crate::ThrownClass::Logic,
+                format!(
+                    "a `callable` declaring more than {CLOSURE_PARAM_TAGS_CAPACITY} parameters \
+                     cannot be called: nothing recorded what its parameter {} requires",
+                    i + 1
+                ),
+            ));
+        }
+        // The mask leaves four bits, which is what a nibble is.
+        let nibble = ((word >> (i * 4)) & 0xf) as u8;
+        if nibble == CLOSURE_PARAM_TAG_ANY {
+            continue;
+        }
+        let required = Tag::from_byte(nibble).ok_or_else(|| {
+            Fault::fatal(format!(
+                "internal error: a `callable` recorded nibble {nibble} for parameter {}, which \
+                 denotes no representation",
+                i + 1
+            ))
+        })?;
+        let given = arg.tag().ok_or_else(|| {
+            Fault::fatal(format!(
+                "internal error: argument {} to a `callable` carried tag {}, which denotes no \
+                 representation",
+                i + 1,
+                arg.tag_byte()
+            ))
+        })?;
+        if given != required {
+            return Err(Fault::thrown_as(
+                crate::ThrownClass::Logic,
+                format!(
+                    "argument {} to a `callable` must be of type {}, {} given",
+                    i + 1,
+                    required.describe(),
+                    given.describe()
+                ),
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// The compiled address of `closure`'s [`CLOSURE_INVOKE`], or a [`Fault`]

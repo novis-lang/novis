@@ -516,6 +516,25 @@ is why" — is this file.
   `.agent-tmp/*.mwl` and one `mwl run`, and that is what a session should spend before it picks
   an item off the list. `holes.py --cases` is the half that does not lie — a named case either
   exists on disk or does not.
+- **A fact `mwl-ir` and `mwl-runtime` both need lives in one of them and is held to the other by a
+  test in `mwl-codegen`.** Neither crate names the other — `mwl-ir` depends on `mwl-syntax`/
+  `mwl-types`/`mwl-diagnostics` and nothing below, and `mwl-runtime` depends on neither — so a
+  shared constant has no crate to live in that both can see. `mwl-codegen` sees both, which is why
+  `FN_INVOKE`/`CLOSURE_INVOKE` and `FN_ARITY`/`CLOSURE_ARITY_SLOT` are each a pair with a codegen
+  test between them rather than one definition. A whole *table* travels the same way: the closure
+  parameter-tag nibbles are `mwl_ir::lower::param_tag_nibble` on the writing side and plain
+  `mwl_runtime::Tag` discriminants on the reading side, held together by
+  `param_tag_nibbles_are_the_runtime_tag_bytes` in `crates/mwl-codegen/src/ty.rs`. Reaching for a
+  new dependency edge to avoid the pair is the wrong direction; a `pub fn` in `mwl-ir` plus a
+  `#[test]` in `mwl-codegen` is the shape that already exists.
+
+- **A closure object's slot layout has a third party, and it is a test in `mwl-stdlib`.**
+  `closure_of` in `crates/mwl-stdlib/tests/allocation_policy.rs` hand-builds a closure — a class
+  with the reserved slots and a Rust `invoke` — so a `Core` member can be handed a `callable` with
+  no compiler in front of it. Adding a reserved slot in `mwl-ir` therefore breaks it, and the
+  failure arrives as `field slot N is out of range for a class with N slots` from
+  `mwl_runtime::object`, three crates from the edit. `grep -rn CLOSURE_ARITY_SLOT --include=*.rs
+  crates/` finds every builder in one call; do that before moving the layout, not after.
 
 ## Running things
 
