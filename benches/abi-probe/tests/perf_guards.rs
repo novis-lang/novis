@@ -437,12 +437,30 @@ fn a_typed_arithmetic_loop_contains_no_call() {
     );
 
     // Half two: every `call` the *machine code* contains is accounted for by a
-    // safepoint poll or an ADR 0018 probe — both out-of-line, both emitted
-    // unconditionally, and both guarded for cost separately above. Tying the
-    // machine-code count to the IR site count is what makes half one a claim
-    // about the emitted code rather than only about the IR.
+    // safepoint poll, an ADR 0018 probe or an overflow raise — all out-of-line,
+    // the first two emitted unconditionally and guarded for cost separately
+    // above. Tying the machine-code count to the IR site count is what makes
+    // half one a claim about the emitted code rather than only about the IR.
     let sites = insts()
         .filter(|i| matches!(i.kind, InstKind::Safepoint | InstKind::StmtMarker(_)))
+        .count();
+    // The third and fourth accounted categories, both added when ADR 0007
+    // § 4's overflow throw landed. Each checked integer arithmetic instruction
+    // owns a cold block calling `mwl_runtime::mwl_raise_new`, and the ADR 0002
+    // error edge it takes ends in a landing block whose `Propagate` calls
+    // `mwl_trace_push`. Both are out-of-line and neither is reached while the
+    // arithmetic fits — the hot path is still one machine instruction plus a
+    // predicted not-taken branch — so they are accounted for here rather than
+    // read as calls the loop pays for.
+    let raises = insts()
+        .filter(|i| {
+            i.on_error.is_some() && matches!(i.kind, InstKind::BinOp { .. } | InstKind::UnOp { .. })
+        })
+        .count();
+    let landings = sum
+        .blocks
+        .iter()
+        .filter(|b| matches!(b.term, mwl_ir::ir::Terminator::Propagate { .. }))
         .count();
     // Scanned line by line rather than by splitting on the section marker:
     // Cranelift renders a two-way branch as `jnz label3; j label2`, so a
@@ -457,13 +475,18 @@ fn a_typed_arithmetic_loop_contains_no_call() {
             emitted += 1;
         }
     }
-    println!("Bench::sum: {sites} probe/safepoint sites, {emitted} emitted calls");
+    println!(
+        "Bench::sum: {sites} probe/safepoint sites, {raises} overflow raises, \
+         {landings} landing blocks, {emitted} emitted calls"
+    );
 
     assert_eq!(
-        emitted, sites,
-        "Bench::sum emits {emitted} call(s) for {sites} probe/safepoint site(s). \
-         Every call in a typed arithmetic loop should be one of those two \
-         out-of-line slow paths and nothing else."
+        emitted,
+        sites + raises + landings,
+        "Bench::sum emits {emitted} call(s) for {sites} probe/safepoint site(s), \
+         {raises} overflow raise(s) and {landings} landing block(s). Every call in a \
+         typed arithmetic loop should be one of those out-of-line slow paths and \
+         nothing else."
     );
 }
 

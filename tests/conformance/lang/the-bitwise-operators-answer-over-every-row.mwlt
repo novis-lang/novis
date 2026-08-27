@@ -1,0 +1,107 @@
+--TEST--
+`& | ^ ~ << >>` hold their algebraic identities over a swept table, `>>` reads its operand's signedness, and the five compound forms are their binary forms — ADR 0007 § 4
+--FILE--
+<?mwl
+// The differential case beside this one pins the `int` arm against PHP's own
+// output. What is left, and what this asks, is the half PHP cannot answer:
+// the `uint` arm, where `>>` is logical rather than arithmetic, and the
+// compound spellings, which ADR 0007 § 4 does not list separately because
+// `$x op= e` is `$x = $x op e` and nothing else.
+
+// 1. The identities, counted over a table rather than read off a chosen row.
+//    A masked shift — what `ishl`/`sshr` do on their own — passes the first
+//    four of these and fails the fifth, which is why the fifth is here.
+array<int> $rows = [
+    0, 1, 0 - 1, 6, 0 - 7, 1024, 9223372036854775807, 0 - 9223372036854775807 - 1,
+];
+int $seen = 0;
+int $selfXorIsZero = 0;
+int $doubleNotIsSelf = 0;
+int $andSelfIsSelf = 0;
+int $orZeroIsSelf = 0;
+int $pastWidthIsSignFill = 0;
+foreach ($rows as int $x) {
+    $seen = $seen + 1;
+    if (($x ^ $x) == 0) { $selfXorIsZero = $selfXorIsZero + 1; }
+    if ((~(~$x)) == $x) { $doubleNotIsSelf = $doubleNotIsSelf + 1; }
+    if (($x & $x) == $x) { $andSelfIsSelf = $andSelfIsSelf + 1; }
+    if (($x | 0) == $x) { $orZeroIsSelf = $orZeroIsSelf + 1; }
+    // `$x >> 63` is already the sign bit repeated, and every wider count must
+    // land on the same value. A count masked to six bits makes `$x >> 64` be
+    // `$x` instead, which agrees only on `0` and `-1`.
+    if (($x >> 64) == ($x >> 63)) { $pastWidthIsSignFill = $pastWidthIsSignFill + 1; }
+}
+echo "identities over ", $seen, " rows: ", $selfXorIsZero, " ", $doubleNotIsSelf, " ",
+     $andSelfIsSelf, " ", $orZeroIsSelf, " ", $pastWidthIsSignFill, "\n";
+
+// 2. The five compound forms, each asserted to *agree* with the binary form it
+//    rewrites to, on every row of the same table. Agreement rather than a
+//    value, so a compound spelling that grew a second lowering fails here
+//    while still printing plausibly on its own line.
+int $scratch = 0;
+int $agreements = 0;
+foreach ($rows as int $y) {
+    $scratch = $y;
+    $scratch &= 3;
+    if ($scratch == ($y & 3)) { $agreements = $agreements + 1; }
+    $scratch = $y;
+    $scratch |= 8;
+    if ($scratch == ($y | 8)) { $agreements = $agreements + 1; }
+    $scratch = $y;
+    $scratch ^= 1;
+    if ($scratch == ($y ^ 1)) { $agreements = $agreements + 1; }
+    $scratch = $y;
+    $scratch <<= 2;
+    if ($scratch == ($y << 2)) { $agreements = $agreements + 1; }
+    $scratch = $y;
+    $scratch >>= 1;
+    if ($scratch == ($y >> 1)) { $agreements = $agreements + 1; }
+}
+echo "compound agrees ", $agreements, "/", $seen * 5, "\n";
+
+// 3. The one row where the two integer types part, and the reason `>>` reads a
+//    representation rather than a width: the same 64 set bits shift right by
+//    one to `-1` as an `int` and to `2^63 - 1` as a `uint`. Every other
+//    operator answers the same bits on both arms.
+int $allOnes = 0 - 1;
+uint $uAllOnes = 18446744073709551615;
+uint $uOne = 1;
+uint $uSix = 6;
+uint $uThree = 3;
+// A shift count carries its operand's signedness like any other operand:
+// `bitwise_result` refuses a mixed-signedness pair here exactly as it does for
+// `&`, so the count on the `uint` arm is declared `uint` too.
+uint $uWidth = 64;
+echo "int -1 >> 1 = ", $allOnes >> 1, ", uint all-ones >> 1 = ", $uAllOnes >> $uOne, "\n";
+echo "uint and/or/xor/not: ", $uSix & $uThree, " ", $uSix | $uThree, " ", $uSix ^ $uThree,
+     " ", ~$uOne, "\n";
+echo "uint << past width: ", $uOne << $uWidth, ", uint >> past width: ", $uAllOnes >> $uWidth, "\n";
+
+// 4. The only refusal either shift has, and it belongs to the *count* rather
+//    than to the operand: PHP raises `ArithmeticError` for a negative one, and
+//    a `uint` count cannot be negative, so the unsigned arm has no such row at
+//    all. Both sides are named: a count of zero is the smallest accepted one
+//    and answers the operand back, and `-1` is the first refused one.
+int $negative = 0 - 1;
+echo "shl 0 = ", 5 << 0, ", shr 0 = ", 5 >> 0, "\n";
+try {
+    int $bad = 5 << $negative;
+    echo "no throw\n";
+} catch (ArithmeticError $shiftedLeft) {
+    echo "shl -1: ", $shiftedLeft->message, "\n";
+}
+try {
+    int $worse = 5 >> $negative;
+    echo "no throw\n";
+} catch (ArithmeticError $shiftedRight) {
+    echo "shr -1: ", $shiftedRight->message, "\n";
+}
+--EXPECT--
+identities over 8 rows: 8 8 8 8 8
+compound agrees 40/40
+int -1 >> 1 = -1, uint all-ones >> 1 = 9223372036854775807
+uint and/or/xor/not: 2 7 5 18446744073709551614
+uint << past width: 0, uint >> past width: 0
+shl 0 = 5, shr 0 = 5
+shl -1: Bit shift by negative number
+shr -1: Bit shift by negative number

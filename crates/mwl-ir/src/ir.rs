@@ -212,16 +212,19 @@ pub struct Inst {
     /// `Some` for the instructions that can actually fail: [`InstKind::Call`],
     /// [`InstKind::CallVirtual`], [`InstKind::New`],
     /// [`InstKind::NewDynamic`], the one [`InstKind::HelperCall`] with a real
-    /// failure mode ([`Helper::EchoStr`]'s write), and the one
-    /// [`InstKind::BinOp`] with one: `%` over [`crate::ty::Ty::Int`]/
-    /// [`crate::ty::Ty::Uint`], whose zero divisor throws
+    /// failure mode ([`Helper::EchoStr`]'s write), and **every integer
+    /// arithmetic row** — `+`, `-`, `*`, `/` and `%` over
+    /// [`crate::ty::Ty::Int`]/[`crate::ty::Ty::Uint`] as an
+    /// [`InstKind::BinOp`], and unary `-` over the same two as an
+    /// [`InstKind::UnOp`]. All six throw
     /// [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4's
-    /// `ArithmeticError` rather than trapping the process. That one is not a
-    /// call at all — `mwl-codegen` compares and raises inline, so this edge is
-    /// the frame's cleanup path and nothing else. `None` everywhere else,
-    /// which is not a gap in two different ways — every other
-    /// [`InstKind::BinOp`] and a [`InstKind::Concat`] return no status at all,
-    /// and a *conversion*
+    /// `ArithmeticError`: the two divisions on a zero divisor, and the other
+    /// four on overflow, which that section makes a throw rather than a wrap
+    /// or a promotion to `float`. None of the six is a call at all —
+    /// `mwl-codegen` tests and raises inline, so this edge is the frame's
+    /// cleanup path and nothing else. `None` everywhere else, which is not a
+    /// gap in two different ways — a comparison, a float row and a
+    /// [`InstKind::Concat`] return no status at all, and a *conversion*
     /// helper (`Helper::IntToString`, the truthy table) returns one whose only
     /// non-`OK` value is the miscompile guard `mwl_runtime::helpers` describes:
     /// a `FATAL`, which no cleanup path and no `catch` can act on, so giving
@@ -1491,16 +1494,37 @@ pub enum Helper {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[non_exhaustive]
 pub enum BinOp {
-    /// `+`
+    /// `+`. Over an `int` or a `uint` this and the four below carry
+    /// [`Inst::on_error`] — see that field for which of them throws on what.
     Add,
     /// `-`
     Sub,
     /// `*`
     Mul,
-    /// `/`
+    /// `/`. The one operator whose result representation is not its operands':
+    /// ADR 0007 § 4 types the integer row as `int|float`, so it produces a
+    /// [`crate::ty::Ty::Tagged`] and picks between the two at run time.
     Div,
     /// `%`
     Mod,
+    /// `&` — ADR 0007 § 4 preserves the operand type, and this and the two
+    /// below are total: no pair of `int`s or `uint`s has an unrepresentable
+    /// bitwise combination, so none of the three carries [`Inst::on_error`].
+    BitAnd,
+    /// `|`
+    BitOr,
+    /// `^`
+    BitXor,
+    /// `<<`. PHP's semantics, which are not the machine's: a **negative** count
+    /// throws `ArithmeticError`, so this carries [`Inst::on_error`] over an
+    /// `int` (a `uint` count cannot be negative), and a count of 64 or more
+    /// answers `0` rather than the masked shift x86 would perform.
+    Shl,
+    /// `>>` — [`Self::Shl`]'s two rules, and one of its own: ADR 0007 § 4 makes
+    /// this **arithmetic** on an `int` and **logical** on a `uint`, so a count
+    /// past the width fills with the sign bit in the first case and with zero
+    /// in the second.
+    Shr,
     /// `==` — ADR 0090 makes this the language's only equality operator, with
     /// no conversion of either operand. Every operand pair that reaches here
     /// has one statically known representation, and `mwl-codegen` picks that
@@ -1526,10 +1550,16 @@ pub enum BinOp {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[non_exhaustive]
 pub enum UnOp {
-    /// Numeric negation, `-x`.
+    /// Numeric negation, `-x`. Over an `int` or a `uint` it carries
+    /// [`Inst::on_error`]: `-i64::MIN` has no `int` and `-$u` no `uint` for any
+    /// non-zero `$u`, and ADR 0007 § 4 makes both a throw rather than a wrap.
     Neg,
     /// Boolean negation, `!x`.
     Not,
+    /// Bitwise complement, `~x`, over an `int` or a `uint`. Total — every
+    /// pattern of 64 bits is a value of both — so unlike [`Self::Neg`] it
+    /// carries no error edge.
+    BitNot,
 }
 
 /// How one [`BasicBlock`] ends.

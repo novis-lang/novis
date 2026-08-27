@@ -2114,19 +2114,31 @@ impl<'a> Lowering<'a> {
         }
         let uop = match op {
             AstUnaryOp::Neg => UnOp::Neg,
+            // ADR 0007 § 4's `~` row: the operand type, preserved, and total
+            // over it — every 64-bit pattern is a value of both `int` and
+            // `uint`, so this is the one unary arithmetic row with no edge.
+            AstUnaryOp::BitNot => UnOp::BitNot,
             other => panic!(
-                "mwl-ir's control-flow slice only lowers unary `-`/`!` — got {other:?}; \
+                "mwl-ir's control-flow slice only lowers unary `-`/`!`/`~` — got {other:?}; \
                  see the crate docs' known gaps"
             ),
         };
-        self.emit(
-            *cur,
-            ty,
-            InstKind::UnOp {
-                op: uop,
-                operand: v,
-            },
-        )
+        let kind = InstKind::UnOp {
+            op: uop,
+            operand: v,
+        };
+        // ADR 0007 § 4's overflow throw reaches the unary row too, and for the
+        // same reason the additive ones take it: `-i64::MIN` has no `int` and
+        // `-$u` no `uint` for any non-zero `$u`, so `ineg` would answer with a
+        // wrapped value rather than with the `ArithmeticError` the ADR names.
+        // `mwl-codegen`'s `emit_checked_int_arith` raises it inline, so this
+        // needs ADR 0002's error edge exactly as `%` and `/` do. `!` over a
+        // `bool` and `-` over a `float`/`decimal` cannot fail and do not take
+        // one — see `Inst::on_error`.
+        if matches!(uop, UnOp::Neg) && matches!(ty, Ty::Int | Ty::Uint) {
+            return self.emit_fallible(*cur, ty, kind, env);
+        }
+        self.emit(*cur, ty, kind)
     }
 
     /// `.` concatenation is not `InstKind::BinOp` — it allocates a
@@ -2480,6 +2492,16 @@ impl<'a> Lowering<'a> {
             BinaryOp::Div if matches!(lty, Ty::Int | Ty::Uint) => (BinOp::Div, Ty::Tagged),
             BinaryOp::Div => (BinOp::Div, lty),
             BinaryOp::Mod => (BinOp::Mod, lty),
+            // ADR 0007 § 4's bitwise rows, all five of which preserve the
+            // operand type. `>>` is the one that reads its operand's
+            // signedness rather than only its width — arithmetic on an `int`,
+            // logical on a `uint` — and `mwl-codegen` picks that from the
+            // representation this carries.
+            BinaryOp::BitAnd => (BinOp::BitAnd, lty),
+            BinaryOp::BitOr => (BinOp::BitOr, lty),
+            BinaryOp::BitXor => (BinOp::BitXor, lty),
+            BinaryOp::Shl => (BinOp::Shl, lty),
+            BinaryOp::Shr => (BinOp::Shr, lty),
             BinaryOp::Eq => (BinOp::Eq, Ty::Bool),
             BinaryOp::NotEq => (BinOp::NotEq, Ty::Bool),
             BinaryOp::Lt => (BinOp::Lt, Ty::Bool),
@@ -2497,22 +2519,27 @@ impl<'a> Lowering<'a> {
         // right after the instruction reads it, exactly the rule the
         // `Concat` arm above applies to its own fresh operands.
         //
-        // The two integer operators here that can *fail* are `%` and `/`:
-        // ADR 0007 § 4 makes a zero divisor throw `ArithmeticError` for
-        // both, which `mwl-codegen` raises inline rather than through a
-        // helper, so each needs an error edge exactly the way a call
-        // does. `/` is recognised by its *result* rather than by its
-        // operands, since the integer row is the one that produces a
-        // `Ty::Tagged`. Every other operator, `%` and `/` on floats
-        // included, returns no status at all — see `Inst::on_error`.
+        // Every *integer* arithmetic operator here can fail, and ADR 0007 § 4
+        // is why: `+`, `-` and `*` throw `ArithmeticError` on overflow rather
+        // than wrapping, and `%` and `/` throw it on a zero divisor.
+        // `mwl-codegen` raises all five inline rather than through a helper,
+        // so each needs an error edge exactly the way a call does. `/` is
+        // recognised by its *result* rather than by its operands, since the
+        // integer row is the one that produces a `Ty::Tagged`. Every other
+        // operator — the comparisons, and all five on floats — returns no
+        // status at all, see `Inst::on_error`.
         let inst = InstKind::BinOp {
             op: bop,
             lhs: lv,
             rhs: rv,
         };
         let fallible = match bop {
-            BinOp::Mod => matches!(ty, Ty::Int | Ty::Uint),
+            BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Mod => matches!(ty, Ty::Int | Ty::Uint),
             BinOp::Div => ty == Ty::Tagged,
+            // A shift throws only on a *negative* count, which is PHP's rule
+            // and which a `uint` count cannot produce — so the unsigned row is
+            // infallible even though the signed one beside it is not.
+            BinOp::Shl | BinOp::Shr => ty == Ty::Int,
             _ => false,
         };
         let result = if fallible {

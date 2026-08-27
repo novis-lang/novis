@@ -307,17 +307,19 @@
 //!     scalar operand, and only ADR 0013's *object* form lowers. `**` is not a
 //!     gap: ADR 0054 § 3 makes a `decimal` base a compile error, and
 //!     `mwl_types` reports it.
-//! 16. **`$x++` and `--$x` do not lower, the bitwise operators have no
-//!     [`ir::BinOp`] variant at all, and a compound assignment inherits both
-//!     holes.** [`lower::Lowering::lower_compound_assignment`] rewrites
+//! 16. **`$x++` and `--$x` do not lower, and a compound assignment inherits
+//!     whatever its binary form is missing.**
+//!     [`lower::Lowering::lower_compound_assignment`] rewrites
 //!     `$x op= e` into the `$x = $x op e` it means, so an operator gains its
 //!     compound form exactly when its binary form lowers (`.=` on a plain
 //!     `string` local is the one exception, and it takes
-//!     [`ir::InstKind::StrAppend`] instead) — which leaves
-//!     `&=`, `|=`, `^=`, `<<=`, `>>=` and `**=` out for the same reason `&`
-//!     and `**` themselves are out: [`ir::BinOp`] stops at the arithmetic,
-//!     equality and ordering rows, so [`lower::Lowering::lower_expr`] panics
-//!     naming the operator. The rewrite also reads its target twice, so
+//!     [`ir::InstKind::StrAppend`] instead). The bitwise five closed that way
+//!     rather than one at a time — `&`, `|`, `^`, `<<`, `>>` and unary `~` now
+//!     have their [`ir::BinOp`]/[`ir::UnOp`] variants, so `&=`, `|=`, `^=`,
+//!     `<<=` and `>>=` cost nothing — which leaves `**=` out for the same
+//!     reason `**` itself is: [`ir::BinOp`] has no row for it, so
+//!     [`lower::Lowering::lower_expr`] panics naming the operator. The rewrite
+//!     also reads its target twice, so
 //!     `is_reevaluable_target` refuses `f()->count += 1` rather than calling
 //!     `f()` twice where PHP calls it once; closing that means splitting the
 //!     target's address computation out of

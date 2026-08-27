@@ -18,13 +18,13 @@ fn pick(object, int) -> int {
   bb2:
     ; stmt s2 @8:9-8:20
     v7 = const.int 1  ; int
-    v8 = add v2, v7  ; int
+    v8 = add v2, v7 ! bb7  ; int
     ; stmt s3 @9:9-9:15
     jump bb4
   bb3:
     ; stmt s4 @11:9-11:20
     v9 = const.int 9  ; int
-    v10 = add v2, v9  ; int
+    v10 = add v2, v9 ! bb8  ; int
     jump bb4
   bb4:
     v11 = phi [bb3: v10, bb2: v8]  ; int
@@ -37,4 +37,10 @@ fn pick(object, int) -> int {
     branch v6 -> bb2 (e2), bb6 (e3)
   bb6:
     jump bb3
+  bb7:
+    release v0
+    propagate "pick() at t.mwl:8"
+  bb8:
+    release v0
+    propagate "pick() at t.mwl:11"
 }

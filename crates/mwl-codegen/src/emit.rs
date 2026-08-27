@@ -493,8 +493,9 @@ impl Emitter<'_, '_> {
                 return Ok(next);
             }
             InstKind::UnOp { op, operand } => {
-                let value = self.emit_unop(*op, *operand)?;
+                let (value, next) = self.emit_unop(cur, inst, *op, *operand)?;
                 self.define(inst, value)?;
+                return Ok(next);
             }
             InstKind::HelperCall { helper, args } => {
                 let symbol = helper_symbol(*helper)?;
@@ -1083,21 +1084,39 @@ impl Emitter<'_, '_> {
         if matches!(op, BinOp::Div) && matches!(ty, Ty::Int | Ty::Uint) {
             return self.emit_int_div(inst, l, r, signed);
         }
+        // The remaining three integer rows, which own a continuation block for
+        // the same reason: ADR 0007 § 4 makes `+`, `-` and `*` throw on
+        // overflow rather than wrap. See `Self::emit_checked_int_arith`.
+        if matches!(op, BinOp::Add | BinOp::Sub | BinOp::Mul) && matches!(ty, Ty::Int | Ty::Uint) {
+            return self.emit_checked_int_arith(inst, op, l, r, signed);
+        }
+        // And the two shifts, whose count is a value PHP judges rather than a
+        // field the machine masks. See `Self::emit_shift`.
+        if matches!(op, BinOp::Shl | BinOp::Shr) && matches!(ty, Ty::Int | Ty::Uint) {
+            return self.emit_shift(cur, inst, op, l, r, signed);
+        }
 
         let value = match op {
             BinOp::Add if float => self.b.ins().fadd(l, r),
             BinOp::Sub if float => self.b.ins().fsub(l, r),
             BinOp::Mul if float => self.b.ins().fmul(l, r),
             BinOp::Div if float => self.b.ins().fdiv(l, r),
-            // Wrapping, for now: ADR 0007 § 4 makes integer overflow a throw
-            // rather than a silent widening to `float`, and lowering gives
-            // these three no error edge to branch to yet (crate docs, known
-            // gap 8). The divergence is a wrong *value* in a case PHP would
-            // also not produce, which is why these are emitted while `Div`
-            // below is not.
+            // Reached only by `Ty::Bool`, the third member of `integral`
+            // above: every `Ty::Int`/`Ty::Uint` pair has already gone to
+            // `Self::emit_checked_int_arith`, which is where ADR 0007 § 4's
+            // overflow throw lives. No `bool` arithmetic exists in the
+            // language, so in practice these three arms are the table's
+            // exhaustiveness and nothing else.
             BinOp::Add => self.b.ins().iadd(l, r),
             BinOp::Sub => self.b.ins().isub(l, r),
             BinOp::Mul => self.b.ins().imul(l, r),
+            // ADR 0007 § 4 preserves the operand type across these three and
+            // they cannot fail, so unlike the shifts they are one instruction
+            // in the straight-line table. `Ty::Bool` reaches them too and is
+            // exactly right there: a `bool` is one byte holding 0 or 1.
+            BinOp::BitAnd => self.b.ins().band(l, r),
+            BinOp::BitOr => self.b.ins().bor(l, r),
+            BinOp::BitXor => self.b.ins().bxor(l, r),
             BinOp::Eq | BinOp::NotEq | BinOp::Lt | BinOp::LtEq | BinOp::Gt | BinOp::GtEq => {
                 if float {
                     let cc = match op {
@@ -1172,26 +1191,7 @@ impl Emitter<'_, '_> {
         self.b.ins().brif(by_zero, raise, &[], cont, &[]);
 
         self.b.switch_to_block(raise);
-        let desc = self.class_desc_const("ArithmeticError")?;
-        let (message, len) = self.emit_bytes(b"Modulo by zero")?;
-        let callee = self.runtime_ref("mwl_raise_new", RuntimeSig::RaiseNew)?;
-        self.b.ins().call(callee, &[self.ctx_p, desc, message, len]);
-        let status = self.b.ins().iconst(types::I32, i64::from(THROWN));
-        match inst.on_error {
-            Some(landing) => {
-                let target = self.block(landing)?;
-                self.b
-                    .ins()
-                    .jump(target, &[codegen::ir::BlockArg::Value(status)]);
-            }
-            // The pre-error-edge shape `Self::emit_status_check` also keeps
-            // for a `None`: return the status onward, releasing nothing.
-            // Unreachable from `mwl_ir::lower`, which emits this instruction
-            // through `emit_fallible`.
-            None => {
-                self.b.ins().return_(&[status]);
-            }
-        }
+        self.raise_arithmetic_error(inst, b"Modulo by zero")?;
 
         self.b.switch_to_block(cont);
         let value = if signed {
@@ -1244,23 +1244,7 @@ impl Emitter<'_, '_> {
         self.b.ins().brif(by_zero, raise, &[], cont, &[]);
 
         self.b.switch_to_block(raise);
-        let desc = self.class_desc_const("ArithmeticError")?;
-        let (message, len) = self.emit_bytes(b"Division by zero")?;
-        let callee = self.runtime_ref("mwl_raise_new", RuntimeSig::RaiseNew)?;
-        self.b.ins().call(callee, &[self.ctx_p, desc, message, len]);
-        let status = self.b.ins().iconst(types::I32, i64::from(THROWN));
-        match inst.on_error {
-            Some(landing) => {
-                let target = self.block(landing)?;
-                self.b
-                    .ins()
-                    .jump(target, &[codegen::ir::BlockArg::Value(status)]);
-            }
-            // `emit_int_mod`'s own reasoning for this arm, unchanged.
-            None => {
-                self.b.ins().return_(&[status]);
-            }
-        }
+        self.raise_arithmetic_error(inst, b"Division by zero")?;
 
         self.b.switch_to_block(cont);
         let exact = if signed {
@@ -1327,14 +1311,210 @@ impl Emitter<'_, '_> {
         Ok((value, merge))
     }
 
-    fn emit_unop(&mut self, op: UnOp, operand: ValueId) -> Result<Value, CodegenError> {
+    /// Integer `+`, `-` and `*`, which ADR 0007 § 4 makes **throw
+    /// `ArithmeticError`** rather than wrap — "the divergence from PHP this
+    /// ADR is least willing to trade", because a silent promotion to `float`
+    /// changes a binding's type behind its declaration and a silent wrap is
+    /// the classic size-computation bug.
+    ///
+    /// The check is the machine's own: Cranelift's `sadd_overflow` family
+    /// answers the flag the CPU already sets, so the not-taken side costs one
+    /// predicted branch on top of the arithmetic instruction and no extra
+    /// compare at all — cheaper than the zero-divisor guard next door, which
+    /// has to synthesize its own condition. The overflow edge is
+    /// [`mwl_ir::ir::Inst::on_error`]'s, exactly as [`Self::emit_int_mod`]'s
+    /// is, so this function owns a continuation block and its caller must use
+    /// the one it returns.
+    ///
+    /// The unsigned rows are genuinely different instructions and not the
+    /// same ones read differently: `uadd_overflow` reports a carry out of bit
+    /// 63 where `sadd_overflow` reports a sign flip, which is what makes
+    /// `uint` arithmetic exact over `0 … 2^64−1` rather than over `int`'s
+    /// range.
+    fn emit_checked_int_arith(
+        &mut self,
+        inst: &Inst,
+        op: BinOp,
+        lhs: Value,
+        rhs: Value,
+        signed: bool,
+    ) -> Result<(Value, Block), CodegenError> {
+        let (value, overflowed) = match (op, signed) {
+            (BinOp::Add, true) => self.b.ins().sadd_overflow(lhs, rhs),
+            (BinOp::Add, false) => self.b.ins().uadd_overflow(lhs, rhs),
+            (BinOp::Sub, true) => self.b.ins().ssub_overflow(lhs, rhs),
+            (BinOp::Sub, false) => self.b.ins().usub_overflow(lhs, rhs),
+            (BinOp::Mul, true) => self.b.ins().smul_overflow(lhs, rhs),
+            (BinOp::Mul, false) => self.b.ins().umul_overflow(lhs, rhs),
+            (other, _) => {
+                return Err(internal(&format!(
+                    "a checked integer arithmetic guard over {other:?}"
+                )));
+            }
+        };
+        let message: &[u8] = match op {
+            BinOp::Add => b"Integer addition overflowed",
+            BinOp::Sub => b"Integer subtraction overflowed",
+            _ => b"Integer multiplication overflowed",
+        };
+        self.emit_overflow_guard(inst, value, overflowed, message)
+    }
+
+    /// `<<` and `>>`, whose count PHP *judges* where the machine merely masks
+    /// it — three rules, none of which x86 or aarch64 gives for free:
+    ///
+    /// * **A negative count throws** `ArithmeticError`, carrying PHP's own
+    ///   `Bit shift by negative number` message. Only the signed row can
+    ///   produce one, so only it owns the guard and the continuation block —
+    ///   which is why `mwl_ir::lower` marks a shift fallible on
+    ///   [`mwl_ir::ty::Ty::Int`] and not on `Ty::Uint`.
+    /// * **A count of 64 or more answers all-zeros, or all-sign.** `ishl`
+    ///   masks the count to 6 bits, so `1 << 64` would be `1`; PHP answers
+    ///   `0`. The correction is a `select` on an unsigned compare rather than
+    ///   a branch, since both arms are one instruction and neither is cold.
+    /// * **`>>` reads its operand's signedness**, ADR 0007 § 4 making it
+    ///   arithmetic on an `int` and logical on a `uint`. That is `sshr` versus
+    ///   `ushr`, and it is also what the past-the-width arm fills with: the
+    ///   sign bit for the first, zero for the second.
+    fn emit_shift(
+        &mut self,
+        cur: Block,
+        inst: &Inst,
+        op: BinOp,
+        lhs: Value,
+        rhs: Value,
+        signed: bool,
+    ) -> Result<(Value, Block), CodegenError> {
+        let mut cur = cur;
+        if signed {
+            let zero = self.b.ins().iconst(types::I64, 0);
+            let negative = self.b.ins().icmp(IntCC::SignedLessThan, rhs, zero);
+            let raise = self.b.create_block();
+            let cont = self.b.create_block();
+            self.b.ins().brif(negative, raise, &[], cont, &[]);
+
+            self.b.switch_to_block(raise);
+            self.raise_arithmetic_error(inst, b"Bit shift by negative number")?;
+
+            self.b.switch_to_block(cont);
+            cur = cont;
+        }
+        // Unsigned, and correct for both rows: the signed one has already
+        // refused every negative count above, so what reaches here is a
+        // magnitude either way.
+        let width = self.b.ins().iconst(types::I64, 64);
+        let past_width = self
+            .b
+            .ins()
+            .icmp(IntCC::UnsignedGreaterThanOrEqual, rhs, width);
+        let arithmetic = signed && matches!(op, BinOp::Shr);
+        let shifted = match (op, arithmetic) {
+            (BinOp::Shl, _) => self.b.ins().ishl(lhs, rhs),
+            (_, true) => self.b.ins().sshr(lhs, rhs),
+            _ => self.b.ins().ushr(lhs, rhs),
+        };
+        let saturated = if arithmetic {
+            let top = self.b.ins().iconst(types::I64, 63);
+            self.b.ins().sshr(lhs, top)
+        } else {
+            self.b.ins().iconst(types::I64, 0)
+        };
+        Ok((self.b.ins().select(past_width, saturated, shifted), cur))
+    }
+
+    /// The branch shared by every overflow row: throw where `overflowed` is
+    /// set, otherwise carry on in a fresh block with `value`.
+    ///
+    /// `value` is computed *before* the branch on purpose. The overflowing
+    /// result is a well-defined wrapped integer that nothing then reads, and
+    /// the alternative — computing it on the not-taken side — would put the
+    /// arithmetic and the flag it produces in two different blocks, which is
+    /// not a shape `sadd_overflow` can take.
+    fn emit_overflow_guard(
+        &mut self,
+        inst: &Inst,
+        value: Value,
+        overflowed: Value,
+        message: &[u8],
+    ) -> Result<(Value, Block), CodegenError> {
+        let raise = self.b.create_block();
+        let cont = self.b.create_block();
+        self.b.ins().brif(overflowed, raise, &[], cont, &[]);
+
+        self.b.switch_to_block(raise);
+        self.raise_arithmetic_error(inst, message)?;
+
+        self.b.switch_to_block(cont);
+        Ok((value, cont))
+    }
+
+    /// Raise spec § 10's `ArithmeticError` inline and leave the current block
+    /// on [`mwl_ir::ir::Inst::on_error`]'s edge.
+    ///
+    /// Every arithmetic throw in this file goes through here — the two zero
+    /// divisors and the four overflow rows — and none of them goes through a
+    /// helper's `Fault`, which could only ever name `RuntimeError`. The
+    /// exception is built by [`mwl_runtime::mwl_raise_new`] from a descriptor
+    /// address baked in as an `iconst`, see [`crate::Classes`].
+    ///
+    /// The caller has already switched to the block this terminates, and must
+    /// switch to its own continuation afterwards.
+    fn raise_arithmetic_error(&mut self, inst: &Inst, message: &[u8]) -> Result<(), CodegenError> {
+        let desc = self.class_desc_const("ArithmeticError")?;
+        let (text, len) = self.emit_bytes(message)?;
+        let callee = self.runtime_ref("mwl_raise_new", RuntimeSig::RaiseNew)?;
+        self.b.ins().call(callee, &[self.ctx_p, desc, text, len]);
+        let status = self.b.ins().iconst(types::I32, i64::from(THROWN));
+        match inst.on_error {
+            Some(landing) => {
+                let target = self.block(landing)?;
+                self.b
+                    .ins()
+                    .jump(target, &[codegen::ir::BlockArg::Value(status)]);
+            }
+            // The pre-error-edge shape `Self::emit_status_check` also keeps
+            // for a `None`: return the status onward, releasing nothing.
+            // Unreachable from `mwl_ir::lower`, which emits every one of
+            // these instructions through `emit_fallible`.
+            None => {
+                self.b.ins().return_(&[status]);
+            }
+        }
+        Ok(())
+    }
+
+    fn emit_unop(
+        &mut self,
+        cur: Block,
+        inst: &Inst,
+        op: UnOp,
+        operand: ValueId,
+    ) -> Result<(Value, Block), CodegenError> {
         let (v, ty) = self.value(operand)?;
-        Ok(match (op, ty) {
+        // `-i64::MIN` is the one `int` with no negation, and every non-zero
+        // `uint` is a `uint` with none, so ADR 0007 § 4's overflow throw
+        // reaches this row too — spelled as `0 - v` because that is exactly
+        // what a negation is and `ssub_overflow` already answers it.
+        if matches!(op, UnOp::Neg) && matches!(ty, Ty::Int | Ty::Uint) {
+            let zero = self.b.ins().iconst(types::I64, 0);
+            let (value, overflowed) = if matches!(ty, Ty::Int) {
+                self.b.ins().ssub_overflow(zero, v)
+            } else {
+                self.b.ins().usub_overflow(zero, v)
+            };
+            return self.emit_overflow_guard(
+                inst,
+                value,
+                overflowed,
+                b"Integer negation overflowed",
+            );
+        }
+        let value = match (op, ty) {
             (UnOp::Neg, Ty::Float) => self.b.ins().fneg(v),
-            // Wrapping at `i64::MIN`, the same known gap the additive
-            // operators carry above — never a trap, so it does not join
-            // `Div`/`Mod` on the refused list.
-            (UnOp::Neg, Ty::Int | Ty::Uint) => self.b.ins().ineg(v),
+            // Total over both integer representations — every 64-bit pattern
+            // is a value of each — so `~` needs none of the guard the
+            // negation above does.
+            (UnOp::BitNot, Ty::Int | Ty::Uint) => self.b.ins().bnot(v),
             (UnOp::Not, Ty::Bool) => {
                 let zero = self.b.ins().iconst(types::I8, 0);
                 self.b.ins().icmp(IntCC::Equal, v, zero)
@@ -1344,7 +1524,8 @@ impl Emitter<'_, '_> {
                     "the unary operator {op:?} over representation {ty:?}"
                 )));
             }
-        })
+        };
+        Ok((value, cur))
     }
 
     /// One runtime helper call, in ADR 0002's shape: the arguments

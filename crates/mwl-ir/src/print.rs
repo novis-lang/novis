@@ -399,6 +399,11 @@ fn bin_op_name(op: BinOp) -> &'static str {
         BinOp::Mul => "mul",
         BinOp::Div => "div",
         BinOp::Mod => "mod",
+        BinOp::BitAnd => "band",
+        BinOp::BitOr => "bor",
+        BinOp::BitXor => "bxor",
+        BinOp::Shl => "shl",
+        BinOp::Shr => "shr",
         BinOp::Eq => "eq",
         BinOp::NotEq => "ne",
         BinOp::Lt => "lt",
@@ -412,6 +417,7 @@ fn un_op_name(op: UnOp) -> &'static str {
     match op {
         UnOp::Neg => "neg",
         UnOp::Not => "not",
+        UnOp::BitNot => "bnot",
     }
 }
 

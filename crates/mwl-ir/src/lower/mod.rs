@@ -2659,6 +2659,67 @@ class T {
         assert_snapshot!(print_function(&f, map.file(file)));
     }
 
+    /// ADR 0007 § 4's six bitwise rows all reach an instruction, and only the
+    /// two that PHP can refuse carry an error edge.
+    ///
+    /// Read off the rendering rather than snapshotted, because what is being
+    /// pinned is *which* rows are fallible — a snapshot would go red for any
+    /// unrelated renumbering and say nothing about that.
+    #[test]
+    fn every_bitwise_operator_lowers() {
+        let (f, map, file) = lower_first_method(concat!(
+            "<?mwl\nclass T {\n",
+            "  function mix(int $a, int $b): int {\n",
+            "    int $out = ((($a & $b) | 8) ^ 1) << 2;\n",
+            "    return ($out >> 1) + ~$a;\n",
+            "  }\n}\n",
+        ));
+        let text = print_function(&f, map.file(file));
+        for name in ["band", "bor", "bxor", "shl", "shr", "bnot"] {
+            assert!(text.contains(name), "{name} did not lower: {text}");
+        }
+        // A shift's *count* is the only thing PHP refuses here — a negative
+        // one throws `ArithmeticError` — so `<<` and `>>` take ADR 0002's edge
+        // while the three total operators and `~` do not.
+        for line in text.lines() {
+            let fallible = line.contains(" ! bb");
+            for (name, expected) in [
+                ("= band ", false),
+                ("= bor ", false),
+                ("= bxor ", false),
+                ("= bnot ", false),
+                ("= shl ", true),
+                ("= shr ", true),
+            ] {
+                if line.contains(name) {
+                    assert_eq!(fallible, expected, "{name}error edge: {line}");
+                }
+            }
+        }
+    }
+
+    /// `$x op= e` is `$x = $x op e`, so the five bitwise compound forms need no
+    /// lowering of their own — `lower_compound_assignment`'s rewrite is what
+    /// gives them one, and this is the test that says so rather than a second
+    /// table in the lowering.
+    #[test]
+    fn a_bitwise_compound_assignment_lowers_through_its_binary_form() {
+        let (f, map, file) = lower_first_method(concat!(
+            "<?mwl\nclass T {\n",
+            "  function mask(int $x): int {\n",
+            "    $x &= 3;\n    $x |= 8;\n    $x ^= 1;\n    $x <<= 2;\n    $x >>= 1;\n",
+            "    return $x;\n",
+            "  }\n}\n",
+        ));
+        let text = print_function(&f, map.file(file));
+        for name in ["band", "bor", "bxor", "shl", "shr"] {
+            assert!(
+                text.contains(name),
+                "the compound form of {name} did not lower: {text}"
+            );
+        }
+    }
+
     /// A plain local reassignment gets a fresh SSA value rather than mutating
     /// the one already bound to `$n` — the point of routing even
     /// straight-line reassignment through `lower_reassignment`.
@@ -4493,10 +4554,15 @@ class T {
                 .unwrap_or_else(|| panic!("{name} should have been lowered"));
             let text = print_function(f, map.file(file));
             assert!(text.contains(expected), "{name}: {text}");
-            // The signature line names the function itself, so only the body
-            // can answer whether the hook called back into itself.
-            let body = text.split_once('\n').expect("a rendered function").1;
-            assert!(!body.contains(name), "{name} recursed into itself: {text}");
+            // Read for a `call` naming it rather than for the name anywhere:
+            // the signature line names the function, and so does the frame
+            // label in an ADR 0002 landing block's `propagate` — which the
+            // getter's `+ 1` now has, since ADR 0007 § 4 gives integer
+            // arithmetic an overflow edge.
+            let recursed = text
+                .lines()
+                .any(|line| line.contains("call") && line.contains(name));
+            assert!(!recursed, "{name} recursed into itself: {text}");
         }
     }
 

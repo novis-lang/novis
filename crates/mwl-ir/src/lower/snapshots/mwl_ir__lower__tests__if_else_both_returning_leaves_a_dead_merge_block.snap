@@ -1,5 +1,5 @@
 ---
-source: crates/mwl-ir/src/lower.rs
+source: crates/mwl-ir/src/lower/mod.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn abs(object, int) -> int {
@@ -17,7 +17,7 @@ fn abs(object, int) -> int {
   bb2:
     ; stmt s1 @4:17-6:6
     ; stmt s2 @5:7-5:18
-    v4 = neg v1  ; int
+    v4 = neg v1 ! bb4  ; int
     release v0
     return v4
   bb3:
@@ -25,4 +25,7 @@ fn abs(object, int) -> int {
     ; stmt s4 @7:7-7:17
     release v0
     return v1
+  bb4:
+    release v0
+    propagate "abs() at t.mwl:5"
 }

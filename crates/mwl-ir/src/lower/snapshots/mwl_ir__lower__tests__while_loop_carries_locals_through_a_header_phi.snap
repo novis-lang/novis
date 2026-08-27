@@ -1,5 +1,5 @@
 ---
-source: crates/mwl-ir/src/lower.rs
+source: crates/mwl-ir/src/lower/mod.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn sum(object, int) -> int {
@@ -21,14 +21,20 @@ fn sum(object, int) -> int {
   bb2:
     ; stmt s3 @6:21-9:6
     ; stmt s4 @7:7-7:28
-    v7 = add v4, v5  ; int
+    v7 = add v4, v5 ! bb4  ; int
     ; stmt s5 @8:7-8:19
     v8 = const.int 1  ; int
-    v9 = add v5, v8  ; int
+    v9 = add v5, v8 ! bb5  ; int
     safepoint
     jump bb1
   bb3:
     ; stmt s6 @10:5-10:19
     release v0
     return v4
+  bb4:
+    release v0
+    propagate "sum() at t.mwl:7"
+  bb5:
+    release v0
+    propagate "sum() at t.mwl:8"
 }

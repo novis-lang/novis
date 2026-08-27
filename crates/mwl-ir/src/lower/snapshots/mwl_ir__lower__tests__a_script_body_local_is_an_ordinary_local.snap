@@ -9,13 +9,15 @@ fn <script>() -> tagged {
     v0 = const.int 1  ; int
     ; stmt s1 @3:1-3:13
     v1 = const.int 2  ; int
-    v2 = add v0, v1  ; int
+    v2 = add v0, v1 ! bb1  ; int
     ; stmt s2 @4:1-4:9
     v3 = helper.int_to_string v2  ; string
-    helper.echo_str v3 ! bb1
+    helper.echo_str v3 ! bb2
     release v3
     return
   bb1:
+    propagate "<script>() at t.mwl:3"
+  bb2:
     release v3
     propagate "<script>() at t.mwl:4"
 }

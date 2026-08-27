@@ -366,6 +366,18 @@ is why" — is this file.
   so every one of those sees every free already. Before changing any of it, read `counting_alloc`'s
   module doc, which is the home of the reasoning — the wrong version of this bullet costs a session
   either way round.
+- **Making a previously infallible instruction fallible moves two guards that name neither it
+  nor the operator.** ADR 0007 § 4's overflow throw gave `+`/`-`/`*` and unary `-` an
+  `Inst::on_error` edge, and the build then failed twice a long way from the change.
+  `benches/abi-probe/tests/perf_guards.rs`'s `a_typed_arithmetic_loop_contains_no_call` counts
+  machine-code `call`s against IR probe/safepoint sites, and each new edge adds *two* — the
+  cold block's `mwl_raise_new` and the landing block's `mwl_trace_push` — so its accounting
+  needs a term per category, not a bumped number. And `mwl-ir`'s
+  `a_hook_body_reaching_its_own_property_touches_the_slot_directly` asserted "the body does not
+  contain this function's name", which a landing block's `propagate "Box::$n::get() at …"` frame
+  label now satisfies without any recursion existing; read for a `call` naming it instead. Both
+  are string-shaped assertions over rendered IR, so `grep` for the *edge* (`! bb`, `propagate`)
+  rather than for the operator when a change widens the fallible set.
 
 ## Running things
 
@@ -1384,6 +1396,13 @@ sibling in the same namespace unqualified.
   not live in `coerce` until `&Env` was threaded through all 17 of its call sites *and*
   `close_nullsafe`, which had none of its own. A conversion that can fail needs the frame's
   landing block, and `coerce` was written when none of its rows could fail.
+- **A shift count carries its operand's signedness, so a `uint` shift needs a `uint` count.**
+  `$u << 64` is `E0407: int and uint have no representable common type in arithmetic`, because
+  `mwl_types::expr::operators::bitwise_result` refuses a mixed-signedness pair for all five
+  binary bitwise rows and a count is just the right-hand operand. Declare `uint $width = 64;`
+  and shift by that. On the `int` arm a *negative* count is the one refusal PHP has —
+  `ArithmeticError: Bit shift by negative number` — and a count of 64 or more answers `0`
+  (or all-sign for an arithmetic `>>`) rather than the masked shift the machine would do.
 
 ## Divergences and refusals already pinned
 

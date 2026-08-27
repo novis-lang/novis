@@ -182,26 +182,28 @@
 //!    [ADR 0017](../../../docs/adr/0017-hot-reload-without-restart.md)'s
 //!    pointer-swap reclamation is the real home for. A one-shot `mwl run`
 //!    exits before it matters.
-//! 8. **Integer `+`/`-`/`*` wrap instead of throwing on overflow.**
-//!    [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4 makes
-//!    overflow throw `ArithmeticError`, and calls it the divergence from PHP
-//!    it is least willing to trade. The mechanism now exists — integer `%`'s
-//!    zero divisor raises inline through
-//!    [`mwl_runtime::mwl_raise_new`] and takes
-//!    [`mwl_ir::ir::Inst::on_error`]'s edge, which is the same shape a
-//!    checked `iadd` wants — so what is left is emitting the overflow test at
-//!    the three sites and giving each an error edge in `mwl_ir::lower`. The
-//!    divergence meanwhile is a wrong *value* in a case PHP would also not
-//!    produce, never a trap.
+//! 8. **Integer `+`, `-`, `*` and unary `-` throw on overflow rather than
+//!    wrapping**, which
+//!    [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4 calls the
+//!    divergence from PHP it is least willing to trade. `emit_binop` hands all
+//!    three binary rows to `emit_checked_int_arith` and `emit_unop` takes the
+//!    fourth, each reading Cranelift's `sadd_overflow`/`uadd_overflow` family
+//!    — the flag the CPU already sets, so the cost is one predicted branch and
+//!    no synthesized compare — and raising spec § 10's `ArithmeticError` on
+//!    [`mwl_ir::ir::Inst::on_error`]'s edge through the shared
+//!    `raise_arithmetic_error`, which the two zero-divisor guards now use too.
+//!    The signed and unsigned rows are different instructions rather than one
+//!    read two ways: a carry out of bit 63 is not a sign flip, which is what
+//!    keeps `uint` exact over `0 … 2^64−1`.
 //! 9. **A binary operator wants both operands in one representation, and
-//!    knows only the numeric and `bool` ones.** `emit`'s `binary` refuses two
-//!    shapes a conformance case reaches for: `1 + 1.5`, where PHP widens the
-//!    `int` to `float` and nothing here inserts that conversion — so an
-//!    `int`/`float` mix must be spelled `0.0 - 1.5` today — and `==` over two
-//!    enum values, whose `Enum(Int)` representation is not on the integral
-//!    list even though comparing the two integers is exactly right. Both are a
-//!    missing arm rather than a missing mechanism; the enum one is the smaller,
-//!    since ADR 0010 makes an enum *be* its integer.
+//!    knows only the numeric and `bool` ones.** A mixed numeric pair no longer
+//!    reaches here — `mwl_ir::lower` settles `1 + 1.5` by widening the integer
+//!    side and `$n < $f` by a helper, which is what keeps this crate's "a
+//!    `BinOp` has one representation" invariant a genuine internal error. What
+//!    is still refused is `==` over two enum values, whose `Enum(Int)`
+//!    representation is not on the integral list even though comparing the two
+//!    integers is exactly right — a missing arm rather than a missing
+//!    mechanism, since ADR 0010 makes an enum *be* its integer.
 
 mod emit;
 mod ty;

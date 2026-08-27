@@ -1,5 +1,5 @@
 ---
-source: crates/mwl-ir/src/lower.rs
+source: crates/mwl-ir/src/lower/mod.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn m(object, int) -> int {
@@ -14,31 +14,37 @@ fn m(object, int) -> int {
     ; stmt s2 @6:5-12:6
     jump bb1
   bb1:
-    v4 = phi [bb0: v2, bb4: v8, bb5: v8]  ; int
-    v5 = phi [bb0: v3, bb4: v11, bb5: v5]  ; int
+    v4 = phi [bb0: v2, bb5: v8, bb6: v8]  ; int
+    v5 = phi [bb0: v3, bb5: v11, bb6: v5]  ; int
     v6 = lt v4, v1  ; bool
     branch v6 -> bb2 (e0), bb3 (e1)
   bb2:
     ; stmt s3 @6:21-12:6
     ; stmt s4 @7:7-7:19
     v7 = const.int 1  ; int
-    v8 = add v4, v7  ; int
+    v8 = add v4, v7 ! bb4  ; int
     ; stmt s5 @8:7-10:8
     v9 = const.int 3  ; int
     v10 = eq v8, v9  ; bool
-    branch v10 -> bb5 (e2), bb4 (e3)
+    branch v10 -> bb6 (e2), bb5 (e3)
   bb3:
     ; stmt s9 @13:5-13:17
     release v0
     return v5
   bb4:
+    release v0
+    propagate "m() at t.mwl:7"
+  bb5:
     ; stmt s8 @11:7-11:24
-    v11 = add v5, v8  ; int
+    v11 = add v5, v8 ! bb7  ; int
     safepoint
     jump bb1
-  bb5:
+  bb6:
     ; stmt s6 @8:20-10:8
     ; stmt s7 @9:9-9:18
     safepoint
     jump bb1
+  bb7:
+    release v0
+    propagate "m() at t.mwl:11"
 }

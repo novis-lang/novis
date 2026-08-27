@@ -1,5 +1,5 @@
 --TEST--
-Core\Math::abs is max($x, -$x) and min's negation, and Core\Math::sign is what min and max say about $x against zero, on every row of both arms — each parting from its derivation only at the one value it refuses — docs/spec/01-core-library.md § 3
+Core\Math::abs is max($x, -$x) and min's negation, and Core\Math::sign is what min and max say about $x against zero, on every row of both arms — `abs` agreeing with its derivation even where both refuse, and `sign` parting from it only at NaN — docs/spec/01-core-library.md § 3
 --FILE--
 <?mwl
 // Neither `abs` nor `sign` needs a comparison of its own: both are already
@@ -85,28 +85,26 @@ float $nz = -0.0;
 echo "abs(-0.0) reciprocal ", 1.0 / (Core\Math::abs($nz) as float),
      ", and sign(-0.0) ", Core\Math::sign($nz), "\n";
 
-// 4. `abs` parts from its derivation at exactly one value, and it is the reason
-//    `abs` is a member rather than sugar for the two calls: at `int`'s smallest
-//    value the magnitude is one past the largest, so `0 - $x` has nowhere to
-//    land. The derivation stays total there — it is arithmetic, and it comes
-//    back with something — while `abs` refuses. Only the divergence is asserted,
-//    not what the arithmetic wrapped to, because that is the *other* member's
-//    question.
+// 4. At `int`'s smallest value the member and its derivation *agree*, and both
+//    refuse: the magnitude is one past the largest, so `0 - $x` has nowhere to
+//    land, and ADR 0007 § 4 makes that arithmetic throw `ArithmeticError`
+//    rather than wrap. What is asserted is the agreement — neither side
+//    answers, and `sign` is unaffected because it never negates anything.
 int $min = 0 - 9223372036854775807 - 1;
-int $derivationAnswered = 0;
+int $derivationRefused = 0;
 int $absRefused = 0;
 try {
-    int $wrapped = Core\Math::max($min, 0 - $min);
-    if (Core\Math::sign($wrapped) == Core\Math::sign($wrapped)) { $derivationAnswered = 1; }
+    int $negated = Core\Math::max($min, 0 - $min);
+    if (Core\Math::sign($negated) == Core\Math::sign($negated)) { $derivationRefused = 0; }
 } catch (Throwable $noRoom) {
-    $derivationAnswered = 0;
+    $derivationRefused = 1;
 }
 try {
     echo Core\Math::abs($min);
 } catch (Throwable $noMagnitude) {
     $absRefused = 1;
 }
-echo "int min: derivation answered ", $derivationAnswered, ", abs refused ", $absRefused,
+echo "int min: derivation refused ", $derivationRefused, ", abs refused ", $absRefused,
      ", sign still ", Core\Math::sign($min), "\n";
 
 // 5. `sign` parts from its derivation at exactly one value too, and for the
@@ -130,5 +128,5 @@ if (Core\Math::isNan(Core\Math::abs($nan) as float)) { echo "yes\n"; } else { ec
 int: abs=max 9/9, abs=-min 9/9, sign by max 9/9, by min 9/9
 float: abs=max 10/10, abs=-min 10/10, sign by max 10/10, by min 10/10
 abs(-0.0) reciprocal INF, and sign(-0.0) 0
-int min: derivation answered 1, abs refused 1, sign still -1
+int min: derivation refused 1, abs refused 1, sign still -1
 NaN: derivation said -1, sign refused 1, abs kept NaN yes

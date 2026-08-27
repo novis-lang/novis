@@ -1,0 +1,158 @@
+--TEST--
+Integer `+`, `-`, `*` and unary `-` answer one step inside their type's bound and throw `ArithmeticError` at it, on the `int` arm and the `uint` arm alike — ADR 0007 §§ 4, 7
+--FILE--
+<?mwl
+// ADR 0007 § 4 names this the divergence from PHP it is least willing to
+// trade: PHP promotes an overflowing integer to `float`, which changes a
+// binding's type behind its declaration, and the alternative — wrapping — is
+// the classic size-computation bug. So each operator is asked twice, at the
+// last value that fits and at the first that does not, because an
+// implementation that stops one step early prints plausibly against either
+// half on its own.
+//
+// The four helpers catch `ArithmeticError` specifically rather than
+// `Throwable`, so a refusal raised as any other class would leave this case
+// with an uncaught throw instead of a mismatched line. Each is a
+// `public static function` because a case is top-level statements and a
+// closure holding the sweep would not lower (ADR 0011 § 1).
+final class Edge {
+    public static function add(int $a, int $b): string {
+        try {
+            int $sum = $a + $b;
+            return $sum as string;
+        } catch (ArithmeticError $addFailed) {
+            return $addFailed->message;
+        }
+    }
+
+    public static function sub(int $a, int $b): string {
+        try {
+            int $difference = $a - $b;
+            return $difference as string;
+        } catch (ArithmeticError $subFailed) {
+            return $subFailed->message;
+        }
+    }
+
+    public static function mul(int $a, int $b): string {
+        try {
+            int $product = $a * $b;
+            return $product as string;
+        } catch (ArithmeticError $mulFailed) {
+            return $mulFailed->message;
+        }
+    }
+
+    public static function neg(int $a): string {
+        try {
+            int $negated = -$a;
+            return $negated as string;
+        } catch (ArithmeticError $negFailed) {
+            return $negFailed->message;
+        }
+    }
+
+    // The same four on the unsigned arm, which is a different bound and not
+    // the same one read differently: `uint` is exact over `0 … 2^64−1`, so it
+    // overflows where `int` has room (`2^63`) and has room where `int`
+    // overflows (`2^64−1`), while `0 - 1` and `-1` leave it altogether.
+    public static function uadd(uint $a, uint $b): string {
+        try {
+            uint $sum = $a + $b;
+            return $sum as string;
+        } catch (ArithmeticError $uaddFailed) {
+            return $uaddFailed->message;
+        }
+    }
+
+    public static function usub(uint $a, uint $b): string {
+        try {
+            uint $difference = $a - $b;
+            return $difference as string;
+        } catch (ArithmeticError $usubFailed) {
+            return $usubFailed->message;
+        }
+    }
+
+    public static function umul(uint $a, uint $b): string {
+        try {
+            uint $product = $a * $b;
+            return $product as string;
+        } catch (ArithmeticError $umulFailed) {
+            return $umulFailed->message;
+        }
+    }
+
+    public static function uneg(uint $a): string {
+        try {
+            uint $negated = -$a;
+            return $negated as string;
+        } catch (ArithmeticError $unegFailed) {
+            return $unegFailed->message;
+        }
+    }
+}
+
+// 1. The `int` arm's four bounds, each named on both sides. `$min` is built by
+//    arithmetic rather than written, since the literal `-9223372036854775808`
+//    is one past what an `int` literal may spell.
+int $one = 1;
+int $two = 2;
+int $max = 9223372036854775807;
+int $min = 0 - $max - $one;
+int $halfMax = 4611686018427387903;
+
+echo "int +: ", Edge::add($max - $one, $one), " | ", Edge::add($max, $one), "\n";
+echo "int -: ", Edge::sub($min + $one, $one), " | ", Edge::sub($min, $one), "\n";
+echo "int *: ", Edge::mul($halfMax, $two), " | ", Edge::mul($halfMax + $one, $two), "\n";
+echo "int -x: ", Edge::neg($min + $one), " | ", Edge::neg($min), "\n";
+
+// 2. The `uint` arm, at its own two ends. Nothing here is shared with the arm
+//    above: `2^63` is an ordinary product for a `uint` and `0 - 1` is a
+//    refusal, which is the mirror image of both `int` rows.
+uint $uone = 1;
+uint $utwo = 2;
+uint $uzero = 0;
+uint $umax = 18446744073709551615;
+uint $uhalf = 9223372036854775807;
+
+echo "uint +: ", Edge::uadd($umax - $uone, $uone), " | ", Edge::uadd($umax, $uone), "\n";
+echo "uint -: ", Edge::usub($uone, $uone), " | ", Edge::usub($uzero, $uone), "\n";
+echo "uint *: ", Edge::umul($uhalf, $utwo), " | ", Edge::umul($uhalf + $uone, $utwo), "\n";
+echo "uint -x: ", Edge::uneg($uzero), " | ", Edge::uneg($uone), "\n";
+
+// 3. The bound as an invariant over a whole table rather than as two chosen
+//    rows: `$x * $x` has an `int` answer exactly while `|$x|` is at most
+//    3037000499, the largest integer whose square fits. Counted, so an
+//    implementation that refuses a row too early or too late fails here while
+//    still answering every line above.
+array<int> $squares = [
+    0, 1, 3037000499, 0 - 3037000499, 3037000500, 0 - 3037000500, $max, $min,
+];
+int $answered = 0;
+int $refused = 0;
+foreach ($squares as int $x) {
+    if (Edge::mul($x, $x) == "Integer multiplication overflowed") {
+        $refused = $refused + 1;
+    } else {
+        $answered = $answered + 1;
+    }
+}
+echo "squares: ", $answered, " answered, ", $refused, " refused\n";
+
+// 4. The other half of the same invariant, and the one a wrapping
+//    implementation passes trivially: every row that *does* answer answers the
+//    mathematically right integer, so "refuses everything" is not a way to
+//    reach the count above.
+echo "exact: ", Edge::mul(3037000499, 3037000499), "\n";
+--EXPECT--
+int +: 9223372036854775807 | Integer addition overflowed
+int -: -9223372036854775808 | Integer subtraction overflowed
+int *: 9223372036854775806 | Integer multiplication overflowed
+int -x: 9223372036854775807 | Integer negation overflowed
+uint +: 18446744073709551615 | Integer addition overflowed
+uint -: 0 | Integer subtraction overflowed
+uint *: 18446744073709551614 | Integer multiplication overflowed
+uint -x: 0 | Integer negation overflowed
+squares: 4 answered, 4 refused
+exact: 9223372030926249001

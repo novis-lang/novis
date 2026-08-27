@@ -26,7 +26,10 @@ fn head(object, int) -> int {
   bb4:
     ; stmt s4 @8:5-8:15
     v6 = const.int 1  ; int
-    v7 = neg v6  ; int
+    v7 = neg v6 ! bb5  ; int
     release v0
     return v7
+  bb5:
+    release v0
+    propagate "head() at t.mwl:8"
 }

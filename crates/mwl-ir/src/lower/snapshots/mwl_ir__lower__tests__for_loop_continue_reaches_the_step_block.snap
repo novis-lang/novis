@@ -28,7 +28,7 @@ fn count(object, int) -> int {
   bb3:
     v12 = phi [bb5: v11, bb6: v5]  ; int
     v13 = const.int 1  ; int
-    v14 = add v6, v13  ; int
+    v14 = add v6, v13 ! bb8  ; int
     safepoint
     jump bb1
   bb4:
@@ -38,11 +38,17 @@ fn count(object, int) -> int {
   bb5:
     ; stmt s7 @10:7-10:18
     v10 = const.int 1  ; int
-    v11 = add v5, v10  ; int
+    v11 = add v5, v10 ! bb7  ; int
     jump bb3
   bb6:
     ; stmt s5 @7:20-9:8
     ; stmt s6 @8:9-8:18
     safepoint
     jump bb3
+  bb7:
+    release v0
+    propagate "count() at t.mwl:10"
+  bb8:
+    release v0
+    propagate "count() at t.mwl:10"
 }
