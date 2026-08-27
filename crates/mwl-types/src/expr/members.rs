@@ -31,9 +31,11 @@
 //! position, so even "is this an object at all" is deferred to that throw.
 //! Every *other* receiver — a scalar, an `array<T>`, a union naming no single
 //! class — is `E_RECEIVER_HAS_NO_PROPERTIES` where it is written (ADR 0007
-//! § 7 row 13). `unset()` on any *declared* object property is refused
-//! outright regardless of nullability (ADR 0028 § 3,
-//! [`check_unset_target`]).
+//! § 7 row 13). `unset()`'s operand is narrowed to one shape by
+//! [`check_unset_target`], which is that rule's only home: a declared
+//! property, static or instance, is refused regardless of nullability
+//! (ADR 0028 § 3), and so is every operand that is not an array element of a
+//! named holder.
 //!
 //! [`infer_instanceof`] draws the same line one type earlier, and both sides
 //! of the operator are checked. A **subject** whose declared type can hold no
@@ -673,10 +675,29 @@ pub(super) fn check_property_member(
     }
 }
 
-/// `unset()`'s operand: refuses a declared object property (ADR 0028 § 3)
-/// via [`check_property_access`], and otherwise checks the operand exactly
-/// like any other expression — an array element or a local variable is
-/// untouched, since that section is scoped to object properties only.
+/// `unset()`'s operand, which ADR 0028 § 3 narrows to exactly one shape:
+/// **an array element of a named holder**, `$holder[key]`, where the holder is
+/// a local, a property or a static property. This function is that rule's only
+/// home, and it splits three ways:
+///
+/// - A **declared property**, instance or static, is refused as
+///   `E0413` ([`report_unset_on_property`]) — ADR 0022 guarantees such a
+///   property is definitely initialized for good, and there is no honouring
+///   both ADRs at once. The nullsafe spelling is passed through to
+///   [`check_property_access`] so the refusal fires on `unset($a?->b)` too,
+///   rather than silently resolving to nothing because the receiver's type
+///   still carried `null`.
+/// - A **subscript** is checked like any other expression, and then through
+///   [`check_write_target`], because removing an entry separates a shared
+///   array exactly the way writing one does — so `unset($obj->hooked[0])` and
+///   `unset($shape->rows[0])` have precisely as little to write the separated
+///   copy back into as the assignments those two functions already refuse.
+/// - **Everything else** — a bare local, a subscript of a temporary, a literal
+///   — is `E0234` ([`report_unset_not_an_element`]).
+///
+/// Nothing is left over: `mwl_ir::lower::Lowering::lower_unset` lowers the
+/// second bullet and panics on anything else, and this is what makes that
+/// panic unreachable.
 pub(crate) fn check_unset_target(
     expr: &Expr,
     live: &mut FxHashSet<String>,
@@ -684,20 +705,91 @@ pub(crate) fn check_unset_target(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
-    if let ExprKind::PropertyAccess {
-        object,
-        property,
-        nullsafe,
-    } = &expr.kind
-    {
-        // The nullsafe spelling is passed through so ADR 0028 § 3's refusal
-        // fires on `unset($a?->b)` too, rather than silently resolving to
-        // nothing because the receiver's type still carried `null`.
-        check_property_access(object, property, *nullsafe, true, live, scope, ctx, env);
-    } else {
-        note_write(expr, scope, env);
-        check_expr(expr, None, live, scope, ctx, env);
+    match &expr.kind {
+        ExprKind::PropertyAccess {
+            object,
+            property,
+            nullsafe,
+        } => {
+            check_property_access(object, property, *nullsafe, true, live, scope, ctx, env);
+        }
+        ExprKind::StaticPropertyAccess { .. } => {
+            check_expr(expr, None, live, scope, ctx, env);
+            // The declaring class and the name come back out of the entry the
+            // check above recorded, so the message names the slot's own
+            // identity — `Base::$count` for a `Sub::$count` written at the
+            // access — exactly as `ExprInfo::StaticProperty` defines it.
+            if let Some(ExprInfo::StaticProperty { class, name, .. }) = env.exprs.lookup(expr.span)
+            {
+                let (class, name) = (class.clone(), name.clone());
+                report_unset_on_property(expr.span, &class, &name, env);
+            }
+        }
+        ExprKind::Index { .. } => {
+            check_expr(expr, None, live, scope, ctx, env);
+            let mut root = expr;
+            while let ExprKind::Index { base, .. } = &root.kind {
+                root = base;
+            }
+            if is_unset_holder(&root.kind) {
+                check_write_target(expr, env);
+            } else {
+                report_unset_not_an_element(expr, true, env);
+            }
+        }
+        _ => {
+            check_expr(expr, None, live, scope, ctx, env);
+            report_unset_not_an_element(expr, false, env);
+        }
     }
+}
+
+/// The three roots `mwl_ir::lower::Lowering::write_back_array` can re-point,
+/// which is what makes them the three holders an `unset()` may reach through:
+/// ADR 0007 § 5 separates the array before the entry is removed, and the
+/// separated copy has to land back in a slot that outlives the statement.
+///
+/// [`check_write_target`] asks a *different* question of the same root — which
+/// of the places it found is refused, rather than whether it found one at all
+/// — so the two are deliberately not folded together.
+fn is_unset_holder(kind: &ExprKind) -> bool {
+    matches!(
+        kind,
+        ExprKind::Variable(_)
+            | ExprKind::PropertyAccess { .. }
+            | ExprKind::StaticPropertyAccess { .. }
+    )
+}
+
+/// `E0234` — an `unset()` operand that is not an array element of a named
+/// holder. Both halves are the same rule read from a different side, and
+/// `subscripted` picks which one the message says: a subscript that found no
+/// holder at its root, or an operand that is not a subscript at all.
+fn report_unset_not_an_element(operand: &Expr, subscripted: bool, env: &mut Env<'_>) {
+    let (label, help) = if subscripted {
+        (
+            "nothing holds the array this subscripts",
+            "ADR 0007 § 5 separates the array before the entry is removed, so the separated copy \
+             needs a local, a property or a static property to be written back into — bind the \
+             value first, `unset()` the element there, and use the binding",
+        )
+    } else {
+        (
+            "this is not an array element",
+            "`unset()` removes an array entry and nothing else — every MWL binding is declared \
+             with a type and definitely assigned (ADR 0007 § 1), so there is no way to make one \
+             undefined again; assign `null` where the declared type is nullable, or let the \
+             binding go out of scope",
+        )
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_UNSET_TARGET_NOT_AN_ELEMENT,
+            "`unset()` takes an array element of a named holder",
+        )
+        .with_primary(operand.span, label)
+        .with_help(help),
+    );
 }
 
 pub(super) fn report_unset_on_property(span: Span, qname: &QName, name: &str, env: &mut Env<'_>) {

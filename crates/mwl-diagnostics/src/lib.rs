@@ -303,6 +303,16 @@ pub mod code {
     /// § *Decisions taken at project start*, and `mwl_types::locals`' module
     /// doc for the walk that reports it.
     pub const E_NESTED_TYPE_DECLARATION_UNSUPPORTED: Code = Code::new("E0233");
+    /// An `unset()` operand that is not an array element of a named holder —
+    /// `unset($x)` on a bare local, or a subscript of a temporary such as
+    /// `unset(rows()["k"])`. ADR 0028 § 3 keeps `unset()` for exactly one job,
+    /// removing an array entry: a binding is declared with a type and
+    /// definitely assigned (ADR 0007 § 1), so there is no "undefined again"
+    /// state for a local to return to, and a temporary has nothing for ADR
+    /// 0007 § 5's separated array to be written back into. An operand that is
+    /// a *declared* property is [`E_UNSET_ON_PROPERTY`] instead, which owns
+    /// that half of the same section.
+    pub const E_UNSET_TARGET_NOT_AN_ELEMENT: Code = Code::new("E0234");
 
     // --- E03xx name resolution ---------------------------------------------
     /// A variable read before anything was assigned to it.
@@ -439,10 +449,13 @@ pub mod code {
     /// interface; see ADR 0028 § 1. PHP's own fallback here is already a
     /// fatal error, so nothing permissive is being removed.
     pub const E_STRINGABLE_REQUIRED: Code = Code::new("E0412");
-    /// `unset()` on a declared object property, regardless of nullability —
-    /// refused outright because ADR 0022 already guarantees no declared
-    /// property is ever anything but definitely initialized; see ADR 0028
-    /// § 3.
+    /// `unset()` on a declared property, static or instance, regardless of
+    /// nullability — refused outright because ADR 0022 already guarantees no
+    /// declared property is ever anything but definitely initialized; see ADR
+    /// 0028 § 3. A static property is the same slot and the same guarantee, so
+    /// it takes the same code, named for the class that *declares* it. Every
+    /// other operand `unset()` cannot remove an entry from is
+    /// [`E_UNSET_TARGET_NOT_AN_ELEMENT`].
     pub const E_UNSET_ON_PROPERTY: Code = Code::new("E0413");
     /// `var $x = [...];` — a bare array literal has no target type to check
     /// against, the one initializer shape `var` cannot infer from; see

@@ -141,7 +141,8 @@ initialized, permanently, after construction:
   `null` — and for a nullable one it reflects whatever was last assigned. No magic method is consulted;
   accessing an undeclared `$obj->prop` is already [0014](0014-property-observer.md)'s hard error before
   `isset` even gets involved.
-- **`unset($obj->prop)`** — **a compile-time diagnostic**, for every declared property regardless of
+- **`unset($obj->prop)`**, and `unset(Class::$prop)` with it — **a compile-time diagnostic**
+  (`E0413`), for every declared property, static or instance, regardless of
   nullability. PHP's `unset()` removes the property outright, leaving later access to fall through to
   `__get`/trigger a notice — an "uninitialized again" state that [0022](0022-definite-property-initialization.md)
   exists specifically to make impossible for a declared property. There is no way to honor both ADRs at
@@ -149,8 +150,21 @@ initialized, permanently, after construction:
   nullable property back to its empty state writes `$obj->prop = null;` — an ordinary assignment, not a
   structural removal — which already does everything PHP's `unset()` was being used for in that case.
 
-This section is scoped to **object properties only**. `unset()` on an array element or a local variable is
-untouched — PHP's existing rules for those keep working exactly as they do today.
+Which leaves **exactly one thing `unset()` does**: remove an entry from an array, `unset($holder[key])`,
+where the holder is a local, a property or a static property. PHP's existing rules for that spelling keep
+working exactly as they do today, including at depth (`unset($grid[$r][$c])`) — with one difference that is
+[0007](0007-explicit-type-system.md) § 7 row 11 rather than this section's, since an intermediate level is
+an ordinary element read: an absent one throws where PHP is silent, and a removal never vivifies the row it
+is removing from.
+
+Every **other** operand is `E0234`, and the two shapes worth naming are the two PHP programs actually
+write. `unset($local)` is refused because [0007](0007-explicit-type-system.md) § 1 declares every binding
+once, with a type, definitely assigned: there is no "undefined again" state to put a name back into, so the
+construct has nothing left to mean — assign `null` where the declared type is nullable, or let the binding
+go out of scope. `unset(rows()[$k])` is refused because § 5's copy-on-write separates the array before the
+entry goes and the separated copy needs a slot to be written back into, which is the same thing PHP means
+by refusing a temporary in a write context. Narrowing the operand this far is what leaves `mwl_ir`'s
+lowering one shape to lower and no shape to panic on.
 
 ### 4. `__debugInfo` — rejected, no replacement
 

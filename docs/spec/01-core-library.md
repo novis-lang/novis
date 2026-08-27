@@ -53,7 +53,7 @@ keeps the two from becoming two spellings of one thing:
 | read an element | `$a[$k]` | throws on a missing key ([ADR 0063](../adr/0063-core-api-conventions.md) R4) |
 | read a possibly-absent element | `$a[$k] ?? $default` | the absence-tolerant spelling; there is **no** `Arr::get` |
 | write an element | `$a[$k] = $v` | |
-| remove an element | `unset($a[$k])` | permitted on an array element; refused on a declared object property ([ADR 0028](../adr/0028-closing-the-remaining-magic-methods.md)) |
+| remove an element | `unset($a[$k])` | an array element of a named holder, and nothing else — a declared property, static or instance, and every other operand alike are refused ([ADR 0028](../adr/0028-closing-the-remaining-magic-methods.md) § 3) |
 | ask whether a key exists | `Arr::hasKey($a, $k)` | `isset()`/`array_key_exists` both collapse here |
 | combine two arrays | `Arr::overlay` / `underlay` / `appendAll` | `$a + $b` does **not** compile ([ADR 0069](../adr/0069-array-combination-is-key-type-independent.md)) |
 

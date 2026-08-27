@@ -22,8 +22,38 @@ fn unset_on_a_declared_property_is_diagnosed() {
 }
 
 #[test]
-fn unset_on_a_local_variable_is_unaffected() {
+fn unset_on_a_local_variable_is_diagnosed() {
+    // ADR 0028 § 3 leaves `unset()` one job, and ADR 0007 § 1's declare-once,
+    // definitely-assigned binding has no "undefined again" state for a local
+    // to be put back into.
     let diags = check_in_method("mixed $x = 1;\nunset($x);");
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_UNSET_TARGET_NOT_AN_ELEMENT)),
+        "{diags:?}"
+    );
+}
+
+#[test]
+fn unset_on_an_element_of_a_temporary_is_diagnosed() {
+    // The other half of the same rule: ADR 0007 § 5 separates the array
+    // before the entry goes, and a call's result has no slot for the
+    // separated copy to be written back into.
+    let diags = check_src(
+        "<?mwl\nclass T {\n  static function rows(): array<string> { return []; }\n  function m(): void {\n    unset(T::rows()[\"a\"]);\n  }\n}\n",
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_UNSET_TARGET_NOT_AN_ELEMENT)),
+        "{diags:?}"
+    );
+}
+
+#[test]
+fn unset_on_an_element_of_a_local_is_accepted() {
+    let diags = check_in_method("array<string> $a = [\"k\" => \"1\"];\nunset($a[\"k\"]);");
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
