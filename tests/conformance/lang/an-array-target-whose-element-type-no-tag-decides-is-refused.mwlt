@@ -1,0 +1,39 @@
+--TEST--
+An `array<U>` conversion target whose `U` no runtime tag decides is refused where it is written, because the element walk compares tags and nothing wider — ADR 0007 § 2, with ADR 0010 § 5 and ADR 0047 § 5 naming two of the types it cannot check
+--FILE--
+<?mwl
+class Cell {
+    public function constructor(public string $name) {}
+}
+
+enum Rank: int {
+    Low = 1,
+    High = 2,
+}
+
+mixed $m = ["a"];
+// A class label is what four bits have no room for, and what a named-class
+// binding then reads at a fixed offset — the same type confusion `$foo as Bar`
+// is refused for, one container in.
+array<Cell> $cells = $m as array<Cell>;
+// An enum erases to its backing integer, so a tag would admit any integer as a
+// case where ADR 0010 § 5's own row throws for a value no case names.
+array<Rank> $ranks = $m as array<Rank>;
+// A union admits some values of its representation and not others, which is
+// again more than a tag says. `mixed` is the one that is accepted, because it
+// admits all of them.
+array<?string> $maybes = $m as array<?string>;
+// The refusal reads through every level, and names the level that failed.
+array<array<Cell>> $nested = $m as array<array<Cell>>;
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0711]: `array<Cell>` cannot be an `as` target
+%A
+error[E0711]: `array<Rank>` cannot be an `as` target
+%A
+error[E0711]: `array<string|null>` cannot be an `as` target
+%A
+error[E0711]: `array<array<Cell>>` cannot be an `as` target
+%A
+error: aborting due to 4 errors

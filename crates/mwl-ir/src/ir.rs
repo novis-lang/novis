@@ -1637,6 +1637,38 @@ pub enum Helper {
     /// throws, which is ADR 0007 § 6's answer for `mixed` and a compile error
     /// (`E0708`) for anything the checker can name.
     TaggedToBytes,
+    /// [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 2's
+    /// `array<T> as array<U>` row: the one row of that table whose check is
+    /// per *element* rather than per value, so the only one that is a walk.
+    ///
+    /// Argument 0 is the operand — a [`crate::ty::Ty::Array`], or a
+    /// [`crate::ty::Ty::Tagged`] whose tag is tested first, which is ADR 0007
+    /// § 6's way out of `mixed` for an array. Argument 1 is the element
+    /// description, `crate::lower::array_element_tags`' word: one tag nibble
+    /// per level of `U`. Both are what a helper *can* carry — arguments are
+    /// stored as `mwl_runtime::Value`s — and the reason an element type naming
+    /// a class is refused where it is written (`E0711`) rather than lowered
+    /// to this.
+    ///
+    /// **Nothing is copied.** ADR 0007 § 5 makes `array<T>` invariant so that
+    /// the O(n) restamp is visible, and the restamp is this walk; the *buffer*
+    /// then stays shared, because an MWL array is copy-on-write and whichever
+    /// side writes first separates itself (`mwl_runtime::array`'s
+    /// `make_unique`). So the result is the same allocation under one more
+    /// reference, and the row costs one tag test per element and no bytes at
+    /// all.
+    ///
+    /// Fallible for the reason every checked row is: an element no tag row
+    /// names throws, and so does an operand that is not an array.
+    ToArrayOf,
+    /// `$x as ?array<U>` —
+    /// [ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md)
+    /// § 1's non-throwing form of [`Self::ToArrayOf`], over that helper's one
+    /// implementation of the walk rather than a second copy of it. Answers
+    /// `null` exactly where the checked spelling throws, and cannot fault at
+    /// all — the walk runs no user code — so, like
+    /// [`Self::ToBytesOrNull`], it is emitted with no landing block.
+    ToArrayOfOrNull,
     /// Writes one already-[`crate::ty::Ty::Str`] operand's cooked bytes to
     /// the process's standard output, unescaped — `echo`'s one and only
     /// effect under `mwl run`, decided in `docs/agent/loop-goal.md`. Defines no

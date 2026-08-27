@@ -3261,6 +3261,8 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::TaggedToUint => "mwl_tagged_to_uint",
         Helper::TaggedToFloat => "mwl_tagged_to_float",
         Helper::TaggedToBytes => "mwl_tagged_to_bytes",
+        Helper::ToArrayOf => "mwl_to_array_of",
+        Helper::ToArrayOfOrNull => "mwl_to_array_of_or_null",
         Helper::DecimalTruthy => "mwl_decimal_truthy",
         Helper::DecimalAdd => "mwl_decimal_add",
         Helper::DecimalSub => "mwl_decimal_sub",

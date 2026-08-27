@@ -1314,7 +1314,7 @@ impl<'a> Lowering<'a> {
                 }
                 out
             }
-            // Two shapes reach here, both of them a missing *lowering*:
+            // One shape reaches here, and it is a missing *lowering*:
             // `mwl_types`' `reject_unconvertible` refuses every pair ADR 0007
             // § 2's closed table has no row for (`E0708`), and every object
             // target with no class to test against (`E0711`), so this is no
@@ -1323,14 +1323,14 @@ impl<'a> Lowering<'a> {
                 "mwl-ir lowers ADR 0007 § 2's scalar conversion rows, ADR 0009 § 3's `string` ↔ \
                  `bytes` pair, both of ADR 0010 § 5's enum ones, a `Ty::Tagged` operand into \
                  every scalar target among them and into `bytes`, and every operand into a \
-                 tagged target — got `{from:?} as {to:?}`. Two rows are still missing and are \
-                 the whole of what can arrive here, every other pair being `E0708` or `E0711` a \
-                 phase up: ADR 0007 § 2's `array<T> as array<U>`, whose O(n) element walk is no \
-                 single helper; and ADR 0024 § 5's `string as Core\\Html\\Markup`, which waits \
-                 on `Core\\Html` existing at all (M7). A *declared* class target does not reach \
-                 here — a tagged operand into one is `Self::lower_checked_downcast`, which \
-                 branches and so could not be a row of this table. See the crate docs' known \
-                 gaps"
+                 tagged target — got `{from:?} as {to:?}`. One row is still missing and is the \
+                 whole of what can arrive here, every other pair being `E0708` or `E0711` a \
+                 phase up: ADR 0024 § 5's `string as Core\\Html\\Markup`, which waits on \
+                 `Core\\Html` existing at all (M7). Two targets do not reach this table at all, \
+                 each because what decides it is a *label* one `Ty` has erased: a declared class \
+                 is `Self::lower_checked_downcast` and an `array<U>` is \
+                 `Self::lower_array_restamp`, both callers of it rather than rows of it. See the \
+                 crate docs' known gaps"
             ),
         }
     }
@@ -1385,9 +1385,10 @@ impl<'a> Lowering<'a> {
                 "mwl-ir: `{from:?} as ?{to:?}` — one representation on both sides, and \
                  `mwl_types` has refused every pair of that shape whose conversion cannot fail \
                  (`E0709`). What is left is two *different* checked types sharing one \
-                 representation: `array<T> as array<U>`, which is the missing lowering \
-                 `Lowering::convert`'s own catch-all names, and a `?T` whose `T` is itself a \
-                 union, which erases to one `Ty::Tagged` the same way `mixed` does"
+                 representation: a `?T` whose `T` is itself a union, which erases to one \
+                 `Ty::Tagged` the same way `mixed` does. `array<T> as ?array<U>` is not among \
+                 them — `Lowering::lower_conversion` takes an array target before this, since \
+                 the element type both sides erased is what decides it"
             ),
             Ty::Int => Helper::ToIntOrNull,
             Ty::Uint => Helper::ToUintOrNull,
@@ -1401,8 +1402,10 @@ impl<'a> Lowering<'a> {
                  and enum-case ones — got `{from:?} as ?{other:?}`. Both of § 3's refusals are \
                  `mwl_types`' now (`E0709` for a row that cannot fail, `E0708` for a pair naming \
                  no row), so what reaches here is a row that exists, can fail, and has no `?` \
-                 helper to run it: the `array<T>` and object targets `Lowering::convert`'s own \
-                 catch-all already names. See the crate docs' known gaps"
+                 helper to run it: the object target `Lowering::convert`'s own catch-all already \
+                 names. The `array<U>` target had been the other one and is \
+                 `Self::lower_array_restamp` now, which answers both spellings out of one walk. \
+                 See the crate docs' known gaps"
             ),
         };
         let call = InstKind::HelperCall {
@@ -4776,6 +4779,20 @@ impl<'a> Lowering<'a> {
                 // error, which `mwl_types` does not refuse yet, so it
                 // would panic where it now converts.
                 let (v, from) = self.lower_expr(inner, None, env, cur);
+                // ADR 0066 § 3's one **available** row with no `?` helper of
+                // its own, and it needs none: the element walk is the same
+                // walk either way, so the `null` is an answer its shared
+                // implementation already had. It is taken off the whole `?T`
+                // annotation rather than from `lower_decl_type(target)`
+                // because a `?array<U>` reaches `convert_or_null` down two
+                // different paths below, and this is the one point above both.
+                if let Some(tags) = self
+                    .exprs
+                    .declared_ty(ty.span)
+                    .and_then(|id| super::array_element_tags(id, self.checked_types))
+                {
+                    return self.lower_array_restamp(v, from, tags, inner, true, env, cur);
+                }
                 // ADR 0066 § 3 row 2 — a literal or enum-case target, the
                 // "non-throwing twin" of the checked conversion. The target
                 // is `T|null` minus `null`, which is the one place it still
@@ -4827,6 +4844,24 @@ impl<'a> Lowering<'a> {
                         super::closure::declared_class(ty, self.exprs, self.checked_types)
                 {
                     return self.lower_checked_downcast(v, &class, inner, ty.span, env, cur);
+                }
+                // ADR 0007 § 2's `array<T> as array<U>` row, and it is here
+                // for the reason the downcast above is: what decides it is the
+                // *element* type, which `Ty::Array` has erased. Both sides of
+                // `array<int> as array<string>` are one representation, so
+                // `Self::convert` would take its free `from == to` row and
+                // hand the `int`s through under the other declaration.
+                //
+                // A `None` here is that free row and belongs to it: the one
+                // element type `mwl_types` lets through undescribed is a class
+                // in `array<Foo> as array<Foo>`, where the two sides are the
+                // identical type and there is nothing to check.
+                if let Some(tags) = self
+                    .exprs
+                    .declared_ty(ty.span)
+                    .and_then(|id| super::array_element_tags(id, self.checked_types))
+                {
+                    return self.lower_array_restamp(v, from, tags, inner, false, env, cur);
                 }
                 let Some(accepted) = self.closed_literal_set(ty, inner, from) else {
                     return self.convert(v, from, to, inner, env, *cur);
@@ -5004,6 +5039,81 @@ impl<'a> Lowering<'a> {
             self.emit_retain(hit, out);
         }
         (out, Ty::Object)
+    }
+
+    /// [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 2's
+    /// `array<T> as array<U>` row: every element must satisfy `U`, checked as
+    /// the walk goes, in [`Helper::ToArrayOf`] — or in
+    /// [`Helper::ToArrayOfOrNull`] when `or_null`, ADR 0066's spelling of the
+    /// same walk.
+    ///
+    /// **This is not a row of [`Self::convert`] and cannot be one**, for the
+    /// reason [`Self::lower_checked_downcast`] is not either: what decides it
+    /// is the target's *element* type, and by the time `convert` sees a pair
+    /// of [`Ty`]s that has erased to one [`Ty::Array`] on both sides. So the
+    /// row is read off the annotation here, where the checked type still
+    /// exists, and travels as [`super::array_element_tags`]' word — one tag
+    /// nibble per level of `U`, which is what a helper argument can carry.
+    ///
+    /// An `array<mixed>` target from an operand that is already an array is
+    /// the one shape that runs nothing: every tag satisfies `mixed`, so the
+    /// walk could only answer `true`, and what is left is `convert`'s free
+    /// widening row. A [`Ty::Tagged`] operand still calls, because the tag
+    /// test on the operand *itself* is ADR 0007 § 6's whole content there.
+    ///
+    /// **Ownership is the `bytes` rows'**, and the buffer is not copied:
+    /// [`Helper::ToArrayOf`] hands back the operand's own allocation under one
+    /// more reference, so a borrowed operand needs nothing and a fresh one is
+    /// released once the helper has read it — the pair that leaves exactly one
+    /// reference for the consumer of an `as` to own, either way.
+    ///
+    /// # Panics
+    ///
+    /// Panics for an operand representation that is neither an array nor a
+    /// tagged value: ADR 0007 § 2 gives no other operand a row into an array,
+    /// and `mwl_types` refuses each where it is written (`E0708`).
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the same context `lower_conversion` itself threads, plus the one bit that \
+                  chooses between ADR 0007 § 2's spelling of this row and ADR 0066 § 1's"
+    )]
+    fn lower_array_restamp(
+        &mut self,
+        v: ValueId,
+        from: Ty,
+        tags: u64,
+        operand: &Expr,
+        or_null: bool,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        assert!(
+            matches!(from, Ty::Array | Ty::Tagged),
+            "mwl-ir lowers ADR 0007 § 2's `array<T> as array<U>` row from an array or from a \
+             tagged value — got representation {from:?}, every other operand being `E0708` at \
+             the checker"
+        );
+        if !or_null && from == Ty::Array && tags == u64::from(super::FN_PARAM_TAG_ANY) {
+            return self.convert(v, from, Ty::Array, operand, env, *cur);
+        }
+        let (word, _) = self.emit(*cur, Ty::Uint, InstKind::ConstUint(tags));
+        let call = InstKind::HelperCall {
+            helper: if or_null {
+                Helper::ToArrayOfOrNull
+            } else {
+                Helper::ToArrayOf
+            },
+            args: vec![v, word],
+        };
+        let out = if or_null {
+            self.emit(*cur, Ty::Tagged, call)
+        } else {
+            self.emit_fallible(*cur, Ty::Array, call, env)
+        };
+        if !self.aliasing_read(operand) {
+            self.emit_release(*cur, v);
+        }
+        out
     }
 
     /// The closed set of literals an `expr as T` has to test its operand

@@ -218,9 +218,10 @@
 //!    does not exist at all (`$arr as ?int`) is `E_NO_CONVERSION`, that
 //!    table's closure asked of the `T` inside the sugar. What is left is the
 //!    other direction — a row § 3 calls **available** with no `?` helper to
-//!    run it, which is now `$m as ?array<T>` alone:
-//!    [`lower::Lowering::convert`]'s own missing row in its null-answering
-//!    spelling, so the two close together. Both text targets are closed:
+//!    run it — and it is closed too: `$m as ?array<U>` is
+//!    [`ir::Helper::ToArrayOfOrNull`], the same element walk the checked
+//!    spelling runs, answering `null` where that one throws. Both text
+//!    targets are closed:
 //!    [`ir::Helper::ToStringOrNull`] is [`ir::Helper::TaggedToString`]'s twin
 //!    over one implementation of ADR 0007 § 2's rows, answering `null` where
 //!    that one throws, and it takes `$b as ?string` with it — ADR 0009 § 3's
@@ -554,19 +555,32 @@
 //!     from its runtime tag instead ([`ir::Helper::TaggedToBytes`]), which is
 //!     the only shape of `as bytes` that reaches a call at all.
 //!
-//!     What panics is two rows, and **those two are now the whole of it**:
-//!     every other operand/target pair naming no row of ADR 0007 § 2's
-//!     closed table is `E0708` where it is written
-//!     (`mwl_types::expr::operators`' `reject_unconvertible`), and every
-//!     object target with no class to test against is `E0711` beside it, so a
-//!     pair that arrives here is a missing lowering rather than a missing
-//!     rule.
+//!     What panics is one row, and **it is now the whole of it**: every other
+//!     operand/target pair naming no row of ADR 0007 § 2's closed table is
+//!     `E0708` where it is written (`mwl_types::expr::operators`'
+//!     `reject_unconvertible`), and every object target with no class to test
+//!     against is `E0711` beside it, so a pair that arrives here is a missing
+//!     lowering rather than a missing rule.
 //!
-//!     They are `array<T> as array<U>`, whose O(n) element walk is the one
-//!     row in that table that is not a single helper call; and ADR 0024 § 5's
-//!     `string as Core\Html\Markup`, which is a *rule* rather than a test —
-//!     a source-literal string and nothing else — and waits on `Core\Html`
-//!     existing at all (M7).
+//!     It is ADR 0024 § 5's `string as Core\Html\Markup`, which is a *rule*
+//!     rather than a test — a source-literal string and nothing else — and
+//!     waits on `Core\Html` existing at all (M7).
+//!
+//!     `array<T> as array<U>` used to be the other, and it is a **walk**
+//!     rather than a row: what decides it is the target's element type, which
+//!     [`ty::Ty::Array`] has erased, so `lower::Lowering::lower_array_restamp`
+//!     reads it off the annotation and hands
+//!     `lower::array_element_tags`' word — one tag nibble per level of `U`,
+//!     the same four bits a closure parameter's entry check compares — to
+//!     [`ir::Helper::ToArrayOf`], which walks the elements against it.
+//!     [`ir::Helper::ToArrayOfOrNull`] is ADR 0066's spelling of the same
+//!     walk, out of one implementation. The buffer is not copied: an MWL
+//!     array is copy-on-write, so the result is the operand's own allocation
+//!     under one more reference and ADR 0007 § 5's invariance is bought with
+//!     tag tests rather than with bytes moved. An element type a tag cannot
+//!     decide — a class, an enum, a literal type, a union — is `E0711` where
+//!     it is written (`reject_uncheckable_element_type`), which is the one
+//!     home of that roster.
 //!
 //!     A [`ty::Ty::Tagged`] operand converted to an *object* used to be the
 //!     second — `$m as Plain` over a `mixed`, ADR 0007 § 6's checked way out

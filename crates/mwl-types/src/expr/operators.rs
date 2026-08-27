@@ -1108,6 +1108,12 @@ fn reject_unconvertible(from: TypeId, to: TypeId, span: Span, env: &mut Env<'_>)
         return;
     }
     if conversion_row_exists(from_kind, to_kind) {
+        // ADR 0007 § 2's `array<T> as array<U>` row is the one that is checked
+        // element by element at run time, and what checks one element is its
+        // runtime *tag* — so the row exists only for a `U` a tag can decide.
+        if to_kind == ConvKind::Array {
+            reject_uncheckable_element_type(to, span, env);
+        }
         return;
     }
     let described_from = env.interner.describe(from);
@@ -1224,6 +1230,84 @@ fn reject_untestable_object_target(from: TypeId, to: TypeId, span: Span, env: &m
              to test the value against: convert to a declared class instead, which is the one \
              checked way out of `mixed`",
         ),
+    );
+}
+
+/// How many levels of `array<…>` nesting an `array<U>` target may name.
+///
+/// The number is a *representation* fact rather than a language one:
+/// `mwl_ir::lower::array_element_tags` packs one four-bit tag per level into a
+/// `u64`, which holds `64 / 4` of them, and the runtime walk
+/// (`mwl_runtime`'s `to_array_of`) reads the same word back. Sixteen levels of
+/// `array<array<…>>` is far past anything a program writes, so the limit is
+/// stated here — the one place a conversion's target is judged — rather than
+/// designed around.
+const ARRAY_ELEMENT_TAG_LEVELS: usize = u64::BITS as usize / 4;
+
+/// ADR 0007 § 2's `array<T> as array<U>` row, refused where the element type
+/// `U` is one no runtime tag decides.
+///
+/// The row's whole content is "every element must satisfy `U`", checked once
+/// per element on the way through, and the check available at that point is
+/// the *same* one a closure parameter's entry check runs
+/// (`mwl_ir::lower::param_tag_nibble`): a tag, four bits wide, with no room
+/// for anything else. So the element types that convert are exactly the ones
+/// whose whole meaning is their tag — `bool`, `int`, `uint`, `float`,
+/// `decimal`, `string`, `bytes`, `null`, `mixed`, and an `array<…>` of any of
+/// them, nested to [`ARRAY_ELEMENT_TAG_LEVELS`].
+///
+/// Everything else is refused **where it is written**, and each for a reason
+/// this refusal is the safe answer to rather than a shape nobody got to:
+///
+/// * A **class**, a shape, a `callable` or plain `object` erase to one
+///   pointer, so a tag proves objecthood and never the label a named-class
+///   binding then reads at a *fixed offset*. That is
+///   [`reject_untestable_object_target`]'s type confusion, one container in.
+/// * An **enum** erases to its backing integer, so a tag would admit any
+///   integer as a case — where ADR 0010 § 5's own `mixed → EnumName` row
+///   throws for a value no case names.
+/// * A **literal type** or a **union** (ADR 0047 § 5's closed sets,
+///   `?T`, `int|string`) admits some values of its representation and not
+///   others, which is again more than a tag says. `mixed` is not in that list
+///   and is accepted: it is ADR 0007 § 3's one unchecked position, so an
+///   element of it is checked by every reader instead.
+///
+/// What to write instead is in the help, and it is the same shape either way:
+/// `array<mixed>` converts, and each element is converted where it is read.
+fn reject_uncheckable_element_type(to: TypeId, span: Span, env: &mut Env<'_>) {
+    let Ty::Array(element) = env.interner.get(to) else {
+        return;
+    };
+    let mut element = *element;
+    for level in 0..ARRAY_ELEMENT_TAG_LEVELS {
+        match env.interner.get(element) {
+            Ty::Null
+            | Ty::Bool
+            | Ty::Int
+            | Ty::Uint
+            | Ty::Float
+            | Ty::Decimal
+            | Ty::String
+            | Ty::Bytes
+            | Ty::Mixed => return,
+            Ty::Array(inner) if level + 1 < ARRAY_ELEMENT_TAG_LEVELS => element = *inner,
+            _ => break,
+        }
+    }
+    let described_from = env.interner.describe(to);
+    let described_element = env.interner.describe(element);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_UNTESTABLE_CONVERSION_TARGET,
+            format!("`{described_from}` cannot be an `as` target"),
+        )
+        .with_primary(span, "converted here")
+        .with_help(format!(
+            "ADR 0007 § 2's `array<T> as array<U>` row checks every element against `U` as it \
+             walks, and what checks one element is its runtime tag — which `{described_element}` \
+             is not decided by: convert to `array<mixed>` and convert each element where it is \
+             read"
+        )),
     );
 }
 

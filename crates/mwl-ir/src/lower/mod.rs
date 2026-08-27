@@ -2814,6 +2814,92 @@ pub fn param_tag_nibble(ty: Ty) -> u8 {
     }
 }
 
+/// How many `array<…>` levels one [`array_element_tags`] word describes: a
+/// [`param_tag_nibble`] each, packed into a `u64`.
+///
+/// `mwl_types::expr::operators` refuses a target that nests deeper
+/// (`E0711`) — that module's `ARRAY_ELEMENT_TAG_LEVELS` is the same `64 / 4`
+/// and the rule's one home — so a deeper annotation never reaches this crate.
+pub const ARRAY_ELEMENT_TAG_LEVELS: usize = u64::BITS as usize / 4;
+
+/// The word ADR 0007 § 2's `array<T> as array<U>` row carries to the runtime:
+/// one [`param_tag_nibble`] per level of `U`, outermost first. `array<int>`
+/// is one nibble, `2`; `array<array<int>>` is two, `6` then `2`; and
+/// `array<mixed>` is [`FN_PARAM_TAG_ANY`], the "every tag" nibble that makes
+/// the walk a formality.
+///
+/// **The row's check is a tag per element and nothing wider**, which is the
+/// same four bits a closure parameter's entry check compares
+/// ([`param_tag_nibble`]'s own doc comment) and the reason the two share this
+/// encoding rather than inventing a second one. A helper argument is stored as
+/// an `mwl_runtime::Value`, so an integer is what can travel; a class
+/// descriptor cannot, which is exactly why an element type naming a class is
+/// refused a phase up rather than lowered here.
+///
+/// A nibble of `Ty::Array` means "and the next nibble describes *its*
+/// elements", so the chain is self-terminating: every array level writes the
+/// level below it, and a leaf writes nothing after itself.
+///
+/// `None` where the target is not an array at all, where a level's type is one
+/// no tag decides — a class, a shape, a `callable`, an enum, a literal type, a
+/// union — or where it nests past [`ARRAY_ELEMENT_TAG_LEVELS`]. The roster is
+/// `mwl_types::expr::operators`' `reject_uncheckable_element_type`, which owns
+/// the rule and refuses each of those where it is written (`E0711`), so the
+/// only `None` that survives to here is the one that refusal exempts: the
+/// **identical type**, `array<Foo> as array<Foo>`, which is
+/// [`Lowering::convert`](crate::lower::Lowering::convert)'s free row and wants
+/// no walk at all. That is why the caller falls through rather than asserting.
+fn array_element_tags(id: TypeId, checked_types: &TypeInterner) -> Option<u64> {
+    // ADR 0066's `as ?array<U>` asks the same question of the same target, and
+    // the `T` node inside the sugar records no checked type of its own
+    // (`Lowering::nullable_target_atoms` says why) — so the `?T` is unwrapped
+    // here, where the interned `Union([Null, T])` still has it.
+    let id = match checked_types.get(id) {
+        CheckedTy::Union(members) => {
+            let mut named = members
+                .iter()
+                .filter(|member| !matches!(checked_types.get(**member), CheckedTy::Null));
+            let only = *named.next()?;
+            if named.next().is_some() {
+                return None;
+            }
+            only
+        }
+        _ => id,
+    };
+    let CheckedTy::Array(element) = checked_types.get(id) else {
+        return None;
+    };
+    let mut current = *element;
+    let mut word = 0u64;
+    for level in 0..ARRAY_ELEMENT_TAG_LEVELS {
+        // The allowlist is spelled out rather than taken from
+        // `erase_checked_ty`, because what a level needs is not "does this
+        // have a representation" but "is its representation the *whole* of
+        // it": every type below admits exactly the values one tag admits, and
+        // one that admits fewer would be asserted rather than checked.
+        let repr = match checked_types.get(current) {
+            CheckedTy::Null => Ty::Null,
+            CheckedTy::Bool => Ty::Bool,
+            CheckedTy::Int => Ty::Int,
+            CheckedTy::Uint => Ty::Uint,
+            CheckedTy::Float => Ty::Float,
+            CheckedTy::Decimal => Ty::Decimal,
+            CheckedTy::String => Ty::Str,
+            CheckedTy::Bytes => Ty::Bytes,
+            CheckedTy::Mixed => Ty::Tagged,
+            CheckedTy::Array(_) => Ty::Array,
+            _ => return None,
+        };
+        word |= u64::from(param_tag_nibble(repr)) << (level * 4);
+        match checked_types.get(current) {
+            CheckedTy::Array(inner) => current = *inner,
+            _ => return Some(word),
+        }
+    }
+    None
+}
+
 /// One lowered body, plus everything the ADR 0031 closures inside it
 /// synthesized.
 ///

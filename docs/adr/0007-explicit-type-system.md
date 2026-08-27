@@ -258,8 +258,12 @@ One type parameter, not two, because the key type is fixed by the language.
   the value arrives through `mixed` it is a runtime check, and a failure is a throw like any other
   ([0002](0002-error-propagation.md)).
 - **Invariant.** `array<int>` is not an `array<int|string>`. Converting is `as array<int|string>`, and costs
-  an O(n) restamp — a real copy, since the two cannot share a copy-on-write buffer. Covariance was tempting
-  and is rejected in *Alternatives*: it would hide that O(n) inside an assignment.
+  an O(n) restamp — one tag test per element, which is the walk *2*'s row names. Covariance was tempting
+  and is rejected in *Alternatives*: it would hide that O(n) inside an assignment. What the restamp does
+  **not** cost is a copy: the two views share the one copy-on-write buffer, and whichever writes first
+  separates itself, so invariance is bought with tests rather than with bytes moved. What a tag cannot
+  decide is not converted at all — an element type naming a class, an enum, a literal type or a union is
+  refused where it is written, `array<mixed>` being the target every tag satisfies and the way round it.
 - The empty literal `[]` has type `array<never>`, which satisfies every `array<T>`, so invariance never gets
   in the way of initialising.
 - **Array literals are checked against the target type, never inferred and then compared.** Because every

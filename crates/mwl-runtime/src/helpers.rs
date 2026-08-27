@@ -1163,6 +1163,153 @@ crate::mwl_helper! {
     }
 }
 
+/// One element of an `array<U>` target, judged against the level of
+/// `mwl_ir::lower::array_element_tags`' word that describes it.
+///
+/// The nibble *is* a [`Tag`] byte, which is what lets this share
+/// [`crate::closure::CLOSURE_PARAM_TAG_ANY`] with the closure-entry check
+/// rather than inventing a second encoding: both ask "does this value carry
+/// the tag that representation carries", and neither can ask anything narrower
+/// in four bits. `Tag::Array` is the one nibble that continues — the rest of
+/// the word describes the elements of *this* element, which is how
+/// `array<array<int>>` is checked all the way down.
+///
+/// No widening, unlike the closure-entry check: an `int` element does not
+/// satisfy `array<float>`. ADR 0007 § 2's implicit `int → float` widening is a
+/// conversion, and a conversion here would have to *rewrite* the element,
+/// which is the copy this row exists without.
+fn element_has_tag(value: Value, tags: u64) -> bool {
+    let nibble = u8::try_from(tags & 0xf).unwrap_or(u8::MAX);
+    if nibble == crate::closure::CLOSURE_PARAM_TAG_ANY {
+        return true;
+    }
+    let (Some(required), Some(given)) = (Tag::from_byte(nibble), value.tag()) else {
+        return false;
+    };
+    if given != required {
+        return false;
+    }
+    if required != Tag::Array {
+        return true;
+    }
+    let Some(inner) = value.array_ptr() else {
+        return false;
+    };
+    #[expect(
+        unsafe_code,
+        reason = "a Tag::Array value's payload is a live allocation the array \
+                  holding it owns a reference to, so it is live for this walk"
+    )]
+    unsafe {
+        every_element_has_tag(inner, tags >> 4)
+    }
+}
+
+/// [`element_has_tag`] over every entry of one array, in insertion order —
+/// ADR 0007 § 2's O(n) element walk itself.
+///
+/// # Safety
+///
+/// `array` must refer to a live MWL array allocation.
+#[expect(
+    unsafe_code,
+    reason = "the array pointer's liveness is the caller's to guarantee and \
+              the signature cannot express it"
+)]
+unsafe fn every_element_has_tag(array: *mut crate::array::ArrayHeader, tags: u64) -> bool {
+    let mut from = 0usize;
+    loop {
+        #[expect(unsafe_code, reason = "the caller guarantees the allocation is live")]
+        let slot = unsafe { crate::array::mwl_array_next_slot(array, from) };
+        let Ok(slot) = usize::try_from(slot) else {
+            return true;
+        };
+        let mut value = Value::null();
+        #[expect(
+            unsafe_code,
+            reason = "the slot is one `mwl_array_next_slot` just returned and \
+                      `value` is a writable 16-byte slot"
+        )]
+        unsafe {
+            crate::array::mwl_array_value_at(array, slot, &raw mut value);
+        }
+        // Borrowed, so there is nothing to release: `mwl_array_value_at`
+        // hands back the entry's own `Value` and the array still owns it.
+        if !element_has_tag(value, tags) {
+            return false;
+        }
+        from = slot + 1;
+    }
+}
+
+/// ADR 0007 § 2's `array<T> as array<U>` row, shared by its throwing and its
+/// `null`-answering spelling exactly as [`to_bytes`] shares that pair's.
+///
+/// `None` for an operand that is not an array at all — ADR 0007 § 6's `mixed`
+/// reaching this row — and for one whose walk found an element `U` does not
+/// admit.
+///
+/// **The result is the operand's own allocation under one more reference.**
+/// ADR 0007 § 5 makes `array<T>` invariant so that the restamp is visible
+/// rather than hidden inside an assignment, and the restamp is the walk; the
+/// buffer itself can stay shared, because an MWL array is copy-on-write and
+/// whichever of the two views writes first separates itself
+/// ([`crate::array`]'s `make_unique`). Copying here would be O(n) bytes moved
+/// to reach a state observably identical to this one.
+fn to_array_of(value: Value, tags: Value) -> Option<Value> {
+    let tags = tags.as_uint()?;
+    let array = value.array_ptr()?;
+    #[expect(
+        unsafe_code,
+        reason = "a Tag::Array value's payload is a live allocation the caller \
+                  owns a reference to, and the result carries a second one the \
+                  caller will release"
+    )]
+    unsafe {
+        if !every_element_has_tag(array, tags) {
+            return None;
+        }
+        crate::array::mwl_array_retain(array);
+    }
+    Some(Value::from_array_ptr(array))
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::ToArrayOf` — ADR 0007 § 2's `array<T> as array<U>`
+    /// row, so [`to_array_of`]'s `None` is the throw rather than a `null`.
+    ///
+    /// The two ways that `None` arises are told apart here rather than inside
+    /// the shared walk, because they are two different mistakes: an operand
+    /// that is not an array at all is ADR 0007 § 6's `mixed` holding something
+    /// else, and it reads as every other row's refusal does; an element the
+    /// target's `U` does not admit is the row's *own* failure and says so.
+    /// Which element is not named, for the reason
+    /// `mwl_ir::lower::Lowering::lower_checked_downcast`'s message does not
+    /// name a class: the walk compares tags, and a key would have to be
+    /// rendered to be quoted.
+    fn mwl_to_array_of(_ctx, args: [2]) {
+        if args[0].tag() != Some(Tag::Array) {
+            return Err(does_not_fit("this value", "array"));
+        }
+        to_array_of(args[0], args[1]).ok_or_else(|| {
+            Fault::thrown(
+                "an element of this array is not of the element type it is converted to"
+                    .to_owned(),
+            )
+        })
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::ToArrayOfOrNull` — ADR 0066 § 1's non-throwing form of
+    /// [`mwl_to_array_of`], over [`to_array_of`]'s one implementation of the
+    /// walk. Nothing here can fault on the way, so like [`mwl_to_bytes_or_null`]
+    /// there is no exception of the program's own to keep out of the `null`.
+    fn mwl_to_array_of_or_null(_ctx, args: [2]) {
+        Ok(to_array_of(args[0], args[1]).unwrap_or_else(Value::null))
+    }
+}
+
 /// [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md) § 3's
 /// `ArithmeticError`: an overflow of either kind, or a zero divisor.
 ///
@@ -1623,6 +1770,8 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("mwl_tagged_to_string", address(mwl_tagged_to_string)),
         ("mwl_bytes_to_string", address(mwl_bytes_to_string)),
         ("mwl_tagged_to_bytes", address(mwl_tagged_to_bytes)),
+        ("mwl_to_array_of", address(mwl_to_array_of)),
+        ("mwl_to_array_of_or_null", address(mwl_to_array_of_or_null)),
         ("mwl_to_bytes_or_null", address(mwl_to_bytes_or_null)),
         ("mwl_decimal_add", address(mwl_decimal_add)),
         ("mwl_decimal_sub", address(mwl_decimal_sub)),
