@@ -866,6 +866,14 @@ is why" — is this file.
   the session that found it by a long way — and a `return`/`release_all_locals` exemption keyed on
   a **name** has to be re-read whenever a new binding *representation* enters `Env`, because the
   exemption is only sound for a binding that would otherwise have been released.
+- **A non-UTF-8 file in the PHP corpus failed `corpus_parse.rs` with no message at all**, and a real-world
+  corpus has them — Symfony ships a class named with the latin-1 byte `0xA9` and a deliberately binary
+  string fixture. `SourceMap::load` reads UTF-8 only, and the `unwrap_or_else(|err| panic!(…))` that used
+  to read each file sat *inside* the `panic::set_hook(Box::new(|_| {}))` the test installs to silence
+  per-file parser panics, so its message was swallowed: a bare `FAILED`, no summary line, no filename to
+  chase. Such a file is now counted and named as `unreadable`. The durable trap is the shape rather than
+  the file — **any `panic!` between that `set_hook` and its matching `set_hook(prev_hook)` reports
+  nothing**, so a new failure path in that loop must return a value the summary can print.
 
 ## Writing a test case
 

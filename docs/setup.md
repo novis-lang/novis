@@ -104,10 +104,25 @@ Four things sit outside what git tracks. Only the first is not optional.
    [docs/agent/conventions.md](agent/conventions.md) § *A commit message*.
 2. **A git identity**, if the machine has no global one — `git config user.name` and `user.email`. Every
    session ends in commits, so a machine that cannot commit cannot finish one.
-3. **The PHP corpus** — optional, and silently so. `crates/mwl-syntax/tests/corpus_parse.rs` parses a
-   directory of real-world `.php` files and asserts only that the parser does not panic; with no corpus it
-   **skips** rather than fails. Point `MWL_PHP_CORPUS` at any tree of `.php` files, or drop one at
-   `php-src/` in the workspace root, which is gitignored for the purpose.
+3. **The PHP corpus** — optional, and silently so. `crates/mwl-syntax/tests/corpus_parse.rs` walks a
+   directory tree of real-world `.php` files and asserts only that the parser does not panic; a file it
+   cannot read is counted and skipped, and with no corpus at all it **skips** rather than fails. Point
+   `MWL_PHP_CORPUS` at any tree of `.php` files, or drop one at `php-src/` in the workspace root, which is
+   gitignored for the purpose and needs no environment variable.
+
+   **`php-src/` is that path's name, not the `php/php-src` repository.** Cloning the interpreter's own
+   source yields 200 `.php` files — its 22,721 test cases are `.phpt`, an extension this test does not
+   match — so the directory holds application code instead, and the walk is recursive:
+
+   ```sh
+   mkdir php-src && cd php-src
+   for r in WordPress/WordPress symfony/symfony phpmyadmin/phpmyadmin composer/composer; do
+       git clone --depth 1 "https://github.com/$r.git"
+   done
+   ```
+
+   That is 15,039 files, and the spread is the point: WordPress is procedural legacy, Symfony modern
+   typed OO, phpMyAdmin a whole application, Composer a CLI tool.
 4. **Machine-local harness settings** — optional. `.claude/settings.json` is committed and carries the
    shared permission allowlist; `.claude/settings.local.json` is per-machine and is not.
 
