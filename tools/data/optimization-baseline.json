@@ -72,6 +72,11 @@
     {
       "what": "AGENTS.md § Session workflow step 2: the group cap is a context budget (under 120k, files already loaded) instead of a count of two. session-prompt.md and loop-authoring.md § 1's decision table follow it.",
       "expected_effect": "Cheap slices batch. Sessions per artefact falls; ctx_end rises toward but not past the gate."
+    },
+    {
+      "what": "mwl-ir's lower/ split, the pass every other crate already had: mod.rs 6,253 -> 2,954 (tests to lower/tests.rs), expr.rs 5,770 -> 3,341, new convert.rs (1,590) and operator.rs (879).",
+      "commit": "e9b4302",
+      "expected_effect": "The `discovery` share of fetched context falls, and with it the head-call count: Stage 0's remaining items are now an 879-line file rather than a 5,770-line one, and a grep for `lower_binary` stops returning conversion and member-access hits. It does NOT move ctx_start, and it does not reduce the bytes of code a session reads."
     }
   ],
 
@@ -80,6 +85,8 @@
     "peek_single_target_share": {"from": 0.51, "to": "below 0.30", "confidence": "medium — a printed nudge is weaker than a tool that batches by construction, which is the doctrine this repository already paid for once"},
     "read_calls_per_session": {"from": 41.1, "to": "30-34"},
     "calls_per_session": {"from": 81, "to": "65-72"},
+    "calls_head": {"from": 13.8, "to": "10-12 — the split's own prediction, since head is where a session locates the code it is about to change"},
+    "discovery_share_of_context": {"from": 0.13, "to": "below 0.10", "_source": "python tools/loop-stats.py --attribute"},
     "minutes_per_session": {"from": 14.0, "to": "11.5-13.0"},
     "ctx_end_mean": {"from": 162553, "to": "rises, and must stay under 200000"},
     "sessions_over_the_ceiling": {"from": "11 of 73 (15%)", "to": "must not rise — this is the change's stop signal, not a cost to absorb"},
