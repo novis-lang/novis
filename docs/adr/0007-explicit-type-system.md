@@ -317,7 +317,7 @@ later. Each is reachable in PHP only *because* a binding somewhere is untyped:
 | 8 | reading an undefined variable warns and yields `null` | a definite-assignment error at check time |
 | 9 | a function, method or closure may omit its return type | mandatory on every one of them — `void` or `never` stated explicitly when there is no value |
 | 10 | `$a[] .= "x"` appends, the element that is not there yet reading as `""` | refused at check time (`E0481`), like every other read of `[]` — nothing makes an absent element read as a zero value, which is row 8 one storage kind along |
-| 11 | reading an absent array key warns and yields `null` | **throws** — there is no `null` to put in an `array<string>`, so row 8's rule holds at runtime too: absent storage is never a zero value. A stored `null` in an `array<?T>` is not an absent key and reads back unchanged |
+| 11 | reading an absent array key warns and yields `null` | **throws** — there is no `null` to put in an `array<string>`, so row 8's rule holds at runtime too: absent storage is never a zero value. A stored `null` in an `array<?T>` is not an absent key and reads back unchanged. **`$a["k"] ?? $d` is the one exception and is PHP-identical**: `??` means "absent or `null`, without the warning", so the guarded read yields `$d` rather than throwing — refusing there would refuse the spelling PHP offers for exactly this, and the throw is what makes it worth writing |
 
 The consequence to plan around: the imported `.phpt` corpus (M11) will have a **structurally lower** pass
 rate than a compatibility-first design would, and failures in these eleven classes are intentional

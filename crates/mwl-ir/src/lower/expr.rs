@@ -3658,6 +3658,13 @@ impl<'a> Lowering<'a> {
     /// append syntax, assignment-target-only — and `mwl_types`
     /// refuses it as `E0481` where it is written, so the arm here is
     /// an invariant check that no source file can reach.
+    ///
+    /// A read the checker marked **coalesce-guarded** — the left operand of a
+    /// `??` — takes [`AbsentKey::Null`] instead of the throwing answer ADR
+    /// 0007 § 7 row 11 gives every other read, and is therefore infallible and
+    /// [`Ty::Tagged`]. That representation is not a widening for its own sake:
+    /// `??` tests its left operand for `null` and needs a tag to test, and
+    /// `Self::lower_coalesce` short-circuits away any operand that has none.
     fn lower_index(
         &mut self,
         base: &Expr,
@@ -3673,7 +3680,7 @@ impl<'a> Lowering<'a> {
                  other position as `E0481`, so this body was not checked"
             );
         };
-        let Some(ExprInfo::Index { elem_ty }) = self.exprs.lookup(expr.span) else {
+        let Some(ExprInfo::Index { elem_ty, guarded }) = self.exprs.lookup(expr.span) else {
             panic!(
                 "mwl-ir: an array-index read at {:?} has no resolved element type \
                  recorded in the typed-expression table — `mwl_types` refuses a base \
@@ -3682,7 +3689,15 @@ impl<'a> Lowering<'a> {
                 expr.span
             );
         };
-        let result_ty = lower_checked_ty(*elem_ty, self.checked_types);
+        let absent = if *guarded {
+            AbsentKey::Null
+        } else {
+            AbsentKey::Throws
+        };
+        let result_ty = match absent {
+            AbsentKey::Throws => lower_checked_ty(*elem_ty, self.checked_types),
+            AbsentKey::Null => Ty::Tagged,
+        };
         // Exactly `Self::lower_property_access`'s rule, one storage kind
         // along: a base that is itself a fresh producer — `$m->rows()["0"]` —
         // has no other owner, so this frame owes its release, and the element
@@ -3705,15 +3720,15 @@ impl<'a> Lowering<'a> {
         if key_is_temporary {
             self.own_temporary(key_v);
         }
-        let result = self.emit_fallible(
-            *cur,
-            result_ty,
-            InstKind::ArrayGet {
-                array: array_v,
-                key: key_v,
-            },
-            env,
-        );
+        let kind = InstKind::ArrayGet {
+            array: array_v,
+            key: key_v,
+            absent,
+        };
+        let result = match absent {
+            AbsentKey::Throws => self.emit_fallible(*cur, result_ty, kind, env),
+            AbsentKey::Null => self.emit(*cur, result_ty, kind),
+        };
         if base_is_temporary {
             // That makes the whole expression a *fresh producer*, which is why
             // `Lowering::aliasing_read` reports an index read off a temporary

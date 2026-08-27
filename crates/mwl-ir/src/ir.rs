@@ -959,17 +959,22 @@ pub enum InstKind {
     /// already gives `.`'s scalar operand rather than a new policy; that
     /// function's own doc comment says why an `i64` index cannot carry it.
     ///
-    /// **An absent `key` throws**, so this is a *fallible* instruction and
-    /// carries ADR 0002's error edge like a call: it is emitted through
-    /// `crate::lower::Lowering::emit_fallible`, and `mwl-codegen` gives it the
-    /// same status check every helper call gets, against the runtime entry
+    /// **What an absent `key` answers is [`AbsentKey`]**, and it decides the
+    /// rest of this instruction's shape. Under [`AbsentKey::Throws`] — every
+    /// read written outside a guard — it is a *fallible* instruction carrying
+    /// ADR 0002's error edge like a call: emitted through
+    /// `crate::lower::Lowering::emit_fallible`, given the same status check
+    /// every helper call gets by `mwl-codegen`, against the runtime entry
     /// point `mwl_array_required_get` — which is why the two representations
     /// above are told apart there, by the key's own tag, rather than by
     /// picking a symbol here. PHP warns and yields `null`; ADR 0007 § 7 row 11
     /// records the divergence and that helper's doc comment says why the old
     /// answer was a null dereference rather than a value. A stored `null` is
-    /// *not* an absent key and reads back unchanged. The write side asks the
-    /// same question and answers it differently — an absent key vivifies —
+    /// *not* an absent key and reads back unchanged. Under
+    /// [`AbsentKey::Null`] it is infallible, its result is
+    /// [`crate::ty::Ty::Tagged`] whatever the element type is, and the entry
+    /// point is `mwl_array_optional_get`. The write side asks the
+    /// same question and answers it a third way — an absent key vivifies —
     /// which is what [`Helper::ArrayRowForWrite`] exists for. Reads `array`
     /// without
     /// retaining it, the same way `FieldGet` reads its `object` receiver — a
@@ -983,6 +988,8 @@ pub enum InstKind {
         array: ValueId,
         /// The lookup key, already lowered — `Ty::Str` or `Ty::Int`.
         key: ValueId,
+        /// What this read answers when `key` names no entry.
+        absent: AbsentKey,
     },
     /// Writes `value` at `key` into `array` — `$arr[$i] = expr;`, inserting a
     /// fresh entry when `key` isn't already present and overwriting (per ADR
@@ -1166,6 +1173,28 @@ pub enum InstKind {
         /// The already-lowered arguments, positional.
         args: Vec<ValueId>,
     },
+}
+
+/// What an [`InstKind::ArrayGet`] answers when its key names no entry.
+///
+/// Two answers rather than one because PHP has two: a bare `$a["k"]` warns
+/// and yields `null` (MWL throws instead — ADR 0007 § 7 row 11), while
+/// `$a["k"] ?? "d"` is defined as *"absent or `null`, without the warning"*
+/// and must produce the default. The guard is recognized in `mwl_types`,
+/// which records it on the subscript's own
+/// `mwl_types::expr_table::ExprInfo::Index` entry, because whether a read sits
+/// under a `??` is a question about the expression tree that this crate would
+/// otherwise have to re-derive.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum AbsentKey {
+    /// Throw. The read is fallible and carries an error edge, and its result
+    /// is the element's own representation.
+    Throws,
+    /// Answer `null`. The read is infallible and its result is
+    /// [`crate::ty::Ty::Tagged`] — "the element, or `null`" is a nullable
+    /// however narrow the array's element type is — which is exactly what the
+    /// `??` above it tests.
+    Null,
 }
 
 /// One member of the closed set of engine-owned runtime conversions

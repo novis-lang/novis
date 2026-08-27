@@ -52,7 +52,9 @@ use cranelift_jit::JITModule;
 use cranelift_module::{DataDescription, FuncId, Linkage, Module};
 use mwl_ir::Ty;
 use mwl_ir::ids::{BlockId, ValueId};
-use mwl_ir::ir::{BasicBlock, BinOp, Function, Helper, Inst, InstKind, Terminator, UnOp};
+use mwl_ir::ir::{
+    AbsentKey, BasicBlock, BinOp, Function, Helper, Inst, InstKind, Terminator, UnOp,
+};
 use mwl_runtime::{
     DEBUG_FLAGS_OFFSET, Decimal as MwlDecimal, OK, SAFEPOINT_OFFSET, STACK_LIMIT_OFFSET, THROWN,
     Tag, Value as MwlValue,
@@ -719,8 +721,16 @@ impl Emitter<'_, '_> {
                 let value = self.emit_array_new(entries)?;
                 self.define(inst, value)?;
             }
-            InstKind::ArrayGet { array, key } => {
-                return self.emit_helper(cur, inst, "mwl_array_required_get", &[*array, *key]);
+            InstKind::ArrayGet { array, key, absent } => {
+                // The key's own representation picks nothing here: both entry
+                // points tell a rendered key from an `int` by its tag. What
+                // `absent` picks is the answer to a missing one, and with it
+                // whether `inst.on_error` is `Some` — see `mwl_ir::AbsentKey`.
+                let symbol = match absent {
+                    AbsentKey::Throws => "mwl_array_required_get",
+                    AbsentKey::Null => "mwl_array_optional_get",
+                };
+                return self.emit_helper(cur, inst, symbol, &[*array, *key]);
             }
             InstKind::ArraySet { array, key, value } => {
                 // The key operand's own representation picks the primitive,

@@ -112,6 +112,7 @@ pub fn check_program(
             closure_seq,
             exit_targets: Vec::new(),
             write_target_levels: FxHashMap::default(),
+            coalesce_guarded: FxHashSet::default(),
         };
         let mut frame = ScriptFrame {
             scope: LocalScope::new(),

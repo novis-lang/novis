@@ -294,6 +294,21 @@ pub enum ExprInfo {
     Index {
         /// The element's declared type.
         elem_ty: TypeId,
+        /// Whether this read is the left operand of a `??`, and so must
+        /// answer an absent key with `null` rather than throwing.
+        ///
+        /// PHP's `??` is exactly *"absent or `null`, without the warning"*, so
+        /// the guarded read is the one place ADR 0007 § 7 row 11's divergence
+        /// is carved back out — a `$a["k"] ?? "d"` that threw would refuse the
+        /// very spelling PHP offers for the safe read. Recorded here because
+        /// the question is about the *expression tree*, which only this crate
+        /// walks: `mwl-ir` sees one subscript at a time and would have to
+        /// re-derive its parent to ask it. A guarded read's type is
+        /// `?elem_ty`, which is what puts the `null` this promises inside the
+        /// left operand's static type and stops
+        /// [`ExprInfo::Coalesce`]'s lowering short-circuiting the whole `??`
+        /// away.
+        guarded: bool,
     },
     /// `$a ?? $b`, keyed by the whole binary expression's own span.
     ///

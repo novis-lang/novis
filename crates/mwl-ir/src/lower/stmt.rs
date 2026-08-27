@@ -805,7 +805,7 @@ impl<'a> Lowering<'a> {
             // `E0481` in `mwl_types`, and a base that declares no element
             // type is `E0482` there, so neither reaches this arm from source.
             ExprKind::Index { base, index } => {
-                let Some(ExprInfo::Index { elem_ty }) = self.exprs.lookup(target.span) else {
+                let Some(ExprInfo::Index { elem_ty, .. }) = self.exprs.lookup(target.span) else {
                     panic!(
                         "mwl-ir: an array-index assignment target at {:?} has no resolved \
                          element type recorded in the typed-expression table — `mwl_types` \
@@ -936,7 +936,7 @@ impl<'a> Lowering<'a> {
     /// subscripted again has to be one, so anything else means the checker
     /// accepted a target this crate has no separation rule for.
     fn row_ty_of(&self, level: &Expr) -> Ty {
-        let Some(ExprInfo::Index { elem_ty }) = self.exprs.lookup(level.span) else {
+        let Some(ExprInfo::Index { elem_ty, .. }) = self.exprs.lookup(level.span) else {
             panic!(
                 "mwl-ir: an intermediate level of a nested array-index assignment target at \
                  {:?} has no resolved element type recorded in the typed-expression table — \

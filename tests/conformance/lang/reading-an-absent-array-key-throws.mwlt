@@ -28,11 +28,22 @@ try {
 }
 
 // A stored `null` is not an absent key: `array<?string>` holds one legally,
-// and reading it back is not the error above.
+// and reading it back is not the error above. Read bare, because `??` is the
+// one guard row 11 is carved out of and would answer both alike — that half is
+// `a-coalesce-guards-a-subscript-against-an-absent-key`.
 array<?string> $maybe = ["k" => null, "j" => "here"];
-echo $maybe["k"] ?? "stored-null", "|", $maybe["j"] ?? "stored-null", "\n";
+?string $stored = $maybe["k"];
+?string $present = $maybe["j"];
+if ($stored == null) {
+    echo "stored-null";
+}
+echo "|";
+if ($present != null) {
+    echo "here";
+}
+echo "\n";
 try {
-    echo $maybe["gone"] ?? "stored-null", "\n";
+    echo $maybe["gone"], "\n";
 } catch (Throwable $absentNullable) {
     echo "absent: ", $absentNullable->message, "\n";
 }

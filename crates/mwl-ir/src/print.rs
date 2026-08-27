@@ -12,7 +12,9 @@ use std::fmt::Write as _;
 use mwl_diagnostics::{SourceFile, Span};
 
 use crate::ids::BlockId;
-use crate::ir::{BasicBlock, BinOp, Function, Helper, Inst, InstKind, Program, Terminator, UnOp};
+use crate::ir::{
+    AbsentKey, BasicBlock, BinOp, Function, Helper, Inst, InstKind, Program, Terminator, UnOp,
+};
 use crate::ty::Ty;
 
 /// Renders every function in `program`, in order, as text.
@@ -241,8 +243,14 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
                 .collect();
             format!("array.new [{}]", parts.join(", "))
         }
-        InstKind::ArrayGet { array, key } => {
-            format!("array.get v{}, v{}", array.index(), key.index())
+        InstKind::ArrayGet { array, key, absent } => {
+            // Only the guarded read is spelled out: an unqualified `array.get`
+            // is the one written in source, which throws.
+            let suffix = match absent {
+                AbsentKey::Throws => "",
+                AbsentKey::Null => ".ornull",
+            };
+            format!("array.get{suffix} v{}, v{}", array.index(), key.index())
         }
         InstKind::ArraySet { array, key, value } => format!(
             "array.set v{}, v{}, v{}",

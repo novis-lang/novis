@@ -242,7 +242,7 @@ pub use ty::{Ty, TypeId, TypeInterner};
 
 use mwl_diagnostics::{SourceFile, Span};
 use mwl_hir::{AliasTable, ClassGraph, QName, SymbolTable};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::signatures::SignatureTable;
 
@@ -364,6 +364,22 @@ pub(crate) struct Env<'a> {
     /// on; nothing ever removes an entry, so this is O(element writes
     /// written in the file).
     pub write_target_levels: FxHashMap<Span, bool>,
+    /// Every subscript read this run has seen under a `??`, by span.
+    ///
+    /// Filled by [`crate::expr::check_expr`]'s `ExprKind::Binary` arm
+    /// **before** it checks the left operand, because the one thing that reads
+    /// it is inside that check: the `ExprKind::Index` arm answers `?elem_ty`
+    /// for a guarded read and records the fact on its
+    /// [`crate::expr_table::ExprInfo::Index`] entry, which is what makes an
+    /// absent key `null` rather than a throw down in `mwl-ir`.
+    ///
+    /// A span rather than a parameter threaded through `check_expr` for
+    /// [`Self::write_target_levels`]'s reason, and it is deliberately *only*
+    /// the `??`'s immediate left operand: a nested chain (`$a["k"]["j"] ?? …`)
+    /// still throws at the inner level, since a guarded read whose base is
+    /// itself guarded would have a `?array<T>` base and no element type to
+    /// resolve against.
+    pub coalesce_guarded: FxHashSet<Span>,
 }
 
 pub(crate) fn span_text(src: &SourceFile, span: Span) -> &str {

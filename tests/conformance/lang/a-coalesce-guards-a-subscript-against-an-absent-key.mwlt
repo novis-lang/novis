@@ -1,0 +1,70 @@
+--TEST--
+`$a["k"] ?? $d` yields the default for an absent key instead of throwing — ADR 0007 §§ 2, 7 row 11
+--FILE--
+<?mwl
+// § 7 row 11 makes a bare `$a["nope"]` throw where PHP warns. `??` is the
+// exception carved out of it: PHP defines the operator as "absent or `null`,
+// without the warning", so the guarded read has to have an answer. The present
+// side first, so a case that defaulted everywhere would fail here.
+array<string> $a = ["k" => "v", "0" => "zero"];
+echo $a["k"] ?? "d", "|", $a["nope"] ?? "d", "\n";
+
+// The guard is the operator, not the position: the same subscript one line up
+// still throws without it.
+try {
+    echo $a["nope"], "\n";
+} catch (Throwable $unguarded) {
+    echo "threw: ", $unguarded->message, "\n";
+}
+
+// The result is the element's own type, so it binds to a declared one — the
+// whole reason `??` is written rather than a `try`.
+string $bound = $a["nope"] ?? "fallback";
+echo $bound, "\n";
+
+// A stored `null` and an absent key are told apart by a bare read (the case
+// beside this one pins that) and deliberately *not* by `??`, which yields its
+// right operand for both — PHP's own reading of the operator.
+array<?string> $maybe = ["n" => null, "j" => "here"];
+echo $maybe["n"] ?? "d", "|", $maybe["j"] ?? "d", "|", $maybe["gone"] ?? "d", "\n";
+
+// § 5: an `int` subscript names the same entry as its decimal, guarded or not,
+// and a `uint` one is rendered on the way in.
+int $zero = 0;
+int $nine = 9;
+uint $u = 0;
+echo $a[$zero] ?? "d", "|", $a[$nine] ?? "d", "|", $a[$u] ?? "d", "\n";
+
+// `??` is right-associative, so a chain asks each subscript in turn.
+echo $a["p"] ?? $a["q"] ?? $a["k"] ?? "d", "\n";
+
+// The element read out of the array outlives it: what `??` yields is a value,
+// not a borrow of the entry it came from.
+array<string> $src = ["k" => "carried"];
+string $kept = $src["k"] ?? "d";
+$src = [];
+echo $kept, "|", $src["k"] ?? "empty-now", "\n";
+
+// A base that is itself a temporary — the array the call handed back has no
+// other owner — is the same read, on both sides of the guard.
+var $box = new Box();
+echo $box->rows()["k"] ?? "d", "|", $box->rows()["gone"] ?? "d", "\n";
+
+final class Box {
+    public array<string> $rows = [];
+    public function constructor() {
+        $this->rows["k"] = "in-a-box";
+    }
+    public function rows(): array<string> {
+        return $this->rows;
+    }
+}
+--EXPECT--
+v|d
+threw: undefined array key `nope`
+fallback
+d|here|d
+zero|d|zero
+v
+carried|empty-now
+in-a-box|d

@@ -493,6 +493,7 @@ pub fn build_signatures(
             closure_seq: 0,
             exit_targets: Vec::new(),
             write_target_levels: FxHashMap::default(),
+            coalesce_guarded: FxHashSet::default(),
         };
         collect_stmts(file.stmts, &[], &FxHashMap::default(), &mut table, &mut env);
     }

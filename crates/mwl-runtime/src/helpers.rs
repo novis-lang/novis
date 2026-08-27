@@ -25,10 +25,12 @@
 //! branch on a tag byte is a cheap price for making that class of bug a
 //! `FATAL` with a message instead.
 //!
-//! Every `mwl_ir::Helper` variant now has an entry point here. One entry point
-//! here backs no `Helper` variant at all — [`mwl_array_required_get`], which
-//! `mwl_ir::InstKind::ArrayGet` names directly, and whose own doc comment says
-//! why an instruction rather than a conversion needs this signature.
+//! Every `mwl_ir::Helper` variant now has an entry point here. Two entry points
+//! here back no `Helper` variant at all — [`mwl_array_required_get`] and
+//! [`mwl_array_optional_get`], the two halves of `mwl_ir::InstKind::ArrayGet`,
+//! which names one of them directly off its own `absent` field. That
+//! instruction's doc comment says why a subscript read rather than a conversion
+//! needs this signature at all.
 
 use subtle::ConstantTimeEq;
 
@@ -257,6 +259,51 @@ crate::mwl_helper! {
             }
         };
         found.ok_or_else(|| undefined_key(args[1]))
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::InstKind::ArrayGet` under an
+    /// [`mwl_ir::ir::AbsentKey::Null`](../../mwl_ir/ir/enum.AbsentKey.html)
+    /// — the same **borrowed** read as [`mwl_array_required_get`], answering an
+    /// absent key with `null` instead of throwing.
+    ///
+    /// This is the read under a `??`, and it is the one place ADR 0007 § 7
+    /// row 11's divergence is carved back out: PHP's `??` is precisely "absent
+    /// or `null`, without the warning", so the whole point of the guard is that
+    /// the absent case has an answer. The answer is always a
+    /// `mwl_ir::Ty::Tagged` value, because "the element, or `null`" is a
+    /// nullable however narrow the array's element type is, and `mwl_ir::lower`
+    /// hands it straight to `??`'s own null test.
+    ///
+    /// A stored `null` and an absent key are deliberately *not* told apart
+    /// here, unlike in [`mwl_array_required_get`]: `??` yields its right
+    /// operand for both, so collapsing them is what PHP does rather than a
+    /// simplification of it.
+    ///
+    /// Infallible — it carries the ADR 0002 signature every helper does, but
+    /// the only status it ever returns is `OK`, so `mwl-ir` emits it with no
+    /// error edge.
+    fn mwl_array_optional_get(_ctx, args: [2]) {
+        let array = args[0]
+            .array_ptr()
+            .ok_or_else(|| wrong_tag("mwl_array_optional_get", Tag::Array, args[0]))?;
+        #[expect(
+            unsafe_code,
+            reason = "a Tag::Array argument owns a reference to a live \
+                      allocation, so it is live for this read, and so is the \
+                      Tag::Str key beside it"
+        )]
+        let found = unsafe {
+            if let Some(key) = args[1].str_ptr() {
+                crate::array::entry(array, MwlStr::bytes_of(key))
+            } else if let Some(index) = args[1].as_int() {
+                crate::array::entry_at_index(array, index)
+            } else {
+                return Err(wrong_tag("mwl_array_optional_get", Tag::Str, args[1]));
+            }
+        };
+        Ok(found.unwrap_or(Value::null()))
     }
 }
 
@@ -1277,6 +1324,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("mwl_array_truthy", address(mwl_array_truthy)),
         ("mwl_array_row_for_write", address(mwl_array_row_for_write)),
         ("mwl_array_required_get", address(mwl_array_required_get)),
+        ("mwl_array_optional_get", address(mwl_array_optional_get)),
         ("mwl_value_identical", address(mwl_value_identical)),
         ("mwl_numeric_eq", address(mwl_numeric_eq)),
         ("mwl_numeric_lt", address(mwl_numeric_lt)),

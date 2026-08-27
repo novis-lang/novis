@@ -192,6 +192,14 @@ pub(super) fn infer(
             inner_ty
         }
         ExprKind::Binary { op, lhs, rhs } => {
+            // PHP's `??` is "absent or `null`, without the warning", so the
+            // subscript directly under one must not take ADR 0007 § 7 row 11's
+            // throw. Marked before the operand is checked, because the arm that
+            // reads it is inside that check — see `Env::coalesce_guarded`, which
+            // also owns why only the immediate operand is marked.
+            if *op == BinaryOp::Coalesce && matches!(lhs.kind, ExprKind::Index { .. }) {
+                env.coalesce_guarded.insert(lhs.span);
+            }
             let lhs_ty = check_expr(lhs, None, live, scope, ctx, env);
             let rhs_ty = check_expr(rhs, None, live, scope, ctx, env);
             if *op == BinaryOp::Concat {
@@ -332,8 +340,21 @@ pub(super) fn infer(
             };
             match elem_ty {
                 Some(elem_ty) => {
-                    env.exprs.record(expr.span, ExprInfo::Index { elem_ty });
-                    elem_ty
+                    // A guarded read answers `?elem_ty`, and that is the whole
+                    // mechanism: `binary_result`'s `Coalesce` arm strips the
+                    // `null` back off for the non-null branch, and the `null`
+                    // it leaves in the operand's type is what keeps `mwl-ir`'s
+                    // `lower_coalesce` from short-circuiting a `??` whose left
+                    // operand looked statically non-nullable.
+                    let guarded = env.coalesce_guarded.contains(&expr.span);
+                    env.exprs
+                        .record(expr.span, ExprInfo::Index { elem_ty, guarded });
+                    if guarded {
+                        let null = env.interner.null();
+                        env.interner.make_union([elem_ty, null])
+                    } else {
+                        elem_ty
+                    }
                 }
                 None => {
                     if !base_reported && !refused_as_a_write_target(expr, base, env) {
