@@ -38,12 +38,18 @@
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
 > **Open now:** **M4's language holes are the frontier**, ordered and grouped by file set in
-> [docs/agent/loop-goal.md](agent/loop-goal.md). A hole is a shape that compiles in the front end
-> and then refuses below it; it is closed when it either runs with a fixture or a `.mwlt` case
-> pinning what it prints, or is refused by a **diagnostic that names the rule** — never by a panic.
-> The statement dispatch has no shape left that the checker accepts: ADR 0007 § 3.3's `[int $a,
-> string $b] = $pair;` lowers as the subscripts it is spelled out of and refuses what one refuses
-> (`E0482`/`E0401`/`E0483`), inline HTML lowers over its raw span, a nested
+> [docs/agent/loop-goal.md](agent/loop-goal.md), behind one surface change taken ahead of them: [ADR
+> 0107](adr/0107-by-reference-parameters-are-spelled-inout-at-both-ends.md) retires `&` as a
+> by-reference marker in favour of `inout`, written before the type and again at the call site, and
+> the goal's Stage 0a is its four items — the front end and three diagnostics, the checker's
+> call-site rule, the mechanical rename, and the corpus. It is first because a case authored in the
+> old spelling is authored twice, and because M4B is deferred behind this goal exactly so its
+> `.lspt` suite is written against the finished surface. A hole is a shape that compiles in the
+> front end and then refuses below it; it is closed when it either runs with a fixture or a `.mwlt`
+> case pinning what it prints, or is refused by a **diagnostic that names the rule** — never by a
+> panic. The statement dispatch has no shape left that the checker accepts: ADR 0007 § 3.3's `[int
+> $a, string $b] = $pair;` lowers as the subscripts it is spelled out of and refuses what one
+> refuses (`E0482`/`E0401`/`E0483`), inline HTML lowers over its raw span, a nested
 > `class`/`interface`/`enum` is `E0233`, an increment takes its write target's own
 > `E0479`/`E0478`/`E0480`, `unset()` is narrowed to an array element of a named holder and refuses
 > every other operand (`E0234`, plus `E0413` for a static property), an element write whose root is

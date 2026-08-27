@@ -589,6 +589,13 @@ is why" — is this file.
   down, which is what makes it look unimplemented from `mwl run`. Grep
   `crates/mwl-diagnostics/src/lib.rs` for the band's `Code::new` rows, or the crate's own `tests/`
   for the behaviour: a name in prose is a pointer somebody wrote, not a fact the tree holds.
+- **A `loop-goal.toml` check runs before the program legs only if its `stage` string starts with `0`.**
+  `tools/loop.py:830` builds its catch-up class with `str(c.get("stage", "")).startswith("0")` — nothing
+  else about the block matters, not its position in the file and not what the prose calls it. A stage
+  named `"S inout"` sitting physically above the Stage 0 blocks still ran after the whole Stage 1 floor.
+  Name a stage that must be reported first `0`-something (`"0a inout"`), and say in the block's comment
+  that the digit is load-bearing, or the next person renames it back. `python tools/loop.py --list` prints
+  the real run order and is the only way to see this.
 
 ## Running things
 
