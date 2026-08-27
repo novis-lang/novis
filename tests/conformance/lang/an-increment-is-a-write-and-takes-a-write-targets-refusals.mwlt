@@ -1,0 +1,71 @@
+--TEST--
+`$x++` and `--$x` are writes, so an increment's target takes the same three refusals a plain assignment's target does — ADR 0007 § 3, ADR 0014 § 1, ADR 0036 § 4
+--FILE--
+<?mwl
+// `mwl_ir::lower` desugars an increment into the `$x = $x + 1` a compound
+// assignment already becomes, so its target is a write target and nothing
+// else: the three places `mwl_types::expr::assign`'s `check_write_target`
+// refuses to write a value have no more of a place to put `± 1`. All three
+// are asked the same question here — the `?->` whose `null` is not a place,
+// the hooked property ADR 0014 § 1 makes a pair of accessors rather than a
+// slot, and the erased receiver ADR 0036 § 4 resolves by name at run time —
+// and what this pins is that they *agree* with the answer `=` already gives,
+// which no one of them shows on its own line. Prefix and postfix are one arm.
+class Plain {
+    public int $n;
+    public array<int> $counts;
+
+    public function constructor() {
+        $this->n = 0;
+        array<int> $seed = ["0" => 1];
+        $this->counts = $seed;
+    }
+}
+
+class Grid {
+    public array<int> $counts {
+        get => $this->counts;
+        set (array<int> $v) {
+            $this->counts = $v;
+        }
+    }
+
+    public function constructor() {
+        array<int> $seed = ["0" => 1];
+        $this->counts = $seed;
+    }
+}
+
+?Plain $maybe = new Plain();
+$maybe?->n++;
+--$maybe?->n;
+// The nullable base a subscript over a refused root reads as is a symptom of
+// the `?->`, not a second mistake: `E0482` is held back so this line takes
+// the same `E0479` the two above it do.
+$maybe?->counts["0"]++;
+
+var $g = new Grid();
+$g->counts["0"]++;
+
+object $erased = new Plain();
+$erased->counts["0"]++;
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0479]: `?->` cannot be written through
+   --> case.mwl:37:1
+%A
+error[E0479]: `?->` cannot be written through
+   --> case.mwl:38:3
+%A
+error[E0479]: `?->` cannot be written through
+   --> case.mwl:42:1
+%A
+error[E0478]: an array element cannot be written through the hooked property `counts`
+   --> case.mwl:45:1
+%A
+error[E0480]: an array element cannot be written through the erased property `counts`
+   --> case.mwl:48:1
+%A
+error: aborting due to 5 errors

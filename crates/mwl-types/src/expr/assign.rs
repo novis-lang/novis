@@ -382,7 +382,7 @@ pub(super) fn check_assign(
 /// because the arm it speaks to is inside that check. A subscript's own
 /// *index* expression is not walked — `$a[$b[]] = 1` reads `$b[]`, and is
 /// refused for it.
-fn mark_write_target_levels(target: &Expr, plain: bool, env: &mut Env<'_>) {
+pub(super) fn mark_write_target_levels(target: &Expr, plain: bool, env: &mut Env<'_>) {
     let mut level = target;
     while let ExprKind::Index { base, .. } = &level.kind {
         env.write_target_levels.insert(level.span, plain);
@@ -420,12 +420,16 @@ fn mark_write_target_levels(target: &Expr, plain: bool, env: &mut Env<'_>) {
 ///
 /// Called *after* the target is checked, because the hooked half reads the
 /// [`ExprInfo::HookedProperty`] entry [`super::members`] records while
-/// checking the access. Only the root of a subscript chain is examined:
+/// checking the access. All three spellings that write through a target go
+/// through it — a plain `=`, a compound `⊕=`, and `$x++`/`--$x`, which
+/// `mwl_ir::lower` desugars into the same `$x = $x ± 1` a compound assignment
+/// becomes and which therefore has exactly the same nowhere to write to.
+/// Only the root of a subscript chain is examined:
 /// `mwl_ir::lower::Lowering::lower_reassignment` flattens a nested element
 /// write down to its root holder and writes every level back through that, so
 /// the root is the only level with a holder at all — which is also why
 /// `$obj->hooked[0][1] = v` is this same refusal and not a deeper one.
-fn check_write_target(target: &Expr, env: &mut Env<'_>) {
+pub(super) fn check_write_target(target: &Expr, env: &mut Env<'_>) {
     let mut root = target;
     let mut through_subscript = false;
     while let ExprKind::Index { base, .. } = &root.kind {

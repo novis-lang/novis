@@ -186,8 +186,28 @@ pub(super) fn infer(
             // own type — the write does not widen it, exactly as `$x += 1`
             // does not. `reject_increment_on_non_numeric` owns which targets
             // that table leaves nothing to lower for.
+            //
+            // It is also a *write*, which is the half this arm used to leave
+            // out: `mwl_ir::lower` desugars `$x++` into the same `$x = $x + 1`
+            // a compound assignment becomes, so the three targets
+            // [`check_write_target`] refuses have no more of a place to put
+            // `± 1` than they had to put an assigned value. Marking the
+            // subscript levels first is what lets `refused_as_a_write_target`
+            // hold `E0482` back for `$maybe?->rows["0"]++`, whose nullable
+            // base is a symptom of the `?->` the next call names properly;
+            // `false` because `$a[]++` names no element and stays
+            // `E_APPEND_IN_READ_POSITION`.
+            mark_write_target_levels(inner, false, env);
             let inner_ty = check_expr(inner, None, live, scope, ctx, env);
-            reject_increment_on_non_numeric(inner_ty, expr.span, env);
+            let before = env.diags.len();
+            check_write_target(inner, env);
+            // A target with nowhere to write to is one mistake, not two: the
+            // `?int` a refused `$maybe?->n` reads as would otherwise take a
+            // second, narrower diagnostic for a nullability the first one is
+            // already about.
+            if env.diags.len() == before {
+                reject_increment_on_non_numeric(inner_ty, expr.span, env);
+            }
             inner_ty
         }
         ExprKind::Binary { op, lhs, rhs } => {
