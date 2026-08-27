@@ -613,7 +613,7 @@ name = "mwl-ir (control flow)"
 args = ["test", "-p", "mwl-ir"]
 tests = [
   "a_do_while_lowers_its_condition_below_its_body",
-  "a_multi_level_break_leaves_the_loop_it_names",
+  "a_multi_level_break_leaves_the_loop_its_level_names",
   "a_two_representation_ternary_widens_to_one",
   "a_finally_runs_when_its_catch_body_throws",
   "an_abandoned_generator_resumes_to_unwind",
@@ -633,7 +633,7 @@ tests = [
   "a_spread_argument_lowers_to_the_positions_it_fills",
   "a_spread_array_element_lowers",
   "a_reference_argument_lowers_in_any_expression_position",
-  "a_closure_capturing_a_reference_parameter_captures_its_value",
+  "a_closure_capturing_a_by_reference_parameter_snapshots_the_cell",
   "a_foreach_by_reference_writes_through_to_its_array",
 ]
 
@@ -645,7 +645,7 @@ args = ["test", "-p", "mwl-types"]
 tests = [
   # Item 16's half, which lands FIRST -- a lowering with no resolved per-argument type is how that
   # gap got here in the first place (loop-goal.md § Standing decisions).
-  "a_named_argument_is_checked_against_the_parameter_it_names",
+  "a_named_argument_is_checked_against_its_own_parameter",
   "a_spread_argument_is_checked_against_the_positions_it_fills",
   # Item 10's diagnostic half: `mwl_types` does not check loop nesting at all today.
   "a_break_past_its_nesting_is_a_compile_error",
