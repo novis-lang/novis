@@ -1,0 +1,119 @@
+--TEST--
+Core\Uuid::tryParse is Core\Uuid::parse with the throw turned into a null — every subject of one table asked of both, with the agreement counted rather than read off a line — ADR 0066 § 3a, ADR 0063 R4, spec § 11
+--FILE--
+<?nvs
+// ADR 0066 § 3a says `tryParse` *is* `parse`, `null` where it throws — one
+// reader with two answers, not two readers that happen to agree. A case that
+// asks each member about its own subjects cannot see the difference: a
+// `tryParse` that grew its own idea of the shape still answers plausibly on
+// every line it is asked about alone. So every subject below is asked of both,
+// and what is asserted is that the two answers are the same one.
+final class Ask {
+    // `parse`'s answer, with the throw rendered as the empty string — which no
+    // successful parse can produce, `toString` being 36 characters wide.
+    public static function parsed(string $s): string {
+        try {
+            return Core\Uuid::parse($s)->toString();
+        } catch (Throwable $thrown) {
+            return "";
+        }
+    }
+
+    // `tryParse`'s answer, with `null` rendered the same way.
+    public static function tried(string $s): string {
+        var $u = Core\Uuid::tryParse($s);
+        if ($u != null) {
+            return $u->toString();
+        }
+        return "";
+    }
+}
+
+// Six subjects the canonical form admits and twelve it does not: the three
+// case spellings of one value, the nil and max UUIDs (RFC 9562 §§ 5.9, 5.10),
+// a v4-shaped zero, then the three other spellings a UUID library usually
+// takes, a non-hex digit, a moved hyphen, whitespace at either end, one
+// character short and one long, the wrong separator, and nothing at all.
+array<string> $subjects = [
+    "f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4",
+    "F9168C5E-CEB2-4FAA-B6BF-329BF39FA1E4",
+    "f9168C5e-CEB2-4faa-B6bf-329BF39fa1e4",
+    "00000000-0000-0000-0000-000000000000",
+    "ffffffff-ffff-ffff-ffff-ffffffffffff",
+    "00000000-0000-4000-8000-000000000000",
+    "f9168c5eceb24faab6bf329bf39fa1e4",
+    "{f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4}",
+    "urn:uuid:f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4",
+    "f9168c5e-ceb2-4faa-b6bf-329bf39fa1eg",
+    "f9168c5ec-eb2-4faa-b6bf-329bf39fa1e4",
+    " f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4",
+    "f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4 ",
+    "f9168c5e-ceb2-4faa-b6bf-329bf39fa1e",
+    "f9168c5e-ceb2-4faa-b6bf-329bf39fa1e44",
+    "f9168c5e:ceb2:4faa:b6bf:329bf39fa1e4",
+    "not a uuid",
+    "",
+];
+
+string $canonical = "f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4";
+
+int $total = 0;
+int $agree = 0;
+int $disagree = 0;
+int $threw = 0;
+int $nulled = 0;
+int $accepted = 0;
+int $normalized = 0;
+
+foreach ($subjects as string $s) {
+    string $p = Ask::parsed($s);
+    string $t = Ask::tried($s);
+    $total = $total + 1;
+    if ($p == $t) {
+        $agree = $agree + 1;
+    } else {
+        $disagree = $disagree + 1;
+    }
+    if ($p == "") {
+        $threw = $threw + 1;
+    }
+    if ($t == "") {
+        $nulled = $nulled + 1;
+    } else {
+        $accepted = $accepted + 1;
+    }
+    // The first three rows are one value in three spellings, so this is
+    // agreement on the *value* and not merely on acceptance: a reader
+    // normalizing differently passes every count above and fails this one.
+    if ($t == $canonical) {
+        $normalized = $normalized + 1;
+    }
+}
+
+echo "subjects ", $total, "\n";
+echo "agree ", $agree, "\n";
+echo "disagree ", $disagree, "\n";
+echo "accepted ", $accepted, "\n";
+echo "normalized ", $normalized, "\n";
+
+// ADR 0063 R4: `parse` asserts the text is a UUID, so a refusal is a throw.
+// Counted on both sides, these two are the same twelve subjects — the per-row
+// equality above is what says *the same* twelve, and these say how many.
+echo "threw ", $threw, "\n";
+echo "nulled ", $nulled, "\n";
+echo (($threw == $nulled) ? "one reader" : "two readers"), "\n";
+
+// The identity holds over a value no table can have anticipated, which is the
+// half of "one reader" that a fixed table cannot assert on its own.
+string $drawn = Core\Uuid::v4()->toString();
+echo ((Ask::parsed($drawn) == Ask::tried($drawn)) ? "drawn agrees" : "drawn parts"), "\n";
+--EXPECT--
+subjects 18
+agree 18
+disagree 0
+accepted 6
+normalized 3
+threw 12
+nulled 12
+one reader
+drawn agrees
