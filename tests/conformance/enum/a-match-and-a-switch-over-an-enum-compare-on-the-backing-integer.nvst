@@ -1,0 +1,77 @@
+--TEST--
+A `match` and a `switch` whose subject is an enum compare each label on the integer its cases are (ADR 0010 §§ 3, 5, ADR 0090 § 2)
+--FILE--
+<?nvs
+// `Ty::Enum` is a zero-byte tag over an integer and `nvs-codegen`'s `BinOp`
+// table carries no row for it, so every comparison over an enum is answered
+// one representation down, through the free `Reinterpret` of ADR 0010 § 5
+// row 1. A written `==` and ADR 0047 § 5's membership chain already made that
+// move; a `match` and a `switch` label chain make it now, which is what this
+// case pins -- both backings, a label that hits, a fall-off to `default`, and
+// the fall-off with no `default` at all, which throws.
+enum Mode: int {
+    Read = 1,
+    Write = 2,
+    Exec = 3,
+}
+enum Weight: uint {
+    Light = 1,
+    Heavy = 2,
+}
+
+Mode $c = Mode::Write;
+echo "hit=", match ($c) { Mode::Read => "read", Mode::Write => "write" }, "\n";
+
+// Every label misses, so the `default` arm answers -- the chain is tried in
+// source order wherever the `default` is written.
+Mode $e = Mode::Exec;
+echo "fell=", match ($e) { Mode::Read => "read", default => "other" }, "\n";
+
+// The `uint` backing takes the same row: the reinterpret is to `Ty::Uint`.
+Weight $w = Weight::Heavy;
+echo "uint=", match ($w) { Weight::Light => "light", Weight::Heavy => "heavy" }, "\n";
+
+// No arm matched and there is no `default`: a `match` is exhaustive by
+// throwing, and the enum subject changes nothing about that. The result is
+// bound rather than echoed, an `echo`'s operands being written out one at a
+// time and the first already printed by the time the second throws.
+try {
+    string $u = match ($e) { Mode::Read => "read" };
+    echo "unreached=", $u, "\n";
+} catch (Throwable $t) {
+    echo "threw=", $t->message, "\n";
+}
+
+// The same subject through a `mixed`, which is ADR 0090 § 5's tagged row
+// rather than this one: the two agree, and
+// `an-operator-agrees-whether-its-operand-is-typed-or-tagged.nvst` is where
+// that agreement is asserted as an agreement.
+mixed $m = $c;
+echo "tagged=", match ($m) { Mode::Read => "read", Mode::Write => "write", default => "other" }, "\n";
+
+// A `switch` label chain is the same comparison, so both backings run here
+// too -- and `break` and the `default` fall-off behave as they do over an
+// `int` subject, the label being one by the time the chain compares it.
+switch ($w) {
+    case Weight::Light:
+        echo "sw=light\n";
+        break;
+    case Weight::Heavy:
+        echo "sw=heavy\n";
+        break;
+}
+switch ($e) {
+    case Mode::Read:
+        echo "sw=read\n";
+        break;
+    default:
+        echo "sw=other\n";
+}
+--EXPECT--
+hit=write
+fell=other
+uint=heavy
+threw=no `match` arm matched the subject
+tagged=write
+sw=heavy
+sw=other
