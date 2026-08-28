@@ -1,0 +1,80 @@
+--TEST--
+`Core\Str::fold` and `Core\Str::lower` are asked the same question of one table and counted where they part company — spec § 1 *Transformation*, ADR 0090 § 1
+--FILE--
+<?nvs
+// `fold` and `lower` both map a string towards lower case, which is what makes
+// reading one row off each prove nothing: the two agree on most text. The
+// question that separates them is asked of every row instead — is the answer
+// *invariant under uppercasing*, which is the whole property a caseless lookup
+// key needs — and the counts are what fail if either member grew the other's
+// behaviour.
+array<string> $rows = [
+    "straße",
+    "ſatz",
+    "ﬁle",
+    "İstanbul",
+    "ΟΔΥΣΣΕΥΣ",
+    "Οδυσσευς",
+    "ǅungla",
+    "École",
+];
+
+int $total = 0;
+int $foldKeyed = 0;   // fold($s) == fold(upper($s)) — a key
+int $lowerKeyed = 0;  // lower($s) == lower(upper($s)) — not, on three rows
+int $same = 0;        // the two members answered the same string
+int $absorbs = 0;     // fold(lower($s)) == fold($s) — folding absorbs lowering
+int $converse = 0;    // lower(fold($s)) == lower($s) — lowering does not absorb folding
+
+foreach ($rows as string $s) {
+    $total = $total + 1;
+    if (Core\Str::fold($s) == Core\Str::fold(Core\Str::upper($s))) {
+        $foldKeyed = $foldKeyed + 1;
+    }
+    if (Core\Str::lower($s) == Core\Str::lower(Core\Str::upper($s))) {
+        $lowerKeyed = $lowerKeyed + 1;
+    }
+    if (Core\Str::fold($s) == Core\Str::lower($s)) {
+        $same = $same + 1;
+    }
+    if (Core\Str::fold(Core\Str::lower($s)) == Core\Str::fold($s)) {
+        $absorbs = $absorbs + 1;
+    }
+    if (Core\Str::lower(Core\Str::fold($s)) == Core\Str::lower($s)) {
+        $converse = $converse + 1;
+    }
+}
+
+// Every row is a key under `fold`; three are not under `lower`. That gap is the
+// member's own doc comment, counted: folding exists for comparison, lowering
+// for display, and a `lower`-keyed table loses those three rows.
+echo $total, " ", $foldKeyed, " ", $lowerKeyed, "\n";
+
+// They answer the same string on only three of the eight, so neither the count
+// above nor the ones below are reading a table the two members agree on.
+echo $same, " ", $absorbs, " ", $converse, "\n";
+
+// The three rows where `lower` is not a key, shown once each: an expansion
+// (`ß` → `ss`), a compatibility letter (`ſ` → `s`) and a ligature (`ﬁ` → `fi`),
+// each a case pairing `lower`'s per-character mapping cannot see because the
+// lower-case answer has to stay a word.
+echo Core\Str::fold("straße"), " ", Core\Str::lower(Core\Str::upper("straße")), " ", Core\Str::lower("straße"), "\n";
+echo Core\Str::fold("ſatz"), " ", Core\Str::lower(Core\Str::upper("ſatz")), " ", Core\Str::lower("ſatz"), "\n";
+echo Core\Str::fold("ﬁle"), " ", Core\Str::lower(Core\Str::upper("ﬁle")), " ", Core\Str::lower("ﬁle"), "\n";
+
+// And the two rows where `lower` *is* a key yet still parts company with
+// `fold`: Greek's final sigma is a rendering rule, so `lower` keeps `ς` while
+// `fold` answers the one `σ` both spellings of the name share.
+echo Core\Str::lower("ΟΔΥΣΣΕΥΣ"), " ", Core\Str::fold("ΟΔΥΣΣΕΥΣ"), " ", Core\Str::fold("Οδυσσευς"), "\n";
+
+// Where the two agree they agree exactly, including the row neither leaves
+// alone: `İ` is one code point going to two under both mappings.
+echo Core\Str::fold("İstanbul"), " ", Core\Str::lower("İstanbul"), "\n";
+--EXPECT--
+8 8 5
+3 8 3
+strasse strasse straße
+satz satz ſatz
+file file ﬁle
+οδυσσευς οδυσσευσ οδυσσευσ
+i̇stanbul i̇stanbul
