@@ -1,0 +1,62 @@
+--TEST--
+`Core\Str::normalize`'s four forms are idempotent, the compatibility axis absorbs the canonical one, and only the canonical pair is lossless — spec § 1 *Transformation*, UAX #15
+--FILE--
+<?nvs
+// The member's doc calls the four forms "two independent axes". That is a set
+// of algebraic claims about the whole table, and none of them is visible on a
+// row: a `Nfkc` that had quietly become `Nfc` still renders plausibly for any
+// single subject. So each claim is asked of every row and *counted*.
+//
+// Nine subjects: `é` in both spellings, a compatibility ligature, three
+// circled digits, a titlecase digraph, the angstrom sign (whose canonical
+// composition is a *different* code point), one mixing both axes, and the two
+// the fast path takes unchanged.
+array<string> $rows = ["é", "e\u{0301}", "ﬁle", "①②③", "ǅungla", "\u{212B}", "①e\u{0301}", "plain ascii", ""];
+int $idem = 0;
+int $kAbsorbs = 0;
+int $canonRT = 0;
+int $square = 0;
+int $kLossless = 0;
+foreach ($rows as string $s) {
+    string $c = Core\Str::normalize($s, Core\NormalForm::Nfc);
+    string $d = Core\Str::normalize($s, Core\NormalForm::Nfd);
+    string $kc = Core\Str::normalize($s, Core\NormalForm::Nfkc);
+    string $kd = Core\Str::normalize($s, Core\NormalForm::Nfkd);
+    // Every form is a fixed point of itself — 36 of them, four per row. A
+    // normalization that is not idempotent is not a normalization.
+    if (Core\Str::normalize($c, Core\NormalForm::Nfc) == $c) { $idem = $idem + 1; }
+    if (Core\Str::normalize($d, Core\NormalForm::Nfd) == $d) { $idem = $idem + 1; }
+    if (Core\Str::normalize($kc, Core\NormalForm::Nfkc) == $kc) { $idem = $idem + 1; }
+    if (Core\Str::normalize($kd, Core\NormalForm::Nfkd) == $kd) { $idem = $idem + 1; }
+    // The compatibility axis absorbs the canonical one: normalizing
+    // canonically first changes nothing a `K` form then does.
+    if (Core\Str::normalize($c, Core\NormalForm::Nfkc) == $kc) { $kAbsorbs = $kAbsorbs + 1; }
+    if (Core\Str::normalize($d, Core\NormalForm::Nfkd) == $kd) { $kAbsorbs = $kAbsorbs + 1; }
+    // The canonical pair is lossless in both directions, on every row.
+    if (Core\Str::normalize($d, Core\NormalForm::Nfc) == $c) { $canonRT = $canonRT + 1; }
+    if (Core\Str::normalize($c, Core\NormalForm::Nfd) == $d) { $canonRT = $canonRT + 1; }
+    // The axes really are independent, which is UAX #15's own definition of
+    // the composed `K` form: decompose compatibly, then compose canonically.
+    if (Core\Str::normalize($kd, Core\NormalForm::Nfc) == $kc) { $square = $square + 1; }
+    // And the compatibility axis is *not* lossless: composing back out of a
+    // `K` form recovers the original on only five of the nine — the four
+    // carrying a compatibility character have had a distinction discarded,
+    // which is why the doc calls a `K` form a key rather than a rendering.
+    if (Core\Str::normalize($kc, Core\NormalForm::Nfc) == $c) { $kLossless = $kLossless + 1; }
+}
+echo $idem, " ", $kAbsorbs, " ", $canonRT, " ", $square, " ", $kLossless, " of ", Core\Arr::count($rows), "\n";
+
+// The ASCII fast path returns the buffer unchanged, so all four forms are the
+// identity there — sixteen checks, not one row that happens to survive.
+array<string> $ascii = ["plain ascii", "", "1st", "A-Z"];
+int $same = 0;
+foreach ($ascii as string $a) {
+    if (Core\Str::normalize($a, Core\NormalForm::Nfc) == $a) { $same = $same + 1; }
+    if (Core\Str::normalize($a, Core\NormalForm::Nfd) == $a) { $same = $same + 1; }
+    if (Core\Str::normalize($a, Core\NormalForm::Nfkc) == $a) { $same = $same + 1; }
+    if (Core\Str::normalize($a, Core\NormalForm::Nfkd) == $a) { $same = $same + 1; }
+}
+echo $same, " of ", Core\Arr::count($ascii) * 4, "\n";
+--EXPECT--
+36 18 18 9 5 of 9
+16 of 16

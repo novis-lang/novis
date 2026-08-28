@@ -2,69 +2,68 @@
 
 ## State
 
-**M4's Stage 8, depth.** The tree is at **829 conformance plus 189 differential**, all green.
+**M4's Stage 8, depth.** The tree is at **832 conformance plus 189 differential**, all green.
 Nothing is blocked.
 
 `Core\Str` gained three cases over `crates/nvs-stdlib/src/str.rs`'s own doc comments, one per member
-of the previous handoff's group. All three take the *agreement* or *invariance-over-a-sweep* shape:
-one question asked of a whole table and **counted**, so a member that answered plausibly row by row
+of the previous handoff's group. All three take the *invariance-over-a-sweep* or *agreement* shape:
+one question asked of a whole table and **counted**, so a member answering plausibly row by row
 still fails.
 
-- **`fold` and `lower` are asked "is your answer invariant under uppercasing" of eight rows.**
-  `fold` is on all eight, `lower` on five — `ß`, `ſ` and `ﬁ` are the three where a `lower`-keyed
-  table loses a case pairing. The two members answer the same string on only three of the eight, so
-  the counts are not read off a table they agree on, and the asymmetry is counted both ways:
-  `fold(lower($s)) == fold($s)` on all eight, `lower(fold($s)) == lower($s)` on three.
-- **`graphemes` is the partition `length` counts and `codePoints` refines.** Over nine subjects, all
-  four invariants hold on every row (count == `length`, `join(…, "")` is the subject, every piece is
-  one unit long, and re-splitting the pieces into code points reaches the subject's own total);
-  the unit is strictly coarser than a code point on five of the nine, which is what a `graphemes`
-  that had quietly become `codePoints` would fail.
-- **`indexOf` agrees with `contains`, `countOf` and `lastIndexOf` about occurrence** on all nine
-  rows, and its position is a *grapheme* index on all six that occur — `slice($h, $at, length($n))`
-  is the needle, `{from: $at}` answers `$at` again, and `{from: $at + 1}` is null or strictly later.
-  A byte offset passes the ASCII rows and fails `café au lait` and `👍🏽 hello 👍🏽`.
+- **`lines` answers the same three lines whichever terminator spells them.** Four subjects with an
+  interior empty line, four with a trailing break, three that are breaks and nothing else: every row
+  re-joins with `"\n"` to one canonical subject, and the clusters the breaks cost is the *same* per
+  spelling, which is GB3's "`\r\n` is one cluster" made countable — were it two, the `\r\n` rows
+  would answer one more. `length("a\r\nb")` is 3 and `length("a\n\rb")` is 4 reads the same rule off
+  `length` directly.
+- **`lowerFirst`/`upperFirst` are `lower`/`upper` of the first character glued to the rest.** Over
+  ten subjects both members equal `case(slice($s,0,1)) . slice($s,1)` on all ten, including `ǅ` and
+  a decomposed `e`+acute; they agree with the *whole-string* member on only nine (`lower`) and two
+  (`upper`), which is what a `lowerFirst` that had become `lower` would fail. `ß` is the one row
+  where `upperFirst` expands and the one where `lowerFirst(upperFirst($s))` parts from `lowerFirst`.
+- **`normalize`'s four forms over nine subjects**: 36 idempotence checks, 18 for the compatibility
+  axis absorbing the canonical one, 18 for the canonical pair being lossless both ways, 9 for
+  `Nfkc == Nfc(Nfkd(…))` — and `Nfc(Nfkc($s)) == Nfc($s)` on only **five** of the nine, which is
+  "only the canonical pair round-trips" counted rather than shown. Plus 16 checks that the ASCII
+  fast path is the identity for all four forms.
 
-`orient.py`'s two `!!` lines are **closed**: `[context] playbook` in `docs/agent/loop-goal.toml` had
-`"Writing a test case > nvs-codegen has"` (a duplicate of the `> a row` entry beside it, dropped) and
-`"Writing a test case > emitbinop's ordering"` (the bullet now leads with `emit_binop`'s *`integral`
-set*, re-pointed).
+`orient.py`'s pack was complete for this item; nothing outside it was read.
 
-The gap fourteen handoffs back still stands: **no `Core` class reaches
+The gap fifteen handoffs back still stands: **no `Core` class reaches
 `nvs_hir::implements_interface`**, so `Core\Uri::compareTo` exists while `$a < $b` over two `Uri`s is
 `E0411`. It is in the backlog and still deserves a session of its own.
 
 ## Next group
 
-**`Core\Str`'s next three floor-1 members** — `gaps.py` still ranks the class at floor 1, with three
-different members at the bottom now. Same file set as this session: `crates/nvs-stdlib/src/str.rs`
-and `tests/conformance/core/`. Read the member's doc comment first and look for the rule stated there
+**`Core\Str`'s last three floor-1 members** — `gaps.py` still ranks the class at floor 1 with
+`replaceAll 1, reverse 1, after 2`. Same file set as this session: `crates/nvs-stdlib/src/str.rs` and
+`tests/conformance/core/`. Read the member's doc comment first and look for the rule stated there
 that no case observes.
 
-- [ ] **`lines` against the boundary rule it shares with `graphemes`**
-      (`crates/nvs-stdlib/src/str.rs:1018`, helper at `:1046`) — `line_pieces`'s own doc makes three
-      claims no case counts: a trailing break does not add an empty line, an interior empty line is
-      one, and `\r\n` is consumed whole under GB3 while a lone `\r` is its own cluster. The sweep
-      shape is `join(lines($s), "\n")` against the subject over a table of break spellings.
-- [ ] **`lowerFirst` against `upperFirst` and `lower`** (`crates/nvs-stdlib/src/str.rs:2190`,
-      `upperFirst` at `:2183`) — `map_first` maps *one grapheme* and leaves the rest, so the
-      agreement to count is `lowerFirst($s) == lower(at($s, 0)) . slice($s, 1)` over a table whose
-      first cluster is a titlecase letter (`ǅ`), a combining pair and a non-cased character.
-- [ ] **`normalize`'s four forms over two independent axes**
-      (`crates/nvs-stdlib/src/str.rs:2245`) — the doc says one member with an enum rather than four
-      members *because* the axes are independent; the invariants are idempotence of each form, that
-      NFC and NFD round-trip, and that `length` is unchanged by normalization while
-      `Core\Arr::count(codePoints(…))` is not.
+- [ ] **`replaceAll` against the one-pass rule it is written around**
+      (`crates/nvs-stdlib/src/str.rs:1302`) — a table of pairs where one replacement's *output*
+      contains another's *needle*, asserting the result is invariant under the pair order and that no
+      replacement is applied to text a previous one produced. `replace` and `replaceAll` agreeing on
+      a single-pair table is the second half.
+- [ ] **`reverse` as an involution over the unit `length` counts**
+      (`crates/nvs-stdlib/src/str.rs:1908`) — `reverse(reverse($s)) == $s` and
+      `length(reverse($s)) == length($s)` over a table carrying a multi-code-point cluster, plus
+      `graphemes(reverse($s))` being `graphemes($s)` back to front, which is what a byte-wise or
+      code-point-wise reverse fails.
+- [ ] **`after` against `before`, `indexOf` and `slice`**
+      (`crates/nvs-stdlib/src/str.rs:1883`) — `before($s,$n) . $n . after($s,$n) == $s` on every row
+      where `$n` occurs, and the miss answer named on both sides; the position `after` starts at is
+      the grapheme index `indexOf` reports, so an ASCII-only table cannot tell them apart.
 
 ## Backlog
 
-- No `Core` class reaches `nvs_hir::implements_interface`, so `Core\Uri::compareTo` exists while
-  `$a < $b` over two `Uri`s is `E0411` — `docs/agent/loop-goal.md`, a session of its own.
+- No `Core` class implements a `Core` interface, so `Comparable` over `Core\Uri` is `E0411` — its own
+  session; `docs/agent/handoff.md` has carried this since M4 Stage 6.
+- `Core\Debug` is the thinnest class by median (3.5) and the only one outside `Core\Str` worth a
+  group — `dump 2, render 5` (`python tools/gaps.py`).
 - 54 of the 156 guard tests `loop-goal.toml` names match nothing `cargo test` runs —
   `docs/agent/guard-name-debt.md`.
-- `Core\Debug` is `gaps.py`'s thinnest class (depth 3.5, floor 2) but only two members wide —
-  `crates/nvs-stdlib/src/debug.rs`, one slice not three.
-- 68 unasserted error paths, most `Fault::fatal` and unreachable from source — `gaps.py --errors`,
-  judged one at a time.
-- `array<T> as array<U>` does not lower (`crates/nvs-ir/src/lower/expr.rs:877`), which is what keeps
-  `Core\Csv::format`'s column refusal unreachable — ADR 0007 § 2.
+- `array<T> as array<U>` does not lower, which is what leaves `Core\Csv::format`'s column refusal
+  unreachable from source — `docs/agent/playbook.md` § *Writing a test case*.
+- ADR 0007 § 2's `.` over a `Ty::Tagged` operand still reaches `nvs-codegen`'s mismatched-representation
+  refusal with no diagnostic naming it — `docs/agent/playbook.md` § *Writing Novis itself*.
