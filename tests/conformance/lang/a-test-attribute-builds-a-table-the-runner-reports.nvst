@@ -1,0 +1,81 @@
+--TEST--
+a `#[Test]` method is a row the runner reports, in declaration order, judged off the ledger (ADR 0079 §§ 1, 5, 20, 22, 23)
+--RUN--
+test
+--FILE--
+<?nvs
+// § 23: `nvs test` on a program runs its `#[Test]` methods, so this case is
+// the runner's own report rather than the program's output. `--RUN--` above
+// is what says so; every other case in this tree is `nvs run`.
+use Core\Test;
+
+// § 20: class order is the roster's sorted order, so `AlphaTest` is reported
+// before `ZebraTest` however the two are written here.
+final class ZebraTest {
+    #[Test]
+    public function zulu(): void {
+        Test::assertSame("z", "z");
+    }
+}
+
+final class AlphaTest {
+    // § 1: within a class the order is declaration order, which is what a
+    // reader of one file sees — these three names sort the other way round.
+    #[Test]
+    public function zeroIsWrittenFirst(): void {
+        Test::assertSame(0, 0);
+    }
+
+    #[Test]
+    public function oneIsWrittenSecond(): void {
+        Test::assertSame(1, 1);
+    }
+
+    // § 20: a skip states a reason, and its test is never constructed — the
+    // assertion below would fail if it were.
+    #[Test(skip: "the fixture it needs arrives with §§ 8-9")]
+    public function twoIsSkippedWithItsReason(): void {
+        Test::assertSame(2, 3);
+    }
+
+    // § 4: a failure names both sides by name, so a reversed call still reads
+    // correctly.
+    #[Test]
+    public function aFailedAssertionNamesBothSides(): void {
+        Test::assertSame(2 + 2, 5);
+    }
+
+    // § 5: the verdict is read off the ledger and not off the exception state,
+    // so a body that caught its own failure has still failed.
+    #[Test]
+    public function aCaughtFailureStillFails(): void {
+        try {
+            Test::assertSame("actual", "expected");
+        } catch (Core\Test\Failure $swallowed) {
+            Test::assertSame("caught", "caught");
+        }
+    }
+
+    // § 20: a test that asserts nothing fails, which is what an empty ledger
+    // means.
+    #[Test]
+    public function aTestThatAssertsNothingFails(): void {
+    }
+}
+--EXPECTF--
+  AlphaTest
+    ✓ zeroIsWrittenFirst               %f ms
+    ✓ oneIsWrittenSecond               %f ms
+    - twoIsSkippedWithItsReason        %f ms
+      skipped: the fixture it needs arrives with §§ 8-9
+    ✗ aFailedAssertionNamesBothSides   %f ms
+      Core\Test::assertSame failed: `$actual` is 4, `$expected` is 5
+    ✗ aCaughtFailureStillFails         %f ms
+      Core\Test::assertSame failed: `$actual` is "actual", `$expected` is "expected"
+    ✗ aTestThatAssertsNothingFails     %f ms
+      it asserted nothing: ADR 0079 § 20 fails a test whose ledger is empty
+  ZebraTest
+    ✓ zulu                             %f ms
+
+  3 failed, 3 passed, 1 skipped in %d ms
+--EXPECTF-ERROR--
