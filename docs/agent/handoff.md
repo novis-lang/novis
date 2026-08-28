@@ -2,57 +2,65 @@
 
 ## State
 
-**M4's Stage 8, depth.** The tree is at **821 conformance plus 189 differential**. Nothing is
+**M4's Stage 8, depth.** The tree is at **823 conformance plus 189 differential**. Nothing is
 blocked.
 
-`Core\Bytes`'s addressing half is now asserted as one rule rather than as five members that each
-look right alone. Two cases landed, both over `crates/nvs-stdlib/src/bytes.rs`'s own doc comments:
+`Core\Uuid` is off the thin list — `python tools/gaps.py` now ranks it at depth 5.0, floor 3, where
+it opened the session at floor 2. Two cases landed, both over `crates/nvs-stdlib/src/uuid.rs`'s own
+doc comments:
 
-- **The needle-length bound**, asked of `startsWith` and `endsWith` together. The existing sweep
-  case agrees the two predicates with `slice`/`compare` over a table but never walks the length,
-  so a member stopping one byte early agreed with a derivation making the same mistake. The new
-  case makes the width the variable — `k` runs 0 … 9 against an 8-byte subject, with the k = 9
-  needle cut from a *longer* buffer so it is a real 9-byte needle rather than a `slice` that
-  stopped short — and adds the two full-width needles that differ in one octet at opposite ends,
-  which is where a comparison of `len - 1` octets still answers `true`.
-- **`at` against `slice`**, over a 19-wide index sweep. Where they agree, agreeing is the whole
-  content of `at`; the agreement is checked by comparing `slice($b, $i, 1)` against
-  `Core\Bytes::fill(1, <what at answered>)` rather than by reading the window back with `at`.
-  The three indexes where they part are named one at a time, because the divergence is deliberate
-  and of two different kinds: past the end `at` throws while `slice` is empty, and *before the
-  start* `slice` clamps and answers the first octet at an index `at` refuses outright.
+- **`tryParse` and `parse` are one reader**, the *agreement* shape. The existing parse case asks
+  each member about its own subjects, so a `tryParse` that grew its own idea of the shape answered
+  plausibly on every line it appeared on. The new case asks all 18 subjects of both, renders a
+  throw and a `null` as the same empty string (no successful parse can produce one, `toString`
+  being 36 wide), and asserts the per-row equality plus six fixed counts. Three of the subjects are
+  one value in three case spellings, counted separately, so the agreement is on the *value* and not
+  merely on acceptance.
+- **`v7` carries the clock `Core\Time::now()` reads**, which is the claim `uuid.rs:309`'s doc makes
+  and no case could see: the two sibling cases assert that the leading field *increases* and opens
+  with `01`, which any monotonic counter satisfies. The new case reads the 48-bit field as the
+  number it is — `Core\Encoding::fromHex` over the first twelve hex digits, folded octet by octet
+  through `Core\Bytes::at` — and brackets one draw between two `toEpochMillis` reads. `v4`'s leading
+  field is asked the same question and lands elsewhere, which is what says the window can answer no.
+  A 32-draw sweep then bounds every stamp inside one window and counts repeats at 0, the second
+  being the 74-random-bits half of the layout.
 
-Both cases are exact — every count is fixed whichever octets the subject holds — and no `Fault`
-in `bytes.rs` was reachable that a case does not already catch.
+`orient.py` printed two `!!` lines this session: `[context] playbook` in `docs/agent/loop-goal.toml`
+names `"Writing a test case > nvs-codegen has"` and `"Writing a test case > emitbinop's ordering"`,
+and no bullet under that heading leads with either — the two selectors are stale and should be
+re-pointed or dropped.
 
-The gap ten handoffs back still stands: **no `Core` class reaches `nvs_hir::implements_interface`**,
-so `Core\Uri::compareTo` exists while `$a < $b` over two `Uri`s is `E0411`. It is in the backlog
-and still deserves a session of its own.
+The gap eleven handoffs back still stands: **no `Core` class reaches `nvs_hir::implements_interface`**,
+so `Core\Uri::compareTo` exists while `$a < $b` over two `Uri`s is `E0411`. It is in the backlog and
+still deserves a session of its own.
 
 ## Next group
 
-**`Core\Uuid`, `gaps.py`'s thinnest remaining class with a floor of 2** — one file set:
-`crates/nvs-stdlib/src/uuid.rs` and `tests/conformance/core/`. Four cases exist already
-(`uuid-parses-only-the-canonical-form.nvst` and three others), so read the member doc comments
-first and look for the rule stated there that no case can observe — over `Core\Random`,
-`Core\Debug` and `Core\Bytes` alike the gap was never a missing row.
+**`Core\Arr`'s three floor-1 members** — `gaps.py`'s thinnest members anywhere in the corpus, one
+file set: `crates/nvs-stdlib/src/arr.rs` and `tests/conformance/core/`. Each has exactly one case,
+and over `Core\Random`, `Core\Debug`, `Core\Bytes` and `Core\Uuid` alike the gap was never a missing
+row — read the member's doc comment first and look for the rule stated there that no case observes.
 
-- [ ] **`tryParse` and `parse` are one reader with two answers** (`uuid.rs:334` and `:362`) — the
-      *agreement* shape: every subject of one table asked of both, asserting `tryParse` is `null`
-      exactly where `parse` throws, counted rather than read off a line.
-- [ ] **`v7`'s layout, not just its ordering** (`uuid.rs:309`) — `uuid-v7-never-goes-backwards`
-      covers the monotonic sweep; the version and variant nibbles a draw must carry, and that
-      `v4` and `v7` differ in exactly that nibble, are the bound nothing asks about.
-- [ ] **Re-run `python tools/gaps.py` and take the next class it ranks** — the rank moves once
-      `Core\Uuid` lands; `Core\Hash\Stream` (floor 4 over 2 members) and `Core\Csv` (floor 5) are
-      the next two whose whole class is one small file.
+- [ ] **`flattenDeep` against `flatten`, as a fixed point** (`crates/nvs-stdlib/src/arr.rs:2161`) —
+      the *invariance* shape: `flattenDeep` is `flatten` applied until it stops changing, so
+      asserting that over a sweep of nestings is one rule rather than one row per depth.
+      `arr-flatten-unwraps-one-level-and-flatten-deep-all-of-them.nvst` is the case that exists.
+- [ ] **`column`'s missing key and its index argument** (`crates/nvs-stdlib/src/arr.rs:2218`) — the
+      *edges*: a key absent from some rows but not others, and the three-argument form's re-keying
+      when the index key collides. `arr-column-takes-one-cell-out-of-every-row.nvst` exists.
+- [ ] **`overlayDeep` against `overlay`** (`crates/nvs-stdlib/src/arr.rs:3748`) — no case names it
+      at all beyond the one; the *agreement* shape at depth 1, where the two must not differ.
 
 ## Backlog
 
 - No `Core` class reaches `nvs_hir::implements_interface`, so `Core\Uri::compareTo` exists while
-  `$a < $b` over two `Uri`s is `E0411` — its own session (`docs/agent/loop-goal.md` item list).
+  `$a < $b` over two `Uri`s is `E0411` — `docs/agent/loop-goal.md`, its own session.
+- `[context] playbook` in `docs/agent/loop-goal.toml` has two stale bullet selectors under *Writing
+  a test case* (above).
+- `Core\Debug` is `gaps.py`'s thinnest class by median (3.5) with `dump` at 2 — `docs/agent/loop-goal.md`.
+- `Core\Str::fold` / `graphemes` / `indexOf` are floor-1 too, but the Windows `php` has no
+  `mbstring` for the Unicode rows — `docs/agent/playbook.md`.
 - 54 of the 156 guard tests `loop-goal.toml` names match nothing `cargo test` runs —
-  `docs/agent/guard-name-debt.md` is the list and the three causes.
-- `crates/nvs-stdlib/src/csv.rs:512` is the one `thrown` refusal unreachable from source and owed
-  no case (`docs/agent/playbook.md`, *Divergences and refusals already pinned*).
-- 65 unasserted `Fault::fatal` sites remain; `python tools/gaps.py --errors` judges each.
+  `docs/agent/guard-name-debt.md`.
+- `csv.rs:512`'s `Fault::thrown` is unreachable until ADR 0007 § 2's `array<T> as array<U>` lowers —
+  `docs/agent/playbook.md`.
