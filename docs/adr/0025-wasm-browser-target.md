@@ -1,6 +1,6 @@
 # ADR 0025 — The browser is a second compile target, not a second language
 
-- **Status:** Accepted
+- **Status:** Retired
 - **Date:** 2026-08-21
 - **Amended by:** 0097
 - **Scope:** a `wasm32` compile target for interactive client-side scripts running in a browser tab; its
@@ -8,10 +8,14 @@
   excludes `spawn worker`/`spawn script`, coroutine-based suspension, and `.nvsx` wasm-component extensions
   for this target only; the new `Core` host-context domain for DOM/window interaction; `require`'s
   build-time-only resolution when there is no filesystem to fall back on.
-- **Validated by:** none yet — the backend does not exist before M14. This ADR reuses the
-  sandboxing/per-instance-cost properties `benches/abi-probe/tests/wasm_sandbox.rs` already established
-  under [0003](0003-extension-system.md); its own target-specific claims (the dropped coroutine, the
-  capability matrix) get their own guard test when M14 starts, per the *Revisiting* section below.
+- **Validated by:** nothing, and nothing will — the backend was never built.
+  `benches/abi-probe/tests/wasm_sandbox.rs` remains and is unaffected: it holds
+  [0003](0003-extension-system.md)'s extension-sandbox properties, which are wasm as a *host*, the
+  opposite direction from this ADR's target.
+
+> **Retired.** This target is not on the roadmap and no milestone builds it; *Revisiting* below is the
+> reason and the trigger. Wasm as an **extension host** ([0003](0003-extension-system.md), M9) is a
+> different mechanism in the opposite direction and is unaffected.
 
 > **In short:** Novis gains an optional `wasm32` compile target for running client-side in a browser tab,
 > implemented as a **second codegen backend consuming the same IR** M2 already produces — not a second
@@ -165,10 +169,32 @@ language underneath it.
 
 ## Revisiting
 
-Reopen the coroutine exclusion if a browser stack-switching mechanism (Asyncify or a native proposal) ships
-broadly enough, and cheaply enough, that a wasm-side suspend/resume guard test in `benches/abi-probe` could
-hold a cost bound worth shipping — that test not existing yet is itself the reason this stays excluded for
-now, not a settled "never." Reopen the extension exclusion if the Component Model ships in browsers, or if a
-non-component `wasm32` extension shape is ever defined for Tier 0/2 that a browser host could load directly.
-Neither is assumed here — this ADR's target scope is the synchronous, extension-free subset, and M14 should
-not silently grow past that without its own argument.
+**Why this is retired.** *Consequences* above accepts a permanent cost — instruction selection and
+calling-convention lowering happening twice for every codegen feature from here on — explicitly *because the
+target is optional*: "M14 is contingent on an embedding actually wanting it." That condition has been
+answered no, so the cost has nothing left to buy.
+
+Costed against the tree rather than guessed, the backend is 12–16 weeks in the original estimate's unit,
+concentrated in six places: a CFG/SSA-to-structured-control-flow pass, since wasm has no arbitrary branch and
+Cranelift absorbs both that and φ-elimination today; 43 `InstKind` variants, 7 terminators and 81 helpers
+re-lowered; layout constants parameterized by target, `nvs-runtime`'s `offset_of!` values being the host's
+and not the target's; a linking story for reaching those helpers from an emitted module, which also decides
+what replaces [0002](0002-error-propagation.md)'s per-request `catch_unwind` on a target with no unwinder;
+`Core\Browser`, whose method table this ADR deliberately never designed; and a headless-browser harness
+across three CI platforms. **The upfront figure is not what retired it — the per-feature tax is**, and
+[M12](../plan/m12.md)'s deopt and OSR are where it would have been felt.
+
+**What would reopen it**, the first being the original condition and the only sufficient one:
+
+- **An embedding that wants Novis running in a browser tab.**
+- **A browser stack-switching mechanism** — Asyncify or a native proposal — shipping broadly and cheaply
+  enough that a wasm-side suspend/resume guard test in `benches/abi-probe` could hold a cost bound worth
+  shipping. That removes the coroutine exclusion, not the second-backend cost.
+- **The Component Model shipping in browsers**, or a non-component `wasm32` extension shape defined for
+  Tier 0/2 that a browser host could load directly. That removes the `.nvsx` exclusion.
+
+**Two rules this ADR established are not retired with it, and neither is homed here any longer.**
+[0048](0048-portable-single-file-executables.md) § 3 owns build-time-only `require` resolution for a
+closed-world target, and [0053](0053-iteration-and-generators.md) § 4 owns why generators lower to a state
+machine rather than to the coroutine substrate. Reopening this ADR reopens neither, and retiring it weakens
+neither.

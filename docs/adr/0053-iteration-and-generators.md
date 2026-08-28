@@ -36,9 +36,8 @@
   function dispatching on an object argument, which is worse than what it replaces.
 - Generators interact with two decisions that pull in opposite directions. The runtime already has stackful
   coroutines, so implementing `yield` on them is nearly free and permits `yield` from arbitrary call depth.
-  But [ADR 0025](0025-wasm-browser-target.md) states that coroutine-based suspension is unavailable in the
-  browser, and it claims every *language* feature is unchanged across targets — only runtime facilities
-  differ. Coroutine-based generators would make that claim false for the first time.
+  But a *language* feature must behave identically on every compile target, where a runtime facility is
+  allowed to differ — and coroutine-based generators would make that false for the first time.
 - This ADR blocks work already in progress: M2's IR must model suspension points inside loop bodies, and
   retrofitting them once M3 builds on the IR is expensive — the same argument the plan already makes for
   [ADR 0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s probe ids.
@@ -93,9 +92,11 @@ Lowering is an explicit state-machine transform — the body is split at each `y
 and every local live across a `yield` is stored in the state object rather than on a stack. It is **not**
 built on the coroutine substrate. Three reasons, in priority order:
 
-1. **Every target behaves identically** ([ADR 0025](0025-wasm-browser-target.md)). Generators are a
-   language feature, and the browser target keeps them. That ADR's unavailable list stays exactly as it
-   is — `spawn worker`, coroutine-based suspension, `.nvsx` — and does not grow a fourth entry.
+1. **A language feature may not rest on a runtime substrate.** Generators are language surface, not a
+   runtime facility, so their lowering must not assume stack-switching exists — a compile target without it
+   would otherwise either lose generators or need a second lowering, and the second lowering is this one.
+   [ADR 0025](0025-wasm-browser-target.md)'s browser target was the concrete instance of that and is
+   retired; reasons 2 and 3 carry this decision without it, so nothing here reopens.
 2. **No stack to allocate or grow.** A generator is an ordinary object; iterating ten thousand of them
    costs ten thousand small objects, not ten thousand stacks.
 3. It keeps coroutine suspension a property of *I/O*, not of ordinary control flow, which is a smaller and
@@ -145,9 +146,9 @@ resuming one in another isolate that is meaningful. `clone` on a generator is li
 ## Alternatives rejected
 
 - **Generators on the coroutine substrate.** One suspension mechanism instead of two (priority 4), and
-  `yield` from any call depth. Rejected because it makes a *language* feature target-dependent for the
-  first time, weakening [ADR 0025](0025-wasm-browser-target.md)'s central claim to buy an expressiveness
-  gain — yielding from a helper — that is rare in practice and always rewritable as an explicit loop.
+  `yield` from any call depth. Rejected on § 4's reasons 2 and 3 — a stack per live generator, and
+  suspension ceasing to be a property of I/O alone — to buy an expressiveness gain, yielding from a helper,
+  that is rare in practice and always rewritable as an explicit loop.
 - **No generators; `Iterator` implemented by hand.** Smallest surface, no IR impact. Rejected: every lazy
   pipeline in userland becomes an explicit state class, and the state those classes hold is exactly what
   the compiler would have generated correctly. The stdlib's native iterators cover the common cases, but
@@ -190,4 +191,3 @@ resuming one in another isolate that is meaningful. `clone` on a generator is li
   of its own.
 - **M8:** `Core\Db`'s streaming result set is an `Iterator<T>` and iterating a large table holds one row
   at a time, asserted against the request's memory accounting rather than by inspection.
-- **M14:** the browser target compiles and runs a generator, which is the property § 4 exists to preserve.

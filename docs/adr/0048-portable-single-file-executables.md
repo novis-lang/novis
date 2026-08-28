@@ -26,8 +26,7 @@
   --compile` or Go's static binaries work, and let an app author who already has that file rebuild it
   trivially when their code changes — without inventing a package format, an installer, or a second runtime.
 - Nothing about `nvs run`, the artifact cache, or the CLI exists yet (M3/M6 are both ahead of M2 as of this
-  writing), so this ADR is a forward design, argued against the ADRs that already fix the pieces it reuses —
-  same posture as [0025](0025-wasm-browser-target.md) when it was written.
+  writing), so this ADR is a forward design, argued against the ADRs that already fix the pieces it reuses.
 - The obvious naive approaches — shipping app source in the clear, or shipping precompiled native artifacts
   instead — each have a real cost once checked against [0042](0042-on-disk-artifact-cache-format.md)'s
   actual key format. Both are examined in *Investigation* rather than asserted.
@@ -100,15 +99,18 @@ per-combination duplication, and never goes stale against a newer compiler build
 return: a fresh machine's first run of the bundle pays exactly the same cold JIT compile any first `nvs run`
 of an uncached file already pays — not a new cost this feature introduces, just one it doesn't get to avoid.
 
-### 3. `require` must resolve statically at build time — the identical rule ADR 0025 already fixed
+### 3. `require` must resolve statically at build time
 
-[0025](0025-wasm-browser-target.md) already established that a closed-world target with no filesystem to
-fall back on needs `require` to resolve entirely at compile time, and that a `require` whose path cannot be
-resolved statically is a diagnostic there rather than a runtime fallback. A bundled executable is the same
-shape of closed world — the payload is exactly what got embedded, nothing more — so `nvs build --compile`
-reuses that rule verbatim rather than inventing a second one: a `require` with a dynamically computed path
-that cannot be resolved at bundle time fails the build with a diagnostic naming the unresolvable expression,
-the same diagnostic class ADR 0025 already defined for its own target.
+**This section is that rule's home.** A closed-world target has no filesystem to fall back on at runtime, so
+[0021](0021-single-file-inclusion-construct.md)'s dynamic path has nothing left to resolve against: a bundled
+executable's payload is exactly what got embedded, nothing more. `require` must therefore resolve entirely at
+build time, and one with a dynamically computed path that cannot be resolved at bundle time fails the build
+with a diagnostic naming the unresolvable expression — never a runtime fallback and never a silent omission.
+`require`'s semantics do not change; only which paths are legal narrows.
+
+Any other closed-world target inherits the rule from here rather than restating it.
+[0025](0025-wasm-browser-target.md) argued the same shape for a browser tab and is retired; a bundled
+executable is not contingent on anything, which is why the rule lives here now.
 
 ### 4. Startup: a footer, not a filesystem watcher or a new loader
 
@@ -172,9 +174,8 @@ already resolved and present. The two compose (`nvs pkg install && nvs build --c
   "instant on any machine" option that doesn't also reintroduce the precompiled-artifact multi-target cost
   this ADR declines to pay.
 - A `require` with a dynamically computed, unresolvable-at-build-time path cannot be bundled at all. Accepted
-  as the same, already-argued trade-off [0025](0025-wasm-browser-target.md) made for the wasm target — a
-  closed-world payload cannot support an open-world file lookup, regardless of which closed-world target it
-  is.
+  under § 3: a closed-world payload cannot support an open-world file lookup, regardless of which
+  closed-world target it is.
 - macOS needs a build-time signing step the other two platforms don't. Accepted as a one-time cost inside the
   build command, not something every rebuild's user pays.
 
