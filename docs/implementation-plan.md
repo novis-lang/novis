@@ -1283,7 +1283,31 @@
 > the three residues under both subjects with the non-`true` subject and the `default` arm beside
 > them, and `an-enum-case-comparison-narrows-its-subject.nvst` over the whole-enum subject, the
 > declared union of two cases, either operand order and the `!=` edge — each counting its agreement
-> with the plain `if` spelling of the same guard rather than reading it off a line. Three live tools
+> with the plain `if` spelling of the same guard rather than reading it off a line. **A method call
+> is refused wherever the receiver's type names no class**, and that is the answer to whether a
+> union takes a code of its own: it does not. `E0477` was the *erased* family alone — a plain
+> `object`, an ADR 0036 shape — while a `Dog|Cat`, a `string`, an `array<int>` and a `void` call's
+> result each resolved nothing, reached `nvs-ir` with no target recorded and panicked at
+> `lower/expr.rs:2389`, naming a compiler gap for a mistake in the program. It is one code across
+> the whole family now, because it is one mistake and it is the same resolution that fails: a method
+> is resolved against a class, and none of those names one. That is also where the call half parts
+> company with the property one, which splits a *deferral* off from `E0495` — ADR 0036 § 4 answers
+> an erased property read with a name-keyed runtime fetch, and a call additionally needs a signature
+> to check its argument list against and a return type for the position it sits in, which no
+> receiver here supplies, with no `__call` to fall back on. Only the help splits, three ways because
+> the fix does: a receiver that can hold an object is narrowed, `can_hold_an_object` being that
+> question's one home and asked here for the third time; one that cannot is converted or declared
+> `mixed`, which is the property half's own wording; and a `void` call yields no value for either
+> fix to be about. A receiver that may be `null` whose non-`null` half *is* a class is left alone —
+> `E0459` named it on the way in and it is one mistake rather than two, which is again the property
+> half's guard read a second time. `mixed` is the one receiver deliberately still deferring: ADR
+> 0007 § 2 makes it the one unchecked position, so `nvs-ir`'s panic roster names it alone now and
+> the lowering that answers it from the receiver's runtime class is the next group.
+> `docs/adr/README.md` § *Where to look*'s own paragraph is that decision's home.
+> `tests/conformance/reject/a-method-call-through-a-receiver-that-names-no-class-is-refused.nvst`
+> pins all four refusals plus the nullable receiver's single code in one compile, with the two
+> spellings that do resolve — a named class, and a union narrowed by `instanceof` — written first,
+> so a position that stops resolving fails there rather than as a missing refusal. Three live tools
 > **are** the worklist and no session re-derives one: `python tools/holes.py` reads the refusal
 > sites out of `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item N` for one in
 > full), `python tools/loop.py --list` prints the named `.nvst` cases each stage still owes, and
