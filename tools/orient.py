@@ -79,6 +79,7 @@ CONVENTIONS = AGENT / "conventions.md"
 GROUND_RULES = ADR_DIR / "ground-rules.md"
 RUNNING = ROOT / ".loop" / "running"
 INTERRUPTED = ROOT / ".loop" / "interrupted.json"
+LEDGER = ROOT / ".loop" / "log.md"
 
 # A section is measured for --audit as it is emitted, so the report is of what was actually
 # printed rather than of what the files hold.
@@ -308,8 +309,42 @@ class Manifest:
 # --------------------------------------------------------------------------- sections
 
 
+def last_acceptance() -> tuple[str, str] | None:
+    """The driver's own verdict on the last session, read back out of `.loop/log.md`.
+
+    Returns `(session, failure)` -- `failure` empty for a run where every check passed --
+    or `None` when the ledger holds no acceptance result at all.
+
+    The driver checks the whole of `loop-goal.toml` after every session and stops the run
+    the moment nothing fails (`loop.py`'s `if not fail: break`), but it writes the verdict
+    only here. A session therefore cannot see a red check unless it is the one its own
+    handoff group happens to name -- which is how `abi-probe` stayed red across sessions
+    0055, 0056 and 0057 while each of them worked on something else. Printing it is the
+    whole fix; the ledger is already on disk and costs nothing to read.
+    """
+    if not LEDGER.is_file():
+        return None
+    session, cost, fail = "", False, ""
+    found = None
+    for line in read(LEDGER).split("\n"):
+        entry = re.match(r"- (\d{4}) ", line)
+        if entry:
+            session, cost, fail = entry.group(1), False, ""
+            continue
+        body = line.strip()
+        # `goal cost:` is written for every acceptance run, `goal check:` only for a failing
+        # one -- so the pair is what distinguishes "passed whole" from "never ran".
+        if body.startswith("goal cost:"):
+            cost = True
+        elif body.startswith("goal check:"):
+            fail = body[len("goal check:"):].strip()
+        if cost and session:
+            found = (session, fail)
+    return found
+
+
 def run_marker() -> None:
-    section("RUN", "git, .loop/running and .loop/interrupted.json")
+    section("RUN", "git, .loop/running, .loop/interrupted.json and .loop/log.md")
     if RUNNING.exists():
         emit("A LOOP DRIVER HOLDS THIS TREE. Its sessions edit these files on nearly every")
         emit("iteration; do not start a by-hand pass over shared files while this says so.")
@@ -340,6 +375,22 @@ def run_marker() -> None:
     changed = [ln for ln in git("status", "--short").split("\n") if ln.strip()]
     emit(f"branch {branch}, {len(changed)} path(s) with uncommitted changes")
     emit(f"head   {git('log', '-1', '--oneline') or '(no commits)'}")
+    verdict = last_acceptance()
+    if verdict is None:
+        return
+    session, fail = verdict
+    emit()
+    if not fail:
+        emit(f"The driver's last acceptance check, after session {session}, passed whole.")
+        return
+    emit(f"THE DRIVER'S LAST ACCEPTANCE CHECK FAILED, after session {session}:")
+    emit(f"  {fail}")
+    emit("The run ends only when every check in loop-goal.toml passes, and nothing else")
+    emit("shows a session this one -- the driver writes it to the ledger and moves on. If")
+    emit("the group below does not close it, CLOSE THIS FIRST: it outranks the handoff's")
+    emit("next group, and the handoff you write says what you found. A check that names a")
+    emit("test that 'did not run' is an item still open and is the ordinary state of this")
+    emit("goal; any other failure is a regression and outranks new work outright.")
 
 
 def run_numbers() -> None:
@@ -762,19 +813,49 @@ def run_milestones(m: Manifest) -> None:
     emit("one, and `session.py --wrap` takes a `## milestone: Mn` section for the same thing.")
 
 
+def wrap_template() -> str:
+    """`session.py --template`, run here rather than by the session.
+
+    It is generated off the tree -- it carries the live conformance and ADR counts and the
+    playbook's current headings -- so it cannot be pasted into this file as a constant. But
+    it costs 0.15s to produce and nearly every session spent a whole tool call fetching it,
+    which at the measured 38 calls a session is a fixed 3% for 1.6 KB of text. Empty if the
+    call fails, and the three-call wording below then stands as it always did.
+    """
+    try:
+        done = subprocess.run(
+            [sys.executable, str(ROOT / "tools" / "session.py"), "--template"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            cwd=ROOT, timeout=60, check=True,
+        )
+        return done.stdout.strip("\n")
+    except (subprocess.SubprocessError, OSError):
+        return ""
+
+
 def run_closing() -> None:
+    template = wrap_template()
     section("WHEN YOU ARE DONE", "AGENTS.md § Session workflow, steps 3-5")
     emit("  python tools/verify.py            build + test + clippy + fmt, once, at the end")
-    emit("  python tools/session.py --template a wrap skeleton, already carrying every count the")
-    emit("                                    tree has moved past, the playbook's headings, and")
-    emit("                                    the `## commit:` for the docs it writes")
-    emit("  <Fill that skeleton in>           plan fields, playbook bullet, handoff, commits, status")
+    if template:
+        emit("  <Fill in the skeleton below>      plan fields, playbook bullet, handoff, commits, status")
+    else:
+        emit("  python tools/session.py --template a wrap skeleton, already carrying every count the")
+        emit("                                    tree has moved past, the playbook's headings, and")
+        emit("                                    the `## commit:` for the docs it writes")
+        emit("  <Fill that skeleton in>           plan fields, playbook bullet, handoff, commits, status")
     emit("  python tools/session.py --wrap F  applies all of it, or refuses and changes nothing")
     emit()
-    emit("THREE CALLS, and none of them is a `--help`, a `--dry-run` or a `grep` of the playbook.")
-    emit("`--template` IS the format, and it answers off the tree what the tail used to re-derive")
-    emit("by hand -- so do not grep the plan for a count or the playbook for its headings, they")
-    emit("are in it. `--wrap` is all-or-nothing: it validates every section before it writes a")
+    if template:
+        emit("TWO CALLS, and neither is a `--help`, a `--dry-run`, a `grep` of the playbook or a")
+        emit("`session.py --template` -- the template IS the skeleton at the end of this section,")
+        emit("generated for this tree at this commit, so its counts and headings are already the")
+        emit("current ones. `--wrap` is all-or-nothing: it validates every section before it writes a")
+    else:
+        emit("THREE CALLS, and none of them is a `--help`, a `--dry-run` or a `grep` of the playbook.")
+        emit("`--template` IS the format, and it answers off the tree what the tail used to re-derive")
+        emit("by hand -- so do not grep the plan for a count or the playbook for its headings, they")
+        emit("are in it. `--wrap` is all-or-nothing: it validates every section before it writes a")
     emit("byte, so a dry run only buys the same refusal a call earlier. ONE WRAP WRITES THE DOCS")
     emit("AND COMMITS THEM -- the handoff, the playbook and the plan are on disk before any")
     emit("commit is staged, and anything it wrote that no `## commit:` names joins the last one.")
@@ -799,6 +880,14 @@ def run_closing() -> None:
     emit()
     emit("If this pack did not print something you needed, that is a gap in [context] in")
     emit("docs/agent/loop-goal.toml. Say which field was missing it, in the handoff.")
+    if template:
+        emit()
+        emit("THE WRAP SKELETON -- `session.py --template` for this tree, so you do not call it.")
+        emit("Fill it in, write it to one file, and hand that file to `--wrap`. Drop any section")
+        emit("this session does not owe; `--wrap` says so if you dropped one it needed.")
+        emit()
+        for line in template.split("\n"):
+            emit(line)
 
 
 # ------------------------------------------------------------------------------ audit
