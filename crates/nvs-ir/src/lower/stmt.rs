@@ -356,13 +356,15 @@ impl<'a> Lowering<'a> {
             // literal, names nothing loadable, or closes a cycle: each is
             // already a diagnostic or ADR 0021's dynamic fallback, so there
             // is nothing to call and nothing to say here. The value form —
-            // `$c = require 'config.nvs';` — is `E0704` where it is written.
+            // `$c = require 'config.nvs';` — is this same call with its result
+            // kept, one file over in `Self::lower_expr`.
             ExprKind::Require { path } => {
                 if let Some(target) = self.exprs.require_target(path.span) {
-                    // The frame returns `null` unless the file returned a
-                    // value (§ 3's `mixed`), and the statement form reads
-                    // neither — but the value is still this frame's to
-                    // release, exactly as a discarded object literal's is.
+                    // The frame returns whatever the file's own `return`
+                    // handed back, or § 3's `1` where it never returned at
+                    // all, and the statement form reads neither — but the
+                    // value is still this frame's to release, exactly as a
+                    // discarded object literal's is.
                     let (v, ty) = self.emit_fallible(
                         *cur,
                         Ty::Tagged,

@@ -732,25 +732,16 @@ pub(super) fn infer(
         }
         // ADR 0021 § 3's **value** form. The statement form never reaches here
         // — `crate::locals::check_stmt` checks only the path for one, matching
-        // `nvs_ir::lower::Lowering::lower_expr_stmt`, which lowers the site to
-        // nothing because `nvs_hir::resolve_program` already walked the graph.
-        // So arriving at all is the proof this `require` was used for its
-        // value, and `nvs-ir`'s known gap 22 is why there is none to give.
+        // `nvs_ir::lower::Lowering::lower_expr_stmt` — so arriving at all is
+        // the proof this `require` was used for its value.
+        //
+        // § 3 types that boundary `mixed` and gives exactly one reason: what a
+        // `return`-ing target hands back cannot be known statically, and
+        // `mixed` is ADR 0007 § 2's one unchecked position. There is nothing
+        // to check here beyond the path, and nothing narrower to answer — a
+        // typed binding takes the same `as` any other `mixed` boundary needs.
         ExprKind::Require { path } => {
             check_expr(path, None, live, scope, ctx, env);
-            env.diags.report(
-                Diagnostic::error(
-                    code::E_REQUIRE_VALUE_UNLOWERED,
-                    "`require`'s value is not available",
-                )
-                .with_primary(expr.span, "this `require` is used for what it hands back")
-                .with_help(
-                    "write `require '…';` as a statement — the target's declarations are \
-                     already merged at compile time. ADR 0021 § 3's `mixed` value needs the \
-                     target's own top-level statements to run, which `nvs-ir`'s known gap 22 \
-                     is about",
-                ),
-            );
             env.interner.mixed()
         }
         ExprKind::Paren(inner) => check_expr(inner, expected, live, scope, ctx, env),

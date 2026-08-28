@@ -1203,17 +1203,10 @@ pub mod code {
     /// rather than accepted and dropped, which is the only reading that
     /// cannot silently do nothing.
     pub const E_SPAWN_SCRIPT_UNLOWERED: Code = Code::new("E0703");
-    /// `require` used for its **value** — `$c = require 'config.nvs';`,
-    /// ADR 0021 § 3's `mixed`.
-    ///
-    /// The statement form is whole: `nvs_hir::resolve_program` walks the
-    /// `require` graph at compile time and the site lowers to nothing. What
-    /// the value form needs is a *frame per file*, called from the site, so
-    /// the target's own top-level statements run and its `return` has
-    /// somewhere to come from — `nvs_ir`'s known gap 22, whose open question
-    /// is whether that frame shares the caller's locals. This code is what
-    /// that gap's session removes.
-    pub const E_REQUIRE_VALUE_UNLOWERED: Code = Code::new("E0704");
+    // `E0704` is retired and is never reused: `require` used for its
+    // **value** is ADR 0021 § 3's `mixed` and lowers, the site calling the
+    // target file's own script frame and keeping what it hands back
+    // (`nvs_ir::lower::Lowering::lower_expr`).
     /// `-`, `+` or `~` over an operand ADR 0007 § 4's arithmetic table has no
     /// row for — a `string`, a `bytes`, an `array<T>`, a `bool`, `null`, a
     /// `callable` or an enum case. The sibling of [`E_INCREMENT_NOT_NUMERIC`]

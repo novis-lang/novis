@@ -354,10 +354,42 @@ impl<'a> Lowering<'a> {
             // ADR 0031 § 1 gives `callable` no parameter list, so there is no
             // resolved target to name. See `Self::lower_closure_call`.
             ExprKind::Call { callee, args } => self.lower_closure_call(callee, args, env, cur),
+            // ADR 0021 § 3's **value** form — `$c = require 'config.nvs';`.
+            // The same call to the target's own script frame the statement
+            // form emits (`Self::lower_expr_stmt`, which owns the reasoning
+            // about the frame and about running every time the site is
+            // reached); the only difference is which end of it is kept. That
+            // frame's return type is `Ty::Tagged` by construction, so the
+            // value arrives here needing no conversion, and it is a fresh
+            // producer — nothing else holds a reference to what the callee
+            // returned — so the consumer owns it and `Self::aliasing_read`
+            // answers `false` for this shape, as it does for a call.
+            //
+            // A path with no recorded target is one that is not a literal:
+            // the statement form runs nothing there, so the value form has
+            // nothing that ran to answer with, and it takes the same tagged
+            // `1` § 3 gives a file that did not `return`.
+            ExprKind::Require { path } => {
+                if let Some(target) = self.exprs.require_target(path.span) {
+                    self.emit_fallible(
+                        *cur,
+                        Ty::Tagged,
+                        InstKind::Call {
+                            target: crate::lower::file_script_label(target),
+                            receiver: None,
+                            args: Vec::new(),
+                        },
+                        env,
+                    )
+                } else {
+                    let (one, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(1));
+                    (self.coerce(*cur, one, Ty::Int, Ty::Tagged, env), Ty::Tagged)
+                }
+            }
             // Nothing the checker accepts reaches this arm any more, and the
             // proof is the roster rather than the message below it. `ExprKind`
-            // has 45 variants; the arms above cover 34 of them, plus one of
-            // `Assign`'s two `inout` shapes. Of the eleven with no arm and
+            // has 45 variants; the arms above cover 35 of them, plus one of
+            // `Assign`'s two `inout` shapes. Of the ten with no arm and
             // the one `Assign` shape:
             //
             // * `Error` is a parse error already reported, and does not
@@ -376,12 +408,10 @@ impl<'a> Lowering<'a> {
             //   no `send()` for it to answer with. The statement form goes
             //   through `Self::lower_yield` one file over, reached from
             //   `nvs_types::expr::check_expr_stmt`'s matching split.
-            // * `spawn script` is `E0703` and `require` used for its value is
-            //   `E0704`, both because nothing below this crate compiles them
-            //   yet — ADR 0006's isolates arrive at M5, and the value form of
-            //   ADR 0021 § 3 needs the frame-per-file this crate's known gap
-            //   22 is about. `require` as a *statement* lowers to nothing, one
-            //   file over.
+            // * `spawn script` is `E0703`, because nothing below this crate
+            //   compiles it yet — ADR 0006's isolates arrive at M5. Its
+            //   neighbour used to be `require` used for its value; that lowers
+            //   one arm above now, and `E0704` is retired.
             // * `$obj::class` is `E0702`; the statically-named spelling lowers
             //   one arm above.
             //
