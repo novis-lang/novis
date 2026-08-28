@@ -1,0 +1,108 @@
+--TEST--
+`clone` writes the copy's storage through the privileged path, so a `readonly` property survives it, no `PropertyObserver` fires, and an object reached through a cloned array property is still shared — ADR 0023 § 1
+--FILE--
+<?nvs
+// ADR 0023 § 1: `clone` copies declared storage one level deep, by the same
+// privileged path property initialization already uses — never by ordinary
+// property assignment. Three rules fall out of that one sentence, and this
+// case is each of them. The fourth, "no `__clone()` runs", has no program:
+// ADR 0029's camelCase rule refuses the name where it is written (`E0111`),
+// so the hook is unspellable rather than merely never called.
+
+final class Tally {
+    public static int $sets = 0;
+    public static int $gets = 0;
+}
+
+// ADR 0023 § 1: "`readonly` properties are written by the copy the same
+// privileged path an ordinary constructor and `Core\Reflect` already use" —
+// so the copy is not a second write and does not throw.
+// And § 1 again: "`PropertyObserver` does not fire during a clone."
+class Badge implements PropertyObserver {
+    public string $label;
+    public readonly int $serial;
+
+    public function constructor(string $label, int $serial) {
+        $this->label = $label;
+        $this->serial = $serial;
+    }
+
+    public function onPropertyGet(string $name, mixed $value): void {
+        Tally::$gets = Tally::$gets + 1;
+    }
+
+    public function onPropertySet(string $name, mixed $value): void {
+        Tally::$sets = Tally::$sets + 1;
+    }
+}
+
+class Leaf {
+    public int $value;
+
+    public function constructor(int $v) {
+        $this->value = $v;
+    }
+}
+
+// ADR 0023 § 1: an object "reachable through a cloned array/collection
+// property" is shared, not duplicated — the array is copied by ADR 0004's
+// copy-on-write and the handles inside it are copied as handles.
+class Bag {
+    public array<Leaf> $leaves;
+
+    public function constructor(array<Leaf> $leaves) {
+        $this->leaves = $leaves;
+    }
+}
+
+// The constructor's own two writes are ordinary assignments, so the observer
+// sees them: this is the baseline the clone is measured against.
+var $badge = new Badge("first", 7);
+echo "after construction: sets=", Tally::$sets, "\n";
+
+var $copy = clone $badge;
+echo "after clone: sets=", Tally::$sets, "\n";
+
+// The `readonly` slot carries its value and the clone did not throw reaching
+// it. Reading it is an ordinary read, so the observer does see that.
+echo "serial=", $copy->serial, " label=", $copy->label, "\n";
+
+// An ordinary write through the copy still reaches the observer, which is
+// what says the clone's silence was the copy's privileged path rather than a
+// class that stopped being observed.
+$copy->label = "second";
+echo "after a written assignment: sets=", Tally::$sets, "\n";
+echo "original label=", $badge->label, "\n";
+
+var $shared = new Leaf(1);
+array<Leaf> $items = [$shared];
+var $bag = new Bag($items);
+var $bagCopy = clone $bag;
+
+// The two bags hold two arrays — the copy's append is not seen by the
+// original — while element 0 of each is the same `Leaf`.
+$bagCopy->leaves["0"]->value = 9;
+echo "shared leaf=", $shared->value, "\n";
+$bagCopy->leaves[] = new Leaf(2);
+echo "counts=", Core\Arr::count($bag->leaves), ";", Core\Arr::count($bagCopy->leaves), "\n";
+
+// The agreement the case is really about, counted rather than read off a
+// line: the writes that reached the observer are the ones an assignment
+// spelled, and a run of three more clones adds none of its own.
+int $observed = Tally::$sets;
+int $cloned = 0;
+int $i = 0;
+for (; $i < 3; $i = $i + 1) {
+    var $each = clone $badge;
+    $cloned = $cloned + 1;
+}
+echo "clones=", $cloned, " observed writes unchanged=", (Tally::$sets == $observed) as string, "\n";
+--EXPECT--
+after construction: sets=2
+after clone: sets=2
+serial=7 label=first
+after a written assignment: sets=3
+original label=first
+shared leaf=9
+counts=1;2
+clones=3 observed writes unchanged=1
