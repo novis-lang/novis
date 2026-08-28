@@ -552,10 +552,37 @@
 > element 0, and the fixture converts to `array<mixed>` — the one target every tag satisfies — with
 > `converted=3` unchanged, which is what makes that the fixture's own correction rather than a
 > weakening of the check. **The fixture is green end to end and matches Stage 4's `want` exactly.**
-> Three live tools **are** the worklist and no session re-derives one: `python tools/holes.py` reads
-> the refusal sites out of `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item N`
-> for one in full), `python tools/loop.py --list` prints the named `.nvst` cases each stage still
-> owes, and `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> **A call that returns `void` is not an operand of anything**, and that refusal is one step earlier
+> than every other one in the band. ADR 0007 § 4's rows are about the type a value *has*, and a
+> `void` call has no value for a row to be about, so the question of which row applies never arises.
+> `nvs_types::expr::operators::reject_void_operand` refuses it where it is written (`E0718`), ahead
+> of the whole table and ahead of the "type not yet known" pass-through the arithmetic, ordering and
+> bitwise refusals share — `equality_domain` answers `None` for `Ty::Void` exactly as it does for
+> `mixed`, but `mixed`'s answer comes from a runtime tag it *has* and this one has no value to carry
+> one. Every binary operator is covered rather than the two the item named, `==`, `&&` and `??`
+> among them, because it is one rule and the operator it was written under changes nothing about it;
+> the three arithmetic prefixes take the same code through `reject_unary_arith_operand`, unary `+`
+> included, the identity of nothing still being nothing. `.` is the one exception and keeps `E0707`,
+> whose roster already names a `void` call among the four types with no implicit `string` form, so
+> one rule still draws one code. Unrefused, none of these reached a diagnostic *or* an answer:
+> `nvs-ir` lowers a `void` call to no value at all, so `V::nothing() + 1` failed the whole
+> compilation with "nvs-codegen does not lower an operand used before it is defined", naming a
+> compiler bug for what is a mistake in the program.
+> `tests/conformance/lang/a-void-call-is-not-an-operand.nvst` sweeps fifteen spellings in source
+> order with the `.` line among them, so a family that stopped refusing shifts that line rather than
+> answering plausibly. What is **not** closed is the same value in a *condition* — ADR 0035 makes a
+> condition the one place a value is tested without `as`, and `if (V::nothing())` still panics
+> `nvs-ir`'s truthy slice at `lower/convert.rs:567`, which is a hole of its own and is in the
+> handoff's `## Backlog`. The tagged subscript's four rows gain the byte-for-byte case they were
+> owed alongside:
+> `tests/conformance/lang/a-subscript-through-a-mixed-base-is-decided-by-its-tag.nvst` pins the
+> element off a list and off a map, the absent key, the two non-array bases, all of it again under
+> `??`, and the agreement between a declared `array<int>` base and the same value read through a
+> `mixed`. Three live tools **are** the worklist and no session re-derives one: `python
+> tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen` and attributes each to
+> its item (`--item N` for one in full), `python tools/loop.py --list` prints the named `.nvst`
+> cases each stage still owes, and `python tools/check-migration.py` scores
+> `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

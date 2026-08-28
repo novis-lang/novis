@@ -1539,6 +1539,12 @@ is why" — is this file.
   scratch `.agent-tmp/*.nvs`, write the same program as `.php`, and **diff the two** before
   filling in `--EXPECT--` — a conformance case takes no `--ORACLE--`, which is exactly why
   its expectation is the one nothing else checks against PHP.
+- **An array literal's key arrow is `=>`, not the shape literal's `:`.** ADR 0036's
+  anonymous object is `{x: 1}` and it is easy to carry that colon into the array
+  form, where `["a": 1, "b": 2]` is not a near-miss but a parse failure that
+  reports `E0102`/`E0101` three times over one line and hides whatever else the
+  case was actually asserting. `examples/arrays.nvs:12` is the spelling —
+  `["alpha" => 1, "beta" => 2]` — and PHP's own arrow is the one Novis kept.
 
 ## Splitting a file that got too big
 

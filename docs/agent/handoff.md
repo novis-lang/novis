@@ -2,58 +2,58 @@
 
 ## State
 
-**ADR 0036 § 4's deferral now reaches a subscript, and `examples/targets.nvs`
-is green end to end** — every line of Stage 4's `want`, `converted=3` included.
-A `mixed` base's `$box[1]` is answered from the operand's runtime tag by
-`Helper::ValueIndexGet`/`ValueIndexOptionalGet` over one implementation
-(`nvs_runtime::helpers::value_index`); every base whose declared type already
-answers, and every `mixed` *write* target, keeps `E0482`. ADR 0007 § 5's body
-carries the rule; the plan's `Open now` carries the reasoning.
+**ADR 0007 § 4's operand end is closed for a value that is not one.** A call
+returning `void` used under any operator is `E0718` where it is written
+(`nvs_types::expr::operators::reject_void_operand`, whose doc comment is the
+rule's home), the three arithmetic prefixes included; `.` alone keeps `E0707`,
+whose own roster already names a `void` call. The plan's `Open now` carries the
+reasoning and the two `.nvst` cases that pin it.
 
-- **`examples/targets.nvs:53` was wrong, not unimplemented.** `array<int> as
-  array<string>` is ADR 0007 § 2's per-element *check* and throws at element 0,
-  so the fixture converts to `array<mixed>` and says why in a comment.
-  `loop-goal.toml`'s Stage 4 comment records the same correction.
-- **A `catch` binding has no callable members** —
-  `$e->getMessage()` panics `nvs-ir` at `lower/expr.rs:2281` for `Throwable`
-  *and* for a named class. New, unrelated to this item, and in `## Backlog`.
+- **The same value in a *condition* is still a panic**, and it is a hole of its
+  own rather than part of this one: `if (V::nothing())` reaches
+  `crates/nvs-ir/src/lower/convert.rs:567` with *"got Void"*. ADR 0035 makes a
+  condition the one place a value is tested without `as`, and "a value" is what
+  is missing — `nvs-types` has no single site that checks a condition's type, so
+  closing it means adding one.
+- **A `catch` binding still has no callable members** — `$e->getMessage()` panics
+  `nvs-ir` at `lower/expr.rs:2281`. Unchanged, and it is why both refusal cases
+  print a marker from the `catch` arm rather than the message.
 - **`orient.py`'s pack was complete for this item.** The two standing manifest
   gaps are unchanged — `[context] modules` has no `nvs-runtime` and no
-  `nvs-diagnostics` entry, and both were files this slice edited.
+  `nvs-diagnostics` entry, and `crates/nvs-diagnostics/src/lib.rs` was again a
+  file this session edited.
 
 ## Next group
 
-**The two remaining group items, over the operator files this session did not
-open plus the one it did.** The files: `crates/nvs-types/src/expr/operators.rs`,
-`crates/nvs-ir/src/lower/expr.rs` and `crates/nvs-codegen/src/emit.rs`.
+**The roster-agreement case and the condition hole, over the two backend files
+this session did not open plus the lowering one.** The files:
+`crates/nvs-codegen/src/emit.rs`, `crates/nvs-ir/src/lower/expr.rs` and
+`crates/nvs-ir/src/lower/convert.rs`.
 
-- [ ] **A `void` call as an operator's operand** — ADR 0007 § 4's table has no
-      row for a value that is not one, and `E0707` already refuses a `void`
-      call at an implicit `.`; the arithmetic and ordering rejections
-      (`reject_unordered_operand`, `reject_arith_operand` in
-      `crates/nvs-types/src/expr/operators.rs`) should name it the same way
-      rather than letting it reach a representation the backend has no row for.
 - [ ] **A `.nvst` case for the five roster comments' testable claims** — the
       catch-all rosters in `crates/nvs-codegen/src/emit.rs` (`emit_binop`,
-      `emit_unop`) and `crates/nvs-ir/src/lower/expr.rs:@lower_expr` each claim
-      a closed list; the *Agreement* shape in `docs/agent/conventions.md` is the
-      one that asserts they agree rather than what each answered.
-- [ ] **A `.nvst` case for the tagged subscript** — this session's item is
-      pinned by `a_subscript_through_a_tagged_base_lowers`
-      (`crates/nvs-ir/src/lower/tests.rs`) and by the fixture, but nothing
-      pins the *output* of the four rows (element, absent key, non-array base,
-      both under `??`) byte for byte. `tests/conformance/lang/` is the home.
+      `emit_unop`) and `crates/nvs-ir/src/lower/expr.rs:@lower_expr` each claim a
+      closed list; the *Agreement* shape in `docs/agent/conventions.md` is the one
+      that asserts they agree rather than what each answered.
+- [ ] **A `void` call in a condition** — `crates/nvs-ir/src/lower/convert.rs:567`
+      panics with *"got Void"* for `if (V::nothing())`, `while`, `?:`, `&&`, `||`
+      and `!` alike. ADR 0035 § 1 is the section; the refusal belongs beside the
+      operator one, reusing `code::E_VOID_IS_NOT_AN_OPERAND`
+      (`crates/nvs-types/src/expr/operators.rs:@report_void_operand`) or taking
+      `E0719` if the wording has to differ, and `nvs-types` needs the condition
+      site it does not yet have — `crates/nvs-types/src/expr/mod.rs:318` is where
+      the truthy path is joined today.
+- [ ] **The two panics the first item's roster turns up**, if it turns any up —
+      a roster that cannot be asserted is a claim, and the case is what finds out
+      which of the five are which.
 
 ## Backlog
 
-- A `catch` binding's methods do not lower — `$e->getMessage()` panics
-  `nvs-ir` at `crates/nvs-ir/src/lower/expr.rs:2281`. ADR 0002 owns what a
-  `Throwable` exposes; the synthesized class has none of it.
-- An element **write** through a `mixed` base is still `E0482` — the deferral's
-  other half, and it needs a holder to write the separated buffer back
-  through. ADR 0007 § 5's new paragraph says so.
-- `[context] modules` in `docs/agent/loop-goal.toml` names neither
-  `nvs-runtime` nor `nvs-diagnostics`, both of which this goal edits routinely.
-- `docs/spec/02-php-migration.md`'s score, via `python tools/check-migration.py`.
-- Virtual dispatch by slot and a `br_table` for a dense `switch` are M12
-  (`docs/agent/loop-goal.md` § *Standing decisions*).
+- A `catch` binding's members — `$e->getMessage()` panics `nvs-ir` at
+  `lower/expr.rs:2281`, for `Throwable` and for a named class alike.
+- `array<T> as array<U>` where `U` is a class, an enum, a literal or a union is
+  `E0711`; `docs/agent/loop-goal.md` § *Standing decisions* owns why.
+- `[context] modules` in `docs/agent/loop-goal.toml` has no `nvs-runtime` and no
+  `nvs-diagnostics` pattern, and sessions keep editing both.
+- `python tools/holes.py` is the worklist for what `nvs-ir`/`nvs-codegen` still
+  refuse below the front end; `--item N` prints one in full.
