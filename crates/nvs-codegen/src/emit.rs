@@ -4,7 +4,10 @@
 //! time an [`nvs_ir::ir::Function`] reaches here, `nvs_types::check_program`
 //! has proven it well-typed and `nvs_ir::lower` has settled every operand's
 //! representation. Nothing is re-checked; a shape this slice cannot lower is a
-//! [`CodegenError::Unsupported`] naming it, never a diagnostic.
+//! [`CodegenError::Unsupported`] naming it, never a diagnostic — and a shape
+//! no lowering can *construct* is a [`CodegenError::Internal`] instead, so
+//! that `tools/holes.py`'s inventory of what the language still refuses holds
+//! only entries a session could close. [`internal`] is the one spelling.
 //!
 //! # Blocks and phis
 //!
@@ -275,8 +278,15 @@ fn is_landing(block: &BasicBlock) -> bool {
     )
 }
 
+/// An engine invariant this walk found broken, worded for whoever broke it.
+///
+/// [`CodegenError::Internal`] and never [`CodegenError::Unsupported`]: what
+/// this reports is input no lowering builds, so it names no shape the language
+/// refuses and belongs on no worklist. `docs/agent/loop-goal.md`
+/// § *Standing decisions* owns the rule; `crates/nvs-ir/tests/refusals.rs` is
+/// the gate that reads the other constructor as the inventory.
 pub(crate) fn internal(what: &str) -> CodegenError {
-    CodegenError::Unsupported(format!("{what} (this is a bug in nvs-ir or nvs-codegen)"))
+    CodegenError::Internal(format!("{what} (this is a bug in nvs-ir or nvs-codegen)"))
 }
 
 /// The blocks of `f` that codegen touches at all, in the order it walks them:
@@ -664,9 +674,11 @@ impl Emitter<'_, '_> {
                 // promise. All three therefore share a machine type by
                 // construction, so an arrival here is a `nvs-ir` site emitting
                 // a relabelling between two representations that are not one —
-                // a bug in that site, never a shape the language admits.
+                // a bug in that site, never a shape the language admits, which
+                // is why it is an `internal` rather than an `Unsupported`. See
+                // this module's docs.
                 if crate::ty::clif_ty(from) != crate::ty::clif_ty(to) {
-                    return Err(CodegenError::Unsupported(format!(
+                    return Err(internal(&format!(
                         "`reinterpret` between {from:?} and {to:?}, which do not share a machine                          type — it is a relabelling, never a bit cast"
                     )));
                 }
@@ -705,9 +717,11 @@ impl Emitter<'_, '_> {
                     // (`E0708` under `as`, `E0707` at an implicit string
                     // site). So this is an internal-consistency check on
                     // `coerce`'s own table, and its `Untag` twin below is the
-                    // same check in the other direction.
+                    // same check in the other direction. Both are `internal`
+                    // rather than an `Unsupported` for this module's docs'
+                    // reason: no program reaches either.
                     Ty::Void | Ty::Tagged => {
-                        return Err(CodegenError::Unsupported(format!(
+                        return Err(internal(&format!(
                             "widening a value of representation {from:?} into a tagged one"
                         )));
                     }
@@ -746,7 +760,7 @@ impl Emitter<'_, '_> {
                     // `void` but a return type, and `Lowering::coerce` reaches
                     // this instruction from a declared type alone.
                     Ty::Void => {
-                        return Err(CodegenError::Unsupported(format!(
+                        return Err(internal(&format!(
                             "narrowing a tagged value to representation {to:?}"
                         )));
                     }
@@ -1200,9 +1214,9 @@ impl Emitter<'_, '_> {
             // and arithmetic over an operand ADR 0007 § 4 tabulates no row
             // for, which used to arrive here as a `Sub` over a `Str` or a
             // `Div` over an `Array`, is `E0716` where it is written now.
-            return Err(CodegenError::Unsupported(format!(
-                "a `{op:?}` over representation {ty:?}"
-            )));
+            // An empty roster is what makes this an `internal` rather than an
+            // `Unsupported`: see this module's docs.
+            return Err(internal(&format!("a `{op:?}` over representation {ty:?}")));
         }
 
         // The one operator whose flow is not straight-line — it owns its own
@@ -1344,9 +1358,7 @@ impl Emitter<'_, '_> {
             // the eleven-member `Helper::ValueAdd` one, both chosen a crate up
             // from a representation this function would have to guess.
             other => {
-                return Err(CodegenError::Unsupported(format!(
-                    "the binary operator {other:?}"
-                )));
+                return Err(internal(&format!("the binary operator {other:?}")));
             }
         };
         Ok((value, cur))
@@ -1900,7 +1912,7 @@ impl Emitter<'_, '_> {
             // written instead — `E0718` covers the three unary prefixes, unary
             // `+` among them, by the same rule and the same code.
             (op, ty) => {
-                return Err(CodegenError::Unsupported(format!(
+                return Err(internal(&format!(
                     "the unary operator {op:?} over representation {ty:?}"
                 )));
             }
@@ -2891,18 +2903,22 @@ impl Emitter<'_, '_> {
             (Ty::Object, false) => "nvs_object_release",
             (Ty::Array, true) => "nvs_array_retain",
             (Ty::Array, false) => "nvs_array_release",
-            // An internal-consistency check on `nvs-ir`, not on the language:
+            // An internal-consistency check on `nvs-ir`, not on the language,
+            // which is why it is an `Internal` rather than an `Unsupported`:
             // the rows above are exactly `nvs_ir::ty::Ty::is_refcounted`'s five
             // with `Ty::Tagged` taken out of line by the branch above, and
             // every other representation is a scalar with no reference to
-            // count. So an arrival here is a site in `nvs-ir` that emitted an
-            // `InstKind::Retain`/`Release` without asking that predicate first
+            // count. `InstKind::Retain`/`Release` is the only producer of an
+            // arrival here and `nvs-ir` emits one only behind that predicate,
+            // so no program reaches this arm and no item on `tools/holes.py`'s
+            // worklist could close it. An arrival is a site in `nvs-ir` that
+            // emitted a refcount operation without asking the predicate first
             // — which is the trap `docs/agent/playbook.md` records under a
             // *widened* operand, where a decision phrased as the negation of
             // "this is a string" survives the widening and starts releasing
             // plain integers.
             (other, _) => {
-                return Err(CodegenError::Unsupported(format!(
+                return Err(internal(&format!(
                     "a refcount operation on representation {other:?}"
                 )));
             }
@@ -3061,18 +3077,21 @@ impl Emitter<'_, '_> {
             // No reachable target: `nvs_ir::ir::Terminator` is seven variants
             // and the arms above are all seven — `Return` in both its shapes,
             // `Jump`, `Branch`, `Switch`, `Throw`, and the two a landing block
-            // ends in, `Propagate` and `Catch`. The arm exists because that
-            // enum is `#[non_exhaustive]` and this is a downstream crate, so
-            // the compiler asks for it whether or not a variant is missing;
-            // that is also what makes it worth a comment rather than a
-            // `matches!` the reader can count for themselves. A variant added
-            // to `nvs-ir` therefore surfaces here as this refusal rather than
-            // as a build failure — which is the one thing the roster above
-            // cannot enforce.
+            // ends in, `Propagate` and `Catch`. `crate::lower` is that enum's
+            // only producer and every block it builds ends in one of the
+            // seven, so no program reaches here and this is an `Internal`
+            // rather than an `Unsupported`: it names no shape the language
+            // refuses, and an item on `tools/holes.py`'s worklist could never
+            // close it. The arm exists because that enum is `#[non_exhaustive]`
+            // and this is a downstream crate, so the compiler asks for it
+            // whether or not a variant is missing; that is also what makes it
+            // worth a comment rather than a `matches!` the reader can count
+            // for themselves. A variant added to `nvs-ir` therefore surfaces
+            // here at run time rather than as a build failure — which is the
+            // one thing the roster above cannot enforce, and the reason the
+            // arm stays.
             other => {
-                return Err(CodegenError::Unsupported(format!(
-                    "the terminator {other:?}"
-                )));
+                return Err(internal(&format!("the terminator {other:?}")));
             }
         }
         let _ = cur;
@@ -3445,18 +3464,19 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::DecimalToUint => "nvs_decimal_to_uint",
         Helper::DecimalToFloat => "nvs_decimal_to_float",
         Helper::DecimalToString => "nvs_decimal_to_string",
-        // No reachable target, and for `Self::emit_terminator`'s catch-all's
+        // No reachable target, and for `Emitter::emit_terminator`'s catch-all's
         // reason exactly: every one of `nvs_ir::ir::Helper`'s variants has a
-        // row above, and this arm is here only because that enum is
-        // `#[non_exhaustive]` and this is a downstream crate. The table is the
-        // whole of the compiler's side of the runtime ABI — a helper added in
+        // row above, `crate::lower` is the enum's only producer, and this arm
+        // is here only because that enum is `#[non_exhaustive]` and this is a
+        // downstream crate. So it is an `Internal` for the same reason that
+        // one is — nothing a program can write arrives here, so nothing on
+        // `tools/holes.py`'s worklist could close it. The table is the whole
+        // of the compiler's side of the runtime ABI — a helper added in
         // `nvs-ir` and given no symbol here is a linking question answered at
-        // compile time by this refusal, which is why the arm is worth keeping
-        // even though nothing can reach it today.
+        // compile time by this arm, which is why it is worth keeping even
+        // though nothing can reach it today.
         other => {
-            return Err(CodegenError::Unsupported(format!(
-                "the runtime helper {other:?}"
-            )));
+            return Err(internal(&format!("the runtime helper {other:?}")));
         }
     })
 }

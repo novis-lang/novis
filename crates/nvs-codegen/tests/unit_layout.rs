@@ -44,8 +44,9 @@ fn disassembling_names_each_frame_and_shows_the_code_that_would_have_run() {
 // the front end accepted and this backend did not. `E0717` refuses that pair
 // where it is written now, so the fixture no longer type-checks and the
 // property they guarded has no source-reachable instance left in this area:
-// every `CodegenError::Unsupported` in `emit_binop` is an internal-consistency
-// check whose roster comment names what subtracts to nothing. Hand-building an
+// every refusal left in `emit_binop` is an internal-consistency check whose
+// roster comment names what subtracts to nothing, which is why each is a
+// `CodegenError::Internal` now rather than an `Unsupported`. Hand-building an
 // IR to keep them would contradict this file's whole reason for going through
 // the real pipeline (see the module doc above), so the guard moved rather than
 // being rebuilt: `nvs_types`' `a_float_modulo_is_a_compile_error` and
