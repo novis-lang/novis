@@ -5,48 +5,53 @@
 **M4's Stage 8, plus the acceptance gate's own open item.** The tree is at **866 conformance plus
 189 differential**, all green. Nothing is blocked.
 
-The guard-name debt is **17 unresolved of 135 named guard tests**, down from 39 of 149. Stages 5 and
-6 were carried through the same three-way triage over one file set — `docs/agent/guard-name-debt.md`
-and `docs/agent/loop-goal.toml` — resolving 22 of the 26 they held between them. Stage 5's two whole
-`[[check]]` blocks (`nvs-types (the declared features)`, `nvs-ir (the declared features)`) are
-**gone**: every one of their ten names was cause 2, so the ten `.nvst` cases that own them are named
-in the `nvs-suite` `cases` list instead. Ten cases were added to that list across the two stages, each
-run green first.
+The guard-name debt is **14 unresolved of the 132 named test entries** `loop-goal.toml` holds, down
+from 17-as-recorded (really 18 — see below). Stage 7 is **finished**: all three names in
+`nvs-stdlib (the assertion roster)` were cause 2, so that whole `[[check]]` block is **gone** and
+four `.nvst` cases joined the `nvs-suite` `cases` list instead (each run green first) — § 5's ledger,
+§ 5's catchable `Core\Test\Failure`, and the two machine halves of § 22's three renderings beside the
+human one already listed. ADR 0079's surface is landed, not owed; the toml comment claiming
+otherwise is corrected and the new playbook bullet is why.
 
-What is left in the two stages is cause 3 and honest, four lines with a reason each:
-`a_fatal_releases_the_frames_locals` (nothing asserts what a `FATAL` does to a frame's locals, and
-valgrind skips `examples/fatal.nvs` by design), `a_non_void_function_must_return_on_every_path` (the
-accepting half is two cases now in the list; no diagnostic anywhere names a body that falls off its
-end), `an_implicit_constructor_is_held_to_zero_arguments`, and the two nvs-syntax parse shapes
-(`use A\{B, C};` and a keyword-named enum case). The debt file records the cause per line.
+Stage 4's undecided line is **decided and written**: `the_object_top_type_erases_to_the_pointer_a_
+class_does` was cause 3, and is now a Rust test of that exact name at
+`crates/nvs-ir/src/lower/tests.rs:1369` — an agreement over the three spellings `erase_checked_ty`
+answers `Ty::Object` for, asserted on `Function::params` rather than in a snapshot.
 
-The debt file's own header sentence is the running count and is the thing to keep true.
+Both of the debt file's counts are now **derived off the tree** by the pass its header describes,
+which is what caught the old **17** being one short of the eighteen lines then unticked.
 
 ## Next group
 
-**Stage 7's remaining names, then the two Stage 4 lines still undecided.** Same shared file set,
-unchanged for a third session: `docs/agent/guard-name-debt.md` and `docs/agent/loop-goal.toml`, with
-`grep -rhoE "fn [a-z_]+" crates/<crate>/src crates/<crate>/tests` and
-`ls tests/conformance/*/ | grep -iE "<topic>"` as the two probes (the new playbook bullet is the
-shape), and `python tools/loop.py --list` as the toml's parse check.
+**The five `nvs-types (targets and refusals)` lines** — the last block where the triage is cheap and
+the fix may already be on disk. Shared file set: `crates/nvs-types/src/expr/assign.rs`,
+`crates/nvs-types/src/defaults.rs` + `consts.rs`, `crates/nvs-types/src/expr/operators.rs`, plus
+`docs/agent/guard-name-debt.md` and `docs/agent/loop-goal.toml` for the reconciliation, and
+`crates/nvs-diagnostics/src/lib.rs` only if a name turns out to owe a new code (next free `E0739`).
 
-- [ ] **Stage 7's names**, at `docs/agent/guard-name-debt.md:220` onward — the testing surface
-      (ADR 0079). Expect cause 3 to dominate: `loop-goal.toml`'s own comment on
-      `a-test-attribute-builds-a-table-the-runner-reports.nvst` says none of that surface exists yet,
-      so a name there is owed rather than misnamed and should stay unticked with the reason.
-- [ ] **The one Stage 4 line still undecided**, `the_object_top_type_erases_to_the_pointer_a_class_
-      does` — ADR 0036 § 4's erasure. Check `crates/nvs-ir/src/lower/expr.rs` for an
-      `ExprInfo::ShapeProperty` test and `tests/conformance/lang/a-shape-read-through-a-widened-view-
-      is-name-keyed.nvst` before reaching for a rename.
-- [ ] **Re-derive the header count once the stages are done**, by parsing `loop-goal.toml` and
-      summing `len(c["tests"])` — 135 today. The header sentence is the only running total and
-      a stage that moves entries between `tests` and `cases` moves the denominator.
+- [ ] **`a_nullsafe_assignment_target_is_a_compile_error`** — the refusal is **already landed** at
+      `crates/nvs-types/src/expr/assign.rs:493`, with its rationale in the doc comment at
+      `assign.rs:433`. So this is cause 1 or 2, not the new-diagnostic slice the standing decisions
+      pre-authorize: find the test naming it (`grep -rhoE "fn [a-z_]+" crates/nvs-types/tests`) or
+      the `.nvst` case, and move or rename it.
+- [ ] **`an_element_write_through_a_hooked_property_is_a_compile_error`** — same file
+      (`assign.rs`), same standing decision (loop-goal.md, "indirect modification of overloaded
+      property"); check whether the refusal exists beside the nullsafe one before writing anything.
+- [ ] **The ADR 0066 pair** — `a_nullable_conversion_that_cannot_fail_is_a_compile_error` and
+      `..._that_does_not_exist_is_a_compile_error`, both § 3's target rule, whose implementation is
+      `crates/nvs-types/src/expr/operators.rs:1186` and its neighbours at `:98`/`:108`.
+- [ ] **`a_property_default_accepts_every_compile_time_constant`** — `defaults.rs` folds a default
+      to a `ConstArg` at signature collection; `consts.rs:257` (`fold_const`) is what decides what a
+      compile-time constant *is*, so the guard is an agreement between those two.
 
 ## Backlog
 
-- A body that falls off its end has no diagnostic — `nvs-diagnostics` next free in the `E07xx` band
-  is `E0739` (`docs/agent/loop-goal.toml`, item 38).
-- `array<T> as array<U>` still panics `nvs-ir` at `lower/expr.rs:877`; three guard names wait on it.
-- `Class::method(...)` first-class callable panics `nvs-ir` — `nvs-ir` gap 1, playbook § Writing a
-  test case.
-- Grouped `use A\{B, C};` parses no path in `parser/decl.rs:240` — ADR 0021's neighbourhood.
+- `an_inline_producer_releases_its_value_on_the_throw_path` and
+  `a_transferred_argument_is_released_when_a_later_one_throws` — cause 3, real refcount work;
+  `nvs_ir::lower::Lowering`'s owned-temporaries field doc owns what is left.
+- `an_array_conversion_walks_its_elements` — blocked on `array<T> as array<U>`, which panics
+  `nvs-ir` at `crates/nvs-ir/src/lower/expr.rs:877`. Several playbook bullets wait on this row.
+- The four cause-3 lines in Stages 5/6 and the two nvs-syntax parse shapes — each is a test owed,
+  reasons per line in `docs/agent/guard-name-debt.md`.
+- `every_refusal_is_a_diagnostic_or_decided` — Stage 8's load-bearing guard, red on its merits while
+  `python tools/holes.py` still reads standing refusal sites.

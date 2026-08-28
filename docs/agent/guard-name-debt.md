@@ -17,10 +17,18 @@ for p in nvs-syntax nvs-hir nvs-types nvs-ir nvs-runtime nvs-codegen nvs-stdlib 
 ```
 
 then substring-match every `tests = [...]` entry in `loop-goal.toml` against that roster. Measured
-2026-08-28 at `e0c9f3e`: **54 of 156 named guard tests match nothing cargo would run.** Thirty-seven
-of those have since been reconciled — the ticked lines below — leaving **17**, over 135 named tests:
-twenty-two of the thirty-seven were a cause-2 *move* out of a `tests = [...]` list and into `cases`,
-so the denominator moves too, and Stage 5's two whole `[[check]]` blocks went that way together.
+2026-08-28 at `e0c9f3e`: **54 of 156 named guard tests match nothing cargo would run.** **Forty**
+of those have since been reconciled — the ticked lines below — leaving **14**, over the **132**
+entries `tests = [...]` now holds across every `cargo-named` check (131 distinct: Stage 2 and Stage 5
+both name `a_disjoint_equality_does_not_compile`). Twenty-five of the forty were a cause-2
+*move* out of a `tests = [...]` list and into `cases`, so the denominator moves with them, and three
+whole `[[check]]` blocks went that way entire — Stage 5's two and Stage 7's `nvs-stdlib (the
+assertion roster)`.
+
+Both numbers are derived off the tree, not carried forward: the denominator by parsing
+`loop-goal.toml`, the numerator by counting the `- [ ]` lines below and confirming each one is still
+a name some `tests = [...]` holds. That pass is what corrected a previous **17**, which was one short
+of the eighteen lines then actually unticked.
 
 ## Why a name goes stale
 
@@ -42,10 +50,12 @@ Three causes, and they want different fixes. Do not assume the first one.
    `an_abandoned_generator_resumes_to_unwind` is
    `an_abandoned_generator_resumes_into_the_finally_it_is_suspended_inside`.
    **Fix: rewrite the name in `loop-goal.toml`.** Nothing else.
-2. **The check names a Rust test for work that got pinned in a `.nvst` case instead.** `nvs-stdlib
-   (the assertion roster)` is the clear one: `crates/nvs-stdlib/tests/` holds no assertion test file
-   at all, because ADR 0079 § 4's roster was pinned by conformance cases. **Fix: decide which tree
-   owns the check, and move it** — a `kind = "nvs-suite"` entry, or a Rust test written to match.
+2. **The check names a Rust test for work that got pinned in a `.nvst` case instead.** The commonest
+   *fix*, and `nvs-stdlib (the assertion roster)` was its cleanest case: `crates/nvs-stdlib/tests/`
+   holds no assertion test file at all because ADR 0079 §§ 4-5 and 22 are pinned by conformance
+   cases, so all three names moved and the block itself went. **Fix: decide which tree owns the
+   check, and move it** — a `kind = "nvs-suite"` entry, or a Rust test written to match. A block
+   whose every name moves is deleted rather than left empty.
 3. **The test is genuinely unwritten.** `every_refusal_is_a_diagnostic_or_decided` is the load-bearing
    one: it is Stage 8's "no refusal left" guard and `python tools/holes.py` still reads 17 standing
    refusal sites, so the check is red on its merits. **Fix: write it.**
@@ -86,7 +96,7 @@ slice**. That is the only thing that keeps this file from growing back.
 
 ### Stage 4 — targets and mixed
 
-`nvs-ir (targets and tags)`, `cargo test -p nvs-ir` — 2 of 8 unresolved
+`nvs-ir (targets and tags)`, `cargo test -p nvs-ir` — 1 of 8 unresolved
 
 - [x] `a_static_property_is_an_assignment_target` — cause 2, now owned by
       `tests/conformance/class/a-static-property-is-written-and-read-through-its-class.nvst`,
@@ -101,10 +111,14 @@ slice**. That is the only thing that keeps this file from growing back.
 - [x] `a_tagged_operand_answers_the_truthy_table` — cause 1, now
       `a_mixed_condition_dispatches_the_truthy_table_on_the_tag`
       (`crates/nvs-ir/src/lower/tests.rs:675`)
-- [ ] `the_object_top_type_erases_to_the_pointer_a_class_does` — cause 1 or 3, undecided: the
-      representation is settled (loop-goal.md § *Standing decisions*) and the nearest landed tests
-      are `a_property_access_through_a_plain_object_receiver_reads_by_name` and its write twin,
-      neither of which asserts the erasure itself. Read those two before renaming
+- [x] `the_object_top_type_erases_to_the_pointer_a_class_does` — **cause 3, and now written** under
+      that exact name at
+      [lower/tests.rs:1369](../../crates/nvs-ir/src/lower/tests.rs#L1369). Reading the two nearest
+      landed tests settled it: `a_property_access_through_a_plain_object_receiver_reads_by_name` and
+      its write twin pin how an erased access *reads*, neither asserts the erasure, so this was not
+      a rename. It is an agreement over the three spellings `erase_checked_ty` answers `Ty::Object`
+      for — a named class, plain `object`, a shape — asserted on `Function::params` rather than in a
+      snapshot, since a snapshot of one receiver cannot see the other two drift
 - [ ] `an_array_conversion_walks_its_elements` — cause 3, genuinely open: `array<T> as array<U>`
       panics `nvs-ir` at `crates/nvs-ir/src/lower/expr.rs:877`, so there is nothing to guard yet
 - [x] `a_tagged_operand_converts_to_bytes` — cause 2, now owned by
@@ -229,11 +243,26 @@ checks are gone rather than renamed.
 - [x] `a_test_with_attribute_expands_to_one_case_per_row` — cause 1, now
       `each_test_with_is_a_row_folded_in_parameter_order` (`crates/nvs-types/tests/testing.rs`)
 
-`nvs-stdlib (the assertion roster)`, `cargo test -p nvs-stdlib` — 3 of 3 unresolved, **cause 2**
+`nvs-stdlib (the assertion roster)` — **the whole `[[check]]` block is gone**, all three names being
+cause 2. ADR 0079's surface is landed, not owed: `#[Test]`, `#[Fixture]` and `#[TestWith]` are on
+`nvs_types::derive::ATTRIBUTES` (`crates/nvs-types/src/derive.rs:77`), `Core\Test` is
+`crate::test::CLASS` in `nvs_stdlib::registry`, and `crates/nvs-stdlib/src/test.rs` is the assertion
+surface — so what was missing was never the work, only a Rust test naming it, and the four cases
+below (plus `a-test-attribute-builds-a-table-the-runner-reports.nvst`, already listed) are in the
+`nvs-suite` `cases` list instead. Each was run green before it was added.
 
-- [ ] `every_core_test_assertion_reports_through_the_one_ledger`
-- [ ] `a_failed_assertion_is_catchable`
-- [ ] `the_three_reporters_render_the_same_ledger`
+- [x] `every_core_test_assertion_reports_through_the_one_ledger` — cause 2, now
+      `core/test-three-assertions-agree-on-what-reaches-the-ledger.nvst`, which asserts § 5's ledger
+      records a failure whether or not its throw is caught
+- [x] `a_failed_assertion_is_catchable` — cause 2, now
+      `core/a-failed-assertion-is-caught-by-name.nvst`: `Core\Test\Failure` is an ordinary
+      `Throwable` a program catches, constructs and re-raises (§ 5)
+- [x] `the_three_reporters_render_the_same_ledger` — cause 2, and it is three cases rather than one,
+      § 22's three renderings each running the same suite:
+      `lang/a-test-attribute-builds-a-table-the-runner-reports.nvst` is the human default,
+      `lang/a-test-run-reports-a-versioned-json-document.nvst` and
+      `lang/a-test-run-reports-the-junit-xml-ci-ingests.nvst` the two machine twins, the latter
+      pinned as carrying "the same verdicts the JSON twin carries"
 
 ### Stage 8 — corpus and guards
 

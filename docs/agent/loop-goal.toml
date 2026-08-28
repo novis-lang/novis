@@ -875,17 +875,6 @@ tests = [
   "each_test_with_is_a_row_folded_in_parameter_order",
 ]
 
-[[check]]
-kind = "cargo-named"
-stage = "7 testing"
-name = "nvs-stdlib (the assertion roster)"
-args = ["test", "-p", "nvs-stdlib"]
-tests = [
-  "every_core_test_assertion_reports_through_the_one_ledger",
-  "a_failed_assertion_is_catchable",
-  "the_three_reporters_render_the_same_ledger",
-]
-
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 8 -- the corpus and the guards. `nvs test <dir>` must exit 0 AND print an "N passed, M failed"
@@ -958,11 +947,16 @@ cases = [
   # ADR 0007 § 3: a key is a `string` and nothing else, and a `&` binding agrees on the element type.
   "tests/conformance/lang/a-foreach-key-binding-is-a-string-and-nothing-else.nvst",
   "tests/conformance/array/a-by-reference-binding-needs-a-variable-and-the-element-type.nvst",
-  # Stage 7. This is the one named case that is owed rather than misnamed: none of ADR 0079's surface
-  # exists yet -- `#[Test]` is not on `nvs_types::derive::ATTRIBUTES`, `Core\Test` has no row in
-  # `nvs_stdlib::registry`, and there is no table for a case to read back. It is written by item 43
-  # (§ 24's "M4/M4S tail" row: §§ 1, 4-6, 8-9 and the single-process runner), not before it.
+  # Stage 7. ADR 0079's surface landed -- `#[Test]`, `#[Fixture]` and `#[TestWith]` are on
+  # `nvs_types::derive::ATTRIBUTES`, `Core\Test` is `crate::test::CLASS` in `nvs_stdlib::registry`,
+  # and the runner reads the table back -- so these five are the cases that own what the deleted
+  # `nvs-stdlib (the assertion roster)` check named in Rust: § 5's ledger, § 5's catchable failure,
+  # and § 22's three renderings (human by default, then the two machine twins).
   "tests/conformance/lang/a-test-attribute-builds-a-table-the-runner-reports.nvst",
+  "tests/conformance/core/test-three-assertions-agree-on-what-reaches-the-ledger.nvst",
+  "tests/conformance/core/a-failed-assertion-is-caught-by-name.nvst",
+  "tests/conformance/lang/a-test-run-reports-a-versioned-json-document.nvst",
+  "tests/conformance/lang/a-test-run-reports-the-junit-xml-ci-ingests.nvst",
   # Stage 0a -- ADR 0107. The 14 cases that spelled `&$` moved to `inout` with their expected output
   # unchanged, which is the check that ADR 0107 changed no semantics; this one pins the new shapes.
   "tests/conformance/lang/a-by-reference-argument-is-written-inout-at-both-ends.nvst",

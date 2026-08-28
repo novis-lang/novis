@@ -681,6 +681,16 @@ is why" — is this file.
   test), and a case whose file name shares the topic still has to be read — Stage 5's ambiguous
   attribute retrieval is `E0728` inside `an-attribute-retrieval-is-refused-where-it-cannot-be-folded`,
   which its name does not say.
+- **A `loop-goal.toml` comment can be stale about the *tree*, not just about an ADR — check the
+  crate before believing "none of that surface exists yet."** The Stage 7 comment on
+  `a-test-attribute-builds-a-table-the-runner-reports.nvst` said `#[Test]` was not on
+  `nvs_types::derive::ATTRIBUTES`, `Core\Test` had no row in `nvs_stdlib::registry` and there was no
+  table to read back; all three had been false for some time — `derive.rs:77` lists `TEST`,
+  `FIXTURE` and `TEST_WITH`, `crate::test::CLASS` is in the registry's `CLASSES`, and nineteen
+  `.nvst` cases already exercise the assertion surface and all three of § 22's renderings. The
+  handoff had copied the comment forward, so the item arrived predicting cause 3 where every name
+  was cause 2. One `grep -rn` per claim the comment makes is the whole check, and it costs less than
+  writing the wrong triage down.
 
 ## Running things
 
