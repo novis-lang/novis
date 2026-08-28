@@ -1,0 +1,81 @@
+--TEST--
+a `#[Test]` method that is `static`, that is not `public` or that returns anything but `void` is refused where it is declared, and two sharing one name with it — ADR 0079 § 1
+--FILE--
+<?nvs
+// ADR 0079 § 1: these are compile errors, not skipped tests. Three of the
+// five are about the declaration rather than the payload — a `#[Test]`
+// that is `static`, that is not `public`, or that returns anything but
+// `void` — and they share one code because they are one question: the
+// runner constructs the class and calls the member with no arguments and
+// no result. The fourth, two `#[Test]` methods sharing one name, is the
+// `E0304` an option written twice already draws.
+use Core\Test;
+
+// The accepted half first, so a position that stops being accepted fails
+// here rather than as a missing refusal. The two plain helpers beside it
+// are the other half of that: a `static` and a `private` method with no
+// `#[Test]` on it is nothing this pass has an opinion about.
+class Accepted {
+    #[Test]
+    public function aTestIsAPublicVoidInstanceMethod(): void {}
+
+    public static function aPlainStaticHelper(): int { return 1; }
+
+    private function aPlainPrivateHelper(): string { return "x"; }
+}
+
+class Refused {
+    #[Test]
+    public static function aTestIsNotStatic(): void {}
+
+    #[Test]
+    private function aTestIsPublic(): void {}
+
+    #[Test]
+    protected function protectedIsNotPublicEither(): void {}
+
+    #[Test]
+    public function aTestReturnsVoid(): int { return 1; }
+
+    // One declaration, three refusals: the family is one question asked of
+    // three parts of a signature, so each part answers for itself.
+    #[Test]
+    private static function everyShapeAtOnce(): string { return "x"; }
+
+    // A test is reported by its own name, so two cannot share one.
+    #[Test]
+    public function twiceOver(): void {}
+
+    #[Test]
+    public function twiceOver(): void {}
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0733]: the `#[Test]` method `aTestIsNotStatic` is `static`
+   --> case.nvs:26:28
+%A
+error[E0733]: the `#[Test]` method `aTestIsPublic` is not `public`
+   --> case.nvs:29:22
+%A
+error[E0733]: the `#[Test]` method `protectedIsNotPublicEither` is not `public`
+   --> case.nvs:32:24
+%A
+error[E0733]: the `#[Test]` method `aTestReturnsVoid` returns `int`
+   --> case.nvs:35:21
+%A
+error[E0733]: the `#[Test]` method `everyShapeAtOnce` is `static`
+   --> case.nvs:40:29
+%A
+error[E0733]: the `#[Test]` method `everyShapeAtOnce` is not `public`
+   --> case.nvs:40:29
+%A
+error[E0733]: the `#[Test]` method `everyShapeAtOnce` returns `string`
+   --> case.nvs:40:29
+%A
+error[E0304]: `Refused` declares two `#[Test]` methods named `twiceOver`
+   --> case.nvs:47:21
+%A
+error: aborting due to 8 errors

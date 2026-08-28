@@ -1644,6 +1644,23 @@ pub mod code {
     /// receiver, or calling the member directly, is the fix; both are what the
     /// help names.
     pub const E_FIRST_CLASS_CALLABLE_ERASED_RECEIVER: Code = Code::new("E0732");
+    /// A `#[Test]` method whose declaration is not the shape ADR 0079 § 1
+    /// requires: `static`, not `public`, or returning anything but `void`.
+    ///
+    /// One code for the family rather than three, because it is one question —
+    /// what shape a test method must have — and the runner asks it once: it
+    /// constructs the class and calls the member with no arguments and no
+    /// result, so a `static` member has no receiver for a `#[Fixture]` to be
+    /// installed on, a non-`public` one cannot be called from outside the
+    /// class at all, and a returned value has nowhere to go and nothing that
+    /// would look at it. Each help names the modifier or the annotation to
+    /// change.
+    ///
+    /// The fourth error in that bullet — two `#[Test]` methods with one name —
+    /// is [`E_DUPLICATE_DECLARATION`] instead, being the same mistake the
+    /// option written twice already draws, and the fifth (`skip: true`) is the
+    /// option roster's own type check.
+    pub const E_TEST_METHOD_SHAPE: Code = Code::new("E0733");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

@@ -94,6 +94,16 @@ The compiler collects every `#[Test]` into a table, the way `#[Route]` builds th
 - a `#[Test]` method with a parameter that no `#[Fixture]` supplies and no data row fills (§§ 8–9);
 - `#[Test(skip: true)]` — a skip states a reason (§ 20).
 
+The three that are about the *declaration* rather than the payload share one code, `E0733`, and are made in
+`nvs_types::testing::check_method_shape`: they are one question — what shape a test method must have — and
+the runner asks it once, constructing the class and calling the member with no arguments and no result, so a
+`static` member has no receiver for §§ 8-9's `#[Fixture]` to be installed on, a non-`public` one cannot be
+called from outside its class, and a returned value has nowhere to go. Each is read off the resolved
+signature rather than off the modifier list a second time, so an omitted visibility keyword stays the one
+`E_MISSING_VISIBILITY` `nvs_syntax::casing` already reports. Two `#[Test]` methods with one name take
+`E_DUPLICATE_DECLARATION`, the same code the option written twice draws, one mistake drawing one code. The
+parameter bullet is the one of the five that is not decidable here at all and waits on §§ 8-9's two rosters.
+
 `#[Test]`'s option shape is `{skip?: string, at?: string, seed?: int, db?: string, server?: bool,
 retries?: int, because?: string}`. Every field is validated at compile time as an attribute shape literal
 under [0046](0046-attributes-shape-literal-metadata.md) — its § 2 constant-only rule first, and then this

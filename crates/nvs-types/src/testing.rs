@@ -31,6 +31,30 @@
 //! a misspelled option is the unknown-option refusal rather than an option
 //! silently doing nothing.
 //!
+//! # The shape a test method must have
+//!
+//! The other three of § 1's five compile errors are about the *declaration*
+//! rather than the payload, and all three are decided in [`check_class_tests`]
+//! because that walk is already holding each member's [`MethodMember`]: a
+//! `#[Test]` that is `static`, that is not `public`, or that returns anything
+//! but `void`. [`check_method_shape`] is their one home, and they share one
+//! code ([`code::E_TEST_METHOD_SHAPE`]) because they are one question asked
+//! once — the runner constructs the class and calls the member with no
+//! arguments and no result, so a `static` member has no receiver for §§ 8-9's
+//! `#[Fixture]` to be installed on, a non-`public` one cannot be called from
+//! outside its class at all, and a returned value has nowhere to go. The
+//! fourth, two `#[Test]` methods sharing one name, is `E_DUPLICATE_DECLARATION`
+//! — the same code the option written twice already draws, one mistake drawing
+//! one code — and the fifth is the roster's own type check above.
+//!
+//! Each is read off the **resolved** [`crate::signatures::MethodSig`] rather
+//! than off the modifier list a second time, so an omitted visibility keyword
+//! reads as `public` here exactly as it does everywhere else and is left to
+//! the `E_MISSING_VISIBILITY` `nvs_syntax::casing` already reports, rather
+//! than being named twice under two codes. § 1's remaining bullet — a
+//! parameter no `#[Fixture]` supplies and no data row fills — is not decidable
+//! here at all and waits on §§ 8-9, which is what will hold both rosters.
+//!
 //! # The table is built while checking, and rides in [`crate::ExprTypeTable`]
 //!
 //! § 1's "the compiler collects every `#[Test]` into a table" is
@@ -52,7 +76,10 @@
 
 use nvs_diagnostics::{Diagnostic, code};
 use nvs_hir::QName;
-use nvs_syntax::ast::{Attribute, AttributeGroup, ClassDecl, ClassMemberKind, ObjectLiteralField};
+use nvs_syntax::ast::{
+    Attribute, AttributeGroup, ClassDecl, ClassMemberKind, MethodMember, ObjectLiteralField,
+    Visibility,
+};
 use rustc_hash::FxHashSet;
 
 use crate::defaults::ConstArg;
@@ -122,7 +149,7 @@ pub struct TestCase {
 /// what makes a program that declares no tests pay nothing for this pass
 /// beyond the walk it already makes over the members.
 pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, env: &mut Env<'_>) {
-    let mut cases = Vec::new();
+    let mut cases: Vec<TestCase> = Vec::new();
     for member in &decl.members {
         let ClassMemberKind::Method(m) = &member.kind else {
             continue;
@@ -130,11 +157,21 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
         let Some(attr) = test_attribute(&m.attributes, ctx, env) else {
             continue;
         };
+        let method = span_text(env.src, m.name).to_owned();
+        check_method_shape(m, &method, class, env);
+        if cases.iter().any(|case| case.method == method) {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_DUPLICATE_DECLARATION,
+                    format!("`{class}` declares two `#[Test]` methods named `{method}`"),
+                )
+                .with_primary(m.name, "already declared above")
+                .with_help("a test is reported by its own name, so two cannot share one"),
+            );
+            continue;
+        }
         let options = fold_options(&attr.fields.clone(), env);
-        cases.push(TestCase {
-            method: span_text(env.src, m.name).to_owned(),
-            options,
-        });
+        cases.push(TestCase { method, options });
     }
     if !cases.is_empty() {
         env.exprs.record_tests(class.to_string(), cases);
@@ -153,6 +190,69 @@ fn test_attribute<'a>(
         .iter()
         .flat_map(|group| &group.attributes)
         .find(|attr| crate::derive::attribute_is(attr, crate::derive::TEST, ctx, env))
+}
+
+/// ADR 0079 § 1's three declaration-shape refusals, for one `#[Test]` method.
+///
+/// All three are read off the resolved signature rather than off `m`'s own
+/// modifier list, for the reason this module's docs give: an omitted
+/// visibility keyword is already `E_MISSING_VISIBILITY` and reads as `public`
+/// everywhere else, so re-deriving it here would name one mistake twice. `m`
+/// is still what carries the span the diagnostic points at — the method's own
+/// name, since a `Modifier` records no span of its own and the body is not
+/// what any of these is about.
+///
+/// A method the signature table has no row for is left alone: it is either
+/// a name `nvs_syntax` is already refusing or a duplicate of one, and there is
+/// nothing here that a second diagnostic about its shape would add.
+fn check_method_shape(m: &MethodMember, method: &str, class: &QName, env: &mut Env<'_>) {
+    let signatures = env.signatures;
+    let Some(sig) = signatures
+        .get(class)
+        .and_then(|class_sig| class_sig.methods.get(method))
+    else {
+        return;
+    };
+    if sig.is_static {
+        report_shape(
+            m,
+            method,
+            "is `static`",
+            "a test is run against a fresh instance, so drop the `static`",
+            env,
+        );
+    }
+    if sig.visibility != Visibility::Public {
+        report_shape(
+            m,
+            method,
+            "is not `public`",
+            "the runner calls a test from outside its class, so declare it `public`",
+            env,
+        );
+    }
+    if !matches!(env.interner.get(sig.return_ty), Ty::Void) {
+        let returned = env.interner.describe(sig.return_ty);
+        report_shape(
+            m,
+            method,
+            &format!("returns `{returned}`"),
+            "a test reports by asserting rather than by returning, so declare `: void`",
+            env,
+        );
+    }
+}
+
+/// One [`code::E_TEST_METHOD_SHAPE`], worded from what the declaration did.
+fn report_shape(m: &MethodMember, method: &str, did: &str, help: &str, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_TEST_METHOD_SHAPE,
+            format!("the `#[Test]` method `{method}` {did}"),
+        )
+        .with_primary(m.name, did)
+        .with_help(help.to_owned()),
+    );
 }
 
 /// One payload's options, folded to constants in source order.
