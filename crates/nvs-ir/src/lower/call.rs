@@ -440,17 +440,20 @@ impl<'a> Lowering<'a> {
     ///   nested call's result, a concatenation, a materialized default — has
     ///   exactly one owner, and it is this frame.
     /// * A **transferred** argument is released by the callee's own exit sweep
-    ///   either way; a copy of storage someone else owns needs a second
-    ///   reference first, a freshly built value does not.
+    ///   either way, from the moment the call is emitted; a copy of storage
+    ///   someone else owns needs a second reference first, a freshly built
+    ///   value does not. Until that instruction exists it is still this
+    ///   frame's, so it is staged too, under
+    ///   [`TemporaryKind::Transferred`].
     ///
     /// Shared by the written arguments, the materialized defaults and each
     /// flattened option, so a bag's options are accounted exactly as the
     /// arguments beside them are.
     ///
-    /// The second case is the only one that leaves anything behind, and it
-    /// goes on [`Self::owned_temporaries`] rather than into a list the caller
-    /// gets back: a later argument's own call can throw before this call is
-    /// ever emitted, and [`Self::landing_block`] has to be able to find it.
+    /// Everything it stages goes on [`Self::owned_temporaries`] rather than
+    /// into a list the caller gets back: a later argument's own call can throw
+    /// before this call is ever emitted, and [`Self::landing_block`] has to be
+    /// able to find it.
     pub(super) fn account_for_arg(
         &mut self,
         v: ValueId,
@@ -463,9 +466,14 @@ impl<'a> Lowering<'a> {
             return;
         }
         match (ownership, aliasing) {
-            (ArgOwnership::Borrowed, true) | (ArgOwnership::Transferred, false) => {}
+            (ArgOwnership::Borrowed, true) => {}
             (ArgOwnership::Borrowed, false) => self.own_temporary(v),
-            (ArgOwnership::Transferred, true) => self.emit_retain(cur, v),
+            (ArgOwnership::Transferred, aliasing) => {
+                if aliasing {
+                    self.emit_retain(cur, v);
+                }
+                self.own_transferred_temporary(v);
+            }
         }
     }
     /// Flattens one ADR 0063 R2 options bag into `out`: one value per option
@@ -898,7 +906,13 @@ impl<'a> Lowering<'a> {
     /// Records `v` as a reference this frame owns and nothing else can find —
     /// see [`Self::owned_temporaries`], which owns the whole protocol.
     pub(super) fn own_temporary(&mut self, v: ValueId) {
-        self.owned_temporaries.push(v);
+        self.owned_temporaries.push((v, TemporaryKind::Owned));
+    }
+    /// Records `v` as a reference this frame holds only until the call it was
+    /// staged for is emitted — see [`TemporaryKind::Transferred`], and
+    /// [`Self::forget_transferred_since`], which is its normal edge.
+    pub(super) fn own_transferred_temporary(&mut self, v: ValueId) {
+        self.owned_temporaries.push((v, TemporaryKind::Transferred));
     }
     /// The height of [`Self::owned_temporaries`] before a call's arguments are
     /// lowered — what [`Self::release_temporaries_since`] releases back down
@@ -917,10 +931,36 @@ impl<'a> Lowering<'a> {
     /// values off the same stack: one set of temporaries, two exits, which is
     /// why nothing here is handed a list to keep in step with.
     pub(super) fn release_temporaries_since(&mut self, mark: usize, cur: BlockId) {
-        let temporaries: Vec<ValueId> = self.owned_temporaries.drain(mark..).collect();
-        for v in temporaries {
-            self.emit_release(cur, v);
+        let temporaries: Vec<(ValueId, TemporaryKind)> =
+            self.owned_temporaries.drain(mark..).collect();
+        for (v, kind) in temporaries {
+            // A transferred entry reaching here at all means its own call site
+            // did not forget it, and this edge is a normal one — so the call
+            // was emitted and its callee already owns the reference. Dropping
+            // it is the backstop; releasing it would be the double drop.
+            if kind == TemporaryKind::Owned {
+                self.emit_release(cur, v);
+            }
         }
+    }
+    /// Drops every [`TemporaryKind::Transferred`] entry staged since `mark`
+    /// without releasing it, the owned ones staged beside them keeping their
+    /// place — the normal edge of a call whose arguments the callee now owns.
+    ///
+    /// Run immediately *before* the call is emitted, not after it and not at
+    /// the end of the enclosing statement. The callee's exit sweep releases a
+    /// transferred parameter on the callee's *throwing* edge as much as on its
+    /// normal one, so the call's own fault edge — built by
+    /// [`Self::emit_fallible`], and therefore from whatever is on the stack at
+    /// that moment — must already be past them. Everything fallible that
+    /// *evaluated* them is behind that point, which is what leaves the leaking
+    /// window covered and this one empty.
+    pub(super) fn forget_transferred_since(&mut self, mark: usize) {
+        let tail = self.owned_temporaries.split_off(mark);
+        self.owned_temporaries.extend(
+            tail.into_iter()
+                .filter(|&(_, kind)| kind != TemporaryKind::Transferred),
+        );
     }
     /// Drops every entry staged since `mark` **without** releasing it — the
     /// one expression whose in-flight temporary is its own answer.
@@ -944,7 +984,7 @@ impl<'a> Lowering<'a> {
     /// array released the reference the old name held, so a landing block
     /// still naming it would release it twice.
     pub(super) fn retarget_temporary(&mut self, slot: usize, v: ValueId) {
-        self.owned_temporaries[slot] = v;
+        self.owned_temporaries[slot].0 = v;
     }
     /// Removes the temporary staged at `slot` **without** releasing it, the
     /// entries above it keeping their order — [`Self::forget_temporaries_since`]

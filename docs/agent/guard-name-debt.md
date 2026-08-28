@@ -67,7 +67,7 @@ slice**. That is the only thing that keeps this file from growing back.
 
 ### Stage 3 — control and calls
 
-`nvs-ir (control flow)`, `cargo test -p nvs-ir` — 1 of 7 unresolved
+`nvs-ir (control flow)`, `cargo test -p nvs-ir` — 0 of 7 unresolved — closed
 
 - [x] `a_do_while_lowers_its_condition_below_its_body` — cause 2, now owned by
       `tests/conformance/lang/a-do-while-runs-its-body-before-its-condition.nvst`
@@ -88,8 +88,15 @@ slice**. That is the only thing that keeps this file from growing back.
       that exact name in [lower/tests.rs:3236](../../crates/nvs-ir/src/lower/tests.rs#L3236),
       asserting that the block a fault edge *names* releases the producer rather than counting
       releases in the body
-- [ ] `a_transferred_argument_is_released_when_a_later_one_throws` — cause 3, genuinely open, and
-      named as such in `nvs_ir::lower::Lowering`'s owned-temporaries field doc
+- [x] `a_transferred_argument_is_released_when_a_later_one_throws` — **cause 3, and the hole that
+      field doc named is closed**: a transferred argument (and a transferred *receiver*) now rides
+      `Lowering::owned_temporaries` under `TemporaryKind::Transferred`, released on the error edge
+      like any other entry and forgotten by `Lowering::forget_transferred_since` immediately
+      *before* the call is emitted — before, because a callee releases its parameters on its own
+      throwing edge too, so the call's own fault edge must already be past them. The test is at
+      that exact name in [lower/tests.rs:3307](../../crates/nvs-ir/src/lower/tests.rs#L3307),
+      asserting the release *count* on each of the two edges (two on the abandoning one, one on
+      the call's own) over the three transferring sites
 
 `nvs-types (calls and loops)`, `cargo test -p nvs-types` — 0 of 6 unresolved
 

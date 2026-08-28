@@ -3195,6 +3195,49 @@ int $n = $u as int;
     );
 }
 
+/// The one line of a printed function naming `needle`.
+///
+/// These four are the read half of every fault-edge guard below, which asks
+/// what a *named* block releases rather than counting releases in a body.
+fn line<'t>(text: &'t str, needle: &str) -> &'t str {
+    text.lines()
+        .find(|l| l.contains(needle))
+        .unwrap_or_else(|| panic!("no line names `{needle}`:\n{text}"))
+}
+/// The `vN` that line defines.
+fn produced(text: &str, needle: &str) -> String {
+    line(text, needle)
+        .split_whitespace()
+        .next()
+        .expect("an instruction line starts with the value it defines")
+        .to_owned()
+}
+/// The `bbN` its `! bb` fault edge names.
+fn fault_edge(text: &str, needle: &str) -> String {
+    line(text, needle)
+        .split("! ")
+        .nth(1)
+        .unwrap_or_else(|| panic!("`{needle}` takes no fault edge:\n{text}"))
+        .split_whitespace()
+        .next()
+        .expect("a fault edge names a block")
+        .to_owned()
+}
+/// How many of `block`'s own instructions release `value`. Matched on the
+/// whole line, since `release v1` is a prefix of `release v10`.
+fn release_count(text: &str, block: &str, value: &str) -> usize {
+    text.lines()
+        .skip_while(|l| !l.trim_start().starts_with(&format!("{block}:")))
+        .skip(1)
+        .take_while(|l| !l.trim_end().ends_with(':'))
+        .filter(|l| l.trim() == format!("release {value}"))
+        .count()
+}
+/// Whether `block`'s own instructions release `value` at all.
+fn releases(text: &str, block: &str, value: &str) -> bool {
+    release_count(text, block, value) > 0
+}
+
 /// Every value in flight inside an expression is released on the throw
 /// path, including the ones whose *normal* path releases them by hand.
 ///
@@ -3209,40 +3252,6 @@ int $n = $u as int;
 /// while leaking here.
 #[test]
 fn an_inline_producer_releases_its_value_on_the_throw_path() {
-    /// The one line naming `needle`.
-    fn line<'t>(text: &'t str, needle: &str) -> &'t str {
-        text.lines()
-            .find(|l| l.contains(needle))
-            .unwrap_or_else(|| panic!("no line names `{needle}`:\n{text}"))
-    }
-    /// The `vN` that line defines.
-    fn produced(text: &str, needle: &str) -> String {
-        line(text, needle)
-            .split_whitespace()
-            .next()
-            .expect("an instruction line starts with the value it defines")
-            .to_owned()
-    }
-    /// The `bbN` its `! bb` fault edge names.
-    fn fault_edge(text: &str, needle: &str) -> String {
-        line(text, needle)
-            .split("! ")
-            .nth(1)
-            .unwrap_or_else(|| panic!("`{needle}` takes no fault edge:\n{text}"))
-            .split_whitespace()
-            .next()
-            .expect("a fault edge names a block")
-            .to_owned()
-    }
-    /// Whether `block`'s own instructions release `value`.
-    fn releases(text: &str, block: &str, value: &str) -> bool {
-        text.lines()
-            .skip_while(|l| !l.trim_start().starts_with(&format!("{block}:")))
-            .skip(1)
-            .take_while(|l| !l.trim_end().ends_with(':'))
-            .any(|l| l.contains(&format!("release {value}")))
-    }
-
     // The subject is a fresh `mixed`, so every label goes through the
     // fallible `Helper::Identical` — the throw that abandons the `match`
     // with its subject still in flight.
@@ -3275,6 +3284,107 @@ unset($a[\"outer\"][1]);
     let key = produced(&text, "helper.int_to_string");
     let fault = fault_edge(&text, "array.get");
     assert!(releases(&text, &fault, &key), "{text}");
+}
+
+/// A transferred argument is this frame's until the call it was staged for
+/// exists, and the callee's from that instruction onward — so the two edges
+/// of that one instruction disagree, and this asks about both.
+///
+/// `Lowering::owned_temporaries` holds it under `TemporaryKind::Transferred`
+/// for the window in between, which is what a *later* argument's own throw
+/// abandons it in — `T::take($s, T::boom())`, where `$s` was retained for the
+/// transfer and `boom` throws before `take` is ever reached. The other half is
+/// why `Lowering::forget_transferred_since` runs *before* the call rather than
+/// after it: a callee releases its parameters on its own throwing edge too, so
+/// the call's own fault edge releasing them as well would be the double drop
+/// this guard would otherwise invite.
+///
+/// Asserted as an agreement over the three transferring sites — a static call,
+/// an instance call whose *receiver* is a transferred argument like any other,
+/// and a `new` — because each answers plausibly on its own line while the
+/// mechanism behind them is one stack.
+#[test]
+fn a_transferred_argument_is_released_when_a_later_one_throws() {
+    // `T::boom` is the later argument in each body below. Its body cannot
+    // throw, and does not need to: every compiled call takes ADR 0002's fault
+    // edge whatever its body does, and that edge is the whole question here.
+    // `Pair` is what the `new` builds.
+    const PRELUDE: &str = "<?nvs
+class T {
+  public static function boom(): int { return 1; }
+  public static function take(string $a, int $n): int { return $n; }
+  public function keep(string $a, int $n): int { return $n; }
+}
+class Pair { public function constructor(string $a, int $n) {} }
+";
+
+    // A static call: `$s` is an aliasing read, so it is retained for the
+    // transfer, and `boom`'s fault edge is where that reference is dropped.
+    let (f, map, file) = lower_script_src(&format!(
+        "{PRELUDE}string $s = \"hi\";
+int $r = T::take($s, T::boom());
+echo $r;
+"
+    ));
+    let text = print_function(&f, map.file(file));
+    let staged = produced(&text, "const.str \"hi\"");
+    // Twice on `boom`'s edge — the reference the transfer retained, and the
+    // one `$s`'s own slot still holds, which `Self::release_all_locals` drops
+    // at the same exit. Counted rather than looked for: one release there is
+    // the leak this guard exists for, and it is indistinguishable from two by
+    // presence alone.
+    assert_eq!(
+        release_count(&text, &fault_edge(&text, "T::boom"), &staged),
+        2,
+        "{text}"
+    );
+    // And once on `take`'s own edge: from that instruction the callee owns the
+    // transferred reference and releases it however it leaves, so all that is
+    // left here is the slot's.
+    assert_eq!(
+        release_count(&text, &fault_edge(&text, "T::take"), &staged),
+        1,
+        "{text}"
+    );
+
+    // An instance call, where the receiver is the transferred argument in
+    // slot 0 — staged at the same site, on the same edge.
+    let (f, map, file) = lower_script_src(&format!(
+        "{PRELUDE}T $t = new T();
+string $s = \"hi\";
+int $r = $t->keep($s, T::boom());
+echo $r;
+"
+    ));
+    let text = print_function(&f, map.file(file));
+    let fault = fault_edge(&text, "T::boom");
+    let staged = produced(&text, "const.str \"hi\"");
+    let receiver = produced(&text, "new T");
+    assert_eq!(release_count(&text, &fault, &staged), 2, "{text}");
+    assert_eq!(release_count(&text, &fault, &receiver), 2, "{text}");
+    let fault = fault_edge(&text, "T::keep");
+    assert_eq!(release_count(&text, &fault, &staged), 1, "{text}");
+    assert_eq!(release_count(&text, &fault, &receiver), 1, "{text}");
+
+    // And `new`, whose constructor takes the same transferred arguments.
+    let (f, map, file) = lower_script_src(&format!(
+        "{PRELUDE}string $s = \"hi\";
+Pair $p = new Pair($s, T::boom());
+echo \"ok\";
+"
+    ));
+    let text = print_function(&f, map.file(file));
+    let staged = produced(&text, "const.str \"hi\"");
+    assert_eq!(
+        release_count(&text, &fault_edge(&text, "T::boom"), &staged),
+        2,
+        "{text}"
+    );
+    assert_eq!(
+        release_count(&text, &fault_edge(&text, "new Pair"), &staged),
+        1,
+        "{text}"
+    );
 }
 
 /// ADR 0007 § 2's `array<T> as array<U>` row, which is the one row of that

@@ -2336,6 +2336,11 @@ impl<'a> Lowering<'a> {
             self.release_temporaries_since(mark, *cur);
             return built;
         }
+        // Each argument is transferred to the constructor, which owns it only
+        // once the `New` below exists — so this site brackets them with
+        // `Lowering::forget_transferred_since` for the window in which an
+        // argument that throws is what abandons them.
+        let mark = self.temporaries_mark();
         // A constructor may declare `inout $x` like any other method, so this site
         // owns its own staging window — see `Lowering::pending_refs`.
         let staged_refs = self.pending_refs_mark();
@@ -2390,6 +2395,12 @@ impl<'a> Lowering<'a> {
                 args: arg_values,
             }
         };
+        // From the instruction below onward the callee owns every transferred
+        // argument — its own exit sweep releases them on its throwing edge as
+        // much as on its normal one — so they leave the stack *before* the
+        // call's own fault edge is built, and after every fallible
+        // instruction that evaluated them.
+        self.forget_transferred_since(mark);
         let built = self.emit_fallible(*cur, Ty::Object, kind, env);
         self.flush_ref_writebacks(staged_refs, env, *cur);
         built
@@ -2476,6 +2487,11 @@ impl<'a> Lowering<'a> {
         let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
         let checked_types = self.checked_types;
         let is_static = call.is_static;
+        // The receiver and every argument are transferred, and the callee owns
+        // them only from the `Call` below — see
+        // `Lowering::forget_transferred_since`. Taken before the receiver, for
+        // the reason `Lowering::temporaries_mark` gives.
+        let mark = self.temporaries_mark();
         // `?->` guards everything below on the receiver not being
         // `null`; `->` opens no guard and lowers exactly as before.
         let (object_v, receiver_ty, guard) =
@@ -2501,9 +2517,14 @@ impl<'a> Lowering<'a> {
             // (see `Self::release_all_locals`). `$this->m()` and
             // `$obj->m()` both read an existing slot, so both need the
             // retain `Self::lower_call_args` already inserts for one.
-            if receiver_ty.is_refcounted() && self.aliasing_read(object) {
-                self.emit_retain(*cur, object_v);
-            }
+            let aliasing = self.aliasing_read(object);
+            self.account_for_arg(
+                object_v,
+                receiver_ty,
+                ArgOwnership::Transferred,
+                aliasing,
+                *cur,
+            );
             object_v
         };
         // Every `inout $x` this call stages is written back below, in the block the
@@ -2559,6 +2580,12 @@ impl<'a> Lowering<'a> {
                 args: arg_values,
             }
         };
+        // From the instruction below onward the callee owns every transferred
+        // argument — its own exit sweep releases them on its throwing edge as
+        // much as on its normal one — so they leave the stack *before* the
+        // call's own fault edge is built, and after every fallible
+        // instruction that evaluated them.
+        self.forget_transferred_since(mark);
         let (v, ty) = self.emit_fallible(*cur, return_ty, kind, env);
         self.flush_ref_writebacks(staged_refs, env, *cur);
         self.close_nullsafe(guard, v, ty, env, cur)
@@ -2665,6 +2692,10 @@ impl<'a> Lowering<'a> {
         // declaration with no body has none either, for a different
         // reason — see `InstKind::CallVirtual::fallback`.
         let late_bound = matches!(class.kind, ExprKind::StaticExpr) || !has_body;
+        // As for an instance call: the receiver and the arguments are the
+        // callee's from the `Call` below and this frame's until then. See
+        // `Lowering::forget_transferred_since`.
+        let mark = self.temporaries_mark();
         let receiver = if is_static {
             // A static callee has no `$this`, so its receiver slot
             // carries the *called* class instead — an explicitly named
@@ -2694,9 +2725,9 @@ impl<'a> Lowering<'a> {
                      with no `$this` — nvs_types is expected to have refused that"
                 )
             });
-            if this_ty.is_refcounted() {
-                self.emit_retain(*cur, this_v);
-            }
+            // `$this` is a read of this frame's own slot, so it is the
+            // aliasing column of `Lowering::account_for_arg` exactly.
+            self.account_for_arg(this_v, this_ty, ArgOwnership::Transferred, true, *cur);
             Some(this_v)
         };
         // As for an instance call: this site's own staging window, flushed
@@ -2734,6 +2765,12 @@ impl<'a> Lowering<'a> {
                 args: arg_values,
             }
         };
+        // From the instruction below onward the callee owns every transferred
+        // argument — its own exit sweep releases them on its throwing edge as
+        // much as on its normal one — so they leave the stack *before* the
+        // call's own fault edge is built, and after every fallible
+        // instruction that evaluated them.
+        self.forget_transferred_since(mark);
         let result = self.emit_fallible(*cur, return_ty, kind, env);
         self.flush_ref_writebacks(staged_refs, env, *cur);
         result

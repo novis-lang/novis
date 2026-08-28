@@ -1254,16 +1254,17 @@ struct Lowering<'a> {
     /// caller brackets its temporaries with [`Self::temporaries_mark`] and
     /// [`Self::release_temporaries_since`] rather than tracking values.
     ///
-    /// # Known gap
-    ///
-    /// A [`ArgOwnership::Transferred`] argument is not here — the callee's own
-    /// exit sweep releases it, including on the callee's throwing edge — so
-    /// the window between staging one and reaching the call still leaks if a
-    /// *later* argument throws (`f($a, g())`, where `$a` was retained for the
-    /// transfer and `g` throws). Closing it means a second entry kind on this
-    /// stack, released on the error edge and *forgotten* on the normal one,
-    /// plus one such forget at each of the three transferring call sites.
-    owned_temporaries: Vec<ValueId>,
+    /// A [`ArgOwnership::Transferred`] argument is here too, under the other
+    /// [`TemporaryKind`]: the callee's own exit sweep releases it once the
+    /// call is emitted, but the window between staging one and *reaching*
+    /// that call belongs to this frame — `f($a, g())` retains `$a` for the
+    /// transfer and then lets `g` throw. So a transferred entry is released
+    /// on the error edge exactly like an owned one, and *forgotten* rather
+    /// than released on the normal one, by the
+    /// [`Self::forget_transferred_since`] each transferring call site runs
+    /// immediately *before* it emits its call — the instruction from which
+    /// the callee owns them on both of its own edges.
+    owned_temporaries: Vec<(ValueId, TemporaryKind)>,
     /// The address half of an assignment target, already lowered, keyed by the
     /// span of the sub-expression that produced it — what
     /// [`Self::lower_read_modify_write`] splits out of the `$t = $t ⊕ e`
@@ -1480,6 +1481,26 @@ struct InoutElement {
     /// The `Env` name the current entry's cursor slot is bound under, a
     /// `Ty::Int` rebound at the top of every iteration.
     slot: String,
+}
+
+/// Which edge an entry on [`Lowering::owned_temporaries`] is released on.
+///
+/// The two differ on the **normal** edge only: both are this frame's to drop
+/// while the expression is still in flight, and
+/// [`Lowering::landing_block`] therefore sweeps the whole stack without
+/// reading this at all.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(super) enum TemporaryKind {
+    /// Released on both edges — a value this frame built and no callee took:
+    /// a `Core` member's materialized argument, a `.`'s partial result, a
+    /// `match` subject. [`Lowering::release_temporaries_since`] is its normal
+    /// edge.
+    Owned,
+    /// Released on the error edge only. The callee of an
+    /// [`ArgOwnership::Transferred`] argument releases it from the moment the
+    /// call is emitted, so releasing it here as well would be a double drop —
+    /// [`Lowering::forget_transferred_since`] takes it off the stack instead.
+    Transferred,
 }
 
 /// What [`Lowering::lower_call_args`] produced: the values to pass.
@@ -1816,19 +1837,12 @@ impl<'a> Lowering<'a> {
     /// holds are defined in the block that raised, which dominates this one,
     /// so the releases need no phi of their own.
     ///
-    /// # Known gap
-    ///
-    /// The sweep covers what a producer actually **staged**: a call's
-    /// arguments and receiver ([`Self::account_for_arg`]), and the operands
-    /// and partial results of `.`, an interpolation and an `echo`. A site
-    /// that still releases a fresh value inline instead — a normalized
-    /// subscript key, a `match` subject — leaks it if something between the
-    /// two throws. Each is one `own_temporary`/`release_temporaries_since`
-    /// pair away, not a second mechanism. [`Self::owned_temporaries`] names
-    /// the one hole that is *not* shaped like that.
+    /// The sweep covers what a producer actually **staged**, and reads no
+    /// [`TemporaryKind`]: a transferred argument is as much this frame's to
+    /// drop on the way to a call it never reached as an owned one is.
     pub(super) fn landing_block(&mut self, env: &Env) -> BlockId {
         let b = self.new_block();
-        for v in self.owned_temporaries.clone() {
+        for (v, _) in self.owned_temporaries.clone() {
             self.emit_release(b, v);
         }
         // The innermost frame that actually has a handler — not simply the
