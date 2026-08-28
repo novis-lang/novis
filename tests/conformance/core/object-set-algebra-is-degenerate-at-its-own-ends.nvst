@@ -1,0 +1,75 @@
+--TEST--
+`Core\ObjectSet<T>`'s `union`, `intersect` and `diff` agree at their degenerate ends — the receiver itself and a disjoint set — over every shape of receiver, counted rather than read off a line — docs/spec/01-core-library.md § 9, ADR 0090 § 4
+--FILE--
+<?nvs
+final class Tag {
+    public function constructor(public readonly string $name) {}
+}
+
+final class Sets {
+    // A case's own helper is a `public static function` in a class, and a
+    // compiler-owned generic is an ordinary parameter and return type here.
+    public static function build(array<string> $names): Core\ObjectSet<Tag> {
+        Core\ObjectSet<Tag> $s = new Core\ObjectSet<Tag>();
+        foreach ($names as string $n) {
+            $s->add(new Tag($n));
+        }
+        return $s;
+    }
+}
+
+// `count()` answers a `uint`, and there is no representable common type with
+// an `int` literal, so the one the last law adds is declared.
+uint $one = 1;
+
+array<string> $rowNone = [];
+array<string> $rowOne = ["red"];
+array<string> $rowThree = ["red", "blue", "green"];
+// Identity is what membership means (ADR 0090 § 4), so two equal-looking
+// `Tag`s are two elements — this row is a *two*-member set, and every law
+// below has to hold over it exactly as it does over the three distinct ones.
+array<string> $rowTwins = ["red", "red"];
+
+array<array<string>> $rows = [$rowNone, $rowOne, $rowThree, $rowTwins];
+
+// Ten laws over four receivers, asserted by counting their agreements: a
+// member answering plausibly on one row still fails here.
+int $agree = 0;
+foreach ($rows as array<string> $row) {
+    Core\ObjectSet<Tag> $s = Sets::build($row);
+    Core\ObjectSet<Tag> $far = Sets::build(["far"]);
+
+    // Both idempotents: unioning or intersecting a set with itself is that
+    // set, in members and not only in size.
+    if ($s->union($s)->count() == $s->count()) { $agree = $agree + 1; }
+    if ($s->union($s)->diff($s)->count() == 0) { $agree = $agree + 1; }
+    if ($s->intersect($s)->count() == $s->count()) { $agree = $agree + 1; }
+    if ($s->intersect($s)->diff($s)->count() == 0) { $agree = $agree + 1; }
+
+    // The two annihilators: a set differenced from itself, and intersected
+    // with a set it shares nothing with, are both empty.
+    if ($s->diff($s)->count() == 0) { $agree = $agree + 1; }
+    if ($s->intersect($far)->count() == 0) { $agree = $agree + 1; }
+
+    // A disjoint operand is `diff`'s identity and adds its whole self to a
+    // `union` — the other end of the same two walks.
+    if ($s->diff($far)->count() == $s->count()) { $agree = $agree + 1; }
+    if ($s->diff($far)->diff($s)->count() == 0) { $agree = $agree + 1; }
+    if ($s->union($far)->count() == $s->count() + $one) { $agree = $agree + 1; }
+
+    // And nothing above collapsed the receiver: it still holds one member per
+    // instance `build` was handed, the twins row included.
+    if ($s->count() == Core\Arr::count($row)) { $agree = $agree + 1; }
+}
+echo $agree, "/40\n";
+
+// The identity rule said out loud, since every law above rests on it: two
+// `Tag`s spelling the same name are two members, and a third one that spells
+// it again is not one of them.
+Core\ObjectSet<Tag> $twins = Sets::build($rowTwins);
+echo $twins->count(), "\n";
+echo $twins->has(new Tag("red")) ? "yes" : "no", "\n";
+--EXPECT--
+40/40
+2
+no
