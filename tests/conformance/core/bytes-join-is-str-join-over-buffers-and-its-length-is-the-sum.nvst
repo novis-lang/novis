@@ -1,0 +1,66 @@
+--TEST--
+`Core\Bytes::join`'s length is its parts plus one separator between each, over a whole sweep, and its answer is `Core\Str::join`'s byte for byte — spec § 7, ADR 0063 R6, ADR 0009 § 3
+--FILE--
+<?nvs
+// `bytes-join-concatenates-buffers.nvst` pins what `join` answers on five
+// written-out rows. This one asks the two questions those rows cannot: the
+// *arithmetic* the separator cursor implements, over every part count from
+// zero to eight, and the *agreement* with `Core\Str::join`, which
+// `crates/nvs-stdlib/src/bytes.rs` names as the member this one is the buffer
+// row of (ADR 0063 R6 pairs the two classes by name). Both are counted rather
+// than read off a line: a cursor that emitted a leading or a trailing
+// separator answers the written-out rows plausibly and fails a sweep, and a
+// `join` that grew a rendering of its own — the one thing ADR 0009 § 3 keeps
+// out of this class — still concatenates correctly and fails the agreement.
+//
+// Part `k` is `k` bytes long, so the sweep carries the empty element the
+// impl's `written == 0` cursor is written around at every position, not just
+// the first.
+array<string> $texts = [];
+array<bytes> $parts = [];
+bytes $sep = "--" as bytes;
+int $sized = 0;
+int $agreed = 0;
+int $n = 0;
+for ($n = 0; $n < 9; $n = $n + 1) {
+    int $sum = 0;
+    int $k = 0;
+    for ($k = 0; $k < $n; $k = $k + 1) {
+        $sum = $sum + $k;
+    }
+    int $gaps = 0;
+    if ($n > 0) {
+        $gaps = ($n - 1) * 2;
+    }
+    if (Core\Bytes::length(Core\Bytes::join($parts, $sep)) as int == $sum + $gaps) {
+        $sized = $sized + 1;
+    }
+    // The same content down both classes' member: the parts are ASCII, so
+    // UTF-8 is the identity (ADR 0009 § 3) and the two answers are comparable
+    // as the octets they both already are.
+    bytes $spelled = Core\Encoding::encodeText(Core\Str::join($texts, "--"), Core\Charset::Utf8);
+    if (Core\Bytes::join($parts, $sep) == $spelled) {
+        $agreed = $agreed + 1;
+    }
+    string $next = Core\Str::repeat("a", $n as uint);
+    $texts[] = $next;
+    $parts[] = $next as bytes;
+}
+echo $sized, " of 9 sized\n";
+echo $agreed, " of 9 agreed\n";
+
+// The separator goes between the elements the array still *has*. `join` walks
+// the array's live slots rather than an index range, so a removed element
+// takes its separator with it — the alternative, a run of separators marking
+// where a slot used to be, would make the answer depend on a deletion the
+// caller can no longer see.
+array<bytes> $holed = ["a" as bytes, "b" as bytes, "c" as bytes, "d" as bytes];
+unset($holed[1]);
+unset($holed[2]);
+echo Core\Bytes::join($holed, $sep) as string, "\n";
+echo Core\Bytes::length(Core\Bytes::join($holed, $sep)), "\n";
+--EXPECT--
+9 of 9 sized
+9 of 9 agreed
+a--d
+4
