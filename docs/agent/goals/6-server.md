@@ -1,0 +1,201 @@
+# Loop goal 6 — the server, and the parity program's last gate
+
+Finish **M7** — [docs/plan/m7.md](../../plan/m7.md) is the scope and this file does not restate it.
+`nvs serve` accepts a request, dispatches it into a **root isolate of a request tree** — the same
+`Isolate` goal 2 built, not a second isolation path — and answers it.
+
+This is order 5 of the milestone table and the **last goal of the parity program**
+([goals/README.md](README.md)). Everything the request-facing half of `Core` was waiting on now exists,
+and `python tools/check-migration.py` reaching **100% classified** is this goal's final stage and the
+program's stop condition.
+
+## Two things every session must hold
+
+**`hyper`, and how it runs with no async runtime.** `hyper` with `default-features = false, features =
+["http1", "server"]` depends on `http`, `http-body`, `bytes`, `futures-core` and `pin-project-lite`, and on
+no `tokio`. h1 requires no `Executor` and `serve_connection` spawns nothing, so the connection future is
+driven by a **`block_on` on the coroutine that owns the connection** — a waker that marks the coroutine
+ready, poll, park on `Pending` — over `hyper::rt::Read`/`Write` adapters wrapping goal 2's parking stream.
+That is one polled future per connection and not a second scheduler, so ADR 0072's rejection of tokio's
+task primitives is untouched. Hand-rolling h1 was weighed and refused: `docs/plan/design.md` gives the
+reason about FCGI and it applies here — framing is where request smuggling lives, and it is not a parser
+to own.
+
+**A filesystem path is never derived from a URL at request time.**
+[ADR 0097](../../adr/0097-development-server-and-proxied-origin.md) § 2 is the server's governing rule, and
+§ 4's five-step resolution is how it is kept: a request selects a **mount** from a table whose globs were
+expanded against disk **at boot**. The test that says the rule holds is not a traversal fixture — it is the
+assertion that **the set of paths the server can execute after boot equals the expanded mount table**, and
+that is stated in Stage 9 rather than left to a suite of attempted escapes.
+
+## Stage 0 — the catch-up
+
+Nothing. Every deferred half this goal picks up — `Core\Router::match`, `Core\Session`, `Core\Metrics`,
+`[http.*]`'s runtime behaviour, `nvs ctl` — was deferred *to* this goal by name, in the goal that deferred
+it, and is work rather than debt.
+
+## Stage 1 — the floor
+
+M4's and goals 1–5's whole acceptance lists — five goals deep, **never traded.** This is the goal where
+that matters most: a listener is where an old assumption about isolation, capabilities or the graph copy
+gets its first adversarial traffic.
+
+## Stage 2 — the keystone: one connection, one request, one isolate
+
+1. **`crates/nvs-server` exists, and `nvs serve` answers one request.** Per-core accept and dispatch, a
+   connection on a coroutine, `hyper` h1 over the `block_on` above. **No mount table, no routing, no
+   response policy yet** — just the path from a socket to a root isolate and back.
+2. **The request is the root isolate of a request tree**, and it is goal 2's `Isolate`. m7.md says "not a
+   second isolation path" and that is the item: if this stage grows its own isolation, the state-bleed
+   suite in Stage 9 is testing two mechanisms and proving neither.
+3. **`Core\Request` and `Core\Server`, populated from it** — [ADR 0012](../../adr/0012-no-superglobals.md)'s
+   replacement for `$_GET`/`$_POST`/`$_SERVER`/`$_COOKIE`/`$_FILES`. **Every value originating outside the
+   process is `tainted`** ([ADR 0024](../../adr/0024-taint-tracking-for-injection-sinks.md)), and that is
+   not decoration: goal 4 built every launderer, and this is the stage that gives them something to launder.
+4. **The shapes that are rules, not fields.** `method` reports `Get` for a `HEAD` request so a `Get`-only
+   route table still matches, with `isHead` carrying the truth; `clientIp` and `scheme` resolve from the
+   socket peer **unless a peer in `[server] trusted_proxies` asserted otherwise** (ADR 0097 § 6); `path` is
+   the request path with the matched mount's prefix **removed**, and `mount()` is what was removed.
+
+## Stage 3 — the mount table
+
+5. **The mount table, expanded at boot** — ADR 0097 § 3, and § 4's five-step resolution over it. This is
+   what makes several entry points under one document root, and vhost-per-module, cost one line each.
+6. **Prefix stripping and the relocatable module it buys**, and **static-file serving as one policy in both
+   modes** — the development server and the proxied origin differ in what they serve, not in how they
+   decide.
+7. **The `[server]` block**, § 5: four finite idle timeouts, `max_in_flight` with its pre-allocation `503`,
+   the optional health path, and `Core\Server::isDraining()`. `max_in_flight` is **the result of an
+   arithmetic against the memory budget** rather than a number someone picked — ADR 0106 amended § 5 to say
+   so, and picking a number is the regression.
+8. **A mount routes and carries nothing else; policy is the per-app block's** — § 10. A mount that grows a
+   limit or a grant has re-implemented goal 3's `[[app]]`.
+
+## Stage 4 — the response
+
+9. **`Core\Response`'s body surface is five typed members** — `html`, `json`, `text`, `bytes`, `sendFile` —
+   each setting its own `Content-Type`, with `echo` the **HTML-only sixth path** and **mixing the two a
+   compile error** ([ADR 0088](../../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 4).
+   This is where a JSON body stops being an `echo` the auto-escape sink would corrupt.
+10. **The `echo` binding table is enforced from here** — § 3. The HTML sink is attached **by a request and
+    by nothing else**, so a scheduled script's and an isolate's `echo` take the terminal sink's
+    neutralization instead. Goal 4 built that terminal sink; this is what decides which one is attached.
+11. **The response policy applies with nothing configured** —
+    [ADR 0074](../../adr/0074-http-defaults-safe-and-finite.md) §§ 1–4: secure headers, closed CORS,
+    `Secure; HttpOnly; SameSite=Lax` cookies, every directive `Runtime` so a request may change it for
+    itself and `setHeader` still wins. Goal 3 landed the *boot-time* refusals; this is the runtime half.
+
+## Stage 5 — routing, sessions, uploads
+
+12. **`Core\Router::match`, over the table goal 1 compiled**, plus `methodsFor` and `urlAbsolute`. ADR 0102
+    § 1: **the match happens once, before the handler, and travels on the request** as
+    `Core\Request::route()` — which is what the CSRF check and the `route` metric label read rather than
+    matching again. § 2: a missing path and a refused verb are different answers (empty ⇒ 404, else 405 +
+    `Allow:`).
+13. **§ 7's mount captures are how one table serves many tenants**, and § 8's split: CSRF is the server's,
+    the access decision is the dispatcher's.
+14. **`Core\Session`**, which **may not be backed by `Core\Cache`'s local tier** — ADR 0059 § 4 names it as
+    a hole that tier must not fill, and a session that vanishes because a core evicted it is an
+    authentication bug.
+15. **Uploads** — [ADR 0105](../../adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
+    whole: `files()` is a lazy iterator and **the only way to receive an uploaded file**; a part is a file
+    part iff `Content-Disposition` carries `filename`; three ways to consume one; goal 4's
+    `Core\IO::writeStream` is where it reaches disk; **there is still no temp file and no
+    `move_uploaded_file`**. Its two caps, `request_body` and `upload_total`, are new rows in goal 3's
+    `[limits]`/`[limits.hard]` pair, and `upload_total` is refused **pre-dispatch** when `Content-Length`
+    already exceeds it.
+16. **`bodyStream()` is the raw-body alternative to `body`**, exclusive with it and with `files` on one
+    request (ADR 0097 §§ 3, 6, 7, 8).
+
+## Stage 6 — what runs beside a request
+
+17. **The `[[schedule]]` ticker** — [ADR 0073](../../adr/0073-scheduled-work-is-config.md): each entry
+    fires as a **root** isolate through goal 2's `Isolate`, with the fleet lease over goal 4's shared
+    store. Goal 3 landed its boot-time validation; this is the runtime half.
+18. **`Core\Task::afterResponse`'s tree stays alive past the connection**, bounded by `[deferred]
+    max_concurrent` — ADR 0072 §§ 6–7. Goal 2 built the member under compiled-in defaults; this is where
+    the connection actually ends while the tree does not.
+19. **The observability export** — [ADR 0076](../../adr/0076-observability-export.md): `Core\Metrics`, the
+    default series, W3C `traceparent` **inbound**, with a trace id generated for every request **whether
+    sampled or not**, and spans derived from ADR 0041's existing event kinds **with no probe added to ADR
+    0018's measured path**. Goal 4 built the outbound half; this closes the loop.
+
+## Stage 7 — the operator's surface
+
+20. **The control socket and `nvs ctl`** — [ADR 0078](../../adr/0078-config-reload-and-control-socket.md)
+    §§ 3, 6: a local unix socket (named pipe on Windows), created `0600`, **refused if its directory is
+    world-writable**, speaking HTTP so a network listener would later be a second `bind` rather than a
+    second protocol. `nvs ctl reload` is its **only** operation and there is **no control port in either
+    direction of configuration**. Goal 3 built the snapshot this swaps.
+21. **`nvs service`** — [ADR 0093](../../adr/0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md),
+    the only copy. SCM registration on Windows with the hosted argv in a quoted absolute `ImagePath`, a
+    per-service virtual account, `STOP_PENDING` from the graceful drain and `PARAMCHANGE` into the reload;
+    a printed hardened systemd unit on Linux, written to disk only on an explicit `--install`. **The
+    installer is a sink and fails closed**: a closed `serve`/`run` allowlist, no relative path, no install
+    whose output would go nowhere, no password on a command line, and a refusal to install from an ADR 0048
+    bundle.
+22. **Hot-reload of the compiled-unit cache** — [ADR 0017](../../adr/0017-hot-reload-without-restart.md),
+    the only copy: a per-path pointer over goal 3's content-addressed cache, revalidated lazily and
+    rate-capped, **swapped without ever blocking a request-serving core**, with `validate`'s startup default
+    selected by the run mode. This is what makes "no restart to see an edit" true of a running server.
+
+## Stage 8 — the testing surface the server unlocks
+
+23. **`Core\Test::request`'s in-process dispatch through the compiled route table**, `#[Test(db:)]`'s
+    rolled-back transaction, `#[Test(server: true)]`'s ephemeral listener, and inline snapshots with their
+    source updater — [ADR 0079](../../adr/0079-testing-is-a-language-feature.md) §§ 14, 17, 18. Each waited
+    for a capability that now exists, and `#[Test(db:)]` waited for goal 5.
+
+## Stage 9 — the load-bearing assertions, and the program's last gate
+
+24. **10k concurrent cold requests for the same file compile it exactly once**, asserted via a compile
+    counter, with no stalled requests. This is m7.md's *core requirement* and it is the one number the
+    whole hot-reload design exists to make true.
+25. **A state-bleed suite proves nothing leaks between requests, and the same suite runs across an isolate
+    boundary** — which the shared `Isolate` makes a *parameterisation* rather than a second suite. If it is
+    two suites, item 2 was not done.
+26. **The set of paths the server can execute after boot equals the expanded mount table.** ADR 0097's
+    governing rule, stated as a test rather than as a suite of attempted escapes.
+27. **A multipart body far larger than any in-memory bound is received in full at bounded resident
+    memory**, asserted against a high-water mark — ADR 0105's load-bearing case.
+28. **Path traversal, header injection and request-smuggling suites pass**, and a request whose isolates
+    are still running when the client disconnects leaves none of them behind.
+29. **`wrk`/`oha` throughput against PHP 8.5 + FPM + opcache, recorded in `benches/`.** A number, committed.
+30. **`python tools/check-migration.py` reports 100% classified.** Every one of the oracle build's 925
+    functions and 240 types is a `member`, `language` or `dropped` row; every `member` row's member is
+    registered; every one of them has a conformance case. **This is the parity program's stop condition**
+    and the last check in the chain.
+
+## Acceptance
+
+**The checks live in [`6-server.toml`](6-server.toml), and only there.**
+
+## Standing decisions — pre-authorized, do not stop the loop for these
+
+- **Decide and record; never `BLOCKED` for a design call.**
+- **One ADR slot: the `block_on` seam** (Stage 2, item 1), and it is that stage's first slice. How a
+  `hyper` connection future is driven from a coroutine, what the waker does, what happens when the future
+  wakes on a core other than the one that parked it, and why this is not an executor. Every other design in
+  this goal is already argued — 0012, 0017, 0072, 0073, 0074, 0076, 0077, 0078, 0079, 0088, 0093, 0097,
+  0102, 0105.
+- **`hyper` stays, and h1 only.** No TLS listener and no h2c — ADR 0097 § 1 dropped both, and a proxy
+  terminates TLS. If a capability appears to need h2, that is Backlog, not a scope decision.
+- **One isolation path.** The request is goal 2's `Isolate`. A second one makes Stage 9's state-bleed suite
+  meaningless, which is why item 2 is stated as an item rather than assumed.
+- **`max_in_flight` is an arithmetic, not a number.** ADR 0106 amended ADR 0097 § 5 to say so.
+- **`Core\Session` may not use the local cache tier.** ADR 0059 § 4.
+- **A mount routes and carries nothing else.** Policy is the per-app block's, which goal 3 built.
+- **`nvs ctl reload` is the socket's only operation**, and there is no network-reachable control surface in
+  either direction of configuration. ADR 0078 § 6.
+- **Raw/unparsed body access for an arbitrary content-type is an open gap**, flagged by ADR 0024's
+  *Revisiting* and narrowed by m7.md to what `body()` and `bodyStream()` do not already answer. If a
+  session finds it genuinely needed, that is a decided-and-recorded call in `Core\Request`'s module doc —
+  not a new ADR and not a `BLOCKED`.
+- **Picking every dependency but the two the user named** stays pre-authorized under ADR 0051 § 4.
+
+## What this goal does not touch
+
+The extension system (M9), `nvs fmt` and the editor (M4B and M10), the transpiler (M11), packages (M15)
+and the `nvs/web` package (M16). `Web\Migration` stays blocked by ADR 0082 § 7. A session that reaches one
+of these puts it in `## Backlog` and moves on — and when the last check here goes green, the parity
+program is finished and the chain has no next goal.

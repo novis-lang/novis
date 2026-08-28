@@ -1,0 +1,353 @@
+# Goal 2 of the parity program -- the reactor, the scheduler, and isolates. The acceptance test, as data.
+#
+# `2-concurrency.md` is the prose. It does not restate this list, and this file does not restate its
+# reasoning. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  # The reactor's own surface, as three programs: a suspension that keeps a core busy, the task roster,
+  # and the channel's backpressure.
+  "examples/tasks.nvs",
+  "examples/channel.nvs",
+  # ADR 0006's isolate, and ADR 0023's graph copy reached both ways.
+  "examples/isolate.nvs",
+  "examples/serialize.nvs",
+]
+
+[context]
+
+# `nvs-host` is new and most of this goal is written into it, so its modules are named as they are
+# created rather than up front -- a glob is what keeps that honest without a warning per session.
+modules = [
+  "crates/nvs-host/src/**/*.rs",
+  # The containment boundary Stage 0 moves outward, and the ABI it wraps.
+  "crates/nvs-runtime/src/abi.rs",
+  "crates/nvs-runtime/src/ctx.rs",
+  # The graph copy's two carriers reach these: the value representation and the release path.
+  "crates/nvs-runtime/src/value.rs",
+  "crates/nvs-runtime/src/release.rs",
+  # `spawn`/`await` lowering, and the safepoint the cancellation item is the first consumer of.
+  "crates/nvs-ir/src/lower/expr.rs",
+  "crates/nvs-ir/src/lower/generator.rs",
+  # `Core\Task`, `Core\Serialize` and `Core\Script` are registered here.
+  "crates/nvs-stdlib/src/registry.rs",
+  # The proven coroutine shape this goal moves into nvs-host. Named because every session of Stage 2
+  # reads it and re-deriving it from the ADRs costs a session.
+  "benches/abi-probe/src/lib.rs",
+]
+
+rules = ["0072", "0006", "0023", "0106", "0033", "0012", "0079", "0099", "0004", "0051"]
+
+# The sections EVERY session of this goal reads. 0072 § 5 is the one most likely to be got wrong in the
+# obliging direction, 0106 § 6 is the rule that decides where every syscall goes, and 0023 § 2 is the one
+# walk two stages share. Per-item sections are named in the goal file; read them at that heading.
+adrs = [
+  "0072 §4",
+  "0072 §5",
+  "0106 §6",
+  "0023 §2",
+]
+
+shapes = ["A `Core` member — the four edits", "A `.nvst` test case", "An ADR", "A commit message"]
+
+# `python tools/playbook.py --manifest crates/nvs-host nvs-runtime nvs-ir corosensei coroutine --min 4`,
+# then the process block by hand. Re-run it once `nvs-host` has modules to name.
+playbook = [
+  'Running things > a #[globalallocator]',
+  'Running things > a fatal',
+  'Running things > a leak whose',
+  'Running things > target/release/nvs.exe is',
+  'Running things > verify.py executes',
+  'Tooling > a value',
+  'Tooling > alloc::pooled recycles',
+  'Writing a test case > a test binary',
+  'Writing a test case > a -p',
+  'Writing Novis itself > a closure held',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole adr',
+  'Tooling > a plan field is patched',
+  'Tooling > plan.py --get',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+milestones = ["M5:verify"]
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 0 -- ADR 0106's containment rule, which was accepted after M4 was reported done. It runs in the
+# catch-up class because a scheduler written against the old boundary has its panic path wrong, in the
+# place that is hardest to find later.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "0 containment"
+name = "abi-probe (the outer boundary)"
+args = ["test", "-p", "nvs-abi-probe"]
+tests = [
+  # ADR 0106 §§ 1-3. The inner boundary is ADR 0002's and already green; this is the worker task.
+  "a_panic_in_a_worker_task_is_contained_at_the_task",
+  "a_teardown_path_that_panics_does_not_recurse",
+  # § 4 -- the engine-side counterpart to ADR 0020 § 1's call-stack bound, and the single-helper bound.
+  "engine_recursion_is_bounded_before_the_stack_is",
+]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- THE KEYSTONE. No task, no isolate and no `Core\Task` member is written until this is green.
+# Four goals are written against the stream item 4 builds, so a shape that is wrong here is wrong four
+# times.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 reactor"
+name = "nvs-host (the scheduler)"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  "one_core_runs_one_scheduler_and_a_task_never_migrates",
+  "a_refcount_is_still_non_atomic_under_the_scheduler",
+  "many_tasks_can_be_created_and_driven",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 reactor"
+name = "nvs-host (the parking stream)"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  # The whole program rests on this pair: the caller sees a blocking `read`, and the core does not block.
+  "a_socket_read_that_would_block_parks_its_coroutine",
+  "a_parked_coroutine_resumes_when_its_descriptor_is_ready",
+  "a_core_serves_another_task_while_one_is_parked",
+  # It is a plain `std::io` stream, which is the entire reason goal 5's drivers and rustls compose.
+  "a_stream_satisfies_std_io_read_and_write",
+  "a_rustls_session_streams_over_it_unmodified",
+  # Item 5 -- a sleep and a deadline are one mechanism.
+  "a_timer_and_a_deadline_are_the_same_wheel",
+  # Item 6 -- ADR 0106 § 6's bound is per worker and never grows with requests served.
+  "a_blocking_call_goes_to_a_pool_bounded_at_twice_the_core_count",
+  # Item 7 -- it reads state the deadline mechanism already keeps; a per-request heartbeat is the bug.
+  "the_watchdog_reports_a_wedged_worker_without_a_heartbeat",
+]
+
+# The invariant that must survive the move out of the spike and into the crate. These four are M4's and
+# stay green; the point of naming them here is that Stage 2 is where they would break.
+[[check]]
+kind = "cargo-named"
+stage = "2 reactor"
+name = "abi-probe (coroutine invariants)"
+args = ["test", "-p", "nvs-abi-probe"]
+tests = [
+  "a_helper_can_suspend_with_jit_frames_live_above_it",
+  "repeated_suspends_leave_the_frames_intact",
+  "a_throw_still_propagates_inside_a_coroutine",
+  "many_coroutines_can_be_created_and_driven",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3-4 -- `spawn`/`await`, the task tree, and ADR 0072's roster.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 tasks"
+name = "nvs-ir (spawn and await lower)"
+args = ["test", "-p", "nvs-ir"]
+tests = ["a_spawn_lowers_to_a_task_on_the_current_core", "an_await_suspends_until_its_task_completes"]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 tasks"
+name = "nvs-host (structured concurrency)"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  # ADR 0072 § 4 -- the promise the whole roster is built on.
+  "no_call_returns_with_a_child_still_running",
+  "a_task_tree_dies_with_its_parent_and_leaves_no_orphan",
+  # § 5 -- native teardown runs, user code does not. The intuitive implementation is the wrong one.
+  "a_cancelled_task_runs_no_catch_and_no_cleanup_block",
+  "a_cancelled_tasks_arena_is_released",
+  # Item 11.
+  "a_bounded_channel_send_suspends_rather_than_growing",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 task roster"
+name = "nvs-types (the roster's compile-time half)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  # § 1 -- what makes the heterogeneous typing possible at all, and the easiest thing to leave out.
+  "a_task_all_field_holding_a_callable_variable_is_a_compile_error",
+  "a_task_all_binds_each_fields_own_type",
+  # § 3 -- one options shape, and no `timeout` wrapper to reach for.
+  "a_limit_and_deadline_options_shape_is_the_only_spelling",
+]
+
+[[check]]
+kind = "exact"
+stage = "4 task roster"
+file = "examples/tasks.nvs"
+want = ["all=3", "map=1,4,9,16", "deadline hit", "limit held at 2"]
+
+[[check]]
+kind = "exact"
+stage = "4 task roster"
+file = "examples/channel.nvs"
+want = ["produced=8", "consumed=8", "sender suspended"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- ADR 0023's one graph copy, reached twice. Written once and reached twice is the item; two
+# implementations that agree today is the failure this stage exists to prevent.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 graph copy"
+name = "nvs-runtime (one walk, two carriers)"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "the_boundary_copy_and_serialize_share_one_walk",
+  "a_refcount_one_value_moves_rather_than_copying",
+  "a_cyclic_value_crosses_without_hanging",
+  # § 3 -- the format is closed, versioned and self-describing, and a partial accept is the bug.
+  "bytes_that_are_not_our_format_are_refused_whole",
+  "a_class_whose_declared_properties_no_longer_match_is_refused_whole",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 graph copy"
+name = "nvs-types (the sink and the qualifier)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  # 01-core-library.md § 13: decode is a `tainted` sink, and the danger is type confusion, not RCE.
+  "serialize_decode_refuses_a_tainted_operand",
+  # ADR 0033 -- one check on the same walk, both carriers.
+  "a_secret_value_is_refused_at_the_boundary_unless_revealed",
+]
+
+[[check]]
+kind = "exact"
+stage = "5 graph copy"
+file = "examples/serialize.nvs"
+want = ["round-trip ok", "cycle ok", "refused: not our format", "refused: shape changed"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- ADR 0006's isolate. A task with a heap boundary, which is what Stage 2 built.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "6 isolates"
+name = "nvs-host (the isolate boundary)"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  "a_child_cannot_read_or_write_a_parent_variable_or_static",
+  "a_child_cannot_see_the_parents_output_buffer",
+  "a_closure_a_reference_or_a_resource_is_refused_at_the_boundary",
+  "an_unresolvable_class_is_refused_at_the_boundary",
+  # Failure is a value: three different faults, one `ok = false`, parent still running.
+  "an_uncaught_throw_in_a_child_leaves_the_parent_running",
+  "a_contained_panic_in_a_child_leaves_the_parent_running",
+  "a_cancelled_parent_leaves_no_orphan_and_no_leaked_arena",
+  # Item 24 -- the first consumer of a safepoint that has been emitted since the first backend commit.
+  "a_child_is_cancelled_at_its_next_safepoint",
+]
+
+[[check]]
+kind = "exact"
+stage = "6 isolates"
+file = "examples/isolate.nvs"
+want = ["child said hello", "ok=true", "captured=child stdout", "ok=false", "parent still running"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- the testing surface the isolate unlocks. ADR 0079 §§ 2, 12, 16.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "7 test isolates"
+name = "nvs-test (one isolate per test)"
+args = ["test", "-p", "nvs-test"]
+tests = [
+  "each_test_runs_in_its_own_isolate_sharing_only_compiled_code",
+  "the_runner_owns_the_tests_task_tree",
+  "a_test_at_a_fixed_clock_reads_that_clock",
+  "a_test_with_a_seed_draws_the_same_sequence_twice",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 8 -- the corpus, the numbers, and the migration floor.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "8 corpus and guards"
+name = "conformance"
+args = ["test", "tests/conformance/"]
+min_passing = 1000
+cases = [
+  "tests/conformance/task/a-spawned-task-runs-and-its-value-is-awaited.nvst",
+  "tests/conformance/task/a-task-tree-dies-with-its-parent.nvst",
+  "tests/conformance/task/a-cancelled-task-runs-no-user-code.nvst",
+  "tests/conformance/task/a-bounded-channel-suspends-its-sender.nvst",
+  "tests/conformance/task/a-deadline-is-the-only-spelling-for-a-bounded-wait.nvst",
+  "tests/conformance/reject/a-task-all-field-holding-a-callable-variable-is-refused.nvst",
+  "tests/conformance/core/a-graph-copy-round-trips-a-cyclic-value.nvst",
+  "tests/conformance/reject/serialize-decode-refuses-a-tainted-operand.nvst",
+  "tests/conformance/reject/a-secret-value-does-not-cross-a-boundary.nvst",
+  "tests/conformance/isolate/a-child-shares-nothing-with-its-parent.nvst",
+  "tests/conformance/isolate/a-childs-failure-is-a-value-not-an-exception.nvst",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "8 corpus and guards"
+name = "differential"
+args = ["test", "tests/differential/"]
+min_passing = 205
+
+# The cost claim M5 exists to make, and the one already-green guard it must not regress.
+[[check]]
+kind = "cargo-named"
+stage = "9 guards"
+name = "abi-probe (isolation cost)"
+args = ["test", "--release", "-p", "nvs-abi-probe", "--test", "perf_guards"]
+tests = [
+  "an_os_process_costs_orders_of_magnitude_more_than_a_task",
+  "a_spawn_to_result_round_trip_stays_in_the_microsecond_class",
+  "a_coroutine_round_trip_stays_cheap",
+]
+
+[[check]]
+kind = "command"
+stage = "9 guards"
+name = "check-migration at 50%"
+argv = ["python", "tools/check-migration.py", "--min", "50"]
+stdout_contains = ["inventory:", "classified:"]

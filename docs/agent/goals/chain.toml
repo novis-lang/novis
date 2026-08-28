@@ -1,0 +1,57 @@
+# The parity program's goal order, read by `python tools/loop.py --chain docs/agent/goals/chain.toml`.
+#
+# On GOAL REACHED the driver takes the next entry, runs `tools/goal-switch.py` against it so the goal that
+# just passed becomes its floor, copies it into `docs/agent/loop-goal.md`/`.toml`, seeds the handoff from
+# the entry's own `.handoff.md`, commits that switch, and starts the next session. README.md in this
+# directory is the contract; this file is only the order.
+#
+# The order is a dependency chain, not a preference. `Core`'s pure half is what everything is written
+# against; the reactor is what a socket, a driver and a listener all need; capabilities are what every
+# capability-bearing member is gated on; the databases and the rest of Part II sit on both; the server
+# sits on all of them.
+
+[[goal]]
+name = "1 core-depth"
+md = "docs/agent/goals/1-core-depth.md"
+toml = "docs/agent/goals/1-core-depth.toml"
+handoff = "docs/agent/goals/1-core-depth.handoff.md"
+milestone = "M4S"
+
+[[goal]]
+name = "2 concurrency"
+md = "docs/agent/goals/2-concurrency.md"
+toml = "docs/agent/goals/2-concurrency.toml"
+handoff = "docs/agent/goals/2-concurrency.handoff.md"
+milestone = "M5"
+
+[[goal]]
+name = "3 governance"
+md = "docs/agent/goals/3-governance.md"
+toml = "docs/agent/goals/3-governance.toml"
+handoff = "docs/agent/goals/3-governance.handoff.md"
+milestone = "M6"
+
+[[goal]]
+name = "4 core-part-ii"
+md = "docs/agent/goals/4-core-part-ii.md"
+toml = "docs/agent/goals/4-core-part-ii.toml"
+handoff = "docs/agent/goals/4-core-part-ii.handoff.md"
+milestone = "M8"
+
+# The one goal with an external precondition. ADR 0067 verifies four of the five drivers against real
+# servers, so the driver preflights a reachable Docker daemon before this goal's first session and stops
+# the run naming it rather than grinding against a check that cannot pass.
+[[goal]]
+name = "5 database"
+md = "docs/agent/goals/5-database.md"
+toml = "docs/agent/goals/5-database.toml"
+handoff = "docs/agent/goals/5-database.handoff.md"
+milestone = "M8"
+preflight = "docker"
+
+[[goal]]
+name = "6 server"
+md = "docs/agent/goals/6-server.md"
+toml = "docs/agent/goals/6-server.toml"
+handoff = "docs/agent/goals/6-server.handoff.md"
+milestone = "M7"

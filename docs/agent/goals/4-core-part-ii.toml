@@ -1,0 +1,500 @@
+# Goal 4 of the parity program -- `Core`'s capability-bearing half. The acceptance test, as data.
+#
+# `4-core-part-ii.md` is the prose. One home each.
+#
+# This is the largest goal in the program -- nine subsystems, each with its own ADR -- and the stages are
+# grouped by FILE SET so that its size costs sessions rather than costing any one session context.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  "examples/files.nvs",
+  "examples/process.nvs",
+  "examples/cli.nvs",
+  "examples/crypto.nvs",
+  "examples/http.nvs",
+  "examples/cache.nvs",
+  "examples/logging.nvs",
+  "examples/reflect.nvs",
+]
+
+[context]
+
+# One glob per subsystem, added as each module is created. `nvs-stdlib` is where almost all of this goal
+# lives, so the glob is deliberate: naming thirty modules by hand is a manifest that goes stale weekly.
+modules = [
+  "crates/nvs-stdlib/src/**/*.rs",
+  # The gate goal 3 built. Every member in this goal declares against it.
+  "crates/nvs-config/src/capability.rs",
+  # The stream every network member is written over, and the pool every blocking call goes to.
+  "crates/nvs-host/src/stream.rs",
+  "crates/nvs-host/src/pool.rs",
+  # Items 16, 23, 25 are checker work rather than member work.
+  "crates/nvs-types/src/expr/quals.rs",
+  "crates/nvs-types/src/retrieval.rs",
+]
+
+rules = [
+  "0019", "0020", "0024", "0033", "0044", "0046", "0051", "0052", "0054",
+  "0056", "0058", "0059", "0060", "0063", "0074", "0075", "0076", "0082", "0086", "0105",
+]
+
+# The sections EVERY session of this goal reads. 0063 is the shape rule for every member it writes;
+# 0024 § 3 is what a launderer is, and nine of the ten stages produce a `tainted` value; 0051 § 3 is the
+# roster that says which class belongs here at all. Eighteen ADRs are named in `rules` above and printing
+# a section of each would be 20k a session -- read the rest at the item's own heading.
+adrs = [
+  "0063",
+  "0024 §3",
+  "0051 §3",
+]
+
+shapes = ["A `Core` member — the four edits", "A `.nvst` test case", "A diagnostic", "A commit message"]
+
+playbook = [
+  'Writing Novis itself > core is',
+  'Tooling > a core class',
+  'Writing a test case > no core',
+  'Running things > adding a',
+  'Writing a test case > a rule',
+  'Writing a test case > a test binary',
+  'Writing a test case > a -p',
+  'Running things > value::asstrbytes and',
+  'Running things > a fatal',
+  'Running things > a leak whose',
+  'Divergences and refusals already pinned > --errors names no catchable',
+  'Tooling > alloc::pooled recycles',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole adr',
+  'Tooling > a plan field is patched',
+  'Tooling > plan.py --get',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+milestones = ["M8:verify"]
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 0 -- ADR 0056's tiering. It changes what an EXISTING pattern does, so every regex case written
+# before it lands is written against the wrong engine, and a catastrophic pattern that silently works
+# today is a case that silently stops working later.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "0 regex tiering"
+name = "nvs-stdlib (two tiers, one rule)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_pattern_the_linear_engine_expresses_never_reaches_the_backtracker",
+  "a_backtracking_pattern_runs_under_a_throwing_step_budget",
+  "a_step_budget_exhaustion_throws_rather_than_returning_no_match",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "0 regex tiering"
+name = "nvs-types (the tier is settled at compile time)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "a_literal_patterns_tier_is_settled_while_checking",
+  "a_regex_pattern_argument_refuses_a_tainted_operand",
+]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the filesystem. Spec § 14 is the member list and is authoritative.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 filesystem"
+name = "nvs-stdlib (Core\\IO)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  # R14 and R11 -- a handle is an object and a mode is an enum. A mode string is a parser per call site.
+  "an_open_file_is_an_object_and_never_a_resource",
+  "a_file_mode_is_an_enum_and_never_a_string",
+  # Item 4 -- the check `Core\Path::normalize` structurally cannot make.
+  "within_resolves_and_then_proves_containment",
+  "within_refuses_a_path_that_escapes_through_dotdot_or_a_symlink",
+  # Item 5 -- ADR 0105 § 4, and goal 6's uploads are its second caller.
+  "write_stream_defaults_to_no_overwrite",
+  "a_write_stream_that_fails_midway_removes_the_partial_file",
+  # ADR 0052 -- by construction, not by a blocklist.
+  "no_member_dispatches_on_a_uri_scheme",
+]
+
+[[check]]
+kind = "exact"
+stage = "2 filesystem"
+file = "examples/files.nvs"
+want = [
+  "wrote 12 bytes", "read back: hello world", "lines=3", "exists=true",
+  "within ok", "within refused", "removed",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- processes and the terminal.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 process and terminal"
+name = "nvs-stdlib (Core\\Process)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  # ADR 0044 -- argv-only, with no shell-string form AT ALL. There is nothing to escape because there is
+  # nothing to escape into.
+  "there_is_no_shell_string_form_of_run_or_spawn",
+  "a_windows_batch_or_powershell_target_is_refused",
+  # Goal 2's blocking pool: a child process has no readiness to wait on.
+  "a_process_wait_suspends_its_coroutine_through_the_blocking_pool",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 process and terminal"
+name = "nvs-types (the process qualifier rules)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "a_tainted_path_or_argv_element_is_a_compile_time_diagnostic",
+  "process_exec_is_deny_by_default",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 process and terminal"
+name = "nvs-stdlib (Core\\Cli)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  # ADR 0086 § 1 -- the terminal is a sink, and it substitutes VISIBLY.
+  "terminal_output_substitutes_a_control_sequence_visibly",
+  # § 2, § 3.
+  "styling_is_a_value_type_and_never_a_grammar",
+  "tty_colour_depth_and_width_resolve_once_per_process",
+  # § 4 -- the prompts read the controlling terminal, and none of them blocks forever.
+  "a_prompt_reads_the_controlling_terminal_and_not_stdin",
+  "no_prompt_blocks_without_a_deadline",
+  # §§ 5, 8 + ADR 0020 § 4 -- part of the slice, not a follow-up.
+  "a_live_region_is_scoped_and_restores_the_terminal_on_a_panic",
+  # Item 11 -- unlike Core\Router it dispatches, because a CLI has one entry point.
+  "command_run_dispatches_through_the_compiled_table",
+  "help_and_completions_are_generated_from_the_same_table",
+]
+
+[[check]]
+kind = "exact"
+stage = "3 process and terminal"
+file = "examples/process.nvs"
+want = ["exit=0", "stdout=hello", "refused: no shell form"]
+
+[[check]]
+kind = "exact"
+stage = "3 process and terminal"
+file = "examples/cli.nvs"
+want = ["greet: Hello, ada!", "usage: greet <name> [--loud]", "width resolved once"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- crypto and the protocols on it. AEAD-only per ADR 0051 § 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 crypto"
+name = "nvs-stdlib (crypto and the roster)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "every_registered_cipher_is_an_aead",
+  "a_signed_cookie_round_trips_and_a_tampered_one_is_refused",
+  "a_csrf_token_is_bound_to_the_session_that_issued_it",
+  "a_totp_window_is_bounded_and_a_replay_is_refused",
+  "a_jwt_with_an_unexpected_algorithm_is_refused",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 crypto"
+name = "nvs-types (secret, and what a signature does not do)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  # ADR 0033 -- exactly two ways a value loses `secret`.
+  "reveal_and_the_password_helpers_are_the_only_launderers_of_secret",
+  # ADR 0060 § 5 -- reads like an oversight and is a decision.
+  "a_verified_signature_does_not_launder_its_claims",
+]
+
+[[check]]
+kind = "exact"
+stage = "4 crypto"
+file = "examples/crypto.nvs"
+want = ["hash ok", "verify ok", "verify failed", "sealed", "opened", "tamper refused"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the network, over goal 2's parking stream with rustls on it.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 network"
+name = "nvs-types (the outbound compile-time rules)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  # ADR 0058 §§ 1-2 -- the URL is a sink and `allowUrl` pins.
+  "an_outbound_url_parameter_refuses_a_tainted_operand",
+  "allow_url_pins_what_it_launders",
+  # ADR 0074 § 7 -- needs nvs-types, and is therefore the easy one to defer and then forget.
+  "a_post_retried_without_an_idempotency_key_is_a_compile_error",
+  # § 5 -- there is no spelling for an unbounded wait.
+  "no_client_member_accepts_an_unbounded_timeout",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 network"
+name = "nvs-stdlib (the client and the socket)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  # ADR 0058 § 5 -- the policy lives in the capability, which is what makes it enforceable.
+  "the_address_policy_is_read_from_the_capability_and_not_from_the_client",
+  "a_denied_address_range_fails_before_a_connection_is_made",
+  # § 4.
+  "a_redirect_is_re_checked_against_the_same_policy",
+  # ADR 0074 § 6 -- jittered, opt-in, and under ONE covering deadline.
+  "a_retry_is_jittered_and_shares_the_covering_deadline",
+  # ADR 0076 § 2 -- where a trace crosses a service boundary at all.
+  "an_outbound_request_carries_traceparent",
+  # ADR 0051 -- over the runtime's own reactor, not a second event loop.
+  "a_socket_read_runs_on_the_reactor_and_parks_its_coroutine",
+]
+
+[[check]]
+kind = "exact"
+stage = "5 network"
+file = "examples/http.nvs"
+want = ["status=200", "body=ok", "refused: tainted url", "refused: denied range", "deadline hit"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- the two stores. Redis by default for the shared tier (ADR 0059 § 1); the container it runs
+# in is the same compose file goal 5 uses, brought up once per run.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "6 stores"
+name = "nvs-stdlib (Core\\Cache)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  # § 1 -- two methods, not one API with a flag, so the choice is visible in review.
+  "local_and_shared_are_separate_members_with_separate_contracts",
+  "a_local_entry_may_be_absent_at_any_time_and_the_contract_says_so",
+  "a_local_write_on_one_core_is_not_visible_on_another",
+  # § 2 -- the graph copy goal 2 built, not a third mechanism.
+  "a_cache_put_and_get_use_the_same_graph_copy_as_the_isolate_boundary",
+  # § 3.
+  "the_local_tiers_memory_is_charged_to_the_core_and_capped",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "6 stores"
+name = "nvs-stdlib (Core\\RateLimit)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  # § 2 -- GCRA in both tiers, and the shared tier's atomic script is ours.
+  "consume_is_gcra_over_the_shared_store",
+  "shed_is_per_core_and_approximate_and_says_so",
+  "retry_after_is_exact_rather_than_a_window_guess",
+  # § 5 -- the failure mode is a decision, not a default.
+  "an_unreachable_store_throws_rather_than_deciding_allowed",
+  # § 4 -- no configuration at all is the design, and a directive appearing is the regression.
+  "rate_limit_reads_no_directive",
+]
+
+[[check]]
+kind = "exact"
+stage = "6 stores"
+file = "examples/cache.nvs"
+want = ["local miss", "local hit", "shared hit", "allowed=true", "allowed=false retryAfter=2"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- the escalation ladder's remaining half. One serialiser reached twice, exactly as goal 2's
+# graph copy is one walk reached twice.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "7 fatal and log"
+name = "nvs-stdlib (Core\\Fatal and Core\\Log)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "application_code_and_the_engine_floor_produce_schema_identical_records",
+  "on_uncaught_throw_receives_the_real_throwable",
+  "the_configured_handler_script_runs_charged_to_the_engines_own_reserve",
+  "the_handler_still_fires_when_the_reporting_request_is_at_its_memory_ceiling",
+  # ADR 0106's amendment to ADR 0020 § 4 -- the floor cannot fill the disk it writes to.
+  "the_engine_floor_rotates_and_rate_limits_itself",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "7 fatal and log"
+name = "nvs-types (the open-typed argument that is still checked)"
+args = ["test", "-p", "nvs-types"]
+tests = ["a_secret_operand_at_log_write_fields_is_refused_despite_the_open_type"]
+
+[[check]]
+kind = "exact"
+stage = "7 fatal and log"
+file = "examples/logging.nvs"
+want = ['{"level":"info","msg":"started"}', '{"level":"error","msg":"boom"}', "handler ran"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 8 -- introspection. ADR 0019's two rules are the whole item: reflection obeys the same visibility
+# checks ordinary code does, and a parsed AST is inert.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "8 introspection"
+name = "nvs-stdlib (Reflect, Ast, Decimal)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_reflective_call_to_a_private_method_from_outside_fails_like_the_ordinary_call",
+  "a_reflective_property_write_runs_the_hook_an_ordinary_write_runs",
+  "a_parsed_ast_is_inert_data_with_no_path_back_into_execution",
+  "type_of_is_the_single_replacement_for_the_is_predicates",
+  # ADR 0054 -- division is the one place a decimal result may be inexact.
+  "div_exact_throws_where_div_round_rounds",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "8 introspection"
+name = "nvs-types (attribute retrieval folds)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  # ADR 0046 §§ 4-6 -- zero matches is a constant null, one is a constant WITH NO RUNTIME LOOKUP.
+  "get_with_no_matching_attribute_folds_to_a_constant_null",
+  "get_with_one_match_folds_to_that_constant_with_no_runtime_lookup",
+  "get_with_two_matches_is_a_diagnostic_naming_all",
+  "a_literal_member_name_that_names_no_real_member_is_a_diagnostic",
+]
+
+[[check]]
+kind = "exact"
+stage = "8 introspection"
+file = "examples/reflect.nvs"
+want = ["class=Point", "members=2", "private refused", "kind=int", "parsed 4 nodes"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 9 -- the launderers and the framework's privileged half. Every other stage produces a `tainted`
+# value; this is the stage that says how one stops being one.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "9 launderers"
+name = "nvs-stdlib (the privileged half)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "html_escape_launders_for_the_html_sink_and_for_no_other",
+  "validate_launders_only_what_it_actually_validated",
+  "mail_sends_against_an_operator_named_endpoint_and_no_other",
+  "storage_over_local_disk_is_gated_on_the_same_fs_capability",
+  "plural_category_answers_from_the_carried_cldr_data",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 10 -- the gates. The set claims, checked over the registry rather than over fixtures.
+#
+# The C-dependency enumeration is here rather than in goal 5 on purpose: goal 5 adds the one exception
+# ADR 0051 § 4 allows, and a gate written by the goal that needs an exemption is a gate with an exemption
+# in it.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "10 gates"
+name = "nvs-stdlib (Part II is registered, cased and classified)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "every_part_two_spec_member_is_registered",
+  "every_part_two_member_has_a_conformance_case",
+  "every_member_parameter_carries_a_qualifier_classification",
+  "every_capability_bearing_member_declares_its_capability",
+  "every_core_class_has_a_conformance_floor_of_three",
+  "no_class_outside_tier_zero_registers_a_core_name",
+]
+
+[[check]]
+kind = "command"
+stage = "10 gates"
+name = "the C-dependency ledger is unchanged"
+argv = ["python", "tools/gen-attribution.py", "--check-c-deps"]
+stdout_contains = ["C dependencies"]
+
+[[check]]
+kind = "nvs-suite"
+stage = "10 gates"
+name = "conformance"
+args = ["test", "tests/conformance/"]
+min_passing = 1250
+cases = [
+  "tests/conformance/io/a-file-round-trips-through-a-handle.nvst",
+  "tests/conformance/io/within-proves-containment-and-normalize-does-not.nvst",
+  "tests/conformance/io/a-write-stream-that-fails-leaves-no-partial-file.nvst",
+  "tests/conformance/reject/there-is-no-shell-string-form-of-process-run.nvst",
+  "tests/conformance/cli/a-live-region-restores-the-terminal-on-a-panic.nvst",
+  "tests/conformance/core/a-signed-cookie-round-trips-and-a-tampered-one-is-refused.nvst",
+  "tests/conformance/reject/a-verified-signature-does-not-launder.nvst",
+  "tests/conformance/reject/a-post-retried-without-an-idempotency-key-is-refused.nvst",
+  "tests/conformance/core/the-two-cache-tiers-have-two-contracts.nvst",
+  "tests/conformance/core/an-unreachable-rate-limit-store-throws.nvst",
+  "tests/conformance/error/the-log-floor-and-core-log-agree-on-shape.nvst",
+  "tests/conformance/core/reflection-obeys-the-visibility-ordinary-code-obeys.nvst",
+  "tests/conformance/core/an-attribute-retrieval-folds-to-a-constant.nvst",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "10 gates"
+name = "differential"
+args = ["test", "tests/differential/"]
+min_passing = 250
+
+# The largest single jump in the program, and it is the measure of the goal rather than a side effect:
+# the filesystem, processes, crypto, the network, caching, logging and reflection are most of what was
+# left in the inventory after goal 1 took strings, arrays, numbers and dates.
+[[check]]
+kind = "command"
+stage = "10 gates"
+name = "check-migration at 85%"
+argv = ["python", "tools/check-migration.py", "--min", "85"]
+stdout_contains = ["inventory:", "classified:"]

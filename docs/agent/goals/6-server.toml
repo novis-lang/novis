@@ -1,0 +1,422 @@
+# Goal 6 of the parity program -- the server, and the program's last gate. The acceptance test, as data.
+#
+# `6-server.md` is the prose. One home each.
+#
+# The last check in this file is the parity program's stop condition: check-migration.py at 100%
+# classified. When it goes green the chain has no next goal and the driver stops, GOAL REACHED.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  "examples/serve.nvs",
+  "examples/upload.nvs",
+  "examples/session.nvs",
+]
+
+[context]
+
+modules = [
+  "crates/nvs-server/src/**/*.rs",
+  # The isolate the request IS -- not a second isolation path -- and the stream hyper reads through.
+  "crates/nvs-host/src/isolate.rs",
+  "crates/nvs-host/src/stream.rs",
+  # The mount table is resolved out of the config tree goal 3 built.
+  "crates/nvs-config/src/**/*.rs",
+  # Request, Response, Server, Session, Router, Metrics are registered here.
+  "crates/nvs-stdlib/src/registry.rs",
+  # Item 9's compile error, and item 3's `tainted` returns.
+  "crates/nvs-types/src/expr/quals.rs",
+]
+
+rules = ["0097", "0012", "0024", "0074", "0088", "0102", "0105", "0073", "0076", "0078", "0093", "0017", "0072", "0079"]
+
+# The sections EVERY session of this goal reads. § 2 is the governing rule and § 4 is how it is kept, so
+# every stage that touches a path reads both; 0088 § 3's binding table decides which sink an `echo` takes
+# and half the stages produce output. Fourteen ADRs are named above; read the rest at the item's heading.
+adrs = [
+  "0097 §2",
+  "0097 §4",
+  "0088 §3",
+]
+
+shapes = ["A `Core` member — the four edits", "A `.nvst` test case", "A diagnostic", "An ADR", "A commit message"]
+
+playbook = [
+  'Writing Novis itself > core is',
+  'Tooling > a core class',
+  'Running things > adding a',
+  'Running things > target/release/nvs.exe is',
+  'Running things > a leak whose',
+  'Writing a test case > a rule',
+  'Writing a test case > a -p',
+  'Writing a test case > a multi-file',
+  'Writing a test case > a test binary',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole adr',
+  'Tooling > a plan field is patched',
+  'Tooling > plan.py --get',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+milestones = ["M7:verify"]
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# Goal 5's containers stay up: the session store and the fleet lease both need Redis, and `#[Test(db:)]`
+# needs a database. Same compose file, same memoization.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "redis"]
+memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone. A socket to a root isolate and back, and nothing else: no mount table, no
+# routing, no response policy. Item 2 is stated as an item rather than assumed because a second isolation
+# path makes Stage 9's state-bleed suite meaningless.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 one request"
+name = "nvs-server (the connection seam)"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  # The ADR slot's own assertions: one polled future per connection, and not an executor.
+  "a_connection_future_is_driven_by_block_on_over_the_parking_stream",
+  "a_connection_never_blocks_the_core_it_runs_on",
+  "no_task_is_spawned_to_serve_a_connection",
+  # Item 2 -- goal 2's Isolate, not a second one.
+  "a_request_is_the_root_isolate_of_a_request_tree",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 one request"
+name = "nvs-types (everything from outside is tainted)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "every_request_member_returning_outside_data_returns_it_tainted",
+  # Item 4 -- the shapes that are rules rather than fields.
+  "method_reports_get_for_a_head_request_and_is_head_carries_the_truth",
+  "client_ip_and_scheme_come_from_the_peer_unless_a_trusted_proxy_asserted",
+]
+
+# The manifest policy that has held since M0 and must survive hyper's arrival. `hyper` is not `tokio`;
+# this is the check that keeps the distinction honest rather than assumed.
+[[check]]
+kind = "cargo-named"
+stage = "2 one request"
+name = "nvs-runtime (no async runtime)"
+args = ["test", "-p", "nvs-runtime"]
+tests = ["tokio_appears_in_neither_the_manifest_nor_the_lockfile"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the mount table. ADR 0097 § 3's globs expanded at boot, and § 4's five-step resolution.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 mounts"
+name = "nvs-server (the table and the block)"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  "a_mount_globs_is_expanded_against_disk_at_boot",
+  "a_request_resolves_through_the_five_steps_in_order",
+  "a_prefix_is_stripped_and_the_module_is_relocatable",
+  "static_files_are_one_policy_in_both_deployments",
+  # § 5, as amended by ADR 0106: an arithmetic against the memory budget, not a number someone picked.
+  "max_in_flight_is_derived_from_the_memory_budget",
+  "an_over_capacity_request_is_refused_with_503_before_it_is_allocated",
+  "the_four_idle_timeouts_are_finite",
+  "is_draining_answers_during_a_graceful_shutdown",
+  # § 10 -- a mount that grows a limit has re-implemented the per-app block.
+  "a_mount_carries_no_policy_of_its_own",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the response, and the sink binding. ADR 0088 § 4's five typed members, and § 3's table.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 response"
+name = "nvs-types (five members, and mixing is an error)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "each_body_member_sets_its_own_content_type",
+  "mixing_echo_with_a_typed_body_member_is_a_compile_error",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 response"
+name = "nvs-server (the binding table and the defaults)"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  # § 3 -- attached by a request and by nothing else.
+  "the_html_sink_is_attached_by_a_request_and_by_nothing_else",
+  "a_scheduled_scripts_echo_takes_the_terminal_sinks_neutralization",
+  "an_isolates_echo_takes_the_terminal_sinks_neutralization",
+  # ADR 0074 §§ 1-4 -- with NOTHING configured.
+  "secure_headers_apply_with_nothing_configured",
+  "cors_is_closed_with_nothing_configured",
+  "a_cookie_is_secure_httponly_samesite_lax_by_default",
+  "every_response_directive_is_runtime_and_set_header_still_wins",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- routing, sessions, uploads.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 routing and uploads"
+name = "nvs-server (match once, and the two answers)"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  # ADR 0102 § 1 -- once, before the handler, travelling on the request.
+  "a_request_is_matched_once_before_the_handler_and_route_returns_that_match",
+  "the_csrf_check_and_the_route_label_read_the_match_rather_than_matching_again",
+  # § 2 -- a missing path and a refused verb are different answers.
+  "no_methods_for_a_path_is_404_and_some_is_405_with_allow",
+  # § 7 -- how one table serves many tenants.
+  "a_mounts_captures_reach_the_handler_as_tainted_values",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 routing and uploads"
+name = "nvs-stdlib (session, and the tier it may not use)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  # ADR 0059 § 4 -- a session that vanishes because a core evicted it is an authentication bug.
+  "a_session_is_never_backed_by_the_local_cache_tier",
+  "a_session_survives_a_request_landing_on_another_core",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 routing and uploads"
+name = "nvs-server (ADR 0105, whole)"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  "files_is_a_lazy_iterator_and_the_only_way_to_receive_an_upload",
+  "a_part_is_a_file_part_iff_content_disposition_carries_a_filename",
+  "a_part_is_consumed_by_read_all_by_iteration_or_by_save_to",
+  "there_is_no_temp_path_and_no_move_uploaded_file",
+  "a_non_file_part_is_buffered_into_post",
+  # § 5 -- refused pre-dispatch when Content-Length already exceeds it.
+  "an_upload_total_over_the_cap_is_refused_before_dispatch",
+  # §§ 3, 6-8 -- exclusive with body and with files on one request.
+  "body_stream_is_exclusive_with_body_and_with_files",
+]
+
+[[check]]
+kind = "exact"
+stage = "5 routing and uploads"
+file = "examples/upload.nvs"
+want = ["parts=2", "field=title", "file=report.pdf", "saved 4096 bytes", "no temp file"]
+
+[[check]]
+kind = "exact"
+stage = "5 routing and uploads"
+file = "examples/session.nvs"
+want = ["new session", "visits=1", "visits=2", "regenerated", "visits=1"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- what runs beside a request. Each of the three is a runtime half whose other half landed in
+# an earlier goal, which is why none of them is a catch-up.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "6 beside a request"
+name = "nvs-server (schedule, deferred, metrics)"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  # ADR 0073 -- a ROOT isolate, and a fleet lease over the shared store.
+  "a_schedule_entry_fires_as_a_root_isolate",
+  "a_fleet_scoped_entry_fires_once_across_the_fleet_under_its_lease",
+  # ADR 0072 §§ 6-7 -- the connection ends, the tree does not, bounded by max_concurrent.
+  "an_after_response_tree_outlives_its_connection",
+  "the_deferred_queue_is_bounded_by_max_concurrent",
+  # ADR 0076 -- a trace id for EVERY request, sampled or not, and no probe on the measured path.
+  "an_inbound_traceparent_is_continued_and_a_missing_one_is_generated",
+  "a_trace_id_exists_whether_or_not_the_request_is_sampled",
+  "no_probe_is_added_to_the_measured_path",
+  "the_default_metric_series_are_exported",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- the operator's surface: the socket, the service, and hot reload.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "7 operator surface"
+name = "nvs-server (the control socket)"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  # ADR 0078 §§ 3, 6.
+  "the_control_socket_is_created_0600",
+  "a_world_writable_socket_directory_refuses_the_socket",
+  "reload_is_the_sockets_only_operation",
+  "there_is_no_network_reachable_control_surface",
+  # ADR 0078 § 5 -- a reload reports what it did AND what it could not do.
+  "a_changed_boot_key_is_reported_and_does_not_take_effect",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "7 operator surface"
+name = "nvs-cli (nvs service, and it fails closed)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  # ADR 0093 -- the installer is a sink.
+  "the_installer_refuses_a_subcommand_outside_the_serve_and_run_allowlist",
+  "the_installer_refuses_a_relative_path",
+  "the_installer_refuses_a_password_on_a_command_line",
+  "the_installer_refuses_an_install_whose_output_would_go_nowhere",
+  "the_installer_refuses_to_install_from_a_bundle",
+  "a_windows_image_path_is_quoted_and_absolute",
+  "a_systemd_unit_is_printed_and_written_only_on_install",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "7 operator surface"
+name = "nvs-server (hot reload)"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  # ADR 0017 -- swapped WITHOUT ever blocking a request-serving core.
+  "a_swap_never_blocks_a_request_serving_core",
+  "revalidation_is_lazy_and_rate_capped",
+  "the_validate_default_is_selected_by_the_run_mode",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 8 -- the testing surface the server unlocks. ADR 0079 §§ 14, 17, 18.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "8 test surface"
+name = "nvs-test (request, db, server, snapshots)"
+args = ["test", "-p", "nvs-test"]
+tests = [
+  "test_request_dispatches_in_process_through_the_compiled_route_table",
+  "a_test_with_db_runs_inside_a_transaction_that_is_rolled_back",
+  "a_test_with_server_true_gets_an_ephemeral_listener",
+  "an_inline_snapshot_updates_its_own_source_when_asked_and_never_otherwise",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 9 -- the load-bearing assertions, and the parity program's last gate.
+#
+# Item 26 is ADR 0097's governing rule stated as a test rather than as a suite of attempted escapes: the
+# set of paths the server can execute after boot EQUALS the expanded mount table. A traversal suite proves
+# that the escapes somebody thought of are refused; this proves the set is closed.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "9 the claims"
+name = "nvs-server (the load-bearing assertions)"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  # m7.md's core requirement, and the number the hot-reload design exists to make true.
+  "ten_thousand_concurrent_cold_requests_compile_the_file_exactly_once",
+  "no_request_stalls_while_the_file_is_compiled",
+  # Item 25 -- a PARAMETERISATION, not a second suite. If it is two suites, item 2 was not done.
+  "the_state_bleed_suite_passes_within_a_request_and_across_an_isolate_boundary",
+  # Item 26 -- the governing rule, as a set equality.
+  "the_executable_path_set_after_boot_equals_the_expanded_mount_table",
+  # ADR 0105's load-bearing case, asserted against a high-water mark.
+  "a_multipart_body_far_over_the_memory_bound_is_received_at_bounded_resident_memory",
+  # The three suites, and the disconnect case.
+  "the_path_traversal_suite_passes",
+  "the_header_injection_suite_passes",
+  "the_request_smuggling_suite_passes",
+  "a_client_disconnect_leaves_no_isolate_behind",
+]
+
+[[check]]
+kind = "command"
+stage = "9 the claims"
+name = "throughput against PHP 8.5 + FPM + opcache, recorded"
+argv = ["python", "tools/bench.py", "--serve-vs-fpm", "--record", "benches/serve.json"]
+stdout_contains = ["requests/sec", "recorded"]
+
+[[check]]
+kind = "nvs-suite"
+stage = "9 the claims"
+name = "conformance"
+args = ["test", "tests/conformance/"]
+min_passing = 1450
+cases = [
+  "tests/conformance/http/a-request-value-arrives-tainted-and-is-laundered-to-be-used.nvst",
+  "tests/conformance/http/a-head-request-matches-a-get-route-and-is-head-says-so.nvst",
+  "tests/conformance/reject/mixing-echo-with-a-typed-body-member-is-refused.nvst",
+  "tests/conformance/http/a-request-is-matched-once-and-route-returns-that-match.nvst",
+  "tests/conformance/http/a-missing-path-is-404-and-a-refused-verb-is-405.nvst",
+  "tests/conformance/http/an-upload-is-received-only-through-files.nvst",
+  "tests/conformance/http/a-session-survives-a-request-on-another-core.nvst",
+  "tests/conformance/http/an-after-response-tree-outlives-its-connection.nvst",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "9 the claims"
+name = "differential"
+args = ["test", "tests/differential/"]
+min_passing = 275
+
+# ---------------------------------------------------------------------------------------------------
+# THE PARITY PROGRAM'S STOP CONDITION. Every one of the oracle build's 925 functions and 240 types is a
+# `member`, `language` or `dropped` row; every `member` row's member is registered; every one of them has
+# a conformance case. When this goes green the chain has no next goal.
+#
+# It was 31% the day the program was scheduled. A count of conformance cases is a proxy for parity; a
+# table that enumerates the source of truth is not.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "9 the claims"
+name = "check-migration at 100% -- PARITY"
+argv = ["python", "tools/check-migration.py", "--min", "100"]
+stdout_contains = ["100% covered"]
+
+[[check]]
+kind = "cargo-named"
+stage = "9 the claims"
+name = "nvs-stdlib (every member row is real)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "every_migration_member_row_names_a_registered_member",
+  "every_migration_member_row_has_a_conformance_case",
+]

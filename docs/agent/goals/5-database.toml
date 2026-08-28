@@ -1,0 +1,366 @@
+# Goal 5 of the parity program -- `Core\Db` and five drivers. The acceptance test, as data.
+#
+# `5-database.md` is the prose. One home each.
+#
+# THIS GOAL HAS AN EXTERNAL PRECONDITION. `chain.toml` marks it `preflight = "docker"`, so the driver
+# checks for a reachable daemon before this goal's first session and stops the run naming it. Four of the
+# five drivers are verified against real servers; SQLite is a file and needs nothing.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  "examples/db.nvs",
+  "examples/transaction.nvs",
+  "examples/queue.nvs",
+]
+
+[context]
+
+modules = [
+  "crates/nvs-db/src/**/*.rs",
+  # The stream every driver is written over, and the pool a blocking call goes to.
+  "crates/nvs-host/src/stream.rs",
+  # Stage 0's pass, and the one it copies.
+  "crates/nvs-types/src/derive.rs",
+  # § 10's compile-time diagnostics on a literal query, and the qualifier half beside them.
+  "crates/nvs-types/src/expr/quals.rs",
+  # `Core\Db`, `Core\Queue` and the row types are registered here.
+  "crates/nvs-stdlib/src/registry.rs",
+  # The two things the type map borrows: Time's types for date columns, Json's for the JSON ones.
+  "crates/nvs-stdlib/src/time.rs",
+  "crates/nvs-stdlib/src/json.rs",
+]
+
+rules = ["0067", "0084", "0071", "0051", "0058", "0024", "0054", "0063", "0082"]
+
+# The sections EVERY session of this goal reads. § 1 is why there is no escaping API to reach for, § 9's
+# map is the one every driver item is measured against, and § 13's reset is a security boundary that a
+# pool implementation gets wrong by default. The other eleven sections are named per item.
+adrs = [
+  "0067 §1",
+  "0067 §9",
+  "0067 §13",
+]
+
+shapes = ["A `Core` member — the four edits", "A `.nvst` test case", "A diagnostic", "An ADR", "A commit message"]
+
+playbook = [
+  'Writing Novis itself > core is',
+  'Tooling > a core class',
+  'Running things > adding a',
+  'Writing a test case > a rule',
+  'Writing a test case > a test binary',
+  'Writing a test case > a -p',
+  'Writing a test case > a multi-file',
+  'Running things > a leak whose',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole adr',
+  'Tooling > a plan field is patched',
+  'Tooling > plan.py --get',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+milestones = ["M8:verify"]
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# The five servers ADR 0067's Verification names. Brought up ONCE per run rather than per iteration and
+# memoized against `crates/nvs-db/**` the way the WSL leg is memoized against its own inputs -- the matrix
+# costs minutes and identical bytes into a deterministic check cannot come out a different verdict.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["mysql", "mariadb", "postgres", "mssql", "redis"]
+memoize_on = ["crates/nvs-db", "tests/db"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 0 -- ADR 0071's pass over a second format. It goes first because § 6's `queryAs<T>` is written
+# against it, and a row mapping written without it is written twice.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "0 db derive"
+name = "nvs-types (the second derive)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "db_derive_and_db_field_are_on_the_attribute_roster",
+  "a_db_derive_field_whose_type_has_no_column_mapping_is_refused_where_declared",
+  "the_json_and_db_derives_share_one_pass",
+]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone. PostgreSQL first and no second driver until it is green end to end: its
+# extended protocol pays nothing extra for a prepare, so the first driver exercises the design rather
+# than the driver's own quirks.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 first driver"
+name = "nvs-db (a connection, over the parking stream)"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  "a_connection_is_opened_tls_wrapped_and_authenticated_over_the_parking_stream",
+  "a_connection_read_parks_its_coroutine_rather_than_blocking_the_core",
+  # § 2 -- memoized for the request, and five settings TYPES rather than one loose shape.
+  "a_named_connection_is_memoized_for_the_request",
+  # § 1 -- emulated prepares do not exist in any form.
+  "no_driver_path_interpolates_a_value_into_sql",
+  # § 3 -- a property of the CLIENT, because a malicious server can request it at any time.
+  "local_infile_is_refused_and_no_file_is_sent",
+  "the_connection_charset_is_forced_to_utf8",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 first driver"
+name = "nvs-types (the settings shape and the two capabilities)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  # § 2 -- SQLite has no host, and a host on its settings literal is a compile error.
+  "a_host_on_a_sqlite_settings_literal_is_a_compile_error",
+  # § 3 -- the two capabilities answer different questions and collapsing them is the mistake.
+  "a_connect_named_private_endpoint_needs_no_net_connect_grant",
+  "a_db_open_target_in_a_denied_range_fails",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3-4 -- the statement, and § 9's type map.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 statements"
+name = "nvs-db (the five ways, and the rewriter)"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  # § 4 -- only one streams, and a second statement on a busy connection is a LogicError. SQL Server's
+  # MARS could lift that and deliberately does not, so one program runs on all four drivers.
+  "a_large_result_streams_at_constant_memory",
+  "a_second_statement_on_a_busy_connection_is_a_logic_error",
+  # § 5 -- the case that catches a naive rewriter, in one query.
+  "a_postgres_cast_and_a_jsonb_question_mark_survive_the_rewrite",
+  "the_rewriter_skips_string_literals_and_comments",
+  "a_named_parameter_used_twice_binds_one_value_once",
+  "in_list_expands_and_an_empty_list_throws",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 type map"
+name = "nvs-db (every row of § 9)"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  "every_row_of_the_type_map_round_trips",
+  # The rows that are rules rather than mappings.
+  "tinyint_one_reads_int_and_bool_and_throws_for_a_stored_seven",
+  "bigint_unsigned_past_i64_max_reads_uint_and_throws_for_int",
+  "a_decimal_into_a_float_field_throws",
+  "a_zoneless_column_reads_in_the_declared_zone_and_a_timestamptz_ignores_it",
+  "affected_is_the_matched_count_and_changed_is_mysql_only",
+  # § Context -- the defect this API exists to remove.
+  "no_driver_returns_a_number_as_a_string",
+  # § 6 -- naming the column is the item; a mapper that throws without one is unusable at 40 columns.
+  "query_as_throws_naming_the_column_for_a_mismatch_a_missing_column_and_a_null",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- transactions. A closure, and `Transaction` is a `Queryable` rather than a second surface.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 transactions"
+name = "nvs-db (transactions and errors)"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  "a_transaction_is_a_closure_and_transaction_is_a_queryable",
+  "savepoints_nest",
+  # The case a naive implementation loses: the catch swallows the signal the rollback was waiting on.
+  "roll_back_survives_an_intervening_catch_of_throwable",
+  "retries_recover_an_induced_deadlock",
+  # § 8 -- four drivers, FIVE dialects. MariaDB needs its own code table.
+  "every_driver_normalises_its_codes_to_one_error_kind",
+  "mariadb_uses_its_own_code_table_and_not_mysqls",
+  "a_db_error_message_contains_no_bound_value",
+]
+
+[[check]]
+kind = "exact"
+stage = "5 transactions"
+file = "examples/transaction.nvs"
+want = ["inserted 2", "rolled back", "count=0", "committed", "count=2"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- the other four drivers, against real servers. MariaDB is a DISTINCT driver, argued at length
+# in ADR 0067's Context and not a simplification to rediscover.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "6 the matrix"
+name = "the five-driver matrix"
+argv = ["python", "tools/db-matrix.py", "--all"]
+stdout_contains = [
+  "mysql: ok", "mariadb: ok", "postgres: ok", "mssql: ok", "sqlite: ok",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "6 the matrix"
+name = "nvs-db (per-driver specifics)"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  "execute_many_uses_the_bulk_protocol_on_mariadb",
+  "mariadb_returning_is_available_and_mysqls_is_not",
+  # ADR 0051 § 4 named this case in advance so it would be answered by the test, not by convenience.
+  "the_mariadb_auth_plugins_are_implemented_in_rust_or_refused_by_name",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- the pool. § 13's reset is a SECURITY BOUNDARY, and a connection returned carrying one
+# request's state is one request reading another's.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "7 pool"
+name = "nvs-db (the pool and its reset)"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  "the_pool_is_per_core_and_keyed_as_connect_and_open_key",
+  "postgres_resets_without_losing_its_statement_cache",
+  "mysql_and_mssql_reset_through_the_protocol_and_lose_theirs",
+  "a_failed_reset_destroys_the_connection_rather_than_returning_it",
+  "no_session_state_survives_a_return_to_the_pool",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 8 -- ADR 0084's queue. The transactional-enqueue property is the reason for the whole design.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "8 queue"
+name = "nvs-db (Core\\Queue)"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  # § 3 -- a job never exists for a row that was rolled back. This is the property, not a feature.
+  "an_enqueue_commits_with_the_write_that_made_it",
+  "a_rolled_back_write_leaves_no_job",
+  # § 4-6.
+  "claiming_is_skip_locked_shaped_on_every_backend_that_has_it",
+  "a_visibility_timeout_returns_an_abandoned_job_to_the_queue",
+  "retries_are_bounded_and_backoff_is_jittered",
+  "an_exhausted_job_reaches_the_dead_letter_table_and_is_not_discarded",
+]
+
+[[check]]
+kind = "command"
+stage = "8 queue"
+name = "nvs queue migrate creates both tables"
+argv = ["{nvs}", "queue", "migrate", "--connection", "main", "--dry-run"]
+stdout_contains = ["jobs", "dead_letter"]
+
+[[check]]
+kind = "exact"
+stage = "8 queue"
+file = "examples/queue.nvs"
+want = ["enqueued", "claimed 1", "ran", "retried", "dead-lettered"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 9 -- what `nvs check` proves about a literal query, and the trace event.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "9 check and trace"
+name = "nvs-types (the literal-query diagnostics)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  # § 10.
+  "a_placeholder_count_mismatch_on_a_literal_is_a_diagnostic",
+  "mixed_placeholder_styles_on_a_literal_are_a_diagnostic",
+  "an_open_host_matching_no_grant_is_a_diagnostic",
+  "a_two_statement_literal_query_is_a_diagnostic",
+  # ADR 0024's own M8 item -- the pair that has to be checked together.
+  "a_tainted_value_at_a_query_text_parameter_is_a_diagnostic",
+  "the_same_tainted_value_at_a_bound_parameter_compiles",
+  "a_tainted_settings_host_is_a_diagnostic_naming_assert_trusted",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "9 check and trace"
+name = "nvs-db (the span carries no value)"
+args = ["test", "-p", "nvs-db"]
+tests = ["a_query_span_contains_no_parameter_value_anywhere"]
+
+[[check]]
+kind = "exact"
+stage = "9 check and trace"
+file = "examples/db.nvs"
+want = ["rows=3", "ada", "grace", "alan", "affected=1", "typed row ok"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 10 -- the corpus and the migration floor. The DB extensions are absent from the oracle build, so
+# this floor rises by less than the goal's size suggests -- `PDO` is in the build and its family is what
+# moves here.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "10 corpus"
+name = "conformance"
+args = ["test", "tests/conformance/"]
+min_passing = 1350
+cases = [
+  "tests/conformance/db/a-prepared-statement-binds-by-name-and-by-position.nvst",
+  "tests/conformance/db/a-transaction-is-a-closure-that-rolls-back-on-a-throw.nvst",
+  "tests/conformance/db/a-roll-back-survives-a-catch-of-throwable.nvst",
+  "tests/conformance/db/a-typed-row-throws-naming-the-column.nvst",
+  "tests/conformance/reject/a-tainted-value-at-a-query-text-parameter-is-refused.nvst",
+  "tests/conformance/reject/a-two-statement-literal-query-is-refused.nvst",
+  "tests/conformance/reject/a-host-on-a-sqlite-settings-literal-is-refused.nvst",
+  "tests/conformance/db/an-enqueue-commits-with-the-write-that-made-it.nvst",
+  "tests/conformance/db/an-exhausted-job-is-dead-lettered-and-not-discarded.nvst",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "10 corpus"
+name = "differential"
+args = ["test", "tests/differential/"]
+min_passing = 255
+
+[[check]]
+kind = "command"
+stage = "10 corpus"
+name = "check-migration at 90%"
+argv = ["python", "tools/check-migration.py", "--min", "90"]
+stdout_contains = ["inventory:", "classified:"]

@@ -1,0 +1,410 @@
+# Goal 1 of the parity program -- `Core`'s pure half, finished. The acceptance test, as data.
+#
+# `tools/loop.py` runs the checks below in order, short-circuiting on the first failure, so the ledger
+# line each iteration writes says exactly how far the loop got. Every check must pass. Nothing else
+# counts as done -- not a passing unit test, not a session claiming DONE.
+#
+# `1-core-depth.md` is the prose: what the goal is, why, and the standing decisions already settled.
+# It does not restate this list, and this file does not restate its reasoning. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT. A fixture may be corrected to a
+# spelling the docs already fix -- its author had to write it without being able to compile it. What may
+# never change is the expected output, or a fixture's reason for existing.
+
+# The fixtures this goal adds. `goal-switch.py` unions this with the floor's own list, so the twenty-odd
+# fixtures M4 froze do not appear here and are not missing.
+files = [
+  # ADR 0061 § 3's enumeration and the three tables built from it, as one program each.
+  "examples/program.nvs",
+  "examples/routes.nvs",
+  "examples/commands.nvs",
+  # ADR 0057's folding: a literal date format, a literal pattern and a literal template, each validated
+  # while checking, beside the same three reached through a variable so the runtime path is exercised too.
+  "examples/intrinsics.nvs",
+]
+
+# What a session of this goal READS. `python tools/orient.py` slices exactly these out of the live files
+# and prints nothing else. Nothing below is a copy -- each entry is a *selector*, and a wrong one is a
+# loud warning from orient.py rather than silence. `python tools/orient.py --audit` prints what it costs.
+[context]
+
+# This goal's file set is `nvs-stdlib` plus the two passes above it. `nvs-ir` and `nvs-codegen` are
+# deliberately absent: no item here lowers anything, and M4's manifest named eight of their modules.
+modules = [
+  # The registry is the spine -- items 2, 3, 6 and 12 all ask it a question, and every depth slice
+  # starts at a member row.
+  "crates/nvs-stdlib/src/registry.rs",
+  # The attribute passes. `derive.rs` is the worked example items 3, 4 and 6 copy.
+  "crates/nvs-types/src/derive.rs",
+  "crates/nvs-types/src/attributes.rs",
+  "crates/nvs-types/src/expr/calls.rs",
+  # Stage 0's scan, and the hierarchy walk it already has.
+  "crates/nvs-hir/src/autoload.rs",
+  "crates/nvs-hir/src/hierarchy.rs",
+  # Stage 3's three parsers, named because the folding pass reaches all three and the soundness rule is
+  # that it reaches them rather than copying them.
+  "crates/nvs-stdlib/src/format.rs",
+  "crates/nvs-stdlib/src/time.rs",
+  "crates/nvs-stdlib/src/regex.rs",
+  # Stage 6.
+  "crates/nvs-runtime/src/string.rs",
+  "crates/nvs-stdlib/src/granularity.rs",
+  # Stage 4 adds two subcommands; `info.rs` is the shape a non-running one takes.
+  "crates/nvs-cli/src/main.rs",
+]
+
+# The decisions this goal's work sits inside. orient.py prints the one-sentence bullet for each out of
+# docs/adr/ground-rules.md -- the index, not the rule.
+rules = ["0063", "0071", "0077", "0102", "0086", "0085", "0057", "0061", "0088", "0089", "0009", "0051"]
+
+# ADR sections sliced live into the pack. Only the ones EVERY session of this goal reads: 0063's shape
+# rules bind every member a depth slice touches, 0088 § 2's classification is item 12 and is asked of
+# every row, and 0061 § 3 is Stage 0 plus three of the four attribute items. A per-item section does NOT
+# belong here -- items 3, 4, 6, 7 and 8 each name their own ADR in the goal file; read it at that heading.
+adrs = [
+  "0063",
+  "0088 §2",
+  "0061 §3",
+]
+
+# Headings of docs/agent/conventions.md naming shapes this goal will write.
+shapes = ["A `Core` member — the four edits", "A `.nvst` test case", "A diagnostic", "A commit message"]
+
+# Produced by `python tools/playbook.py --manifest <the modules above> --min 4`, then the process block by
+# hand. Re-run that after the file set changes; `--match <paths>` narrows it to one session's own group.
+#
+# The ranker scores by what a bullet MENTIONS, so the process traps -- how a session ends, how it reads,
+# what a commit may not carry -- score zero and are kept by hand. That is loop-authoring.md § 2's rule and
+# the reason this list is not simply the tool's output.
+playbook = [
+  # The `Core`-member and stdlib traps, which is this goal's whole file set.
+  'Writing Novis itself > core is',
+  'Tooling > a core class',
+  'Writing a test case > no core',
+  'Running things > adding a',
+  'Writing a test case > a rule',
+  'Writing a test case > a corety::var("t")',
+  'Writing a test case > a test binary',
+  'Writing a test case > a -p',
+  "Divergences and refusals already pinned > core\\str's twins",
+  "Divergences and refusals already pinned > core\\test::assertcount's two",
+  'Divergences and refusals already pinned > seven members',
+  "Writing a test case > core\\objectset's union,",
+  'Running things > value::asstrbytes and',
+  'Running things > a fatal',
+  'Divergences and refusals already pinned > --errors names no catchable',
+  'Tooling > alloc::pooled recycles',
+  'Running things > a #[globalallocator]',
+
+  # The process traps, by hand. Every one applies whatever the file set is.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole adr',
+  'Tooling > a plan field is patched',
+  'Tooling > plan.py --get',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+# Fields of the plan's status block worth printing.
+plan = ["Open now", "Blocking"]
+
+# M4S's acceptance paragraph alone. The whole milestone is 4k of context restating what this goal's item
+# list already says per item; `:verify` is the paragraph every stage here is measured against.
+milestones = ["M4S:verify"]
+
+[valgrind]
+# Every fixture again under `valgrind --leak-check=full`. These two exit non-zero by design.
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 0 -- ADR 0061 § 3's enumeration. Its stage name starts with "0", which is what puts it in
+# `loop.py`'s catch-up class: it runs BEFORE the program legs, so the ledger names this while it is
+# unfinished rather than reporting how far past it the run got.
+#
+# It is first because three later items are the same scan. `#[Route]`'s table, `#[Command]`'s table and
+# the OpenAPI emitter all filter this enumeration, and ADR 0077 § 5 says so outright -- writing any of
+# them first means writing the walk three times and then unifying it.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "0 enumeration"
+name = "nvs-hir (the program scan)"
+args = ["test", "-p", "nvs-hir"]
+tests = [
+  # § 3 -- the order is the ADR's, not the filesystem's, and that is the half that rots silently.
+  "an_interface_enumeration_is_sorted_by_qualified_name",
+  "an_abstract_class_is_not_enumerated",
+  # § 3 -- "each such class needs a no-argument constructor; a diagnostic names any that does not".
+  "an_implementor_without_a_no_argument_constructor_is_named",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "0 enumeration"
+name = "nvs-types (the call-site expansion)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  # § 3 -- it expands to an array literal of `new` expressions at the call site, so the instances are
+  # per-request like any other object and nothing crosses an isolate boundary.
+  "program_implementing_expands_to_new_expressions",
+  "program_implementing_refuses_a_non_interface_type_argument",
+]
+
+[[check]]
+kind = "exact"
+stage = "0 enumeration"
+file = "examples/program.nvs"
+want = ["alpha", "beta", "gamma", "count=3"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the four attribute passes. One file set: a name on `nvs_types::derive::ATTRIBUTES`, a
+# recognizing pass, and a table the compiler carries. `#[Json\Derive]` is already on disk and is the
+# shape to copy.
+#
+# Every test named below must EXIST and pass. Most do not exist yet; writing one is how the loop finishes
+# its item. Do not rename one to something already green.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 attributes"
+name = "nvs-types (the derive gaps)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  # Item 2 -- ADR 0071 §§ 2 and 7, the three gaps derive.rs's own module doc lists. Each is a diagnostic
+  # at the DECLARATION; a field with no decoder refused at the `decodeAs<T>` that runs is the bug.
+  "a_derive_field_whose_type_has_no_codec_is_refused_where_it_is_declared",
+  "a_class_that_hand_writes_both_codec_halves_is_refused",
+  "a_derive_on_a_class_with_no_declared_properties_is_refused",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 attributes"
+name = "nvs-types (the route table)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  # Item 3 -- ADR 0077 §§ 1-3, 5.
+  "a_route_table_is_built_from_the_program_enumeration",
+  "a_route_parameter_takes_its_type_from_the_method_that_declares_it",
+  "a_duplicate_route_is_a_diagnostic",
+  "a_path_capture_with_no_matching_method_parameter_is_a_diagnostic",
+  "an_unknown_literal_url_name_is_a_diagnostic",
+  # Item 4 -- ADR 0102 §§ 3, 4, 6. Four more errors on the same pass.
+  "an_optional_capture_outside_the_last_position_is_a_diagnostic",
+  "an_optional_capture_bound_to_a_parameter_with_no_default_is_a_diagnostic",
+  "a_capture_or_query_parameter_outside_the_type_list_is_a_diagnostic",
+  "a_url_key_that_is_neither_a_capture_nor_a_query_parameter_is_a_diagnostic",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 attributes"
+name = "nvs-types (the command table)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  # Item 6 -- ADR 0086 § 6. The TABLE only; `Core\Command::run` is goal 4's.
+  "a_command_table_is_built_from_the_program_enumeration",
+  "a_duplicate_command_name_is_a_diagnostic",
+  "two_options_sharing_a_spelling_are_a_diagnostic",
+  "an_option_on_a_parameter_with_no_conversion_from_string_is_a_diagnostic",
+]
+
+[[check]]
+kind = "exact"
+stage = "2 attributes"
+file = "examples/routes.nvs"
+want = [
+  "GET /users/{id} -> Users::show",
+  "GET /users -> Users::index",
+  "POST /users -> Users::create",
+  "url=/users/7",
+  "absolute=https://example.test/users/7",
+]
+
+[[check]]
+kind = "exact"
+stage = "2 attributes"
+file = "examples/commands.nvs"
+want = ["greet <name> [--loud]", "migrate [--pretend]", "commands=2"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- ADR 0057's intrinsic folding. The soundness rule is the item: the prepared path and the
+# runtime path are ONE implementation, so a fold can produce an earlier answer and never a different one.
+# The pair of cases below is what asserts that -- the same malformed literal, once as a compile error and
+# once, behind a variable, as the identical runtime throw.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 intrinsics"
+name = "nvs-types (folding at the call site)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "a_literal_date_format_is_validated_while_checking",
+  "a_literal_regex_pattern_is_prepared_while_checking",
+  "a_literal_format_template_checks_its_placeholder_count_and_types",
+  "a_literal_uri_is_validated_while_checking",
+  # The closed list is closed: a member not on it folds nothing however literal its argument.
+  "a_member_outside_the_intrinsic_list_is_never_folded",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 intrinsics"
+name = "nvs-stdlib (one implementation, two entry points)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = ["a_prepared_literal_and_its_runtime_twin_share_one_implementation"]
+
+[[check]]
+kind = "exact"
+stage = "3 intrinsics"
+file = "examples/intrinsics.nvs"
+want = ["2026-08-28", "matched", "total: 42", "host=example.test"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- ADR 0085's emitter. `nvs build --openapi` and `nvs api diff` are one slice: the diff's
+# classification is mechanical over two emitted documents, so it costs a comparison rather than a design.
+#
+# `kind = "command"` runs an arbitrary argv and checks its exit code and output. `{nvs}` is substituted
+# with the CLI the leg already built, so this does not pay for a second build.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "4 openapi"
+name = "nvs build --openapi emits 3.1"
+argv = ["{nvs}", "build", "--openapi", "examples/routes.nvs"]
+stdout_contains = ['"openapi": "3.1', '"/users/{id}"', '"operationId"']
+
+[[check]]
+kind = "cargo-named"
+stage = "4 openapi"
+name = "nvs-cli (determinism and the diff)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  # § 3 -- deterministic means byte-identical, and the cheapest way for it not to be is a hash map.
+  "an_openapi_document_is_byte_identical_across_two_emissions",
+  # § 2 -- `#[Api]` supplies only what the types cannot say, and its four contradictions are errors.
+  "an_api_attribute_contradicting_its_own_signature_is_a_diagnostic",
+  # § 4 -- the gate: breaking, compatible, or no change, decided mechanically over two documents.
+  "an_api_diff_classifies_a_removed_route_as_breaking",
+  "an_api_diff_classifies_an_added_optional_parameter_as_compatible",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the depth pass and the qualifier classification. This is where the goal spends most of its
+# sessions, and it is the fallback whenever another stage's group is blocked.
+#
+# `min_passing` is a corpus figure and `cases` is the worklist; a check whose worklist IS its case list
+# omits the threshold. Both are here because this stage is measured both ways: the floor test says every
+# class is exercised, and the count says the corpus grew with the members rather than around them.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 depth"
+name = "nvs-stdlib (the coverage gates)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  # Carried from M4's floor, and they stay: registered is the precondition for everything below.
+  "every_part_one_member_has_a_conformance_case",
+  "every_part_one_spec_member_is_registered",
+  # Item 10 -- the FLOOR, not the median. A median rises by writing more cases for members that already
+  # have some, which is the metric a corpus grows around rather than into.
+  "every_core_class_has_a_conformance_floor_of_three",
+  # Item 12 -- ADR 0088 § 2. An unclassified `string`/`bytes` parameter refuses `tainted`, and this test
+  # is the "fails on any member that ships without one" half.
+  "every_member_parameter_carries_a_qualifier_classification",
+  # Item 11 -- every `Fault::thrown` site is caught by a case, or carries a comment saying no program
+  # reaches it. Judged per site; the test only asserts that one of the two is true of each.
+  "every_error_path_is_asserted_or_declared_unreachable",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 depth"
+name = "conformance"
+args = ["test", "tests/conformance/"]
+min_passing = 950
+cases = [
+  # Stage 0
+  "tests/conformance/core/program-implementing-enumerates-every-implementor.nvst",
+  "tests/conformance/reject/an-implementor-without-a-no-argument-constructor-is-named.nvst",
+  # Stage 2. ADR 0071's three gaps, each refused where the class is declared.
+  "tests/conformance/reject/a-derive-field-with-no-codec-is-refused-at-its-declaration.nvst",
+  "tests/conformance/core/a-route-table-answers-a-url-for-every-route-it-holds.nvst",
+  "tests/conformance/reject/a-route-table-refuses-its-seven-contradictions.nvst",
+  "tests/conformance/core/a-command-table-answers-its-own-help.nvst",
+  # Stage 3. The pair that asserts the soundness rule -- one malformed literal, two entry points.
+  "tests/conformance/core/a-literal-intrinsic-is-validated-while-checking.nvst",
+  "tests/conformance/reject/a-malformed-literal-intrinsic-is-a-compile-error.nvst",
+  # Stage 6.
+  "tests/conformance/core/a-repeated-grapheme-count-agrees-with-the-first.nvst",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 depth"
+name = "differential"
+args = ["test", "tests/differential/"]
+min_passing = 200
+cases = [
+  # The rows PHP itself is the only authority on, in the domains this goal audits.
+  "tests/differential/lang/every-str-member-with-a-php-twin-agrees.nvst",
+  "tests/differential/lang/every-arr-member-with-a-php-twin-agrees.nvst",
+  "tests/differential/lang/every-math-member-with-a-php-twin-agrees.nvst",
+  "tests/differential/lang/a-date-format-string-renders-as-phps-does.nvst",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- the string header. ADR 0009 § 2's cached grapheme count, and the O(1) boundary correction a
+# concatenation needs at the seam.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "6 string header"
+name = "nvs-runtime (the cached count)"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "a_repeated_grapheme_count_is_answered_from_the_header",
+  "a_concatenation_corrects_the_boundary_without_rescanning",
+  # The cache may never disagree with a fresh scan -- the failure mode is a wrong index, not a slow one.
+  "a_cached_count_equals_a_fresh_scan_over_the_corpus",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- the migration rows. The parity program's own measure, raised one goal at a time.
+#
+# 45% is this goal's domains -- strings, arrays, numbers, dates, regex, encoding, JSON, paths -- taken to
+# a row each, against the 31% that stood when the program was scheduled. It is a floor derived from a
+# domain estimate, not a prediction: a goal that lands its domains and comes out higher raises the next
+# goal's floor in the same commit, and says so.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "7 migration"
+name = "check-migration at 45%"
+argv = ["python", "tools/check-migration.py", "--min", "45"]
+stdout_contains = ["inventory:", "classified:"]
