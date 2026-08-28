@@ -20,6 +20,27 @@ use std::time::{Duration, Instant};
 
 use nvs_abi_probe::{Ctx, Helper, Probe, Value, call};
 
+/// How far a measurement sits from the threshold it must stay under, as the
+/// phrase every guard with a numeric bound prints beside its own figure.
+///
+/// **This changes no threshold and fails nothing.** It exists because a guard
+/// that prints `2.07 ns` against a ceiling of `15.0` reads exactly like a guard
+/// with no room at all, and the module docs above say the ceilings are
+/// deliberately ~10x the baseline — so the number that says whether that is
+/// still true is the *ratio*, and it was the one number no line printed. Three
+/// platforms' logs of it are what a later pass would set a tighter ceiling
+/// from; a ceiling tightened from one developer's box is a flaky gate, not a
+/// stricter one.
+fn under(measured: f64, ceiling: f64) -> String {
+    format!(" [ceiling {ceiling}, {:.1}x headroom]", ceiling / measured)
+}
+
+/// [`under`]'s twin for a guard whose bound is a *floor* — a ratio that must
+/// stay large rather than small.
+fn over(measured: f64, floor: f64) -> String {
+    format!(" [floor {floor}, {:.1}x headroom]", measured / floor)
+}
+
 /// Times `op` and returns nanoseconds per iteration.
 ///
 /// Takes the **minimum** across several batches rather than the mean: CI runners
@@ -65,7 +86,8 @@ fn a_checked_return_frame_stays_cheap() {
 
     let per_frame = (t_deep - t_shallow) / 16.0;
     println!(
-        "checked-return frame: {per_frame:.2} ns (2 frames {t_shallow:.1} ns, 18 frames {t_deep:.1} ns)"
+        "checked-return frame: {per_frame:.2} ns (2 frames {t_shallow:.1} ns, 18 frames {t_deep:.1} ns){}",
+        under(per_frame, MAX_NS_PER_FRAME)
     );
 
     assert!(
@@ -100,7 +122,10 @@ fn throwing_costs_about_the_same_as_returning() {
     });
 
     let ratio = thrown / ok;
-    println!("throw/return ratio at depth 8: {ratio:.2} ({thrown:.1} ns vs {ok:.1} ns)");
+    println!(
+        "throw/return ratio at depth 8: {ratio:.2} ({thrown:.1} ns vs {ok:.1} ns){}",
+        under(ratio, MAX_RATIO)
+    );
 
     assert!(
         ratio < MAX_RATIO,
@@ -140,7 +165,10 @@ fn a_coroutine_round_trip_stays_cheap() {
         best = best.min(measure(iters));
     }
     let per_trip = best.as_secs_f64() * 1e9 / iters as f64;
-    println!("coroutine suspend/resume through 2 JIT frames: {per_trip:.1} ns");
+    println!(
+        "coroutine suspend/resume through 2 JIT frames: {per_trip:.1} ns{}",
+        under(per_trip, MAX_NS)
+    );
 
     assert!(
         per_trip < MAX_NS,
@@ -195,7 +223,8 @@ fn an_all_bits_off_debug_probe_stays_in_the_safepoint_cost_class() {
     let per_probe = (t_probed - t_plain) / sites;
     println!(
         "all-bits-off debug probe: {per_probe:.3} ns per site \
-         ({sites} sites, {t_probed:.1} ns vs {t_plain:.1} ns)"
+         ({sites} sites, {t_probed:.1} ns vs {t_plain:.1} ns){}",
+        under(per_probe, MAX_NS_PER_PROBE)
     );
 
     assert!(
@@ -255,7 +284,7 @@ mod wasm_guards {
         let ns = ns_per_op(200_000, 5, || {
             black_box(add.call(&mut store, (1, 2)).expect("call"));
         });
-        println!("wasm host->guest call: {ns:.1} ns");
+        println!("wasm host->guest call: {ns:.1} ns{}", under(ns, MAX_NS));
 
         assert!(
             ns < MAX_NS,
@@ -295,7 +324,10 @@ mod wasm_guards {
             }
             best = best.min(start.elapsed().as_secs_f64() * 1e6 / iters as f64);
         }
-        println!("wasm pooled instantiate + 1 call: {best:.2} us");
+        println!(
+            "wasm pooled instantiate + 1 call: {best:.2} us{}",
+            under(best, MAX_US)
+        );
 
         assert!(
             best < MAX_US,
@@ -344,8 +376,9 @@ fn an_os_process_costs_orders_of_magnitude_more_than_a_task() {
 
     let ratio = process_ns / task_ns;
     println!(
-        "isolation boundary: os process {:.0} us vs task {task_ns:.2} us, ratio {ratio:.0}x",
+        "isolation boundary: os process {:.0} us vs task {task_ns:.2} us, ratio {ratio:.0}x{}",
         process_ns / 1000.0,
+        over(ratio, MIN_RATIO),
         task_ns = task_ns / 1000.0
     );
 
@@ -542,7 +575,8 @@ fn a_typed_arithmetic_loop_stays_in_the_native_cost_class() {
     let ratio = per_iteration / per_frame;
     println!(
         "typed arithmetic loop: {per_iteration:.2} ns/iteration against \
-         {per_frame:.2} ns/frame, ratio {ratio:.1}x"
+         {per_frame:.2} ns/frame, ratio {ratio:.1}x{}",
+        under(ratio, MAX_RATIO)
     );
 
     assert!(
@@ -600,7 +634,8 @@ fn a_refcount_one_array_member_mutates_in_place() {
     let ratio = in_place / separating;
     println!(
         "array write: {in_place:.0} ns in place against {separating:.0} ns \
-         separating {ENTRIES} entries, ratio {ratio:.4}x"
+         separating {ENTRIES} entries, ratio {ratio:.4}x{}",
+        under(ratio, MAX_RATIO)
     );
 
     assert!(
@@ -1080,7 +1115,8 @@ fn a_class_without_a_property_observer_costs_nothing_extra() {
     let ratio = plain / hooked;
     println!(
         "property read+write: {plain:.2} ns unhooked against {hooked:.2} ns \
-         through a pass-through hook pair, ratio {ratio:.3}x"
+         through a pass-through hook pair, ratio {ratio:.3}x{}",
+        under(ratio, MAX_RATIO)
     );
 
     assert!(
@@ -1150,7 +1186,8 @@ fn an_allocation_round_trip_stays_in_the_pooled_cost_class() {
     println!(
         "32-byte allocation round trip: {pooled:.2} ns through the registered \
          allocator against {platform:.2} ns through the platform heap, ratio \
-         {ratio:.3}x"
+         {ratio:.3}x{}",
+        under(ratio, MAX_RATIO)
     );
 
     assert!(
