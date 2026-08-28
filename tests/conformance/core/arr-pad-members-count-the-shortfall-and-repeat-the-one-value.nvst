@@ -1,0 +1,118 @@
+--TEST--
+`Core\Arr::padStart` and `::padEnd` count the shortfall from the subject's own count, place one and the same run on opposite sides, and repeat the one `$value` rather than a copy of it — spec § 2, ADR 0069 § 3
+--FILE--
+<?nvs
+// The two members share `padding` and `append_copies`, so what is worth
+// asserting is not a row of either one's output —
+// `arr-pad-members-always-return-a-list.nvst` has those, including the keys
+// this one deliberately does not re-ask about — but the three facts that hold
+// across every subject: the shortfall is a function of the subject's *count*
+// alone, at or below that count both members are the identity on the values,
+// and whatever run one places in front the other places behind.
+//
+// Written as an agreement over a sweep, which is what catches a member that
+// grew its own answer: a `padStart` that counted a map's keys, or that stopped
+// one entry short, still reads plausibly beside its own arguments.
+final class Pad {
+    /// Whether both members reach the wider of count and `$size`, mirror each
+    /// other, and leave the values alone where nothing is owed.
+    public static function agrees(array<string> $subject, uint $size, string $value): int {
+        uint $have = Core\Arr::count($subject);
+        uint $want = $size;
+        if ($have > $want) {
+            $want = $have;
+        }
+        array<string> $before = Core\Arr::padStart($subject, $size, $value);
+        array<string> $after = Core\Arr::padEnd($subject, $size, $value);
+        // The shortfall is `$size` less the subject's own count, saturating —
+        // so a map's keys never enter it, and a `$size` below the count owes
+        // no entries rather than a negative number of them.
+        if (Core\Arr::count($before) != $want) {
+            return 0;
+        }
+        if (Core\Arr::count($after) != $want) {
+            return 0;
+        }
+        // One run, two sides: reversing what `padStart` built is exactly what
+        // `padEnd` builds over the reversed subject. A member that padded to a
+        // different width, or that placed its run on the side the other names,
+        // fails here while both of its own lines still look right.
+        array<string> $mirror = Core\Arr::padEnd(Core\Arr::reverse($subject), $size, $value);
+        if (Core\Str::join(Core\Arr::reverse($before), ",") != Core\Str::join($mirror, ",")) {
+            return 0;
+        }
+        // At or below the count the answer is the identity **on the values**;
+        // it is not the identity on the keys, which the sibling case pins.
+        if ($have >= $size) {
+            string $values = Core\Str::join(Core\Arr::values($subject), ",");
+            if (Core\Str::join($before, ",") != $values) {
+                return 0;
+            }
+            if (Core\Str::join($after, ",") != $values) {
+                return 0;
+            }
+        }
+        return 1;
+    }
+}
+
+// Five subjects: empty, a one-entry list, a two-entry list, a map whose keys
+// are names, and a map whose keys are digit strings in neither insertion nor
+// numeric order — the last is the one that would catch a shortfall counted
+// from a key rather than from the count.
+array<array<string>> $subjects = [
+    [],
+    ["a"],
+    ["one", "two"],
+    ["x" => "one", "y" => "two"],
+    ["9" => "one", "0" => "two", "k" => "three"],
+];
+
+int $agreed = 0;
+int $asked = 0;
+uint $one = 1;
+uint $size = 0;
+uint $sizes = 5;
+foreach ($subjects as array<string> $subject) {
+    $size = 0;
+    while ($size < $sizes) {
+        $asked = $asked + 1;
+        $agreed = $agreed + Pad::agrees($subject, $size, "-");
+        $size = $size + $one;
+    }
+}
+echo "both count the shortfall and mirror each other: ", $agreed, " of ", $asked, "\n";
+
+// The same fact said once without the sweep: a map and a list of the same
+// count are owed the same number of entries, so the two results differ only in
+// the values the subject brought.
+array<string> $map = ["x" => "one", "y" => "two"];
+array<string> $list = ["one", "two"];
+echo Core\Str::join(Core\Arr::padStart($map, 4, "-"), ","), "\n";
+echo Core\Str::join(Core\Arr::padStart($list, 4, "-"), ","), "\n";
+
+// And the padded entries are the one `$value`, not a copy of it: `append_copies`
+// stores a fresh reference to the same value each time, so where that value is
+// an object every added entry is that object. Mutating it through the original
+// handle is visible in all three.
+final class Box {
+    public int $n = 0;
+}
+Box $b = new Box();
+array<Box> $none = [];
+array<Box> $boxes = Core\Arr::padEnd($none, 3, $b);
+$b->n = 7;
+echo Core\Arr::count($boxes), " ", $boxes["0"]->n, $boxes["1"]->n, $boxes["2"]->n, "\n";
+// Identity, not just equal contents — ADR 0090 § 4 makes `==` on two objects
+// exactly the identity comparison this needs.
+if ($boxes["0"] == $boxes["2"]) {
+    echo "one value, repeated\n";
+} else {
+    echo "copied\n";
+}
+--EXPECT--
+both count the shortfall and mirror each other: 25 of 25
+-,-,one,two
+-,-,one,two
+3 777
+one value, repeated
