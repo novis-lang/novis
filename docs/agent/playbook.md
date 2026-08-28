@@ -1843,6 +1843,16 @@ is why" — is this file.
   line-ending bug. Any case whose subject is ADR 0009 § 2's grapheme unit has combining
   marks in its output; build the block from the binary's own bytes rather than by typing
   it.
+- **`Core\Str::slice`'s third argument is a *length*, not an end offset, and getting it
+  wrong still counts plausibly.** A sweep walking an alphabet one symbol at a time reaches
+  for `Core\Str::slice($alphabet, $i, $i + 1)` — which is "from `$i`, take `$i + 1`
+  characters", so row 16 hands the decoder a seventeen-character operand. The bug is
+  invisible in a *counted* assertion: the `4 of 64` a canonical-bits bound expects still
+  came out `4`, and only the accepted symbols echoed beside it (`AIJKLMNOPQ…` where `AQgw`
+  was meant) said anything was wrong. So a counting sweep should echo the *set* it counted
+  as well as the count, and the spelling is `Core\Str::slice($s, $i, 1)`. The existing
+  `Core\Str::slice("YWJjZAYW", 0, $k)` reads as either semantics, which is why it is not
+  the place to check.
 
 ## Splitting a file that got too big
 
