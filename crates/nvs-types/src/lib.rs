@@ -214,6 +214,7 @@ pub mod layout;
 pub mod locals;
 pub mod lower;
 pub(crate) mod retrieval;
+pub(crate) mod returns;
 pub mod signatures;
 pub mod string_lit;
 pub mod testing;

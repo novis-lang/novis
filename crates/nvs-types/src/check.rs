@@ -31,7 +31,7 @@
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, code};
 use nvs_hir::{Module, QName};
 use nvs_syntax::ast::{
-    ClassMember, ClassMemberKind, MethodMember, Name, NamespaceDecl, Stmt, StmtKind,
+    Block, ClassMember, ClassMemberKind, MethodMember, Name, NamespaceDecl, Stmt, StmtKind,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -41,9 +41,10 @@ use crate::expr_table::ExprTypeTable;
 use crate::lateinit::check_class_lateinit_reads;
 use crate::locals::{LocalScope, check_block, check_stmt};
 use crate::lower::lower_optional_type;
+use crate::returns::{block_always_exits, closing_brace};
 use crate::signatures::build_signatures;
-use crate::ty::TypeInterner;
-use crate::{Ctx, Env, span_text, strip_sigil};
+use crate::ty::{Ty, TypeInterner};
+use crate::{Ctx, Env, TypeId, span_text, strip_sigil};
 
 fn qname_segments(src: &SourceFile, name: &Name) -> Vec<String> {
     QName::parse(span_text(src, name.span)).segments().to_vec()
@@ -507,6 +508,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     // `yield` operand in the body is checked against.
     let Some(elem) = generator_element(m, body, return_ty, ctx, env) else {
         check_block(&body.stmts, &mut live, &mut scope, return_ty, ctx, env);
+        check_every_path_returns(m, body, return_ty, env);
         return;
     };
     check_generator_inout_params(m, env);
@@ -524,6 +526,44 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     // the `Iterator<T>` the *declaration* names.
     let void = env.interner.void();
     check_block(&body.stmts, &mut live, &mut scope, void, &inner, env);
+}
+
+/// ADR 0007 § 1, at the one exit a body takes without writing anything: a
+/// method promising a value at every exit may not have a path that reaches its
+/// closing brace (`E0739`).
+///
+/// [`crate::returns`] owns the analysis and the asymmetry that makes reporting
+/// safe. Two gates come first and neither is that analysis: a declaration
+/// writing **no** return type at all promises nothing — that is a constructor,
+/// and [`lower_optional_type`] typed it `mixed` — and `void`/`never` promise
+/// nothing to write. Everything else, a declared `mixed` included, owes a
+/// value: the declaration is what the caller reads, and `nvs-ir`'s fall-through
+/// `Terminator::Return(None)` writes no slot for it to read.
+fn check_every_path_returns(m: &MethodMember, body: &Block, return_ty: TypeId, env: &mut Env<'_>) {
+    if m.return_type.is_none() || matches!(env.interner.get(return_ty), Ty::Void | Ty::Never) {
+        return;
+    }
+    if block_always_exits(&body.stmts) {
+        return;
+    }
+    let name = span_text(env.src, m.name).to_owned();
+    let declared = env.interner.describe(return_ty);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_MISSING_RETURN,
+            format!("`{name}` declares `{declared}` but a path reaches the end of its body"),
+        )
+        .with_primary(closing_brace(body), "reached without returning")
+        .with_secondary(
+            m.return_type.as_ref().map_or(m.name, |t| t.span),
+            "declared here",
+        )
+        .with_help(
+            "return a value on that path, throw, or declare `void` — a body that falls off its \
+             end returns nothing at all, and ADR 0007 § 2 has no implicit `null` to stand in for \
+             the declared type",
+        ),
+    );
 }
 
 /// ADR 0053 § 4's frame lifetime, as a refusal: a generator declares no `inout $x`

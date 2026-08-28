@@ -1732,6 +1732,21 @@ pub mod code {
     /// two rosters rather than about a row.
     pub const E_TEST_ROW_FIELD: Code = Code::new("E0738");
 
+    /// A method declaring a return type other than `void` has a path that
+    /// reaches the end of its body without returning or throwing.
+    ///
+    /// ADR 0007 § 1's "nothing is untyped" has no answer for what such a path
+    /// hands back: `nvs_ir::lower::lower_method` seals a body's fall-through
+    /// exit with `Terminator::Return(None)`, so the caller reads a value of no
+    /// declared type at all where an `int` was promised. PHP returns `null`
+    /// there; Novis has no implicit `null` for a non-nullable declaration and
+    /// will not invent one, so the path is refused where it is written.
+    ///
+    /// The analysis behind it is `nvs_types::returns`, and it is deliberately
+    /// asymmetric: every shape it cannot prove *falls through* is treated as
+    /// exiting, so an unusual body is accepted rather than wrongly refused.
+    pub const E_MISSING_RETURN: Code = Code::new("E0739");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");
