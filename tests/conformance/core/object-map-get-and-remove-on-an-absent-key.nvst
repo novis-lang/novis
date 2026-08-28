@@ -1,0 +1,86 @@
+--TEST--
+`Core\ObjectMap<K, V>::get` and `::remove` answer nothing and change nothing for a key the map does not hold — docs/spec/01-core-library.md § 9
+--FILE--
+<?nvs
+// The *edge* shape: what each member answers where it stops accepting — an
+// absent key — and that a `remove` which matched nothing leaves `count` and
+// the two positionally paired lists exactly as they were.
+final class Tag {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+final class Render {
+    // A case's own helper is a `public static function` inside a class, and a
+    // compiler-owned generic type is accepted in its parameter list.
+    public static function pairs(Core\ObjectMap<Tag, int> $m): string {
+        array<string> $names = Core\Arr::map($m->keys(), fn(Tag $t): string => $t->name);
+        array<string> $held = Core\Arr::map($m->values(), fn(int $n): string => $n as string);
+        return Core\Str::join($names, ",") . "|" . Core\Str::join($held, ",");
+    }
+}
+
+Tag $red = new Tag("red");
+Tag $blue = new Tag("blue");
+Tag $green = new Tag("green");
+
+Core\ObjectMap<Tag, int> $weights = new Core\ObjectMap<Tag, int>();
+
+// An empty map is the first edge: `get` answers `null` and `has` `false` for a
+// key nothing was ever stored under, and `remove` does nothing rather than
+// throwing.
+echo $weights->get($red) ?? -1, " ", $weights->has($red) ? "yes" : "no", "\n";
+$weights->remove($red);
+echo $weights->count(), " ", $weights->isEmpty() ? "empty" : "filled", "\n";
+
+$weights->set($red, 3);
+$weights->set($blue, 7);
+
+// A key the map does not hold while it holds others — including a distinct
+// object with equal fields, which is what keying on identity means.
+echo $weights->get($green) ?? -1, " ", $weights->has($green) ? "yes" : "no", "\n";
+echo $weights->get(new Tag("red")) ?? -1, "\n";
+
+// A failed `remove` changes nothing at all: the count, and both lists in their
+// positional pairing, are what they were before it.
+string $before = Render::pairs($weights);
+$weights->remove($green);
+string $after = Render::pairs($weights);
+echo $weights->count(), " ", $before == $after ? "same" : "moved", "\n";
+echo $after, "\n";
+
+// A key that *was* held is absent once removed, and removing it a second time
+// is the same do-nothing.
+$weights->remove($red);
+echo $weights->get($red) ?? -1, " ", $weights->has($red) ? "yes" : "no", " ", $weights->count(), "\n";
+string $once = Render::pairs($weights);
+$weights->remove($red);
+echo $weights->count(), " ", $once == Render::pairs($weights) ? "same" : "moved", "\n";
+
+// `clear` leaves every key absent, so `get` is back to the empty map's answer
+// and both lists are empty on either side of the pairing.
+$weights->clear();
+echo $weights->get($blue) ?? -1, " ", $weights->has($blue) ? "yes" : "no", " ", Render::pairs($weights), "\n";
+
+// `get` answering `null` is not the same question as `has`: a map that holds
+// `null` under a key answers `null` from `get` and `true` from `has`, which is
+// the ambiguity § 9 leaves `has` to resolve.
+Core\ObjectMap<Tag, ?int> $marks = new Core\ObjectMap<Tag, ?int>();
+$marks->set($red, null);
+echo $marks->get($red) ?? -1, " ", $marks->has($red) ? "yes" : "no", "\n";
+echo $marks->get($blue) ?? -1, " ", $marks->has($blue) ? "yes" : "no", "\n";
+--EXPECT--
+-1 no
+0 empty
+-1 no
+-1
+2 same
+red,blue|3,7
+-1 no 1
+1 same
+-1 no |
+-1 yes
+-1 no
