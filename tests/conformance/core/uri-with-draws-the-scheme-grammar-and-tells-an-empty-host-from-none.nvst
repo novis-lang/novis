@@ -1,0 +1,108 @@
+--TEST--
+`Core\Uri::with` draws each component's own grammar: a scheme is RFC 3986 § 3.1's `ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )` at both ends of the bound, and an empty host is a different authority from an absent one — spec § 12
+--FILE--
+<?nvs
+// Spec § 12's `with` recomposes and re-reads, so a component's grammar is the
+// one RFC 3986 gives that component and not "any string". The standing cases
+// pin case-preservation and the component that *moves*; this one asks where
+// each component's own grammar stops.
+
+// --- The scheme, RFC 3986 § 3.1 -------------------------------------------
+// `scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )`. The bound is named at
+// both ends: every accepted row and every refused one, counted rather than
+// read off a line, so a `with` that grew its own scheme rule fails here.
+
+array<string> $accepted = ["a", "Z", "h2", "a.", "a+", "a-", "a+b-c.d", "HTTP"];
+int $read = 0;
+foreach ($accepted as string $scheme) {
+    try {
+        Core\Uri $moved = Core\Uri::parse("http://h/p")->with({scheme: $scheme});
+        echo "accept ", $scheme, " -> ", $moved->scheme() ?? "NULL", "\n";
+        $read = $read + 1;
+    } catch (Throwable $accepting) {
+        echo "accept ", $scheme, " -> refused\n";
+    }
+}
+
+// The first byte is the half a hand-written rule gets wrong: a digit, a `+`, a
+// `-` and a `.` are all legal *after* the first byte and none of them may
+// begin one. `_` is in no position at all, `%2B` is not the `+` it decodes to
+// (a scheme is the one component that is never percent-encoded), a space is
+// outside every component's grammar, and the empty scheme writes a bare `:`.
+array<string> $refused = ["", "1x", "9", "+a", "-a", ".a", "a_b", "x y", "a%2Bb"];
+int $threw = 0;
+foreach ($refused as string $bad) {
+    try {
+        Core\Uri $wrong = Core\Uri::parse("http://h/p")->with({scheme: $bad});
+        echo "refuse ", $bad, " -> ", $wrong->toString(), "\n";
+    } catch (Throwable $refusing) {
+        echo "refuse ", $bad, " -> refused\n";
+        $threw = $threw + 1;
+    }
+}
+echo "accepted ", $read, " of ", Core\Arr::count($accepted) as int, ", refused ", $threw, " of ",
+     Core\Arr::count($refused) as int, "\n";
+
+// --- The host, RFC 3986 § 3.2.2 -------------------------------------------
+// `host` is allowed to be *empty*, and an empty host is not a missing one:
+// `http:///p` has an authority whose host is the empty string, `http:/p` has
+// no authority at all. `with` replaces and never removes, so the empty host is
+// reachable and the absent one is only preserved.
+
+Core\Uri $emptied = Core\Uri::parse("http://h/p")->with({host: ""});
+echo "emptied ", $emptied->toString(), " host=[", $emptied->host() ?? "NULL", "]\n";
+
+Core\Uri $absent = Core\Uri::parse("http:/p");
+echo "absent  ", $absent->toString(), " host=[", $absent->host() ?? "NULL", "]\n";
+
+// And each stays what it is under a `with` that does not mention the host.
+Core\Uri $emptiedPath = $emptied->with({path: "/q"});
+Core\Uri $absentPath = $absent->with({path: "/q"});
+echo "emptied+path ", $emptiedPath->toString(), " host=[", $emptiedPath->host() ?? "NULL", "]\n";
+echo "absent+path  ", $absentPath->toString(), " host=[", $absentPath->host() ?? "NULL", "]\n";
+
+// A host outside § 3.2.2 is refused where a host outside § 3.1 was: a space is
+// a byte the URI grammar does not admit, and brackets are IP-literal syntax
+// rather than a name that happens to contain them.
+array<string> $badHosts = ["h ost", "[nope]"];
+foreach ($badHosts as string $badHost) {
+    try {
+        Core\Uri $sunk = Core\Uri::parse("http://h/p")->with({host: $badHost});
+        echo "host ", $badHost, " -> ", $sunk->toString(), "\n";
+    } catch (Throwable $hosting) {
+        echo "host ", $badHost, " -> refused\n";
+    }
+}
+
+// The two shapes a name may still legally take, so the refusals above are the
+// grammar and not a narrower rule: an IPv6 literal in its brackets, and a
+// percent escape inside a registered name.
+echo "literal ", Core\Uri::parse("http://h/p")->with({host: "[::1]"})->host() ?? "NULL", "\n";
+echo "escaped ", Core\Uri::parse("http://h/p")->with({host: "a%20b"})->host() ?? "NULL", "\n";
+--EXPECT--
+accept a -> a
+accept Z -> Z
+accept h2 -> h2
+accept a. -> a.
+accept a+ -> a+
+accept a- -> a-
+accept a+b-c.d -> a+b-c.d
+accept HTTP -> HTTP
+refuse  -> refused
+refuse 1x -> refused
+refuse 9 -> refused
+refuse +a -> refused
+refuse -a -> refused
+refuse .a -> refused
+refuse a_b -> refused
+refuse x y -> refused
+refuse a%2Bb -> refused
+accepted 8 of 8, refused 9 of 9
+emptied http:///p host=[]
+absent  http:/p host=[NULL]
+emptied+path http:///q host=[]
+absent+path  http:/q host=[NULL]
+host h ost -> refused
+host [nope] -> refused
+literal [::1]
+escaped a%20b
