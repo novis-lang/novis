@@ -260,3 +260,68 @@ pub(super) fn reject_secret_throwable_message(
         .with_help("reveal it explicitly first with `Core\\Secret::reveal(..., \"reason\")`"),
     );
 }
+
+/// ADR 0033 § 4's debug-dump sink at its *call-site* half, which is how
+/// [ADR 0092](../../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+/// § 5's redaction row states it: a property whose declared type carries
+/// `secret` becomes a Redacted node, and a `secret` value handed straight to
+/// the dump is refused by `nvs check`. The two halves are one rule about one
+/// record seen from its two ends — what the walk finds behind an object, and
+/// what the author wrote at the site — and only the second is still visible
+/// as a *type*, which is why it is checked here at all: both members declare
+/// `mixed ...$values`/`mixed $value`, a parameter a `secret string`
+/// satisfies, so the qualifier survives nowhere below this point. That is the
+/// same mechanism split § 4 already makes for `Core\Log::write`, and its
+/// *Context* is that argument's one home.
+///
+/// **`render` is refused on the same terms as `dump`, and not as an
+/// extension of the item that added this.** ADR 0092 § 5's closing paragraph
+/// makes the renderings non-bypassable — there is no `dumpRaw` and no
+/// rendering selected by an argument — so a member that answers the record's
+/// text as a `Core\Cli\Text` carrier is the same disclosure one `echo` later,
+/// and § 4's terminal bullet refuses that value with **no `Core\Cli\Text`
+/// bypass** in any case. Refusing only `dump` would leave
+/// `echo Core\Debug::render($secret)` as the way round both bullets.
+///
+/// Scoped to the arguments this call actually writes, in written order, so a
+/// `dump($a, $secret, $b)` names the one it is about. Two shapes it does not
+/// reach and neither is a gap in this rule: a `...$xs` spread hands over a
+/// subject whose *element* type carries the qualifier, and a `secret` value
+/// stored in a property or an array element reaches the walk rather than the
+/// site — the first is ADR 0033's unmodelled container axis, the second is
+/// the Redacted node this row's other half owns.
+pub(super) fn reject_secret_debug_argument(
+    qname: &QName,
+    member: &str,
+    args: &CallArgs,
+    arg_types: &[TypeId],
+    env: &mut Env<'_>,
+) {
+    if qname.to_string() != r"Core\Debug" || !matches!(member, "dump" | "render") {
+        return;
+    }
+    let CallArgs::List(list) = args else {
+        return;
+    };
+    for (arg, &ty) in list.iter().zip(arg_types) {
+        if !is_secret(ty, env.interner) {
+            continue;
+        }
+        env.diags.report(
+            Diagnostic::error(
+                code::E_SECRET_DEBUG_ARGUMENT,
+                format!(
+                    "a `secret`-qualified value cannot be passed to \
+                     `Core\\Debug::{member}`; a dump is written to be read by a person, so \
+                     the value would be disclosed rather than used"
+                ),
+            )
+            .with_primary(arg.value.span, "secret value dumped here")
+            .with_help(
+                "reveal it explicitly first with `Core\\Secret::reveal(..., \"reason\")`; a \
+                 `secret`-typed *property* of a dumped object needs nothing — the record \
+                 redacts it",
+            ),
+        );
+    }
+}

@@ -1515,6 +1515,25 @@ pub mod code {
     /// the binding is refused instead of being given the conversion.
     pub const E_FOREACH_KEY_TY: Code = Code::new("E0723");
 
+    /// ADR 0033 § 4's debug-dump sink, as
+    /// [ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+    /// § 5's redaction row states it: a `secret`-qualified value written at a
+    /// `Core\Debug::dump`/`render` call site is refused where it is written.
+    ///
+    /// It is a *call-site* rule rather than a parameter type, for ADR 0033
+    /// § *Context*'s reason and `Core\Log::write`'s: both members declare
+    /// `mixed`, which a `secret string` satisfies, so the only place the
+    /// qualifier is still visible is the argument expression itself.
+    ///
+    /// A separate code from [`E_SECRET_THROWABLE_MESSAGE`] because the
+    /// disclosure is a different one — a dump goes to the diagnostic channel
+    /// a person reads, not into a message a program carries — and because
+    /// this one names the redaction that *does* apply, one storage kind
+    /// along: a `secret`-typed **property** of a dumped object is a Redacted
+    /// node rather than a refusal, so the help distinguishes the value the
+    /// author handed over from the value a record redacts for them.
+    pub const E_SECRET_DEBUG_ARGUMENT: Code = Code::new("E0724");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

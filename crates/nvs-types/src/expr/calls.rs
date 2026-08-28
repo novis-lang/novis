@@ -184,7 +184,13 @@ pub(super) fn infer_static_call(
         .map(|(owner, name, _)| format!("{owner}::{name}"));
     let (sig, written) =
         check_written_type_args(type_args, sig, label.as_deref(), expr.span, ctx, env);
-    let (_, slots, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
+    let (arg_types, slots, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
+    // ADR 0033 § 4's debug-dump sink, at the one end where the qualifier is
+    // still visible — both members declare `mixed`, so nothing below this
+    // point can tell. See [`reject_secret_debug_argument`].
+    if let Some((owner, name, _)) = &resolved {
+        reject_secret_debug_argument(owner, name, args, &arg_types, env);
+    }
     // See [`infer_method_call`]: first-class callable syntax names a `Closure`,
     // not the resolved method's return type.
     if matches!(args, CallArgs::FirstClassCallable) {

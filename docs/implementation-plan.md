@@ -1024,16 +1024,37 @@
 > identity and its declared properties, two closure arities, a self-referential `lateinit` cycle and
 > the `CR` substitution — and asserts that two `dump` calls put **nothing** on standard output,
 > while `a_dump_writes_to_the_diagnostic_channel_and_not_to_the_output` asserts the other side of
-> the same statement in Rust. **What item 33 still owes is redaction**, and it is one fact the
-> runtime does not carry rather than a design question: ADR 0033 § 4's `secret` is a qualifier on a
-> *declared* type, so neither the property half (a `Redacted` node where a `secret string` property
-> stands) nor the call-site half (a `secret` value at a `dump` argument refused by `nvs check`) can
-> be decided from a value's tag. `nvs_render::Node::Redacted` exists and every rendering handles it,
-> so what is missing is only the producer's decision and the descriptor bit it reads. Two smaller
-> gaps are stated at `nvs_stdlib::debug` rather than implied: an enum case dumps as its backing
-> integer, because ADR 0010 § 5 spends no tag on hiding one and a `mixed` cannot tell; and the
-> `Throwable` producer of § 6 is not here at all, its walk belonging to `nvs-runtime`'s fatal path
-> and therefore waiting on the crate edge above. Three live tools **are** the worklist and no
+> the same statement in Rust. **Item 33's call-site half of redaction is landed, and what it still
+> owes is the property half.** ADR 0092 § 5 states redaction as two halves of one rule about one
+> record — a property whose *declared* type carries `secret` becomes a `Redacted` node, and a
+> `secret` value handed straight to the dump is refused by `nvs check` — and neither can be decided
+> from a value's tag, `secret` being a qualifier on a declared type. The second half needs nothing
+> below the checker for exactly that reason, and is where the qualifier is last visible at all:
+> `Core\Debug::dump` declares `mixed ...$values` and `render` a `mixed $value`, both of which a
+> `secret string` satisfies, so `nvs_types::expr::quals::reject_secret_debug_argument` refuses the
+> argument where it is written (`E0724`), per argument and in written order, so a `dump($a, $secret,
+> $b)` names the one it is about. **`render` is refused on the same terms as `dump`** rather than as
+> a widening of the item: § 5's closing paragraph makes the renderings non-bypassable — there is no
+> `dumpRaw` and no rendering selected by an argument — so the member answering the same record's
+> text as a `Core\Cli\Text` carrier is the same disclosure one `echo` later, which § 4's terminal
+> bullet refuses with no carrier bypass in any case; refusing only `dump` would have left `echo
+> Core\Debug::render($secret)` as the way round both bullets. It takes its own code rather than
+> `E_SECRET_THROWABLE_MESSAGE`'s because the help has to distinguish the value the author handed
+> over from the value a record redacts for them, and because a dump goes to the diagnostic channel a
+> person reads rather than into a message a program carries. Two shapes it does not reach and
+> neither is a gap in this rule: a `...$xs` spread hands over a subject whose *element* type carries
+> the qualifier, ADR 0033's unmodelled container axis, and a `secret` value behind a property or an
+> array element reaches the walk instead — which is the other half.
+> `tests/conformance/reject/a-secret-value-cannot-be-dumped.nvst` pins both members, both bases and
+> the composed `secret tainted string`, with the accepted `$plain` and `tainted` spellings written
+> first so a position that stops being accepted fails there rather than as a missing refusal;
+> `tainted` is deliberately accepted, § 5's closing paragraph making the record's framing what keeps
+> a dumped tainted value safe. `nvs_render::Node::Redacted` exists and every rendering handles it,
+> so what the property half still owes is the producer's decision and the descriptor bit it reads.
+> Two smaller gaps are stated at `nvs_stdlib::debug` rather than implied: an enum case dumps as its
+> backing integer, because ADR 0010 § 5 spends no tag on hiding one and a `mixed` cannot tell; and
+> the `Throwable` producer of § 6 is not here at all, its walk belonging to `nvs-runtime`'s fatal
+> path and therefore waiting on the crate edge above. Three live tools **are** the worklist and no
 > session re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and
 > `nvs-codegen` and attributes each to its item (`--item N` for one in full), `python tools/loop.py
 > --list` prints the named `.nvst` cases each stage still owes, and `python
