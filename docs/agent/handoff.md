@@ -2,56 +2,62 @@
 
 ## State
 
-**Goal 1 of the parity program: ADR 0061 § 3's program enumeration is landed in `nvs-hir`, and only
-there.** `AutoloadMap::enumerate` lists every name the autoload roots declare,
-`nvs_hir::implementors` filters the class graph to the non-abstract classes reaching one interface,
-and `requires::resolve_program` runs the scan for — and only for — a program that writes
-`Core\Program::implementing<T>()`. `nvs-ir` and `nvs-codegen` are untouched, as this goal requires.
+**Goal 1 of the parity program: ADR 0061 § 3 is landed end to end and `examples/program.nvs` runs.**
+`Core\Program` has a registry row (`crates/nvs-stdlib/src/program.rs`), the call is expanded while
+checking (`crates/nvs-types/src/program.rs`), and `nvs-ir` emits the array literal of `new`
+expressions from what the checker recorded. A program that writes `implementing<T>()` now enumerates
+the classes its autoload roots declare, filters them to the non-abstract implementors, and
+constructs one of each in fully-qualified-name order.
 
-**What is missing is the call itself.** `Core\Program` has no `nvs-stdlib` registry row, so a program
-writing `implementing<T>()` today triggers the scan in HIR and is then rejected by `nvs-types` as an
-unknown `Core` class. Nothing below `nvs-types` is in the way; the next group is the whole remainder.
+**The shape of the fold is `crate::retrieval`'s, with one difference worth knowing.** Retrieval
+records `ExprInfo::CoreConst` because its answer is a constant; this records
+`ExprInfo::ProgramInstances { classes, ctors }` because a `new` allocates. Both replace the
+`ExprInfo::Call` for the same span, so `nvs_stdlib::program`'s aborting body is the alarm if one
+ever reaches a helper. The `ctors` half carries the *declaring* constructor's label for
+`ExprInfo::New`'s reason: `nvs-ir` cannot re-walk the hierarchy.
 
-The group's ordering had a gap worth knowing: the call site cannot expand until the classes are *in*
-the graph, so the load had to land before it. That is done — the group below starts where the last one
-meant to.
+**The acceptance list's `nvs-hir (the program scan)` check is the next thing in the way, and one
+third of it is homed in the wrong crate.** It names three tests, none of which exists. Two are
+`nvs-hir`'s to write over `implementors` (`crates/nvs-hir/src/hierarchy.rs:463`), whose existing
+tests already assert overlapping facts under other names. The third,
+`an_implementor_without_a_no_argument_constructor_is_named`, is § 3's constructor diagnostic — and
+that landed this session as `E0744` in `nvs-types`, because constructor arity is a
+`SignatureTable` fact and `nvs-hir` has no signatures. Settle which way that goes before writing it:
+either `nvs-hir` grows enough of the harvest to answer, or the check moves to the `nvs-types` block
+two entries below it in `docs/agent/loop-goal.toml:165`. Moving a floor check is the kind of edit
+that file warns about, so say so out loud in the commit either way.
 
-**`python tools/verify.py` is red at `HEAD`, and not from this work.**
-`crates/nvs-ir/tests/refusals.rs` fails with 17 unattributed `nvs-ir` lowering refusals — the goal
-switch orphaned every site M4's item list used to claim, and goal 1's does not. It is the *first*
-failure, so the gate stops there and never reaches the `.nvst` trees or clippy. This session ran the
-remaining steps by hand instead: fmt, build, `--workspace --no-fail-fast` (81 targets green, that one
-red), conformance 880/880, differential 189/189, clippy clean. Deciding which goal claims those sites
-is the user's call, not a session's — the test refuses its own allowlist as the fix.
+**`python tools/verify.py` is still red at `crates/nvs-ir/tests/refusals.rs`, and not from this
+work** — the same 17 unattributed lowering refusals the previous session reported, orphaned by the
+goal switch. It is the first failure, so the gate stops there and never reaches the `.nvst` trees or
+clippy; this session ran the rest by hand: build, fmt, `-p nvs-stdlib -p nvs-types -p nvs-hir` all
+green, conformance 881/881, differential 189/189, clippy clean across the workspace.
 
 ## Next group
 
-**ADR 0061 § 3's call site.** One file set: `crates/nvs-stdlib/src/registry.rs`,
-`crates/nvs-types/src/expr/calls.rs`, `examples/program.nvs`.
+**ADR 0061 § 3's acceptance tests.** One file set: `crates/nvs-hir/src/hierarchy.rs`,
+`crates/nvs-types/src/program.rs`, `docs/agent/loop-goal.toml`.
 
-- [ ] **`Core\Program::implementing<T>()` resolves as a `Core` member.** The class needs its own
-      module and a `CLASSES` row (`crates/nvs-stdlib/src/registry.rs:709`) — the four edits in
-      `docs/agent/conventions.md`, with the wrinkle that `T` is a *type argument* rather than a
-      parameter, so the row's shape is the open question, not the body. ADR 0061 § 3.
-- [ ] **The call expands to an array literal of `new` expressions.**
-      `crates/nvs-types/src/expr/calls.rs:182` (`infer_static_call`) is the arm; the list is
-      `nvs_hir::implementors(&target, &env.graph)`, already sorted. Every selected class needs a
-      no-argument constructor and a diagnostic names any that does not — next free in the types band
-      is `E0743`. ADR 0061 § 3.
-- [ ] **`examples/program.nvs` and its conformance case.** Three classes implementing one interface
-      across two files, one of them abstract, asserting the order and the exclusion. ADR 0061 § 3.
+- [ ] **`an_interface_enumeration_is_sorted_by_qualified_name`** in `nvs-hir`. Over
+      `implementors` (`crates/nvs-hir/src/hierarchy.rs:463`), whose sort compares *segments*, so the
+      case worth pinning is the one a rendered-string sort gets wrong — `App\Sub\A` against
+      `App\Beta`. `crates/nvs-hir/src/hierarchy.rs:571` is the existing near-twin; do not rename it.
+      ADR 0061 § 3.
+- [ ] **`an_abstract_class_is_not_enumerated`** in `nvs-hir`, over `ClassLinks::concrete`
+      (`crates/nvs-hir/src/hierarchy.rs:75`) — and the interface itself, which is never its own
+      implementor. `crates/nvs-hir/src/hierarchy.rs:548` is the existing near-twin. ADR 0061 § 3.
+- [ ] **`an_implementor_without_a_no_argument_constructor_is_named`.** The diagnostic is already
+      built and reported at `crates/nvs-types/src/program.rs:95`; what is open is the crate it is
+      tested in, per `## State`. A `.nvst` refusal case beside it is the second half —
+      `--EXPECTF-ERROR--`, per `docs/agent/conventions.md`. ADR 0061 § 3.
 
 ## Backlog
 
-- **The refusals guard is red at `HEAD`** (`crates/nvs-ir/tests/refusals.rs`, 17 sites from
-  `python tools/holes.py --unattributed`). Until a goal claims them, every session's `verify.py` stops
-  at `test` and never runs the `.nvst` trees or clippy.
-- ADR 0077's route table filters the same enumeration — `AutoloadMap::enumerate` is built for it and
-  needs no second walk (ADR 0077 § 5).
-- A scanned file is held to `autoload::check_file_shape`, so a root holding a non-declaration file
-  starts diagnosing once a program scans; worth a case when § 3 is reachable from source.
-- `Core\Command`'s table and the OpenAPI emitter are the other two filters of the same scan
-  (ADR 0086, ADR 0085).
-- `python tools/gaps.py` still owns the per-class conformance depth worklist for M4S Part I.
-- `python tools/check-migration.py --report` is the parity program's own measure, unmoved by this
-  session.
+- `crates/nvs-ir/tests/refusals.rs`: 17 unattributed lowering refusals, red at `HEAD`, owned by
+  whichever goal claims those sites — `docs/agent/loop-goal.toml`.
+- ADR 0077's `#[Route]` table filters this same enumeration — `docs/adr/0077-compile-time-routing.md`
+  § 5, and `examples/routes.nvs` is its fixture.
+- ADR 0086's `#[Command]` table is the third caller of the scan — `examples/commands.nvs`.
+- `Core\Program` is spec § 13, which `spec_registry_coverage.rs` deliberately does not read; nothing
+  is owed there — `crates/nvs-stdlib/tests/spec_registry_coverage.rs`.
+- ADR 0057's literal folding, `examples/intrinsics.nvs` — `docs/agent/loop-goal.toml` stage 0.

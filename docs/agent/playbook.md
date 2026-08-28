@@ -2694,6 +2694,14 @@ sibling in the same namespace unqualified.
   three apart — a shape that panics, a shape that is refused, and a shape that reaches codegen and
   dies there is a *third* outcome `crates/nvs-ir/tests/type_atoms.rs` cannot see at all, because it stops at
   `lower_program`.
+- **`nvs-ir` does not depend on `nvs-hir`, so an `ExprInfo` variant carrying a `QName` cannot be
+  destructured by name there.** `nvs_types::expr_table::ExprInfo` names `nvs_hir::QName` freely —
+  `ExprInfo::New`'s `class` is one — and `nvs-ir` gets away with it only because every site it reads
+  calls `class.to_string()` without ever *writing* the type. A new variant whose lowering helper
+  wants a `&[nvs_hir::QName]` parameter fails with `unresolved module or unlinked crate nvs_hir` at
+  the signature, not at the use, which reads as a missing `use` and is not one. Convert to `String`
+  at the `self.exprs.lookup(...)` site and let the helper take `&[String]`; adding the dependency to
+  buy one type name would put the whole HIR in the lowering crate's graph for nothing.
 
 ## Divergences and refusals already pinned
 

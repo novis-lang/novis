@@ -1,0 +1,13 @@
+<?nvs
+namespace App;
+
+// Reached only by the scan: the entry point declares the root and never this
+// name. A no-argument constructor is what § 3 requires of an implementor, and
+// declaring none at all is the way to have one.
+class Alpha implements Module
+{
+    public function name(): string
+    {
+        return "alpha";
+    }
+}

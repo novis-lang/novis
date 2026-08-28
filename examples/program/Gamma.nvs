@@ -1,0 +1,10 @@
+<?nvs
+namespace App;
+
+class Gamma implements Module
+{
+    public function name(): string
+    {
+        return "gamma";
+    }
+}

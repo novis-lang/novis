@@ -1,0 +1,25 @@
+<?nvs
+// ADR 0061 § 3's program enumeration, as a program.
+//
+// Nothing below names `App\Alpha`, `App\Beta` or `App\Gamma`, and no `require`
+// anywhere reaches their files. The one declaration that can find them is the
+// `autoload` root on the next line: `Core\Program::implementing<T>()` is the
+// one query resolution is not lazy for, so the compiler parses every file
+// under every root, collects what each declares, and filters the result to the
+// non-abstract classes implementing `App\Module`.
+autoload 'App' from './program';
+
+// Expands at compile time to `[new App\Alpha(), new App\Beta(), new
+// App\Gamma()]` — sorted by fully-qualified name, so the order does not depend
+// on filesystem enumeration, and evaluated here, so the instances are
+// per-request like any other object (ADR 0006). `App\Base` is abstract and
+// `App\Module` is the interface itself; neither is an entry.
+var $modules = Core\Program::implementing<App\Module>();
+
+// The interface is not the selector's crutch — it is what gives `$module` a
+// static type, so `name()` resolves. An `object` would be opaque here.
+foreach ($modules as App\Module $module) {
+    echo $module->name(), "\n";
+}
+
+echo "count=", Core\Arr::count($modules), "\n";

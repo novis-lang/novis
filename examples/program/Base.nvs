@@ -1,0 +1,13 @@
+<?nvs
+namespace App;
+
+// Abstract, so the enumeration filters it out — § 3 answers with the
+// non-abstract classes alone. It is here to make that visible: without it the
+// fixture would print the same three lines whether the filter existed or not.
+abstract class Base implements Module
+{
+    public function name(): string
+    {
+        return "base";
+    }
+}

@@ -1,0 +1,10 @@
+<?nvs
+namespace App;
+
+class Beta implements Module
+{
+    public function name(): string
+    {
+        return "beta";
+    }
+}

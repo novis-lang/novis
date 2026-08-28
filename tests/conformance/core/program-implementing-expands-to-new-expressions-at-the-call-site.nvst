@@ -1,0 +1,94 @@
+--TEST--
+`Core\Program::implementing<T>()` answers the non-abstract implementors sorted by fully-qualified name, and expands at the call site so every call allocates its own — ADR 0061 § 3
+--FILE--
+<?nvs
+// Nothing here names a module class, and no `require` reaches one: the
+// `autoload` root is the only thing that can find them, which is § 3's
+// "answering the query requires parsing and collecting declarations from every
+// file under every autoload root".
+autoload 'App' from './modules';
+
+// `App\Sub\Aardvark` sorts *after* `App\Beta` because the comparison is over
+// name segments, not over the rendered string and not over the directory walk
+// — a filesystem enumeration would very likely put the subdirectory first.
+var $first = Core\Program::implementing<App\Module>();
+foreach ($first as App\Module $module) {
+    echo $module->tag(), " ";
+}
+echo "\n";
+
+// `App\Base` is abstract and `App\Module` is the interface itself. Neither is
+// an entry, so the count is three rather than five.
+echo "count=", Core\Arr::count($first), "\n";
+
+// It expands to an array literal of `new` expressions *at the call site*, so a
+// second call runs the constructors a second time: nothing is cached, and the
+// instances are per-request like any other object (ADR 0006).
+var $second = Core\Program::implementing<App\Module>();
+echo "count=", Core\Arr::count($second), "\n";
+--FILE modules/Module.nvs--
+<?nvs
+namespace App;
+
+interface Module
+{
+    public function tag(): string;
+}
+--FILE modules/Alpha.nvs--
+<?nvs
+namespace App;
+
+class Alpha implements Module
+{
+    // A declared zero-argument constructor is what § 3 asks of an
+    // implementor, and it is called once per expansion — the `echo` is how
+    // this case can see that.
+    public function constructor()
+    {
+        echo "+alpha ";
+    }
+
+    public function tag(): string
+    {
+        return "alpha";
+    }
+}
+--FILE modules/Beta.nvs--
+<?nvs
+namespace App;
+
+class Beta implements Module
+{
+    public function tag(): string
+    {
+        return "beta";
+    }
+}
+--FILE modules/Base.nvs--
+<?nvs
+namespace App;
+
+abstract class Base implements Module
+{
+    public function tag(): string
+    {
+        return "base";
+    }
+}
+--FILE modules/Sub/Aardvark.nvs--
+<?nvs
+namespace App\Sub;
+
+use App\Module;
+
+class Aardvark implements Module
+{
+    public function tag(): string
+    {
+        return "aardvark";
+    }
+}
+--EXPECT--
++alpha alpha beta aardvark
+count=3
++alpha count=3

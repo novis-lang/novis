@@ -39,17 +39,18 @@
 > the ADR that owns a topic, and `python tools/adr.py --stats` shapes the whole set. What a crate
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
-> **Open now:** **The parity program is live, and goal 1 has landed its first work.** Its six goals
-> are written out under [docs/agent/goals/](agent/goals/README.md), each with its own `[context]`
-> manifest and acceptance TOML; `python tools/loop.py --chain docs/agent/goals/chain.toml` walks
-> them, carrying each goal's whole acceptance list forward as the next one's floor through
-> `goal-switch.py`. The switch from M4's goal has been made and the chain is running goal 1 — the
-> steps it took are in [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's own
-> residue is the 1000-case corpus count, which orders 1–4 meet as the suite grows; nothing else
-> about M4 is open. What the program is measured by is `python tools/check-migration.py` at 100%
-> classified, which stood at 25% the day the program was scheduled. `python tools/gaps.py`, `python
-> tools/holes.py` and `python tools/check-migration.py --report` are the three worklists behind it,
-> and no session re-derives one.
+> **Open now:** **The parity program is live, and goal 1's first item list — ADR 0061 § 3's
+> enumeration — runs end to end.** Its six goals are written out under
+> [docs/agent/goals/](agent/goals/README.md), each with its own `[context]` manifest and acceptance
+> TOML; `python tools/loop.py --chain docs/agent/goals/chain.toml` walks them, carrying each goal's
+> whole acceptance list forward as the next one's floor through `goal-switch.py`. The switch from
+> M4's goal has been made and the chain is running goal 1 — the steps it took are in
+> [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's own residue is the 1000-case
+> corpus count, which orders 1–4 meet as the suite grows; nothing else about M4 is open. What the
+> program is measured by is `python tools/check-migration.py` at 100% classified, which stood at 25%
+> the day the program was scheduled. `python tools/gaps.py`, `python tools/holes.py` and `python
+> tools/check-migration.py --report` are the three worklists behind it, and no session re-derives
+> one.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
