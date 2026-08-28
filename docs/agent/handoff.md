@@ -2,44 +2,56 @@
 
 ## State
 
-**Item 1 is closed at the refusal level, and the ceiling has fallen from 15 to 6.** The tree is
-at **867 conformance plus 189 differential**. Nothing is blocked.
+**M4, item 16 is half closed and the refusal ceiling is 4.** The tree is at **868 conformance
+plus 189 differential**. Nothing is blocked.
 
-All nine `nvs-codegen` catch-alls item 1 claimed were engine invariants, not language holes: each
-already carried a roster comment proving no lowering constructs what it matches, and each is now a
-`CodegenError::Internal` through `nvs_codegen::emit::internal`, which is itself an `Internal` now
-rather than an `Unsupported`. `crates/nvs-codegen/src/emit.rs`'s module doc is the home of the rule
-in that crate; `docs/agent/loop-goal.md` § *Standing decisions* is its home overall.
+Item 16's three sites were never about named or spread arguments — both of those had landed
+(`ResolvedCall::arg_slots` carries the mapping, `lower_variadic_tail` the tail). All three were the
+`let CallArgs::List(list) = args else` arm, reachable only by ADR 0027's `(...)`. Two are now proven
+unreachable and reworded as engine invariants, so `CEILING` in
+`crates/nvs-ir/tests/refusals.rs` is **4**; the allowlist is still empty and may never grow.
 
-`crates/nvs-ir/tests/refusals.rs` is unchanged in mechanism — `CEILING` is 6, the allowlist is still
-empty and may never grow. The six that stand are item 4's one (`nvs-ir/src/lower/stmt.rs:269`), item
-16's three and item 25's two; `python tools/holes.py --item N` prints any of them.
+What landed on the checker side: `Foo::bar(...)` and `$obj->method(...)` record
+`ExprInfo::CallableRef` — the same `ResolvedCall` a call records, under a variant nothing can
+mistake for one — and the two shapes naming no member are diagnostics, `E0740` for `new C(...)`
+(new) and `E0732` for a `mixed` receiver (already there). ADR 0027 § 1 is the home of that rule;
+`nvs_types::expr_table::ExprInfo::CallableRef`'s own doc is the home of what the record carries.
+
+`nvs-ir` reads none of it yet, so every first-class callable still panics — with a message that now
+names `CallableRef` and says the arm is missing.
 
 ## Next group
 
-**Item 16's three, the named/spread argument refusals.** These are the first of the six that are
-*real* holes rather than classifications, and the standing decision orders them: the checker half
-lands before the lowering half. Read the sites first — `python tools/holes.py --item 16` — because
-this group's shape depends on whether each is a checker gap or a lowering one.
-File set: `crates/nvs-types/src/expr/` (the checker half), `crates/nvs-ir/src/lower/call.rs` (the
-lowering half), `crates/nvs-ir/tests/refusals.rs` (the `CEILING` constant).
+**Item 16's lowering half: turn a `CallableRef` into a closure value.** ADR 0027 § 1 and
+[ADR 0031](../adr/0031-callable-is-the-only-closure-type.md) § 2 specify it; `lower_closure` is the
+model to copy, since a closure literal already lowers to an object of a synthesized class with one
+field per capture and a bound receiver is exactly one such field.
+File set: `crates/nvs-ir/src/lower/expr.rs`, `crates/nvs-ir/src/lower/closure.rs`,
+`crates/nvs-ir/src/lower/call.rs`, `crates/nvs-ir/tests/refusals.rs`.
 
-- [ ] **Read item 16's three sites and split them checker-half / lowering-half**, then land the
-      checker half: `crates/nvs-ir/src/lower/call.rs` is the anchor `holes.py` reports, and
-      `crates/nvs-types/src/expr/operators.rs:403` is the neighbouring checker file the pack maps.
-      ADR 0063 R2's options bag is what `call.rs`'s own module doc says it already flattens.
-- [ ] **Land the lowering half in `crates/nvs-ir/src/lower/call.rs`**, and lower `CEILING` in
-      `crates/nvs-ir/tests/refusals.rs:58` in the same slice — the test says so if you forget.
-- [ ] **Item 25's two, `object` as a declared type has a representation arm** — same `CEILING`
-      edit, and the standing decision already settles the design (`object` erases to the same
-      pointer a named class does), so only the "does anything below read a class label" check is
-      work.
+- [ ] **`$g(...)` on a value already typed `callable` is the identity** — PHP hands back the same
+      Closure object, so this is "lower the callee and return it", with the retain decision taken
+      through `Lowering::aliasing_read` like every other producer. It is the one *counted* refusal
+      item 16 still holds. `crates/nvs-ir/src/lower/call.rs:766` (`lower_closure_call`'s sentinel
+      arm), `crates/nvs-ir/src/lower/closure.rs:149` (`lower_closure`, for the ownership shape).
+- [ ] **Lower a static `CallableRef`** — `Class::method(...)`, `self::`/`static::`/`parent::`.
+      No receiver to capture, so the synthesized class has no fields; `ResolvedCall::static_class`
+      is what `static::` means and must ride into the value.
+      `crates/nvs-ir/src/lower/expr.rs:2622` (the `let Some(ExprInfo::Call(call))` arm to precede).
+- [ ] **Lower an instance `CallableRef`** — `$obj->method(...)`. One captured field, the receiver,
+      retained at the reference and released with the closure; `ResolvedCall::overridden` decides
+      whether the body binds a label or goes through `InstKind::CallVirtual`.
+      `crates/nvs-ir/src/lower/expr.rs:2433`. Lower `CEILING` to 3 in the same slice if
+      `call.rs:766` went with it.
 
 ## Backlog
 
-- Item 4's one site is `nvs-ir/src/lower/stmt.rs:269`, a control-flow-slice refusal whose message
-  is about local declarations rather than about bitwise operators — check the attribution before
-  taking it (`docs/agent/loop-goal.md` item 4).
-- `docs/agent/guard-name-debt.md` is at 0; the file can go when nothing references it.
-- The `[context]` manifest wanted nothing this session did not have; `docs/agent/loop-goal.toml`
-  needs no new selector.
+- Item 25's two — `object` as a declared type has a representation arm.
+  `crates/nvs-ir/src/lower/mod.rs:2701` and `:2784`; `docs/agent/loop-goal.md` item 25.
+- Item 4's one — the bitwise operators. `docs/agent/loop-goal.md` item 4.
+- A `Core` member referenced as `Core\Str::length(...)` has `has_body: false` and names no compiled
+  function, so its closure body has to be an `InstKind::CoreCall` shim — worth deciding before the
+  static arm is written. `nvs_stdlib::registry` owns what a `Core` member is.
+- `check_and_find_expr_span` in `crates/nvs-types/src/expr_table.rs` only reads the first statement
+  of `T::m` and only as a bare expression or `return`, so a fixture for anything on the left of a
+  `=` has to be written as a `return`. Not a gap, just the shape.

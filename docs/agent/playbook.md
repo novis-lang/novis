@@ -2614,6 +2614,14 @@ sibling in the same namespace unqualified.
   comment naming "the next free parser code" is naming the band `brief.py` prints for `E01xx`, which is
   the wrong half of the registry for a refusal — find the sibling refusal's code first and take the
   number next to it.
+- **A refusal site's *message* can be about a different feature than the item that claims it**, because
+  `holes.py` attributes by file. Item 16 was written as "a named argument and a spread argument lower",
+  and both of those had landed; all three sites it still claimed were the `let CallArgs::List(list) = args
+  else` arms, which only the first-class-callable sentinel `(...)` ever reaches. Read the site's *else*
+  branch before believing the item's title, and settle reachability with four scratch runs rather than by
+  reasoning: `Class::method(...)` and `$obj->method(...)` both died a whole file earlier at
+  `expr.rs`'s "no resolved target recorded" panic, `$m->method(...)` was already a diagnostic, and the one
+  shape that actually reached `lower_call_args` was `new C(...)` — which nothing in the item mentioned.
 
 ## Divergences and refusals already pinned
 
