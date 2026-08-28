@@ -131,6 +131,15 @@ paid by a class that never asked for either mechanism. The cost of this ADR is e
 call per access, paid only by a class that implements `PropertyObserver`, which [ADR 0004](0004-memory-for-simplicity.md)
 already treats as free relative to every other method call in the language.
 
+"Direct" is a claim about **the path a run that throws nothing takes**, and a landing block is not a dispatch
+the access asked for. Every status-returning instruction owns one, so `$obj->n = $obj->n + 1` carries an
+overflow raise and a `Release` of the receiver with it — machine calls sitting on mutually exclusive cold
+edges, exactly one of which is entered and only once something has already thrown. Those belong to
+[ADR 0002](0002-error-propagation.md)'s checked return and to [ADR 0007](0007-explicit-type-system.md) § 4's
+overflow throw; counting them as per-access cost prices this ADR for two others' mechanisms. The access
+itself is a `FieldGet` and a `FieldSet` in the block that runs, with no call between them, which is what the
+guard named under *Verification* measures.
+
 ### 5. Accessing an undeclared property is always a hard error — no `__get`/`__set` fallback
 
 Novis has no dynamic properties: every property is declared with a type, per
@@ -307,7 +316,7 @@ Verification, in the order it becomes possible:
   observer method propagating correctly through [ADR 0002](0002-error-propagation.md)'s checked-return path;
   § 4's zero cost is a measurement rather than an assertion — `benches/abi-probe`'s
   `a_class_without_a_property_observer_costs_nothing_extra`, which holds that three more unhooked accesses
-  emit no machine-code call beyond the probe sites they add, and cost a fraction of the same accesses behind
+  emit no machine-code call at all on the path a run that throws nothing takes, and cost a fraction of the same accesses behind
   the ADR's other opt-in, a per-property hook; that test's own comment carries the figures and the threshold.
   A computed
   property-access expression is `E0235` where it is written, and a property access through § 4's erased
