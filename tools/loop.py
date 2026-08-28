@@ -64,6 +64,7 @@ GOALCACHE = RUNDIR / "goal-green.json"
 LIMIT = RUNDIR / "limit.json"
 INTERRUPTED = RUNDIR / "interrupted.json"
 CHAINSTATE = RUNDIR / "chain.json"
+RUNEND = RUNDIR / "run-end.json"
 
 IS_WINDOWS = os.name == "nt"
 
@@ -2017,6 +2018,43 @@ def git(*args):
         return ""
 
 
+#: Why a run ended, as a *kind* rather than a sentence. `reason` is written for a person and is
+#: reworded whenever the wording improves; this is what `tools/loop-supervisor.py` branches on, and
+#: only one of these is restartable. Adding a kind here is free; changing one renames an API.
+#:
+#:   budget          served --max-sessions and stopped. The only kind a supervisor may restart on.
+#:   goal            every acceptance check passes and there is no chain
+#:   chain-complete  the last goal in the chain is green
+#:   chain-error     a chain switch could not be made
+#:   asked           `.loop/stop`, or `s` at the console
+#:   wall            MAX_WALLS sessions in a row refused by the usage limit
+#:   wall-timeout    a usage window that does not reopen inside --max-limit-wait
+#:   cli-failed      --max-retries consecutive non-zero exits from the CLI
+#:   done-claim      a session claimed DONE that the acceptance test does not agree with
+#:   blocked         a session wrote BLOCKED
+#:   stalled         --max-stalls sessions in a row produced no commit
+#:   interrupted     Ctrl-C
+def write_run_end(kind, reason, served=0, run_id=""):
+    """Record why this run ended, machine-readably. Best effort: a run that ended for a real
+    reason must not also fail on an unwritable `.loop`, so every error here is swallowed. A
+    supervisor that finds no file treats the run as terminal, which is the safe direction."""
+    try:
+        RUNDIR.mkdir(parents=True, exist_ok=True)
+        RUNEND.write_text(
+            json.dumps({
+                "kind": kind,
+                "reason": reason,
+                "served": served,
+                "run_id": run_id,
+                "at": f"{datetime.now():%Y-%m-%d %H:%M:%S}",
+            }, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+    except OSError:
+        pass
+
+
 def ledger(line):
     with LEDGER.open("a", encoding="utf-8", newline="\n") as fh:
         fh.write(line + "\n")
@@ -2454,7 +2492,7 @@ def make_room(opts):
     a session with the tree half-edited and the next session inheriting the mess, which is
     exactly what happened on 2026-08-25. Failing at the door instead costs one line.
     `tools/disk.py` owns the policy, the numbers and the explanation."""
-    freed = disk.prune_logs() + disk.prune_scratch()
+    freed = disk.prune_logs(opts.keep_runs) + disk.prune_scratch()
     if freed:
         say(f"pruned {disk.human(freed)} of earlier runs' logs and scratch", C.GRAY)
     free = disk.free_gb(ROOT)
@@ -2583,6 +2621,13 @@ def run_cli():
     ap.add_argument(
         "--min-free-gb", type=float, default=disk.MIN_FREE_GB,
         help="refuse to start below this much free disk; 0 disables the check"
+    )
+    ap.add_argument(
+        "--keep-runs", type=int, default=disk.KEEP_RUNS, metavar="N",
+        help="how many runs' session logs survive the prune at start-up. Raise it when a "
+             "supervisor is splitting one long run into legs: the default keeps N *runs*, and "
+             "legs of 25 sessions would otherwise leave loop-stats.py an eighth of the "
+             "transcripts it had"
     )
     opts = ap.parse_args()
 
@@ -2738,6 +2783,7 @@ def run_cli():
             C.YELLOW,
         )
         ledger(f"## run ended {datetime.now():%Y-%m-%d %H:%M} -- interrupted (Ctrl-C)")
+        write_run_end("interrupted", "interrupted (Ctrl-C)")
     finally:
         release_run()
     return 0
@@ -2752,7 +2798,11 @@ def drive(opts, goal, chain=None):
     stalls = 0
     fails = 0
     reason = f"hit --max-sessions ({opts.max_sessions})"
+    kind = "budget"
     run_id = f"{datetime.now():%Y%m%d-%H%M%S}"
+    # Cleared at the start, not only written at the end: a driver killed mid-run leaves the last
+    # run's verdict on disk, and a supervisor reading that would restart on a stale `budget`.
+    RUNEND.unlink(missing_ok=True)
     CONSOLE.open_run(LOGDIR / f"{run_id}-console.log")
     ledger("")
     # The effort is in the header, not on each session line: it is a property of the run, and this
@@ -2797,7 +2847,7 @@ def drive(opts, goal, chain=None):
     while served < opts.max_sessions:
         asked = CONTROL.stop_reason()
         if asked:
-            reason = asked
+            reason, kind = asked, "asked"
             break
 
         if wall:
@@ -2806,7 +2856,7 @@ def drive(opts, goal, chain=None):
             # the session it refused.
             stop = wait_out_limit(wall, opts)
             if stop:
-                reason = stop
+                reason, kind = stop, "wall-timeout"
                 break
             wall = None
 
@@ -2841,6 +2891,7 @@ def drive(opts, goal, chain=None):
                    + f" -- see {log.relative_to(ROOT).as_posix()}")
             if walls >= MAX_WALLS:
                 reason = f"{walls} sessions in a row were refused by the usage limit"
+                kind = "wall"
                 break
             wall = limit
             continue
@@ -2854,6 +2905,7 @@ def drive(opts, goal, chain=None):
             )
             if fails >= opts.max_retries:
                 reason = f"claude CLI failed {fails} times in a row"
+                kind = "cli-failed"
                 break
             backoff = min(300, 30 * 2**fails)
             step(f"backing off {mmss(backoff)} before retry {fails + 1}", C.YELLOW)
@@ -2904,6 +2956,7 @@ def drive(opts, goal, chain=None):
         if not fail:
             if chain is None:
                 reason = "GOAL REACHED: every acceptance check in docs/agent/loop-goal.toml passes"
+                kind = "goal"
                 break
             done = chain.current["name"]
             ledger(f"## goal reached: {done} -- every check in its acceptance list passes")
@@ -2911,14 +2964,15 @@ def drive(opts, goal, chain=None):
             if chain.finished:
                 reason = (f"CHAIN COMPLETE: {done} was the last goal in "
                           f"{rel_to_root(chain.path)}, and every one of them is green")
+                kind = "chain-complete"
                 break
             switch = chain.install_next()
             if switch:
-                reason = switch
+                reason, kind = switch, "chain-error"
                 break
             switch = chain.bring_up_services()
             if switch:
-                reason = switch
+                reason, kind = switch, "chain-error"
                 break
             ledger(f"## run continues on {chain.current['name']} "
                    f"(goal {chain.index + 1} of {len(chain.goals)})")
@@ -2930,21 +2984,25 @@ def drive(opts, goal, chain=None):
                 goal = load_goal()
             except (tomllib.TOMLDecodeError, GoalError) as e:
                 reason = f"chain: {rel_to_root(GOAL_TOML)} did not load after the switch -- {e}"
+                kind = "chain-error"
                 break
             continue
         ledger(f"       goal check: {fail}")
 
         if line.startswith("DONE"):
             reason = f"session reported DONE but the acceptance test does not pass yet: {line}"
+            kind = "done-claim"
             break
         if line.startswith("BLOCKED"):
             reason = f"blocked on a user decision: {line}"
+            kind = "blocked"
             break
 
         if commits == 0:
             stalls += 1
             if stalls >= opts.max_stalls:
                 reason = f"{stalls} sessions in a row produced no commit"
+                kind = "stalled"
                 break
         else:
             stalls = 0
@@ -2955,6 +3013,7 @@ def drive(opts, goal, chain=None):
             wait(opts.delay_seconds, "--delay-seconds")
 
     ledger(f"## run ended {datetime.now():%Y-%m-%d %H:%M} -- {reason}")
+    write_run_end(kind, reason, served, run_id)
     say("")
     say(reason, C.YELLOW)
 
