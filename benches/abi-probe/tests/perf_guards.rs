@@ -938,12 +938,45 @@ fn a_class_without_a_property_observer_costs_nothing_extra() {
          {plain_extra} more calls unhooked against {hooked_extra} hooked"
     );
 
+    // WHICH instruction crept into a plain field store, not just how many: the
+    // emitted calls are all indirect (`call *%rax`), so the asm cannot name the
+    // helper and a bare count costs whoever reads this a release build to find
+    // out. The IR slope can name it, and that is the question a failure asks.
+    let kinds = |name: &str| {
+        let mut seen: std::collections::BTreeMap<String, isize> = Default::default();
+        for inst in program
+            .functions
+            .iter()
+            .find(|f| f.name == name)
+            .expect("the fixture declares it")
+            .blocks
+            .iter()
+            .flat_map(|b| b.insts.iter())
+        {
+            let rendered = format!("{:?}", inst.kind);
+            let variant = rendered
+                .split_once(['(', '{', ' '])
+                .map_or(rendered.as_str(), |(head, _)| head)
+                .to_owned();
+            *seen.entry(variant).or_default() += 1;
+        }
+        seen
+    };
+    let (one, four) = (kinds("Cell::plainOne"), kinds("Cell::plainFour"));
+    let plain_slope: Vec<String> = four
+        .iter()
+        .filter_map(|(variant, count)| {
+            let grew = count - one.get(variant).copied().unwrap_or(0);
+            (grew != 0).then(|| format!("{variant} +{grew}"))
+        })
+        .collect();
     assert_eq!(
         plain_extra, 0,
         "three more unhooked property accesses now emit {plain_extra} call(s) \
          beyond the {plain_sites} probe/safepoint site(s) they add. ADR 0014 \
          § 4 makes an access on an observer-free class a direct field load or \
-         store; anything else there is a dispatch it did not ask for."
+         store; anything else there is a dispatch it did not ask for. \
+         Three more access pairs grew the IR by: {plain_slope:?}"
     );
     // Not vacuous: the same slope over the hooked property does show the calls
     // an opt-in costs, so a measurement that found none anywhere would fail

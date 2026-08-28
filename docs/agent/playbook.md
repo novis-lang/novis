@@ -710,6 +710,20 @@ is why" — is this file.
   window over the raw text, deliberately, so that a constructor wrapped by rustfmt is still
   found. Write the justification as "rather than an `Unsupported`", or put it further than
   160 bytes away; `python tools/holes.py` immediately after the edit is the whole check.
+- **The driver's acceptance verdict now rides in the pack, and a red one outranks your item.**
+  `orient.py`'s RUN section prints the last `goal check:` line out of `.loop/log.md`. Before it
+  did, the driver was the only thing that saw a failing check — it writes the verdict to the
+  ledger and starts the next session, whose item comes from the handoff — so `abi-probe` stayed
+  red across sessions 0055, 0056 and 0057 while each of them worked on something else. A check
+  naming a test that "did not run" is an item still open and is this goal's ordinary state; any
+  other failure is a regression, and the run cannot end until it is green.
+
+- **Do not write files through the shell — it is measured now, and it was 205 calls in one run.**
+  `python tools/loop-stats.py` counts every heredoc, `>` redirect and `sed -i`, and 44 of 57
+  sessions of the 20260828-112939 run used one where AGENTS.md rule 1 asks for Write/Edit or
+  `python tools/splice.py --patch`. It works right up until an apostrophe in a doc comment closes
+  the quote early. It also used to hide the session that did it: a heredoc is not an `Edit`, so
+  session 0053 read as 52 orientation calls and no work at all until `MUTATORS` learned about it.
 
 ## Running things
 
