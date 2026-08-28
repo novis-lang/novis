@@ -708,14 +708,21 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
             walk_member_name(method, src, ctx, env);
             walk_args(args, src, ctx, env);
             if let MemberName::Ident(name_span) = method {
-                check_member_ref(
-                    class,
-                    src.span_text(*name_span).unwrap_or_default(),
-                    MemberKind::Method,
-                    src,
-                    ctx,
-                    env,
-                );
+                let name = src.span_text(*name_span).unwrap_or_default();
+                // ADR 0046 § 4's class target — `Foo::constructor(...)` — rests
+                // on ADR 0022 § 2's "every class has one, definitely", so a
+                // *reference* to a constructor no class body writes names the
+                // synthesized one and is not an undefined member.
+                //
+                // The exemption is exactly this spelling and no wider. A
+                // written `Foo::constructor()` on such a class resolves to no
+                // signature in `nvs_types` either, so it would reach `nvs-ir`
+                // with no target recorded and panic there; `E0309` is what
+                // keeps that a diagnostic about the program, and it is the one
+                // code the mistake draws.
+                if !(name == "constructor" && matches!(args, CallArgs::FirstClassCallable)) {
+                    check_member_ref(class, name, MemberKind::Method, src, ctx, env);
+                }
             }
         }
         ExprKind::PropertyAccess {

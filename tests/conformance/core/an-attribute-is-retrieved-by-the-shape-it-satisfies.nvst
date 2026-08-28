@@ -20,8 +20,6 @@ class Controller {
     #[{column: "years"}]
     public int $age = 0;
 
-    public function constructor() {}
-
     // § 4: a method is named by its own first-class-callable reference, and a
     // parameter by that reference plus a literal member name.
     #[Route(path: "/show")]

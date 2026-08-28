@@ -11,9 +11,7 @@ class Limits {
 #[Route(path: "/a")]
 #[Route(path: "/b")]
 #[{code: Limits::MAX}]
-class Twice {
-    public function constructor() {}
-}
+class Twice {}
 
 // Accepted first, so a position that stops being accepted fails here rather
 // than as a missing refusal: `all<T>` is what two matches are for.
@@ -45,23 +43,23 @@ error[E0731]: this attribute satisfies the retrieved shape, but holds a value wi
    = help: ADR 0046 § 5 replaces the retrieval with the payload itself, so every value in it has to be materializable — a user-declared class constant's value and an enum case are the two ADR 0046 § 2 admits and this compiler cannot yet inline
 
 error[E0728]: `Twice::constructor` carries 2 attached literals satisfying this shape
-   --> case.nvs:22:21
+   --> case.nvs:20:21
    |
-22 | ?Route $ambiguous = Core\Attributes::get<Route>(Twice::constructor(...));
+20 | ?Route $ambiguous = Core\Attributes::get<Route>(Twice::constructor(...));
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `get` answers at most one
    = help: ADR 0046 § 5: an attached-attribute list is static, so this is decided here rather than by a test run — write `Core\Attributes::all<T>(…)`, which answers every match
 
 error[E0729]: `Core\Attributes::get` retrieves a shape, and `int` is not one
-   --> case.nvs:25:16
+   --> case.nvs:23:16
    |
-25 | ?int $scalar = Core\Attributes::get<int>(Twice::constructor(...));
+23 | ?int $scalar = Core\Attributes::get<int>(Twice::constructor(...));
    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `int` written here
    = help: ADR 0046 § 4: retrieval is structural — an attached literal is an answer exactly when it satisfies `T` under ADR 0036 § 3's width subtyping, so `T` is an inline `{...}` or a `type` alias naming one
 
 error[E0730]: a `Core\Attributes` retrieval names no declaration
-   --> case.nvs:30:48
+   --> case.nvs:28:48
    |
-30 | ?Route $computed = Core\Attributes::get<Route>($fn);
+28 | ?Route $computed = Core\Attributes::get<Route>($fn);
    |                                                ^^^ this is not a declaration reference
    = help: ADR 0046 § 4: the target is written as a first-class-callable reference and inspected where it is written — `Foo::bar(...)` for a method, and `Foo::constructor(...)` for the class itself, plus a literal member name for one of its properties or parameters
 

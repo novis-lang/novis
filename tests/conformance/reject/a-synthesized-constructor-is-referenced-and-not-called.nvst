@@ -1,0 +1,41 @@
+--TEST--
+A reference to a synthesized `constructor` resolves, and a written call to one is refused (ADR 0046 § 4, ADR 0022 § 2)
+--FILE--
+<?nvs
+type Route = {path: string};
+
+#[Route(path: "/a")]
+class Plain {}
+
+// Accepted first, so a position that stops being accepted fails here rather
+// than as a missing refusal. ADR 0022 § 2 gives every class a constructor,
+// definitely, so ADR 0046 § 4's class target names it whether or not the body
+// writes one.
+?Route $route = Core\Attributes::get<Route>(Plain::constructor(...));
+echo $route != null ? "some" : "none", "\n";
+
+// The exemption is that one spelling and no wider: a written call resolves to
+// no signature at all, so it would reach `nvs-ir` with no target recorded.
+Plain::constructor();
+
+class Sub extends Plain {
+    public function constructor() {
+        // The ported-PHP spelling, and the same refusal: `Plain` writes no
+        // constructor for `parent::` to name.
+        parent::constructor();
+    }
+}
+--EXPECTF-ERROR--
+error[E0309]: `Plain` has no method named `constructor`
+   --> case.nvs:16:1
+   |
+16 | Plain::constructor();
+   | ^^^^^ referenced here
+
+error[E0309]: `Plain` has no method named `constructor`
+   --> case.nvs:22:9
+   |
+22 |         parent::constructor();
+   |         ^^^^^^ referenced here
+
+error: aborting due to 2 errors
