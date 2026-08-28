@@ -15,7 +15,9 @@
 //! [`AutoloadMap::resolve`] turns a [`QName`] into the file that declares it,
 //! probing each root in declaration order and returning the whole ordered
 //! trace — misses included — because ADR 0061 § 5 keys the artifact cache on
-//! it.
+//! it. [`AutoloadMap::enumerate`] is that map read the other way, listing
+//! every name the roots declare: § 3's scan, which only a program calling
+//! `Core\Program::implementing<T>()` or writing a `#[Route]` ever pays for.
 //!
 //! Three rules of § 1 live here rather than in the resolver:
 //!
@@ -74,6 +76,7 @@ use std::path::{Path, PathBuf};
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use nvs_syntax::ast::{NamespaceDecl, Stmt, StmtKind};
+use rustc_hash::FxHashSet;
 
 use crate::qname::QName;
 
@@ -265,6 +268,45 @@ impl AutoloadMap {
         probe
     }
 
+    /// Every name the roots declare, sorted by fully-qualified name —
+    /// [`Self::resolve`] run in the other direction, and the one place
+    /// resolution is not lazy (ADR 0061 § 3).
+    ///
+    /// `Core\Program::implementing<T>()` and ADR 0077's compile-time route
+    /// table are its only two callers, under § 3's opt-in rule: a program
+    /// writing neither never calls this and never pays the directory
+    /// listing. What comes back is the *file* set. Which of those files
+    /// declares a class satisfying anything is
+    /// [`crate::hierarchy::implementors`]' question, over the graph built
+    /// once `crate::requires` has loaded them — this half knows nothing
+    /// about what a file contains, only that a file at this path is where a
+    /// declaration of this name would live, which is the same rule
+    /// [`Self::resolve`] applies from the other end.
+    ///
+    /// A name declared under two roots of one prefix is listed once, at the
+    /// root [`Self::resolve`] would have probed first, so the two directions
+    /// cannot disagree about which file declares a name. A directory or file
+    /// stem that cannot name a namespace segment is passed over in silence,
+    /// for the reason § 1 gives for a `discover` glob: a root inevitably
+    /// holds a `.git`, a `README.md` and a `vendor`.
+    #[must_use]
+    pub fn enumerate(&self) -> Vec<(QName, PathBuf)> {
+        let mut found: Vec<(QName, PathBuf)> = Vec::new();
+        let mut walked: FxHashSet<PathBuf> = FxHashSet::default();
+        for entry in &self.entries {
+            for root in &entry.roots {
+                collect_declared(root, &entry.segments, &mut found, &mut walked);
+            }
+        }
+        // Stable, so a name found under two roots keeps the first probe's
+        // file — `resolve`'s own first-hit-wins rule, arrived at from the
+        // other side. `dedup_by` drops the later of each run, which is the
+        // same choice.
+        found.sort_by(|a, b| a.0.segments().cmp(b.0.segments()));
+        found.dedup_by(|a, b| a.0 == b.0);
+        found
+    }
+
     /// Renders the resolved map for `nvs check --autoload-map` — ADR 0061
     /// § 1's last sentence, which asks for what was *skipped* and what was
     /// *shadowed* beside the prefixes that resolve.
@@ -329,6 +371,67 @@ impl AutoloadMap {
 
     fn entry(&self, segments: &[String]) -> Option<&Entry> {
         self.entries.iter().find(|e| e.segments == segments)
+    }
+}
+
+/// Appends every `.nvs` file under `dir` to `out`, named under `prefix`,
+/// recursing into each subdirectory that can name a namespace segment —
+/// [`AutoloadMap::enumerate`]'s whole mechanism, and the mirror of the
+/// suffix `AutoloadMap::resolve` builds a candidate path out of.
+///
+/// A path comes back canonicalized, matching [`Probe::hit`], because the
+/// caller loading these files compares them against the ones the `require`
+/// walk already canonicalized and a file loaded twice would declare
+/// everything in it twice.
+///
+/// `walked` holds the directories already visited, so a symlink pointing
+/// back up its own tree costs one skipped directory rather than an unbounded
+/// walk. The root is a path the program wrote; everything under it is
+/// whatever the deployment put there, which is not the same guarantee.
+fn collect_declared(
+    dir: &Path,
+    prefix: &[String],
+    out: &mut Vec<(QName, PathBuf)>,
+    walked: &mut FxHashSet<PathBuf>,
+) {
+    if !walked.insert(dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf())) {
+        return;
+    }
+    // A root that does not exist reads as a root declaring nothing, the same
+    // answer `canonical` leaves a probe under it with.
+    let Ok(listing) = std::fs::read_dir(dir) else {
+        return;
+    };
+
+    for entry in listing.flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let path = entry.path();
+        if entry.file_type().is_ok_and(|kind| kind.is_dir()) {
+            if is_namespace_segment(&name) {
+                let mut nested = prefix.to_vec();
+                nested.push(name);
+                collect_declared(&path, &nested, out, walked);
+            }
+            continue;
+        }
+        if path.extension().and_then(|ext| ext.to_str()) != Some(SOURCE_EXTENSION) {
+            continue;
+        }
+        // The on-disk spelling is the name here, so there is nothing for
+        // `spelled_exactly` to check: this direction reads the name off the
+        // filesystem instead of asking the filesystem for one.
+        let Some(stem) = path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .map(str::to_owned)
+        else {
+            continue;
+        };
+        if !is_namespace_segment(&stem) {
+            continue;
+        }
+        let canonical = path.canonicalize().unwrap_or(path);
+        out.push((QName::join(prefix, &stem), canonical));
     }
 }
 

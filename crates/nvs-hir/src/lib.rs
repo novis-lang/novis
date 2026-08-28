@@ -22,6 +22,8 @@
 //!   [`Symbol`]s, into a [`ClassGraph`]; diagnoses an undeclared or
 //!   wrong-kind parent, a circular `extends`/trait-use chain, and a trait
 //!   method-name collision with no `insteadof` naming a winner.
+//!   [`implementors`] asks that graph the other way — which non-abstract
+//!   classes reach one interface — which is ADR 0061 § 3's enumeration.
 //! - [`members`] — [`MemberResolver`]: resolves every `Class::member`
 //!   reference (a static call, a class constant, an enum case, a static
 //!   property) and every `$this->name` property access to something
@@ -37,7 +39,10 @@
 //!   `collect_*`-then-resolve shape every resolver above already supports;
 //!   diagnoses a missing target or a require cycle. Hands back a [`Loaded`]
 //!   per file, entry first, so the phases after this one do not re-parse the
-//!   graph to find out what is in it.
+//!   graph to find out what is in it. A program writing
+//!   `Core\Program::implementing<T>()` also gets § 3's scan here: every file
+//!   [`AutoloadMap::enumerate`] names is loaded, once, whether or not
+//!   anything mentions it.
 //!
 //! # Known gaps
 //!
@@ -66,7 +71,7 @@ pub mod symbol;
 pub use aliases::{AliasResolver, AliasTable};
 pub use autoload::{AutoloadMap, Probe};
 pub use hierarchy::{
-    ClassGraph, ClassLinks, HierarchyResolver, implements_interface, resolve_ref,
+    ClassGraph, ClassLinks, HierarchyResolver, implementors, implements_interface, resolve_ref,
     seed_exception_tree,
 };
 pub use members::{ClassMembers, MemberResolver, MemberTable};

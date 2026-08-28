@@ -25,6 +25,14 @@
 //! a forward reference to a not-yet-declared parent works the same way a
 //! `use` import already does.
 //!
+//! The graph answers in two directions. [`implements_interface`] asks it
+//! downward — does this one name reach that one — and every member lookup in
+//! `nvs-types` rides on that. [`implementors`] asks it upward — which names
+//! reach *this* one — which is ADR 0061 § 3's `Core\Program::implementing<T>()`
+//! and, through the same enumeration, ADR 0077's route table. The upward
+//! question is why a link record carries [`ClassLinks::concrete`]: it is the
+//! only one whose answer excludes an abstract class.
+//!
 //! [`crate::errors`]' exception tree is seeded into every [`ClassGraph`] this
 //! module builds, before a single declared link is resolved — see
 //! [`seed_exception_tree`] for why that is the graph's job rather than each
@@ -35,7 +43,7 @@
 //! members can't be checked either.
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
-use nvs_syntax::ast::{Name, NamespaceDecl, Stmt, StmtKind};
+use nvs_syntax::ast::{Modifier, Name, NamespaceDecl, Stmt, StmtKind};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::qname::QName;
@@ -54,6 +62,17 @@ pub struct ClassLinks {
     pub extends: Vec<QName>,
     /// The implemented interfaces (class only).
     pub implements: Vec<QName>,
+    /// Whether this is a class the program can instantiate — a `class`
+    /// declaration carrying no `abstract` modifier. An interface is never
+    /// one.
+    ///
+    /// It lives on the edge record rather than on [`crate::Symbol`] because
+    /// the one question that asks it — [`implementors`], ADR 0061 § 3's
+    /// "non-abstract classes implementing `T`" — is already walking this
+    /// graph for the `implements` half of the same answer, and a second
+    /// table consulted per candidate would be a second place for the two to
+    /// disagree.
+    pub concrete: bool,
 }
 
 /// Every declaration's resolved [`ClassLinks`], keyed by its [`QName`].
@@ -112,6 +131,9 @@ struct PendingLinks {
     /// superclass must itself be a class; an interface's parents must
     /// themselves be interfaces).
     own_kind: SymbolKind,
+    /// [`ClassLinks::concrete`], read off the declaration's own modifiers
+    /// here because this is the last pass holding them.
+    concrete: bool,
     namespace: Vec<String>,
     imports: FxHashMap<String, QName>,
     extends: Vec<RawRef>,
@@ -122,12 +144,14 @@ impl PendingLinks {
     fn new(
         qname: QName,
         own_kind: SymbolKind,
+        concrete: bool,
         namespace: Vec<String>,
         imports: FxHashMap<String, QName>,
     ) -> Self {
         Self {
             qname,
             own_kind,
+            concrete,
             namespace,
             imports,
             extends: Vec::new(),
@@ -189,6 +213,7 @@ impl HierarchyResolver {
                     let mut pending = PendingLinks::new(
                         QName::join(&current_ns, name_text(src, &decl.name)),
                         SymbolKind::Class,
+                        !decl.modifiers.contains(&Modifier::Abstract),
                         current_ns.clone(),
                         imports.clone(),
                     );
@@ -204,6 +229,7 @@ impl HierarchyResolver {
                     let mut pending = PendingLinks::new(
                         QName::join(&current_ns, name_text(src, &decl.name)),
                         SymbolKind::Interface,
+                        false,
                         current_ns.clone(),
                         imports.clone(),
                     );
@@ -228,7 +254,10 @@ impl HierarchyResolver {
         seed_exception_tree(&mut graph);
 
         for pending in &self.pending {
-            let mut links = ClassLinks::default();
+            let mut links = ClassLinks {
+                concrete: pending.concrete,
+                ..ClassLinks::default()
+            };
 
             let extends_kinds = [pending.own_kind];
             for raw in &pending.extends {
@@ -269,6 +298,9 @@ pub fn seed_exception_tree(graph: &mut ClassGraph) {
         let links = ClassLinks {
             extends: parent.iter().map(|p| QName::parse(p)).collect(),
             implements: Vec::new(),
+            // Every § 10 entry is a class a program throws, so every one of
+            // them is instantiable; the tree holds no abstract shape.
+            concrete: true,
         };
         graph.insert(QName::parse(name), links);
     }
@@ -405,6 +437,40 @@ fn implements_interface_rec(
         .any(|parent| parent == target || implements_interface_rec(parent, target, graph, seen))
 }
 
+/// Every non-abstract class in `graph` that satisfies `target`, sorted by
+/// fully-qualified name — ADR 0061 § 3's enumeration, and the list
+/// `Core\Program::implementing<T>()` expands to one `new` expression per
+/// entry of.
+///
+/// The sort is what the ADR asks for by name: the order must not depend on
+/// filesystem enumeration, since the same program compiled on two machines
+/// otherwise runs its modules in two orders. It compares segments rather
+/// than the rendered string, matching [`crate::AutoloadMap::render`]'s own
+/// ordering, so `Acme\App` sorts against `AcmeApp` the same way in both.
+///
+/// `target` itself never appears in the answer even though
+/// [`implements_interface`] is reflexive: an interface is not a class, so
+/// its own entry carries [`ClassLinks::concrete`] `false`. Neither does a
+/// class that reaches `target` only through an abstract intermediate — the
+/// intermediate is filtered, not the walk through it.
+///
+/// The answer is over the declarations the graph *holds*. What makes that
+/// "every class the program declares" rather than "every class something
+/// required" is § 3's scan: [`crate::AutoloadMap::enumerate`] names the
+/// files, `crate::requires` loads them, and this runs over the graph that
+/// results.
+#[must_use]
+pub fn implementors(target: &QName, graph: &ClassGraph) -> Vec<QName> {
+    let mut found: Vec<QName> = graph
+        .links
+        .iter()
+        .filter(|(qname, links)| links.concrete && implements_interface(qname, target, graph))
+        .map(|(qname, _)| qname.clone())
+        .collect();
+    found.sort_by(|a, b| a.segments().cmp(b.segments()));
+    found
+}
+
 /// Walks every `extends` edge looking for a cycle, reporting
 /// `E_CIRCULAR_INHERITANCE` at the first back-edge found per traversal.
 pub(crate) fn detect_cycles(graph: &ClassGraph, symbols: &SymbolTable, diags: &mut Diagnostics) {
@@ -471,6 +537,79 @@ mod tests {
         assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
         let module = resolve_file(&stmts, map.file(file), &mut diags);
         (module.graph, diags)
+    }
+
+    /// ADR 0061 § 3's three words, one assertion each: *non-abstract*,
+    /// *classes*, *implementing `T`*. The fixture declares one of everything
+    /// the filter has to drop — an abstract implementor, the interface
+    /// itself, an unrelated class — and the answer is asserted whole rather
+    /// than by membership, so a filter that lets one through fails here.
+    #[test]
+    fn implementors_are_the_non_abstract_classes_that_reach_the_interface() {
+        let (graph, diags) = resolve(concat!(
+            "<?nvs\n",
+            "interface Module {}\n",
+            "class Zebra implements Module {}\n",
+            "abstract class Partial implements Module {}\n",
+            "class Alpha extends Partial {}\n",
+            "class Loose {}\n",
+        ));
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert_eq!(
+            implementors(&QName::parse("Module"), &graph),
+            vec![QName::parse("Alpha"), QName::parse("Zebra")],
+        );
+    }
+
+    /// The sort is ADR 0061 § 3's own requirement and not a convenience: the
+    /// order must not depend on filesystem enumeration, and a `FxHashMap`
+    /// iteration order is exactly the kind of thing that varies. Declaration
+    /// order here is the reverse of the answer's, so an implementation that
+    /// forgot to sort would have to be wrong in the same direction twice to
+    /// pass.
+    #[test]
+    fn implementors_sort_by_fully_qualified_name_across_namespaces() {
+        let (graph, diags) = resolve(concat!(
+            "<?nvs\n",
+            "namespace Vendor;\n",
+            "interface Module {}\n",
+            "class Widget implements Module {}\n",
+            "namespace Acme;\n",
+            "class Thing implements \\Vendor\\Module {}\n",
+            "class Gadget implements \\Vendor\\Module {}\n",
+        ));
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert_eq!(
+            implementors(&QName::parse(r"Vendor\Module"), &graph),
+            vec![
+                QName::parse(r"Acme\Gadget"),
+                QName::parse(r"Acme\Thing"),
+                QName::parse(r"Vendor\Widget"),
+            ],
+        );
+    }
+
+    /// [`implements_interface`] is reflexive, so the interface would list
+    /// itself if `concrete` were not asked — and a program cannot `new` an
+    /// interface. Its sibling assertion is that the answer for a class
+    /// target is still the classes below it, since § 3 restricts the *type
+    /// parameter* to an interface rather than restricting this walk.
+    #[test]
+    fn an_interface_is_never_its_own_implementor() {
+        let (graph, diags) = resolve(concat!(
+            "<?nvs\n",
+            "interface Module {}\n",
+            "class Only implements Module {}\n",
+        ));
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert_eq!(
+            implementors(&QName::parse("Module"), &graph),
+            vec![QName::parse("Only")],
+        );
+        assert_eq!(
+            implementors(&QName::parse("Only"), &graph),
+            vec![QName::parse("Only")],
+        );
     }
 
     #[test]
