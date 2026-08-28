@@ -584,15 +584,23 @@
 //!     non-throwing form) runs no membership test either: its yield-`null`
 //!     miss arm has no shared representation with its hit arm, so it needs a
 //!     merge the throwing form does not.
-//! 21. **A binding declared at ADR 0007 § 3's opaque `object` top has no
-//!     representation arm.** `erase_checked_ty` maps a *named* class to
-//!     [`ty::Ty::Object`], but the checker's own `object` reaches no arm at
-//!     all, so `object $o = $obj;` — or any parameter or return declared
-//!     `object` — panics naming itself. The representation is not in question:
-//!     it is the same pointer a named class already erases to, and the arm is
-//!     one line. What is unverified is whether anything below this crate reads
-//!     a class *label* off an operand it would now receive without one, which
-//!     is what a session landing it owes a check of.
+//! 21. **`never`, `iterable` and an intersection have no representation arm.**
+//!     `object` is no longer among them: `erase_checked_ty` maps
+//!     `CheckedTy::Object` to [`ty::Ty::Object`] beside `Class`, `Callable`
+//!     and `Shape`, and a program that declares one, passes one and returns
+//!     one runs. What still reaches that function's `_ => None`, and through
+//!     it `lower_checked_ty`'s panic, is three shapes ADR 0007 § 3's grammar
+//!     spells: `never` in a return *and* in a parameter, `iterable`, and an
+//!     intersection — each in both declaration positions, which is six rows in
+//!     `tests/type_atoms.rs`'s `KNOWN_ICE`.
+//!
+//!     Two of them owe more than an arm. Nothing is assignable to `iterable`
+//!     or to an intersection in `nvs_types::expr::assign` — not an `array<T>`,
+//!     not a class implementing every member of the intersection — so both are
+//!     types no value can inhabit, and a representation here would not on its
+//!     own make either usable. `never` in a *parameter* is the other: § 3 makes
+//!     `void` and `never` return-only, `void` is diagnosed there and `never` is
+//!     not, so that row closes with a rule rather than with a representation.
 
 pub mod ids;
 pub mod ir;

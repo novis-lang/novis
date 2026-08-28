@@ -168,11 +168,26 @@ ledger distinguishes "the unit guards are green" from "the program runs".
     `ir::Helper` variant dispatching on the tag — `nvs_runtime::value_truthy` is already the answer for the
     second — and never as a second representation. `crates/nvs-ir/src/ir.rs:1180` (`Helper`).
     `nvs-ir` gap 3.
-25. **`object` as a declared type has a representation arm.** `erase_checked_ty` maps a *named* class to
-    `Ty::Object`, and the checker's own ADR 0007 § 3 `object` top reaches no arm at all, so
-    `object $o = $obj;` panics. The representation is not in question — it is the same pointer — and the
-    arm is one line; what a session owes is the check that nothing below reads a class *label* off an
-    operand it would now receive without one. `crates/nvs-ir/src/lower/mod.rs:2206`. `nvs-ir` gap 21.
+25. **`never`, `iterable` and an intersection reach a representation or a diagnostic.** `object` — what
+    this item used to be about — landed: `erase_checked_ty` maps `CheckedTy::Object` to `Ty::Object`
+    beside `Class`, `Callable` and `Shape`, and a fixture declaring one, passing one and returning one
+    runs. What still falls into the same catch-all is three shapes ADR 0007 § 3's grammar spells and
+    nothing below the checker has an arm for, each of which type-checks and then panics
+    `lower_checked_ty`:
+
+    * **`never`** in a return *and* in a parameter. The parameter half is the checker's, not the IR's:
+      § 3 says "`void` and `never` are return-only", `void` in a parameter is diagnosed and `never` is
+      not, so one of the two rows closes with a diagnostic rather than a representation.
+    * **`iterable`**, which additionally has **no arm in `nvs_types::expr::assign`** — neither an
+      `array<int>` nor a `Core\Generator` is assignable to one, so it is a type no value can inhabit
+      today and the IR arm alone would not make it usable.
+    * **an intersection** (`A&B`), same two halves: no representation, and nothing is assignable to one
+      even where every member is implemented, so `E0477` reports "names no class" for a member call
+      through it.
+
+    `crates/nvs-ir/src/lower/mod.rs:2206` (`erase_checked_ty`), `crates/nvs-types/src/expr/assign.rs`.
+    `nvs-ir` gap 21. The six rows are named in `crates/nvs-ir/tests/type_atoms.rs`'s `KNOWN_ICE`, which
+    is the ratchet that fails when one of them stops panicking as loudly as when a new one starts.
 26. **`bool as int` and `bool as string` run**, with ADR 0007 § 2's remaining non-scalar rows beside them:
     `array<T> as array<U>`'s element walk — the one row in that table that is not a single helper call —
     and a `Ty::Tagged` operand converted to `bytes`, the one target with no runtime-tag row.

@@ -996,17 +996,28 @@ tests = [
   "every_part_one_spec_member_is_registered",
 ]
 
-# The mechanical end gate. It reads `nvs-ir`'s and `nvs-codegen`'s own sources for refusal sites -- a
-# panic naming an unsupported shape -- and fails naming every one that is not on the allowlist frozen in
-# the test. THE ALLOWLIST MAY NEVER GROW: every entry is a bullet in loop-goal.md § Standing decisions,
-# and adding one to make a run go green is the single move this goal forbids outright. A count of
-# conformance cases is a proxy for "the language is finished"; this is not.
+# The mechanical end gate, in two halves that are blind in different places.
+#
+# The first reads `nvs-ir`'s and `nvs-codegen`'s own sources for refusal sites -- a panic naming an
+# unsupported shape -- and fails naming every one that is not on the allowlist frozen in the test. THE
+# ALLOWLIST MAY NEVER GROW: every entry is a bullet in loop-goal.md § Standing decisions, and adding one
+# to make a run go green is the single move this goal forbids outright. A count of conformance cases is a
+# proxy for "the language is finished"; this is not.
+#
+# The second exists because the first counts *arms* rather than *shapes*, and one catch-all arm is one
+# site however many shapes fall into it. `lower_checked_ty` was exactly that: one site, claimed by item
+# 25 because item 25 anchors that file, while three shapes item 25 is not about were reaching it and
+# panicking a compiler that had type-checked them. `type_atoms.rs` walks every atom ADR 0007 § 3 spells
+# through both declaration positions and names the shapes, so a hidden one is a row rather than a number.
 [[check]]
 kind = "cargo-named"
 stage = "8 corpus and guards"
 name = "nvs-ir (no refusal left)"
 args = ["test", "-p", "nvs-ir"]
-tests = ["every_refusal_is_a_diagnostic_or_decided"]
+tests = [
+  "every_refusal_is_a_diagnostic_or_decided",
+  "every_spellable_type_reaches_a_diagnostic_or_an_ir",
+]
 
 
 # ---------------------------------------------------------------------------------------------------
