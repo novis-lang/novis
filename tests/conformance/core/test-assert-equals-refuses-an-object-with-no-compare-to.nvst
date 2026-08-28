@@ -1,0 +1,63 @@
+--TEST--
+`Core\Test::assertEquals` compares an object only through `Comparable`, and its refusal names the class and the two members that do work on it -- ADR 0079 § 4, ADR 0013 § 2
+--FILE--
+<?nvs
+// ADR 0013 gives an object no ordering but the one its class declares, so the
+// equality member built on `compareTo` has an edge exactly where the class has
+// none. What is asserted here is not that the edge exists -- that much a bare
+// refusal would show -- but that the message is *specific*: it quotes the
+// receiver through the same rendering the failure messages use, so it names
+// the class, and it names `assertEqualsDeep` and `assertSame` rather than
+// leaving a reader with "objects are not supported".
+//
+// The two rows beside it are what make that true. A class that does implement
+// `Comparable` is compared on the line above, and both named members are run
+// on the very object the refusal named on the lines below.
+
+class Version implements Comparable {
+    public function constructor(public int $n) {}
+
+    public function compareTo(Version $other): int {
+        return $this->n - $other->n;
+    }
+}
+
+final class Cell {
+    public function constructor(public string $name) {}
+}
+
+int $answered = 0;
+int $refused = 0;
+
+// The accepting side of the bound: two distinct allocations agreeing through
+// `compareTo` compare equal, and two disagreeing through it fail with an
+// ordinary failure message rather than with the refusal below.
+Version $two = new Version(2);
+Version $also = new Version(2);
+Version $five = new Version(5);
+try { Core\Test::assertEquals($two, $also); $answered = $answered + 1; } catch (Throwable $ordered) { echo $ordered->message, "\n"; }
+try { Core\Test::assertEquals($two, $five); } catch (Throwable $unequal) { $refused = $refused + 1; echo $unequal->message, "\n"; }
+
+// The refusing side: a class with no `compareTo`. The class name is in the
+// message because the receiver goes through the same `shown` the failure
+// messages use.
+Cell $held = new Cell("a");
+Cell $twin = new Cell("a");
+try { Core\Test::assertEquals($held, $twin); } catch (Throwable $unordered) { $refused = $refused + 1; echo $unordered->message, "\n"; }
+
+// Both members the refusal names, run on the object it named. Structurally
+// the two cells agree, and by identity they do not -- which is the whole
+// reason the message names two members and not one.
+try { Core\Test::assertEqualsDeep($held, $twin); $answered = $answered + 1; } catch (Throwable $deep) { echo $deep->message, "\n"; }
+try { Core\Test::assertSame($held, $held); $answered = $answered + 1; } catch (Throwable $identity) { echo $identity->message, "\n"; }
+try { Core\Test::assertSame($held, $twin); } catch (Throwable $apart) { $refused = $refused + 1; echo $apart->message, "\n"; }
+
+// Counted, not read off the lines: a member that started answering an
+// unordered pair -- by identity, say -- would drop the refusal and add an
+// answer, and both halves of this line move.
+echo "answered=", $answered, "/3 refused=", $refused, "/3\n";
+--EXPECT--
+Core\Test::assertEquals failed: `$actual` is a `Version`, `$expected` is a `Version`
+Core\Test::assertEquals compares an object only through `Comparable`, and a `Cell` declares no `compareTo` — write `Core\Test::assertEqualsDeep` for a structural comparison, or `Core\Test::assertSame` for identity
+Core\Test::assertSame failed: `$actual` is a `Cell`, `$expected` is a `Cell`
+answered=3/3 refused=3/3
