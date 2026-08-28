@@ -1,0 +1,77 @@
+--TEST--
+Core\Debug::render, Core\Json::encode and Core\Arr::isList read one array's keys the same way, so a dump and an encode never disagree about which of ADR 0092 § 1's two array shapes a value is — spec §§ 16 and 4, ADR 0092 §§ 1 and 3
+--FILE--
+<?nvs
+// One rule, three members. ADR 0092 § 1 gives an array two node kinds and
+// `nvs_stdlib::debug`'s `array_node` decides between them from the keys —
+// "0", "1", … in order is the Sequence and anything else is the Map. Its doc
+// comment names the reason for that exact spelling out loud: it is the reading
+// `Core\Json::encode` already makes of the same value, so a dump and an encode
+// do not disagree about what an array *is*. Nothing asserted that until here.
+// This is the agreement shape: each row asks all three and reports whether
+// they *agreed*, so a member that grew its own reading of the keys fails here
+// while its own line still looks perfectly plausible.
+class Shape {
+    // A `Core\Cli\Text` converts to `string` (ADR 0088 § 5's carrier), which
+    // is what lets the rendering be *asked a question* rather than only shown.
+    // Every subject below holds `int` values, so the only quotation mark a
+    // rendering can contain came from a key — that is the whole plaintext
+    // difference between the two shapes, per the view in § 3.
+    public static function verdict(array<int> $subject): string {
+        bool $isList = Core\Arr::isList($subject);
+        bool $json = Core\Str::startsWith(Core\Json::encode($subject), "[");
+        bool $dump = !Core\Str::contains(Core\Debug::render($subject) as string, "\"");
+        if ($isList == $json && $json == $dump) {
+            return $isList ? "list" : "map";
+        }
+        return "disagree";
+    }
+}
+
+// The eight rows, in the order the answer below prints them. The first two are
+// the shapes the existing rendering case already shows; the rest are where a
+// "the keys are the set 0…n−1" implementation and an "the keys are 0, 1, … in
+// order" implementation part company, which is exactly where two members can
+// drift apart without either looking wrong on its own.
+array<string> $verdicts = [];
+$verdicts = Core\Arr::append($verdicts, Shape::verdict([10, 20]));
+$verdicts = Core\Arr::append($verdicts, Shape::verdict(["a" => 1, "b" => 2]));
+// Keys 0 and 1, written the other way round: a *set* of keys says list, an
+// order says map, and all three members have to pick the same one.
+$verdicts = Core\Arr::append($verdicts, Shape::verdict([1 => 10, 0 => 20]));
+// A hole: 0 and 2, in order, but not consecutive.
+$verdicts = Core\Arr::append($verdicts, Shape::verdict([0 => 10, 2 => 20]));
+// Written as string keys that happen to be the list's own — an array's keys
+// are strings (ADR 0007 § 5), so this is the *same* array as the first row and
+// every member has to say so.
+$verdicts = Core\Arr::append($verdicts, Shape::verdict(["0" => 10, "1" => 20]));
+// The empty array, which is both shapes at once and is settled as the list.
+$verdicts = Core\Arr::append($verdicts, Shape::verdict([]));
+// The two one-entry ends of the same boundary: key "0" and key "1".
+$verdicts = Core\Arr::append($verdicts, Shape::verdict([5]));
+$verdicts = Core\Arr::append($verdicts, Shape::verdict(["1" => 5]));
+
+echo "verdicts ", Core\Json::encode($verdicts), "\n";
+
+// Counted rather than read off the line above: `diff` keeps only the verdicts
+// that are neither shape, so a single row where the three members parted
+// company prints here whatever the eight names were. A case that only echoed
+// the verdicts would still print eight plausible words.
+array<string> $shapes = ["list", "map"];
+echo "disagreeing ", Core\Arr::count(Core\Arr::diff($verdicts, $shapes)), "\n";
+
+// The interesting row, rendered as well as counted, so the agreement above has
+// something to be an agreement *about*: keys 0 and 1 out of order render with
+// their quotation marks and encode as a JSON object, and neither answer is the
+// list the same key set would have been.
+array<int> $reversed = [1 => 10, 0 => 20];
+echo Core\Debug::render($reversed), "\n";
+echo Core\Json::encode($reversed), "\n";
+--EXPECT--
+verdicts ["list","map","map","map","list","list","list","map"]
+disagreeing 0
+array(2) [
+  "1" => int(10)
+  "0" => int(20)
+]
+{"1":10,"0":20}

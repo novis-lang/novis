@@ -2,53 +2,56 @@
 
 ## State
 
-**M4's Stage 8, depth.** The tree is at **817 conformance plus 189 differential**. Nothing is
+**M4's Stage 8, depth.** The tree is at **819 conformance plus 189 differential**. Nothing is
 blocked.
 
-`Core\Random` is done as a depth target, and it took two cases neither of which is the work the
-previous handoff named. All three items of that group were **already asserted** — see the new
-playbook bullet under *Writing a test case*, which is the reusable half. What was actually
-missing was found by reading the member doc comments for a rule no existing case could observe,
-every one of them drawing over a *list*:
+`Core\Random` is finished as a depth target. Its last unasserted rule was the one
+`owned_value_at` is written around — a draw retains the subject's *own* entry rather than copying
+it — and it needed a non-scalar element to be visible at all, since copying and sharing are
+indistinguishable over a scalar. The new case draws objects with `pick`, `sample` and `shuffle`
+and asserts identity two ways: `==` against the subject's entries and against field-identical
+twins (ADR 0090 makes `==` over objects identity, so the twin count is the other side of the
+bound), and a write through a drawn handle landing on the subject. It is fully deterministic —
+every count is exact whichever entries were drawn.
 
-- **The subject's keys reach no answer**, asked of `pick`, `sample` and `shuffle` together over a
-  map whose keys and values are disjoint strings. `pick` draws a value and never a key (150 draws,
-  counted both ways, all three values reached) — the `array_rand` divergence `random::pick`'s doc
-  comment owns; both array answers come back a list under fresh `0, 1, …` keys, rendered as well
-  as counted.
-- **`sample`'s order is itself drawn**, the other `array_rand` divergence, which no count of
-  entries can see. A two-entry sample puts the lower-positioned entry first in *some* of 40 draws
-  and not all — a preserving implementation gives 40 and a reversing one 0, so it is a bound on
-  both sides. Plus the full-width draw as a permutation, and the two widths with no order at all.
+`Core\Debug` was `gaps.py`'s thinnest class and its gap was an *agreement*, not an edge:
+`array_node`'s doc comment says out loud that its list-vs-map reading of the keys is the one
+`Core\Json::encode` already makes, and nothing asserted the two agree. The new case asks all
+three of `Debug::render`, `Json::encode` and `Arr::isList` the same eight subjects — including
+keys `0, 1` written out of order and a hole — and reports whether they *agreed*, with the
+disagreement count taken by `Arr::diff` rather than read off the line.
 
-Both cases are probabilistic by construction and were re-run eight times before the wrap; the
-failure probabilities are stated in the case comments (the tightest is 2^-40).
+Two spellings worth having: a `Core\Cli\Text` converts with `as string`, which is what lets a
+rendering be asked a question instead of only shown; and a `.nvst` helper taking `array<int>`
+takes a bare literal at the call site fine, while `Arr::diff`'s *second* argument needs a
+declared binding (the array-literal `array<mixed>` trap, already in the playbook).
 
-The gap seven handoffs back still stands: **no `Core` class reaches `nvs_hir::implements_interface`**,
+The gap eight handoffs back still stands: **no `Core` class reaches `nvs_hir::implements_interface`**,
 so `Core\Uri::compareTo` exists while `$a < $b` over two `Uri`s is `E0411`. It is in the backlog
 and still deserves a session of its own.
 
 ## Next group
 
-**`Core\Random`'s remaining unasserted rule, then the next class `gaps.py` ranks** — one file set:
-`crates/nvs-stdlib/src/random.rs` and `tests/conformance/core/`. Read the existing cases' bodies
-before writing, per the new playbook bullet.
+**`Core\Bytes`, `gaps.py`'s next thinnest with a floor of 2** — one file set:
+`crates/nvs-stdlib/src/bytes.rs` and `tests/conformance/core/`. Read the member doc comments
+first; over `Core\Random` and `Core\Debug` alike the gap was a rule stated in a doc comment that
+no case could observe, never a missing row.
 
-- [ ] **A drawn entry is the subject's own value, not a copy of it**
-      (`crates/nvs-stdlib/src/random.rs:220` — `owned_value_at`'s retain) — one case, the
-      *invariant* shape. Draw with `pick` and `shuffle` over an `array<mixed>` of objects and
-      assert identity against the subject's entries (ADR 0090 makes `==` over two objects
-      identity), which is what the slot-based draw buys and what a copying implementation loses.
-      Nothing in `Core\Random`'s seven cases uses a non-scalar element at all.
-- [ ] **Take `gaps.py`'s next-thinnest class after re-running it** — the rank moves once these two
-      cases land, and the bullet above is the reason not to trust the previous rank's group
-      unread.
+- [ ] **`startsWith` and `endsWith` at their empty and full-width ends**
+      (`crates/nvs-stdlib/src/bytes.rs:619` and `:629`) — the *bound on both sides* shape: an
+      empty needle, a needle the length of the subject, and one byte longer than it, asked of
+      both members so they agree at each end rather than each being plausible alone.
+- [ ] **`at` at the ends of its index, and against `slice`**
+      (`crates/nvs-stdlib/src/bytes.rs:490`, `slice` at `:519`) — index `0`, the last byte, and
+      the first refused one; then the *agreement*: `at($b, $i)` and the one-byte `slice($b, $i, 1)`
+      answer the same byte for every `$i` across a sweep, counted.
+- [ ] **Re-run `python tools/gaps.py` and take the next class it ranks** — the rank moves once
+      these land.
 
 ## Backlog
 
-- No `Core` class reaches `nvs_hir::implements_interface`; `$a < $b` over two `Core\Uri`s is
-  `E0411` (ADR 0013, and the plan's *Open now*).
-- 54 of the 156 guard tests `loop-goal.toml` names match nothing `cargo test` runs —
-  `docs/agent/guard-name-debt.md`.
-- `Core\Random\Seeded` is unbuilt (`random.rs` module doc, known gap 1).
-- `ThreadRng` is not reseeded on `fork` (`random.rs` module doc, known gap 2).
+- No `Core` class implements a Novis interface, so `Comparable` is unreachable from one — `docs/agent/handoff.md` has carried this eight sessions; it wants its own session (`nvs_hir::implements_interface`).
+- 54 of the 156 guard tests `loop-goal.toml` names match nothing `cargo test` runs — `docs/agent/guard-name-debt.md`.
+- `Core\Str` and `Core\Arr` each have members with a single case (`fold`, `graphemes`, `indexOf`; `column`, `flattenDeep`, `overlayDeep`) — `python tools/gaps.py`.
+- 68 unasserted error paths, of which 65 are `Fault::fatal` and want judging before writing — `python tools/gaps.py --errors`.
+- `csv.rs:512`'s thrown refusal is unreachable from source and is owed no case — `docs/agent/playbook.md`.
