@@ -58,6 +58,17 @@
 //!   library, so a union subject would be a fourth answer to "how long is it",
 //!   decided by a tag rather than by the member the author named.
 //!
+//! # The two rows whose subject is a `callable`
+//!
+//! `assertThrows` (§ 4) and `assertDoesNotThrow` (§ 20) are the one shape on
+//! that roster that is not an assertion *about* its first argument: each runs
+//! a `callable` and judges what came back. Both are written over the same
+//! three edges — the body returned, the body threw, or the body ended the
+//! request — and each consumes the throw it judged, so the assertion's own
+//! `Core\Test\Failure` is what propagates rather than the exception it is
+//! reporting. `assertDoesNotThrow` is also § 20's way out of the empty-ledger
+//! rule, which is why `nvs_cli::runner` names it there.
+//!
 //! Each member's own doc comment carries the argument in full.
 //!
 //! # The ledger, and the one member that discharges from it
@@ -78,15 +89,12 @@
 //!    by the ADR, and is a catchable throw naming `assertEqualsDeep` here; that
 //!    refusal is `nvs_types`' to make and wants the class graph this crate does
 //!    not hold. The mismatch error is already made, by the `T` above.
-//! 2. **Nothing reads the ledger yet.** Every assertion records its outcome
-//!    into `nvs_runtime::Ctx`'s ledger and `expectFailure` discharges an entry
-//!    from it, but the runner that reports one at the end of a test is later in
-//!    Stage 7 — so § 20's zero-assertion rule, which is a question about the
-//!    entry count, is owed rather than broken.
-//! 3. **`assertThrows` is owed**, and with it § 20's `assertDoesNotThrow`. Both
-//!    run a `callable` and judge what came back rather than judging a value, so
-//!    they are the one shape on § 4's roster that is not an assertion *about*
-//!    its first argument; the rest of that roster is on disk.
+//! 2. **`assertThrows` matches a class by name, so a failure with no class
+//!    installed matches nothing.** `nvs_runtime::Ctx::pending_conforms_to`
+//!    reads the ancestry off a descriptor, and a helper-raised failure carries
+//!    none until `Ctx::set_runtime_error_class` has installed one — which a
+//!    compiled unit always has, so this is reachable only from a host embedding
+//!    the runtime without one.
 
 use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, Value, identity};
 
@@ -172,6 +180,20 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_test_assert_count",
         },
         CoreMethod {
+            name: "assertThrows",
+            params: &[CoreTy::Callable, CoreTy::Str, CoreTy::Options(MESSAGE)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_test_assert_throws",
+        },
+        CoreMethod {
+            name: "assertDoesNotThrow",
+            params: &[CoreTy::Callable, CoreTy::Options(MESSAGE)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_test_assert_does_not_throw",
+        },
+        CoreMethod {
             name: "expectFailure",
             params: &[CoreTy::Callable],
             defaults: &[],
@@ -196,6 +218,10 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_test_assert_true" => (nvs_core_test_assert_true as *const ()).cast(),
         "nvs_core_test_assert_null" => (nvs_core_test_assert_null as *const ()).cast(),
         "nvs_core_test_assert_count" => (nvs_core_test_assert_count as *const ()).cast(),
+        "nvs_core_test_assert_throws" => (nvs_core_test_assert_throws as *const ()).cast(),
+        "nvs_core_test_assert_does_not_throw" => {
+            (nvs_core_test_assert_does_not_throw as *const ()).cast()
+        }
         "nvs_core_test_expect_failure" => (nvs_core_test_expect_failure as *const ()).cast(),
         _ => return None,
     })
@@ -370,6 +396,138 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
+    /// `Core\Test::assertThrows(callable $body, string $expected, {message?: string}): void`
+    /// — ADR 0079 § 4's last row, and the one member whose subject is a
+    /// **`callable`** and whose expectation is a class.
+    ///
+    /// The expectation is a `string` because that is what
+    /// [ADR 0008](../../../../docs/adr/0008-late-static-binding.md)'s
+    /// `ParseError::class` folds to — a fully qualified name, compiled in as a
+    /// constant — so the match is by name and no class value has to exist for
+    /// a member to take one. What decides it is
+    /// [`nvs_runtime::Ctx::pending_conforms_to`], whose own docs own the
+    /// decision that an **ancestor** matches.
+    ///
+    /// The three edges are [`nvs_core_test_assert_does_not_throw`]'s, judged
+    /// the other way round: a body that returned is the failure, a body that
+    /// threw the wrong class is the other failure — reported with the class it
+    /// *did* throw and that throw's message, which is the whole of what tells
+    /// a reader whether the test or the code is wrong — and a `FATAL` or an
+    /// `EXITED` is nobody's assertion to judge and propagates unchanged.
+    ///
+    /// The matched throw is consumed here for
+    /// [`nvs_core_test_assert_does_not_throw`]'s reason, and so is the
+    /// unmatched one: this member's verdict is what propagates on both edges,
+    /// so a `catch` around it sees one class rather than two depending on
+    /// which failure it was.
+    ///
+    /// Consuming the throw is not discharging a **ledger** entry, and a body
+    /// whose throw was a failed assertion keeps its own: it really did fail,
+    /// and `Core\Test::expectFailure` is the one member that discharges one.
+    /// So `assertThrows(…, Core\Test\Failure::class)` holds *and* leaves the
+    /// provoked failure recorded, which is why a test asserting that an
+    /// assertion fails writes `expectFailure` instead.
+    fn nvs_core_test_assert_throws(ctx, args: [3]) {
+        let expected = args[1].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Test::assertThrows expected {:?}, got tag {}",
+                Tag::Str,
+                args[1].tag_byte()
+            ))
+        })?.to_owned();
+        match nvs_runtime::call_closure(ctx, args[0], &[]) {
+            Ok(result) => {
+                #[expect(
+                    unsafe_code,
+                    reason = "`call_closure` hands back a value the caller owns, and \
+                              this one is never handed on"
+                )]
+                unsafe {
+                    result.release();
+                }
+                Err(failed(
+                    ctx,
+                    "assertThrows",
+                    &format!("`$body` returned without throwing {expected}"),
+                    args[2],
+                ))
+            }
+            Err(Fault::Pending(nvs_runtime::THROWN)) => {
+                if ctx.pending_conforms_to(&expected) {
+                    drop(ctx.take_pending());
+                    return Ok(held(ctx, "assertThrows"));
+                }
+                let thrown = ctx
+                    .pending_class()
+                    .unwrap_or_else(|| "an exception with no class".to_owned());
+                let detail = match ctx.take_pending() {
+                    Some(message) => {
+                        format!("`$body` threw {thrown}, not {expected}: {message}")
+                    }
+                    None => format!("`$body` threw {thrown}, not {expected}"),
+                };
+                Err(failed(ctx, "assertThrows", &detail, args[2]))
+            }
+            Err(other) => Err(other),
+        }
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test::assertDoesNotThrow(callable $body, {message?: string}): void`
+    /// — ADR 0079 § 20's member, and the first of the two whose subject is a
+    /// **`callable`** rather than a value.
+    ///
+    /// It is § 20's own way out of the empty-ledger rule: a test whose whole
+    /// claim is that some call completes has an assertion to write, so
+    /// `nvs_cli::runner` can name this member rather than only the rule.
+    ///
+    /// Three edges, and only the middle one is this member's:
+    ///
+    /// * The body **returned**. Its value is released — a `callable`'s answer
+    ///   is the caller's, and this member is not the one that wants it — and
+    ///   the assertion held.
+    /// * The body **threw**, which is [`nvs_runtime::THROWN`] and nothing else.
+    ///   The pending throw is taken here, because the assertion's own verdict
+    ///   is what propagates: leaving it set would replace this member's
+    ///   `Core\Test\Failure` with the exception it is reporting, and a `catch`
+    ///   around the assertion would then see the wrong class. Its message is
+    ///   quoted into the detail, which is the whole of what the reader needs.
+    /// * The body ended the **request** — a [`nvs_runtime::FATAL`] or an
+    ///   [`nvs_runtime::EXITED`], and an internal [`Fault`] with them. None of
+    ///   those is a throw a `catch` could see either (ADR 0020), so none is
+    ///   this member's to judge: it propagates unchanged.
+    ///
+    /// A **failed assertion** inside the body throws like anything else, so it
+    /// fails this one too — and its own ledger entry stays, since it really
+    /// did fail. `Core\Test::expectFailure` is the member that discharges one;
+    /// this member never does.
+    fn nvs_core_test_assert_does_not_throw(ctx, args: [2]) {
+        match nvs_runtime::call_closure(ctx, args[0], &[]) {
+            Ok(result) => {
+                #[expect(
+                    unsafe_code,
+                    reason = "`call_closure` hands back a value the caller owns, and \
+                              this one is never handed on"
+                )]
+                unsafe {
+                    result.release();
+                }
+                Ok(held(ctx, "assertDoesNotThrow"))
+            }
+            Err(Fault::Pending(nvs_runtime::THROWN)) => {
+                let detail = match ctx.take_pending() {
+                    Some(message) => format!("`$body` threw: {message}"),
+                    None => "`$body` threw".to_owned(),
+                };
+                Err(failed(ctx, "assertDoesNotThrow", &detail, args[1]))
+            }
+            Err(other) => Err(other),
+        }
+    }
+}
+
+nvs_runtime::nvs_helper! {
     /// `Core\Test::expectFailure(callable $body): void` — ADR 0079 § 5's one
     /// greppable spelling for "this failure was on purpose".
     ///
@@ -432,8 +590,8 @@ nvs_runtime::nvs_helper! {
 ///
 /// A **catchable** throw rather than a [`Fault::fatal`]: ADR 0079 § 5 makes the
 /// ledger the record and the throw the control flow, and a test that means to
-/// assert its subject throws has to be able to run one inside a `try`. That the
-/// ledger does not exist yet is this module's known gap 2.
+/// assert its subject throws has to be able to run one inside a `try` — which
+/// is what `Core\Test::assertThrows` is written over.
 ///
 /// The class is `Core\Test\Failure` — [`ThrownClass::TestFailure`], one row of
 /// `nvs_hir::errors::TREE` like any other — rather than the bare

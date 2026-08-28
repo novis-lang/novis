@@ -332,6 +332,13 @@ impl Thrown {
         }))
     }
 
+    /// The descriptor of the class this exception was built from, or null for
+    /// an absent one — what a by-name conformance test reads its ancestry off.
+    #[must_use]
+    pub fn class_desc(&self) -> *const ClassDesc {
+        self.borrow().map_or(std::ptr::null(), |obj| obj.class())
+    }
+
     /// The exception's `message` property, as an owned string.
     ///
     /// Empty for an absent exception, or for one whose slot somehow does not

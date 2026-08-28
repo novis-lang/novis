@@ -619,6 +619,34 @@ impl ClassDesc {
         std::ptr::eq(self, other) || self.conforms.contains(&other)
     }
 
+    /// [`Self::conforms_to`] asked **by name** — the same flattened set, read
+    /// as the strings a written class name compares against rather than as the
+    /// addresses only a holder of the table has.
+    ///
+    /// Safe where its twin is `unsafe` because it names no descriptor of its
+    /// own: every pointer it follows is a [`Self::conforms`] entry, which
+    /// belongs to the same [`ClassTable`] as this descriptor and so outlives
+    /// it by that field's own invariant.
+    ///
+    /// Its caller is [`crate::Ctx::pending_conforms_to`], and through it ADR
+    /// 0079 § 4's `Core\Test::assertThrows`, whose expectation arrives as
+    /// `ParseError::class`'s folded `string` constant — the same spelling this
+    /// table names a class with.
+    #[must_use]
+    #[expect(
+        unsafe_code,
+        reason = "a `conforms` entry belongs to the same table as this \
+                  descriptor and outlives it — this type's own invariant, \
+                  stated at the field"
+    )]
+    pub fn conforms_to_name(&self, name: &str) -> bool {
+        self.name == name
+            || self
+                .conforms
+                .iter()
+                .any(|&other| unsafe { (*other).name == name })
+    }
+
     /// The compiled address of the method this class answers `name` with —
     /// its own override if it declares one, otherwise the nearest ancestor's
     /// — or `None` if nothing in the chain declares a *body* for it.

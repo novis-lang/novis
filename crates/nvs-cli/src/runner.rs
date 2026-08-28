@@ -177,13 +177,14 @@ fn run_case(
         return Outcome::Failed(vec![message]);
     }
     if ledger.is_empty() {
-        // § 20's first bullet. The way out that section names —
-        // `Core\Test::assertDoesNotThrow(callable)`, for a test whose whole
-        // claim is that nothing threw — is owed with § 4's remaining members,
-        // so the help says what the rule is rather than naming a member that
-        // does not resolve yet.
+        // § 20's first bullet, with the way out that section names: a test
+        // whose whole claim is that nothing threw writes
+        // `Core\Test::assertDoesNotThrow(callable)`, which records an entry
+        // like any other assertion.
         return Outcome::Failed(vec![
-            "it asserted nothing: ADR 0079 § 20 fails a test whose ledger is empty".to_owned(),
+            "it asserted nothing: ADR 0079 § 20 fails a test whose ledger is empty — write \
+             `Core\\Test::assertDoesNotThrow` where the claim is that a call completes"
+                .to_owned(),
         ]);
     }
     Outcome::Passed

@@ -73,7 +73,7 @@ final class AlphaTest {
     ✗ aCaughtFailureStillFails         %f ms
       Core\Test::assertSame failed: `$actual` is "actual", `$expected` is "expected"
     ✗ aTestThatAssertsNothingFails     %f ms
-      it asserted nothing: ADR 0079 § 20 fails a test whose ledger is empty
+      it asserted nothing: ADR 0079 § 20 fails a test whose ledger is empty — write `Core\Test::assertDoesNotThrow` where the claim is that a call completes
   ZebraTest
     ✓ zulu                             %f ms
 

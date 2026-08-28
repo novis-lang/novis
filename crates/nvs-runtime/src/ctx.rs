@@ -938,6 +938,81 @@ impl Ctx {
         self.pending.as_ref().map(Pending::message)
     }
 
+    /// The class descriptor a pending failure would be caught through, or
+    /// `None` where nothing is pending.
+    ///
+    /// The pointer may still be null: a [`Pending::Message`] raised before
+    /// [`Self::set_runtime_error_class`] installed anything has no class to
+    /// resolve against, which is that method's documented "no exception class
+    /// installed" state.
+    fn pending_desc(&self) -> Option<*const ClassDesc> {
+        Some(match self.pending.as_ref()? {
+            Pending::Message(class, _) => self.error_desc(*class),
+            Pending::Thrown(thrown) => thrown.class_desc(),
+        })
+    }
+
+    /// The name of the class a pending failure would be caught as, without
+    /// clearing it — [`Self::pending`]'s companion, for a reader that has to
+    /// report *what* was thrown rather than what it said.
+    #[must_use]
+    pub fn pending_class(&self) -> Option<String> {
+        let desc = self.pending_desc()?;
+        if desc.is_null() {
+            return self
+                .pending
+                .as_ref()?
+                .class()
+                .map(ThrownClass::name)
+                .map(str::to_owned);
+        }
+        #[expect(
+            unsafe_code,
+            reason = "the descriptor came out of the `Rc`-shared table this \
+                      context holds, or off a live exception object's own \
+                      header, so it outlives this borrow"
+        )]
+        Some(unsafe { (*desc).name() }.to_owned())
+    }
+
+    /// Whether a pending failure is an instance of the class `name` spells —
+    /// **its own class or any ancestor**, which is exactly what a `catch`
+    /// clause naming that class would bind.
+    ///
+    /// # Decision: an ancestor matches
+    ///
+    /// ADR 0079 § 4's `Core\Test::assertThrows` is the caller, and a test
+    /// naming `RuntimeError` is claiming no more than that the failure is one
+    /// — matching a subclass is what PHP's own `expectException` does, and it
+    /// is the reading under which the assertion agrees with the `catch` a
+    /// reader would have written by hand instead. The narrower "this exact
+    /// class" reading is available to a test that wants it, by asserting the
+    /// name: there is no spelling of the wider one if this answers narrowly.
+    ///
+    /// The ancestry itself is read off the descriptor
+    /// ([`crate::ClassDesc::conforms_to_name`]) rather than off a second copy
+    /// of `nvs_hir::errors::TREE` here, so the two cannot disagree about what
+    /// `ParseError` descends from. `false` where nothing is pending, and where
+    /// no exception class was ever installed to resolve one against.
+    #[must_use]
+    pub fn pending_conforms_to(&self, name: &str) -> bool {
+        let Some(desc) = self.pending_desc() else {
+            return false;
+        };
+        if desc.is_null() {
+            return false;
+        }
+        #[expect(
+            unsafe_code,
+            reason = "the descriptor came out of the `Rc`-shared table this \
+                      context holds, or off a live exception object's own \
+                      header, so it outlives this borrow"
+        )]
+        unsafe {
+            (*desc).conforms_to_name(name)
+        }
+    }
+
     /// Takes the pending message, clearing it — and dropping the exception
     /// object behind it, if there was one.
     #[must_use]
