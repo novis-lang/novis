@@ -805,25 +805,100 @@ class Cell {
 }
 "#;
 
-/// The `call` instructions the emitted machine code for `name` contains, in
-/// order — returned rather than counted so a failure can name them.
+/// The `call` instructions the emitted machine code for `name` contains **on
+/// the path a straight-line execution takes** — returned rather than counted
+/// so a failure can name them.
 ///
 /// Scanned line by line rather than by splitting on the section marker, for
 /// the reason `a_typed_arithmetic_loop_contains_no_call` gives: Cranelift
 /// renders a two-way branch as `jnz label3; j label2`, so a `"; "` split would
 /// cut the section short at the first branch.
-fn emitted_calls(program: &nvs_ir::Program, name: &str) -> Vec<String> {
+///
+/// The whole function is the wrong denominator for a per-access cost, and
+/// reading it as one is what made the guard below report nine calls where
+/// ADR 0014 § 4 claims none. Every status-returning instruction owns a landing
+/// block, so each added `$c->n = $c->n + 1` brings an overflow raise, a
+/// `Release` of the receiver and a `Propagate` with it — three machine calls
+/// that no run reaches unless the addition has already overflowed. So the
+/// blocks are walked from the entry, and the **taken** edge of a
+/// `test`-then-`jnz` pair is not followed: that pair is how codegen renders
+/// every check of a status word — a call's error return, an overflow's `seto`,
+/// the safepoint's pending-exception field, the ADR 0018 probe's null table
+/// pointer — so its target is by construction a block a run that throws
+/// nothing never enters. Every other edge is followed, the `cmpq`-driven
+/// branches a real condition compiles to included, so the loop's own two arms
+/// both count.
+fn path_calls(program: &nvs_ir::Program, name: &str) -> Vec<String> {
     let asm = nvs_codegen::disassemble(program).expect("the fixture compiles");
+
+    // The section's `blockN:` bodies, in emitted order. The prologue ahead of
+    // the first label holds no call and belongs to no block, so it is dropped.
+    let mut blocks: Vec<(usize, Vec<String>)> = Vec::new();
     let mut in_section = false;
-    let mut emitted = Vec::new();
     for line in asm.lines() {
         if let Some(section) = line.strip_prefix("; ") {
             in_section = section == name;
-        } else if in_section && line.trim_start().starts_with("call ") {
-            emitted.push(line.trim().to_string());
+        } else if in_section {
+            let line = line.trim();
+            if let Some(index) = line
+                .strip_prefix("block")
+                .and_then(|rest| rest.strip_suffix(':'))
+                .and_then(|index| index.parse().ok())
+            {
+                blocks.push((index, Vec::new()));
+            } else if let Some((_, body)) = blocks.last_mut() {
+                body.push(line.to_owned());
+            }
         }
     }
-    emitted
+
+    let label = |operand: &str| -> Option<usize> {
+        operand
+            .rsplit_once("label")
+            .and_then(|(_, index)| index.trim().parse().ok())
+    };
+    let successors = |body: &[String]| -> Vec<usize> {
+        let mut out = Vec::new();
+        for (i, inst) in body.iter().enumerate() {
+            if inst.starts_with("jmp ") {
+                out.extend(label(inst));
+            } else if let Some((taken, fallthrough)) = inst.split_once("; j ") {
+                let status = taken.starts_with("jnz")
+                    && i.checked_sub(1)
+                        .and_then(|previous| body.get(previous))
+                        .is_some_and(|previous| previous.starts_with("test"));
+                if !status {
+                    out.extend(label(taken));
+                }
+                out.extend(label(fallthrough));
+            }
+        }
+        out
+    };
+
+    let mut queue: Vec<usize> = blocks
+        .first()
+        .map(|(index, _)| *index)
+        .into_iter()
+        .collect();
+    let bodies: std::collections::BTreeMap<usize, Vec<String>> = blocks.into_iter().collect();
+    let mut walked: std::collections::BTreeSet<usize> = Default::default();
+    while let Some(block) = queue.pop() {
+        if !walked.insert(block) {
+            continue;
+        }
+        if let Some(body) = bodies.get(&block) {
+            queue.extend(successors(body));
+        }
+    }
+
+    walked
+        .iter()
+        .filter_map(|block| bodies.get(block))
+        .flatten()
+        .filter(|line| line.starts_with("call "))
+        .cloned()
+        .collect()
 }
 
 #[test]
@@ -909,33 +984,25 @@ fn a_class_without_a_property_observer_costs_nothing_extra() {
     // which is what turns the check above from a claim about IR into a claim
     // about machine code. Taken as a slope between two bodies rather than as
     // an absolute count, for the same reason the timing below is: a frame
-    // pays for things that are not this ADR's — a safepoint poll, an ADR 0018
-    // probe, the one refcount call `Cell::touch`'s object-typed parameter
-    // costs at its scope's end — and all of those are per-frame, so they
-    // cancel. What is left is exactly what three more access pairs added.
-    let slope = |one: &str, four: &str| -> (usize, isize) {
-        let sites = |name: &str| {
-            program
-                .functions
-                .iter()
-                .find(|f| f.name == name)
-                .unwrap_or_else(|| panic!("the fixture declares {name}"))
-                .blocks
-                .iter()
-                .flat_map(|b| b.insts.iter())
-                .filter(|i| matches!(i.kind, InstKind::Safepoint | InstKind::StmtMarker(_)))
-                .count()
-        };
-        let site_slope = sites(four) - sites(one);
-        let call_slope = emitted_calls(&program, four).len() as isize
-            - emitted_calls(&program, one).len() as isize;
-        (site_slope, call_slope - site_slope as isize)
+    // pays for things that are not this ADR's — the allocation, the loop, the
+    // one refcount call an object-typed local costs at its scope's end — and
+    // all of those are per-frame, so they cancel. What is left is exactly what
+    // three more access pairs added.
+    //
+    // There is no probe/safepoint correction to make any more: `path_calls`
+    // walks the path a run that throws nothing takes, and an ADR 0018 probe
+    // and a safepoint poll each sit behind a status test, so neither is on it.
+    // Subtracting them from a whole-function count — which also held the three
+    // landing blocks every added access brings — is the arithmetic that read
+    // as nine calls where this ADR claims none.
+    let slope = |one: &str, four: &str| -> isize {
+        path_calls(&program, four).len() as isize - path_calls(&program, one).len() as isize
     };
-    let (plain_sites, plain_extra) = slope("Cell::plainOne", "Cell::plainFour");
-    let (_, hooked_extra) = slope("Cell::hookedOne", "Cell::hookedFour");
+    let plain_extra = slope("Cell::plainOne", "Cell::plainFour");
+    let hooked_extra = slope("Cell::hookedOne", "Cell::hookedFour");
     println!(
-        "three more access pairs: {plain_sites} more probe/safepoint sites, \
-         {plain_extra} more calls unhooked against {hooked_extra} hooked"
+        "three more access pairs: {plain_extra} more calls on the path that \
+         runs, unhooked, against {hooked_extra} hooked"
     );
 
     // WHICH instruction crept into a plain field store, not just how many: the
@@ -973,9 +1040,9 @@ fn a_class_without_a_property_observer_costs_nothing_extra() {
     assert_eq!(
         plain_extra, 0,
         "three more unhooked property accesses now emit {plain_extra} call(s) \
-         beyond the {plain_sites} probe/safepoint site(s) they add. ADR 0014 \
-         § 4 makes an access on an observer-free class a direct field load or \
-         store; anything else there is a dispatch it did not ask for. \
+         on the path a run that throws nothing takes. ADR 0014 § 4 makes an \
+         access on an observer-free class a direct field load or store; \
+         anything else there is a dispatch it did not ask for. \
          Three more access pairs grew the IR by: {plain_slope:?}"
     );
     // Not vacuous: the same slope over the hooked property does show the calls
