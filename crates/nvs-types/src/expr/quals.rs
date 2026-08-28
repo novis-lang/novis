@@ -325,3 +325,55 @@ pub(super) fn reject_secret_debug_argument(
         );
     }
 }
+
+/// ADR 0033 § 4's fifth sink: a `secret` class constant reaching an attribute
+/// payload, reported at the value where it is written.
+///
+/// The sink exists because of [ADR 0046](../../../../docs/adr/0046-attributes-shape-literal-metadata.md)
+/// § 2 rather than in spite of it. A payload admits only compile-time
+/// constants — no variable, no call, no `new` — and a class constant is one of
+/// the shapes it admits, so the storage class ADR 0033's own values live in is
+/// the *only* way a `secret` value could reach a payload at all. Every other
+/// spelling is already refused for being computed, which is why this is one
+/// check over one expression kind rather than a walk of its own.
+///
+/// It is the one sink whose qualifier cannot be read off an inferred type, and
+/// that is a gap one crate over rather than a choice: `crate::signatures`
+/// leaves a class constant's declared type unmodeled, so `Class::TOKEN` infers
+/// `mixed` at every expression site and [`is_secret`] over that answers
+/// `false` for a value that plainly is one. [`crate::consts::ConstTable`] is
+/// where the annotation was last visible, so the bit is read from there.
+///
+/// Two shapes it does not reach and neither is a gap in this rule: a `Core`
+/// class's constant, which is the registry's own declaration and carries no
+/// user qualifier, and a constant reached through a class expression that is
+/// not statically known, which `resolve_class_expr` has already refused for
+/// its own reasons.
+pub(crate) fn reject_secret_attribute_constant(expr: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    let ExprKind::ClassConstAccess { class, name } = &expr.kind else {
+        return;
+    };
+    let Some(qname) = super::members::resolve_class_expr(class, ctx, env) else {
+        return;
+    };
+    let constant = span_text(env.src, *name).to_owned();
+    if !env.consts.is_secret(&qname, &constant, env.graph) {
+        return;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_SECRET_ATTRIBUTE_PAYLOAD,
+            format!(
+                "a `secret`-qualified class constant cannot appear in an attribute payload; \
+                 `{qname}::{constant}` would be folded into the compiled unit's constant pool \
+                 and handed back to anything that reads the attribute"
+            ),
+        )
+        .with_primary(expr.span, "secret value written into metadata here")
+        .with_help(
+            "ADR 0033 § 4: there is no `Core\\Secret::reveal(..., \"reason\")` way out of this \
+             one, a payload admitting no call at all — a credential belongs somewhere read at \
+             run time, and the attribute carries the name of where to read it from",
+        ),
+    );
+}

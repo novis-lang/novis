@@ -82,6 +82,7 @@ pub(crate) use self::{
     literals::{check_array_key_type, check_object_literal, int_literal_digits},
     members::{check_unset_target, is_this_receiver},
     operators::{reject_disjoint_equality, require_stringable},
+    quals::reject_secret_attribute_constant,
 };
 
 /// Whether `ty` carries [ADR 0033](../../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)

@@ -209,6 +209,18 @@ the same trust `Core\Html::escape()`'s author already carries for `tainted`.
   site where it belongs. See *Alternatives rejected* and *Revisiting* if this proves too restrictive for
   legitimate worker-credential patterns in practice.
 
+- **An attribute payload** — per [ADR 0046](0046-attributes-shape-literal-metadata.md) § 2, a payload holds
+  only compile-time constants, and a class constant is one of the shapes it admits, so a `secret` class
+  constant is the *only* way a `secret` value can reach one at all: every other spelling is already refused
+  for being computed. It is a sink because of where the value lands — the payload is folded into the
+  compiled unit's constant pool and handed back by ADR 0046 §§ 4-5's retrieval to anything that asks, so the
+  credential is written into the program's own metadata rather than read at run time from behind a
+  capability. This is the one sink with **no `Core\Secret::reveal()` way out**, that being a call and a
+  payload admitting none; the fix is to keep the secret out of the metadata and let the attribute carry the
+  *name* of where to read it from. It is also the one sink whose qualifier cannot be read off an inferred
+  type — a class constant's declared type is unmodeled at expression sites, so the bit is read off the
+  declaration's own annotation in `nvs_types::consts`, which is the last place it exists.
+
 **`Core\Db`'s bound-parameters argument, `Core\Process`'s argv, and `Core\Http`'s outgoing request
 headers/body are deliberately not in this list.** A credential legitimately needs to reach a database driver,
 a subprocess, or an outbound HTTP call — refusing `secret` there by default would make the qualifier

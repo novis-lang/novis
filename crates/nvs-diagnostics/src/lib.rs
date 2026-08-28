@@ -1558,6 +1558,26 @@ pub mod code {
     /// an interface, an enum, or a `type` alias for something that is not a
     /// shape.
     pub const E_ATTRIBUTE_NAME_NOT_A_SHAPE: Code = Code::new("E0726");
+    /// A `secret`-qualified class constant reaches an attribute payload —
+    /// [ADR 0033](../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
+    /// § 4's attribute-payload sink, the one that exists *because* of
+    /// [ADR 0046](../../../docs/adr/0046-attributes-shape-literal-metadata.md)
+    /// § 2: a payload holds only compile-time constants, and a class constant
+    /// is one of them, so the qualifier's own storage class is the only way a
+    /// `secret` value could get in there at all.
+    ///
+    /// It is a sink rather than a mismatch because of where the value ends up:
+    /// the payload is folded into the compiled unit's constant pool and handed
+    /// back by § 4-5's retrieval to anything that asks, so the credential is
+    /// written into the program's own metadata rather than read at run time
+    /// from somewhere a capability guards.
+    ///
+    /// A separate code from [`E_SECRET_DEBUG_ARGUMENT`] because the way out is
+    /// a different one. That sink has `Core\Secret::reveal()` in front of it;
+    /// this one has nothing, `reveal` being a call and a payload admitting
+    /// none — so the help names the fix that exists, which is to keep the
+    /// secret out of the metadata entirely.
+    pub const E_SECRET_ATTRIBUTE_PAYLOAD: Code = Code::new("E0727");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

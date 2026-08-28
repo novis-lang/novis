@@ -14,8 +14,18 @@
 //!
 //! Only ADR 0047's fold is served here. A class constant's *declared type* at
 //! an expression site is still unmodeled — see the crate docs' known gaps —
-//! and this table deliberately does not close that: it holds values, not
-//! types, and a value is all § 2 asks for.
+//! and this table deliberately does not close that: it holds values, and a
+//! value is all § 2 asks for.
+//!
+//! The one exception is a single **bit**, and that gap is why it is here.
+//! [ADR 0033](../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
+//! § 4's attribute-payload sink has to know whether a constant's declared type
+//! carries `secret`, and because the declared type is unmodeled the qualifier
+//! is invisible at every expression site — `Class::TOKEN` infers `mixed`. So
+//! [`ConstEntry::secret`] is read off the annotation *here*, in the walk that
+//! already has every `ConstMember` in hand, and nowhere else. It is a bit
+//! rather than the type, because a bit is all the sink asks for and modelling
+//! the type is the gap above, not this one.
 //!
 //! **Ineligible is recorded, not dropped.** A `float`, `array` or object
 //! constant is a real declaration that simply has no literal type to fold to,
@@ -25,7 +35,8 @@
 use nvs_diagnostics::SourceFile;
 use nvs_hir::QName;
 use nvs_syntax::ast::{
-    ClassDecl, ClassMemberKind, ConstMember, ExprKind, NamespaceDecl, Stmt, StmtKind, UnaryOp,
+    ClassDecl, ClassMemberKind, ConstMember, ExprKind, NamespaceDecl, Stmt, StmtKind, Type,
+    TypeAtom, TypeKind, UnaryOp,
 };
 use rustc_hash::FxHashMap;
 
@@ -49,11 +60,30 @@ pub enum ConstValue {
     Ineligible,
 }
 
+/// One class constant, as much of it as this table holds: ADR 0047 § 2's
+/// folded value, and beside it the one bit ADR 0033 § 4's attribute-payload
+/// sink needs.
+///
+/// The bit rides here rather than being asked of the constant's type at the
+/// sink, because at the sink there is no such type to ask: `signatures.rs`'s
+/// own known gap leaves a class constant's declared type unmodeled, so
+/// `Class::TOKEN` infers `mixed` at every expression site and the qualifier —
+/// which is a property of a *declared* type and of nothing else — is gone.
+/// This walk is the last place it exists, so it is the place that reads it.
+#[derive(Clone, Debug)]
+struct ConstEntry {
+    /// What ADR 0047 § 2 folds the declaration's right-hand side to.
+    value: ConstValue,
+    /// Whether the declaration's own annotation carries ADR 0033 § 1's
+    /// `secret`.
+    secret: bool,
+}
+
 /// Every class constant declared in the files walked, by its class's resolved
 /// name.
 #[derive(Debug, Default)]
 pub struct ConstTable {
-    by_class: FxHashMap<QName, FxHashMap<String, ConstValue>>,
+    by_class: FxHashMap<QName, FxHashMap<String, ConstEntry>>,
 }
 
 impl ConstTable {
@@ -72,6 +102,28 @@ impl ConstTable {
         name: &str,
         graph: &nvs_hir::ClassGraph,
     ) -> Option<&ConstValue> {
+        self.lookup(qname, name, graph).map(|entry| &entry.value)
+    }
+
+    /// Whether `qname::name`'s own declaration annotates it with ADR 0033
+    /// § 1's `secret` — the question ADR 0033 § 4's attribute-payload sink
+    /// asks, and the one [`crate::expr::quals`] cannot answer from an
+    /// inferred type. `false` for a name no declaration in the chain has, the
+    /// undeclared name being someone else's diagnostic.
+    #[must_use]
+    pub fn is_secret(&self, qname: &QName, name: &str, graph: &nvs_hir::ClassGraph) -> bool {
+        self.lookup(qname, name, graph)
+            .is_some_and(|entry| entry.secret)
+    }
+
+    /// The one ancestor walk both public questions are asked through, so they
+    /// cannot disagree about *which* declaration a name means.
+    fn lookup(
+        &self,
+        qname: &QName,
+        name: &str,
+        graph: &nvs_hir::ClassGraph,
+    ) -> Option<&ConstEntry> {
         // Bounded by the same depth `crate::lower` bounds an `array<...>` at,
         // for the same reason: a cyclic `extends` is `nvs_hir::hierarchy`'s
         // diagnostic, and this walk must terminate whether or not it fired.
@@ -79,8 +131,8 @@ impl ConstTable {
         for _ in 0..MAX_ANCESTOR_DEPTH {
             let mut next = Vec::new();
             for class in &frontier {
-                if let Some(value) = self.by_class.get(class).and_then(|m| m.get(name)) {
-                    return Some(value);
+                if let Some(entry) = self.by_class.get(class).and_then(|m| m.get(name)) {
+                    return Some(entry);
                 }
                 if let Some(links) = graph.get(class) {
                     next.extend(links.extends.iter().cloned());
@@ -143,14 +195,54 @@ fn collect(stmts: &[Stmt], src: &SourceFile, namespace: &[String], table: &mut C
     }
 }
 
-fn fold_class(decl: &ClassDecl, src: &SourceFile) -> FxHashMap<String, ConstValue> {
+fn fold_class(decl: &ClassDecl, src: &SourceFile) -> FxHashMap<String, ConstEntry> {
     let mut out = FxHashMap::default();
     for member in &decl.members {
         if let ClassMemberKind::Const(c) = &member.kind {
-            out.insert(span_text(src, c.name).to_owned(), fold_const(c, src));
+            out.insert(
+                span_text(src, c.name).to_owned(),
+                ConstEntry {
+                    value: fold_const(c, src),
+                    secret: c.ty.as_ref().is_some_and(type_carries_secret),
+                },
+            );
         }
     }
     out
+}
+
+/// Whether a written annotation carries ADR 0033 § 1's `secret` anywhere in
+/// it.
+///
+/// Read off the **syntax** rather than off an interned type, because this pass
+/// runs before the first annotation is interned — that is the whole reason it
+/// is a pass of its own, and giving it an interner would put it after
+/// [`crate::signatures::build_signatures`], which needs it. The qualifier is a
+/// property of a type *atom* ([`nvs_syntax::ast::TypeAtom`]'s four secret
+/// rows), so a composite carries it exactly when one of its members does —
+/// `crate::expr::quals::is_secret` reaches the same answer one representation
+/// down, and a union answering `secret` for one member is the safe direction
+/// for a sink either way.
+fn type_carries_secret(ty: &Type) -> bool {
+    match &ty.kind {
+        TypeKind::Nullable(inner) | TypeKind::Paren(inner) => type_carries_secret(inner),
+        TypeKind::Union(members) | TypeKind::Intersection(members) => {
+            members.iter().any(type_carries_secret)
+        }
+        TypeKind::Atom(atom) => matches!(
+            atom,
+            TypeAtom::SecretString
+                | TypeAtom::SecretBytes
+                | TypeAtom::SecretTaintedString
+                | TypeAtom::SecretTaintedBytes
+        ),
+        // [`TypeKind`] is `#[non_exhaustive]` in a crate below this one, so
+        // the arm is required rather than chosen. A kind this does not name
+        // carries no atom of its own — the four rows above are the only place
+        // the qualifier is spellable — so a new composite reaches this walk
+        // through its members or not at all.
+        _ => false,
+    }
 }
 
 /// One `const NAME = expr;`, folded.

@@ -21,9 +21,11 @@
 //! attribute's name resolves in the ordinary namespace/`use` scope, and an
 //! unresolvable one is the ordinary `E0303` rather than a refusal of its own.
 //!
-//! One consequence of § 2 is *not* checked here and has its own home: ADR
-//! 0033's fifth sink — a `secret` class constant reaching a payload — is
-//! [`crate::expr::quals`]', where every other sink already lives.
+//! One consequence of § 2 is checked from here but owned elsewhere: ADR 0033
+//! § 4's fifth sink — a `secret` class constant reaching a payload — is
+//! `crate::expr::quals`', where every other sink already lives.
+//! [`check_value`] calls it at each value it reaches, that walk being the one
+//! place every payload value passes.
 
 use nvs_diagnostics::{Diagnostic, code};
 use nvs_syntax::ast::{
@@ -88,7 +90,7 @@ fn check_groups(groups: &[AttributeGroup], ctx: &Ctx<'_>, env: &mut Env<'_>) {
 fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     let mut constant = true;
     for field in &attr.fields {
-        constant &= check_value(&field.value, env);
+        constant &= check_value(&field.value, ctx, env);
     }
     let Some(name) = &attr.name else {
         // ADR 0046 § 1's bare form names no shape to check against, so the
@@ -203,8 +205,15 @@ fn report_not_a_shape(name: &Name, what: &str, env: &mut Env<'_>) {
 /// order, because each is its own mistake. Answers whether this value (and
 /// every value nested inside it) is a constant, which is what tells
 /// [`check_attribute`] the literal is worth checking against a shape.
-fn check_value(expr: &Expr, env: &mut Env<'_>) -> bool {
+fn check_value(expr: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> bool {
     if is_constant(expr) {
+        // ADR 0033 § 4's fifth sink, asked of every value this walk reaches
+        // and not only of a payload's top level: a `secret` constant nested
+        // inside an array or an object literal is folded into the same
+        // constant pool. It answers for a `Class::CONST` and for nothing
+        // else — see [`crate::expr::reject_secret_attribute_constant`] for
+        // why one expression kind is the whole of it.
+        crate::expr::reject_secret_attribute_constant(expr, ctx, env);
         // A container's own elements are values in their own right, so a
         // constant-shaped container is descended into rather than trusted.
         return match &expr.kind {
@@ -212,20 +221,22 @@ fn check_value(expr: &Expr, env: &mut Env<'_>) -> bool {
                 let mut ok = true;
                 for ArrayItem { key, value, .. } in items {
                     if let Some(key) = key {
-                        ok &= check_value(key, env);
+                        ok &= check_value(key, ctx, env);
                     }
-                    ok &= check_value(value, env);
+                    ok &= check_value(value, ctx, env);
                 }
                 ok
             }
             ExprKind::ObjectLiteral(fields) => {
                 let mut ok = true;
                 for field in fields {
-                    ok &= check_value(&field.value, env);
+                    ok &= check_value(&field.value, ctx, env);
                 }
                 ok
             }
-            ExprKind::Paren(inner) | ExprKind::Unary { expr: inner, .. } => check_value(inner, env),
+            ExprKind::Paren(inner) | ExprKind::Unary { expr: inner, .. } => {
+                check_value(inner, ctx, env)
+            }
             _ => true,
         };
     }
