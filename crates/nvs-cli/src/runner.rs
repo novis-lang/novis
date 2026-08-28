@@ -1,6 +1,7 @@
 //! [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)'s
 //! runner: the `#[Test]` table a compile already built (§ 1), constructed and
-//! called (§ 20), and reported in § 22's human format.
+//! called (§ 20), judged off § 5's ledger — [`run_case`] owns why that and not
+//! the exception state — and reported in § 22's human format.
 //!
 //! # Why the runner is here
 //!
@@ -46,8 +47,12 @@ enum Outcome {
     Passed,
     /// § 20's "a skip states a reason", carrying it.
     Skipped(String),
-    /// The message the failure left on the context.
-    Failed(String),
+    /// Why it failed — every failed assertion the ledger recorded, or the one
+    /// message a throw or an empty ledger left. A list rather than the first
+    /// one, because a test that caught its own failures and carried on has
+    /// several, and reporting one of them would hide exactly what § 5's ledger
+    /// exists to keep.
+    Failed(Vec<String>),
     /// The test called `exit(n)`, which ends the whole run.
     Exited(i64),
 }
@@ -124,6 +129,15 @@ pub(crate) fn run(checked: &crate::Checked) -> ExitCode {
 
 /// One `#[Test]` method: skipped for its stated reason, or a fresh instance of
 /// its class with the method called on it.
+///
+/// **The verdict is read off ADR 0079 § 5's ledger, not off the exception
+/// state**, and that is the whole of what makes a test hard to pass by
+/// accident. A body that caught its own `Core\Test\Failure` returns normally
+/// and has still failed; a body that asserted nothing at all returns normally
+/// too and fails for a second reason (§ 20). A throw is therefore the *last*
+/// thing consulted rather than the first, and it only ever answers for a test
+/// whose ledger is clean — an exception raised by the code under test rather
+/// than by an assertion about it.
 fn run_case(
     unit: &nvs_codegen::Unit,
     ctx: &mut nvs_runtime::Ctx,
@@ -134,15 +148,45 @@ fn run_case(
         return Outcome::Skipped(reason);
     }
     let Some(outcome) = unit.call_on_new_instance(ctx, class, &case.method) else {
-        return Outcome::Failed(format!(
+        return Outcome::Failed(vec![format!(
             "internal error: the compiled unit declares no class `{class}`"
-        ));
+        )]);
     };
-    match outcome {
-        Ok(()) => Outcome::Passed,
-        Err(status) if status == nvs_runtime::EXITED => Outcome::Exited(ctx.exit_code()),
-        Err(_) => Outcome::Failed(ctx.take_thrown().message().to_owned()),
+    let thrown = match outcome {
+        Ok(()) => None,
+        // `exit` is not a verdict about the test at all, and the pending state
+        // it leaves is a status rather than an exception — read before either
+        // of the two below, for the reason `nvs run` reads it first.
+        Err(status) if status == nvs_runtime::EXITED => return Outcome::Exited(ctx.exit_code()),
+        // Taken whether or not it is what the verdict ends up being: a pending
+        // exception left on the context would be the *next* test's to find.
+        Err(_) => Some(ctx.take_thrown().message().to_owned()),
+    };
+    // Taken on every path, and for the same reason: one test's ledger is that
+    // test's (`nvs_runtime::Ctx::take_assertions`), so consuming it here is
+    // what keeps an earlier failure from being reported against a later test.
+    let ledger = ctx.take_assertions();
+    let failures: Vec<String> = ledger
+        .iter()
+        .filter_map(|entry| entry.failure.clone())
+        .collect();
+    if !failures.is_empty() {
+        return Outcome::Failed(failures);
     }
+    if let Some(message) = thrown {
+        return Outcome::Failed(vec![message]);
+    }
+    if ledger.is_empty() {
+        // § 20's first bullet. The way out that section names —
+        // `Core\Test::assertDoesNotThrow(callable)`, for a test whose whole
+        // claim is that nothing threw — is owed with § 4's remaining members,
+        // so the help says what the rule is rather than naming a member that
+        // does not resolve yet.
+        return Outcome::Failed(vec![
+            "it asserted nothing: ADR 0079 § 20 fails a test whose ledger is empty".to_owned(),
+        ]);
+    }
+    Outcome::Passed
 }
 
 /// The `skip:` option's reason, or `None` for a test that runs.
@@ -173,7 +217,11 @@ fn report(method: &str, outcome: &Outcome, elapsed: std::time::Duration) {
     match outcome {
         Outcome::Passed => {}
         Outcome::Skipped(reason) => println!("      skipped: {reason}"),
-        Outcome::Failed(message) => println!("      {message}"),
+        Outcome::Failed(reasons) => {
+            for reason in reasons {
+                println!("      {reason}");
+            }
+        }
         Outcome::Exited(code) => println!("      the test called exit({code})"),
     }
 }

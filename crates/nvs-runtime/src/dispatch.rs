@@ -381,7 +381,8 @@ pub unsafe fn construct_and_call(
                 )),
             ));
         }
-        Some(_) => {
+        Some(_) =>
+        {
             #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
             match unsafe { crate::object::construct(ctx, class, &[]) } {
                 Ok(value) => value,
