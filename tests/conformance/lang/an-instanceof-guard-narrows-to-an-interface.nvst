@@ -1,0 +1,64 @@
+--TEST--
+An `instanceof` guard narrows an erased subject to an interface, and a nested guard replaces that residue rather than intersecting with it — ADR 0043 § 1, ADR 0036 § 4
+--FILE--
+<?nvs
+// `instanceof` narrows its subject to an *interface*, which is the direction a
+// program written against an abstraction actually uses: the subject arrives
+// erased and the guard is what makes the interface's members resolve.
+interface Labelled {
+    public function label(): string;
+}
+
+interface Counted {
+    public function total(): uint;
+}
+
+class Tag implements Labelled, Counted {
+    public function label(): string { return "tag"; }
+    public function total(): uint { return 2; }
+}
+
+class Plain {
+    public function label(): string { return "plain"; }
+}
+
+final class Describe {
+    // An erased `object` names no member at all, so every call below is
+    // reachable only through the guard above it.
+    public static function of(object $v): string {
+        if ($v instanceof Labelled) {
+            return $v->label();
+        }
+        return "unlabelled";
+    }
+
+    // Two guards nest, and the inner one *replaces* the residue rather than
+    // intersecting with it: there is no intersection type, so `$v` inside the
+    // inner guard is a `Counted` and nothing else. The label is therefore read
+    // out before the second test rather than after it.
+    public static function both(object $v): string {
+        if ($v instanceof Labelled) {
+            string $name = $v->label();
+            if ($v instanceof Counted) {
+                return $name . ":" . ($v->total() as string);
+            }
+            return $name;
+        }
+        return "unlabelled";
+    }
+}
+
+Tag $tag = new Tag();
+Plain $plain = new Plain();
+
+// `Plain` declares a `label()` of its own and implements nothing, so the guard
+// is what the answer turns on rather than the member's presence.
+echo Describe::of($tag), "\n";
+echo Describe::of($plain), "\n";
+echo Describe::both($tag), "\n";
+echo Describe::both($plain), "\n";
+--EXPECT--
+tag
+unlabelled
+tag:2
+unlabelled

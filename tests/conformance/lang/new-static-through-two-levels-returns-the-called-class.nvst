@@ -1,0 +1,51 @@
+--TEST--
+`new static()` through two levels of inheritance answers the called class, at a static call, an instance call and through `parent::` — ADR 0008 § 1
+--FILE--
+<?nvs
+// ADR 0008's late static binding, read as a *type* rather than as a dispatch:
+// a member declaring `static` answers the class the call named, not the class
+// the declaration is written in. Two levels of inheritance, which is where a
+// rule that only ever answers "the declaring class" and one that answers "the
+// called class" first disagree twice.
+class Base {
+    public static function make(): static { return new static(); }
+    public function chain(): static { return $this; }
+    public function name(): string { return "Base"; }
+}
+
+class Middle extends Base {
+    public function name(): string { return "Middle"; }
+}
+
+final class Leaf extends Middle {
+    public function name(): string { return "Leaf"; }
+
+    // Reachable only because `Leaf::make()` is typed as a `Leaf`: a `Middle`
+    // return would not satisfy this declaration.
+    public static function grab(): Leaf { return Leaf::make(); }
+}
+
+// The static-call half, at each of the three levels.
+Base $b = Base::make();
+Middle $m = Middle::make();
+Leaf $l = Leaf::make();
+echo $b->name(), " ", $m->name(), " ", $l->name(), "\n";
+
+// `parent::` forwards the called class rather than resetting it to the parent,
+// which is the whole of "late" in late static binding.
+Leaf $grabbed = Leaf::grab();
+echo $grabbed->name(), "\n";
+
+// The instance-call half: the receiver's own type is what `static` becomes.
+Leaf $chained = $l->chain();
+echo $chained->name(), "\n";
+
+// An explicitly named class *sets* the called class, so this is a `Base` and
+// owes `Leaf` nothing — the rule is not "always the site's enclosing class".
+Base $named = Base::make();
+echo $named->name(), "\n";
+--EXPECT--
+Base Middle Leaf
+Leaf
+Leaf
+Base

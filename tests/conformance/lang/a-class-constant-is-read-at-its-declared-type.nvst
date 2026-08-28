@@ -1,0 +1,45 @@
+--TEST--
+A user-declared class constant reads at its own declared type through `extends`, `implements` and `self::`, and lowers to its value — ADR 0007 § 1, ADR 0011 § 1
+--FILE--
+<?nvs
+// A user-declared class constant carries its own declared type, and that type
+// is what a read has — not the type its literal would have on its own. ADR
+// 0007 § 1's "nothing is untyped" is what makes the annotation load-bearing:
+// `Limits::WIDTH` is a `uint` because the declaration says so, and `5` placed
+// anywhere else would have been an `int`.
+interface Bounded {
+    public const uint CEILING = 100;
+}
+
+class Limits implements Bounded {
+    public const uint WIDTH = 5;
+    public const string LABEL = "limits";
+    public const bool STRICT = true;
+
+    // `self::` reaches the same constant from inside the declaring class, and
+    // reads it at the same declared type.
+    public static function width(): uint { return self::WIDTH; }
+}
+
+// A subclass declares none of its own: every one of these reads through
+// `extends`, and through `implements` for the interface's.
+final class Narrow extends Limits {}
+
+uint $own = Limits::WIDTH;
+uint $inherited = Narrow::WIDTH;
+uint $throughInterface = Narrow::CEILING;
+uint $throughSelf = Limits::width();
+string $label = Limits::LABEL;
+bool $strict = Limits::STRICT;
+
+echo $own, " ", $inherited, " ", $throughInterface, " ", $throughSelf, "\n";
+echo $label, " ", $strict as string, "\n";
+
+// The declared type is what a *use* is checked against, so the constant is
+// usable everywhere a `uint` is — arithmetic included.
+uint $sum = Limits::WIDTH + Narrow::CEILING;
+echo $sum, "\n";
+--EXPECT--
+5 5 100 5
+limits 1
+105
