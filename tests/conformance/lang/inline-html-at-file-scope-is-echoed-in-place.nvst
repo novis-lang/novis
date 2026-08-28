@@ -1,0 +1,88 @@
+--TEST--
+An inline-HTML run is a statement: it is echoed in place, in source order, only on the path that reaches it, and byte-for-byte what an `echo` of the same literal writes — spec 00-overview.md § 1
+--FILE--
+<?nvs
+// The sibling case `inline-html-is-written-verbatim.nvst` owns *what* a run
+// writes (no escaping, and the one newline after `?>` swallowed). This one
+// owns *where* it writes it: `nvs_ir::lower::Lowering::lower_inline_html` is
+// reached from `StmtKind::InlineHtml` in the ordinary statement dispatch, so a
+// run occupies a statement's place in the stream and nothing more — it prints
+// between the statements written around it, once per time control reaches it,
+// and not at all on a path that does not.
+class Page {
+    public static function row(bool $on): void {
+        // A run inside a method body is that body's statement, not the file's,
+        // so it is written when the method is called rather than where the
+        // class is declared.
+        if ($on) {
+            ?>[on]<?nvs
+        } else {
+            ?>[off]<?nvs
+        }
+    }
+}
+
+// In place and in source order: the run between the two `echo`s prints
+// between them, on the same line, with nothing of its own added.
+echo "a";
+?>B<?nvs
+echo "c";
+Page::row(true);
+Page::row(false);
+echo "\n";
+
+// Once per iteration, for the same reason: the run is the loop body's
+// statement.
+int $i = 0;
+while ($i < 3) {
+    ?>w<?nvs
+    $i = $i + 1;
+}
+echo "\n";
+
+// And only on the arm the subject selects — a run in an unreached case writes
+// nothing at all.
+switch (2) {
+    case 1:
+        ?>one<?nvs
+        break;
+    case 2:
+        ?>two<?nvs
+        break;
+}
+echo "\n";
+
+// Agreement, counted rather than read off a line: `lower_inline_html` is
+// `lower_echo`'s own tail over the raw span, so each run below must write
+// exactly what an `echo` of the literal beside it writes. `Core\Out::capture`
+// takes the run's bytes back as a value, and the assertion is the number of
+// pairs that matched — a run that grew a rendering of its own fails the count
+// while still looking plausible on its own line.
+array<callable> $runs = [
+    fn (): void => { ?>plain<?nvs },
+    fn (): void => { ?><b>&amp;</b><?nvs },
+    fn (): void => { ?>  spaces  <?nvs },
+    // Two runs with a statement between them are two statements: the `echo`
+    // lands between their bytes, not around them.
+    fn (): void => { ?>a<?nvs echo "b"; ?>c<?nvs },
+    // The swallowed newline is the one after `?>`, so the newline *ending* a
+    // run is the run's own byte and survives.
+    fn (): void => { ?>tail
+<?nvs },
+];
+array<string> $texts = ["plain", "<b>&amp;</b>", "  spaces  ", "abc", "tail\n"];
+int $j = 0;
+int $agreed = 0;
+while ($j < 5) {
+    Core\Cli\Text $t = Core\Out::capture($runs[$j as string]);
+    if (Core\Str::compare($t as string, $texts[$j as string]) == 0) {
+        $agreed = $agreed + 1;
+    }
+    $j = $j + 1;
+}
+echo "agreed=", $agreed as string, "/5\n";
+--EXPECT--
+aBc[on][off]
+www
+two
+agreed=5/5
