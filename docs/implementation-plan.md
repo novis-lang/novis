@@ -1432,11 +1432,33 @@
 > resolution could reintroduce a call no source spelling can currently ask for. *4* is verified
 > wherever *3* is and gets no case of its own, asserting the absence of a path rather than a
 > behaviour. The headingless "Verification, in the order it becomes possible" block that trailed
-> *Revisiting* is deleted, its M5 half folded into the new section's closing paragraph. Three live
-> tools **are** the worklist and no session re-derives one: `python tools/holes.py` reads the
-> refusal sites out of `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item N` for
-> one in full), `python tools/loop.py --list` prints the named `.nvst` cases each stage still owes,
-> and `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> *Revisiting* is deleted, its M5 half folded into the new section's closing paragraph. **ADR 0028
+> has the *Verification* section M4's acceptance names for it**, which completes that list — 0014,
+> 0023, 0046 and 0069 already had theirs. Its six sections divide into three kinds and only *1* has
+> a program that runs: *2*, *4* and *5* are **absences**, and an absence is verified where the name
+> is written rather than where it would have fired, which is stronger than the ADR's own "the
+> runtime never invokes it" — there is no declaration for anything to decline to call.
+> `tests/conformance/reject/every-magic-method-name-this-adr-closes-is-unspellable.nvst` is all six
+> names in one compile — `__toString`, `__destruct`, `__isset`, `__unset`, `__debugInfo` and
+> `__set_state`, each ADR 0029 § 1's `E0111` carrying the rename `nvs convert` makes at M11 —
+> refused in source order, so a name that stops being refused shifts a line rather than quietly
+> declaring a member. *1*'s own refusal is recorded as being made wherever the **static** type names
+> a class, that being what the rule can promise: through a `mixed` or a plain `object` the same
+> question is answered from the instance's runtime class and throws where no `toString` is declared,
+> which is ADR 0036 § 4's deferral rather than a weakening. Two claims are corrected rather than
+> pinned. *4* said a dump is "annotated with each property's declared visibility exactly as PHP's
+> own output already is", which ADR 0092 § 3's plaintext rendering does not print and which is that
+> ADR's to own in any case, so *4* now states the absence of the hook and points there for the view.
+> And the headingless "Verification, in the order it becomes possible" block that trailed
+> *Revisiting* is deleted, its M11 half folded into the new section's closing paragraph and its M2
+> and M4 halves into the bullets. The one rule with no case at all is *2*'s discarded throw: a
+> `finally` that raises on its way out prints nothing, which no program can tell apart from one that
+> never ran, so it is verified at `nvs_runtime::Ctx::with_pending_set_aside` rather than by a
+> fixture. Three live tools **are** the worklist and no session re-derives one: `python
+> tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen` and attributes each to
+> its item (`--item N` for one in full), `python tools/loop.py --list` prints the named `.nvst`
+> cases each stage still owes, and `python tools/check-migration.py` scores
+> `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

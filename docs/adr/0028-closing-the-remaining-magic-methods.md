@@ -186,9 +186,11 @@ lowering one shape to lower and no shape to panic on.
 ### 4. `__debugInfo` — rejected, no replacement
 
 `Core\Debug::dump` ([0092](0092-one-diagnostic-record-three-renderings.md), which owns its surface and its
-three renderings) always shows a class's real declared properties and their real current values,
-annotated with each property's declared visibility exactly as PHP's own output already is — there is no
-hook to filter, rename, or synthesize fields for the dump. This is unrelated to, and does not reopen,
+three renderings) always shows a class's real declared properties and their real current values — there is
+no hook to filter, rename, or synthesize fields for the dump. What that view *looks* like is
+[0092](0092-one-diagnostic-record-three-renderings.md) § 3's and not this section's, so the rule here is
+the absence of the hook rather than any particular annotation: the plaintext rendering names the class,
+its identity and each declared property, and prints no visibility keyword beside them. This is unrelated to, and does not reopen,
 [0019](0019-reflection-and-ast-parsing-are-core-features.md) § 2's rule that a `Core\Reflect` *value* read
 enforces the same visibility check an ordinary access would: a debug dump is a fixed, built-in operation
 a developer did not write and cannot be called with attacker-influenced arguments to bypass anything, not a
@@ -256,6 +258,57 @@ declaration. That is a decision rather than a consequence, and it is
   correctly, since [0022](0022-definite-property-initialization.md) never allowed such a property to be
   anything but initialized.
 
+## Verification
+
+The six sections divide into three kinds, and only the first has a program that *runs*: § 1 replaces a
+mechanism, § 3 says what two surviving constructs mean, and §§ 2, 4 and 5 are absences. An absence is
+verified where the name is written rather than where it would have fired, which is what the case below is
+for; the fixtures named here are the whole set [M4's acceptance](../plan/m4.md) names for this ADR.
+
+- **Every name this ADR closes is refused where it is written**, which is stronger than "the runtime never
+  invokes it" and is what makes §§ 2, 4 and 5 checkable at all — there is no declaration for anything to
+  decline to call. `tests/conformance/reject/every-magic-method-name-this-adr-closes-is-unspellable.nvst`
+  takes all six in one compile: `__toString`, `__destruct`, `__isset`, `__unset`, `__debugInfo` and
+  `__set_state` are each [ADR 0029](0029-identifier-casing-is-checked.md) § 1's `E0111`, carrying the
+  rename `nvs convert` makes at M11. They are refused in source order, so a name that stops being refused
+  shifts a line rather than quietly declaring a member.
+- **`Stringable` is an ordinary interface and the only route from an object to text** (*1*).
+  `a-stringable-class-renders-through-tostring.nvst` is the interface half — `toString()` is callable by
+  name like any other method — and `a-stringable-object-stringifies-at-every-implicit-site.nvst` takes all
+  four implicit positions at once, so a site that grew a rendering of its own fails there rather than on
+  its own line. `reject/an-object-without-stringable-cannot-be-interpolated.nvst` is the diagnostic. The
+  refusal is made **wherever the static type names a class**, which is the whole of what *1* can promise:
+  through a `mixed` or a plain `object` the same question is answered from the instance's runtime class
+  ([0036](0036-anonymous-object-shapes.md) § 4's deferral, `an-erased-object-renders-through-its-runtime-class.nvst`),
+  and a class with no `toString` throws there because there is no site to refuse at. A `Core`-owned class
+  is the third answer and is `nvs_stdlib::registry`'s rather than a user declaration's
+  (`a-core-class-with-no-tostring-is-refused-where-it-is-rendered.nvst`, `E0710`).
+- **No destructor runs, and the one thing that does run when a refcount reaches zero is not one** (*2*).
+  `tests/conformance/iter/an-abandoned-generator-runs-the-finally-it-is-suspended-inside.nvst` and its
+  oracle twin `tests/differential/iter/an-abandoned-generators-finally-matches-phps.nvst` pin the
+  narrowing this section states: the `finally` runs, once, for a frame the program had already entered.
+  The discarded throw is the one thing no case can reach — a `finally` that raises on its way out prints
+  nothing, which is indistinguishable from one that never ran — so it is verified where the mechanism is,
+  at `nvs_runtime::Ctx::with_pending_set_aside`, and surfacing it wants
+  [0020](0020-error-escalation-ladder.md)'s ladder rather than a fixture here.
+- **`isset` is `!= null` and `unset` has one operand left** (*3*).
+  `lang/isset-answers-a-null-test-over-every-storage-shape.nvst` takes the first half over a local, a
+  `mixed`, both kinds of property, an element and a chain, with `isset-on-a-value-rather-than-storage-is-a-compile-error.nvst`
+  beside it; `error/unset-is-refused-on-a-declared-property.nvst` and
+  `unset-is-refused-on-everything-but-an-element-of-a-named-holder.nvst` are the second, and the surviving
+  spelling is pinned by the `tests/conformance/array/unset-*` family rather than by a case of this ADR's.
+- **§§ 4 and 5 have no behaviour left to observe** once the name is unspellable, so what remains to verify
+  is the *replacement*: `core/a-dump-renders-one-record-through-one-plaintext-view.nvst` shows a class's
+  real declared properties and their live values for *4*, and *5*'s round trip is
+  [0023](0023-clone-serialize-and-cross-boundary-copy.md)'s, verified in that ADR's own section at M5.
+- **§ 6 has nothing to verify at all**, being a closing note rather than a decision: static resolution is
+  what makes it true, so any program that compiles asserts it, and what replaces `spl_autoload_register()`
+  is [0061](0061-compile-time-autoload-and-program-discovery.md)'s to verify.
+
+**At M11**, when the converter exists: it rewrites `__toString` to `Stringable`/`toString()` and
+`unset($obj->nullableProp)` to `$obj->nullableProp = null;` mechanically, and flags source using
+`__destruct` or `__set_state` as a `TODO` needing a human decision, per *Consequences*' negative list.
+
 ## Alternatives rejected
 
 - **A declared `Disposable`/`Closeable` interface with scope-exit invocation.** No scope-exit-triggered call
@@ -282,23 +335,3 @@ declaration. That is a decision rather than a consequence, and it is
   occasional one. Not decided here — see *Alternatives rejected*.
 - **Whether `Stringable` should have a stdlib-wide expectation** (e.g., every exception class implementing
   it) is a stdlib design question for whichever milestone builds exceptions' base class, not this ADR.
-
-Verification, in the order it becomes possible:
-
-- **M2**: the checker refuses string interpolation, concatenation, `echo`, and `as string` on an object
-  whose static type does not provably implement `Stringable`, naming `Stringable` as the fix — joining the
-  diagnostic corpus [0007](0007-explicit-type-system.md)'s own M2 entry already builds. A method literally
-  named `__destruct`, `__isset`, `__unset`, `__debugInfo`, or `__set_state` never reaches any special
-  resolution path in the first place: [ADR 0029](0029-identifier-casing-is-checked.md)'s method-casing rule
-  refuses the leading-underscore name itself, the same diagnostic any other double-underscore method name
-  gets. `unset($obj->prop)` is refused for every declared property with a
-  diagnostic naming [0022](0022-definite-property-initialization.md)'s guarantee as the reason.
-- **M4**: a class implementing `Stringable` is accepted at every implicit-conversion site in § 1 and
-  produces the value `toString()` returns; no method named `__destruct` could compile in the first place,
-  so none is ever invoked when refcounts legitimately reach zero mid-request; `isset($obj->prop)` matches
-  `$obj->prop != null` for a nullable property and is always `true` for a non-nullable one;
-  `Core\Debug::dump` shows every declared property and its live value, with no `__debugInfo`/`__set_state`
-  method able to exist to affect that.
-- **M11**: the converter mechanically rewrites `__toString` to `Stringable`/`toString()` and
-  `unset($obj->nullableProp)` to `$obj->nullableProp = null;`; it flags PHP source using `__destruct` or
-  `__set_state` as a `TODO` needing a human decision, per *Consequences*' negative list.
