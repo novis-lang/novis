@@ -208,3 +208,94 @@ fn an_integer_division_is_a_union_widened_at_its_binding() {
         "{kept_uint:?}"
     );
 }
+
+/// ADR 0007 § 4's arithmetic rows are the numeric types, and the table is as
+/// closed at the operand end as its ordering row is. Everything else PHP adds
+/// it adds by converting first, which § 2 never does by itself — so each of
+/// these is a diagnostic where it is written rather than an answer below it.
+///
+/// `bool` is the row this asserts twice, because it was the one that did not
+/// merely refuse to lower: `nvs_ir::ty::Ty::Bool` is `nvs-codegen`'s
+/// `integral`, so `true + true` used to reach an `iadd` over the `i8` a `bool`
+/// is stored in.
+#[test]
+fn an_arithmetic_operand_with_no_row_is_a_compile_error() {
+    for body in [
+        "bool $a = true;\nbool $b = false;\nmixed $c = $a + $b;\n",
+        "bool $a = true;\nbool $b = false;\nmixed $c = $a ** $b;\n",
+        "string $a = \"x\";\nstring $b = \"y\";\nmixed $c = $a - $b;\n",
+        "array<int> $a = [1];\narray<int> $b = [2];\nmixed $c = $a / $b;\n",
+    ] {
+        let diags = check_in_method(body);
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_ARITHMETIC_HAS_NO_ROW)),
+            "{body}\n{diags:?}"
+        );
+    }
+
+    // An operand whose type is not yet known is the run-time question the
+    // `Helper::ValueAdd` family answers from its tag, never a refusal here —
+    // a `mixed` and, for the same reason, a union such as `?int`.
+    let tagged = check_in_method("mixed $a = 1;\nmixed $b = 2;\nmixed $c = $a + $b;\n");
+    assert!(!tagged.has_errors(), "{tagged:?}");
+    let nullable = check_in_method("?int $n = null;\nmixed $c = $n * 2;\n");
+    assert!(!nullable.has_errors(), "{nullable:?}");
+
+    // An enum keeps ADR 0010 § 5's own diagnostic rather than joining this one.
+    let enums = check_src(
+        "<?nvs\nenum Mode { Read, Write }\nclass T {\n  function m(): void {\n\
+         Mode $a = Mode::Read;\nmixed $c = $a + $a;\n  }\n}\n",
+    );
+    assert!(
+        enums
+            .iter()
+            .any(|d| d.code == Some(code::E_ENUM_ARITHMETIC_UNSUPPORTED)),
+        "{enums:?}"
+    );
+}
+
+/// `%` with a `float` operand is the one refusal both operands are numbers
+/// for: PHP converts to an integer and answers one, ADR 0007 § 4's float row
+/// would answer a `float`, and the spec's `Core\Math::mod` row makes `%` the
+/// integer operator. `nvs-codegen` lowers no static one and
+/// `nvs_runtime::helpers::value_arith` throws for the tagged pair, so this is
+/// that rule's third end rather than a fourth answer.
+#[test]
+fn a_float_modulo_is_a_compile_error() {
+    for body in [
+        "float $a = 7.5;\nfloat $b = 2.0;\nmixed $c = $a % $b;\n",
+        "float $a = 7.5;\nint $b = 2;\nmixed $c = $a % $b;\n",
+        "int $a = 7;\nfloat $b = 2.0;\nmixed $c = $a % $b;\n",
+    ] {
+        let diags = check_in_method(body);
+        assert!(
+            diags.iter().any(|d| d.code == Some(code::E_FLOAT_MODULO)),
+            "{body}\n{diags:?}"
+        );
+    }
+
+    // The integer rows are untouched, and so is `decimal`'s own objection to
+    // meeting a `float` at all — that pair is refused before the operator is.
+    let integers = check_in_method("int $a = 7;\nint $b = 2;\nint $c = $a % $b;\n");
+    assert!(!integers.has_errors(), "{integers:?}");
+}
+
+/// ADR 0007 § 2's grid gives a `bool` source exactly one row — "anything →
+/// `string`", which is total for scalars — and no numeric one at all, so
+/// `$b as int` has nothing to produce and nothing to throw. The two halves of
+/// the rule are asserted together because either alone reads as an accident.
+#[test]
+fn a_bool_converts_to_a_string_and_not_to_an_int() {
+    let text = check_in_method("bool $b = true;\nstring $s = $b as string;\n");
+    assert!(!text.has_errors(), "{text:?}");
+
+    for target in ["int", "uint", "float", "decimal", "bytes"] {
+        let diags = check_in_method(&format!("bool $b = true;\n{target} $n = $b as {target};\n"));
+        assert!(
+            diags.iter().any(|d| d.code == Some(code::E_NO_CONVERSION)),
+            "{target}\n{diags:?}"
+        );
+    }
+}

@@ -1371,6 +1371,44 @@ pub mod code {
     /// `bool`s are unordered.
     pub const E_ORDERING_HAS_NO_ROW: Code = Code::new("E0715");
 
+    /// `+`, `-`, `*`, `/`, `%` or `**` over an operand ADR 0007 § 4 gives no
+    /// arithmetic row for.
+    ///
+    /// That table's operands are the numeric types — `int`, `uint`, `float`
+    /// and, through ADR 0054 § 3, `decimal` — and it is as *closed* as the
+    /// ordering row [`E_ORDERING_HAS_NO_ROW`] refuses against. Everything else
+    /// PHP adds it adds by converting first, which ADR 0007 § 2 never does by
+    /// itself, so a `bool`, a `string`, a `bytes`, an `array<T>`, a
+    /// `callable`, `null` and an object have no `+` at all and each help names
+    /// the spelling that says what was meant.
+    ///
+    /// `bool` is the operand this code exists for, and it is the reverse of
+    /// [`E_ORDERING_HAS_NO_ROW`]'s own `bool` exemption: two `bool`s *order*
+    /// exactly as the one bit they already are, but adding them is PHP's
+    /// "convert to `int` first" and nothing else — and left unrefused it did
+    /// not even answer PHP's number, `nvs-codegen` reading `true + true` as an
+    /// `iadd` over the `i8` a `bool` is stored in. An enum case keeps
+    /// [`E_ENUM_ARITHMETIC_UNSUPPORTED`], so "this operand has no arithmetic"
+    /// reads as one diagnostic per rule rather than per type.
+    pub const E_ARITHMETIC_HAS_NO_ROW: Code = Code::new("E0716");
+
+    /// `%` with a `float` operand.
+    ///
+    /// The one row this band refuses that both operands *are* numbers for.
+    /// ADR 0007 § 4's "either operand a `float`" row is written for the
+    /// arithmetic operators as a family, but `%` is the one member of it PHP
+    /// does not answer that way: PHP converts both operands to an integer and
+    /// returns an integer, where the row would return a `float`. The two are
+    /// different answers for `7.5 % 2`, no ADR settles which of them Novis
+    /// gives, and `as` is one character away — so the operator is refused at
+    /// **both** ends rather than guessed at either. The other end is the
+    /// tagged one, `nvs_runtime::helpers::value_arith`, where the same rule
+    /// arrives as a catchable throw because only the runtime tags can see it.
+    ///
+    /// `decimal % float` is [`E_DECIMAL_FLOAT_ARITHMETIC`] instead: that pair
+    /// has no common arithmetic type at all, which is the earlier objection.
+    pub const E_FLOAT_MODULO: Code = Code::new("E0717");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

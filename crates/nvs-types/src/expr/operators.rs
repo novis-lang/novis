@@ -144,10 +144,17 @@ pub(super) fn binary_result(
             qualified_scalar(false, tainted, secret, env.interner)
         }
         BinaryOp::Add => reject_array_combination(lhs, rhs, span, env)
+            .or_else(|| reject_unrowed_arithmetic_operand(op, lhs, rhs, span, env))
             .unwrap_or_else(|| arithmetic_result(lhs, rhs, span, env)),
-        BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Mod => arithmetic_result(lhs, rhs, span, env),
-        BinaryOp::Pow => power_result(lhs, rhs, span, env),
-        BinaryOp::Div => division_result(lhs, rhs, span, env),
+        BinaryOp::Sub | BinaryOp::Mul => reject_unrowed_arithmetic_operand(op, lhs, rhs, span, env)
+            .unwrap_or_else(|| arithmetic_result(lhs, rhs, span, env)),
+        BinaryOp::Mod => reject_unrowed_arithmetic_operand(op, lhs, rhs, span, env)
+            .or_else(|| reject_float_modulo(lhs, rhs, span, env))
+            .unwrap_or_else(|| arithmetic_result(lhs, rhs, span, env)),
+        BinaryOp::Pow => reject_unrowed_arithmetic_operand(op, lhs, rhs, span, env)
+            .unwrap_or_else(|| power_result(lhs, rhs, span, env)),
+        BinaryOp::Div => reject_unrowed_arithmetic_operand(op, lhs, rhs, span, env)
+            .unwrap_or_else(|| division_result(lhs, rhs, span, env)),
         BinaryOp::BitAnd | BinaryOp::BitOr | BinaryOp::BitXor | BinaryOp::Shl | BinaryOp::Shr => {
             bitwise_result(op, lhs, rhs, span, env)
         }
@@ -540,6 +547,125 @@ fn reject_unordered_operand(
         )
         .with_primary(span, "ordered here")
         .with_help(help),
+    );
+    Some(env.interner.mixed())
+}
+
+/// ADR 0007 § 4's arithmetic table is **closed** at the operand end too, and
+/// this is the refusal that says so — [`reject_unordered_operand`]'s twin, one
+/// row of the same table over.
+///
+/// The operands that table names are the numeric types: `int`, `uint`,
+/// `float`, and `decimal` through ADR 0054 § 3. Everything else PHP adds it
+/// adds by *converting* first, and ADR 0007 § 2 has no implicit conversion for
+/// that to be, so a `string`, a `bytes`, an `array<T>`, a `callable`, `null`
+/// and an object have no `+` at all.
+///
+/// `bool` is the operand this exists for, and it is deliberately the opposite
+/// call to the one [`reject_unordered_operand`] makes: `false < true` is the
+/// ordering of the one bit and needs no conversion, but `true + true` is
+/// PHP's "convert to `int` first" and nothing else. Unrefused it did not even
+/// answer PHP's number — `nvs_ir::ty::Ty::Bool` is `nvs-codegen`'s `integral`,
+/// so the pair became an `iadd` over the `i8` a `bool` is stored in and
+/// `echo true + true` printed `1` where PHP prints `2`.
+///
+/// An **enum** operand passes through to [`reject_enum_operand`], which fires
+/// one level down with ADR 0010 § 5's own wording, so a type never draws two
+/// codes for one rule. Scoped exactly like [`reject_bitwise_operand`]: an
+/// operand whose type is not yet known ([`equality_domain`] answering `None` —
+/// `mixed`, a union, the `int|float` a division returns) passes through, and
+/// its answer comes from its runtime tag instead (`Helper::ValueAdd`). Returns
+/// `Some(mixed)` once diagnosed, `None` for every pair the caller's own table
+/// should answer itself.
+fn reject_unrowed_arithmetic_operand(
+    op: BinaryOp,
+    lhs: TypeId,
+    rhs: TypeId,
+    span: Span,
+    env: &mut Env<'_>,
+) -> Option<TypeId> {
+    // The left operand first, so a pair that is wrong on both sides reports
+    // once and names the side written first.
+    let (offender, domain) = [lhs, rhs].into_iter().find_map(|ty| {
+        let domain = match equality_domain(env.interner.get(ty))? {
+            // The table's own operands, and the one type with a diagnostic of
+            // its own already waiting one level down.
+            EqDomain::Numeric | EqDomain::Enum(_) => return None,
+            other => other,
+        };
+        Some((ty, domain))
+    })?;
+    let spelling = match op {
+        BinaryOp::Add => "+",
+        BinaryOp::Sub => "-",
+        BinaryOp::Mul => "*",
+        BinaryOp::Div => "/",
+        BinaryOp::Mod => "%",
+        _ => "**",
+    };
+    let help = match domain {
+        EqDomain::Bool => {
+            "ADR 0007 § 4's arithmetic rows are the numeric types; PHP converts a `bool` to an \
+             `int` first and Novis never converts by itself, so say it — `($b ? 1 : 0)`"
+        }
+        EqDomain::Str => {
+            "ADR 0007 § 4 tabulates no arithmetic for text; `.` is how two strings combine, and \
+             `$s as int`/`$s as float` is how one becomes a number"
+        }
+        EqDomain::Object => {
+            "Novis has no operator overloading: ADR 0007 § 4 names no class in its arithmetic \
+             rows, so the operation belongs in a method on that class"
+        }
+        _ => {
+            "ADR 0007 § 4's arithmetic rows are `int`, `uint`, `float` and `decimal`; this \
+             operand is none of them, and `as` is the only way to make it one"
+        }
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ARITHMETIC_HAS_NO_ROW,
+            format!(
+                "`{spelling}` has no meaning for `{}`",
+                env.interner.describe(offender)
+            ),
+        )
+        .with_primary(span, "no arithmetic row for this operand")
+        .with_help(help),
+    );
+    Some(env.interner.mixed())
+}
+
+/// `%` with a `float` operand — the one refusal in this file that both
+/// operands *are* numbers for. [`code::E_FLOAT_MODULO`]'s own doc comment is
+/// that decision's home: PHP's `%` converts to an integer and returns one,
+/// ADR 0007 § 4's "either operand a `float`" row would return a `float`, and
+/// the spec's own `Core\Math::mod` row settles it the third way — "integer `%`
+/// is the operator", so the floating-point remainder is that member and the
+/// operator is refused at both ends rather than guessed at either. The other
+/// end is the catchable throw `nvs_runtime::helpers::value_arith` raises where
+/// only the tags can see it.
+///
+/// A `decimal` on either side is left to [`reject_decimal_float_operands`] one
+/// level down, which objects to the pair before it objects to the operator.
+fn reject_float_modulo(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) -> Option<TypeId> {
+    let pair = (env.interner.get(lhs), env.interner.get(rhs));
+    if matches!(pair, (Ty::Decimal, _) | (_, Ty::Decimal)) {
+        return None;
+    }
+    if !matches!(pair, (Ty::Float, _) | (_, Ty::Float)) {
+        return None;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_FLOAT_MODULO,
+            "`%` has no meaning for `float`",
+        )
+        .with_primary(span, "no `float` row for `%`")
+        .with_help(
+            "PHP's `%` converts both operands to an integer and answers one, where ADR 0007 § 4's \
+             float row would answer a `float`; say which was meant — `($a as int) % ($b as int)`, \
+             or `Core\\Math::mod($a, $b)` for the floating-point remainder",
+        ),
     );
     Some(env.interner.mixed())
 }

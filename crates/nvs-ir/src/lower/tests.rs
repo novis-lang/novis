@@ -2870,11 +2870,13 @@ class T {
 /// [`Inst::on_error`](crate::ir::Inst::on_error) edge: ADR 0007 § 4 makes
 /// a zero divisor throw, and `nvs-codegen` raises that inline rather than
 /// through a helper, so the frame's cleanup path has to exist at the
-/// operator itself. `%` over floats gets none, which is the half of this
+/// operator itself. Float division gets none, which is the half of this
 /// worth holding — an error edge that appeared on every `BinOp` would be
-/// a landing block per arithmetic expression.
+/// a landing block per arithmetic expression, and `0.0 / 0.0` answers
+/// `NAN` rather than throwing. The other operand of `%` was this half's
+/// fixture until `E0717` refused a `float` one where it is written.
 #[test]
-fn an_integer_modulo_carries_an_error_edge_and_a_float_one_does_not() {
+fn an_integer_modulo_carries_an_error_edge_and_a_float_division_does_not() {
     let (f, _, _) = lower_script_src("<?nvs\nint $a = 7;\nint $b = 2;\nint $q = $a % $b;\n");
     let modulo = f
         .blocks
@@ -2885,14 +2887,14 @@ fn an_integer_modulo_carries_an_error_edge_and_a_float_one_does_not() {
     assert!(modulo.on_error.is_some(), "{modulo:?}");
 
     let (f, _, _) =
-        lower_script_src("<?nvs\nfloat $a = 7.0;\nfloat $b = 2.0;\nfloat $q = $a % $b;\n");
-    let modulo = f
+        lower_script_src("<?nvs\nfloat $a = 7.0;\nfloat $b = 2.0;\nfloat $q = $a / $b;\n");
+    let division = f
         .blocks
         .iter()
         .flat_map(|b| &b.insts)
-        .find(|i| matches!(i.kind, InstKind::BinOp { op: BinOp::Mod, .. }))
-        .expect("the fixture lowers one `%`");
-    assert!(modulo.on_error.is_none(), "{modulo:?}");
+        .find(|i| matches!(i.kind, InstKind::BinOp { op: BinOp::Div, .. }))
+        .expect("the fixture lowers one `/`");
+    assert!(division.on_error.is_none(), "{division:?}");
 }
 
 /// A file declaring no class still lowers, and still carries both rosters

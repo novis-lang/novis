@@ -186,13 +186,24 @@ diagnostic saying exactly that. There is no literal suffix, for any numeric type
 | `int ⊕ uint` arithmetic | **compile error** | there is no representable common type; convert one side explicitly |
 | `int` against `uint` in `< <= > >= ==` | `bool`, mathematically exact over the full range of both | — |
 | `int / int`, `uint / uint` | `int\|float`, `uint\|float` — PHP-exact: `6/3` is an integer, `7/2` is a float | `/ 0` throws `ArithmeticError` |
-| either operand a `float` | `float` | — |
+| either operand a `float` | `float` — for `+ - * ** /`; **`%` is a compile error** | — |
 | `>>` | arithmetic on `int`, **logical on `uint`** | — |
 | `& \| ^ ~ <<` | the operand type, preserved | — |
 | any operation involving `decimal` | [ADR 0054](0054-decimal-scalar-type.md) § 3 owns those rows | — |
 | `object` against `object` in `< <= > >= <=>` | requires `Comparable` ([0013](0013-comparable-interface.md)), no fallback | **compile error** when the class does not implement it |
 | `bool` against `bool` in `< <= > >= <=>` | `bool`/`int` — `false < true`, the ordering of the one bit it already is | — |
 | any other operand in `< <= > >= <=>` | **compile error** | a `string`, `bytes`, `array<T>`, `callable`, enum case or `null` has no ordering at all |
+
+The **arithmetic** rows are a closed list too, and on the same grounds: their operands are `int`,
+`uint`, `float` and `decimal`, so a `bool`, a `string`, a `bytes`, an `array<T>`, a `callable`, `null`
+and an object have no `+` at all and are refused where they are written. `bool` is the one worth naming,
+because the ordering rows below *do* admit it: two `bool`s order as the one bit they already are and
+need no conversion to do it, while `true + true` is PHP's "convert to `int` first" and nothing else.
+`%` is the one operator narrower than its own row — PHP converts both operands to an integer and
+answers one, this table's float row would answer a `float`, and `Core\Math::mod` is the member that
+says the floating-point remainder out loud, so a `float` operand of `%` is refused rather than given
+one of the two answers silently. Both refusals arrive as a catchable throw where only the operands'
+runtime tags can see them, exactly as the ordering closure below does.
 
 The ordering rows are a **closed** list, exactly as *2*'s conversion grid is. Everything else PHP orders it
 orders by converting an operand first, and *2* has no implicit conversion for that to be — so two strings

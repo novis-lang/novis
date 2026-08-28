@@ -1,0 +1,62 @@
+--TEST--
+`+ - * / % **` refuse every operand ADR 0007 § 4 gives no arithmetic row for, and `%` refuses a `float` at both ends — ADR 0007 § 4, ADR 0010 § 5, ADR 0054 § 3
+--FILE--
+<?nvs
+// ADR 0007 § 4's arithmetic rows name the numeric types and nothing else, the
+// same way its ordering row does. Everything PHP adds beyond them it adds by
+// converting an operand first, and ADR 0007 § 2 has no implicit conversion for
+// that to be — so each line below is one absent row, and each help names the
+// spelling that says what was meant instead.
+enum Mode { Read, Write }
+
+class Cell { public int $n = 1; }
+
+bool $flag = true;
+string $s = "12";
+bytes $raw = "ab" as bytes;
+array<int> $xs = [1, 2];
+Mode $mode = Mode::Read;
+Cell $cell = new Cell();
+float $f = 7.5;
+int $i = 2;
+
+// `bool` is the operand this refusal exists for: it is PHP's "convert to an
+// `int` first", and unrefused it did not even answer PHP's number.
+mixed $a = $flag + $flag;
+mixed $b = $flag ** $flag;
+// Two strings combine with `.`, and become numbers with `as`.
+mixed $c = $s - $s;
+// An object has no arithmetic at all: Novis has no operator overloading.
+mixed $d = $cell * $cell;
+// A `bytes` and an `array<T>` are on no row either.
+mixed $e = $raw + $raw;
+mixed $g = $xs / $xs;
+// An enum keeps ADR 0010 § 5's own diagnostic rather than joining this one.
+mixed $h = $mode * $mode;
+// `%` is the one refusal both operands are numbers for: PHP converts to an
+// integer and answers one, § 4's float row would answer a `float`, and the
+// spec makes `Core\Math::mod` the floating-point remainder.
+mixed $j = $f % $f;
+mixed $k = $f % $i;
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0716]: `+` has no meaning for `bool`
+%A
+error[E0716]: `**` has no meaning for `bool`
+%A
+error[E0716]: `-` has no meaning for `string`
+%A
+error[E0716]: `*` has no meaning for `Cell`
+%A
+error[E0716]: `+` has no meaning for `bytes`
+%A
+error[E0716]: `/` has no meaning for `array<int>`
+%A
+error[E0415]: no arithmetic or bitwise operator is defined on an enum type directly
+%A
+error[E0717]: `%` has no meaning for `float`
+%A
+error[E0717]: `%` has no meaning for `float`
+%A
+error: aborting due to 9 errors

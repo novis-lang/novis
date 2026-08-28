@@ -1178,8 +1178,9 @@ impl Emitter<'_, '_> {
             // has. What is left is the three representations no source
             // expression has (`ClassDesc`, `Ref`, `Void`). The `float` rows do
             // not reach here at all — they are `integral`'s sibling below —
-            // which is why `float` `%` is refused by the operator table's own
-            // catch-all further down rather than by this one.
+            // and arithmetic over an operand ADR 0007 § 4 tabulates no row
+            // for, which used to arrive here as a `Sub` over a `Str` or a
+            // `Div` over an `Array`, is `E0716` where it is written now.
             return Err(CodegenError::Unsupported(format!(
                 "a `{op:?}` over representation {ty:?}"
             )));
@@ -1305,6 +1306,24 @@ impl Emitter<'_, '_> {
                 let not_below = self.b.ins().select(equal, same, above);
                 self.b.ins().select(less, below, not_below)
             }
+            // An internal-consistency check with no reachable target left, and
+            // it is the *operator* half of the representation one above rather
+            // than a second copy of it. Everything arriving here shares one
+            // representation and it is `float` or `bool`, the two `integral`
+            // and `float` admit that the six early returns above do not
+            // handle — so the roster is five pairs, and each is refused where
+            // it is written. `Shl`/`Shr` over either is `E0706`, ADR 0007
+            // § 4's `& | ^ ~ << >>` row being `int` and `uint` alone.
+            // `Div`/`Mod`/`Pow` over a `bool` is `E0716`: that section's
+            // arithmetic rows are the numeric types, and a `bool` is PHP's
+            // "convert to an `int` first" and nothing else. `Mod` over a
+            // `float` is `E0717`, the one refusal both operands are numbers
+            // for — the spec's `Core\Math::mod` row makes `%` the integer
+            // operator, so the floating-point remainder is that member.
+            // `Ty::Decimal` and `Ty::Tagged` never arrive: `nvs-ir` rewrites
+            // the first into the `Helper::Decimal*` family and the second into
+            // the eleven-member `Helper::ValueAdd` one, both chosen a crate up
+            // from a representation this function would have to guess.
             other => {
                 return Err(CodegenError::Unsupported(format!(
                     "the binary operator {other:?}"

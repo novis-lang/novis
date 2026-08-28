@@ -1,4 +1,4 @@
-//! What a compiled unit contains and how it disassembles, including an unlowered shape reported rather than panicked on.
+//! What a compiled unit contains and how it disassembles.
 //!
 //! Split out of the single `compile_and_run.rs`; every test keeps its own name
 //! and body. See `tests/common/mod.rs` for the shared fixtures and for why
@@ -39,24 +39,16 @@ fn disassembling_names_each_frame_and_shows_the_code_that_would_have_run() {
     assert!(text.matches("load_ext_name").count() >= 2, "{text}");
 }
 
-#[test]
-fn disassembling_an_unlowered_shape_reports_it_rather_than_printing_half_a_unit() {
-    let error = nvs_codegen::disassemble(&lower(
-        "<?nvs\nfloat $a = 7.0;\nfloat $b = 2.0;\nfloat $q = $a % $b;\n",
-    ))
-    .unwrap_err();
-    assert!(error.to_string().contains("Mod"), "{error}");
-}
-
-#[test]
-fn an_unlowered_shape_is_an_error_naming_it_rather_than_a_panic() {
-    // `%` over two floats has no lowering: ADR 0007 § 4's arithmetic table
-    // gives `%` an `int`/`uint` row and no `float` one, and PHP reaches it by
-    // converting both operands first — a conversion nothing inserts here. What
-    // matters is that the backend *says so* instead of panicking or, worse,
-    // emitting something.
-    let error =
-        compile("<?nvs\nfloat $a = 7.0;\nfloat $b = 2.0;\nfloat $q = $a % $b;\n").unwrap_err();
-    let message = error.to_string();
-    assert!(message.contains("Mod"), "{message}");
-}
+// Two tests stood here — `an_unlowered_shape_is_an_error_naming_it_rather_than
+// _a_panic` and its disassembly twin — and both used `float` `%` as the shape
+// the front end accepted and this backend did not. `E0717` refuses that pair
+// where it is written now, so the fixture no longer type-checks and the
+// property they guarded has no source-reachable instance left in this area:
+// every `CodegenError::Unsupported` in `emit_binop` is an internal-consistency
+// check whose roster comment names what subtracts to nothing. Hand-building an
+// IR to keep them would contradict this file's whole reason for going through
+// the real pipeline (see the module doc above), so the guard moved rather than
+// being rebuilt: `nvs_types`' `a_float_modulo_is_a_compile_error` and
+// `an_arithmetic_operand_with_no_row_is_a_compile_error` hold the rule, and
+// `tests/conformance/lang/the-arithmetic-table-is-closed.nvst` holds what a
+// program actually sees.
