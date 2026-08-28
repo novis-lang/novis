@@ -1,0 +1,98 @@
+--TEST--
+`Core\Str::graphemes` is a partition of the subject whose piece count is `Core\Str::length` and whose pieces re-split into `Core\Str::codePoints`, counted over one table — spec § 1 *Extraction*, ADR 0009 § 2
+--FILE--
+<?nvs
+// Three members read the same subject in two units, and a case reading one row
+// off each cannot tell a member that grew its own boundary rule from one that
+// did not. So every row of the table is asked all four questions and the
+// answers are counted: a member that disagrees on a single row moves a count
+// away from `$total` and fails here while still printing plausibly on its own
+// line.
+class Pieces {
+    // Every grapheme cluster is one unit long by definition, so this is the
+    // boundary rule asked of the pieces rather than of the whole subject.
+    public static function allSingle(array<string> $pieces): bool {
+        foreach ($pieces as string $piece) {
+            if (Core\Str::length($piece) as int != 1) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // Code points partition the same way clusters do: splitting first and
+    // counting scalar values per piece has to reach the subject's own total.
+    public static function pointsIn(array<string> $pieces): int {
+        int $sum = 0;
+        foreach ($pieces as string $piece) {
+            $sum = $sum + Core\Arr::count(Core\Str::codePoints($piece)) as int;
+        }
+        return $sum;
+    }
+}
+
+array<string> $rows = [
+    "",
+    "abc",
+    "héllo",
+    "e\u{0301}",
+    "👍🏽",
+    "\u{1F1E6}\u{1F1F9}",
+    "a\u{0301}bc",
+    "\r\n",
+    "ǅungla",
+];
+
+int $total = 0;
+int $lengthAgrees = 0;      // count(graphemes($s)) == length($s)
+int $joinsBack = 0;         // join(graphemes($s), "") == $s — a partition, not a filter
+int $everyPieceIsOne = 0;   // length(piece) == 1, for every piece of every row
+int $pointsPartition = 0;   // codePoints re-splits the pieces to the same total
+int $atLeast = 0;           // count(codePoints($s)) >= count(graphemes($s))
+int $strictlyMore = 0;      // ...and is strictly greater on the rows that matter
+int $pieces = 0;
+int $points = 0;
+
+foreach ($rows as string $s) {
+    $total = $total + 1;
+    array<string> $split = Core\Str::graphemes($s);
+    int $n = Core\Arr::count($split) as int;
+    int $cp = Core\Arr::count(Core\Str::codePoints($s)) as int;
+    $pieces = $pieces + $n;
+    $points = $points + $cp;
+
+    if ($n == Core\Str::length($s) as int) {
+        $lengthAgrees = $lengthAgrees + 1;
+    }
+    if (Core\Str::join($split, "") == $s) {
+        $joinsBack = $joinsBack + 1;
+    }
+    if (Pieces::allSingle($split)) {
+        $everyPieceIsOne = $everyPieceIsOne + 1;
+    }
+    if (Pieces::pointsIn($split) == $cp) {
+        $pointsPartition = $pointsPartition + 1;
+    }
+    if ($cp >= $n) {
+        $atLeast = $atLeast + 1;
+    }
+    if ($cp > $n) {
+        $strictlyMore = $strictlyMore + 1;
+    }
+}
+
+// All four invariants hold on every row, including the empty subject, which
+// divides into no pieces at all rather than into one empty one.
+echo $total, " ", $lengthAgrees, " ", $joinsBack, " ", $everyPieceIsOne, " ", $pointsPartition, "\n";
+
+// The unit is never finer than a code point and is strictly coarser on five of
+// the nine — a combining mark, an emoji modifier, a regional-indicator pair, a
+// combining mark inside longer text, and `\r\n`, which UAX #29's GB3 keeps
+// whole. Without that second number the counts above would hold for a
+// `graphemes` that had quietly become `codePoints`.
+echo $atLeast, " ", $strictlyMore, "\n";
+echo $pieces, " ", $points, "\n";
+--EXPECT--
+9 9 9 9 9
+9 5
+21 26
