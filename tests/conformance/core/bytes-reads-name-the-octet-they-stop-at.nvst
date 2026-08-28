@@ -104,6 +104,16 @@ echo Buf::at($quad, 4), "\n";
 echo Buf::at($quad, -5), "\n";
 echo Buf::at(Core\Encoding::fromHex(""), 0), "\n";
 
+// The far ends of the index type itself, which is where the counting-from-the-
+// end arithmetic could wrap back into range rather than refuse: `i64::MAX`
+// addresses nothing, and `i64::MIN` cannot be added to the length at all. The
+// low one is computed rather than written, because a literal past `int` is a
+// separate refusal and would hide this one.
+int $most = 9223372036854775807;
+int $least = 0 - $most - 1;
+echo Buf::at($quad, $most), "\n";
+echo Buf::at($quad, $least), "\n";
+
 // Counted: what makes those two ends the same bound is that the two spellings
 // name one octet, so all four indices agree with their negatives.
 int $same = 0;
@@ -145,6 +155,8 @@ Core\Bytes::unpack: the format reads 0 of the buffer's 2 octets — a header rea
 Core\Bytes::at: index 4 is outside a buffer of 4 bytes
 Core\Bytes::at: index -5 is outside a buffer of 4 bytes
 Core\Bytes::at: index 0 is outside a buffer of 0 bytes
+Core\Bytes::at: index 9223372036854775807 is outside a buffer of 4 bytes
+Core\Bytes::at: index -9223372036854775808 is outside a buffer of 4 bytes
 4 of 4
 ffff
 Core\Bytes::fill: 256 is not one octet — a byte is 0 to 255
