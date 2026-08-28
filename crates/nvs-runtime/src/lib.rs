@@ -292,10 +292,11 @@ pub use closure::{
     call_closure, closure_arity,
 };
 pub use ctx::{
-    CARRIER_CLI_TEXT, CARRIER_HTML_MARKUP, CARRIER_TEXT_SLOT, Ctx, DEBUG_FLAGS_OFFSET, DebugFlags,
-    ErrorClass, FaultSite, OutputSink, SAFEPOINT_OFFSET, STACK_CEILING, STACK_LIMIT_OFFSET,
-    STACK_RESERVE, STATICS_OFFSET, SafepointFlags, TraceEvent, is_carrier, nvs_probe_call_enter,
-    nvs_probe_call_exit, nvs_probe_stmt, nvs_safepoint, nvs_stack_check,
+    AssertionOutcome, CARRIER_CLI_TEXT, CARRIER_HTML_MARKUP, CARRIER_TEXT_SLOT, Ctx,
+    DEBUG_FLAGS_OFFSET, DebugFlags, ErrorClass, FaultSite, OutputSink, SAFEPOINT_OFFSET,
+    STACK_CEILING, STACK_LIMIT_OFFSET, STACK_RESERVE, STATICS_OFFSET, SafepointFlags, TraceEvent,
+    is_carrier, nvs_probe_call_enter, nvs_probe_call_exit, nvs_probe_stmt, nvs_safepoint,
+    nvs_stack_check,
 };
 pub use decimal::Decimal;
 pub use dispatch::{call_erased_method, call_method, call_render, method_address};

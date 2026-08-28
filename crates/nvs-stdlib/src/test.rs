@@ -40,6 +40,17 @@
 //! ADR's, and a second reading of them here would be a second set of
 //! PHP-divergence decisions nothing keeps in step.
 //!
+//! # The ledger, and the one member that discharges from it
+//!
+//! § 5 gives an assertion two effects, not one: it throws `Core\Test\Failure`
+//! *and* it records its outcome into a per-test ledger the test's own code
+//! cannot reach — which is what abolishes the silently-passing test, since the
+//! runner reads the ledger rather than the exception state. The ledger is
+//! `nvs_runtime::Ctx`'s (its field's own docs own why it lives there), the two
+//! writers are [`held`] and [`failed`], and every member here goes through one
+//! of them on every edge. `Core\Test::expectFailure(callable)` is the only way
+//! an entry ever leaves it.
+//!
 //! # Known gaps
 //!
 //! 1. **§ 4's two compile errors are runtime throws for now.** A non-
@@ -47,14 +58,16 @@
 //!    by the ADR, and is a catchable throw naming `assertEqualsDeep` here; that
 //!    refusal is `nvs_types`' to make and wants the class graph this crate does
 //!    not hold. The mismatch error is already made, by the `T` above.
-//! 2. **A failure is a throw and not yet a ledger entry.** ADR 0079 § 5 makes
-//!    the record something a `catch` cannot erase, which is the next slice; a
-//!    `catch` around an assertion therefore still hides it today.
+//! 2. **Nothing reads the ledger yet.** Every assertion records its outcome
+//!    into `nvs_runtime::Ctx`'s ledger and `expectFailure` discharges an entry
+//!    from it, but the runner that reports one at the end of a test is later in
+//!    Stage 7 — so § 20's zero-assertion rule, which is a question about the
+//!    entry count, is owed rather than broken.
 //! 3. **The roster is three members**, the equality ones § 4 tabulates. The
 //!    `assertTrue`/`assertNull`/`assertCount`/`assertThrows` that section's
 //!    example also writes are the same shape and are owed.
 
-use nvs_runtime::{Ctx, Fault, Tag, Value, identity};
+use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, Value, identity};
 
 use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy};
 
@@ -84,7 +97,8 @@ const MESSAGE: &[CoreOption] = &[CoreOption {
     default: Const::Null,
 }];
 
-/// `Core\Test`'s registry rows — § 4's three equality members. See
+/// `Core\Test`'s registry rows — § 4's three equality members, plus § 5's
+/// `expectFailure`. See
 /// [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
@@ -110,6 +124,13 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Void,
             symbol: "nvs_core_test_assert_equals_deep",
         },
+        CoreMethod {
+            name: "expectFailure",
+            params: &[CoreTy::Callable],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_test_expect_failure",
+        },
     ],
     instance: &[],
     slots: &[],
@@ -125,6 +146,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_test_assert_equals_deep" => {
             (nvs_core_test_assert_equals_deep as *const ()).cast()
         }
+        "nvs_core_test_expect_failure" => (nvs_core_test_expect_failure as *const ()).cast(),
         _ => return None,
     })
 }
@@ -137,11 +159,12 @@ nvs_runtime::nvs_helper! {
     /// `Core\Test::assertSame(T $actual, T $expected, {message?: string}): void`
     /// — § 4's identity row, which is [`identity::value_identical`] and nothing
     /// added to it.
-    fn nvs_core_test_assert_same(_ctx, args: [3]) {
+    fn nvs_core_test_assert_same(ctx, args: [3]) {
         if identity::value_identical(args[0], args[1]) {
-            return Ok(Value::null());
+            return Ok(held(ctx, "assertSame"));
         }
         Err(failed(
+            ctx,
             "assertSame",
             &format!(
                 "`$actual` is {}, `$expected` is {}",
@@ -159,9 +182,10 @@ nvs_runtime::nvs_helper! {
     /// objects, which are compared through ADR 0013's `Comparable::compareTo`.
     fn nvs_core_test_assert_equals(ctx, args: [3]) {
         if equals(ctx, args[0], args[1])? {
-            return Ok(Value::null());
+            return Ok(held(ctx, "assertEquals"));
         }
         Err(failed(
+            ctx,
             "assertEquals",
             &format!(
                 "`$actual` is {}, `$expected` is {}",
@@ -177,9 +201,9 @@ nvs_runtime::nvs_helper! {
     /// `Core\Test::assertEqualsDeep(T $actual, T $expected, {message?: string}): void`
     /// — § 4's structural walk, which reports **where** the two differ rather
     /// than only that they do.
-    fn nvs_core_test_assert_equals_deep(_ctx, args: [3]) {
+    fn nvs_core_test_assert_equals_deep(ctx, args: [3]) {
         let Some(diff) = difference(args[0], args[1], 0, "")? else {
-            return Ok(Value::null());
+            return Ok(held(ctx, "assertEqualsDeep"));
         };
         let at = if diff.path.is_empty() {
             "the value itself".to_owned()
@@ -187,6 +211,7 @@ nvs_runtime::nvs_helper! {
             format!("`$actual{}`", diff.path)
         };
         Err(failed(
+            ctx,
             "assertEqualsDeep",
             &format!(
                 "the two differ at {at}: `$actual` is {}, `$expected` is {}",
@@ -197,6 +222,64 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+nvs_runtime::nvs_helper! {
+    /// `Core\Test::expectFailure(callable $body): void` — ADR 0079 § 5's one
+    /// greppable spelling for "this failure was on purpose".
+    ///
+    /// It runs `$body`, requires that an assertion inside it **failed**, and
+    /// removes that entry from the ledger — which is the only way an entry ever
+    /// leaves it. Everything about the shape follows from the ledger being the
+    /// record and the throw being control flow:
+    ///
+    /// * The question asked is *what the ledger says*, not what class was
+    ///   thrown. A body that caught its own failure and returned normally still
+    ///   failed, and § 5's silently-passing test is precisely the program that
+    ///   would otherwise sneak through here.
+    /// * A body in which nothing failed is itself a failure, recorded and
+    ///   raised through [`failed`] like any other — so wrapping *this* call in
+    ///   a `catch` cannot erase it either.
+    /// * Only the failures are discharged. A passing assertion inside `$body`
+    ///   really ran, and § 20 counts it.
+    ///
+    /// The pending throw is taken where a failure was discharged, because that
+    /// throw *is* the failure this member consumed. **Known gap:** a body that
+    /// swallowed a failed assertion and then raised something else has its
+    /// second throw consumed here too, this member having no way to tell the
+    /// two apart from the ledger alone; naming the class would need the
+    /// pending exception's descriptor, which is `nvs-runtime`'s and not a
+    /// question a `Fault` answers.
+    fn nvs_core_test_expect_failure(ctx, args: [1]) {
+        let mark = ctx.assertion_count();
+        let outcome = nvs_runtime::call_closure(ctx, args[0], &[]);
+        let discharged = ctx.discharge_failures_from(mark);
+        if let Ok(result) = outcome {
+            #[expect(
+                unsafe_code,
+                reason = "`call_closure` hands back a value the caller owns, and \
+                          this one is never handed on"
+            )]
+            unsafe {
+                result.release();
+            }
+        } else if discharged == 0 {
+            return outcome;
+        } else {
+            // The body's throw was the failure just discharged, so it is this
+            // member's to consume rather than to propagate.
+            drop(ctx.take_pending());
+        }
+        if discharged == 0 {
+            return Err(failed(
+                ctx,
+                "expectFailure",
+                "the callable ran without a failed assertion",
+                Value::null(),
+            ));
+        }
+        Ok(held(ctx, "expectFailure"))
+    }
+}
+
 /// The [`Fault`] every failed assertion raises, with the `{message?: string}`
 /// option in front of it where one was given.
 ///
@@ -204,13 +287,40 @@ nvs_runtime::nvs_helper! {
 /// ledger the record and the throw the control flow, and a test that means to
 /// assert its subject throws has to be able to run one inside a `try`. That the
 /// ledger does not exist yet is this module's known gap 2.
-fn failed(member: &str, detail: &str, message: Value) -> Fault {
-    match message.as_text() {
+///
+/// The class is `Core\Test\Failure` — [`ThrownClass::TestFailure`], one row of
+/// `nvs_hir::errors::TREE` like any other — rather than the bare
+/// [`Fault::thrown`]'s `RuntimeError`, because § 5's own worked example catches
+/// it **by name**: a composite assertion that meant to intercept a failed
+/// assertion would otherwise have to catch every "the world said no" beside it.
+/// This is the one throw site the whole surface funnels through, so naming the
+/// class here is what names it for all three members.
+///
+/// It is also the one place a **failed** entry reaches § 5's ledger, and the
+/// order matters: the entry is recorded before the [`Fault`] is handed back, so
+/// there is no edge on which the throw exists and the record does not. That is
+/// the whole of what makes the ledger something a `catch` cannot erase.
+fn failed(ctx: &mut Ctx, member: &'static str, detail: &str, message: Value) -> Fault {
+    let text = match message.as_text() {
         Some(given) if !given.is_empty() => {
-            Fault::thrown(format!("{given}: Core\\Test::{member} failed: {detail}"))
+            format!("{given}: Core\\Test::{member} failed: {detail}")
         }
-        _ => Fault::thrown(format!("Core\\Test::{member} failed: {detail}")),
-    }
+        _ => format!("Core\\Test::{member} failed: {detail}"),
+    };
+    ctx.record_assertion(member, Some(text.clone()));
+    Fault::thrown_as(ThrownClass::TestFailure, text)
+}
+
+/// [`failed`]'s other half: the entry an assertion that **held** leaves, and
+/// the `void` it answers.
+///
+/// A passing assertion records too, because § 20's "a test that asserts nothing
+/// fails" is a question about how many entries a test produced — a ledger of
+/// failures alone cannot answer it. It allocates nothing: `member` is the
+/// literal the member names itself with.
+fn held(ctx: &mut Ctx, member: &'static str) -> Value {
+    ctx.record_assertion(member, None);
+    Value::null()
 }
 
 // ============================================================================
@@ -500,12 +610,22 @@ const SHOWN_CHARS: usize = 64;
 mod tests {
     use super::*;
 
+    /// § 4's three equality members — every row but § 5's `expectFailure`,
+    /// which takes a body rather than a pair of subjects and has its own test
+    /// below.
+    fn equality_members() -> impl Iterator<Item = &'static CoreMethod> {
+        CLASS
+            .methods
+            .iter()
+            .filter(|method| method.name != "expectFailure")
+    }
+
     /// § 4's order, which is the opposite of the one every migrated test suite
     /// was written in — so it is asserted rather than left to a reading of the
     /// rows above.
     #[test]
     fn every_assertion_is_subject_first_and_generic() {
-        for method in CLASS.methods {
+        for method in equality_members() {
             assert_eq!(
                 method.params.len(),
                 3,
@@ -546,7 +666,7 @@ mod tests {
     /// than to an empty `string`.
     #[test]
     fn the_only_option_is_a_message_that_defaults_to_absent() {
-        for method in CLASS.methods {
+        for method in equality_members() {
             let CoreTy::Options(bag) = method.params[2] else {
                 panic!(
                     "`{}`'s third parameter should be an options bag",
@@ -558,5 +678,22 @@ mod tests {
             assert!(matches!(bag[0].ty, CoreTy::Str));
             assert!(matches!(bag[0].default, Const::Null));
         }
+    }
+
+    /// § 5's own row, which is deliberately not shaped like § 4's: it takes the
+    /// body whose failure is expected and nothing else — no `{message?:}`,
+    /// because what it reports on is the ledger rather than a comparison, and
+    /// no subject, because there is nothing being compared.
+    #[test]
+    fn expect_failure_takes_one_callable_and_answers_nothing() {
+        let member = CLASS
+            .methods
+            .iter()
+            .find(|method| method.name == "expectFailure")
+            .expect("§ 5's member is registered");
+        assert!(matches!(member.params, [CoreTy::Callable]));
+        assert!(matches!(member.return_ty, CoreTy::Void));
+        // And it is the only row that is not one of § 4's three.
+        assert_eq!(equality_members().count(), CLASS.methods.len() - 1);
     }
 }

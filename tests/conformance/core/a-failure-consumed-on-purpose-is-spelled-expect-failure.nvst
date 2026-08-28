@@ -1,0 +1,82 @@
+--TEST--
+`Core\Test::expectFailure` requires its callable to fail and discharges that failure, and refuses a callable that does not -- ADR 0079 § 5
+--FILE--
+<?nvs
+// § 5's second half. The ledger itself is state a program cannot reach, so
+// what a case can observe is the member that discharges from it: which bodies
+// it accepts, which it refuses, and that the refusal is the same
+// `Core\Test\Failure` an assertion raises.
+
+use Core\Test;
+
+int $agreed = 0;
+
+// 1. The shape the section exists for: a helper consuming a failure it meant
+// to provoke. Nothing is printed and nothing escapes. Written out in full
+// here and through the `use` below, which are one member either way.
+Core\Test::expectFailure(fn (): void => { Core\Test::assertSame(1, 2); });
+echo "a provoked failure is consumed\n";
+
+// 2. A body that fails nothing is itself a failure -- which is the half that
+// keeps `expectFailure` from being a way to say "run this and shrug".
+try {
+    Test::expectFailure(fn (): void => { Test::assertSame(1, 1); });
+} catch (Core\Test\Failure $none) {
+    echo "no failure: ", $none->message, "\n";
+    $agreed = $agreed + 1;
+}
+
+// 3. The question asked is what the ledger says, not what class came back: a
+// body that caught its own failure still failed. That is exactly the
+// silently-passing test § 5 abolishes, seen from the other side.
+Test::expectFailure(fn (): void => {
+    try {
+        Test::assertEquals("a", "b");
+    } catch (Throwable $swallowed) {
+    }
+});
+echo "a swallowed failure is still a failure\n";
+
+// 4. Each of § 4's three members reaches it, one throw site being what they
+// share.
+Test::expectFailure(fn (): void => { Test::assertSame(1, 2); });
+$agreed = $agreed + 1;
+Test::expectFailure(fn (): void => { Test::assertEquals("x", "y"); });
+$agreed = $agreed + 1;
+Test::expectFailure(fn (): void => {
+    array<int> $actual = [1];
+    array<int> $expected = [2];
+    Test::assertEqualsDeep($actual, $expected);
+});
+$agreed = $agreed + 1;
+echo "every member's failure is expectable\n";
+
+// 5. Nesting: the inner call discharges its own body's failure, so the outer
+// one sees none of its own and refuses.
+try {
+    Test::expectFailure(fn (): void => {
+        Test::expectFailure(fn (): void => { Test::assertSame(1, 2); });
+    });
+} catch (Core\Test\Failure $nested) {
+    echo "nested: ", $nested->message, "\n";
+    $agreed = $agreed + 1;
+}
+
+// 6. A passing assertion beside the failing one is untouched by the discharge,
+// so the body may do real work either side of the failure it provokes.
+Test::expectFailure(fn (): void => {
+    Test::assertSame(3, 3);
+    Test::assertSame(3, 4);
+});
+echo "a passing assertion beside it survives\n";
+$agreed = $agreed + 1;
+
+echo "agreed=", $agreed, "/6\n";
+--EXPECT--
+a provoked failure is consumed
+no failure: Core\Test::expectFailure failed: the callable ran without a failed assertion
+a swallowed failure is still a failure
+every member's failure is expectable
+nested: Core\Test::expectFailure failed: the callable ran without a failed assertion
+a passing assertion beside it survives
+agreed=6/6

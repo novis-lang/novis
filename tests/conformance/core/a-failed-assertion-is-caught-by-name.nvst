@@ -1,0 +1,100 @@
+--TEST--
+A failed assertion throws `Core\Test\Failure`, which is an ordinary `Throwable` a program catches, constructs and re-raises -- ADR 0079 § 5
+--FILE--
+<?nvs
+// § 5's whole first half: catching one is "not only allowed, it is necessary",
+// so this case runs each of the three shapes that need to -- a composite
+// assertion that re-raises, a test *of* an assertion, and the plain root catch
+// a ported program writes -- and counts their agreements rather than reading
+// the class off one line.
+
+use Core\Test;
+
+// The failing subjects. Each member of § 4's roster funnels through one throw
+// site, so the class is asked of all three rather than of the first.
+final class Subject {
+    public static function same(): void { Test::assertSame(1, 2); }
+    public static function equals(): void { Test::assertEquals("a", "b"); }
+    public static function deep(): void {
+        array<int> $actual = [1, 2];
+        array<int> $expected = [1, 3];
+        Test::assertEqualsDeep($actual, $expected);
+    }
+}
+
+int $agreed = 0;
+
+// 1. The name catches it, and the root catches the same throw -- one class in
+// the tree, reached by either spelling.
+try {
+    Subject::same();
+} catch (Core\Test\Failure $named) {
+    echo "by name: ", $named->message, "\n";
+}
+
+try {
+    Subject::same();
+} catch (Throwable $root) {
+    echo "by root: ", $root->message, "\n";
+    $agreed = $agreed + 1;
+}
+
+// 2. Every member of the roster lands in the same class.
+try {
+    Subject::equals();
+} catch (Core\Test\Failure $fromEquals) {
+    echo "equals: ", $fromEquals->message, "\n";
+    $agreed = $agreed + 1;
+}
+
+try {
+    Subject::deep();
+} catch (Core\Test\Failure $fromDeep) {
+    echo "deep: ", $fromDeep->message, "\n";
+    $agreed = $agreed + 1;
+}
+
+// 3. It is an ordinary `Throwable` in the class graph, not a class of its own
+// kind -- which is what makes the root catch above the same catch.
+try {
+    Subject::same();
+} catch (Core\Test\Failure $probe) {
+    if ($probe instanceof Throwable) {
+        $agreed = $agreed + 1;
+    }
+}
+
+// 4. § 5's worked example: a user-written composite assertion intercepts one
+// and raises its own, with the inherited constructor spec § 10 gives the root.
+final class UserCheck {
+    public static function assertValid(int $n): void {
+        try {
+            Test::assertSame($n, 7);
+        } catch (Core\Test\Failure $inner) {
+            throw new Core\Test\Failure("user invalid: " . $inner->message);
+        }
+    }
+}
+
+try {
+    UserCheck::assertValid(3);
+} catch (Core\Test\Failure $outer) {
+    echo "composite: ", $outer->message, "\n";
+    $agreed = $agreed + 1;
+}
+
+// A passing assertion raises nothing at all, which is the half that says the
+// throw is the failure and not the call.
+Test::assertSame(7, 7);
+UserCheck::assertValid(7);
+echo "a passing assertion throws nothing\n";
+
+echo "agreed=", $agreed, "/5\n";
+--EXPECT--
+by name: Core\Test::assertSame failed: `$actual` is 1, `$expected` is 2
+by root: Core\Test::assertSame failed: `$actual` is 1, `$expected` is 2
+equals: Core\Test::assertEquals failed: `$actual` is "a", `$expected` is "b"
+deep: Core\Test::assertEqualsDeep failed: the two differ at `$actual["1"]`: `$actual` is 2, `$expected` is 3
+composite: user invalid: Core\Test::assertSame failed: `$actual` is 3, `$expected` is 7
+a passing assertion throws nothing
+agreed=5/5

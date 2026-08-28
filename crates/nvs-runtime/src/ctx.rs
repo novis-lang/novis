@@ -329,6 +329,43 @@ pub struct Ctx {
     /// has no `push`. [`Ctx::install_statics`] is the one place the two are
     /// written, so they cannot disagree.
     statics_store: Box<[Value]>,
+    /// [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
+    /// § 5's per-test assertion ledger, in the order the assertions ran.
+    ///
+    /// It lives here, and nowhere a program can name, because that is the
+    /// whole of what makes it work: the runner reads the ledger rather than
+    /// the exception state, so `try { … } catch (Throwable $t) {}` around an
+    /// assertion cannot erase the fact that it failed. A `Core` member that
+    /// answered "how many assertions failed" would hand the test back the very
+    /// eraser this exists to take away, so there is none, and the only member
+    /// that *writes* to it beyond appending is
+    /// `Core\Test::expectFailure(callable)` — § 5's single greppable spelling
+    /// for "this failure was on purpose".
+    ///
+    /// **What it spends:** one entry per assertion executed, charged to the
+    /// request and freed with it, and nothing at all for a request that runs
+    /// no assertion — an empty `Vec` is three words in the [`Ctx`] and no
+    /// allocation. A passing assertion allocates nothing beyond the entry
+    /// itself, [`AssertionOutcome::member`] being a `&'static str` the member
+    /// names rather than a built string.
+    assertions: Vec<AssertionOutcome>,
+}
+
+/// One entry of [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
+/// § 5's ledger: an assertion that ran, and how it came out.
+///
+/// The outcome is the *message*, not a `bool`, because the ledger is what the
+/// runner reports from — reading the exception state instead is exactly the
+/// silently-passing test § 5 abolishes, and a `bool` would send it back there
+/// for the wording.
+#[derive(Clone, Debug)]
+pub struct AssertionOutcome {
+    /// Which `Core\Test` member ran — a literal the member itself names, so a
+    /// passing assertion costs no allocation.
+    pub member: &'static str,
+    /// `None` where the assertion held; the failure's message where it did
+    /// not.
+    pub failure: Option<String>,
 }
 
 /// One class descriptor, plus the table that owns it.
@@ -579,6 +616,7 @@ impl Ctx {
             fault: None,
             helper_calls: 0,
             statics_store: Vec::new().into_boxed_slice(),
+            assertions: Vec::new(),
         };
         ctx.arm_stack_limit(base, STACK_CEILING);
         ctx
@@ -908,6 +946,59 @@ impl Ctx {
             Pending::Message(_, message) => message,
             Pending::Thrown(thrown) => Cow::Owned(thrown.message()),
         })
+    }
+
+    /// Appends one entry to
+    /// [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
+    /// § 5's ledger — what every `Core\Test` assertion does, whether it held
+    /// or not.
+    ///
+    /// Recording the *passing* ones as well is not bookkeeping for its own
+    /// sake: § 20's "a test that asserts nothing fails" is a question about
+    /// how many entries a test produced, and a ledger holding only failures
+    /// cannot answer it.
+    pub fn record_assertion(&mut self, member: &'static str, failure: Option<String>) {
+        self.assertions.push(AssertionOutcome { member, failure });
+    }
+
+    /// How many entries the ledger holds — the mark
+    /// [`Self::discharge_failures_from`] is given.
+    #[must_use]
+    pub fn assertion_count(&self) -> usize {
+        self.assertions.len()
+    }
+
+    /// Removes every **failed** entry recorded at or after `mark`, answering
+    /// how many there were — `Core\Test::expectFailure(callable)`'s half of
+    /// ADR 0079 § 5.
+    ///
+    /// The passing entries in that range stay: they are assertions that really
+    /// ran, and § 20 counts them. Only the failure is discharged, and only
+    /// where the caller has said it expected one.
+    pub fn discharge_failures_from(&mut self, mark: usize) -> usize {
+        let mark = mark.min(self.assertions.len());
+        let mut discharged = 0;
+        let mut index = mark;
+        while index < self.assertions.len() {
+            if self.assertions[index].failure.is_some() {
+                self.assertions.remove(index);
+                discharged += 1;
+            } else {
+                index += 1;
+            }
+        }
+        discharged
+    }
+
+    /// The whole ledger, taken — what the runner reads at the end of a test.
+    ///
+    /// Taking rather than borrowing is what makes one test's ledger that
+    /// test's: the runner clears it between tests by consuming it, so a
+    /// context reused across a file cannot report an earlier test's entries
+    /// against a later one.
+    #[must_use]
+    pub fn take_assertions(&mut self) -> Vec<AssertionOutcome> {
+        std::mem::take(&mut self.assertions)
     }
 
     /// Takes the pending failure as an exception object, clearing it — what a
@@ -1662,6 +1753,30 @@ mod tests {
         probe(&mut ctx, 2);
 
         assert_eq!(ctx.stmt_hits(), [0, 1]);
+    }
+
+    #[test]
+    fn expect_failure_discharges_only_the_failures_inside_its_own_body() {
+        // ADR 0079 § 5: the discharge is what `Core\Test::expectFailure` does,
+        // and it is deliberately narrow in both directions — a failure recorded
+        // *before* the mark is another test's problem and stays, and a passing
+        // assertion inside the body really ran, so § 20 still counts it.
+        let mut ctx = Ctx::buffered();
+        ctx.record_assertion("assertSame", Some("an earlier failure".to_owned()));
+        let mark = ctx.assertion_count();
+        ctx.record_assertion("assertSame", None);
+        ctx.record_assertion("assertEquals", Some("the expected one".to_owned()));
+        ctx.record_assertion("assertEqualsDeep", Some("and a second".to_owned()));
+
+        assert_eq!(ctx.discharge_failures_from(mark), 2);
+        let left = ctx.take_assertions();
+        assert_eq!(left.len(), 2);
+        assert_eq!(left[0].failure.as_deref(), Some("an earlier failure"));
+        assert_eq!(left[1].member, "assertSame");
+        assert!(left[1].failure.is_none());
+        // Taken rather than borrowed: the next test starts empty.
+        assert_eq!(ctx.assertion_count(), 0);
+        assert_eq!(ctx.discharge_failures_from(mark), 0);
     }
 
     #[test]

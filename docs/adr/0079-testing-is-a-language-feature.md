@@ -235,6 +235,20 @@ The ledger is also what makes § 20's zero-assertion rule possible, and it is th
 "report every failure in this test rather than the first" mode would use — the shape
 [0071](0071-derived-codecs.md) already chose for decoding.
 
+**Where this is made.** `Core\Test\Failure` is a row of `nvs_hir::errors::TREE` like every other
+exception class, which is that module's one home and what buys it the root's properties, the inherited
+constructor, a slot layout and a `catch` clause that matches it by name; it is the tree's one namespaced
+entry, and `nvs_runtime::ThrownClass::TestFailure` is the roster half a helper names it by.
+`nvs_stdlib::test::failed` is the single throw site the whole assertion surface funnels through, so one
+line there names the class for every member — and it records the ledger entry **before** it hands the
+throw back, which is what leaves no edge on which the throw exists and the record does not. The ledger
+itself is a field on `nvs_runtime::Ctx`, unreachable from any `Core` member that reads: there is
+deliberately no "how many assertions failed" to ask, since that would hand the test back the eraser this
+section takes away. `expectFailure` decides from the *ledger* rather than from the class that came back,
+so a body that caught its own failure has still failed; a body in which nothing failed is itself a
+failure, recorded and raised like any other; and the passing assertions inside a discharged body stay,
+because they really ran and § 20 counts them.
+
 ### 6. A `secret` operand is compared but never rendered
 
 An assertion diff is simultaneously output, a log line, a dump and a `Throwable` message — all four of the
