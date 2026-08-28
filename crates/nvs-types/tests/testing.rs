@@ -121,6 +121,31 @@ fn a_fixture_attribute_builds_a_roster_keyed_by_what_it_returns() {
 }
 
 #[test]
+fn a_parameter_is_resolved_to_the_fixture_supplying_its_type_in_parameter_order() {
+    // ADR 0079 § 8 resolves by type, and the row records an *order* — which
+    // fixture answers which parameter — so that the runner reads one rather
+    // than re-deriving it. The test is written **above** the fixtures it takes
+    // on purpose: resolution is a pass over the whole class, not a step in the
+    // walk that collects it.
+    let (diags, declared) = check_src_declared(&fixture_src(
+        "  #[Test]\n  public function itTakesBoth(Widget $w, Schema $s): void {}\n\
+         \n  #[Fixture]\n  public static function schema(): Schema { return new Schema(); }\n\
+         \n  #[Fixture]\n  public static function widget(Schema $s): Widget { return new Widget(); }\n",
+    ));
+    assert!(!diags.has_errors(), "resolution was refused: {diags:?}");
+    let cases = declared.exprs().tests("RepoTest").unwrap();
+    assert_eq!(
+        cases[0].fixtures,
+        ["widget".to_owned(), "schema".to_owned()]
+    );
+    // § 8's last sentence: a fixture's own parameters resolve the same way,
+    // which is what gives the runner a build order.
+    let fixtures = declared.exprs().fixtures("RepoTest").unwrap();
+    assert!(fixtures[0].fixtures.is_empty());
+    assert_eq!(fixtures[1].fixtures, ["schema".to_owned()]);
+}
+
+#[test]
 fn a_class_with_no_fixture_has_no_roster_at_all() {
     let (diags, declared) = check_src_declared(&fixture_src(
         "  #[Test]\n  public function itFinds(): void {}\n",

@@ -59,8 +59,11 @@
 //! reads as `public` here exactly as it does everywhere else and is left to
 //! the `E_MISSING_VISIBILITY` `nvs_syntax::casing` already reports, rather
 //! than being named twice under two codes. § 1's remaining bullet — a
-//! parameter no `#[Fixture]` supplies and no data row fills — is not decidable
-//! here at all and waits on §§ 8-9, which is what will hold both rosters.
+//! parameter no `#[Fixture]` supplies and no data row fills — is
+//! [`resolve_injections`] below, which is the one pass holding both rosters.
+//! Two parameter *shapes* are refused by these codes rather than by that one,
+//! because no roster would make either injectable:
+//! [`reject_uninjectable_parameters`] owns which and why.
 //!
 //! # § 8's `#[Fixture]` roster is the second table, keyed by type
 //!
@@ -85,10 +88,19 @@
 //! Two fixtures of one class returning **one** type is the roster's own
 //! refusal rather than a shape one — § 8 resolves by type, so it is one
 //! declaration made twice — and it is decidable here, with no parameter
-//! anywhere in it. What is *not* decidable here is § 1's remaining bullet, a
-//! `#[Test]` parameter no fixture supplies: that is a question about this
-//! roster asked from a method's parameter list, and it wants § 9's data rows
-//! beside it before it can be answered in one place.
+//! anywhere in it.
+//!
+//! # The injection is resolved once the whole class is collected
+//!
+//! [`resolve_injections`] is § 8's by-type resolution and runs *after* the
+//! walk above, because a test may be written above the fixture that supplies
+//! it. What each parameter resolves to is recorded as an order on the row
+//! ([`TestCase::fixtures`], [`Fixture::fixtures`]) so the runner reads one
+//! rather than re-deriving it below a crate that holds no types; a parameter
+//! nothing supplies is [`code::E_FIXTURE_PARAMETER_UNSUPPLIED`] and a fixture
+//! that requires itself is [`code::E_FIXTURE_CYCLE`]. § 9's data rows are the
+//! second answer this will consult, and until they exist a fixture is the only
+//! one.
 //!
 //! # The table is built while checking, and rides in [`crate::ExprTypeTable`]
 //!
@@ -109,7 +121,7 @@
 //! function that folds one, so a `#[Test]` option is never a second literal
 //! grammar.
 
-use nvs_diagnostics::{Diagnostic, code};
+use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_hir::QName;
 use nvs_syntax::ast::{
     Attribute, AttributeGroup, ClassDecl, ClassMemberKind, MethodMember, ObjectLiteralField,
@@ -175,6 +187,15 @@ pub struct TestCase {
     /// option the author left out is absent rather than defaulted — what a
     /// missing `retries` means is the runner's question and not this table's.
     pub options: Vec<(String, ConstArg)>,
+    /// ADR 0079 § 8's injection, resolved: which `#[Fixture]` of this class
+    /// supplies each declared parameter, in **parameter order**.
+    ///
+    /// An *order* rather than a set, because the runner passes values
+    /// positionally and re-deriving which fixture answers which parameter
+    /// would mean re-doing the by-type resolution below a crate that holds no
+    /// types. Empty for the parameterless test § 1's own example writes, which
+    /// is what makes a program that declares no fixture pay nothing for this.
+    pub fixtures: Vec<String>,
 }
 
 /// One `#[Fixture]` method of one class — ADR 0079 § 8's roster, one row at a
@@ -190,6 +211,13 @@ pub struct Fixture {
     /// parameter asking for a fixture is matched against it with the same
     /// [`TypeId`] equality every other type question in this crate uses.
     pub ty: TypeId,
+    /// What *this* fixture's own parameters resolve to, in parameter order —
+    /// § 8's "a fixture may itself declare fixture parameters", read by the
+    /// runner as a build order. A cycle among these is
+    /// [`code::E_FIXTURE_CYCLE`], and the row a cycle was reported for carries
+    /// an empty list, so what rides across is always a graph that can be
+    /// built.
+    pub fixtures: Vec<String>,
 }
 
 /// Every `#[Test]` and `#[Fixture]` method `decl` declares, recorded into
@@ -205,7 +233,9 @@ pub struct Fixture {
 /// pass could make alone.
 pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     let mut cases: Vec<TestCase> = Vec::new();
+    let mut case_spans: Vec<Span> = Vec::new();
     let mut fixtures: Vec<Fixture> = Vec::new();
+    let mut fixture_spans: Vec<Span> = Vec::new();
     for member in &decl.members {
         let ClassMemberKind::Method(m) = &member.kind else {
             continue;
@@ -254,7 +284,12 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
                 );
                 continue;
             }
-            fixtures.push(Fixture { method, ty });
+            fixtures.push(Fixture {
+                method,
+                ty,
+                fixtures: Vec::new(),
+            });
+            fixture_spans.push(m.name);
             continue;
         }
         let Some(attr) = test else { continue };
@@ -271,14 +306,244 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
             continue;
         }
         let options = fold_options(&attr.fields.clone(), env);
-        cases.push(TestCase { method, options });
+        cases.push(TestCase {
+            method,
+            options,
+            fixtures: Vec::new(),
+        });
+        case_spans.push(m.name);
     }
+    resolve_injections(
+        class,
+        &mut cases,
+        &case_spans,
+        &mut fixtures,
+        &fixture_spans,
+        env,
+    );
     if !cases.is_empty() {
         env.exprs.record_tests(class.to_string(), cases);
     }
     if !fixtures.is_empty() {
         env.exprs.record_fixtures(class.to_string(), fixtures);
     }
+}
+
+/// ADR 0079 § 8's resolution, for one class: every `#[Test]` and `#[Fixture]`
+/// parameter matched **by type** against the roster the walk above collected.
+///
+/// It is a second pass over the two rosters rather than a step inside that
+/// walk, and for one reason: a test may be declared **above** the fixture that
+/// supplies it, which is how § 8's own worked example is not written but is
+/// the first thing a reader will try. Resolving as the walk descends would
+/// answer that one "nothing supplies `Schema`" and the same file with the
+/// members swapped "here it is", which is a rule about source order and not
+/// about types.
+///
+/// What each parameter resolves to is recorded as an **order** on the row
+/// ([`TestCase::fixtures`]), because the runner passes values positionally and
+/// nothing below this crate holds a [`TypeId`] to redo the match against.
+///
+/// § 9's data rows will fill a parameter by *name* and are the second answer
+/// this refusal will consult; until they exist a fixture is the only one, so
+/// a parameter no fixture supplies is refused outright rather than left to a
+/// runner that would call the method with a hole in its argument list.
+fn resolve_injections(
+    class: &QName,
+    cases: &mut [TestCase],
+    case_spans: &[Span],
+    fixtures: &mut [Fixture],
+    fixture_spans: &[Span],
+    env: &mut Env<'_>,
+) {
+    if cases.is_empty() && fixtures.is_empty() {
+        return;
+    }
+    let roster: Vec<(String, TypeId)> = fixtures
+        .iter()
+        .map(|fixture| (fixture.method.clone(), fixture.ty))
+        .collect();
+    for (index, span) in fixture_spans.iter().enumerate() {
+        let method = fixtures[index].method.clone();
+        fixtures[index].fixtures =
+            resolve_parameters(class, &method, "#[Fixture]", *span, &roster, env);
+    }
+    reject_fixture_cycles(class, fixtures, fixture_spans, env);
+    for (index, span) in case_spans.iter().enumerate() {
+        let method = cases[index].method.clone();
+        cases[index].fixtures = resolve_parameters(class, &method, "#[Test]", *span, &roster, env);
+    }
+}
+
+/// One marked method's parameters, each resolved to the `#[Fixture]` method
+/// supplying its type — or refused where the declaration is written
+/// ([`code::E_FIXTURE_PARAMETER_UNSUPPLIED`]).
+///
+/// The match is [`TypeId`] equality, which is § 8's "resolution is by type"
+/// exactly: an interned type is the same id wherever it is written, so a
+/// parameter declaring the fixture's own return type is the one that resolves
+/// and a subtype of it deliberately is not — a fixture supplies *a* type, and
+/// admitting an assignable one would make two fixtures able to answer one
+/// parameter, which is the very ambiguity the duplicate refusal above exists
+/// to prevent.
+///
+/// A method the signature table has no row for resolves to nothing, for
+/// [`check_method_shape`]'s reason. The span pointed at is the method's own
+/// name rather than the parameter's: a [`crate::signatures::MethodSig`]
+/// records no per-parameter span, and the declaration is what the author has
+/// to change either way.
+fn resolve_parameters(
+    class: &QName,
+    method: &str,
+    marker: &str,
+    span: Span,
+    roster: &[(String, TypeId)],
+    env: &mut Env<'_>,
+) -> Vec<String> {
+    let Some(sig) = env
+        .signatures
+        .get(class)
+        .and_then(|class_sig| class_sig.methods.get(method))
+    else {
+        return Vec::new();
+    };
+    let params = sig.params.clone();
+    let names = sig.param_names.clone();
+    let mut resolved = Vec::with_capacity(params.len());
+    for (position, ty) in params.iter().enumerate() {
+        if let Some((supplier, _)) = roster.iter().find(|(_, supplies)| supplies == ty) {
+            resolved.push(supplier.clone());
+            continue;
+        }
+        let described = env.interner.describe(*ty);
+        let parameter = names
+            .as_ref()
+            .and_then(|names| names.get(position))
+            .map_or_else(
+                || format!("parameter {}", position + 1),
+                |name| format!("${name}"),
+            );
+        env.diags.report(
+            Diagnostic::error(
+                code::E_FIXTURE_PARAMETER_UNSUPPLIED,
+                format!(
+                    "no `#[Fixture]` of `{class}` supplies `{described}`, which the {marker} \
+                     method `{method}` declares as `{parameter}`"
+                ),
+            )
+            .with_primary(span, format!("`{parameter}` asks for `{described}`"))
+            .with_help(
+                "ADR 0079 § 8 resolves a parameter by its type: declare a `public static` \
+                 `#[Fixture]` on this class returning that type",
+            ),
+        );
+        return Vec::new();
+    }
+    resolved
+}
+
+/// § 8's last sentence: a fixture may declare fixture parameters of its own,
+/// and a cycle among them is a compile error
+/// ([`code::E_FIXTURE_CYCLE`]).
+///
+/// A cycle is reported once, at the row where the walk closes it and naming
+/// the whole chain, and every row on it then has its own dependencies
+/// **cleared** — which both stops the same cycle being reported once per
+/// member and keeps what rides across in [`crate::ExprTypeTable`] a graph the
+/// runner can build in some order. The compile fails on the diagnostic in any
+/// case; the clearing is what makes that table's own invariant true rather
+/// than true-because-nobody-reads-it.
+fn reject_fixture_cycles(
+    class: &QName,
+    fixtures: &mut [Fixture],
+    spans: &[Span],
+    env: &mut Env<'_>,
+) {
+    let index_of = |name: &str| fixtures.iter().position(|row| row.method == name);
+    let mut deps: Vec<Vec<usize>> = fixtures
+        .iter()
+        .map(|row| {
+            row.fixtures
+                .iter()
+                .filter_map(|name| index_of(name))
+                .collect()
+        })
+        .collect();
+    while let Some(chain) = first_cycle(&deps) {
+        let named: Vec<&str> = chain
+            .iter()
+            .map(|&node| fixtures[node].method.as_str())
+            .collect();
+        let closes = chain[0];
+        let path = format!("{} -> {}", named.join(" -> "), named[0]);
+        let at = spans.get(closes).copied().unwrap_or(spans[0]);
+        env.diags.report(
+            Diagnostic::error(
+                code::E_FIXTURE_CYCLE,
+                format!("`{class}`'s `#[Fixture]` methods require each other: {path}"),
+            )
+            .with_primary(at, "this fixture is needed to build itself")
+            .with_help(
+                "ADR 0079 § 8 builds a fixture before the parameter it fills, so a cycle has no \
+                 order to be built in: break it by taking the shared value out into a fixture of \
+                 its own",
+            ),
+        );
+        for node in chain {
+            deps[node].clear();
+            fixtures[node].fixtures.clear();
+        }
+    }
+}
+
+/// The first cycle a depth-first walk of `deps` closes, as the chain of nodes
+/// on it starting at the one it returns to — or `None` for an acyclic graph.
+fn first_cycle(deps: &[Vec<usize>]) -> Option<Vec<usize>> {
+    /// Not started, on the current path, finished — the three colours the walk
+    /// distinguishes, since only a back edge to a node still *on the path* is
+    /// a cycle.
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Colour {
+        Fresh,
+        OnPath,
+        Done,
+    }
+
+    fn walk(
+        node: usize,
+        deps: &[Vec<usize>],
+        colour: &mut [Colour],
+        path: &mut Vec<usize>,
+    ) -> Option<Vec<usize>> {
+        colour[node] = Colour::OnPath;
+        path.push(node);
+        for &next in &deps[node] {
+            if colour[next] == Colour::OnPath {
+                let from = path.iter().position(|&on| on == next).unwrap_or(0);
+                return Some(path[from..].to_vec());
+            }
+            if colour[next] == Colour::Fresh
+                && let Some(found) = walk(next, deps, colour, path)
+            {
+                return Some(found);
+            }
+        }
+        path.pop();
+        colour[node] = Colour::Done;
+        None
+    }
+
+    let mut colour = vec![Colour::Fresh; deps.len()];
+    for start in 0..deps.len() {
+        if colour[start] != Colour::Fresh {
+            continue;
+        }
+        let mut path = Vec::new();
+        if let Some(found) = walk(start, deps, &mut colour, &mut path) {
+            return Some(found);
+        }
+    }
+    None
 }
 
 /// The recognized attribute `want` attached to one member, or `None`. The
@@ -338,6 +603,7 @@ fn check_fixture_shape(
             env,
         );
     }
+    reject_uninjectable_parameters(m, method, sig, &report_fixture_shape, env);
     if matches!(env.interner.get(return_ty), Ty::Void) {
         report_fixture_shape(
             m,
@@ -431,6 +697,47 @@ fn check_method_shape(m: &MethodMember, method: &str, class: &QName, env: &mut E
             method,
             &format!("returns `{returned}`"),
             "a test reports by asserting rather than by returning, so declare `: void`",
+            env,
+        );
+    }
+    reject_uninjectable_parameters(m, method, sig, &report_shape, env);
+}
+
+/// The two parameter *shapes* §§ 8-9's injection cannot fill, for a `#[Test]`
+/// or a `#[Fixture]` alike — reported through whichever of the two shape
+/// codes the marker owns, `report` being that choice.
+///
+/// A variadic tail is packed into an array at the **call site** and an `inout`
+/// parameter is written back there, and the site here is a runner supplying
+/// one value per parameter from a roster keyed by type: neither the packing
+/// nor the write-back has anywhere to happen. It is the same limit
+/// [`code::E_DELEGATE_MEMBER_NOT_FORWARDABLE`] already names for ADR 0043 § 4's
+/// synthesized forward, arrived at from the other side, and it is a shape
+/// refusal rather than a resolution one because no roster would make either
+/// spelling injectable.
+fn reject_uninjectable_parameters(
+    m: &MethodMember,
+    method: &str,
+    sig: &crate::signatures::MethodSig,
+    report: &dyn Fn(&MethodMember, &str, &str, &str, &mut Env<'_>),
+    env: &mut Env<'_>,
+) {
+    if sig.variadic {
+        report(
+            m,
+            method,
+            "declares a variadic parameter",
+            "a value is injected per declared parameter, so write each one out",
+            env,
+        );
+    }
+    if sig.inout.iter().any(|is_inout| *is_inout) {
+        report(
+            m,
+            method,
+            "declares an `inout` parameter",
+            "an injected value has no caller's storage to be written back to, so drop the \
+             `inout`",
             env,
         );
     }

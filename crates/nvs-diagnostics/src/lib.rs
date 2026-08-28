@@ -1690,6 +1690,26 @@ pub mod code {
     /// [`E_DUPLICATE_DECLARATION`]: § 8 resolves by type, so it is one
     /// declaration made twice.
     pub const E_FIXTURE_METHOD_SHAPE: Code = Code::new("E0735");
+    /// A `#[Test]` or `#[Fixture]` parameter whose type no `#[Fixture]` of the
+    /// class supplies.
+    ///
+    /// ADR 0079 § 8 resolves a parameter **by type**, while compiling, so that
+    /// "an unsatisfiable parameter is a diagnostic rather than a null at
+    /// runtime" — this is that diagnostic, and it is the `Widget` line of that
+    /// section's own worked example. One code covers a test's parameter and a
+    /// fixture's own, because it is one question asked of one roster: what
+    /// supplies this type. § 9's data rows will fill a parameter *by name*
+    /// and are the other answer this refusal will have to consult once they
+    /// exist.
+    pub const E_FIXTURE_PARAMETER_UNSUPPLIED: Code = Code::new("E0736");
+    /// A `#[Fixture]` that requires itself, directly or through others.
+    ///
+    /// ADR 0079 § 8's last sentence: a fixture may declare fixture parameters
+    /// of its own, and a cycle among them is a compile error. It is separate
+    /// from [`E_FIXTURE_PARAMETER_UNSUPPLIED`] because every parameter on such
+    /// a cycle *is* supplied — by a roster that cannot be built in any order,
+    /// which is a fact about the chain rather than about any one parameter.
+    pub const E_FIXTURE_CYCLE: Code = Code::new("E0737");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
