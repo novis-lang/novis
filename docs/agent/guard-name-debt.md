@@ -63,13 +63,13 @@ Three causes, and they want different fixes. Do not assume the first one.
 A session that lands a guard test **reconciles its name here and in `loop-goal.toml` in the same
 slice**. That is the only thing that keeps this file from growing back.
 
-## Stage 00's ten names are cause 3, and deliberately so
+## Stage 00's remaining names are cause 3, and deliberately so
 
-`loop-goal.toml`'s first block names ten tests and four `.nvst` cases that **do not exist yet**, so the
-acceptance test fails at check 1 and reaches nothing behind it. That is the same *symptom* as the
-fifty-four above and it is not the same *bug*, so do not "reconcile" one of them:
+`loop-goal.toml`'s Stage 00 blocks name six tests and three `.nvst` cases that **do not exist yet**, so
+the acceptance test fails at the first check holding one and reaches nothing behind it. That is the same
+*symptom* as the fifty-four above and it is not the same *bug*, so do not "reconcile" one of them:
 
-| | the fifty-four | Stage 00's ten |
+| | the fifty-four | Stage 00's remainder |
 |---|---|---|
 | the work | landed | not started |
 | the fix | rewrite the name in `loop-goal.toml` | write the test |
@@ -77,9 +77,6 @@ fifty-four above and it is not the same *bug*, so do not "reconcile" one of them
 
 They are:
 
-- `a_for_init_clause_declares_one_typed_local`, `a_for_init_clause_is_still_a_list_of_expressions`,
-  `a_for_init_clause_mixing_a_declaration_and_an_expression_is_e0124`,
-  `a_for_init_clause_with_two_declarations_is_e0125` — item 44, ADR 0109.
 - `a_user_declared_class_constant_reads_at_its_declared_type`,
   `a_user_declared_class_constant_lowers_to_its_value` — item 45, both halves.
 - `a_static_return_type_resolves_to_the_called_class` — item 46.
@@ -91,7 +88,6 @@ They are:
 - `every_spellable_expression_reaches_a_diagnostic_or_an_ir` — item 49. Its sibling
   `every_spellable_type_reaches_a_diagnostic_or_an_ir` is Stage 8's, exists, and is green; this is the
   expression-and-statement half, and the two are not the same check.
-- `a_php_shaped_enum_case_is_refused_naming_the_spelling_that_works` — item 50.
 
 Delete a bullet here when its test lands, exactly as the ticked lines below are deleted-in-place.
 
