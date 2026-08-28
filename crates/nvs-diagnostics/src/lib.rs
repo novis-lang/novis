@@ -813,10 +813,12 @@ pub mod code {
     pub const E_MEMBER_NOT_VISIBLE: Code = Code::new("E0471");
     /// `public int $n = "no";` — a property's inline default is evaluated once,
     /// at signature collection, into the constant every fresh instance's slot
-    /// is written with (`nvs_types::defaults`), so it has to be a literal of
-    /// the property's own declared type. Its own code rather than
+    /// is written with (`nvs_types::defaults`), so it has to be a compile-time
+    /// constant of the property's own declared type. Its own code rather than
     /// [`E_PARAM_DEFAULT_NOT_LITERAL`] because the two accept different sets:
-    /// a property may be defaulted to `[]` and a parameter may not.
+    /// a property may be defaulted to `[]`, to an enum case or to another
+    /// class's `const` — ADR 0046 § 2's whole set — and a parameter to a
+    /// literal only.
     pub const E_PROPERTY_DEFAULT_NOT_LITERAL: Code = Code::new("E0472");
     /// `$obj as ?SomeClass` — ADR 0066 § 3's class row: `instanceof` plus
     /// ADR 0007 § 6's narrowing already answers class membership, so the

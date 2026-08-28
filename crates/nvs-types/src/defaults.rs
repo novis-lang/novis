@@ -32,7 +32,10 @@
 //! # A *property*'s default is the same decoder, one position along
 //!
 //! [`eval_property_default`] evaluates `public int $n = 4;` with exactly the
-//! same literal grammar, plus `= []`, and reports
+//! same literal grammar, plus `= []` and plus the two *named* constants
+//! [ADR 0046](../../../docs/adr/0046-attributes-shape-literal-metadata.md) § 2
+//! puts in the compile-time constant set beside a literal — another class's
+//! `const` and an enum case ([`const_reference_default`]) — and reports
 //! `E_PROPERTY_DEFAULT_NOT_LITERAL` instead. Where it *goes* is the whole
 //! difference: a parameter default is emitted by the caller, while a property
 //! default is copied onto `nvs_runtime::ClassDesc` and written into every
@@ -49,9 +52,24 @@
 //! type that admits both `null` and a `T` has no IR representation yet. So
 //! this stays refused until that lands, and the constant is reached only from
 //! [`crate::core_lib`], where the *declared* type is the option's own and
-//! `null` means "not given". An enum case (`Mode $m = Mode::Fast`) is the
-//! other shape still refused: it is already a compile-time integer constant
-//! (ADR 0010 § 6), it just needs `crate::enums` consulted from here.
+//! `null` means "not given".
+//!
+//! **Known gap, and it is the parameter half only:** a named constant — an
+//! enum case (`Mode $m = Mode::Fast`), another class's `const` — is accepted
+//! at a *property* default and still refused at a *parameter* one. The
+//! difference is where the constant lands. A property default becomes a
+//! `nvs_runtime::FieldDefault` materialized straight into a slot, where an
+//! enum case *is* the integer it was folded to and no IR type carries the
+//! distinction; a parameter default is emitted at the omitting call site by
+//! `nvs_ir::lower::emit_const_arg`, which would have to hand a
+//! [`ConstArg::Int`] to a `nvs_ir::ty::Ty::Enum` position. Widening
+//! [`literal_default`] itself is what closes that, once the emitter carries
+//! the position's own IR type rather than the constant's.
+//!
+//! A class constant is also only as wide as [`crate::consts`] folds it: an
+//! integer whose magnitude no `int` holds has no folded value at all
+//! (ADR 0047 § 1), so `uint $n = Limits::MAX;` above `i64::MAX` is refused
+//! here even though the literal `= 18446744073709551615` is accepted.
 //!
 //! **A `decimal` default is refused, and is now the shortest thing on this
 //! list to build:** `nvs_ir::ir::InstKind::ConstDecimal` exists, so
@@ -63,8 +81,8 @@
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_syntax::ast::{Expr, ExprKind, UnaryOp};
 
-use crate::Env;
 use crate::ty::{Ty, TypeId};
+use crate::{Ctx, Env};
 
 /// A parameter default's already-evaluated value, in the parameter's own
 /// declared type.
@@ -207,45 +225,170 @@ pub(crate) fn eval_param_default(
 /// own declared type `declared`, reporting `E_PROPERTY_DEFAULT_NOT_LITERAL`
 /// and returning `None` for anything this module does not accept.
 ///
-/// The same decoder [`eval_param_default`] uses, plus one shape a parameter
-/// has no use for: `= []`, which becomes [`ConstArg::EmptyArray`]. A property
-/// is the position where the empty array is worth having — ADR 0022 obliges a
+/// The same decoder [`eval_param_default`] uses, plus two shapes a parameter
+/// has no use for. `= []` becomes [`ConstArg::EmptyArray`]: a property is the
+/// position where the empty array is worth having — ADR 0022 obliges a
 /// constructor to assign every non-defaulted property, so without it a class
 /// accumulating into an `array<T>` has to write the assignment by hand in
-/// every constructor it declares.
+/// every constructor it declares. And a *named* constant — `Mode::Fast`,
+/// `Limits::MAX` — is folded by [`const_reference_default`], which is ADR 0046
+/// § 2's constant set arriving one position along from the attribute payload
+/// it was written for.
 ///
 /// Unlike a parameter default, this constant is never emitted at a *call
 /// site*: it is copied onto the class descriptor and written into the fresh
 /// instance's slot by `nvs_runtime::NvsObj::new`, which is why an array
-/// constant is reachable here at all.
+/// constant is reachable here at all — and why a folded enum case is, since
+/// what the slot receives is the integer ADR 0010 § 3 says the case already
+/// is.
 pub(crate) fn eval_property_default(
     expr: &Expr,
     declared: TypeId,
+    ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> Option<ConstArg> {
     let empty_array = matches!(&expr.kind, ExprKind::ArrayLiteral(items) if items.is_empty())
         && matches!(env.interner.get(declared), Ty::Array(_));
+    let mut reported = false;
     let value = if empty_array {
         Some(ConstArg::EmptyArray)
+    } else if matches!(&expr.kind, ExprKind::ClassConstAccess { .. }) {
+        const_reference_default(expr, declared, ctx, &mut reported, env)
     } else {
         literal_default(expr, declared, env)
     };
-    if value.is_none() {
+    if value.is_none() && !reported {
         let want = env.interner.describe(declared);
         env.diags.report(
             Diagnostic::error(
                 code::E_PROPERTY_DEFAULT_NOT_LITERAL,
-                format!("a property default must be a `{want}` literal"),
+                format!("a property default must be a `{want}` constant"),
             )
-            .with_primary(expr.span, "not a literal of the declared type")
+            .with_primary(expr.span, "not a constant of the declared type")
             .with_help(
                 "a property default is evaluated once, at compile time, and written into \
                  every fresh instance's slot — write a `bool`/`int`/`uint`/`float`/`string` \
-                 literal, optionally negated, or `[]`; anything else belongs in `constructor`",
+                 literal, optionally negated, `[]`, an enum case or another class's `const`; \
+                 anything else belongs in `constructor`",
             ),
         );
     }
     value
+}
+
+/// `Mode::Fast` or `Limits::MAX` at a property default — the two *named*
+/// members of ADR 0046 § 2's compile-time constant set, folded to the same
+/// [`ConstArg`] a written literal produces.
+///
+/// Three sources, in the order the name can mean them, and each already
+/// resolved once by a pass that runs before this one: [`crate::enums`] holds
+/// every case's integer (a `Core` enum's included, seeded from
+/// `nvs_stdlib::registry::ENUMS`), [`crate::core_lib::constant`] holds a
+/// `Core` class constant as a `ConstArg` already, and [`crate::consts`] holds
+/// every declared class constant this crate folds. Nothing is evaluated here
+/// that was not evaluated there — ADR 0046 § 2's reason for a closed list is
+/// exactly that a second constant evaluator is what it refuses to grow.
+///
+/// The declared type still decides, as it does for a literal: a case is
+/// accepted where the property declares that enum, an `int` constant widens
+/// into a `float` property under ADR 0007 § 2's one implicit conversion, and
+/// nothing else crosses. A `secret` constant ([ADR 0033](../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
+/// § 1) is refused into a non-`secret` slot with its own `E_TYPE_MISMATCH`,
+/// which is what the qualifier would otherwise be laundered by: the declared
+/// type is the only thing carrying it, and a folded value has already lost it.
+/// `reported` says whether that refusal already spoke, so the caller does not
+/// add a second, vaguer one.
+fn const_reference_default(
+    expr: &Expr,
+    declared: TypeId,
+    ctx: &Ctx<'_>,
+    reported: &mut bool,
+    env: &mut Env<'_>,
+) -> Option<ConstArg> {
+    let ExprKind::ClassConstAccess { class, name } = &expr.kind else {
+        return None;
+    };
+    let qname = crate::expr::resolve_class_expr(class, ctx, env)?;
+    let member = crate::span_text(env.src, *name).to_owned();
+    if let Some(case) = env.enums.case(&qname, &member) {
+        let names_it = match env.interner.get(declared) {
+            Ty::Enum(declared_enum, _) => *declared_enum == qname,
+            Ty::EnumCase(declared_enum, _, declared_case) => {
+                *declared_enum == qname && *declared_case == member
+            }
+            _ => false,
+        };
+        if !names_it {
+            return None;
+        }
+        return Some(match case {
+            crate::enums::EnumValue::Int(value) => ConstArg::Int(value),
+            crate::enums::EnumValue::Uint(value) => ConstArg::Uint(value),
+        });
+    }
+    let folded = if qname.is_core() {
+        crate::core_lib::constant(&qname, &member, env.interner).map(|(_, value)| value)
+    } else {
+        if env.consts.is_secret(&qname, &member, env.graph)
+            && !crate::expr::type_is_secret(declared, env.interner)
+        {
+            let want = env.interner.describe(declared);
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_TYPE_MISMATCH,
+                    format!("`{qname}::{member}` is `secret`, and `{want}` is not"),
+                )
+                .with_primary(expr.span, "a `secret` constant in a non-`secret` slot")
+                .with_help(
+                    "declare the property `secret` too, so the qualifier ADR 0033 § 1 puts on \
+                     the constant still travels with the value it initializes",
+                ),
+            );
+            *reported = true;
+            return None;
+        }
+        match env.consts.get(&qname, &member, env.graph) {
+            Some(crate::consts::ConstValue::Bool(value)) => Some(ConstArg::Bool(*value)),
+            Some(crate::consts::ConstValue::Int(value)) => Some(ConstArg::Int(*value)),
+            Some(crate::consts::ConstValue::Float(value)) => Some(ConstArg::Float(*value)),
+            Some(crate::consts::ConstValue::Str(value)) => Some(ConstArg::Str(value.clone())),
+            Some(crate::consts::ConstValue::Ineligible) | None => None,
+        }
+    }?;
+    place_const(folded, declared, env)
+}
+
+/// One already-folded constant against the property's own declared type —
+/// [`literal_default`]'s grid, with the literal's syntax already gone.
+///
+/// The `int`-into-`float` row is the same widening ADR 0007 § 2 allows at any
+/// ordinary assignment and [`literal_default`] already applies to a written
+/// integer literal in a `float` position; every other pairing is refused
+/// rather than converted, because `as` is the only conversion spelling and a
+/// default has nowhere to write one.
+fn place_const(value: ConstArg, declared: TypeId, env: &Env<'_>) -> Option<ConstArg> {
+    match (env.interner.get(declared), &value) {
+        (Ty::Bool, ConstArg::Bool(_))
+        | (Ty::Int, ConstArg::Int(_))
+        | (Ty::Uint, ConstArg::Uint(_))
+        | (Ty::Float, ConstArg::Float(_))
+        | (
+            Ty::String | Ty::TaintedString | Ty::SecretString | Ty::SecretTaintedString,
+            ConstArg::Str(_),
+        ) => Some(value),
+        (Ty::Uint, ConstArg::Int(n)) => u64::try_from(*n).ok().map(ConstArg::Uint),
+        (Ty::Float, ConstArg::Int(n)) => {
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "the same widening ADR 0007 § 2 already allows at an \
+                          ordinary int-to-float assignment, applied to a constant \
+                          the author wrote by hand"
+            )]
+            let widened = *n as f64;
+            Some(ConstArg::Float(widened))
+        }
+        _ => None,
+    }
 }
 
 /// The shared literal decoder behind both entry points above: the value, or
@@ -282,7 +425,7 @@ pub(crate) fn literal_default(
             int_magnitude(*span, env).map(ConstArg::Uint)
         }
         (Ty::Float, ExprKind::Float(span)) => {
-            float_value(*span, env).map(|f| ConstArg::Float(if negated { -f } else { f }))
+            float_value(*span, env.src).map(|f| ConstArg::Float(if negated { -f } else { f }))
         }
         // An integer literal in a `float` position is the one cross-type
         // spelling accepted, for ADR 0007 § 4's reason: `int` widens to
@@ -332,9 +475,6 @@ fn negate_int(magnitude: u64) -> Option<i64> {
 /// Rust's, but every spelling the *lexer* produces a `Float` token for parses
 /// here; a `_` digit separator is stripped first, exactly as
 /// [`crate::expr::int_literal_digits`] strips one.
-pub(crate) fn float_value(span: Span, env: &Env<'_>) -> Option<f64> {
-    crate::span_text(env.src, span)
-        .replace('_', "")
-        .parse()
-        .ok()
+pub(crate) fn float_value(span: Span, src: &nvs_diagnostics::SourceFile) -> Option<f64> {
+    crate::span_text(src, span).replace('_', "").parse().ok()
 }

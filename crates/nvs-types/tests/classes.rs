@@ -244,3 +244,99 @@ fn a_try_parse_answers_the_nullable_of_its_class() {
         "{diags:?}"
     );
 }
+
+/// ADR 0046 § 2's compile-time constant set — a literal, another class's
+/// `const`, an enum case — at a *property* default.
+///
+/// Written as an **agreement** rather than a row per form: every named
+/// constant is asserted to fold to the identical `ConstArg` the literal
+/// spelling of the same value folds to, so a form that resolved to a
+/// plausible-but-different value (an enum case taken as its ordinal, a `float`
+/// property armed from the `int` digits) fails here while still compiling
+/// clean. `nvs_types::defaults` owns which forms these are, and both ends of
+/// the set are named: the two refusals below are what the widening must *not*
+/// have opened.
+#[test]
+fn a_property_default_accepts_every_compile_time_constant() {
+    let (diags, exprs) = check_src_table(
+        r#"<?nvs
+enum Mode: int { Fast = 3, Slow = 7 }
+class Limits {
+  public const int COUNT = 12;
+  public const int LOW = -4;
+  public const string NAME = "novis";
+  public const float RATE = 1.5;
+  public const bool DEBUG = true;
+}
+class Config {
+  public int $count = Limits::COUNT;
+  public int $countLiteral = 12;
+  public int $low = Limits::LOW;
+  public int $lowLiteral = -4;
+  public string $name = Limits::NAME;
+  public string $nameLiteral = "novis";
+  public float $rate = Limits::RATE;
+  public float $rateLiteral = 1.5;
+  public bool $debug = Limits::DEBUG;
+  public bool $debugLiteral = true;
+  public uint $span = Limits::COUNT;
+  public uint $spanLiteral = 12;
+  public float $widened = Limits::COUNT;
+  public float $widenedLiteral = 12;
+  public Mode $mode = Mode::Fast;
+  public int $modeBacking = 3;
+}
+"#,
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+    let defaults = exprs.property_defaults("Config");
+    let value = |name: &str| {
+        defaults
+            .iter()
+            .find(|(property, _)| property == name)
+            .map(|(_, value)| value.clone())
+            .unwrap_or_else(|| panic!("`{name}` armed no default at all: {defaults:?}"))
+    };
+    for (named, literal) in [
+        ("count", "countLiteral"),
+        ("low", "lowLiteral"),
+        ("name", "nameLiteral"),
+        ("rate", "rateLiteral"),
+        ("debug", "debugLiteral"),
+        ("span", "spanLiteral"),
+        ("widened", "widenedLiteral"),
+        // ADR 0010 § 3: the case *is* its backing integer, so the slot an
+        // enum-typed property arms holds exactly what the integer literal
+        // arms — there is no second representation for it to drift into.
+        ("mode", "modeBacking"),
+    ] {
+        assert_eq!(
+            value(named),
+            value(literal),
+            "`${named}` and `${literal}` are the same constant written twice"
+        );
+    }
+
+    // The other end: a case of a *different* enum is not a constant of this
+    // property's declared type, exactly as a `string` literal is not.
+    let diags = check_src(
+        "<?nvs\nenum Mode { Fast, Slow }\nenum Color { Red, Blue }\nclass T {\n  public Mode $m = Color::Red;\n}\n",
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_PROPERTY_DEFAULT_NOT_LITERAL)),
+        "{diags:?}"
+    );
+
+    // And ADR 0033 § 1's qualifier travels with the value: a folded constant
+    // has lost it, so the declared type is the only thing left to check it
+    // against, and a plain `string` slot is not it.
+    let diags = check_src(
+        "<?nvs\nclass Secrets {\n  public const secret string TOKEN = \"k\";\n}\nclass T {\n  public string $t = Secrets::TOKEN;\n}\n",
+    );
+    assert!(
+        diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "a `secret` constant must not launder into a plain `string` slot: {diags:?}"
+    );
+}

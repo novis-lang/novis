@@ -19,8 +19,8 @@ echo $b->n, "\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0472]: a property default must be a `int` literal
+error[E0472]: a property default must be a `int` constant
 %A
-error[E0472]: a property default must be a `string` literal
+error[E0472]: a property default must be a `string` constant
 %A
 error: aborting due to 2 errors

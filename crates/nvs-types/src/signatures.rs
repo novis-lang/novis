@@ -750,7 +750,7 @@ fn collect_members(
                 let default = p
                     .default
                     .as_ref()
-                    .and_then(|expr| crate::defaults::eval_property_default(expr, ty, env));
+                    .and_then(|expr| crate::defaults::eval_property_default(expr, ty, ctx, env));
                 // A `static` property occupies no instance slot, so its
                 // constant goes to the other vector — the one
                 // `nvs_runtime::Ctx` arms once per request rather than once

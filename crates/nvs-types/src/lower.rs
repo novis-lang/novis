@@ -306,7 +306,15 @@ fn lower_class_const_type(
             let value = *value;
             env.interner.int_literal(value)
         }
-        Some(crate::consts::ConstValue::Ineligible) => report_not_const(span, qname, name, env),
+        // ADR 0047 § 2's literal types are `string` and `int`; a `bool` or
+        // `float` constant is folded (`crate::defaults` reads the value) but
+        // has no literal type to *be*, so it is the same mistake as an array
+        // constant here.
+        Some(
+            crate::consts::ConstValue::Bool(_)
+            | crate::consts::ConstValue::Float(_)
+            | crate::consts::ConstValue::Ineligible,
+        ) => report_not_const(span, qname, name, env),
         None => {
             report_unknown(span, qname, name, "constant", env);
             env.interner.mixed()

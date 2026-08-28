@@ -1,0 +1,52 @@
+--TEST--
+A property default takes ADR 0046 § 2's whole compile-time constant set, not only a literal — ADR 0046 § 2, ADR 0010 § 3, ADR 0007 § 2
+--FILE--
+<?nvs
+// ADR 0046 § 2's constant set is a literal, another class's `const`, or an
+// enum case. `nvs_types::defaults::eval_property_default` folds all three at
+// signature collection, so the slot a fresh instance opens with already holds
+// the constant and no constructor has to write it.
+enum Mode { Fast = 3, Slow = 7 }
+
+class Limits
+{
+    public const int COUNT = 12;
+    public const string NAME = "novis";
+    public const float RATE = 1.5;
+    public const bool DEBUG = true;
+}
+
+class Config
+{
+    public int $count = Limits::COUNT;
+    public string $name = Limits::NAME;
+    public float $rate = Limits::RATE;
+    public bool $debug = Limits::DEBUG;
+    // The declared type decides the decoding, exactly as it does for a
+    // literal: one `int` constant reaches a `uint` slot and a `float` one,
+    // the second through ADR 0007 § 2's single implicit widening.
+    public uint $span = Limits::COUNT;
+    public float $widened = Limits::COUNT;
+    // ADR 0010 § 3: the case *is* its backing integer, so the slot holds
+    // exactly what `= 3` would have put there.
+    public Mode $mode = Mode::Fast;
+
+    public function constructor() {}
+}
+
+var $c = new Config();
+echo $c->count, "\n";
+echo $c->name, "\n";
+echo $c->rate, "\n";
+if ($c->debug) { echo "debug on\n"; }
+echo $c->span, "\n";
+echo $c->widened, "\n";
+echo $c->mode as int, "\n";
+--EXPECT--
+12
+novis
+1.5
+debug on
+12
+12
+3

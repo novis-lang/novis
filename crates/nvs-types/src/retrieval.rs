@@ -433,7 +433,7 @@ fn fold_value(expr: &Expr, env: &mut Env<'_>) -> Option<ConstArg> {
         ExprKind::Str(span) if !negated => Some(ConstArg::Str(
             crate::string_lit::cook_string_literal(env.src, *span),
         )),
-        ExprKind::Float(span) => crate::defaults::float_value(*span, env)
+        ExprKind::Float(span) => crate::defaults::float_value(*span, env.src)
             .map(|f| ConstArg::Float(if negated { -f } else { f })),
         // ADR 0007 § 2's "untyped until placed" has no target here to place
         // it against, so the value's own magnitude decides: an `int` where one

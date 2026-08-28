@@ -12,10 +12,18 @@
 //! every declared annotation in the file, and one of them may be a folded
 //! constant.
 //!
-//! Only ADR 0047's fold is served here. A class constant's *declared type* at
-//! an expression site is still unmodeled — see the crate docs' known gaps —
-//! and this table deliberately does not close that: it holds values, and a
-//! value is all § 2 asks for.
+//! A class constant's *declared type* at an expression site is still
+//! unmodeled — see the crate docs' known gaps — and this table deliberately
+//! does not close that: it holds values, and a value is all § 2 asks for.
+//!
+//! **A second reader asks for the value and not the type**, which is why the
+//! fold is one row wider than § 2's own literal types. [`crate::defaults`]
+//! resolves `public bool $on = Config::DEBUG;` through here — ADR 0046 § 2's
+//! constant set at a property default — and a `bool` or a `float` is as much
+//! a compile-time constant there as an `int` is, while neither is a *literal
+//! type* § 2 could make an annotation out of. So both are folded and both are
+//! [`crate::lower`]'s `E_LITERAL_TYPE_NOT_CONST` in type position, which is
+//! exactly what they were when they were [`ConstValue::Ineligible`].
 //!
 //! The one exception is a single **bit**, and that gap is why it is here.
 //! [ADR 0033](../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
@@ -27,8 +35,8 @@
 //! rather than the type, because a bit is all the sink asks for and modelling
 //! the type is the gap above, not this one.
 //!
-//! **Ineligible is recorded, not dropped.** A `float`, `array` or object
-//! constant is a real declaration that simply has no literal type to fold to,
+//! **Ineligible is recorded, not dropped.** An `array` or object constant is
+//! a real declaration that simply has no literal type to fold to,
 //! and telling that apart from a name nothing declares is what lets
 //! [`crate::lower`] report the right one of ADR 0047 § 2's two mistakes.
 
@@ -42,8 +50,12 @@ use rustc_hash::FxHashMap;
 
 use crate::span_text;
 
-/// One class constant's folded value, as far as ADR 0047 § 2 cares.
-#[derive(Clone, PartialEq, Eq, Debug)]
+/// One class constant's folded value, as far as ADR 0047 § 2 and
+/// [`crate::defaults`] between them care.
+///
+/// Not [`Eq`]: [`Self::Float`] holds an `f64`, and this is compared for what
+/// two folded constants *are* rather than for a key.
+#[derive(Clone, PartialEq, Debug)]
 pub enum ConstValue {
     /// A `string` compile-time constant, already cooked by
     /// [`crate::string_lit::cook_string_literal`] — the value
@@ -51,9 +63,21 @@ pub enum ConstValue {
     Str(String),
     /// An `int` compile-time constant, in `int`'s own range.
     Int(i64),
-    /// Declared, but not one of the two above: `Foo::RATE = 1.5`,
-    /// `Foo::ROWS = [1, 2]`, `Foo::WHEN = Core\Time\Instant::now()`, or an
-    /// integer whose magnitude no `int` holds.
+    /// A `bool` compile-time constant.
+    ///
+    /// Not one of ADR 0047 § 2's two literal types, so it is `mixed` in type
+    /// position exactly as [`Self::Ineligible`] is — it is folded because a
+    /// *value* is what [`crate::defaults`] asks this table for, and `= true`
+    /// is as much a compile-time constant there as `= 1` is.
+    Bool(bool),
+    /// A `float` compile-time constant, negation included.
+    ///
+    /// Folded for [`Self::Bool`]'s reason, and `mixed` in type position for
+    /// the same one: ADR 0047 § 2 names `string` and `int` and stops.
+    Float(f64),
+    /// Declared, but not one of the four above: `Foo::ROWS = [1, 2]`,
+    /// `Foo::WHEN = Core\Time\Instant::now()`, or an integer whose magnitude
+    /// no `int` holds.
     ///
     /// Kept rather than dropped so a use in type position can say *which*
     /// mistake was made — see this module's own docs.
@@ -247,10 +271,11 @@ fn type_carries_secret(ty: &Type) -> bool {
 
 /// One `const NAME = expr;`, folded.
 ///
-/// The accepted shapes are exactly [`crate::enums::literal_value`]'s, plus a
-/// string literal: a bare `int` literal, a negated one (the parser produces
-/// `-1` as a unary over the literal, never as part of its digits), and a
-/// `string` literal. Anything else is [`ConstValue::Ineligible`] rather than
+/// The accepted shapes are exactly [`crate::enums::literal_value`]'s, plus
+/// the three other literals a written value can be: a bare `int` literal, a
+/// negated one (the parser produces `-1` as a unary over the literal, never as
+/// part of its digits), a `string`, a `bool` and a `float`. Anything else is
+/// [`ConstValue::Ineligible`] rather than
 /// const-evaluated — ADR 0047 § 2 folds a constant that *is* a literal, and a
 /// general constant-expression evaluator is a second evaluator in the language
 /// for no requirement.
@@ -269,6 +294,11 @@ fn fold_const(c: &ConstMember, src: &SourceFile) -> ConstValue {
         ExprKind::Int(span) => {
             int_value(*span, negated, src).map_or(ConstValue::Ineligible, ConstValue::Int)
         }
+        ExprKind::Bool(value) if !negated => ConstValue::Bool(*value),
+        ExprKind::Float(span) => crate::defaults::float_value(*span, src)
+            .map_or(ConstValue::Ineligible, |value| {
+                ConstValue::Float(if negated { -value } else { value })
+            }),
         _ => ConstValue::Ineligible,
     }
 }
