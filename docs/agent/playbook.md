@@ -1922,6 +1922,14 @@ is why" — is this file.
   wanted anyway — and keep the eyeball line on a subject whose characters have one spelling. The
   neighbouring bullet about a trailing space before a `\n` is the same family of invisible
   mismatch.
+- **A sweep over `Core\Json::decodeAs<T>` needs one helper per `T`, not one helper.** The class is
+  written at the call site (ADR 0063 R4, and `WRITTEN_CLASS_MEMBERS` hands the helper a `ClassDesc`
+  ahead of the declared parameters), so there is no parameter a probe could carry the class in and
+  no way to factor six codec types into one `public static function`. Write the six, each a
+  `try { … return true; } catch (Throwable $bad) { return false; }` over the same document builder,
+  and sweep the *documents* instead — that is what
+  `json-decode-as-admits-exactly-its-declared-type.nvst` does. In the same family: `Core\Str` has
+  `padEnd`/`padStart` and no `padRight`, and no `concat` at all — `.` is the concatenation.
 
 ## Splitting a file that got too big
 

@@ -2,63 +2,64 @@
 
 ## State
 
-**M4's Stage 8, depth.** The tree is at **843 conformance plus 189 differential**, all green.
+**M4's Stage 8, depth.** The tree is at **845 conformance plus 189 differential**, all green.
 Nothing is blocked.
 
-`Core\Str` was `gaps.py`'s thinnest floor-2 class and is now at depth 5.0 (216 cases over 39
-members); its floor-2 members are `lines`, `lowerFirst` and `normalize`. Three members gained a
-case each, all in `tests/conformance/core/`:
+`Core\Json` was `gaps.py`'s floor-2 class and is now floor 3 at depth 5.0 (57 cases over 4
+members); it is no longer among the thin ones. Two members gained a case each, both in
+`tests/conformance/core/`:
 
-- **`chunk`'s size is a bound named on both sides**, and four properties are counted over every
-  size from 1 to two past the subject's length: the chunks re-join to the subject, there are
-  `ceil(n/size)` of them, only the last is short, and their `Core\Str::length`s sum to the
-  subject's — which is the cluster rule itself, since splitting the decomposed `é` in the subject
-  would count six units against five while the re-join still held. At size 1 `chunk` is exactly
-  `Core\Str::graphemes`, asserted elementwise.
-- **`fold` then `compare` is a caseless equality that strictly contains `compare`'s own
-  `{caseInsensitive: true}`.** Over all 81 ordered pairs of a 9-row table: the option calls 13
-  equal, folding 21, and **nothing the option calls equal is different under folding** — the
-  containment the doc comment claims, which no single row can distinguish from a coincidence. The
-  8 extra pairs are `ß`/`ss` (4), the `ﬁ` ligature (2) and the two Greek sigmas (2); the option
-  keeps the final sigma because its mapping is `lower`'s.
-- **`fromCodePoint`/`fromCodePoints` admit exactly the Unicode scalar values**, shown as a mark
-  per code point across four windows that each reach equally far either side of a boundary:
-  U+0000 (not a boundary), U+D800 and U+DFFF (a *hole*, not a ceiling — a member refusing
-  everything above U+D7FF still prints the first window right) and U+10FFFF. The same window
-  asserts the two members agree at every point.
+- **`decodeAs` admits exactly the wire spellings its field's declared type names.** One
+  single-field class per codec type crossed with every spelling JSON has, rendered as a grid, then
+  the three containments counted over the whole sweep rather than read off a row: `uint` ⊂ `int` ⊂
+  `float` ⊂ `mixed`, each strict at a named spelling (`-1`, `1.0`, `[]`). `null` is the one
+  spelling even a `mixed` field refuses, because ADR 0071 § 4's nullability check runs ahead of the
+  type switch. `uint`'s bound is named at both ends and the ceiling is the surprise: the type holds
+  2^64−1 but `visit_u64` refuses a literal past `i64::MAX` before any field is looked at, so that
+  refusal carries an **empty** issue path while the `-1` one carries `v` — a refusal names the
+  field only when it got as far as one.
+- **`isValid` is `decode` at the *default* depth, and nowhere else.** Over a nine-document window
+  either side of 512 it agrees with option-free `decode` 9 times out of 9, and then splits from it
+  in *both* directions — five documents `decode` accepts at `maxDepth: 1024` that `isValid` calls
+  invalid, four it refuses at `maxDepth: 100` that `isValid` calls valid. That is the pinning the
+  helper's doc comment claims and that an agreeing sweep alone cannot distinguish from "`isValid`
+  is `decode`". Its own bound is asserted at 511/512 brackets rather than only at the far-away 900
+  the cap case uses.
 
-`orient.py`'s pack was complete for this group; nothing outside it was read.
+Item [3] of the previous group, `Core\Json::decode` (now 6 cases), was **not taken**: the class had
+left the thin list by then and `Core\Random` is a better spend. `orient.py`'s pack was complete for
+this group; nothing outside it was read.
 
-The gap eighteen handoffs back still stands: **no `Core` class reaches
-`nvs_hir::implements_interface`**, so `Core\Uri::compareTo` exists while `$a < $b` over two
-`Uri`s is `E0411`. It is in the backlog and still deserves a session of its own.
+The gap nineteen handoffs back still stands: **no `Core` class reaches
+`nvs_hir::implements_interface`**, so `Core\Uri::compareTo` exists while `$a < $b` over two `Uri`s
+is `E0411`. It is in the backlog and still deserves a session of its own.
 
 ## Next group
 
-**`Core\Json`**, now a floor-2 class at depth 4.0 (55 cases over 13 members). One shared file
-set: `crates/nvs-stdlib/src/json.rs` plus `tests/conformance/core/`. Read the existing cases'
-`--TEST--` lines before picking a shape — a `gaps.py` count is not a shape inventory.
+**`Core\Random`**, now `gaps.py`'s thinnest class — floor 2, depth 4.0, 10 cases over 7 members.
+One shared file set: `crates/nvs-stdlib/src/random.rs` plus `tests/conformance/core/`. A random
+member's case asserts a *property over a sweep*, never a value, so read the existing cases'
+`--TEST--` lines first for which properties are already counted.
 
-- [ ] **`Core\Json::decodeAs`** (2 cases) — row `crates/nvs-stdlib/src/json.rs:145`, helper
-      `crates/nvs-stdlib/src/json.rs:713`. The likely gap is *a bound asserted on both sides*: the
-      shapes it accepts into a declared type against the first one it refuses, and whether a
-      refusal names the member it stopped at.
-- [ ] **`Core\Json::isValid`** (3 cases) — row `json.rs:152`, helper `json.rs:989`. *Agreement* is
-      the shape with room: `isValid($t)` must be true exactly where `decode($t)` does not throw,
-      counted over one table of well- and ill-formed texts, so a predicate that grew its own
-      parser fails while looking right on every line.
-- [ ] **`Core\Json::decode`** (5 cases) — row `json.rs:138`, helper `json.rs:685`. Take it only if
-      the two above leave context; `Core\Json::encode` round-trips are the invariance shape.
+- [ ] **`Core\Random::float`** (2 cases) — row `random.rs:87`, helper `random.rs:285`. The likely
+      gap is *a bound asserted on both sides*: it takes no argument, so the whole of its contract is
+      the half-open interval, and `[0, 1)` is two claims — nothing below 0, and 1.0 itself never
+      produced — neither of which one draw can show. Count over a sweep.
+- [ ] **`Core\Random::token`** (3 cases) — row `random.rs:101`, helper `random.rs:374`. *Agreement*:
+      its length and alphabet are a function of the requested size, so every draw at a given size
+      agrees on both while agreeing on nothing else. The `0` size is the bound's other half.
+- [ ] **`Core\Random::bytes`** (4 cases) — row `random.rs:94`, helper `random.rs:316`. Take it only
+      if the first two left you well short of the ceiling: same shape as `token` minus the alphabet,
+      and a `uint` size means the upper bound is a refusal rather than a value.
 
 ## Backlog
 
-- No `Core` class reaches `nvs_hir::implements_interface`, so `Comparable` over two `Core`
-  instances is `E0411` — docs/agent/handoff.md's own note, and it wants a session of its own.
-- 54 of the 156 guard tests `loop-goal.toml` names match nothing `cargo test` runs —
-  docs/agent/guard-name-debt.md.
-- `Core\Random` (depth 4.0, floor 2: `float` 2, `token` 3) is the next thinnest after `Core\Json`,
-  and its cases must be properties rather than frozen values.
-- `crates/nvs-stdlib/src/csv.rs:512`'s `Fault::thrown` is unreachable from source until ADR 0007
-  § 2's `array<T> as array<U>` lowers — playbook, *Divergences and refusals already pinned*.
-- ADR 0007 § 2's `array<T> as array<U>` conversion does not lower, which is what blocks a case
-  from indexing into an `array<mixed>` — playbook, *Writing a test case*.
+- No `Core` class reaches `nvs_hir::implements_interface`; `$a < $b` over two `Uri`s is `E0411` —
+  ADR 0013, and a session of its own.
+- 54 of `loop-goal.toml`'s 156 guard tests match nothing `cargo test` runs —
+  `docs/agent/guard-name-debt.md`.
+- `Core\Json::decode` (6 cases) and `encode`'s option rows — `crates/nvs-stdlib/src/json.rs`.
+- ADR 0007 § 2's `array<T> as array<U>` row panics `nvs-ir`, which is why a case cannot index an
+  `array<mixed>`'s elements — playbook, *Writing a test case*.
+- `nvs_stdlib::json` gap 6: an `Opaque` codec field is a `Fault::fatal` no case can reach.
+- 68 unasserted error paths, 65 of them `Fault::fatal` — `python tools/gaps.py`.
