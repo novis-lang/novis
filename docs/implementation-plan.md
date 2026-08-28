@@ -1228,11 +1228,40 @@
 > repeatability is asserted by a count rather than off a line, that *6*'s explicit `<T>` needs no
 > case because every retrieval is written through it, and that "no runtime lookup exists" is
 > verified by a program running at all, `nvs_stdlib::attributes` registering two symbols whose body
-> aborts. Three live tools **are** the worklist and no session re-derives one: `python
-> tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen` and attributes each to
-> its item (`--item N` for one in full), `python tools/loop.py --list` prints the named `.nvst`
-> cases each stage still owes, and `python tools/check-migration.py` scores
-> `docs/spec/02-php-migration.md`.
+> aborts. **ADR 0007 § 6's narrowing list has two more of its four spellings now, and both are one
+> function each beside the `!= null` one they join.** `nvs_types::locals`' `narrow` had read `==
+> null`/`!= null` and nothing else, so a union reached a member's own operations only through an
+> `as`; it now tries three residue functions in turn, no two of which can match one condition.
+> **`instanceof` proves the class it names**, on the edge where the test holds alone — a `!` inverts
+> which edge that is rather than removing it, which is the guard clause a ported program writes,
+> while the plain false edge proves nothing at all, every other class the declared type admits and
+> `null` besides still being in it. The class comes from `crate::expr_table::ExprInfo::InstanceOf`,
+> recorded a moment earlier when the condition was checked, rather than resolved a second time: a
+> name is placed by the namespace and the imports of the site that wrote it, and this walk carries
+> neither. The residue is restricted to a **class** — a declared one or a reserved global exception
+> class — because the narrowing is discharged as an unchecked `nvs_ir::ir::InstKind::Untag` wherever
+> the slot is `Ty::Tagged`, and an interface on the right would name ADR 0053 § 2's
+> `Iterable`/`Iterator` with type arguments this test does not supply; `$x instanceof Comparable`
+> therefore narrows nothing, which is a limit of the pass and is stated at `instanceof_residue`
+> rather than left to be rediscovered. A subject whose declared type can hold no object narrows
+> nothing either, that being `E0496`'s own question asked a second time so that a reported mistake
+> cannot also hand `nvs-ir` a class where the slot holds a scalar. **A comparison against a written
+> literal proves that literal's own type**, which is ADR 0047 § 4's guard row — `==` on the edge
+> where it holds and `!=` on the edge where it does not, either operand order, ADR 0090 § 1 having
+> left one symmetric operator. The type is built from the literal's **text** rather than from what
+> the condition inferred, because an operand's inferred type is recorded nowhere and re-inferring
+> one would report its escape-grammar diagnostics twice; that is also why the roster is closed at a
+> string and an integer literal, which cook to a value with no context at all, while an enum case
+> needs the writing site's namespace and reaches `ExprInfo::EnumCase`, which carries the case's
+> backing value rather than its type. The residue must be a **subtype of what the local was
+> declared**, so this is a guard reaching one member of a union and never a re-declaration. It costs
+> nothing below the checker: ADR 0047 § 5 gives a literal type its base type's representation
+> exactly, so the narrowed read is the read it already was. What is left of § 6's four is `match
+> (true)` and the enum-case spelling of the comparison. Three live tools **are** the worklist and no
+> session re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and
+> `nvs-codegen` and attributes each to its item (`--item N` for one in full), `python tools/loop.py
+> --list` prints the named `.nvst` cases each stage still owes, and `python
+> tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

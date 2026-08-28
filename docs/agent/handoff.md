@@ -2,51 +2,54 @@
 
 ## State
 
-**M4's Stage 5 is closed, and Stage 6 — the checker and the front end — is the
-frontier.** Item 32 is done end to end: ADR 0046 §§ 1-6 attach, refuse, retrieve and
-fold, the synthesized-`constructor` reference resolves, and that ADR now carries the
-*Verification* section M4's acceptance names for it. The plan's *Open now* paragraph is
-the one home for why each landed piece is shaped the way it is.
+**M4's Stage 6 is the frontier, and ADR 0007 § 6's narrowing list is half
+landed.** `nvs_types::locals`' `narrow` now tries three residue functions —
+`null_residue`, `instanceof_residue`, `literal_residue` — and that module's own
+narrowing section is the one home for what each proves and on which edge. The
+plan's *Open now* paragraph carries why each is shaped the way it is.
 
-- **The constructor exemption is guarded at the call site, not inside
-  `check_member_ref`** (`crates/nvs-hir/src/members.rs:710`): only a
-  `CallArgs::FirstClassCallable` reference is exempt, so a written `Foo::constructor()`
-  keeps its `E0309` and `nvs-ir` is never handed a static call with no target.
-- **A static first-class callable still panics `nvs-ir` wherever it is not folded** —
-  `nvs-ir` gap 1, unchanged and not widened by the above: it is the same panic for every
-  method name, and a retrieval target never reaches lowering.
-- M4's acceptance still names *Verification* sections for ADRs 0023, 0028 and 0069;
-  0014 and 0046 have theirs.
+- **Two spellings of § 6's four remain**: `match (true)` narrowing per arm, and
+  the enum-case form of the literal comparison (`$m == Mode::Read`), which needs
+  a case's *type* where `ExprInfo::EnumCase` carries only its backing value.
+- **An `instanceof` against an interface narrows nothing**, deliberately —
+  `instanceof_residue`'s doc comment owns why, and
+  `an_instanceof_against_an_interface_narrows_nothing` is the test that keeps it
+  from being loosened by accident.
+- **`nvs-ir` still panics on an instance method call through a `mixed`
+  receiver** (`crates/nvs-ir/src/lower/expr.rs:2389`), which is why the new
+  `.nvst` tests its unnarrowed edge with a `?Dog` rather than a `mixed`.
+- M4's acceptance still names *Verification* sections for ADRs 0023, 0028 and
+  0069; 0014 and 0046 have theirs.
 
 ## Next group
 
-**ADR 0007 § 6's three remaining narrowing spellings — goal item 37.** One file set:
-`crates/nvs-types/src/locals.rs` (`narrow`, `locals.rs:331`; the module doc's narrowing
-section, `locals.rs:29-63`) and `crates/nvs-types/src/expr/mod.rs`
-(`check_condition`, `expr/mod.rs:144`).
+**ADR 0007 § 6's last narrowing spelling, and the enum case with it.** One file
+set: `crates/nvs-types/src/locals.rs` (`narrow`, `locals.rs:344`;
+`literal_residue`, `locals.rs:476`; `literal_test`, `locals.rs:513`; the
+`Switch` arm, `locals.rs:933`) and `crates/nvs-types/src/expr_table.rs`
+(`ExprInfo::EnumCase`, `expr_table.rs:491`).
 
-- [ ] **`instanceof` narrows its subject on the true edge** — ADR 0007 § 6. `narrow`
-      (`crates/nvs-types/src/locals.rs:331`) reads `== null`/`!= null` and nothing else;
-      the residue is restricted to a class, which is what makes the narrowed read
-      lowerable as `nvs_ir::ir::InstKind::Untag`.
-- [ ] **A comparison against a literal-typed value narrows** — ADR 0047 § 5's case
-      membership under ADR 0007 § 6, same function, same recording
-      (`ExprInfo::NarrowedRead`).
-- [ ] **`match (true)` narrows per arm**, which is the spelling a ported program writes
-      instead of an `if` ladder. `crates/nvs-types/src/expr/mod.rs:144` is where a
-      condition's type is asked for once.
+- [ ] **`match (true)` narrows per arm** — ADR 0007 § 6. Each arm's label is a
+      condition, so the arm body is checked under exactly what `narrow` would
+      install for it; the `Match` expression arm and the `Switch` statement one
+      (`locals.rs:933`) are the two sites, and a `switch` case falling through
+      is the existing known gap the module doc already names.
+- [ ] **An enum-case comparison narrows** — ADR 0047 § 4's guard row, the half
+      `literal_residue` deliberately left. It needs the case's *type*
+      (`Ty::EnumCase`) where `ExprInfo::EnumCase` (`expr_table.rs:491`) records
+      only its backing value, so the slice is either a second field on that
+      variant or the enum name resolved beside it.
+- [ ] **A narrowed subject that reaches `nvs-ir` as a method call** — the panic
+      at `crates/nvs-ir/src/lower/expr.rs:2389`: a `mixed` receiver's instance
+      call has no resolved target, so `$m->speak()` on an unnarrowed `mixed`
+      fails the whole compilation naming a compiler gap rather than the program.
 
 ## Backlog
 
-- Item 38 — exhaustive control-flow reachability, and `switch`/`try` contributing to
-  definite assignment (`docs/agent/loop-goal.md` § *Stage 6*).
-- Item 40 — one equality-operand compatibility pass, beside
-  `reject_disjoint_equality` (`crates/nvs-types/src/expr/operators.rs:220`).
-- Item 41 — an `inout` parameter and its argument declaring the same type
-  (`docs/agent/loop-goal.md` § *Stage 6*).
-- Item 42 — the unparsed front-end constructs, `crates/nvs-syntax/src/lib.rs`
-  § *Known gaps*.
-- A `require` whose path is not a string literal runs nothing, silently, in both forms
-  (`nvs_hir::requires`' own known gap).
-- ADRs 0023, 0028 and 0069 still owe the *Verification* sections M4 names
-  (`docs/plan/m4.md`).
+- A `require` whose path is not a string literal runs nothing, silently, in both
+  forms — `nvs_hir::requires`' own known gap.
+- `nvs_stdlib::debug` gap 1: an ADR 0036 shape field and an `array<T>` element
+  carry no `secret` bit (ADR 0033's unmodelled container axis).
+- A user-declared class constant's declared type is unmodelled —
+  `signatures.rs`' own known gap, which is what forced `E0731`.
+- M4's acceptance owes *Verification* sections for ADRs 0023, 0028 and 0069.
