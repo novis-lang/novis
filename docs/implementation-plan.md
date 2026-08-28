@@ -1454,12 +1454,51 @@
 > and M4 halves into the bullets. The one rule with no case at all is *2*'s discarded throw: a
 > `finally` that raises on its way out prints nothing, which no program can tell apart from one that
 > never ran, so it is verified at `nvs_runtime::Ctx::with_pending_set_aside` rather than by a
-> fixture. Three live tools **are** the worklist and no session re-derives one: `python
-> tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen` and attributes each to
-> its item (`--item N` for one in full), `python tools/loop.py --list` prints the named `.nvst`
-> cases each stage still owes — one, now that the retrieval and the dump cases are named for the
-> files that landed, and it is Stage 7's `#[Test]` table case, which item 43 writes and nothing
-> before it can — and `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> fixture. **ADR 0079 § 1's `#[Test]` exists, and Stage 7 is started.** The marker joins ADR 0071 §
+> 1's closed, `Core`-owned roster as `Core\Test` — `nvs_types::derive::ATTRIBUTES`, whose one
+> documented home is that ADR's own table, which gains the row rather than being left to disagree
+> with the tree. It is matched **nominally**, so `#[Core\Test]` and a `use Core\Test;`d `#[Test]`
+> are one attribute and a userland `class Test` is never it; ADR 0079's own example was written bare
+> with nothing importing it, and is corrected to carry the `use` that places both the marker and the
+> `Test::assertEquals` its body calls. Being on that roster is what takes it out of ADR 0046 § 1's
+> shape rule, so the payload is checked by `nvs_types::testing` instead, and **which of ADR 0046's
+> two rules checks it was the decision in this slice**: § 1's shape target requires every field it
+> names to be *present*, which would refuse the bare `#[Test]` § 1's example writes, so the option
+> shape `{skip?: string, at?: string, seed?: int, db?: string, server?: bool, retries?: int,
+> because?: string}` — every field optional — is checked by ADR 0063 R2's options-bag rule instead,
+> the one that already means exactly this. An option the roster does not name is `E0454`, one it
+> names is checked at that option's own type, one written twice is `E0304`, and an absent one is
+> simply absent. Two of § 1's compile errors therefore needed no rule of their own: `#[Test(skip:
+> true)]` is a `bool` where `skip` declares a `string`, which is § 20's "a skip states a reason"
+> said by the type, and a misspelling is refused rather than silently doing nothing. A payload ADR
+> 0046 § 2 has already refused as non-constant is not then checked against the roster, so the author
+> is told about the value they wrote before they are told what it failed to satisfy — the same
+> ordering the shape path already had. `resolve_shape_alias` lost the roster exemption it carried
+> and `check_attribute` resolves the `Name` **once**, above both, so the roster test and the alias
+> lookup cannot place one name two different ways. **The table is built while checking**, from
+> `nvs_types::check`'s own walk for `check_class_derive`'s reason exactly — that walk is the only
+> pass holding the namespace and the import set a nominal match needs — and rides in `ExprTypeTable`
+> keyed by class label beside the derived codecs, since what it records is a fact about a
+> *declaration* rather than about an expression. Each option is folded to the `ConstArg` a parameter
+> default folds to, through `defaults::literal_default` itself, so a `#[Test]` option is never a
+> second literal grammar; folding is silent, the payload check having already reported every field
+> it cannot fold. A class with no `#[Test]` records no row at all, so discovery costs nothing at
+> startup and a program that declares no tests pays nothing for the pass. Nothing reads the table
+> yet — the runner is later in Stage 7 — so it is asserted where it is in hand, in
+> `crates/nvs-types/tests/testing.rs`, over the declaration order, the folded options, the bare
+> form's empty option list, and the nominal match in both directions;
+> `tests/conformance/reject/a-test-attribute-payload-is-checked-against-its-option-shape.nvst` pins
+> the four refusals plus ADR 0046 § 2's, with the bare form, the four accepted option types and the
+> fully qualified spelling written first, so a position that stops being accepted fails there rather
+> than as a missing refusal. Stage 8's named
+> `a-test-attribute-builds-a-table-the-runner-reports.nvst` is still owed and still waits on the
+> runner: a `.nvst` can observe neither a row nor its order until something reports one. Three live
+> tools **are** the worklist and no session re-derives one: `python tools/holes.py` reads the
+> refusal sites out of `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item N` for
+> one in full), `python tools/loop.py --list` prints the named `.nvst` cases each stage still owes —
+> one, now that the retrieval and the dump cases are named for the files that landed, and it is
+> Stage 7's `#[Test]` table case, which item 43 writes and nothing before it can — and `python
+> tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

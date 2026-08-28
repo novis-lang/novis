@@ -603,6 +603,7 @@ pub struct ExprTypeTable {
     types: FxHashMap<Span, TypeId>,
     foreach: FxHashMap<Span, ForeachDrive>,
     codecs: FxHashMap<String, crate::derive::DerivedCodec>,
+    tests: FxHashMap<String, Vec<crate::testing::TestCase>>,
     property_defaults: FxHashMap<String, Vec<(String, crate::defaults::ConstArg)>>,
     property_types: FxHashMap<String, Vec<(String, TypeId)>>,
     lateinit_properties: FxHashMap<String, Vec<String>>,
@@ -758,6 +759,35 @@ impl ExprTypeTable {
     #[must_use]
     pub fn codec(&self, label: &str) -> Option<&crate::derive::DerivedCodec> {
         self.codecs.get(label)
+    }
+
+    /// Records ADR 0079 § 1's `#[Test]` table for the class labelled `label`,
+    /// in declaration order — [`crate::testing::check_class_tests`] read it
+    /// off that class's members.
+    pub(crate) fn record_tests(&mut self, label: String, cases: Vec<crate::testing::TestCase>) {
+        self.tests.insert(label, cases);
+    }
+
+    /// The `#[Test]` methods of the class labelled `label`, or `None` when it
+    /// declares none.
+    ///
+    /// Keyed by a class label rather than a span, for [`Self::codec`]'s
+    /// reason: the fact is about a *declaration*, and what consumes it is a
+    /// test runner that asks "which methods does this class offer", never an
+    /// AST node.
+    #[must_use]
+    pub fn tests(&self, label: &str) -> Option<&[crate::testing::TestCase]> {
+        self.tests.get(label).map(Vec::as_slice)
+    }
+
+    /// Every class that declares at least one `#[Test]`, sorted, so that a
+    /// consumer walking the whole table does so reproducibly for an unchanged
+    /// program rather than in hash order.
+    #[must_use]
+    pub fn test_classes(&self) -> Vec<&str> {
+        let mut labels: Vec<&str> = self.tests.keys().map(String::as_str).collect();
+        labels.sort_unstable();
+        labels
     }
 
     /// Records the class labelled `label`'s **own** evaluated property
