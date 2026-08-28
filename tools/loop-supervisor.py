@@ -6,7 +6,7 @@ spends one session every few dozen on the loop itself.
 name and nothing about a run changes except that it now survives its own improvements.
 
     python tools/loop-supervisor.py --max-sessions 300 --effort medium
-    python tools/loop-supervisor.py --max-sessions 300 --chain docs/agent/goals/chain.toml
+    python tools/loop-supervisor.py --max-sessions 300 --chain docs/agent/goals/chain.toml --effort medium
     python tools/loop-supervisor.py --optimize-only     # run the pass now, against the tree as it is
     python tools/loop-supervisor.py --no-optimize       # just the restarts
 
