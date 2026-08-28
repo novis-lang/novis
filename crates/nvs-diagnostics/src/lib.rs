@@ -1187,7 +1187,11 @@ pub mod code {
     /// 0031 § 4 keeps that type opaque and [`E_CLOSURE_INOUT_PARAM`] refuses
     /// the declaration end outright — and a spread hands over a subject's
     /// entries rather than the subject, which is the same reason
-    /// [`E_INOUT_ARG_NOT_A_PLACE`] wants one storage location.
+    /// [`E_INOUT_ARG_NOT_A_PLACE`] wants one storage location. Through a
+    /// **`mixed` receiver** it can never be right either, and for the reason
+    /// the runtime dispatch refuses such a callee outright: an `inout`
+    /// parameter list is packed and written back at the *call site*, which is
+    /// the one thing a call whose callee is unknown until it runs cannot do.
     pub const E_INOUT_ARG_UNEXPECTED: Code = Code::new("E0714");
     /// `::class` written on a class side that is not statically known —
     /// `$obj::class`, `($e)::class`, and `static::class`.
@@ -1348,6 +1352,12 @@ pub mod code {
     /// resolved target whose signature happens to carry no names. A `...`
     /// argument is not refused here: how many arguments it hands over is its
     /// own run-time length, which needs no parameter list to be meaningful.
+    ///
+    /// A call through a **`mixed` receiver** takes the same code, because it
+    /// is the same absence: ADR 0036 § 4 defers that call to the receiver's
+    /// runtime class, whose method row carries the callee's arity and
+    /// parameter tags and — for a closure value's reason — never its parameter
+    /// names.
     pub const E_NAMED_ARG_THROUGH_CALLABLE: Code = Code::new("E0712");
 
     /// `<`, `<=`, `>`, `>=` or `<=>` over an operand ADR 0007 § 4 gives no
@@ -1620,6 +1630,20 @@ pub mod code {
     /// unlowered wherever else it is written — and an enum case reaches the
     /// program through `ExprInfo::EnumCase` rather than through a constant.
     pub const E_ATTRIBUTE_PAYLOAD_UNFOLDABLE: Code = Code::new("E0731");
+    /// The first-class callable spelling `$m->method(...)` written on a
+    /// `mixed` receiver.
+    ///
+    /// Every other erased receiver takes [`E_METHOD_ON_ERASED_RECEIVER`] for
+    /// the whole call; `mixed` is ADR 0007 § 2's one unchecked position and
+    /// defers instead, so a *call* through it dispatches on the receiver's
+    /// runtime class. This spelling does not call at all: ADR 0027 makes it a
+    /// closure **value**, which carries the callee's arity and parameter tags
+    /// in the value itself (`nvs_runtime::closure`), and there is no class
+    /// here to read either off — the receiver's descriptor answers a call it
+    /// is present at, not a value that outlives the site. Narrowing the
+    /// receiver, or calling the member directly, is the fix; both are what the
+    /// help names.
+    pub const E_FIRST_CLASS_CALLABLE_ERASED_RECEIVER: Code = Code::new("E0732");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

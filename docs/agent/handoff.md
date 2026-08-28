@@ -3,67 +3,69 @@
 ## State
 
 **M4's Stage 6 is the frontier. The `mixed` receiver's calling convention is
-decided and its *descriptor* half is built; the dispatch half is not.**
+decided, its *descriptor* half is built, and the checker now records the call;
+the lowering and the runtime dispatch are what is left.**
 `docs/adr/README.md` § *Decisions taken at project start* has the paragraph
 that specifies all of it — the row carries arity and parameter tags,
 `nvs_runtime::closure`'s `check_param_tags` is the one implementation both
 erased paths share, and a tagged-ABI thunk per method was rejected on ranks 1,
 3 and 5 together. Do not re-open it.
 
+- **`ExprInfo::ErasedCall { name }` is what the site records** for a `mixed`
+  receiver, and that variant's own doc comment is the home of why the name is
+  all it carries. Nothing else was recordable: no signature means no argument
+  mapping, so every written argument fills its own position.
+- **Three spellings are refused at the site rather than deferred** — `E0712`
+  (`name:`), `E0714` (`inout`) and the new `E0732` (ADR 0027's
+  `$m->method(...)`, which names a closure value and not a call). Each code's
+  doc comment in `nvs-diagnostics` owns its reason; the lowering does not have
+  to answer any of them.
 - **`nvs_runtime::MethodRow` is the method table's row**: name, code, `arity`,
   `param_tags`, `public`, `native`. That type's own doc comment is the home of
   what each field is for; `ClassDesc::method_row` is the reader the dispatch
-  slice wants and `ClassDesc::method` is written over it.
-- **`native` is the one field the ADR paragraph implied rather than named** —
-  true for exactly `nvs_stdlib::instance`'s `Core`-owned rows, which borrow
-  argument 0 and carry no signature this crate could read a shape off. It is
-  what a `Core` receiver is refused on, so slice [2] does not have to find
-  another way to ask.
-- **Nothing has to be marshalled in either direction** and that is still
-  load-bearing: `nvs-codegen`'s `store_value` (`emit.rs:3130`) already writes
-  each argument and each return *with* its tag, `load_value` (`:3226`) reads
-  the payload half at the callee's representation.
+  slice wants.
+- **`native` is what a `Core` receiver is refused on** — true for exactly
+  `nvs_stdlib::instance`'s `Core`-owned rows, which borrow argument 0 and carry
+  no signature this crate could read a shape off.
+- **Nothing has to be marshalled in either direction**: `nvs-codegen`'s
+  `store_value` (`emit.rs:3130`) already writes each argument and each return
+  *with* its tag, `load_value` (`:3226`) reads the payload half at the callee's
+  representation.
 - M4's acceptance still names *Verification* sections for ADRs 0023, 0028 and
   0069; 0014 and 0046 have theirs.
 
 ## Next group
 
 **The `mixed` receiver's dispatch half, in this order.** One file set:
-`crates/nvs-types/src/expr/calls.rs`, `crates/nvs-ir/src/lower/expr.rs`,
-`crates/nvs-ir/src/ir.rs`, `crates/nvs-runtime/src/dispatch.rs`, and a case
-under `tests/conformance/`. The descriptor half above is landed, so nothing
-here reaches `nvs-codegen`'s class tables again.
+`crates/nvs-ir/src/lower/expr.rs`, `crates/nvs-ir/src/ir.rs`,
+`crates/nvs-runtime/src/dispatch.rs`, `crates/nvs-codegen/src/emit.rs`, and a
+case under `tests/conformance/`. The checker half above is landed, so nothing
+here reaches `nvs-types` again.
 
-- [ ] **Stop refusing, and record what the site wrote** — `nvs_types` already
-      exempts `mixed` from `report_method_on_erased_receiver`
-      (`crates/nvs-types/src/expr/calls.rs:623`, whose doc comment says so);
-      what `infer_method_call` (`:48`) must now record is an `ExprInfo` the
-      lowering can read — the member name and the argument list, checked as
-      far as a receiver naming no class allows, with the call's type `mixed`.
-      A `name:` argument has no signature to resolve against, exactly as
-      through a `callable` (`E0712`), and takes that refusal.
-- [ ] **Lower it** — `crates/nvs-ir/src/lower/expr.rs:2379`
-      (`lower_method_call`), whose panic at `:2390` names this receiver alone.
-      A new `Helper` beside `CallClosureArray` (`crates/nvs-ir/src/ir.rs:2078`)
-      carrying ADR 0002's error edge, answering `Ty::Tagged`; the runtime end
-      goes beside `crates/nvs-runtime/src/dispatch.rs:50`, reads
-      `ClassDesc::method_row`, and throws catchably for a non-object tag, a
-      missing name, `!row.public`, `row.native`, and an arity or tag mismatch
-      through the same `check_param_tags` (`crates/nvs-runtime/src/closure.rs:393`)
-      `call_closure` (`:132`) uses.
+- [ ] **Lower it** — `ExprInfo::ErasedCall` reaches
+      `Lowering::lower_method_call` (`crates/nvs-ir/src/lower/expr.rs:2379`,
+      whose panic roster names `mixed` alone) and becomes one helper carrying
+      ADR 0002's error edge: the receiver's tagged value, the member name as a
+      constant, and the arguments in written order. It is a `Helper` rather
+      than an `InstKind` for `CallClosureArray`'s reason — the count is a
+      run-time fact — and the call's type is `Ty::Tagged`.
+- [ ] **Dispatch it** — the runtime half in `crates/nvs-runtime`, beside
+      `closure`'s `check_param_tags`, which is the one implementation both
+      erased paths share: a tag that is not an object throws, a name the class
+      answers with no row throws, and the three shapes the row cannot describe
+      (a non-`public` member, a variadic or `inout` list, a `native` row) throw
+      the wording the ADR README paragraph fixes.
 - [ ] **The deferral's own `.nvst`** — the call that dispatches, the missing
-      name, the non-object receiver, the `private` member, a `Core` receiver,
-      a wrong-tagged argument, and the agreement between the `mixed` spelling
-      and the declared-class one counted rather than read off a line.
+      name, the non-object receiver, and the agreement between the erased
+      spelling and the same call through the declared class, counted.
 
 ## Backlog
 
-- A variadic or `inout` callee cannot be reached through an erased receiver:
-  packed and written back at the call site — `E0721`'s limit, and the ADR
-  paragraph names it. State it where the dispatch refuses it.
-- `nvs_stdlib::instance`'s rows carry `arity: 0`/`param_tags: 0` because that
-  crate holds no signature for a native member — `dispatch_table`'s own doc.
-- ADRs 0023, 0028 and 0069 still owe M4 a *Verification* section
-  (`docs/plan/m4.md`).
-- `require` with a non-literal path runs nothing, silently, in both forms
-  (`nvs_hir::requires`' own known gap).
+- A `require` whose path is not a string literal runs nothing at all, silently
+  — `nvs_hir::requires`' own known gap.
+- ADR 0033's container axis: an `array<T>` element and an ADR 0036 shape field
+  carry no `secret` bit — `nvs_stdlib::debug`'s known gap 1.
+- ADR 0092 § 6's `Throwable` record producer waits on the crate edge above
+  `nvs-runtime`'s fatal path.
+- `E0721`'s three unforwardable member shapes have no way out but writing the
+  member by hand — `resolve_delegations`' doc comment.

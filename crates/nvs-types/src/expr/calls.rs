@@ -9,7 +9,10 @@
 //! what it can be sure of. The one receiver that is *knowably* wrong rather
 //! than merely unresolved is an erased one — a plain `object` or a shape,
 //! neither of which lists a method at all — and it gets
-//! [`report_method_on_erased_receiver`] instead. [`resolved_call`] is the record `nvs-ir` reads back
+//! [`report_method_on_erased_receiver`] instead; `mixed` is the one that
+//! neither resolves nor is wrong, and records
+//! [`crate::expr_table::ExprInfo::ErasedCall`] for the run-time dispatch ADR
+//! 0036 § 4 defers it to. [`resolved_call`] is the record `nvs-ir` reads back
 //! (see [`crate::expr_table`]), and it always carries the *declaring* class
 //! rather than the receiver's.
 //!
@@ -106,6 +109,25 @@ pub(super) fn infer_method_call(
     let (sig, _written) =
         check_written_type_args(type_args, sig, label.as_deref(), expr.span, ctx, env);
     let (_, slots, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
+    // ADR 0036 § 4's deferral, and the one receiver the refusal above
+    // deliberately leaves alone: `mixed` is ADR 0007 § 2's one unchecked
+    // position, so which class is behind the handle — and whether there is one
+    // at all — is answered by the receiver's own descriptor when the call runs
+    // (`docs/adr/README.md` § *Decisions taken at project start*). What the
+    // site can still settle it settles here; the rest is recorded for `nvs-ir`
+    // to dispatch on.
+    if resolved.is_none()
+        && matches!(env.interner.get(receiver_ty), Ty::Mixed)
+        && let MemberName::Ident(name_span) = method
+    {
+        let name = span_text(env.src, *name_span).to_owned();
+        if matches!(args, CallArgs::FirstClassCallable) {
+            report_first_class_callable_on_erased_receiver(expr.span, &name, env);
+        } else {
+            report_args_with_no_parameter_list(args, NoParameterList::ErasedReceiver, env);
+            env.exprs.record(expr.span, ExprInfo::ErasedCall { name });
+        }
+    }
     // ADR 0027: `$obj->method(...)` (first-class callable syntax) names a
     // `Closure` value, not the method's return type — the sentinel
     // `CallArgs::FirstClassCallable` marks exactly this shape, ahead of the
@@ -527,16 +549,71 @@ pub(super) fn report_call_on_non_callable(callee_ty: TypeId, span: Span, env: &m
     );
 }
 
-/// [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
-/// § 1's opaque `callable`, refused from the call site's end rather than the
-/// literal's ([`report_by_reference_parameter`] is the other end of the same
-/// rule): a call through one may not write a `name:` argument.
+/// `$m->method(...)` — ADR 0027's first-class callable spelling on a `mixed`
+/// receiver, which is the one shape of that receiver's deferral that has no
+/// run-time answer.
 ///
-/// `callable` is one type whatever closure the variable holds, so this site has
-/// no parameter list to resolve a name against — and neither has the run time,
-/// a closure object recording its arity and its parameter *tags* and never
-/// their names (`nvs_runtime::closure`). PHP allows the spelling only because a
-/// `Closure` there carries its whole declaration.
+/// A *call* through a `mixed` defers to the receiver's own descriptor, which
+/// is present at the call and marshals it. This spelling makes no call: it
+/// names a closure **value**, and a closure carries its callee's arity and
+/// parameter tags in the value itself (`nvs_runtime::closure`), so building
+/// one here would mean reading a method row off a receiver for a value that
+/// outlives the site and may be called anywhere. That is a mechanism rather
+/// than a lowering, and no ADR asks for it — so the spelling is refused where
+/// it is written, and the two fixes that exist are what the help names.
+fn report_first_class_callable_on_erased_receiver(span: Span, name: &str, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_FIRST_CLASS_CALLABLE_ERASED_RECEIVER,
+            format!("`{name}(...)` names no closure through a `mixed` receiver"),
+        )
+        .with_primary(span, "a closure value is named here")
+        .with_help(format!(
+            "ADR 0036 § 4 defers a *call* through a `mixed` to the receiver's runtime class, but \
+             a closure value carries its callee with it and there is no class here to read one \
+             off — call the member directly (`$m->{name}(…)`), or narrow the receiver first with \
+             `instanceof` or `as ClassName`"
+        )),
+    );
+}
+
+/// Which call site is asking [`report_args_with_no_parameter_list`] — the two
+/// places a call reaches a callee no signature at this site describes.
+///
+/// They differ in *why* there is no parameter list and therefore in what the
+/// help says, and in nothing else: neither the site nor the run time can
+/// resolve a name against a callee it does not name, so the rule and its codes
+/// are one.
+#[derive(Clone, Copy)]
+pub(super) enum NoParameterList {
+    /// `$fn(...)` — [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
+    /// § 1's opaque `callable`.
+    Callable,
+    /// `$m->method(...)` on a `mixed` receiver — ADR 0036 § 4's deferral, whose
+    /// callee is whatever the receiver's runtime class answers.
+    ErasedReceiver,
+}
+
+/// A call whose callee this site cannot name, refused from the call site's end
+/// rather than the declaration's ([`report_by_reference_parameter`] is the
+/// other end of the same rule): it may write neither a `name:` argument nor an
+/// `inout` marker.
+///
+/// Through a `callable` the callee is one opaque type whatever closure the
+/// variable holds, so this site has no parameter list to resolve a name
+/// against — and neither has the run time, a closure object recording its
+/// arity and its parameter *tags* and never their names
+/// (`nvs_runtime::closure`). Through a `mixed` receiver the callee is not
+/// chosen until the call runs, and the method row that marshals it carries
+/// exactly the same two facts for exactly that reason. PHP allows the spelling
+/// only because a `Closure` there carries its whole declaration.
+///
+/// The `inout` marker is refused at both for one reason spelled two ways: no
+/// closure may declare such a parameter at all (`E_CLOSURE_INOUT_PARAM`), and
+/// an `inout` parameter list is packed and written back at the *call site*,
+/// which a call that learns its callee at run time cannot do — the same limit
+/// [`E_DELEGATE_MEMBER_NOT_FORWARDABLE`] names for ADR 0043 § 4's synthesized
+/// forward.
 ///
 /// A `...` argument is left alone and lowers: how many arguments it hands over
 /// is its own run-time length, which needs no parameter list to mean something
@@ -544,27 +621,55 @@ pub(super) fn report_call_on_non_callable(callee_ty: TypeId, span: Span, env: &m
 /// [`super::args::map_arguments`] — a positional argument cannot follow a `...`
 /// — for the same reason it applies at a resolved call, so the two refusals are
 /// one walk.
-pub(super) fn report_named_args_through_callable(args: &CallArgs, env: &mut Env<'_>) {
+pub(super) fn report_args_with_no_parameter_list(
+    args: &CallArgs,
+    callee: NoParameterList,
+    env: &mut Env<'_>,
+) {
     let CallArgs::List(list) = args else {
         return;
+    };
+    let described = match callee {
+        NoParameterList::Callable => "a `callable`",
+        NoParameterList::ErasedReceiver => "a call through a `mixed` receiver",
+    };
+    let inout_help = match callee {
+        NoParameterList::Callable => {
+            "ADR 0031 § 1 keeps `callable` opaque and § 4 refuses an `inout` closure parameter \
+             outright, so nothing this call reaches can bind one — drop the `inout`"
+        }
+        NoParameterList::ErasedReceiver => {
+            "ADR 0036 § 4 defers this call to the receiver's runtime class, and an `inout` \
+             parameter list is packed and written back here at the call site — so a callee that \
+             is not known until the call runs can never bind one; narrow the receiver with \
+             `instanceof` or `as ClassName` if the write-back is what was meant"
+        }
+    };
+    let name_help = match callee {
+        NoParameterList::Callable => {
+            "ADR 0031 § 1: `callable` is one opaque type whatever closure the variable holds, so \
+             neither this call site nor the closure it reaches carries a parameter name to fill \
+             — pass the argument positionally"
+        }
+        NoParameterList::ErasedReceiver => {
+            "ADR 0036 § 4: the receiver's runtime class chooses the callee, and the method row \
+             that marshals the call carries its arity and its parameter tags rather than their \
+             names — pass the argument positionally, or narrow the receiver to the class that \
+             declares the member"
+        }
     };
     let mut positional_ends: Option<Span> = None;
     for arg in list {
         // ADR 0107 § 2's marker has the same nothing to resolve against, one
-        // step worse: no closure can declare an `inout` parameter at all
-        // (`E_CLOSURE_INOUT_PARAM`), so the marker here is never right.
+        // step worse: neither callee can bind such a parameter at all.
         if arg.inout {
             env.diags.report(
                 Diagnostic::error(
                     code::E_INOUT_ARG_UNEXPECTED,
-                    "`inout` names no parameter of a `callable`",
+                    format!("`inout` names no parameter of {described}"),
                 )
                 .with_primary(arg.span, "marked `inout` here")
-                .with_help(
-                    "ADR 0031 § 1 keeps `callable` opaque and § 4 refuses an `inout` closure \
-                     parameter outright, so nothing this call reaches can bind one — drop the \
-                     `inout`",
-                ),
+                .with_help(inout_help),
             );
         }
         if let Some(name) = arg.name {
@@ -573,14 +678,10 @@ pub(super) fn report_named_args_through_callable(args: &CallArgs, env: &mut Env<
             env.diags.report(
                 Diagnostic::error(
                     code::E_NAMED_ARG_THROUGH_CALLABLE,
-                    format!("`{name}:` names no parameter of a `callable`"),
+                    format!("`{name}:` names no parameter of {described}"),
                 )
                 .with_primary(arg.span, "written by name here")
-                .with_help(
-                    "ADR 0031 § 1: `callable` is one opaque type whatever closure the variable \
-                     holds, so neither this call site nor the closure it reaches carries a \
-                     parameter name to fill — pass the argument positionally",
-                ),
+                .with_help(name_help),
             );
         } else if arg.spread {
             positional_ends.get_or_insert(arg.span);

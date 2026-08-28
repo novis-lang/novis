@@ -158,8 +158,9 @@ fn a_named_argument_through_a_callable_is_refused() {
     // ADR 0031 § 1 gives `callable` no parameter list, so there is no
     // parameter for the name to fill — and nothing below has one either: a
     // closure value records its arity and its parameter tags, never their
-    // names. `nvs_types::expr::calls::report_named_args_through_callable`
-    // owns the rule.
+    // names. `nvs_types::expr::calls::report_args_with_no_parameter_list`
+    // owns the rule, for this callee and for the `mixed` receiver whose
+    // callee is chosen when the call runs.
     let src = with_method(
         "int $count",
         "callable $f = fn (int $n): int => $n;\n    $f(n: 1);",

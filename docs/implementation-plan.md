@@ -1352,8 +1352,26 @@
 > `nvs_stdlib::instance` puts in a descriptor, whose addresses are ADR 0002 helpers that **borrow**
 > argument 0 where a compiled method owns its parameters and for which that crate holds no signature
 > at all — so the `Core` refusal that paragraph names arrives as a bit the row states rather than as
-> a shape a caller could believe. **The lowering itself is still not landed**: `nvs-ir` still panics
-> at `lower/expr.rs:2389` on that one receiver, whose roster names it alone.
+> a shape a caller could believe. **The checker's half of that deferral is built.**
+> `nvs_types::expr::calls::infer_method_call` records `ExprInfo::ErasedCall` for a `mixed` receiver
+> — the member name and nothing else, every written argument filling its own position because there
+> is no signature to map one against — which is the checker saying "dispatch on the value" where
+> every other receiver naming no class says `E0477`. Three spellings the deferral cannot express are
+> refused where they are written instead, and none of them is a rule about erasure: a `name:`
+> argument takes `E0712` for the same reason it takes it through a `callable`, the method row that
+> marshals the call carrying the callee's arity and its parameter tags and never their names; an
+> `inout` marker takes `E0714`, an `inout` parameter list being packed and written back at the *call
+> site*, which a call whose callee is chosen when it runs cannot do — the limit `E0721` already
+> names for ADR 0043 § 4's synthesized forward; and ADR 0027's first-class callable spelling
+> `$m->method(...)` is `E0732`, because it makes no call at all but names a closure **value**, which
+> carries its callee's arity and parameter tags in the value itself and so would need a class this
+> site does not have. The two refusals shared with `callable` are one walk over one wording pair
+> (`report_args_with_no_parameter_list`), so the two sites cannot grow two answers to one question.
+> **The lowering itself is still not landed**: `nvs-ir` still panics at `lower/expr.rs:2389` on that
+> one receiver, whose roster names it alone.
+> `tests/conformance/reject/a-call-through-a-mixed-receiver-refuses-what-it-cannot-defer.nvst` pins
+> all three in one compile with the positional call and the `...` spread — whose count is its own
+> run-time length — written first.
 > `tests/conformance/reject/a-method-call-through-a-receiver-that-names-no-class-is-refused.nvst`
 > pins all four refusals plus the nullable receiver's single code in one compile, with the two
 > spellings that do resolve — a named class, and a union narrowed by `instanceof` — written first,

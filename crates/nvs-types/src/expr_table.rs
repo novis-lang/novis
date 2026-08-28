@@ -243,6 +243,30 @@ pub enum ExprInfo {
         /// recorded directly so a consumer never needs to re-intern it.
         ty: TypeId,
     },
+    /// `$m->method(...)` on a **`mixed`** receiver — the one method call that
+    /// resolves to no signature and is not refused where it is written.
+    ///
+    /// ADR 0007 § 2 makes `mixed` the one unchecked position, so ADR 0036
+    /// § 4's deferral covers a call as well as a property access: which class
+    /// is behind the handle, and whether there is one at all, is a run-time
+    /// question, and `docs/adr/README.md` § *Decisions taken at project start*
+    /// owns the convention that answers it — the receiver's own descriptor
+    /// marshals the call, its method row carrying the callee's arity and
+    /// parameter tags. Every *other* receiver naming no class is
+    /// `E_METHOD_ON_ERASED_RECEIVER` instead, so an entry here is the checker
+    /// saying "dispatch on the value" rather than "I could not tell".
+    ///
+    /// The **name** is all this carries, and it is all the dispatch reads:
+    /// there is no signature to record an argument mapping from, which is why
+    /// a `name:` argument is refused at the site
+    /// (`E_NAMED_ARG_THROUGH_CALLABLE`) and every written argument fills its
+    /// own position. Recorded rather than read back out of the source for
+    /// [`Self::ShapeProperty`]'s reason: the fetch is keyed on the name, and
+    /// one home for what that name is keeps the two ends from disagreeing.
+    ErasedCall {
+        /// The member name written at the call site.
+        name: String,
+    },
     /// A resolved property access (`$obj->prop`) whose receiver statically
     /// resolved to a known declaring class — a shape receiver and a
     /// plain-`object` one both record [`ExprInfo::ShapeProperty`] instead,
