@@ -1,0 +1,82 @@
+--TEST--
+`$uri->compareTo` is bounded to exactly `-1`, `0` and `1` over every ordered pair of a corpus, and it is the only ordering two `Uri`s have: `Core\Arr`'s natural order refuses one at `min`, `max` and `sort` alike, and the way through is `{comparator: ...}` calling this member — spec § 12, ADR 0013, ADR 0090 § 4
+--FILE--
+<?nvs
+// One neighbouring case shows this member is a total order, another that it
+// decides on the normal forms. Neither asks what the answer may *be*: an order
+// that is antisymmetric, reflexive and transitive is still all three when it
+// answers a byte difference, which is what PHP's `strcasecmp` does to this day
+// and what `Core\Str::compare` had to be normalized away from. So the bound is
+// counted here, over every ordered pair of a corpus rather than over a chosen
+// row, and all three values are required to occur — a member answering `0`
+// everywhere satisfies the bound and nothing else.
+array<string> $corpus = [
+    "http://a/",
+    "http://b/",
+    "HTTP://A/",
+    "https://a/",
+    "http://a/z",
+    "http://a/#f",
+];
+int $pairs = 0;
+int $bounded = 0;
+int $below = 0;
+int $same = 0;
+int $above = 0;
+foreach ($corpus as string $left) {
+    foreach ($corpus as string $right) {
+        $pairs = $pairs + 1;
+        int $answer = Core\Uri::parse($left)->compareTo(Core\Uri::parse($right));
+        if ($answer == -1 || $answer == 0 || $answer == 1) {
+            $bounded = $bounded + 1;
+        }
+        if ($answer == -1) { $below = $below + 1; }
+        if ($answer == 0) { $same = $same + 1; }
+        if ($answer == 1) { $above = $above + 1; }
+    }
+}
+echo "pairs ", $pairs, " bounded ", $bounded, "\n";
+echo "below ", $below, " same ", $same, " above ", $above, "\n";
+
+// `same` is above the six the reflexive rows account for, because the corpus
+// holds one pair that is two spellings of one reference: `HTTP://A/` and
+// `http://a/` normalize together under RFC 3986 § 6.2.2, and this member is
+// the only place that is observable — ADR 0090 § 4 keeps `==` on two objects
+// meaning the same object, so the two spellings are never `==`.
+//
+// § 6.2.2 is the *syntax-based* normalization and stops there, which is why
+// the corpus does not write `http://a:80/` as a third spelling of the same
+// reference: dropping a scheme's default port is § 6.2.3, this member does
+// not do it, and an absent port sorts before a written one exactly as the
+// neighbouring total-order case has an absent component sort before an empty
+// one.
+var $written = Core\Uri::parse("HTTP://A/");
+var $plain = Core\Uri::parse("http://a/");
+echo $written->compareTo($plain), " ", $written->toString(), "\n";
+
+// And it is the *only* order they have. `Core\Arr`'s natural order is the
+// scalar one — two numbers, two strings, two bools or two nulls — so an
+// object in the subject is refused rather than dispatched to `Comparable`,
+// at each of the three members that reach for it. The throw is catchable,
+// which is what lets the three refusals render inline here.
+array<mixed> $subject = [$plain, $written];
+try { echo Core\Arr::min($subject), "\n"; } catch (Throwable $atMin) { echo "min refused\n"; }
+try { echo Core\Arr::max($subject), "\n"; } catch (Throwable $atMax) { echo "max refused\n"; }
+try { var $s = Core\Arr::sort($subject); echo "sorted\n"; } catch (Throwable $atSort) { echo "sort refused\n"; }
+
+// The way through is the option that member's own message names, and what a
+// comparator writes is this member: three values are all an order needs, so
+// the bound counted above is not a limitation to work around. Sorting the
+// texts rather than the parsed references keeps the answer printable, and it
+// is the order the counts above already imply — the two spellings of one
+// reference land adjacent, in the order they were given.
+var $ordered = Core\Arr::sort($corpus, {comparator: fn (string $x, string $y): int => Core\Uri::parse($x)->compareTo(Core\Uri::parse($y))});
+echo Core\Json::encode($ordered), "\n";
+--EXPECT--
+pairs 36 bounded 36
+below 14 same 8 above 14
+0 HTTP://A/
+min refused
+max refused
+sort refused
+["http://a/","HTTP://A/","http://a/#f","http://a/z","http://b/","https://a/"]
