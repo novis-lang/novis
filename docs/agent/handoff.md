@@ -2,47 +2,69 @@
 
 ## State
 
-**M4's Stage 8, with the refusal ceiling at 4, and the acceptance gate green again.** The tree is
-at 868 conformance plus 189 differential. Nothing is blocked.
+**M4's Stage 8, with the refusal ceiling at 4, and the acceptance gate green.** The tree is at 868
+conformance plus 189 differential, and 1758 Rust tests across 81 suites. Nothing is blocked.
 
-`abi-probe [9 guards]`, red after sessions 0055-0057, is closed: all 12 tests in
-`benches/abi-probe/tests/perf_guards.rs` pass under `cargo test --release -p nvs-abi-probe`. The
-guard was wrong, not the lowering, exactly as the previous session judged. `emitted_calls` became
-`path_calls` (`perf_guards.rs:808`): it parses the section's `blockN:` bodies out of the VCode
-text, walks them from the entry, and refuses to follow the taken edge of a `test`-then-`jnz` pair,
-which is the one shape every status check compiles to. Three more unhooked accesses now measure 0
-extra calls against the hooked pair's 12, and the probe/safepoint correction the slope used to
-carry is gone with it — those calls sit behind a status test too, so they were never on the path.
-The playbook bullet under *Writing Novis itself* owns the recognition rules.
+The last session's work is unchanged and still green. What changed since is an audit pass the
+user fired by hand, and one of its findings moves this file's next group:
 
-ADR 0014 § 4 now records the judgement itself: "direct field load or store" is a claim about the
-path that runs, and a landing block's `Release` belongs to ADR 0002's checked return and ADR 0007
-§ 4's overflow throw rather than to this ADR. Its *Verification* bullet was quoting the old
-"beyond the probe sites they add" wording and now quotes the new one.
+**The refusal gate counted arms, not shapes, and item 25 was about the wrong thing.**
+`refusals.rs` attributes a site to the item whose anchors sit in the same file, and one catch-all
+arm is one site however many shapes fall into it. `lower_checked_ty` was exactly that: item 25
+claimed it because item 25 anchors `lower/mod.rs`, item 25 was about `object`, and `object` has
+had a representation arm for some time — a program that declares one, passes one and returns one
+runs. What actually reaches that arm is **`never`, `iterable` and an intersection**, each in both
+declaration positions, all six type-checking and then panicking.
+
+`crates/nvs-ir/tests/type_atoms.rs` is the half that names shapes: every atom ADR 0007 § 3 spells,
+in a parameter and in a return, through parse/resolve/check/lower with the unwind caught.
+`KNOWN_ICE` ratchets exactly like `CEILING` — it may not grow, and a row that stops panicking fails
+until it is deleted. Its name is in `loop-goal.toml`'s Stage 8 block beside
+`every_refusal_is_a_diagnostic_or_decided`.
+
+`verify.py` now has a seventh step, `doc`: `cargo doc` with rustdoc's broken-link lint denied. The
+workspace had 391 intra-doc warnings and has none; a stale `[`Foo::bar`]` is a failed step now
+rather than something nothing ran. It costs four seconds on a warm tree.
 
 ## Next group
 
-**Item 25, `object` as a declared type — both remaining `nvs-ir` refusal sites are in one file.**
-File set: `crates/nvs-ir/src/lower/mod.rs`, `crates/nvs-ir/tests/refusals.rs`, and one new case
-under `tests/conformance/lang/`. Read the item with `python tools/holes.py --item 25`.
+**Item 25, and it is three shapes rather than one.** File set:
+`crates/nvs-ir/src/lower/mod.rs`, `crates/nvs-types/src/expr/assign.rs`,
+`crates/nvs-ir/tests/type_atoms.rs`, and cases under `tests/conformance/lang/`. Read the item with
+`python tools/holes.py --item 25`.
 
-- [ ] **Judge the two sites before writing anything.** Both messages already list `object` among
-      what they lower (`crates/nvs-ir/src/lower/mod.rs:2701` for a declared type,
-      `crates/nvs-ir/src/lower/mod.rs:2784` for a resolved call's parameter or return), so the
-      refusal that is left may be the catch-all rather than the feature. If it is, this is the
-      goal's § *Standing decisions* "a panic naming the roster that proves nothing reaches it"
-      case and the slice is a doc comment plus the ceiling, not a lowering.
-- [ ] **Close whichever half is real**, anchored at `erase_checked_ty`
-      (`crates/nvs-ir/src/lower/mod.rs:2206` is item 25's own anchor). The playbook's "teaching
-      `nvs-ir` a new receiver or value shape is two edits" bullet is about exactly this function.
-- [ ] **Ratchet `crates/nvs-ir/tests/refusals.rs`'s `CEILING`** from 4 by whatever this closed,
-      and pin the result in a `tests/conformance/lang/` case that declares an `object`, passes one
-      as a parameter and returns one.
+- [ ] **`never` first, because it is the smallest and half of it is the checker's.** ADR 0007 § 3
+      makes `void` and `never` return-only; `void` in a parameter is diagnosed and `never` is not,
+      so the `("never", Position::Param)` row closes with a diagnostic naming § 3, not with a
+      representation. The return row then needs `erase_checked_ty`
+      (`crates/nvs-ir/src/lower/mod.rs:2206`) to answer for `CheckedTy::Never` — a body that
+      declares it cannot return, so what the arm owes is a representation for a value no path
+      produces.
+- [ ] **`iterable` and the intersection are two halves each, and the checker's half comes first.**
+      Nothing is assignable to either in `nvs_types::expr::assign` — not an `array<int>`, not a
+      `Core\Generator`, not a class implementing every member of the intersection — so both are
+      types no value can inhabit and an IR arm alone would not make either usable. Decide the
+      assignability rule, then give `erase_checked_ty` the arm.
+- [ ] **Delete each row from `KNOWN_ICE` in the slice that closes it**, and pin the result in a
+      `tests/conformance/lang/` case. `refusals.rs`'s `CEILING` ratchets from 4 in the same slice
+      if the arm itself goes.
 
 ## Backlog
 
-- Item 16's lowering half (`crates/nvs-ir/src/lower/call.rs:773`, named/spread arguments through a
-  `callable`) and item 4's `stmt.rs` declaration catch-all — the other two of the four sites.
+- Item 16's lowering half (`crates/nvs-ir/src/lower/call.rs:773`) — confirmed reachable: `callable
+  $g = $f(...);` on a value already typed `callable` panics there. Item 4's `stmt.rs:268`
+  catch-all is the other of the four sites, and its own comment argues no shape reaches it, which
+  is the goal's "a panic naming the roster that proves nothing reaches it" case.
+- **`tests/conformance/diag/` has no case for `new Core\Error("x")`**, which panics
+  `lower/expr.rs:2368` naming `nvs-types`' own zero-arity gap. Tracked in that crate's known gaps,
+  not here, but it is one `.nvst` case away from being a diagnostic.
+- **[ADR 0109](../adr/0109-a-for-header-declares-its-own-counter.md) is `Proposed` and waiting on
+  the user.** `for (int $i = 0; …)` does not parse; accepting it obliges the row in 0007 § 1's
+  binding-site table, that ADR's `Amended by:`, and 0109's `Amends:`, all three in the commit that
+  flips the status.
+- **`website/` has 8 stale pages** (`cd website && python site.py check`), each an authored page
+  whose source ADR has changed since it was blessed. Not a gate — that job is `|| true` on
+  purpose — but it is the public surface.
 - **At the M4 → M4B boundary, not before:** re-run `python tools/playbook.py --goal --min 3`
   against the current module list, then re-measure with `loop-stats.py` and only then revisit the
   120k slice gate in AGENTS.md.
