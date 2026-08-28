@@ -666,13 +666,21 @@ nvs_runtime::nvs_helper! {
     /// `Core\Bytes::repeat(bytes $b, uint $times): bytes` — replacing PHP's
     /// `str_repeat` used on binary data. Zero times is the empty buffer, as in
     /// PHP and as in `Core\Str::repeat`.
+    ///
+    /// **An empty subject short-circuits the loop rather than running it.**
+    /// Both size checks are about how large the result is, so an empty subject
+    /// passes them for every count there is — and the loop would then run a
+    /// caller-supplied `uint` of iterations appending nothing, which is an
+    /// unbounded spin on the request path for an answer already known.
+    /// `Core\Str::repeat` carries the same guard for the same reason.
     fn nvs_core_bytes_repeat(_ctx, args: [2]) {
         let subject = raw(&args[0], "repeat", "the subject")?;
         let times = count(&args[1], "repeat", "the repeat count")?;
         let size = affordable(subject.len().checked_mul(times), "repeat")?;
         let mut octets: Vec<u8> = Vec::new();
         reserved(&mut octets, size, "repeat")?;
-        for _ in 0..times {
+        let runs = if subject.is_empty() { 0 } else { times };
+        for _ in 0..runs {
             octets.extend_from_slice(subject);
         }
         produced_fallibly(&octets, "repeat")

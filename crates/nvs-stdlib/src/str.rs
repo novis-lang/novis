@@ -2122,6 +2122,12 @@ fn write_run(out: &mut StrWriter<'_>, padding: &str, run: usize) {
 nvs_runtime::nvs_helper! {
     /// `Core\Str::repeat(string $s, uint $times): string` — replacing PHP's
     /// `str_repeat`. Zero times is the empty string, as in PHP.
+    ///
+    /// An empty subject short-circuits the loop rather than running it, for
+    /// the reason `Core\Bytes::repeat`'s own doc comment gives: the size check
+    /// below is about how large the result is, so an empty subject passes it
+    /// for every count there is, and the loop would then run a caller-supplied
+    /// `uint` of iterations appending nothing.
     fn nvs_core_str_repeat(_ctx, args: [2]) {
         let subject = text(&args[0], "repeat", "the subject")?;
         let times = count(&args[1], "repeat", "the repeat count")?;
@@ -2134,8 +2140,9 @@ nvs_runtime::nvs_helper! {
             subject.len().checked_mul(times),
             "Core\\Str::repeat",
         )?;
+        let runs = if subject.is_empty() { 0 } else { times };
         built_fallibly(len, "Core\\Str::repeat", |out| {
-            for _ in 0..times {
+            for _ in 0..runs {
                 out.push_str(subject);
             }
         })
