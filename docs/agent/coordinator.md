@@ -46,6 +46,8 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 | `docs/agent/loop-goal.md` | The loop's target and the decisions pre-authorized on the way there — the prose. |
 | `docs/agent/loop-goal.toml` | The same goal's **acceptance test, as data**: every fixture, its exact expected output, the cargo suites and named guard tests — plus the `[context]` manifest that decides what a session reads. The driver reads this; neither file restates the other. |
 | `tools/loop.py` | The driver. Python 3.11+, no third-party packages, runs on Windows/Linux/macOS. |
+| `tools/loop-supervisor.py` | One layer above the driver: cuts a long run into legs, restarts `loop.py` between them so a driver change takes effect, and every few dozen sessions decides whether the loop has drifted enough to spend one on itself. Every flag is `loop.py`'s and is passed through, so it is invisible. § *The supervisor* below is the only home for what it decides. |
+| `docs/agent/optimization-prompt.md` | The prompt for that pass, the way `session-prompt.md` is the prompt for a work session. It owns what a pass may change and what it may only propose. |
 | `docs/agent/handoff.md` | Live state, rewritten by each session. |
 | `docs/agent/playbook.md` | The traps a session paid for once. Append-mostly, and outlives every session. |
 | `docs/agent/conventions.md` | The shape of everything the repo writes, so no session re-derives it from an existing example. |
@@ -57,7 +59,10 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 | `.loop/stop` | Create this file to halt the loop cleanly before the next session starts. Pressing `s` at the console does the same thing. |
 | `.loop/retry` | Create this to end a usage-limit wait immediately — the same as pressing `r`. Deleted as it is consumed, and cleared again when a wall goes up, so a request can only ever end the wait it was made during. |
 | `.loop/running` | Written by the driver while it is up, deleted on every exit. Anything else about to touch this tree checks it first — `brief.py` and `orient.py` both print it loudly, and any by-hand pass over shared files should refuse to start while it is there. Starting a second driver is refused unless you pass `--force`. |
-
+| `.loop/supervisor` | The same marker one level up, held across every leg of a supervised run. `.loop/running` is dropped and retaken at each leg boundary, so it is not the thing to check when asking whether a long run is still going. |
+| `.loop/run-end.json` | Why the last `loop.py` run ended, as a `kind` rather than a sentence — `loop.write_run_end` lists the twelve. The supervisor branches on it, and restarts on exactly one of them. Cleared when a run starts, so a driver that was killed cannot leave a stale verdict for the next one to act on. |
+| `.loop/optimization/` | One evidence pack and one report per optimization pass, plus `state.json` — sessions since the last pass, and the pack size it is measured against. The reports are where a pass's *proposals* go, which is the half of it a human reads. |
+| `.loop/optimize-status.txt` | One line written by an optimization pass: `CLEAN`, `APPLIED n`, `PROPOSED n` or `BROKEN`. The last one stops the run. |
 | `.loop/limit.json` | The deadline of a usage window the driver is waiting out, so one killed or rebooted mid-wait does not start the next run straight back into the same wall. Deleted when the window reopens. |
 | `.loop/chain.json` | Which entry of a `--chain` run is installed. `goal-switch.py` is not idempotent, so this is what makes each entry's floor get carried exactly once across a driver that is killed and restarted. |
 | `.loop/interrupted.json` | Written when a session was cut off with work still uncommitted — the paths, and why. `orient.py` prints it at the top of the pack, so the next session knows those files are somebody's unfinished slice and not the state it was meant to start from. Deleted by the next session that leaves a clean tree. |
@@ -243,6 +248,9 @@ prints what it cost.
 
     python tools/loop.py --max-sessions 300
 
+For a run long enough that the loop will change underneath itself, § *The supervisor* below is the same
+command with one word swapped.
+
 Flags worth knowing: `--model`, `--effort` (`low`|`medium`|`high`|`xhigh`|`max`; omitted, the harness
 uses the model's own default, which is `high` on opus-5 — the run's setting goes in the ledger header, so
 `loop-stats.py --run <stamp>` prices one against another), `--permission-mode`, `--max-stalls`,
@@ -274,6 +282,53 @@ Watch it with `tail -f .loop/log.md` (`Get-Content .loop/log.md -Wait` in PowerS
 `.loop/stop`, which finishes the current session first, or with Ctrl-C, which kills it immediately — the
 repo is still consistent either way, because every session commits before it exits. Both paths drop
 `.loop/running` on the way out; if a hard kill or a reboot leaves one behind, delete it.
+
+## The supervisor
+
+    python tools/loop-supervisor.py --max-sessions 300 --effort medium
+
+Everything above still holds — this starts `loop.py` and hands it the console, and **every flag it does not
+recognise is passed straight through**, so the two are interchangeable at the command line. What it adds is
+a boundary every `--probe-every` sessions (10) where the driver is stopped and started again. That exists
+for two reasons that have nothing to do with each other:
+
+- **`loop.py` is the one piece of the loop that does not hot-reload.** `orient.py` is a subprocess,
+  `session-prompt.md` is re-read and `loop-goal.toml` is re-loaded every session, so a session that
+  improves one of those improves the next session. A session that improves the *driver* improves nothing
+  until it is restarted, and sessions do commit driver changes.
+- **A loop changes the shape of its own input**, and nothing announces it. The pack once grew 59 KB → 118 KB
+  at +907 B a session, re-billed on all ~81 calls of every session after it, and the projected slice cap
+  fell to one on that alone.
+
+**It restarts on exactly one verdict**: `kind: "budget"` in `.loop/run-end.json` — the driver served its
+sessions and stopped. Every other kind is terminal, including the ones that look recoverable. A stall
+streak, a CLI failing repeatedly and a usage window that never reopened are all reasons a person should
+look, and a supervisor that retried them would turn one bad hour into eight. `.loop/stop` and Ctrl-C stop
+the supervisor, not just the leg.
+
+### When it spends a session on the loop itself
+
+Every `--optimize-every` sessions (25) it *looks*; it runs a pass only if something has actually drifted.
+The distinction is what makes the cadence safe to be wrong about — **looking is four subprocesses, a pass
+is a session** — so the number is set by the pack slope (25 sessions is ~23 KB of growth at the measured
+rate) against the ~4% of the run a pass costs, and not much rests on it. The signals, any one of which is
+enough: a selector `orient.py` warns about, a duplicate `playbook.py --dupes` finds, a playbook bullet
+naming a path that is gone, a dead link, or `orient.py` failing outright. A pack that grew 20 KB since the
+last pass triggers one early, no sooner than `--min-pass-gap` (15) sessions after the last.
+
+The pass gets the measurements piped in on stdin, exactly as a work session gets its orientation pack and
+for the same measured reason: a result that size costs more fetched than piped. It chooses among findings
+it was handed rather than deciding what to go and look at.
+
+### What happens when the pass gets it wrong
+
+This is the one place in the loop where an agent edits the machinery that will drive the next several hours
+unattended, so what follows a pass is not a review — it is four exit codes and a `git revert` on any of
+them. Every file it committed must be under `tools/`, `docs/`, `AGENTS.md`, `CLAUDE.md` or `README.md`;
+`orient.py` must still produce a pack; `loop.py --list` must still read the acceptance list; and a pass that
+touched `tools/` must leave `verify.py` green. A failure reverts the whole pass — `revert`, not `reset`, so
+the history still shows what was undone — and the loop carries on with the code it had. `--no-optimize`
+turns the pass off and keeps the restarts; `--optimize-only` runs one against the tree as it stands.
 
 ## Setting a new goal
 
