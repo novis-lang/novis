@@ -1893,6 +1893,17 @@ is why" — is this file.
   expectation but to stop echoing the cluster: assert it against a source-escaped literal
   (`Core\Str::reverse("cafe\u{301}") == "e\u{301}fac" ? "1" : "0"`) and echo the composed
   spelling of the same row instead, so every byte in the expect block is one you typed.
+- **`--EXPECT-ERROR--`/`--EXPECTF-ERROR--` means "this run must fail", so a program that exits 0
+  has no way to state what it wrote to standard error.** `nvs_test::Case::expects_failure` is
+  literally `self.expect_error.is_some()` (`crates/nvs-test/src/case.rs:127`), and
+  `crates/nvs-test/src/run.rs:145` reports `expected the run to fail, and it succeeded` before it
+  ever compares the stderr you wrote. This bites exactly the member that needs it —
+  `Core\Debug::dump` writes nowhere but the diagnostic channel. The way through, and what
+  `a-dump-is-its-arguments-rendered-and-a-capture-never-swallows-one.nvst` does, is to end the
+  program with a deliberate `throw new RuntimeError(...)`, match the dumps byte for byte and
+  absorb the fatal report with a trailing `%A` under `--EXPECTF-ERROR--`. 163 cases carry an error
+  section and many of them also carry `--EXPECT--`, so there is no discriminator to relax the rule
+  with; a section meaning "stderr of a run that succeeded" would be a new one.
 
 ## Splitting a file that got too big
 
@@ -2472,6 +2483,13 @@ sibling in the same namespace unqualified.
   the boundary count is the largest the first one accepts, not a round number. The
   `Core\Bytes` and `Core\Arr` families were already clean, their `Vec`-backed reserves
   being genuinely total.
+- **An expression-bodied `fn (): void => Something();` panics `nvs-codegen`, and the block-bodied
+  form of the same closure does not.** `Core\Out::capture(fn (): void => M::run())` dies with
+  `nvs-codegen does not lower an operand used before it is defined`, while
+  `Core\Out::capture(fn (): void => { M::run(); })` runs — and `fn (): int => M::n()` runs too, so
+  it is the `void` return rather than the call or the arrow that is unlowerable. Every existing
+  `Core\Out::capture` case in the corpus already uses the block body, which is why nothing had
+  caught it. Write the braces; the panic names neither the closure nor its return type.
 
 ## Divergences and refusals already pinned
 

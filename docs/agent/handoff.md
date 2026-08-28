@@ -2,56 +2,60 @@
 
 ## State
 
-**M4's Stage 8, depth.** The tree is at **835 conformance plus 189 differential**, all green.
+**M4's Stage 8, depth.** The tree is at **837 conformance plus 189 differential**, all green.
 Nothing is blocked.
 
-`Core\Str`'s three floor-1 members each gained a case over `crates/nvs-stdlib/src/str.rs`'s own
-doc comments. All three take the *invariance over a sweep* shape — one question asked of a whole
-table and counted, so a member answering plausibly row by row still fails.
+`Core\Debug` was `gaps.py`'s thinnest class (depth 3.5, floor 2) and both its members gained a
+case over `crates/nvs-stdlib/src/debug.rs`'s own doc comments.
 
-- **`replaceAll` is one pass, so the pairs' order is unobservable.** The cycle
-  `a→b→c→a` built as all six insertion orders over four subjects: 24 of 24 answers agree, and
-  0 of the 24 sequential folds `Core\Str::replace` gives agree with them — the `strtr`/`str_replace`
-  split the doc comment argues, counted rather than shown. Plus the output-side reading of the
-  same rule (a `c` in the output of `["a"=>"b","b"=>"c"]` comes only from a `b` or a `c` in the
-  subject) and `replace`/`replaceAll` agreeing on all ten single-pair rows.
-- **`reverse` is an involution that mirrors exactly the units `length` counts.** 14 subjects,
-  14 double-reversals, 14 length agreements, and all 35 units in their mirrored place in
-  `graphemes`' partition. Then `reverse($a . $b) == reverse($b) . reverse($a)` counted *against*
-  `length($a . $b) == length($a) + length($b)` over 49 ordered pairs: 45 and 44, agreeing on 48.
-  The single row where they part is a combining mark after a combining mark — one cluster, so
-  not additive, but symmetric, so the law survives it.
-- **`before`/`after` cut at the position `indexOf`/`lastIndexOf` report.** Twelve rows: the two
-  cut members equal `slice($s, 0, $at)` and `slice($s, $at + length($n))` on all ten present rows,
-  under both `{last: true}` and the default; 20 reconstructions put the needle back and get the
-  subject; both absences are `null` from all three members. "First" and "last" are then said
-  without a position — no occurrence in the head, none in the tail — which holds on nine of ten,
-  the empty needle being the row that occurs everywhere including in the prefix it cuts.
+- **`dump` is `render` per argument plus a newline.** Seven subjects — a control byte, three
+  container shapes, a `secret` property and the same ring twice — go through `render` on standard
+  output and through `dump` on standard error, once as one variadic call and once as seven, and
+  the two expectation sections hold the same bytes twice over. The ring pair is the row a
+  record-wide cycle table would fail: `dump`'s ids restart per argument exactly as `render`'s do
+  per call. Counted beside it: none of the seven renderings ends in a newline and six hold one
+  inside, so the trim is trailing-only; and a `dump` inside `Core\Out::capture` is not swallowed.
+- **A repeat is a cycle only when it is an ancestor.** Six graphs — a self-loop, a two-node loop,
+  a loop closing on the *middle* node, and three sibling repeats through a property, a container
+  and a container behind a property — asked one question and counted: three hold a marker, six
+  have every marker's id printed above it, and the two sibling repeats render the object whole
+  both times rather than dropping the second. `Seen::leave`'s one-sentence rule, which the
+  existing self-cycle row cannot distinguish from "any repeat is a cycle".
+
+Two harness facts this cost time to find are now playbook bullets: an error expectation forces a
+failing run, and `fn (): void => call()` panics `nvs-codegen` where the braced form does not.
 
 `orient.py`'s pack was complete for this group; nothing outside it was read.
 
-The gap fifteen handoffs back still stands: **no `Core` class reaches
-`nvs_hir::implements_interface`**, so `Core\Uri::compareTo` exists while `$a < $b` over two `Uri`s is
-`E0411`. It is in the backlog and still deserves a session of its own.
+The gap sixteen handoffs back still stands: **no `Core` class reaches
+`nvs_hir::implements_interface`**, so `Core\Uri::compareTo` exists while `$a < $b` over two `Uri`s
+is `E0411`. It is in the backlog and still deserves a session of its own.
 
 ## Next group
 
-**Whatever `python tools/gaps.py` now ranks at floor 1** — `Core\Str` is off the floor with these
-three, so the next session runs the tool first and takes its top class rather than a name written
-here. One shared file set per group: the class's own module in `crates/nvs-stdlib/src/` plus
-`tests/conformance/core/`.
+**`Core\Uri`**, `gaps.py`'s next floor-2 class after `Core\Debug` (depth 4.0, floor 2). One shared
+file set: `crates/nvs-stdlib/src/uri.rs` plus `tests/conformance/core/`. Re-run
+`python tools/gaps.py` first — if these three have moved off the floor, take its top class instead.
 
-- [ ] **Run `python tools/gaps.py` and take the top class's thinnest member**, reading that
-      member's doc comment for the rule no case observes — the shape that has worked three
-      sessions running is *invariance over a sweep, counted*.
-- [ ] **A second member of the same class**, so the group shares one file set and one build.
-- [ ] **A third if the context gate still allows it** — a case over landed work costs a fraction
-      of a lowering slice, which is what the 120k gate is counting.
+- [ ] **`Core\Uri::tryParse`** (2 cases) — registry row `crates/nvs-stdlib/src/uri.rs:354`, helper
+      `crates/nvs-stdlib/src/uri.rs:1452`. Read its doc comment for the rule no case observes; the
+      *agreement* shape is unspent here — `tryParse` answering `null` exactly where `parse` throws,
+      over a sweep of subjects, counted.
+- [ ] **`Core\Uri::buildQuery`** (3 cases) — row `uri.rs:396`, helper `uri.rs:1851`. Invariance over
+      a sweep: what a built query round-trips back to.
+- [ ] **`Core\Uri::compareTo`** (3 cases) — row `uri.rs:506`, helper `uri.rs:1689`. Take this only
+      if the context gate still allows it, and note that `$a < $b` over two `Uri`s is the `E0411`
+      in the backlog rather than something a case can assert.
 
 ## Backlog
-- No `Core` class reaches `nvs_hir::implements_interface`, so `Core\Uri` cannot be compared with
-  `<` — `docs/agent/loop-goal.md`, a session of its own.
-- `docs/agent/guard-name-debt.md`: 54 of 156 guard names match nothing `cargo test` runs.
-- `array<T> as array<U>` does not lower (`crates/nvs-ir/src/lower/expr.rs:877`), which is what
-  keeps `Core\Csv::format`'s non-`string` cell refusal unreachable — playbook, *Divergences*.
-- ADR 0028 § 2's abandoned-generator `finally`, still unlanded — `docs/agent/loop-goal.md`.
+
+- **No `Core` class reaches `nvs_hir::implements_interface`** — `Comparable` on a `Core` class is
+  unreachable from source; ADR 0013, and a session of its own.
+- **A `.nvst` cannot assert the stderr of a run that exits 0** — the playbook bullet above says why;
+  a section meaning that would be a new one, owned by `crates/nvs-test`'s module doc.
+- **`fn (): void => call()` panics `nvs-codegen`** — `crates/nvs-ir` or `crates/nvs-codegen`, not
+  a test-suite problem; the braced form is the workaround.
+- **`secret` in an `array<T>` element or an ADR 0036 shape field is not redacted** —
+  `nvs_stdlib::debug`'s known gap 1, ADR 0033's unmodelled container axis.
+- **An enum case dumps as its backing integer** — `nvs_stdlib::debug`'s known gap 2, ADR 0010 § 5.
+- **54 of `loop-goal.toml`'s 156 guard test names match nothing** — `docs/agent/guard-name-debt.md`.
