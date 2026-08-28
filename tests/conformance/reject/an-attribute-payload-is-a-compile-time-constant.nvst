@@ -17,6 +17,15 @@ class Limits {
     public const int MAX = 255;
 }
 
+// ADR 0046 § 1: a named attribute's name is a shape-typed `type` alias and
+// nothing else, so every name written below is declared here. What each
+// payload may *hold* is § 2's rule and is the same either way.
+type Route = {path: string};
+type Audit = {};
+type Column = {};
+type Cache = {};
+type Autowire = {};
+
 // The accepted half first, so a position that stops being accepted fails here
 // rather than as a missing refusal. ADR 0046 § 1's two attach forms are both
 // here — the named `Name(field: value)` and the bare `{field: value}` — since
@@ -62,18 +71,18 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0725]: an attribute's field value is not a compile-time constant
-   --> case.nvs:41:15
+   --> case.nvs:50:15
 %A
 error[E0725]: an attribute's field value is not a compile-time constant
-   --> case.nvs:46:22
+   --> case.nvs:55:22
 %A
 error[E0725]: an attribute's field value is not a compile-time constant
-   --> case.nvs:46:53
+   --> case.nvs:55:53
 %A
 error[E0725]: an attribute's field value is not a compile-time constant
-   --> case.nvs:51:18
+   --> case.nvs:60:18
 %A
 error[E0725]: an attribute's field value is not a compile-time constant
-   --> case.nvs:52:43
+   --> case.nvs:61:43
 %A
 error: aborting due to 5 errors

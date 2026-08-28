@@ -1,9 +1,9 @@
 --TEST--
-an attribute's name is placed by its prefix like any other class reference — ADR 0061 §§ 1, 2
+an attribute's name is placed by its prefix like any other name reference — ADR 0061 §§ 1, 2
 --FILE--
 <?nvs
 // `App\Audit` is written in exactly one place in this program: the `#[...]`
-// group on `App\Handler`. It reaches no type position, no `extends`, no
+// group on `App\Handler`. It reaches no annotation, no `extends`, no
 // `implements` and no expression, so the prefix lookup can only find
 // `src/Audit.nvs` if the name harvest reads an attribute.
 //
@@ -33,13 +33,10 @@ class Handler
 <?nvs
 namespace App;
 
-class Audit
-{
-    public static function of(): string
-    {
-        return "audit";
-    }
-}
+// A shape-typed `type` alias, which is what ADR 0046 § 1 makes an
+// attribute's name: the harvest is the same prefix lookup either way, and
+// what it looks a name up *for* is not ADR 0061's question.
+type Audit = {};
 
 class Smuggled
 {

@@ -2,58 +2,62 @@
 
 ## State
 
-**M4's frontier is Stage 5, and item 32 is the open one.** ADR 0046's attach grammar and its
-§ 2 payload rule landed this session; §§ 4-5's retrieval, § 1's named-form shape check and
-ADR 0033's fifth sink are what is left of it. The plan's *Open now* paragraph is the one home
-for why each piece is shaped the way it is.
+**M4's frontier is Stage 5, and item 32 is still the open one, now two slices from done.**
+ADR 0046 § 1's attach grammar, § 2's payload rule and § 1's shape check have all landed;
+what is left of the item is ADR 0033's fifth sink and §§ 4-5's structural retrieval. The
+plan's *Open now* paragraph is the one home for why each landed piece is shaped the way it
+is.
 
-- **One payload, two forms.** `nvs_syntax::ast::Attribute` is `Option<Name>` plus
-  `Vec<ObjectLiteralField>` plus the payload's own span — ADR 0046 § 1's named and bare forms
-  differ in whether a name was written and in nothing else. The parenthesized run goes through
-  `Parser::parse_object_literal_fields` (`crates/nvs-syntax/src/parser/expr.rs:1248`), shared
-  verbatim with ADR 0036 § 2's literal, so a positional value in an attribute is refused by that
-  literal's own rule rather than by a second one.
-- **`nvs_types::attributes` is § 2's one home** (`crates/nvs-types/src/attributes.rs:34`), and
-  `is_constant` (`:129`) is a *closed* list on purpose — an `ExprKind` it does not name is
-  refused, so a grammar that grows a shape does not silently gain a constant-pool entry.
-- **§ 6 needed nothing.** `ExprKind::StaticCall::type_args` and `ExprKind::New::type_args` both
-  read `Parser::parse_call_type_args` (`crates/nvs-syntax/src/parser/expr.rs:799`), which is the
-  explicit call-site type argument that ADR names. Only the checker's use of it is open.
+- **The named form is checked in one walk with § 2's rule.**
+  `nvs_types::attributes::resolve_shape_alias` (`crates/nvs-types/src/attributes.rs:133`)
+  answers three ways — `E0303` for a name nothing declares, `E0726` for one that denotes
+  something that is not a shape-typed `type` alias, and the shape itself — and
+  `check_attribute` (`:88`) then checks the literal against it with the ordinary
+  `crate::expr::is_assignable`. A payload § 2 already refused is skipped, so one mistake
+  draws one diagnostic.
+- **ADR 0071's two attributes are the one exemption**, matched off `crate::derive::ATTRIBUTES`
+  before the alias table is consulted. It is a closed `Core`-owned roster on purpose; anything
+  userland is an alias or a mistake.
+- **The fifth sink cannot be `reject_secret_debug_argument`'s shape.** That sink reads the
+  argument's *inferred* type (`crates/nvs-types/src/expr/quals.rs:293`), and a class constant
+  infers `mixed` at every expression site — `crates/nvs-types/src/signatures.rs:32` names that
+  as a known gap and `crate::consts` holds values, not types. So the `secret` bit for a payload
+  field has to be read off the constant's own annotation in `build_const_table`
+  (`crates/nvs-types/src/consts.rs:113`), which is the walk that already has every
+  `ConstMember` in hand.
 - **ADR 0046 has no *Verification* section**, and M4's acceptance paragraph names one for it
-  alongside 0014, 0023, 0028 and 0069. Writing it is the retrieval slice's job, not a separate
-  one — a section listing fixtures for a member that does not exist yet would be written twice.
+  alongside 0014, 0023, 0028 and 0069. It is the retrieval slice's job: a section listing
+  fixtures for members that do not exist yet would be written twice.
 
 ## Next group
 
 **Item 32's remainder, in this order.** The file set is
 `crates/nvs-types/src/attributes.rs`, `crates/nvs-types/src/expr/quals.rs`,
-`crates/nvs-types/src/check.rs` and `crates/nvs-hir`'s type-alias table.
+`crates/nvs-types/src/consts.rs` and `crates/nvs-stdlib/src/registry.rs`.
 
-- [ ] **ADR 0046 § 1's named form resolves to a shape-typed `type` alias, and the literal is
-      checked against it** — `Name` is never a class and never a new namespace of attribute
-      kinds, so an unresolvable one is the ordinary `E0303` and a resolvable one that is not a
-      shape type is its own refusal. `crates/nvs-types/src/attributes.rs:34` is where the walk
-      already has the attribute in hand; `nvs_hir`'s alias table is what answers.
-- [ ] **ADR 0033's fifth sink: a `secret` class constant reaching an attribute payload** —
-      ADR 0046's own *Amends* line adds it, and § 2 already forces every candidate value to be
-      the literal/const/enum-case shape a `secret` can flow through.
-      `crates/nvs-types/src/expr/quals.rs:293` is the neighbouring sink to write it beside.
+- [ ] **ADR 0033's fifth sink: a `secret` class constant reaching an attribute payload** — §
+      2's own third bullet names it, alongside HTML output, `Core\Log`, debug dumps and
+      isolate-crossing. Read the qualifier where it still exists: `ConstMember`'s annotation,
+      in `crates/nvs-types/src/consts.rs:113`'s walk, recorded beside the folded value; the
+      refusal itself belongs with its four siblings in
+      `crates/nvs-types/src/expr/quals.rs:293`, called from the payload walk at
+      `crates/nvs-types/src/attributes.rs:203`, where every field value already passes. Next
+      free code is `E0727`.
 - [ ] **ADR 0046 §§ 4-5's structural retrieval** — `Core\Attributes::get<T>`/`::all<T>` folded
-      at compile time to the satisfying literal, `null`, or § 5's ambiguity diagnostic. This is
-      the slice that writes ADR 0046's missing *Verification* section and
-      `tests/conformance/lang/an-attribute-is-retrieved-by-its-own-type.nvst`, which
-      `loop-goal.toml` names and nothing has written.
+      at the call site: no attached literal is a compiled-in `null`, exactly one is that
+      constant, and more than one is a compile error (§ 5). `T` is the § 6 call-site type
+      argument `Parser::parse_call_type_args`
+      (`crates/nvs-syntax/src/parser/expr.rs:799`) already parses. Write ADR 0046's missing
+      *Verification* section with it, not before.
 
 ## Backlog
 
-- `loop-goal.toml` names `tests/conformance/lang/a-dump-renders-one-record-and-redacts-a-secret.nvst`,
-  which landed as two cases under `tests/conformance/core/` with different names — the toml is
-  the stale half.
-- A `require` whose path is not a string literal runs nothing at all, silently, in both forms —
+- A class constant's declared type is unmodelled, so `Class::CONST` is `mixed` everywhere —
+  `crates/nvs-types/src/signatures.rs:32` owns the gap, and closing it would also give the
+  fifth sink an ordinary `is_secret` to ask.
+- ADR 0046 § *Verification* does not exist; M4's acceptance paragraph names it
+  (`docs/plan/m4.md`).
+- A `require` whose path is not a string literal runs nothing, silently, in both forms —
   `nvs_hir::requires`' own known gap.
-- `Ctx::write_diagnostic` (`crates/nvs-runtime/src/ctx.rs:960`) is a second output sink outside
-  the capture stack — deliberate, and `nvs_stdlib::debug` is its home.
-- An `array<T>` element and an ADR 0036 shape literal's field still carry no `secret` bit —
-  ADR 0033's unmodelled container axis, `nvs_stdlib::debug` known gap 1.
-- `nvs-render` depends on `nvs-syntax` and that edge inverts when `nvs-runtime` or
-  `nvs-diagnostics` becomes a dependent — that crate's module doc § *Where this sits*.
+- `nvs_stdlib::debug` known gap 1: an ADR 0036 shape literal's field and an `array<T>` element
+  carry no `secret` bit, ADR 0033's unmodelled container axis.

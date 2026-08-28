@@ -1111,14 +1111,41 @@
 > `tests/conformance/reject/an-attribute-payload-is-a-compile-time-constant.nvst` pins all five
 > refusals in one compile — a variable, a call, a `new`, an interpolation and a parameter's own
 > attribute — with both attach forms and eight accepted field shapes written first, so a position
-> that stops being accepted fails there rather than as a missing refusal. What item 32 still owes is
-> § 1's other half (the named form's `Name` resolving to a shape-typed `type` alias, and the literal
-> checked against it), ADR 0033's fifth sink, and §§ 4-5's retrieval — the call-site `<T>` of § 6
-> needed nothing, `parse_call_type_args` having landed with ADR 0107's neighbours. Three live tools
-> **are** the worklist and no session re-derives one: `python tools/holes.py` reads the refusal
-> sites out of `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item N` for one in
-> full), `python tools/loop.py --list` prints the named `.nvst` cases each stage still owes, and
-> `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> that stops being accepted fails there rather than as a missing refusal. **§ 1's other half is
+> closed with it: a named attribute's `Name` is a shape-typed `type` alias and the payload is
+> checked against it.** `nvs_types::attributes` resolves the name in the same walk § 2's rule uses —
+> `nvs_hir::resolve_ref` and then the alias table, so a `use` import and a namespace place it
+> exactly as they place any other name — and answers three ways, deliberately. A name **nothing
+> declares** is the ordinary `E0303`, an attribute name being no second namespace and so owed no "no
+> such attribute" of its own; a name that resolves to something that is **not a shape-typed alias**
+> is `E0726`, the class spelling being what PHP would have instantiated and a `type Id = int;` the
+> same mistake one step along; and a shape gets the check the form exists for — the attached literal
+> against it through `nvs_types::expr::is_assignable`, ADR 0036 § 3's width subtyping verbatim, so
+> an extra field is fine and a missing or mistyped one is the ordinary `E0401` rather than an
+> attribute-shaped diagnostic. A payload § 2 has already refused is *not* then checked against the
+> shape, so the author is told about the value they wrote before they are told what it failed to
+> satisfy, and the literal is inferred over an empty scope because § 2 has just proved no variable
+> is in it. The one exemption is ADR 0071 § 1's **compiler-recognized** attributes, whose closed
+> `Core`-owned roster (`crate::derive::ATTRIBUTES`) names no shape at all and whose payloads are
+> that pass's own option check — closed and `Core`-owned precisely so it stays an exemption rather
+> than an escape hatch. Two standing cases moved with the rule rather than around it, which is what
+> proves it reaches the sites they cover: the § 2 case declares the aliases its five attribute names
+> always implied, and ADR 0061's autoload case now harvests a `type` alias where it harvested a
+> class, the prefix lookup being the same either way and what a name is looked up *for* not being
+> that ADR's question. `tests/conformance/reject/an-attribute-name-is-a-shape-typed-type-alias.nvst`
+> pins all five refusals in one compile — the undeclared name, a class, an alias for a scalar, a
+> mistyped field and a missing one — with both forms and the extra-field widening written first.
+> What item 32 still owes is ADR 0033's fifth sink and §§ 4-5's retrieval — the call-site `<T>` of §
+> 6 needed nothing, `parse_call_type_args` having landed with ADR 0107's neighbours. The fifth sink
+> is not the argument check its four siblings are, and the reason is one crate over:
+> `signatures.rs`'s own known gap leaves a class constant's declared type unmodelled, so
+> `Class::TOKEN` infers `mixed` at every expression site and `is_secret` over an inferred type can
+> never see the qualifier — the `secret` bit has to be read off the constant's own annotation, which
+> is `crate::consts`' walk and nothing else's. Three live tools **are** the worklist and no session
+> re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen`
+> and attributes each to its item (`--item N` for one in full), `python tools/loop.py --list` prints
+> the named `.nvst` cases each stage still owes, and `python tools/check-migration.py` scores
+> `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

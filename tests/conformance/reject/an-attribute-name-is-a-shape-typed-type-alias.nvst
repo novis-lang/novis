@@ -1,0 +1,76 @@
+--TEST--
+a named attribute's name resolves to a shape-typed `type` alias and the payload is checked against it, so a name that is anything else is refused where it is written — ADR 0046 § 1
+--FILE--
+<?nvs
+// ADR 0046 § 1: the named form reads like a constructor call deliberately,
+// for PHP familiarity, and is not one — `Name` is never a class and never a
+// new namespace of attribute kinds. It is a pre-existing `type` alias whose
+// right-hand side is a shape, and its whole job is to be the type the
+// attached literal is then checked against, by ADR 0036 § 3's ordinary width
+// subtyping and not by a second rule of its own.
+type Route = {path: string, method: string};
+type Tagged = {};
+type Id = int;
+
+class NotAnAttribute {}
+
+// The accepted half first, so a position that stops being accepted fails here
+// rather than as a missing refusal. An extra field is width subtyping and is
+// fine; a bare `#[{...}]` names no shape to satisfy at all; and a named form
+// written with no list attaches an empty literal, which satisfies an alias
+// declaring no field.
+#[Route(path: "/users", method: "GET")]
+#[Route(path: "/users/:id", method: "GET", version: 2)]
+#[Tagged]
+#[{anything: 1, at: "all"}]
+class Accepted {
+    #[Tagged(extra: true)]
+    public string $name = "n";
+}
+
+// A name nothing declares is the ordinary `E0303` any unresolvable name is:
+// an attribute name is not a second namespace, so there is no "no such
+// attribute" of its own to report.
+#[Undeclared(path: "/x")]
+class RefusedName {
+    // A class is the spelling this refusal exists for — it is what PHP would
+    // have instantiated, and § 1 gives an attribute nothing to instantiate.
+    #[NotAnAttribute(path: "/x")]
+    public string $field = "f";
+
+    // An alias is not enough on its own: one for a scalar names no shape for
+    // the payload to be checked against either.
+    public function show(#[Id(path: "/x")] int $id): int {
+        return $id;
+    }
+}
+
+// And where the name does name a shape, the literal is checked against it —
+// a field of the wrong type, and a field the shape declares that the payload
+// never wrote, are the two halves of that check.
+#[Route(path: 3, method: "GET")]
+class WrongFieldType {}
+
+#[Route(path: "/x")]
+class MissingField {}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0303]: `Undeclared` is not declared
+   --> case.nvs:31:3
+%A
+error[E0726]: an attribute's name must be a shape-typed `type` alias, and `NotAnAttribute` is not a `type` alias
+   --> case.nvs:35:7
+%A
+error[E0726]: an attribute's name must be a shape-typed `type` alias, and `Id` is a `type` alias for `int`, which is not a shape
+   --> case.nvs:40:28
+%A
+error[E0401]: expected `{method: string, path: string}`, found `{method: string, path: int}`
+   --> case.nvs:48:8
+%A
+error[E0401]: expected `{method: string, path: string}`, found `{path: string}`
+   --> case.nvs:51:8
+%A
+error: aborting due to 5 errors

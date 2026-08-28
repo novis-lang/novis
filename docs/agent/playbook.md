@@ -2096,6 +2096,19 @@ sibling in the same namespace unqualified.
   `internal(...)` refusal and running the crate's own tests: the backend already knows which
   instructions return a status, so make it say so and let the suite enumerate the producers rather
   than trusting a grep over the emitters.
+- **`Class::CONST` is `mixed` at every expression site, whatever the constant declares.**
+  `nvs_types::signatures`' own module doc names it as a known gap: the const table holds ADR 0047
+  § 2's folded *values* and there is no table of a class constant's declared *type*, so `int $n =
+  Limits::MAX;` is `E0401` and a payload field holding one satisfies no shape declaring a scalar.
+  A `.nvst` that wants a constant in a typed position writes the literal, or an enum case, which
+  does carry its type.
+- **An attribute's name was already load-bearing for two other passes before ADR 0046 § 1 got to
+  say what it means.** ADR 0071 § 1 matches `#[Json\Derive]`/`#[Json\Field]` *nominally* against a
+  closed `Core`-owned roster, and ADR 0061 § 1 harvests every attribute name as a reference the
+  autoloader then places by prefix. So a rule about what an attribute name may resolve to has to
+  exempt the first and leave the second alone — and the tests that pin them are the ones that
+  fail first: `tests/conformance/lang/a-class-named-only-by-an-attribute-is-autoloaded.nvst` and
+  the four `json-derive-*` cases.
 
 ## Divergences and refusals already pinned
 
