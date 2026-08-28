@@ -195,6 +195,7 @@
 //!   holds the constant's **value** rather than its declared type and so does
 //!   not close this gap.
 
+pub(crate) mod attributes;
 pub mod check;
 pub(crate) mod conformance;
 pub mod consts;

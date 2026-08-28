@@ -126,9 +126,14 @@ other shape-typed position already is.
 ### 2. Payload values are compile-time constants only
 
 Every field value inside a `#[...]` literal must be a compile-time constant: a literal, another class's
-`const`, or an enum case. No variable, no function/method call, no `new`, no `$this`. This is enforced by
-`nvs-types` the same pass that already resolves constant expressions for enum case values
-([ADR 0010](0010-enums-are-a-value-type.md)) and array sizes elsewhere.
+`const`, or an enum case. No variable, no function/method call, no `new`, no `$this`. `nvs_types::attributes`
+is the one home of the list, refusing everything not on it where it is written (`E0725`) — per *field*, in
+source order, so a payload with two computed values reads as two mistakes rather than one attribute being
+wrong. It is its own walk over every attach site rather than a row added to the pass that resolves an enum
+case's value ([ADR 0010](0010-enums-are-a-value-type.md)): the shapes admitted here are a *closed* list, so
+an expression kind the grammar grows is refused until someone decides it belongs in a constant pool, and a
+pass shared with the one that folds a case value would have inherited that pass's willingness to fold
+instead.
 
 Two consequences fall out of this for free, not as separate rules:
 

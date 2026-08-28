@@ -1,0 +1,79 @@
+--TEST--
+an attribute payload's every field value is a literal, a class constant or an enum case, and anything the program would have to run is refused where it is written — ADR 0046 §§ 1-2
+--FILE--
+<?nvs
+// ADR 0046 § 2: the whole payload is resolved once, at compile time, into the
+// unit's constant pool — the storage class an enum case's backing integer and
+// a class constant already use. There is therefore no moment at which a
+// variable could be read, a call made or a `new` constructed, which is exactly
+// the moment PHP's attributes do have (`ReflectionAttribute::newInstance()`
+// builds a real object lazily) and this ADR deliberately does not.
+enum Mode: int {
+    Read = 1,
+    Write = 2,
+}
+
+class Limits {
+    public const int MAX = 255;
+}
+
+// The accepted half first, so a position that stops being accepted fails here
+// rather than as a missing refusal. ADR 0046 § 1's two attach forms are both
+// here — the named `Name(field: value)` and the bare `{field: value}` — since
+// naming is attach-site sugar and never changes what a payload may hold.
+#[Route(path: "/users", method: "GET"), {tag: 1}]
+#[Audit]
+class Accepted {
+    #[Column(
+        length: Limits::MAX,
+        mode: Mode::Read,
+        offset: -3,
+        ratio: 1.5,
+        nullable: true,
+        absent: null,
+        flags: [1, 2],
+        nested: {deep: Limits::MAX},
+    )]
+    public string $name = "n";
+}
+
+// A variable is the shape the rule exists for: there is no frame for it to be
+// read out of at the point the payload is written into the pool.
+string $host = "example.com";
+
+#[Route(path: $host)]
+class Refused {
+    // A call and a `new` are the other two § 2 names, and each is reported at
+    // the field it is written in rather than at the attribute, so a payload
+    // with two bad fields reads as two mistakes.
+    #[Column(length: Core\Str::length("ab"), other: new Refused())]
+    public string $field = "f";
+
+    // An interpolated string reads a variable by definition, whatever it
+    // interpolates, so it is not the string-literal row one syntax along.
+    #[Cache(key: "host-$host")]
+    public function show(#[Autowire(from: $host)] int $id): int {
+        return $id;
+    }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0725]: an attribute's field value is not a compile-time constant
+   --> case.nvs:41:15
+%A
+error[E0725]: an attribute's field value is not a compile-time constant
+   --> case.nvs:46:22
+%A
+error[E0725]: an attribute's field value is not a compile-time constant
+   --> case.nvs:46:53
+%A
+error[E0725]: an attribute's field value is not a compile-time constant
+   --> case.nvs:51:18
+%A
+error[E0725]: an attribute's field value is not a compile-time constant
+   --> case.nvs:52:43
+%A
+error: aborting due to 5 errors

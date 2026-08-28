@@ -207,6 +207,7 @@ fn check_stmts(
                     generator_elem: None,
                 };
                 check_members(&decl.members, &ctx, env);
+                crate::attributes::check_declaration(&decl.attributes, &decl.members, &[], env);
                 check_class_init(decl, &qname, env);
                 check_class_lateinit_reads(decl, &qname, env);
                 crate::conformance::check_class_conformance(decl, &qname, env);
@@ -225,6 +226,7 @@ fn check_stmts(
                     generator_elem: None,
                 };
                 check_members(&decl.members, &ctx, env);
+                crate::attributes::check_declaration(&decl.attributes, &decl.members, &[], env);
             }
             StmtKind::EnumDecl(decl) => {
                 let qname = QName::join(&current_ns, span_text(env.src, decl.name.span));
@@ -236,6 +238,12 @@ fn check_stmts(
                     generator_elem: None,
                 };
                 check_members(&decl.members, &ctx, env);
+                crate::attributes::check_declaration(
+                    &decl.attributes,
+                    &decl.members,
+                    &decl.cases,
+                    env,
+                );
             }
             // Two more declarations this walk has nothing to check, matched
             // here rather than left to fall through, because what

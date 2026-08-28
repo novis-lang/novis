@@ -1533,6 +1533,15 @@ pub mod code {
     /// node rather than a refusal, so the help distinguishes the value the
     /// author handed over from the value a record redacts for them.
     pub const E_SECRET_DEBUG_ARGUMENT: Code = Code::new("E0724");
+    /// An attribute payload's field value is not a compile-time constant —
+    /// [ADR 0046](../../../docs/adr/0046-attributes-shape-literal-metadata.md)
+    /// § 2. The whole literal is resolved once, at compile time, into the
+    /// unit's constant pool, the same storage class an enum case's backing
+    /// value already uses; there is no "evaluate this attribute's arguments"
+    /// step at class-definition time for a variable, a call or a `new` to be
+    /// evaluated *in*, which is what PHP's lazily-constructed attribute
+    /// object has and this one deliberately does not.
+    pub const E_ATTRIBUTE_VALUE_NOT_CONSTANT: Code = Code::new("E0725");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

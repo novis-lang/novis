@@ -1082,11 +1082,43 @@
 > are stated at `nvs_stdlib::debug` rather than implied: an enum case dumps as its backing integer,
 > because ADR 0010 § 5 spends no tag on hiding one and a `mixed` cannot tell; and the `Throwable`
 > producer of § 6 is not here at all, its walk belonging to `nvs-runtime`'s fatal path and therefore
-> waiting on the crate edge above. Three live tools **are** the worklist and no session re-derives
-> one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen` and
-> attributes each to its item (`--item N` for one in full), `python tools/loop.py --list` prints the
-> named `.nvst` cases each stage still owes, and `python tools/check-migration.py` scores
-> `docs/spec/02-php-migration.md`.
+> waiting on the crate edge above. **ADR 0046's attach grammar is the ADR's own now, and the payload
+> rule under it is closed** — item 32's first two slices, the ones below the retrieval § 4 still
+> owes. The grammar had drifted into PHP's shape rather than this ADR's: `Attribute` carried a
+> `Name` plus a `CallArgs`, so `#[Route(path: "/x")]` was an *argument list* that happened to be
+> named and the bare `#[{...}]` form § 1 gives equal standing did not parse at all. It is one
+> payload for both forms now — `Option<Name>` plus ADR 0036 § 2's own `ObjectLiteralField`s — and
+> the parenthesized run is parsed by the very function that parses an object literal's fields
+> (`Parser::parse_object_literal_fields`, factored out of `parse_object_literal_expr` rather than
+> copied), so an attribute payload takes that literal's rules instead of a second set of its own: no
+> positional value, no shorthand, no computed key, each refused where it is written by the
+> diagnostic the literal already had. The named form written with no list at all (`#[Audit]`)
+> attaches an empty literal, which is what keeps § 1's two forms one shape rather than three.
+> `nvs_types::derive` reads the payload where it read arguments, and *loses* a check by it — ADR
+> 0071 § 3's "a `#[Json\Field]` argument must be named" was the object literal's rule restated one
+> crate up, and the parser makes it unspellable now. Then **§ 2's compile-time-constant-only rule is
+> a check** rather than a sentence in an ADR: `nvs_types::attributes` walks every attach site a
+> declaration owns — its own groups, each property's and that property's hooks', each const's, each
+> method's and each of its parameters', and each enum case's — and refuses a field value that is not
+> a literal, a class constant or an enum case (`E0725`), per field and in source order, so a payload
+> with two computed values reads as two mistakes. The admitted list is **closed** and that is the
+> decision in it: an `ExprKind` this pass does not name is refused, so a shape the grammar grows is
+> refused until someone decides it belongs in a constant pool — which is why it is its own walk
+> rather than a row on the pass that folds an enum case's value, a pass whose whole job is to be
+> willing to fold. An interpolated string is the row worth naming: it reads a variable by
+> definition, whatever it interpolates, so it is not the string-literal row one syntax along. ADR
+> 0046 § 2 gains the enforcement site rather than being left to name a pass that does not do this.
+> `tests/conformance/reject/an-attribute-payload-is-a-compile-time-constant.nvst` pins all five
+> refusals in one compile — a variable, a call, a `new`, an interpolation and a parameter's own
+> attribute — with both attach forms and eight accepted field shapes written first, so a position
+> that stops being accepted fails there rather than as a missing refusal. What item 32 still owes is
+> § 1's other half (the named form's `Name` resolving to a shape-typed `type` alias, and the literal
+> checked against it), ADR 0033's fifth sink, and §§ 4-5's retrieval — the call-site `<T>` of § 6
+> needed nothing, `parse_call_type_args` having landed with ADR 0107's neighbours. Three live tools
+> **are** the worklist and no session re-derives one: `python tools/holes.py` reads the refusal
+> sites out of `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item N` for one in
+> full), `python tools/loop.py --list` prints the named `.nvst` cases each stage still owes, and
+> `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

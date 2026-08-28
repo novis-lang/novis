@@ -2,50 +2,58 @@
 
 ## State
 
-**M4's frontier is Stage 5, and item 33 is closed end to end.** ADR 0092's record model and
-plaintext rendering are the leaf crate **`nvs-render`**; `Core\Debug::dump`/`render` are
-registered `Core` members; and § 5's redaction row is now closed at *both* halves — the
-call-site refusal (`E0724`) and the `secret`-typed property, which renders as
-`nvs_render::Node::Redacted`.
+**M4's frontier is Stage 5, and item 32 is the open one.** ADR 0046's attach grammar and its
+§ 2 payload rule landed this session; §§ 4-5's retrieval, § 1's named-form shape check and
+ADR 0033's fifth sink are what is left of it. The plan's *Open now* paragraph is the one home
+for why each piece is shaped the way it is.
 
-- **The property half is a descriptor bit, and the vertical is four crates long**:
-  `nvs_types::expr::type_is_secret` (`crates/nvs-types/src/expr/mod.rs:88`) →
-  `nvs_ir::lower::field_slots` (`crates/nvs-ir/src/lower/mod.rs:391`) →
-  `nvs_ir::ir::Class::secret_fields` → `nvs_runtime::ClassTable::set_secret_fields`
-  (`crates/nvs-runtime/src/object.rs:713`) → `ClassDesc::field_is_secret`, read by
-  `nvs_stdlib::debug::object_body` (`crates/nvs-stdlib/src/debug.rs:426`). The plan's
-  *Open now* paragraph is the one home for why each hop exists.
-- **`field_reprs` is now `field_slots` and returns a pair.** The representation and the
-  `secret` bit come off one join over one table on purpose — two walks could disagree about
-  which declaration won a slot, and a redaction naming the wrong slot discloses the value.
-- **What still has no bit is a container**: an `array<T>` element and an ADR 0036 shape
-  literal's field. Both are ADR 0033's unmodelled container axis; `nvs_stdlib::debug`'s known
-  gap 1 is their one home.
-- **`nvs-render` depends on `nvs-syntax` and that edge is temporary** — ADR 0087's bidi
-  predicate, called rather than restated. It inverts (a **move** of `nvs_syntax::bidi` down)
-  the moment `nvs-runtime` or `nvs-diagnostics` becomes a dependent. That crate's module doc
-  § *Where this sits* is the one home for it.
-- **`Ctx` has a second sink.** `write_diagnostic` (`crates/nvs-runtime/src/ctx.rs:960`) writes
-  to `OutputSink::Stderr` by default and is not routed through the capture stack.
+- **One payload, two forms.** `nvs_syntax::ast::Attribute` is `Option<Name>` plus
+  `Vec<ObjectLiteralField>` plus the payload's own span — ADR 0046 § 1's named and bare forms
+  differ in whether a name was written and in nothing else. The parenthesized run goes through
+  `Parser::parse_object_literal_fields` (`crates/nvs-syntax/src/parser/expr.rs:1248`), shared
+  verbatim with ADR 0036 § 2's literal, so a positional value in an attribute is refused by that
+  literal's own rule rather than by a second one.
+- **`nvs_types::attributes` is § 2's one home** (`crates/nvs-types/src/attributes.rs:34`), and
+  `is_constant` (`:129`) is a *closed* list on purpose — an `ExprKind` it does not name is
+  refused, so a grammar that grows a shape does not silently gain a constant-pool entry.
+- **§ 6 needed nothing.** `ExprKind::StaticCall::type_args` and `ExprKind::New::type_args` both
+  read `Parser::parse_call_type_args` (`crates/nvs-syntax/src/parser/expr.rs:799`), which is the
+  explicit call-site type argument that ADR names. Only the checker's use of it is open.
+- **ADR 0046 has no *Verification* section**, and M4's acceptance paragraph names one for it
+  alongside 0014, 0023, 0028 and 0069. Writing it is the retrieval slice's job, not a separate
+  one — a section listing fixtures for a member that does not exist yet would be written twice.
 
 ## Next group
 
-**Stage 5's next item, whatever `python tools/loop.py --list` names first.** Item 33 owned this
-session's whole file set and nothing in it is left open, so the next group is chosen from the
-tools rather than from here — `holes.py` for a refusal site, `loop.py --list` for a named case
-the stage still owes.
+**Item 32's remainder, in this order.** The file set is
+`crates/nvs-types/src/attributes.rs`, `crates/nvs-types/src/expr/quals.rs`,
+`crates/nvs-types/src/check.rs` and `crates/nvs-hir`'s type-alias table.
 
-- [ ] **Take the first open Stage 5 item `python tools/loop.py --list` names**, and read its
-      anchors with one `python tools/peek.py --locate` call before opening anything.
-- [ ] **Then the next one it names**, if it shares that file set.
+- [ ] **ADR 0046 § 1's named form resolves to a shape-typed `type` alias, and the literal is
+      checked against it** — `Name` is never a class and never a new namespace of attribute
+      kinds, so an unresolvable one is the ordinary `E0303` and a resolvable one that is not a
+      shape type is its own refusal. `crates/nvs-types/src/attributes.rs:34` is where the walk
+      already has the attribute in hand; `nvs_hir`'s alias table is what answers.
+- [ ] **ADR 0033's fifth sink: a `secret` class constant reaching an attribute payload** —
+      ADR 0046's own *Amends* line adds it, and § 2 already forces every candidate value to be
+      the literal/const/enum-case shape a `secret` can flow through.
+      `crates/nvs-types/src/expr/quals.rs:293` is the neighbouring sink to write it beside.
+- [ ] **ADR 0046 §§ 4-5's structural retrieval** — `Core\Attributes::get<T>`/`::all<T>` folded
+      at compile time to the satisfying literal, `null`, or § 5's ambiguity diagnostic. This is
+      the slice that writes ADR 0046's missing *Verification* section and
+      `tests/conformance/lang/an-attribute-is-retrieved-by-its-own-type.nvst`, which
+      `loop-goal.toml` names and nothing has written.
 
 ## Backlog
 
-- A `secret` value inside an `array<T>` element or an ADR 0036 shape field is not redacted —
-  `nvs_stdlib::debug` known gap 1, ADR 0033's container axis.
-- An enum case dumps as its backing integer — `nvs_stdlib::debug` known gap 2, ADR 0010 § 5.
-- ADR 0092 § 6's `Throwable` producer belongs to `nvs-runtime`'s fatal path — known gap 3.
-- `nvs_syntax::bidi` moves down into `nvs-render` once a second dependent exists — that
-  crate's module doc § *Where this sits*.
-- A `require` whose path is not a string literal runs nothing, silently — `nvs_hir::requires`.
-- ADR 0092 § 4's HTTP rows (a dump under `[debug] inline`, and never in a JSON body) are M7's.
+- `loop-goal.toml` names `tests/conformance/lang/a-dump-renders-one-record-and-redacts-a-secret.nvst`,
+  which landed as two cases under `tests/conformance/core/` with different names — the toml is
+  the stale half.
+- A `require` whose path is not a string literal runs nothing at all, silently, in both forms —
+  `nvs_hir::requires`' own known gap.
+- `Ctx::write_diagnostic` (`crates/nvs-runtime/src/ctx.rs:960`) is a second output sink outside
+  the capture stack — deliberate, and `nvs_stdlib::debug` is its home.
+- An `array<T>` element and an ADR 0036 shape literal's field still carry no `secret` bit —
+  ADR 0033's unmodelled container axis, `nvs_stdlib::debug` known gap 1.
+- `nvs-render` depends on `nvs-syntax` and that edge inverts when `nvs-runtime` or
+  `nvs-diagnostics` becomes a dependent — that crate's module doc § *Where this sits*.
