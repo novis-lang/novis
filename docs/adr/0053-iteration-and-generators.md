@@ -18,9 +18,9 @@
 > [ADR 0014](0014-property-observer.md) already rejected for properties, and the second has no global
 > `count()` left to hook since [ADR 0011](0011-functions-and-constants-are-class-members.md) removed free
 > functions. **Generators exist**, spelled `yield`, and are **lowered to an explicit state machine** rather
-> than run on the coroutine substrate — so they work identically on every compile target, including the
-> wasm browser target where coroutine suspension is unavailable. The price is that `yield` may appear only
-> in the generator's own body, never in a function it calls.
+> than run on the coroutine substrate — so they work identically on every compile target, including any
+> that has no stack-switching to suspend on. The price is that `yield` may appear only in the generator's
+> own body, never in a function it calls.
 
 ## Context
 

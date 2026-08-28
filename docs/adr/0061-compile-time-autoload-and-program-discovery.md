@@ -47,7 +47,7 @@
 - **Where the map lives is a real constraint, not a detail.** A config file under a document root is
   web-reachable; a walk-up search finds the wrong root when many project trees share one framework
   directory; an `nvs.toml` directive ([ADR 0005](0005-config-changeability.md)) is deployment state, absent
-  from `nvs build --compile` and the browser target, and invisible to an editor running `nvs check`.
+  from `nvs build --compile`, and invisible to an editor running `nvs check`.
 
 ## Decision
 
@@ -247,7 +247,7 @@ the failure later, against the direction [ADR 0022](0022-definite-property-initi
   the next bullet.
 - **An `nvs.toml` `[autoload]` section.** The "current Novis way", and wrong on lifetime: the map is a property
   of the source tree, not of the deployment, and `nvs.toml` is absent from
-  `nvs build --compile`, the browser target, and an editor's `nvs check`. It also makes one source tree
+  `nvs build --compile` and from an editor's `nvs check`. It also makes one source tree
   behave differently under two hosts, which the artifact cache would then have to key on. Not rejected
   *forever*: an operator-level block that only *adds* roots could be layered on later without changing
   anything here, if a real deployment needs to inject a path without touching source.
