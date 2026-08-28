@@ -1,0 +1,89 @@
+--TEST--
+Core\Random::int's closed bound is drawn at the ends of `int` itself — a singleton at each extreme, the whole 2^64-value range, and the two-value ranges pinned against each end — spec § 11, ADR 0007 § 4
+--FILE--
+<?nvs
+// The standing sweep asks for `int(1, 6)` and for a range of 2^62 either side
+// of zero. What none of them asks is the bound of the *type*: the member is
+// inclusive at both ends, so `int(min, min)` and `int(max, max)` each name one
+// value, and `int(min, max)` names a range of 2^64 values whose width has no
+// `int` at all. An implementation computing `$max - $min + 1` is fine at 2^63
+// and overflows here.
+
+// ADR 0007 § 4: an integer literal past `int` is a diagnostic, so the lower
+// end is written as the negation of the largest one plus a step.
+int $lo = -9223372036854775807 - 1;
+int $hi = 9223372036854775807;
+echo "ends ", $lo, " ", $hi, "\n";
+
+// --- A singleton at each end ----------------------------------------------
+// `int($n, $n)` is `$n` (the member's own doc), and that stays true where `$n`
+// is the first and last value the type holds. These two lines are exact, not
+// a sweep: there is one answer.
+echo "min singleton ", Core\Random::int($lo, $lo), "\n";
+echo "max singleton ", Core\Random::int($hi, $hi), "\n";
+
+// --- The whole type as one range ------------------------------------------
+// 2^64 values. Counted rather than read off a line, so a draw that clamps or
+// wraps at one end fails here while still looking plausible on any single row.
+int $whole = 0;
+int $i = 0;
+for ($i = 0; $i < 64; $i = $i + 1) {
+    int $w = Core\Random::int($lo, $hi);
+    $whole = $whole + ((($w >= $lo) && ($w <= $hi)) ? 1 : 0);
+}
+echo "whole ", $whole, "\n";
+
+// --- Two values, hard against each end ------------------------------------
+// The narrowest range that is not a singleton, placed where an off-by-one has
+// nowhere to hide: `{min, min+1}` and `{max-1, max}`. Both endpoints must be
+// reachable — over 48 draws each, missing one is under 1 in 10^14 — and no
+// third value may appear, which is what an implementation that computed its
+// span one too wide would produce.
+int $lowPair = 0;
+int $sawLo = 0;
+int $sawLoUp = 0;
+for ($i = 0; $i < 48; $i = $i + 1) {
+    int $l = Core\Random::int($lo, $lo + 1);
+    $lowPair = $lowPair + ((($l == $lo) || ($l == $lo + 1)) ? 1 : 0);
+    $sawLo = $sawLo + (($l == $lo) ? 1 : 0);
+    $sawLoUp = $sawLoUp + (($l == $lo + 1) ? 1 : 0);
+}
+echo "low pair ", $lowPair, " both ", (($sawLo > 0) && ($sawLoUp > 0)) ? "y" : "n", "\n";
+
+int $highPair = 0;
+int $sawHi = 0;
+int $sawHiDown = 0;
+int $j = 0;
+for ($j = 0; $j < 48; $j = $j + 1) {
+    int $h = Core\Random::int($hi - 1, $hi);
+    $highPair = $highPair + ((($h == $hi) || ($h == $hi - 1)) ? 1 : 0);
+    $sawHi = $sawHi + (($h == $hi) ? 1 : 0);
+    $sawHiDown = $sawHiDown + (($h == $hi - 1) ? 1 : 0);
+}
+echo "high pair ", $highPair, " both ", (($sawHi > 0) && ($sawHiDown > 0)) ? "y" : "n", "\n";
+
+// --- The first refused range, at the same extremes ------------------------
+// `$min > $max` is the empty range and throws rather than swapping the bounds.
+// One step past each singleton is the first refusal, and the message carries
+// both numbers so a caller can see which computed bound was wrong.
+try {
+    Core\Random::int($lo + 1, $lo);
+    echo "low empty drew\n";
+} catch (Throwable $lowEmpty) {
+    echo $lowEmpty->message, "\n";
+}
+try {
+    Core\Random::int($hi, $hi - 1);
+    echo "high empty drew\n";
+} catch (Throwable $highEmpty) {
+    echo $highEmpty->message, "\n";
+}
+--EXPECT--
+ends -9223372036854775808 9223372036854775807
+min singleton -9223372036854775808
+max singleton 9223372036854775807
+whole 64
+low pair 48 both y
+high pair 48 both y
+Core\Random::int(): the range is empty — the lower bound -9223372036854775807 is above the upper bound -9223372036854775808, and both ends are inclusive
+Core\Random::int(): the range is empty — the lower bound 9223372036854775807 is above the upper bound 9223372036854775806, and both ends are inclusive
