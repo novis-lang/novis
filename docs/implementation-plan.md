@@ -524,11 +524,38 @@
 > `Helper::BoolToString` (pinned by `conversions-that-succeed.nvst`) and `$yes as int` is the
 > `E0708` the closed-grid pass already landed (pinned by `the-conversion-table-is-closed.nvst`);
 > `examples/targets.nvs` still spelled the refused half, so it is a branch said out loud there now
-> and `asInt=1` is unchanged. Three live tools **are** the worklist and no session re-derives one:
-> `python tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen` and attributes
-> each to its item (`--item N` for one in full), `python tools/loop.py --list` prints the named
-> `.nvst` cases each stage still owes, and `python tools/check-migration.py` scores
-> `docs/spec/02-php-migration.md`.
+> and `asInt=1` is unchanged. **Item 24's subscript half is closed, and closing it took
+> `examples/targets.nvs` green with it.** A base whose static type names no element type at all was
+> `E0482` wherever it was written, `mixed` included — but `mixed` is ADR 0007 § 2's one unchecked
+> position, so it defers not only *which* array is behind the handle but *whether there is one*,
+> which is ADR 0036 § 4's deferral one storage kind along from a member access. It is answered from
+> the base's runtime **tag** now: `Helper::ValueIndexGet` and its `??` twin `ValueIndexOptionalGet`
+> share one implementation (`nvs_runtime::helpers::value_index`, whose doc comment is those rows'
+> home) and are chosen in `nvs-ir` off the base's *representation* rather than off anything the
+> checker recorded, exactly as `lower_instanceof` reads its own subject's. They are a `Helper` pair
+> rather than a widened `InstKind::ArrayGet` because the two differ in the one row that must not be
+> shared: a non-array base is an **internal inconsistency** for the statically typed read, whose
+> base is an `array<T>` by declaration, and a **catchable throw** here, carrying `E0482`'s own "only
+> an `array<T>` has elements" wording so that the deferred refusal reads as the one the site makes
+> wherever the type shows it. Under a `??` both failures — the absent key and the non-array base —
+> answer `null` instead, which is what PHP's own null-coalescing read does for any subject at all.
+> Two ends stay refused deliberately and neither is a gap: a base whose *declared* type has already
+> answered the question (a scalar, an untested `?array<T>`, a union naming no array) keeps `E0482`,
+> because a type that answered does not get to ask again at run time; and a `mixed` **write** target
+> keeps it too, an element write having a copy-on-write buffer to separate and needing a holder to
+> write the separated one back through, which a value that is only a tag does not name. ADR 0007 § 5
+> gains the paragraph rather than being left to disagree with the tree. Valgrind-clean over a
+> fixture that abandons a freshly built `string` base on the refusal's error edge, and a freshly
+> built array on an absent key's, two hundred times each. Subtracting the refusal moved
+> `examples/targets.nvs` one line further and found the last one wrong rather than unimplemented:
+> `array<int> as array<string>` is § 2's per-element **check**, not a conversion, so it throws at
+> element 0, and the fixture converts to `array<mixed>` — the one target every tag satisfies — with
+> `converted=3` unchanged, which is what makes that the fixture's own correction rather than a
+> weakening of the check. **The fixture is green end to end and matches Stage 4's `want` exactly.**
+> Three live tools **are** the worklist and no session re-derives one: `python tools/holes.py` reads
+> the refusal sites out of `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item N`
+> for one in full), `python tools/loop.py --list` prints the named `.nvst` cases each stage still
+> owes, and `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

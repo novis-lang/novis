@@ -2024,6 +2024,13 @@ sibling in the same namespace unqualified.
   over two `string`s merely refused. So when closing an operator table at the checker, probe
   the `bool` row first and read its answer rather than its exit status; a refusal you can see
   is the good case.
+- **A `catch` binding's methods do not exist yet, whatever the clause names.** `catch (Throwable
+  $e) { echo $e->getMessage(); }` panics `nvs-ir` at `lower/expr.rs:2281` with *"an instance
+  method call has no resolved target recorded in the typed-expression table"*, and so does
+  `catch (LogicError $e)` — the message blames a `mixed`/union/scalar receiver, so it reads as a
+  checker/lowering mismatch rather than as the synthesized exception class simply having no
+  members. A scratch fixture or a `.nvst` case that wants to show *what* was thrown has to echo a
+  literal in the clause body instead.
 
 ## Divergences and refusals already pinned
 

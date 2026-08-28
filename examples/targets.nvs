@@ -50,6 +50,10 @@ echo "top=" . ($any instanceof Point ? "point" : "other") . "\n";
 bool $yes = true;
 echo "asInt=" . ($yes ? 1 : 0) . " asString=" . ($yes as string) . "\n";
 
+// ADR 0007 § 2's `array<T>` → `array<U>` row *checks* every element against
+// `U` rather than converting it, and what checks one is its runtime tag — so
+// `as array<string>` over these throws at element 0, and `array<mixed>` is
+// the target every tag satisfies.
 array<int> $ints = [1, 2, 3];
-array<string> $texts = $ints as array<string>;
-echo "converted=" . $texts[2] . "\n";
+array<mixed> $loose = $ints as array<mixed>;
+echo "converted=" . $loose[2] . "\n";

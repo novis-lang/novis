@@ -2,64 +2,58 @@
 
 ## State
 
-**ADR 0007 § 4's arithmetic table is closed at the operand end, and
-`emit_binop`'s operator catch-all has no reachable target left.** An operand
-naming no arithmetic row is `E0716` where it is written and `%` over a `float`
-is `E0717`, both mirrored by `nvs_runtime::helpers::value_arith`'s catchable
-throw at the tagged end. The plan's `Open now` carries the reasoning; ADR 0007
-§ 4's body carries the rule.
+**ADR 0036 § 4's deferral now reaches a subscript, and `examples/targets.nvs`
+is green end to end** — every line of Stage 4's `want`, `converted=3` included.
+A `mixed` base's `$box[1]` is answered from the operand's runtime tag by
+`Helper::ValueIndexGet`/`ValueIndexOptionalGet` over one implementation
+(`nvs_runtime::helpers::value_index`); every base whose declared type already
+answers, and every `mixed` *write* target, keeps `E0482`. ADR 0007 § 5's body
+carries the rule; the plan's `Open now` carries the reasoning.
 
-- **Item 26 is closed and needed no lowering.** `bool as string` already ran
-  and `$yes as int` was already `E0708`; what was stale was
-  `examples/targets.nvs:48`, which now spells the predicate out loud, and the
-  goal's own check comment, which claimed three conversion rows where one is a
-  branch. `loop-goal.toml` lost `a_bool_converts_to_an_int_and_to_a_string`
-  (there is nothing in `nvs-ir` to test) and gained the three `nvs-types` names
-  this session wrote in `crates/nvs-types/tests/numeric.rs`.
-- **`examples/targets.nvs` is still red, one line earlier**: `$box[1]` over a
-  `mixed` is `E0482`, which is item 24's subscript-through-a-tag half and is
-  *not* landed despite the plan's item-24 paragraph. That is the next thing
-  standing between this fixture and its stage-4 check.
-- **`nvs-codegen` has no unlowered-shape test any more**, and the comment where
-  the two stood (`crates/nvs-codegen/tests/unit_layout.rs:42`) says why: every
-  `CodegenError::Unsupported` in `emit_binop` is now an internal-consistency
-  check, and hand-building an IR to reach one would contradict that file's own
-  module doc.
-- **`orient.py`'s pack was complete for both items.** The two standing manifest
+- **`examples/targets.nvs:53` was wrong, not unimplemented.** `array<int> as
+  array<string>` is ADR 0007 § 2's per-element *check* and throws at element 0,
+  so the fixture converts to `array<mixed>` and says why in a comment.
+  `loop-goal.toml`'s Stage 4 comment records the same correction.
+- **A `catch` binding has no callable members** —
+  `$e->getMessage()` panics `nvs-ir` at `lower/expr.rs:2281` for `Throwable`
+  *and* for a named class. New, unrelated to this item, and in `## Backlog`.
+- **`orient.py`'s pack was complete for this item.** The two standing manifest
   gaps are unchanged — `[context] modules` has no `nvs-runtime` and no
-  `nvs-diagnostics` entry.
+  `nvs-diagnostics` entry, and both were files this slice edited.
 
 ## Next group
 
-**The `mixed` operand's remaining holes and the roster comments' testable
-claims, over the three files this session already opened.** The files:
-`crates/nvs-types/src/expr/operators.rs`, `crates/nvs-codegen/src/emit.rs` and
-`crates/nvs-ir/src/lower/expr.rs`.
+**The two remaining group items, over the operator files this session did not
+open plus the one it did.** The files: `crates/nvs-types/src/expr/operators.rs`,
+`crates/nvs-ir/src/lower/expr.rs` and `crates/nvs-codegen/src/emit.rs`.
 
-- [ ] **A subscript through a tagged base** — `examples/targets.nvs:39`'s
-      `elem=2`, refused today by `E0482` at `crates/nvs-types/src/expr/mod.rs`'s
-      subscript check. ADR 0007 § 5 with ADR 0036 § 4's deferral: a `mixed` base
-      defers *whether* there is an array, so the read is the tag's question, not
-      the site's. The plan's item-24 paragraph claims this and the tree does not
-      have it.
-- [ ] **A `void` call as an operator's operand** —
-      `class H { public static function n(): void {} } H::n() + 1;` dies with
-      *"does not lower an operand used before it is defined"*, an internal
-      message naming nothing. `equality_domain` answers `None` for `Ty::Void`,
-      so `reject_unrowed_arithmetic_operand`
-      (`crates/nvs-types/src/expr/operators.rs:547`) lets it through on purpose;
-      the `as` table already refuses a `void` on either side (`E0708`), so this
-      is the same rule one operator over.
-- [ ] **A `.nvst` case for the five roster comments' testable claims** —
-      `crates/nvs-codegen/src/emit.rs:1165` and `:1310` each name a roster; the
-      claims that a program can reach are the `E0706`/`E0716`/`E0717` refusals,
-      and `tests/conformance/lang/the-arithmetic-table-is-closed.nvst` is the
-      shape to extend rather than a second file.
+- [ ] **A `void` call as an operator's operand** — ADR 0007 § 4's table has no
+      row for a value that is not one, and `E0707` already refuses a `void`
+      call at an implicit `.`; the arithmetic and ordering rejections
+      (`reject_unordered_operand`, `reject_arith_operand` in
+      `crates/nvs-types/src/expr/operators.rs`) should name it the same way
+      rather than letting it reach a representation the backend has no row for.
+- [ ] **A `.nvst` case for the five roster comments' testable claims** — the
+      catch-all rosters in `crates/nvs-codegen/src/emit.rs` (`emit_binop`,
+      `emit_unop`) and `crates/nvs-ir/src/lower/expr.rs:@lower_expr` each claim
+      a closed list; the *Agreement* shape in `docs/agent/conventions.md` is the
+      one that asserts they agree rather than what each answered.
+- [ ] **A `.nvst` case for the tagged subscript** — this session's item is
+      pinned by `a_subscript_through_a_tagged_base_lowers`
+      (`crates/nvs-ir/src/lower/tests.rs`) and by the fixture, but nothing
+      pins the *output* of the four rows (element, absent key, non-array base,
+      both under `??`) byte for byte. `tests/conformance/lang/` is the home.
 
 ## Backlog
 
-- Item 24's subscript-through-a-tag half — `docs/agent/loop-goal.md`'s item list.
-- `Ty::Void` as an operand of any operator, not just an arithmetic one — same file.
-- `[context] modules` has no `nvs-runtime`/`nvs-diagnostics` entry — `docs/agent/loop-goal.toml`.
-- `emit_binop`'s representation catch-all still names `Void` as unreachable; the probe above
-  suggests a `void` operand dies earlier instead — `crates/nvs-codegen/src/emit.rs:1165`.
+- A `catch` binding's methods do not lower — `$e->getMessage()` panics
+  `nvs-ir` at `crates/nvs-ir/src/lower/expr.rs:2281`. ADR 0002 owns what a
+  `Throwable` exposes; the synthesized class has none of it.
+- An element **write** through a `mixed` base is still `E0482` — the deferral's
+  other half, and it needs a holder to write the separated buffer back
+  through. ADR 0007 § 5's new paragraph says so.
+- `[context] modules` in `docs/agent/loop-goal.toml` names neither
+  `nvs-runtime` nor `nvs-diagnostics`, both of which this goal edits routinely.
+- `docs/spec/02-php-migration.md`'s score, via `python tools/check-migration.py`.
+- Virtual dispatch by slot and a `br_table` for a dense `switch` are M12
+  (`docs/agent/loop-goal.md` § *Standing decisions*).

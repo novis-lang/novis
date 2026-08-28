@@ -713,6 +713,9 @@ tests = [
 # 25, `asInt`/`asString` and `converted=3` item 26's three rows -- of which `asInt` is a *branch*,
 # ADR 0007 § 2's grid giving a `bool` source the "anything -> `string`" row and no numeric one, so
 # `$yes as int` is `E0708` where it is written and the fixture spells the predicate out loud.
+# `converted=3` is the `array<T>` -> `array<U>` row, which that same grid makes a per-element *check*
+# rather than a conversion -- so the fixture converts to `array<mixed>`, the one target every tag
+# satisfies, and `as array<string>` over an `array<int>` would throw at element 0 instead.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
@@ -746,6 +749,10 @@ stage = "4 targets and mixed"
 name = "nvs-types (targets and refusals)"
 args = ["test", "-p", "nvs-types"]
 tests = [
+  # Item 24 -- a `mixed` base defers the subscript to its tag (ADR 0036 § 4), and every base whose
+  # declared type has already answered keeps `E0482` where it is written.
+  "an_array_index_through_a_mixed_base_defers_to_the_tag",
+  "an_array_index_through_a_scalar_base_is_still_refused",
   # Item 23 -- every ADR 0046 § 2 compile-time constant is a legal declared default, not just a
   # literal and `[]`.
   "a_property_default_accepts_every_compile_time_constant",
