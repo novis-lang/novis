@@ -1,0 +1,108 @@
+--TEST--
+Spec § 7: `Core\Bytes::startsWith` and `endsWith` hold the same bound on the needle's length — empty, full width, and one byte past it — and agree with each other wherever a prefix and a suffix are the same buffer — ADR 0009 § 1, ADR 0063 R6
+--FILE--
+<?nvs
+// Both members are written around one bound: a needle is answered `true` up to
+// the subject's own width and `false` for the first byte past it. The sweep in
+// bytes-the-three-predicates-are-what-compare-and-index-of-already-say.nvst
+// asks whether they agree with `slice` and `compare` over a table; it never
+// walks the length itself, so a member stopping one byte early or reading one
+// byte past the end still agrees with a derivation making the same mistake.
+// Here the needle's length is the variable and each end is named: `k` runs
+// 0 … 9 against an 8-byte subject, so the last accepted width and the first
+// refused one are two rows of one loop rather than two hand-picked cases.
+class Yn {
+    // `bool as string` renders `false` as the empty string (ADR 0007 § 2), so
+    // a rendered answer needs a spelling of its own to be visible at all.
+    public static function of(bool $b): string {
+        if ($b) { return "y"; }
+        return "n";
+    }
+}
+
+// There is no `bytes` literal (00-overview § 5), so the subject is hex. The two
+// extended buffers are the subject with one byte added at each end, which is
+// what makes the k = 9 needle a *real* buffer rather than a `slice` that
+// silently stops short: `slice` would answer 8 bytes for a 9-byte window and
+// the refusal would then be about the wrong needle.
+bytes $subject = Core\Encoding::fromHex("89504e470d0a1a0a");
+bytes $longerPre = Core\Encoding::fromHex("89504e470d0a1a0aff");
+bytes $longerSuf = Core\Encoding::fromHex("ff89504e470d0a1a0a");
+int $n = Core\Bytes::length($subject) as int;
+
+int $steps = 0;
+int $preAgrees = 0;
+int $sufAgrees = 0;
+int $preTrue = 0;
+int $sufTrue = 0;
+int $k = 0;
+while ($k <= $n + 1) {
+    // The prefix of width `k` is cut from the front of the longer buffer and
+    // the suffix of width `k` from the back of the other one, so at every
+    // k <= 8 the needle is the subject's own prefix or suffix and at k = 9 it
+    // is that needle with one byte more on the far side.
+    bytes $pre = Core\Bytes::slice($longerPre, 0, $k);
+    bytes $suf = Core\Bytes::slice($longerSuf, ($n + 1) - $k, $k);
+    bool $isPrefix = Core\Bytes::startsWith($subject, $pre);
+    bool $isSuffix = Core\Bytes::endsWith($subject, $suf);
+    $steps = $steps + 1;
+    // Counted rather than read off a line: a member that stops at k = 7 or
+    // answers k = 9 shows up as 9 here, not as one plausible-looking row.
+    if ($isPrefix == ($k <= $n)) { $preAgrees = $preAgrees + 1; }
+    if ($isSuffix == ($k <= $n)) { $sufAgrees = $sufAgrees + 1; }
+    if ($isPrefix) { $preTrue = $preTrue + 1; }
+    if ($isSuffix) { $sufTrue = $sufTrue + 1; }
+    $k = $k + 1;
+}
+echo "steps ", $steps, " pre ", $preAgrees, " suf ", $sufAgrees, "\n";
+echo "true: pre ", $preTrue, " suf ", $sufTrue, "\n";
+
+// The two members asked the same question. Over a buffer of one repeated octet
+// every prefix of width `k` *is* the suffix of width `k`, so the two answers
+// must be equal at every width the loop above walks — the k = 9 refusal
+// included, which is the one row where a member reading past its subject would
+// disagree with the other one.
+bytes $flat = Core\Bytes::fill(8, 65);
+bytes $flatLonger = Core\Bytes::fill(9, 65);
+int $widths = 0;
+int $bothAgree = 0;
+int $j = 0;
+while ($j <= 9) {
+    bytes $needle = Core\Bytes::slice($flatLonger, 0, $j);
+    $widths = $widths + 1;
+    if (Core\Bytes::startsWith($flat, $needle) == Core\Bytes::endsWith($flat, $needle)) {
+        $bothAgree = $bothAgree + 1;
+    }
+    $j = $j + 1;
+}
+echo "same answer at ", $bothAgree, "/", $widths, " widths\n";
+
+// The full-width end, named on both sides: the subject is its own prefix and
+// its own suffix, and a needle of exactly the same width differing in a single
+// octet is neither. The two differing needles are chosen at opposite ends
+// because that is where an implementation comparing `len - 1` octets, or
+// starting a suffix comparison one byte off, still answers `true`.
+bytes $lastDiffers = Core\Encoding::fromHex("89504e470d0a1a0b");
+bytes $firstDiffers = Core\Encoding::fromHex("88504e470d0a1a0a");
+echo "self ", Yn::of(Core\Bytes::startsWith($subject, $subject)),
+    Yn::of(Core\Bytes::endsWith($subject, $subject)),
+    " lastDiffers ", Yn::of(Core\Bytes::startsWith($subject, $lastDiffers)),
+    Yn::of(Core\Bytes::endsWith($subject, $lastDiffers)),
+    " firstDiffers ", Yn::of(Core\Bytes::startsWith($subject, $firstDiffers)),
+    Yn::of(Core\Bytes::endsWith($subject, $firstDiffers)), "\n";
+
+// The degenerate subject, where both ends of the bound land on the same buffer:
+// the empty needle is a prefix and a suffix of the empty subject, and every
+// non-empty needle is past its width.
+bytes $empty = Core\Encoding::fromHex("");
+bytes $one = Core\Encoding::fromHex("89");
+echo "empty subject: empty ", Yn::of(Core\Bytes::startsWith($empty, $empty)),
+    Yn::of(Core\Bytes::endsWith($empty, $empty)),
+    " oneByte ", Yn::of(Core\Bytes::startsWith($empty, $one)),
+    Yn::of(Core\Bytes::endsWith($empty, $one)), "\n";
+--EXPECT--
+steps 10 pre 10 suf 10
+true: pre 9 suf 9
+same answer at 10/10 widths
+self yy lastDiffers nn firstDiffers nn
+empty subject: empty yy oneByte nn
