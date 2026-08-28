@@ -1010,6 +1010,96 @@ PREBUILD_LOCK = threading.Lock()
 # calling-convention divergence hides, and a TextMate grammar has no calling convention.
 
 
+class GoalError(ValueError):
+    """`loop-goal.toml` parsed as TOML but is not an acceptance list this driver can run.
+
+    Deliberately the same class of event as a TOML syntax error, and handled in the same two
+    places: at start-up it refuses to begin, and mid-run it keeps the last good spec and names
+    itself in the ledger. A run of 300 sessions must not end on one session's typo."""
+
+
+# Every key the driver reads off a check, per kind: the ones it reads without a default, then the
+# ones it reads with one. `validate_spec` refuses anything outside both, and both halves are worth
+# refusing at load. A missing required key is a `KeyError` raised from the middle of a sweep --
+# hours into a run, after the build and every check before it has been paid for, and as a traceback
+# rather than a sentence. An unrecognized one is the quieter failure: `min_passsing` on a suite is a
+# stopping condition that silently is not there, and the check stays green while it guards nothing.
+CHECK_KEYS = {
+    #  kind           required                    optional
+    "exact":       (("file", "want"),             ("args", "exit")),
+    "ordered":     (("file", "want"),             ("args", "exit", "stream")),
+    "contains":    (("file",),                    ("args", "exit", "stderr_contains",
+                                                   "stdout_contains")),
+    "min-bytes":   (("file", "min_bytes"),        ("args", "exit", "stream")),
+    "command":     (("name", "argv"),             ("cwd", "want", "memoize")),
+    "nvs-suite":   (("name", "args"),             ("cases", "memoize", "min_passing")),
+    "cargo-named": (("name", "args", "tests"),    ("memoize",)),
+}
+# Allowed on every kind. `stage` is read by this driver for the run order and by `holes.py` for the
+# worklist it prints, which is why an unstaged check is still legal but a misspelled one is not.
+COMMON_KEYS = ("kind", "stage")
+LIST_OF_STR = ("args", "argv", "cases", "stderr_contains", "stdout_contains", "tests", "want")
+# Empty, each of these is a check that cannot fail: no argv to run, no test that must have run, no
+# substring that must appear in order. `want` on an `exact` is NOT here -- empty there is the one
+# meaning that reads right, "this fixture prints nothing", and it is asserted like any other line.
+NONEMPTY = {"argv", "tests", ("ordered", "want")}
+COUNTS = ("min_bytes", "min_passing")
+
+
+def validate_spec(spec):
+    """Everything about an acceptance list that can be known before a single check is run.
+
+    Raises `GoalError` naming the offending check and what it is missing; returns nothing. This is
+    the whole of the driver's schema: the checks it can run, the keys each kind carries, and the
+    three shapes -- a vacuous `contains`, a fixture outside `files`, a memo name used twice -- that
+    parse fine and then do not guard what they were written to guard."""
+    files = spec.get("files", [])
+    if not isinstance(files, list) or not all(isinstance(f, str) for f in files):
+        raise GoalError("`files` must be a list of fixture paths")
+    checks = spec.get("check", [])
+    if not isinstance(checks, list):
+        raise GoalError("`check` must be a list of `[[check]]` tables")
+
+    memo_names = {}
+    for i, c in enumerate(checks, 1):
+        named = c.get("name") or c.get("file") or "unnamed"
+        where = f"check {i}, {named} [{c.get('stage', '?')}]"
+        kind = c.get("kind")
+        if kind not in CHECK_KEYS:
+            known = ", ".join(sorted(CHECK_KEYS))
+            raise GoalError(f"{where}: unknown kind {kind!r} -- one of: {known}")
+        required, optional = CHECK_KEYS[kind]
+        for key in required:
+            if key not in c:
+                raise GoalError(f"{where}: a {kind} check needs `{key}`")
+        for key in sorted(set(c) - set(required) - set(optional) - set(COMMON_KEYS)):
+            raise GoalError(f"{where}: a {kind} check has no `{key}`, so nothing would read it")
+
+        for key in sorted(set(c) & set(LIST_OF_STR)):
+            if not isinstance(c[key], list) or not all(isinstance(x, str) for x in c[key]):
+                raise GoalError(f"{where}: `{key}` must be a list of strings")
+            if not c[key] and (key in NONEMPTY or (kind, key) in NONEMPTY):
+                raise GoalError(f"{where}: `{key}` is empty, so the check cannot fail")
+        for key in sorted(set(c) & set(COUNTS)):
+            if not isinstance(c[key], int) or isinstance(c[key], bool) or c[key] < 0:
+                raise GoalError(f"{where}: `{key}` must be a count, not {c[key]!r}")
+        if c.get("exit", "nonzero") != "nonzero":
+            raise GoalError(f'{where}: `exit` is absent or "nonzero", not {c["exit"]!r}')
+        if kind == "contains" and not (c.get("stderr_contains") or c.get("stdout_contains")):
+            raise GoalError(f"{where}: a contains check naming no substring cannot fail")
+        if "file" in c and c["file"] not in files:
+            raise GoalError(f"{where}: {c['file']} is not in `files`, so nothing checks it is on "
+                            f"disk and the valgrind sweep never sees it")
+        # A memo is keyed on the name alone, so two memoizable checks sharing one means the first
+        # to go green skips the second for the rest of the run. Unmemoized duplicates are fine and
+        # the goal file has a pair on purpose: two stages naming the same suite over the same cases.
+        if c.get("memoize") or named in EXPENSIVE:
+            if named in memo_names:
+                raise GoalError(f"{where}: a memoized check is already named {named!r} at "
+                                f"check {memo_names[named]}, and the memo is keyed on the name")
+            memo_names[named] = i
+
+
 class Goal:
     """The acceptance test, read from docs/agent/loop-goal.toml. `check()` returns "" when everything
     passes, or the first failure as one line -- with one deliberate exception, a suite that runs
@@ -1033,6 +1123,7 @@ class Goal:
     """
 
     def __init__(self, spec):
+        validate_spec(spec)
         self.files = spec.get("files", [])
         self.checks = spec.get("check", [])
         self.valgrind_skip = set(spec.get("valgrind", {}).get("skip", []))
@@ -1666,6 +1757,9 @@ def load_goal():
     exists nowhere -- and because a short-circuit skips everything after it, Stage 4's two counts,
     Stage 5's guards, the WSL leg and the valgrind sweep did not run for the following seventeen
     sessions. The loop could not have stopped even had the goal been reached.
+
+    Raises `GoalError` for a list that parses but cannot be run; both callers handle it exactly as
+    they handle a `TOMLDecodeError`, and `validate_spec` says why the checking happens here.
     """
     return Goal(tomllib.loads(GOAL_TOML.read_text(encoding="utf-8")))
 
@@ -2249,7 +2343,13 @@ def run_cli():
             say(f"missing {f}", C.RED)
             return 2
 
-    goal = load_goal()
+    # Refusing here is the point of the preflight: a run starts with a build and ends hours later,
+    # and a spec the driver cannot run is worth one line now rather than a traceback then.
+    try:
+        goal = load_goal()
+    except (tomllib.TOMLDecodeError, GoalError) as e:
+        say(f"{rel_to_root(GOAL_TOML)}: {e}", C.RED)
+        return 2
 
     if opts.list:
         legs = ["native"] + (["wsl"] if wsl_available() else [])
@@ -2481,7 +2581,7 @@ def drive(opts, goal):
         # not end on one session's typo, and the ledger names it loudly instead.
         try:
             goal = load_goal()
-        except (OSError, tomllib.TOMLDecodeError) as e:
+        except (OSError, tomllib.TOMLDecodeError, GoalError) as e:
             ledger(f"       goal spec: {rel_to_root(GOAL_TOML)} did not parse -- "
                    f"checking against the last good one. {e}")
         # Verbose on purpose, and the one place a run spends minutes without a session running:

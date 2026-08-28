@@ -161,6 +161,14 @@ never written, and `min_passing` cannot tell "the corpus grew" from "the corpus 
 Unlike `min_passing`, which is a stopping condition and is held back to the end of the sweep, a missing
 or skipped named case fails on the spot: it is one item's missing proof, not a count.
 
+**The list is checked against that schema when it is read, not when a check runs** (`loop.py`'s
+`validate_spec`, which is the schema's only home — the keys each kind takes are a table there, not prose
+here). A check missing a key the driver reads, carrying one it does not — `min_passsing` is a threshold
+that silently is not there — naming a fixture outside `files`, or written so it cannot fail is refused
+whole, naming the check and what is wrong with it. Both readers treat that exactly as they treat a TOML
+syntax error: at start-up the driver refuses to begin, and mid-run it keeps the last good spec and says so
+in the ledger, because a run of 300 sessions must not end on one session's typo.
+
 The `exact`/`ordered`/`contains`/`min-bytes` checks run **once per leg**. On Windows there are two legs,
 native and WSL, because a JIT is exactly where a calling-convention divergence between two targets hides;
 the WSL leg runs only once the native one is fully green, so a broken iteration is cheap. On Linux the
