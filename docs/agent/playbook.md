@@ -2991,3 +2991,12 @@ every session. Nothing below was reworded on the way.
   the module has. Read the case's own reasoning before reclassifying, and if the
   reasoning is what is wrong, rewrite that paragraph rather than the expectation
   alone — the count below it is usually what decides whether the row moved sides.
+- **`Core\Test::assertCount`'s two `Fault::fatal` sites are unreachable from source and are owed
+  no case.** Its parameters are `array<T>` and `uint` (`crates/nvs-stdlib/src/registry.rs`'s row,
+  `test.rs:365`), so every way to hand it a non-container or a non-`uint` count stops at the
+  checker: a `mixed` subject is `E0401: expected array<mixed>, found mixed`, a `?array<string>`
+  is `E0401` on the union, and a `mixed` count is `E0401` at the second argument. Same shape as
+  `Core\Csv::format`'s column guard in the bullet above, and the same three `nvs run` probes on a
+  scratch file settle it in one call rather than in a case that will not compile. Worth knowing
+  because the assertion members read as if a bad subject were a runtime question; it is a
+  signature question.
