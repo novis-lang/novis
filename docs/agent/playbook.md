@@ -1551,6 +1551,13 @@ is why" — is this file.
   included, which is also a second assertion that no *extra* diagnostic crept in. The
   existing `a-void-call-is-not-an-operand.nvst` has the shape; a case written from the
   conventions' skeleton alone does not.
+- **An inline-HTML run is assertable as a *value*, which is what lets a case about one count
+  rather than read.** `Core\Out::capture(fn (): void => { ?>text<?nvs })` lowers — a run is a
+  statement, and a closure's block body is a statement list, so the `?>` inside an array literal
+  of `array<callable>` parses fine — and the `Core\Cli\Text` it answers takes `as string`, so
+  `Core\Str::compare($t as string, "text")` is the comparison. That is the only way to put a raw
+  span and an `echo` of the same literal side by side, since a run writes straight to the output
+  and has no other spelling.
 
 ## Splitting a file that got too big
 

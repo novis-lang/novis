@@ -674,10 +674,20 @@
 > `nvs_hir::errors::PROPERTIES` rather than copied so the help and the seeding cannot disagree.
 > `tests/conformance/error/a-catch-binding-has-properties-rather-than-phps-accessors.nvst` pins all
 > six spellings in one compile, the subclass binding among them, so a member the tree grows shifts a
-> line rather than answering plausibly. Three live tools **are** the worklist and no session
-> re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen`
-> and attributes each to its item (`--item N` for one in full), `python tools/loop.py --list` prints
-> the named `.nvst` cases each stage still owes, and `python tools/check-migration.py` scores
+> line rather than answering plausibly. **An inline-HTML run's *placement* is pinned now**, which is
+> the half its standing case could not reach: `inline-html-is-written-verbatim.nvst` owns *what* a
+> run writes, and `tests/conformance/lang/inline-html-at-file-scope-is-echoed-in-place.nvst` owns
+> *where* — a run reaches `Lowering::lower_inline_html` from the ordinary statement dispatch, so it
+> occupies a statement's place and nothing more: it prints between the statements written around it,
+> once per iteration of a loop body, on the taken arm of an `if` and not on the other, in a method
+> body when the method is called, and not at all in a `switch` case the subject does not select. Its
+> last section is the agreement the shape asks for rather than a sixth line read off the output —
+> five runs captured through `Core\Out::capture` and compared with an `echo` of the same literal,
+> counted, so a run that grew a rendering of its own fails the count while still looking plausible
+> on its own line. Three live tools **are** the worklist and no session re-derives one: `python
+> tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen` and attributes each to
+> its item (`--item N` for one in full), `python tools/loop.py --list` prints the named `.nvst`
+> cases each stage still owes, and `python tools/check-migration.py` scores
 > `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
