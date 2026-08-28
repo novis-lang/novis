@@ -936,7 +936,7 @@ pub fn takes_written_class(class: &str, method: &str) -> bool {
 /// This is the other half of `docs/agent/loop-goal.md`'s standing decision on
 /// type variables: user code gets an explicit type argument only where the
 /// compiler owns the declaration, and for a `new` target that means this
-/// table. [`nvs_hir::interfaces::type_params`] is the same roster for the
+/// table. `nvs_hir::interfaces::type_params` is the same roster for the
 /// reserved *interfaces*, and answers the same shape for the same reason —
 /// two tables rather than one because a `Core` class and a global interface
 /// are resolved by different rules, not because the question differs.

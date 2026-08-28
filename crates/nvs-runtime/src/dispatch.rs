@@ -335,7 +335,7 @@ pub(crate) fn call_unwind(
 ///
 /// The order values are built in is the *checker's*: `nvs_types::testing`
 /// resolved each parameter to the fixture supplying it and refused a cycle
-/// ([`nvs_diagnostics::code::E_FIXTURE_CYCLE`]), so a caller walking
+/// (`nvs_diagnostics::code::E_FIXTURE_CYCLE`), so a caller walking
 /// dependencies before dependants always finds what [`Self::build`] asks for
 /// already here.
 ///
@@ -723,7 +723,7 @@ crate::nvs_helper! {
     /// reason.
     ///
     /// The entries are **borrowed** from an array the caller owns for the
-    /// length of this call, exactly as [`crate::nvs_call_closure_array`]'s
+    /// length of this call, exactly as [`crate::closure::nvs_call_closure_array`]'s
     /// are; [`call_at`] retains each one it actually passes.
     fn nvs_call_erased_method(ctx, args: [3]) {
         let name = args[1]

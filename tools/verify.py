@@ -2,9 +2,10 @@
 """AGENTS.md § *Session workflow* step 3, as one command.
 
 `cargo build`, `cargo fmt --check`, `cargo test`, the `.nvst` trees through the binary the build
-just produced, `cargo clippy --all-targets -- -D warnings` and -- once `editors/vscode` exists --
-that extension's headless suites, in that order, stopping at the first failure. Green prints one
-line per step; a failure prints that step's output and nothing else.
+just produced, `cargo clippy --all-targets -- -D warnings`, `cargo doc` with rustdoc's broken-link
+lint denied, and -- once `editors/vscode` exists -- that extension's headless suites, in that
+order, stopping at the first failure. Green prints one line per step; a failure prints that step's
+output and nothing else.
 
 The `conformance` and `differential` steps run `target/debug/nvs test tests/<tree>`, which is
 exactly what `tools/loop.py`'s acceptance check runs, and they print the two counts the plan's
@@ -129,14 +130,19 @@ class Step:
     `exe`/`cwd` exist because from M4B the workspace is no longer only Rust: `editors/vscode` is a
     TypeScript package whose suites are `npm` scripts, and an `npm` script only finds its
     `package.json` from the directory holding it. Everything else here is `cargo` in the repo root
-    and says so by omission."""
+    and says so by omission.
 
-    def __init__(self, name, args, summarize, exe="cargo", cwd=None):
+    `env` is the third of the same kind of exception, and so far the `doc` step's alone:
+    `broken_intra_doc_links` is a rustdoc lint rather than a rustc one, so it is set through
+    `RUSTDOCFLAGS` and not on the command line."""
+
+    def __init__(self, name, args, summarize, exe="cargo", cwd=None, env=None):
         self.name = name
         self.args = args
         self.summarize = summarize
         self.exe = exe
         self.cwd = cwd or ROOT
+        self.env = env
         self.seconds = 0.0
         self.code = None
         self.out = ""
@@ -155,6 +161,7 @@ def run(step):
             capture_output=True,
             encoding="utf-8",
             errors="replace",
+            env=dict(os.environ, **step.env) if step.env else None,
         )
         step.code, step.out = p.returncode, (p.stdout or "") + (p.stderr or "")
     except OSError as exc:
@@ -185,6 +192,11 @@ def summarize_test(out):
 def summarize_clippy(out):
     n = len([m for m in WARN_RE.finditer(out) if m.group(1) == "warning"])
     return "no warnings" if n == 0 else f"{n} warning(s)"
+
+
+def summarize_doc(out):
+    n = len([m for m in WARN_RE.finditer(out) if m.group(1) == "warning"])
+    return "every link resolves" if n == 0 else f"{n} warning(s)"
 
 
 def summarize_fmt(out):
@@ -231,6 +243,23 @@ def steps_for(opts):
         steps.append(
             Step("clippy", ["clippy", "--all-targets", *scope, "--", "-D", "warnings"],
                  summarize_clippy)
+        )
+        # Every `[`Foo::bar`]` in a doc comment, resolved. This crate set states its
+        # architecture in its doc comments and cross-references it by name, and
+        # `broken_intra_doc_links` is warn-by-default and invisible to `build` and to
+        # `clippy` alike -- so 391 of them had accumulated, 96 naming an item that does
+        # not exist. `private_intra_doc_links` is allowed rather than fixed: these are
+        # internal crates nobody publishes, a link to a crate-private item is a correct
+        # reference that rustdoc simply will not turn into an anchor, and denying it
+        # would be a rule against citing the code by name.
+        #
+        # It costs about twelve seconds on a warm tree and shares `check`'s artifacts
+        # with the steps above, which is why it sits here rather than in CI alone.
+        steps.append(
+            Step("doc", ["doc", "--no-deps", "--workspace" if not opts.package else "-p",
+                         *([] if not opts.package else [opts.package])],
+                 summarize_doc,
+                 env={"RUSTDOCFLAGS": "-A rustdoc::private_intra_doc_links -D warnings"})
         )
         # The VS Code extension's headless suites -- the TextMate grammar snapshots, the
         # contributions/dependency-allowlist test and the LSP protocol round-trip. No editor, no

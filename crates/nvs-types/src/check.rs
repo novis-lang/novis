@@ -168,13 +168,13 @@ fn record_property_types(signatures: &crate::SignatureTable, exprs: &mut ExprTyp
 /// locals"). Threaded through [`check_stmts`] so that a `namespace { ... }`
 /// block's own top-level statements land in the *same* frame as the ones
 /// outside it — a namespace scopes names, not storage.
-struct ScriptFrame {
+pub(crate) struct ScriptFrame {
     scope: LocalScope,
     live: FxHashSet<String>,
     return_ty: crate::ty::TypeId,
 }
 
-fn check_stmts(
+pub(crate) fn check_stmts(
     stmts: &[Stmt],
     namespace: &[String],
     imports: &FxHashMap<String, QName>,

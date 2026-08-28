@@ -95,7 +95,7 @@
 //! Two readers state a rule of their own rather than copying `string`'s.
 //! [`value_to_string`] **refuses** a `bytes`, because ADR 0009 § 3 makes
 //! `bytes as string` checked and an implicit `.` or `echo` is not that check;
-//! [`bytes_to_string`] is that check, reached only from the explicit `as` and
+//! [`helpers::bytes_to_string`] is that check, reached only from the explicit `as` and
 //! retagging the same allocation once the octets validate.
 //! [`value_truthy`] answers *empty is falsy, everything else truthy*, dropping
 //! `string`'s `"0"` case: that case is PHP's numeric-string rule, and a `bytes`
@@ -180,7 +180,7 @@
 //!   platform heap so valgrind still sees every free, and the `sanitizer`
 //!   feature extends that to this crate's own test binary — the one build
 //!   where the pool would otherwise sit under a memory checker
-//!   ([`counting_alloc`]). That module's own doc
+//!   (`counting_alloc`). That module's own doc
 //!   owns each of those decisions and is the only place they are argued.
 //!
 //! ## Known gaps
@@ -241,7 +241,7 @@ pub mod arith;
 pub mod array;
 pub mod closure;
 #[cfg(test)]
-mod counting_alloc;
+pub(crate) mod counting_alloc;
 mod ctx;
 pub mod decimal;
 pub mod dispatch;

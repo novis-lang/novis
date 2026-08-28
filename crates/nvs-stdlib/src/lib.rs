@@ -12,7 +12,7 @@
 //!
 //! # One module per domain; adding a class is two lines
 //!
-//! A domain module ([`arr`], [`json`], [`math`], [`regex`], [`str`], [`time`])
+//! A domain module ([`arr`], [`json`], [`math`], [`regex`], [`mod@str`], [`time`])
 //! holds everything about its class: the
 //! implementations, each an ADR 0002 helper entry point; a `pub const CLASS`
 //! carrying that class's registry rows; and a `pub(crate) fn address` answering

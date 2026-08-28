@@ -49,7 +49,7 @@ use super::check_expr;
 /// `nvs-ir` has something to lower a null test against.
 ///
 /// [`ExprInfo`]: crate::expr_table::ExprInfo
-pub(super) fn check_isset_operand(
+pub(crate) fn check_isset_operand(
     operand: &Expr,
     live: &mut FxHashSet<String>,
     scope: &LocalScope,
@@ -73,7 +73,7 @@ pub(super) fn check_isset_operand(
 /// § 2's table plus a `Not`, which is `!` exactly.
 ///
 /// [`ExprInfo`]: crate::expr_table::ExprInfo
-pub(super) fn check_empty_operand(
+pub(crate) fn check_empty_operand(
     operand: &Expr,
     live: &mut FxHashSet<String>,
     scope: &LocalScope,

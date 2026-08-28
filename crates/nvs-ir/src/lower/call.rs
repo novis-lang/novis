@@ -2,7 +2,7 @@
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory so a
 //! session editing one area does not carry the rest in context. Every item
-//! moved here unchanged; the methods are `pub(super)` so they reach across
+//! moved here unchanged; the methods are `pub(crate)` so they reach across
 //! these modules and no further, which is the reach they had when `lower` was
 //! a single file.
 
@@ -79,7 +79,7 @@ impl<'a> Lowering<'a> {
     /// [`Self::emit_const_arg`], in declaration order and after every written
     /// argument has been lowered, so the callee still receives exactly one
     /// value per parameter.
-    pub(super) fn lower_call_args(
+    pub(crate) fn lower_call_args(
         &mut self,
         args: &CallArgs,
         sig: &ArgSig,
@@ -466,7 +466,7 @@ impl<'a> Lowering<'a> {
     /// into a list the caller gets back: a later argument's own call can throw
     /// before this call is ever emitted, and [`Self::landing_block`] has to be
     /// able to find it.
-    pub(super) fn account_for_arg(
+    pub(crate) fn account_for_arg(
         &mut self,
         v: ValueId,
         ty: Ty,
@@ -515,7 +515,7 @@ impl<'a> Lowering<'a> {
                   the bag's own two halves; bundling them into a struct would \
                   be one type used at one call site"
     )]
-    pub(super) fn lower_options_arg(
+    pub(crate) fn lower_options_arg(
         &mut self,
         written: Option<&Expr>,
         options: &[(String, TypeId)],
@@ -597,7 +597,7 @@ impl<'a> Lowering<'a> {
     /// constant of instance type inlines is the `Core` member that produces
     /// one. It is therefore the one entry that can fail, and it carries ADR
     /// 0002's error edge like any other call.
-    pub(super) fn emit_const_arg(
+    pub(crate) fn emit_const_arg(
         &mut self,
         default: &nvs_types::ConstArg,
         env: &mut Env,
@@ -761,7 +761,7 @@ impl<'a> Lowering<'a> {
     /// argument — [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
     /// § 1 gives `callable` no parameter list, so there is no parameter for a
     /// name to fill and `nvs_types` refuses one where it is written (`E0712`).
-    pub(super) fn lower_closure_call(
+    pub(crate) fn lower_closure_call(
         &mut self,
         callee: &Expr,
         args: &CallArgs,
@@ -862,7 +862,7 @@ impl<'a> Lowering<'a> {
     /// because a closure carries its callee and the deferral has none to
     /// carry. No program constructs any of the three, so each is an engine
     /// invariant rather than a shape the language still refuses.
-    pub(super) fn lower_erased_method_call(
+    pub(crate) fn lower_erased_method_call(
         &mut self,
         object: &Expr,
         nullsafe: bool,
@@ -922,13 +922,13 @@ impl<'a> Lowering<'a> {
     }
     /// Records `v` as a reference this frame owns and nothing else can find —
     /// see [`Self::owned_temporaries`], which owns the whole protocol.
-    pub(super) fn own_temporary(&mut self, v: ValueId) {
+    pub(crate) fn own_temporary(&mut self, v: ValueId) {
         self.owned_temporaries.push((v, TemporaryKind::Owned));
     }
     /// Records `v` as a reference this frame holds only until the call it was
     /// staged for is emitted — see [`TemporaryKind::Transferred`], and
     /// [`Self::forget_transferred_since`], which is its normal edge.
-    pub(super) fn own_transferred_temporary(&mut self, v: ValueId) {
+    pub(crate) fn own_transferred_temporary(&mut self, v: ValueId) {
         self.owned_temporaries.push((v, TemporaryKind::Transferred));
     }
     /// The height of [`Self::owned_temporaries`] before a call's arguments are
@@ -938,7 +938,7 @@ impl<'a> Lowering<'a> {
     /// Taken **before the receiver**, not before the argument list: a
     /// freshly-built receiver is this frame's temporary too, and an argument
     /// that throws while it is in flight has to drop it.
-    pub(super) fn temporaries_mark(&self) -> usize {
+    pub(crate) fn temporaries_mark(&self) -> usize {
         self.owned_temporaries.len()
     }
     /// Releases every temporary staged since `mark` into `cur`, in the order
@@ -947,7 +947,7 @@ impl<'a> Lowering<'a> {
     /// The error edge is [`Self::landing_block`]'s, and it releases the same
     /// values off the same stack: one set of temporaries, two exits, which is
     /// why nothing here is handed a list to keep in step with.
-    pub(super) fn release_temporaries_since(&mut self, mark: usize, cur: BlockId) {
+    pub(crate) fn release_temporaries_since(&mut self, mark: usize, cur: BlockId) {
         let temporaries: Vec<(ValueId, TemporaryKind)> =
             self.owned_temporaries.drain(mark..).collect();
         for (v, kind) in temporaries {
@@ -972,7 +972,7 @@ impl<'a> Lowering<'a> {
     /// that moment — must already be past them. Everything fallible that
     /// *evaluated* them is behind that point, which is what leaves the leaking
     /// window covered and this one empty.
-    pub(super) fn forget_transferred_since(&mut self, mark: usize) {
+    pub(crate) fn forget_transferred_since(&mut self, mark: usize) {
         let tail = self.owned_temporaries.split_off(mark);
         self.owned_temporaries.extend(
             tail.into_iter()
@@ -986,7 +986,7 @@ impl<'a> Lowering<'a> {
     /// last `Concat`'s result is still on it when the expression finishes;
     /// from there it is the caller's value, released wherever that caller
     /// puts it. Everything else releases.
-    pub(super) fn forget_temporaries_since(&mut self, mark: usize) {
+    pub(crate) fn forget_temporaries_since(&mut self, mark: usize) {
         self.owned_temporaries.truncate(mark);
     }
     /// Re-points the temporary staged at `slot` — an array under
@@ -1000,19 +1000,19 @@ impl<'a> Lowering<'a> {
     /// re-point would be worse than untidy — a write that separated a shared
     /// array released the reference the old name held, so a landing block
     /// still naming it would release it twice.
-    pub(super) fn retarget_temporary(&mut self, slot: usize, v: ValueId) {
+    pub(crate) fn retarget_temporary(&mut self, slot: usize, v: ValueId) {
         self.owned_temporaries[slot].0 = v;
     }
     /// Removes the temporary staged at `slot` **without** releasing it, the
     /// entries above it keeping their order — [`Self::forget_temporaries_since`]
     /// for one entry that is no longer the top of the stack, which is what a
     /// finished array literal's own result is.
-    pub(super) fn forget_temporary(&mut self, slot: usize) {
+    pub(crate) fn forget_temporary(&mut self, slot: usize) {
         self.owned_temporaries.remove(slot);
     }
     /// The value staged for `span`, if any — [`Self::staged_targets`] searched
     /// innermost first, which is the whole read side of that table.
-    pub(super) fn staged(&self, span: Span) -> Option<(ValueId, Ty)> {
+    pub(crate) fn staged(&self, span: Span) -> Option<(ValueId, Ty)> {
         self.staged_targets
             .iter()
             .rev()
@@ -1021,18 +1021,18 @@ impl<'a> Lowering<'a> {
     }
     /// Records `(v, ty)` as the already-lowered value of the expression at
     /// `span` — see [`Self::staged_targets`], which owns the protocol.
-    pub(super) fn stage(&mut self, span: Span, v: ValueId, ty: Ty) {
+    pub(crate) fn stage(&mut self, span: Span, v: ValueId, ty: Ty) {
         self.staged_targets.push((span, v, ty));
     }
     /// The height of [`Self::staged_targets`] — the mark
     /// [`Self::unstage_to`] winds back to.
-    pub(super) fn staged_mark(&self) -> usize {
+    pub(crate) fn staged_mark(&self) -> usize {
         self.staged_targets.len()
     }
     /// Drops every staging recorded since `mark`. Never releases anything: a
     /// staged entry is a borrow, and whatever owns the value it names —
     /// [`Self::owned_temporaries`], or a durable slot — is what releases it.
-    pub(super) fn unstage_to(&mut self, mark: usize) {
+    pub(crate) fn unstage_to(&mut self, mark: usize) {
         self.staged_targets.truncate(mark);
     }
     /// A span no expression in this file can carry: empty, one past the last
@@ -1043,7 +1043,7 @@ impl<'a> Lowering<'a> {
     /// [`Self::lower_expr`] answers from [`Self::staged_targets`] before it
     /// looks at the expression's kind, so the `ExprKind::Int` wrapped around
     /// it never cooks any digits.
-    pub(super) fn synthetic_span(&self) -> Span {
+    pub(crate) fn synthetic_span(&self) -> Span {
         Span::at(self.src.id(), u32::MAX)
     }
     /// Stages one by-reference argument, returning the [`Ty::Ref`] the callee
@@ -1054,7 +1054,7 @@ impl<'a> Lowering<'a> {
     /// The holder's receiver (for a property) is lowered exactly once, here,
     /// and remembered in the [`RefHolder`] so the copy-back re-uses it rather
     /// than evaluating it a second time.
-    pub(super) fn stage_ref_arg(
+    pub(crate) fn stage_ref_arg(
         &mut self,
         arg: &Expr,
         ty: Ty,
@@ -1162,7 +1162,7 @@ impl<'a> Lowering<'a> {
 /// `None` when a parameter or the return type names a representation
 /// [`super::erase_checked_ty`] has no row for, which is the same subtraction
 /// every other lowering makes rather than a decision of its own.
-pub(super) fn delegation_forward(
+pub(crate) fn delegation_forward(
     delegation: &nvs_types::Delegation,
     checked_types: &TypeInterner,
     never_written: bool,

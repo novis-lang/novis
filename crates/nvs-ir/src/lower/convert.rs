@@ -3,7 +3,7 @@
 //!
 //! Part of [`super`]'s one `impl Lowering`, split out of [`super::expr`] under the
 //! rule that file's own header states: every item moved here unchanged, and the
-//! methods `pub(super)` so they reach across these modules and no further.
+//! methods `pub(crate)` so they reach across these modules and no further.
 //!
 //! The closed-set machinery at the bottom — [`AcceptedSet`], `closed_literal_set`
 //! and the two membership lowerings — is here rather than beside the operators
@@ -57,7 +57,7 @@ impl<'a> Lowering<'a> {
     /// whether a refcounted operand this conversion consumed was borrowed
     /// storage or a fresh value nothing else will release — the same
     /// [`is_aliasing_read`] judgment [`Self::concat_operand`]'s caller makes.
-    pub(super) fn convert(
+    pub(crate) fn convert(
         &mut self,
         v: ValueId,
         from: Ty,
@@ -400,7 +400,7 @@ impl<'a> Lowering<'a> {
     /// catch-all names, minus the two this form adds — `string` and `bytes`,
     /// each a row that throws in the checked spelling and so needs a
     /// null-answering twin rather than the same helper.
-    pub(super) fn convert_or_null(
+    pub(crate) fn convert_or_null(
         &mut self,
         v: ValueId,
         from: Ty,
@@ -488,7 +488,7 @@ impl<'a> Lowering<'a> {
     /// position, so no program reaches it. [`Ty::Null`] *is* in the table and
     /// is reachable only from the literal `null`: a `?T` is one
     /// [`Ty::Tagged`] slot and takes that row instead.
-    pub(super) fn truthy_convert(
+    pub(crate) fn truthy_convert(
         &mut self,
         v: ValueId,
         ty: Ty,
@@ -586,7 +586,7 @@ impl<'a> Lowering<'a> {
     /// `.` concatenation; an aliasing read (a bare variable, a
     /// compile-time-known property or array-element read) still durably
     /// belongs to whatever slot it came from and needs no release here.
-    pub(super) fn truthy_value(
+    pub(crate) fn truthy_value(
         &mut self,
         v: ValueId,
         ty: Ty,
@@ -611,7 +611,7 @@ impl<'a> Lowering<'a> {
     ///
     /// See [`Self::truthy_convert`]'s own panic doc — the same restriction
     /// applies here.
-    pub(super) fn lower_truthy_cond(
+    pub(crate) fn lower_truthy_cond(
         &mut self,
         cond: &Expr,
         env: &mut Env,
@@ -626,7 +626,7 @@ impl<'a> Lowering<'a> {
     /// type is resolved by `lower_decl_type`, which reads the checker's
     /// own answer for the annotation, so an enum target/source is
     /// already the right representation by the time `convert` sees it.
-    pub(super) fn lower_conversion(
+    pub(crate) fn lower_conversion(
         &mut self,
         inner: &Expr,
         ty: &Type,
@@ -1202,7 +1202,7 @@ impl<'a> Lowering<'a> {
     ///
     /// Nothing is released or retained around it: an enum is a scalar, so the
     /// relabelled value borrows no ownership from the operand.
-    pub(super) fn reinterpret_enum_to_backing(
+    pub(crate) fn reinterpret_enum_to_backing(
         &mut self,
         value: ValueId,
         value_ty: Ty,
@@ -1477,7 +1477,7 @@ impl<'a> Lowering<'a> {
 /// ordinary declaration — no `= n` clause anywhere, values auto-incrementing
 /// from 0 (ADR 0010 § 2) — reads back in the order it was written; the name
 /// breaks a tie, so the order is total either way.
-fn whole_enum_set(info: &nvs_types::EnumInfo, name: &str) -> AcceptedSet {
+pub(crate) fn whole_enum_set(info: &nvs_types::EnumInfo, name: &str) -> AcceptedSet {
     let mut cases: Vec<(&str, nvs_types::EnumValue)> = info
         .cases
         .iter()
@@ -1508,7 +1508,7 @@ fn whole_enum_set(info: &nvs_types::EnumInfo, name: &str) -> AcceptedSet {
 /// type accepts — see [`Lowering::closed_literal_set`], which is the only
 /// thing that builds one, and [`Lowering::lower_literal_membership`], which is
 /// the only thing that consumes it.
-struct AcceptedSet {
+pub(crate) struct AcceptedSet {
     /// The values themselves, in the order the target type states them — or,
     /// for a whole enum, in the order [`whole_enum_set`] sorts the
     /// declaration's cases into, since a hash map states no order at all.

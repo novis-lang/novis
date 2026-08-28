@@ -8,7 +8,7 @@
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory so a
 //! session editing one area does not carry the rest in context. Every item
-//! moved here unchanged; the methods are `pub(super)` so they reach across
+//! moved here unchanged; the methods are `pub(crate)` so they reach across
 //! these modules and no further, which is the reach they had when `lower` was
 //! a single file.
 
@@ -19,15 +19,15 @@ use super::*;
 /// three parts are only ever used together — see
 /// [`Lowering::lower_shape_property_access`] and
 /// [`Lowering::lower_shape_property_assign`].
-pub(super) struct ShapeField {
+pub(crate) struct ShapeField {
     /// The field's own name, `$`-sigil not included: what ADR 0036 § 4's
     /// fetch is keyed on.
-    pub(super) name: String,
+    pub(crate) name: String,
     /// Its position in the *receiver's* sorted shape — the runtime's hint,
     /// and not the answer through a widened view.
-    pub(super) slot: u32,
+    pub(crate) slot: u32,
     /// Its declared type, still in `nvs_types`' interner.
-    pub(super) ty: TypeId,
+    pub(crate) ty: TypeId,
 }
 
 impl<'a> Lowering<'a> {
@@ -47,7 +47,7 @@ impl<'a> Lowering<'a> {
     /// It steers a literal (ADR 0007 § 4's `int`/`uint` choice) and nothing
     /// else -- reconciling a mismatch is [`Self::coerce`]'s job, at the
     /// boundary that owns the declared type.
-    pub(super) fn lower_expr(
+    pub(crate) fn lower_expr(
         &mut self,
         expr: &Expr,
         expected: Option<Ty>,
@@ -458,7 +458,7 @@ impl<'a> Lowering<'a> {
     /// there, so the write's own failure edge drops it too. No safepoint is
     /// emitted: `echo` is neither of the two reserved sites (function entry,
     /// a loop's back edge).
-    pub(super) fn lower_echo(&mut self, operands: &[Expr], cur: &mut BlockId, env: &mut Env) {
+    pub(crate) fn lower_echo(&mut self, operands: &[Expr], cur: &mut BlockId, env: &mut Env) {
         for operand in operands {
             let mark = self.temporaries_mark();
             let (v, aliasing) = self.concat_operand(operand, env, cur);
@@ -504,7 +504,7 @@ impl<'a> Lowering<'a> {
     /// code mode anywhere a statement is expected (`nvs_syntax::ast::StmtKind::InlineHtml`),
     /// and a run inside a loop body lowers into that body like any other
     /// statement.
-    pub(super) fn lower_inline_html(&mut self, span: Span, cur: &mut BlockId, env: &mut Env) {
+    pub(crate) fn lower_inline_html(&mut self, span: Span, cur: &mut BlockId, env: &mut Env) {
         let text = span_text(self.src, span).to_owned();
         let mark = self.temporaries_mark();
         let (v, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(text));
@@ -535,7 +535,7 @@ impl<'a> Lowering<'a> {
     /// discarded, which costs one dead [`InstKind::ConstInt`] rather than a
     /// second entry point; `Ty::Int` is not [`Ty::is_refcounted`], so there is
     /// nothing to release either way.
-    pub(super) fn lower_print(
+    pub(crate) fn lower_print(
         &mut self,
         operand: &Expr,
         env: &mut Env,
@@ -567,7 +567,7 @@ impl<'a> Lowering<'a> {
     /// What follows the call is dead by construction — the helper never
     /// returns `OK` — but is still lowered, because a `never`-typed
     /// expression has to hand a value back to whatever dispatched to it.
-    pub(super) fn lower_exit(
+    pub(crate) fn lower_exit(
         &mut self,
         arg: Option<&Expr>,
         env: &mut Env,
@@ -631,7 +631,7 @@ impl<'a> Lowering<'a> {
     /// itself came from — the `Ty::Str` `HelperCall` produces is always a
     /// brand new buffer with exactly one owner, the conversion result
     /// itself, same as a literal or a call's own result.
-    pub(super) fn concat_operand(
+    pub(crate) fn concat_operand(
         &mut self,
         expr: &Expr,
         env: &mut Env,
@@ -788,7 +788,7 @@ impl<'a> Lowering<'a> {
     /// transfers the reference it already has. It dispatches on the
     /// receiver's runtime class, so a `toString` overridden in a subclass wins
     /// over the one the static type names.
-    pub(super) fn lower_to_string_call(
+    pub(crate) fn lower_to_string_call(
         &mut self,
         expr: &Expr,
         receiver: ValueId,
@@ -901,7 +901,7 @@ impl<'a> Lowering<'a> {
     /// [`InstKind::SlotGet`] to check at run time. Ownership is unchanged
     /// either way: a tagged value is refcounted ([`Ty::is_refcounted`]) and
     /// its release is the same release, tag-dispatched.
-    pub(super) fn open_nullsafe(
+    pub(crate) fn open_nullsafe(
         &mut self,
         object: &Expr,
         nullsafe: bool,
@@ -977,7 +977,7 @@ impl<'a> Lowering<'a> {
     /// Ownership is unchanged, exactly as in the `?->` arm: the untagged
     /// value owns the reference the tagged one owned, and the aliasing retain
     /// each member access already emits applies to it once.
-    pub(super) fn untag_receiver(&mut self, v: ValueId, ty: Ty, cur: BlockId) -> (ValueId, Ty) {
+    pub(crate) fn untag_receiver(&mut self, v: ValueId, ty: Ty, cur: BlockId) -> (ValueId, Ty) {
         if ty != Ty::Tagged {
             return (v, ty);
         }
@@ -1010,7 +1010,7 @@ impl<'a> Lowering<'a> {
     /// A residue that erases to [`Ty::Tagged`] itself (a `?(A|B)` narrowed to
     /// `A|B`) is left alone: there is no representation to change, exactly as
     /// `nvs-codegen`'s own `Untag`-to-tagged identity has it.
-    pub(super) fn untag_narrowed(
+    pub(crate) fn untag_narrowed(
         &mut self,
         span: Span,
         v: ValueId,
@@ -1044,7 +1044,7 @@ impl<'a> Lowering<'a> {
     /// A `void` member has nothing to merge: both arms simply rejoin, and the
     /// value handed back is the unusable one the call produced — the same
     /// reason `nvs_types` unions no `null` into a `void` member's type.
-    pub(super) fn close_nullsafe(
+    pub(crate) fn close_nullsafe(
         &mut self,
         guard: Option<NullsafeGuard>,
         value: ValueId,
@@ -1093,7 +1093,7 @@ impl<'a> Lowering<'a> {
         *cur = merge_block;
         (merged, Ty::Tagged)
     }
-    pub(super) fn lower_coalesce(
+    pub(crate) fn lower_coalesce(
         &mut self,
         whole: &Expr,
         lhs: &Expr,
@@ -1209,7 +1209,7 @@ impl<'a> Lowering<'a> {
     /// every subscript level under an `isset` in `Env::coalesce_guarded`, the
     /// same set `??` fills, so ADR 0007 § 7 row 11's throw is off for exactly
     /// the reads this construct exists to ask about.
-    pub(super) fn lower_isset(
+    pub(crate) fn lower_isset(
         &mut self,
         operands: &[Expr],
         env: &mut Env,
@@ -1346,7 +1346,7 @@ impl<'a> Lowering<'a> {
     /// # Panics
     ///
     /// See [`Self::truthy_convert`]'s own panic doc for `cond`'s restriction.
-    pub(super) fn lower_ternary(
+    pub(crate) fn lower_ternary(
         &mut self,
         cond: &Expr,
         then: Option<&Expr>,
@@ -1543,7 +1543,7 @@ impl<'a> Lowering<'a> {
     /// representation differs from a subject that is not a tag, and for a
     /// `match` with no arms at all, which `nvs_types` refuses as `E0476`
     /// before this crate ever sees it.
-    pub(super) fn lower_match(
+    pub(crate) fn lower_match(
         &mut self,
         subject: &Expr,
         arms: &[MatchArm],
@@ -1802,7 +1802,7 @@ impl<'a> Lowering<'a> {
     /// case has to convert a borrowed reference into an owned one, by
     /// retaining it directly before handing it back as though it were as
     /// fresh as every other shape this function can return.
-    pub(super) fn lower_interpolated_parts(
+    pub(crate) fn lower_interpolated_parts(
         &mut self,
         parts: &[StringPart],
         whole_span: nvs_diagnostics::Span,
@@ -1923,7 +1923,7 @@ impl<'a> Lowering<'a> {
     /// reason: a plain `string` subscript passed through unchanged may still
     /// be a bare local/property/array read, while a freshly converted key is
     /// always a brand new buffer with exactly one owner.
-    pub(super) fn lower_array_key(
+    pub(crate) fn lower_array_key(
         &mut self,
         expr: &Expr,
         env: &mut Env,
@@ -1962,7 +1962,7 @@ impl<'a> Lowering<'a> {
     /// codegen discover it cannot. Widening the runtime ABI to close that
     /// is a separate decision, not a side effect of this one; ADR 0042's
     /// artifacts and M9's WIT signatures are about to freeze that surface.
-    pub(super) fn lower_rendered_array_key(
+    pub(crate) fn lower_rendered_array_key(
         &mut self,
         expr: &Expr,
         env: &mut Env,
@@ -2798,7 +2798,7 @@ impl<'a> Lowering<'a> {
     /// `ExprInfo::StaticProperty` for this access — the same
     /// internal-consistency check a property access makes, and reachable only
     /// from a body checked against a different table.
-    pub(super) fn lower_static_property(
+    pub(crate) fn lower_static_property(
         &mut self,
         expr: &Expr,
         cur: &mut BlockId,
@@ -2814,7 +2814,7 @@ impl<'a> Lowering<'a> {
     /// # Panics
     ///
     /// See [`Self::lower_static_property`].
-    pub(super) fn static_property_of(&self, expr: &Expr) -> (String, String, Ty) {
+    pub(crate) fn static_property_of(&self, expr: &Expr) -> (String, String, Ty) {
         let Some(ExprInfo::StaticProperty { class, name, ty }) = self.exprs.lookup(expr.span)
         else {
             panic!(
@@ -2877,7 +2877,7 @@ impl<'a> Lowering<'a> {
                   half of § 3's pipeline this is — every one of them differs \
                   between the read site and the write site"
     )]
-    pub(super) fn emit_observer_call(
+    pub(crate) fn emit_observer_call(
         &mut self,
         cur: BlockId,
         object_v: ValueId,
@@ -3329,7 +3329,7 @@ impl<'a> Lowering<'a> {
     ///   retain-if-aliasing the named-class write in `crate::lower::stmt`
     ///   does: this instruction can throw after both operands are in hand,
     ///   and a transferred reference on that edge would have no owner left.
-    pub(super) fn lower_shape_property_assign(
+    pub(crate) fn lower_shape_property_assign(
         &mut self,
         object: &Expr,
         field: &ShapeField,
@@ -3739,7 +3739,7 @@ impl<'a> Lowering<'a> {
 /// [`Ty::Tagged`] receiver — the one question a member access asks that
 /// nothing else in this file does.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub(super) enum ReceiverProof {
+pub(crate) enum ReceiverProof {
     /// `nvs_types` proved the tag before this ever ran: a narrowed `?T`, the
     /// non-`null` arm of a `?->`, a receiver whose declared type is a class.
     /// The tagged slot is one [`InstKind::Untag`] away from the object, and
@@ -3754,7 +3754,7 @@ pub(super) enum ReceiverProof {
     Erased,
 }
 
-pub(super) struct NullsafeGuard {
+pub(crate) struct NullsafeGuard {
     /// Where control lands when the receiver was `null` and the member never
     /// ran; ends holding the `null` the whole access answers with.
     null_block: BlockId,

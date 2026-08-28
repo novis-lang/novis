@@ -1,5 +1,5 @@
 //! The class hierarchy graph: `extends`/`implements` resolved to real
-//! [`Symbol`]s (M2 item 1 — see the crate's module docs for what's left
+//! [`crate::Symbol`]s (M2 item 1 — see the crate's module docs for what's left
 //! after this).
 //!
 //! There is no trait-use flattening or `insteadof` collision resolution here
@@ -407,7 +407,7 @@ fn implements_interface_rec(
 
 /// Walks every `extends` edge looking for a cycle, reporting
 /// `E_CIRCULAR_INHERITANCE` at the first back-edge found per traversal.
-fn detect_cycles(graph: &ClassGraph, symbols: &SymbolTable, diags: &mut Diagnostics) {
+pub(crate) fn detect_cycles(graph: &ClassGraph, symbols: &SymbolTable, diags: &mut Diagnostics) {
     let mut done: FxHashSet<QName> = FxHashSet::default();
     let mut stack: Vec<QName> = Vec::new();
 

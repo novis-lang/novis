@@ -22,7 +22,7 @@
 //! doc comment anticipated: same representation shape, same
 //! [`crate::lower`] retain/release insertion points, no new policy needed —
 //! only nothing in the grammar constructs a *fresh* one yet (no literal
-//! syntax exists for `bytes`; see [`Self::Bytes`]'s own doc comment).
+//! syntax exists for `bytes`; see [`Ty::Bytes`]'s own doc comment).
 //! [`Ty::Array`] is next: a bare, opaque representation exactly like
 //! [`Ty::Object`] — no boxed/interned element type — since no lowering
 //! decision made so far needs to branch on an array's *element* type at this

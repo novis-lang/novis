@@ -63,7 +63,7 @@
 //! | `foreach ($a as $v)` | 21.0 ns | 4.9 ns |
 //!
 //! The 219.5 ns is 37.2 rendering the index to a decimal `String`, 43.1
-//! allocating the [`NvsStr`](crate::NvsStr) key, 23.1 hashing and probing, and
+//! allocating the [`NvsStr`] key, 23.1 hashing and probing, and
 //! the rest index-map insert and growth. A `Vec<Value>` push is 1.9 ns and an
 //! index 0.34 ns. The assoc and iteration rows are healthy and this changes
 //! neither.

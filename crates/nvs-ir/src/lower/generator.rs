@@ -2,7 +2,7 @@
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory so a
 //! session editing one area does not carry the rest in context. Every item
-//! moved here unchanged; the methods are `pub(super)` so they reach across
+//! moved here unchanged; the methods are `pub(crate)` so they reach across
 //! these modules and no further, which is the reach they had when `lower` was
 //! a single file.
 
@@ -12,7 +12,7 @@ impl<'a> Lowering<'a> {
     /// Reads `name`'s parked value back out of the state object and takes a
     /// reference of its own — the reload half of a generator suspension. See
     /// [`lower_generator`], which owns the whole protocol.
-    pub(super) fn reload_field(&mut self, b: BlockId, name: &str, ty: Ty) -> ValueId {
+    pub(crate) fn reload_field(&mut self, b: BlockId, name: &str, ty: Ty) -> ValueId {
         let (class, gen_v) = self.gen_target();
         let (v, _) = self.emit(
             b,
@@ -33,7 +33,7 @@ impl<'a> Lowering<'a> {
     /// suspension is the `null` [`InstKind::New`] left there; every
     /// `nvs_runtime` release primitive answers a null payload with a no-op,
     /// which is what makes the first spill need no special case.
-    pub(super) fn spill_field(&mut self, b: BlockId, name: &str, v: ValueId, ty: Ty) {
+    pub(crate) fn spill_field(&mut self, b: BlockId, name: &str, v: ValueId, ty: Ty) {
         self.generator
             .as_mut()
             .expect("spill_field is only reached inside a generator frame")
@@ -62,7 +62,7 @@ impl<'a> Lowering<'a> {
     ///
     /// Panics outside a generator's `advance()` — every caller is reached
     /// only from one.
-    pub(super) fn gen_target(&self) -> (String, ValueId) {
+    pub(crate) fn gen_target(&self) -> (String, ValueId) {
         let frame = self
             .generator
             .as_ref()
@@ -75,7 +75,7 @@ impl<'a> Lowering<'a> {
     /// The state moves to [`GEN_DONE`], which no resumption arm names, so a
     /// further `advance()` takes the entry switch's default arm and answers
     /// `false` again rather than re-running anything.
-    pub(super) fn finish_generator(&mut self, cur: BlockId, env: &Env) {
+    pub(crate) fn finish_generator(&mut self, cur: BlockId, env: &Env) {
         let (class, gen_v) = self.gen_target();
         let (done, _) = self.emit(cur, Ty::Int, InstKind::ConstInt(GEN_DONE));
         self.emit_field_set(cur, gen_v, class, GEN_STATE.to_owned(), done);
@@ -100,7 +100,7 @@ impl<'a> Lowering<'a> {
     /// internal-consistency check, not a gap: the only thing that ever binds
     /// one is [`super::lower_method`]'s parameter loop, and a generator
     /// declaring an `inout $x` parameter is `E0492` — see [`lower_generator`].
-    pub(super) fn lower_yield(&mut self, value: &Expr, env: &mut Env, cur: &mut BlockId) {
+    pub(crate) fn lower_yield(&mut self, value: &Expr, env: &mut Env, cur: &mut BlockId) {
         let elem = self
             .generator
             .as_ref()
@@ -269,10 +269,10 @@ impl<'a> Lowering<'a> {
 /// character set), so neither this nor [`GEN_CURRENT`] can collide with a
 /// local the body spilled under its own name — the same guarantee
 /// [`Lowering::lower_foreach`]'s `foreach#N` bookkeeping names rest on.
-pub(super) const GEN_STATE: &str = "gen#state";
+pub(crate) const GEN_STATE: &str = "gen#state";
 
 /// The most recently yielded element, which [`GEN_CURRENT_METHOD`] reads.
-pub(super) const GEN_CURRENT: &str = "gen#current";
+pub(crate) const GEN_CURRENT: &str = "gen#current";
 
 /// Set to `1` by [`GEN_UNWIND_METHOD`] and read by every suspension point
 /// inside a `finally`-owning region: `0` means an ordinary resumption, and
@@ -285,19 +285,19 @@ pub(super) const GEN_CURRENT: &str = "gen#current";
 /// so what the body turns out to owe is not yet known when the field list is
 /// fixed. Eight bytes per *suspended* generator, which is O(in-flight) and
 /// last in AGENTS.md's priority ordering.
-pub(super) const GEN_UNWIND: &str = "gen#unwind";
+pub(crate) const GEN_UNWIND: &str = "gen#unwind";
 
-pub(super) const GEN_SELF: &str = "gen#self";
+pub(crate) const GEN_SELF: &str = "gen#self";
 
 /// The state value meaning "this generator has finished" — any value no
 /// resumption arm names, so the entry switch's default arm takes it.
-pub(super) const GEN_DONE: i64 = -1;
+pub(crate) const GEN_DONE: i64 = -1;
 
 /// `Iterator<T>::advance`'s name, as the method table spells it.
-pub(super) const GEN_ADVANCE: &str = "advance";
+pub(crate) const GEN_ADVANCE: &str = "advance";
 
 /// `Iterator<T>::current`'s name.
-pub(super) const GEN_CURRENT_METHOD: &str = "current";
+pub(crate) const GEN_CURRENT_METHOD: &str = "current";
 
 /// The resume-to-unwind entry point's name in the state class's method table,
 /// which is how the release path reaches it — see
@@ -313,25 +313,25 @@ pub(super) const GEN_CURRENT_METHOD: &str = "current";
 /// one this transform synthesized can answer. `nvs_runtime` restates the
 /// string as `nvs_runtime::object::GENERATOR_UNWIND_METHOD`, for the reason
 /// [`THROWABLE_ROOT`] is restated here.
-pub(super) const GEN_UNWIND_METHOD: &str = "gen#unwind";
+pub(crate) const GEN_UNWIND_METHOD: &str = "gen#unwind";
 
 /// One generator's synthesized state class, accumulated while its
 /// `advance()` body is lowered — see [`lower_generator`].
-pub(super) struct GenFrame {
+pub(crate) struct GenFrame {
     /// The state class's label.
-    pub(super) class: String,
+    pub(crate) class: String,
     /// `T`, from the declared `Iterator<T>` return type.
-    pub(super) elem: Ty,
+    pub(crate) elem: Ty,
     /// This frame's own receiver, the state object.
-    pub(super) gen_v: ValueId,
+    pub(crate) gen_v: ValueId,
     /// Every field the class needs, in first-registered order: the two
     /// reserved ones, then each parameter, then each local some `yield`
     /// spilled. Deduplicated by name.
-    pub(super) fields: Vec<(String, Ty)>,
+    pub(crate) fields: Vec<(String, Ty)>,
     /// One resume block per `yield` lowered so far, in source order — the
     /// entry switch's arms, whose case value is the index plus one (state `0`
     /// is the body's own start).
-    pub(super) resumes: Vec<BlockId>,
+    pub(crate) resumes: Vec<BlockId>,
     /// The state values whose resume block grew an unwind arm — the
     /// suspension points that sit inside a `finally`-owning region, and so the
     /// only ones [`lower_generator_unwind`] may resume into.
@@ -339,13 +339,13 @@ pub(super) struct GenFrame {
     /// Collected rather than recomputed because it is what makes the entry
     /// point *safe*: resuming a suspension that owes nothing would run the
     /// rest of the body, which is the opposite of abandoning it.
-    pub(super) unwind_states: Vec<i64>,
+    pub(crate) unwind_states: Vec<i64>,
 }
 
 impl GenFrame {
     /// Registers `name` as a field at `ty`, or checks that an already-known
     /// one agrees.
-    pub(super) fn field(&mut self, name: &str, ty: Ty) {
+    pub(crate) fn field(&mut self, name: &str, ty: Ty) {
         match self.fields.iter().find(|(n, _)| n == name) {
             Some((_, known)) => assert!(
                 *known == ty,
@@ -458,7 +458,7 @@ impl GenFrame {
 /// (see [`Ty::Ref`]), which stops existing the moment the factory returns, so
 /// `nvs_types::check::check_generator_inout_params` refuses the shape where
 /// it is written, as `E0492`, and nothing that reaches here declares one.
-pub(super) fn lower_generator(
+pub(crate) fn lower_generator(
     name: &str,
     m: &MethodMember,
     src: &SourceFile,
@@ -558,13 +558,13 @@ pub(super) fn lower_generator(
 /// `Iterator`'s bare label, restated here for the reason
 /// [`THROWABLE_ROOT`] is: this crate depends on neither `nvs-hir` nor
 /// `nvs-types`' name resolution.
-pub(super) fn nvs_hir_iterator_label() -> String {
+pub(crate) fn nvs_hir_iterator_label() -> String {
     "Iterator".to_owned()
 }
 
 /// `T`, read back off the declared `Iterator<T>` return type the checker
 /// already resolved and recorded.
-pub(super) fn generator_element(
+pub(crate) fn generator_element(
     name: &str,
     m: &MethodMember,
     exprs: &ExprTypeTable,
@@ -597,7 +597,7 @@ pub(super) fn generator_element(
     reason = "the arguments are one declaration's own parts plus the four \
               tables every lowering entry point takes"
 )]
-pub(super) fn lower_generator_factory(
+pub(crate) fn lower_generator_factory(
     name: &str,
     class: &str,
     m: &MethodMember,
@@ -687,7 +687,7 @@ pub(super) fn lower_generator_factory(
     reason = "the arguments are one declaration's own parts plus the four \
               tables every lowering entry point takes"
 )]
-pub(super) fn lower_generator_advance(
+pub(crate) fn lower_generator_advance(
     class: &str,
     m: &MethodMember,
     is_static: bool,
@@ -820,7 +820,7 @@ pub(super) fn lower_generator_advance(
 /// both points and this reads it as a `T`, which is a known gap rather than a
 /// decision — a `foreach`, the only thing that drives a cursor today, never
 /// calls `current()` at either point.
-pub(super) fn lower_generator_current(class: &str, elem: Ty, src: &SourceFile) -> Function {
+pub(crate) fn lower_generator_current(class: &str, elem: Ty, src: &SourceFile) -> Function {
     let mut ids = IdGen::default();
     let block = ids.next_block();
     let gen_v = ids.next_value();
@@ -913,7 +913,7 @@ pub(super) fn lower_generator_current(class: &str, elem: Ty, src: &SourceFile) -
 /// An exception thrown by a `finally` body on the way out propagates to the
 /// caller: the call names no landing block because this frame owns nothing
 /// left to release at that point.
-pub(super) fn lower_generator_unwind(
+pub(crate) fn lower_generator_unwind(
     class: &str,
     m: &MethodMember,
     owed: &[i64],

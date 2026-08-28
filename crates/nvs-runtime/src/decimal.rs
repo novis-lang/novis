@@ -2,7 +2,7 @@
 //! scalar: sign, a 96-bit unsigned mantissa and a scale of 0 to 28, with the
 //! whole of § 3's arithmetic and § 4's conversions.
 //!
-//! # Where the sixteen bytes go, and why they are a [`Value`]'s
+//! # Where the sixteen bytes go, and why they are a [`crate::Value`]'s
 //!
 //! A `decimal` is **exactly a [`crate::Value`] carrying [`Tag::Decimal`]** —
 //! not a second 16-byte shape sitting beside one. ADR 0054 § 1 asks for a

@@ -50,7 +50,7 @@
 //!
 //! Part of [`super`]'s one expression checker, split across this directory so
 //! a session editing one rule does not carry the rest in context. Every item
-//! moved here unchanged; an item is `pub(super)` where it reaches across these
+//! moved here unchanged; an item is `pub(crate)` where it reaches across these
 //! modules, which is the reach it had when `expr` was a single file.
 
 use super::*;
@@ -75,7 +75,7 @@ use crate::expr_table::ObserverCalls;
               this module carries, plus the constant reference's own two 
               spans and the expectation ADR 0047 § 3 places its case against"
 )]
-pub(super) fn infer_class_const(
+pub(crate) fn infer_class_const(
     expr: &Expr,
     class: &Expr,
     name: Span,
@@ -189,7 +189,7 @@ pub(super) fn infer_class_const(
 /// `E_INSTANCEOF_NOT_A_CLASS`, whose own doc comment says why each has no test
 /// to run; and a left-hand side whose declared type can hold no object is
 /// `E_INSTANCEOF_SUBJECT_NOT_OBJECT` (ADR 0007 § 7 row 14).
-pub(super) fn infer_instanceof(
+pub(crate) fn infer_instanceof(
     expr: &Expr,
     inner: &Expr,
     class: &Expr,
@@ -329,7 +329,7 @@ pub(crate) fn can_hold_an_object(ty: TypeId, interner: &TypeInterner) -> bool {
 /// The class or enum a resolved type names, if it names one at all — the
 /// receiver-type question every member-access/call arm below needs answered
 /// before it can look anything up in a [`crate::signatures::SignatureTable`].
-pub(super) fn class_qname_of(ty: TypeId, interner: &TypeInterner) -> Option<QName> {
+pub(crate) fn class_qname_of(ty: TypeId, interner: &TypeInterner) -> Option<QName> {
     match interner.get(ty) {
         Ty::Class(q, _) | Ty::Enum(q, _) => Some(q.clone()),
         _ => None,
@@ -391,7 +391,7 @@ pub(crate) fn resolve_class_expr(class_expr: &Expr, ctx: &Ctx<'_>, env: &Env<'_>
 /// `($e)::class` — and is [`code::E_CLASS_NAME_CONST_NOT_STATIC`]: an object
 /// carries no name a program can read back. The type stays `string` either
 /// way, so a refused site does not then also mismatch its binding.
-pub(super) fn check_class_name_const(
+pub(crate) fn check_class_name_const(
     expr: &Expr,
     class: &Expr,
     ctx: &Ctx<'_>,
@@ -477,7 +477,7 @@ pub(super) fn check_class_name_const(
     reason = "the same context [`check_property_member`] states, with the \
               nullsafe flag in place of the receiver type it computes"
 )]
-pub(super) fn check_property_access(
+pub(crate) fn check_property_access(
     object: &Expr,
     property: &MemberName,
     nullsafe: bool,
@@ -513,7 +513,7 @@ pub(super) fn check_property_access(
 /// does a `void` member: there is no `?void`, the value is unusable either
 /// way, and unioning one would make every `$obj?->doThing();` statement carry
 /// a type nothing can consume.
-pub(super) fn nullsafe_result(
+pub(crate) fn nullsafe_result(
     nullsafe: bool,
     receiver_ty: TypeId,
     member_ty: TypeId,
@@ -532,7 +532,7 @@ pub(super) fn nullsafe_result(
 /// The half of a `?->` receiver's type that actually reaches the member —
 /// everything but `null`. Left alone for `->`, whose receiver reaches the
 /// member whole.
-pub(super) fn strip_nullsafe_receiver(
+pub(crate) fn strip_nullsafe_receiver(
     nullsafe: bool,
     object_ty: TypeId,
     span: Span,
@@ -635,7 +635,7 @@ fn observer_calls(qname: &QName, env: &Env<'_>) -> Option<ObserverCalls> {
               threads — live set, scope, ctx, env — plus the receiver, its \
               already-computed type, the member and `unset()`'s flag"
 )]
-pub(super) fn check_property_member(
+pub(crate) fn check_property_member(
     object: &Expr,
     object_ty: TypeId,
     property: &MemberName,
@@ -991,7 +991,7 @@ fn report_unset_not_an_element(operand: &Expr, subscripted: bool, env: &mut Env<
     );
 }
 
-pub(super) fn report_unset_on_property(span: Span, qname: &QName, name: &str, env: &mut Env<'_>) {
+pub(crate) fn report_unset_on_property(span: Span, qname: &QName, name: &str, env: &mut Env<'_>) {
     env.diags.report(
         Diagnostic::error(
             code::E_UNSET_ON_PROPERTY,
@@ -1021,7 +1021,7 @@ pub(super) fn report_unset_on_property(span: Span, qname: &QName, name: &str, en
 /// read in the message (`$count` for a property, `m()` for a method), so the
 /// one diagnostic serves both halves of the pass without a kind flag to
 /// branch on.
-pub(super) fn check_member_visibility(
+pub(crate) fn check_member_visibility(
     span: Span,
     owner: &QName,
     member: &str,
@@ -1062,7 +1062,7 @@ pub(super) fn check_member_visibility(
     );
 }
 
-pub(super) fn report_unknown_member(
+pub(crate) fn report_unknown_member(
     span: Span,
     qname: &QName,
     name: &str,
@@ -1089,7 +1089,7 @@ pub(super) fn report_unknown_member(
 /// Reported for a `Core` class only. A user-declared class's non-static method
 /// called statically is PHP's own error, and belongs with the visibility rules
 /// this crate still owes rather than here.
-pub(super) fn report_core_instance_member(
+pub(crate) fn report_core_instance_member(
     span: Span,
     qname: &QName,
     name: &str,
@@ -1122,7 +1122,7 @@ pub(super) fn report_core_instance_member(
 ///
 /// `name` is written bare; the `()` that marks it as a method in the message
 /// is added here, so no call site has to remember it.
-pub(super) fn check_method_visibility(
+pub(crate) fn check_method_visibility(
     owner: &QName,
     name: &str,
     sig: &MethodSig,
@@ -1144,7 +1144,7 @@ pub(super) fn check_method_visibility(
 /// other interface. `owner` is the [`QName`] [`resolve_method`] found `sig`
 /// declared on, which may differ from the receiver's own static type when
 /// the method was inherited — exactly the case this check cares about.
-pub(super) fn check_interface_private_visibility(
+pub(crate) fn check_interface_private_visibility(
     owner: &QName,
     name: &str,
     sig: &MethodSig,

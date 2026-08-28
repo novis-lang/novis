@@ -29,7 +29,7 @@
 //!
 //! Part of [`super`]'s one expression checker, split across this directory so
 //! a session editing one rule does not carry the rest in context. Every item
-//! moved here unchanged; an item is `pub(super)` where it reaches across these
+//! moved here unchanged; an item is `pub(crate)` where it reaches across these
 //! modules, which is the reach it had when `expr` was a single file.
 
 use super::*;
@@ -47,7 +47,7 @@ use super::*;
 /// [`super::members`]'s [`Ty::EnumCase`] one — since the only thing that
 /// differs between them is how a candidate atom is compared to the value in
 /// hand.
-pub(super) fn placed_literal(
+pub(crate) fn placed_literal(
     expected: Option<TypeId>,
     interner: &TypeInterner,
     is_this_literal: impl Fn(&Ty) -> bool,
@@ -100,7 +100,7 @@ fn placed_bool_literal(value: bool, expected: Option<TypeId>, env: &Env<'_>) -> 
 /// A bare `bool` everywhere but a position that names this exact value, which
 /// is ADR 0047 § 4's placement rule and the reason `var $b = true;` still
 /// infers `bool` rather than a type only `true` could ever satisfy.
-pub(super) fn infer_bool_literal(
+pub(crate) fn infer_bool_literal(
     value: bool,
     expected: Option<TypeId>,
     env: &mut Env<'_>,
@@ -119,7 +119,7 @@ pub(super) fn infer_bool_literal(
 /// § 3's two `bool` ones, including a malformed one — a literal that does not
 /// survive its own text has no singleton to be, exactly as
 /// [`infer_str_literal`] and [`infer_int_literal`] already decide.
-pub(super) fn literal_self_type(expr: &Expr, env: &mut Env<'_>) -> Option<TypeId> {
+pub(crate) fn literal_self_type(expr: &Expr, env: &mut Env<'_>) -> Option<TypeId> {
     match expr.kind {
         // No text to decode and no range to fail: the token *is* the value, so
         // this arm cannot answer `None` the way the two below can.
@@ -147,7 +147,7 @@ pub(super) fn literal_self_type(expr: &Expr, env: &mut Env<'_>) -> Option<TypeId
 /// the two meet, and [`negated_literal_result`] puts the sign back on. Without
 /// the pair, `-1` would be a type nothing but an `as` could ever produce,
 /// while `1` was satisfied by writing it.
-pub(super) fn negated_literal_expectation(
+pub(crate) fn negated_literal_expectation(
     op: UnaryOp,
     expected: Option<TypeId>,
     interner: &mut TypeInterner,
@@ -170,7 +170,7 @@ pub(super) fn negated_literal_expectation(
 /// the literal of the negated value, so `-1` placed at the type `-1` stays
 /// that type rather than widening to `int` at the operator. Any other operand
 /// type, and any other operator, is returned unchanged.
-pub(super) fn negated_literal_result(
+pub(crate) fn negated_literal_result(
     op: UnaryOp,
     inner: TypeId,
     interner: &mut TypeInterner,
@@ -210,7 +210,7 @@ pub(super) fn negated_literal_result(
 ///
 /// Returns `None` for every other operand shape and every other neighbouring
 /// type, so that operand is checked with no expectation exactly as before.
-pub(super) fn uint_operand_expectation(
+pub(crate) fn uint_operand_expectation(
     operand: &Expr,
     other: TypeId,
     interner: &mut TypeInterner,
@@ -238,7 +238,7 @@ pub(super) fn uint_operand_expectation(
 /// Placed at `decimal` instead, ADR 0054 §§ 3-4 apply: an `int`/`uint` is
 /// exact in a 96-bit mantissa, so the literal needs only that wider bound
 /// checked rather than `int`'s 64-bit one.
-pub(super) fn infer_int_literal(
+pub(crate) fn infer_int_literal(
     span: Span,
     report_span: Span,
     expected: Option<TypeId>,
@@ -308,7 +308,7 @@ pub(super) fn infer_int_literal(
 /// untyped until placed, and takes `decimal` or `float` from the type of the
 /// position it appears in. `float` is the answer everywhere else, including
 /// `var $x = 19.99;`, which has no target at all.
-pub(super) fn infer_float_literal(
+pub(crate) fn infer_float_literal(
     span: Span,
     report_span: Span,
     expected: Option<TypeId>,
@@ -331,7 +331,7 @@ pub(super) fn infer_float_literal(
 /// (whose span opens with `<`, not a quote) runs [`crate::string_lit`]'s
 /// flexible-indentation check first, then the same escape grammar too — unless
 /// it is a nowdoc, which (like PHP's) applies no escapes at all.
-pub(super) fn infer_str_literal(span: Span, expected: Option<TypeId>, env: &mut Env<'_>) -> TypeId {
+pub(crate) fn infer_str_literal(span: Span, expected: Option<TypeId>, env: &mut Env<'_>) -> TypeId {
     let raw = span_text(env.src, span);
     if raw.starts_with('"') {
         check_double_quoted_text_issues(inner_quoted_span(span), env);
@@ -357,7 +357,7 @@ pub(super) fn infer_str_literal(span: Span, expected: Option<TypeId>, env: &mut 
 /// [`infer_str_literal`] handles). Each interpolated expression must be
 /// `Stringable` (ADR 0028 § 1) and poisons the result on the `tainted` and
 /// `secret` axes independently — see [`super::quals`].
-pub(super) fn infer_interpolated(
+pub(crate) fn infer_interpolated(
     expr: &Expr,
     parts: &[StringPart],
     live: &mut FxHashSet<String>,
@@ -433,7 +433,7 @@ const MAX_DECIMAL_SCALE: i32 = 28;
 /// array the checker just typed `decimal`. Reading the answer back is the same
 /// arrangement [`crate::expr_table::ExprTypeTable::declared_ty`] already
 /// serves for an enum-named type atom.
-pub(super) fn record_decimal_placement(span: Span, env: &mut Env<'_>) -> TypeId {
+pub(crate) fn record_decimal_placement(span: Span, env: &mut Env<'_>) -> TypeId {
     let decimal = env.interner.decimal();
     env.exprs.record_type(span, decimal);
     decimal
@@ -441,7 +441,7 @@ pub(super) fn record_decimal_placement(span: Span, env: &mut Env<'_>) -> TypeId 
 
 /// Whether the position a literal is being placed in wants a `decimal` —
 /// ADR 0054 § 2's "untyped until placed" rule, asked once per literal arm.
-pub(super) fn wants_decimal(expected: Option<TypeId>, env: &Env<'_>) -> bool {
+pub(crate) fn wants_decimal(expected: Option<TypeId>, env: &Env<'_>) -> bool {
     expected.is_some_and(|id| matches!(env.interner.get(id), Ty::Decimal))
 }
 
@@ -454,7 +454,7 @@ pub(super) fn wants_decimal(expected: Option<TypeId>, env: &Env<'_>) -> bool {
 /// Trailing zeros are *kept*, because § 4 makes scale observable in rendering:
 /// `19.90 as string` is `"19.90"`, so `19.90` is a scale-2 value and not a
 /// second spelling of `19.9`.
-pub(super) fn decimal_literal_overflow(text: &str) -> Option<&'static str> {
+pub(crate) fn decimal_literal_overflow(text: &str) -> Option<&'static str> {
     let cleaned: String = text.chars().filter(|&c| c != '_').collect();
     let (numeric, exponent) = match cleaned.split_once(['e', 'E']) {
         Some((numeric, exp)) => match exp.parse::<i32>() {
@@ -488,7 +488,7 @@ pub(super) fn decimal_literal_overflow(text: &str) -> Option<&'static str> {
 }
 
 /// Reports ADR 0054 § 1's bound for a fractional literal placed at `decimal`.
-pub(super) fn check_decimal_float_literal(span: Span, report_span: Span, env: &mut Env<'_>) {
+pub(crate) fn check_decimal_float_literal(span: Span, report_span: Span, env: &mut Env<'_>) {
     let text = span_text(env.src, span).to_owned();
     if let Some(reason) = decimal_literal_overflow(&text) {
         report_decimal_out_of_range(reason, report_span, env);
@@ -497,14 +497,14 @@ pub(super) fn check_decimal_float_literal(span: Span, report_span: Span, env: &m
 
 /// The integer-literal half of [`check_decimal_float_literal`]: only the
 /// mantissa can overflow, since an integer literal is scale 0 by construction.
-pub(super) fn check_decimal_int_literal(span: Span, report_span: Span, env: &mut Env<'_>) {
+pub(crate) fn check_decimal_int_literal(span: Span, report_span: Span, env: &mut Env<'_>) {
     let (radix, digits) = int_literal_digits(env.src, span);
     if !u128::from_str_radix(&digits, radix).is_ok_and(|m| m <= MAX_DECIMAL_MANTISSA) {
         report_decimal_out_of_range("mantissa", report_span, env);
     }
 }
 
-pub(super) fn report_decimal_out_of_range(reason: &str, span: Span, env: &mut Env<'_>) {
+pub(crate) fn report_decimal_out_of_range(reason: &str, span: Span, env: &mut Env<'_>) {
     let detail = match reason {
         "scale" => "more than 28 digits after the point",
         _ => "a mantissa wider than 96 bits",
@@ -557,7 +557,7 @@ pub(crate) fn int_literal_digits(src: &SourceFile, span: Span) -> (u32, String) 
 /// the same one a `StringPart::Text` span already has natively. `"` is
 /// one byte, so trimming exactly one byte off each end is exact, not an
 /// approximation.
-pub(super) fn inner_quoted_span(span: Span) -> Span {
+pub(crate) fn inner_quoted_span(span: Span) -> Span {
     Span::new(span.file, span.start + 1, span.end - 1)
 }
 
@@ -567,12 +567,12 @@ pub(super) fn inner_quoted_span(span: Span) -> Span {
 /// re-cooks it from the same span when it actually lowers the literal, per
 /// `crate::string_lit`'s own module docs on why that duplicate call is safe
 /// (one shared implementation) rather than a second, divergent one.
-pub(super) fn check_double_quoted_text_issues(span: Span, env: &mut Env<'_>) {
+pub(crate) fn check_double_quoted_text_issues(span: Span, env: &mut Env<'_>) {
     let (_, issues) = crate::string_lit::cook_double_quoted_text(env.src, span);
     report_cook_issues(issues, env);
 }
 
-pub(super) fn report_cook_issues(issues: Vec<crate::string_lit::CookIssue>, env: &mut Env<'_>) {
+pub(crate) fn report_cook_issues(issues: Vec<crate::string_lit::CookIssue>, env: &mut Env<'_>) {
     for issue in issues {
         match issue {
             crate::string_lit::CookIssue::InvalidUnicodeEscape(span) => {
@@ -598,7 +598,7 @@ pub(super) fn report_cook_issues(issues: Vec<crate::string_lit::CookIssue>, env:
     }
 }
 
-pub(super) fn report_heredoc_indent_issues(
+pub(crate) fn report_heredoc_indent_issues(
     issues: Vec<crate::string_lit::HeredocIndentIssue>,
     env: &mut Env<'_>,
 ) {
@@ -636,7 +636,7 @@ pub(super) fn report_heredoc_indent_issues(
 /// reporting both indentation and (for a heredoc, never a nowdoc) escape-cooking issues found
 /// along the way. The cooked `String` itself is discarded, same as [`check_double_quoted_text_issues`]:
 /// `nvs-ir` re-cooks it from the same inputs when it actually lowers the literal.
-pub(super) fn check_heredoc_run_issues(
+pub(crate) fn check_heredoc_run_issues(
     indent: &str,
     span: Span,
     body_start: bool,
@@ -715,7 +715,7 @@ fn report_duplicate_shape_field(field: &ObjectLiteralField, name: &str, env: &mu
     );
 }
 
-pub(super) fn check_array_literal(
+pub(crate) fn check_array_literal(
     items: &[ArrayItem],
     expected: Option<TypeId>,
     live: &mut FxHashSet<String>,

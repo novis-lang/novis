@@ -18,7 +18,7 @@
 //!
 //! Part of [`super`]'s one expression checker, split across this directory so
 //! a session editing one rule does not carry the rest in context. Every item
-//! moved here unchanged; an item is `pub(super)` where it reaches across these
+//! moved here unchanged; an item is `pub(crate)` where it reaches across these
 //! modules, which is the reach it had when `expr` was a single file.
 
 use super::*;
@@ -29,7 +29,7 @@ use super::*;
 /// ADR 0053 § 4. Whether this is legal here at all, and what the operand has to
 /// satisfy, are the same question — see `Ctx::generator_elem`, which
 /// `crate::check::check_method` set from the enclosing body's own shape.
-pub(super) fn infer_yield(
+pub(crate) fn infer_yield(
     expr: &Expr,
     key: Option<&Expr>,
     value: Option<&Expr>,
@@ -77,7 +77,7 @@ pub(super) fn infer_yield(
 
 /// `yield from $inner` — [`super::infer`]'s `ExprKind::YieldFrom` arm, which
 /// exists only to refuse it (ADR 0053 § 5).
-pub(super) fn infer_yield_from(
+pub(crate) fn infer_yield_from(
     expr: &Expr,
     inner: &Expr,
     live: &mut FxHashSet<String>,
@@ -158,7 +158,7 @@ pub(crate) fn foreach_source(subject_ty: TypeId, span: Span, env: &mut Env<'_>) 
     source
 }
 
-pub(super) fn classify_foreach_source(
+pub(crate) fn classify_foreach_source(
     subject_ty: TypeId,
     span: Span,
     env: &mut Env<'_>,
@@ -223,7 +223,7 @@ fn with_subject_args(qname: &QName, args: &[TypeId], element: TypeId, env: &mut 
     crate::generics::substitute(element, &bindings, env.interner)
 }
 
-pub(super) fn report_not_iterable(subject_ty: TypeId, span: Span, env: &mut Env<'_>) {
+pub(crate) fn report_not_iterable(subject_ty: TypeId, span: Span, env: &mut Env<'_>) {
     let got = env.interner.describe(subject_ty);
     env.diags.report(
         Diagnostic::error(
@@ -418,7 +418,7 @@ pub(crate) fn check_foreach_key(
 /// the same expression. Returns whether it reported one, so the caller can
 /// skip its own generic check for this expression.
 /// ADR 0053 § 4's lexical confinement, reported once per stray `yield`.
-pub(super) fn report_yield_outside_generator(span: Span, env: &mut Env<'_>) {
+pub(crate) fn report_yield_outside_generator(span: Span, env: &mut Env<'_>) {
     env.diags.report(
         Diagnostic::error(
             code::E_YIELD_OUTSIDE_GENERATOR,

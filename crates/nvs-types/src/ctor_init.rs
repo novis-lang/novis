@@ -83,7 +83,7 @@ struct CtorObligations<'a> {
 /// properties have definitely been assigned so far, and whether
 /// `parent::constructor(...)` has definitely been called so far.
 #[derive(Clone, Default)]
-struct InitState {
+pub(crate) struct InitState {
     assigned: FxHashSet<String>,
     parent_called: bool,
 }
@@ -401,7 +401,7 @@ fn walk_stmt(
 /// call anywhere `e` directly nests one of a handful of common composite
 /// forms — see the module docs' known gaps for what this does not descend
 /// into.
-fn scan_expr(e: &Expr, state: &mut InitState, env: &Env<'_>) {
+pub(crate) fn scan_expr(e: &Expr, state: &mut InitState, env: &Env<'_>) {
     match &e.kind {
         ExprKind::Assign {
             op, target, value, ..

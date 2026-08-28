@@ -22,7 +22,7 @@
 //!
 //! Part of [`super`]'s one expression checker, split across this directory so
 //! a session editing one rule does not carry the rest in context. Every item
-//! moved here unchanged; an item is `pub(super)` where it reaches across these
+//! moved here unchanged; an item is `pub(crate)` where it reaches across these
 //! modules, which is the reach it had when `expr` was a single file.
 
 use super::*;
@@ -201,7 +201,7 @@ pub(crate) fn is_assignable(
 /// `Sink<T>` would consume one — and nothing on ADR 0053's path needs it, so
 /// the invariant rule is what is committed to here rather than a covariant
 /// one that would be expensive to take back.
-pub(super) fn class_satisfied(
+pub(crate) fn class_satisfied(
     from_q: &QName,
     to_q: &QName,
     to_args: &[TypeId],
@@ -225,7 +225,7 @@ pub(super) fn class_satisfied(
 /// from [`resolve_property`], the same ancestor walk an ordinary `$obj->prop`
 /// access already uses; any other `from` (a scalar, `object`, a mismatched
 /// shape) never satisfies a shape target.
-pub(super) fn shape_satisfied(
+pub(crate) fn shape_satisfied(
     from: TypeId,
     to_fields: &[(String, TypeId)],
     interner: &mut TypeInterner,
@@ -322,7 +322,7 @@ pub(crate) fn check_return(
 /// missing lowerings.
 ///
 /// `value` is quoted back because dropping one character is the whole fix.
-pub(super) fn report_by_reference_assignment(span: Span, value: Span, env: &mut Env<'_>) {
+pub(crate) fn report_by_reference_assignment(span: Span, value: Span, env: &mut Env<'_>) {
     let value_text = span_text(env.src, value).to_owned();
     env.diags.report(
         Diagnostic::error(
@@ -343,7 +343,7 @@ pub(super) fn report_by_reference_assignment(span: Span, value: Span, env: &mut 
     clippy::too_many_arguments,
     reason = "the same context [`check_compound_assign`] states, with the \n              assignment operator in place of the binary one it maps to"
 )]
-pub(super) fn check_assign(
+pub(crate) fn check_assign(
     op: AssignOp,
     span: Span,
     target: &Expr,
@@ -417,7 +417,7 @@ pub(super) fn check_assign(
 /// `unset()`, none of which may append, and the *presence* of the mark is
 /// what tells a subscript that the refusal its holder is about to take is
 /// the one mistake to report.
-pub(super) fn mark_write_target_levels(target: &Expr, plain: bool, env: &mut Env<'_>) {
+pub(crate) fn mark_write_target_levels(target: &Expr, plain: bool, env: &mut Env<'_>) {
     let mut level = target.unparenthesized();
     while let ExprKind::Index { base, .. } = &level.kind {
         env.write_target_levels.insert(level.span, plain);
@@ -483,7 +483,7 @@ pub(super) fn mark_write_target_levels(target: &Expr, plain: bool, env: &mut Env
 /// write down to its root holder and writes every level back through that, so
 /// the root is the only level with a holder at all — which is also why
 /// `$obj->hooked[0][1] = v` is this same refusal and not a deeper one.
-pub(super) fn check_write_target(target: &Expr, env: &mut Env<'_>) {
+pub(crate) fn check_write_target(target: &Expr, env: &mut Env<'_>) {
     let mut root = target.unparenthesized();
     let mut through_subscript = false;
     while let ExprKind::Index { base, .. } = &root.kind {
@@ -583,7 +583,7 @@ pub(super) fn check_write_target(target: &Expr, env: &mut Env<'_>) {
 /// `ExprKind::Error` is here so a parse error takes one diagnostic rather than
 /// two. Parentheses never reach it, [`Expr::unparenthesized`] having peeled
 /// them at every walk that calls this.
-pub(super) fn is_a_place(kind: &ExprKind) -> bool {
+pub(crate) fn is_a_place(kind: &ExprKind) -> bool {
     matches!(
         kind,
         ExprKind::Variable(_)
@@ -609,7 +609,7 @@ pub(super) fn is_a_place(kind: &ExprKind) -> bool {
     clippy::too_many_arguments,
     reason = "the five-parameter checking context every expression walker in \n              this module carries, plus the operator, the assignment's span and \n              its two operand expressions"
 )]
-pub(super) fn check_compound_assign(
+pub(crate) fn check_compound_assign(
     op: BinaryOp,
     span: Span,
     target: &Expr,
@@ -641,7 +641,7 @@ pub(super) fn check_compound_assign(
     target_ty
 }
 
-pub(super) fn check_read(
+pub(crate) fn check_read(
     name: &str,
     span: Span,
     live: &FxHashSet<String>,
@@ -677,7 +677,7 @@ pub(super) fn check_read(
 /// `expr` is a plain local — the call every write path in this module owes,
 /// listed in `crate::locals`' narrowing docs. A write through a property or
 /// an element cannot change what a *local* holds, so it has nothing to drop.
-pub(super) fn note_write(expr: &Expr, scope: &LocalScope, env: &Env<'_>) {
+pub(crate) fn note_write(expr: &Expr, scope: &LocalScope, env: &Env<'_>) {
     if let ExprKind::Variable(span) = &expr.kind {
         scope.overwrite(strip_sigil(span_text(env.src, *span)));
     }

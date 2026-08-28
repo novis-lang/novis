@@ -13,7 +13,7 @@
 //!
 //! # Argument tags are checked, not assumed
 //!
-//! Every helper below re-checks its arguments' tags and returns [`FATAL`] on a
+//! Every helper below re-checks its arguments' tags and returns [`Fault::Fatal`] on a
 //! mismatch rather than reading the payload anyway. A mismatch cannot happen
 //! in a well-typed program — [ADR 0007](../../../docs/adr/0007-explicit-type-system.md)
 //! settles every operand type before lowering, and `nvs_ir::lower` picks the
@@ -1598,7 +1598,7 @@ crate::nvs_helper! {
 /// R4 makes failure a throw, and a silent placeholder is exactly the class of
 /// answer ADR 0007 § 2 removed from the language. An **object** is among them
 /// here, but this is the *tag* table and not the whole rule: ADR 0028 § 1 makes
-/// `Stringable` the one way an object renders, and [`stringify`] is where that
+/// `Stringable` the one way an object renders, and [`fn@stringify`] is where that
 /// dispatch happens — every helper reaches this function through that one, so an
 /// object only falls to the row below once its runtime class has been asked for
 /// a `toString` and answered nothing. The other exception is a **sink carrier**,
@@ -1789,7 +1789,7 @@ pub fn stringify(ctx: &mut crate::Ctx, value: Value) -> Result<Value, Fault> {
 }
 
 crate::nvs_helper! {
-    /// `nvs_ir::Helper::TaggedToString` — see [`stringify`], and
+    /// `nvs_ir::Helper::TaggedToString` — see [`fn@stringify`], and
     /// [`value_to_string`] for the tag table under it.
     fn nvs_tagged_to_string(ctx, args: [1]) {
         stringify(ctx, args[0])
@@ -1797,7 +1797,7 @@ crate::nvs_helper! {
 }
 
 /// [ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md) § 1's
-/// `as ?string`: [`stringify`]'s answer, with `null` exactly where that one
+/// `as ?string`: [`fn@stringify`]'s answer, with `null` exactly where that one
 /// throws.
 ///
 /// One implementation of ADR 0007 § 2's `→ string` rows and not a second copy
@@ -2414,7 +2414,8 @@ crate::nvs_helper! {
     ///
     /// **Never returns `Ok`.** The comparison chain that calls it already
     /// decided the answer; this exists to carry the message, whose accepted
-    /// half `args[1]` holds already rendered — see that [`Helper`] variant for
+    /// half `args[1]` holds already rendered — see that `nvs_ir::ir::Helper`
+    /// variant for
     /// why the set is generated at lowering time rather than encoded and
     /// decoded here.
     ///
@@ -2426,8 +2427,6 @@ crate::nvs_helper! {
     /// block only an `Ok` would reach. `args[0]` keeps the ordinary
     /// convention: the operand is the conversion's own value and its caller
     /// owns it.
-    ///
-    /// [`Helper`]: nvs_ir::Helper
     fn nvs_literal_mismatch(_ctx, args: [2]) {
         let accepted = args[1]
             .as_str_bytes()

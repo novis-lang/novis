@@ -19,7 +19,7 @@
 //!
 //! Part of [`super`]'s one expression checker, split across this directory so
 //! a session editing one rule does not carry the rest in context. Every item
-//! moved here unchanged; an item is `pub(super)` where it reaches across these
+//! moved here unchanged; an item is `pub(crate)` where it reaches across these
 //! modules, which is the reach it had when `expr` was a single file.
 
 use super::*;
@@ -44,7 +44,7 @@ use super::*;
 /// which is the message every existing call site already gets. [`map_arguments`]
 /// is reached only by a call that writes a `name:` or a `...`, where a count is
 /// no longer the question — *which* parameter is unfilled is.
-pub(super) fn check_args_typed(
+pub(crate) fn check_args_typed(
     args: &CallArgs,
     sig: Option<MethodSig>,
     call_span: Span,
@@ -294,7 +294,7 @@ fn map_arguments(
 /// having no signature at all: which parameter a positional argument fills is
 /// its own place in the list either way, so [`super::calls`] reports it for a
 /// call through a `callable` too.
-pub(super) fn report_positional_after_named(arg: &Arg, first: Span, env: &mut Env<'_>) {
+pub(crate) fn report_positional_after_named(arg: &Arg, first: Span, env: &mut Env<'_>) {
     env.diags.report(
         Diagnostic::error(
             code::E_POSITIONAL_AFTER_NAMED,
@@ -453,7 +453,7 @@ fn parameter_names(sig: &MethodSig) -> String {
 /// options bag refuses one). Routing the argument here rather than teaching
 /// [`is_assignable`] about bags keeps that asymmetry in one place, and keeps
 /// `{...}` in every *other* position meaning exactly what ADR 0036 says.
-pub(super) fn check_arg(
+pub(crate) fn check_arg(
     value: &Expr,
     expected: Option<TypeId>,
     live: &mut FxHashSet<String>,
@@ -485,7 +485,7 @@ pub(super) fn check_arg(
 /// holding a shape could not be flattened without a per-call runtime lookup
 /// per option, which is the allocation-on-the-common-path that
 /// `nvs_stdlib::registry`'s own docs record rejecting.
-pub(super) fn check_options_arg(
+pub(crate) fn check_options_arg(
     value: &Expr,
     options_ty: TypeId,
     options: &[(String, TypeId)],
@@ -547,7 +547,7 @@ pub(super) fn check_options_arg(
 /// The declared option names, comma-separated — the help text every
 /// [`check_options_arg`] diagnostic ends with, so a typo is answered with the
 /// list rather than with a type spelling nobody wrote.
-pub(super) fn option_names(options: &[(String, TypeId)]) -> String {
+pub(crate) fn option_names(options: &[(String, TypeId)]) -> String {
     options
         .iter()
         .map(|(name, _)| name.as_str())
@@ -575,7 +575,7 @@ pub(super) fn option_names(options: &[(String, TypeId)]) -> String {
 /// Obligation 2 is only reported when the argument would otherwise have been
 /// accepted: a type that is not assignable at all already produced
 /// `E_TYPE_MISMATCH` at the same span, and saying it twice helps nobody.
-pub(super) fn check_inout_arg(
+pub(crate) fn check_inout_arg(
     arg: &Arg,
     actual: TypeId,
     expected: Option<TypeId>,
@@ -691,7 +691,7 @@ pub(super) fn check_inout_arg(
 /// nothing it could bind is ever needed by an earlier one; and its own option
 /// types may mention a variable the earlier arguments bind, so checking it
 /// first would check a field against an unsubstituted `T`.
-pub(super) fn check_generic_args(
+pub(crate) fn check_generic_args(
     list: &[Arg],
     slots: &[ArgSlot],
     sig: MethodSig,
@@ -775,7 +775,7 @@ pub(super) fn check_generic_args(
 /// The index of `sig`'s trailing options-bag parameter, if it has one — ADR
 /// 0063 R2 puts at most one, and always last, which `nvs_stdlib::registry`'s
 /// own `an_options_bag_is_last_and_never_empty` holds mechanically.
-pub(super) fn options_param(sig: &MethodSig, interner: &TypeInterner) -> Option<usize> {
+pub(crate) fn options_param(sig: &MethodSig, interner: &TypeInterner) -> Option<usize> {
     let last = sig.params.len().checked_sub(1)?;
     matches!(interner.get(sig.params[last]), Ty::Options(_)).then_some(last)
 }
@@ -805,7 +805,7 @@ pub(super) fn options_param(sig: &MethodSig, interner: &TypeInterner) -> Option<
 /// Returns the checked signature alongside **what was written**, positional:
 /// the bindings are erased into the signature, and one consumer needs the
 /// written types themselves — see [`ResolvedCall::written_class`].
-pub(super) fn check_written_type_args(
+pub(crate) fn check_written_type_args(
     type_args: &[Type],
     sig: Option<MethodSig>,
     label: Option<&str>,
@@ -863,7 +863,7 @@ pub(super) fn check_written_type_args(
 ///
 /// `None` for every member not on that roster, which is all but one of them —
 /// so this is a table lookup on the ordinary path and nothing more.
-pub(super) fn written_class_of(
+pub(crate) fn written_class_of(
     owner: &QName,
     method: &str,
     written: &[TypeId],
@@ -896,7 +896,7 @@ pub(super) fn written_class_of(
 
 /// `E_TYPE_ARG_COUNT` for a call site, from both places [`check_written_type_args`]
 /// reports it: a list of the wrong length, and no list at all.
-pub(super) fn report_type_arg_count(sig: &MethodSig, member: &str, span: Span, env: &mut Env<'_>) {
+pub(crate) fn report_type_arg_count(sig: &MethodSig, member: &str, span: Span, env: &mut Env<'_>) {
     let names = sig.type_params.join(", ");
     let expected = sig.type_params.len();
     env.diags.report(
@@ -926,7 +926,7 @@ pub(super) fn report_type_arg_count(sig: &MethodSig, member: &str, span: Span, e
 /// Fixing `Counter`'s `T` from its `implements Iterable<int>` clause needs
 /// [`crate::signatures::ClassSignature::implements`], and is the iteration
 /// lowering's own work rather than this call site's.
-pub(super) fn substitute_receiver_args(
+pub(crate) fn substitute_receiver_args(
     receiver: TypeId,
     owner: &QName,
     sig: &MethodSig,

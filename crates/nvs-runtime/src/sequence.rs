@@ -6,7 +6,7 @@
 //! `array<T>` is one of the three — and this is the one place such an argument
 //! is read. All three arrive in one 16-byte [`Value`]: an `array<T>` as
 //! [`Tag::Array`](crate::Tag::Array), an `Iterable<T>` or an `Iterator<T>` as
-//! [`Tag::Obj`](crate::Tag::Obj). Nothing else can reach here, because the
+//! [`Tag::Object`](crate::Tag::Object). Nothing else can reach here, because the
 //! checker already refused it.
 //!
 //! # Why the cursor is driven by name

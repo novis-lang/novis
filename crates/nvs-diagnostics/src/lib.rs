@@ -1511,7 +1511,7 @@ pub mod code {
     /// `public`/`protected`/`private` on a parameter is PHP 8's constructor
     /// promotion and nothing else: it says where a **property** may be read
     /// from, and only a constructor declares one.
-    /// [`nvs_syntax::ast::Param::is_promoted`] is the one home of which
+    /// `nvs_syntax::ast::Param::is_promoted` is the one home of which
     /// parameters promote, and `crate::signatures::record_promoted_properties`
     /// only ever asks it of a constructor — so the keyword written anywhere
     /// else declared nothing, gave no slot and was silently ignored, where

@@ -31,7 +31,7 @@
 //!
 //! Part of [`super`]'s one expression checker, split across this directory so
 //! a session editing one rule does not carry the rest in context. Every item
-//! moved here unchanged; an item is `pub(super)` where it reaches across these
+//! moved here unchanged; an item is `pub(crate)` where it reaches across these
 //! modules, which is the reach it had when `expr` was a single file.
 
 use super::*;
@@ -48,7 +48,7 @@ use super::*;
               threads — live set, scope, ctx, env — plus the call expression \
               and the four parts of the syntax it destructures"
 )]
-pub(super) fn infer_method_call(
+pub(crate) fn infer_method_call(
     expr: &Expr,
     object: &Expr,
     method: &MemberName,
@@ -168,7 +168,7 @@ pub(super) fn infer_method_call(
     reason = "the same context [`infer_method_call`] threads, with the class \
               expression in place of the receiver and its nullsafe flag"
 )]
-pub(super) fn infer_static_call(
+pub(crate) fn infer_static_call(
     expr: &Expr,
     class: &Expr,
     method: &MemberName,
@@ -281,7 +281,7 @@ pub(super) fn infer_static_call(
     clippy::too_many_arguments,
     reason = "one checker context threaded positionally, as everywhere else here"
 )]
-pub(super) fn infer_new(
+pub(crate) fn infer_new(
     expr: &Expr,
     target: &NewTarget,
     type_args: &[Type],
@@ -522,7 +522,7 @@ fn check_new_type_args(
 /// `sig` (already computed for this call's own type-checking) get bundled
 /// into the shape `nvs-ir` reads back, so the `MethodCall`/`StaticCall`/`New`
 /// arms below don't each repeat the field list.
-pub(super) fn resolved_call(
+pub(crate) fn resolved_call(
     qname: QName,
     name: String,
     sig: &MethodSig,
@@ -551,7 +551,7 @@ pub(super) fn resolved_call(
     }
 }
 
-pub(super) fn report_non_callable_value_if_applicable(expr: &Expr, env: &mut Env<'_>) -> bool {
+pub(crate) fn report_non_callable_value_if_applicable(expr: &Expr, env: &mut Env<'_>) -> bool {
     match &expr.kind {
         ExprKind::Str(_) | ExprKind::Interpolated(_) => {
             env.diags.report(
@@ -586,7 +586,7 @@ pub(super) fn report_non_callable_value_if_applicable(expr: &Expr, env: &mut Env
 /// mean anything else, regardless of what methods it declares. A `Ty::Mixed`
 /// callee (nothing statically known) and an already-`Ty::Callable` one are
 /// both left alone.
-pub(super) fn report_call_on_non_callable(callee_ty: TypeId, span: Span, env: &mut Env<'_>) {
+pub(crate) fn report_call_on_non_callable(callee_ty: TypeId, span: Span, env: &mut Env<'_>) {
     let Ty::Class(qname, _) = env.interner.get(callee_ty).clone() else {
         return;
     };
@@ -638,7 +638,7 @@ fn report_first_class_callable_on_erased_receiver(span: Span, name: &str, env: &
 /// resolve a name against a callee it does not name, so the rule and its codes
 /// are one.
 #[derive(Clone, Copy)]
-pub(super) enum NoParameterList {
+pub(crate) enum NoParameterList {
     /// `$fn(...)` — [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
     /// § 1's opaque `callable`.
     Callable,
@@ -674,7 +674,7 @@ pub(super) enum NoParameterList {
 /// [`super::args::map_arguments`] — a positional argument cannot follow a `...`
 /// — for the same reason it applies at a resolved call, so the two refusals are
 /// one walk.
-pub(super) fn report_args_with_no_parameter_list(
+pub(crate) fn report_args_with_no_parameter_list(
     args: &CallArgs,
     callee: NoParameterList,
     env: &mut Env<'_>,
@@ -857,7 +857,7 @@ fn report_exception_accessor(span: Span, qname: &QName, name: &str, env: &mut En
     );
 }
 
-pub(super) fn check_member_name(
+pub(crate) fn check_member_name(
     member: &MemberName,
     live: &mut FxHashSet<String>,
     scope: &LocalScope,
@@ -869,7 +869,7 @@ pub(super) fn check_member_name(
     }
 }
 
-pub(super) fn check_args(
+pub(crate) fn check_args(
     args: &CallArgs,
     live: &mut FxHashSet<String>,
     scope: &LocalScope,
@@ -884,7 +884,7 @@ pub(super) fn check_args(
     }
 }
 
-pub(super) fn check_new_target(
+pub(crate) fn check_new_target(
     target: &NewTarget,
     live: &mut FxHashSet<String>,
     scope: &LocalScope,
@@ -972,7 +972,7 @@ pub(super) fn check_new_target(
 /// a closure is the one § 3 capability with no other route, but it needs a
 /// call shape that does not exist yet — see `nvs_ir::lower`'s own docs for
 /// which closure call sites lower at all.
-pub(super) fn check_fn_literal(
+pub(crate) fn check_fn_literal(
     expr: &Expr,
     f: &FnExpr,
     live: &FxHashSet<String>,

@@ -345,7 +345,7 @@ pub enum ExprInfo {
     /// [`crate::signatures::hook_label`]'s label, and reading or writing the
     /// property invokes it with the receiver as its implicit `$this`. The
     /// two labels are carried rather than re-spelled by the consumer for
-    /// [`Self::method_label`]'s reason — they have to agree with the
+    /// [`ExprTypeTable::method_label`]'s reason — they have to agree with the
     /// definition side by construction.
     ///
     /// **Not** recorded for an access inside that property's own hook bodies:

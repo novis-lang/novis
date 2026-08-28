@@ -110,7 +110,7 @@
 //! Exceptions are ordinary objects here: `Ty::Throwable` is gone, a user class
 //! `extends Throwable` compiles like any other, and a typed `catch` is an
 //! [`nvs_ir::ir::InstKind::InstanceOf`] chain. A `finally` runs on every exit
-//! from its region — [`nvs_ir::lower::Lowering::lower_try`] owns that policy
+//! from its region — `nvs_ir::lower::Lowering::lower_try` owns that policy
 //! whole, and this backend emits the copies it lowers.
 //!
 //! 1. **Virtual dispatch is by name, not by slot.** An instance call whose

@@ -125,7 +125,7 @@ impl MemberTable {
 /// Which kind of member a `Class::member` reference names — decides which of
 /// [`ClassMembers`]' three sets is checked.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum MemberKind {
+pub(crate) enum MemberKind {
     Method,
     Const,
     StaticProp,
@@ -977,7 +977,7 @@ fn check_property_ref(name: &str, span: Span, ctx: &Ctx<'_>, env: &mut Env<'_>) 
     );
 }
 
-fn member_declared(
+pub(crate) fn member_declared(
     qname: &QName,
     name: &str,
     kind: MemberKind,

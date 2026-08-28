@@ -646,7 +646,7 @@ pub enum InstKind {
     /// a fixed offset; § 4 says so outright, and defers the per-call-site
     /// specialization that would make it one to that ADR's *Revisiting*.
     ///
-    /// [`Self::slot`] is carried anyway, as a *hint*: the receiver's own
+    /// [`Self::SlotGet::slot`] is carried anyway, as a *hint*: the receiver's own
     /// shape is the overwhelmingly common case, and where it holds, the
     /// runtime's lookup is one name comparison rather than a scan.
     ///

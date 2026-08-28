@@ -88,7 +88,7 @@
 //! [`crate::check::check_stmts`] matches `class`/`interface`/`enum` at file
 //! scope itself and never forwards one here, so arriving is proof of nesting
 //! — inside a method body, a property hook, a closure body, or a block at
-//! file scope — and [`nested_type_declaration`] reports `E0233` on the spot.
+//! file scope — and [`nested_declaration`] reports `E0233` on the spot.
 //! The decision is `docs/adr/README.md` § *Decisions taken at project start*:
 //! a name whose existence depends on control flow has no reading the static
 //! class table can give it. Nothing below the checker ever sees one, which
@@ -496,7 +496,7 @@ fn instanceof_test(cond: &Expr) -> Option<(Span, Span, bool)> {
 /// The residue has to be a **subtype of what the local was declared**, so a
 /// comparison the declared type does not admit narrows nothing — it is a guard
 /// reaching one member of a union, never a re-declaration.
-fn literal_residue(
+pub(crate) fn literal_residue(
     cond: &Expr,
     when: bool,
     scope: &LocalScope,
@@ -1238,7 +1238,7 @@ pub(crate) fn check_stmt(
 ///   names around them resolve to. `at` is the shortest span that identifies
 ///   which one — the namespace's name, the import's path, the whole `autoload`
 ///   — since there is no declared name to quote back.
-fn nested_declaration(kind: &str, at: Span, introduces_a_name: bool, env: &mut Env<'_>) {
+pub(crate) fn nested_declaration(kind: &str, at: Span, introduces_a_name: bool, env: &mut Env<'_>) {
     let title = format!("a nested `{kind}` declaration is not supported");
     let diag = if introduces_a_name {
         let name_text = span_text(env.src, at).to_owned();

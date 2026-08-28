@@ -47,7 +47,7 @@
 //!
 //! Part of [`super`]'s one expression checker, split across this directory so
 //! a session editing one rule does not carry the rest in context. Every item
-//! moved here unchanged; an item is `pub(super)` where it reaches across these
+//! moved here unchanged; an item is `pub(crate)` where it reaches across these
 //! modules, which is the reach it had when `expr` was a single file.
 
 use super::*;
@@ -75,7 +75,7 @@ use super::*;
 /// cannot satisfy, [`reject_impossible_literal_conversion`] refuses outright —
 /// § 6's two diagnostics, and the only pair of conversions the operand's own
 /// type can prove nothing will ever come of.
-pub(super) fn infer_conversion(
+pub(crate) fn infer_conversion(
     expr: &Expr,
     inner: &Expr,
     ty: &Type,
@@ -126,7 +126,7 @@ pub(super) fn infer_conversion(
 /// anything else (`mixed`, an unresolved call result) falls back to `mixed`
 /// rather than diagnosing, since no general operator-overload rule is
 /// implemented yet.
-pub(super) fn binary_result(
+pub(crate) fn binary_result(
     op: BinaryOp,
     lhs: TypeId,
     rhs: TypeId,
@@ -388,7 +388,7 @@ fn is_declared_class(qname: &QName, env: &Env<'_>) -> bool {
 /// (`Ty::Enum`) is deliberately not treated as an object here either — ADR
 /// 0010's own item (still unimplemented) is what would say whether an enum
 /// can ever be `Comparable`.
-pub(super) fn object_comparison_result(
+pub(crate) fn object_comparison_result(
     op: BinaryOp,
     lhs: TypeId,
     rhs: TypeId,
@@ -442,7 +442,7 @@ pub(super) fn object_comparison_result(
     })
 }
 
-pub(super) fn report_comparable_diagnostic(span: Span, message: String, env: &mut Env<'_>) {
+pub(crate) fn report_comparable_diagnostic(span: Span, message: String, env: &mut Env<'_>) {
     env.diags.report(
         Diagnostic::error(code::E_COMPARISON_REQUIRES_COMPARABLE, message)
             .with_primary(span, "compared here")
@@ -517,7 +517,7 @@ fn reject_void_operand(
 /// Called from [`check_condition`](super::check_condition) for the four
 /// statement conditions and the ternary, and from [`super::infer`]'s own arms
 /// for `!` and `empty()`, which infer their operand themselves.
-pub(super) fn reject_void_condition(ty: TypeId, span: Span, env: &mut Env<'_>) {
+pub(crate) fn reject_void_condition(ty: TypeId, span: Span, env: &mut Env<'_>) {
     if !matches!(env.interner.get(ty), Ty::Void) {
         return;
     }
@@ -767,7 +767,7 @@ fn reject_float_modulo(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) 
     Some(env.interner.mixed())
 }
 
-pub(super) fn arithmetic_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) -> TypeId {
+pub(crate) fn arithmetic_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) -> TypeId {
     if let Some(mixed) = reject_enum_operand(lhs, rhs, span, env) {
         return mixed;
     }
@@ -800,7 +800,7 @@ pub(super) fn arithmetic_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut 
 /// Returns `Some(mixed)` when either operand is `Ty::Enum` (already
 /// diagnosed), `None` for every other operand pair so the caller's own table
 /// runs unchanged.
-pub(super) fn reject_enum_operand(
+pub(crate) fn reject_enum_operand(
     lhs: TypeId,
     rhs: TypeId,
     span: Span,
@@ -858,7 +858,7 @@ fn reject_array_combination(
     Some(if lhs_is_array { lhs } else { rhs })
 }
 
-pub(super) fn division_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) -> TypeId {
+pub(crate) fn division_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) -> TypeId {
     if let Some(mixed) = reject_enum_operand(lhs, rhs, span, env) {
         return mixed;
     }
@@ -892,7 +892,7 @@ pub(super) fn division_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut En
     }
 }
 
-pub(super) fn bitwise_result(
+pub(crate) fn bitwise_result(
     op: BinaryOp,
     lhs: TypeId,
     rhs: TypeId,
@@ -1001,7 +1001,7 @@ fn report_bitwise_operand(spelling: &str, ty: TypeId, span: Span, env: &mut Env<
 /// own table runs unchanged. Comparison is deliberately *not* routed through
 /// here: the same § 3 permits `decimal < 1.5`, because an exact comparison is
 /// computable even where a common arithmetic type is not.
-pub(super) fn reject_decimal_float_operands(
+pub(crate) fn reject_decimal_float_operands(
     lhs: TypeId,
     rhs: TypeId,
     span: Span,
@@ -1028,7 +1028,7 @@ pub(super) fn reject_decimal_float_operands(
 /// refused by the same diagnostic: the row does not define `int ** decimal`
 /// either, and letting it fall through to [`arithmetic_result`]'s decimal row
 /// would invent a fractional exponentiation the ADR never granted.
-pub(super) fn power_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) -> TypeId {
+pub(crate) fn power_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) -> TypeId {
     if matches!(env.interner.get(lhs), Ty::Decimal) || matches!(env.interner.get(rhs), Ty::Decimal)
     {
         env.diags.report(
@@ -1044,7 +1044,7 @@ pub(super) fn power_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'
     arithmetic_result(lhs, rhs, span, env)
 }
 
-pub(super) fn report_int_uint(span: Span, env: &mut Env<'_>) {
+pub(crate) fn report_int_uint(span: Span, env: &mut Env<'_>) {
     env.diags.report(
         Diagnostic::error(
             code::E_INT_UINT_ARITHMETIC,
@@ -1088,7 +1088,7 @@ pub(super) fn report_int_uint(span: Span, env: &mut Env<'_>) {
 /// Only the three arithmetic prefixes: `!` is ADR 0035's truthy test, which
 /// every type is legal in, and `@` never reaches the checker at all — the
 /// parser refuses it as `E0236`.
-pub(super) fn reject_unary_arith_operand(op: UnaryOp, ty: TypeId, span: Span, env: &mut Env<'_>) {
+pub(crate) fn reject_unary_arith_operand(op: UnaryOp, ty: TypeId, span: Span, env: &mut Env<'_>) {
     // The same step-earlier objection the binary operators make, and the same
     // code: `-V::nothing()` has no operand rather than an operand with no row.
     // Unary `+` is refused here too, though it is the identity over every type
@@ -1161,7 +1161,7 @@ pub(super) fn reject_unary_arith_operand(op: UnaryOp, ty: TypeId, span: Span, en
 /// [`equality_domain`] is known *and* is not the numeric one is refused, so
 /// `mixed`, a union (`int|float` is what `7 / 2` produces), a type variable
 /// and an error placeholder all pass through and are settled below.
-pub(super) fn reject_increment_on_non_numeric(ty: TypeId, span: Span, env: &mut Env<'_>) {
+pub(crate) fn reject_increment_on_non_numeric(ty: TypeId, span: Span, env: &mut Env<'_>) {
     let refused = {
         let resolved = env.interner.get(ty);
         !matches!(equality_domain(resolved), None | Some(EqDomain::Numeric))
@@ -1865,7 +1865,7 @@ fn conversion_help(from: ConvKind, to: ConvKind) -> &'static str {
 /// ordinary `lower_type` result stand unchecked; converting the same enum to
 /// itself, or to/from anything that isn't `Ty::Enum` (its underlying type,
 /// `mixed`, a checked-throw source) is untouched.
-pub(super) fn reject_enum_to_enum_conversion(
+pub(crate) fn reject_enum_to_enum_conversion(
     from: TypeId,
     to: TypeId,
     span: Span,

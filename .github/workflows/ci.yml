@@ -111,6 +111,17 @@ jobs:
         run: cargo fmt --all --check
       - name: clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
+      # Every `[`Foo::bar`]` in a doc comment resolves. This crate set states its
+      # architecture in its doc comments and cross-references it by name, and
+      # `broken_intra_doc_links` is warn-by-default and invisible to both steps
+      # above — so 391 warnings had accumulated, 96 of them naming an item that
+      # does not exist. `private_intra_doc_links` is allowed rather than fixed:
+      # these are internal crates nobody publishes, so a link to a crate-private
+      # item is a correct reference rustdoc simply will not turn into an anchor.
+      - name: rustdoc links
+        run: cargo doc --no-deps --workspace
+        env:
+          RUSTDOCFLAGS: -A rustdoc::private_intra_doc_links -D warnings
 
   # ---------------------------------------------------------------------------
   # Enforces the claims in docs/adr: no unsafe outside the audited modules, no

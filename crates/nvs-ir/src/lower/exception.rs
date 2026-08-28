@@ -2,7 +2,7 @@
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory so a
 //! session editing one area does not carry the rest in context. Every item
-//! moved here unchanged; the methods are `pub(super)` so they reach across
+//! moved here unchanged; the methods are `pub(crate)` so they reach across
 //! these modules and no further, which is the reach they had when `lower` was
 //! a single file.
 
@@ -25,7 +25,7 @@ impl<'a> Lowering<'a> {
     /// Panics naming the operand's representation if it is not a
     /// [`Ty::Object`] — the checker has already refused throwing anything but
     /// a `Throwable` subclass, so anything else here is a lowering bug.
-    pub(super) fn lower_throw(&mut self, inner: &Expr, env: &mut Env, cur: &mut BlockId) {
+    pub(crate) fn lower_throw(&mut self, inner: &Expr, env: &mut Env, cur: &mut BlockId) {
         let (v, ty) = self.lower_expr(inner, None, env, cur);
         assert!(
             matches!(ty, Ty::Object),
@@ -53,7 +53,7 @@ impl<'a> Lowering<'a> {
     /// lays a subclass's slots after its parent's, so a slot resolved against
     /// `Throwable` is valid for every exception class there can be — which is
     /// the same property that lets the runtime reach `backtrace` at all.
-    pub(super) fn write_throw_location(&mut self, cur: BlockId, thrown: ValueId) {
+    pub(crate) fn write_throw_location(&mut self, cur: BlockId, thrown: ValueId) {
         let (line, _) = self.src.line_col(self.cur_stmt_span.start);
         let rendered = format!("{}:{}", self.src.name(), line + 1);
         let (previous, _) = self.emit(
@@ -111,7 +111,7 @@ impl<'a> Lowering<'a> {
     /// A `break`/`continue` out of a protected region *does* run the pending
     /// `finally` of every region it leaves, bounded by the loop it targets —
     /// [`Self::run_finallys_above`].
-    pub(super) fn lower_try(
+    pub(crate) fn lower_try(
         &mut self,
         body: &'a Block,
         catches: &'a [CatchClause],
@@ -165,7 +165,7 @@ impl<'a> Lowering<'a> {
     /// The `instanceof`-chain dispatch a `try`'s clauses lower to, plus the
     /// re-raise that ends it — see [`Self::lower_try`] for the shape and why
     /// it needs no mechanism of its own.
-    pub(super) fn lower_catch_clauses(
+    pub(crate) fn lower_catch_clauses(
         &mut self,
         dispatch: BlockId,
         thrown: ValueId,
@@ -301,7 +301,7 @@ impl<'a> Lowering<'a> {
     /// reach a terminator ([`Self::finish`]), and a dead handler block is what
     /// [`Self::lower_try`] already leaves behind for a `try` body in the same
     /// position.
-    pub(super) fn lower_finally_and_reraise(
+    pub(crate) fn lower_finally_and_reraise(
         &mut self,
         reraise: BlockId,
         finally: &'a Block,
@@ -347,7 +347,7 @@ impl<'a> Lowering<'a> {
     /// inside that body reaches the next region out rather than looping back
     /// into the handler it is already running — and pushed back afterwards, so
     /// the caller's own bracketing is untouched.
-    pub(super) fn run_pending_finallys(&mut self, cur: &mut BlockId, env: &mut Env) {
+    pub(crate) fn run_pending_finallys(&mut self, cur: &mut BlockId, env: &mut Env) {
         let mut saved = Vec::new();
         while let Some(frame) = self.try_stack.pop() {
             if let Some(block) = frame.finally {
@@ -375,7 +375,7 @@ impl<'a> Lowering<'a> {
     /// left alone. Stops early if a `finally` body itself terminates the
     /// block — a `return` inside one wins, and the caller must re-check
     /// [`Self::is_terminated`] before sealing its own jump.
-    pub(super) fn run_finallys_above(&mut self, depth: usize, cur: &mut BlockId, env: &mut Env) {
+    pub(crate) fn run_finallys_above(&mut self, depth: usize, cur: &mut BlockId, env: &mut Env) {
         let mut saved = Vec::new();
         while self.try_stack.len() > depth {
             let frame = self
@@ -413,7 +413,7 @@ impl<'a> Lowering<'a> {
     /// [`InstKind::InstanceOf`] avoided by having the checker record the
     /// answer, and the same fix applies — `nvs_types` recording a resolved
     /// `QName` per clause.
-    pub(super) fn catch_clause_type(&self, clause: &CatchClause) -> String {
+    pub(crate) fn catch_clause_type(&self, clause: &CatchClause) -> String {
         span_text(self.src, clause.ty.span)
             .trim()
             .trim_start_matches('\\')
@@ -447,33 +447,33 @@ impl<'a> Lowering<'a> {
 /// needs — `nvs-codegen`'s
 /// `the_runtime_and_the_compiler_agree_on_every_throwable_slot` holds the
 /// three copies together.
-pub(super) const THROWABLE_ROOT: &str = "Throwable";
+pub(crate) const THROWABLE_ROOT: &str = "Throwable";
 
 /// `Throwable::$message`.
-pub(super) const MESSAGE_FIELD: &str = "message";
+pub(crate) const MESSAGE_FIELD: &str = "message";
 
 /// `Throwable::$previous`.
-pub(super) const PREVIOUS_FIELD: &str = "previous";
+pub(crate) const PREVIOUS_FIELD: &str = "previous";
 
 /// `Throwable::$backtrace`.
-pub(super) const BACKTRACE_FIELD: &str = "backtrace";
+pub(crate) const BACKTRACE_FIELD: &str = "backtrace";
 
 /// `Throwable::$location`.
-pub(super) const LOCATION_FIELD: &str = "location";
+pub(crate) const LOCATION_FIELD: &str = "location";
 
 /// The label the synthesized root constructor is compiled under — the target
 /// a `new LogicError("…")` and a `parent::constructor(…)` in a user subclass
 /// both resolve to.
-pub(super) const THROWABLE_CTOR: &str = "Throwable::constructor";
+pub(crate) const THROWABLE_CTOR: &str = "Throwable::constructor";
 
 /// `ParseError`, the one class below the root that declares a property —
 /// [ADR 0071](../../../../docs/adr/0071-derived-codecs.md) § 5's `issues`.
 /// `nvs_hir::errors::OWN_PROPERTIES` is that roster's home; this crate depends
 /// on neither `nvs-hir` nor `nvs-types`, so it restates the two names it needs.
-pub(super) const PARSE_ERROR: &str = "ParseError";
+pub(crate) const PARSE_ERROR: &str = "ParseError";
 
 /// `ParseError::$issues`.
-pub(super) const ISSUES_FIELD: &str = "issues";
+pub(crate) const ISSUES_FIELD: &str = "issues";
 
 /// The Novis functions with no source text: one constructor per exception class
 /// that declares state of its own.
@@ -498,7 +498,7 @@ pub(super) const ISSUES_FIELD: &str = "issues";
 /// read `null` out of a type that cannot be one. It writes all five slots
 /// rather than chaining, which costs three duplicated instructions and buys
 /// not needing a call at all on a path that allocates an exception.
-pub(super) fn synthesized_exception_constructors() -> Vec<Function> {
+pub(crate) fn synthesized_exception_constructors() -> Vec<Function> {
     vec![
         exception_constructor(THROWABLE_ROOT, &[]),
         exception_constructor(PARSE_ERROR, &[ISSUES_FIELD]),

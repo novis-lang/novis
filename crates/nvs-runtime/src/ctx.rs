@@ -889,7 +889,7 @@ impl Ctx {
     }
 
     /// Records an already-built exception as the pending `THROWN` — what
-    /// [`nvs_raise`] does for Novis's own `throw`, taking ownership of the
+    /// [`crate::nvs_raise`] does for Novis's own `throw`, taking ownership of the
     /// reference it was handed.
     pub fn raise(&mut self, thrown: Thrown) {
         self.pending = Some(Pending::Thrown(thrown));

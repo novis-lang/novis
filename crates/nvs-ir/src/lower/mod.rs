@@ -6,7 +6,7 @@
 //!
 //! One `impl Lowering` split across this directory, which Rust allows for an
 //! inherent impl inside a single crate. Each module's methods are
-//! `pub(super)`, reaching exactly as far as `lower/` and no further — the
+//! `pub(crate)`, reaching exactly as far as `lower/` and no further — the
 //! visibility they had when this was one 9,000-line file. The split is for
 //! collision surface: `for`, `switch`, `match`, `$fn(...)` and ADR 0043's
 //! `by`-delegation all land here, and two sessions adding two of them should
@@ -89,17 +89,17 @@ use crate::{span_text, strip_sigil};
 
 // One `impl Lowering` split across this directory — see each module's own
 // header. Rust allows that for an inherent impl inside one crate, so this is
-// a move and nothing else; the methods there are `pub(super)`, which reaches
+// a move and nothing else; the methods there are `pub(crate)`, which reaches
 // exactly as far as `lower/` and no further.
-mod call;
-mod closure;
-mod control;
-mod convert;
-mod exception;
-mod expr;
-mod generator;
-mod operator;
-mod stmt;
+pub(crate) mod call;
+pub(crate) mod closure;
+pub(crate) mod control;
+pub(crate) mod convert;
+pub(crate) mod exception;
+pub(crate) mod expr;
+pub(crate) mod generator;
+pub(crate) mod operator;
+pub(crate) mod stmt;
 
 // `call`, `control`, `expr` and `stmt` only add methods to the one
 // `impl Lowering` below, so they export nothing to import. The three named
@@ -197,7 +197,7 @@ struct LoopFrame {
 /// lowering an [`InstKind::Call`] and an [`InstKind::CoreCall`] beyond which
 /// instruction is emitted.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum ArgOwnership {
+pub(crate) enum ArgOwnership {
     /// The callee owns it — an Novis method or constructor, whose parameter is
     /// bound into its own `Env` like a local and released at its exit sweep.
     /// The caller therefore retains an aliasing refcounted argument first, so
@@ -222,7 +222,7 @@ enum ArgOwnership {
 /// Where a `catch` clause's body goes when it finishes, and what it takes
 /// with it — [`Lowering::lower_try`]'s half of the dispatch it hands
 /// [`Lowering::lower_catch_clauses`].
-struct CatchJoin<'e> {
+pub(crate) struct CatchJoin<'e> {
     /// The block after the whole `try`, which every completed clause jumps to.
     after_block: BlockId,
     /// The environment at the dispatch block, after its phis — every clause
@@ -1198,7 +1198,7 @@ pub fn lower_script(
 }
 
 /// Builds one function's basic blocks incrementally — see the module docs.
-struct Lowering<'a> {
+pub(crate) struct Lowering<'a> {
     ids: IdGen,
     src: &'a SourceFile,
     ret_ty: Ty,
@@ -1445,7 +1445,7 @@ struct StagedRef {
 ///
 /// These are exactly the two shapes [`is_aliasing_read`] recognises as durable
 /// storage, and exactly the two `nvs_types`' `check_inout_arg` accepts.
-enum RefHolder {
+pub(crate) enum RefHolder {
     /// A bare local — the `Env` name it is bound under.
     Local(String),
     /// A compile-time-known property, with its receiver already lowered.
@@ -1490,7 +1490,7 @@ struct InoutElement {
 /// [`Lowering::landing_block`] therefore sweeps the whole stack without
 /// reading this at all.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub(super) enum TemporaryKind {
+pub(crate) enum TemporaryKind {
     /// Released on both edges — a value this frame built and no callee took:
     /// a `Core` member's materialized argument, a `.`'s partial result, a
     /// `match` subject. [`Lowering::release_temporaries_since`] is its normal
@@ -1513,7 +1513,7 @@ pub(super) enum TemporaryKind {
 /// call with [`Lowering::temporaries_mark`] and
 /// [`Lowering::release_temporaries_since`].
 #[derive(Default)]
-struct LoweredArgs {
+pub(crate) struct LoweredArgs {
     /// The argument values, positional.
     values: Vec<ValueId>,
 }
@@ -1521,7 +1521,7 @@ struct LoweredArgs {
 /// One resolved signature's argument-shape, as [`Lowering::lower_call_args`]
 /// needs it — owned rather than borrowed because every call site has to clone
 /// it out of `self.exprs` before touching `self` mutably anyway.
-struct ArgSig {
+pub(crate) struct ArgSig {
     /// Each parameter's declared type, positional.
     param_tys: Vec<TypeId>,
     /// Which parameters are declared `inout $x`, positional.
@@ -1621,7 +1621,7 @@ impl ArgSig {
 }
 
 impl<'a> Lowering<'a> {
-    pub(super) fn new(
+    pub(crate) fn new(
         name: &str,
         src: &'a SourceFile,
         ret_ty: Ty,
@@ -1672,7 +1672,7 @@ impl<'a> Lowering<'a> {
     /// A slot the two spell differently degrades to [`Ty::Tagged`], which
     /// `nvs-codegen` reads as "no fixed tag, do not check" — picking whichever
     /// literal was seen first would instead reject the other one's own writes.
-    pub(super) fn record_shape_class(
+    pub(crate) fn record_shape_class(
         &mut self,
         label: String,
         fields: Vec<String>,
@@ -1709,7 +1709,7 @@ impl<'a> Lowering<'a> {
             defaults: Vec::new(),
         });
     }
-    pub(super) fn new_block(&mut self) -> BlockId {
+    pub(crate) fn new_block(&mut self) -> BlockId {
         let id = self.ids.next_block();
         self.block_ids.push(id);
         self.block_insts.push(Vec::new());
@@ -1737,7 +1737,7 @@ impl<'a> Lowering<'a> {
     /// Panics for a frame with neither — the script frame. `nvs_types` refuses
     /// `static::`/`new static()` outside a class (`E_UNDEFINED_CLASS`), so
     /// lowering never reaches this on one.
-    pub(super) fn lsb(&mut self) -> ValueId {
+    pub(crate) fn lsb(&mut self) -> ValueId {
         if let Some(v) = self.lsb {
             return v;
         }
@@ -1755,7 +1755,7 @@ impl<'a> Lowering<'a> {
         self.lsb = Some(v);
         v
     }
-    pub(super) fn is_terminated(&self, b: BlockId) -> bool {
+    pub(crate) fn is_terminated(&self, b: BlockId) -> bool {
         self.block_terms[b.index() as usize].is_some()
     }
     /// Gives `b` its terminator, exactly once.
@@ -1764,7 +1764,7 @@ impl<'a> Lowering<'a> {
     ///
     /// Panics if `b` already has one — every call site only ever seals a
     /// block it just confirmed (via [`Self::is_terminated`]) is still open.
-    pub(super) fn seal(&mut self, b: BlockId, term: Terminator) {
+    pub(crate) fn seal(&mut self, b: BlockId, term: Terminator) {
         let slot = &mut self.block_terms[b.index() as usize];
         assert!(
             slot.is_none(),
@@ -1773,7 +1773,7 @@ impl<'a> Lowering<'a> {
         );
         *slot = Some(term);
     }
-    pub(super) fn emit(&mut self, b: BlockId, ty: Ty, kind: InstKind) -> (ValueId, Ty) {
+    pub(crate) fn emit(&mut self, b: BlockId, ty: Ty, kind: InstKind) -> (ValueId, Ty) {
         let v = self.ids.next_value();
         self.block_insts[b.index() as usize].push(Inst {
             result: Some(v),
@@ -1789,7 +1789,7 @@ impl<'a> Lowering<'a> {
     ///
     /// Every instruction that returns a status goes through here, and nothing
     /// else does — see [`Inst::on_error`]'s own doc comment for that split.
-    pub(super) fn emit_fallible(
+    pub(crate) fn emit_fallible(
         &mut self,
         b: BlockId,
         ty: Ty,
@@ -1840,7 +1840,7 @@ impl<'a> Lowering<'a> {
     /// The sweep covers what a producer actually **staged**, and reads no
     /// [`TemporaryKind`]: a transferred argument is as much this frame's to
     /// drop on the way to a call it never reached as an owned one is.
-    pub(super) fn landing_block(&mut self, env: &Env) -> BlockId {
+    pub(crate) fn landing_block(&mut self, env: &Env) -> BlockId {
         let b = self.new_block();
         for (v, _) in self.owned_temporaries.clone() {
             self.emit_release(b, v);
@@ -1879,14 +1879,14 @@ impl<'a> Lowering<'a> {
     /// given on the command line — so the rendered trace is byte-for-byte
     /// identical on every platform. `<line>` is the enclosing statement's,
     /// from the span ADR 0018's per-statement id already carries.
-    pub(super) fn frame_label(&self) -> String {
+    pub(crate) fn frame_label(&self) -> String {
         let (line, _) = self.src.line_col(self.cur_stmt_span.start);
         format!("{}() at {}:{}", self.fn_label, self.src.name(), line + 1)
     }
     /// Appends a reserved [`InstKind::Safepoint`] marker to `b` — see that
     /// variant's own doc comment for the two call sites this has today
     /// (function entry, a loop's back edge) and why it defines no value.
-    pub(super) fn emit_safepoint(&mut self, b: BlockId) {
+    pub(crate) fn emit_safepoint(&mut self, b: BlockId) {
         self.block_insts[b.index() as usize].push(Inst {
             result: None,
             ty: None,
@@ -1898,7 +1898,7 @@ impl<'a> Lowering<'a> {
     /// refcounting-policy section for when a call site actually wants one;
     /// this just emits the instruction unconditionally, since every caller
     /// has already checked [`Ty::is_refcounted`] itself.
-    pub(super) fn emit_retain(&mut self, b: BlockId, v: ValueId) {
+    pub(crate) fn emit_retain(&mut self, b: BlockId, v: ValueId) {
         self.block_insts[b.index() as usize].push(Inst {
             result: None,
             ty: None,
@@ -1907,7 +1907,7 @@ impl<'a> Lowering<'a> {
         });
     }
     /// Appends an [`InstKind::Release`] on `v` to `b` — see [`Self::emit_retain`].
-    pub(super) fn emit_release(&mut self, b: BlockId, v: ValueId) {
+    pub(crate) fn emit_release(&mut self, b: BlockId, v: ValueId) {
         self.block_insts[b.index() as usize].push(Inst {
             result: None,
             ty: None,
@@ -1938,7 +1938,7 @@ impl<'a> Lowering<'a> {
     /// one, and the [`is_aliasing_read`]-keyed retain every boundary already
     /// emits still applies exactly once — to whichever of the two values that
     /// boundary ends up storing.
-    pub(super) fn coerce(
+    pub(crate) fn coerce(
         &mut self,
         cur: BlockId,
         v: ValueId,
@@ -2002,7 +2002,7 @@ impl<'a> Lowering<'a> {
     /// Appends an [`InstKind::RefStore`] to `b` — see that variant's own doc
     /// comment for the release-the-old half it performs itself, and
     /// [`Ty::Ref`] for the invariant the pair maintains.
-    pub(super) fn emit_ref_store(&mut self, b: BlockId, slot: ValueId, value: ValueId) {
+    pub(crate) fn emit_ref_store(&mut self, b: BlockId, slot: ValueId, value: ValueId) {
         self.block_insts[b.index() as usize].push(Inst {
             result: None,
             ty: None,
@@ -2013,7 +2013,7 @@ impl<'a> Lowering<'a> {
     /// Appends an [`InstKind::FieldSet`] to `b` — see
     /// [`Self::lower_reassignment`]'s property-target arm for the retain/
     /// release policy wrapped around this.
-    pub(super) fn emit_field_set(
+    pub(crate) fn emit_field_set(
         &mut self,
         b: BlockId,
         object: ValueId,
@@ -2037,7 +2037,7 @@ impl<'a> Lowering<'a> {
     /// [`Self::lower_store`]'s static-property arm for the retain/release
     /// policy wrapped around this, which is [`Self::emit_field_set`]'s
     /// unchanged.
-    pub(super) fn emit_static_set(
+    pub(crate) fn emit_static_set(
         &mut self,
         b: BlockId,
         class: String,
@@ -2056,7 +2056,7 @@ impl<'a> Lowering<'a> {
     /// consume-one-reference-yield-one protocol, and
     /// [`Self::lower_reassignment`]'s `Index`-target arm for the retain policy
     /// wrapped around this and for where the result is written back to.
-    pub(super) fn emit_array_set(
+    pub(crate) fn emit_array_set(
         &mut self,
         b: BlockId,
         array: ValueId,
@@ -2077,7 +2077,7 @@ impl<'a> Lowering<'a> {
     /// channel*). Neither operand needs anything of the landing block — the
     /// refusal releases the value it was handed and leaves the array's
     /// reference where the frame's own slot already names it.
-    pub(super) fn emit_array_append(
+    pub(crate) fn emit_array_append(
         &mut self,
         b: BlockId,
         array: ValueId,
@@ -2103,7 +2103,7 @@ impl<'a> Lowering<'a> {
     ///   fresh declaration — release the *old* value, always *after* the
     ///   retain above so a self-assignment (`$x = $x;`) never observes a
     ///   transient zero refcount.
-    pub(super) fn bind_local(
+    pub(crate) fn bind_local(
         &mut self,
         cur: BlockId,
         env: &mut Env,
@@ -2117,7 +2117,7 @@ impl<'a> Lowering<'a> {
     }
     /// The value half of [`Self::lower_store`]: `(value, representation,
     /// whether it aliases storage another owner keeps)`.
-    pub(super) fn lower_stored(
+    pub(crate) fn lower_stored(
         &mut self,
         stored: &Stored<'_>,
         expected: Option<Ty>,
@@ -2135,7 +2135,7 @@ impl<'a> Lowering<'a> {
     /// [`Self::bind_local`] for a value with no right-hand-side expression to
     /// judge — a read-modify-write's combined result, which is a fresh
     /// producer by construction (see [`Self::lower_read_modify_write`]).
-    pub(super) fn bind_local_value(
+    pub(crate) fn bind_local_value(
         &mut self,
         cur: BlockId,
         env: &mut Env,
@@ -2196,7 +2196,7 @@ impl<'a> Lowering<'a> {
     /// was diagnosed instead, and a body holding a diagnostic is never
     /// lowered. That is the whole reason this function needs no rule for any
     /// of the three.
-    pub(super) fn write_back_array(
+    pub(crate) fn write_back_array(
         &mut self,
         base: &Expr,
         written: ValueId,
@@ -2292,7 +2292,7 @@ impl<'a> Lowering<'a> {
     /// [`lower_method`] never registered — an internal inconsistency, since
     /// the two are written together and nothing else produces a [`Ty::Ref`]
     /// binding.
-    pub(super) fn pointee_of(&self, name: &str) -> Ty {
+    pub(crate) fn pointee_of(&self, name: &str) -> Ty {
         *self.ref_locals.get(name).unwrap_or_else(|| {
             panic!(
                 "nvs-ir: `${name}` is bound as a `Ty::Ref` but no pointee representation was \
@@ -2307,7 +2307,7 @@ impl<'a> Lowering<'a> {
     /// See [`Self::pending_refs`] for why a call site needs a mark rather than
     /// draining the whole list: an enclosing call's arguments are already
     /// staged by the time a nested one is lowered.
-    pub(super) fn pending_refs_mark(&self) -> usize {
+    pub(crate) fn pending_refs_mark(&self) -> usize {
         self.pending_refs.len()
     }
     /// Emits the copy-back of every by-reference argument staged since `mark`,
@@ -2320,7 +2320,7 @@ impl<'a> Lowering<'a> {
     /// statement. See [`Self::pending_refs`] for why `mark` is what keeps a
     /// nested call from flushing its caller's staging, and [`Ty::Ref`] for the
     /// whole representation.
-    pub(super) fn flush_ref_writebacks(&mut self, mark: usize, env: &mut Env, cur: BlockId) {
+    pub(crate) fn flush_ref_writebacks(&mut self, mark: usize, env: &mut Env, cur: BlockId) {
         for staged in self.pending_refs.split_off(mark) {
             let (v, _) = self.emit(cur, staged.ty, InstKind::RefLoad { slot: staged.slot });
             self.write_back_holder(&staged.holder, v, staged.ty, env, cur);
@@ -2344,7 +2344,7 @@ impl<'a> Lowering<'a> {
     /// because [`InstKind::ArraySet`] consumed the very reference it replaces.
     /// Folding the two into one function would mean a flag deciding which
     /// ownership rule applies, which is the thing worth keeping apart.
-    pub(super) fn write_back_holder(
+    pub(crate) fn write_back_holder(
         &mut self,
         holder: &RefHolder,
         written: ValueId,
@@ -2412,7 +2412,7 @@ impl<'a> Lowering<'a> {
     /// an object's slot, and [`Lowering::lower_index`] answers it identically,
     /// so the recursion below covers both spellings of "reads a slot of
     /// something nothing else owns".
-    pub(super) fn aliasing_read(&self, e: &Expr) -> bool {
+    pub(crate) fn aliasing_read(&self, e: &Expr) -> bool {
         // A staged sub-expression of an assignment target is a borrow of a
         // value this frame's own temporaries stack (or a durable slot) already
         // owns — see `Self::staged_targets`. It answers `true` whatever its
@@ -2462,7 +2462,7 @@ impl<'a> Lowering<'a> {
     /// A `static` method's parameter 0 needs no exclusion here: it is a
     /// [`Ty::ClassDesc`], which is not refcounted and never enters `env` at
     /// all (see [`lower_method`]).
-    pub(super) fn release_all_locals(&mut self, cur: BlockId, env: &Env, except: Option<&str>) {
+    pub(crate) fn release_all_locals(&mut self, cur: BlockId, env: &Env, except: Option<&str>) {
         let mut names: Vec<&String> = env.keys().collect();
         names.sort();
         for name in names {
@@ -2484,7 +2484,7 @@ impl<'a> Lowering<'a> {
     /// every block this lowering creates is expected to reach a terminator
     /// one way or another; hitting this would be a lowering bug, not a
     /// malformed input program.
-    pub(super) fn finish(self) -> (Vec<BasicBlock>, Vec<Span>, Vec<Span>) {
+    pub(crate) fn finish(self) -> (Vec<BasicBlock>, Vec<Span>, Vec<Span>) {
         let (stmt_spans, edge_spans) = self.ids.into_spans();
         let blocks = self
             .block_ids
@@ -2640,7 +2640,11 @@ fn binding_ty(
 /// question is a *representation* question. `new static()`'s and
 /// `static::m()`'s actual class travels as a value instead
 /// ([`Ty::ClassDesc`]), which is what [`Lowering::lsb`] produces.
-fn lower_decl_type(ty: &Type, exprs: &ExprTypeTable, checked_types: &TypeInterner) -> Ty {
+pub(crate) fn lower_decl_type(
+    ty: &Type,
+    exprs: &ExprTypeTable,
+    checked_types: &TypeInterner,
+) -> Ty {
     // The checker already resolved this exact annotation and recorded the
     // answer (`ExprTypeTable::declared_ty`) — take it whenever it exists, so a
     // name-shaped atom whose meaning depends on resolution comes out right.
@@ -2739,7 +2743,7 @@ fn options_defaults(
 /// Keyed on the sorted field names alone, so two literals with the same
 /// fields share one class whatever their field *types* are: a class carries
 /// slot names, not slot types, and both sides count slots the same way.
-pub(super) fn shape_class_label(sorted_fields: &[String]) -> String {
+pub(crate) fn shape_class_label(sorted_fields: &[String]) -> String {
     format!("$shape{{{}}}", sorted_fields.join(","))
 }
 
@@ -2782,7 +2786,7 @@ pub(super) fn shape_class_label(sorted_fields: &[String]) -> String {
 /// representation, in which case it is that one — ADR 0047 § 5's "zero
 /// additional runtime representation", which is why a member outside this
 /// scope is asked through [`erase_checked_ty`] rather than asserted.
-fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
+pub(crate) fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
     erase_checked_ty(id, checked_types).unwrap_or_else(|| {
         panic!(
             "nvs-ir only lowers a resolved call's bool/int/uint/float/void/string/bytes/array/\
@@ -2801,7 +2805,7 @@ fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
 /// and a member outside this slice's scope must answer that question rather
 /// than panic — a `object|A` union is still [`Ty::Tagged`], the same answer it
 /// gave before the fold existed, not a new internal error.
-fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Option<Ty> {
+pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Option<Ty> {
     Some(match checked_types.get(id) {
         CheckedTy::Bool => Ty::Bool,
         CheckedTy::Int => Ty::Int,
@@ -2902,7 +2906,7 @@ fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Option<Ty> {
 /// value comes from differs. A read-modify-write (`$x += 1`, `$x++`) has
 /// combined its value before the store runs and has no expression left to
 /// hand over — see [`Lowering::lower_read_modify_write`].
-pub(super) enum Stored<'a> {
+pub(crate) enum Stored<'a> {
     /// `$t = e;` — lowered against the target's declared representation, and
     /// judged by [`Lowering::aliasing_read`] like any other read.
     Expr(&'a Expr),
@@ -2912,7 +2916,7 @@ pub(super) enum Stored<'a> {
     Value(ValueId, Ty),
 }
 
-fn is_aliasing_read(kind: &ExprKind) -> bool {
+pub(crate) fn is_aliasing_read(kind: &ExprKind) -> bool {
     matches!(
         kind,
         ExprKind::Variable(_)

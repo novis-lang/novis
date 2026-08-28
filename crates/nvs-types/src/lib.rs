@@ -59,7 +59,7 @@
 //!   to lower one — see that module's own docs for the full design and why
 //!   `nvs-ir` reads this instead of depending on [`signatures`]/[`ClassGraph`]
 //!   directly.
-//! - [`derive`] — `derive::check_class_derive`: ADR 0071's derive pass —
+//! - [`mod@derive`] — `derive::check_class_derive`: ADR 0071's derive pass —
 //!   which classes carry `#[Json\Derive]`, matched *nominally* against a
 //!   closed `Core`-owned list, and what the field list and wire keys of each
 //!   are. Runs from [`check`]'s walk because that is what holds the namespace

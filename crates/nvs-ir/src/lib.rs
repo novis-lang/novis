@@ -5,7 +5,7 @@
 //!
 //! [`lower`] is the whole front-to-IR pass, split across `lower/` by area;
 //! [`ir`] is the data; [`ty`] is this crate's own representation-level type
-//! lattice; [`print`] renders a program for the snapshot tests.
+//! lattice; [`mod@print`] renders a program for the snapshot tests.
 //!
 //! # What lowers today
 //!
@@ -42,7 +42,7 @@
 //!   parameter. `string`, `bytes` and `array<T>` are refcounted and cross a
 //!   local, call-argument, return and property boundary alike.
 //! - **Generators** — ADR 0053 § 4's state-machine transform, in
-//!   [`lower::lower_generator`]: one declaration becomes a factory, an
+//!   [`lower::generator::lower_generator`]: one declaration becomes a factory, an
 //!   `advance()`, a `current()` and a synthesized state class.
 //!
 //! # Design choices worth knowing before widening this
@@ -271,7 +271,7 @@
 //!    to hold; `nvs_runtime::object`'s docs § *What a shape write checks*
 //!    state what that granularity misses. The erased ones differ only in what
 //!    the checker could record: no slot to hint (so `0`, which the runtime's
-//!    by-name search corrects) and no type (so [`ir::Ty::Tagged`]), which
+//!    by-name search corrects) and no type (so [`ty::Ty::Tagged`]), which
 //!    makes § 4's missing-name throw reachable rather than theoretical. A
 //!    `mixed` receiver adds the one thing the other three cannot: an
 //!    unproven *tag*, so `lower::expr`'s `ReceiverProof::Erased` emits no
@@ -489,7 +489,7 @@
 //!     lowering entry point takes the run's `nvs_types::EnumTable` (handed
 //!     back by `nvs_types::check_program` rather than rebuilt, so ADR 0010
 //!     § 1/§ 2's declaration errors are not reported twice), which is where a
-//!     case's constant lives — [`ir::ExprInfo::EnumCase`] carries one only for
+//!     case's constant lives — [`nvs_types::ExprInfo::EnumCase`] carries one only for
 //!     a case written as an *expression*, and a case named in a **type** has
 //!     no expression to record one against. An enum operand is reinterpreted
 //!     to its backing integer for the chain, because `nvs-codegen` lowers
@@ -501,7 +501,7 @@
 //!     integer — in front of which
 //!     [`lower::Lowering::lower_literal_membership`] emits the same chain,
 //!     built from **every** case of the declaration
-//!     ([`lower::whole_enum_set`], sorted by the case's constant because the
+//!     ([`lower::convert::whole_enum_set`], sorted by the case's constant because the
 //!     table behind it is a hash map). An operand that is not already the
 //!     backing scalar is converted to it by ADR 0007 § 2's own rows first, by
 //!     recursion inside [`lower::Lowering::convert`] rather than a row per

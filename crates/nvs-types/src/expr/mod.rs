@@ -57,17 +57,17 @@ use crate::ty::{Ty, TypeId, TypeInterner};
 use crate::{Ctx, Env, span_text, strip_sigil};
 
 // One expression checker split across this directory — see each module's own
-// header for what it owns. A rule reaches its neighbours as `pub(super)`,
+// header for what it owns. A rule reaches its neighbours as `pub(crate)`,
 // which is the reach it had when `expr` was a single file, and no further.
-mod args;
-mod assign;
-mod calls;
-mod iteration;
-mod literals;
-mod members;
-mod operators;
-mod presence;
-mod quals;
+pub(crate) mod args;
+pub(crate) mod assign;
+pub(crate) mod calls;
+pub(crate) mod iteration;
+pub(crate) mod literals;
+pub(crate) mod members;
+pub(crate) mod operators;
+pub(crate) mod presence;
+pub(crate) mod quals;
 
 use self::{
     args::*, assign::*, calls::*, iteration::*, literals::*, members::*, operators::*, quals::*,
@@ -203,7 +203,7 @@ pub(crate) fn check_expr_stmt(
 /// The dispatch: one arm per AST expression variant, each either a couple of
 /// lines or a single call into the module that owns its rule.
 ///
-/// `pub(super)` for one caller: [`super::operators::infer_conversion`] needs
+/// `pub(crate)` for one caller: [`super::operators::infer_conversion`] needs
 /// the *placing* walk rather than [`check_expr`]'s conforming one, so a numeric
 /// literal written directly under an `as` takes the target as its expectation
 /// (ADR 0054 § 2).
@@ -211,7 +211,7 @@ pub(crate) fn check_expr_stmt(
     clippy::too_many_lines,
     reason = "one match arm per AST expression variant, each a couple of lines"
 )]
-pub(super) fn infer(
+pub(crate) fn infer(
     expr: &Expr,
     expected: Option<TypeId>,
     live: &mut FxHashSet<String>,

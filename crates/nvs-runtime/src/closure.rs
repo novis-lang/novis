@@ -241,7 +241,7 @@ crate::nvs_helper! {
     /// `args[0]` is the closure and `args[1]` **one array** holding every
     /// argument in call order: the array `nvs_ir::lower::call` already builds
     /// for a variadic parameter's tail, with each spread flattened into it by
-    /// [`crate::nvs_array_spread`]. That is the whole reason this is a second
+    /// [`crate::array::nvs_array_spread`]. That is the whole reason this is a second
     /// helper rather than a wider [`nvs_call_closure`] — that one's argument
     /// count is a literal in the emitted call, which is exactly the fact a `...`
     /// does not have.

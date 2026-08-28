@@ -67,7 +67,7 @@ pub enum Fault {
     /// The class is which of spec § 10's tree the promoted object is built
     /// from, so `Core\Json::decode("{oops}")` is caught by
     /// `catch (ParseError $e)` and not only by `catch (Throwable $e)`.
-    /// [`Fault::thrown`] means [`ThrownClass::Runtime`], which is what a
+    /// [`Fault::thrown`] means [`crate::ThrownClass::Runtime`], which is what a
     /// failure with nothing more specific to say is.
     Thrown(crate::ThrownClass, std::borrow::Cow<'static, str>),
     /// [`Self::Thrown`], plus
@@ -186,7 +186,7 @@ pub fn affordable(bytes: Option<usize>, member: &str) -> Result<usize, Fault> {
 /// only one so far — returns [`Value::null`].
 pub type HelperResult = Result<Value, Fault>;
 
-/// The body of every helper, shared so [`nvs_helper!`] expands to one line.
+/// The body of every helper, shared so [`crate::nvs_helper!`] expands to one line.
 ///
 /// Kept public because the macro's expansion names it, not because callers
 /// should reach for it directly.

@@ -2,7 +2,7 @@
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory so a
 //! session editing one area does not carry the rest in context. Every item
-//! moved here unchanged; the methods are `pub(super)` so they reach across
+//! moved here unchanged; the methods are `pub(crate)` so they reach across
 //! these modules and no further, which is the reach they had when `lower` was
 //! a single file.
 
@@ -18,7 +18,7 @@ use super::*;
 /// [`Lowering::release_all_locals`] releases it at every exit with no
 /// closure-specific cleanup path. `#` cannot appear in an Novis identifier, so
 /// it can never collide with a capture or a parameter.
-pub(super) const FN_SELF: &str = "fn#self";
+pub(crate) const FN_SELF: &str = "fn#self";
 
 /// One `fn` literal met while lowering a body, waiting for its own function
 /// to be built — see [`lower_closure`].
@@ -29,17 +29,17 @@ pub(super) const FN_SELF: &str = "fn#self";
 /// buy back one clone of a small AST subtree, once per closure literal, at
 /// compile time only, is the wrong trade under this repository's priority
 /// ordering.
-pub(super) struct PendingClosure {
+pub(crate) struct PendingClosure {
     /// The environment class's label.
-    pub(super) class: String,
+    pub(crate) class: String,
     /// The literal itself.
-    pub(super) fn_expr: FnExpr,
+    pub(crate) fn_expr: FnExpr,
     /// Every captured binding, in the order `nvs_types` recorded it — which
     /// is the field order of the class above, so the two sides agree by
     /// construction rather than by both sorting the same way.
-    pub(super) captures: Vec<(String, Ty)>,
+    pub(crate) captures: Vec<(String, Ty)>,
     /// What the body produces.
-    pub(super) ret: Ty,
+    pub(crate) ret: Ty,
 }
 
 /// The [`FN_PARAM_TAGS`] word for `fn_expr` — one nibble per declared
@@ -55,7 +55,7 @@ pub(super) struct PendingClosure {
 ///
 /// Naming ADR 0007 § 1 for a parameter with no declared type, exactly as
 /// [`lower_closure`] does for the same parameter list.
-pub(super) fn param_tags_word(
+pub(crate) fn param_tags_word(
     fn_expr: &FnExpr,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
@@ -74,7 +74,7 @@ pub(super) fn param_tags_word(
 
 /// Lowers every pending closure, and every closure *those* bodies contain, to
 /// exhaustion.
-pub(super) fn drain_closures(
+pub(crate) fn drain_closures(
     mut pending: Vec<PendingClosure>,
     src: &SourceFile,
     exprs: &ExprTypeTable,
@@ -146,7 +146,7 @@ pub(super) fn drain_closures(
 ///
 /// The environment class first, then one per ADR 0036 § 2 shape literal the
 /// body wrote — [`Lowering::shapes`], which has nowhere else to travel.
-pub(super) fn lower_closure(
+pub(crate) fn lower_closure(
     pending: &PendingClosure,
     src: &SourceFile,
     exprs: &ExprTypeTable,
@@ -306,7 +306,7 @@ pub(super) fn lower_closure(
 /// (`E0496` at the checker). That leaves a `Core\Cli\Text $c` parameter
 /// checked for objecthood alone, which `docs/adr/README.md` § *Decisions taken
 /// at project start* records as the remainder rather than the rule.
-pub(super) fn declared_class(
+pub(crate) fn declared_class(
     ty: &Type,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,

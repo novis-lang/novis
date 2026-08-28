@@ -3,7 +3,7 @@
 //!
 //! Part of [`super`]'s one `impl Lowering`, split out of [`super::expr`] under the
 //! rule that file's own header states: every item moved here unchanged, and the
-//! methods `pub(super)` so they reach across these modules and no further.
+//! methods `pub(crate)` so they reach across these modules and no further.
 //!
 //! `lower_binary` is § 4's table and `emit_binop` in `nvs-codegen` is its other
 //! end; a compound assignment reaches both by desugaring to the binary form it
@@ -22,7 +22,7 @@ impl<'a> Lowering<'a> {
     /// literal's elements, whose type [`Ty::Array`] erases, is the one that
     /// matters today, because a `float` stored where the checker typed a
     /// `decimal` is a *silently* wrong value rather than a loud one.
-    pub(super) fn placed_at_decimal(&self, span: nvs_diagnostics::Span) -> bool {
+    pub(crate) fn placed_at_decimal(&self, span: nvs_diagnostics::Span) -> bool {
         self.exprs
             .declared_ty(span)
             .is_some_and(|id| matches!(self.checked_types.get(id), CheckedTy::Decimal))
@@ -134,7 +134,7 @@ impl<'a> Lowering<'a> {
     /// `Comparable::compareTo` is a bodiless interface method, so the resolved
     /// declaration names no compiled function — the same `has_body: false`
     /// path an interface method call already takes.
-    pub(super) fn lower_object_comparison(
+    pub(crate) fn lower_object_comparison(
         &mut self,
         op: BinaryOp,
         expr: &Expr,
@@ -201,7 +201,7 @@ impl<'a> Lowering<'a> {
     /// plain arithmetic/bitwise unary operator. `expr` is lowered through
     /// [`Self::lower_expr`], so `!($a && $b)`/`!($a ? $b : $c)` compose the
     /// same way a bare `&&`/`||`/ternary does.
-    pub(super) fn lower_not(&mut self, inner: &Expr, env: &mut Env, cur: &mut BlockId) -> ValueId {
+    pub(crate) fn lower_not(&mut self, inner: &Expr, env: &mut Env, cur: &mut BlockId) -> ValueId {
         let (v, ty) = self.lower_expr(inner, None, env, cur);
         let is_alias = self.aliasing_read(inner);
         let b = self.truthy_value(v, ty, is_alias, *cur, env);
@@ -225,7 +225,7 @@ impl<'a> Lowering<'a> {
     /// `lhs`/`rhs` each go through [`Self::lower_truthy_cond`], so either may
     /// itself be any type ADR 0035's table covers, and either may itself be a
     /// nested `&&`/`||`/`!`/ternary.
-    pub(super) fn lower_and(
+    pub(crate) fn lower_and(
         &mut self,
         lhs: &Expr,
         rhs: &Expr,
@@ -281,7 +281,7 @@ impl<'a> Lowering<'a> {
     /// `lhs || rhs` — [`Self::lower_and`]'s mirror: `rhs` is only evaluated
     /// when `lhs` is falsy, and the short-circuit (truthy-`lhs`) edge carries
     /// `true` instead of `false`.
-    pub(super) fn lower_or(
+    pub(crate) fn lower_or(
         &mut self,
         lhs: &Expr,
         rhs: &Expr,
@@ -331,7 +331,7 @@ impl<'a> Lowering<'a> {
         result
     }
 
-    pub(super) fn lower_unary(
+    pub(crate) fn lower_unary(
         &mut self,
         op: AstUnaryOp,
         inner: &Expr,
@@ -453,7 +453,7 @@ impl<'a> Lowering<'a> {
     /// test rather than PHP's truthy-table question (`0 == null` was
     /// *true* there, which is why this arm read `===`/`!==` while both
     /// spellings existed).
-    pub(super) fn lower_null_identity(
+    pub(crate) fn lower_null_identity(
         &mut self,
         op: BinaryOp,
         lhs: &Expr,
@@ -501,7 +501,7 @@ impl<'a> Lowering<'a> {
         )
     }
 
-    pub(super) fn lower_binary(
+    pub(crate) fn lower_binary(
         &mut self,
         whole: &Expr,
         expected: Option<Ty>,

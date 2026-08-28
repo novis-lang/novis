@@ -2,7 +2,7 @@
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory so a
 //! session editing one area does not carry the rest in context. Every item
-//! moved here unchanged; the methods are `pub(super)` so they reach across
+//! moved here unchanged; the methods are `pub(crate)` so they reach across
 //! these modules and no further, which is the reach they had when `lower` was
 //! a single file.
 
@@ -18,7 +18,7 @@ impl<'a> Lowering<'a> {
     /// [`Self::lower_truthy_cond`] doesn't yet convert — see that method's
     /// own doc comment for exactly what's covered and what still isn't
     /// (`null`/`mixed`/a union).
-    pub(super) fn lower_if(
+    pub(crate) fn lower_if(
         &mut self,
         cond: &Expr,
         then: &'a Stmt,
@@ -99,7 +99,7 @@ impl<'a> Lowering<'a> {
     /// Panics naming the case for a `cond` whose static type
     /// [`Self::lower_truthy_cond`] doesn't yet convert — see [`Self::lower_if`]'s
     /// panic doc, the same restriction applies here.
-    pub(super) fn lower_while(
+    pub(crate) fn lower_while(
         &mut self,
         cond: &Expr,
         body: &'a Stmt,
@@ -274,7 +274,7 @@ impl<'a> Lowering<'a> {
     ///
     /// Panics for the cases [`Self::lower_truthy_cond`] already names, the
     /// same restriction [`Self::lower_while`] carries.
-    pub(super) fn lower_do_while(
+    pub(crate) fn lower_do_while(
         &mut self,
         body: &'a Stmt,
         cond: &Expr,
@@ -449,7 +449,7 @@ impl<'a> Lowering<'a> {
     /// discarded ones may assign, which would need the header environment
     /// rebuilt around them. Panics too for the cases
     /// [`Self::lower_expr_stmt`] and [`Self::lower_truthy_cond`] already name.
-    pub(super) fn lower_for(
+    pub(crate) fn lower_for(
         &mut self,
         init: &[Expr],
         cond: &[Expr],
@@ -675,7 +675,7 @@ impl<'a> Lowering<'a> {
     /// own `Switch` arm checks each label with no expected type), and
     /// comparing two different representations would be a miscompile rather
     /// than a conversion.
-    pub(super) fn lower_switch(
+    pub(crate) fn lower_switch(
         &mut self,
         subject: &Expr,
         cases: &'a [SwitchCase],
@@ -916,7 +916,7 @@ impl<'a> Lowering<'a> {
         reason = "the arguments are one `StmtKind::Foreach`'s own fields plus \
                   the `(cur, env)` pair every lowering method threads"
     )]
-    pub(super) fn lower_foreach(
+    pub(crate) fn lower_foreach(
         &mut self,
         subject: &Expr,
         key: Option<&ForeachBinding>,
@@ -1291,7 +1291,7 @@ impl<'a> Lowering<'a> {
     /// iteration ([`LoopFrame::iteration_owned`]) — [`InstKind::ArrayKeyAt`]'s
     /// fresh key is consumed by the [`InstKind::ArraySet`] and owes nothing
     /// further.
-    pub(super) fn write_through_element(
+    pub(crate) fn write_through_element(
         &mut self,
         cur: BlockId,
         env: &mut Env,
@@ -1375,7 +1375,7 @@ impl<'a> Lowering<'a> {
     /// Panics if the subject did not lower to a [`Ty::Object`], which would
     /// mean `nvs_types` classified something as a cursor that has no runtime
     /// class to dispatch on.
-    pub(super) fn lower_foreach_cursor(
+    pub(crate) fn lower_foreach_cursor(
         &mut self,
         subject: &Expr,
         value: &ForeachBinding,
@@ -1538,7 +1538,7 @@ impl<'a> Lowering<'a> {
     /// retaining a second — which is what the loop's per-iteration
     /// `advance()`/`current()` pair does, and what the once-only `iterate()`
     /// deliberately does not.
-    pub(super) fn emit_iface_call(
+    pub(crate) fn emit_iface_call(
         &mut self,
         b: BlockId,
         receiver: ValueId,
@@ -1588,7 +1588,7 @@ impl<'a> Lowering<'a> {
     /// Panics if the level names more targets than enclose it —
     /// `nvs_types::locals` rejects that with `E0475` before lowering runs, so
     /// reaching it here is an internal error rather than a program's.
-    pub(super) fn lower_break(&mut self, level: &Option<Expr>, cur: &mut BlockId, env: &mut Env) {
+    pub(crate) fn lower_break(&mut self, level: &Option<Expr>, cur: &mut BlockId, env: &mut Env) {
         let level = self.loop_exit_level(level, "break");
         let at = self.loop_stack.len().checked_sub(level).unwrap_or_else(|| {
             panic!(
@@ -1644,7 +1644,7 @@ impl<'a> Lowering<'a> {
     /// ends up holding must depend only on the source, never on hash-table
     /// internals — the same rule the crate's `ids` module states for value
     /// ids.
-    pub(super) fn end_iteration(&mut self, cur: BlockId, env: &mut Env) {
+    pub(crate) fn end_iteration(&mut self, cur: BlockId, env: &mut Env) {
         let Some(at) = self.loop_stack.len().checked_sub(1) else {
             return;
         };
@@ -1660,7 +1660,7 @@ impl<'a> Lowering<'a> {
     /// body's locals and the loop body's locals get released on that edge —
     /// the switch's carried set names the loop-body locals, so using it would
     /// silently keep them alive across the back edge.
-    pub(super) fn end_iteration_at(&mut self, cur: BlockId, env: &mut Env, at: usize) {
+    pub(crate) fn end_iteration_at(&mut self, cur: BlockId, env: &mut Env, at: usize) {
         let Some(frame) = self.loop_stack.get(at) else {
             return;
         };
@@ -1690,7 +1690,7 @@ impl<'a> Lowering<'a> {
     ///
     /// Panics if [`Self::loop_stack`] is empty — see [`Self::lower_break`]'s
     /// panic doc, the same defensive check applies here.
-    pub(super) fn lower_continue(
+    pub(crate) fn lower_continue(
         &mut self,
         level: &Option<Expr>,
         cur: &mut BlockId,
@@ -1767,7 +1767,7 @@ impl<'a> Lowering<'a> {
     ///
     /// Panics on anything `nvs_types::locals` should already have refused —
     /// an internal error, not a program's.
-    pub(super) fn loop_exit_level(&self, level: &Option<Expr>, keyword: &str) -> usize {
+    pub(crate) fn loop_exit_level(&self, level: &Option<Expr>, keyword: &str) -> usize {
         let Some(level_expr) = level else {
             return 1;
         };
@@ -1793,7 +1793,7 @@ impl<'a> Lowering<'a> {
     /// [`InstKind::Phi`] for any local whose value differs across incoming
     /// edges. See the module docs for why a name missing from some incoming
     /// environment can be silently dropped rather than treated as an error.
-    pub(super) fn merge_envs(
+    pub(crate) fn merge_envs(
         &mut self,
         merge_block: BlockId,
         incoming: &[(BlockId, Env)],
@@ -1886,7 +1886,7 @@ impl<'a> Lowering<'a> {
     /// already sealed. That is fine and deliberate: a block's instructions and
     /// its terminator are stored separately, so appending here still lands the
     /// release before the jump.
-    pub(super) fn release_merged_away(&mut self, incoming: &[(BlockId, Env)], name: &str) {
+    pub(crate) fn release_merged_away(&mut self, incoming: &[(BlockId, Env)], name: &str) {
         let owed: Vec<(BlockId, ValueId)> = incoming
             .iter()
             .filter_map(|(block, env)| match env.get(name) {
@@ -1915,7 +1915,7 @@ impl<'a> Lowering<'a> {
     /// block, which dominates every block in the function including every
     /// resume block, so a phi for it would carry one value on both edges and
     /// describe nothing.
-    pub(super) fn seed_generator_loop_carried(
+    pub(crate) fn seed_generator_loop_carried(
         &self,
         env: &mut Env,
         seen: &mut FxHashSet<String>,
@@ -1951,7 +1951,7 @@ impl<'a> Lowering<'a> {
     /// walked in decides which [`ValueId`]/phi a header phi gets, and the
     /// crate's `ids` module docs already commit to every id depending only
     /// on source order.
-    pub(super) fn collect_reassigned_locals(
+    pub(crate) fn collect_reassigned_locals(
         &self,
         stmt: &Stmt,
         seen: &mut FxHashSet<String>,
@@ -2078,7 +2078,7 @@ impl<'a> Lowering<'a> {
     /// re-points, exactly as [`Self::collect_reassigned_locals`] scans a
     /// statement. Split out because a `for`'s step clause is a bare [`Expr`]
     /// with no [`Stmt`] wrapping it, and it owes the identical phi.
-    pub(super) fn collect_reassigned_in_expr(
+    pub(crate) fn collect_reassigned_in_expr(
         &self,
         e: &Expr,
         seen: &mut FxHashSet<String>,
@@ -2307,7 +2307,7 @@ impl<'a> Lowering<'a> {
     /// its own staging back at its own site ([`Self::flush_ref_writebacks`]),
     /// so both owe a header phi — but it is found once rather than once per
     /// level.
-    pub(super) fn collect_inout_holders(
+    pub(crate) fn collect_inout_holders(
         &self,
         e: &Expr,
         seen: &mut FxHashSet<String>,
@@ -2352,7 +2352,7 @@ impl<'a> Lowering<'a> {
     ///
     /// A property target (`$obj->p`, `$obj->items[$k]`) rebinds no local at
     /// all: the write goes to the object's own slot, which no phi describes.
-    pub(super) fn rebound_local(&self, target: &Expr) -> Option<String> {
+    pub(crate) fn rebound_local(&self, target: &Expr) -> Option<String> {
         match &target.kind {
             ExprKind::Variable(name_span) => {
                 Some(strip_sigil(span_text(self.src, *name_span)).to_owned())

@@ -2,7 +2,7 @@
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory so a
 //! session editing one area does not carry the rest in context. Every item
-//! moved here unchanged; the methods are `pub(super)` so they reach across
+//! moved here unchanged; the methods are `pub(crate)` so they reach across
 //! these modules and no further, which is the reach they had when `lower` was
 //! a single file.
 
@@ -17,7 +17,7 @@ impl<'a> Lowering<'a> {
     /// The unbraced `namespace X;` form declares no statements of its own,
     /// so it is skipped like any other declaration; the statements that
     /// follow it are siblings and are reached by the ordinary loop.
-    pub(super) fn lower_script_stmts(
+    pub(crate) fn lower_script_stmts(
         &mut self,
         stmts: &'a [Stmt],
         cur: &mut BlockId,
@@ -52,7 +52,7 @@ impl<'a> Lowering<'a> {
     /// Lowers a statement list into `cur`, stopping early once `cur` is
     /// sealed (dead code after a `return` inside the list is simply never
     /// lowered — nothing downstream needs it modeled).
-    pub(super) fn lower_stmts(&mut self, stmts: &'a [Stmt], cur: &mut BlockId, env: &mut Env) {
+    pub(crate) fn lower_stmts(&mut self, stmts: &'a [Stmt], cur: &mut BlockId, env: &mut Env) {
         for stmt in stmts {
             if self.is_terminated(*cur) {
                 break;
@@ -73,7 +73,7 @@ impl<'a> Lowering<'a> {
             );
         }
     }
-    pub(super) fn lower_stmt(&mut self, stmt: &'a Stmt, cur: &mut BlockId, env: &mut Env) {
+    pub(crate) fn lower_stmt(&mut self, stmt: &'a Stmt, cur: &mut BlockId, env: &mut Env) {
         let stmt_id = self.ids.next_stmt(stmt.span);
         self.cur_stmt_span = stmt.span;
         self.block_insts[cur.index() as usize].push(Inst {
@@ -293,7 +293,7 @@ impl<'a> Lowering<'a> {
     /// dispatch refuses nothing — an expression with no lowering is named by
     /// [`Self::lower_expr`]'s own dispatch instead, which points at the
     /// expression rather than at the statement wrapping it.
-    pub(super) fn lower_expr_stmt(&mut self, e: &Expr, env: &mut Env, cur: &mut BlockId) {
+    pub(crate) fn lower_expr_stmt(&mut self, e: &Expr, env: &mut Env, cur: &mut BlockId) {
         match &e.kind {
             ExprKind::Assign {
                 op: AssignOp::Assign,
@@ -493,7 +493,7 @@ impl<'a> Lowering<'a> {
     ///
     /// Panics naming the target when it is not one [`is_reevaluable_target`]
     /// accepts.
-    pub(super) fn lower_compound_assignment(
+    pub(crate) fn lower_compound_assignment(
         &mut self,
         e: &Expr,
         op: BinaryOp,
@@ -527,7 +527,7 @@ impl<'a> Lowering<'a> {
     /// together. Used *as a value* (`$y = $x++;`) the two do differ, and
     /// [`Self::lower_expr`]'s own arms pick between them — see
     /// [`Self::lower_incdec`], which both positions share.
-    pub(super) fn lower_incdec_stmt(
+    pub(crate) fn lower_incdec_stmt(
         &mut self,
         e: &Expr,
         op: IncDecOp,
@@ -546,7 +546,7 @@ impl<'a> Lowering<'a> {
     /// choice of operator. Which of the two values a caller keeps is the only
     /// difference between the prefix and postfix spellings, and between an
     /// expression statement (neither) and a value position (one).
-    pub(super) fn lower_incdec(
+    pub(crate) fn lower_incdec(
         &mut self,
         e: &Expr,
         op: IncDecOp,
@@ -596,7 +596,7 @@ impl<'a> Lowering<'a> {
         reason = "the rewrite's own inputs plus the two `lower_store` needs; a struct would buy \
                   its three call sites nothing"
     )]
-    pub(super) fn lower_read_modify_write(
+    pub(crate) fn lower_read_modify_write(
         &mut self,
         span: Span,
         target: &Expr,
@@ -782,7 +782,7 @@ impl<'a> Lowering<'a> {
     /// `$x = expr;` or `$obj->prop = expr;` as a bare expression statement —
     /// SSA renaming needs no join logic here, only a fresh binding in `env`
     /// (a local target) or a [`InstKind::FieldSet`] (a property target).
-    pub(super) fn lower_reassignment(&mut self, e: &Expr, env: &mut Env, cur: &mut BlockId) {
+    pub(crate) fn lower_reassignment(&mut self, e: &Expr, env: &mut Env, cur: &mut BlockId) {
         let ExprKind::Assign {
             op: AssignOp::Assign,
             target,
@@ -836,7 +836,7 @@ impl<'a> Lowering<'a> {
     /// Panics for `$a = &$b`, which no position lowers — the statement form
     /// reaches [`Self::lower_expr_stmt`]'s own unsupported-shape panic by the
     /// same route.
-    pub(super) fn lower_assign_expr(
+    pub(crate) fn lower_assign_expr(
         &mut self,
         e: &Expr,
         op: AssignOp,
@@ -888,7 +888,7 @@ impl<'a> Lowering<'a> {
     /// be reading a value the hook already released. Every other arm leaves
     /// the target itself owning the value and would be safe either way; they
     /// take the same parameter so the rule is one rule.
-    pub(super) fn lower_store(
+    pub(crate) fn lower_store(
         &mut self,
         target: &Expr,
         stored: &Stored<'_>,
@@ -1455,7 +1455,7 @@ impl<'a> Lowering<'a> {
     /// spelling where it is written — a declared property as `E0413`
     /// (ADR 0028 § 3), and everything from a bare local to a subscript of a
     /// temporary as `E0234`.
-    pub(super) fn lower_unset(&mut self, target: &Expr, env: &mut Env, cur: &mut BlockId) {
+    pub(crate) fn lower_unset(&mut self, target: &Expr, env: &mut Env, cur: &mut BlockId) {
         let ExprKind::Index {
             base,
             index: Some(index),
@@ -1605,7 +1605,7 @@ impl<'a> Lowering<'a> {
     /// other rather than renumbering what follows it. PHP refuses to mix the
     /// two spellings in one pattern at all, so nothing observable rides on
     /// which answer this gives the mixture.
-    pub(super) fn lower_destructure(
+    pub(crate) fn lower_destructure(
         &mut self,
         target: &'a DestructureTarget,
         value: &'a Expr,

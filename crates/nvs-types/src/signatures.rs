@@ -336,7 +336,7 @@ pub struct ClassSignature {
     /// `private(set)`'s write half is a separate rule this map does not
     /// model). Read through [`property_visibility`], never directly — a
     /// property with no entry is `public`, which is what a `Core` class
-    /// installed through [`SignatureTable::install`] and every synthesized
+    /// installed through [`SignatureTable::seed_class`] and every synthesized
     /// declaration is, since only user source can write a level at all.
     pub property_visibility: FxHashMap<String, Visibility>,
     /// This declaration's own properties that carry an ADR 0014 § 1 hook
@@ -355,7 +355,7 @@ pub struct ClassSignature {
     /// hand. `crate::defaults` owns what a default may be and where it ends up
     /// at run time; a `static` property is excluded, since it occupies no
     /// instance slot for anything to be written into — it takes
-    /// [`Self::static_property_defaults`] instead.
+    /// [`Self::static_properties`] instead.
     pub property_defaults: Vec<(String, crate::defaults::ConstArg)>,
     /// This declaration's own `static` properties — **every one of them**, in
     /// declaration order, each with its evaluated initializer.
@@ -493,7 +493,7 @@ impl SignatureTable {
 
 /// Builds a [`SignatureTable`] for every class/interface/enum declared in
 /// any file of the program, lowering every property/parameter/return type
-/// through the same [`AliasTable`]/[`SymbolTable`] a method body's own types
+/// through the same [`nvs_hir::AliasTable`]/[`nvs_hir::SymbolTable`] a method body's own types
 /// go through.
 ///
 /// The whole [`crate::ProgramFile`] slice is collected before
@@ -1116,7 +1116,7 @@ fn resolve_property_rec(
 ///
 /// `public` where no entry exists, and that is not a default in ADR 0094 § 1's
 /// sense: a property with no entry is one no user declaration wrote, which
-/// today means a `Core` class installed through [`SignatureTable::install`].
+/// today means a `Core` class installed through [`SignatureTable::seed_class`].
 #[must_use]
 pub fn property_visibility(owner: &QName, name: &str, table: &SignatureTable) -> Visibility {
     table

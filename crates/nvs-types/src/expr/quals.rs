@@ -35,7 +35,7 @@
 //!
 //! Part of [`super`]'s one expression checker, split across this directory so
 //! a session editing one rule does not carry the rest in context. Every item
-//! moved here unchanged; an item is `pub(super)` where it reaches across these
+//! moved here unchanged; an item is `pub(crate)` where it reaches across these
 //! modules, which is the reach it had when `expr` was a single file.
 
 use super::*;
@@ -45,7 +45,7 @@ use super::*;
 /// (`secret tainted string`/`secret tainted bytes`, ADR 0033 § 1). The one
 /// question every taint propagation/laundering rule in this module reduces
 /// to.
-pub(super) fn is_tainted(ty: TypeId, interner: &TypeInterner) -> bool {
+pub(crate) fn is_tainted(ty: TypeId, interner: &TypeInterner) -> bool {
     matches!(
         interner.get(ty),
         Ty::TaintedString | Ty::TaintedBytes | Ty::SecretTaintedString | Ty::SecretTaintedBytes
@@ -68,7 +68,7 @@ pub(crate) fn is_secret(ty: TypeId, interner: &TypeInterner) -> bool {
 /// same base. Returns `Some(true)` for a `bytes`-based atom, `Some(false)`
 /// for a `string`-based one, `None` for anything else (a scalar this axis
 /// pair never touches, a class, `mixed`, ...).
-pub(super) fn qualifiable_base(ty: TypeId, interner: &TypeInterner) -> Option<bool> {
+pub(crate) fn qualifiable_base(ty: TypeId, interner: &TypeInterner) -> Option<bool> {
     match interner.get(ty) {
         Ty::String | Ty::TaintedString | Ty::SecretString | Ty::SecretTaintedString => Some(false),
         Ty::Bytes | Ty::TaintedBytes | Ty::SecretBytes | Ty::SecretTaintedBytes => Some(true),
@@ -79,7 +79,7 @@ pub(super) fn qualifiable_base(ty: TypeId, interner: &TypeInterner) -> Option<bo
 /// Interns whichever of the eight `string`/`bytes`-shaped atoms `is_bytes`/
 /// `tainted`/`secret` name — the one place that maps the two independent
 /// qualifier bits back onto [`Ty`]'s one-atom-per-combination representation.
-pub(super) fn qualified_scalar(
+pub(crate) fn qualified_scalar(
     is_bytes: bool,
     tainted: bool,
     secret: bool,
@@ -109,7 +109,7 @@ pub(super) fn qualified_scalar(
 /// string`/`secret string as string`, which are not themselves
 /// shape-proving conversions and must not silently launder; that would be
 /// exactly the bypass this whole mechanism exists to close.
-pub(super) fn apply_qualifier_conversion_rule(
+pub(crate) fn apply_qualifier_conversion_rule(
     from: TypeId,
     to: TypeId,
     interner: &mut TypeInterner,
@@ -142,7 +142,7 @@ pub(super) fn apply_qualifier_conversion_rule(
 /// `<?= expr ?>`/templating-helper interpolation position ADR 0033 § 4 also
 /// names waits on `Core\Html` actually existing (see the crate docs' known
 /// gaps).
-pub(super) fn reject_secret_markup_conversion(
+pub(crate) fn reject_secret_markup_conversion(
     inner_ty: TypeId,
     to: TypeId,
     span: Span,
@@ -176,7 +176,7 @@ pub(super) fn reject_secret_markup_conversion(
 /// resolves to `Core\Html\Markup`; every other target is untouched. The rest
 /// of § 5 (auto-escaping a non-`Markup` interpolation, `Markup + Markup`)
 /// waits on `Core\Html` actually existing as a stdlib class.
-pub(super) fn reject_non_literal_markup_conversion(
+pub(crate) fn reject_non_literal_markup_conversion(
     inner: &Expr,
     to: TypeId,
     span: Span,
@@ -205,7 +205,7 @@ pub(super) fn reject_non_literal_markup_conversion(
 /// Whether `expr` is a literal string token, unwrapping any enclosing
 /// parentheses — `("text")` is exactly as trusted as `"text"` for
 /// [`reject_non_literal_markup_conversion`]'s purposes.
-pub(super) fn is_literal_string(expr: &Expr) -> bool {
+pub(crate) fn is_literal_string(expr: &Expr) -> bool {
     match &expr.kind {
         ExprKind::Str(_) => true,
         ExprKind::Paren(inner) => is_literal_string(inner),
@@ -220,7 +220,7 @@ pub(super) fn is_literal_string(expr: &Expr) -> bool {
 /// One root is enough because spec § 10 makes `Throwable` the only one:
 /// every other exception class, seeded or user-declared, descends from it
 /// through links `nvs_hir::seed_exception_tree` put in the graph.
-pub(super) fn is_throwable_shaped(qname: &QName, graph: &ClassGraph) -> bool {
+pub(crate) fn is_throwable_shaped(qname: &QName, graph: &ClassGraph) -> bool {
     let root = QName::parse(nvs_hir::errors::ROOT);
     *qname == root || nvs_hir::implements_interface(qname, &root, graph)
 }
@@ -235,7 +235,7 @@ pub(super) fn is_throwable_shaped(qname: &QName, graph: &ClassGraph) -> bool {
 /// `Exception`/`Error` have no declared stdlib member table yet, so this is
 /// scoped to the constructor call shape alone — "anywhere a message is later
 /// composed" (e.g. through a setter) is not modeled this slice.
-pub(super) fn reject_secret_throwable_message(
+pub(crate) fn reject_secret_throwable_message(
     qname: &QName,
     first_arg_ty: Option<TypeId>,
     span: Span,
@@ -290,7 +290,7 @@ pub(super) fn reject_secret_throwable_message(
 /// stored in a property or an array element reaches the walk rather than the
 /// site — the first is ADR 0033's unmodelled container axis, the second is
 /// the Redacted node this row's other half owns.
-pub(super) fn reject_secret_debug_argument(
+pub(crate) fn reject_secret_debug_argument(
     qname: &QName,
     member: &str,
     args: &CallArgs,
