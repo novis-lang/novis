@@ -634,6 +634,18 @@ is why" — is this file.
   program that reaches the helper dies inside `cranelift-jit` with *"can't resolve symbol
   nvs_your_helper"*, which reads like a linker problem rather than a missing line. Grep the symbol name
   you just added and expect **three** hits outside the runtime's own definition.
+- **A `gaps.py` "no case calls X" is a claim about the cases it *attributed* to that class,
+  and attribution is not the same thing as coverage.** It used to be "the case spells the
+  class name", which misses every value reached through a factory on another class — the
+  whole time family, where `var $d = Core\Time::fromIso($t)->in($z);` exercises three
+  classes and spells one. That ranked `Core\Time\DateTime` at one case over 17 members
+  with two dedicated cases on disk, and named `date`, `dayOfYear` and `difference`
+  uncalled while one of those cases called all three. `coverage`'s attribution follows
+  produced instance types now (`gaps.py`'s `producers`), so the residue is narrower but
+  real: a member exercised only through a closure, or through a helper class the walk
+  cannot follow, still reads as uncalled. `python tools/gaps.py --member <name>` prints
+  the cases that already ask about one, and it reads the whole corpus rather than one
+  class's share — one call, before writing a case the tree already has.
 
 ## Running things
 

@@ -129,6 +129,51 @@ def registry() -> dict[tuple[str, str], tuple[Path, int, str]]:
     return found
 
 
+#: `return_ty: CoreTy::Instance(DATETIME_NAME)` -- the member answers an instance of that class,
+#: which is how a case reaches a class it never spells. Resolved through the same file-level name
+#: consts `CLASS_RE`'s second spelling uses.
+RETURNS_RE = re.compile(
+    r'return_ty:\s*CoreTy::Instance\(\s*(?:r"([^"]+)"|([A-Za-z_][A-Za-z0-9_]*))\s*\)')
+
+
+def producers() -> dict[tuple[str, str], str]:
+    """(class, member) -> the `Core` class an instance of which that member answers.
+
+    `Core\\Time::fromIso` answers an `Instant` and `Instant::in` answers a `DateTime`, so a case
+    written `var $d = Core\\Time::fromIso(...)->in($z);` exercises three classes and spells one.
+    That is not a corner of the library: half the registry is instance-shaped and reached from a
+    factory on some *other* class, which is exactly the shape `coverage`'s attribution used to
+    miss entirely -- it ranked `Core\\Time\\DateTime` at one case over 17 members with two whole
+    cases about it on disk, and named three members "no case calls" that one of them calls.
+    """
+    found: dict[tuple[str, str], str] = {}
+    for path in sorted(STDLIB.rglob("*.rs")):
+        text = read(path)
+        consts = dict(NAME_CONST_RE.findall(text))
+        starts = [(m.start(), m.group(1) or consts.get(m.group(2), ""))
+                  for m in CLASS_RE.finditer(text)]
+        if not starts:
+            continue
+        # A literal's own extent, rather than a fixed window: `Core\Time::at` writes its options
+        # bag out inline and its `return_ty` sits some 900 characters below its name.
+        methods = list(METHOD_RE.finditer(text))
+        for index, m in enumerate(methods):
+            owner = ""
+            for pos, name in starts:
+                if pos < m.start():
+                    owner = name
+                else:
+                    break
+            stop = methods[index + 1].start() if index + 1 < len(methods) else len(text)
+            made = RETURNS_RE.search(text, m.end(), stop)
+            if not owner or not made:
+                continue
+            name = made.group(1) or consts.get(made.group(2), "")
+            if name:
+                found[(owner, m.group(1))] = name
+    return found
+
+
 def symbol_lines() -> dict[str, tuple[Path, int]]:
     """`nvs_core_arr_range` -> where that function is declared, for a file:line anchor on the
     implementation rather than on the signature table."""
@@ -283,6 +328,14 @@ def coverage() -> list[dict]:
     instance-shaped like that. The name has to end at a boundary or `Core\\Time` would collect
     every `Core\\Time\\Duration` case as its own.
 
+    **Or when it holds one of that class's values without ever spelling the name**, which is what
+    `var $d = Core\\Time::fromIso($text)->in($zone);` does: `producers` says `fromIso` answers an
+    `Instant` and `Instant::in` a `DateTime`, so a written `Owner::member(` attributes the case to
+    what it builds, and then an instance call `->member(` on a class the case already holds
+    attributes it to what *that* builds, to a fixed point. Without that step the time family read
+    as the thinnest on the tree while carrying two dedicated cases apiece -- the ranking was
+    measuring how often a case writes a type annotation, not what it exercises.
+
     A member is *called* by `Core\\X::member`, or by `->member(` in a case that names the class --
     which is `differential_gaps`' rule narrowed from the whole corpus to the class's own cases,
     because corpus-wide every `->get(` marks every class's `get` as covered.
@@ -293,13 +346,40 @@ def coverage() -> list[dict]:
     for owner, member in reg:
         per_class.setdefault(owner, []).append(member)
 
+    # (class -> member -> what an instance of it answers), for the walk in `holders`.
+    builds: dict[str, dict[str, str]] = {}
+    for (owner, member), made in producers().items():
+        builds.setdefault(owner, {})[member] = made
+
+    # `(?![\w\\])`: `Core\Time` matches `Core\Time::now` and `Core\Time $t`, never
+    # `Core\Time\Duration`, which is a different class with its own row.
+    owns = {name: re.compile(re.escape(name) + r"(?![A-Za-z0-9_" + re.escape(BS) + r"])")
+            for name in per_class}
+
+    def holders(text: str) -> set[str]:
+        """Every class whose values this case handles, named or not."""
+        held = {name for name, pattern in owns.items() if pattern.search(text)}
+        for m in re.finditer(r"(Core(?:" + re.escape(BS) + r"[A-Za-z][A-Za-z0-9]*)*)"
+                             + r"::([A-Za-z][A-Za-z0-9]*)", text):
+            made = builds.get(m.group(1), {}).get(m.group(2))
+            if made:
+                held.add(made)
+        arrows = set(re.findall(r"->([a-z][A-Za-z0-9]*)\s*\(", text))
+        growing = True
+        while growing:
+            growing = False
+            for name in list(held):
+                for member, made in builds.get(name, {}).items():
+                    if member in arrows and made not in held:
+                        held.add(made)
+                        growing = True
+        return held
+
     texts = [read(p) for p in cases(CONFORMANCE)]
+    handled = [holders(t) for t in texts]
     out = []
     for owner, members in per_class.items():
-        # `(?![\w\\])`: `Core\Time` matches `Core\Time::now` and `Core\Time $t`, never
-        # `Core\Time\Duration`, which is a different class with its own row.
-        owns = re.compile(re.escape(owner) + r"(?![A-Za-z0-9_" + re.escape(BS) + r"])")
-        mine = [t for t in texts if owns.search(t)]
+        mine = [t for t, held in zip(texts, handled) if owner in held]
         called = set()
         for text in mine:
             called.update(m.group(1) for m in
