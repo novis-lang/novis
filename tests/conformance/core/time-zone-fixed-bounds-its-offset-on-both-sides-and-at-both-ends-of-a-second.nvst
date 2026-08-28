@@ -1,0 +1,117 @@
+--TEST--
+Spec § 4: `Zone::fixed` names the last offset it accepts and the first it refuses, on both signs and at both ends of a whole second
+--FILE--
+<?nvs
+// `Core\Time\Zone::fixed` has two bounds and both are stated as a bound rather
+// than as a rule: the offset is a **whole number of seconds**, and it is within
+// the ±25:59:59 the IANA format itself allows. A member that stopped one entry
+// early — at ±24:00, the largest offset any real zone has ever used, or at
+// ±25:59:00 — prints plausibly against either half alone, so each is asked for
+// its last accepted value and its first refused one together.
+
+var $at = Core\Time::fromIso("2024-01-15T12:00:00Z");
+var $later = Core\Time::fromIso("2099-12-31T23:59:59Z");
+
+final class Fixed {
+    // The offset a zone built from `$s` seconds is worth, or the half of the
+    // refusal the message named. A fixed zone has no transitions, so the
+    // instant it is asked at cannot change the answer — which is asserted by
+    // asking at two instants a century apart and requiring they agree.
+    public static function of(int $s, Core\Time\Instant $at, Core\Time\Instant $later): string {
+        try {
+            var $z = Core\Time\Zone::fixed(Core\Time\Duration::seconds($s));
+            if ($z->offsetAt($at)->toSeconds() != $z->offsetAt($later)->toSeconds()) {
+                return "drifted";
+            }
+            return $z->offsetAt($at)->toSeconds() as string;
+        } catch (Throwable $refused) {
+            if (Core\Str::contains($refused->message, "within 25:59:59 of UTC")) {
+                return "range";
+            }
+            if (Core\Str::contains($refused->message, "whole number of seconds")) {
+                return "seconds";
+            }
+            return "unnamed";
+        }
+    }
+}
+
+// 1. The range bound, on both signs. `+25:59:59` is 93599 seconds and is the
+//    last one accepted; 93600 is the first refused. `86400` is in the middle
+//    rather than at the edge, which is the entry a member bounded at ±24:00
+//    would make the last one.
+echo Fixed::of(93599, $at, $later), "|", Fixed::of(93600, $at, $later), "|\n";
+echo Fixed::of(-93599, $at, $later), "|", Fixed::of(-93600, $at, $later), "|\n";
+echo Fixed::of(0, $at, $later), "|", Fixed::of(86400, $at, $later), "|", Fixed::of(-86400, $at, $later), "|\n";
+
+// The two entries either side of each bound, swept: every value at or inside
+// the bound answers itself, every value past it answers `range`, and the split
+// is counted rather than read off the lines, so a bound off by one second on
+// one sign only still fails here.
+array<int> $near = [93597, 93598, 93599, 93600, 93601, -93597, -93598, -93599, -93600, -93601];
+int $accepted = 0;
+int $ranged = 0;
+foreach ($near as int $s) {
+    if (Fixed::of($s, $at, $later) == ($s as string)) {
+        $accepted = $accepted + 1;
+    }
+    if (Fixed::of($s, $at, $later) == "range") {
+        $ranged = $ranged + 1;
+    }
+}
+echo $accepted, " accepted, ", $ranged, " out of range|\n";
+
+// 2. The whole-second bound, at both ends of the second and on both signs. A
+//    nanosecond past an accepted offset is refused rather than rounded, and so
+//    is a nanosecond short of one — including one nanosecond either side of
+//    zero, where the offset is otherwise the smallest legal value there is.
+echo Core\Time\Zone::fixed(1s)->offsetAt($at)->toSeconds() as string, "|\n";
+try {
+    echo Core\Time\Zone::fixed((1s)->plus(1ns))->offsetAt($at)->toSeconds() as string, "|\n";
+} catch (Throwable $over) {
+    echo Core\Str::contains($over->message, "whole number of seconds") as string, "|\n";
+}
+try {
+    echo Core\Time\Zone::fixed((1s)->minus(1ns))->offsetAt($at)->toSeconds() as string, "|\n";
+} catch (Throwable $under) {
+    echo Core\Str::contains($under->message, "whole number of seconds") as string, "|\n";
+}
+try {
+    echo Core\Time\Zone::fixed((0s)->minus(1ns))->offsetAt($at)->toSeconds() as string, "|\n";
+} catch (Throwable $belowZero) {
+    echo Core\Str::contains($belowZero->message, "whole number of seconds") as string, "|\n";
+}
+
+// Both bounds are refused by the same member, so the sub-second offsets are
+// swept the same way: nothing between two whole seconds is ever accepted, and
+// a value that is both fractional *and* out of range is refused for being
+// fractional, since that is the check `fixed` reaches first.
+array<Core\Time\Duration> $parts = [1ms, 999ms, 1ns, 500us, (2h)->plus(30ns), (100h)->plus(1ms)];
+int $fractional = 0;
+foreach ($parts as Core\Time\Duration $d) {
+    try {
+        Core\Time\Zone::fixed($d);
+    } catch (Throwable $fraction) {
+        if (Core\Str::contains($fraction->message, "whole number of seconds")) {
+            $fractional = $fractional + 1;
+        }
+    }
+}
+echo $fractional, " of 6 fractional|\n";
+
+// The offset a zone was built from is the offset it is worth, but the `XXX`
+// pattern is ISO's `±HH:MM` and has nowhere to put the seconds — so a zone at
+// `+25:59:59` renders as `+25:59`, and `offsetAt` is what the assertions above
+// are made of rather than the rendering.
+echo $at->in(Core\Time\Zone::fixed(Core\Time\Duration::seconds(93599)))->format("HH:mm:ss XXX"), "|\n";
+--EXPECT--
+93599|range|
+-93599|range|
+0|86400|-86400|
+6 accepted, 4 out of range|
+1|
+1|
+1|
+1|
+6 of 6 fractional|
+13:59:59 +25:59|
