@@ -10,9 +10,11 @@ the two never overlap.
 The list is derived, never copied. Three live sources:
 
 *   **The refusal sites themselves**, read out of `crates/nvs-ir/src/` and `crates/nvs-codegen/src/`.
-    A site is a `panic!`/`todo!`/`unimplemented!` whose message names a shape, or a
-    `CodegenError::Unsupported`. This is the honest inventory: a hole that stops panicking has left
-    it, and one somebody adds appears without anyone updating a list.
+    A site is a `panic!`/`todo!`/`unimplemented!`/`assert!` whose message claims a shape it will not
+    take, or a `CodegenError::Unsupported`, where the type is the claim. This is the honest
+    inventory: a hole that stops panicking has left it, and one somebody adds appears without anyone
+    updating a list. Both halves of the recognizer are load-bearing and the comment on `CONSTRUCT`
+    below says why neither alone is.
 
 *   **The goal's item list**, read out of `docs/agent/loop-goal.md`. Every numbered item carries its
     `crates/…/file.rs:NN` anchors, so a site is attributed to the item whose anchors sit in the same
@@ -48,15 +50,43 @@ GOAL_TOML = ROOT / "docs" / "agent" / "loop-goal.toml"
 # Where a refusal can live. Both crates lower; nothing else does.
 SOURCES = ["crates/nvs-ir/src", "crates/nvs-codegen/src"]
 
-# A message is a refusal when it names a SHAPE this crate will not lower. Both crates say so in one
-# of three house phrasings, and the phrasing is the key rather than the macro: the same sentence
-# appears under `panic!`, under `assert!`'s second argument and inside a `CodegenError::Unsupported`,
-# and keying on the macro missed two thirds of them.
-REFUSAL = re.compile(r"does not (?:yet )?lower|only lowers|no lowering for", re.IGNORECASE)
-# Everything `CodegenError::Unsupported` carries is a refusal too, and most of it does not use those
-# words -- `integer `/`, whose ... has no single IR representation` is one. Read the literal after
-# the constructor instead.
-UNSUPPORTED = re.compile(r"CodegenError::Unsupported")
+# A site is read from the CONSTRUCT that carries the message and from the CLAIM the message makes,
+# and it takes both.
+#
+# The construct alone is not the answer, even though it is the one the docstring above describes:
+# 89 panic-family sites sit in these two crates and 62 of them are engine invariants -- "`foreach`
+# lost the `Env` binding `{name}` it walks" -- which no program reaches and which will still be
+# there when the last hole is closed. Counting those would put this tool's own end state, and the
+# ratchet in `crates/nvs-ir/tests/refusals.rs` that reads it, permanently out of reach. Separating
+# the two by wording is what does not work: an invariant names the front-end guarantee it trusts,
+# and so do several real refusals. Making it mechanical needs the *source* to say which kind it is,
+# the way `CodegenError` already distinguishes `Internal` from `Unsupported`; nvs-ir has no such
+# spelling, and giving it one is a change to that crate rather than to this tool.
+#
+# The claim alone is not the answer either: an unanchored match reads a doc comment, a diagnostic's
+# help text or a test fixture as a site, which is what the comment skip in `literals` was already
+# working around one case at a time.
+CONSTRUCT = re.compile(
+    r"(?:panic|todo|unimplemented)!\s*\(\s*$"
+    r"|(?:debug_)?assert(?:_eq|_ne)?!\s*\([^;{}]*$"
+)
+# What a refusal *claims*, as a shape rather than as a sentence: it names what it does take and
+# stops there -- "only lowers X", "lowers X only through Y", "converts ... only" -- or it says
+# outright that it has no arm. This replaced a match on three fixed phrasings, which read 4 sites
+# where there are 17: `lowers an array-element write only through a bare local` is the same claim
+# in the same house style and was invisible to it, and so was every message an `assert!` carries.
+REFUSAL = re.compile(
+    r"does not (?:yet )?lower"
+    r"|no lowering for"
+    r"|has no arm for"
+    r"|only (?:lowers|converts|stages|emits|takes|accepts|handles)"
+    r"|(?:lowers|converts|stages|emits|reaches) [^.;]{0,90}?\bonly\b",
+    re.IGNORECASE,
+)
+# Everything `CodegenError::Unsupported` carries is a refusal whatever it says, so the type is the
+# claim and no wording test applies. Anchored to the constructor's own opening paren: an unanchored
+# search over the window read the `internal(...)` calls three lines below one of them as sites.
+UNSUPPORTED = re.compile(r"CodegenError::Unsupported\s*\(\s*(?:format!\s*\(\s*)?$")
 # ...except the ones that are engine bugs wearing the same type. A unit that holds a call and not
 # its callee was assembled wrong; that is nobody's language hole.
 ENGINE = re.compile(r"this is a bug|declares no (?:descriptor|slot)|which this unit", re.IGNORECASE)
@@ -125,16 +155,23 @@ def sites() -> list[dict]:
     found = []
     for source in SOURCES:
         for path in sorted((ROOT / source).rglob("*.rs")):
+            # A crate's own tests refuse things on purpose, and no item anchors a test file.
+            if path.name == "tests.rs" or path.parent.name == "tests":
+                continue
             text = path.read_text(encoding="utf-8", errors="replace")
             lines = text.split("\n")
             for line, at, message in literals(text):
-                # A `CodegenError::Unsupported` says what it refuses in the literal it carries,
-                # which is rarely one of the three phrasings -- so look back over the constructor.
-                near = text[max(0, at - 160):at]
-                if not (REFUSAL.search(message) or UNSUPPORTED.search(near)):
+                # The window is wide enough to reach back over an `assert!`'s condition and over a
+                # `CodegenError::Unsupported(format!(` pair, both of which sit between the
+                # construct and the literal that says what it refuses.
+                near = text[max(0, at - 240):at]
+                unsupported = bool(UNSUPPORTED.search(near))
+                if not (unsupported or CONSTRUCT.search(near)):
+                    continue
+                if not (unsupported or REFUSAL.search(message)):
                     continue
                 # `#[error("nvs-codegen does not lower {0} yet")]` is the variant's Display impl,
-                # not a site: the sites are the places that CONSTRUCT it, and they are counted.
+                # not a site: the sites are the places that construct it, and they are counted.
                 if ENGINE.search(message) or near.rstrip().endswith("#[error("):
                     continue
                 found.append({
