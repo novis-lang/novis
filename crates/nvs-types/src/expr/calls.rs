@@ -67,8 +67,12 @@ pub(super) fn infer_method_call(
         (Some(qname), MemberName::Ident(name_span)) => {
             let name = span_text(env.src, *name_span).to_owned();
             let found = resolve_method(&qname, &name, env.signatures, env.graph);
-            if found.is_none() && !qname.is_core() && !qname.is_reserved_global_class() {
-                report_unknown_member(object.span, &qname, &name, "method", env);
+            if found.is_none() && !qname.is_core() {
+                if qname.is_reserved_global_class() {
+                    report_exception_accessor(object.span, &qname, &name, env);
+                } else {
+                    report_unknown_member(object.span, &qname, &name, "method", env);
+                }
             }
             if let Some((owner, sig)) = &found {
                 check_method_visibility(owner, &name, sig, *name_span, ctx, env);
@@ -544,6 +548,58 @@ fn report_method_on_erased_receiver(span: Span, name: &str, ty: TypeId, env: &mu
              `object` the opaque top of every class type, and ADR 0036 § 4 erases a property \
              access through one but not a call"
         )),
+    );
+}
+
+/// `$e->getMessage()` — a PHP accessor on the exception tree, which has none.
+///
+/// [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
+/// § 10 gives that tree **properties**, and [`crate::error_lib`] seeds exactly
+/// those plus the synthesized constructor, so every PHP accessor resolves to
+/// nothing here. Until this existed the tree was exempt from the unknown-member
+/// refusal above — an exemption that outlived the seeding it was written for —
+/// and `$e->getMessage()` reached `nvs-ir` with no resolved target and panicked
+/// there.
+///
+/// It is the ordinary [`code::E_UNKNOWN_MEMBER`] the property half already
+/// reports for `$e->nope`: one mistake, one code, whichever spelling reached
+/// it. What is worth a help of its own is that this is the one unknown method a
+/// *ported* program writes on purpose, so the help names the property that
+/// answers the same question, and the roster it names is
+/// [`nvs_hir::errors::PROPERTIES`] read rather than copied.
+fn report_exception_accessor(span: Span, qname: &QName, name: &str, env: &mut Env<'_>) {
+    // PHP's accessors, mapped to the property that answers the same question.
+    // `getFile`/`getLine` are one property here because a throw site is one
+    // string (`crate::error_lib`'s own docs own that shape), and `getCode` has
+    // no counterpart at all — ADR 0002 propagates a class, never a number.
+    let property = match name {
+        "getMessage" => Some("message"),
+        "getPrevious" => Some("previous"),
+        "getTrace" | "getTraceAsString" => Some("backtrace"),
+        "getFile" | "getLine" => Some("location"),
+        _ => None,
+    };
+    let roster = nvs_hir::errors::PROPERTIES
+        .iter()
+        .map(|p| format!("`{p}`"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let help = property.map_or_else(
+        || format!("the exception tree declares {roster} and no method but its constructor"),
+        |property| {
+            format!(
+                "the exception tree declares properties rather than accessors — write \
+                 `->{property}`; spec § 10 lists {roster}"
+            )
+        },
+    );
+    env.diags.report(
+        Diagnostic::error(
+            code::E_UNKNOWN_MEMBER,
+            format!("`{qname}` has no method named `{name}`"),
+        )
+        .with_primary(span, "referenced here")
+        .with_help(help),
     );
 }
 
