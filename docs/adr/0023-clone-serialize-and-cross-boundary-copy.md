@@ -199,6 +199,57 @@ No amendment to ADR 0022 is needed; this section exists so a future reader does 
   already flagged for `require` vs. `spawn script`; this ADR's diagnostics and docs should say, next to each
   other, which one `clone` gives and which one `serialize`/the isolate boundary gives.
 
+## Verification
+
+**Only *1* is verifiable yet**, and that is a fact about the milestones rather than a gap: *2*'s live
+carrier is the `spawn` boundary and *3*'s is `Core\Serialize`, neither of which exists before M5, so the
+eight cases below are the whole fixture set [M4's acceptance](../plan/m4.md) names for this ADR. Each is a
+program that runs; there is no refusal case, because nothing in *1* is a diagnostic.
+
+- **The copy is one level deep, and the class comes with it** (*1*).
+  `tests/conformance/class/clone-copies-one-level-only.nvst` is the rule stated plainly, and
+  `a-clone-of-a-subclass-keeps-its-class.nvst` is the half that is easy to leave to luck — the copy answers
+  `instanceof` as the original did, so `clone` is not a fresh construction of the *declared* type.
+- **A scalar or `array<T>` property is a value, an object-typed one is a handle** — the two halves of the
+  same sentence, so they are pinned as two cases that agree.
+  `a-clone-does-not-share-an-array-property.nvst` and `a-clone-copies-the-array-property-it-holds.nvst`
+  take the value half at the point it becomes observable ([ADR 0004](0004-memory-for-simplicity.md)'s
+  copy-on-write is indistinguishable from a real copy until one side writes, so the write is the
+  assertion), and `a-clone-shares-the-object-its-property-holds.nvst` takes the handle half three levels
+  down. `tests/differential/class/clone-is-shallow-like-phps.nvst` and
+  `an-array-property-cloned-diverges-like-phps.nvst` are their oracle twins: *1* keeps PHP's rule verbatim,
+  so PHP's own output is the expectation rather than a frozen one.
+- **The copy writes storage through the privileged path**, which is *1*'s last three bullets and the one
+  claim none of the cases above can reach.
+  `a-clone-copies-storage-without-running-anything.nvst` is each of them in one program: a `readonly`
+  property survives the copy without throwing, a declared `PropertyObserver` is told of the constructor's
+  writes and of an ordinary assignment afterwards but of nothing the `clone` did, and an object reached
+  through a cloned `array<Leaf>` property is still the same instance while the two arrays themselves
+  diverge on the first append. The observer half is asserted by a **count** over a run of further clones
+  rather than off a line, because a class that quietly stopped being observed at all would print the same
+  silence.
+- **"No `__clone()` runs" has no program at all**, and that is stronger than the rule asks for rather than
+  a case nobody wrote: [ADR 0029](0029-identifier-casing-is-checked.md)'s camelCase rule refuses the name
+  where it is *written* (`E0111`, suggesting `clone`), so a class cannot declare the hook for `clone` to
+  decline to call. What is verified instead is the lowering — `nvs-ir`'s
+  `clone_lowers_to_one_instruction_with_no_hook_call` snapshot — which is where a future member resolution
+  could reintroduce a call that no source spelling can currently ask for.
+- **Nothing verifies *4* directly**, by construction: it asserts the *absence* of a path to a
+  partially-initialized object, and the two things that keep it true are *1*'s "the source is already
+  live" (every case above starts from a constructed object) and *3*'s refusal of any payload missing a
+  declared property. So *4* is verified wherever *3* is, at M5, and a case of its own would only restate
+  one of theirs.
+
+**At M5**, when the other two carriers exist: `Core\Serialize::encode`/`::decode` round-trip a cyclic value
+and a shared substructure — the graph rule, not the tree one, so two properties pointing at one nested
+object still point at one object on the other side; a closure, an `inout` binding or a handle-holding
+object inside the value is refused naming the value and its path; a payload without the format marker, or
+naming a class the receiving side cannot resolve, or whose recorded property set does not match the class's
+current declaration, is refused rather than partially accepted; and a `tainted` payload is refused at the
+`decode` site ([ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 4). The isolate-boundary suite and
+this one **share** those fixtures rather than duplicating them, which is *2*'s "one operation, two
+carriers" asserted rather than described.
+
 ## Alternatives rejected
 
 - **Make `clone` recursive, unifying it with the graph copy.** Rejected: silently changes the observable
@@ -223,17 +274,3 @@ No amendment to ADR 0022 is needed; this section exists so a future reader does 
   versioning on `serialize`), the answer is an explicit method on that class, not a reopened hook — revisit
   only if a real pattern shows the explicit-method answer is not enough, not on a single request for
   parity with PHP.
-
-Verification, in the order it becomes possible:
-
-- **M4** (object model lands, [implementation-plan.md](../implementation-plan.md)): `clone $x` produces a
-  new instance sharing no COW-array buffer identity with `$x` after either side writes, while an
-  object-typed property of the clone remains `==` the original's; no `__clone` method is ever invoked even
-  if one is declared (it is an ordinary, unrelated method by that name); a `readonly` property survives the
-  clone without throwing.
-- **M5** (concurrency and script isolates land): `serialize()`/`unserialize()` round-trip a cyclic value
-  correctly; a closure, a reference, or a handle-holding object inside the value is refused with a diagnostic naming
-  it, at the same site the isolate-boundary conformance suite already checks
-  ([ADR 0006](0006-isolated-script-execution.md)); bytes that are not Novis's own format, or that name a class
-  whose declared properties no longer match, are refused rather than partially accepted; the isolate-boundary
-  and `serialize()` conformance suites share their graph-copy test fixtures rather than duplicating them.

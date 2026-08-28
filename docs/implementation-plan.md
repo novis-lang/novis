@@ -1406,11 +1406,37 @@
 > `tests/conformance/reject/a-method-call-through-a-receiver-that-names-no-class-is-refused.nvst`
 > pins all four refusals plus the nullable receiver's single code in one compile, with the two
 > spellings that do resolve — a named class, and a union narrowed by `instanceof` — written first,
-> so a position that stops resolving fails there rather than as a missing refusal. Three live tools
-> **are** the worklist and no session re-derives one: `python tools/holes.py` reads the refusal
-> sites out of `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item N` for one in
-> full), `python tools/loop.py --list` prints the named `.nvst` cases each stage still owes, and
-> `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> so a position that stops resolving fails there rather than as a missing refusal. **ADR 0023 has
+> the *Verification* section M4's acceptance names for it**, written over the eight cases that
+> already pin it rather than over rules nobody can reach yet: only *1* is verifiable at all before
+> M5, *2*'s live carrier being the `spawn` boundary and *3*'s being `Core\Serialize`, and the
+> section says so rather than listing fixtures for a member that does not exist. Six conformance
+> cases and their two oracle twins take the one-level rule, the class the copy keeps, and the two
+> halves of "a scalar or `array<T>` property is a value, an object-typed one is a handle" — the
+> value half asserted at the first write, since ADR 0004's copy-on-write is indistinguishable from a
+> real copy until then. What none of them reached is *1*'s last three bullets, which are one claim:
+> the copy writes storage through the **privileged path** an ordinary constructor already uses,
+> never through property assignment.
+> `tests/conformance/class/a-clone-copies-storage-without-running-anything.nvst` is each of them in
+> one program — a `readonly` property survives the copy without throwing, a declared
+> `PropertyObserver` is told of the constructor's writes and of an ordinary assignment afterwards
+> but of nothing the `clone` did, and an object reached through a cloned `array<Leaf>` property is
+> still the same instance while the two arrays diverge on the first append. The observer half is
+> asserted by a **count** over three further clones rather than off a line, a class that quietly
+> stopped being observed printing the same silence. One of the ADR's own claims was false and is
+> corrected rather than pinned: "no `__clone` method is ever invoked even if one is declared (it is
+> an ordinary, unrelated method by that name)" — ADR 0029's camelCase rule refuses the name where it
+> is *written* (`E0111`, suggesting `clone`), so the hook is unspellable rather than merely never
+> called, and what verifies the no-hook rule is `nvs-ir`'s
+> `clone_lowers_to_one_instruction_with_no_hook_call` snapshot, which is where a future member
+> resolution could reintroduce a call no source spelling can currently ask for. *4* is verified
+> wherever *3* is and gets no case of its own, asserting the absence of a path rather than a
+> behaviour. The headingless "Verification, in the order it becomes possible" block that trailed
+> *Revisiting* is deleted, its M5 half folded into the new section's closing paragraph. Three live
+> tools **are** the worklist and no session re-derives one: `python tools/holes.py` reads the
+> refusal sites out of `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item N` for
+> one in full), `python tools/loop.py --list` prints the named `.nvst` cases each stage still owes,
+> and `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,
