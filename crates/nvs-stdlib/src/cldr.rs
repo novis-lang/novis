@@ -360,6 +360,41 @@ pub(crate) fn time_fields_only(pieces: &[Piece]) -> Result<(), String> {
     Ok(())
 }
 
+/// Refuses a pattern that names a **zone**, which is the half of the same
+/// split [`read`] makes rather than [`render`].
+///
+/// `Core\Time::parse` is the one caller, and the refusal is about the
+/// *pattern* rather than about the text: that member takes a `Zone` as its own
+/// third argument, so a pattern naming one too would give two answers with no
+/// rule to pick between them. Making it here rather than inside [`read`] is
+/// what decides which spec § 10 class it is — a pattern this call site wrote
+/// is a bug in the program (`LogicError`), where text that does not match a
+/// well-formed pattern is the input's failure (`ParseError`), and a refusal
+/// raised while walking the text would have been the second where it is the
+/// first. Nothing about the civil fields themselves is refused, which is the
+/// half that makes this the third sibling rather than a stricter one: a parse
+/// pattern may name any of them, and one it does not name is left at the start
+/// of its range.
+///
+/// # Errors
+///
+/// A one-sentence reason, in [`compile`]'s shape.
+pub(crate) fn civil_fields_only(pieces: &[Piece]) -> Result<(), String> {
+    for piece in pieces {
+        let Piece::Field(field, _) = piece else {
+            continue;
+        };
+        if field.is_zonal() {
+            return Err(
+                "a pattern that parses names no zone — `Core\\Time::parse` takes one as its third \
+                 argument"
+                    .to_owned(),
+            );
+        }
+    }
+    Ok(())
+}
+
 /// Renders `at` through `pieces`.
 ///
 /// Total: every field reads a component the value already has, so there is
@@ -493,6 +528,10 @@ pub(crate) fn read(pieces: &[Piece], text: &str, zone: &TimeZone) -> Result<Zone
             }
             Piece::Field(field, count) => {
                 if field.is_zonal() {
+                    // Internal consistency: [`civil_fields_only`] refuses this
+                    // pattern before any text is read, so an arrival is a
+                    // caller of [`read`] that skipped that guard. It is worded
+                    // as that guard words it, because the two are one rule.
                     return Err(
                         "a pattern that parses names no zone — `Core\\Time::parse` takes one as \
                          its third argument"

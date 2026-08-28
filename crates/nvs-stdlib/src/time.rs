@@ -2464,7 +2464,12 @@ nvs_runtime::nvs_helper! {
     ///
     /// The zone is the third argument rather than something the pattern can
     /// name, which is why a zonal field in the pattern is refused: two answers
-    /// for one question is what ADR 0063 R20 leaves no room for.
+    /// for one question is what ADR 0063 R20 leaves no room for. That refusal
+    /// is [`crate::cldr::civil_fields_only`]'s and is made against the compiled
+    /// *pattern*, before a byte of the text is read, which is what puts it on
+    /// the `LogicError` side of the split below rather than on the
+    /// `ParseError` one — a well-formed offset in the text is not the input
+    /// failing to match.
     fn nvs_core_time_parse(_ctx, args: [3]) {
         let text = text_of(args, 0, "Core\\Time::parse")?;
         let pattern = text_of(args, 1, "Core\\Time::parse")?;
@@ -2473,9 +2478,11 @@ nvs_runtime::nvs_helper! {
         // pattern this call site wrote wrongly is a bug in the program, while
         // text that does not match a well-formed pattern is exactly "input did
         // not match a format this code declared".
-        let pieces = crate::cldr::compile(pattern).map_err(|why| {
-            Fault::thrown_as(ThrownClass::Logic, format!("Core\\Time::parse(): {why}"))
-        })?;
+        let pieces = crate::cldr::compile(pattern)
+            .and_then(|pieces| crate::cldr::civil_fields_only(&pieces).map(|()| pieces))
+            .map_err(|why| {
+                Fault::thrown_as(ThrownClass::Logic, format!("Core\\Time::parse(): {why}"))
+            })?;
         crate::cldr::read(&pieces, text, &zone)
             .map(|at| datetime_built(&at))
             .map_err(|why| {

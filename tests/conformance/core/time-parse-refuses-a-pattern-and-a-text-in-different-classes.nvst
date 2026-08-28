@@ -38,6 +38,19 @@ catch (LogicError $zoneCount) { echo $zoneCount->message, "\n"; }
 try { Core\Time::parse("nothing like a date", "yyyy-MM-dd Q", $berlin); }
 catch (LogicError $bothWrong) { echo $bothWrong->message, "\n"; }
 
+// A further refusal is about this *member* rather than about the pattern
+// language, and lands in the same class: `format` accepts every zonal field and shares the same
+// compiler, so a pattern naming a zone is wrong only for the member that takes
+// a `Zone` as its third argument (R20 — the pattern and the argument would be
+// two answers to one question). That makes it a *narrowing* of the compiled
+// pattern rather than a compile error, which is the shape
+// `Core\Time\Date::format` already has, and `crate::cldr::civil_fields_only`
+// is where `parse` makes it: before a byte of text is read, so it lands on the
+// side of the split the call site's own mistake belongs on. A well-formed
+// offset sitting in the text is not the input failing to match.
+try { Core\Time::parse("2024-03-31 Europe/Berlin", "yyyy-MM-dd VV", $berlin); }
+catch (LogicError $zonal) { echo $zonal->message, "\n"; }
+
 // The text's refusals say where they stopped, because a caller holding a
 // rejected line has an offset to look at and nothing else to look at. A literal
 // that does not match names the literal it wanted; a field that ran out of
@@ -54,22 +67,13 @@ catch (ParseError $monthName) { echo $monthName->message, "\n"; }
 try { Core\Time::parse("2024-03-31 12:00 and more", "yyyy-MM-dd HH:mm", $berlin); }
 catch (ParseError $trailing) { echo $trailing->message, "\n"; }
 
-// The one refusal that is about the *pattern* and is still a `ParseError`, and
-// the reason is that it cannot live in the compile step: `format` accepts every
-// zonal field and shares that compiler, so a pattern naming a zone is only
-// wrong for the member that takes a `Zone` as its third argument (R20 — the
-// pattern and the argument would be two answers to one question), and it is the
-// reader that discovers it. The sentence says which of the two to keep.
-try { Core\Time::parse("2024-03-31 Europe/Berlin", "yyyy-MM-dd VV", $berlin); }
-catch (ParseError $zonal) { echo $zonal->message, "\n"; }
-
 // Counted, and the point of counting is that these two tables are a partition
-// rather than two lists: not one of seven bad patterns lands in `ParseError`,
+// rather than two lists: not one of nine bad patterns lands in `ParseError`,
 // not one of six bad texts lands in `LogicError`, and every sentence on either
 // side is wrapped in the member's own name. A member throwing one class for
 // everything, or wrapping only the half it wrote itself, still prints plausibly
 // against any single row above.
-array<string> $patterns = ["Q", "R", "yyyy-MM-dd Q", "yyyy 'unterminated", "yyyy-MM-dd 'x", "V", "VVV"];
+array<string> $patterns = ["Q", "R", "yyyy-MM-dd Q", "yyyy 'unterminated", "yyyy-MM-dd 'x", "V", "VVV", "yyyy-MM-dd VV", "yyyy-MM-dd XXX"];
 int $tookPattern = 0;
 int $patternLogic = 0;
 int $patternParse = 0;
@@ -135,11 +139,11 @@ Core\Time::parse(): `Q` is not a pattern letter this library carries; quote it a
 Core\Time::parse(): a `'` opens a literal that nothing closes
 Core\Time::parse(): `V` names a zone only as `VV`, the IANA identifier
 Core\Time::parse(): `Q` is not a pattern letter this library carries; quote it as `'Q'` to emit it literally
+Core\Time::parse(): a pattern that parses names no zone — `Core\Time::parse` takes one as its third argument
 Core\Time::parse(): expected ` ` at offset 10
 Core\Time::parse(): expected 2 or more digits of month at offset 6
 Core\Time::parse(): expected a month name at offset 5
 Core\Time::parse(): 9 characters of trailing text
-Core\Time::parse(): a pattern that parses names no zone — `Core\Time::parse` takes one as its third argument
-0 taken, 7 logic, 0 parse, 7 named
+0 taken, 9 logic, 0 parse, 9 named
 1 taken, 0 logic, 6 parse, 6 named
 2 caught either way

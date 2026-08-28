@@ -1586,6 +1586,15 @@ is why" — is this file.
   used by a conformance case" long after the case itself is green. Write each new member
   once in the `Core\…` spelling somewhere in the case — which is worth a line of its own
   anyway, since the two spellings being one member is a fact about `use`.
+- **A `--ORACLE-DIVERGES--` section is one line**, and the runner refuses the case
+  before it runs anything otherwise (`line N: `--ORACLE-DIVERGES--` is one line`). The
+  standing cases read as paragraphs because they are one very long line that a viewer
+  wraps, so a divergence written as prose with blank lines between its paragraphs looks
+  exactly like them on disk and fails at the parse. Write it as one line from the start.
+  The neighbouring fact, worth knowing before choosing the twin: the `php` on this box
+  has **no `mbstring`** (the playbook bullet above owns that) but **does** have `iconv`,
+  and `strptime` was removed from PHP outright, so `DateTime::createFromFormat` is the
+  twin a `Core\Time::parse` oracle is written against.
 
 ## Splitting a file that got too big
 
@@ -2693,3 +2702,12 @@ every session. Nothing below was reworded on the way.
   early arm can already do: the chain root's recorded `HookedProperty`/`ShapeProperty`, or a
   syntactic `nullsafe: true`, gated on the level being an assignment target at all so a plain *read*
   through the same receiver keeps its only diagnostic.
+- **A standing case can pin the spec § 10 *class* a refusal arrives in, so a member
+  whose classification you change fails `verify.py`'s conformance leg and not its unit
+  tests.** `Core\Time::parse`'s zonal-pattern refusal was a `ParseError` because the
+  case that pinned it argued the check "cannot live in the compile step" — which is
+  true and beside the point: `crate::cldr`'s `date_fields_only`/`time_fields_only` are
+  already per-member *narrowings* of one shared compiler, so a third one is the shape
+  the module has. Read the case's own reasoning before reclassifying, and if the
+  reasoning is what is wrong, rewrite that paragraph rather than the expectation
+  alone — the count below it is usually what decides whether the row moved sides.
