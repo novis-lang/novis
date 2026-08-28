@@ -1331,8 +1331,29 @@
 > *call site*, which is the limit `E0721` already names for ADR 0043 § 4's synthesized forward; and
 > a `Core`-owned class, whose native members *borrow* argument 0 where a compiled method owns its
 > parameters — the very difference that made `renderer` its own descriptor field rather than a row
-> in the table. **The lowering itself is not landed**: `nvs-ir` still panics at `lower/expr.rs:2389`
-> on that one receiver, whose roster names it alone.
+> in the table. **The descriptor half of that convention is built.** `nvs_runtime::MethodRow` is
+> what a method table holds now — the compiled address plus the callee's declared shape, its `arity`
+> and the `FN_PARAM_TAGS` nibble word, in the encoding a closure object already carries and through
+> the one packing both go through (`nvs_ir::lower::pack_param_tags`), so the two paths
+> `check_param_tags` serves cannot be handed two encodings. `nvs-codegen` records each function's
+> shape in the very declaration pass that gives it a `FuncId`, under the very
+> `{declaring}::{method}` label the address is later found by, so the two halves of a row cannot
+> describe two different callees; and the receiver is subtracted in `MethodShape::of` alone, because
+> a row describes what a *call site* writes while `nvs_ir::ir::Function::params` describes what the
+> callee declares — off by that one, every nibble judges the argument beside the one it describes,
+> which is not a wrong count but a shifted word. The `public` bit is the one fact with no source
+> below the front end and it travels the whole way now: `nvs_types::layout` reads it off the
+> declaration and `nvs_ir::ir::Class::methods` carries it as a third element, an absent visibility
+> keyword reading as `public` because `nvs_syntax::check_declarations` already refuses the source
+> that omits one and because the synthesized members write no modifier at all — an exception
+> constructor, ADR 0053 § 4's state machine, an ADR 0043 § 4 forward, a closure's `invoke`. One
+> field was added that the ADR's paragraph implied rather than named, and it is the difference
+> `renderer` already stands on: `MethodRow::native` is true for exactly the `Core`-owned rows
+> `nvs_stdlib::instance` puts in a descriptor, whose addresses are ADR 0002 helpers that **borrow**
+> argument 0 where a compiled method owns its parameters and for which that crate holds no signature
+> at all — so the `Core` refusal that paragraph names arrives as a bit the row states rather than as
+> a shape a caller could believe. **The lowering itself is still not landed**: `nvs-ir` still panics
+> at `lower/expr.rs:2389` on that one receiver, whose roster names it alone.
 > `tests/conformance/reject/a-method-call-through-a-receiver-that-names-no-class-is-refused.nvst`
 > pins all four refusals plus the nullable receiver's single code in one compile, with the two
 > spellings that do resolve — a named class, and a union narrowed by `instanceof` — written first,
