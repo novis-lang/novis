@@ -17,10 +17,10 @@ for p in nvs-syntax nvs-hir nvs-types nvs-ir nvs-runtime nvs-codegen nvs-stdlib 
 ```
 
 then substring-match every `tests = [...]` entry in `loop-goal.toml` against that roster. Measured
-2026-08-28 at `e0c9f3e`: **54 of 156 named guard tests match nothing cargo would run.** **Fifty-one**
-of those have since been reconciled — the ticked lines below — leaving **3**, over the **128**
+2026-08-28 at `e0c9f3e`: **54 of 156 named guard tests match nothing cargo would run.** **Fifty-three**
+of those have since been reconciled — the ticked lines below — leaving **1**, over the **128**
 entries `tests = [...]` now holds across every `cargo-named` check (127 distinct: Stage 2 and Stage 5
-both name `a_disjoint_equality_does_not_compile`). Twenty-nine of the fifty-one were a cause-2
+both name `a_disjoint_equality_does_not_compile`). Twenty-nine of the fifty-three were a cause-2
 *move* out of a `tests = [...]` list and into `cases`, so the denominator moves with them, and three
 whole `[[check]]` blocks went that way entire — Stage 5's two and Stage 7's `nvs-stdlib (the
 assertion roster)`.
@@ -222,12 +222,15 @@ checks are gone rather than renamed.
 - [x] `a_dump_redacts_a_secret_qualified_property` — cause 2, now
       `core/a-secret-typed-property-is-redacted-wherever-it-is-dumped.nvst`
 
-`nvs-codegen (fatal locals)`, `cargo test -p nvs-codegen` — 1 of 1 unresolved, **cause 3**.
+`nvs-codegen (fatal locals)`, `cargo test -p nvs-codegen` — 0 of 1 unresolved — closed
 
-- [ ] `a_fatal_releases_the_frames_locals` — the work is not done. `throwing.rs` asserts the
-      neighbouring half (`a_frame_that_throws_releases_the_strings_it_still_held`) and that a fatal
-      is not caught, but nothing asserts what a `FATAL` does to the frame's locals, and the valgrind
-      sweep cannot see it: `examples/fatal.nvs` is on its skip list for exiting non-zero by design.
+- [x] `a_fatal_releases_the_frames_locals` — was cause 3, and the work is landed under the name the
+      check already named: [throwing.rs:304](../../crates/nvs-codegen/tests/throwing.rs#L304). The
+      observation is the *allocator's* balance rather than any output, because nothing in a program
+      runs after a fatal — a `#[global_allocator]` in that test binary, the shape `tests/arrays.rs`
+      already uses. `Core\Arr::countBy` over a `float`-keyed subject is the trigger, a
+      `Fault::fatal` reachable from source with two locals live, and a second assertion on bytes
+      *ever* allocated is what keeps the zero balance from being vacuous.
 
 ### Stage 6 — checker and parser
 

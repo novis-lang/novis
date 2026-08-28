@@ -207,3 +207,147 @@ fn a_frame_that_throws_releases_the_strings_it_still_held() {
     );
     assert_eq!(output_of(&source), "caught: boom");
 }
+
+/// An allocator that keeps a running balance of the bytes outstanding on the
+/// calling thread, so the guard below can say a frame handed its locals back
+/// rather than only that its refcounts looked balanced.
+///
+/// Thread-local for the reason `nvs_runtime`'s own `counting_alloc` states: a
+/// test binary runs its tests concurrently, and a process-wide balance would
+/// fold a neighbour's allocations into the delta.
+///
+/// **Only installed in a debug build**, exactly as `tests/arrays.rs` installs
+/// its own and for the same reason: a `#[global_allocator]` is chosen once per
+/// binary, and an optimized build of this one already has `nvs-runtime`'s
+/// pooled allocator. `cargo test`, the profile `tools/verify.py` runs, is a
+/// debug build.
+#[cfg(debug_assertions)]
+struct Counting;
+
+#[cfg(debug_assertions)]
+thread_local! {
+    /// Signed for the reason `nvs_runtime::counting_alloc` gives: a block
+    /// allocated on one thread and freed on another would otherwise wrap.
+    static LIVE: std::cell::Cell<isize> = const { std::cell::Cell::new(0) };
+    /// Monotonic, and the reason the balance above is not a vacuous zero: a
+    /// run that allocated nothing through this allocator would balance too.
+    static TOTAL: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(debug_assertions)]
+fn live_bytes() -> isize {
+    LIVE.with(std::cell::Cell::get)
+}
+
+#[cfg(debug_assertions)]
+fn allocated_bytes() -> usize {
+    TOTAL.with(std::cell::Cell::get)
+}
+
+#[cfg(debug_assertions)]
+#[expect(
+    unsafe_code,
+    reason = "`GlobalAlloc` is an unsafe trait, and every method forwards its \
+              own contract verbatim to `System`"
+)]
+unsafe impl std::alloc::GlobalAlloc for Counting {
+    unsafe fn alloc(&self, layout: std::alloc::Layout) -> *mut u8 {
+        let ptr = unsafe { std::alloc::System.alloc(layout) };
+        if !ptr.is_null() {
+            LIVE.with(|live| live.set(live.get() + layout.size().cast_signed()));
+            TOTAL.with(|total| total.set(total.get() + layout.size()));
+        }
+        ptr
+    }
+
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: std::alloc::Layout) {
+        LIVE.with(|live| live.set(live.get() - layout.size().cast_signed()));
+        unsafe { std::alloc::System.dealloc(ptr, layout) };
+    }
+
+    unsafe fn realloc(&self, ptr: *mut u8, layout: std::alloc::Layout, new_size: usize) -> *mut u8 {
+        let grown = unsafe { std::alloc::System.realloc(ptr, layout, new_size) };
+        if !grown.is_null() {
+            LIVE.with(|live| {
+                live.set(live.get() + new_size.cast_signed() - layout.size().cast_signed());
+            });
+            TOTAL.with(|total| total.set(total.get() + new_size.saturating_sub(layout.size())));
+        }
+        grown
+    }
+}
+
+#[cfg(debug_assertions)]
+#[global_allocator]
+static COUNTING: Counting = Counting;
+
+/// The other half of the neighbour above, over the exit ADR 0020 keeps out of
+/// every `catch`: a `FATAL` leaves the frame too, so its locals are released on
+/// the way out or they are lost for good.
+///
+/// The observation has to be the allocator's balance rather than a program's
+/// output, because nothing in the program runs after a fatal — that is what a
+/// fatal is. It cannot be the valgrind sweep either: `examples/fatal.nvs` is on
+/// that sweep's skip list for exiting non-zero by design, which is exactly why
+/// `docs/agent/guard-name-debt.md` carried this name as work rather than as a
+/// rename.
+///
+/// `Core\Arr::countBy` over a `float`-keyed subject is the trigger, because it
+/// is a `Fault::fatal` reachable from source *after* two locals are live —
+/// `nvs_stdlib`'s `key_bytes` raises it, and `docs/agent/playbook.md` records
+/// that no handler sees it. Both locals are genuine allocations: the string is
+/// a concatenation rather than a literal (a literal is an address in the
+/// unit's data section, `tests/strings.rs`), and the array is a heap buffer of
+/// its own.
+#[cfg(debug_assertions)]
+#[test]
+fn a_fatal_releases_the_frames_locals() {
+    /// The held string's length, big enough that no other allocation the run
+    /// makes could be mistaken for it.
+    const FILLER: usize = 512;
+
+    // Half a kilobyte of it, so the balance below cannot be satisfied by a run
+    // that never allocated the local at all: the assertion on `allocated_bytes`
+    // is what makes the zero delta mean something, and no other allocation this
+    // run makes is anywhere near that size.
+    let filler = "x".repeat(FILLER);
+    let source = format!(
+        "<?nvs\nstring $held = \"{filler}\" . \"!\";\n\
+         array<float> $floats = [1.5, 2.5];\n\
+         echo Core\\Json::encode(Core\\Arr::countBy($floats));\n"
+    );
+    let unit = compile(&source).expect("the fixture compiles");
+    let mut ctx = Ctx::buffered();
+    unit.install_in(&mut ctx);
+    let entry = unit
+        .function("<script>")
+        .expect("the script frame was compiled");
+
+    // The run is measured, not the compile: what is under test is what the
+    // compiled code hands back, and the front end's own allocations would
+    // swamp two buffers.
+    let before = live_bytes();
+    let spent = allocated_bytes();
+    assert_eq!(call(entry, &mut ctx, &[]).err(), Some(FATAL));
+    assert!(
+        allocated_bytes() - spent >= FILLER,
+        "the local's buffer did not come through this allocator, so the \
+         balance below would prove nothing"
+    );
+
+    // The fatal's message is a `String` the context owns until it is taken,
+    // and it is the one allocation the run is *meant* to leave behind.
+    let pending = ctx.take_pending();
+    assert_eq!(
+        pending.as_deref(),
+        Some("Core\\Arr::countBy expected an `int|string` key, got tag 4")
+    );
+    drop(pending);
+    drop(ctx.take_buffered_output());
+
+    assert_eq!(
+        live_bytes(),
+        before,
+        "a fatal left the frame's locals allocated"
+    );
+}
