@@ -1,0 +1,76 @@
+--TEST--
+Core\Random::token and Core\Encoding::toHex over Core\Random::bytes agree on every count — the same width, the same lowercase alphabet, and the same round trip back to a buffer — so a renderer that grew its own hex fails here while still looking right on its own line — spec § 11, ADR 0009 § 3, ADR 0063 R4
+
+--FILE--
+<?nvs
+// `token` is `bytes` rendered, and it renders the hex *itself* rather than
+// calling `Core\Encoding::toHex` — the helper's own doc comment says the two
+// rows exist side by side rather than one being the other's special case. Two
+// renderings of one rule is exactly where they can drift apart, so the
+// question below is asked of both and what is asserted is that they **agree**,
+// never what either answered: a draw has no value to pin. The width, the
+// alphabet and the zero-count refusal are each already pinned for one member
+// alone by the sibling cases (`random-draws-inside-its-stated-bounds`,
+// `random-bytes-draws-a-raw-buffer`); none of them would notice the other
+// member disagreeing.
+final class Hex {
+    // A draw cannot be compared to a draw, so every question is asked of the
+    // *shape* of an answer: its width, and whether it is written in the one
+    // alphabet ADR 0009 § 3 gives hex.
+    public static function lower(string $s): bool {
+        return Core\Regex::matches($s, '^[0-9a-f]*$');
+    }
+}
+
+array<uint> $counts = [1 as uint, 2 as uint, 3 as uint, 7 as uint, 16 as uint, 32 as uint, 64 as uint];
+int $widths = 0;
+int $alphabets = 0;
+int $doubled = 0;
+uint $two = 2;
+
+foreach ($counts as uint $n) {
+    string $viaToken = Core\Random::token($n);
+    string $viaBytes = Core\Encoding::toHex(Core\Random::bytes($n));
+
+    // The agreement, one count at a time: the two renderings are the same
+    // width, and it is the width the *entropy* count implies rather than the
+    // character count — a member reading its argument as "characters wanted"
+    // halves the strength of every token in a program and is caught by the
+    // same line.
+    $widths = $widths + ((Core\Str::length($viaToken) == Core\Str::length($viaBytes)) ? 1 : 0);
+    $doubled = $doubled + ((Core\Str::length($viaToken) == ($n * $two)) ? 1 : 0);
+
+    // Both are lower-case hex, and both say so through the same predicate. A
+    // renderer emitting `A`–`F` still round-trips through its own reader, so
+    // only asking one question of both catches it.
+    $alphabets = $alphabets
+        + ((Hex::lower($viaToken) && Hex::lower($viaBytes)) ? 1 : 0);
+}
+echo "counts ", Core\Arr::count($counts), "\n";
+echo "same width ", $widths, ", entropy-counted ", $doubled, ", lower hex ", $alphabets, "\n";
+
+// The round trip closes the agreement in the other direction: hex parsed back
+// is the buffer it was drawn from, so `token`'s rendering is not merely
+// *shaped* like `toHex`'s, it is readable by `toHex`'s own reader at the
+// stated length. ADR 0009 § 3 is why the comparison happens in hex rather
+// than over the buffer.
+int $trips = 0;
+foreach ($counts as uint $m) {
+    string $t = Core\Random::token($m);
+    $trips = $trips
+        + ((Core\Encoding::toHex(Core\Encoding::fromHex($t)) == $t) ? 1 : 0);
+}
+echo "round trips ", $trips, "\n";
+
+// The default is the count spelled out, not a second policy: `CoreMethod`'s
+// `defaults` row carries 32, so the two spellings agree on width. Their
+// *values* do not agree and must not — two draws differing is what the sibling
+// sweep counts.
+echo (Core\Str::length(Core\Random::token()) == Core\Str::length(Core\Random::token(32 as uint)))
+    ? "default agrees" : "default differs", "\n";
+
+--EXPECT--
+counts 7
+same width 7, entropy-counted 7, lower hex 7
+round trips 7
+default agrees
