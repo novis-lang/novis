@@ -2,75 +2,68 @@
 
 ## State
 
-**M4's Stage 8, depth.** The tree is at **802 conformance plus 189 differential**. `python
-tools/gaps.py --coverage` ranks by the median cases per member; `Core\Uri` is still the
-thinnest class on the board at median 3.0, but its three *floor-2* members are now different
-ones — this session took `buildQuery`, `compareTo` and `decodeComponent`, and the tool now
-names `decodeFormValue`, `path` and `resolve`. Nothing is blocked.
+**M4's Stage 8, depth.** The tree is at **805 conformance plus 189 differential**.
+`Core\Uri` is no longer the thinnest class on the board: three sessions of depth took it
+from median 3.0 to **4.0**, and `python tools/gaps.py --coverage` now ranks `Core\Bytes`,
+`Core\Encoding`, `Core\Test`, `Core\Random` and `Core\Debug` at 3.0 above it. Nothing is
+blocked.
 
-One finding worth a session, recorded as a playbook bullet and a backlog line rather than
-acted on here: **no `Core` class reaches `nvs_hir::implements_interface`**, so `Core\Uri`'s
-`compareTo` exists while `$a < $b` over two `Uri`s is `E0411`. The case landed pins the
-current, reachable truth — `compareTo` written out is the only order two `Uri`s have — and
-says so in its own comments, so closing the gap does not invalidate it.
+The gap recorded last session still stands and is still worth a session on its own: **no
+`Core` class reaches `nvs_hir::implements_interface`**, so `Core\Uri::compareTo` exists
+while `$a < $b` over two `Uri`s is `E0411`. It is in the backlog below.
 
-The three cases landed are the invariance, the bound-and-refusals and the edges shapes:
+Three cases landed, all over `crates/nvs-stdlib/src/uri.rs`:
 
-- **`uri-build-query-is-the-form-encoder-plus-its-joiners-over-a-swept-table.nvst`** — a table
-  of twelve names, each also its own value, with three properties counted over all of it:
-  a one-pair string is exactly `encodeFormValue` on both halves joined by `=` (so the escaping
-  is the encoder member's and not a second one that could drift), the halves are not
-  interchangeable, and `parseQuery` reads each back. Then the whole table as one map: twelve
-  pairs, eleven separators, the text pinned byte for byte against PHP's `http_build_query`,
-  and the parsed result equal to the map key order included. Plus `scalar_text`'s own row —
-  a `bool` writes `1`/`0`, a `null` drops its pair — and the empty map's empty string.
-- **`uri-compare-to-answers-one-of-three-values-and-is-the-only-order-two-uris-have.nvst`** —
-  the bound the two existing cases cannot see: all 36 ordered pairs of a six-URI corpus answer
-  exactly `-1`, `0` or `1`, with all three occurring (14/8/14), so a byte difference would fail
-  here while still being a total order. The corpus notes that § 6.2.2 is *syntax-based* and
-  stops there — `http://a:80/` is not a third spelling of `http://a/`. Then the refusals:
-  `Core\Arr::min`, `max` and `sort` each throw on an object subject, and the way through is
-  `{comparator: ...}` calling this member.
-- **`uri-decode-component-is-an-escape-only-when-it-is-well-formed-and-refuses-a-non-utf-8-octet.nvst`**
-  — the two edges with the value on each side. A `%` is an escape only with two hex digits, so
-  `a%`, `a%4` and `a%zzb` decode to themselves and `%41` to `A`, all four agreeing with PHP's
-  `rawurldecode`; and the ADR 0009 divergence, where five families of invalid sequence — a lone
-  `%FF`, a truncation, a surrogate, an overlong form and an out-of-range lead — are all refused
-  (5/5, counted, because validating the first octet alone accepts three of them), with one
-  message pinned. On the accepting side: `%00` is an ordinary character, and the multi-byte
-  sequences decode to the one character each spells.
+- **`uri-resolve-stops-at-a-base-that-is-not-absolute-and-every-refusal-is-catchable.nvst`**
+  — the other half of the § 5.4 abnormal table, which is all rows that resolve. A corpus of
+  fourteen bases is swept and the verdicts *counted*: 4 answer, 6 are refused as relative
+  references and 3 as opaque, 0 unaccounted, so a member reading `//host/path` as if it
+  were `http://host` fails here. Three minimal pairs name the bound — `http:/rooted` against
+  `http:g`, `http://a` against `//a`, `file:///x` against `file:x` — each one token apart
+  and on opposite sides. The reference side is bounded too: `""` is the last accepted one,
+  and ungrammatical text is a *third* catchable message naming `resolve` rather than
+  `parse`. Both base-side messages are pinned once and compared against thereafter.
+- **`uri-path-is-the-one-component-that-always-exists.nvst`** — `path` is the only reader
+  typed `string` rather than `?string`, which is a claim about a grammar, so it is counted
+  over a fourteen-row corpus: path is absent 0 times where scheme is 5, host 7, query 11,
+  fragment 11, userInfo 13 and port 13. Seven of those paths are `""`, and every one of the
+  fourteen appears in the recomposed text. The static half needs no assertion and cannot
+  have one — `$uri->path() == null` does not compile under ADR 0090 § 4 — and the case says
+  so where the `??` it does not need would have been.
+- **`uri-decode-form-value-is-decode-component-plus-the-plus.nvst`** — the twin, asserted as
+  agreement. Over the 95 printable ASCII bytes the two decoders agree on 94 and differ on
+  exactly `[+]`; once each byte is run through `encodeComponent` they agree on all 95 and
+  round-trip all 95, `%2B` included. Then one shared decoder, counted rather than rewritten:
+  six malformed-escape rows answer identically under both members (five decode to
+  themselves, `%%41` being the sixth because the scan steps one byte rather than giving up),
+  and all five ADR 0009 non-UTF-8 families are refused by both. Checked against PHP 8.5's
+  `urldecode`/`rawurldecode`, which differ on exactly `chr(43)` over the same sweep.
 
 ## Next group
 
-**`Core\Uri`'s remaining floor**, the three members `gaps.py --coverage` now names, over the
-same file set as this session: `crates/nvs-stdlib/src/uri.rs` plus `tests/conformance/core/`.
-Seventeen-plus `uri-*` cases exist, so check what each member is already asked before writing:
-`ls tests/conformance/core/ | grep uri` and `sed -n '2p'` over the hits.
+**`Core\Bytes`'s floor** — the three members `gaps.py --coverage` names at two cases each,
+over one file set: `crates/nvs-stdlib/src/bytes.rs` plus `tests/conformance/core/`. Check
+what each is already asked before writing: `ls tests/conformance/core/ | grep bytes`.
 
-- [ ] **`Core\Uri::resolve`'s refusals, asserted as a bound** (`uri.rs:1628`) — one case. The
-      RFC 3986 § 5.4 abnormal table is already run row by row; what no case asks is where
-      resolution *stops* — a base that is not absolute, a base with no scheme — and whether
-      every refusal is the one catchable `Fault::thrown` message rather than a plausible answer.
-- [ ] **`$uri->path` is never `null` and is the one component that always exists** (`uri.rs:1503`)
-      — one case. Counted over a corpus spanning all five RFC 3986 § 3.3 shapes: an empty path,
-      a rootless one, an absolute one, one with an authority, and one from `resolve`'s output;
-      the invariant is that `path()` answers a `string` on every one while the other six readers
-      answer `?string`.
-- [ ] **`Core\Uri::decodeFormValue`'s edges** (`uri.rs:1772`) — one case, the twin of the
-      `decodeComponent` case landed this session: `+` is a space and `%2B` the typed `+`, the
-      malformed-escape rule is the same, and the non-UTF-8 refusal is the same message under a
-      different member name — asserted as *agreement* with `decodeComponent` over a table where
-      the two must answer alike, and disagreement on exactly the two bytes the form encoding
-      spells differently.
+- [ ] **`Core\Bytes::at`'s bound, on both sides** (`bytes.rs:490`) — one case. The last
+      in-range index and the first out-of-range one, named together, at both ends and over
+      an empty receiver; and whether an out-of-range read is a catchable throw or a `?int`.
+- [ ] **`Core\Bytes::endsWith` and `startsWith` agree at their shared edges**
+      (`bytes.rs:629`) — one case. The empty needle, a needle longer than the subject, a
+      needle equal to it, and the fact that the two answer the same question from two ends,
+      counted over one swept table rather than read off a line.
+- [ ] **`Core\Bytes::repeat`'s degenerate counts** (`bytes.rs:669`) — one case. Zero, one,
+      an empty subject repeated, and the first count the member refuses; `Core\Str::repeat`
+      takes a `uint`, so check this one's parameter type before writing the sweep.
 
 ## Backlog
 
-- No `Core` class implements an interface as far as `nvs_hir::implements_interface` is
-  concerned, so ADR 0013's `<`/`<=>` over two `Core\Uri` (or `Core\Time\Date`) is `E0411` —
-  `crates/nvs-stdlib/src/registry.rs` records no interface list. Owned by ADR 0013 and the
-  registry's own module doc.
-- `mixed as Core\Uri` is `E0711` with a message saying the target "names no class", which is
-  the same missing registry fact seen from `nvs_types`' conversion table.
-- Stage 8's depth ranking is `python tools/gaps.py --coverage`; `--errors` still lists the
-  unasserted refusal sites, and `docs/agent/guard-name-debt.md` still owns the 54 guard names
-  the acceptance gate never reaches.
+- No `Core` class reaches `nvs_hir::implements_interface`, so `$a < $b` over two `Uri`s is
+  `E0411` while `compareTo` exists — docs/agent/loop-goal.md, a session of its own.
+- `Core\Encoding`'s floor (`toBase32`, `toBase64`, `toBase64Url` at two cases each) —
+  `crates/nvs-stdlib/src/encoding.rs:890`, the next group after `Core\Bytes`.
+- `Core\Test`, `Core\Random` and `Core\Debug` are also at median 3.0 — `gaps.py --coverage`.
+- 54 of the 156 guard tests `loop-goal.toml` names match nothing `cargo test` runs —
+  docs/agent/guard-name-debt.md.
+- `Core\Str` and `Core\Arr` have single-case members (`fold`, `graphemes`, `column`,
+  `flattenDeep`) under an otherwise deep median — `gaps.py --coverage`.

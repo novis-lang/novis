@@ -1,0 +1,122 @@
+--TEST--
+`Core\Uri::decodeFormValue` is `decodeComponent` plus one byte: `+` is the only input the two disagree on, they agree again once it is escaped, and they refuse the same non-UTF-8 sequences — spec § 12
+--FILE--
+<?nvs
+// `decodeFormValue` replaces PHP's `urldecode` and `decodeComponent` replaces
+// `rawurldecode`, and the whole difference between them is that a `+` is a
+// space in the form encoding. That is a claim about *every other byte*, so it
+// is asserted by sweeping printable ASCII and counting: a member that grew its
+// own escape handling — a second `%` rule, a different malformed-escape answer
+// — fails here while still looking right on any single line.
+//
+// Both halves were checked against PHP 8.5 while this was written:
+// `rawurldecode` and `urldecode` differ on exactly `chr(43)` over the same
+// sweep, and agree row for row with the literal rows below.
+
+int $agree = 0;
+string $differing = "";
+int $escapedAgree = 0;
+int $escapedRoundTrip = 0;
+int $swept = 0;
+int $code = 32;
+for (; $code <= 126; $code = $code + 1) {
+    string $c = Core\Str::fromCodePoint($code as uint);
+    $swept = $swept + 1;
+
+    // The byte itself, handed to both decoders unescaped.
+    if (Core\Uri::decodeComponent($c) == Core\Uri::decodeFormValue($c)) {
+        $agree = $agree + 1;
+    } else {
+        $differing = $differing . $c;
+    }
+
+    // The same byte, escaped. `encodeComponent` is the encoder that never
+    // writes a `+` for anything, so its output is the common ground: an escape
+    // means the same thing to both decoders, `%2B` included, which is why a
+    // form value can still carry a literal `+`.
+    string $escaped = Core\Uri::encodeComponent($c);
+    if (Core\Uri::decodeComponent($escaped) == Core\Uri::decodeFormValue($escaped)) {
+        $escapedAgree = $escapedAgree + 1;
+    }
+    if (Core\Uri::decodeFormValue($escaped) == $c) {
+        $escapedRoundTrip = $escapedRoundTrip + 1;
+    }
+}
+echo "swept ", $swept, ", raw agreement ", $agree, " differing on [", $differing,
+     "], escaped agreement ", $escapedAgree, ", escaped round trip ", $escapedRoundTrip, "\n";
+echo "[", Core\Uri::encodeComponent("+"), "] [", Core\Uri::encodeFormValue(" "), "]\n";
+
+// One line carrying all three spellings at once, from both sides. `%20` is an
+// escape to the form decoder too, which is what makes it the right reader for a
+// query string written by something that followed RFC 3986 rather than the form
+// encoding.
+echo "[", Core\Uri::decodeFormValue("a+b%2Bc%20d"), "] [",
+     Core\Uri::decodeComponent("a+b%2Bc%20d"), "]\n";
+
+// The twin's other half: a `%` is an escape only when two hex digits follow,
+// and a malformed one decodes to itself rather than throwing or being dropped.
+// Counted against `decodeComponent` rather than written out, because the point
+// is that one decoder answers both members.
+array<string> $malformed = ["a%", "a%4", "a%zzb", "%", "%%41", "100%"];
+int $sameAsComponent = 0;
+int $unchanged = 0;
+foreach ($malformed as string $row) {
+    if (Core\Uri::decodeFormValue($row) == Core\Uri::decodeComponent($row)) {
+        $sameAsComponent = $sameAsComponent + 1;
+    }
+    if (Core\Uri::decodeFormValue($row) == $row) {
+        $unchanged = $unchanged + 1;
+    }
+}
+echo "malformed rows ", Core\Arr::count($malformed) as int, ", same as decodeComponent ",
+     $sameAsComponent, ", decoded to themselves ", $unchanged, "\n";
+
+// Five of those six, not six: `%%41` is the row where a literal `%` is followed
+// by an escape that *is* well formed, so the scan does not give up at the first
+// `%` and resume — it steps one byte and reads the next `%41` as the `A` it is.
+echo "[", Core\Uri::decodeFormValue("%%41"), "]\n";
+
+// And the refusals agree too. ADR 0009 makes a `string` UTF-8 by construction,
+// so an escape sequence that is not UTF-8 has nothing to decode *to* — five
+// families of it, each refused by both members. Validating only the first octet
+// would accept three of these five, which is why they are counted.
+array<string> $invalid = ["%FF", "%C3", "%ED%A0%80", "%C0%AF", "%F5%80%80%80"];
+int $bothRefused = 0;
+foreach ($invalid as string $bad) {
+    int $refusals = 0;
+    try {
+        echo Core\Uri::decodeFormValue($bad), "\n";
+    } catch (Throwable $form) {
+        $refusals = $refusals + 1;
+    }
+    try {
+        echo Core\Uri::decodeComponent($bad), "\n";
+    } catch (Throwable $component) {
+        $refusals = $refusals + 1;
+    }
+    if ($refusals == 2) {
+        $bothRefused = $bothRefused + 1;
+    }
+}
+echo "both refused ", $bothRefused, " of ", Core\Arr::count($invalid) as int, "\n";
+
+// The message names the member that was called, so the two are not literally
+// the same string — this is `decodeFormValue`'s, pinned once.
+try {
+    echo Core\Uri::decodeFormValue("%FF"), "\n";
+} catch (Throwable $pinned) {
+    echo $pinned->message, "\n";
+}
+
+// The accepting side of the same boundary: a well-formed multi-byte sequence
+// decodes to the one character it spells, `+` and all.
+echo "[", Core\Uri::decodeFormValue("caf%C3%A9+au+lait"), "]\n";
+--EXPECT--
+swept 95, raw agreement 94 differing on [+], escaped agreement 95, escaped round trip 95
+[%2B] [+]
+[a b+c d] [a+b+c d]
+malformed rows 6, same as decodeComponent 6, decoded to themselves 5
+[%A]
+both refused 5 of 5
+Core\Uri::decodeFormValue(): the decoded octets holds a byte a `string` cannot — byte 0 begins a sequence that is not valid UTF-8. Percent-decoding answers octets, so text carrying an escape for a non-UTF-8 byte has no `string` to decode to
+[café au lait]

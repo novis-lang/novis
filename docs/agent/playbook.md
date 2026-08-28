@@ -1811,6 +1811,15 @@ is why" — is this file.
   such a pair has; and a `{comparator: ...}` closure over them must declare its parameters as
   the class itself, because `mixed as Core\Uri` is `E0711` ("this target names no class to
   test the value against") — ADR 0007 § 2 tabulates no conversion into an object.
+- **A multi-argument `echo` prints its arguments as it evaluates them, so a `try` whose
+  `echo` mixes a label with the call being tested prints the label and then throws**,
+  leaving a half-written line above the `catch`'s own output that no amount of reading
+  the `--EXPECT--` block explains. `echo $row, " -> ", Core\Uri::parse($row)->resolve("g")`
+  is the shape that bites. A refusals case therefore routes the whole verdict through one
+  helper that returns a `string` — `"= " . …` on the answering path, `"! " . $e->message`
+  in the `catch` — and echoes that; which is also what lets the verdicts be *compared* to
+  each other rather than read off the block, since the same message pinned once can then
+  be counted over a whole corpus.
 
 ## Splitting a file that got too big
 
