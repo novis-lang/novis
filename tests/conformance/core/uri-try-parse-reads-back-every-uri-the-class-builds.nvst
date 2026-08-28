@@ -1,0 +1,92 @@
+--TEST--
+Every `Core\Uri` the class can build — from `parse`, `with` and `resolve` — renders text `Core\Uri::tryParse` reads back to the same text, counted over the whole cross-product — spec § 12, ADR 0066 § 3a
+--FILE--
+<?nvs
+// `tryParse` is the class's own totality predicate, so it is what a closure
+// property is asserted with: `toString` on anything the class builds must be
+// text the class reads, and reading it must not move it. A `with` that forgot
+// a delimiter, or a `resolve` that emitted a path a relative reference cannot
+// carry, prints plausibly on its own line and fails the count here.
+//
+// The cross-product is deliberate — eleven bases, six single-component `with`
+// calls and RFC 3986 § 5's nine reference shapes — because the interesting
+// pairs are the ones nobody would pick by hand: a scheme put onto a relative
+// reference, a host put onto `mailto:`, a `//h2/g` resolved against `#f`.
+array<string> $bases = [
+    "https://user@example.com:8443/a/b?q=1#f",
+    "http://h/",
+    "http://[::1]:80/x",
+    "mailto:a@b",
+    "//h/p",
+    "/p/q",
+    "p",
+    "a%2Fb",
+    "?q",
+    "#f",
+    "",
+];
+array<string> $refs = ["g", "./g", "../g", "/g", "//h2/g", "?y", "#s", "", "http://x/y"];
+
+int $produced = 0;
+int $refusedBuild = 0;
+int $unreadable = 0;
+int $stable = 0;
+
+foreach ($bases as string $base) {
+    var $u = Core\Uri::parse($base);
+
+    // The texts, not the objects: an `array<mixed>` element cannot be
+    // converted back to a class, and the property being asserted is about
+    // text anyway.
+    array<string> $built = [];
+    $built[] = $u->toString();
+
+    // A `with` that would move a component to a different one, and a `resolve`
+    // against a base that is not absolute, both throw — those are pinned in
+    // their own cases. Counted here only so the total says how much of the
+    // cross-product the class actually admits.
+    try { $built[] = $u->with({scheme: "ftp"})->toString(); } catch (Throwable $e1) { $refusedBuild = $refusedBuild + 1; }
+    try { $built[] = $u->with({host: "h2"})->toString(); } catch (Throwable $e2) { $refusedBuild = $refusedBuild + 1; }
+    try { $built[] = $u->with({port: 99})->toString(); } catch (Throwable $e3) { $refusedBuild = $refusedBuild + 1; }
+    try { $built[] = $u->with({path: "/z"})->toString(); } catch (Throwable $e4) { $refusedBuild = $refusedBuild + 1; }
+    try { $built[] = $u->with({query: "k=v&k2="})->toString(); } catch (Throwable $e5) { $refusedBuild = $refusedBuild + 1; }
+    try { $built[] = $u->with({fragment: "z"})->toString(); } catch (Throwable $e6) { $refusedBuild = $refusedBuild + 1; }
+
+    foreach ($refs as string $ref) {
+        try { $built[] = $u->resolve($ref)->toString(); } catch (Throwable $e7) { $refusedBuild = $refusedBuild + 1; }
+    }
+
+    int $here = Core\Arr::count($built) as int;
+    $produced = $produced + $here;
+
+    foreach ($built as string $text) {
+        ?Core\Uri $back = Core\Uri::tryParse($text);
+        if ($back == null) {
+            // Named, not just counted: a URI the class built and cannot read
+            // is the one failure worth seeing the text of.
+            $unreadable = $unreadable + 1;
+            echo "  unreadable: [", $text, "]\n";
+        } else {
+            if ($back->toString() == $text) { $stable = $stable + 1; }
+        }
+    }
+
+    echo "[", $base, "] built ", $here, "\n";
+}
+
+echo "produced=", $produced, " refused=", $refusedBuild, "\n";
+echo "unreadable=", $unreadable, " stable=", $stable, "/", $produced, "\n";
+--EXPECT--
+[https://user@example.com:8443/a/b?q=1#f] built 16
+[http://h/] built 16
+[http://[::1]:80/x] built 16
+[mailto:a@b] built 8
+[//h/p] built 7
+[/p/q] built 6
+[p] built 5
+[a%2Fb] built 5
+[?q] built 6
+[#f] built 6
+[] built 6
+produced=97 refused=79
+unreadable=0 stable=97/97
