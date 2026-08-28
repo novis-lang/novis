@@ -1726,6 +1726,21 @@ is why" — is this file.
   case count — which is what let the two encoding cases cross 41 charsets with a table of texts.
   Both `encoding-text-round-trips-through-every-charset-the-registry-names.nvst` and
   `encoding-isvalidtext-is-decodetext-s-verdict-over-the-whole-roster.nvst` carry the spelling.
+- **A `Core` member's numeric parameter is often `uint`, and a helper factoring a sweep has to
+  declare it that way.** A literal `64` places as `uint` at the call site, so
+  `Core\Str::repeat("36", 64)` compiles and hides the rule — but the moment the count comes
+  through a helper parameter typed `int`, `E0401` says "expected `uint`, found `int`" at every
+  call. Type the parameter `uint`; the arithmetic on it (`$block - 5`) stays `uint` and is fine.
+  The mirror of the same rule on the way out: `Core\Str::length` *returns* `uint`, so a loop
+  counter fed from it wants `as int` or a `uint` of its own.
+- **A `Core` member whose parameter is an enum-case union will not take the whole enum.**
+  `Core\Hash::hmac`'s third parameter is ADR 0047 § 3's
+  `Core\Digest::Sha256|Core\Digest::Sha384|Core\Digest::Sha512`, not `Core\Digest`, so a helper
+  that forwards a digest to it must declare that union verbatim — a parameter typed
+  `Core\Digest` is refused at the forward even though every value reaching it is one of the
+  three. The union spelling parses in a parameter position and widens to `Core\Digest` for the
+  members that take the whole enum, so one helper can forward to both `hmac` and
+  `Core\Hash::stream`.
 
 ## Splitting a file that got too big
 

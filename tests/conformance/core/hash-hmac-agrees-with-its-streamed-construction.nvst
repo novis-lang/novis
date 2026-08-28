@@ -1,0 +1,149 @@
+--TEST--
+`Core\Hash::hmac` answers the digest its own RFC 2104 construction answers when that construction is streamed through `Core\Hash\Stream` — spec § 11, ADR 0009 §§ 1 and 3
+--FILE--
+<?nvs
+// § 11: `hmac` is a member rather than an option because its third parameter
+// is the closed `StrongDigest` subset — but it is not a *primitive*. It is
+// `H((K ⊕ opad) ‖ H((K ⊕ ipad) ‖ m))`, and that construction is two streams
+// fed four chunks. So the question asked here is whether the two agree, over
+// every key shape crossed with every strong digest, rather than what either
+// one answered: a `hmac` that grew a padding rule of its own — a block width
+// read from the wrong case, a key padded on the wrong end — fails the count
+// while its own line still prints a plausible digest.
+//
+// The keys are chosen so that `K ⊕ ipad` and `K ⊕ opad` are writable by hand:
+// a key of zero octets pads to the whole block, a key of 0x36 octets cancels
+// the ipad exactly (0x36 ^ 0x36 = 0x00, 0x36 ^ 0x5c = 0x6a), and a key of
+// exactly one block wide is the boundary either side of which RFC 2104 either
+// zero-extends the key or replaces it with its own digest.
+class Rfc2104
+{
+    // The construction itself, with both hashes streamed: the pad and the
+    // message are separate `update`s, so the inner hash carries a chunk
+    // boundary at exactly the block edge and the outer one carries it at the
+    // point the inner digest arrives.
+    public static function streamed(
+        string $message,
+        string $ipadHex,
+        string $opadHex,
+        Core\Digest::Sha256|Core\Digest::Sha384|Core\Digest::Sha512 $digest,
+    ): bytes {
+        var $inner = Core\Hash::stream($digest);
+        $inner->update(Core\Encoding::fromHex($ipadHex));
+        $inner->update($message);
+        var $outer = Core\Hash::stream($digest);
+        $outer->update(Core\Encoding::fromHex($opadHex));
+        $outer->update($inner->finish());
+        return $outer->finish();
+    }
+
+    // One row of the table: `hmac` against the construction, answered as the
+    // agreement rather than as either digest.
+    public static function agrees(
+        string $message,
+        string $keyHex,
+        string $ipadHex,
+        string $opadHex,
+        Core\Digest::Sha256|Core\Digest::Sha384|Core\Digest::Sha512 $digest,
+    ): bool {
+        bytes $key = Core\Encoding::fromHex($keyHex);
+        return Core\Hash::equals(
+            Core\Hash::hmac($message, $key, $digest),
+            Rfc2104::streamed($message, $ipadHex, $opadHex, $digest),
+        );
+    }
+
+    // Every key shape at one block width, for one digest. `$block` is the
+    // digest's block size in octets — 64 for SHA-256, 128 for SHA-384 and
+    // SHA-512, which is the one number the two halves of `StrongDigest`
+    // disagree on and therefore the one a shared implementation gets wrong.
+    public static function agreeing(
+        string $message,
+        uint $block,
+        Core\Digest::Sha256|Core\Digest::Sha384|Core\Digest::Sha512 $digest,
+    ): int
+    {
+        int $count = 0;
+
+        // A key of no octets at all: the padding is the whole block.
+        if (Rfc2104::agrees(
+            $message,
+            "",
+            Core\Str::repeat("36", $block),
+            Core\Str::repeat("5c", $block),
+            $digest,
+        )) {
+            $count = $count + 1;
+        }
+
+        // Five octets of 0x36, zero-extended to the block: the ipad cancels
+        // over the key and stands over the extension, so a key padded on the
+        // wrong end answers a different digest here rather than the same one.
+        if (Rfc2104::agrees(
+            $message,
+            Core\Str::repeat("36", 5),
+            Core\Str::repeat("00", 5) . Core\Str::repeat("36", $block - 5),
+            Core\Str::repeat("6a", 5) . Core\Str::repeat("5c", $block - 5),
+            $digest,
+        )) {
+            $count = $count + 1;
+        }
+
+        // A key of exactly one block: the last width RFC 2104 uses as written,
+        // one octet before it replaces the key with `H(key)`.
+        if (Rfc2104::agrees(
+            $message,
+            Core\Str::repeat("36", $block),
+            Core\Str::repeat("00", $block),
+            Core\Str::repeat("6a", $block),
+            $digest,
+        )) {
+            $count = $count + 1;
+        }
+
+        return $count;
+    }
+}
+
+// Three message shapes: empty, shorter than a block, and past two blocks of
+// the wider digest — the inner hash's own padding then falls in three
+// different places behind the same construction.
+string $short = "what do ya want for nothing?";
+string $long = Core\Str::repeat("0123456789", 30);
+
+echo "sha256: ",
+    Rfc2104::agreeing("", 64, Core\Digest::Sha256)
+        + Rfc2104::agreeing($short, 64, Core\Digest::Sha256)
+        + Rfc2104::agreeing($long, 64, Core\Digest::Sha256),
+    "/9\n";
+echo "sha384: ",
+    Rfc2104::agreeing("", 128, Core\Digest::Sha384)
+        + Rfc2104::agreeing($short, 128, Core\Digest::Sha384)
+        + Rfc2104::agreeing($long, 128, Core\Digest::Sha384),
+    "/9\n";
+echo "sha512: ",
+    Rfc2104::agreeing("", 128, Core\Digest::Sha512)
+        + Rfc2104::agreeing($short, 128, Core\Digest::Sha512)
+        + Rfc2104::agreeing($long, 128, Core\Digest::Sha512),
+    "/9\n";
+
+// The agreement above would hold vacuously if the construction were being
+// compared against itself, so one row is also printed as octets: RFC 4231's
+// second test case, whose key is `4a656665` — not one of the three shapes
+// above, and the vector `Core\Hash` is already pinned against elsewhere.
+bytes $jefe = Core\Encoding::fromHex("4a656665");
+echo Core\Encoding::toHex(Core\Hash::hmac($short, $jefe, Core\Digest::Sha256)), "\n";
+
+// And the construction is sensitive to the pad it was given: swapping ipad
+// for opad answers a different digest, which is what makes the nine rows
+// above an assertion rather than a tautology.
+echo Core\Hash::equals(
+    Core\Hash::hmac($short, Core\Encoding::fromHex(""), Core\Digest::Sha256),
+    Rfc2104::streamed($short, Core\Str::repeat("5c", 64), Core\Str::repeat("36", 64), Core\Digest::Sha256),
+) ? "swapped pads agree" : "swapped pads differ", "\n";
+--EXPECT--
+sha256: 9/9
+sha384: 9/9
+sha512: 9/9
+5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843
+swapped pads differ
