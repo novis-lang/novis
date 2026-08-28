@@ -646,6 +646,20 @@ is why" — is this file.
   cannot follow, still reads as uncalled. `python tools/gaps.py --member <name>` prints
   the cases that already ask about one, and it reads the whole corpus rather than one
   class's share — one call, before writing a case the tree already has.
+- **`gaps.py --coverage`'s ranking was class *size*, not depth, and a whole named group was
+  written off it that was already on disk.** The column divided a class's case-file count by its
+  member count, so `Core\Math` led the table at 1.00 (38 files, 38 members) while every one of its
+  members carried three to five cases and the class carried 31 dedicated files — a case names five
+  or ten members at once, so a big class can never reach a high quotient however deeply it is
+  asked. All three slices of the handoff's `Core\Math` group ("the four roundings agree", "the two
+  base members round-trip and refuse the same bounds", "the inverse members answer their domain
+  edge") were already pinned by `math-the-four-rounding-members-agree-wherever-there-is-no-fraction`,
+  `math-both-base-members-stop-at-the-same-two-bases` and
+  `math-inverse-members-answer-nan-outside-their-own-domain`. DEPTH is now the **median cases per
+  member**, with `FLOOR` (its worst member) and the three thinnest members named with anchors on
+  every row — so a group is taken from *members*, not from a class. Whatever the tool says, one
+  `python tools/gaps.py --member 'Core\X::member'` before writing is what tells a claim that is
+  missing from one that is already frozen.
 
 ## Running things
 

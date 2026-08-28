@@ -1,0 +1,138 @@
+--TEST--
+Spec § 7: `Core\Bytes::contains`, `startsWith` and `endsWith` agree with `indexOf`, `slice` and `compare` on every ordered pair of a swept table, and `compare` is antisymmetric across the same sweep — ADR 0009 § 1, ADR 0063 R6
+--FILE--
+<?nvs
+// The three predicates are not three rules: each one is a question `indexOf`,
+// `slice` and `compare` can already answer, and a predicate that grew its own
+// comparison looks right on any line a hand-written case would pick. So the
+// question here is asked of all 64 ordered pairs of one table and **counted** —
+// a member that disagrees with the derivation on a single pair shows up as
+// 63 rather than as a wrong-looking row. Which byte each member answers about
+// is bytes-indexes-and-orders-by-byte-offset.nvst and the magic-byte sniff is
+// bytes-sniffs-with-predicates-and-builds-with-fill-and-repeat.nvst; neither of
+// those asks whether the members agree with each other.
+class Sign {
+    // `Core\Bytes::compare` is negative, zero or positive rather than -1/0/1,
+    // so antisymmetry is asserted on the sign and not on the magnitude.
+    public static function of(int $n): int {
+        if ($n > 0) { return 1; }
+        if ($n < 0) { return 0 - 1; }
+        return 0;
+    }
+}
+
+// There is no `bytes` literal (00-overview § 5), so the table is hex and each
+// row is built through `Core\Encoding`. The rows are chosen so the sweep has
+// something to find: the empty buffer, PNG's signature, its own head and tail
+// as separate rows, a needle that occurs only in the middle, the two octets
+// either side of the signed/unsigned line, and a buffer differing from PNG's
+// in its last byte alone.
+array<string> $table = [
+    "", "89504e470d0a1a0a", "0d0a", "89504e47", "1a0a", "ff", "7f", "89504e470d0a1a0b",
+];
+
+int $pairs = 0;
+int $containsAgrees = 0;
+int $startsAgrees = 0;
+int $endsAgrees = 0;
+int $antisym = 0;
+int $zeroIffMutualPrefix = 0;
+int $middleOnly = 0;
+int $tooLong = 0;
+int $tooLongRefused = 0;
+int $hasTrue = 0;
+int $preTrue = 0;
+int $sufTrue = 0;
+
+foreach ($table as string $sh) {
+    foreach ($table as string $nh) {
+        bytes $s = Core\Encoding::fromHex($sh);
+        bytes $n = Core\Encoding::fromHex($nh);
+        int $slen = Core\Bytes::length($s) as int;
+        int $nlen = Core\Bytes::length($n) as int;
+        $pairs = $pairs + 1;
+
+        bool $has = Core\Bytes::contains($s, $n);
+        bool $pre = Core\Bytes::startsWith($s, $n);
+        bool $suf = Core\Bytes::endsWith($s, $n);
+        int $cmp = Core\Bytes::compare($s, $n);
+
+        // The three "true" tallies are what keeps the agreement counts from
+        // being satisfiable by a member that answers `false` everywhere: a
+        // predicate stuck on one answer agrees with a derivation stuck with
+        // it, and only these lines can tell that apart.
+        if ($has) { $hasTrue = $hasTrue + 1; }
+        if ($pre) { $preTrue = $preTrue + 1; }
+        if ($suf) { $sufTrue = $sufTrue + 1; }
+
+        // `contains` is a `bool` where `indexOf` is a `?uint`, and the only
+        // thing it may add is the `null`/found split itself.
+        bool $found = Core\Bytes::indexOf($s, $n) != null;
+        if ($has == $found) { $containsAgrees = $containsAgrees + 1; }
+
+        // A prefix and a suffix are the two windows `slice` cuts, compared by
+        // the member that orders octets. A needle longer than its subject has
+        // no window at all, which is the `false` branch rather than a truncated
+        // one — `slice` would silently answer a shorter buffer there, and that
+        // is exactly the plausible-looking bug this half is written against.
+        bool $preBySlice = false;
+        bool $sufBySlice = false;
+        if ($nlen <= $slen) {
+            $preBySlice = Core\Bytes::compare(Core\Bytes::slice($s, 0, $nlen), $n) == 0;
+            $sufBySlice = Core\Bytes::compare(Core\Bytes::slice($s, $slen - $nlen, $nlen), $n) == 0;
+        }
+        if ($pre == $preBySlice) { $startsAgrees = $startsAgrees + 1; }
+        if ($suf == $sufBySlice) { $endsAgrees = $endsAgrees + 1; }
+
+        // `compare` is an ordering, so the pair taken the other way round must
+        // answer the opposite sign — including the 8 diagonal pairs, where both
+        // signs are 0. And its zero is not a fourth notion of sameness: two
+        // buffers compare equal exactly when each is a prefix of the other.
+        int $back = Core\Bytes::compare($n, $s);
+        if (Sign::of($cmp) + Sign::of($back) == 0) { $antisym = $antisym + 1; }
+        if (($cmp == 0) == ($pre && Core\Bytes::startsWith($n, $s))) {
+            $zeroIffMutualPrefix = $zeroIffMutualPrefix + 1;
+        }
+
+        // `contains` is genuinely wider than the other two: the 2 pairs below
+        // are the CRLF inside each PNG signature, matched by neither end.
+        if ($has && !$pre && !$suf) { $middleOnly = $middleOnly + 1; }
+
+        // The bound on the other side, named as a count so it cannot be read
+        // off one line: on all 25 pairs where the needle is longer than the
+        // subject, all three predicates are false.
+        if ($nlen > $slen) {
+            $tooLong = $tooLong + 1;
+            if (!$has && !$pre && !$suf) { $tooLongRefused = $tooLongRefused + 1; }
+        }
+    }
+}
+
+echo "pairs ", $pairs, "\n";
+echo "contains ", $containsAgrees, " starts ", $startsAgrees, " ends ", $endsAgrees, "\n";
+echo "antisym ", $antisym, " zeroIff ", $zeroIffMutualPrefix, "\n";
+echo "true: contains ", $hasTrue, " starts ", $preTrue, " ends ", $sufTrue, "\n";
+echo "middleOnly ", $middleOnly, " tooLong ", $tooLongRefused, "/", $tooLong, "\n";
+
+// The needle at the far end of the same bound: the empty buffer is a prefix, a
+// suffix and a substring of every row, the empty subject included, which is the
+// answer Rust's, PHP 8's and `Core\Str`'s own predicates give.
+int $subjects = 0;
+int $emptyIn = 0;
+bytes $none = Core\Encoding::fromHex("");
+foreach ($table as string $eh) {
+    bytes $e = Core\Encoding::fromHex($eh);
+    $subjects = $subjects + 1;
+    if (Core\Bytes::contains($e, $none) && Core\Bytes::startsWith($e, $none)
+        && Core\Bytes::endsWith($e, $none)) {
+        $emptyIn = $emptyIn + 1;
+    }
+}
+echo "empty needle in ", $emptyIn, "/", $subjects, "\n";
+--EXPECT--
+pairs 64
+contains 64 starts 64 ends 64
+antisym 64 zeroIff 64
+true: contains 20 starts 17 ends 16
+middleOnly 2 tooLong 25/25
+empty needle in 8/8
