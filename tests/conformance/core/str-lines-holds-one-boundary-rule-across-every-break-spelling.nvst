@@ -1,0 +1,67 @@
+--TEST--
+`Core\Str::lines` answers the same lines whichever of the three terminators spells them, and consumes `\r\n` as the single cluster GB3 makes it — spec § 1 *Extraction*, ADR 0009 § 2
+--FILE--
+<?nvs
+// `line_pieces`'s doc makes three claims about the boundary, and none of them
+// is visible on a single row: they are properties of the whole table of break
+// spellings, so each is asked of every row and *counted*. A member that split
+// on one terminator only, or that opened an empty last line, still prints
+// plausibly against any one row of this.
+
+// The same three lines — the middle one empty — spelled with `\n`, `\r\n`, a
+// lone `\r`, and a subject mixing two of them. No trailing break.
+array<string> $flat = ["alpha\n\nbeta", "alpha\r\n\r\nbeta", "alpha\r\rbeta", "alpha\r\n\rbeta"];
+int $aCount = 0;
+int $aJoin = 0;
+int $aSpan = 0;
+foreach ($flat as string $s) {
+    array<string> $ls = Core\Str::lines($s);
+    // An interior empty line is a line, so every row is three of them...
+    if (Core\Arr::count($ls) == 3) { $aCount = $aCount + 1; }
+    // ...and re-joining with `\n` reaches one canonical subject from all four,
+    // which is what "the platform's own line ending is never consulted" means
+    // stated as an invariant rather than as four separate answers.
+    if (Core\Str::join($ls, "\n") == "alpha\n\nbeta") { $aJoin = $aJoin + 1; }
+    // The clusters the breaks cost is the *same* for every spelling, because
+    // `\r\n` is one cluster under UAX #29's GB3 and is consumed whole. Were it
+    // two, the `\r\n` rows would answer 3 here and the count would drop.
+    if (Core\Str::length($s) - Core\Str::length(Core\Str::join($ls, "")) == 2) { $aSpan = $aSpan + 1; }
+}
+echo "interior ", $aCount, " ", $aJoin, " ", $aSpan, " of ", Core\Arr::count($flat), "\n";
+
+// The same table with a trailing terminator: a file that ends the way a text
+// file is supposed to end is still three lines, not four, so the counts do not
+// move — only the clusters spent on breaks, which is now three.
+array<string> $tail = ["alpha\n\nbeta\n", "alpha\r\n\r\nbeta\r\n", "alpha\r\rbeta\r", "alpha\n\rbeta\r\n"];
+int $bCount = 0;
+int $bJoin = 0;
+int $bSpan = 0;
+foreach ($tail as string $t) {
+    array<string> $lt = Core\Str::lines($t);
+    if (Core\Arr::count($lt) == 3) { $bCount = $bCount + 1; }
+    if (Core\Str::join($lt, "\n") == "alpha\n\nbeta") { $bJoin = $bJoin + 1; }
+    if (Core\Str::length($t) - Core\Str::length(Core\Str::join($lt, "")) == 3) { $bSpan = $bSpan + 1; }
+}
+echo "trailing ", $bCount, " ", $bJoin, " ", $bSpan, " of ", Core\Arr::count($tail), "\n";
+
+// Two breaks and nothing else: two empty lines, not three and not one, for
+// every spelling — the trailing rule and the interior rule at once.
+array<string> $bare = ["\n\n", "\r\n\r\n", "\r\r"];
+int $cCount = 0;
+foreach ($bare as string $u) {
+    array<string> $lu = Core\Str::lines($u);
+    if (Core\Arr::count($lu) == 2) {
+        if (Core\Str::join($lu, "") == "") { $cCount = $cCount + 1; }
+    }
+}
+echo "bare ", $cCount, " of ", Core\Arr::count($bare), "\n";
+
+// The cluster rule the span counts above rest on, read directly off `length`:
+// `\r\n` is one cluster, a lone `\r` is a cluster of its own, and `\n\r` is
+// two — GB3 glues that pair in one order only.
+echo "gb3 ", Core\Str::length("a\r\nb"), " ", Core\Str::length("a\rb"), " ", Core\Str::length("a\nb"), " ", Core\Str::length("a\n\rb"), "\n";
+--EXPECT--
+interior 4 4 4 of 4
+trailing 4 4 4 of 4
+bare 3 of 3
+gb3 3 3 3 4
