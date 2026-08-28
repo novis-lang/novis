@@ -1,0 +1,57 @@
+--TEST--
+A body declaring `static` may not return the declaring class, since a subclass call site is promised its own (ADR 0008 § 1)
+--FILE--
+<?nvs
+// `static` is the class the *call* named, so `Leaf::make()` is promised a
+// `Leaf`. Both bodies below hand back a `Base` instead, which PHP catches at
+// run time with a `TypeError` and Novis has nothing below the type system to
+// catch at all — so it is refused at the declaration. `E0741`'s own doc
+// comment owns why refusing beats accepting.
+class Base {
+    public static function make(): static {
+        return new self();
+    }
+
+    public static function named(): static {
+        return new Base();
+    }
+
+    // The accepted shapes, kept here so the case says what to write instead:
+    // `new static(...)`, `$this`, and a call forwarded through `static::`.
+    public static function ok(): static {
+        return new static();
+    }
+
+    public function chain(): static {
+        return $this;
+    }
+
+    public static function forwarded(): static {
+        return static::ok();
+    }
+}
+
+class Leaf extends Base {
+}
+
+echo "unreachable\n";
+--EXPECTF-ERROR--
+error[E0741]: a body declaring `static` returns a value that is not the called class
+  --> %s:8:36
+  |
+8 |     public static function make(): static {
+  |                                    ------ declared `static` here
+9 |         return new self();
+  |                ^^^^^^^^^^ not the called class
+  = help: `static` is the class the call named, which a subclass may be — return `$this` or `new static(...)`, or declare `self` if the declaring class is what is meant
+
+error[E0741]: a body declaring `static` returns a value that is not the called class
+   --> %s:12:37
+   |
+12 |     public static function named(): static {
+   |                                     ------ declared `static` here
+13 |         return new Base();
+   |                ^^^^^^^^^^ not the called class
+   = help: `static` is the class the call named, which a subclass may be — return `$this` or `new static(...)`, or declare `self` if the declaring class is what is meant
+
+error: aborting due to 2 errors

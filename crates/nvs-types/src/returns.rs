@@ -40,6 +40,55 @@ pub(crate) fn block_always_exits(stmts: &[Stmt]) -> bool {
     stmts.iter().any(always_exits)
 }
 
+/// Every `return <expr>;` written in `stmts`, in source order.
+///
+/// A closure literal's body is *not* descended into: `fn` is an expression, so
+/// its returns belong to its own frame and are checked when
+/// `crate::expr::calls::check_fn_literal` checks that body. Nothing else here
+/// walks expressions at all, which is what makes that free rather than a case
+/// to remember.
+pub(crate) fn for_each_return<F: FnMut(&Expr)>(stmts: &[Stmt], f: &mut F) {
+    for stmt in stmts {
+        visit_return(stmt, f);
+    }
+}
+
+fn visit_return<F: FnMut(&Expr)>(stmt: &Stmt, f: &mut F) {
+    match &stmt.kind {
+        StmtKind::Return(Some(e)) => f(e),
+        StmtKind::Block(b) => for_each_return(&b.stmts, f),
+        StmtKind::If { then, else_, .. } => {
+            visit_return(then, f);
+            if let Some(else_) = else_ {
+                visit_return(else_, f);
+            }
+        }
+        StmtKind::While { body, .. }
+        | StmtKind::DoWhile { body, .. }
+        | StmtKind::For { body, .. }
+        | StmtKind::Foreach { body, .. } => visit_return(body, f),
+        StmtKind::Switch { cases, .. } => {
+            for case in cases {
+                for_each_return(&case.body, f);
+            }
+        }
+        StmtKind::Try {
+            body,
+            catches,
+            finally,
+        } => {
+            for_each_return(&body.stmts, f);
+            for catch in catches {
+                for_each_return(&catch.body.stmts, f);
+            }
+            if let Some(finally) = finally {
+                for_each_return(&finally.stmts, f);
+            }
+        }
+        _ => {}
+    }
+}
+
 /// Whether every path through `stmt` leaves the frame — returns, throws, exits
 /// the process, or loops forever.
 fn always_exits(stmt: &Stmt) -> bool {

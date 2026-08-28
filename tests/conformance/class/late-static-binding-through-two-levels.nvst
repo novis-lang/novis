@@ -35,9 +35,17 @@ echo LeafRegistry::make()->label(), "\n";
 var $leaf = LeafRegistry::make();
 echo ($leaf instanceof MidRegistry) as string, "\n";
 echo ($leaf instanceof Registry) as string, "\n";
+
+// The same rule as a *type* rather than as a dispatch: `make` is declared on
+// `Registry` and returns `static`, so the site that named `LeafRegistry` is
+// promised one. Without that substitution this binding would be a mismatch —
+// `nvs_types::signatures::MethodSig::returns_static` owns why it is sound.
+LeafRegistry $typed = LeafRegistry::make();
+echo $typed->label(), "\n";
 --EXPECT--
 base
 mid
 leaf
 1
 1
+leaf

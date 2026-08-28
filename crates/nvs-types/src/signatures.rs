@@ -36,8 +36,8 @@
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use nvs_hir::{ClassGraph, QName, SymbolKind};
 use nvs_syntax::ast::{
-    ClassMember, ClassMemberKind, Modifier, NamespaceDecl, PropertyMember, Stmt, StmtKind,
-    Visibility,
+    ClassMember, ClassMemberKind, Modifier, NamespaceDecl, PropertyMember, Stmt, StmtKind, Type,
+    TypeAtom, TypeKind, Visibility,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -104,6 +104,38 @@ pub struct MethodSig {
     pub type_params: Vec<String>,
     /// The declared return type (`mixed` if omitted).
     pub return_ty: TypeId,
+    /// Whether the declaration writes `static` as its **return type** — ADR
+    /// 0008 § 1's late static binding, seen as a type rather than as a
+    /// dispatch.
+    ///
+    /// `static` means the class the *call* named, which
+    /// [`crate::lower::lower_type`] cannot intern: inside the body it has no
+    /// choice but the declaring class, and that is sound there (every called
+    /// class is one). At a call site the called class *is* known, so this bit
+    /// is what lets `crate::expr::calls` answer `Leaf` for `Leaf::make()` on a
+    /// `Base::make(): static` — the substitution happens at the two
+    /// `return_ty` sites there and nowhere else.
+    ///
+    /// # Why the body is refused rather than the hole pinned
+    ///
+    /// Substituting the called class is only sound if the body actually
+    /// produces one. `Base::make(): static { return new self(); }` type-checks
+    /// against the declaring class and would then hand a `Leaf`-typed binding
+    /// a `Base`; PHP raises a `TypeError` there at run time and Novis has no
+    /// such check below the type system, so `crate::check` refuses the body
+    /// instead (`E0741`). The three alternatives were weighed and each is
+    /// worse: interning `static` as a *distinct* type is the principled fix
+    /// and rewrites every consumer of a `TypeId`; setting this bit only for a
+    /// body that provably forwards would weaken a call site silently, which
+    /// ADR 0007 exists to prevent; and accepting the hole spends priority 2
+    /// (correctness) to buy priority 4 (simplicity), which AGENTS.md's
+    /// ordering forbids outright.
+    ///
+    /// [`crate::expr_table::ResolvedCall`] deliberately keeps the *declared*
+    /// return type rather than the substituted one: `nvs-ir` reads that record
+    /// for a representation, and a class and its subclass erase to the same
+    /// `Ty::Object`.
+    pub returns_static: bool,
     /// Whether the declaration carries the `static` modifier — ADR 0008 § 1's
     /// one surviving meaning of the keyword.
     ///
@@ -869,6 +901,7 @@ fn collect_members(
                 let variadic = m.params.last().is_some_and(|p| p.variadic);
                 let defaults = collect_defaults(&m.params, &params, env);
                 let return_ty = lower_optional_type(m.return_type.as_ref(), ctx, env);
+                let returns_static = writes_static_return(m.return_type.as_ref());
                 let interface_private = is_interface && m.modifiers.contains(&Modifier::Private);
                 let visibility = declared_visibility(&m.modifiers).unwrap_or(Visibility::Public);
                 let is_static = m.modifiers.contains(&Modifier::Static);
@@ -890,6 +923,7 @@ fn collect_members(
                         // has no type parameters to write.
                         type_params: Vec::new(),
                         return_ty,
+                        returns_static,
                         is_static,
                         interface_private,
                         visibility,
@@ -1278,6 +1312,21 @@ pub fn hooks_of(owner: &QName, name: &str, table: &SignatureTable) -> PropertyHo
         .get(owner)
         .and_then(|sig| sig.hooked_properties.get(name).copied())
         .unwrap_or_default()
+}
+
+/// Whether a declaration's written return type is exactly the `static` atom —
+/// what [`MethodSig::returns_static`] records, and the one spelling ADR 0008
+/// § 1's late static binding takes.
+///
+/// Read off the *written* type rather than the lowered one, because lowering
+/// is precisely what loses the distinction: [`crate::lower::lower_type`]
+/// interns `static` and `self` to the same class. A union or a `?static` is
+/// deliberately not this — a call site substituting into one member of a union
+/// is a second rule with no program asking for it yet, and answering the
+/// declared type there is the conservative half.
+#[must_use]
+pub(crate) fn writes_static_return(ty: Option<&Type>) -> bool {
+    matches!(ty, Some(t) if matches!(t.kind, TypeKind::Atom(TypeAtom::StaticTy)))
 }
 
 /// Looks `name` up as a method on `qname`, falling back to walking ancestors

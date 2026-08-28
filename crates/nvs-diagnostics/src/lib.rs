@@ -1789,6 +1789,29 @@ pub mod code {
     /// to bind it to, this one names a class and has no member.
     pub const E_FIRST_CLASS_CALLABLE_NEW: Code = Code::new("E0740");
 
+    /// A body declaring `static` returns a value that is not the called class.
+    ///
+    /// ADR 0008 § 1's late static binding makes `static` mean *the class the
+    /// call named*, which a subclass may be — so `Base::make(): static` read
+    /// through `Leaf::make()` promises a `Leaf`. A body that answers
+    /// `new self()` keeps that promise only when nobody ever extends `Base`,
+    /// and PHP catches the rest at run time with a `TypeError`. Novis has no
+    /// such check below the type system, so the promise is held at the
+    /// declaration instead: a `return` in a body declaring `static` must be
+    /// `$this`, `new static(...)`, or a call forwarded through
+    /// `static`/`self`/`parent`/`$this` to a member that itself returns
+    /// `static`. `nvs_types::signatures::MethodSig::returns_static` owns the
+    /// reasoning and what the alternative would have cost.
+    ///
+    /// Refusing is stricter than PHP, which accepts the declaration and only
+    /// errors at a subclass call site. That is AGENTS.md's priority ordering
+    /// applied as written: a refused program has no observable behaviour to be
+    /// incompatible with, while an accepted one hands a `Leaf`-typed binding a
+    /// `Base` and every later check reads a class label that was never there.
+    /// `self` is the return type that was meant when the body really does
+    /// answer the declaring class, and it is what the help names.
+    pub const E_STATIC_RETURN_NOT_CALLED_CLASS: Code = Code::new("E0741");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

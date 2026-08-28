@@ -153,7 +153,18 @@ pub(crate) fn infer_method_call(
         let call = resolved_call(qname.clone(), name.clone(), sig, slots, env.signatures);
         env.exprs.record(expr.span, ExprInfo::Call(call));
     }
-    let returned = sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty);
+    // ADR 0008 § 1's late static binding, as a type: a member declaring
+    // `static` answers the *called* class, which at an instance call is the
+    // receiver's own. `MethodSig::returns_static` owns why substituting here
+    // is sound, and why an unresolved (or erased) receiver falls back to the
+    // declared type rather than guessing.
+    let returned = match &sig {
+        Some(s) if s.returns_static && matches!(env.interner.get(receiver_ty), Ty::Class(..)) => {
+            receiver_ty
+        }
+        Some(s) => s.return_ty,
+        None => env.interner.mixed(),
+    };
     nullsafe_result(nullsafe, object_ty, returned, env)
 }
 
@@ -265,7 +276,34 @@ pub(crate) fn infer_static_call(
         call.written_class = written_class_of(qname, name, &written, type_args, expr.span, env);
         env.exprs.record(expr.span, ExprInfo::Call(call));
     }
-    sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty)
+    // The static-call half of the same substitution the instance-call arm
+    // above documents — see `MethodSig::returns_static`.
+    match &sig {
+        Some(s) if s.returns_static => match called_class_of(class, ctx, env) {
+            Some(called) => env.interner.class(called),
+            None => s.return_ty,
+        },
+        Some(s) => s.return_ty,
+        None => env.interner.mixed(),
+    }
+}
+
+/// The class a `Class::member()` site *calls on*, for ADR 0008 § 1's `static`
+/// return type.
+///
+/// Not [`resolve_class_expr`], and the difference is `parent::`: that resolver
+/// answers the class the member is looked up on, while late static binding
+/// forwards the caller's called class through all three of
+/// `self`/`static`/`parent`. The enclosing class is the tightest sound answer
+/// for those, and an explicitly named class is its own.
+fn called_class_of(class: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<QName> {
+    match &class.kind {
+        ExprKind::SelfExpr | ExprKind::StaticExpr | ExprKind::ParentExpr => {
+            ctx.current_class.cloned()
+        }
+        ExprKind::ConstFetch(_) => resolve_class_expr(class, ctx, env),
+        _ => None,
+    }
 }
 
 /// `new Target(...)` — [`super::infer`]'s `ExprKind::New` arm.

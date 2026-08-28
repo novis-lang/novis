@@ -1,5 +1,8 @@
 //! A method that declares a return type has to produce one on every path —
-//! `E0739`, and the shapes `nvs_types::returns` must not report.
+//! `E0739` — and, for the one return type that is not a fixed class, what a
+//! call site reads back: ADR 0008 § 1's `static`, `E0741`, and the two
+//! substitution sites `nvs_types::signatures::MethodSig::returns_static`
+//! names.
 //!
 //! The refusal is one line of the analysis and the acceptances are all the
 //! rest of it, which is why they outnumber it here: a wrong refusal is a
@@ -19,6 +22,98 @@ fn method(sig: &str, body: &str) -> String {
 
 fn refuses(diags: &Diagnostics) -> bool {
     diags.iter().any(|d| d.code == Some(code::E_MISSING_RETURN))
+}
+
+/// `Base::make(): static` plus whatever `Leaf` does with it, so the four
+/// late-static-binding fixtures below differ by one line each.
+fn hierarchy(base_body: &str, leaf: &str) -> String {
+    format!(
+        "<?nvs\nclass Base {{\n  public static function make(): static {{\n    {base_body}\n  }}\n  \
+         function chain(): static {{\n    return $this;\n  }}\n}}\n\
+         class Leaf extends Base {{\n{leaf}\n}}\n"
+    )
+}
+
+/// The rule ADR 0008 § 1 states as a dispatch, read as a type: `make` is
+/// declared on `Base`, so its *declared* return is `Base` — and the site named
+/// `Leaf`, so what the call answers is a `Leaf`. Nothing but
+/// `MethodSig::returns_static` carries that past the declaration.
+#[test]
+fn a_static_return_type_resolves_to_the_called_class() {
+    let diags = hierarchy(
+        "return new static();",
+        "  public static function grab(): Leaf {\n    return Leaf::make();\n  }",
+    );
+    let diags = check_src(&diags);
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// The other half of the same rule, and what keeps the substitution from being
+/// "always the site's own class": an explicitly named class *sets* the called
+/// class, so `Base::make()` answers a `Base` and owes `Leaf` nothing.
+#[test]
+fn naming_the_declaring_class_still_answers_that_class() {
+    let src = hierarchy(
+        "return new static();",
+        "  public static function grab(): Leaf {\n    return Base::make();\n  }",
+    );
+    let diags = check_src(&src);
+    assert!(diags.has_errors(), "{diags:?}");
+}
+
+/// The instance-call site, which reads the receiver rather than a written
+/// class name — `crate::expr::calls`'s other `return_ty` substitution.
+#[test]
+fn an_instance_call_returning_static_answers_the_receivers_class() {
+    let src = hierarchy(
+        "return new static();",
+        "  function grab(): Leaf {\n    return $this->chain();\n  }",
+    );
+    let diags = check_src(&src);
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// What makes the two substitutions above sound rather than a hole: a body
+/// promising the called class may not answer the declaring one. PHP catches
+/// this at run time; Novis has nothing below the type system to catch it
+/// with, so it is refused at the declaration (`E0741`, whose own doc owns
+/// why refusing beats accepting).
+#[test]
+fn a_static_return_of_the_declaring_class_is_refused() {
+    let src = hierarchy(
+        "return new self();",
+        "  public static function grab(): Leaf {\n    return Leaf::make();\n  }",
+    );
+    let diags = check_src(&src);
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_STATIC_RETURN_NOT_CALLED_CLASS)),
+        "{diags:?}"
+    );
+}
+
+/// The whitelist's third shape, and the one a fluent interface is made of:
+/// `$this` *is* the called class, so `chain()` above is accepted — asserted
+/// here on its own so a narrowing of the whitelist shows up as this test
+/// rather than as four.
+#[test]
+fn returning_this_satisfies_a_static_return_type() {
+    let diags =
+        check_src("<?nvs\nclass T {\n  function chain(): static {\n    return $this;\n  }\n}\n");
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// A call forwarded through `static::` keeps the caller's called class, so a
+/// body that delegates to one is as sound as one that allocates. Refusing it
+/// would refuse ordinary code, which is the failure mode a whitelist has.
+#[test]
+fn a_forwarded_static_call_satisfies_a_static_return_type() {
+    let diags = check_src(
+        "<?nvs\nclass T {\n  public static function make(): static {\n    return new static();\n  }\n  \
+         public static function build(): static {\n    return static::make();\n  }\n}\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
 }
 
 /// The rule itself: `nvs_ir::lower::lower_method` seals the fall-through exit

@@ -160,6 +160,9 @@ fn bodiless(params: Vec<TypeId>, return_ty: TypeId) -> MethodSig {
         variadic: false,
         type_params: Vec::new(),
         return_ty,
+        // ADR 0053 § 2's two interfaces answer `T` and `bool`, never the
+        // called class — see `MethodSig::returns_static`.
+        returns_static: false,
         is_static: false,
         interface_private: false,
         visibility: nvs_syntax::ast::Visibility::Public,

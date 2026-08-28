@@ -31,7 +31,8 @@
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, code};
 use nvs_hir::{Module, QName};
 use nvs_syntax::ast::{
-    Block, ClassMember, ClassMemberKind, MethodMember, Name, NamespaceDecl, Stmt, StmtKind,
+    Block, ClassMember, ClassMemberKind, Expr, ExprKind, MemberName, MethodMember, Name,
+    NamespaceDecl, NewTarget, Stmt, StmtKind,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -509,6 +510,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     let Some(elem) = generator_element(m, body, return_ty, ctx, env) else {
         check_block(&body.stmts, &mut live, &mut scope, return_ty, ctx, env);
         check_every_path_returns(m, body, return_ty, env);
+        reject_static_return_of_another_class(m, body, ctx, env);
         return;
     };
     check_generator_inout_params(m, env);
@@ -539,6 +541,96 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
 /// nothing to write. Everything else, a declared `mixed` included, owes a
 /// value: the declaration is what the caller reads, and `nvs-ir`'s fall-through
 /// `Terminator::Return(None)` writes no slot for it to read.
+/// ADR 0008 § 1's late static binding, held at the declaration: a body
+/// promising `static` must answer the *called* class, not the declaring one
+/// (`E0741`).
+///
+/// [`crate::signatures::MethodSig::returns_static`] owns why this is a refusal
+/// rather than a pinned hole, and the diagnostic's own doc owns why refusing
+/// is the PHP-compatible answer even though PHP accepts the declaration. Three
+/// expression shapes keep the promise and they are the whole list:
+///
+/// * `$this` — the receiver *is* the called class.
+/// * `new static(...)` — ADR 0008 § 1's allocation of it.
+/// * a call written on `static`/`self`/`parent`/`$this` whose target itself
+///   returns `static`, since all four forward the caller's called class.
+///
+/// An explicitly named class (`Base::make()`) is deliberately not on that
+/// list: naming a class *sets* the called class, so its answer is that class
+/// and not this frame's.
+fn reject_static_return_of_another_class(
+    m: &MethodMember,
+    body: &Block,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    if !crate::signatures::writes_static_return(m.return_type.as_ref()) {
+        return;
+    }
+    let mut offenders: Vec<nvs_diagnostics::Span> = Vec::new();
+    {
+        let read: &Env<'_> = env;
+        crate::returns::for_each_return(&body.stmts, &mut |e: &Expr| {
+            if !yields_the_called_class(e, ctx, read) {
+                offenders.push(e.span);
+            }
+        });
+    }
+    let declared = m.return_type.as_ref().map_or(m.name, |t| t.span);
+    for span in offenders {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_STATIC_RETURN_NOT_CALLED_CLASS,
+                "a body declaring `static` returns a value that is not the called class",
+            )
+            .with_primary(span, "not the called class")
+            .with_secondary(declared, "declared `static` here")
+            .with_help(
+                "`static` is the class the call named, which a subclass may be — return `$this` \
+                 or `new static(...)`, or declare `self` if the declaring class is what is meant",
+            ),
+        );
+    }
+}
+
+/// Whether `e`'s runtime class is provably the called class — the whitelist
+/// [`reject_static_return_of_another_class`] documents.
+fn yields_the_called_class(e: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> bool {
+    match &e.kind {
+        ExprKind::Variable(span) => span_text(env.src, *span) == "$this",
+        ExprKind::New {
+            target: NewTarget::StaticTy,
+            ..
+        } => true,
+        ExprKind::StaticCall {
+            class,
+            method: MemberName::Ident(name),
+            ..
+        } => {
+            matches!(
+                class.kind,
+                ExprKind::SelfExpr | ExprKind::StaticExpr | ExprKind::ParentExpr
+            ) && forwards_the_called_class(span_text(env.src, *name), ctx, env)
+        }
+        ExprKind::MethodCall {
+            object,
+            method: MemberName::Ident(name),
+            ..
+        } => {
+            crate::expr::is_this_receiver(object, env.src)
+                && forwards_the_called_class(span_text(env.src, *name), ctx, env)
+        }
+        _ => false,
+    }
+}
+
+/// Whether `name`, resolved from the enclosing class, itself returns `static`.
+fn forwards_the_called_class(name: &str, ctx: &Ctx<'_>, env: &Env<'_>) -> bool {
+    ctx.current_class
+        .and_then(|c| crate::signatures::resolve_method(c, name, env.signatures, env.graph))
+        .is_some_and(|(_, sig)| sig.returns_static)
+}
+
 fn check_every_path_returns(m: &MethodMember, body: &Block, return_ty: TypeId, env: &mut Env<'_>) {
     if m.return_type.is_none() || matches!(env.interner.get(return_ty), Ty::Void | Ty::Never) {
         return;

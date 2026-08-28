@@ -92,6 +92,10 @@ fn method_sig(
             .iter()
             .map(|param| lower(param, interner))
             .collect(),
+        // No `Core` member returns `static`: the registry has no
+        // spelling for it, and a `Core` class is never extended —
+        // see `MethodSig::returns_static`.
+        returns_static: false,
         // A registry row records its parameters' *types* and never
         // their names, so no `Core` member is callable by name —
         // ADR 0063 R2's options bag is that surface instead, and

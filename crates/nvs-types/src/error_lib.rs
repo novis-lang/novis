@@ -188,6 +188,9 @@ fn constructor(interner: &mut TypeInterner) -> FxHashMap<String, MethodSig> {
         "constructor".to_owned(),
         MethodSig {
             params: vec![string, options],
+            // A constructor declares no return type at all, so there is
+            // no `static` to bind — see `MethodSig::returns_static`.
+            returns_static: false,
             // Synthesized rather than written, so there is no source
             // name to call either slot by — see `MethodSig::param_names`.
             // The second is ADR 0063 R2's bag, which is already by-name.
