@@ -661,7 +661,9 @@ tests = [
   "a_multi_level_break_leaves_the_loop_its_level_names",
   "a_ternary_with_mismatched_branch_types_joins_at_the_tagged_representation",
   "an_abandoned_generator_resumes_into_the_finally_it_is_suspended_inside",
-  # Item 14 -- the two shapes the owned-temporaries stack still misses.
+  # Item 14. The first now covers the two producers that used to release only on the normal edge --
+  # a `match` subject and its labels, and an `unset` target's rendered key; the second is the one
+  # shape the owned-temporaries stack still misses, named in its own field doc.
   "an_inline_producer_releases_its_value_on_the_throw_path",
   "a_transferred_argument_is_released_when_a_later_one_throws",
 ]
@@ -741,8 +743,8 @@ tests = [
   "a_mixed_condition_dispatches_the_truthy_table_on_the_tag",
   "a_subscript_through_a_tagged_base_lowers",
   "the_object_top_type_erases_to_the_pointer_a_class_does",
-  # `array<T> as array<U>` is ADR 0007 § 2's one row that does not lower at all yet, so this guard is
-  # unwritten on its merits rather than misnamed.
+  # ADR 0007 § 2's `array<T> as array<U>` row -- an agreement over its four spellings, the free
+  # `array<mixed>` target included, since that one is asserted by a count and not by a line.
   "an_array_conversion_walks_its_elements",
 ]
 

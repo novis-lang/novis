@@ -3195,6 +3195,145 @@ int $n = $u as int;
     );
 }
 
+/// Every value in flight inside an expression is released on the throw
+/// path, including the ones whose *normal* path releases them by hand.
+///
+/// `Lowering::owned_temporaries` is the whole mechanism and
+/// `Lowering::landing_block` the whole error edge, so the claim is one
+/// question asked of the two producers that used to answer it only on the
+/// normal edge: a `match` subject, in flight for a label chain whose every
+/// comparison can throw, and an `unset` target's rendered key, in flight for
+/// a descent that throws on an absent row. Asserted as "the block the fault
+/// edge names releases the producer" rather than by counting releases — a
+/// function that released it twice on the normal path would satisfy a count
+/// while leaking here.
+#[test]
+fn an_inline_producer_releases_its_value_on_the_throw_path() {
+    /// The one line naming `needle`.
+    fn line<'t>(text: &'t str, needle: &str) -> &'t str {
+        text.lines()
+            .find(|l| l.contains(needle))
+            .unwrap_or_else(|| panic!("no line names `{needle}`:\n{text}"))
+    }
+    /// The `vN` that line defines.
+    fn produced(text: &str, needle: &str) -> String {
+        line(text, needle)
+            .split_whitespace()
+            .next()
+            .expect("an instruction line starts with the value it defines")
+            .to_owned()
+    }
+    /// The `bbN` its `! bb` fault edge names.
+    fn fault_edge(text: &str, needle: &str) -> String {
+        line(text, needle)
+            .split("! ")
+            .nth(1)
+            .unwrap_or_else(|| panic!("`{needle}` takes no fault edge:\n{text}"))
+            .split_whitespace()
+            .next()
+            .expect("a fault edge names a block")
+            .to_owned()
+    }
+    /// Whether `block`'s own instructions release `value`.
+    fn releases(text: &str, block: &str, value: &str) -> bool {
+        text.lines()
+            .skip_while(|l| !l.trim_start().starts_with(&format!("{block}:")))
+            .skip(1)
+            .take_while(|l| !l.trim_end().ends_with(':'))
+            .any(|l| l.contains(&format!("release {value}")))
+    }
+
+    // The subject is a fresh `mixed`, so every label goes through the
+    // fallible `Helper::Identical` — the throw that abandons the `match`
+    // with its subject still in flight.
+    let (f, map, file) = lower_script_src(
+        "<?nvs
+class T { public static function pick(): mixed { return \"a\"; } }
+string $r = match (T::pick()) { \"b\" => \"hit\", default => \"miss\" };
+echo $r;
+",
+    );
+    let text = print_function(&f, map.file(file));
+    let subject = produced(&text, "T::pick");
+    // The label is the other producer at that edge: it is built for the
+    // comparison and released after it, so the comparison's own throw is the
+    // window both of them sit in.
+    let label = produced(&text, "const.str \"b\"");
+    let fault = fault_edge(&text, "helper.identical");
+    assert!(releases(&text, &fault, &subject), "{text}");
+    assert!(releases(&text, &fault, &label), "{text}");
+
+    // And the `unset` key: `$a` is nested, so the level read below the
+    // rendered key is an `AbsentKey::Throws` that can leave with it in hand.
+    let (f, map, file) = lower_script_src(
+        "<?nvs
+array<array<string>> $a = [];
+unset($a[\"outer\"][1]);
+",
+    );
+    let text = print_function(&f, map.file(file));
+    let key = produced(&text, "helper.int_to_string");
+    let fault = fault_edge(&text, "array.get");
+    assert!(releases(&text, &fault, &key), "{text}");
+}
+
+/// ADR 0007 § 2's `array<T> as array<U>` row, which is the one row of that
+/// grid whose decision the pair of representations cannot carry: both sides
+/// erase to `Ty::Array`, so what the walk checks travels beside the value as
+/// [`array_element_tags`]' word instead — one [`param_tag_nibble`] per level
+/// of `U`, outermost first.
+///
+/// Asserted as an agreement over the four spellings the row has, in one
+/// body, because each of them answers plausibly on its own line: the
+/// checked walk, ADR 0066's `?` twin through the helper that answers
+/// `null`, the nesting that makes the word two nibbles rather than one, and
+/// the `array<mixed>` target that is `Lowering::convert`'s free widening
+/// and must walk *nothing*. The count is what holds the last one down — a
+/// snapshot of any single conversion cannot see the free row grow a walk.
+#[test]
+fn an_array_conversion_walks_its_elements() {
+    let (f, map, file) = lower_script_src(
+        "<?nvs
+array<mixed> $m = [\"a\", \"b\"];
+array<string> $s = $m as array<string>;
+?array<string> $o = $m as ?array<string>;
+array<mixed> $n = [$m];
+array<array<string>> $d = $n as array<array<string>>;
+array<mixed> $free = $s as array<mixed>;
+",
+    );
+    let text = print_function(&f, map.file(file));
+    let walks = |name: &str| {
+        text.lines()
+            .filter(|l| l.contains(&format!("helper.{name} ")))
+            .count()
+    };
+    // Two checked walks — the one-level one and the nested one — and the
+    // free row is the third `as` over an array that emitted neither.
+    assert_eq!(walks("to_array_of"), 2, "{text}");
+    assert_eq!(walks("to_array_of_or_null"), 1, "{text}");
+    assert!(
+        !text.contains(&format!("const.uint {FN_PARAM_TAG_ANY}")),
+        "{text}"
+    );
+    // `string` is nibble 5, so `array<string>` is the word `5` and both the
+    // checked and the `?` spelling carry it; `array<array<string>>` is the
+    // array nibble outermost, `5 << 4 | 6`.
+    assert_eq!(
+        text.lines()
+            .filter(|l| l.contains(&format!(
+                "const.uint {}",
+                u64::from(param_tag_nibble(Ty::Str))
+            )))
+            .count(),
+        2,
+        "{text}"
+    );
+    let nested =
+        (u64::from(param_tag_nibble(Ty::Str)) << 4) | u64::from(param_tag_nibble(Ty::Array));
+    assert!(text.contains(&format!("const.uint {nested}")), "{text}");
+}
+
 /// ADR 0013 § 2: ordering two objects *is* a `Comparable::compareTo` call
 /// followed by a comparison of its `int` against zero — never a comparison
 /// of the two values, which for objects would be two heap pointers.

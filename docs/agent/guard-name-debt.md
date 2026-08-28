@@ -17,10 +17,10 @@ for p in nvs-syntax nvs-hir nvs-types nvs-ir nvs-runtime nvs-codegen nvs-stdlib 
 ```
 
 then substring-match every `tests = [...]` entry in `loop-goal.toml` against that roster. Measured
-2026-08-28 at `e0c9f3e`: **54 of 156 named guard tests match nothing cargo would run.** **Forty-nine**
-of those have since been reconciled — the ticked lines below — leaving **5**, over the **128**
+2026-08-28 at `e0c9f3e`: **54 of 156 named guard tests match nothing cargo would run.** **Fifty-one**
+of those have since been reconciled — the ticked lines below — leaving **3**, over the **128**
 entries `tests = [...]` now holds across every `cargo-named` check (127 distinct: Stage 2 and Stage 5
-both name `a_disjoint_equality_does_not_compile`). Twenty-nine of the forty-nine were a cause-2
+both name `a_disjoint_equality_does_not_compile`). Twenty-nine of the fifty-one were a cause-2
 *move* out of a `tests = [...]` list and into `cases`, so the denominator moves with them, and three
 whole `[[check]]` blocks went that way entire — Stage 5's two and Stage 7's `nvs-stdlib (the
 assertion roster)`.
@@ -67,7 +67,7 @@ slice**. That is the only thing that keeps this file from growing back.
 
 ### Stage 3 — control and calls
 
-`nvs-ir (control flow)`, `cargo test -p nvs-ir` — 2 of 7 unresolved
+`nvs-ir (control flow)`, `cargo test -p nvs-ir` — 1 of 7 unresolved
 
 - [x] `a_do_while_lowers_its_condition_below_its_body` — cause 2, now owned by
       `tests/conformance/lang/a-do-while-runs-its-body-before-its-condition.nvst`
@@ -79,9 +79,15 @@ slice**. That is the only thing that keeps this file from growing back.
 - [x] `an_abandoned_generator_resumes_to_unwind` — cause 1, now
       `an_abandoned_generator_resumes_into_the_finally_it_is_suspended_inside`
       (`crates/nvs-ir/src/lower/tests.rs`)
-- [ ] `an_inline_producer_releases_its_value_on_the_throw_path` — cause 3, genuinely open: the
-      owned-temporaries stack covers a call's arguments, a receiver and `.`/interpolation/`echo`
-      operands, but a normalized subscript key and a `match` subject still release inline
+- [x] `an_inline_producer_releases_its_value_on_the_throw_path` — **cause 3, and the two producers
+      it named are closed**: a `match` subject and each of its labels now ride
+      `Lowering::owned_temporaries` for the length of the comparison chain, and an `unset` target's
+      keys for the length of the fallible descent. Each is `forget`ten past the last throwing
+      instruction rather than released off the stack, because both have more than one normal exit
+      (an arm apiece, plus the no-arm throw) and the stack releases at one point. The test is at
+      that exact name in [lower/tests.rs:3236](../../crates/nvs-ir/src/lower/tests.rs#L3236),
+      asserting that the block a fault edge *names* releases the producer rather than counting
+      releases in the body
 - [ ] `a_transferred_argument_is_released_when_a_later_one_throws` — cause 3, genuinely open, and
       named as such in `nvs_ir::lower::Lowering`'s owned-temporaries field doc
 
@@ -96,7 +102,7 @@ slice**. That is the only thing that keeps this file from growing back.
 
 ### Stage 4 — targets and mixed
 
-`nvs-ir (targets and tags)`, `cargo test -p nvs-ir` — 1 of 8 unresolved
+`nvs-ir (targets and tags)`, `cargo test -p nvs-ir` — 0 of 8 unresolved
 
 - [x] `a_static_property_is_an_assignment_target` — cause 2, now owned by
       `tests/conformance/class/a-static-property-is-written-and-read-through-its-class.nvst`,
@@ -119,8 +125,15 @@ slice**. That is the only thing that keeps this file from growing back.
       a rename. It is an agreement over the three spellings `erase_checked_ty` answers `Ty::Object`
       for — a named class, plain `object`, a shape — asserted on `Function::params` rather than in a
       snapshot, since a snapshot of one receiver cannot see the other two drift
-- [ ] `an_array_conversion_walks_its_elements` — cause 3, genuinely open: `array<T> as array<U>`
-      panics `nvs-ir` at `crates/nvs-ir/src/lower/expr.rs:877`, so there is nothing to guard yet
+- [x] `an_array_conversion_walks_its_elements` — **cause 3, and the entry was stale about the tree**:
+      the row lowers now, in `Lowering::lower_array_restamp`
+      ([lower/convert.rs:957](../../crates/nvs-ir/src/lower/convert.rs#L957)), and a scratch `.nvs`
+      ran all four of its spellings before a line of the test was written. Now at that exact name in
+      [lower/tests.rs:3198](../../crates/nvs-ir/src/lower/tests.rs#L3198), as an agreement over those
+      four rather than a snapshot of one: the checked walk, ADR 0066's `?` twin, the nesting that
+      makes `array_element_tags`' word two nibbles, and the `array<mixed>` target that is
+      `convert`'s free row and must walk nothing — which only a *count* over the whole body can hold
+      down
 - [x] `a_tagged_operand_converts_to_bytes` — cause 2, now owned by
       `as-bytes-over-a-tagged-operand-is-decided-by-its-runtime-tag.nvst` (added to the list)
 
