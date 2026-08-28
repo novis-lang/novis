@@ -167,6 +167,86 @@ fn an_inherited_constructor_is_not_an_implicit_one() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
+/// The `Core` half of the same rule, and it is a *different* diagnostic on
+/// purpose. A `Core` class is not constructed by a `constructor` member at all
+/// — `nvs_stdlib::registry::CONSTRUCTORS` is the whole roster of names `new`
+/// may be written on, and `Core\Str` is not one — so the answer names the
+/// member the class does not have rather than counting arguments against a
+/// signature that was never going to exist. The arguments are what a program
+/// actually writes when it mistakes a `Core` namespace for a constructible
+/// class, so they are what this pins.
+#[test]
+fn a_core_class_with_no_constructor_refuses_arguments() {
+    let diags = check_src(
+        "<?nvs\nclass T {\n  function m(): void {\n    mixed $s = new Core\\Str(\"a\", 1);\n  }\n}\n",
+    );
+    let found = diags
+        .iter()
+        .find(|d| d.code == Some(code::E_UNKNOWN_MEMBER))
+        .unwrap_or_else(|| panic!("{diags:?}"));
+    assert!(
+        found
+            .message
+            .contains("`Core\\Str` has no member named `constructor`"),
+        "the refusal names the constructor `Core\\Str` does not have: {found:?}"
+    );
+}
+
+/// The bare form is refused identically, so the test above reads as "this
+/// class is not constructible" rather than "these two arguments are too many".
+#[test]
+fn a_core_class_with_no_constructor_refuses_a_bare_new_too() {
+    let diags = check_src(
+        "<?nvs\nclass T {\n  function m(): void {\n    mixed $s = new Core\\Str();\n  }\n}\n",
+    );
+    assert!(
+        diags.iter().any(|d| d.code == Some(code::E_UNKNOWN_MEMBER)),
+        "{diags:?}"
+    );
+}
+
+/// A `Core` name the registry does not hold at all is the *class* mistake, not
+/// the member one. `QName::is_core` is a spelling test, so `check_new_target`
+/// used to accept anything under `Core\` and leave `nvs-codegen` to fail with
+/// "this unit declares no descriptor for it" — an internal message for an
+/// ordinary typo.
+#[test]
+fn an_unregistered_core_class_is_undeclared_rather_than_a_codegen_failure() {
+    let diags = check_src(
+        "<?nvs\nclass T {\n  function m(): void {\n    mixed $x = new Core\\Bogus();\n  }\n}\n",
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_UNDEFINED_CLASS)),
+        "{diags:?}"
+    );
+}
+
+/// The second roster, and the one row of it the registry does not hold:
+/// `nvs_hir::errors::TREE`'s `Core\Test\Failure` is the only namespaced entry,
+/// and `QName::is_reserved_global_class`'s own docs say it is trusted through
+/// `is_core` rather than through that predicate. Holding a `Core` target to
+/// the registry alone withdrew exactly that trust and broke every `throw new
+/// Core\Test\Failure(...)` in the corpus.
+#[test]
+fn the_namespaced_exception_tree_row_is_still_a_new_target() {
+    let diags = check_src(
+        "<?nvs\nclass T {\n  function m(): void {\n    throw new Core\\Test\\Failure(\"no\");\n  }\n}\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// The registered, constructible end of the same lookup: a name in
+/// `CONSTRUCTORS` still passes, arguments and all.
+#[test]
+fn a_registered_core_constructor_still_accepts_its_own_new() {
+    let diags = check_src(
+        "<?nvs\nclass T {\n  function m(): void {\n    Core\\ObjectSet<int> $s = new Core\\ObjectSet<int>();\n  }\n}\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
 #[test]
 fn a_static_call_return_type_is_recovered() {
     let diags = check_src(

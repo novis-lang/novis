@@ -933,8 +933,31 @@ pub(crate) fn check_new_target(
         NewTarget::Name(name) => {
             let text = span_text(env.src, name.span);
             let qname = nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports);
+            // A `Core` name is held to the registry rather than to its
+            // namespace. `is_core` is a *spelling* test — anything under
+            // `Core\` answers it — so accepting one on that alone let
+            // `new Core\Bogus()` past every check the checker has and fail
+            // in `nvs-codegen` with "this unit declares no descriptor for
+            // it", an internal message for an ordinary typo. The registry is
+            // the whole roster of `Core` classes
+            // ([`nvs_stdlib::registry::CLASSES`]), so a name it does not hold
+            // is undeclared in exactly the sense the arm below reports.
+            //
+            // The exception tree is the second roster, and `Core\Test\Failure`
+            // is the only row of it that needs naming here: every other
+            // `nvs_hir::errors::TREE` entry is a bare global answered by
+            // `is_reserved_global_class`, and that predicate's own docs say
+            // the namespaced one is trusted through `is_core` instead —
+            // which is exactly the trust this arm just withdrew.
+            //
+            // A registered `Core` class that has no constructor is a
+            // *different* mistake and keeps its own diagnostic: `infer_new`
+            // reports the missing `constructor` member, naming the one thing
+            // the class is missing rather than the class itself.
             if env.symbols.get(&qname).is_some()
-                || qname.is_core()
+                || (qname.is_core()
+                    && (crate::core_lib::is_registered(&qname)
+                        || nvs_hir::errors::is_exception_class(&qname.to_string())))
                 || qname.is_reserved_global_class()
             {
                 env.interner.class(qname)
