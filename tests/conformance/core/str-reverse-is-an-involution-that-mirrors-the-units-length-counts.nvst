@@ -1,0 +1,103 @@
+--TEST--
+`Core\Str::reverse` is its own inverse and mirrors exactly the units `Core\Str::length` counts, so it distributes over concatenation on every join that is not inside a cluster — spec § 1
+--FILE--
+<?nvs
+// `crates/nvs-stdlib/src/str.rs`'s comment says the unit is
+// `granularity::DEFAULT` — the same unit `length` counts and `graphemes`
+// hands back. Three consequences follow and none of them is visible on a
+// single line, so each is asserted over the whole table and counted.
+
+array<string> $subjects = [
+    "", "a", "ab", "stressed", "café", "cafe\u{301}", "naïve",
+    "\r\n", "a\r\nb", "日本語", "👍", "👨\u{200D}👩\u{200D}👧", "ǅ", "ß",
+];
+
+int $involution = 0;
+int $sameLength = 0;
+int $mirrored = 0;
+int $units = 0;
+foreach ($subjects as string $s) {
+    string $r = Core\Str::reverse($s);
+    // Reversing twice is the identity — the property a member that dropped or
+    // duplicated a piece at either end would fail while still printing a
+    // plausible single reversal.
+    if (Core\Str::reverse($r) == $s) {
+        $involution = $involution + 1;
+    }
+    int $n = Core\Str::length($s) as int;
+    if (Core\Str::length($r) as int == $n) {
+        $sameLength = $sameLength + 1;
+    }
+    // Stronger than the length agreeing: every unit is in its mirrored place,
+    // which is what pins the reversal to `graphemes`' partition rather than to
+    // code points or bytes. A byte-wise `strrev` would not even produce
+    // `graphemes`-readable text for the last six rows.
+    array<string> $forward = Core\Str::graphemes($s);
+    array<string> $backward = Core\Str::graphemes($r);
+    int $j = 0;
+    int $hits = 0;
+    foreach ($forward as string $g) {
+        $units = $units + 1;
+        if ($g == $backward[($n - 1 - $j) as string]) {
+            $hits = $hits + 1;
+        }
+        $j = $j + 1;
+    }
+    if ($hits == $n) {
+        $mirrored = $mirrored + 1;
+    }
+}
+// 14 subjects, 14 involutions, 14 length agreements, 14 mirrored partitions
+// over 35 units in all.
+echo $involution as string, " ", $sameLength as string, " ", $mirrored as string, " ", $units as string, "\n";
+
+// Two of the rows read out loud, so the counts above are anchored to something
+// a reader can check: an ASCII reversal, and one where the accent stays on the
+// letter it modifies rather than migrating to the letter now beside it. The
+// decomposed spelling is asserted rather than echoed, because a cluster comes
+// back in its own order — `e` then the mark — and that is not the byte string
+// the composed `é` would print.
+echo Core\Str::reverse("stressed"), "|", Core\Str::reverse("café"), "|\n";
+echo Core\Str::reverse("cafe\u{301}") == "e\u{301}fac" ? "1" : "0", "\n";
+
+// `reverse($a . $b) == reverse($b) . reverse($a)` — true of any reversal over a
+// fixed alphabet, and here true only where the join does not land inside a
+// cluster, because only then are the two operands' partitions still the joined
+// subject's. So the law is not counted on its own: it is counted *against*
+// `length($a . $b) == length($a) + length($b)`, which is the same question
+// asked of `length`. `\u{301}` after a base and `\n` after `\r` are the joins
+// that fail both at once. The two part on exactly one of the 49 pairs, and it
+// is the one whose absorbed cluster is symmetric — a combining mark after a
+// combining mark is one cluster rather than two, so the join is not additive,
+// yet reversing it cannot tell the two halves apart.
+array<string> $pieces = ["ab", "e", "\u{301}", "", "👍", "\r", "\n"];
+int $pairs = 0;
+int $holds = 0;
+int $additive = 0;
+int $agree = 0;
+foreach ($pieces as string $a) {
+    foreach ($pieces as string $b) {
+        $pairs = $pairs + 1;
+        bool $distributes = Core\Str::reverse($a . $b) == Core\Str::reverse($b) . Core\Str::reverse($a);
+        bool $sums = Core\Str::length($a . $b) as int
+            == Core\Str::length($a) as int + Core\Str::length($b) as int;
+        if ($distributes) {
+            $holds = $holds + 1;
+        }
+        if ($sums) {
+            $additive = $additive + 1;
+        }
+        if ($distributes == $sums) {
+            $agree = $agree + 1;
+        }
+    }
+}
+// 49 ordered pairs, 45 of them distributing, 44 additive, and 48 where the two
+// answer alike: four joins absorb a cluster boundary and lose the law with it,
+// and a fifth absorbs one without being able to show it.
+echo $pairs as string, " ", $holds as string, " ", $additive as string, " ", $agree as string, "\n";
+--EXPECT--
+14 14 14 35
+desserts|éfac|
+1
+49 45 44 48
