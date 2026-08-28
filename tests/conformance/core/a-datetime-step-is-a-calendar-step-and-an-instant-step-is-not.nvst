@@ -1,0 +1,75 @@
+--TEST--
+Spec § 4: the same step asked of a `DateTime` and of its `toInstant()` agrees only where no calendar makes it differ
+--FILE--
+<?nvs
+// § 4's opening rule is that a `DateTime` moves by a count of a `Core\Unit`
+// while an `Instant` moves by an exact `Core\Time\Duration`. Everything below
+// asks *one* step of both and compares what the two landed on, so a member
+// that quietly reduced a calendar unit to a fixed number of nanoseconds fails
+// on the two rows a calendar bends and on the count over the rest.
+var $fmt = "yyyy-MM-dd HH:mm:ss.SSSSSSSSS XXX";
+var $same = fn (string $a, string $b): int => ($a == $b) ? 1 : 0;
+
+var $utc = Core\Time\Zone::UTC;
+var $ny = Core\Time\Zone::of("America/New_York");
+var $d = Core\Time::at(2024, 6, 15, $utc, {hour: 9, minute: 30});
+var $exact = $d->toInstant();
+
+// Away from a boundary the two arithmetics are the same arithmetic, which is
+// what makes the divergences below evidence of a calendar and not of a bug.
+// Counted rather than read off nine lines: a unit that stopped agreeing here
+// would still print plausibly on its own.
+var $agreed = 0;
+$agreed = $agreed + ($same($d->plus(3, Core\Unit::Nanosecond)->format($fmt), $exact->plus(Core\Time\Duration::nanoseconds(3))->in($utc)->format($fmt)) as int);
+$agreed = $agreed + ($same($d->plus(3, Core\Unit::Microsecond)->format($fmt), $exact->plus(Core\Time\Duration::microseconds(3))->in($utc)->format($fmt)) as int);
+$agreed = $agreed + ($same($d->plus(3, Core\Unit::Millisecond)->format($fmt), $exact->plus(Core\Time\Duration::milliseconds(3))->in($utc)->format($fmt)) as int);
+$agreed = $agreed + ($same($d->plus(3, Core\Unit::Second)->format($fmt), $exact->plus(Core\Time\Duration::seconds(3))->in($utc)->format($fmt)) as int);
+$agreed = $agreed + ($same($d->plus(3, Core\Unit::Minute)->format($fmt), $exact->plus(Core\Time\Duration::minutes(3))->in($utc)->format($fmt)) as int);
+$agreed = $agreed + ($same($d->plus(3, Core\Unit::Hour)->format($fmt), $exact->plus(Core\Time\Duration::hours(3))->in($utc)->format($fmt)) as int);
+$agreed = $agreed + ($same($d->plus(3, Core\Unit::Day)->format($fmt), $exact->plus(Core\Time\Duration::days(3))->in($utc)->format($fmt)) as int);
+$agreed = $agreed + ($same($d->plus(3, Core\Unit::Week)->format($fmt), $exact->plus(Core\Time\Duration::weeks(3))->in($utc)->format($fmt)) as int);
+$agreed = $agreed + ($same($d->minus(3, Core\Unit::Day)->format($fmt), $exact->minus(Core\Time\Duration::days(3))->in($utc)->format($fmt)) as int);
+echo "agreed=", $agreed as string, "|\n";
+
+// A short month is the first place they part: one calendar month off the 31st
+// lands on the last day of the month it lands in, while January's own 31 days
+// of exact duration overshoot into March.
+var $jan = Core\Time::at(2024, 1, 31, $utc, {hour: 12});
+echo $jan->plus(1, Core\Unit::Month)->format("yyyy-MM-dd HH:mm"), "|\n";
+echo $jan->toInstant()->plus(Core\Time\Duration::days(31))->in($utc)->format("yyyy-MM-dd HH:mm"), "|\n";
+echo $same($jan->plus(1, Core\Unit::Month)->format($fmt), $jan->toInstant()->plus(Core\Time\Duration::days(31))->in($utc)->format($fmt)) as string, "|\n";
+
+// The clamp is therefore not invertible: a step there and back is a different
+// day, which is what "counts calendar units" costs and no `Duration` does.
+echo $jan->plus(1, Core\Unit::Month)->minus(1, Core\Unit::Month)->format("yyyy-MM-dd"), "|\n";
+
+// A DST boundary is the second: one calendar day keeps the wall clock across
+// New York's spring-forward night, while 24 exact hours move it an hour on.
+var $spring = Core\Time::at(2024, 3, 9, $ny, {hour: 12});
+echo $spring->plus(1, Core\Unit::Day)->format("yyyy-MM-dd HH:mm XXX"), "|\n";
+echo $spring->toInstant()->plus(Core\Time\Duration::days(1))->in($ny)->format("yyyy-MM-dd HH:mm XXX"), "|\n";
+echo $same($spring->plus(1, Core\Unit::Day)->format($fmt), $spring->toInstant()->plus(Core\Time\Duration::days(1))->in($ny)->format($fmt)) as string, "|\n";
+
+// The same zone, the same unit, a night with no transition in it: the two
+// agree, so what differs above is the boundary and not the zone.
+var $plain = Core\Time::at(2024, 6, 9, $ny, {hour: 12});
+echo $same($plain->plus(1, Core\Unit::Day)->format($fmt), $plain->toInstant()->plus(Core\Time\Duration::days(1))->in($ny)->format($fmt)) as string, "|\n";
+
+// A year is 365 days only in a year that has 365 days, which is the same
+// rule read off the largest unit: 2024 is a leap year and 2023 is not.
+var $y2024 = Core\Time::at(2024, 1, 1, $utc);
+var $y2023 = Core\Time::at(2023, 1, 1, $utc);
+echo $same($y2024->plus(1, Core\Unit::Year)->format($fmt), $y2024->toInstant()->plus(Core\Time\Duration::days(365))->in($utc)->format($fmt)) as string, "|\n";
+echo $same($y2023->plus(1, Core\Unit::Year)->format($fmt), $y2023->toInstant()->plus(Core\Time\Duration::days(365))->in($utc)->format($fmt)) as string, "|\n";
+--EXPECT--
+agreed=9|
+2024-02-29 12:00|
+2024-03-02 12:00|
+0|
+2024-01-29|
+2024-03-10 12:00 -04:00|
+2024-03-10 13:00 -04:00|
+0|
+1|
+0|
+1|
