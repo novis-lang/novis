@@ -1,0 +1,149 @@
+--TEST--
+`Core\Bytes::compare` answers the ordering `Core\Str::compare` gives the same octets, and is a total order over a swept table — spec § 7, ADR 0009 § 1, ADR 0063 R20
+--FILE--
+<?nvs
+// `bytes-indexes-and-orders-by-byte-offset.nvst` pins what `compare` answers
+// for a handful of written pairs. This case pins the two properties those
+// lines cannot show: that the answer is the *same* ordering `Core\Str` gives
+// the identical octets, and that the ordering is total — sign, antisymmetry,
+// trichotomy and transitivity counted over every pair and every triple of one
+// table rather than read off a line. A member that grew its own comparison
+// still prints plausibly against any single row.
+//
+// `crates/nvs-stdlib/src/bytes.rs:588` owns the implementation and its doc
+// comment owns why the answer is exactly -1, 0 or 1 with no magnitude.
+
+final class Ord {
+    // The two members under test, over the same octets: a `string` is UTF-8,
+    // so `$s as bytes` is the identity on the buffer both then read (ADR 0009
+    // § 3), which is what makes "the same octets" a fact rather than a hope.
+    public static function bytes(string $a, string $b): int {
+        return Core\Bytes::compare($a as bytes, $b as bytes);
+    }
+
+    public static function text(string $a, string $b): int {
+        return Core\Str::compare($a, $b);
+    }
+
+    // The ordering the table is *written* in, so a member that agrees with
+    // `Core\Str` because both are wrong still fails the sweep below.
+    public static function sign(int $i, int $j): int {
+        if ($i < $j) {
+            return -1;
+        }
+        if ($i > $j) {
+            return 1;
+        }
+        return 0;
+    }
+
+    public static function le(int $c): string {
+        if ($c <= 0) {
+            return "y";
+        }
+        return "n";
+    }
+}
+
+// Written in ascending byte order, and chosen for the three shapes an octet
+// ordering has to get right: the empty buffer, which is a prefix of everything;
+// two buffers where one is a proper prefix of the other ("a", "ab", "abc"); and
+// a pair that only an *unsigned* octet comparison orders this way — "ß" is
+// 0xc3 0x9f, so it sorts after "z" (0x7a) here and would sort before it if the
+// octets were read as signed.
+array<string> $table = ["", "A", "a", "ab", "abc", "b", "z", "ß"];
+var $n = Core\Arr::count($table);
+
+// The prefix rule and the sign convention, written out once so the counts below
+// have something to be a generalization of.
+echo Ord::bytes("", "a"), " ", Ord::bytes("ab", "abc"), " ", Ord::bytes("abc", "ab"), " ", Ord::bytes("ab", "ab"), "\n";
+
+// A magnitude is what PHP 8 already removed from `strcmp`, so the answer is one
+// of three values however far apart the first differing octets are: "a" and "z"
+// are 25 apart and "A" and "ß" are 130, and both answer -1.
+echo Ord::bytes("a", "z"), " ", Ord::bytes("A", "ß"), " ", Ord::bytes("z", "a"), "\n";
+
+// 1. Agreement. Every pair, both ways round, asked of both members: an ordering
+//    that disagreed on one pair fails the count while still looking right on
+//    every line above.
+int $agree = 0;
+int $i = 0;
+int $j = 0;
+for ($i = 0; $i < $n; $i = $i + 1) {
+    for ($j = 0; $j < $n; $j = $j + 1) {
+        if (Ord::bytes($table[$i], $table[$j]) == Ord::text($table[$i], $table[$j])) {
+            $agree = $agree + 1;
+        }
+    }
+}
+echo $agree, " of ", $n * $n, "\n";
+
+// 2. Totality and trichotomy against the order the table is written in: every
+//    pair answers exactly the sign of its two indices, so the sweep asserts the
+//    whole ordering and not merely that it is *an* ordering. Equality is the
+//    diagonal and nothing else, because the table's entries are distinct.
+int $ordered = 0;
+int $zeros = 0;
+for ($i = 0; $i < $n; $i = $i + 1) {
+    for ($j = 0; $j < $n; $j = $j + 1) {
+        var $c = Ord::bytes($table[$i], $table[$j]);
+        if ($c == Ord::sign($i, $j)) {
+            $ordered = $ordered + 1;
+        }
+        if ($c == 0) {
+            $zeros = $zeros + 1;
+        }
+    }
+}
+echo $ordered, " of ", $n * $n, ", ", $zeros, " equal\n";
+
+// 3. Antisymmetry, asked of the member alone rather than of the table's order:
+//    swapping the arguments negates the answer, for every pair.
+int $anti = 0;
+for ($i = 0; $i < $n; $i = $i + 1) {
+    for ($j = 0; $j < $n; $j = $j + 1) {
+        if (Ord::bytes($table[$i], $table[$j]) == 0 - Ord::bytes($table[$j], $table[$i])) {
+            $anti = $anti + 1;
+        }
+    }
+}
+echo $anti, " of ", $n * $n, "\n";
+
+// 4. Transitivity, over every triple: `a <= b` and `b <= c` implies `a <= c`.
+//    This is the property a hand-written comparison loses first, and no pair
+//    can show it.
+int $triples = 0;
+int $transitive = 0;
+int $k = 0;
+for ($i = 0; $i < $n; $i = $i + 1) {
+    for ($j = 0; $j < $n; $j = $j + 1) {
+        for ($k = 0; $k < $n; $k = $k + 1) {
+            $triples = $triples + 1;
+            if (Ord::le(Ord::bytes($table[$i], $table[$j])) == "y" && Ord::le(Ord::bytes($table[$j], $table[$k])) == "y") {
+                if (Ord::le(Ord::bytes($table[$i], $table[$k])) == "y") {
+                    $transitive = $transitive + 1;
+                }
+            } else {
+                $transitive = $transitive + 1;
+            }
+        }
+    }
+}
+echo $transitive, " of ", $triples, "\n";
+
+// 5. The buffers the table cannot hold, because a `string` is UTF-8 and these
+//    are not: `compare` is defined over octets, so a buffer that no `string`
+//    can name still orders, and it orders by the same unsigned rule. 0xff is
+//    the last octet there is, and it sorts after every ASCII one.
+bytes $high = Core\Encoding::fromHex("ff");
+bytes $low = Core\Encoding::fromHex("00");
+bytes $none = Core\Encoding::fromHex("");
+echo Core\Bytes::compare($low, $high), " ", Core\Bytes::compare($high, $low), " ", Core\Bytes::compare($none, $low), " ", Core\Bytes::compare($high, $high), "\n";
+--EXPECT--
+-1 -1 1 0
+-1 -1 1
+64 of 64
+64 of 64, 8 equal
+64 of 64
+512 of 512
+-1 1 -1 0
