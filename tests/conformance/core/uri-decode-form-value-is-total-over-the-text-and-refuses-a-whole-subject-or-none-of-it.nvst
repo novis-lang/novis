@@ -1,0 +1,103 @@
+--TEST--
+`Core\Uri::decodeFormValue` has exactly one refusal and the text cannot cause it: it answers for every one of the 128 raw ASCII bytes and for all 256 arrangements of a `%` with a non-hex neighbour, and where the octets do refuse it refuses the *whole* subject wherever the escape sits rather than answering the prefix it had already decoded — spec § 12, ADR 0009
+--FILE--
+<?nvs
+// Two claims that the neighbouring cases each half-state. The malformed-escape
+// case shows six rows decoding to themselves; the octet case shows five
+// families throwing. Neither says that those are the only two outcomes there
+// are, which is what makes this member safe to hand a query string a stranger
+// wrote: no arrangement of `%`, `+` and text throws, and the one thing that
+// does throw is a property of the octets the escapes spell.
+//
+// Both halves were checked against PHP 8.5 while this was written: `urldecode`
+// answers the same text for every row below that Novis answers for, the
+// refusals being ADR 0009's divergence, which the module doc owns.
+
+// First: the raw bytes, unescaped. A `%`-free subject has no escape to be
+// well formed, so every one of the 128 ASCII bytes is text — the `+` that is a
+// space, the `%` that begins nothing, and the NUL a C string could not hold.
+int $rawAnswered = 0;
+int $rawByte = 0;
+for (; $rawByte <= 127; $rawByte = $rawByte + 1) {
+    string $character = Core\Str::fromCodePoint($rawByte as uint);
+    try {
+        var $answer = Core\Uri::decodeFormValue($character);
+        $rawAnswered = $rawAnswered + 1;
+    } catch (Throwable $rawRefused) {
+        echo "raw byte ", $rawByte, " refused\n";
+    }
+}
+echo "raw bytes 128, answered ", $rawAnswered, "\n";
+
+// Second: a `%` that cannot begin an escape, swept. `Z` is not a hex digit, so
+// `%<c>Z` and `%Z<c>` are malformed for every byte `c` — including the hex
+// digits, including a second `%`, including a `+`. Every one is text, so every
+// one is answered, and `decodeComponent` answers the subject back unchanged.
+// A member that gave up at a `%` and resumed after it, or that repaired a
+// half-escape, would still answer here; what it would fail is the count.
+int $malformedAnswered = 0;
+int $unchangedByComponent = 0;
+int $decodersDiffer = 0;
+int $neighbour = 0;
+for (; $neighbour <= 127; $neighbour = $neighbour + 1) {
+    string $byte = Core\Str::fromCodePoint($neighbour as uint);
+    array<string> $arrangements = ["%" . $byte . "Z", "%Z" . $byte];
+    foreach ($arrangements as string $row) {
+        try {
+            var $byForm = Core\Uri::decodeFormValue($row);
+            $malformedAnswered = $malformedAnswered + 1;
+            if ($byForm != Core\Uri::decodeComponent($row)) {
+                $decodersDiffer = $decodersDiffer + 1;
+            }
+        } catch (Throwable $malformedRefused) {
+            echo "malformed [", $row, "] refused\n";
+        }
+        if (Core\Uri::decodeComponent($row) == $row) {
+            $unchangedByComponent = $unchangedByComponent + 1;
+        }
+    }
+}
+echo "arrangements 256, answered ", $malformedAnswered,
+     ", unchanged by decodeComponent ", $unchangedByComponent,
+     ", the two decoders differ on ", $decodersDiffer, "\n";
+
+// Those two are the `+` in each position, which is the previous sentence's own
+// bound: the one byte the form decoder rewrites is rewritten inside a malformed
+// escape too, so it is not the escape scan that spares it.
+echo "[", Core\Uri::decodeFormValue("%+Z"), "] [", Core\Uri::decodeFormValue("%Z+"), "]\n";
+
+// Third: where the octets *do* refuse, the refusal is the whole subject. A
+// decoder that wrote as it scanned would answer `head` for the second row and
+// throw afterwards; this one produces a value or throws, never both. Each row
+// is paired with the same text carrying a well-formed sequence in the same
+// position, so the count on the accepting side says the position is not itself
+// the reason.
+array<string> $positions = ["%FFtail", "head%FFtail", "head%FF", "a+b%FF+c"];
+array<string> $wellFormed = ["%C3%BFtail", "head%C3%BFtail", "head%C3%BF", "a+b%C3%BF+c"];
+int $refused = 0;
+foreach ($positions as string $bad) {
+    try {
+        var $partial = Core\Uri::decodeFormValue($bad);
+        echo "answered [", $partial, "]\n";
+    } catch (Throwable $wholeRefusal) {
+        $refused = $refused + 1;
+    }
+}
+int $accepted = 0;
+foreach ($wellFormed as string $good) {
+    try {
+        var $whole = Core\Uri::decodeFormValue($good);
+        $accepted = $accepted + 1;
+    } catch (Throwable $unexpected) {
+        echo "unexpectedly refused [", $good, "]\n";
+    }
+}
+echo "positions 4, refused ", $refused, ", the same positions well formed, accepted ",
+     $accepted, "\n";
+echo "[", Core\Uri::decodeFormValue("a+b%C3%BF+c"), "]\n";
+--EXPECT--
+raw bytes 128, answered 128
+arrangements 256, answered 256, unchanged by decodeComponent 256, the two decoders differ on 2
+[% Z] [%Z ]
+positions 4, refused 4, the same positions well formed, accepted 4
+[a bÿ c]

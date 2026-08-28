@@ -1,0 +1,143 @@
+--TEST--
+`Core\Uri::decodeFormValue`'s refusal is a property of the decoded octet *stream*, counted over every one of the 256 single-byte escapes and every one of the 256 second octets after a two-byte lead: 128 accepted and 128 refused on the first sweep, 64 accepted on the second, `decodeComponent` refusing the identical set in both, and the bound named on both sides — spec § 12, ADR 0009
+--FILE--
+<?nvs
+// The neighbouring case shows this refusal on five hand-picked families and
+// asserts that `decodeComponent` refuses them too. What it cannot say is *which*
+// escapes those five are five of: a member validating the first octet alone, or
+// one refusing every escape above `%7E` rather than above `%7F`, prints the same
+// five refusals. So the sweep is exhaustive here and the assertion is a count.
+//
+// ADR 0009 makes a `string` UTF-8 by construction, so percent-decoding — which
+// answers *octets* — has a refusal PHP's `urldecode` does not. That divergence
+// is the module doc's; what is pinned here is its exact shape.
+
+final class Esc {
+    // `%XX`, upper-case, for one octet. The digits are a table rather than
+    // arithmetic because there is no member that renders a byte as hex.
+    public static function of(int $b): string {
+        array<string> $d = ["0", "1", "2", "3", "4", "5", "6", "7",
+                            "8", "9", "A", "B", "C", "D", "E", "F"];
+        return "%" . $d[Core\Math::intDiv($b, 16) as string] . $d[($b % 16) as string];
+    }
+}
+
+// First sweep: every escape a single octet can be written as. A byte below
+// `0x80` is an ASCII character and decodes; one at or above it is a lone
+// continuation or lead byte, which is not a UTF-8 sequence on its own, so there
+// is no `string` to answer and the member throws. Both decoders are asked, and
+// the third counter is the one that matters — it says they draw the same line,
+// not merely that each drew one.
+int $formAccepted = 0;
+int $componentAccepted = 0;
+int $sameVerdict = 0;
+int $b = 0;
+for (; $b <= 255; $b = $b + 1) {
+    string $escape = Esc::of($b);
+    int $form = 0;
+    int $component = 0;
+    try {
+        var $byForm = Core\Uri::decodeFormValue($escape);
+        $form = 1;
+    } catch (Throwable $formRefused) {
+        $form = 0;
+    }
+    try {
+        var $byComponent = Core\Uri::decodeComponent($escape);
+        $component = 1;
+    } catch (Throwable $componentRefused) {
+        $component = 0;
+    }
+    $formAccepted = $formAccepted + $form;
+    $componentAccepted = $componentAccepted + $component;
+    if ($form == $component) {
+        $sameVerdict = $sameVerdict + 1;
+    }
+}
+echo "octets 256, decodeFormValue accepted ", $formAccepted,
+     ", decodeComponent accepted ", $componentAccepted,
+     ", same verdict ", $sameVerdict, "\n";
+
+// The bound, named on both sides rather than left to the counts: `%7F` is the
+// last escape that is a character on its own and `%80` is the first that is
+// not. `%00` is at the other end of the accepted range and is an ordinary
+// character here, the NUL being a byte a `string` can hold.
+echo "[", Esc::of(127), "] length ", Core\Str::length(Core\Uri::decodeFormValue(Esc::of(127))),
+     ", [", Esc::of(0), "] length ", Core\Str::length(Core\Uri::decodeFormValue(Esc::of(0))), "\n";
+try {
+    // Bound before the `echo`, which writes its earlier operands before a
+    // later one throws.
+    var $high = Core\Uri::decodeFormValue(Esc::of(128));
+    echo "accepted [", $high, "]\n";
+} catch (Throwable $firstRefused) {
+    echo "[", Esc::of(128), "] refused\n";
+}
+
+// Second sweep, and the reason the first one's answer is not "everything above
+// `%7F` is refused": an octet the first sweep refused *alone* is accepted in
+// company. `%C3` is a two-byte lead, so `%C3%XX` decodes for exactly the 64
+// continuation bytes `0x80-0xBF` and for nothing else — not for a second lead,
+// not for an ASCII byte, and not for a byte outside UTF-8 altogether. A member
+// checking only that the lead is followed by *something* would answer 255 here.
+int $pairAccepted = 0;
+int $pairSameVerdict = 0;
+int $second = 0;
+for (; $second <= 255; $second = $second + 1) {
+    string $sequence = Esc::of(195) . Esc::of($second);
+    int $pairForm = 0;
+    int $pairComponent = 0;
+    try {
+        var $pairByForm = Core\Uri::decodeFormValue($sequence);
+        $pairForm = 1;
+    } catch (Throwable $pairFormRefused) {
+        $pairForm = 0;
+    }
+    try {
+        var $pairByComponent = Core\Uri::decodeComponent($sequence);
+        $pairComponent = 1;
+    } catch (Throwable $pairComponentRefused) {
+        $pairComponent = 0;
+    }
+    $pairAccepted = $pairAccepted + $pairForm;
+    if ($pairForm == $pairComponent) {
+        $pairSameVerdict = $pairSameVerdict + 1;
+    }
+}
+echo "after the lead %C3, accepted ", $pairAccepted, " of 256, same verdict ",
+     $pairSameVerdict, "\n";
+
+// The bound of that second sweep, again from both sides, with the accepted row
+// spelling the character it is for.
+echo "[", Core\Uri::decodeFormValue("%C3%A9"), "] [",
+     Core\Uri::decodeFormValue("%C3%BF"), "]\n";
+try {
+    var $ascii = Core\Uri::decodeFormValue("%C3%7F");
+    echo "accepted [", $ascii, "]\n";
+} catch (Throwable $notContinuation) {
+    echo "[%C3%7F] refused\n";
+}
+try {
+    var $lead = Core\Uri::decodeFormValue("%C3%C0");
+    echo "accepted [", $lead, "]\n";
+} catch (Throwable $secondLead) {
+    echo "[%C3%C0] refused\n";
+}
+
+// And the sequence with one continuation too many, which is the same rule read
+// from the other end: the stream is decoded whole, so a trailing continuation
+// byte with no lead of its own refuses a pair that was otherwise complete.
+try {
+    var $stray = Core\Uri::decodeFormValue("%C3%A9%A9");
+    echo "accepted [", $stray, "]\n";
+} catch (Throwable $strayContinuation) {
+    echo "[%C3%A9%A9] refused\n";
+}
+--EXPECT--
+octets 256, decodeFormValue accepted 128, decodeComponent accepted 128, same verdict 256
+[%7F] length 1, [%00] length 1
+[%80] refused
+after the lead %C3, accepted 64 of 256, same verdict 256
+[é] [ÿ]
+[%C3%7F] refused
+[%C3%C0] refused
+[%C3%A9%A9] refused

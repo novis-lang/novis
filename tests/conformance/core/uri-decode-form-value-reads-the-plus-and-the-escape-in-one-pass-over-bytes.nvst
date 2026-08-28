@@ -1,0 +1,94 @@
+--TEST--
+`Core\Uri::decodeFormValue`'s two rewrites are one pass over bytes rather than two passes over the text: a `+` is a space even where it sits inside a `%` that then cannot be an escape, counted over every hex digit; a `+` an escape produced is never re-read as a space; and a `+` between two octets is a byte in the stream, so it breaks a sequence that was otherwise well formed — spec § 12, RFC 3986 § 2.1
+--FILE--
+<?nvs
+// The neighbouring case establishes *that* `+` is the one byte this member and
+// `decodeComponent` disagree on. What it does not say is *when* the two
+// rewrites happen relative to each other, and there are three observable
+// orders. Substituting first would make `%2+0` read as `%2 0`; substituting
+// afterwards would make the `+` an escape produced by `%2B` into a space too;
+// scanning escapes with `+` treated as a hex digit would make `%2+` an escape
+// at all. Only one pass, left to right, over bytes gives every row below.
+//
+// PHP 8.5's `urldecode` was consulted for each: it answers `%2 0`, `% 41`,
+// `a + b` and `%2B` exactly as the rows here do, so this is not a divergence
+// being frozen — it is the order being named.
+
+// A `+` is not a hex digit, and it is still a space. Swept over all 22 hex
+// characters in both positions of the pair, so a member that had grown a
+// lenient scan — one accepting `+` as a digit, or one deferring the `+` until
+// after the escapes were read — fails on the count rather than on a line.
+array<string> $digits = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+                         "A", "B", "C", "D", "E", "F",
+                         "a", "b", "c", "d", "e", "f"];
+int $leadingDigit = 0;
+int $trailingDigit = 0;
+foreach ($digits as string $digit) {
+    if (Core\Uri::decodeFormValue("%" . $digit . "+") == "%" . $digit . " ") {
+        $leadingDigit = $leadingDigit + 1;
+    }
+    if (Core\Uri::decodeFormValue("%+" . $digit) == "% " . $digit) {
+        $trailingDigit = $trailingDigit + 1;
+    }
+}
+echo "hex characters ", Core\Arr::count($digits) as int, ", `%<d>+` is a space ",
+     $leadingDigit, ", `%+<d>` is a space ", $trailingDigit, "\n";
+
+// The same rows written out once, with a third byte after them so the malformed
+// escape is not merely at the end of the subject, and with `decodeComponent`
+// beside each: the escape scan gives the identical answer in both members, so
+// the only difference is the byte the `+` became.
+array<string> $mixed = ["%2+0", "%+41", "a%zz+b"];
+foreach ($mixed as string $row) {
+    echo "[", $row, "] -> form [", Core\Uri::decodeFormValue($row),
+         "] component [", Core\Uri::decodeComponent($row), "]\n";
+}
+
+// One pass, not two: the `+` that `%2B` produces is output, not input, so it is
+// not then read as a space. `%252B` is the same statement one level up — the
+// `%25` becomes a `%` and the `2B` behind it stays the two characters it was,
+// rather than being rescanned as the escape it now spells.
+echo "[", Core\Uri::decodeFormValue("a+%2B+b"), "] [",
+     Core\Uri::decodeFormValue("%252B"), "] [",
+     Core\Uri::decodeFormValue("%2B"), "]\n";
+
+// And the third consequence of the pass being over *bytes*: whatever a `+`
+// becomes, it becomes one octet in the stream that UTF-8 validation then reads.
+// So a `+` — or an escaped one — dropped between the two octets of a sequence
+// that is well formed without it refuses the whole subject, in both members and
+// for the same structural reason, while the byte each inserted differs.
+array<string> $split = ["%C3+%A9", "%C3%2B%A9", "%C3%20%A9"];
+int $bothRefused = 0;
+foreach ($split as string $broken) {
+    int $refusals = 0;
+    try {
+        var $byForm = Core\Uri::decodeFormValue($broken);
+        echo "answered [", $byForm, "]\n";
+    } catch (Throwable $formBroke) {
+        $refusals = $refusals + 1;
+    }
+    try {
+        var $byComponent = Core\Uri::decodeComponent($broken);
+        echo "answered [", $byComponent, "]\n";
+    } catch (Throwable $componentBroke) {
+        $refusals = $refusals + 1;
+    }
+    if ($refusals == 2) {
+        $bothRefused = $bothRefused + 1;
+    }
+}
+echo "split sequences ", Core\Arr::count($split) as int, ", both refused ",
+     $bothRefused, ", unsplit [", Core\Uri::decodeFormValue("%C3%A9"), "]\n";
+
+// The bound on the other side of that: a `+` *beside* a whole sequence rather
+// than inside it is an ordinary space, so it is the splitting that refuses and
+// not the neighbouring byte.
+echo "[", Core\Uri::decodeFormValue("+%C3%A9+"), "]\n";
+--EXPECT--
+hex characters 22, `%<d>+` is a space 22, `%+<d>` is a space 22
+[%2+0] -> form [%2 0] component [%2+0]
+[%+41] -> form [% 41] component [%+41]
+[a%zz+b] -> form [a%zz b] component [a%zz+b]
+[a + b] [%2B] [+]
+split sequences 3, both refused 3, unsplit [é]
+[ é ]
