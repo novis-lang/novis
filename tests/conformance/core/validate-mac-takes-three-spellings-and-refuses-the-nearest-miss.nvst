@@ -1,0 +1,159 @@
+--TEST--
+`Core\Validate::isMac` names each of the three separator forms and both hex cases it accepts beside the nearest spelling it refuses, and counts that exactly one group count per form is accepted — docs/spec/01-core-library.md § 12
+--FILE--
+<?nvs
+// § 12 gives `isMac` `FILTER_VALIDATE_MAC`'s own reading: six octets separated
+// by `:` or `-`, or Cisco's three groups of four separated by `.`, with one
+// separator throughout. Every one of those words is a *bound*, and a member
+// that stopped one entry short of any of them still prints plausibly against
+// the accepted half alone — so each row below names the last accepted spelling
+// beside the first refused one, rather than asserting the three that work.
+//
+// `crates/nvs-stdlib/src/validate.rs`'s module doc owns the line itself, and
+// records that this member has no divergence from PHP to state.
+final class Mac {
+    public static function yn(bool $b): string {
+        return $b ? "y" : "n";
+    }
+
+    // `$n` copies of `$group` joined by `$sep` — the shape the group-count
+    // sweep below is counted over, built rather than written so that a row
+    // past the accepted one costs a loop iteration and not a line.
+    public static function joined(string $group, string $sep, int $n): string {
+        string $out = "";
+        int $i = 0;
+        for (; $i < $n; $i = $i + 1) {
+            if ($i > 0) {
+                $out = $out . $sep;
+            }
+            $out = $out . $group;
+        }
+        return $out;
+    }
+}
+
+// The three separator forms, and the hex case that is no bound at all: upper,
+// lower and mixed are one spelling as far as this member is concerned.
+echo "spellings ",
+     Mac::yn(Core\Validate::isMac("00:11:22:33:44:55")),
+     Mac::yn(Core\Validate::isMac("00-11-22-33-44-55")),
+     Mac::yn(Core\Validate::isMac("0011.2233.4455")),
+     Mac::yn(Core\Validate::isMac("AA:bb:CC:dd:EE:ff")),
+     "\n";
+
+// How many groups each form takes, one below and one above. Six is not "at
+// least six": a seventh octet is as refused as a missing sixth.
+echo "colon-groups ",
+     Mac::yn(Core\Validate::isMac("00:11:22:33:44")),
+     Mac::yn(Core\Validate::isMac("00:11:22:33:44:55")),
+     Mac::yn(Core\Validate::isMac("00:11:22:33:44:55:66")),
+     "\n";
+echo "hyphen-groups ",
+     Mac::yn(Core\Validate::isMac("00-11-22-33-44")),
+     Mac::yn(Core\Validate::isMac("00-11-22-33-44-55")),
+     Mac::yn(Core\Validate::isMac("00-11-22-33-44-55-66")),
+     "\n";
+echo "dot-groups ",
+     Mac::yn(Core\Validate::isMac("0011.2233")),
+     Mac::yn(Core\Validate::isMac("0011.2233.4455")),
+     Mac::yn(Core\Validate::isMac("0011.2233.4455.6677")),
+     "\n";
+
+// How wide each group is, one digit below and one above. `0:1:2:3:4:5` is the
+// abbreviation a person writes and the member does not take, and the dot form
+// asks for four digits rather than "the same total spread over three groups".
+echo "colon-width ",
+     Mac::yn(Core\Validate::isMac("0:1:2:3:4:5")),
+     Mac::yn(Core\Validate::isMac("00:11:22:33:44:55")),
+     Mac::yn(Core\Validate::isMac("000:111:222:333:444:555")),
+     "\n";
+echo "dot-width ",
+     Mac::yn(Core\Validate::isMac("001.223.445")),
+     Mac::yn(Core\Validate::isMac("0011.2233.4455")),
+     Mac::yn(Core\Validate::isMac("00011.22233.44455")),
+     "\n";
+
+// The character bound, at the one position it is easiest to overshoot: `f` and
+// `F` are the last hex digits in either case, `9` is well inside, and `g`/`G`
+// are the first letters past the end of the alphabet in each.
+echo "hexdigit ",
+     Mac::yn(Core\Validate::isMac("00:11:22:33:44:5f")),
+     Mac::yn(Core\Validate::isMac("00:11:22:33:44:5F")),
+     Mac::yn(Core\Validate::isMac("00:11:22:33:44:59")),
+     Mac::yn(Core\Validate::isMac("00:11:22:33:44:5g")),
+     Mac::yn(Core\Validate::isMac("00:11:22:33:44:5G")),
+     "\n";
+
+// "One separator throughout" is the rule the three forms share, so a spelling
+// that borrows a second one is refused however well formed each half is: a
+// hyphen inside an otherwise colon-separated address, a dot form joined by
+// hyphens, and six octets separated by dots — which is neither the six-group
+// form (wrong separator) nor the Cisco one (wrong group count).
+echo "mixed ",
+     Mac::yn(Core\Validate::isMac("00:11-22:33:44:55")),
+     Mac::yn(Core\Validate::isMac("0011-2233.4455")),
+     Mac::yn(Core\Validate::isMac("00.11.22.33.44.55")),
+     "\n";
+
+// And the two subjects with no separator to decide a form at all: the twelve
+// hex digits by themselves, which every other reading of a MAC accepts, and
+// the empty string.
+echo "bare ",
+     Mac::yn(Core\Validate::isMac("001122334455")),
+     Mac::yn(Core\Validate::isMac("")),
+     "\n";
+
+// The group-count bound again, this time *searched for* rather than named: for
+// each form, how many of the group counts 1 through 8 are accepted, and which
+// one. A member that read "six" as "at least six" agrees with every named row
+// above and fails here on the count.
+array<string> $groups = ["00", "00", "0011"];
+array<string> $seps = [":", "-", "."];
+string $accepted = "";
+string $at = "";
+int $f = 0;
+for (; $f < 3; $f = $f + 1) {
+    string $group = $groups[$f as string];
+    string $sep = $seps[$f as string];
+    int $taken = 0;
+    int $where = 0;
+    int $n = 1;
+    for (; $n < 9; $n = $n + 1) {
+        if (Core\Validate::isMac(Mac::joined($group, $sep, $n))) {
+            $taken = $taken + 1;
+            $where = $n;
+        }
+    }
+    if ($f > 0) {
+        $accepted = $accepted . "|";
+        $at = $at . "|";
+    }
+    $accepted = $accepted . ($taken as string);
+    $at = $at . ($where as string);
+}
+echo "sweep ", $accepted, " ", $at, "\n";
+
+// The character bound searched for the same way: every code point below 128 in
+// the last digit's place, counted. Twenty-two is `0`–`9`, `A`–`F` and `a`–`f`,
+// so a member that admitted one more letter at either end of either case moves
+// this number while still answering `n` for `g` on its own line.
+int $hex = 0;
+int $c = 0;
+for (; $c < 128; $c = $c + 1) {
+    if (Core\Validate::isMac("00:11:22:33:44:5" . Core\Str::fromCodePoint($c as uint))) {
+        $hex = $hex + 1;
+    }
+}
+echo "hexsweep ", $hex as string, "\n";
+--EXPECT--
+spellings yyyy
+colon-groups nyn
+hyphen-groups nyn
+dot-groups nyn
+colon-width nyn
+dot-width nyn
+hexdigit yyynn
+mixed nnn
+bare nn
+sweep 1|1|1 6|6|3
+hexsweep 22
