@@ -1135,13 +1135,38 @@
 > that ADR's question. `tests/conformance/reject/an-attribute-name-is-a-shape-typed-type-alias.nvst`
 > pins all five refusals in one compile — the undeclared name, a class, an alias for a scalar, a
 > mistyped field and a missing one — with both forms and the extra-field widening written first.
-> What item 32 still owes is ADR 0033's fifth sink and §§ 4-5's retrieval — the call-site `<T>` of §
-> 6 needed nothing, `parse_call_type_args` having landed with ADR 0107's neighbours. The fifth sink
-> is not the argument check its four siblings are, and the reason is one crate over:
-> `signatures.rs`'s own known gap leaves a class constant's declared type unmodelled, so
-> `Class::TOKEN` infers `mixed` at every expression site and `is_secret` over an inferred type can
-> never see the qualifier — the `secret` bit has to be read off the constant's own annotation, which
-> is `crate::consts`' walk and nothing else's. Three live tools **are** the worklist and no session
+> **ADR 0033 § 4's fifth sink is landed, and item 32 owes only §§ 4-5's retrieval** — the call-site
+> `<T>` of § 6 needed nothing, `parse_call_type_args` having landed with ADR 0107's neighbours. The
+> sink exists *because* of ADR 0046 § 2 rather than in spite of it: a payload admits only
+> compile-time constants and a class constant is one of them, so the storage class a `secret` value
+> lives in is the only way one could reach a payload at all, every other spelling being refused
+> already for being computed — which is what makes it one check over one expression kind rather than
+> a walk of its own. It is the one sink whose qualifier cannot be read off an inferred type, and
+> that is a gap one crate over rather than a choice: `signatures.rs`'s own known gap leaves a class
+> constant's declared type unmodelled, so `Class::TOKEN` infers `mixed` at every expression site and
+> `is_secret` over that answers `false` for a value that plainly is one. So the bit is read off the
+> declaration's own annotation in `crate::consts`' walk — the last place the qualifier exists — and
+> rides on `ConstEntry` beside ADR 0047 § 2's folded value, one `bool` rather than the type, because
+> a bit is all the sink asks for and modelling the type is the gap above rather than this one. It is
+> read **syntactically**, off `nvs_syntax::ast::TypeAtom`'s four secret rows, because that pass runs
+> before the first annotation is interned — which is the whole reason it is a pass of its own — and
+> a composite carries the qualifier exactly when one of its members does, which is the safe
+> direction for a sink either way. `ConstTable` grew one public question (`is_secret`) beside `get`
+> and one private ancestor walk under both, so the two cannot disagree about *which* declaration a
+> name means, and an inherited constant is therefore the same refusal through the subclass. The
+> refusal itself is `nvs_types::expr::quals::reject_secret_attribute_constant` (`E0727`), beside its
+> four siblings, called from `crate::attributes`' payload walk at every value it reaches rather than
+> only at a payload's top level — a `secret` constant nested inside an array or an object literal is
+> folded into the same constant pool. There is deliberately **no `Core\Secret::reveal()` way out of
+> this one**, that being a call and a payload admitting none, so the help names the fix that exists:
+> keep the secret out of the metadata and let the attribute carry the *name* of where to read it
+> from. ADR 0033 § 4 gains the bullet rather than being left to name a sink no pass makes.
+> `tests/conformance/reject/a-secret-class-constant-cannot-reach-an-attribute-payload.nvst` pins all
+> eight refusals in one compile — both attach forms, both bases and the two composed, a constant
+> nested in an array and in an object literal, an inherited declaration, and the
+> property/method/parameter attach sites — with the plain constant and a `tainted` one written
+> first, `tainted` being accepted on purpose since ADR 0024 answers a question about a value's shape
+> and no ADR names a payload as a taint sink. Three live tools **are** the worklist and no session
 > re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen`
 > and attributes each to its item (`--item N` for one in full), `python tools/loop.py --list` prints
 > the named `.nvst` cases each stage still owes, and `python tools/check-migration.py` scores
