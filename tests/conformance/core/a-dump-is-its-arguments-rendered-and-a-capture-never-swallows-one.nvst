@@ -1,0 +1,247 @@
+--TEST--
+`Core\Debug::dump` writes exactly `render` of each argument plus a newline, so its variadic form, its split form and `render` all agree over one sweep — and `Core\Out::capture` never swallows a dump — spec § 16, ADR 0092 §§ 1, 3 and 4, ADR 0088 § 5
+--FILE--
+<?nvs
+// `Core\Debug`'s two members walk one value the same way and differ only in
+// where the bytes go (`nvs_stdlib::debug`'s own module doc, § *`render`, and
+// why it is one member rather than a second mechanism*). Nothing asserted that
+// they *agree*: the rendering case shows what `render` answers row by row, and
+// the dump beside it is only asserted to stay off standard output. A `dump`
+// that grew its own walk — a shared cycle table across arguments, a container
+// laid out differently because it is a record node rather than a root — would
+// still print plausibly on its own line.
+//
+// This is the agreement shape, and the two expectation sections are where it
+// is asserted: everything below the "-- the sweep" marker on standard output
+// is byte-identical to the whole of standard error, twice over, because the
+// same seven subjects go through `render` on one stream and through `dump` on
+// the other.
+class Sweep {
+    // § 3's plaintext view ends a *record* with a newline and a rendered
+    // *value* without one, which is the one byte the two members differ by.
+    public static function endingInNewline(array<string> $rendered): uint {
+        uint $n = 0;
+        foreach ($rendered as string $one) {
+            if (Core\Str::endsWith($one, "\n")) {
+                $n = $n + 1;
+            }
+        }
+        return $n;
+    }
+
+    // Counted against the above so the trim is pinned as *trailing only*: a
+    // container's rendering is several lines and keeps every newline but its
+    // last, which an implementation stripping them all would still pass the
+    // count above.
+    public static function multiline(array<string> $rendered): uint {
+        uint $n = 0;
+        foreach ($rendered as string $one) {
+            if (Core\Str::contains($one, "\n")) {
+                $n = $n + 1;
+            }
+        }
+        return $n;
+    }
+
+    // A `bool as string` renders `false` as the empty string, so a yes/no is
+    // what makes a lost assertion visible rather than blank.
+    public static function yn(bool $b): string {
+        return $b ? "yes" : "no";
+    }
+}
+
+// The seven subjects, chosen where the two members could part company rather
+// than to re-show § 1's node kinds. A control byte (§ 5's substitution, applied
+// on the way *into* the record), two container shapes and a nesting level, a
+// `secret` property (§ 5's redaction, read off the class), and the same ring
+// twice — the last pair being the one that a record-wide cycle table would get
+// wrong, since `dump`'s ids are per argument exactly as `render`'s are per
+// call.
+class Vault {
+    public secret string $token = "s3cr3t";
+    public int $n = 1;
+}
+class Ring {
+    public lateinit Ring $next;
+    public function constructor(public string $name) {}
+}
+Ring $ring = new Ring("a");
+$ring->next = $ring;
+
+string $control = "a\rb";
+array<int> $list = [10, 20];
+array<int> $map = ["k" => 1];
+array<mixed> $nested = [[7]];
+Vault $vault = new Vault();
+
+// The renderings, taken once and reused for both the counting and the sweep
+// below, so the bytes compared against standard error are the very bytes the
+// counts were taken over.
+array<string> $rendered = [
+    Core\Debug::render($control) as string,
+    Core\Debug::render($list) as string,
+    Core\Debug::render($map) as string,
+    Core\Debug::render($nested) as string,
+    Core\Debug::render($vault) as string,
+    Core\Debug::render($ring) as string,
+    Core\Debug::render($ring) as string,
+];
+
+echo "subjects ", Core\Arr::count($rendered), "\n";
+echo "ending in a newline ", Sweep::endingInNewline($rendered), "\n";
+echo "holding one at all ", Sweep::multiline($rendered), "\n";
+
+// The two renderings of the same ring are the same bytes: the cycle id is
+// record-local and restarts per node, so neither member numbers the repeat.
+echo "the ring twice ", Sweep::yn($rendered["5"] == $rendered["6"]), "\n";
+
+// § 4, and `nvs_stdlib::debug`'s § *Where a dump lands*: a dump is deliberately
+// not captured, because capturing one would swallow the very output it was
+// written to make visible. The capture answers what was *echoed* and the dump
+// goes past it to the diagnostic channel — the first record on standard error
+// below.
+var $captured = Core\Out::capture(fn (): void => {
+    echo "echoed";
+    Core\Debug::dump("not swallowed");
+});
+echo "captured [", $captured, "]\n";
+echo "the capture holds the dump ", Sweep::yn(Core\Str::contains($captured as string, "not swallowed")), "\n";
+
+// -- the sweep. From here standard output is `render` per subject plus the one
+// newline the record ends with, written twice; standard error is the same
+// subjects through the variadic `dump` and then through seven separate ones.
+// The two forms are one record each way, so all three renderings agree.
+foreach ($rendered as string $one) {
+    echo $one, "\n";
+}
+Core\Debug::dump($control, $list, $map, $nested, $vault, $ring, $ring);
+
+foreach ($rendered as string $one) {
+    echo $one, "\n";
+}
+Core\Debug::dump($control);
+Core\Debug::dump($list);
+Core\Debug::dump($map);
+Core\Debug::dump($nested);
+Core\Debug::dump($vault);
+Core\Debug::dump($ring);
+Core\Debug::dump($ring);
+
+// The runner reads an error expectation as "this run must fail"
+// (`nvs_test::Case::expects_failure`), so a program that exits 0 has no way to
+// state what it wrote to the diagnostic channel — and a dump writes nowhere
+// else. This throw is what buys the `--EXPECTF-ERROR--` section below: the
+// dumps are matched byte for byte and the fatal report they are followed by is
+// absorbed by one `%A`. It is a property of the harness, not of `Core\Debug`.
+throw new RuntimeError("the case ends here, so its standard error can be asserted");
+--EXPECT--
+subjects 7
+ending in a newline 0
+holding one at all 6
+the ring twice yes
+captured [echoed]
+the capture holds the dump no
+string(3) "a␍b"
+array(2) [
+  0 => int(10)
+  1 => int(20)
+]
+array(1) [
+  "k" => int(1)
+]
+array(1) [
+  0 => array(1) [
+    0 => int(7)
+  ]
+]
+Vault#1 (2) {
+  $token => [redacted]
+  $n => int(1)
+}
+Ring#1 (2) {
+  $next => [cycle -> #1]
+  $name => string(1) "a"
+}
+Ring#1 (2) {
+  $next => [cycle -> #1]
+  $name => string(1) "a"
+}
+string(3) "a␍b"
+array(2) [
+  0 => int(10)
+  1 => int(20)
+]
+array(1) [
+  "k" => int(1)
+]
+array(1) [
+  0 => array(1) [
+    0 => int(7)
+  ]
+]
+Vault#1 (2) {
+  $token => [redacted]
+  $n => int(1)
+}
+Ring#1 (2) {
+  $next => [cycle -> #1]
+  $name => string(1) "a"
+}
+Ring#1 (2) {
+  $next => [cycle -> #1]
+  $name => string(1) "a"
+}
+--EXPECTF-ERROR--
+string(13) "not swallowed"
+string(3) "a␍b"
+array(2) [
+  0 => int(10)
+  1 => int(20)
+]
+array(1) [
+  "k" => int(1)
+]
+array(1) [
+  0 => array(1) [
+    0 => int(7)
+  ]
+]
+Vault#1 (2) {
+  $token => [redacted]
+  $n => int(1)
+}
+Ring#1 (2) {
+  $next => [cycle -> #1]
+  $name => string(1) "a"
+}
+Ring#1 (2) {
+  $next => [cycle -> #1]
+  $name => string(1) "a"
+}
+string(3) "a␍b"
+array(2) [
+  0 => int(10)
+  1 => int(20)
+]
+array(1) [
+  "k" => int(1)
+]
+array(1) [
+  0 => array(1) [
+    0 => int(7)
+  ]
+]
+Vault#1 (2) {
+  $token => [redacted]
+  $n => int(1)
+}
+Ring#1 (2) {
+  $next => [cycle -> #1]
+  $name => string(1) "a"
+}
+Ring#1 (2) {
+  $next => [cycle -> #1]
+  $name => string(1) "a"
+}
+Uncaught Exception: the case ends here, so its standard error can be asserted
+%A
