@@ -2,11 +2,11 @@
 
 ## State
 
-**M4's Stage 7 is started: ADR 0079 § 1's `#[Test]` is recognized, its payload is
-checked and the table is built.** `Core\Test` is on
-`nvs_types::derive::ATTRIBUTES:77`, ADR 0071 § 1's table carries the row, and
-`nvs_types::testing` owns both the option roster and the collection pass, which
-`nvs_types::check:227` runs beside `check_class_derive`.
+**M4's Stage 7 is under way: ADR 0079 § 1 is closed but for its parameter
+bullet.** `#[Test]` is recognized, its payload is checked against the option
+roster, the table is built, and four of § 1's five compile errors are made —
+three shapes under `E0733` (`nvs_types::testing::check_method_shape`) and the
+duplicate name under `E_DUPLICATE_DECLARATION`.
 
 - **Nothing reads the table yet.** `ExprTypeTable::tests(label)` and
   `test_classes()` are the accessors and the runner is what will call them, so
@@ -17,38 +17,37 @@ checked and the table is built.** `Core\Test` is on
 - `Core\Test` has **no row in `nvs_stdlib::registry`**, so `Test::assertEquals`
   in a body does not resolve — the attribute name and the assertion class are
   the same `QName` on purpose, but only the attribute half exists.
-- The conformance corpus is at **726**.
+- § 1's remaining compile error — a `#[Test]` parameter no `#[Fixture]` supplies
+  and no data row fills — is not decidable in `nvs_types::testing` at all and
+  belongs with §§ 8-9.
+- The conformance corpus is at **727**.
 
 ## Next group
 
-**ADR 0079 § 1's five compile errors, then the assertion roster.** The first two
-share one file set with what just landed:
-`crates/nvs-types/src/testing.rs`, `check.rs:227`, plus
-`docs/adr/0079-testing-is-a-language-feature.md`.
+**ADR 0079 § 4's assertion roster, then the runner.** New file set, shared
+between the two: `crates/nvs-stdlib/src/registry.rs:709` (`CLASSES`) and
+`:790` (`CONSTRUCTORS`), a new `crates/nvs-stdlib/src/test.rs` beside
+`uuid.rs`, and `docs/adr/0079-testing-is-a-language-feature.md` §§ 4-5.
 
-- [ ] **§ 1's five compile errors** (ADR 0079 § 1's bullet list) — two `#[Test]`
-      methods with the same name in one class, and a `#[Test]` that is `static`,
-      that returns anything but `void`, or that is not `public`. All five are
-      decidable in `testing::check_class_tests`, which already walks exactly
-      these members and holds each one's `MethodMember` (`crates/nvs-types/src/testing.rs:129`);
-      the parameter bullet waits on §§ 8-9's `#[Fixture]` and belongs with them.
-      `E0733` is the next free `E07xx` and one code covers the "shape a test
-      method must have" family, the duplicate name taking `E_DUPLICATE_DECLARATION`
-      as the option-twice refusal already does.
-- [ ] **`Core\Test`'s assertion roster** (ADR 0079 § 2) — the class needs rows in
-      `nvs_stdlib::registry` before any `.nvst` body can call one, and Stage 7's
-      second guard names `cargo test -p nvs-stdlib (the assertion roster)`
-      (`docs/agent/loop-goal.toml:906`).
-- [ ] **The runner** (ADR 0079 §§ 3-4) — what reads `ExprTypeTable::tests` and
-      what finally lets Stage 8's named case be written.
+- [ ] **`Core\Test`'s three equality members** (ADR 0079 § 4) — the class needs
+      a `CoreClass` row and its members registered, generic and subject-first,
+      so `Test::assertEquals` resolves in a body at all. `GENERIC_CLASSES`
+      (`registry.rs:952`) is where a class that takes type parameters is
+      declared; `crates/nvs-stdlib/src/uuid.rs` is the shape a member module
+      takes.
+- [ ] **The failure ledger** (ADR 0079 § 5) — a failed assertion is a catchable
+      `Throwable` plus a ledger entry the `catch` cannot erase, so the throw
+      alone is not the record. Needs § 4 landed first.
+- [ ] **The runner** (ADR 0079 §§ 20, 22) — what reads
+      `ExprTypeTable::tests`/`test_classes` and reports in declaration order.
+      This is what unblocks Stage 8's named
+      `a-test-attribute-builds-a-table-the-runner-reports.nvst`.
 
 ## Backlog
 
-- A `require` whose path is not a string literal runs nothing at all, silently,
-  in both forms — `nvs_hir::requires`' own known gap.
-- `nvs_stdlib::debug`'s gap 1: an ADR 0036 shape field and an `array<T>` element
-  carry no `secret` bit, ADR 0033's unmodelled container axis.
-- `nvs_types::derive`'s gap 1: a promoted constructor parameter is not a
-  `#[Json\Derive]` field, though `crate::layout` now gives one a slot.
-- ADR 0071 § 1's table names eleven attributes and `ATTRIBUTES` carries three;
-  each of the other eight owes the pass behind it (`derive.rs`'s gap 3).
+- § 1's parameter bullet — waits on §§ 8-9's `#[Fixture]` and data rows
+  (`docs/adr/0079-testing-is-a-language-feature.md` § 1).
+- A `require` whose path is not a string literal runs nothing, silently, in both
+  forms (`nvs_hir::requires`' own known gap).
+- Stage 8's corpus floor is 750 (`docs/agent/loop-goal.md` § *Stage 8*).
+- `docs/spec/02-php-migration.md`'s score, via `python tools/check-migration.py`.

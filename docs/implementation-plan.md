@@ -1492,8 +1492,30 @@
 > fully qualified spelling written first, so a position that stops being accepted fails there rather
 > than as a missing refusal. Stage 8's named
 > `a-test-attribute-builds-a-table-the-runner-reports.nvst` is still owed and still waits on the
-> runner: a `.nvst` can observe neither a row nor its order until something reports one. Three live
-> tools **are** the worklist and no session re-derives one: `python tools/holes.py` reads the
+> runner: a `.nvst` can observe neither a row nor its order until something reports one. **Three of
+> § 1's five compile errors are made now, and they are one code rather than three.** A `#[Test]`
+> method that is `static`, that is not `public`, or that returns anything but `void` is `E0733`
+> where it is declared, from `nvs_types::testing::check_method_shape`, because it is one question —
+> what shape a test method must have — and the runner asks it once: it constructs the class and
+> calls the member with no arguments and no result, so a `static` member has no receiver for §§
+> 8-9's `#[Fixture]` to be installed on, a non-`public` one cannot be called from outside its class
+> at all, and a returned value has nowhere to go and nothing that would look at it. Each part of the
+> signature answers for itself, so one declaration that is wrong three ways reads as three refusals
+> at one span rather than as the first one found. All three are read off the **resolved**
+> `MethodSig` rather than off the modifier list a second time, which is what keeps an omitted
+> visibility keyword the one `E_MISSING_VISIBILITY` `nvs_syntax::casing` already reports instead of
+> naming one mistake under two codes. The fourth error, two `#[Test]` methods sharing one name in
+> one class, is `E_DUPLICATE_DECLARATION` — the same code the option written twice already draws,
+> one mistake drawing one code — and is decided against the rows already collected, so the table
+> keeps one row per method name; the fifth (`skip: true`) was already the option roster's own type
+> check. The parameter bullet is the one of the five not decidable here at all and waits on §§ 8-9's
+> two rosters, which is stated at `check_method_shape` rather than left implied. ADR 0079 § 1 gains
+> the enforcement paragraph rather than being left to name a pass that does not make these.
+> `tests/conformance/reject/a-test-method-is-a-public-void-instance-method.nvst` pins all eight
+> refusals in one compile — the three shapes, the declaration that is wrong three ways, and the
+> duplicate name — with the accepted `#[Test]` and two plain `static`/`private` helpers written
+> first, so a position that stops being accepted fails there rather than as a missing refusal. Three
+> live tools **are** the worklist and no session re-derives one: `python tools/holes.py` reads the
 > refusal sites out of `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item N` for
 > one in full), `python tools/loop.py --list` prints the named `.nvst` cases each stage still owes —
 > one, now that the retrieval and the dump cases are named for the files that landed, and it is
