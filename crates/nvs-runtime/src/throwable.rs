@@ -77,9 +77,10 @@ pub const ISSUES_SLOT: usize = SLOT_COUNT;
 /// A closed enum rather than a `&'static str` a helper writes, for
 /// `nvs_stdlib::registry::CoreTy`'s reason: a misspelled class name would be
 /// a silent *runtime* miss — the `catch` clause that was meant to handle it
-/// simply would not match — rather than a compile error. The roster is spec
-/// § 10's tree minus its root, since a helper that means "anything at all"
-/// means [`Self::Runtime`].
+/// simply would not match — rather than a compile error. The roster is
+/// `nvs_hir::errors::TREE` minus its root, since a helper that means "anything
+/// at all" means [`Self::Runtime`] — spec § 10's tree, plus the one class an
+/// ADR adds to it ([`Self::TestFailure`]).
 ///
 /// `nvs-runtime` depends on nothing (see [`crate`]'s own docs), so the names
 /// below restate `nvs_hir::errors::TREE`'s; `nvs-codegen`'s
@@ -112,6 +113,17 @@ pub enum ThrownClass {
     Recursion,
     /// `ArithmeticError` — overflow (ADR 0007), division by zero.
     Arithmetic,
+    /// `Core\Test\Failure` — a failed assertion
+    /// ([ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
+    /// § 5), which that section makes an ordinary `Throwable` precisely so a
+    /// composite assertion, a retry wrapper or a test *of* an assertion can
+    /// intercept one by name.
+    ///
+    /// The one entry in this roster whose name is namespaced;
+    /// `nvs_hir::errors::TREE` says why it is a class in the tree rather than
+    /// a `nvs_stdlib::registry` row, and nothing here has to care, the lookup
+    /// below being by name either way.
+    TestFailure,
 }
 
 impl ThrownClass {
@@ -126,6 +138,7 @@ impl ThrownClass {
             Self::Timeout => "TimeoutError",
             Self::Recursion => "RecursionError",
             Self::Arithmetic => "ArithmeticError",
+            Self::TestFailure => "Core\\Test\\Failure",
         }
     }
 
@@ -138,6 +151,7 @@ impl ThrownClass {
         Self::Timeout,
         Self::Recursion,
         Self::Arithmetic,
+        Self::TestFailure,
     ];
 }
 

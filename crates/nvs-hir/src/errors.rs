@@ -28,6 +28,25 @@
 ///
 /// Ordered parent-before-child so a consumer building a flattened supertype
 /// set can walk it in one pass.
+///
+/// # One entry is namespaced, and it is here rather than in the registry
+///
+/// `Core\Test\Failure` is [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
+/// § 5's assertion failure, and that section makes it "an ordinary
+/// `Throwable`" — so it is a *class in this tree* rather than a
+/// `nvs_stdlib::registry` row, which is what buys it every property the root
+/// declares, the inherited constructor, a slot layout, and a `catch` clause
+/// that matches it by name with no case anywhere above this line. Its parent
+/// is the root directly: a failed assertion is neither "the world said no"
+/// nor one of `RuntimeError`'s narrower readings.
+///
+/// It is the one entry whose name has more than one segment, which is why
+/// every consumer here goes through `QName::parse` rather than treating a row
+/// as a bare global segment. `QName::is_reserved_global_class` deliberately
+/// still answers only for the single-segment rows: what makes this one
+/// trusted-to-exist is `QName::is_core`, the reserved `Core` namespace
+/// ([ADR 0011](../../../docs/adr/0011-functions-and-constants-are-class-members.md)
+/// § 2), which every site pairs with that predicate already.
 pub const TREE: &[(&str, Option<&str>)] = &[
     ("Throwable", None),
     ("LogicError", Some("Throwable")),
@@ -37,6 +56,7 @@ pub const TREE: &[(&str, Option<&str>)] = &[
     ("TimeoutError", Some("RuntimeError")),
     ("RecursionError", Some("RuntimeError")),
     ("ArithmeticError", Some("Throwable")),
+    ("Core\\Test\\Failure", Some("Throwable")),
 ];
 
 /// The root every other entry in [`TREE`] descends from, and the one name a
@@ -112,8 +132,8 @@ pub fn declares_constructor(name: &str) -> bool {
     !own_properties(name).is_empty()
 }
 
-/// Whether `name` is one of [`TREE`]'s entries, spelled as a single global
-/// segment.
+/// Whether `name` is one of [`TREE`]'s entries, spelled exactly as that table
+/// spells it — a bare global segment for all but `Core\Test\Failure`.
 #[must_use]
 pub fn is_exception_class(name: &str) -> bool {
     TREE.iter().any(|(entry, _)| *entry == name)

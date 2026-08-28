@@ -123,6 +123,11 @@ impl QName {
     /// via `implements`.
     ///
     /// PHP's `Exception` and `Error` are deliberately *not* among them.
+    ///
+    /// [`crate::errors::TREE`]'s one namespaced row, `Core\Test\Failure`, is
+    /// deliberately not answered here: it is trusted to exist through
+    /// [`Self::is_core`] instead, which every caller of this predicate already
+    /// tests beside it.
     #[must_use]
     pub fn is_reserved_global_class(&self) -> bool {
         self.segments.len() == 1 && crate::errors::is_exception_class(&self.segments[0])
