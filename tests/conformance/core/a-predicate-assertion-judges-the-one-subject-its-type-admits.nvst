@@ -1,0 +1,131 @@
+--TEST--
+`assertTrue`, `assertNull` and `assertCount` each hold, fail with both sides named, and agree with the equality spelling of the same question -- ADR 0079 § 4
+--FILE--
+<?nvs
+// § 4's example writes these three beside the equality table without giving
+// them a signature, so what each subject admits is `nvs_stdlib::test`'s own
+// decision: a declared `bool` (ADR 0035 makes a *condition* the one place a
+// value is tested without `as`, and an argument is not one), ADR 0007 § 2's
+// `mixed`, and `Core\Arr::count`'s own `array<T>` plus `uint`. This runs the
+// holding and the failing side of each, and counts the agreements with the
+// equality spelling rather than reading one off a line.
+
+use Core\Test;
+
+// 1. Each holds silently, answering `void` and printing nothing at all.
+bool $active = true;
+?string $deletedAt = null;
+array<string> $rows = ["a", "b", "c"];
+
+Core\Test::assertTrue($active);
+Core\Test::assertNull($deletedAt);
+Core\Test::assertCount($rows, 3);
+echo "three held\n";
+
+// The `use` above places the same three members, which is what makes the
+// marker and the assertion surface one name -- § 4.
+Test::assertTrue($active);
+Test::assertNull($deletedAt);
+Test::assertCount($rows, 3);
+echo "three held again\n";
+
+// 2. Each failure names both sides by name, so a reversed call still reads
+// correctly -- § 4's whole reason for the subject-first order.
+try {
+    Test::assertTrue(1 == 2);
+} catch (Core\Test\Failure $untrue) {
+    echo $untrue->message, "\n";
+}
+
+?string $name = "ada";
+try {
+    Test::assertNull($name);
+} catch (Core\Test\Failure $notNull) {
+    echo $notNull->message, "\n";
+}
+
+try {
+    Test::assertCount($rows, 2);
+} catch (Core\Test\Failure $miscounted) {
+    echo $miscounted->message, "\n";
+}
+
+// 3. ADR 0063 R2's trailing bag is in front of the report, exactly as it is for
+// the equality members -- § 4's own `{message: "a fresh user is active"}`.
+try {
+    Test::assertTrue(false, {message: "a fresh user is active"});
+} catch (Core\Test\Failure $withMessage) {
+    echo $withMessage->message, "\n";
+}
+
+// 4. The agreement: each predicate holds exactly where the equality spelling of
+// the same question holds, and fails exactly where it fails. The verdicts are
+// compared rather than each read off its own line, so a member that grew a
+// second reading of its subject fails the count.
+final class Ran {
+    public static function predicateTrue(bool $subject): string {
+        try {
+            Test::assertTrue($subject);
+        } catch (Core\Test\Failure $fromTrue) {
+            return "failed";
+        }
+        return "held";
+    }
+
+    public static function equalityTrue(bool $subject): string {
+        try {
+            Test::assertSame($subject, true);
+        } catch (Core\Test\Failure $fromSame) {
+            return "failed";
+        }
+        return "held";
+    }
+
+    public static function predicateCount(array<string> $subject, uint $expected): string {
+        try {
+            Test::assertCount($subject, $expected);
+        } catch (Core\Test\Failure $fromCount) {
+            return "failed";
+        }
+        return "held";
+    }
+
+    public static function equalityCount(array<string> $subject, uint $expected): string {
+        try {
+            Test::assertSame(Core\Arr::count($subject), $expected);
+        } catch (Core\Test\Failure $fromLength) {
+            return "failed";
+        }
+        return "held";
+    }
+}
+
+int $agreed = 0;
+
+if (Ran::predicateTrue(true) == Ran::equalityTrue(true)) {
+    $agreed = $agreed + 1;
+}
+if (Ran::predicateTrue(false) == Ran::equalityTrue(false)) {
+    $agreed = $agreed + 1;
+}
+if (Ran::predicateCount($rows, 3) == Ran::equalityCount($rows, 3)) {
+    $agreed = $agreed + 1;
+}
+if (Ran::predicateCount($rows, 2) == Ran::equalityCount($rows, 2)) {
+    $agreed = $agreed + 1;
+}
+
+array<string> $empty = [];
+if (Ran::predicateCount($empty, 0) == Ran::equalityCount($empty, 0)) {
+    $agreed = $agreed + 1;
+}
+
+echo "agreed=", $agreed, "/5\n";
+--EXPECT--
+three held
+three held again
+Core\Test::assertTrue failed: `$actual` is false
+Core\Test::assertNull failed: `$actual` is "ada"
+Core\Test::assertCount failed: `$actual` holds 3 entries, `$expected` is 2
+a fresh user is active: Core\Test::assertTrue failed: `$actual` is false
+agreed=5/5

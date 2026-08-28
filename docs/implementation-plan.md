@@ -1659,12 +1659,38 @@
 > options (`crates/nvs-types/tests/testing.rs`), that `expectFailure` discharges only its own body's
 > failures (`nvs_runtime::Ctx`'s own test, the ledger deliberately having no `Core` member that
 > reads it), and that the verdict is read off that ledger rather than off the exception state
-> (`nvs_cli::runner::run_case`, whose doc comment is that argument's home). Three live tools **are**
-> the worklist and no session re-derives one: `python tools/holes.py` reads the refusal sites out of
-> `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item N` for one in full), `python
-> tools/loop.py --list` prints the named `.nvst` cases each stage still owes — **none**, Stage 7's
-> `#[Test]` table case having landed with the `--RUN--` section that lets a case reach the runner at
-> all — and `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> (`nvs_cli::runner::run_case`, whose doc comment is that argument's home). **ADR 0079 § 4's
+> predicate members are registered and run**, which is the roster § 4's own example writes closed
+> but for `assertThrows`. Three rows join the three equality ones on `Core\Test` — `assertTrue`,
+> `assertNull` and `assertCount` — each funnelling through `nvs_stdlib::test`'s one `failed` and one
+> `held`, so the ledger half was written before they were. What § 4 does *not* give them is a
+> signature, so each subject is that module's own decision and its doc comment is the home of the
+> argument: `assertTrue` takes a declared **`bool`** rather than a `mixed` resolved through ADR
+> 0035's truthy table, that ADR making a *condition* the one place a value is tested without `as`
+> and an argument being none — so `assertTrue($rows)` is refused where it is written exactly as
+> `bool $b = $rows;` is; `assertNull` takes a **`mixed`**, ADR 0007 § 2's one position admitting
+> every type, a `?T` parameter refusing the non-`null` half of the very union the question is about;
+> and `assertCount` takes an **`array<T>`** and a `uint`, which is `Core\Arr::count`'s own
+> signature, because a length is answered per domain in this library (`Core\Str::length` counts
+> characters, `Core\Bytes::length` bytes) and a union subject would be a fourth answer to "how long
+> is it", decided by a tag rather than by the member the author named — a `string` subject is
+> therefore written `Core\Test::assertSame(Core\Str::length($s), 3)`, which says which length it
+> meant. `assertCount`'s two internal-consistency faults are `Fault::fatal` for `Core\Arr::count`'s
+> reason, both parameters being declared.
+> `tests/conformance/core/a-predicate-assertion-judges-the-one-subject-its-type-admits.nvst` pins
+> the holding side of each, the failing side with both sides named, ADR 0063 R2's `{message: …}` bag
+> in front of the report, and five agreements between each predicate and the equality spelling of
+> the same question, counted rather than read off a line, with each member written in both the
+> qualified and the `use`d spelling. `nvs_stdlib::test`'s known gap 3 is now `assertThrows` alone,
+> with § 20's `assertDoesNotThrow` beside it: both run a `callable` and judge what came back rather
+> than judging a value, which is the one shape on that roster that is not an assertion *about* its
+> first argument, and `nvs_cli::runner`'s empty-ledger message still names the rule rather than that
+> member because it does not resolve yet. Three live tools **are** the worklist and no session
+> re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen`
+> and attributes each to its item (`--item N` for one in full), `python tools/loop.py --list` prints
+> the named `.nvst` cases each stage still owes — **none**, Stage 7's `#[Test]` table case having
+> landed with the `--RUN--` section that lets a case reach the runner at all — and `python
+> tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

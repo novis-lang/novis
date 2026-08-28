@@ -2,56 +2,68 @@
 
 ## State
 
-**M4's Stage 7: ADR 0079 §§ 1, 4, 5, 20, 22's human half and 23 are closed,
-and every named `.nvst` case each stage owes has landed** — `python
-tools/loop.py --list` reports none.
+**M4's Stage 7: ADR 0079 § 4's roster is closed but for `assertThrows`.**
+`python tools/loop.py --list` reports no named `.nvst` case owed by any stage.
 
-- **`--RUN--` is how a `.nvst` case names its subcommand**: one line holding
-  `run` (the default) or `test`, a closed roster, applying to `--FILE--` alone.
-  `crates/nvs-test`'s module doc is the format's one home and states it.
-- **`nvs_cli::runner` is the runner** and its module doc is the home of what it
-  owes and of the two decisions it took: the entry file's own top-level
-  statements do not run, and class order is the roster's sorted order.
-- **ADR 0079 § *Verification* now names what pins each of its bullets**, and
-  the three claims only a Rust test can assert.
-- § 4's roster is still the three equality members.
-  `assertTrue`/`assertNull`/`assertCount`/`assertThrows` are owed
-  (`nvs_stdlib::test`'s known gap 3), and § 20's `assertDoesNotThrow` joins
-  them — the empty-ledger failure names the rule rather than that member
-  because it does not resolve yet. That is the next group.
-- The conformance corpus is at **731**.
+- **`Core\Test` has six assertion members plus `expectFailure`.**
+  `assertTrue` (declared `bool`), `assertNull` (`mixed`) and `assertCount`
+  (`array<T>` plus a `uint`, `Core\Arr::count`'s own signature) landed beside
+  the three equality ones; `crates/nvs-stdlib/src/test.rs`'s module doc is the
+  home of why each subject is the type it is.
+- **What is owed is `assertThrows` and § 20's `assertDoesNotThrow`**
+  (`nvs_stdlib::test`'s known gap 3). They are the one shape on § 4's roster
+  that judges a `callable`'s outcome rather than a value, and the empty-ledger
+  message in `nvs_cli::runner` names the rule rather than `assertDoesNotThrow`
+  until it resolves.
+- The conformance corpus is at **732**.
 
 ## Next group
 
-**Closing ADR 0079 § 4's roster.** The file set is `crates/nvs-stdlib/src/`
-(`test.rs` plus its one registry line) and one new case:
+**`assertThrows` and § 20's `assertDoesNotThrow`.** The file set is
+`crates/nvs-stdlib/src/test.rs` (rows at `:106`, `address` at `:168`, members
+below `:184`, the `failed`/`held` pair the ledger half is already written in)
+plus whatever accessor the first slice needs on `crates/nvs-runtime/src/ctx.rs`,
+and one new case beside
+`tests/conformance/core/a-predicate-assertion-judges-the-one-subject-its-type-admits.nvst`:
 
-- [ ] **`assertTrue`/`assertNull`/`assertCount`** (ADR 0079 § 4) — three rows
-      beside the three that exist, `crates/nvs-stdlib/src/test.rs:106` being
-      the roster and `:159` the members below it, with
-      `crates/nvs-stdlib/src/registry.rs:748` the one line that registers the
-      class. Each funnels through `test.rs:303`'s `failed` and `:321`'s `held`,
-      so the ledger half is already written; `assertCount` wants a subject the
-      spec gives a length to, which is where the `CoreTy` row needs deciding.
-- [ ] **`assertThrows` and § 20's `assertDoesNotThrow`** (ADR 0079 §§ 4, 20) —
-      both take a `callable` body, so both reach `nvs_runtime::call_closure`
-      the way `Core\Test::expectFailure` already does; `assertDoesNotThrow` is
-      the stated way out of the empty-ledger rule, so `nvs_cli::runner`'s
-      empty-ledger message stops naming the rule and names the member.
-- [ ] **One `.nvst` over the new members**, in `tests/conformance/core/`
-      beside `an-assertion-compares-its-subject-against-its-expectation.nvst`,
-      asserting that the five agree on what they record in the ledger rather
-      than what each printed.
+- [ ] **`assertDoesNotThrow(callable $body, {message?: string})`** (ADR 0079
+      § 20) — the cheaper half and independent of the class question: run the
+      body through `nvs_runtime::call_closure` as
+      `crates/nvs-stdlib/src/test.rs:346`'s `expectFailure` already does, fail
+      naming the pending message where it threw, and consume that throw with
+      `ctx.take_pending()` so the assertion's own verdict is what propagates.
+      It is also § 20's way out of the empty-ledger rule, so
+      `crates/nvs-cli/src/runner.rs`'s message can name the member once it
+      resolves.
+- [ ] **`assertThrows(callable $body, string $expected, {message?: string})`**
+      (ADR 0079 § 4) — `ParseError::class` folds to the fully qualified name as
+      a `string` constant, so the match is by name. The scouting is done: a
+      pending failure is one of two shapes
+      (`crates/nvs-runtime/src/ctx.rs:449`'s `Pending`), a helper-raised one
+      carrying a `ThrownClass` whose name is
+      `crates/nvs-runtime/src/throwable.rs:132`, and a program-raised one
+      carrying a `Thrown` object whose ancestry test is
+      `crates/nvs-runtime/src/object.rs:1275`'s `is_instance_of` — which takes a
+      `*const ClassDesc` and so wants either a name→descriptor lookup on the
+      class table or a walk of the descriptor's own flattened ancestor names.
+      **Decide which and record it at the new `Ctx` accessor**; matching a
+      subclass is what PHP's own `expectException` does and is the safe
+      reading.
+- [ ] **One `.nvst` over both members**, in `tests/conformance/core/` —
+      the thrown class matched exactly and through a parent, the wrong class,
+      the body that threw nothing, and `assertDoesNotThrow` over a body that
+      throws, with the count of agreements rather than a line read off each.
 
 ## Backlog
 
-- §§ 8-9's `#[Fixture]` injection, which is what makes § 1's
-  unsatisfiable-parameter compile error decidable at all
-  (`nvs_types::testing::check_method_shape`).
-- § 22's `--format=junit`/`--format=json` and § 20's `retries:`/`FLAKY`
-  (`nvs_cli::runner`'s "what is owed").
-- § 2's isolate-per-test and parallelism, which are M5.
+- `Core\Test\Failure`'s own class is not what `assertThrows` should match by
+  accident — a failed assertion inside the body is a failure, not the expected
+  throw (`docs/adr/0079-testing-is-a-language-feature.md` § 5).
+- § 4's non-`Comparable` refusal under `assertEquals` is a runtime throw and
+  belongs in `nvs_types` (`nvs_stdlib::test`'s known gap 1).
+- § 2's isolate-per-test and parallelism (M5), § 20's `retries:`/`FLAKY` and
+  § 22's `--format=junit|json` (`nvs_cli::runner`'s own list).
 - A `require` whose path is not a string literal runs nothing at all, silently
   (`nvs_hir::requires`' own known gap).
-- ADR 0033's unmodelled container axis: an `array<T>` element and an ADR 0036
-  shape field carry no `secret` bit (`nvs_stdlib::debug`'s known gap 1).
+- ADR 0033's container axis: an `array<T>` element and a shape literal's field
+  carry no `secret` bit (`nvs_stdlib::debug`'s known gap 1).

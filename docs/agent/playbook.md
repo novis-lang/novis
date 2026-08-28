@@ -1560,6 +1560,14 @@ is why" — is this file.
   `Core\Str::compare($t as string, "text")` is the comparison. That is the only way to put a raw
   span and an `echo` of the same literal side by side, since a run writes straight to the output
   and has no other spelling.
+- **The coverage gate matches a member's *fully qualified* call spelling, so a case written
+  entirely through `use Core\Test;` leaves every member it calls uncovered.**
+  `crates/nvs-stdlib/tests/conformance_coverage.rs` greps the `--FILE--` sections for
+  `Class::member(` with the class's whole name in it, so `Test::assertTrue(` after a `use`
+  answers for nothing and `cargo test` fails with "N registered `Core` member(s) are never
+  used by a conformance case" long after the case itself is green. Write each new member
+  once in the `Core\…` spelling somewhere in the case — which is worth a line of its own
+  anyway, since the two spellings being one member is a fact about `use`.
 
 ## Splitting a file that got too big
 
