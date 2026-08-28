@@ -1,0 +1,99 @@
+--TEST--
+`$uri->path` takes one of RFC 3986 § 3.3's five forms and which one it may take is decided by what precedes it: with an authority the path is empty or rooted, counted over a corpus; with a scheme and none it may not begin with `//`; and a relative reference's first segment may not hold a `:`, which is why `a:b` is a scheme with a rootless path and `./a:b` and `a%3Ab` are paths — spec § 12
+--FILE--
+<?nvs
+// § 3.3 does not give the path one grammar, it gives it five, and picks
+// between them by what came before: path-abempty after an authority,
+// path-absolute and path-rootless after a scheme without one, path-noscheme
+// for a relative reference, path-empty everywhere. Each of the four
+// restrictions exists to keep the *reader* unambiguous — a path that broke one
+// of them would parse back as a different reference — so the case asserts them
+// as the invariants they are, counted, and then names the two bytes that
+// decide which form a written path is read under.
+
+array<string> $corpus = [
+    "http://h",
+    "http://h/",
+    "http://h/a/b",
+    "http://h?q",
+    "http://h#f",
+    "http://user@h:81/a",
+    "//h/a",
+    "//h",
+    "file:///tmp",
+    "http:/rooted",
+    "http:a/b",
+    "urn:isbn:1",
+    "/relative",
+    "a/b",
+    "",
+];
+
+// The one invariant every path-abempty row shares, and the reason the form is
+// named that: after an authority a path is either empty or begins with `/`.
+// It cannot begin with a bare segment, because that segment would be read as
+// more of the host. Counted, because a member that answered plausibly for
+// `http://h/a/b` and lost the rule on `http://h` would print the same table.
+int $withAuthority = 0;
+int $emptyOrRooted = 0;
+int $withoutAuthority = 0;
+int $doubleRooted = 0;
+foreach ($corpus as string $written) {
+    var $uri = Core\Uri::parse($written);
+    string $path = $uri->path();
+    if ($uri->host() != null) {
+        $withAuthority = $withAuthority + 1;
+        if ($path == "") {
+            $emptyOrRooted = $emptyOrRooted + 1;
+        }
+        if (Core\Str::startsWith($path, "/")) {
+            $emptyOrRooted = $emptyOrRooted + 1;
+        }
+    } else {
+        $withoutAuthority = $withoutAuthority + 1;
+        // The mirror restriction: with no authority a path may not begin with
+        // `//`, since that is exactly how an authority is written. Nothing in
+        // the corpus can break it, which is the point — the reference that
+        // would is `//h`, and it has an authority.
+        if (Core\Str::startsWith($path, "//")) {
+            $doubleRooted = $doubleRooted + 1;
+        }
+    }
+}
+echo "with an authority ", $withAuthority, ", empty or rooted ", $emptyOrRooted, "\n";
+echo "without one ", $withoutAuthority, ", beginning // ", $doubleRooted, "\n";
+
+// The two bytes that decide the form, each named against the spelling that
+// differs from it by exactly that byte. A `:` in the first segment of what
+// would otherwise be a relative reference is a scheme, so `a:b` is
+// path-rootless under scheme `a`; `./a:b` puts a segment in front of it and is
+// path-noscheme entire; and `a%3Ab` escapes the byte, which is § 3.3's own
+// remedy and the one that keeps the segment a single one.
+final class Show {
+    public static function some(?string $held): string {
+        if ($held == null) {
+            return "-";
+        }
+        return "[" . $held . "]";
+    }
+}
+array<string> $colons = ["a:b", "./a:b", "a%3Ab", "a/b:c"];
+foreach ($colons as string $row) {
+    var $each = Core\Uri::parse($row);
+    echo "[", $row, "] scheme ", Show::some($each->scheme()), " path [", $each->path(), "]\n";
+}
+
+// And the `/` that tells path-absolute from path-rootless under a scheme —
+// two references to two different things, differing in one byte, neither of
+// them an authority because an authority needs two.
+echo "absolute [", Core\Uri::parse("http:/a")->path(), "] rootless [",
+     Core\Uri::parse("http:a")->path(), "] authority ",
+     Show::some(Core\Uri::parse("http://a")->host()), "\n";
+--EXPECT--
+with an authority 9, empty or rooted 9
+without one 6, beginning // 0
+[a:b] scheme [a] path [b]
+[./a:b] scheme - path [./a:b]
+[a%3Ab] scheme - path [a%3Ab]
+[a/b:c] scheme - path [a/b:c]
+absolute [/a] rootless [a] authority [a]

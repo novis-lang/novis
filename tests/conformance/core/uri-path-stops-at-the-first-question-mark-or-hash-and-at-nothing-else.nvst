@@ -1,0 +1,112 @@
+--TEST--
+`$uri->path` ends at the first `?` or `#` and at no other byte: an escaped one is a byte inside the path, a `/` or a `?` after them belongs to the query or the fragment, and over a corpus of relative references the three components rebuild the whole text exactly — spec § 12, RFC 3986 § 3.3
+--FILE--
+<?nvs
+// The neighbouring `uri-path-is-the-one-component-that-always-exists` case
+// counts where the path is *absent* — nowhere. This one asks the other
+// question a component has: where it ends. RFC 3986 § 3.3 gives the path no
+// terminator of its own; it is whatever precedes the first `?` or `#`, and
+// those two bytes are delimiters only in the position they appear in. So the
+// claim is a partition, and it is asserted by rebuilding the text rather than
+// by reading three answers off a line.
+
+final class Tail {
+    // The whole of a reference that has neither a scheme nor an authority,
+    // rebuilt out of the three readers that can see it. `null` and `""` are
+    // different for the last two — `?` with nothing after it is an empty
+    // query — so the delimiter is written from the absence, never from the
+    // length.
+    public static function of(string $written): string {
+        var $uri = Core\Uri::parse($written);
+        string $out = $uri->path();
+        ?string $query = $uri->query();
+        if ($query != null) {
+            $out = $out . "?" . $query;
+        }
+        ?string $fragment = $uri->fragment();
+        if ($fragment != null) {
+            $out = $out . "#" . $fragment;
+        }
+        return $out;
+    }
+}
+
+// Relative references, so that the text and the tail are the same string and
+// the rebuild has nothing else to account for. Every shape the two delimiters
+// can take: absent, present and empty, present with the other delimiter's byte
+// inside it, and both escaped.
+array<string> $corpus = [
+    "a/b",
+    "a/b?q",
+    "a/b#f",
+    "a/b?q#f",
+    "a/b?",
+    "a/b#",
+    "a/b?#",
+    "a/b?q/r#f/g",
+    "a/b?q#f?g",
+    "a%3Fb",
+    "a%23b",
+    "",
+    "?q",
+    "#f",
+];
+int $rebuilt = 0;
+foreach ($corpus as string $written) {
+    if (Tail::of($written) == $written) { $rebuilt = $rebuilt + 1; }
+}
+echo "rebuilt from three readers ", $rebuilt, " of ", Core\Arr::count($corpus) as int, "\n";
+
+// The rows the count is made of, so a `14` above is readable: `-` is absent,
+// `[…]` is present and possibly empty. The three interesting ones are the
+// last three, and each is a bound named against the row above it.
+final class Show {
+    public static function some(?string $held): string {
+        if ($held == null) {
+            return "-";
+        }
+        return "[" . $held . "]";
+    }
+}
+foreach ($corpus as string $row) {
+    var $each = Core\Uri::parse($row);
+    echo "[", $row, "] path [", $each->path(), "] query ", Show::some($each->query()),
+         " fragment ", Show::some($each->fragment()), "\n";
+}
+
+// The three bounds, said in one line each rather than left to be read out of
+// the table. A `?` is a delimiter only *before* the first `#`, so the one in
+// `?q#f?g` is the query's and the one after the `#` is a byte of the fragment.
+// A `/` after either delimiter is likewise an ordinary byte, which is what
+// stops a query from looking like more path. And an *escaped* `?` or `#` is
+// not a delimiter at all, which is the whole reason `Core\Uri::encodeComponent`
+// escapes them: a path segment holding one cannot open a query.
+echo "escaped ? [", Core\Uri::parse("a%3Fb")->path(), "] plain ? [",
+     Core\Uri::parse("a?b")->path(), "]\n";
+echo "escaped # [", Core\Uri::parse("a%23b")->path(), "] plain # [",
+     Core\Uri::parse("a#b")->path(), "]\n";
+
+// With an authority in front, the same rule decides where the path *starts*
+// as well: the authority ends at the first `/`, `?` or `#`, so a reference
+// with a query and no path has the empty path rather than a path of `?q`.
+echo "authority then query [", Core\Uri::parse("http://h?q")->path(),
+     "] then fragment [", Core\Uri::parse("http://h#f")->path(), "]\n";
+--EXPECT--
+rebuilt from three readers 14 of 14
+[a/b] path [a/b] query - fragment -
+[a/b?q] path [a/b] query [q] fragment -
+[a/b#f] path [a/b] query - fragment [f]
+[a/b?q#f] path [a/b] query [q] fragment [f]
+[a/b?] path [a/b] query [] fragment -
+[a/b#] path [a/b] query - fragment []
+[a/b?#] path [a/b] query [] fragment []
+[a/b?q/r#f/g] path [a/b] query [q/r] fragment [f/g]
+[a/b?q#f?g] path [a/b] query [q] fragment [f?g]
+[a%3Fb] path [a%3Fb] query - fragment -
+[a%23b] path [a%23b] query - fragment -
+[] path [] query - fragment -
+[?q] path [] query [q] fragment -
+[#f] path [] query - fragment [f]
+escaped ? [a%3Fb] plain ? [a]
+escaped # [a%23b] plain # [a]
+authority then query [] then fragment []
