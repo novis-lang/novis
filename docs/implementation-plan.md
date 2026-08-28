@@ -7,7 +7,7 @@
      lives in `git log`, per-crate gaps in each crate's module doc — see AGENTS.md's "Writing docs
      here" section. -->
 
-> **Status:** 2026-08-27. Current milestone **M4**, language completeness: every shape that compiles
+> **Status:** 2026-08-28. Current milestone **M4**, language completeness: every shape that compiles
 > in the front end and then refuses below it, closed, before M4B's LSP is written against the
 > surface. M0–M3 are done and M4S Part I is the corpus floor rather than the frontier.
 > [docs/agent/loop-goal.md](agent/loop-goal.md) holds the goal's items grouped by file set, and

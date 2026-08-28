@@ -1877,6 +1877,13 @@ is why" — is this file.
   asserts an answer holds no nested array at all. `key_bytes`'s refusal, meanwhile, is
   `Fault::fatal` — so `Core\Arr::column`'s "an `indexBy` cell that is not an `int|string`"
   bullet is owed no case, no handler reaching it.
+- **A `for` header cannot *declare* its counter**, so `for (int $i = 0; $i < $n; $i = $i + 1)` is
+  twelve errors starting with `E0102: expected an expression` pointing at the `int`, and the later
+  ones (`E0301` on `$i`, `E0401: expected int, found mixed`) read as if the counter were the
+  problem rather than its declaration. Declare it on the line above and use a `while`:
+  `int $i = 0; while ($i < $n) { … $i = $i + 1; }` — which is what an index-walked sweep over two
+  parallel `array<string>`s wants anyway, since the arrays are still indexed by the *string* of the
+  offset (`$hays[$i as string]`).
 
 ## Splitting a file that got too big
 
