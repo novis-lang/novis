@@ -1,0 +1,91 @@
+--TEST--
+`Core\Test::assertSame` and `assertEqualsDeep` answer the same question on every row but a copied object, and identity never passes where the deep walk fails -- ADR 0079 § 4, ADR 0090 § 3
+--FILE--
+<?nvs
+// § 4 gives the two members one substitution: identity at the object row,
+// where the deep walk descends instead. Everywhere else -- the scalars, the
+// `string`s, the containers ADR 0090 § 3 already reads element-wise -- they are
+// the same comparison, so the useful assertion is that they **agree**, counted
+// over the table rather than read off any one line. A member that grew a
+// comparison of its own still looks right on its own row and fails here.
+//
+// The direction matters as much as the count: deep equality is strictly weaker
+// than identity, so `sameOnly` is 0 by construction and a row that made it
+// non-zero would be identity passing where the structural walk could not.
+
+final class Cell {
+    public function constructor(public string $name) {}
+}
+
+final class Ask {
+    // One row, asked of both members. A failure is § 5's catchable
+    // `Core\Test\Failure`, so a refusal is a verdict here rather than the end
+    // of the case.
+    public static function of(mixed $actual, mixed $expected): string {
+        bool $same = true;
+        bool $deep = true;
+        try { Core\Test::assertSame($actual, $expected); } catch (Throwable $bySame) { $same = false; }
+        try { Core\Test::assertEqualsDeep($actual, $expected); } catch (Throwable $byDeep) { $deep = false; }
+        if ($same == $deep) { return "agree"; }
+        if ($deep) { return "deep only"; }
+        return "same only";
+    }
+}
+
+Cell $one = new Cell("x");
+Cell $twin = new Cell("x");
+Cell $copy = clone $one;
+
+array<string> $xs = ["a", "b"];
+array<string> $ys = ["a", "b"];
+array<string> $zs = ["a", "c"];
+array<array<string>> $grid = [["a"], ["b"]];
+array<array<string>> $gridTwin = [["a"], ["b"]];
+array<Cell> $sharing = [$one];
+array<Cell> $sharingToo = [$one];
+array<Cell> $twinning = [$twin];
+
+// The table. Both agreeing halves are here: rows the two members pass and rows
+// they both refuse, because a member that stopped refusing agrees vacuously.
+array<string> $labels = [
+    "an equal int", "an unequal int", "null against an int", "an equal float",
+    "an equal string", "an equal array", "an unequal array", "an equal nested array",
+    "one object twice", "two equal objects", "an object and its clone",
+    "two arrays sharing one object", "two arrays holding equal objects",
+];
+array<mixed> $lefts = [7, 7, null, 1.5, "a", $xs, $xs, $grid, $one, $one, $one, $sharing, $sharing];
+array<mixed> $rights = [7, 8, 0, 1.5, "a", $ys, $zs, $gridTwin, $one, $twin, $copy, $sharingToo, $twinning];
+
+int $agree = 0;
+int $deepOnly = 0;
+int $sameOnly = 0;
+
+int $i = 0;
+while ($i < 13) {
+    string $at = $i as string;
+    string $verdict = Ask::of($lefts[$at], $rights[$at]);
+    echo $labels[$at], ": ", $verdict, "\n";
+    if ($verdict == "agree") { $agree = $agree + 1; }
+    if ($verdict == "deep only") { $deepOnly = $deepOnly + 1; }
+    if ($verdict == "same only") { $sameOnly = $sameOnly + 1; }
+    $i = $i + 1;
+}
+
+// The three that part are exactly the three whose object is a second
+// allocation -- a twin, a `clone`, and a twin one level down inside an array.
+echo "agree=", $agree, " deepOnly=", $deepOnly, " sameOnly=", $sameOnly, "\n";
+--EXPECT--
+an equal int: agree
+an unequal int: agree
+null against an int: agree
+an equal float: agree
+an equal string: agree
+an equal array: agree
+an unequal array: agree
+an equal nested array: agree
+one object twice: agree
+two equal objects: deep only
+an object and its clone: deep only
+two arrays sharing one object: agree
+two arrays holding equal objects: deep only
+agree=10 deepOnly=3 sameOnly=0
