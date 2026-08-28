@@ -740,6 +740,14 @@ is why" — is this file.
   is not. The gate stops at the first failure, so this one hides the `.nvst` trees and clippy behind
   it; run those by hand until it is closed. That test refuses its own allowlist as the fix, and it is
   right to.
+- **A fixture named in `loop-goal.toml`'s `files` but not yet on disk aborts the *whole* acceptance
+  check, before the first build.** `LoopGoal.begin` (`tools/loop.py:1589`) walks `files` and returns
+  early on the first missing one, so the ledger reads `0s over 1 check(s)` and not one of the 61
+  stage-1 floor checks runs — a goal that adds fixtures for unwritten features therefore has **no
+  regression coverage at all** until every one of them exists. Two consecutive sessions ran that way
+  after the goal switch. The fix is to write the fixture the moment the goal names it, red or not:
+  `loop-goal.toml`'s own header says a fixture's source is not frozen precisely because "its author
+  had to write it without being able to compile it".
 
 ## Running things
 
@@ -2702,6 +2710,11 @@ sibling in the same namespace unqualified.
   the signature, not at the use, which reads as a missing `use` and is not one. Convert to `String`
   at the `self.exprs.lookup(...)` site and let the helper take `&[String]`; adding the dependency to
   buy one type name would put the whole HIR in the lowering crate's graph for nothing.
+- **Inside `namespace App;`, `Core\Str` means `App\Core\Str`.** A `Core` name in a namespaced file
+  needs the leading `\` — `\Core\Str::upper`, `#[\Core\Route(...)]` — and without it the diagnostic
+  is `E0303: 'App\Core\Command' is not declared`, which names the joined path rather than the missing
+  backslash. The top-level fixtures never show this because they are in the global namespace, so it
+  first bites on the *autoloaded* half of a two-file example.
 
 ## Divergences and refusals already pinned
 

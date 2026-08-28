@@ -1,0 +1,46 @@
+<?nvs
+// ADR 0057's intrinsic literal folding, as a program.
+//
+// Four of § 1's closed list, each reached twice: once with a literal argument,
+// which the compiler validates and prepares while checking, and once through a
+// variable, which compiles to an ordinary runtime call with ordinary runtime
+// validation. Nothing is refused for being dynamic (§ 2) — the difference is
+// only *when* a malformed argument is found.
+//
+// Each line below prints the two answers' shared value and prints "diverged"
+// if they are not shared, which is § 4 asserted rather than asserted about: a
+// fold may produce an earlier answer and never a different one, because the
+// prepared path and the runtime path are one implementation and not two.
+
+// `Core\Time\DateTime::format` — the CLDR pattern is validated and the format
+// plan parsed at compile time.
+var $utc = Core\Time\Zone::UTC;
+var $when = Core\Time::at(2026, 8, 28, $utc);
+var $datePattern = "yyyy-MM-dd";
+var $foldedDate = $when->format("yyyy-MM-dd");
+var $runtimeDate = $when->format($datePattern);
+echo $foldedDate == $runtimeDate ? $foldedDate : "diverged", "\n";
+
+// `Core\Regex::compile` — the pattern's syntax and its engine tier
+// (ADR 0056 § 3) are decided while checking, and the compiled program is what
+// the prepared form carries.
+var $regexSource = "^order-\\d+$";
+var $foldedHit = Core\Regex::matches("order-4711", "^order-\\d+$");
+var $runtimeHit = Core\Regex::matches("order-4711", $regexSource);
+echo ($foldedHit == $runtimeHit) && $foldedHit ? "matched" : "diverged", "\n";
+
+// `Core\Str::format` — the one entry whose check is over the *call* and not
+// just the literal: the placeholder count and types are checked against the
+// argument list, which turns a whole family of PHP `printf` bugs into compile
+// errors.
+var $template = "total: %d";
+var $foldedText = Core\Str::format("total: %d", 42);
+var $runtimeText = Core\Str::format($template, 42);
+echo $foldedText == $runtimeText ? $foldedText : "diverged", "\n";
+
+// `Core\Uri::parse` — well-formedness at compile time, the parsed components
+// as the prepared artifact.
+var $source = "https://example.test/users/7?page=2";
+var $foldedHost = Core\Uri::parse("https://example.test/users/7?page=2")->host() ?? "absent";
+var $runtimeHost = Core\Uri::parse($source)->host() ?? "absent";
+echo "host=", $foldedHost == $runtimeHost ? $foldedHost : "diverged", "\n";
