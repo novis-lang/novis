@@ -27,7 +27,31 @@ regenerates everything derived from the repository, and starts the server.
 | `python site.py draft PATH --from adr/0033-….md` | Scaffold a new page from its sources |
 | `python site.py bless PATH` | Re-stamp a page's sources after rereading it |
 | `python site.py assemble` | Build every published version into one tree (CI) |
+| `python site.py stop` | Stop any dev or preview server left running |
 | `python site.py clean` | Remove build output and generated content |
+
+### There is never a second server running
+
+**Every command stops any dev or preview server that is already running**, before
+it does anything else. You never have to remember which terminal a server is in,
+and a forgotten one from a closed window can never sit on the port serving an
+older build — which is a genuinely nasty bug to chase, because the only symptom
+is that your change "did not apply".
+
+This costs nothing when nothing is running. Astro records a live server in
+`.astro/dev.json` and `.astro/preview.json`, so the idle case is two `exists()`
+calls; the whole invocation is Python's own startup time. When a server *is*
+running, `astro dev stop` is asked first so Astro tidies up its own state, and
+force is the fallback rather than the plan. Stale lock files — the kind left by
+a machine that lost power — are recognised by checking the recorded process is
+still alive, and cleared.
+
+It catches servers this tool never started, including `npm run dev` run
+directly, because Astro writes the lock file whichever way it was launched.
+`site.py stop` goes further and scans the process table, for the case where
+somebody deleted a lock file by hand.
+
+Pass `--keep-servers` to opt out for one invocation.
 
 **Requirements:** Node 20.19+ (the repo develops against 24) and Python 3.11+.
 Nothing else. No global installs, no Rust toolchain — though the syntax

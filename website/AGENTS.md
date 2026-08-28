@@ -107,6 +107,11 @@ The build is what catches a broken internal link, a moved snippet source or an
 MDX page that will not render. `check` catches everything else. Both are fast —
 the whole site builds in about three seconds.
 
+Every `site.py` command stops any running dev or preview server first, so never
+hunt for one to kill and never work around a port being busy. If you started a
+server to look at something, `python site.py stop` when you are done — or just
+run the next command, which does it for you.
+
 Commit `website/` changes separately from language changes. They are reviewed by
 different people for different reasons, and the CI jobs are separate too.
 
