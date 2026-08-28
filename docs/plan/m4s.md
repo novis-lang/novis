@@ -1,5 +1,9 @@
 # M4S — The `Core` API contract and its pure half (~5 weeks)
 
+**Order 1 — the first milestone of the parity program.** Its member roster is registered and its depth is
+what is left; [goal 1](../agent/goals/1-core-depth.md) is the loop goal that finishes it, and
+`python tools/gaps.py` is the live worklist behind it.
+
 The library the language has been compiling calls *against* since M2 without any of it existing. Its shape
 is [ADR 0063](../adr/0063-core-api-conventions.md) and its member list is
 [docs/spec/01-core-library.md](../spec/01-core-library.md), which is authoritative for every signature; this

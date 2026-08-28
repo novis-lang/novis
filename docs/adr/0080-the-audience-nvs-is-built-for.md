@@ -154,6 +154,16 @@ When two slices compete for a session, the one serving § 1's user wins. Concret
 - The **framework** ([0082](0082-the-first-party-framework.md)) and the **dependency story**
   ([0081](0081-packages-are-digests-resolution-is-a-maximum.md)) are milestones, not conveniences. They
   are the two things a new user hits before they ever reach a language feature.
+
+  **They do not, however, outrank language and library completeness, and that ranking was decided
+  explicitly on 2026-08-28** rather than left to be re-argued per session. M15 and M16 sit at orders 10
+  and 11 of [the plan](../implementation-plan.md), behind the parity program, the editor and the
+  extension system. The reason is that the sentence above is about *a user who has arrived* — and a user
+  arrives at a language that runs their program. Novis at the moment of that decision could not talk to
+  a database, serve a request, or spawn a task; a package registry in front of that ships an excellent
+  way to install nothing. The bullet still binds wherever the competing slice is `Core` **breadth** —
+  another twenty members on a class that already works — and it does not bind against the capability
+  that makes a whole domain reachable for the first time.
 - A **security property that is already decided but not yet enforced** outranks new `Core` breadth. The
   qualifiers are the product; a `Core` member that does not carry them correctly is worse than a missing
   one.

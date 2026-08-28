@@ -176,10 +176,15 @@ Two constraints on where a poll may go, both about correctness rather than cost:
 
 ### 6. A core is never blocked on a syscall
 
-The runtime is one single-threaded Tokio runtime pinned per core and a request never migrates
-(`docs/plan/design.md` § *Thread-per-core, shared-nothing runtime*). A blocking syscall on that thread
-therefore stalls every coroutine pinned to the same core, which is tier B's failure, not tier C's — the
-requests that lose are the neighbours, and they did nothing.
+The runtime is one single-threaded scheduler of our own pinned per core — `corosensei` stackful
+coroutines, not `async`, per [0072](0072-core-task-structured-concurrency.md) — and a request never
+migrates (`docs/plan/design.md` § *Thread-per-core, shared-nothing runtime*). A blocking syscall on that
+thread therefore stalls every coroutine pinned to the same core, which is tier B's failure, not tier C's —
+the requests that lose are the neighbours, and they did nothing.
+
+A socket read is *not* one of those syscalls: `nvs-host`'s stream parks the coroutine and hands the core
+back, which is what makes a synchronous-looking `Read`/`Write` safe here at all. What follows is about the
+calls that have no readiness to wait on.
 
 **Filesystem calls, name resolution, and waiting on a child process go to the blocking pool**; the reactor
 thread issues no call that can block on external state. What it spends, as [0004](0004-memory-for-simplicity.md)

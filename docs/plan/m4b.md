@@ -1,5 +1,16 @@
 # M4B — Minimal `nvs-lsp`, syntax highlighting and the VS Code extension (~3 weeks)
 
+**Order 6 — after the parity program, before everything else.** It was pulled ahead of M10 to get Novis
+into an editor early, and on 2026-08-28 it was placed behind orders 1–5 for the same reason it was placed
+behind M4: completion, hover and diagnostics written against a language that cannot open a file or reach a
+database are written twice, and every `.lspt` case authored in the meantime is authored against a surface
+about to change. [next-goal-m4b.md](../agent/next-goal-m4b.md) stays staged and unamended.
+
+**One assertion in *Verify* re-anchors.** "`tokio` appears in neither `Cargo.toml` nor `Cargo.lock`" is
+still exactly true and still checked by `crates/nvs-runtime/tests/manifest_policy.rs` — but by the time
+this milestone runs, `hyper` and its five dependencies are in the tree from order 5. The claim is about a
+*runtime*, never about the `Future` trait; ADR 0099's own bullet now says so.
+
 Pulled ahead of M10 by [ADR 0040](../adr/0040-vscode-deep-tooling-and-resilient-parsing.md) so real-world
 testing in an editor starts the moment M4 makes Novis a usable CLI language, rather than after M5–M9.
 [ADR 0099](../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md) settles the four things that ADR left

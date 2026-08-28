@@ -235,8 +235,24 @@ drift. Deferring it to M9 would mean retrofitting.
 
 ### Thread-per-core, shared-nothing runtime
 
-The decisive structural choice. One single-threaded Tokio runtime **pinned per CPU core**; connections are
+The decisive structural choice. One single-threaded runtime **pinned per CPU core**; connections are
 load-balanced across cores; a request never migrates between cores.
+
+**That runtime is ours, and it is not `async`.** It is `corosensei` stackful coroutines on a thread-per-core
+scheduler of our own ([ADR 0072](../adr/0072-core-task-structured-concurrency.md)), and `tokio` appears in
+neither `Cargo.toml` nor `Cargo.lock` ([ADR 0099](../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md)).
+Earlier drafts of this section and of [ADR 0106](../adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+§ 6 said "Tokio"; that was stale text rather than a live decision, and both now say the same thing.
+
+**A socket is therefore a synchronous one that parks its coroutine.** `nvs-host` exposes a stream
+implementing plain `std::io::Read` and `Write` whose `read` returns `WouldBlock` to the reactor, parks the
+coroutine and resumes when the descriptor is ready — so it *blocks* the request and never the core. That is
+what lets every synchronous Rust crate compose with no async at all: `rustls` over it, `httparse` inside
+`hyper`, the wire codecs each database driver uses. The one place a `Future` is polled is a `block_on` over
+`hyper`'s h1 connection future (M7): h1 needs no `Executor` and spawns nothing, so polling one future per
+connection on the coroutine that owns it is a loop and a waker, not a second scheduler. `hyper` with
+`default-features = false` brings no `tokio`, and the reason it is used at all rather than hand-rolled is
+the one below — request framing is a security-critical parser.
 
 - Value refcounts are **non-atomic** — no atomics on the hot path, because a heap is only ever touched by
   one thread.

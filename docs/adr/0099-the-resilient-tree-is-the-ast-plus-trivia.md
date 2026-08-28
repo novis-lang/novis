@@ -57,7 +57,12 @@ was written, and each turns out to change the work.
   difference between the current token stream and a lossless one. There is no second place a byte of the
   source disappears.
 - **The workspace has no async runtime, deliberately.** `tokio` appears nowhere in `Cargo.toml` or
-  `Cargo.lock`. [docs/adr/README.md](README.md) § *Decisions taken at project start* records
+  `Cargo.lock`. **The claim is about a *runtime*, not about the `Future` trait**, and it is worth
+  separating because M7's server lands ahead of this milestone under the schedule adopted 2026-08-28:
+  `hyper` with `default-features = false` brings no `tokio`, h1 requires no `Executor`, and the one
+  future in the tree is polled by a `block_on` on the coroutine that owns the connection. Nothing spawns,
+  nothing schedules, and the manifest-policy test names `tokio` for exactly that reason.
+  [docs/adr/README.md](README.md) § *Decisions taken at project start* records
   thread-per-core, shared-nothing and stackful coroutines as the runtime design; `tower-lsp` would add
   tokio, tower and `async-trait` to a project that has spent five milestones not needing them, and every
   future dependency review would carry that tree. rust-analyzer — the precedent ADR 0040 already leans on

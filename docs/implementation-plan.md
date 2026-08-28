@@ -7,18 +7,20 @@
      lives in `git log`, per-crate gaps in each crate's module doc — see AGENTS.md's "Writing docs
      here" section. -->
 
-> **Status:** 2026-08-28. Current milestone **M4**, language completeness: every shape that compiles
-> in the front end and then refuses below it, closed, before M4B's LSP is written against the
-> surface. M0–M3 are done and M4S Part I is the corpus floor rather than the frontier.
-> [docs/agent/loop-goal.md](agent/loop-goal.md) holds the goal's items grouped by file set, and
-> `python tools/holes.py` is the live count behind them. Dependencies: `regex` + `fancy-regex` and
-> `jiff` are named by the user; the rest the loop picks under ADR 0051 § 4.
+> **Status:** 2026-08-28. **M4's loop goal is reached** — every check in its acceptance list passes, so
+> the language surface is closed and nothing a CLI program reaches for panics below the front end. The
+> next target is **the parity program**, orders 1–5 of the milestone table: PHP core feature parity, all
+> five SQL drivers, concurrency, governance and the server, run as the six-goal chain in
+> [docs/agent/goals/](agent/goals/README.md). Dependencies: `regex` + `fancy-regex` and `jiff` are named
+> by the user; the rest the loop picks under ADR 0051 § 4.
 >
 > **Done:** M0 (setup) and M1 (front end) whole, M2 (HIR, types, IR) and M3 (baseline Cranelift
-> backend) whole, M4S Part I registered — `crates/nvs-stdlib/tests/spec-members-outstanding.txt`
-> holds no keys, which is this project's definition of *registered*. M1's own section lists the one
-> grammar addition still owed (`autoload`, ADR 0061). Each milestone file under
-> [docs/plan/](plan/) states its own acceptance.
+> backend) whole, **M4 (language completeness) to its loop goal's acceptance list** — its own 1000-case
+> corpus figure is the one thing left and it is met through orders 1–4. M4S Part I registered —
+> `crates/nvs-stdlib/tests/spec-members-outstanding.txt` holds no keys, which is this project's
+> definition of *registered*. M1's own section lists the one grammar addition still owed (`autoload`,
+> ADR 0061), and it is order 1's first item. Each milestone file under [docs/plan/](plan/) states its
+> own acceptance.
 >
 > **On disk:** the workspace and its CI (three platforms, with miri, asan and fuzz legs), and the
 > nine crates — `nvs-diagnostics`, `nvs-syntax`, `nvs-hir`, `nvs-types`, `nvs-ir`, `nvs-runtime`,
@@ -37,31 +39,23 @@
 > the ADR that owns a topic, and `python tools/adr.py --stats` shapes the whole set. What a crate
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
-> **Open now:** **Item 25 is one row from closed**, and the two halves it closed this session went
-> in opposite directions on purpose. `void` and `never` in a **parameter** are refused at the
-> declaration (`E0742`, `nvs_types::signatures::reject_void_or_never_params`), which is ADR 0007 §
-> 3's "return-only" read as a rule rather than as a representation — and it closed two internal
-> errors, not one: `never` there panicked `nvs-ir`'s `lower_checked_ty` and `void` there
-> type-checked, lowered, and died in `nvs-codegen` reading a value of representation `void`. The
-> goal item and the table comment both said `void` was already diagnosed; neither was true.
-> `iterable` and an intersection went the other way and have representations now — `Ty::Tagged` for
-> `iterable`, because `array|Traversable` is two runtime shapes and an object erasure would be a
-> trap the day `nvs_types::expr::assign` grows the arm, and the union arm's own member fold for an
-> intersection, now shared as `erase_checked_ty`'s `shared_erasure`. Neither type is *inhabitable*
-> yet, so both arms are the declaration's rather than any value's; `crates/nvs-ir/src/lib.rs`'s
-> known-gap entry owns that distinction. `crates/nvs-ir/tests/type_atoms.rs`'s `KNOWN_ICE` is down
-> from six rows to **one** — `never` in a return position — and emptying it closes item 25 outright.
-> Stage 00's own acceptance check passes on this tree:
-> `every_spellable_expression_reaches_a_diagnostic_or_an_ir` runs and is green under `cargo test -p
-> nvs-ir`, whatever the ledger recorded after session 0005. The frontier is whichever check the
-> driver's next acceptance run names first — Stage `0a inout` and Stage `0 operators` name ten guard
-> tests and all ten are on disk, so the first work behind them is the `1 floor` fixture list.
-> `loop-goal.md` defines what a *hole* is; three tools are the worklist and no session re-derives
-> one — `python tools/holes.py` (`--item N`), `python tools/loop.py --list`, `python tools/gaps.py`.
+> **Open now:** **The parity program is staged and not yet live.** Its six goals are written out under
+> [docs/agent/goals/](agent/goals/README.md), each with its own `[context]` manifest and acceptance
+> TOML; `python tools/loop.py --chain docs/agent/goals/chain.toml` walks them, carrying each goal's
+> whole acceptance list forward as the next one's floor through `goal-switch.py`. The switch from M4's
+> goal has not been made — that is a deliberate act, and its four steps are in
+> [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's own residue is the 1000-case
+> corpus count, which orders 1–4 meet as the suite grows; nothing else about M4 is open. What the
+> program is measured by is `python tools/check-migration.py` at 100% classified, which stood at 31%
+> the day the program was scheduled. `python tools/gaps.py`, `python tools/holes.py` and
+> `python tools/check-migration.py --report` are the three worklists behind it, and no session
+> re-derives one.
 >
-> **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
-> reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,
-> which is where a new one is taken, in the session that needs it, with its reason. Picking every
+> **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
+> the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
+> others. One external dependency: **goal 5 needs a reachable Docker daemon**, because ADR 0067's
+> driver matrix runs MySQL, MariaDB, PostgreSQL and SQL Server as real servers; the driver preflights
+> it and stops the run naming it rather than grinding against a check that cannot pass. Picking every
 > dependency but the two the user named is pre-authorized under ADR 0051 § 4.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how
@@ -76,30 +70,73 @@ are [docs/plan/design.md](plan/design.md) § *Architecture*.
 Each milestone ends with something runnable and its own tests. Do not start the next until the current
 one's verification passes.
 
-| Milestone | What it builds | Loop-days |
-|---|---|---|
-| [M0](plan/m0.md) | Project setup (~3 days) — **done** | 0.3 |
-| [M1](plan/m1.md) | Front end (~3 weeks) | 0.7 |
-| [M2](plan/m2.md) | HIR, types, IR (~4 weeks) | 1.5 |
-| [M3](plan/m3.md) | Baseline Cranelift backend → **Hello World** (~3 weeks) | 0.5 |
-| [M4](plan/m4.md) | Language completeness — a usable CLI language (~10 weeks) | ~3 |
-| [M4S](plan/m4s.md) | The `Core` API contract and its pure half (~5 weeks) | ~1.5 |
-| [M4B](plan/m4b.md) | Minimal `nvs-lsp`, syntax highlighting and the VS Code extension (~3 weeks) | ~1.5 |
-| [M5](plan/m5.md) | Concurrency and script isolates (~5 weeks) | ~3.5 |
-| [M6](plan/m6.md) | Config, limits, capabilities, disk cache (~3 weeks) | ~1 |
-| [M7](plan/m7.md) | Built-in HTTP server (~4 weeks) | ~2 |
-| [M8](plan/m8.md) | Stdlib and databases (~16 weeks) | ~6.5 |
-| [M9](plan/m9.md) | Extension system (~6 weeks) | ~2.5 |
-| [M10](plan/m10.md) | Developer tooling and IDE integration (~14 weeks; scope shifted by ADR 0040, net change undetermined) | ~8 |
-| [M11](plan/m11.md) | PHP transpiler (~10 weeks) | ~3 |
-| [M12](plan/m12.md) | Optimising JIT tier (ongoing) | measurement-bound |
-| [M15](plan/m15.md) | Packages, the registry and the supply chain (~8 weeks; scheduled after M6) | ~3 + a calendar floor |
-| [M16](plan/m16.md) | `nvs/web`, `nvs new`, and the framework (~12 weeks; scheduled after M7 and M8) | ~4 |
+**A milestone's number is its identity, not its position.** The **Order** column is the schedule and it is
+the only thing that says what comes next; M15 has carried that distinction since it was written, and as of
+2026-08-28 it applies to the whole table. Nothing is renumbered when the order changes, because a number
+that moves invalidates ~650 cross-references in `docs/adr/` and every one of them is a link somebody has
+already followed.
+
+| Order | Milestone | What it builds | Loop-days |
+|---|---|---|---|
+| done | [M0](plan/m0.md) | Project setup (~3 days) | 0.3 |
+| done | [M1](plan/m1.md) | Front end (~3 weeks) | 0.7 |
+| done | [M2](plan/m2.md) | HIR, types, IR (~4 weeks) | 1.5 |
+| done | [M3](plan/m3.md) | Baseline Cranelift backend → **Hello World** (~3 weeks) | 0.5 |
+| done\* | [M4](plan/m4.md) | Language completeness — a usable CLI language (~10 weeks) | ~3 |
+| **1** | [M4S](plan/m4s.md) | The `Core` API contract and its pure half (~5 weeks) | ~1.5 |
+| **2** | [M5](plan/m5.md) | Concurrency and script isolates (~5 weeks) | ~3.5 |
+| **3** | [M6](plan/m6.md) | Config, limits, capabilities, disk cache (~3 weeks) | ~1 |
+| **4** | [M8](plan/m8.md) | Stdlib and databases (~16 weeks) | ~6.5 |
+| **5** | [M7](plan/m7.md) | Built-in HTTP server (~4 weeks) | ~2 |
+| **6** | [M4B](plan/m4b.md) | Minimal `nvs-lsp`, syntax highlighting and the VS Code extension (~3 weeks) | ~1.5 |
+| **7** | [M9](plan/m9.md) | Extension system, and the `nvs:ext@1.0.0` world it freezes (~6 weeks) | ~2.5 |
+| **8** | [M10](plan/m10.md) | Developer tooling and IDE integration (~14 weeks; scope shifted by ADR 0040, net change undetermined) | ~8 |
+| **9** | [M11](plan/m11.md) | PHP transpiler (~10 weeks) | ~3 |
+| **10** | [M15](plan/m15.md) | Packages, the registry and the supply chain (~8 weeks) | ~3 + a calendar floor |
+| **11** | [M16](plan/m16.md) | `nvs/web`, `nvs new`, and the framework (~12 weeks) | ~4 |
+| ongoing | [M12](plan/m12.md) | Optimising JIT tier | measurement-bound |
+
+\* **M4 reached its loop goal on 2026-08-28** — every check in that goal's acceptance list passes, which is
+what closes the language holes. What it has not reached is its own milestone acceptance's **1000 `.nvst`
+cases**; that count was deliberately left as a corpus figure to be met as the suite grows through orders
+1–4, and [m4.md](plan/m4.md) still carries it unchanged.
+
+**Orders 1–5 are one program, not five independent milestones: PHP core feature parity.** Everything a
+program written in PHP reaches for without loading an extension, plus every planned SQL driver, plus the
+concurrency, governance and server the capability-bearing half of `Core` cannot exist without. It is
+scheduled as one continuous unattended run — see *The parity program* below, and
+[docs/agent/goals/README.md](agent/goals/README.md) for the six loop goals it is cut into. PHP's optional
+extensions (`gd`, `intl`, `imap`, and the rest of the list in
+[02-php-migration.md](spec/02-php-migration.md)) are explicitly not part of it and stay with M9.
 
 Each row is a file under [docs/plan/](plan/). `python tools/plan.py --show M8` prints one
 without you needing to know that, and `--show M8:verify` prints only its acceptance paragraph.
 The decisions those milestones sit inside, the architecture and the verification strategy are
 [docs/plan/design.md](plan/design.md).
+
+## The parity program
+
+Orders 1–5, in that order, are the run that takes Novis from "a usable CLI language" to "everything PHP
+does out of the box, and the four databases it does it against". The order inside the program is a
+dependency chain rather than a preference: `Core`'s pure half is what everything else is written against;
+the reactor is what a socket, a driver and a listener all need; capabilities are what every
+capability-bearing member is gated on; the capability-bearing half of `Core` and the databases sit on both;
+and the server sits on all of them.
+
+| Loop goal | Milestone | Lands |
+|---|---|---|
+| [1 core-depth](agent/goals/1-core-depth.md) | M4S tail | `Core` §§ 1–13 depth, `autoload`, the compile-time attribute passes, OpenAPI |
+| [2 concurrency](agent/goals/2-concurrency.md) | M5 | the reactor and its parking streams, the scheduler, `spawn`/`await`, `Core\Task`, isolates, `Core\Serialize` |
+| [3 governance](agent/goals/3-governance.md) | M6 | the config tree, capability enforcement, limits, the artifact cache, `nvs build --compile` |
+| [4 core-part-ii](agent/goals/4-core-part-ii.md) | M8, non-database | `Core\IO`, crypto, `Process`, `Cli`, `Cache`, `RateLimit`, `Log`, `Http\Client`, `Reflect` |
+| [5 database](agent/goals/5-database.md) | M8, database | `Core\Db`, five drivers, the pool, the type map, `Core\Queue` |
+| [6 server](agent/goals/6-server.md) | M7 | `nvs serve`, the request-facing `Core` classes, mounts, uploads, `Core\Session`, the control socket |
+
+**The program's own stop condition is `python tools/check-migration.py` reporting 100% classified** —
+every one of the oracle build's 925 functions and 240 types accounted for as a `member`, `language` or
+`dropped` row, every `member` row's member registered, and every one of them carrying a conformance case.
+It was 31% when the program was scheduled. A count of conformance cases is a proxy for parity; a table
+that enumerates the source of truth is not.
 
 **The two columns are not the same unit.** The parenthesised weeks are the original estimate, written for
 a human team before any code existed; **Loop-days** is what this project's unattended loop actually spends,
