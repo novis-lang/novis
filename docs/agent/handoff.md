@@ -2,54 +2,51 @@
 
 ## State
 
-**M4, Stage 00, is closed entirely.** Item 49 was the last of it and landed as three edits in three
-files this session; `python tools/verify.py` is 7 of 7 green (1782 unit, 878 conformance, 189
-differential).
+**M4. Item 25 is one row from closed.** ADR 0007 § 3's `void`/`never` are return-only as a *rule*
+now — `E0742` refuses either in a parameter, in the one pass that reads every declared signature
+(`crates/nvs-types/src/signatures.rs:1013`, `reject_void_or_never_params`), so an interface and an
+abstract method are covered as well as a body. `iterable` and an intersection got the other kind of
+answer, a representation: `crates/nvs-ir/src/lower/mod.rs`'s `erase_checked_ty` maps `Iterable` to
+`Ty::Tagged` and `Intersection` through the same member fold the union arm uses, now shared as
+`shared_erasure`. `crates/nvs-ir/src/lib.rs`'s known-gap entry owns why neither arm makes its type
+usable; do not restate it.
 
-`crates/nvs-ir/tests/type_atoms.rs` holds both halves of one gate now — the type atoms it opened with,
-and `every_spellable_expression_reaches_a_diagnostic_or_an_ir`, a roster of source shapes read off
-`nvs_syntax::ast`'s `ExprKind`/`StmtKind` rather than assembled from memory. Six tables, three slots,
-and each row asserts **which** of a diagnostic or an IR it reaches, so a row that stops compiling for a
-reason nobody intended fails instead of passing. The file's own module doc owns the design; do not
-restate it elsewhere.
+`KNOWN_ICE` in `crates/nvs-ir/tests/type_atoms.rs:110` holds **one** row: `("never",
+Position::Return)`. Emptying it closes item 25.
 
-**`tools/holes.py` read 4 refusal sites where there are 17**, and `refusals.rs`'s `CEILING` is 17 now.
-Nothing was added to the tree — the recognizer was matching three fixed phrasings and is keyed on the
-construct plus the claim's shape instead. All 17 are attributed to open items and 0 are unattributed.
-The playbook bullet under *Tooling* owns why a construct-only match is wrong, and it is worth reading
-before touching that regex again.
-
-`docs/agent/guard-name-debt.md` § *Stage 00's remaining names* is empty: no `loop-goal.toml` name is
-deliberately unwritten today.
+**The ledger's acceptance failure after session 0005 does not reproduce.** It named
+`every_spellable_expression_reaches_a_diagnostic_or_an_ir` as "did not run"; `cargo test -p nvs-ir`
+runs it and it is green, both before and after this session's edits. Nothing was changed for it. If
+the driver reports it again with the tree green, the bug is in how `loop.py`'s `cargo-named` check
+collects that binary's output, not in the test.
 
 ## Next group
 
-**Item 25 — `never`, `iterable` and an intersection reach a representation or a diagnostic.** It is
-the item the type table's whole `KNOWN_ICE` list points at (six rows, three shapes × two positions),
-so closing it empties that ratchet. One file set: `crates/nvs-ir/src/lower/mod.rs`,
-`crates/nvs-ir/tests/type_atoms.rs`, `crates/nvs-ir/tests/refusals.rs`, plus `nvs-types` for the first
-slice's diagnostic.
+**Closing item 25, then the two diagnostics beside it.** One file set:
+`crates/nvs-ir/src/lower/mod.rs`, `crates/nvs-ir/tests/type_atoms.rs`, and `nvs-types` for the
+checker halves.
 
-- [ ] **`never` in a parameter position is a diagnostic** (ADR 0007 § 3 makes `void` and `never`
-      return-only; `void` there is already refused and `never` is not). Next free code is `E0742`
-      (`crates/nvs-diagnostics/src/lib.rs`). The table row that found it is
-      `crates/nvs-ir/tests/type_atoms.rs:114`.
-- [ ] **`iterable` and an intersection get a representation**, both erasing to `Ty::Object` as
-      `Ty::Shape` already does. `crates/nvs-ir/src/lower/mod.rs:2206` (item 25's anchor), with the
-      two catch-alls at `:2705` (`lower_checked_ty`) and `:2792` (a resolved call's types).
-- [ ] **Delete the closed rows and lower the ratchets in the same slice**:
-      `crates/nvs-ir/tests/type_atoms.rs:105` (`KNOWN_ICE`, which fails on a row that has *stopped*
-      panicking) and `crates/nvs-ir/tests/refusals.rs:58` (`CEILING`, 17 minus whatever closes).
-
-**If the driver's acceptance check names a failure, that outranks this** — a check naming a test that
-"did not run" is an open item, anything else is a regression.
+- [ ] **`never` in a return reaches a representation or a diagnostic**, emptying `KNOWN_ICE` and
+      closing item 25. The arm is `crates/nvs-ir/src/lower/mod.rs:2808` (`erase_checked_ty`); the
+      row to delete is `crates/nvs-ir/tests/type_atoms.rs:110`. A function declaring `never` cannot
+      return, so the open question is whether it has a value to represent at all — `Ty::Void` is
+      the candidate, and the `check.rs:635` "leaves the frame" rule already treats the two alike.
+- [ ] **ADR 0066 § 3's two refusals are diagnostics** (item 27). `$i as ?string` (cannot fail) and
+      `$arr as ?int` (does not exist) reach `crates/nvs-ir/src/lower/convert.rs:402`
+      (`convert_or_null`) and panic naming the ADR; the fix is in `nvs_types`, beside the `as` grid.
+- [ ] **A nullsafe assignment target is a diagnostic** (item 29). `$a?->b = v` panics at
+      `crates/nvs-ir/src/lower/mod.rs:1702`; § *Standing decisions* pre-authorizes the refusal and
+      the array-element-through-a-hooked-property half with it.
 
 ## Backlog
 
-- Item 16, ADR 0027's `Class::method(...)`: 4 refusal sites, the only `SHAPE_ICE` row, and the two
-  `expr.rs` panics read as a checker/lowering mismatch (`docs/agent/loop-goal.md` item 16).
-- Make an `nvs-ir` invariant panic spell itself as one, so `holes.py` need not judge by wording — the
-  `CodegenError::Internal`/`Unsupported` split is the precedent (`tools/holes.py`, `CONSTRUCT`).
-- `nvs-codegen`'s `class_desc_const`/`field_offset` raise `Unsupported` for a descriptor above
-  `i64::MAX`; `loop-goal.md` § *Standing decisions* says an unreachable `CodegenError` is `Internal`.
-- Item 20's `foreach (… as inout $v)`, 3 sites, and item 17's spread element, 2 (`holes.py --item N`).
+- `nvs_types::expr::assign` has no arm for `iterable` or an intersection, so neither is inhabitable
+  even now that both have a representation — `docs/agent/loop-goal.md` item 25's own bullets.
+- A **closure** parameter is lowered at `crates/nvs-types/src/expr/calls.rs:1057`, not through
+  `signatures.rs`, so `fn (void $p) => …` is not covered by `E0742`. Same for a property and a
+  local declaring `void`/`never`.
+- Item 26 — `bool as int`/`bool as string`, `array<T> as array<U>`'s element walk, and a
+  `Ty::Tagged` operand converted to `bytes` (`nvs-ir` gap 20).
+- Item 16 — ADR 0027's `Class::method(...)`, the single `SHAPE_ICE` row in `type_atoms.rs`.
+- Stage `1 floor`'s fixture list is the first work behind the ten green guard tests of Stages
+  `0a inout` and `0 operators` — `docs/agent/loop-goal.toml`.

@@ -37,32 +37,27 @@
 > the ADR that owns a topic, and `python tools/adr.py --stats` shapes the whole set. What a crate
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
-> **Open now:** **Stage 00 of [docs/agent/loop-goal.md](agent/loop-goal.md) is closed**, item 49 and
-> its guard with it, so the acceptance test reaches past `00 basics` for the first time.
-> [type_atoms.rs](../crates/nvs-ir/tests/type_atoms.rs) now carries both halves of one claim under
-> one harness: `every_spellable_type_reaches_a_diagnostic_or_an_ir` over [ADR
-> 0007](adr/0007-explicit-type-system.md) § 3's atoms, and
-> `every_spellable_expression_reaches_a_diagnostic_or_an_ir` over a roster of **source shapes** read
-> off `nvs_syntax::ast`'s `ExprKind` and `StmtKind` — 76 rows in six tables across three slots (a
-> method body, a generator body, file scope), each asserted to reach a diagnostic *or* an IR **and
-> asserted for which**, so a row that quietly becomes a parse error fails here rather than passing
-> vacuously. Exactly one shape panics: ADR 0027's `Class::method(...)`, which is open item 16's own
-> anchor and is the single `SHAPE_ICE` row. **`tools/holes.py` was counting 4 refusal sites where
-> the tree holds 17.** It matched three fixed phrasings; a site is now read from the **construct**
-> that carries the message — a `panic!`/`todo!`/`unimplemented!`/`assert!`, or a
-> `CodegenError::Unsupported`, whose type is the claim — together with the shape of the claim the
-> message makes. Thirteen sites were always there and unseen, both of ADR 0027's among them, and
-> [refusals.rs](../crates/nvs-ir/tests/refusals.rs)'s `CEILING` is re-derived to **17** with no
-> `nvs-ir` line changing; 0 of the 17 are unattributed, so the gate is green on its merits. Keying
-> on the construct *alone* is what does not work, and `holes.py`'s own comment is that finding's
-> home: 62 of the 89 panic-family sites in the two lowering crates are engine invariants no program
-> reaches, and telling those from holes mechanically needs the *source* to say which kind it is, the
-> way `CodegenError` already separates `Internal` from `Unsupported`. The frontier is now whichever
-> check the driver's next acceptance run names first — Stage `0a inout` and Stage `0 operators` name
-> ten guard tests and all ten are on disk, so the first work behind them is the `1 floor` fixture
-> list. `loop-goal.md` defines what a *hole* is; three tools are the worklist and no session
-> re-derives one — `python tools/holes.py` (`--item N`), `python tools/loop.py --list`, `python
-> tools/gaps.py`.
+> **Open now:** **Item 25 is one row from closed**, and the two halves it closed this session went
+> in opposite directions on purpose. `void` and `never` in a **parameter** are refused at the
+> declaration (`E0742`, `nvs_types::signatures::reject_void_or_never_params`), which is ADR 0007 §
+> 3's "return-only" read as a rule rather than as a representation — and it closed two internal
+> errors, not one: `never` there panicked `nvs-ir`'s `lower_checked_ty` and `void` there
+> type-checked, lowered, and died in `nvs-codegen` reading a value of representation `void`. The
+> goal item and the table comment both said `void` was already diagnosed; neither was true.
+> `iterable` and an intersection went the other way and have representations now — `Ty::Tagged` for
+> `iterable`, because `array|Traversable` is two runtime shapes and an object erasure would be a
+> trap the day `nvs_types::expr::assign` grows the arm, and the union arm's own member fold for an
+> intersection, now shared as `erase_checked_ty`'s `shared_erasure`. Neither type is *inhabitable*
+> yet, so both arms are the declaration's rather than any value's; `crates/nvs-ir/src/lib.rs`'s
+> known-gap entry owns that distinction. `crates/nvs-ir/tests/type_atoms.rs`'s `KNOWN_ICE` is down
+> from six rows to **one** — `never` in a return position — and emptying it closes item 25 outright.
+> Stage 00's own acceptance check passes on this tree:
+> `every_spellable_expression_reaches_a_diagnostic_or_an_ir` runs and is green under `cargo test -p
+> nvs-ir`, whatever the ledger recorded after session 0005. The frontier is whichever check the
+> driver's next acceptance run names first — Stage `0a inout` and Stage `0 operators` name ten guard
+> tests and all ten are on disk, so the first work behind them is the `1 floor` fixture list.
+> `loop-goal.md` defines what a *hole* is; three tools are the worklist and no session re-derives
+> one — `python tools/holes.py` (`--item N`), `python tools/loop.py --list`, `python tools/gaps.py`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

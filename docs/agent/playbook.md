@@ -2704,6 +2704,16 @@ sibling in the same namespace unqualified.
   ("its one namespaced row is trusted to exist through `is_core`"), on the predicate you are *not*
   editing, so it is only found by the conformance leg. Any check that reads `is_core()` as "in the
   registry" owes `errors::is_exception_class` beside it.
+- **"ADR § X makes this return-only" is a rule with two enforcement sites, and a tree can have
+  neither while looking like it has one.** ADR 0007 § 3's `void`/`never` were return-only in the
+  grammar's prose and nowhere else: `never $p` panicked `nvs-ir`'s `lower_checked_ty`, and `void $p`
+  type-checked, *lowered fine*, and died one crate further down with `internal error: reading a
+  value of representation 'void'`. Both `docs/agent/loop-goal.md` item 25 and `type_atoms.rs`'s
+  `KNOWN_ICE` comment recorded "`void` in a parameter is diagnosed" on the strength of the second
+  one failing differently. Two minutes of `nvs run` on a two-line scratch file is what tells the
+  three apart — a shape that panics, a shape that is refused, and a shape that reaches codegen and
+  dies there is a *third* outcome `tests/type_atoms.rs` cannot see at all, because it stops at
+  `lower_program`.
 
 ## Divergences and refusals already pinned
 
