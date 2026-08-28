@@ -2,64 +2,57 @@
 
 ## State
 
-**M4's Stage 8, and `Core\ObjectSet` is closed**: both slices were pure test cases over
-landed work, so no `crates/nvs-stdlib/src` line changed, and the class went 0.89 →
-**1.11** (10 cases over 9 members). The tree is at **759 conformance plus 189
-differential**. `python tools/loop.py --list` still reports no named `.nvst` case owed by
-any stage, and `gaps.py --differential` still ranks 0. `Core\Time\Duration` (0.95) is now
-the thinnest class and `Core\Math` (0.97) the next.
+**M4's Stage 8, and `Core\Time\Duration` is closed**: both slices were test cases over landed
+work, so the only `crates/nvs-stdlib/src` change is a doc comment, and the class went 0.95 →
+**1.05** (20 cases over 19 members). The tree is at **761 conformance plus 189 differential**.
+`gaps.py` still reports 0 members no case calls and ranks the differential gap 0; `Core\Math`
+(0.97) is now the thinnest class and `Core\Uri`/`Core\Time\DateTime` (1.00) the next.
 
-- **The algebra is degenerate at both of its own ends**, over four receivers — empty, a
-  singleton, three distinct members, and two equal-looking `Tag`s — with ten laws each,
-  asserted by counting the 40 agreements. Union and intersect with the receiver itself
-  are that receiver in *members* and not only in size; `diff` from itself and `intersect`
-  with a disjoint set are the two annihilators; a disjoint operand is `diff`'s identity
-  and adds its whole self to a `union`. The twins row carries the identity rule (ADR 0090
-  § 4): two `Tag("red")`s are two members and a third is neither of them.
-- **The six mutators are one invariant.** After every step of a scripted run —
-  a duplicate `add`, a `remove` of a value never held, a `clear` of an already-empty set,
-  an `add` after a `clear` — the count, the length of the `foreach`, the membership sweep
-  over the universe and `isEmpty` are asked together and must agree; 12 steps, 12
-  agreements. `clear` is then shown to be exactly `remove` over every element by emptying
-  two identical sets the two ways, and insertion order after a `clear` starts over.
+- **The arithmetic is bounded at both ends of the `i64` nanosecond count**, and the bottom value
+  is reachable from source as `$max->negated()->minus(1ns)` — which is already the asymmetry the
+  case is written around. `plus` and `minus` are each refused on *both* sides, `multipliedBy`
+  stops at the product rather than the operand, and `negated` fails at exactly one value in the
+  whole type while being an involution everywhere else. Eight refusals, counted, all one sentence
+  differing only in the member each names. `compareTo` is the member the ends cannot reach: it has
+  an answer at the very pair `minus` must refuse.
+- **ADR 0070 § 5's round trip was over-broad and its body now says so.** `toString` is total and
+  `minus`/`negated` produce negative durations, but the grammar has no sign, so
+  `parse((90m)->negated()->toString())` throws *"`-` has no meaning in a duration"*. Widening the
+  grammar would put a spelling in `nvs.toml` and the lexer that § 4 refuses in source, so the
+  refusal is the decision and both halves are pinned by
+  `time-duration-round-trips-through-parse-exactly-where-the-grammar-has-a-spelling.nvst`.
 
-**An algebra result is unparameterized** — `union`/`intersect`/`diff` return
-`CoreTy::Instance(NAME)` with no type argument, so it cannot be bound or passed anywhere.
-The playbook § *Writing a test case* holds the spelling that works; the fix is a registry
-one and is in the backlog below.
+**The item's premise was stale**: `orient.py` named "`Duration`'s one uncased member", and
+`gaps.py --coverage --json` reports `uncalled: []` for every class — depth per member is the whole
+frontier now, so an item saying "the member no case calls" should say "the claim no case makes".
 
 ## Next group
 
-**`Core\Time\Duration` is the thinnest class left** (0.95, 18 cases over 19 members) and
-the file set is `crates/nvs-stdlib/src/time.rs` plus `tests/conformance/core/`.
-`DURATION`'s block starts at `time.rs:130`, so the first two slices share it; the third is
-`Core\Math` and a different file.
+**`Core\Math` is the thinnest class left** (0.97, 37 cases over 38 members) and the file set is
+`crates/nvs-stdlib/src/math.rs` plus `tests/conformance/core/`. The registry block runs
+`math.rs:54`–`math.rs:400`; all three slices share it.
 
-- [ ] **`Core\Time\Duration`'s one uncased member** (`crates/nvs-stdlib/src/time.rs:130`,
-      `DURATION`'s block) — spec § 4. `python tools/gaps.py --member 'Core\Time\Duration'`
-      lists the seven cases that already exist; the member no case calls is what this
-      slice writes, and the shape to reach for is the boundary the member is written
-      around rather than another row of an existing table.
-- [ ] **`Duration`'s arithmetic at the ends of its own storage**
-      (`crates/nvs-stdlib/src/time.rs:130`, `DURATION`'s block) — spec § 4, ADR 0070 § 1.
-      The nanosecond scale is an `i64`, so a `plus`/`minus` that carries past it has a
-      first refused value and a last accepted one; name them together, and assert the
-      refusal is a catchable `Throwable` naming the member.
-- [ ] **`Core\Math`'s one uncased member** (`crates/nvs-stdlib/src/math.rs`) — 0.97, 37
-      cases over 38 members. `gaps.py --member 'Core\Math'` names it; a different file set
-      from the two above.
+- [ ] **`Core\Math`'s integer members at the ends of `int`** (`math.rs:54` `abs`, `math.rs:61`
+      `sign`, `math.rs:117` `intDiv`, `math.rs:124` `mod`) — spec § 3. The *bound asserted on both
+      sides* shape: `abs(INT_MIN)` has no answer for the same reason `Duration::negated` has none
+      at its bottom, and division by zero is ADR 0007 § 4's `ArithmeticError` rather than a value.
+      Check each site's `Fault::` constructor before assuming a `catch` reaches it.
+- [ ] **`clamp`, `min` and `max` agree on one ordering** (`math.rs:68`, `math.rs:75`,
+      `math.rs:82`) — the *agreement* shape: `clamp($x, $lo, $hi)` asked of a sweep must equal
+      `max($lo, min($x, $hi))` on every row, asserted by counting, and an inverted `$lo > $hi` is
+      the boundary the member is written around.
+- [ ] **`toBase`/`fromBase` round-trip at the ends of their radix range** (`math.rs:299`,
+      `math.rs:306`) — the same shape this session's second slice used on `parse`/`toString`: the
+      last accepted radix and the first refused one, named together, and every rendering handed
+      straight back.
 
 ## Backlog
 
-- `Core\ObjectSet`/`Core\ObjectMap`'s `union`/`intersect`/`diff` (and every member
-  returning `CoreTy::Instance`) erase their type argument, so the result is
-  unbindable — `E0401` printing both sides as `Core\ObjectSet`. Two bugs in one, exactly
-  as the `Core\Unit` entry below: the erasure, and a diagnostic that renders the two sides
-  identically. The fix belongs to `nvs_stdlib::registry` plus `nvs_types`.
-- A `Core` enum cannot be swept from an `array<Core\Unit>` or passed through a
-  user-declared `Core\Unit` parameter — `E0401`, rendered *"expected `Core\Unit`, found
-  `Core\Unit`"*. `docs/agent/playbook.md` § *Writing a test case* has the workaround; the
-  fix belongs to `nvs_types`.
-- 54 of the 156 guard tests `loop-goal.toml` names still match nothing `cargo test` would
-  run — `docs/agent/guard-name-debt.md`.
-- `Core\Uri` and `Core\Time\DateTime` are the classes just above the frontier at 1.00.
+- 68 unasserted `Fault` sites remain, 65 of them `fatal` — `gaps.py --errors`, judged one at a time.
+- An algebra result is an unparameterized `Core\ObjectSet`, so `union`/`intersect`/`diff` cannot be
+  bound or passed — a `nvs_stdlib::registry` fix, not a test one.
+- `csv.rs:512`'s `thrown` is unreachable from source and is owed no case — playbook, *Divergences*.
+- 54 of `loop-goal.toml`'s 156 guard-test names match nothing `cargo test` runs —
+  `docs/agent/guard-name-debt.md`.
+- `array<T> as array<U>` panics `nvs-ir` at `crates/nvs-ir/src/lower/expr.rs:877` — playbook,
+  *Writing a test case*.

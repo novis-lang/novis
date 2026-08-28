@@ -588,7 +588,10 @@ nvs_runtime::nvs_helper! {
     /// `$d->toString(): string` — `Stringable`'s member
     /// ([ADR 0028](../../../../docs/adr/0028-closing-the-remaining-magic-methods.md)),
     /// emitting ADR 0070 § 1's grammar so that a value round-trips through
-    /// `parse`.
+    /// `parse` — over the durations that grammar can spell, which is the
+    /// non-negative ones. This member is total and a negative duration is
+    /// reachable through `minus` and `negated`, so it renders one with a
+    /// leading `-` that ADR 0070 § 5 has `parse` refuse by name.
     fn nvs_core_time_duration_to_string(_ctx, args: [1]) {
         let nanos = nanos_of(args, 0, "toString")?;
         Ok(Value::str(NvsStr::new(duration::render(nanos).as_bytes())))

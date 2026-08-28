@@ -1,0 +1,60 @@
+--TEST--
+ADR 0070 § 5: `toString` and `parse` are one grammar over every duration the grammar can spell, and a negative one is refused by name rather than read back
+--FILE--
+<?nvs
+// ADR 0070 § 5's round trip, asserted by counting rather than read off a
+// line: every rendering below is handed straight back to `parse`, and what
+// is checked is that all seven agree with the value they came from. A
+// member that rendered one of them plausibly but not exactly fails here
+// while still looking right on its own row.
+array<Core\Time\Duration> $each = [0s, 1ns, 999ns, 1us, 90m, 1w, Core\Time\Duration::nanoseconds(9223372036854775807)];
+var $agree = 0;
+var $refused = 0;
+foreach ($each as Core\Time\Duration $d) {
+    if (Core\Time\Duration::parse($d->toString())->compareTo($d) == 0) {
+        $agree = $agree + 1;
+    }
+
+    // Zero is the one value that is its own negation, so it is not one of
+    // the six the sign refuses -- it is one of the seven that round-trip.
+    if ($d->compareTo(0s) == 0) {
+        continue;
+    }
+
+    // The other end of § 5: the grammar has no sign (§ 4 -- `-7d` is not a
+    // backwards duration, it is an operator over an object and there is no
+    // such operator), while `toString` is total and has to render a value
+    // `minus` and `negated` can both produce. So a negative duration's
+    // rendering is for a reader, not for `parse`, and `parse` says which
+    // character it will not accept rather than reading a positive value out
+    // of it.
+    try {
+        Core\Time\Duration::parse($d->negated()->toString());
+    } catch (ParseError $why) {
+        $refused = $refused + (Core\Str::contains($why->message, "`-` has no meaning in a duration") ? 1 : 0);
+    }
+}
+echo $agree as string, "|", $refused as string, "|\n";
+
+// One of each, rendered, so the counts above name something.
+echo (90m)->toString(), "|", (90m)->negated()->toString(), "|\n";
+echo (0s)->toString(), "|", (0s)->negated()->toString(), "|\n";
+try {
+    echo Core\Time\Duration::parse("-1h30m")->toString(), "|\n";
+} catch (ParseError $signed) {
+    echo $signed->message, "|\n";
+}
+
+// The round trip is exact, not merely equal in length: a value that carries
+// through every unit at once comes back through the widest row the grammar
+// has.
+var $wide = Core\Time\Duration::nanoseconds(9223372036854775807);
+echo $wide->toString(), "|\n";
+echo Core\Time\Duration::parse($wide->toString())->toNanoseconds() as string, "|\n";
+--EXPECT--
+7|6|
+1h30m|-1h30m|
+0s|0s|
+Core\Time\Duration::parse(): `-` has no meaning in a duration|
+15250w1d23h47m16s854ms775us807ns|
+9223372036854775807|

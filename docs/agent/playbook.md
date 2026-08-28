@@ -1664,6 +1664,14 @@ is why" — is this file.
   `$a->diff($b)->count() == 0 && $b->diff($a)->count() == 0` plus the counts, and a case
   that wants a set-equality helper takes its two operands as the parameterized type and
   never as an algebra result. `Core\ObjectMap`'s members have the same shape.
+- **A counting sweep adds `$b ? 1 : 0`, never `$b as int`.** `bool` converts to `string` and to
+  `bool` alone (`E0708`, ADR 0007 § 2), so the *invariance over a sweep* shape — the one that
+  asserts a property by counting agreements rather than reading them off a line — spells its
+  counter `$n = $n + (Core\Str::contains(…) ? 1 : 0);`. The diagnostic's own help says so, but it
+  costs a compile to find out. The rest of the shape does work: an
+  `array<Core\Time\Duration> $each = [0s, 1ns, …]` of `Core` instances iterates with a typed
+  `foreach` binding, `continue` skips the row a law does not apply to, and a bare
+  `Core\X::member($arg);` is a legal statement when the case only wants the throw.
 
 ## Splitting a file that got too big
 

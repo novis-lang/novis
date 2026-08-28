@@ -113,7 +113,14 @@ same value, and choosing between them is the author's, exactly as `0x10` versus 
 
 The three share one parser, so a grammar change cannot land in one and miss the others — the property
 [ADR 0057](0057-intrinsic-literal-folding.md) already requires of every intrinsic. `Duration`'s
-`Stringable` form emits this grammar too, so a value round-trips through `parse`.
+`Stringable` form emits this grammar too, so a value round-trips through `parse` — exactly over the
+durations the grammar can spell, which is the non-negative ones. The grammar has no sign (*4*), while
+`toString` is total and has to render what `minus` and `negated` can produce, so a negative duration
+renders `-1h30m` for a reader and `parse` refuses that leading `-` **by name** rather than reading a
+positive value out of it. Widening the grammar to accept a sign is not the answer: it would put a
+spelling in `nvs.toml` and in the lexer that *4* refuses in source, and the three would stop being one
+grammar. `tests/conformance/core/time-duration-round-trips-through-parse-exactly-where-the-grammar-has-a-spelling.nvst`
+pins both halves.
 
 ## Consequences
 
