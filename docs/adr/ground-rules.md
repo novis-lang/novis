@@ -283,8 +283,9 @@ spellings rejected, and the reasoning.
 - **`nvs-syntax` exposes a second, lossless, error-recovering parse entry point for editor tooling only**
   ([0040](0040-vscode-deep-tooling-and-resilient-parsing.md)); IDE smarts live once, in `nvs-lsp`
   ([0016](0016-ide-integration.md)).
-- **A wasm32 browser target is a second codegen backend behind the same IR, not a second language**
-  ([0025](0025-wasm-browser-target.md)).
+- **There is no browser compile target** — the wasm32 one is retired, and wasm reaches Novis only as the
+  *host* an `.nvsx` extension runs inside ([0003](0003-extension-system.md)); what the target would have
+  cost, and what would reopen it, is [0025](0025-wasm-browser-target.md) *Revisiting*.
 - **Performance history is callgrind instruction counts on a dedicated Linux runner, never raw wall-clock
   across machines** ([0026](0026-performance-measurement-methodology.md)).
 - **`|>` substitutes the hole `$_`, required exactly once, in the parser — so a pipeline is the same AST

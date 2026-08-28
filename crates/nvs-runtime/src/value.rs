@@ -484,7 +484,7 @@ impl Value {
     #[must_use]
     #[expect(
         clippy::cast_possible_truncation,
-        reason = "the payload of a Tag::Str or Tag::Bytes value is a pointer that was widened to u64 by `Value::str`/`Value::bytes`, so narrowing it back is exact on every target, including the 32-bit wasm32 one of ADR 0025"
+        reason = "the payload of a Tag::Str or Tag::Bytes value is a pointer that was widened to u64 by `Value::str`/`Value::bytes`, so narrowing it back is exact on every target Novis compiles for, a 32-bit pointer included"
     )]
     pub const fn buffer_ptr(self) -> Option<*mut StrHeader> {
         match self.tag() {
@@ -497,7 +497,7 @@ impl Value {
     #[must_use]
     #[expect(
         clippy::cast_possible_truncation,
-        reason = "the payload of a Tag::Object value is a pointer that was widened to u64 by `Value::object`, so narrowing it back is exact on every target, including the 32-bit wasm32 one of ADR 0025"
+        reason = "the payload of a Tag::Object value is a pointer that was widened to u64 by `Value::object`, so narrowing it back is exact on every target Novis compiles for, a 32-bit pointer included"
     )]
     pub const fn obj_ptr(self) -> Option<*mut ObjHeader> {
         match self.tag() {
@@ -549,7 +549,7 @@ impl Value {
     #[must_use]
     #[expect(
         clippy::cast_possible_truncation,
-        reason = "the payload of a Tag::Array value is a pointer that was widened to u64 by `Value::array`, so narrowing it back is exact on every target, including the 32-bit wasm32 one of ADR 0025"
+        reason = "the payload of a Tag::Array value is a pointer that was widened to u64 by `Value::array`, so narrowing it back is exact on every target Novis compiles for, a 32-bit pointer included"
     )]
     pub const fn array_ptr(self) -> Option<*mut ArrayHeader> {
         match self.tag() {

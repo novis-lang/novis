@@ -173,8 +173,7 @@ Each was a live design question; each is now a rule the spec file applies.
   [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 3 defines. "Next monday" is not something a
   config file supplies, which is why the runtime path needs no more than a duration.
 - **`Core\Path` is pure; `Core\IO` touches the disk.** Path algebra (`basename`, `dirname`, `extension`,
-  `join`, `isAbsolute`) needs no capability, is safe in the wasm browser target
-  ([ADR 0025](0025-wasm-browser-target.md)), and is constant-foldable. Everything that reads or writes —
+  `join`, `isAbsolute`) needs no capability and is constant-foldable. Everything that reads or writes —
   including `realpath`, which is `IO::canonicalize` — needs an `fs.*` capability and is an ADR 0024 sink.
   PHP conflates the two, which hides the boundary that matters.
 - **Output capture is scoped.** `Core\Out::capture(fn, {through?})` runs a closure, returns what it echoed

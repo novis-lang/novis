@@ -109,7 +109,7 @@ socket = "/run/nvs/control.sock"   # \\.\pipe\nvs-control on Windows; `false` di
   created mode `0600`, owned by the runtime's account, and **the server refuses to start if its directory is
   world-writable**.
 - The socket exists only where a long-running server does. It is meaningless for `nvs run`, which compiles
-  one file and exits, and for the wasm32 target ([0025](0025-wasm-browser-target.md)), which has no host.
+  one file and exits.
 - **The wire protocol is HTTP over that socket**, not a bespoke line protocol: `hyper` is already present for
   the server itself, `curl --unix-socket` debugs it with no special tooling, and adding a network listener
   later becomes a second `bind` rather than a second protocol.

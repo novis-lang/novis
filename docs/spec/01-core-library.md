@@ -653,9 +653,8 @@ cases it converts itself rather than delegating.
 
 ## 8. `Core\Path`
 
-Pure string algebra over paths. **No member touches the disk**, so none needs a capability and all are
-available in the wasm browser target ([ADR 0025](../adr/0025-wasm-browser-target.md)). Everything that
-reads or writes is `Core\IO` (§ 14) — that split is the point.
+Pure string algebra over paths. **No member touches the disk**, so none needs a capability and every member
+is constant-foldable. Everything that reads or writes is `Core\IO` (§ 14) — that split is the point.
 
 | Member | Signature | Replaces | Q |
 |---|---|---|---|

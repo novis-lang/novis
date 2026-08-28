@@ -326,8 +326,6 @@ stopped does not exist here, so stopping would be cargo-culting its shape rather
   ADR) and on a signal (`Core\Signal`). A ladder that protects the process while leaving the operator's
   shell in raw mode has failed at the thing it exists for. This is the most-forgotten defect in
   cross-platform terminal code and it is the reason § 5 is scoped rather than free-form.
-- **Under [ADR 0025](0025-wasm-browser-target.md)'s wasm32 target, `Core\Cli` is absent** and a
-  `#[Command]` program does not target it.
 - Under [ADR 0048](0048-portable-single-file-executables.md), all of the above ships inside the single-file
   executable, which is the form a CLI tool is actually distributed in.
 

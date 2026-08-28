@@ -149,7 +149,7 @@ so you never have to open this file to route a topic.
 | `exec`/`system`/`shell_exec`/backticks/`proc_open`, running another program, shell injection | [0044](0044-core-process-argv-only-no-shell.md) |
 | Passwords, API keys, credentials, `secret string`, why a value can't be echoed/logged/dumped | [0033](0033-secret-qualifier-for-confidential-values.md) |
 | JWT, CSRF tokens, TOTP, signed cookies, or whether OAuth/WebAuthn/SAML belong in `Core` | [0060](0060-application-security-protocols.md) |
-| A wasm32 browser target, running Novis client-side, `Core\Browser` | [0025](0025-wasm-browser-target.md) |
+| Running Novis client-side in a browser, a wasm32 compile target, `Core\Browser` — retired, and what would reopen it | [0025](0025-wasm-browser-target.md) |
 | The PhpStorm plugin, `nvs-lsp`/`nvs fmt` client wiring, what "IDE integration" covers | [0016](0016-ide-integration.md) |
 | `nvs fmt`'s style — indentation, braces, quoting, trailing commas, why it never reflows | [0039](0039-canonical-code-formatting.md) |
 | What `nvs fmt` refuses to rewrite — renames, missing keywords, member order — and how an editor composes it with quick fixes on save | [0039](0039-canonical-code-formatting.md) §§ 9-11, [0040](0040-vscode-deep-tooling-and-resilient-parsing.md) § 3 |
@@ -231,7 +231,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0022](0022-definite-property-initialization.md) | Properties are definitely initialized at compile time; no observable uninitialized state | Accepted |
 | [0023](0023-clone-serialize-and-cross-boundary-copy.md) | Two copy depths, neither customizable: `clone`, `serialize`, and the isolate boundary | Accepted |
 | [0024](0024-taint-tracking-for-injection-sinks.md) | Untrusted input is a distinct type; injection sinks demand laundering | Accepted |
-| [0025](0025-wasm-browser-target.md) | The browser is a second compile target, not a second language | Accepted |
+| [0025](0025-wasm-browser-target.md) | The browser is a second compile target, not a second language | Retired |
 | [0026](0026-performance-measurement-methodology.md) | Performance history is tracked by callgrind instruction counts; wall-clock stays for CI regression guards | Accepted |
 | [0027](0027-callable-is-closures-only.md) | `callable` is satisfied only by a closure; Novis has no `__invoke` | Accepted |
 | [0028](0028-closing-the-remaining-magic-methods.md) | Closing the remaining magic methods: `Stringable` replaces `__toString`; no `__destruct`, `__debugInfo`, or `__set_state`; `unset()` is refused on an object property | Accepted |
@@ -361,8 +361,8 @@ Little is lost — a request's hot path is refcounting, ordered-hash lookups and
 dense homogeneous loops a vectorizer needs — and vectorizing a `float` reduction would reassociate its
 additions, which the priority ordering's rank 2 forbids outright. Two things to know before anyone claims a
 win: [0026](0026-performance-measurement-methodology.md)'s instruction counts flatter SIMD, because
-callgrind does not model vector port throughput, and [0025](0025-wasm-browser-target.md)'s second backend
-caps any story portable across both at 128 bits.
+callgrind does not model vector port throughput, and Cranelift's own vector support is shaped by wasm's
+fixed 128-bit SIMD, which caps anything built on it there regardless.
 
 **Thread-per-core, shared-nothing runtime.** One single-threaded executor pinned per core; a request is
 assigned to a core and never migrates. This is what makes value refcounts *non-atomic* (a heap is only ever

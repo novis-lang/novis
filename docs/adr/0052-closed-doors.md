@@ -103,8 +103,7 @@ produced at runtime.
 
 Four separate mechanisms depend on the set of code in a program being known before it runs. The static
 `require` graph ([ADR 0021](0021-single-file-inclusion-construct.md)) is what
-[ADR 0048](0048-portable-single-file-executables.md) bundles and what
-[ADR 0025](0025-wasm-browser-target.md) compiles ahead of time; the artifact cache
+[ADR 0048](0048-portable-single-file-executables.md) § 3 bundles; the artifact cache
 ([ADR 0042](0042-on-disk-artifact-cache-format.md)) is keyed on unit content; definite assignment
 ([ADR 0022](0022-definite-property-initialization.md)) and taint tracking
 ([ADR 0024](0024-taint-tracking-for-injection-sinks.md)) are whole-program compile-time analyses. `eval`

@@ -323,9 +323,10 @@ extension:
   one. Worth revisiting when [ADR 0068](0068-dependency-currency-and-the-version-contract.md)'s version
   contract starts putting two toolchains on one machine.
 - **A wasm build of `nvs-lsp` for `vscode.dev`.** The server is synchronous with no async runtime
-  ([0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 2) and a wasm32 backend is already a
-  decision ([0025](0025-wasm-browser-target.md)), so the optionality exists and is cheap to keep; nothing
-  schedules it.
+  ([0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 2) and answers every request from parse,
+  resolve and typecheck without reaching codegen — so it is an ordinary Rust crate `rustc` can build for
+  `wasm32-unknown-unknown`, and it never depended on [0025](0025-wasm-browser-target.md)'s retired Novis
+  backend. The optionality is cheap to keep; nothing schedules it.
 - **Marketplace publishing** stays exactly where [ADR 0016](0016-ide-integration.md) *Revisiting* left it —
   this ADR adds features, not a distribution channel.
 

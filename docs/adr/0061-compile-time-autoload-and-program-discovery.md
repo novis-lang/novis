@@ -32,8 +32,8 @@
 - **The runtime half cannot be kept, and does not need to be.** A registered loader stack is process-global
   mutable state ([ADR 0008](0008-static-and-global.md)) driving a load of arbitrary code
   ([ADR 0052](0052-closed-doors.md) § 4), and it reopens the closed `require` graph that
-  [ADR 0025](0025-wasm-browser-target.md) and [ADR 0048](0048-portable-single-file-executables.md) both
-  depend on. What survives is the declarative subset — a prefix→directories map — which is what Composer's
+  [ADR 0048](0048-portable-single-file-executables.md) § 3 depends on. What survives is the declarative
+  subset — a prefix→directories map — which is what Composer's
   `psr-4` key already is and what essentially every project uses it for.
 - **`require` order was never the problem.** `nvs-hir`'s `resolve_program` collects declarations from every
   file in the graph before any hierarchy or member resolution runs, so `class A extends B` resolves
@@ -221,8 +221,8 @@ the failure later, against the direction [ADR 0022](0022-definite-property-initi
   to compile if `FOO` is not deployed, where PHP fails at runtime only if reached. Modules that depend on
   interfaces owned by the framework rather than on each other's concrete classes are unaffected.
 - **`Core\Reflect` lookup by name reaches only the compiled program** — a name string can never pull in a
-  new file. Consistent with [ADR 0025](0025-wasm-browser-target.md) and
-  [ADR 0048](0048-portable-single-file-executables.md), and a visible divergence from PHP.
+  new file. Consistent with [ADR 0048](0048-portable-single-file-executables.md) § 3, and a visible
+  divergence from PHP.
 - **A discovery query is the first thing in Novis to make a compiled unit depend on a directory listing.**
   Bounded and rate-capped (§ 5), but it is a genuinely new dependency kind, which is why the query is
   opt-in rather than ambient.

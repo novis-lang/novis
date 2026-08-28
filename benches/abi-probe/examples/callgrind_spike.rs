@@ -1,4 +1,4 @@
-//! The probe [ADR 0025](../../../docs/adr/0025-performance-measurement-methodology.md)
+//! The probe [ADR 0026](../../../docs/adr/0026-performance-measurement-methodology.md)
 //! validates callgrind against: confirms `valgrind --tool=callgrind` produces
 //! a bit-for-bit stable instruction count for code Cranelift JIT-compiled at
 //! runtime, which is the premise the ADR's historical-dashboard leg rests on.
