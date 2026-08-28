@@ -196,6 +196,7 @@
 //!    not do yet.
 
 pub mod arr;
+mod attributes;
 mod bytes;
 mod cldr;
 mod cli;
@@ -279,6 +280,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
 fn address_of(symbol: &'static str) -> *const u8 {
     str::address(symbol)
         .or_else(|| arr::address(symbol))
+        .or_else(|| attributes::address(symbol))
         .or_else(|| bytes::address(symbol))
         .or_else(|| csv::address(symbol))
         .or_else(|| cursor::address(symbol))

@@ -327,7 +327,14 @@ fn field_default(value: &nvs_types::ConstArg) -> Option<nvs_types::FieldDefault>
         ConstArg::Float(v) => Some(FieldDefault::Float(*v)),
         ConstArg::Str(s) => Some(FieldDefault::Str(s.clone())),
         ConstArg::EmptyArray => Some(FieldDefault::EmptyArray),
-        ConstArg::Null | ConstArg::Bytes(_) | ConstArg::Options(_) | ConstArg::Built { .. } => None,
+        ConstArg::Null
+        | ConstArg::Bytes(_)
+        | ConstArg::Options(_)
+        | ConstArg::Built { .. }
+        // ADR 0046 § 5's folded retrieval, which is an expression's value and
+        // never a written property default.
+        | ConstArg::Shape(_)
+        | ConstArg::Array(_) => None,
     }
 }
 

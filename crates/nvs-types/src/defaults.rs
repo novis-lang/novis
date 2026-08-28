@@ -150,6 +150,26 @@ pub enum ConstArg {
         /// Its arguments, positional.
         args: Vec<ConstArg>,
     },
+    /// An [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) § 2
+    /// shape value, its fields in the order they were written.
+    ///
+    /// Produced only by [`crate::attributes`], for ADR 0046 § 5's fold: a
+    /// retrieval's answer *is* an attached literal, and § 5 replaces the call
+    /// with that value rather than looking one up. There is no written
+    /// position that reaches this — a shape literal is an expression with a
+    /// lowering of its own, so nothing else needs a constant form of one.
+    Shape(Vec<(String, ConstArg)>),
+    /// An `array<T>` value, each entry as its own already-resolved `string`
+    /// key ([ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 5:
+    /// every key is a `string`) and its constant value.
+    ///
+    /// Produced only by [`crate::attributes`], beside [`Self::Shape`] and for
+    /// the same reason. The keys are resolved *here* rather than left implicit
+    /// because everything in a folded payload is constant, so an array
+    /// literal's auto-index run has one answer and this is the last place it
+    /// is cheap to compute. [`Self::EmptyArray`] stays the spelling of `[]`
+    /// wherever a default reaches one.
+    Array(Vec<(String, ConstArg)>),
 }
 
 /// Evaluates a written `= expr` parameter default against the parameter's own
@@ -289,7 +309,7 @@ fn literal_default(expr: &Expr, declared: TypeId, env: &mut Env<'_>) -> Option<C
 /// which the caller reports as "not a literal of the declared type" along with
 /// every other rejection: an out-of-range default is the same authoring
 /// mistake, at the same span.
-fn int_magnitude(span: Span, env: &Env<'_>) -> Option<u64> {
+pub(crate) fn int_magnitude(span: Span, env: &Env<'_>) -> Option<u64> {
     let (radix, digits) = crate::expr::int_literal_digits(env.src, span);
     u64::from_str_radix(&digits, radix).ok()
 }
@@ -308,7 +328,7 @@ fn negate_int(magnitude: u64) -> Option<i64> {
 /// Rust's, but every spelling the *lexer* produces a `Float` token for parses
 /// here; a `_` digit separator is stripped first, exactly as
 /// [`crate::expr::int_literal_digits`] strips one.
-fn float_value(span: Span, env: &Env<'_>) -> Option<f64> {
+pub(crate) fn float_value(span: Span, env: &Env<'_>) -> Option<f64> {
     crate::span_text(env.src, span)
         .replace('_', "")
         .parse()

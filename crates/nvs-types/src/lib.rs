@@ -213,6 +213,7 @@ pub mod lateinit;
 pub mod layout;
 pub mod locals;
 pub mod lower;
+pub(crate) mod retrieval;
 pub mod signatures;
 pub mod string_lit;
 pub mod ty;
@@ -322,6 +323,12 @@ pub(crate) struct Env<'a> {
     /// [`signatures::build_signatures`], for the same reason: an annotation
     /// interned during signature collection may be one of these.
     pub consts: &'a crate::consts::ConstTable,
+    /// Every `#[...]` attach site in the program, indexed by the declaration
+    /// it is attached to — ADR 0046 § 4's retrieval reads it, and nothing else
+    /// does. Built whole before any body is checked, because a retrieval may
+    /// be written above the declaration it asks about; see
+    /// [`crate::retrieval::AttributeTable`].
+    pub attributes: &'a crate::retrieval::AttributeTable<'a>,
     pub src: &'a SourceFile,
     pub interner: &'a mut TypeInterner,
     /// Where a call's/`new`'s resolved target is persisted for `nvs-ir` to

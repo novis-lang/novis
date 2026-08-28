@@ -644,6 +644,7 @@ mod tests {
         }];
         let enums = crate::enums::build_enum_table(&files, &mut diags);
         let consts = crate::consts::build_const_table(&files);
+        let attributes = crate::retrieval::AttributeTable::default();
         let mut env = Env {
             symbols: &module.symbols,
             aliases: &module.aliases,
@@ -651,6 +652,7 @@ mod tests {
             signatures: &signatures,
             enums: &enums,
             consts: &consts,
+            attributes: &attributes,
             src: map.file(file),
             interner: &mut interner,
             exprs: &mut exprs,

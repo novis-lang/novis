@@ -196,6 +196,18 @@ pub(super) fn infer_static_call(
     if matches!(args, CallArgs::FirstClassCallable) {
         return env.interner.callable();
     }
+    // ADR 0046 §§ 4-5's retrieval, which is not a call at all once it has been
+    // resolved: the answer is recorded against this span as an ordinary
+    // compile-time constant, so the `ExprInfo::Call` below must *not* also be
+    // recorded — one span carries one entry, and `nvs-ir` would then lower the
+    // call it was told to replace. See [`crate::retrieval`].
+    if let Some((qname, name, _)) = &resolved
+        && crate::retrieval::is_retrieval(qname, name)
+    {
+        let name = name.clone();
+        crate::retrieval::fold_retrieval(expr, &name, &written, args, ctx, env);
+        return sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty);
+    }
     // See [`infer_method_call`]: persisted for `nvs-ir` to read back a resolved
     // static call's target, always as the *substituted* signature.
     if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig) {

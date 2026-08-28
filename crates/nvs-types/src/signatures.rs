@@ -529,6 +529,9 @@ pub fn build_signatures(
     // ever lowers property/parameter/return *type annotations*, never a call
     // expression, so nothing during this pass ever records into `exprs`.
     let mut placeholder_exprs = crate::expr_table::ExprTypeTable::default();
+    // Same again: ADR 0046 § 4's retrieval is an expression, and this pass
+    // checks none, so the table it reads is empty here rather than built twice.
+    let empty_attributes = crate::retrieval::AttributeTable::default();
     for file in files {
         let mut env = Env {
             symbols,
@@ -537,6 +540,7 @@ pub fn build_signatures(
             signatures: &placeholder,
             enums,
             consts,
+            attributes: &empty_attributes,
             src: file.src,
             interner: &mut *interner,
             exprs: &mut placeholder_exprs,

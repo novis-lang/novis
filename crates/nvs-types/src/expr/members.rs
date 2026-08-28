@@ -340,7 +340,7 @@ pub(crate) fn is_this_receiver(object: &Expr, src: &nvs_diagnostics::SourceFile)
 /// knowable class and resolves to `None` — callers fall back to `mixed` with
 /// no diagnostic, matching `nvs_hir::members`'s own silent skip for the same
 /// shape.
-pub(super) fn resolve_class_expr(class_expr: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<QName> {
+pub(crate) fn resolve_class_expr(class_expr: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<QName> {
     match &class_expr.kind {
         ExprKind::SelfExpr | ExprKind::StaticExpr => ctx.current_class.cloned(),
         ExprKind::ParentExpr => {

@@ -1578,6 +1578,40 @@ pub mod code {
     /// none — so the help names the fix that exists, which is to keep the
     /// secret out of the metadata entirely.
     pub const E_SECRET_ATTRIBUTE_PAYLOAD: Code = Code::new("E0727");
+    /// A `Core\Attributes::get<T>` whose target carries more than one attached
+    /// literal satisfying `T` — ADR 0046 § 5.
+    ///
+    /// A declaration's attached-attribute list is fully static, so "which one
+    /// did I get?" is a question this compiler answers rather than one a test
+    /// run answers. `::all<T>` is the member that wants every match, and the
+    /// help names it.
+    pub const E_ATTRIBUTE_RETRIEVAL_AMBIGUOUS: Code = Code::new("E0728");
+    /// The `<T>` written at a `Core\Attributes::get`/`all` call site is not a
+    /// shape type — ADR 0046 § 4.
+    ///
+    /// Retrieval is *structural*: `T` is what an attached literal is matched
+    /// against under ADR 0036 § 3's width subtyping, so a `T` that is not a
+    /// shape names nothing an attribute payload could ever satisfy.
+    pub const E_ATTRIBUTE_TYPE_ARG_NOT_A_SHAPE: Code = Code::new("E0729");
+    /// The `$target` of a `Core\Attributes::get`/`all` call does not name a
+    /// declaration this unit holds — ADR 0046 § 4.
+    ///
+    /// § 4 fixes the spelling: a method (a constructor included) is named by
+    /// its own first-class-callable reference `Foo::bar(...)`, and a class by
+    /// its `constructor`'s. Retrieval is resolved entirely at compile time, so
+    /// the reference is *inspected* where it is written rather than evaluated
+    /// — anything else has no declaration to read an attribute list off.
+    pub const E_ATTRIBUTE_TARGET_NOT_A_DECLARATION: Code = Code::new("E0730");
+    /// An attached literal satisfies the `T` a `Core\Attributes` retrieval
+    /// asked for, but holds a value this compiler cannot materialize.
+    ///
+    /// ADR 0046 § 5 replaces the call with the payload itself, so every value
+    /// in a matched payload has to have a constant form. A **user-declared**
+    /// class constant does not — `nvs_types::signatures`' own known gap leaves
+    /// its value unmodeled, which is the same gap that leaves `Foo::CONST`
+    /// unlowered wherever else it is written — and an enum case reaches the
+    /// program through `ExprInfo::EnumCase` rather than through a constant.
+    pub const E_ATTRIBUTE_PAYLOAD_UNFOLDABLE: Code = Code::new("E0731");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

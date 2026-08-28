@@ -92,6 +92,11 @@ pub fn check_program(
     // annotation, and one of them may be a `Foo::CONST` type.
     let consts = crate::consts::build_const_table(files);
     let signatures = build_signatures(files, module, &enums, &consts, interner, diags);
+    // ADR 0046 § 4's retrieval reads this. Built whole, ahead of the walk, for
+    // `build_const_table`'s reason: a retrieval may be written above the
+    // declaration it asks about, so a table filled as the walk descends would
+    // answer differently depending on source order.
+    let attributes = crate::retrieval::build_attribute_table(files);
     // Threaded across the files rather than restarted at each: an ADR 0031
     // closure literal at file scope is labelled `Script$fn<n>`, with no
     // declaring class to disambiguate it, so a counter that restarted per
@@ -105,6 +110,7 @@ pub fn check_program(
             signatures: &signatures,
             enums: &enums,
             consts: &consts,
+            attributes: &attributes,
             src: file.src,
             interner: &mut *interner,
             exprs: &mut *exprs,

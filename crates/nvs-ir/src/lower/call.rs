@@ -636,8 +636,70 @@ impl<'a> Lowering<'a> {
             ),
             // Handled above, before the constant table: it is a call.
             nvs_types::ConstArg::Built { .. } => unreachable!(),
+            // ADR 0046 § 5's folded retrieval. Both build a value out of
+            // several, so neither is one instruction and both return early.
+            nvs_types::ConstArg::Shape(fields) => {
+                return self.emit_const_shape(fields, env, cur);
+            }
+            nvs_types::ConstArg::Array(entries) => {
+                let mut values = Vec::with_capacity(entries.len());
+                for (key, entry) in entries {
+                    let (value, _) = self.emit_const_arg(entry, env, cur);
+                    values.push((key.clone(), value));
+                }
+                (Ty::Array, InstKind::ArrayNew { entries: values })
+            }
         };
         self.emit(cur, ty, kind)
+    }
+
+    /// An [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) § 2
+    /// shape value, materialized from a constant rather than from a written
+    /// literal — ADR 0046 § 5's fold is the one producer.
+    ///
+    /// Deliberately the same synthesized class a written literal of the same
+    /// field set gets ([`super::shape_class_label`], keyed on the sorted
+    /// names), so a retrieved payload and a hand-written `{path: "/x"}` are
+    /// one class with one layout: `nvs_types` matched the payload against the
+    /// caller's shape structurally, and two classes for one shape would make
+    /// the field offsets they agree on a coincidence.
+    ///
+    /// No retain on any field: every value here is a constant this call just
+    /// emitted, so each is a fresh producer whose one reference the slot takes
+    /// — the written literal's [`Self::aliasing_read`] question has no
+    /// expression to ask about and no borrowed operand to ask it of.
+    fn emit_const_shape(
+        &mut self,
+        fields: &[(String, nvs_types::ConstArg)],
+        env: &mut Env,
+        cur: BlockId,
+    ) -> (ValueId, Ty) {
+        let mut sorted: Vec<String> = fields.iter().map(|(name, _)| name.clone()).collect();
+        sorted.sort();
+        sorted.dedup();
+        let class = super::shape_class_label(&sorted);
+        let (obj, _) = self.emit_fallible(
+            cur,
+            Ty::Object,
+            InstKind::New {
+                class: class.clone(),
+                ctor: None,
+                args: Vec::new(),
+            },
+            env,
+        );
+        let mut reprs: FxHashMap<&str, Ty> = FxHashMap::default();
+        for (name, value) in fields {
+            let (value, ty) = self.emit_const_arg(value, env, cur);
+            reprs.insert(name.as_str(), ty);
+            self.emit_field_set(cur, obj, class.clone(), name.clone(), value);
+        }
+        let reprs = sorted
+            .iter()
+            .map(|name| reprs[name.as_str()])
+            .collect::<Vec<_>>();
+        self.record_shape_class(class, sorted, reprs);
+        (obj, Ty::Object)
     }
     /// `$fn(...)` —
     /// [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)'s

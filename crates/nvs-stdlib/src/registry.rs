@@ -709,6 +709,9 @@ impl CoreClass {
 pub const CLASSES: &[CoreClass] = &[
     crate::str::CLASS,
     crate::arr::CLASS,
+    // ADR 0046 §§ 4-5's structural retrieval. Registered like any other class
+    // and implemented by nothing — see [`crate::attributes`].
+    crate::attributes::CLASS,
     crate::math::CLASS,
     crate::regex::CLASS,
     crate::regex::MATCH,

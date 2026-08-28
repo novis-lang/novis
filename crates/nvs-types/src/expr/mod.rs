@@ -80,7 +80,7 @@ pub(crate) use self::{
     assign::{check_return, is_assignable, report_mismatch},
     iteration::{check_foreach_inout, check_foreach_key, check_foreach_value, foreach_source},
     literals::{check_array_key_type, check_object_literal, int_literal_digits},
-    members::{check_unset_target, is_this_receiver},
+    members::{check_unset_target, is_this_receiver, resolve_class_expr},
     operators::{reject_disjoint_equality, require_stringable},
     quals::reject_secret_attribute_constant,
 };
