@@ -84,8 +84,8 @@ use nvs_syntax::ast::{DestructureElement, DestructureTarget, Expr, ExprKind, Stm
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::expr::{
-    check_array_key_type, check_expr, check_expr_stmt, check_return, check_unset_target,
-    is_assignable, report_mismatch, require_stringable,
+    check_array_key_type, check_condition, check_expr, check_expr_stmt, check_return,
+    check_unset_target, is_assignable, report_mismatch, require_stringable,
 };
 use crate::expr_table::ExprInfo;
 use crate::lower::{lower_optional_type, lower_type};
@@ -646,7 +646,7 @@ pub(crate) fn check_stmt(
         StmtKind::Block(b) => check_block(&b.stmts, live, scope, return_ty, ctx, env),
         StmtKind::Empty | StmtKind::InlineHtml(_) | StmtKind::Error => {}
         StmtKind::If { cond, then, else_ } => {
-            check_expr(cond, None, live, scope, ctx, env);
+            check_condition(cond, live, scope, ctx, env);
             let mut then_live = live.clone();
             let narrowed = narrow(cond, true, scope, env);
             check_stmt(then, &mut then_live, scope, return_ty, ctx, env);
@@ -667,7 +667,7 @@ pub(crate) fn check_stmt(
             // No `else`: only the pre-existing `live` carries forward.
         }
         StmtKind::While { cond, body } => {
-            check_expr(cond, None, live, scope, ctx, env);
+            check_condition(cond, live, scope, ctx, env);
             let mut body_live = live.clone();
             // The condition is re-tested before every entry, so what it
             // proves holds for the whole body — unlike anything proved
@@ -687,7 +687,7 @@ pub(crate) fn check_stmt(
             check_stmt(body, live, scope, return_ty, ctx, env);
             leave_loop(env);
             suspended.resume(scope);
-            check_expr(cond, None, live, scope, ctx, env);
+            check_condition(cond, live, scope, ctx, env);
         }
         StmtKind::For {
             init,
@@ -700,7 +700,7 @@ pub(crate) fn check_stmt(
             }
             // `cond` always runs at least once, even if the body never does.
             for e in cond {
-                check_expr(e, None, live, scope, ctx, env);
+                check_condition(e, live, scope, ctx, env);
             }
             let mut body_live = live.clone();
             let suspended = suspend(scope);

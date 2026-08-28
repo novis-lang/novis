@@ -109,6 +109,34 @@ pub(crate) fn check_expr(
     actual
 }
 
+/// [`check_expr`] for an expression used as a **condition**, and the one site
+/// in this crate that asks what a condition's type is.
+///
+/// ADR 0035 makes a condition the one place a value is tested without `as`, so
+/// there is nothing to check here in the ordinary sense — its truthy table has
+/// a row for every type. What it does not have is a row for a value that is
+/// not one, which is [`reject_void_condition`]'s whole subject. Every position
+/// that tests a value without an operator goes through here — `if`, `while`,
+/// `do`/`while`, a `for` header's middle clause and a ternary's condition —
+/// while `!` and `empty()` report the same thing at their own arms, having
+/// already inferred their operand for a reason of their own.
+///
+/// `&&`, `||` and `??` are deliberately *not* here: they are ADR 0007 § 4's
+/// operands and keep `E0718` through
+/// [`operators::reject_void_operand`](reject_void_operand). See
+/// [`code::E_VOID_IS_NOT_A_CONDITION`] for where that line is drawn and why.
+pub(crate) fn check_condition(
+    cond: &Expr,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    let ty = check_expr(cond, None, live, scope, ctx, env);
+    reject_void_condition(ty, cond.span, env);
+    ty
+}
+
 /// [`check_expr`] for an expression used as its own **statement**.
 ///
 /// Two shapes mean something in that position and nothing anywhere else, so
@@ -218,7 +246,13 @@ pub(super) fn infer(
             let hint = negated_literal_expectation(*op, expected, env.interner);
             let inner_ty = infer(inner, hint, live, scope, ctx, env);
             match op {
-                UnaryOp::Not => env.interner.bool_ty(),
+                // `!` is ADR 0035's truthy test written out rather than one of
+                // ADR 0007 § 4's rows, so its `void` operand is the condition
+                // refusal and not the arithmetic one below it.
+                UnaryOp::Not => {
+                    reject_void_condition(inner_ty, expr.span, env);
+                    env.interner.bool_ty()
+                }
                 UnaryOp::Neg | UnaryOp::Plus | UnaryOp::BitNot => {
                     reject_unary_arith_operand(*op, inner_ty, expr.span, env);
                     negated_literal_result(*op, inner_ty, env.interner)
@@ -313,7 +347,7 @@ pub(super) fn infer(
             check_assign(*op, expr.span, target, value, live, scope, ctx, env)
         }
         ExprKind::Ternary { cond, then, else_ } => {
-            let cond_ty = check_expr(cond, None, live, scope, ctx, env);
+            let cond_ty = check_condition(cond, live, scope, ctx, env);
             // `$a ?: $b` (`then` omitted) evaluates to `$a` itself on the
             // truthy path — its type joins the union the same way an
             // explicit `then` branch would.
@@ -637,7 +671,9 @@ pub(super) fn infer(
         // expression at all, so it shares `isset`'s guarded-subscript rule and
         // none of its shape check. `presence` owns both.
         ExprKind::Empty(operand) => {
-            presence::check_empty_operand(operand, live, scope, ctx, env);
+            let operand_ty = presence::check_empty_operand(operand, live, scope, ctx, env);
+            // `empty($x)` is `!$x`, so it takes `!`'s refusal too.
+            reject_void_condition(operand_ty, operand.span, env);
             env.interner.bool_ty()
         }
         ExprKind::Exit(opt) => {

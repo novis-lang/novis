@@ -1,0 +1,69 @@
+--TEST--
+Every condition refuses a call that returns `void` where it is written, and the operators beside them keep their own code — ADR 0035 § 2, ADR 0007 § 4
+--FILE--
+<?nvs
+// ADR 0035 makes a condition the one place a value is tested without `as`,
+// and its truthy table has a row for every type there is — which is why a
+// call that returns `void` shows up here as nothing at all rather than as a
+// mismatch. Unrefused, each line below reached `nvs-ir`'s truthy slice with
+// no value to convert and failed the whole compilation naming a compiler bug.
+//
+// This sweeps one spelling per position, in source order, so a position that
+// stopped refusing shows up as a missing line *and* as a shifted `&&` below
+// rather than as a plausible answer.
+class Effect {
+    public static function run(): void {}
+}
+
+// The four statement conditions, which go through the one site that asks what
+// a condition's type is (`nvs_types::expr::check_condition`).
+if (Effect::run()) {
+    echo "unreachable\n";
+}
+while (Effect::run()) {
+    echo "unreachable\n";
+}
+do {
+    echo "unreachable\n";
+} while (Effect::run());
+int $i = 0;
+for (; Effect::run(); $i = $i + 1) {
+    echo "unreachable\n";
+}
+
+// A ternary's condition, and the elvis spelling that tests its own value.
+mixed $ternary = Effect::run() ? "a" : "b";
+mixed $elvis = Effect::run() ?: "b";
+
+// `!` and `empty()` are that same truthy test written out, so they take the
+// condition's code rather than one of ADR 0007 § 4's operand ones.
+bool $not = !Effect::run();
+bool $voidIsEmpty = empty(Effect::run());
+
+// The line the split is pinned by: `&&` is an *operand* position of ADR 0007
+// § 4's table, so it keeps `E0718` however much it reads like a condition.
+// One rule, one code, both ways round —
+// `nvs_diagnostics::code::E_VOID_IS_NOT_A_CONDITION` is that split's home.
+mixed $and = Effect::run() && $not;
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0719]: a call that returns `void` has no value, so there is nothing to test for truth
+%A
+error[E0719]: a call that returns `void` has no value, so there is nothing to test for truth
+%A
+error[E0719]: a call that returns `void` has no value, so there is nothing to test for truth
+%A
+error[E0719]: a call that returns `void` has no value, so there is nothing to test for truth
+%A
+error[E0719]: a call that returns `void` has no value, so there is nothing to test for truth
+%A
+error[E0719]: a call that returns `void` has no value, so there is nothing to test for truth
+%A
+error[E0719]: a call that returns `void` has no value, so there is nothing to test for truth
+%A
+error[E0719]: a call that returns `void` has no value, so there is nothing to test for truth
+%A
+error[E0718]: a call that returns `void` has no value, so it is not an operand
+%A
+error: aborting due to 9 errors

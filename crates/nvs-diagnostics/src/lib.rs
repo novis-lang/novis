@@ -1424,10 +1424,30 @@ pub mod code {
     /// wording an author who wrote `echo` or an interpolated piece needs. One
     /// rule, one code, both ways round.
     ///
-    /// A `void` call in a *condition* is neither of these two and is still
-    /// open — ADR 0035 makes a condition the one place a value is tested
-    /// without `as`, and "a value" is exactly what is missing.
+    /// A `void` call in a *condition* is neither of these two and takes
+    /// [`E_VOID_IS_NOT_A_CONDITION`] instead.
     pub const E_VOID_IS_NOT_AN_OPERAND: Code = Code::new("E0718");
+    /// A call that returns `void` tested for truth.
+    ///
+    /// ADR 0035 makes a condition the one place a value is tested without
+    /// `as`, and "a value" is exactly what a `void` call is not — so its
+    /// truthy table, like ADR 0007 § 4's, has nothing to look a row up for.
+    /// The two refusals are one sentence apart and are deliberately two
+    /// codes: [`E_VOID_IS_NOT_AN_OPERAND`] is read by an author who wrote an
+    /// operator and reads "not an operand", which is the wrong sentence for
+    /// `if (V::nothing())`, where no operator is written at all.
+    ///
+    /// The line between them is *which table has no row*, not which syntax
+    /// was used. `&&`, `||` and `??` are ADR 0007 § 4's operands and keep
+    /// [`E_VOID_IS_NOT_AN_OPERAND`]; `!` and `empty()` are ADR 0035 § 2's
+    /// truthy test written out and take this one, alongside the four
+    /// statement conditions and a ternary's.
+    ///
+    /// Unrefused, this reached no diagnostic and no answer either: `nvs-ir`
+    /// lowers a `void` call to no value, so its truthy slice panicked on a
+    /// representation the table has no row for, naming a bug in the compiler
+    /// for what is a mistake in the program.
+    pub const E_VOID_IS_NOT_A_CONDITION: Code = Code::new("E0719");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

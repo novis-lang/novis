@@ -501,6 +501,39 @@ fn reject_void_operand(
     Some(env.interner.mixed())
 }
 
+/// A call that returns `void` is not a condition either, and this is the
+/// refusal that says so.
+///
+/// [`reject_void_operand`] above objects that ADR 0007 § 4's table has no row
+/// for a value that is not one. A condition is the one position that table is
+/// not about — ADR 0035 § 2's truthy table is, and it has a row for every type
+/// there is, which is exactly why the missing value shows up here as nothing
+/// at all rather than as a mismatch. So the two refusals are one sentence
+/// apart and take two codes: [`code::E_VOID_IS_NOT_A_CONDITION`]'s own doc
+/// comment is that split's home, and the short of it is that "not an operand"
+/// is the wrong sentence to print under `if (V::nothing())`, where no operator
+/// is written at all.
+///
+/// Called from [`check_condition`](super::check_condition) for the four
+/// statement conditions and the ternary, and from [`super::infer`]'s own arms
+/// for `!` and `empty()`, which infer their operand themselves.
+pub(super) fn reject_void_condition(ty: TypeId, span: Span, env: &mut Env<'_>) {
+    if !matches!(env.interner.get(ty), Ty::Void) {
+        return;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_VOID_IS_NOT_A_CONDITION,
+            "a call that returns `void` has no value, so there is nothing to test for truth",
+        )
+        .with_primary(span, "tested here")
+        .with_help(
+            "ADR 0035 § 2's truthy table is over values, and a `void` call is not one; give the \
+             callee a return type and `return` from it, or call it as its own statement",
+        ),
+    );
+}
+
 /// The one diagnostic both operand positions report — the binary operators
 /// through [`reject_void_operand`] and the three arithmetic prefixes through
 /// [`reject_unary_arith_operand`], so that they agree on their wording as well
