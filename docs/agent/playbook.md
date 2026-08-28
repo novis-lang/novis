@@ -1545,6 +1545,12 @@ is why" — is this file.
   reports `E0102`/`E0101` three times over one line and hides whatever else the
   case was actually asserting. `examples/arrays.nvs:12` is the spelling —
   `["alpha" => 1, "beta" => 2]` — and PHP's own arrow is the one Novis kept.
+- **An `--EXPECTF-ERROR--` section is matched whole, not as a prefix**, so a sweep that
+  ends at its last `error[...]` line fails against a compiler that then prints
+  `error: aborting due to N errors`. End the section with `%A` and that line — the count
+  included, which is also a second assertion that no *extra* diagnostic crept in. The
+  existing `a-void-call-is-not-an-operand.nvst` has the shape; a case written from the
+  conventions' skeleton alone does not.
 
 ## Splitting a file that got too big
 

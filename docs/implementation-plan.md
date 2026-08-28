@@ -570,11 +570,37 @@
 > compiler bug for what is a mistake in the program.
 > `tests/conformance/lang/a-void-call-is-not-an-operand.nvst` sweeps fifteen spellings in source
 > order with the `.` line among them, so a family that stopped refusing shifts that line rather than
-> answering plausibly. What is **not** closed is the same value in a *condition* — ADR 0035 makes a
-> condition the one place a value is tested without `as`, and `if (V::nothing())` still panics
-> `nvs-ir`'s truthy slice at `lower/convert.rs:567`, which is a hole of its own and is in the
-> handoff's `## Backlog`. The tagged subscript's four rows gain the byte-for-byte case they were
-> owed alongside:
+> answering plausibly. **The same value in a *condition* is closed now too, and it took a second
+> code rather than a wider first one.** ADR 0035 makes a condition the one place a value is tested
+> without `as`, and its truthy table has a row for *every* type — which is exactly why a `void` call
+> shows up there as nothing at all rather than as a mismatch, and why the operand refusal's own
+> sentence ("not an operand") is the wrong one to print under `if (V::nothing())`, where no operator
+> is written. So the line between the two is which table has no row rather than which syntax was
+> used: `&&`, `||` and `??` are ADR 0007 § 4's operands and keep `E0718`, while the four statement
+> conditions, a ternary's, the elvis spelling, `!` and `empty()` take `E0719`,
+> `code::E_VOID_IS_NOT_A_CONDITION`'s own doc comment being that split's home. `nvs_types` had no
+> single site that asked what a condition's type is, which is why the hole was there at all; it has
+> one now — `nvs_types::expr::check_condition` wraps the check every statement condition and the
+> ternary already made, and `!` and `empty()` report from their own arms, having inferred their
+> operand for a reason of their own. Unrefused it reached no diagnostic and no answer either:
+> `nvs-ir` lowers a `void` call to no value, so the truthy slice panicked on a representation its
+> table has no row for. `tests/conformance/lang/a-void-call-is-not-a-condition.nvst` sweeps the
+> eight positions in source order with the `&&` line below them, so a position that stopped refusing
+> shifts that line rather than answering plausibly. **The five catch-all rosters gained the case
+> that asserts they agree rather than what each answered.** `emit_binop`'s representation half and
+> its operator half, `emit_unop`'s, and `nvs-ir`'s `lower_expr` and `concat_operand` ones each say
+> `Ty::Tagged` has left them entirely — the tagged rows being chosen from an operand's runtime tag
+> one crate up — and that claim is testable only as an agreement:
+> `tests/conformance/lang/an-operator-agrees-whether-its-operand-is-typed-or-tagged.nvst` asks 45
+> questions twice, once where the static type names ADR 0007 § 4's row and once through a `mixed`
+> holding the same value, and counts the agreements rather than reading a line off each. Equality
+> over all six representations that have one, the arithmetic, bitwise and ordering rows, the three
+> unary ones, six of `concat_operand`'s nine and the five shapes `lower_expr` takes above its
+> general `Binary` arm are the rows, so a family that grows a second answer fails here while still
+> looking right on its own line. One shape is deliberately absent and is the next session's first
+> slice: a `match` whose subject is a `mixed` panics `nvs-ir` at `lower/expr.rs:1521`, the label
+> lowering asserting a label's representation equals the subject's rather than widening it. The
+> tagged subscript's four rows gain the byte-for-byte case they were owed alongside:
 > `tests/conformance/lang/a-subscript-through-a-mixed-base-is-decided-by-its-tag.nvst` pins the
 > element off a list and off a map, the absent key, the two non-array bases, all of it again under
 > `??`, and the agreement between a declared `array<int>` base and the same value read through a
