@@ -1,0 +1,78 @@
+--TEST--
+`Core\Test::assertEqualsDeep` reports where two subjects first differ, as a path a program would subscript with, and stops at the container whose *shape* differs -- ADR 0079 § 4
+--FILE--
+<?nvs
+// § 4's walk reports **where**, not only that. That promise has two halves the
+// top-level rows next door cannot see: the path is composed as the walk
+// descends, so it reads `$actual->cells["1"]->name` through an array inside an
+// object; and it names the **first** difference in iteration order, so a later
+// one below or beside it is never what a reader is pointed at.
+//
+// The other half is which node gets named. A leaf difference names the leaf,
+// but a container whose *shape* differs -- a length, a key, a class -- names
+// the container itself, because saying it at the first differing element would
+// point at a position the two subjects do not share.
+
+final class Cell {
+    public function constructor(public string $name) {}
+}
+
+final class Ring {
+    public function constructor(public string $name) {}
+}
+
+final class Sheet {
+    public function constructor(public array<Cell> $cells) {}
+}
+
+int $refused = 0;
+
+// Two levels of containment, so the path is composed rather than printed from
+// the one subscript a top-level row would need.
+array<array<string>> $grid = [["x", "y"], ["p", "q"]];
+array<array<string>> $edited = [["x", "y"], ["p", "Q"]];
+try { Core\Test::assertEqualsDeep($grid, $edited); } catch (Throwable $nested) { $refused = $refused + 1; echo $nested->message, "\n"; }
+
+// An object holding an array holding an object -- both segment spellings in
+// one path, in the order the walk met them.
+array<Cell> $cells = [new Cell("a"), new Cell("b")];
+array<Cell> $others = [new Cell("a"), new Cell("B")];
+Sheet $sheet = new Sheet($cells);
+Sheet $twin = new Sheet($others);
+try { Core\Test::assertEqualsDeep($sheet, $twin); } catch (Throwable $through) { $refused = $refused + 1; echo $through->message, "\n"; }
+
+// Two differences, one reported: the first in iteration order. A member that
+// walked to the end and reported the last one prints just as plausibly on its
+// own line, which is why this row is here and not folded into the one above.
+array<string> $before = ["a", "b", "c"];
+array<string> $after = ["A", "b", "C"];
+try { Core\Test::assertEqualsDeep($before, $after); } catch (Throwable $first) { $refused = $refused + 1; echo $first->message, "\n"; }
+
+// The three shape rows, each nested one level so the path being the
+// *container's* is visible rather than empty. A length...
+array<array<string>> $short = [["x"], ["p", "q"]];
+array<array<string>> $shorter = [["x"], ["p"]];
+try { Core\Test::assertEqualsDeep($short, $shorter); } catch (Throwable $length) { $refused = $refused + 1; echo $length->message, "\n"; }
+
+// ...a class, which is compared by name before any property is read...
+array<mixed> $holding = ["k", new Cell("a")];
+array<mixed> $holdingOther = ["k", new Ring("a")];
+try { Core\Test::assertEqualsDeep($holding, $holdingOther); } catch (Throwable $class) { $refused = $refused + 1; echo $class->message, "\n"; }
+
+// ...and a key, which ADR 0007 § 5 makes part of the value rather than an
+// index the walk may re-order.
+array<mixed> $keyed = ["k", ["one" => 1]];
+array<mixed> $rekeyed = ["k", ["two" => 1]];
+try { Core\Test::assertEqualsDeep($keyed, $rekeyed); } catch (Throwable $key) { $refused = $refused + 1; echo $key->message, "\n"; }
+
+// Counted rather than read off the lines above: a member that started
+// answering one of these instead of refusing fails here.
+echo "refused=", $refused, "/6\n";
+--EXPECT--
+Core\Test::assertEqualsDeep failed: the two differ at `$actual["1"]["1"]`: `$actual` is "q", `$expected` is "Q"
+Core\Test::assertEqualsDeep failed: the two differ at `$actual->cells["1"]->name`: `$actual` is "b", `$expected` is "B"
+Core\Test::assertEqualsDeep failed: the two differ at `$actual["0"]`: `$actual` is "a", `$expected` is "A"
+Core\Test::assertEqualsDeep failed: the two differ at `$actual["1"]`: `$actual` is an array of 2, `$expected` is an array of 1
+Core\Test::assertEqualsDeep failed: the two differ at `$actual["1"]`: `$actual` is a `Cell`, `$expected` is a `Ring`
+Core\Test::assertEqualsDeep failed: the two differ at `$actual["1"]`: `$actual` is a key `one`, `$expected` is a key `two`
+refused=6/6
