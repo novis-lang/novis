@@ -589,6 +589,78 @@ mod tests {
         );
     }
 
+    /// The key is the name's *segments*, and that is a different order from
+    /// the one its rendered text sorts under — not a spelling of the same
+    /// one. `\` is byte 0x5C, above every upper-case letter, so a sort over
+    /// rendered strings puts `App\SubA` ahead of `App\Sub\A` while a sort
+    /// over segments compares `Sub` against `SubA` and answers the other
+    /// way. The cross-namespace case above cannot pin this: every pair in it
+    /// sorts identically under either key, so both implementations pass it.
+    /// ADR 0061 § 3 asks only that the order not depend on filesystem
+    /// enumeration; which of the two candidate orders is the answer is
+    /// decided here, on the ground that a qualified name is a path and a
+    /// path orders by segment.
+    #[test]
+    fn an_interface_enumeration_is_sorted_by_qualified_name() {
+        let (graph, diags) = resolve(concat!(
+            "<?nvs\n",
+            "namespace App;\n",
+            "interface Module {}\n",
+            "class SubA implements Module {}\n",
+            "class Beta implements Module {}\n",
+            "namespace App\\Sub;\n",
+            "class A implements \\App\\Module {}\n",
+        ));
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert_eq!(
+            implementors(&QName::parse(r"App\Module"), &graph),
+            vec![
+                QName::parse(r"App\Beta"),
+                QName::parse(r"App\Sub\A"),
+                QName::parse(r"App\SubA"),
+            ],
+        );
+    }
+
+    /// `abstract` is asked at the candidate and nowhere else on the walk:
+    /// `Leaf` reaches `Module` only through two abstract intermediates and is
+    /// still the whole answer, while the intermediates themselves are
+    /// dropped. The [`ClassLinks::concrete`] flags are asserted beside the
+    /// enumeration because they are what the filter reads, so a graph that
+    /// recorded `abstract` wrongly fails here on the field rather than on the
+    /// answer three steps later. § 3 expands to `new` expressions, which is
+    /// why an abstract class in the answer is a program that cannot run.
+    #[test]
+    fn an_abstract_class_is_not_enumerated() {
+        let (graph, diags) = resolve(concat!(
+            "<?nvs\n",
+            "interface Module {}\n",
+            "abstract class Base implements Module {}\n",
+            "abstract class Middle extends Base {}\n",
+            "class Leaf extends Middle {}\n",
+        ));
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert_eq!(
+            implementors(&QName::parse("Module"), &graph),
+            vec![QName::parse("Leaf")],
+        );
+        for (name, concrete) in [
+            ("Module", false),
+            ("Base", false),
+            ("Middle", false),
+            ("Leaf", true),
+        ] {
+            assert_eq!(
+                graph
+                    .get(&QName::parse(name))
+                    .expect("every declaration has links")
+                    .concrete,
+                concrete,
+                "{name}",
+            );
+        }
+    }
+
     /// [`implements_interface`] is reflexive, so the interface would list
     /// itself if `concrete` were not asked — and a program cannot `new` an
     /// interface. Its sibling assertion is that the answer for a class
