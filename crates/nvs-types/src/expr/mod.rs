@@ -84,6 +84,21 @@ pub(crate) use self::{
     operators::{reject_disjoint_equality, require_stringable},
 };
 
+/// Whether `ty` carries [ADR 0033](../../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
+/// § 1's `secret` qualifier — the one thing outside this crate a *declared*
+/// type is asked, and asked at the one end that knows.
+///
+/// ADR 0092 § 5's redaction row is two halves of one rule about one record,
+/// and neither half can be decided from a value: `secret` is a qualifier on a
+/// declared type, erased everywhere below the checker. The call-site half is
+/// [`quals::reject_secret_debug_argument`], made here; the property half is a
+/// bit per field slot, carried down through `nvs_ir::ir::Class::secret_fields`
+/// to `nvs_runtime::ClassDesc` so `nvs_stdlib::debug`'s walk can answer it
+/// from an instance. This is what that lowering reads.
+pub fn type_is_secret(ty: TypeId, interner: &TypeInterner) -> bool {
+    quals::is_secret(ty, interner)
+}
+
 /// Checks `expr`, optionally against `expected`, returning the type it was
 /// found (or, for an array literal checked against a target, declared) to
 /// have. Reports `E_TYPE_MISMATCH` when `expected` is given and not

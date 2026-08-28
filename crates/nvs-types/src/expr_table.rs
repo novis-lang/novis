@@ -868,7 +868,7 @@ impl ExprTypeTable {
     /// The class labelled `label`'s own declared property types, by name.
     ///
     /// **Own only**, joined against the flattened slot order the same way
-    /// [`Self::property_defaults`] is — see `nvs_ir::lower`'s `field_reprs`,
+    /// [`Self::property_defaults`] is — see `nvs_ir::lower`'s `field_slots`,
     /// which is what ADR 0036 § 4's erased *write* check is built out of: a
     /// name this list does not carry leaves that slot unchecked rather than
     /// mistyped.

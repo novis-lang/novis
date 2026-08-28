@@ -524,6 +524,7 @@ pub(super) fn lower_generator(
         fields: fields.into_iter().map(|(n, _)| n).collect(),
         // A generator's frame is never a `SlotSet` receiver — see `ir::Class`.
         field_reprs: Vec::new(),
+        secret_fields: Vec::new(),
         // `Iterable`/`Iterator` are compiler-declared and have no layout
         // entry of their own, so `nvs_codegen::Classes::define` drops an
         // unresolvable label here the same way it does for any other —

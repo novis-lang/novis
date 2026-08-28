@@ -84,7 +84,7 @@ pub struct Class {
     /// no statically known field type of its own. A slot whose declared type
     /// nothing recorded is [`Ty::Tagged`] rather than absent, so the vector
     /// stays index-aligned with [`Self::fields`] — see `nvs_ir::lower`'s
-    /// `field_reprs`. `nvs-codegen` maps each entry to the one
+    /// `field_slots`. `nvs-codegen` maps each entry to the one
     /// `nvs_runtime::Tag` it admits — [`Ty::Tagged`] and [`Ty::Void`] admit
     /// several or none and become "unchecked" — and hands the result to
     /// `nvs_runtime::ClassTable::set_field_tags`, whose own docs state what
@@ -94,6 +94,25 @@ pub struct Class {
     /// byte per slot per descriptor at run time — paid once per compiled
     /// unit, not per request (ADR 0017's cache).
     pub field_reprs: Vec<Ty>,
+    /// Whether each field slot's *declared* type carries ADR 0033 § 1's
+    /// `secret` qualifier, in [`Self::fields`]' own order — or **empty**,
+    /// which means "nothing told this class", never "no slot is `secret`".
+    ///
+    /// [ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+    /// § 5's redaction row states one rule about one record, and its property
+    /// half cannot be decided anywhere below the checker: `secret` is a
+    /// qualifier on a *declared* type, and every representation under it — the
+    /// tag, the slot, the allocation — is the same one a plain `string` has.
+    /// So the answer is carried rather than recomputed. `nvs-codegen` hands it
+    /// to `nvs_runtime::ClassTable::set_secret_fields`, and
+    /// `nvs_stdlib::debug`'s walk reads it off the *instance*'s descriptor,
+    /// which is what makes a `secret` property redact through an erased view
+    /// exactly as through its own type.
+    ///
+    /// Filled beside [`Self::field_reprs`] by one join — see `nvs_ir::lower`'s
+    /// `field_slots`. **Cost:** one `bool` per field slot per class, once per
+    /// compiled unit, not per request.
+    pub secret_fields: Vec<bool>,
     /// Every *other* class and interface an instance of this one also is,
     /// transitively, as labels. Excludes the class itself.
     pub conforms: Vec<String>,

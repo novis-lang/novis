@@ -276,6 +276,7 @@ pub(super) fn lower_closure(
             // A closure's environment is never a `SlotSet` receiver: it has no
             // shape type and no erased view reaches it. See `ir::Class`.
             field_reprs: Vec::new(),
+            secret_fields: Vec::new(),
             conforms: Vec::new(),
             methods: vec![(FN_INVOKE.to_owned(), class.clone())],
             // A closure is not a declaration and carries no attribute, and

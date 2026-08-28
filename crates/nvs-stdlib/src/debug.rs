@@ -52,16 +52,20 @@
 //!
 //! # Known gaps
 //!
-//! 1. **A `secret`-typed property is not redacted yet**, and neither is a
-//!    `secret` value refused at a `dump` call site. Both are ADR 0033 § 4's
-//!    and both need a fact no runtime value carries: whether a *declared* type
-//!    holds the qualifier. The descriptor would have to carry one bit per slot
-//!    the way `ClassDesc::field_tags` already carries one tag, filled from
-//!    `nvs_types` through `nvs_ir::ir::Class`; the call-site half is a check
-//!    in `nvs_types::expr::quals`, beside the two refusals ADR 0033 § 4
-//!    already makes. [`Node::Redacted`](nvs_render::Node::Redacted) exists and
-//!    every rendering handles it, so what is missing is only the producer's
-//!    decision.
+//! 1. **A `secret` value reaches this walk without a property to be declared
+//!    on.** ADR 0092 § 5's redaction row is closed at both of its own ends —
+//!    a `secret` argument is refused where the call is written
+//!    (`nvs_types::expr::quals::reject_secret_debug_argument`) and a
+//!    `secret`-typed *property* is a [`Node::Redacted`](nvs_render::Node::Redacted),
+//!    read off `nvs_runtime::ClassDesc::field_is_secret` — but neither end
+//!    reaches a `secret` value held in an `array<T>` element or in an ADR 0036
+//!    shape literal's field. Both are ADR 0033's unmodelled container axis
+//!    rather than a hole here: the element type of an array of `secret string`
+//!    is not something the qualifier composes onto today, and a shape field's
+//!    type is *inferred* from its initializer rather than declared, so there
+//!    is no declaration for the bit to be carried off. A `secret` property of
+//!    a *nested* object is redacted, that object's own class having declared
+//!    it.
 //! 2. **An enum case dumps as its backing integer.** ADR 0010 § 5 gives an
 //!    enum no tag of its own — it *is* an `int` at run time — so a case
 //!    arriving through `mixed` is indistinguishable from one here.
@@ -427,7 +431,16 @@ fn object_body(
         let name = desc
             .field_name(slot)
             .map_or_else(|| slot.to_string(), ToOwned::to_owned);
-        properties.push((name, node_of(object.field(slot), caps, depth + 1, seen)));
+        // ADR 0092 § 5's redaction row: the *declared* type decides, so the
+        // value is never walked at all rather than walked and then discarded
+        // — a `secret` object's own properties are not read, and a `secret`
+        // string contributes no elision node saying how long it was.
+        let node = if desc.field_is_secret(slot) {
+            Node::Redacted
+        } else {
+            node_of(object.field(slot), caps, depth + 1, seen)
+        };
+        properties.push((name, node));
     }
     Node::Object {
         class,

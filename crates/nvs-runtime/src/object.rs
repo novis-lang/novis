@@ -179,7 +179,7 @@
 //!    generator's state — carries no tags, because nothing declares its slots
 //!    in source for a type to come from. A *named* class does carry them: an
 //!    erased receiver reaches any class at all, so `nvs_ir::lower`'s
-//!    `field_reprs` joins every layout's slots against the declared property
+//!    `field_slots` joins every layout's slots against the declared property
 //!    types the checker recorded.
 //!
 //! # Decision: no cycle collector
@@ -285,6 +285,23 @@ pub struct ClassDesc {
     /// [`ClassTable::set_field_tags`]. **Cost:** one byte-sized `Option<Tag>`
     /// per field per class, once per process, not per instance.
     field_tags: Vec<Option<Tag>>,
+    /// Whether each field slot's *declared* type carries ADR 0033 § 1's
+    /// `secret` qualifier, in slot order. **Empty** for a class nothing has
+    /// told, on [`Self::field_tags`]' own terms, and an empty list reads as
+    /// "no slot is `secret`" rather than as "unknown" — see
+    /// [`ClassDesc::field_is_secret`] for why that direction is the safe one.
+    ///
+    /// This is the property half of
+    /// [ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+    /// § 5's redaction row, and it is carried rather than computed for the
+    /// reason nothing below the checker could compute it: `secret` is a
+    /// qualifier on a declared type, and a `secret string` is byte-identical
+    /// to a `string` in every representation under it. `nvs_types` decides it,
+    /// `nvs_ir::ir::Class::secret_fields` carries it, and
+    /// `nvs_stdlib::debug`'s walk is its one reader. Filled by
+    /// [`ClassTable::set_secret_fields`]. **Cost:** one `bool` per field per
+    /// class, once per process, not per instance.
+    secret_fields: Vec<bool>,
     /// The address of the **native** function that renders an instance of this
     /// class as a `string`, or null for every class that has none — which is
     /// every class a program declares, and every `Core` class the spec gives
@@ -503,6 +520,23 @@ impl ClassDesc {
         self.field_tags.get(index).copied().flatten()
     }
 
+    /// Whether slot `index`'s declared type carries ADR 0033 § 1's `secret`
+    /// qualifier — ADR 0092 § 5's redaction row, asked of an instance because
+    /// that is all a dump has.
+    ///
+    /// `false` for a slot nothing told this class about, and for every slot of
+    /// a class the compiler synthesized rather than laid out from a
+    /// declaration. That is the safe direction here only because a *declared*
+    /// `secret` property always reaches the join that fills this — see
+    /// [`Self::secret_fields`]. It is deliberately not
+    /// [`Self::field_tag`]'s `Option`, which distinguishes "unknown" from
+    /// "admits several": there is no third answer to whether a type carries a
+    /// qualifier.
+    #[must_use]
+    pub fn field_is_secret(&self, index: usize) -> bool {
+        self.secret_fields.get(index).copied().unwrap_or(false)
+    }
+
     /// Whether an instance of this class is also an instance of `other` —
     /// `instanceof`'s whole test, and a typed `catch`'s.
     ///
@@ -678,6 +712,7 @@ impl ClassTable {
             ctor_arity: 0,
             defaults: Vec::new(),
             field_tags: Vec::new(),
+            secret_fields: Vec::new(),
             render: std::ptr::null(),
             unwind: std::ptr::null(),
         }));
@@ -709,6 +744,34 @@ impl ClassTable {
             tags.len()
         );
         desc.field_tags = tags;
+    }
+
+    /// Fills in `id`'s per-slot `secret` bits — see
+    /// [`ClassDesc::secret_fields`].
+    ///
+    /// Separate from [`ClassTable::set_field_tags`] rather than folded into it
+    /// because the two answer different questions of the same declaration and
+    /// a class may carry one without the other: a synthesized class has slot
+    /// representations and no declared qualifier at all.
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table, or if `secret` is not one entry
+    /// per slot — a length disagreement would redact one property in place of
+    /// another, which discloses the value it was meant to hide.
+    pub fn set_secret_fields(&mut self, id: ClassId, secret: Vec<bool>) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        assert!(
+            secret.len() == desc.fields.len(),
+            "`{}` has {} field slots but {} declared `secret` bits",
+            desc.name,
+            desc.fields.len(),
+            secret.len()
+        );
+        desc.secret_fields = secret;
     }
 
     /// Fills in `id`'s declared property defaults — see [`ClassDesc::defaults`].

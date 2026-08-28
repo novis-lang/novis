@@ -535,6 +535,14 @@ impl Classes {
                 .collect();
             self.table.set_field_tags(id, tags);
         }
+        // ADR 0092 § 5's redaction row, at the one granularity a dump can ask:
+        // the bit rides down untouched, `nvs_types` having decided it where
+        // the qualifier still exists. Guarded on the same length agreement,
+        // for the same synthesized classes.
+        if class.secret_fields.len() == class.fields.len() && !class.secret_fields.is_empty() {
+            self.table
+                .set_secret_fields(id, class.secret_fields.clone());
+        }
         let slots = class
             .fields
             .iter()

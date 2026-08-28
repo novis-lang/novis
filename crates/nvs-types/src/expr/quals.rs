@@ -56,7 +56,7 @@ pub(super) fn is_tainted(ty: TypeId, interner: &TypeInterner) -> bool {
 /// composed with `tainted`. The `secret`-axis counterpart of [`is_tainted`];
 /// the two are independent bits, so a caller checking one never implies
 /// anything about the other.
-pub(super) fn is_secret(ty: TypeId, interner: &TypeInterner) -> bool {
+pub(crate) fn is_secret(ty: TypeId, interner: &TypeInterner) -> bool {
     matches!(
         interner.get(ty),
         Ty::SecretString | Ty::SecretBytes | Ty::SecretTaintedString | Ty::SecretTaintedBytes

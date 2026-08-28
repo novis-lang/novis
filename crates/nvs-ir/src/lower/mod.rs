@@ -357,7 +357,7 @@ fn static_props(
                 .map(move |(name, default)| crate::ir::StaticProp {
                     class: label.to_owned(),
                     name: name.clone(),
-                    // The same fallback `field_reprs` takes, for the same
+                    // The same fallback `field_slots` takes, for the same
                     // reason: a type this crate does not represent is
                     // `Ty::Tagged`, which reads and writes the whole 16 bytes
                     // rather than a payload half it cannot name.
@@ -375,9 +375,16 @@ fn static_props(
     statics
 }
 
-/// What each of `label`'s field slots is declared to hold, in slot order —
-/// [`crate::ir::Class::field_reprs`], and the whole of what ADR 0036 § 4's
-/// erased **write** check has to go on.
+/// The two things each of `label`'s field slots' *declared* type is asked, in
+/// slot order — [`crate::ir::Class::field_reprs`] and
+/// [`crate::ir::Class::secret_fields`], answered in one join because they are
+/// one walk over one table and two walks could disagree about which
+/// declaration won a slot.
+///
+/// The representation is the whole of what ADR 0036 § 4's erased **write**
+/// check has to go on; the `secret` bit is the whole of what ADR 0092 § 5's
+/// redaction row has, `nvs_types::expr::type_is_secret` deciding it at the one
+/// end where the qualifier still exists.
 ///
 /// The join is [`property_defaults`]'s exactly: own class first, then every
 /// ancestor, so a subclass redeclaring a property wins the slot the two
@@ -387,14 +394,17 @@ fn static_props(
 /// claims — a class whose signature never reached
 /// [`ExprTypeTable::property_types`], or a type this crate does not represent
 /// — is [`Ty::Tagged`], which `nvs-codegen` maps to "unchecked" rather than
-/// to a tag that would refuse a legal write.
-fn field_reprs(
+/// to a tag that would refuse a legal write. A slot nothing claims is not
+/// `secret` either, which is the safe direction only because the fallback is
+/// reached by a class the checker never typed at all: a declared `secret`
+/// property always reaches [`ExprTypeTable::property_types`].
+fn field_slots(
     label: &str,
     layout: &nvs_types::ClassLayout,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
-) -> Vec<Ty> {
-    let mut image: Vec<Option<Ty>> = vec![None; layout.fields.len()];
+) -> (Vec<Ty>, Vec<bool>) {
+    let mut image: Vec<Option<(Ty, bool)>> = vec![None; layout.fields.len()];
     let chain = std::iter::once(label).chain(layout.conforms.iter().map(String::as_str));
     for owner in chain {
         for (property, ty) in exprs.property_types(owner) {
@@ -404,13 +414,16 @@ fn field_reprs(
             if image[slot].is_some() {
                 continue;
             }
-            image[slot] = Some(erase_checked_ty(*ty, checked_types).unwrap_or(Ty::Tagged));
+            image[slot] = Some((
+                erase_checked_ty(*ty, checked_types).unwrap_or(Ty::Tagged),
+                nvs_types::expr::type_is_secret(*ty, checked_types),
+            ));
         }
     }
     image
         .into_iter()
-        .map(|repr| repr.unwrap_or(Ty::Tagged))
-        .collect()
+        .map(|slot| slot.unwrap_or((Ty::Tagged, false)))
+        .unzip()
 }
 
 /// The name of the script frame holding the file `id`'s own top-level
@@ -627,48 +640,53 @@ pub fn lower_program(
     // which this crate cannot see — see `crate::ir::Class`.
     let mut classes: Vec<crate::ir::Class> = layouts
         .iter()
-        .map(|(label, layout)| crate::ir::Class {
-            label: label.to_owned(),
-            fields: layout.fields.clone(),
-            // ADR 0036 § 4's erased write reaches *any* class, not just a
-            // shape literal's synthesized one, so every layout carries its
-            // slots' representations — see `field_reprs`.
-            field_reprs: field_reprs(label, layout, exprs, checked_types),
-            conforms: layout.conforms.clone(),
-            methods: layout.methods.clone(),
-            // ADR 0071's field list, joined to this class's slot order — the
-            // one place both tables are in hand. A field the layout has no
-            // slot for is dropped rather than mis-indexed: `nvs_types::derive`
-            // has already reported the declaration that caused it (a promoted
-            // parameter is that module's gap 2), and guessing a slot here
-            // would write another property's value under this one's key.
-            codec: exprs.codec(label).map_or_else(Vec::new, |codec| {
-                codec
-                    .fields
-                    .iter()
-                    .filter_map(|field| {
-                        Some(nvs_types::CodecField {
-                            key: field.key.clone(),
-                            slot: layout.slot_of(&field.property)?,
-                            // A field whose declaration named no constructor
-                            // parameter is dropped for the same reason a
-                            // slotless one is: `nvs_types::derive` has already
-                            // reported it, and inventing a position would pass
-                            // this field's value as another parameter.
-                            param: field.param?,
-                            ty: field.ty,
-                            nullable: field.nullable,
+        .map(|(label, layout)| {
+            let (field_reprs, secret_fields) = field_slots(label, layout, exprs, checked_types);
+            crate::ir::Class {
+                label: label.to_owned(),
+                fields: layout.fields.clone(),
+                // ADR 0036 § 4's erased write reaches *any* class, not just a
+                // shape literal's synthesized one, so every layout carries its
+                // slots' representations — see `field_slots`, which answers the
+                // `secret` bit off the same join.
+                field_reprs,
+                secret_fields,
+                conforms: layout.conforms.clone(),
+                methods: layout.methods.clone(),
+                // ADR 0071's field list, joined to this class's slot order — the
+                // one place both tables are in hand. A field the layout has no
+                // slot for is dropped rather than mis-indexed: `nvs_types::derive`
+                // has already reported the declaration that caused it (a promoted
+                // parameter is that module's gap 2), and guessing a slot here
+                // would write another property's value under this one's key.
+                codec: exprs.codec(label).map_or_else(Vec::new, |codec| {
+                    codec
+                        .fields
+                        .iter()
+                        .filter_map(|field| {
+                            Some(nvs_types::CodecField {
+                                key: field.key.clone(),
+                                slot: layout.slot_of(&field.property)?,
+                                // A field whose declaration named no constructor
+                                // parameter is dropped for the same reason a
+                                // slotless one is: `nvs_types::derive` has already
+                                // reported it, and inventing a position would pass
+                                // this field's value as another parameter.
+                                param: field.param?,
+                                ty: field.ty,
+                                nullable: field.nullable,
+                            })
                         })
-                    })
-                    .collect()
-            }),
-            ctor_arity: exprs.codec(label).map_or(0, |codec| codec.ctor_arity),
-            // Every declared default that lands in one of this class's slots:
-            // its own first, then each ancestor's, so a subclass redeclaring a
-            // property wins the slot the two share. A label with no slot for
-            // the name is skipped rather than mis-indexed, for the same reason
-            // the codec above skips one.
-            defaults: property_defaults(label, layout, exprs),
+                        .collect()
+                }),
+                ctor_arity: exprs.codec(label).map_or(0, |codec| codec.ctor_arity),
+                // Every declared default that lands in one of this class's slots:
+                // its own first, then each ancestor's, so a subclass redeclaring a
+                // property wins the slot the two share. A label with no slot for
+                // the name is skipped rather than mis-indexed, for the same reason
+                // the codec above skips one.
+                defaults: property_defaults(label, layout, exprs),
+            }
         })
         .collect();
     // ADR 0053 § 4's generator state classes have no source declaration and
@@ -1630,6 +1648,7 @@ impl<'a> Lowering<'a> {
         fields: Vec<String>,
         reprs: Vec<Ty>,
     ) {
+        let field_count = fields.len();
         if let Some(class) = self.shapes.iter_mut().find(|class| class.label == label) {
             for (have, found) in class.field_reprs.iter_mut().zip(&reprs) {
                 if *have != *found {
@@ -1642,6 +1661,12 @@ impl<'a> Lowering<'a> {
             label,
             fields,
             field_reprs: reprs,
+            // A shape literal's field type is *inferred* from its initializer
+            // rather than declared, and ADR 0033 § 1 puts the qualifier on a
+            // declaration — so no slot here is `secret`, and a `{token:
+            // $secret}` literal is `nvs_stdlib::debug`'s own known gap rather
+            // than a bit this could set.
+            secret_fields: vec![false; field_count],
             // ADR 0036 § 5: a shape literal's class has no methods, no
             // supertypes and no `implements`, it carries no attribute, and
             // every one of its slots is written by the literal that built it
