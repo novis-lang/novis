@@ -1,0 +1,69 @@
+--TEST--
+each of the six magic method names ADR 0028 closes is refused where it is written, so no class can declare one for the runtime to decline to call — ADR 0028 §§ 1-5, ADR 0029 § 1
+--FILE--
+<?nvs
+// ADR 0028 is the index of every magic method's disposition, and for the six
+// names it closes itself the disposition is one and the same: the name cannot
+// be written at all. ADR 0029 § 1's method-casing rule refuses a leading
+// underscore before any resolution runs, so "the runtime never invokes it" is
+// stronger than the ADR's own wording — there is no declaration to invoke.
+class Legacy {
+    public string $name = "boxy";
+
+    // § 1: `Stringable::toString` is the replacement, and the rename the
+    // diagnostic suggests is the one `nvs convert` makes at M11.
+    public function __toString(): string {
+        return $this->name;
+    }
+
+    // § 2: Novis has no destructors, which is why "no `__destruct` runs when a
+    // refcount reaches zero" needs no running program to verify.
+    public function __destruct(): void {
+    }
+
+    // § 3: neither name has anything left to intercept, so neither needs a
+    // replacement; what the two constructs now mean is pinned by
+    // `isset-answers-a-null-test-over-every-storage-shape.nvst` and by
+    // `unset-is-refused-on-a-declared-property.nvst`.
+    public function __isset(string $n): bool {
+        return true;
+    }
+
+    public function __unset(string $n): void {
+    }
+
+    // § 4: a dump shows the declared properties and their live values, never
+    // what a class chose to substitute for them.
+    public function __debugInfo(): array<mixed> {
+        return [];
+    }
+
+    // § 5: reconstructing an object from data is ADR 0023's closed round trip.
+    public static function __set_state(array<mixed> $s): Legacy {
+        return new Legacy();
+    }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0111]: method names must be camelCase, e.g. `toString`
+   --> case.nvs:12:21
+%A
+error[E0111]: method names must be camelCase, e.g. `destruct`
+   --> case.nvs:18:21
+%A
+error[E0111]: method names must be camelCase, e.g. `isset`
+   --> case.nvs:25:21
+%A
+error[E0111]: method names must be camelCase, e.g. `unset`
+   --> case.nvs:29:21
+%A
+error[E0111]: method names must be camelCase, e.g. `debugInfo`
+   --> case.nvs:34:21
+%A
+error[E0111]: method names must be camelCase, e.g. `setState`
+   --> case.nvs:39:28
+%A
+error: aborting due to 6 errors
