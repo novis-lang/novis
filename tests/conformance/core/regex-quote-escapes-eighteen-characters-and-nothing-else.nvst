@@ -1,0 +1,127 @@
+--TEST--
+Core\Regex::quote escapes exactly 18 printable ASCII characters and is the identity on the other 77, so quoting is what stops a literal from reading as a pattern — ADR 0056 §§ 4-5
+--FILE--
+<?nvs
+// Spec § 5's `quote` row. The differential case
+// `regex-quote-and-preg_quote-escape-different-sets-and-match-the-same-literals`
+// counts the property `preg_quote` shares — a quoted literal matches itself
+// and nothing else — and deliberately never names a set, because the two
+// launderers escape different ones. This case names *this* member's set on
+// both sides, and asserts the thing the agreement case cannot: that the
+// escaping is what makes the difference, by running each literal as a pattern
+// unquoted as well.
+
+// The boundary, from both directions. Over printable ASCII exactly 18
+// characters gain a backslash and the other 77 come back unchanged, and every
+// one of the 18 is a backslash followed by the character itself — a member
+// that rewrote one into some other escape (`-` into `\x2d`, `]` into `\]` only
+// inside a class) would still round-trip and would fail this line.
+array<int> $codes = Core\Arr::range(32, 126);
+string $escaped = "";
+int $same = 0;
+int $prefixed = 0;
+foreach ($codes as int $code) {
+    string $one = Core\Str::fromCodePoint($code as uint);
+    string $q = Core\Regex::quote($one);
+    if ($q == $one) {
+        $same = $same + 1;
+    } else {
+        $escaped = $escaped . $one;
+        if ($q == "\\" . $one) {
+            $prefixed = $prefixed + 1;
+        }
+    }
+}
+echo $escaped, "\n";
+echo Core\Str::length($escaped), " escaped, ", $same, " unchanged, ", $prefixed, " are a backslash and the character itself\n";
+
+// Nothing above U+007F is meta to either engine, so a laundering member has
+// nothing to do to it. Quoting text is not encoding it.
+echo Core\Regex::quote("héllo ☃"), "\n";
+
+// What the escaping buys, counted over a table rather than read off a row.
+// Each literal is a valid pattern *unquoted* and reaches a subject it does not
+// spell — `a.b` reaches `axb`, `a|b` reaches `b` — so the three columns are
+// three different questions about the same eight rows: the unquoted reading
+// does reach the decoy, the quoted one matches its own literal, and the quoted
+// one does not reach the decoy. A member that escaped one character too few
+// still answers the middle column correctly on every row.
+array<string> $literals = ["a.b", "a|b", "x*y", "^end$", "[a-z]", "a+b", "(x)y", "9?8"];
+array<string> $decoys = ["axb", "b", "y", "end", "q", "aaab", "xy", "8"];
+int $rows = Core\Arr::count($literals) as int;
+int $raw = 0;
+int $self = 0;
+int $blocked = 0;
+int $i = 0;
+for (; $i < $rows; $i = $i + 1) {
+    string $lit = $literals[$i as string];
+    string $decoy = $decoys[$i as string];
+    string $laundered = Core\Regex::quote($lit);
+    if (Core\Regex::matches($decoy, $lit)) {
+        $raw = $raw + 1;
+    }
+    if (Core\Regex::matches($lit, $laundered)) {
+        $self = $self + 1;
+    }
+    if (Core\Regex::matches($decoy, $laundered)) {
+    } else {
+        $blocked = $blocked + 1;
+    }
+}
+echo $raw, " of ", $rows, " unquoted patterns reach their decoy, ", $self, " quoted match their own literal, ", $blocked, " no longer reach the decoy\n";
+
+// The stronger half of the same point: a literal need not be a *pattern* at
+// all. These four are refused outright when handed in raw — an unclosed group
+// or class, a stray `)`, an escape the engine does not know — and quoting is
+// what turns each of them into one that matches the text it was made from.
+array<string> $notPatterns = ["a(b", "[a-z", "a)b", "\\q"];
+int $refused = 0;
+int $quotedOk = 0;
+foreach ($notPatterns as string $one) {
+    try {
+        if (Core\Regex::matches("zz", $one)) {
+        }
+    } catch (Throwable $notAPattern) {
+        $refused = $refused + 1;
+    }
+    if (Core\Regex::matches($one, Core\Regex::quote($one))) {
+        $quotedOk = $quotedOk + 1;
+    }
+}
+echo $refused, " of ", Core\Arr::count($notPatterns), " are not patterns at all, and all ", $quotedOk, " match themselves once quoted\n";
+
+// The first edge: an empty literal. Quoting it is the empty string, which is
+// the empty *pattern*, and the empty pattern matches at offset 0 of every
+// subject including the empty one. There is nothing to escape and the member
+// does not invent an anchor to make the answer look tidier.
+echo "[", Core\Regex::quote(""), "]\n";
+echo (Core\Regex::matches("anything", Core\Regex::quote("")) as string), "|", (Core\Regex::matches("", Core\Regex::quote("")) as string), "|\n";
+
+// The other edge: a literal that is nothing *but* the 18. Its quoted form is
+// exactly twice as long, matches itself, and is still a search rather than an
+// anchored equality, so it is found inside a larger subject too.
+string $meta = "#$&()*+-.?[\\]^{|}~";
+string $quotedMeta = Core\Regex::quote($meta);
+echo $quotedMeta, "\n";
+echo Core\Str::length($meta), " characters quote to ", Core\Str::length($quotedMeta), "\n";
+echo (Core\Regex::matches($meta, $quotedMeta) as string), "|", (Core\Regex::matches("AA" . $meta . "ZZ", $quotedMeta) as string), "|\n";
+
+// And quoting twice is not the identity as text — the backslashes it added
+// are themselves meta — but it is the identity as behaviour, which is the
+// invariant that actually has to hold for a laundering member that may be
+// applied to a value that has already been through it.
+echo Core\Regex::quote(Core\Regex::quote("a.b")), "\n";
+echo (Core\Regex::matches(Core\Regex::quote("a.b"), Core\Regex::quote(Core\Regex::quote("a.b"))) as string), "|\n";
+--EXPECT--
+#$&()*+-.?[\]^{|}~
+18 escaped, 77 unchanged, 18 are a backslash and the character itself
+héllo ☃
+8 of 8 unquoted patterns reach their decoy, 8 quoted match their own literal, 8 no longer reach the decoy
+4 of 4 are not patterns at all, and all 4 match themselves once quoted
+[]
+1|1|
+\#\$\&\(\)\*\+\-\.\?\[\\\]\^\{\|\}\~
+18 characters quote to 36
+1|1|
+a\\\.b
+1|
