@@ -1,0 +1,99 @@
+--TEST--
+`Core\Encoding`'s eleven members all answer the empty subject with the empty answer rather than refusing it, counted across the whole class, and the one-octet buffer is where each spelling's padding is widest — spec § 7, ADR 0009 §§ 1 and 3
+--FILE--
+<?nvs
+// The degenerate subject, asked of the whole class at once. Nothing here is a
+// special case in the implementation, which is exactly why it is worth
+// pinning: a decoder that measured a group before checking whether there was
+// one, or an encoder that indexed its first octet, would refuse the empty
+// buffer while answering every other row in the neighbouring cases correctly.
+// The assertion is a count over the members, not a line per member.
+final class Empty {
+    // The four encoders, each over the buffer with no octets. `as bytes` is
+    // total (ADR 0009 § 3), so the empty `string` is the empty buffer.
+    public static function encodersAnswerEmpty(): int {
+        bytes $none = "" as bytes;
+        int $answered = 0;
+        if (Core\Encoding::toBase64($none) == "") { $answered = $answered + 1; }
+        if (Core\Encoding::toBase64Url($none) == "") { $answered = $answered + 1; }
+        if (Core\Encoding::toBase32($none) == "") { $answered = $answered + 1; }
+        if (Core\Encoding::toHex($none) == "") { $answered = $answered + 1; }
+        return $answered;
+    }
+
+    // And the four decoders over the text with no symbols, which is the one
+    // length every one of them admits — base64's padding rule, base64url's
+    // unpadded rule and base32's group rule are all vacuous here, and
+    // `fromHex`'s even-digit rule is satisfied by zero.
+    public static function decodersAnswerEmpty(): int {
+        int $answered = 0;
+        if (Core\Encoding::toHex(Core\Encoding::fromBase64("")) == "") { $answered = $answered + 1; }
+        if (Core\Encoding::toHex(Core\Encoding::fromBase64Url("")) == "") { $answered = $answered + 1; }
+        if (Core\Encoding::toHex(Core\Encoding::fromBase32("")) == "") { $answered = $answered + 1; }
+        if (Core\Encoding::toHex(Core\Encoding::fromHex("")) == "") { $answered = $answered + 1; }
+        return $answered;
+    }
+
+    // The text trio over the empty subject, once per charset: a conversion of
+    // nothing is nothing, and an empty buffer holds no sequence that could be
+    // invalid, so `isValidText` is `true` for every charset including the ones
+    // whose validity question is real.
+    public static function textAnswersEmpty(Core\Charset $charset): int {
+        int $answered = 0;
+        if (Core\Encoding::toHex(Core\Encoding::encodeText("", $charset)) == "") {
+            $answered = $answered + 1;
+        }
+        if (Core\Encoding::decodeText("" as bytes, $charset) == "") {
+            $answered = $answered + 1;
+        }
+        if (Core\Encoding::isValidText("" as bytes, $charset)) {
+            $answered = $answered + 1;
+        }
+        return $answered;
+    }
+}
+
+echo "encoders ", Empty::encodersAnswerEmpty(), " of 4\n";
+echo "decoders ", Empty::decodersAnswerEmpty(), " of 4\n";
+
+int $text = 0;
+$text = $text + Empty::textAnswersEmpty(Core\Charset::Utf8);
+$text = $text + Empty::textAnswersEmpty(Core\Charset::Ascii);
+$text = $text + Empty::textAnswersEmpty(Core\Charset::Latin1);
+$text = $text + Empty::textAnswersEmpty(Core\Charset::Utf16Le);
+$text = $text + Empty::textAnswersEmpty(Core\Charset::ShiftJis);
+echo "text trio ", $text, " of 15\n";
+
+// The one-octet buffer is the other degenerate subject, and the one where the
+// three spellings diverge most: base64 spends two of its four symbols on
+// padding, base64url writes those two symbols and stops, and base32 spends
+// six of its eight — which is why its unpadded form (`encoding.rs`'s own
+// module doc, *base32 is one pair*) is the one an `otpauth:` secret uses.
+final class One {
+    public static function spellings(string $hex): string {
+        bytes $raw = Core\Encoding::fromHex($hex);
+        return Core\Encoding::toBase64($raw) . " " . Core\Encoding::toBase64Url($raw)
+             . " " . Core\Encoding::toBase32($raw) . " " . Core\Encoding::toHex($raw);
+    }
+}
+
+echo One::spellings("00"), "\n";
+echo One::spellings("ff"), "\n";
+echo One::spellings("6d"), "\n";
+
+// And back: base32's padded spelling of one octet is six `=`, which is the
+// widest padding any member here writes, and it reads to the same octet the
+// unpadded form does.
+echo Core\Encoding::toHex(Core\Encoding::fromBase32("74======")), " ",
+     Core\Encoding::toHex(Core\Encoding::fromBase32("74")), "\n";
+echo Core\Encoding::toHex(Core\Encoding::fromBase64("/w==")), " ",
+     Core\Encoding::toHex(Core\Encoding::fromBase64Url("_w")), "\n";
+--EXPECT--
+encoders 4 of 4
+decoders 4 of 4
+text trio 15 of 15
+AA== AA AA 00
+/w== _w 74 ff
+bQ== bQ NU 6d
+ff ff
+ff ff
