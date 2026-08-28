@@ -2,65 +2,57 @@
 
 ## State
 
-**Goal 1, stage 2. The acceptance check runs again.** `loop.py`'s fixture-existence gate had aborted
-it before any build for two sessions (`0s over 1 check(s)` in the ledger): goal 1 adds four fixtures
-and only `examples/program.nvs` existed. All four are on disk now, so stage 0's three checks and
-stage 1's 61 floor checks run before anything else can fail. The playbook's *Tooling* section holds
-the trap.
+**Goal 1. Stage 0 — ADR 0061 § 3's enumeration — is closed.** All three named acceptance tests are
+on disk and pass: `an_interface_enumeration_is_sorted_by_qualified_name` and
+`an_abstract_class_is_not_enumerated` in `crates/nvs-hir/src/hierarchy.rs`, and
+`an_implementor_without_a_no_argument_constructor_is_named` in `crates/nvs-types/src/program.rs`.
 
-**Where each new fixture stands, checked against its frozen `want` with the driver's own binary:**
+**The third one moved crate, and the goal files moved with it.** `E0744` is reported by the checking
+pass, so no `-p nvs-hir` test can reach it; both `docs/agent/loop-goal.toml` and
+`docs/agent/goals/1-core-depth.toml` now list it under the `nvs-types` check, and the two files are
+byte-identical again. The playbook's *Tooling* section holds the trap.
 
-- `examples/intrinsics.nvs` — **passes today**, all four lines. ADR 0057 § 4 is why: the fold is only
-  an earlier answer, so the runtime path already produces what the prepared one will.
-- `examples/routes.nvs` — `E0405`, `Core\Router` has no `url`/`urlAbsolute`. Nothing else in it is
-  wrong; the `#[\Core\Route]` half is not even reached, because no scan runs until a `Core\Router`
-  member resolves (ADR 0077 § 5).
-- `examples/commands.nvs` — `E0726` ×4: `Core\Command` and `Core\Option` are not shape-typed `type`
-  aliases. That is item 8's first edit, and the fixture reaches it because it enumerates its
-  declaring classes through `Core\Program::implementing<App\Command>()`, which forces § 3's scan.
-
-**Neither table has a reader, and that is a real gap between the ADRs and the frozen outputs.**
-ADR 0077 § 4's roster (`match`, `methodsFor`, `url`, `urlAbsolute`) exposes no enumeration of the
-route table, ADR 0086 § 6's exposes only `run`/`help`/`completions` — and `run` plus the terminal are
-out of this goal's scope while `Core\Cli\Text` carries no member until M8. Both fixtures' frozen
-outputs name the tables' contents, so: `routes.nvs` echoes its three route lines and leans on the
-*compile-time* half (a literal `url()` name, and a `$params` array not covering the captures, are
-compile errors), while `commands.nvs` reads the declaring classes through the enumeration instead. If
-a table is meant to be read back at run time, that is a new member and a decision nobody has taken.
+**The sort case is not the pair the last handoff named.** `App\Sub\A` against `App\Beta` sorts
+identically under the segment key and a rendered-string key, so it separates no implementation; the
+fixture uses `App\Sub\A` against `App\SubA`, where `\` (0x5C) sorting above `A` makes the two keys
+disagree. The test's own doc comment owns why the segment key is the answer, and the playbook's
+*Writing a test case* section holds the general trap.
 
 **`python tools/verify.py` is still red at `crates/nvs-ir/tests/refusals.rs:179`** — the same 17
-unattributed lowering refusals the goal switch orphaned, unrelated to this session, which touched no
-Rust. It is the first failure, so the gate stops there and never reaches the `.nvst` trees or clippy.
+unattributed lowering refusals the goal switch orphaned, untouched by this session and unrelated to
+it. It is the first failure, so the gate stops there and never reaches the `.nvst` trees or clippy.
+`cargo test -p nvs-hir` and `cargo test -p nvs-types` are both green, which is what stage 0 runs.
+
+**The two frozen fixtures are what fails next**, unchanged from the last session's reading:
+`examples/routes.nvs` is `E0405` (`Core\Router` has no `url`/`urlAbsolute` — there is no
+`nvs-stdlib` router module at all), `examples/commands.nvs` is `E0726` ×4.
 
 ## Next group
 
-**ADR 0061 § 3's acceptance tests — untouched, and still what stage 0 reports.** One file set:
-`crates/nvs-hir/src/hierarchy.rs`, `crates/nvs-types/src/program.rs`, `docs/agent/loop-goal.toml`.
+**One file set: `crates/nvs-types/src/attributes.rs`, `crates/nvs-types/src/derive.rs`,
+`crates/nvs-stdlib/src/cli.rs`.** The third slice leaves it — take it only with room to spare.
 
-- [ ] **`an_interface_enumeration_is_sorted_by_qualified_name`** in `nvs-hir`. Over `implementors`
-      (`crates/nvs-hir/src/hierarchy.rs:463`), whose sort compares *segments*, so the case worth
-      pinning is the one a rendered-string sort gets wrong — `App\Sub\A` against `App\Beta`.
-      `crates/nvs-hir/src/hierarchy.rs:571` is the existing near-twin; do not rename it. ADR 0061 § 3.
-- [ ] **`an_abstract_class_is_not_enumerated`** in `nvs-hir`, over `ClassLinks::concrete`
-      (`crates/nvs-hir/src/hierarchy.rs:467` is the filter, `:451` the doc that states the rule).
-- [ ] **`an_implementor_without_a_no_argument_constructor_is_named`.** The diagnostic is already
-      `E0744` in `crates/nvs-types/src/program.rs`, because constructor arity is a `SignatureTable`
-      fact and `nvs-hir` has no signatures. Settle it: either `nvs-hir` grows enough of the harvest to
-      answer, or the check moves to the `nvs-types` block at `docs/agent/loop-goal.toml:165`. Moving a
-      floor check is the edit that file warns about — say so out loud in the commit either way.
+- [ ] **`Core\Command` and `Core\Option` become shape-typed `type` aliases**, which is exactly
+      `examples/commands.nvs`'s four `E0726`s. The refusal is reported at
+      `crates/nvs-types/src/attributes.rs:200`; the closed roster it is checked against is
+      `ATTRIBUTES`, whose rule is `crates/nvs-types/src/derive.rs:15`'s module doc ("nothing else is
+      ever matched by name"). ADR 0046 § 2, ADR 0086 § 6.
+- [ ] **Run `target/debug/nvs.exe examples/commands.nvs` against its frozen `want`** (the `exact`
+      check in `docs/agent/loop-goal.toml`) and close whatever the aliases alone do not. The fixture
+      reaches the aliases through `Core\Program::implementing<App\Command>()`, so the scan half is
+      already landed and green.
+- [ ] **`Core\Router::url`/`urlAbsolute`** — a whole new `Core` class, not a row: nothing under
+      `crates/nvs-stdlib/src/` declares one, so it is a new module plus a `CLASSES` entry at
+      `crates/nvs-stdlib/src/registry.rs:710`, and the four edits in
+      [conventions.md](conventions.md). ADR 0077 § 4, ADR 0102 § 6. **Different file set** — a
+      session that has spent its budget on the two above leaves this whole.
 
 ## Backlog
 
-- `routes.nvs` needs `Core\Router::url`/`urlAbsolute` and a `type Core\Route` on
-  `nvs_types::derive::ATTRIBUTES` — stage 2 items 3–4, ADR 0077 §§ 1–5 and ADR 0102 § 6.
-- `commands.nvs` needs `type Core\Command`/`Core\Option` and § 6's table — stage 2 item 8,
-  ADR 0086 § 6.
-- **`urlAbsolute`'s origin has no home on disk.** No `nvs.toml` exists at the repo root and `nvs-cli`
-  reads none, so ADR 0102 § 6's `[app] origin` must resolve somehow before `routes.nvs`'s last line
-  can pass — a decision, not a lookup.
-- `crates/nvs-ir/tests/refusals.rs`: 17 unattributed lowering refusals, red at HEAD. The test asks for
-  a diagnostic, a closed item, or a standing decision — never an allowlist entry.
-- The `nvs-hir (the program scan)` check's third test is homed in the wrong crate —
-  `docs/agent/loop-goal.toml:165`.
-- M4's residue: the 1000-case conformance corpus count, orders 1–4 —
-  `docs/implementation-plan.md` *Open now*.
+- `crates/nvs-ir/tests/refusals.rs:179` — 17 lowering refusals with no attribution, orphaned by the
+  goal switch; `verify.py` stops there. Owner: `nvs-ir`'s own module doc.
+- Reading either compile-time table back at run time is a member nobody has specified — ADR 0077 § 4
+  and ADR 0086 § 6 expose no enumeration, and both frozen fixtures work around it.
+- `Core\Router::match`, `Core\Command::run` and the terminal are out of goal 1's scope by its own
+  § *Standing decisions*.
+- M4's residue: the 1000-case corpus count, met as the suite grows — `docs/implementation-plan.md`.

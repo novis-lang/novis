@@ -748,6 +748,14 @@ is why" — is this file.
   after the goal switch. The fix is to write the fixture the moment the goal names it, red or not:
   `loop-goal.toml`'s own header says a fixture's source is not frozen precisely because "its author
   had to write it without being able to compile it".
+- **A `loop-goal.toml` check can name a test in a crate that cannot host it, and its `args` is the
+  half that is wrong.** Stage 0's `-p nvs-hir` check listed
+  `an_implementor_without_a_no_argument_constructor_is_named`, but `E0744` is reported by
+  `nvs-types`' checking pass: `nvs_hir::implementors` answers over the class graph and never sees a
+  signature, so `required() > 0` is a question no `nvs-hir` test can ask. Move the name to the check
+  whose crate owns the diagnostic rather than inventing a test where it was filed, and then copy
+  `docs/agent/loop-goal.toml` over `docs/agent/goals/<goal>.toml` — they are byte-identical by
+  construction, and the chain's next `goal-switch.py` restores the goal file over the live one.
 
 ## Running things
 
@@ -2061,6 +2069,15 @@ is why" — is this file.
   outer guard bought into a local before writing the second test —
   `tests/conformance/lang/an-instanceof-guard-narrows-to-an-interface.nvst` writes it that way and says
   so in the case.
+- **Two sort keys that look different usually agree, and a case that does not separate them pins
+  nothing.** ADR 0061 § 3's `implementors` sorts by `QName::segments()`, and the obvious
+  counter-example to a rendered-string sort — a deeper name against a shallower sibling, `App\Sub\A`
+  against `App\Beta` — orders the same way under *both* keys, because the first byte that differs
+  falls inside a segment either way. The two part only where one segment is a proper **prefix** of
+  the other and the longer one's next byte is below `\` (0x5C), which every upper-case letter and
+  every digit is: `App\Sub\A` against `App\SubA` is the shortest such pair. Work the divergence out
+  on paper before writing the fixture, because a case that does not contain one passes against
+  either implementation and reads exactly like a case that does.
 
 ## Splitting a file that got too big
 
