@@ -1,0 +1,148 @@
+--TEST--
+An operator answers the same for one value whether its static type names the row or only its runtime tag does (ADR 0007 §§ 2, 4, ADR 0090 § 3)
+--FILE--
+<?nvs
+// Five catch-all rosters claim this between them: `emit_binop`'s
+// representation half and its operator half, `emit_unop`'s, and `nvs-ir`'s
+// `lower_expr` and `concat_operand` ones. Each says `Ty::Tagged` has left it
+// entirely -- a tagged operand's rows are chosen from its runtime tag one
+// crate up, by the `Helper::ValueAdd`, `ValueLt`, `ValueNeg`, `Identical` and
+// `TaggedToString` families rather than from a representation neither side
+// has. That claim is testable only as an *agreement*: every row below asks
+// one question twice, once where the static type names ADR 0007 § 4's row and
+// once through a `mixed` holding the same value, and asserts the two answers
+// are equal rather than asserting what either one printed. A family that grew
+// its own second answer fails here while still looking right on its own line.
+
+enum Mode: int {
+    Read = 1,
+    Write = 2,
+}
+
+class Cell {
+    public int $n;
+    public function constructor(int $n) {
+        $this->n = $n;
+    }
+}
+
+class Check {
+    // 1 where the two spellings agree. The row is named on stdout when they do
+    // not, so a failure says which one moved rather than only that the count
+    // fell.
+    public static function same(string $row, string $typed, string $tagged): int {
+        if ($typed == $tagged) {
+            return 1;
+        }
+        echo "DISAGREE ", $row, ": ", $typed, " vs ", $tagged, "\n";
+        return 0;
+    }
+
+    // `bool as string` renders `false` as the empty string, which would let a
+    // row whose two halves both went missing read as agreement.
+    public static function yn(bool $b): string {
+        if ($b) {
+            return "y";
+        }
+        return "n";
+    }
+}
+
+int $a = 7;
+int $b = 2;
+mixed $ma = 7;
+mixed $mb = 2;
+uint $u = 7;
+mixed $mu = $u;
+float $f = 2.5;
+mixed $mf = 2.5;
+bool $yes = true;
+bool $no = false;
+mixed $myes = $yes;
+mixed $mno = $no;
+string $s = "ab";
+mixed $ms = "ab";
+bytes $by = "ab" as bytes;
+mixed $mby = $by;
+array<int> $xs = [1, 2];
+mixed $mxs = $xs;
+Mode $c = Mode::Read;
+mixed $mc = $c;
+?string $n = null;
+mixed $mn = null;
+Cell $o = new Cell(1);
+mixed $mo = $o;
+
+int $agreed = 0;
+
+// `emit_binop`'s representation roster: equality is answered for a `string`, a
+// `bytes`, an `array<T>`, an object, an enum case and `null`, and a tagged
+// operand's is `Helper::Identical` instead.
+$agreed = $agreed + Check::same("string ==", Check::yn($s == "ab"), Check::yn($ms == "ab"));
+$agreed = $agreed + Check::same("bytes ==", Check::yn($by == ("ab" as bytes)), Check::yn($mby == $by));
+$agreed = $agreed + Check::same("array ==", Check::yn($xs == [1, 2]), Check::yn($mxs == $xs));
+$agreed = $agreed + Check::same("enum ==", Check::yn($c == Mode::Read), Check::yn($mc == $c));
+$agreed = $agreed + Check::same("null ==", Check::yn($n == null), Check::yn($mn == null));
+$agreed = $agreed + Check::same("object ==", Check::yn($o == $o), Check::yn($mo == $o));
+$agreed = $agreed + Check::same("int ==", Check::yn($a == 7), Check::yn($ma == 7));
+$agreed = $agreed + Check::same("int !=", Check::yn($a != 8), Check::yn($ma != 8));
+
+// `emit_binop`'s operator roster: the arithmetic and bitwise rows, which reach
+// the eleven-member `Helper::ValueAdd` family through a tag.
+$agreed = $agreed + Check::same("int +", ($a + $b) as string, ($ma + $mb) as string);
+$agreed = $agreed + Check::same("int -", ($a - $b) as string, ($ma - $mb) as string);
+$agreed = $agreed + Check::same("int *", ($a * $b) as string, ($ma * $mb) as string);
+$agreed = $agreed + Check::same("int /", ($a / $b) as string, ($ma / $mb) as string);
+$agreed = $agreed + Check::same("int %", ($a % $b) as string, ($ma % $mb) as string);
+$agreed = $agreed + Check::same("int **", ($a ** $b) as string, ($ma ** $mb) as string);
+$agreed = $agreed + Check::same("uint +", ($u + $u) as string, ($mu + $mu) as string);
+$agreed = $agreed + Check::same("uint <<", ($u << $u) as string, ($mu << $mu) as string);
+$agreed = $agreed + Check::same("uint >>", ($u >> $u) as string, ($mu >> $mu) as string);
+$agreed = $agreed + Check::same("uint &", ($u & $u) as string, ($mu & $mu) as string);
+$agreed = $agreed + Check::same("uint ^", ($u ^ $u) as string, ($mu ^ $mu) as string);
+$agreed = $agreed + Check::same("uint |", ($u | $u) as string, ($mu | $mu) as string);
+$agreed = $agreed + Check::same("float +", ($f + $f) as string, ($mf + $mf) as string);
+$agreed = $agreed + Check::same("float /", ($f / $f) as string, ($mf / $mf) as string);
+// The one widening § 2 does implicitly, made twice: once where both static
+// types show it and once where only the two tags do.
+$agreed = $agreed + Check::same("int + float", ($a + $f) as string, ($ma + $mf) as string);
+
+// The ordering rows, which reach the `Helper::ValueLt` family through a tag.
+$agreed = $agreed + Check::same("int <", Check::yn($a < $b), Check::yn($ma < $mb));
+$agreed = $agreed + Check::same("float <", Check::yn($f < 3.0), Check::yn($mf < 3.0));
+$agreed = $agreed + Check::same("bool <", Check::yn($no < $yes), Check::yn($mno < $myes));
+$agreed = $agreed + Check::same("float >=", Check::yn($f >= 3.0), Check::yn($mf >= 3.0));
+$agreed = $agreed + Check::same("int <=>", ($a <=> $b) as string, ($ma <=> $mb) as string);
+$agreed = $agreed + Check::same("float <=>", ($f <=> 3.0) as string, ($mf <=> 3.0) as string);
+
+// `emit_unop`'s roster: three rows plus the checked negation ahead of them,
+// against the `Helper::ValueNeg` pair. Unary `+` reaches no instruction on
+// either side -- it is the identity over all four numeric types.
+$agreed = $agreed + Check::same("-int", (-$a) as string, (-$ma) as string);
+$agreed = $agreed + Check::same("-float", (-$f) as string, (-$mf) as string);
+$agreed = $agreed + Check::same("~int", (~$a) as string, (~$ma) as string);
+$agreed = $agreed + Check::same("+int", (+$a) as string, (+$ma) as string);
+$agreed = $agreed + Check::same("!bool", Check::yn(!$yes), Check::yn(!$myes));
+
+// `concat_operand`'s roster: nine of `nvs_ir::ty::Ty`'s fifteen are rows, five
+// scalars through their own helper, `null` as the empty string, and a tagged
+// operand through `Helper::TaggedToString`.
+$agreed = $agreed + Check::same("str . str", $s . "z", $ms . "z");
+$agreed = $agreed + Check::same("str . int", "x" . $a, "x" . $ma);
+$agreed = $agreed + Check::same("str . uint", "x" . $u, "x" . $mu);
+$agreed = $agreed + Check::same("str . float", "x" . $f, "x" . $mf);
+$agreed = $agreed + Check::same("str . bool", "x" . $yes, "x" . $myes);
+$agreed = $agreed + Check::same("str . null", "x" . $n, "x" . $mn);
+
+// `lower_expr`'s own roster: the four shapes that branch, and `Paren`, which
+// is transparent. Each is taken above the general `Binary` arm, so a tagged
+// operand reaches them by the same path a typed one does.
+$agreed = $agreed + Check::same("??", $n ?? "d", ($mn ?? "d") as string);
+$agreed = $agreed + Check::same("&&", Check::yn($yes && $no), Check::yn($myes && $mno));
+$agreed = $agreed + Check::same("||", Check::yn($yes || $no), Check::yn($myes || $mno));
+$agreed = $agreed + Check::same("?:", $yes ? "y" : "n", $myes ? "y" : "n");
+$agreed = $agreed + Check::same("paren", ((($s))), ((($ms))) as string);
+
+echo "agreed=", $agreed as string, "/45\n";
+--EXPECT--
+agreed=45/45
