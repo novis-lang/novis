@@ -1941,6 +1941,17 @@ is why" — is this file.
   the same bare `Instance`, so every law over a derived set is written as one chain
   (`$a->diff($b)->union($a->intersect($b))->diff($a)->count() == 0`), and a "these two
   sets are equal" check is that chain in both directions rather than a named helper.
+- **`Core\Uri::parse` refuses a stray `%`, so `normalized`'s malformed-escape branch is
+  owed no case.** The module doc says "two references that both wrote the same stray `%`
+  are still the same reference", which reads as behaviour a `compareTo` case can pin —
+  but `parse` throws on `http://h/50%` at § 4.1 ("a `%` that does not begin a `%XX`
+  escape"), so no program can build such a `Uri` at all and the branch is defensive
+  against a `Uri` built some other way. Same family as the `csv.rs:512` bullet: check
+  what `parse` admits before writing a row about what a normalizer keeps. In the same
+  member, the seven component readers are **methods** (`$uri->path()`), and only five
+  of them can hold a percent-escape — a scheme is `ALPHA *( ALPHA / DIGIT / "+" / "-" /
+  "." )` and a port is digits — which is what a denominator in a swept `Core\Uri` case
+  has to say out loud.
 
 ## Splitting a file that got too big
 
