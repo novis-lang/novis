@@ -1,0 +1,88 @@
+--TEST--
+Spec § 5: `Core\Regex\Match::group` answers exactly the keys `groups` lists, under either spelling of a number, and throws on every other
+--FILE--
+<?nvs
+// ADR 0063 R4 and R5: `group()` reads the one array `groups()` hands back, so
+// the two can only disagree if one of them grew a lookup of its own. The
+// `int|string` parameter is where that would happen — an integer key is
+// stored under its decimal rendering, which makes `group(2)` and `group("2")`
+// the same question and `group("02")` a different one.
+final class Ask {
+    public static function byName(?Core\Regex\Match $found, string $key): string {
+        try {
+            return $found?->group($key) ?? "null";
+        } catch (Throwable $refused) {
+            return "throws";
+        }
+    }
+
+    public static function byNumber(?Core\Regex\Match $found, int $key): string {
+        try {
+            return $found?->group($key) ?? "null";
+        } catch (Throwable $refused) {
+            return "throws";
+        }
+    }
+}
+
+var $found = Core\Regex::match("order 4711 shipped", "(?<kind>[a-z]+) (\\d+)");
+if ($found == null) {
+    echo "no match|\n";
+}
+if ($found != null) {
+    // 1. Every key `groups()` lists, asked of `group()` under the spelling
+    // `groups()` used. Counted, not read off a line: a member answering the
+    // first row plausibly and the fourth from somewhere else still fails.
+    int $keys = 0;
+    int $agreed = 0;
+    foreach ($found->groups() as string $key => ?string $value) {
+        $keys = $keys + 1;
+        if (($value ?? "null") == Ask::byName($found, $key)) {
+            $agreed = $agreed + 1;
+        }
+    }
+    echo $keys as string, "/", $agreed as string, "|\n";
+
+    // 2. The two spellings of a number are one key, and that holds on the
+    // rows that throw as much as on the rows that answer — which is what
+    // makes it an agreement rather than four lucky lookups.
+    array<int> $numbers = [0, 1, 2, 3, -1];
+    int $rows = 0;
+    int $same = 0;
+    foreach ($numbers as int $number) {
+        $rows = $rows + 1;
+        var $byNumber = Ask::byNumber($found, $number);
+        if ($byNumber == Ask::byName($found, $number as string)) {
+            $same = $same + 1;
+        }
+        echo $byNumber, " ";
+    }
+    echo "|", $rows as string, "/", $same as string, "|\n";
+
+    // 3. The bound, named on both sides: `2` is the last group this pattern
+    // declares and it answers; `3` is the first it does not and it throws.
+    // The message names the group rather than the member's own failure.
+    echo Ask::byNumber($found, 2), "|", Ask::byNumber($found, 3), "|\n";
+    try {
+        echo $found->group(3) ?? "null", "|\n";
+    } catch (Throwable $beyond) {
+        echo Core\Str::contains($beyond->message, "declares no group `3`") as string, "|\n";
+    }
+
+    // 4. A name is a key like any other, and it is the *written* name: a
+    // pattern's group name is not folded, padded or normalized, so the three
+    // near misses below are undeclared keys and not spellings of `kind`.
+    echo Ask::byName($found, "kind"), "|", Ask::byName($found, "KIND"), "|",
+        Ask::byName($found, "02"), "|", Ask::byName($found, ""), "|\n";
+
+    // 5. Group `0` is the whole match under both spellings, which is the one
+    // key `text()` also answers.
+    echo Ask::byNumber($found, 0), "|", Ask::byName($found, "0"), "|", $found->text(), "|\n";
+}
+--EXPECT--
+4/4|
+order 4711 order 4711 throws throws |5/5|
+4711|throws|
+1|
+order|throws|throws|throws|
+order 4711|order 4711|order 4711|
