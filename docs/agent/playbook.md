@@ -1794,6 +1794,23 @@ is why" — is this file.
   grep -i <class>` and then `sed -n '2p'` over every hit — the `--TEST--` line is written to be
   exactly this index. Take the ranking off `gaps.py`, but take *which property is still open* off
   those lines.
+- **`echo` writes its earlier operands before a later one throws**, so
+  `try { echo "accepted [", Core\Uri::decodeComponent($bad), "]\n"; } catch ...` prints the
+  `accepted [` prefix of *every* refused row and the expected output grows a run of them —
+  which reads as the member having accepted the row. Bind the call on the line above
+  (`var $read = ...;`) and echo only after it returned. This is the throwing-row twin of the
+  `--EXPECT--` block's trailing-space rule: what a case prints before a refusal is part of
+  what it pins.
+
+- **A `Core` class with a `compareTo` is still not `Comparable` to the checker.**
+  `Core\Uri` has the member, its doc comment names ADR 0013, and `$a < $b` over two of them is
+  nonetheless `E0411: does not implement Comparable` — `nvs_types::expr::operators` asks
+  `nvs_hir::implements_interface`, and no `Core` class is on that graph as implementing one.
+  Two consequences for a case: the ordering operators, `Core\Arr::min`/`max`/`sort` and the
+  spaceship all refuse a `Core` object, so `$x->compareTo($y)` written out is the only order
+  such a pair has; and a `{comparator: ...}` closure over them must declare its parameters as
+  the class itself, because `mixed as Core\Uri` is `E0711` ("this target names no class to
+  test the value against") — ADR 0007 § 2 tabulates no conversion into an object.
 
 ## Splitting a file that got too big
 
