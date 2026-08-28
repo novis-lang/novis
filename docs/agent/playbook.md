@@ -1884,6 +1884,15 @@ is why" — is this file.
   `int $i = 0; while ($i < $n) { … $i = $i + 1; }` — which is what an index-walked sweep over two
   parallel `array<string>`s wants anyway, since the arrays are still indexed by the *string* of the
   offset (`$hays[$i as string]`).
+- **Two strings that look identical in a failed `--EXPECT--` diff can differ by a
+  normalization form, and a `Core\Str` case is where that happens.** Echoing
+  `Core\Str::reverse("cafe\u{301}")` prints `éfac`, the expectation written by hand in the
+  editor is the *composed* `é` (`c3 a9`), and the runner's diff shows two lines that are
+  character-for-character the same while the case fails. `od -c` on the actual output
+  against the `--EXPECT--` block is the only way to see it. The fix is not to widen the
+  expectation but to stop echoing the cluster: assert it against a source-escaped literal
+  (`Core\Str::reverse("cafe\u{301}") == "e\u{301}fac" ? "1" : "0"`) and echo the composed
+  spelling of the same row instead, so every byte in the expect block is one you typed.
 
 ## Splitting a file that got too big
 
