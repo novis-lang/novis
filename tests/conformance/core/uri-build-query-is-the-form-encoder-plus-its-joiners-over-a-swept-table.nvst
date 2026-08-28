@@ -1,0 +1,92 @@
+--TEST--
+`Core\Uri::buildQuery` is asserted by invariance over a swept table of names and values: every pair is `encodeFormValue` on both halves joined by `=`, every built string parses back to the same map, the separator count is one per pair, and an empty map builds the empty string — spec § 12
+--FILE--
+<?nvs
+// Two cases already name this member: one shows the bracket convention row by
+// row, the other asks whether it is inverse to `parseQuery` over a table of
+// *query strings*. Neither asks anything of a map the wire did not produce,
+// and that is the direction a caller actually writes — `buildQuery` is handed
+// an array it built. So the table below is a table of *names*, each of which
+// is also its own value, and every property is counted over the whole of it
+// rather than read off a row: a member escaping plausibly on one name and
+// doubly on the next still prints a query string, and only a count sees it.
+//
+//   agrees   — a one-pair query string is exactly `encodeFormValue($k)`, `=`,
+//              `encodeFormValue($v)`. `buildQuery` owns the joiners and the
+//              traversal; the escaping is the encoder member's, not a second
+//              one that could drift from it.
+//   placed   — and the two halves are not interchangeable: with the name held
+//              fixed, the swept string has to come out on the value's side.
+//   survives — `parseQuery` reads back the same value under the same name, so
+//              nothing in the table needed a spelling the reader cannot undo.
+//
+// The two names deliberately absent are the two the wire cannot tell apart,
+// which the neighbouring round-trip case pins as the bound this sweep stays
+// inside: a name holding the bracket convention's own characters, and the
+// empty name.
+array<string> $subjects = [
+    "a&b",
+    "a=b",
+    "a+b",
+    "a b",
+    "a%20b",
+    "100%",
+    "é",
+    "a/b?c#d",
+    "0",
+    "x",
+    "a~b*c",
+    "-_.",
+];
+int $rows = 0;
+int $agrees = 0;
+int $placed = 0;
+int $survives = 0;
+array<string> $whole = [];
+foreach ($subjects as string $s) {
+    $rows = $rows + 1;
+    if (Core\Uri::buildQuery([$s => $s]) == Core\Uri::encodeFormValue($s) . "=" . Core\Uri::encodeFormValue($s)) {
+        $agrees = $agrees + 1;
+    }
+    if (Core\Uri::buildQuery(["k" => $s]) == "k=" . Core\Uri::encodeFormValue($s)) {
+        $placed = $placed + 1;
+    }
+    var $one = Core\Uri::parseQuery(Core\Uri::buildQuery([$s => $s]));
+    if (($one[$s] ?? "!") == $s) {
+        $survives = $survives + 1;
+    }
+    $whole[$s] = $s;
+}
+echo "rows ", $rows, " agrees ", $agrees, " placed ", $placed, " survives ", $survives, "\n";
+
+// The same table as one map, which is the property a per-row sweep cannot ask:
+// the pairs are joined by exactly one `&` each, so no name and no value leaked
+// a separator of its own into the text. A member that escaped `&` in a value
+// but not in a name would still pass every row above.
+var $text = Core\Uri::buildQuery($whole);
+echo Core\Arr::count($whole), " pairs, ", Core\Str::countOf($text, "&"), " separators\n";
+echo $text, "\n";
+
+// And the whole map survives the trip in its own order — `buildQuery` writes
+// the entries as the array holds them and `parseQuery` records them as it
+// reads them, so a member that sorted by name would change what a signed
+// request signs. `Core\Json::encode` is how two `array<mixed>` are compared as
+// a whole, key order included.
+echo Core\Json::encode(Core\Uri::parseQuery($text)) == Core\Json::encode($whole) ? "same map, same order\n" : "differs\n";
+
+// The value side is not `as string`: a `bool` is written as PHP writes it in a
+// query string, and a `null` has no spelling at all so its pair is dropped
+// rather than written empty — `scalar_text` in `crates/nvs-stdlib/src/uri.rs`
+// owns both, and `as string` would render `false` as nothing and refuse the
+// `null`.
+echo Core\Uri::buildQuery(["i" => 7, "f" => 1.5, "t" => true, "no" => false, "n" => null, "s" => "x"]), "\n";
+
+// The floor of the sweep: no pairs, no text, and in particular no separator.
+echo "[", Core\Uri::buildQuery([]), "]\n";
+--EXPECT--
+rows 12 agrees 12 placed 12 survives 12
+12 pairs, 11 separators
+a%26b=a%26b&a%3Db=a%3Db&a%2Bb=a%2Bb&a+b=a+b&a%2520b=a%2520b&100%25=100%25&%C3%A9=%C3%A9&a%2Fb%3Fc%23d=a%2Fb%3Fc%23d&0=0&x=x&a%7Eb%2Ac=a%7Eb%2Ac&-_.=-_.
+same map, same order
+i=7&f=1.5&t=1&no=0&s=x
+[]
