@@ -759,13 +759,19 @@ def record_pack() -> None:
     a missing `orient.py`, an unparseable goal or an unwritable `.loop` must never be the reason
     a wrap that already committed reports failure."""
     try:
+        # Captured as **bytes**: the pack is measured in bytes, and decoding it first is both a
+        # step backwards and the one way this can fail loudly. Under `text=True` Python decodes
+        # the pipe with the console's own codepage, which on this box is cp1252 — the pack's `§`
+        # raises `UnicodeDecodeError` inside the reader thread, `proc.stdout` comes back `None`,
+        # and the `AttributeError` below escaped the `except` this whole function is wrapped in,
+        # failing a wrap that had already committed everything.
         proc = subprocess.run(
             [sys.executable, str(ROOT / "tools" / "orient.py")],
-            capture_output=True, text=True, cwd=ROOT, timeout=60,
+            capture_output=True, cwd=ROOT, timeout=60,
         )
-        if proc.returncode != 0:
+        if proc.returncode != 0 or not proc.stdout:
             return
-        size = len(proc.stdout.encode("utf-8"))
+        size = len(proc.stdout)
     except (OSError, subprocess.SubprocessError):
         return
 
