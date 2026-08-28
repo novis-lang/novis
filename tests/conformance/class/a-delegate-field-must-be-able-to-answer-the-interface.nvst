@@ -1,0 +1,69 @@
+--TEST--
+`implements I by $field;` refuses a `$field` that cannot answer `I`, and every member the delegation does not supply is owed as usual — ADR 0043 § 4
+--FILE--
+<?nvs
+// ADR 0043 § 4 bullet 1: the delegate has to be a declared property whose
+// type is a non-nullable class or interface that satisfies the delegated
+// interface. Each half below is a failure the synthesized forward has no
+// answer for — no slot to read, no class to dispatch on, or no member to land
+// on — and unrefused each one reached `nvs_runtime::nvs_abstract_method`, a
+// FATAL naming a compiler bug for what is a mistake in the program.
+//
+// The whole file is one compile, and every refusal is reported, so a shape
+// that stops refusing shows up as a missing line rather than as a plausible
+// answer below it.
+interface Greets {
+    public function greet(): string;
+}
+
+interface Counts {
+    public function count(): int;
+}
+
+final class Polite implements Greets {
+    public function greet(): string { return "hi"; }
+}
+
+// No property of that name at all.
+final class NoField implements Greets by $missing {
+}
+
+// Nullable: the forward dispatches on the field at every call, and `null`
+// names no class to dispatch on.
+final class Maybe implements Greets by $voice {
+    private ?Greets $voice;
+    public function constructor(?Greets $voice) { $this->voice = $voice; }
+}
+
+// A scalar names no members at all.
+final class Scalar implements Greets by $voice {
+    private string $voice = "x";
+}
+
+// A class type that is simply not related to the delegated interface.
+final class Unrelated implements Greets by $voice {
+    private Counts $voice;
+    public function constructor(Counts $voice) { $this->voice = $voice; }
+}
+
+// The half the whole-class exemption used to swallow: a class delegating one
+// interface is still judged, member by member, on every other interface it
+// claims. `Counts::count` is owed here and no forward supplies it.
+final class Half implements Greets by $voice, Counts {
+    private Greets $voice;
+    public function constructor(Greets $voice) { $this->voice = $voice; }
+}
+
+echo "unreachable\n";
+--EXPECTF-ERROR--
+error[E0720]: `NoField` delegates `Greets` to `$missing`, which is not a property
+%A
+error[E0720]: `$voice` is `null|Greets`, which cannot satisfy `Greets`
+%A
+error[E0720]: `$voice` is `string`, which cannot satisfy `Greets`
+%A
+error[E0720]: `$voice` is `Counts`, which cannot satisfy `Greets`
+%A
+error[E0449]: `Half` does not declare `count`, which `Counts` requires
+%A
+error: aborting due to 5 errors

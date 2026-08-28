@@ -1244,9 +1244,11 @@ pub struct ClassDecl {
 
 /// One entry of a class's `implements` list (ADR 0043 § 4): the interface
 /// named, its `<...>` type arguments if any, plus its optional `by $field`
-/// delegation suffix. `by_field` is recorded but not yet resolved — checking
-/// that `$field`'s declared type actually satisfies `name`
-/// (`E_DELEGATE_TYPE_MISMATCH`) is `nvs-hir`'s job, not the parser's.
+/// delegation suffix. `by_field` is recorded as a span and nothing more —
+/// checking that `$field` is a declared property whose type actually
+/// satisfies `name` (`E_DELEGATE_TYPE_MISMATCH`) needs the signature table
+/// and the class graph, so it is `nvs_types::conformance`'s job rather than
+/// the parser's.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ImplementsClause {
     /// The interface named.

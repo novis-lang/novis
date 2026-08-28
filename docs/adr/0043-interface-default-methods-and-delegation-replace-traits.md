@@ -189,6 +189,20 @@ $this->timestamps->touch(); }`. Rules:
   implements both. Two different fields may each satisfy a different interface in the same `implements` list.
 - A class may still write its own method with the same name as a delegated one — that is an ordinary
   override, exactly as in § 2, and wins over the synthesized forward.
+- Three member shapes get **no** forward and are refused where the clause is written
+  (`E_DELEGATE_MEMBER_NOT_FORWARDABLE`), because the forward is a whole method whose body passes its
+  parameters straight on: a `static` member has no receiver to read `$field` off
+  ([ADR 0008](0008-static-and-global.md) gives class storage none), and a variadic or `inout`
+  parameter list is packed and written back at the *call site*
+  ([ADR 0107](0107-by-reference-parameters-are-spelled-inout-at-both-ends.md) § 2), so a forward would do that twice. The
+  way out is the bullet above — write the member on the class by hand. This is a limit of the
+  implementation rather than a rule about delegation, and `nvs_types::conformance`'s
+  `resolve_delegations` is its one home.
+
+Every member the delegation does **not** supply is owed exactly as it would be without the clause: the
+conformance check is per member, not per class, which is what the first bullet's `E_DELEGATE_TYPE_MISMATCH`
+buys — without it, a member no forward covers could not be told from one whose field could not have
+answered it.
 
 ### 5. One conflict rule for both mechanisms
 

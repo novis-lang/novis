@@ -1441,6 +1441,43 @@ pub mod code {
     /// representation the table has no row for, naming a bug in the compiler
     /// for what is a mistake in the program.
     pub const E_VOID_IS_NOT_A_CONDITION: Code = Code::new("E0719");
+    /// An `implements I by $field;` clause whose `$field` cannot answer `I` —
+    /// ADR 0043 § 4 bullet 1.
+    ///
+    /// The delegate has to be a **declared property** of the class, whose
+    /// type is a **non-nullable** class or interface that itself satisfies
+    /// the delegated interface. Each half of that is a real failure the
+    /// synthesized forward has no answer for: a name that is no property has
+    /// no slot to read, a nullable one has nothing to dispatch on when it
+    /// holds `null`, and a type that does not satisfy `I` has no member for
+    /// the forward to name.
+    ///
+    /// This code is what makes `crate::conformance`'s check **per member**
+    /// rather than whole-class. Without it, a member no forward covers could
+    /// not be told from one whose field could not answer it, so a class with
+    /// any `by $field` clause at all was exempt from
+    /// [`E_INTERFACE_METHOD_MISSING`] entirely; with it, the field is judged
+    /// here and every member the delegation does not supply is judged there.
+    pub const E_DELEGATE_TYPE_MISMATCH: Code = Code::new("E0720");
+    /// A member of a delegated interface whose shape ADR 0043 § 4's
+    /// synthesized forward cannot express: a `static` member, a variadic
+    /// parameter list, or an `inout` parameter.
+    ///
+    /// Each is a limit of this compiler rather than a rule of the language,
+    /// and each has the same cause — the forward is a whole method whose body
+    /// passes its parameters straight on. A `static` member has no receiver to
+    /// read the field off (ADR 0008 gives class storage none), and a variadic
+    /// or `inout` list is packed and written back at the *call site*
+    /// (ADR 0107 § 2), so passing it on would pack it twice.
+    ///
+    /// It is a diagnostic where the clause is written because the alternative
+    /// is what the tree did before: no forward was synthesized, the class was
+    /// exempt from [`E_INTERFACE_METHOD_MISSING`] anyway, and the call landed
+    /// on `nvs_runtime::nvs_abstract_method` — a `FATAL` naming a compiler bug
+    /// for a program the front end had accepted. The help names the way out
+    /// the author has today: write the member on the class by hand, which
+    /// § 4 already allows and which the forward would have lost to.
+    pub const E_DELEGATE_MEMBER_NOT_FORWARDABLE: Code = Code::new("E0721");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
