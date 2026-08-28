@@ -20,7 +20,7 @@ then substring-match every `tests = [...]` entry in `loop-goal.toml` against tha
 2026-08-28 at `e0c9f3e`: **54 of 156 named guard tests match nothing cargo would run.** **All
 fifty-four** have since been reconciled — the ticked lines below — leaving **none**, over the **128**
 entries `tests = [...]` now holds across every `cargo-named` check (127 distinct: Stage 2 and Stage 5
-both name `a_disjoint_equality_does_not_compile`). Twenty-nine of the fifty-three were a cause-2
+both name `a_disjoint_equality_does_not_compile`). Twenty-nine of the fifty-four were a cause-2
 *move* out of a `tests = [...]` list and into `cases`, so the denominator moves with them, and three
 whole `[[check]]` blocks went that way entire — Stage 5's two and Stage 7's `nvs-stdlib (the
 assertion roster)`.
