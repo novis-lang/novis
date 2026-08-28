@@ -208,9 +208,9 @@ pub(super) fn infer_static_call(
 
 /// `new Target(...)` — [`super::infer`]'s `ExprKind::New` arm.
 ///
-/// A class with no explicit `constructor` accepts a bare `new Foo()` in PHP;
-/// not diagnosing an arity mismatch against zero parameters here is deliberate
-/// — see the crate docs' known gaps. The *declaring* class is kept, not the
+/// A class with no explicit `constructor` accepts a bare `new Foo()` in PHP
+/// and nothing else, which is what [`reject_arguments_to_implicit_constructor`]
+/// holds it to. The *declaring* class is kept, not the
 /// constructed one: `new Dog(...)` on a `Dog extends Animal` that declares no
 /// constructor of its own invokes `Animal::constructor`, and `nvs-ir` cannot
 /// re-walk the hierarchy to find that out (see
@@ -273,6 +273,7 @@ pub(super) fn infer_new(
         {
             report_unknown_member(expr.span, qname, "constructor", "member", env);
         }
+        reject_arguments_to_implicit_constructor(args, qname, sig.as_ref(), expr.span, env);
         // `nvs-ir` needs the constructed class and its resolved constructor (if
         // any) to lower `new` — see `crate::expr_table`'s own module docs.
         let ctor = sig.as_ref().zip(ctor_owner).map(|(s, owner)| {
@@ -288,6 +289,55 @@ pub(super) fn infer_new(
         );
     }
     target_ty
+}
+
+/// Holds `new C(...)` on a class that declares no `constructor` to the zero
+/// arguments such a class can accept (`E_ARITY_MISMATCH`).
+///
+/// [`check_positional_arity`](super::args) is a count against a *signature*,
+/// so a class with no constructor had no signature to be counted against and
+/// every argument written there was inferred, checked against nothing and
+/// dropped: `new Plain(1, 2)` compiled and ran, constructing exactly what
+/// `new Plain()` constructs. PHP refuses it, ADR 0007 § 1's "nothing is
+/// untyped" leaves an unchecked argument no home, and `nvs-ir` lowers `new`
+/// with `ctor: None` — so the arguments were not even evaluated for their
+/// effects.
+///
+/// Two targets are exempt and neither is a class the author declared. A
+/// **`Core`-owned** class is constructed by a native symbol rather than by a
+/// `constructor` member ([`nvs_stdlib::registry::constructor_symbol`], and
+/// the neighbouring check refuses the ones that have none), so its argument
+/// list is that symbol's rather than a signature's. A class this unit has
+/// **no signature for at all** has already been reported as unknown, and a
+/// second diagnostic about how many arguments it does not take would name the
+/// mistake twice.
+fn reject_arguments_to_implicit_constructor(
+    args: &CallArgs,
+    qname: &QName,
+    sig: Option<&MethodSig>,
+    call_span: Span,
+    env: &mut Env<'_>,
+) {
+    let CallArgs::List(list) = args else {
+        return;
+    };
+    if sig.is_some() || list.is_empty() {
+        return;
+    }
+    if crate::core_lib::is_registered(qname) || env.signatures.get(qname).is_none() {
+        return;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ARITY_MISMATCH,
+            format!(
+                "expected 0 argument(s), found {} — `{qname}` declares no `constructor`",
+                list.len()
+            ),
+        )
+        .with_primary(call_span, "called here")
+        .with_help("drop the arguments, or declare a `constructor` on the class that takes them"),
+    );
 }
 
 /// The `<...>` written between a `new` target and its `(` —

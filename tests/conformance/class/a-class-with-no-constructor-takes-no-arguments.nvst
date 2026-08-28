@@ -1,0 +1,56 @@
+--TEST--
+`new C(...)` on a class that declares no `constructor` is held to zero arguments, while an inherited one still takes its own — ADR 0007 § 1
+--FILE--
+<?nvs
+// An arity check is a count against a *signature*, so a class with no
+// constructor had none to be counted against: every argument written here was
+// inferred, checked against nothing and then dropped, `nvs-ir` lowering `new`
+// with no constructor to call at all. `new Plain(1, 2)` compiled and ran, and
+// constructed exactly what `new Plain()` constructs.
+final class Plain {
+    public int $n = 0;
+}
+
+class Base {
+    public int $n;
+    public function constructor(int $n) { $this->n = $n; }
+}
+
+// A subclass declaring no constructor of its own inherits `Base::constructor`,
+// which is a signature — so this line is the accepted half and says nothing.
+final class Derived extends Base {
+    public int $m = 1;
+}
+
+// The accepted shapes, written first so that a position that stopped being
+// accepted shows up here rather than as a missing refusal below.
+Plain $ok = new Plain();
+Derived $inherited = new Derived(1);
+echo $ok->n, $inherited->n, "\n";
+
+// Refused, in source order.
+Plain $one = new Plain(1);
+Plain $two = new Plain(1, 2);
+Derived $short = new Derived();
+--EXPECTF-ERROR--
+error[E0402]: expected 0 argument(s), found 1 — `Plain` declares no `constructor`
+   --> %s:29:14
+   |
+29 | Plain $one = new Plain(1);
+   |              ^^^^^^^^^^^^ called here
+   = help: drop the arguments, or declare a `constructor` on the class that takes them
+
+error[E0402]: expected 0 argument(s), found 2 — `Plain` declares no `constructor`
+   --> %s:30:14
+   |
+30 | Plain $two = new Plain(1, 2);
+   |              ^^^^^^^^^^^^^^^ called here
+   = help: drop the arguments, or declare a `constructor` on the class that takes them
+
+error[E0402]: expected 1 argument(s), found 0
+   --> %s:31:18
+   |
+31 | Derived $short = new Derived();
+   |                  ^^^^^^^^^^^^^ called here
+
+error: aborting due to 3 errors

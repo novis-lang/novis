@@ -899,12 +899,50 @@
 > *not* a tag, was twelve — the first number past the roster — and is fifteen, the top of the
 > nibble, so that the next discriminant the roster grows cannot collide with it either;
 > `nvs-codegen`'s `the_any_nibble_denotes_no_tag_at_all` is what caught that and is the guard either
-> way. What is **not** closed and is backlogged rather than left implied: a visibility keyword on a
-> *non*-constructor method's parameter declares nothing and is silently ignored where PHP refuses
-> it. Three live tools **are** the worklist and no session re-derives one: `python tools/holes.py`
-> reads the refusal sites out of `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item
-> N` for one in full), `python tools/loop.py --list` prints the named `.nvst` cases each stage still
-> owes, and `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> way. **A visibility keyword promotes only in the `constructor` now**, which was ADR 0043 § 4's own
+> backlog line and is the last thing that ADR's promotion paragraph owed.
+> `nvs_syntax::ast::Param::is_promoted` is the one home of *which* parameters promote and
+> deliberately does not ask which method encloses it — that is `nvs_types::signatures`' question,
+> and it was only ever asked in one direction: `record_promoted_properties` runs for a
+> `constructor`, so `public`/`protected`/`private` written on any other method's parameter declared
+> nothing, took no slot and was silently ignored, where PHP refuses it. It is `E0722` where it is
+> written now, from `reject_promotion_outside_constructor`, the same predicate read the other way.
+> Widening promotion to every method was never the alternative: a property is a slot on an instance,
+> armed once where the instance is made, and a method may be called any number of times or none, so
+> there is no moment for the store to be emitted at. The refusal is per parameter and in source
+> order, so a position that stops refusing shifts a line rather than quietly declaring nothing, and
+> the primary span is the whole parameter rather than its name, the keyword being what the
+> diagnostic is about.
+> `tests/conformance/class/a-visibility-keyword-promotes-only-in-the-constructor.nvst` pins all five
+> — three keywords across an interface declaration, an instance method and a `static` one, and a
+> keyword beside an `inout` and beside a default — with the constructor's own promoted parameter in
+> the same file saying nothing, which is the half that asserts the check did not widen. ADR 0043 § 4
+> gains the bullet rather than being left to disagree with the tree. **A class with no explicit
+> `constructor` is held to a zero-argument arity check on `new` now**, which is item 39's second gap
+> and was worse than a missing diagnostic. An arity check is a count against a *signature*
+> (`nvs_types::expr::args::check_positional_arity`), so a class with no constructor had none to be
+> counted against: every argument written at `new Plain(1, 2)` was inferred, checked against nothing
+> and then dropped, and `nvs-ir` lowers that `new` with `ctor: None`, so the arguments were not
+> evaluated for their effects either — the program compiled, ran, and constructed exactly what `new
+> Plain()` constructs. `nvs_types::expr::calls::reject_arguments_to_implicit_constructor` refuses it
+> where it is written, taking `E0402` rather than a code of its own because it is the same mistake
+> the count already names, with the class added to the message so the author is told *why* zero. Two
+> targets are exempt and neither is a class the author declared: a `Core`-owned class is constructed
+> by a native symbol rather than by a `constructor` member
+> (`nvs_stdlib::registry::constructor_symbol`, the neighbouring check refusing the ones that have
+> none), and a class this unit has no signature for at all has already been reported as unknown, so
+> a second diagnostic would name one mistake twice. An **inherited** constructor is a signature and
+> is untouched: `new Derived()` on a `Derived extends Base` that declares none of its own is still
+> counted against `Base::constructor`.
+> `tests/conformance/class/a-class-with-no-constructor-takes-no-arguments.nvst` pins one argument
+> and two against the implicit constructor, the inherited count beside them, and the accepted `new
+> Plain()` and `new Derived(1)` written first so that a position that stops being accepted fails
+> there rather than as a missing refusal. `nvs-types`' own known-gaps list loses the entry rather
+> than keeping a gap the tree closed. Three live tools **are** the worklist and no session
+> re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen`
+> and attributes each to its item (`--item N` for one in full), `python tools/loop.py --list` prints
+> the named `.nvst` cases each stage still owes, and `python tools/check-migration.py` scores
+> `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

@@ -194,8 +194,6 @@
 //!   ADR 0047 § 2 folds one to its own literal type, over [`consts`], which
 //!   holds the constant's **value** rather than its declared type and so does
 //!   not close this gap.
-//! - A class with no explicit `constructor` is not held to a zero-argument
-//!   arity check on `new` — see [`expr`]'s `New` handling.
 //! - A `foreach` **key** binding declared at anything but `string` is not
 //!   diagnosed here. ADR 0007 § 5 gives an array one stored key type, so
 //!   `foreach ($a as int $k => …)` is always wrong; today it type-checks and
