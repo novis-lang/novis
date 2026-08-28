@@ -691,6 +691,17 @@ is why" — is this file.
   handoff had copied the comment forward, so the item arrived predicting cause 3 where every name
   was cause 2. One `grep -rn` per claim the comment makes is the whole check, and it costs less than
   writing the wrong triage down.
+- **A snapshot diff that is only *added releases in a landing block* can still be a double
+  release, and accepting all nineteen of them by hand is how it lands.** The forget that takes a
+  transferred argument off `Lowering::owned_temporaries` has to run **before**
+  `emit_fallible`, not after: `emit_fallible` builds the call's own fault edge out of whatever is
+  on the stack at that moment, and a callee releases its parameters on its *throwing* edge as much
+  as on its normal one. Placed after the call, every one of the nineteen pending snapshots grew a
+  release that read as "the fix working" and was in fact the double drop. The tell is free and it
+  is the only one: ask which instruction the changed `bbN` is the `! bb` of. If it is the call
+  that consumed the value, the release does not belong there. Moving it earlier made all nineteen
+  diffs vanish — a correct fix here changes no fixture that has nothing fallible *after* a staged
+  argument.
 
 ## Running things
 
