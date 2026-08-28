@@ -47,6 +47,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import statistics
 import sys
 from pathlib import Path
 
@@ -318,7 +319,19 @@ def coverage() -> list[dict]:
     """Per `Core` class: registered members, the cases that call it, and which members none does.
 
     Stage 4's question is *depth* -- every registered member has a case, so the useful ranking is
-    cases per member, and the thinnest class is the next group. Sessions were answering this by
+    how many cases the class's **thinnest members** carry, and that class is the next group.
+
+    DEPTH IS THE MEDIAN CASES PER MEMBER, not the class's case count divided by its member count.
+    The divided form is what this printed first, and it ranks by class *size*: `Core\\Math` led it
+    at 1.00 with 38 members and 38 cases, and a session took a whole group off the top of that
+    ranking before finding that every one of the three claims it named was already pinned -- the
+    thinnest member of that class carries three cases, and the class carries thirty-one dedicated
+    files. A case names five or ten members at once, so a big class can never reach a high quotient
+    however deeply each member is asked. The median asks the question a session actually has ("how
+    much is a typical member of this class asked?"), `floor` is its worst member, and `thin` names
+    the three worst with anchors so the group is picked from members rather than from a class.
+
+    Sessions were answering this by
     hand: measured over one 19-session run, `ls tests/conformance/core/ | grep -i <family>` paired
     with `grep -n 'name: "' crates/nvs-stdlib/src/<family>.rs` ran about ten times, half of them in
     the tail where a call is most expensive, to arrive at a ranking the tree already holds.
@@ -342,6 +355,12 @@ def coverage() -> list[dict]:
     """
     reg = registry()
     syms = symbol_lines()
+
+    def anchor_of(owner: str, member: str) -> str:
+        path, line, sym = reg[(owner, member)]
+        impl = syms.get(sym)
+        return f"{rel(impl[0])}:{impl[1]}" if impl else f"{rel(path)}:{line}"
+
     per_class: dict[str, list[str]] = {}
     for owner, member in reg:
         per_class.setdefault(owner, []).append(member)
@@ -380,26 +399,28 @@ def coverage() -> list[dict]:
     out = []
     for owner, members in per_class.items():
         mine = [t for t, held in zip(texts, handled) if owner in held]
-        called = set()
+        asked = {member: 0 for member in members}
         for text in mine:
-            called.update(m.group(1) for m in
-                          re.finditer(re.escape(owner) + r"::([A-Za-z][A-Za-z0-9]*)", text))
-            called.update(m.group(1) for m in
-                          re.finditer(r"->([a-z][A-Za-z0-9]*)\s*\(", text))
-        missing = []
-        for member in sorted(set(members) - called):
-            path, line, sym = reg[(owner, member)]
-            impl = syms.get(sym)
-            anchor = f"{rel(impl[0])}:{impl[1]}" if impl else f"{rel(path)}:{line}"
-            missing.append({"member": member, "anchor": anchor})
+            named = {m.group(1) for m in
+                     re.finditer(re.escape(owner) + r"::([A-Za-z][A-Za-z0-9]*)", text)}
+            named.update(re.findall(r"->([a-z][A-Za-z0-9]*)\s*\(", text))
+            for member in named & asked.keys():
+                asked[member] += 1
+        missing = [{"member": member, "anchor": anchor_of(owner, member)}
+                   for member in sorted(m for m in asked if not asked[m])]
+        counts = sorted(asked.values())
+        order = sorted(asked, key=lambda m: (asked[m], m))
         out.append({
             "class": owner,
             "members": len(members),
             "cases": len(mine),
-            "depth": len(mine) / len(members) if members else 0.0,
+            "depth": statistics.median(counts) if counts else 0.0,
+            "floor": counts[0] if counts else 0,
+            "thin": [{"member": m, "cases": asked[m], "anchor": anchor_of(owner, m)}
+                     for m in order[:3]],
             "uncalled": missing,
         })
-    out.sort(key=lambda r: (r["depth"], -r["members"]))
+    out.sort(key=lambda r: (r["depth"], r["floor"], -r["members"]))
     return out
 
 
@@ -477,15 +498,17 @@ def main() -> int:
         thin = [r for r in cov if r["uncalled"]]
         print(f"== CONFORMANCE DEPTH BY CLASS  ({len(cov)} classes, thinnest first; "
               f"{len(thin)} with a member no case calls)")
-        print("-- cases/member is DEPTH, which is Stage 4's frontier: coverage is already met, so")
-        print("-- the thinnest class is the candidate for the next group. This is the `ls tests/`")
-        print("-- plus `grep -n 'name: \"'` pair, answered off the tree instead of by hand.")
+        print("-- DEPTH is the MEDIAN cases per member and FLOOR its worst member, so a big class")
+        print("-- is not thin merely for being big -- take the group from the members named at the")
+        print("-- right, which are the three each class asks least, with their anchors.")
         show(cov, opts.limit, lambda r: (
-            f"  {r['depth']:>5.2f}{r['cases']:>7}{r['members']:>9}   {r['class']:<26}"
+            f"  {r['depth']:>5.1f}{r['floor']:>6}{r['cases']:>7}{r['members']:>9}"
+            f"   {r['class']:<22}"
             + (" no case calls " + ", ".join(
-                f"{u['member']} {u['anchor']}" for u in r["uncalled"][:3]) if r["uncalled"] else "")
+                f"{u['member']} {u['anchor']}" for u in r["uncalled"][:3]) if r["uncalled"]
+               else " " + ", ".join(f"{t['member']} {t['cases']}" for t in r["thin"]))
         ))
-        print("     ^depth ^cases ^members")
+        print("     ^depth ^floor ^cases ^members  ^thinnest members, and their case counts")
         print()
 
     if both or opts.differential:
