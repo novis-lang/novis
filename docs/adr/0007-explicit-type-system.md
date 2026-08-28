@@ -5,7 +5,7 @@
 - **Scope:** the type grammar; the declaration requirement at every binding site; `uint`; typed and
   nested arrays; string-only array keys; unions and `mixed`; the conversion operator; the result type of
   every arithmetic operator
-- **Amended by:** 0008, 0010, 0011, 0012, 0013, 0015, 0022, 0024, 0027, 0028, 0031, 0033, 0034, 0035, 0036, 0037, 0047, 0053, 0054, 0063, 0066, 0069, 0090
+- **Amended by:** 0008, 0010, 0011, 0012, 0013, 0015, 0022, 0024, 0027, 0028, 0031, 0033, 0034, 0035, 0036, 0037, 0047, 0053, 0054, 0063, 0066, 0069, 0090, 0109
 
 > **In short:** every binding — parameter, property, constant, local, loop variable, closure parameter,
 > return — declares a type, and **a binding's declared type never changes**. A *value's* type changes only
@@ -54,6 +54,7 @@ Positions PHP already has a type slot for become **mandatory**. Positions PHP ha
 | class constant | `public const int MAX = 10;` | PHP 8.3 syntax, now mandatory |
 | local variable, at its declaration | `int $n = 0;`, or `var $n = 0;` to infer from the initializer ([0037](0037-var-local-type-inference.md)) | **new slot** |
 | `foreach` key and value | `foreach ($rows as string $k => array<int> $row)` | **new slot** |
+| a `for` header's init clause | `for (int $i = 0; $i < $n; $i = $i + 1)` — one declaration or a list of expressions, never both ([0109](0109-a-for-header-declares-its-own-counter.md)) | **new slot** |
 | destructuring | `[int $a, string $b] = $pair;` | **new slot** |
 | closure parameters and return | `fn(int $n): string => …` | PHP syntax, now mandatory |
 | `catch` | `catch (JsonError $e)` | already typed in PHP |

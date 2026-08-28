@@ -315,7 +315,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) | Nothing a request can send terminates or wedges a worker | Accepted |
 | [0107](0107-by-reference-parameters-are-spelled-inout-at-both-ends.md) | A by-reference binding is spelled `inout`, at the declaration and at the call | Accepted |
 | [0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) | One reference index answers five features, editor completion may only offer what the compiler already derived, and a template region gets services but no second formatter | Accepted |
-| [0109](0109-a-for-header-declares-its-own-counter.md) | A `for` header may declare its own counter, and an init clause is a declaration or an expression list, never both | Proposed |
+| [0109](0109-a-for-header-declares-its-own-counter.md) | A `for` header may declare its own counter, and an init clause is a declaration or an expression list, never both | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

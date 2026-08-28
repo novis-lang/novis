@@ -1,6 +1,6 @@
 # ADR 0109 — A `for` header may declare its own counter, and an init clause is a declaration or an expression list, never both
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-28
 - **Scope:** the `for` statement's **init clause** only — whether it may hold one
   [0007](0007-explicit-type-system.md) § 3.1 typed local declaration, and what a header that does not is
@@ -8,13 +8,9 @@
   **not** change scoping, which stays function-scoped for every binding
   ([0007](0007-explicit-type-system.md) § 1); and it does **not** touch `foreach`, whose binding slot
   [0007](0007-explicit-type-system.md) § 3.2 already owns.
+- **Amends:** [0007](0007-explicit-type-system.md) § 1 — its binding-site table gains a row for the `for`
+  init clause, folded into that ADR's own body.
 - **Amended by:** none.
-
-**This is `Proposed`, which is why there is no `Amends:` field yet.** Accepting it obliges one row in
-[0007](0007-explicit-type-system.md) § 1's binding-site table, that ADR's `Amended by:` gaining `0109`,
-and this ADR gaining the matching `Amends:` — all three in the commit that flips the status, per
-[conventions.md](../agent/conventions.md) § *An ADR*. Nothing is written into 0007 before then, because a
-folded amendment states a rule as currently true and this one is not yet.
 
 > **In short:** `foreach` got a type slot and `for` did not, so `for (int $i = 0; …)` does not parse at
 > all — the init clause is an expression list, and a typed declaration in it produces a cascade of a dozen
@@ -54,9 +50,10 @@ int $i = 0;
 for ($i = 0; $i < 3; $i = $i + 1) {
 ```
 
-Every `for` loop in `tests/conformance/` is written that way, including the nested ones that declare
-`int $i = 0; int $j = 0;` above a pair of loops. It works, it is not ambiguous, and it costs a line — the
-argument for changing it is not the line.
+Every `for` loop in `tests/conformance/` is written that way today, including the nested ones that
+declare `int $i = 0; int $j = 0;` above a pair of loops. That is not evidence the spelling is fine —
+those cases were written by authors who had no other option, and **nobody reaching for a counted loop
+writes it that way by choice.** § 3 of *Consequences* is what happens to them.
 
 ## Decision
 
@@ -140,13 +137,27 @@ exhaustive-minus-one. The parser's worst diagnostic cascade in a common shape is
 improved. And a reader who learns `foreach ($rows as int $row)` can now guess the `for` spelling and be
 right, which is the property a small surface is for.
 
-**Negative.** Two spellings of a counted loop now work — `for (int $i = 0; …)` and the declare-above form
-every existing case uses — and nothing makes one canonical. `nvs fmt`
+**Negative.** Two spellings of a counted loop work — `for (int $i = 0; …)` and the declare-above form —
+and nothing in the compiler makes one canonical. `nvs fmt`
 ([0039](0039-canonical-code-formatting.md)) does not rewrite between them, since that would be a semantic
-edit and § 3 of that ADR is explicit that formatting is not one. The existing corpus is not migrated:
-`tests/conformance/` keeps the declare-above spelling wherever it already has it, because a case's source
-is evidence about the shape it was written for and rewriting 40 files to a new preference would cost the
-review of all 40 to prove nothing.
+edit and § 3 of that ADR is explicit that formatting is not one. What makes one canonical is this
+document plus the corpus, which is why the corpus moves.
+
+**The corpus migrates, and that is part of landing this.** Every `for` in `tests/conformance/`,
+`tests/differential/` and `examples/` whose counter is declared on the line above and reassigned in the
+header takes the declaration into the header instead. Two reasons, and the second is the load-bearing one:
+
+1. Those cases are the worked examples a reader learns the language from, and the corpus is what a
+   contributor greps to find the house spelling. A corpus written entirely in the shape this ADR exists
+   to replace teaches the shape it replaces.
+2. A `.nvst` case's **expected output is frozen and its source is not** (`loop-goal.toml`'s own header
+   rule). Moving a declaration into the header changes no output on any of them — the counter is
+   function-scoped either way, § 2 — so the migration is checkable by the suites already being green,
+   case for case, rather than by reviewing 40 files for intent.
+
+A counter that is *read after its loop*, or shared by two loops, stays declared above: § 2 gives the
+header form no different scope, but a declaration whose reader is outside the loop belongs where its
+readers can see it, and moving those would be a change of meaning to the case rather than of spelling.
 
 **Neutral.** `nvs convert` (M11) is unaffected either way: PHP's `for ($i = 0; …)` has no type to carry, so
 the converter's existing "declare the local at first assignment" rule already produces the declare-above
@@ -185,8 +196,9 @@ runs:
 - **The declaration form loops**, `for (int $i = 0; $i < 3; $i = $i + 1)`, printing `0 1 2` — and the
   `var` spelling beside it, since [0037](0037-var-local-type-inference.md)'s inference is part of § 1's
   `local-decl` and not a separate production.
-- **The expression form still loops**, unchanged, with the counter declared above — the shape every
-  existing case uses, asserted here so that adding the new production cannot silently break the old one.
+- **The expression form still loops**, unchanged, with the counter declared above — asserted here so
+  that adding the new production cannot silently break the shape the corpus used before the migration,
+  and the shape a counter read after its loop still wants.
 - **§ 2's scope**, from the outside: the counter is readable after the loop, with the value that ended it,
   which is what makes this a spelling change rather than a scoping one. A second `for (int $i = 0; …)` in
   the same function is a re-declaration diagnostic naming the first, which is § 1's rule and not a new one.

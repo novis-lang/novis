@@ -49,8 +49,8 @@ spellings rejected, and the reasoning.
 - **`var $name = expr;` infers a local's type from its initializer and fixes it forever** — a bare
   array-literal initializer is the one shape it refuses
   ([0037](0037-var-local-type-inference.md)).
-- **A `for` header's init clause is one typed local declaration or a list of expressions, never both** —
-  *proposed*, and the counter stays function-scoped either way
+- **A `for` header's init clause is one typed local declaration or a list of expressions, never both**,
+  and the counter stays function-scoped either way
   ([0109](0109-a-for-header-declares-its-own-counter.md)).
 - **`as` is the only conversion spelling**; PHP's `(int)$x` does not parse
   ([0034](0034-legacy-cast-syntax-rejected.md)).
