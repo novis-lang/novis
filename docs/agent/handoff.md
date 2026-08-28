@@ -2,76 +2,70 @@
 
 ## State
 
-**M4's Stage 8, depth.** The tree is at **864 conformance plus 189 differential**, all
+**M4's Stage 8, depth.** The tree is at **866 conformance plus 189 differential**, all
 green. Nothing is blocked.
 
-Six cases landed over one file set — `crates/nvs-stdlib/src/uri.rs` read, and
-`tests/conformance/core/` written — which takes `Core\Uri` off the top of `gaps.py`'s
-table entirely (depth 6.0 now, where `Core\Bytes` is 4.0). The four percent-coders were
-each already pinned *against each other*; what was left in every case was the **quantifier**:
+Two cases landed over one file set — `crates/nvs-stdlib/src/bytes.rs` and `crates/nvs-stdlib/src/str.rs`
+read, `tests/conformance/core/` written — both about the three `Core\Bytes` predicates, and both
+asking a question no existing case asks:
 
-- **`decodeFormValue`, three cases.** The refusal was shown on five hand-picked families
-  and is now swept: all 256 single-byte escapes (128 accepted, 128 refused, and
-  `decodeComponent` drawing the identical line on all 256), then all 256 second octets
-  after the lead `%C3` (64 accepted — the continuation range, so a lone octet the first
-  sweep refused is accepted *in company*, which is what makes the rule about the stream
-  rather than the byte). Second: the refusal is the *only* one there is — total over all
-  128 raw bytes and over all 256 arrangements of a `%` with a non-hex neighbour — and it
-  takes the whole subject, never the prefix already decoded. Third: the two rewrites are
-  **one pass over bytes**, which three rows separate from the two alternative orders —
-  `%2+0` is `%2 0` (a `+` inside a malformed escape is still a space, swept over all 22
-  hex characters in both positions), `a+%2B+b` is `a + b` (the `+` an escape produced is
-  output, not input), and `%C3+%A9` is refused (a `+` is an octet, so it splits a sequence
-  that was well formed without it). PHP 8.5's `urldecode` agrees on every textual row.
-- **`encodeFormValue`, two cases.** Which bytes survive, counted: exactly 65 of 128 — RFC
-  3986 § 2.3's set less the `~` the form encoding predates — with the other 63 being one
-  `+` and 62 escapes compared against a hand-built `%` plus two upper-case hex digits, so
-  the digits' case, number and value are one equality. And that the member is
-  **deliberately not idempotent**: encoding twice is a fixed point for exactly the 65 and
-  changes the other 63, one decode peels exactly one layer for all 128, and a space that
-  became `+` re-encodes to `%2B` rather than being spared.
-- **`encodeComponent`, one case.** The claim the module doc makes is about the *parser*,
-  so it is asserted against the parser: every one of the 128 bytes, escaped and
-  interpolated into a path segment, parses and reads back out of `$uri->path()` as itself
-  (128/128), while the same bytes raw partition 80 stayed / 2 moved / 46 refused.
+- **`Core\Bytes` is not `Core\Str`, on a subject where they can be told apart.** Every other case
+  about the six same-named predicates uses an ASCII subject, where the two classes are
+  indistinguishable. Over `"aé漢b"` (4 characters, 7 octets) the difference is in the *domain*, not
+  the answers: all 15 character-aligned needles get the same answer from both trios (45/45), each
+  character's `Core\Str::indexOf` is its character index while `Core\Bytes::indexOf` is the octet
+  length of the prefix before it (2 of 4 differ), and of the 28 non-empty octet windows exactly 10
+  are namable as a `string` — those 10 being exactly the character sweep's own — while `contains`
+  finds all 28. The other 18 split a character and `Core\Str::contains` cannot be called with any of
+  them.
+- **`contains` is the two ends, taken over every window.** The existing corpus derives all three
+  predicates from `indexOf`, `slice` and `compare` and none of them from each other, so a `contains`
+  with its own search and a `startsWith` with its own comparison pass everything already written.
+  Here `contains` is asserted to be "some suffix begins with it" and "some prefix ends with it" over
+  156 needles (78 present, 78 near-missing), and the *number* of positions each disjunction holds at
+  is the needle's occurrence count from each side — 12/12 for the empty needle, 5/5 for `"a"`, 2/2
+  for `"abra"`, 1/1 for the whole subject.
 
-The move that found all six: where a corpus already pins a rule with rows, the unasked
-question is the rule's **quantifier** — swept exhaustively over the domain the rule ranges
-over, with the *other* member asked the same question in the same loop so the two agree by
-count rather than by inspection.
-
-`orient.py`'s pack was complete for the goal. The `[context] modules` gap two handoffs have
-now reported — no `nvs-stdlib/src/*.rs` pattern, so no `Core` class's module line is ever
-printed — cost one `peek.py` here as well.
+**The session's real finding, and why the next group is not another depth item:** `gaps.py`'s
+per-member count has stopped tracking coverage at the top of its table. The group's first item was
+already landed verbatim, and spot-checking the thinnest members of `Core\Test`, `Core\Random`,
+`Core\Time` and `Core\Regex` disqualified all four the same way. `python tools/loop.py --list` also
+reports **0 named cases not written yet** in both suites. The playbook bullet added this session owns
+the check that makes this cheap.
 
 ## Next group
 
-**`Core\Bytes`'s three thinnest members** — now the top of `gaps.py` at depth 4.0, floor 3.
-One shared file set: `crates/nvs-stdlib/src/bytes.rs` read, `tests/conformance/core/`
-written. The three are one another's bounds (a needle at each end of the haystack is the
-same scan asked three ways), so a session holding one holds all three.
+**Reconcile the guard-name debt**, which `docs/implementation-plan.md`'s *Open now* names as an open
+item and which blocks the acceptance gate at its first stale name. One shared file set:
+`docs/agent/guard-name-debt.md` and `docs/agent/loop-goal.toml`, with
+`cargo test -p <crate> -- --list` as the authority. Cause 1 (the work landed under a different name)
+is a pure rename in the toml and is the commonest.
 
-- [ ] **`Core\Bytes::startsWith` / `endsWith`** (3 cases each today) — rows
-      `bytes.rs:211` and `bytes.rs:218`, helpers `bytes.rs:619` and `bytes.rs:629`.
-      Spec § 13. The unasked half is the **empty and the over-long needle**, and the
-      degenerate agreement: a needle equal to the subject satisfies both, an empty one
-      satisfies both at every subject including the empty one, and one byte longer than
-      the subject satisfies neither — counted over a sweep rather than shown on a row.
-- [ ] **`Core\Bytes::contains`** (3 cases) — row `bytes.rs:204`, helper `bytes.rs:608`.
-      Spec § 13. `contains` is implied by both of the above, so the case worth writing is
-      the **agreement**: over a sweep of subject/needle pairs, `contains` is true wherever
-      `startsWith` or `endsWith` is, and the pairs where it is true and neither is are
-      exactly the interior occurrences.
-- [ ] **A byte-boundary case for the three together** — `Core\Bytes` is not `Core\Str`,
-      so a needle that is a *suffix of a multi-byte character's octets* matches here where
-      the text member would not. That is the one property that says which of the two
-      classes a program is calling, and no case asks it.
+- [ ] **The five confirmed cause-1 renames**, listed with their real names at
+      `docs/agent/guard-name-debt.md:26-41` — `an_instanceof_narrows_its_operand`,
+      `a_literal_comparison_narrows_its_operand`,
+      `a_fixture_attribute_is_resolved_for_the_cases_that_name_it`,
+      `a_test_with_attribute_expands_to_one_case_per_row`,
+      `an_abandoned_generator_resumes_to_unwind`. Rewrite each in `loop-goal.toml`'s `tests = [...]`
+      and tick it at its `- [ ]` line in the debt file.
+- [ ] **Stage 3's remaining 7**, at `docs/agent/guard-name-debt.md:57-69` — `nvs-ir (control flow)`
+      6 of 7 and `nvs-types (calls and loops)` 2 of 6. Run
+      `cargo test -p nvs-ir -- --list` and `cargo test -p nvs-types -- --list` once each and sort
+      every name into cause 1 (rename), 2 (the check belongs to a `.nvst` suite) or 3 (genuinely
+      unwritten); rename the first group, and record the verdict for the rest in the debt file.
+- [ ] **The rest of the 54, by stage**, from `docs/agent/guard-name-debt.md:53` onward, same three-way
+      sort. Re-derive the count with the loop at `guard-name-debt.md:14-17` before trusting the
+      header — that file says of itself that it is a snapshot, not a source.
 
 ## Backlog
 
-- `crates/nvs-stdlib/src/csv.rs:512`'s `Fault::thrown` is unreachable from source and owed
-  no case — playbook, *Divergences and refusals already pinned*.
-- `[context] modules` in `docs/agent/loop-goal.toml` has no `nvs-stdlib/src/*.rs` pattern.
-- `docs/agent/guard-name-debt.md`: 54 of 156 guard names match nothing `cargo test` runs.
-- `Core\Test`, `Core\Random` and `Core\Time` are the next three thinnest after `Core\Bytes`
-  — `python tools/gaps.py`.
+- `every_refusal_is_a_diagnostic_or_decided` is cause 3 and load-bearing: `python tools/holes.py`
+  still reads 17 standing refusal sites — `docs/agent/guard-name-debt.md:46`.
+- `nvs-stdlib (the assertion roster)` names a Rust test tree that does not exist; the roster was
+  pinned in conformance cases — decide which tree owns it, `docs/agent/guard-name-debt.md:42`.
+- `Core\Bytes` depth is spent: `contains`/`startsWith`/`endsWith` now carry the octet/character
+  boundary and the mutual-derivation identity as well as the `indexOf`/`slice`/`compare` ones.
+- `crates/nvs-stdlib/src/csv.rs:512`'s `thrown` is unreachable from source and owes no case — the
+  playbook bullet under *Writing a test case* owns why.
+- `orient.py`'s `[context] modules` still has no `nvs-stdlib/src/*.rs` pattern, so no `Core` class's
+  module line is ever printed; three handoffs have now reported it.

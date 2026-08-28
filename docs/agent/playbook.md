@@ -1952,6 +1952,16 @@ is why" — is this file.
   of them can hold a percent-escape — a scheme is `ALPHA *( ALPHA / DIGIT / "+" / "-" /
   "." )` and a port is digits — which is what a denominator in a swept `Core\Uri` case
   has to say out loud.
+- **`gaps.py`'s depth number counts cases per member, not questions per member, and at the top of
+  its table those have come apart.** A handoff item derived from that ranking can name an "unasked
+  half" that is already a landed case: this session's own group opened with `Core\Bytes::startsWith`
+  / `endsWith` and *"the empty and the over-long needle, counted over a sweep"*, which is
+  `bytes-both-predicates-hold-the-same-bound-on-the-needles-length.nvst` verbatim, landed 47 commits
+  earlier and still showing as "3 cases". Checking cost one `grep -rl 'Core\\X::member' tests/` plus
+  one `cat`, and the same check then disqualified the thinnest members of `Core\Test`, `Core\Random`,
+  `Core\Time` and `Core\Regex` in turn — `quote` at 2 cases already has a full escape-set sweep *and*
+  a `preg_quote` differential. So read the candidate member's existing case *bodies* before writing,
+  and prefer a question no existing case's `--TEST--` line states over a member with a low count.
 
 ## Splitting a file that got too big
 
