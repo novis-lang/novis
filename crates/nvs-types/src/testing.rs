@@ -25,6 +25,13 @@
 //! names and types together, so the help text and the check cannot disagree
 //! about what an option is.
 //!
+//! The one rule that roster *cannot* state is a dependency between two of its
+//! fields, every field being admitted on its own and all of them optional:
+//! § 20's `retries:` charges a written `because:`, and
+//! [`check_retries_state_a_reason`] is where that is refused
+//! ([`code::E_TEST_RETRIES_WITHOUT_REASON`]), once the payload has been
+//! walked rather than at either field.
+//!
 //! Two of § 1's compile errors fall out of the types rather than needing a
 //! rule of their own: `#[Test(skip: true)]` is a `bool` where `skip` declares
 //! a `string`, which is § 20's "a skip states a reason" said by the type, and
@@ -316,6 +323,39 @@ pub(crate) fn check_payload(fields: &[ObjectLiteralField], ctx: &Ctx<'_>, env: &
         }
         seen.push(name);
     }
+    check_retries_state_a_reason(fields, env);
+}
+
+/// § 20's other half of the retry bullet: `retries:` requires `because:`.
+///
+/// The roster above cannot say this. An options bag admits each field on its
+/// own and every one of them is optional, which is exactly what lets the bare
+/// `#[Test]` parse — so a *dependency* between two of them is a rule about the
+/// payload as a whole and is checked once it has been walked. It is the one
+/// § 20 bullet that is worth a diagnostic rather than a convention: a retry is
+/// sometimes the right engineering call and always a claim about the world,
+/// and the reason is what a reader of the attribute has in place of the run
+/// that produced it.
+fn check_retries_state_a_reason(fields: &[ObjectLiteralField], env: &mut Env<'_>) {
+    let named = |option: &str| {
+        fields
+            .iter()
+            .find(|field| span_text(env.src, field.name) == option)
+    };
+    let (Some(retries), None) = (named("retries"), named("because")) else {
+        return;
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_TEST_RETRIES_WITHOUT_REASON,
+            "`retries` is given with no `because`",
+        )
+        .with_primary(retries.span, "retried for no stated reason")
+        .with_help(
+            "ADR 0079 § 20 reports a retried test as flaky rather than green, and charges a \
+             written reason for it: `#[Test(retries: 2, because: \"real DNS\")]`",
+        ),
+    );
 }
 
 /// The roster rendered for a help text — `skip: string, at: string, …` — so a

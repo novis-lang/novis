@@ -1661,6 +1661,16 @@ pub mod code {
     /// option written twice already draws, and the fifth (`skip: true`) is the
     /// option roster's own type check.
     pub const E_TEST_METHOD_SHAPE: Code = Code::new("E0733");
+    /// A `#[Test(retries: n)]` with no `because:` beside it.
+    ///
+    /// ADR 0079 § 20 grants retries and charges a written reason for them in
+    /// the same sentence: a retry that nobody had to justify is how a suite
+    /// stops noticing that it is unreliable, and the reason is what a reader
+    /// of the attribute has instead of the run that produced it. It is a
+    /// separate code from the option roster's own type check because nothing
+    /// about `retries: 2` is ill-typed — the mistake is the option that is
+    /// *absent*, which is the one thing an all-optional bag cannot say.
+    pub const E_TEST_RETRIES_WITHOUT_REASON: Code = Code::new("E0734");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

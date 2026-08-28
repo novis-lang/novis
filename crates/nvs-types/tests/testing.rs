@@ -50,7 +50,11 @@ fn a_class_with_no_test_method_has_no_row_at_all() {
 #[test]
 fn each_option_is_folded_to_the_constant_a_parameter_default_folds_to() {
     let (_, options) = tests_of(
-        "  #[Test(skip: \"blocked on Core\\\\Db, M8\", seed: 7, server: true, retries: 2)]\n\
+        // § 20's `because:` rides along because a `retries:` without one is
+        // refused, which is `check_retries_state_a_reason`'s own rule and is
+        // pinned by the `.nvst` alongside.
+        "  #[Test(skip: \"blocked on Core\\\\Db, M8\", seed: 7, server: true, retries: 2, \
+         because: \"real DNS\")]\n\
          \n  public function itPersists(): void {}\n",
     );
     assert_eq!(
@@ -63,6 +67,7 @@ fn each_option_is_folded_to_the_constant_a_parameter_default_folds_to() {
             ("seed".to_owned(), ConstArg::Int(7)),
             ("server".to_owned(), ConstArg::Bool(true)),
             ("retries".to_owned(), ConstArg::Int(2)),
+            ("because".to_owned(), ConstArg::Str("real DNS".to_owned())),
         ]
     );
 }
