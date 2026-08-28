@@ -71,8 +71,7 @@ class Chunkings
         int $len = Core\Str::length($message) as int;
         bytes $whole = Core\Hash::of($message, $digest);
         int $agree = 0;
-        int $width = 1;
-        for ($width = 1; $width <= $len; $width = $width + 1) {
+        for (int $width = 1; $width <= $len; $width = $width + 1) {
             var $stream = Core\Hash::stream($digest);
             int $at = 0;
             for ($at = 0; $at < $len; $at = $at + $width) {

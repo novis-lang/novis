@@ -58,9 +58,8 @@ echo "elem:  ", $aa["k"], " ", $ab["k"], "\n";
 int $i = 0;
 string $post = "";
 for ($i = 0; $i < 3; $i++) { $post = $post . ($i as string); }
-int $j = 0;
 string $pre = "";
-for ($j = 0; $j < 3; ++$j) { $pre = $pre . ($j as string); }
+for (int $j = 0; $j < 3; ++$j) { $pre = $pre . ($j as string); }
 if ($post == $pre) { $agree = $agree + 1; }
 echo "for:   ", $post, " ", $pre, "\n";
 echo "agree: ", $agree, " of 6\n";

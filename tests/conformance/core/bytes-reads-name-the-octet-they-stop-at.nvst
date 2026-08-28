@@ -117,8 +117,7 @@ echo Buf::at($quad, $least), "\n";
 // Counted: what makes those two ends the same bound is that the two spellings
 // name one octet, so all four indices agree with their negatives.
 int $same = 0;
-int $i = 0;
-for ($i = 0; $i < 4; $i = $i + 1) {
+for (int $i = 0; $i < 4; $i = $i + 1) {
     if (Core\Bytes::at($quad, $i) == Core\Bytes::at($quad, $i - 4)) {
         $same = $same + 1;
     }
@@ -136,8 +135,7 @@ echo Buf::fill(2, 256), "\n";
 // Counted: every value the bound admits is one octet `Core\Bytes::at` reads
 // back, which is what makes 255 the last one rather than an arbitrary cut.
 int $held = 0;
-int $v = 0;
-for ($v = 0; $v < 256; $v = $v + 1) {
+for (int $v = 0; $v < 256; $v = $v + 1) {
     if (Core\Bytes::at(Core\Bytes::fill(1, $v as uint), 0) == $v as uint) {
         $held = $held + 1;
     }

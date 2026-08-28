@@ -10,10 +10,9 @@ class Points {
     // count that could be read as an off-by-one.
     public static function marks(int $from, int $to): string {
         string $out = "";
-        int $p = 0;
         string $single = "-";
         string $list = "-";
-        for ($p = $from; $p <= $to; $p = $p + 1) {
+        for (int $p = $from; $p <= $to; $p = $p + 1) {
             $single = "-";
             $list = "-";
             try {

@@ -51,8 +51,7 @@ echo "chars ", $chars, " octets ", $octets, " hex ", Core\Encoding::toHex($buffe
 //    plausible on the `a` row, where the two units still coincide.
 int $placed = 0;
 int $differ = 0;
-int $c = 0;
-for ($c = 0; $c < $chars; $c = $c + 1) {
+for (int $c = 0; $c < $chars; $c = $c + 1) {
     string $one = Core\Str::slice($subject, $c, 1);
     var $charAt = Core\Str::indexOf($subject, $one);
     var $byteAt = Core\Bytes::indexOf($buffer, $one as bytes);
@@ -77,10 +76,8 @@ echo "placed ", $placed, "/", $chars, " differing offsets ", $differ, "\n";
 int $aligned = 0;
 int $agreed = 0;
 int $held = 0;
-int $start = 0;
-int $len = 0;
-for ($start = 0; $start <= $chars; $start = $start + 1) {
-    for ($len = 0; $len <= $chars - $start; $len = $len + 1) {
+for (int $start = 0; $start <= $chars; $start = $start + 1) {
+    for (int $len = 0; $len <= $chars - $start; $len = $len + 1) {
         string $needle = Core\Str::slice($subject, $start, $len);
         bytes $raw = $needle as bytes;
         $aligned = $aligned + 1;
@@ -118,12 +115,8 @@ int $windows = 0;
 int $contained = 0;
 int $namable = 0;
 int $matched = 0;
-int $from = 0;
-int $width = 0;
-int $cs = 0;
-int $cl = 0;
-for ($from = 0; $from < $octets; $from = $from + 1) {
-    for ($width = 1; $width <= $octets - $from; $width = $width + 1) {
+for (int $from = 0; $from < $octets; $from = $from + 1) {
+    for (int $width = 1; $width <= $octets - $from; $width = $width + 1) {
         bytes $window = Core\Bytes::slice($buffer, $from, $width);
         $windows = $windows + 1;
         if (Core\Bytes::contains($buffer, $window)) {
@@ -136,8 +129,8 @@ for ($from = 0; $from < $octets; $from = $from + 1) {
             // equalling `namable` is what makes "the two domains meet exactly
             // at the character boundaries" a count rather than a claim.
             bool $found = false;
-            for ($cs = 0; $cs <= $chars; $cs = $cs + 1) {
-                for ($cl = 1; $cl <= $chars - $cs; $cl = $cl + 1) {
+            for (int $cs = 0; $cs <= $chars; $cs = $cs + 1) {
+                for (int $cl = 1; $cl <= $chars - $cs; $cl = $cl + 1) {
                     if (Core\Bytes::compare(Core\Str::slice($subject, $cs, $cl) as bytes, $window) == 0) {
                         $found = true;
                     }

@@ -114,10 +114,9 @@ echo $anti, " of ", $n * $n, "\n";
 //    can show it.
 int $triples = 0;
 int $transitive = 0;
-int $k = 0;
 for ($i = 0; $i < $n; $i = $i + 1) {
     for ($j = 0; $j < $n; $j = $j + 1) {
-        for ($k = 0; $k < $n; $k = $k + 1) {
+        for (int $k = 0; $k < $n; $k = $k + 1) {
             $triples = $triples + 1;
             if (Ord::le(Ord::bytes($table[$i], $table[$j])) == "y" && Ord::le(Ord::bytes($table[$j], $table[$k])) == "y") {
                 if (Ord::le(Ord::bytes($table[$i], $table[$k])) == "y") {

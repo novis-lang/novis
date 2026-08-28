@@ -17,10 +17,8 @@ echo "out=", $out, " i=", $i, "\n";
 
 // The inner `break` leaves only the inner loop.
 var $cells = "";
-var $r = 0;
-var $c = 0;
-for ($r = 0; $r < 3; $r += 1) {
-    for ($c = 0; $c < 3; $c += 1) {
+for (var $r = 0; $r < 3; $r += 1) {
+    for (var $c = 0; $c < 3; $c += 1) {
         if ($c == 2) {
             break;
         }

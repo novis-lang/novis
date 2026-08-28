@@ -9,14 +9,13 @@
 // actually inverse, and is the disagreement between them *exactly* the two
 // bytes the module's own table names, rather than those two plus one nobody
 // wrote a row for.
-int $b = 0;
 int $componentPair = 0;
 int $formPair = 0;
 int $formReadsComponent = 0;
 int $componentReadsForm = 0;
 int $sameSpelling = 0;
 string $differ = "";
-for ($b = 0; $b < 128; $b = $b + 1) {
+for (int $b = 0; $b < 128; $b = $b + 1) {
     var $c = Core\Str::fromCodePoint($b as uint);
     var $ec = Core\Uri::encodeComponent($c);
     var $ef = Core\Uri::encodeFormValue($c);

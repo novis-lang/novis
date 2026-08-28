@@ -11,8 +11,6 @@ Core\Random::float's half-open [0, 1) is asserted at both ends — 4000 draws fi
 // generator drawing from any sub-interval, so what is counted here is *reach*
 // — the two ends named together, which is what makes this a bound and not a
 // range check.
-int $k = 0;
-int $i = 0;
 int $drawn = 0;
 int $inside = 0;
 int $filled = 0;
@@ -25,11 +23,11 @@ float $highest = 0.0;
 // matter: `[0.0, 0.1)` is only reachable if the interval is closed at the
 // bottom, and `[0.9, 1.0)` only if it runs all the way up to the value it
 // must never answer.
-for ($k = 0; $k < 10; $k = $k + 1) {
+for (int $k = 0; $k < 10; $k = $k + 1) {
     float $lo = $k * 0.1;
     float $hi = $lo + 0.1;
     int $hits = 0;
-    for ($i = 0; $i < 400; $i = $i + 1) {
+    for (int $i = 0; $i < 400; $i = $i + 1) {
         var $f = Core\Random::float();
         $drawn = $drawn + 1;
         $inside = $inside + ((($f >= 0.0) && ($f < 1.0)) ? 1 : 0);

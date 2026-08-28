@@ -21,11 +21,9 @@ array<bytes> $parts = [];
 bytes $sep = "--" as bytes;
 int $sized = 0;
 int $agreed = 0;
-int $n = 0;
-for ($n = 0; $n < 9; $n = $n + 1) {
+for (int $n = 0; $n < 9; $n = $n + 1) {
     int $sum = 0;
-    int $k = 0;
-    for ($k = 0; $k < $n; $k = $k + 1) {
+    for (int $k = 0; $k < $n; $k = $k + 1) {
         $sum = $sum + $k;
     }
     int $gaps = 0;

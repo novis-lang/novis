@@ -88,8 +88,7 @@ echo Say::hex("0xff"), "\n";
 // the message names that index every time — a decoder reporting offset 0 for
 // everything still prints plausibly against any single row above.
 int $named = 0;
-int $k = 0;
-for ($k = 0; $k < 8; $k = $k + 1) {
+for (int $k = 0; $k < 8; $k = $k + 1) {
     var $spoilt = Core\Str::slice("YWJjZAYW", 0, $k) . "*" . Core\Str::slice("YWJjZAYW", $k + 1, null);
     if (Core\Str::contains(Say::b64($spoilt), "at offset " . ($k as string))) {
         $named = $named + 1;

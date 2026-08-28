@@ -81,8 +81,7 @@ int $read = 0;
 int $same = 0;
 int $narrow = 0;
 int $agreed = 0;
-int $b = 0;
-for ($b = 0; $b < 256; $b = $b + 1) {
+for (int $b = 0; $b < 256; $b = $b + 1) {
     bytes $octet = Core\Bytes::fill(1, $b as uint);
     if (Core\Encoding::isValidText($octet, Core\Charset::Latin1)) {
         $read = $read + 1;
@@ -115,8 +114,7 @@ echo $agreed, " of 256\n";
 // two messages have to agree about, since a caller uses one to index what it
 // handed the other. Eight positions in turn, each side.
 int $encNamed = 0;
-int $k = 0;
-for ($k = 0; $k < 8; $k = $k + 1) {
+for (int $k = 0; $k < 8; $k = $k + 1) {
     var $spoilt = Core\Str::slice("aaaaaaaa", 0, $k) . "é" . Core\Str::slice("aaaaaaaa", $k + 1, null);
     try {
         Core\Encoding::encodeText($spoilt, Core\Charset::Ascii);
@@ -129,8 +127,7 @@ for ($k = 0; $k < 8; $k = $k + 1) {
 echo $encNamed, " of 8\n";
 
 int $decNamed = 0;
-int $j = 0;
-for ($j = 0; $j < 8; $j = $j + 1) {
+for (int $j = 0; $j < 8; $j = $j + 1) {
     var $raw = Core\Str::slice("6d6d6d6d6d6d6d6d", 0, $j * 2) . "ff" . Core\Str::slice("6d6d6d6d6d6d6d6d", $j * 2 + 2, null);
     try {
         Core\Encoding::decodeText(Core\Encoding::fromHex($raw), Core\Charset::Utf8);

@@ -90,8 +90,7 @@ echo Core\Str::join(Core\Str::chunk("aäb", 2), "|"), "\n";
 array<string> $ones = Core\Str::chunk($s, 1);
 array<string> $units = Core\Str::graphemes($s);
 int $agree = 0;
-int $u = 0;
-for ($u = 0; $u < $n; $u = $u + 1) {
+for (int $u = 0; $u < $n; $u = $u + 1) {
     if ($ones[$u as string] == $units[$u as string]) {
         $agree = $agree + 1;
     }
@@ -106,9 +105,8 @@ if ((Core\Arr::count($whole) as int == 1) && ($whole["0"] == $s)) {
 // member parts company with `split` — asserted across the sweep rather than at
 // one size, since "no chunks" is the answer a member that special-cased the
 // empty subject at size `1` alone would also print.
-int $emptySize = 0;
 int $emptied = 0;
-for ($emptySize = 1; $emptySize <= 7; $emptySize = $emptySize + 1) {
+for (int $emptySize = 1; $emptySize <= 7; $emptySize = $emptySize + 1) {
     if (Core\Arr::count(Core\Str::chunk("", $emptySize as uint)) as int == 0) {
         $emptied = $emptied + 1;
     }

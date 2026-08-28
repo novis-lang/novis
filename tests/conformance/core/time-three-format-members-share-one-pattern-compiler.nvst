@@ -89,8 +89,7 @@ string $alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 int $taken = 0;
 int $refused = 0;
 int $named = 0;
-int $n = 0;
-for ($n = 0; $n < 52; $n = $n + 1) {
+for (int $n = 0; $n < 52; $n = $n + 1) {
     var $letter = Core\Str::at($alphabet, $n);
     try {
         $dt->format($letter);

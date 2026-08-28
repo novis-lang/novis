@@ -67,12 +67,11 @@ echo "rows ", $rows, " product ", $product, " nonempty ", $built, "\n";
 // pins the *order* of the runs as well as their number: one more repetition is
 // the previous one with the subject joined onto its end. `Core\Bytes::join`
 // over a two-element array is the only concatenation `bytes` has.
-int $n = 0;
 int $steps = 0;
 int $agrees = 0;
 foreach ($subjects as string $rh) {
     bytes $r = Core\Encoding::fromHex($rh);
-    for ($n = 1; $n <= 5; $n = $n + 1) {
+    for (int $n = 1; $n <= 5; $n = $n + 1) {
         array<bytes> $two = [Core\Bytes::repeat($r, ($n - 1) as uint), $r];
         $steps = $steps + 1;
         if (Core\Bytes::compare(Core\Bytes::repeat($r, $n as uint), Core\Bytes::join($two)) == 0) {

@@ -43,8 +43,7 @@ array<decimal> $all = [$edge, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 
 int $answered = 0;
 int $refused = 0;
 int $summed = 0;
-int $c = 1;
-for ($c = 1; $c <= 14; $c = $c + 1) {
+for (int $c = 1; $c <= 14; $c = $c + 1) {
     array<decimal> $rows = Core\Arr::slice($all, 0, $c);
     if (Core\Arr::sum($rows) == $edge) {
         $summed = $summed + 1;

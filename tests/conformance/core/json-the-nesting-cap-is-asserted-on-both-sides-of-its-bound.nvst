@@ -12,8 +12,7 @@ Core\Json::decode's maxDepth counts PHP's way, holds at 512 and refuses 513, and
 // Swept rather than written out: at a cap of 4, exactly the nestings 1, 2 and
 // 3 are accepted, and an off-by-one in either direction moves this count.
 int $accepted = 0;
-int $d = 1;
-for ($d = 1; $d <= 8; $d = $d + 1) {
+for (int $d = 1; $d <= 8; $d = $d + 1) {
     var $doc = Core\Str::repeat("[", $d as uint) . "1" . Core\Str::repeat("]", $d as uint);
     bool $ok = true;
     try {

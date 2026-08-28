@@ -22,8 +22,7 @@ echo "tiers=", Grade::tier("A"), " ", Grade::tier("B"), " ", Grade::tier("C"), "
 // `default` written in the middle still runs last — every label is tried
 // first — and still falls through into the case written after it.
 var $log = "";
-int $i = 0;
-for ($i = 0; $i < 4; $i += 1) {
+for (int $i = 0; $i < 4; $i += 1) {
     switch ($i) {
         case 0:
             $log .= "zero ";

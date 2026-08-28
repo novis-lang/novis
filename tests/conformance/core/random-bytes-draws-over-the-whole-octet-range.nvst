@@ -17,7 +17,6 @@ Core\Random::bytes draws over the whole octet range rather than over any text su
 // exactly that octet's own two digits and nothing straddles a boundary; ADR
 // 0009 § 3 is why the comparison happens in hex at all rather than by reading
 // the buffer as a `string`.
-int $i = 0;
 int $sized = 0;
 int $distinct = 0;
 int $highBit = 0;
@@ -26,7 +25,7 @@ string $seen = ";";
 array<string> $tops = ["8", "9", "a", "b", "c", "d", "e", "f"];
 uint $one = 1;
 
-for ($i = 0; $i < 6000; $i = $i + 1) {
+for (int $i = 0; $i < 6000; $i = $i + 1) {
     string $pair = Core\Encoding::toHex(Core\Random::bytes($one));
     $sized = $sized + ((Core\Str::length($pair) == 2) ? 1 : 0);
 

@@ -71,10 +71,8 @@ int $viaStarts = 0;
 int $viaEnds = 0;
 int $endsMatchStarts = 0;
 int $present = 0;
-int $start = 0;
-int $len = 0;
-for ($start = 0; $start <= $total; $start = $start + 1) {
-    for ($len = 0; $len <= $total - $start; $len = $len + 1) {
+for (int $start = 0; $start <= $total; $start = $start + 1) {
+    for (int $len = 0; $len <= $total - $start; $len = $len + 1) {
         bytes $window = Core\Bytes::slice($subject, $start, $len);
         bytes $near = Core\Bytes::join([$window, $absent], $empty);
         $needles = $needles + 2;

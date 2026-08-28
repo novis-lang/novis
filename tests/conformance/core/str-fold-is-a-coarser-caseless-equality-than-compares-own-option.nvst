@@ -22,15 +22,13 @@ array<string> $table = [
 ];
 
 int $n = Core\Arr::count($table) as int;
-int $i = 0;
-int $j = 0;
 int $pairs = 0;
 int $optionEqual = 0;   // compare($a, $b, {caseInsensitive: true}) == 0
 int $foldEqual = 0;     // compare(fold($a), fold($b)) == 0
 int $escapes = 0;       // the option said equal, folding did not — must be 0
 int $coarser = 0;       // folding said equal, the option did not
-for ($i = 0; $i < $n; $i = $i + 1) {
-    for ($j = 0; $j < $n; $j = $j + 1) {
+for (int $i = 0; $i < $n; $i = $i + 1) {
+    for (int $j = 0; $j < $n; $j = $j + 1) {
         string $a = $table[$i as string];
         string $b = $table[$j as string];
         $pairs = $pairs + 1;

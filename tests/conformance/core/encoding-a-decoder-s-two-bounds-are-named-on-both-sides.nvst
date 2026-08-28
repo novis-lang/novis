@@ -48,8 +48,7 @@ final class Reads {
 // boundaries in one pass.
 string $readable = "";
 string $refused = "";
-int $k = 0;
-for ($k = 1; $k < 9; $k = $k + 1) {
+for (int $k = 1; $k < 9; $k = $k + 1) {
     string $group = Core\Str::repeat("A", $k as uint);
     if (Reads::base32($group)) {
         $readable = $readable . " " . ($k as string);
@@ -66,8 +65,7 @@ echo "base32 refuses", $refused, "\n";
 // boundary — this form is unpadded, so a trailing symbol has nowhere to hide.
 string $urlReads = "";
 string $urlRefuses = "";
-int $m = 0;
-for ($m = 1; $m < 6; $m = $m + 1) {
+for (int $m = 1; $m < 6; $m = $m + 1) {
     string $part = Core\Str::repeat("A", $m as uint);
     if (Reads::base64Url($part)) {
         $urlReads = $urlReads . " " . ($m as string);
@@ -85,8 +83,7 @@ echo "base64url refuses", $urlRefuses, "\n";
 // admits, written the standard way.
 string $stdReads = "";
 string $stdRefuses = "";
-int $n = 0;
-for ($n = 1; $n < 9; $n = $n + 1) {
+for (int $n = 1; $n < 9; $n = $n + 1) {
     string $bare = Core\Str::repeat("A", $n as uint);
     if (Reads::base64($bare)) {
         $stdReads = $stdReads . " " . ($n as string);
@@ -110,8 +107,7 @@ echo Core\Encoding::toHex(Core\Encoding::fromBase64("AA==")), " ",
 string $alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 int $pairOk = 0;
 string $pairNames = "";
-int $i = 0;
-for ($i = 0; $i < 64; $i = $i + 1) {
+for (int $i = 0; $i < 64; $i = $i + 1) {
     string $symbol = Core\Str::slice($alphabet, $i, 1);
     if (Reads::base64("A" . $symbol . "==")) {
         $pairOk = $pairOk + 1;
@@ -125,8 +121,7 @@ echo "two-symbol groups ", $pairOk, " of 64: ", $pairNames, "\n";
 // every fourth position — the same rule, one bound over.
 int $tripleOk = 0;
 string $tripleNames = "";
-int $j = 0;
-for ($j = 0; $j < 64; $j = $j + 1) {
+for (int $j = 0; $j < 64; $j = $j + 1) {
     string $last = Core\Str::slice($alphabet, $j, 1);
     if (Reads::base64("AA" . $last . "=")) {
         $tripleOk = $tripleOk + 1;
@@ -142,8 +137,7 @@ echo "three-symbol groups ", $tripleOk, " of 64: ", $tripleNames, "\n";
 string $base32Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 int $b32Ok = 0;
 string $b32Names = "";
-int $p = 0;
-for ($p = 0; $p < 32; $p = $p + 1) {
+for (int $p = 0; $p < 32; $p = $p + 1) {
     string $tail = Core\Str::slice($base32Alphabet, $p, 1);
     if (Reads::base32("A" . $tail)) {
         $b32Ok = $b32Ok + 1;

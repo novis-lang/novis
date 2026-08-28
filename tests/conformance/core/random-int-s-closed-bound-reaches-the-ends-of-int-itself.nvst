@@ -53,8 +53,7 @@ echo "low pair ", $lowPair, " both ", (($sawLo > 0) && ($sawLoUp > 0)) ? "y" : "
 int $highPair = 0;
 int $sawHi = 0;
 int $sawHiDown = 0;
-int $j = 0;
-for ($j = 0; $j < 48; $j = $j + 1) {
+for (int $j = 0; $j < 48; $j = $j + 1) {
     int $h = Core\Random::int($hi - 1, $hi);
     $highPair = $highPair + ((($h == $hi) || ($h == $hi - 1)) ? 1 : 0);
     $sawHi = $sawHi + (($h == $hi) ? 1 : 0);
