@@ -1,0 +1,92 @@
+--TEST--
+Core\Regex::replaceWith hands its callback a whole Match whose offsets index the original subject, and calls it exactly once per replacement it performs — ADR 0056 § 5
+--FILE--
+<?nvs
+// § 5's `replaceWith` row. `regex-replace-with-hands-each-match-to-a-callback`
+// pins what the member answers; this one pins what the *callback* is handed
+// and how often it is handed anything, which is the half a returned string
+// cannot show on its own.
+
+// The three `Match` members are all readable from inside the callback, on the
+// same match: the text, the grapheme offset, and the groups by name and by
+// number, and the tally is the pattern's own — one whole match, three numbered
+// groups and one name, which is what `groups` counts.
+string $log = Core\Regex::replaceWith("2026-08-24 and 1999-12-31", "(?<y>\\d{4})-(\\d{2})-(\\d{2})",
+    fn (Core\Regex\Match $m): string => "<" . ($m->offset() as string) . ":" . $m->text() . ":" . ($m->group("y") ?? "?") . ":" . ($m->group(2) ?? "?") . ":" . (Core\Arr::count($m->groups()) as string) . ">");
+echo $log, "\n";
+
+// The invariant the member's "every match is found before the first call"
+// rests on, counted rather than read off a line: an offset indexes the
+// *original* subject, not the output built so far. Each replacement below is
+// much longer than the match it replaces, so an implementation that reported
+// an offset into its own buffer would drift after the first row and still
+// print a plausible string. `Core\Str::at` over the captured subject is what
+// checks it, and it is a grapheme index on both sides.
+final class Seen {
+    public int $agreed = 0;
+    public int $calls = 0;
+}
+var $tally = new Seen();
+string $subject = "héllo 42 wörld 7 ☃ 1234";
+string $widened = Core\Regex::replaceWith($subject, "\\d+", fn (Core\Regex\Match $m): string => {
+    $tally->calls = $tally->calls + 1;
+    if (Core\Str::at($subject, $m->offset()) == Core\Str::at($m->text(), 0)) {
+        $tally->agreed = $tally->agreed + 1;
+    }
+    return "(a much longer replacement than " . $m->text() . ")";
+});
+echo $widened, "\n";
+echo $tally->agreed, " of ", $tally->calls, " offsets index the original subject\n";
+
+// How often the callback runs, on both sides of the `limit` bound. It is
+// called once per replacement *performed* — never for a match beyond the
+// limit, and never at all at `0` — so the tally is `min(limit, 3)` and a
+// limit past the match count does not reach for a fourth match.
+array<int> $limits = [0, 1, 2, 3, 9];
+foreach ($limits as int $limit) {
+    var $counted = new Seen();
+    string $answer = Core\Regex::replaceWith("a1b2c3d", "\\d", fn (Core\Regex\Match $m): string => {
+        $counted->calls = $counted->calls + 1;
+        return "X";
+    }, {limit: $limit as uint});
+    echo "limit ", $limit, ": ", $answer, ", ", $counted->calls, " call(s)\n";
+}
+
+// A callback answering the empty string is a deletion, and it is the same
+// answer as a `replace` with an empty template — the member does not treat an
+// empty answer as "leave this match alone".
+echo "[", Core\Regex::replaceWith("a1b22c", "\\d+", fn (Core\Regex\Match $m): string => ""), "]\n";
+echo "[", Core\Regex::replace("a1b22c", "\\d+", ""), "]\n";
+
+// A pattern that matches nothing calls the callback zero times, and the
+// subject comes back as itself rather than as a rebuilt copy that happens to
+// be equal.
+var $never = new Seen();
+string $untouched = Core\Regex::replaceWith("no digits here", "\\d+", fn (Core\Regex\Match $m): string => {
+    $never->calls = $never->calls + 1;
+    return "!";
+});
+echo $untouched, ", ", $never->calls, " call(s)\n";
+
+// The other edge of "once per match": a zero-width pattern matches at every
+// position including past the last character, so the empty pattern over a
+// three-character subject is four calls and four insertions.
+var $empty = new Seen();
+string $woven = Core\Regex::replaceWith("abc", "", fn (Core\Regex\Match $m): string => {
+    $empty->calls = $empty->calls + 1;
+    return "-";
+});
+echo $woven, ", ", $empty->calls, " call(s)\n";
+--EXPECT--
+<0:2026-08-24:2026:08:5> and <15:1999-12-31:1999:12:5>
+héllo (a much longer replacement than 42) wörld (a much longer replacement than 7) ☃ (a much longer replacement than 1234)
+3 of 3 offsets index the original subject
+limit 0: a1b2c3d, 0 call(s)
+limit 1: aXb2c3d, 1 call(s)
+limit 2: aXbXc3d, 2 call(s)
+limit 3: aXbXcXd, 3 call(s)
+limit 9: aXbXcXd, 3 call(s)
+[abc]
+[abc]
+no digits here, 0 call(s)
+-a-b-c-, 4 call(s)
