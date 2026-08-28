@@ -1,0 +1,107 @@
+--TEST--
+`Core\ObjectSet<T>`'s `add`, `remove`, `has`, `count`, `isEmpty` and `clear` are one invariant rather than six members: after every mutation the count, the iteration, the membership sweep and `isEmpty` still agree — docs/spec/01-core-library.md § 9
+--FILE--
+<?nvs
+final class Tag {
+    public function constructor(public readonly string $name) {}
+}
+
+final class Check {
+    // The four answers a set gives about its own size, asked together. A
+    // member that updated the store but not its count — or the count but not
+    // the chain the iteration walks — disagrees here and nowhere else.
+    public static function agrees(Core\ObjectSet<Tag> $s, array<Tag> $universe): bool {
+        uint $one = 1;
+
+        uint $walked = 0;
+        foreach ($s as Tag $member) {
+            $walked = $walked + $one;
+        }
+        if ($walked != $s->count()) {
+            return false;
+        }
+
+        uint $found = 0;
+        foreach ($universe as Tag $candidate) {
+            if ($s->has($candidate)) {
+                $found = $found + $one;
+            }
+        }
+        if ($found != $s->count()) {
+            return false;
+        }
+
+        return $s->isEmpty() == ($s->count() == 0);
+    }
+}
+
+array<Tag> $universe = [
+    new Tag("t0"), new Tag("t1"), new Tag("t2"),
+    new Tag("t3"), new Tag("t4"), new Tag("t5"),
+];
+
+// A scripted run over the three mutators, written so each one meets its own
+// degenerate case: `add` of a value already held, `remove` of one never held,
+// `clear` of a set that is already empty, and an `add` after a `clear` — the
+// step that says a cleared set is a usable set and not a spent one.
+array<string> $kind = [
+    "add", "add", "add", "add", "rem", "rem",
+    "add", "clear", "add", "rem", "clear", "clear",
+];
+array<int> $which = [0, 1, 2, 1, 0, 5, 3, 0, 4, 4, 0, 0];
+
+Core\ObjectSet<Tag> $set = new Core\ObjectSet<Tag>();
+int $ok = 0;
+int $step = 0;
+string $trail = "";
+foreach ($kind as string $op) {
+    int $at = $which[$step as string];
+    if ($op == "add") {
+        $set->add($universe[$at as string]);
+    }
+    if ($op == "rem") {
+        $set->remove($universe[$at as string]);
+    }
+    if ($op == "clear") {
+        $set->clear();
+    }
+    if (Check::agrees($set, $universe)) {
+        $ok = $ok + 1;
+    }
+    $trail = $trail . ($set->count() as string) . ",";
+    $step = $step + 1;
+}
+echo $ok, "/12\n";
+echo $trail, "\n";
+
+// `clear` is `remove` over every element and nothing else: two sets built the
+// same way, emptied the two ways, end in the same state — which is spelled
+// with the algebra, since two collections are two objects (ADR 0090 § 4).
+Core\ObjectSet<Tag> $cleared = new Core\ObjectSet<Tag>();
+Core\ObjectSet<Tag> $emptied = new Core\ObjectSet<Tag>();
+foreach ($universe as Tag $tag) {
+    $cleared->add($tag);
+    $emptied->add($tag);
+}
+$cleared->clear();
+foreach ($universe as Tag $each) {
+    $emptied->remove($each);
+}
+echo $cleared->count(), " ", $emptied->count(), " ", $cleared->union($emptied)->count(), "\n";
+echo Check::agrees($cleared, $universe) ? "agrees" : "differs", " ", Check::agrees($emptied, $universe) ? "agrees" : "differs", "\n";
+
+// Both are usable again, and insertion order after a `clear` starts over
+// rather than resuming where the first fill left off.
+$cleared->add($universe[3 as string]);
+$cleared->add($universe[0 as string]);
+string $order = "";
+foreach ($cleared as Tag $again) {
+    $order = $order . $again->name . ",";
+}
+echo $order, "\n";
+--EXPECT--
+12/12
+1,2,3,3,2,2,3,0,1,0,0,0,
+0 0 0
+agrees agrees
+t3,t0,
