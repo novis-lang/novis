@@ -1,0 +1,133 @@
+--TEST--
+a `#[Test]` or `#[Fixture]` parameter is resolved against the class's fixtures by type, or refused where it is written, ADR 0079 § 8
+--FILE--
+<?nvs
+// ADR 0079 § 8 resolves a parameter **by type, checked while compiling**, "so
+// an unsatisfiable parameter is a diagnostic rather than a null at runtime".
+// The accepted shapes are written first, so a position that stops being
+// accepted fails there rather than as a missing refusal.
+use Core\Test;
+use Core\Test\Fixture;
+
+final class Schema {}
+final class Widget {}
+final class Cache {}
+
+final class AcceptedTest {
+    #[Fixture]
+    public static function schema(): Schema {
+        return new Schema();
+    }
+
+    // § 8's last sentence: a fixture's own fixture parameters resolve the same
+    // way, so this one is built from the one above it.
+    #[Fixture]
+    public static function cache(Schema $schema): Cache {
+        return new Cache();
+    }
+
+    // Resolution is by type and not by name: the parameter is `$anything`.
+    #[Test]
+    public function itTakesWhatTheRosterSupplies(Cache $anything, Schema $s): void {
+        Test::assertSame(1, 1);
+    }
+}
+
+final class MissingTest {
+    #[Fixture]
+    public static function schema(): Schema {
+        return new Schema();
+    }
+
+    // § 8's own worked example's second test: no `#[Fixture]` in scope returns
+    // `Widget`.
+    #[Test]
+    public function itMisses(Widget $w): void {
+        Test::assertSame(1, 1);
+    }
+
+    // The same question asked from a fixture's own parameter list, which is
+    // why one code covers both.
+    #[Fixture]
+    public static function derived(Widget $w): Cache {
+        return new Cache();
+    }
+}
+
+// A roster is one class's: `MissingTest`'s `Widget` is not supplied by this
+// one, and this one's is not reached from there.
+final class ElsewhereTest {
+    #[Fixture]
+    public static function widget(): Widget {
+        return new Widget();
+    }
+
+    #[Test]
+    public function itPasses(): void {
+        Test::assertSame(1, 1);
+    }
+}
+
+// § 8's cycle: every parameter here *is* supplied, by a roster that cannot be
+// built in any order.
+final class CycleTest {
+    #[Fixture]
+    public static function left(Widget $w): Schema {
+        return new Schema();
+    }
+
+    #[Fixture]
+    public static function right(Schema $s): Widget {
+        return new Widget();
+    }
+
+    #[Test]
+    public function itAsks(Schema $s): void {
+        Test::assertSame(1, 1);
+    }
+}
+
+// The two parameter shapes no roster could fill, whichever marker declares
+// them: a variadic tail is packed at the call site and an `inout` parameter is
+// written back there, and the runner is neither.
+final class UninjectableTest {
+    #[Fixture]
+    public static function schema(): Schema {
+        return new Schema();
+    }
+
+    #[Test]
+    public function itSpreads(Schema ...$all): void {
+        Test::assertSame(1, 1);
+    }
+
+    #[Test]
+    public function itWritesBack(inout Schema $s): void {
+        Test::assertSame(1, 1);
+    }
+
+    #[Fixture]
+    public static function spreading(Schema ...$all): Cache {
+        return new Cache();
+    }
+}
+--EXPECTF-ERROR--
+error[E0736]: no `#[Fixture]` of `MissingTest` supplies `Widget`, which the #[Test] method `itMisses` declares as `$w`
+   --> case.nvs:42:21
+%A
+error[E0736]: no `#[Fixture]` of `MissingTest` supplies `Widget`, which the #[Fixture] method `derived` declares as `$w`
+   --> case.nvs:49:28
+%A
+error[E0737]: `CycleTest`'s `#[Fixture]` methods require each other: left -> right -> left
+   --> case.nvs:72:28
+%A
+error[E0733]: the `#[Test]` method `itSpreads` declares a variadic parameter
+   --> case.nvs:97:21
+%A
+error[E0733]: the `#[Test]` method `itWritesBack` declares an `inout` parameter
+    --> case.nvs:102:21
+%A
+error[E0735]: the `#[Fixture]` method `spreading` declares a variadic parameter
+    --> case.nvs:107:28
+%A
+error: aborting due to 6 errors

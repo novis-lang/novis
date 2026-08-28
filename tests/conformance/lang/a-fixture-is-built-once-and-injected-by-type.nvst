@@ -1,0 +1,137 @@
+--TEST--
+a `#[Fixture]` is built once for its class and injected into each test declaring its type, ADR 0079 § 8
+--RUN--
+test
+--FILE--
+<?nvs
+// ADR 0079 § 8: a fixture is built **once, in the parent isolate**, and
+// injected into each test that declares a parameter of its type — resolution
+// is by type, settled while compiling. So this case is the runner's own report
+// (`--RUN--` above), a fixture's value being observable nowhere else.
+use Core\Test;
+use Core\Test\Fixture;
+
+final class Schema {
+    public string $name;
+
+    public function constructor(string $name): void {
+        $this->name = $name;
+    }
+}
+
+final class Repo {
+    public string $tag;
+
+    public function constructor(Schema $schema): void {
+        $this->tag = "repo of " . $schema->name;
+    }
+}
+
+final class Cache {}
+
+// How many times each fixture body was entered — the one thing a test cannot
+// read off a value it was handed, and the whole of "built **once**".
+final class Ledger {
+    public static int $schemas = 0;
+    public static int $repos = 0;
+    public static int $caches = 0;
+}
+
+// Class order is the roster's sorted order, so this class is reported first
+// however the file is written.
+final class OtherTest {
+    // The roster is the *class's* own: this supplies `Schema` too, and this
+    // class's test is handed this one rather than `RepoTest`'s.
+    #[Fixture]
+    public static function schema(): Schema {
+        Ledger::$schemas = Ledger::$schemas + 1;
+        return new Schema("orders");
+    }
+
+    // Nothing that runs asks for a `Cache`, which is what the count below is
+    // about.
+    #[Fixture]
+    public static function cache(): Cache {
+        Ledger::$caches = Ledger::$caches + 1;
+        return new Cache();
+    }
+
+    #[Test]
+    public function itIsHandedItsOwnClassesFixture(Schema $schema): void {
+        Test::assertSame($schema->name, "orders");
+    }
+
+    // § 20's `skip:` never constructs the test, so the fixture it alone asks
+    // for is never built — setup for a test the author asked to skip is work
+    // nobody wanted.
+    #[Test(skip: "the only test asking for a `Cache`")]
+    public function itIsSkippedAndItsFixtureWithIt(Cache $cache): void {
+        Test::assertSame(1, 2);
+    }
+
+    #[Test]
+    public function aSkippedTestsFixtureIsNotBuilt(): void {
+        Test::assertSame(Ledger::$caches, 0);
+        Test::assertSame(Ledger::$schemas, 1);
+    }
+}
+
+final class RepoTest {
+    // § 8's own worked example, spelled as that section writes it.
+    #[Fixture]
+    public static function schema(): Schema {
+        Ledger::$schemas = Ledger::$schemas + 1;
+        return new Schema("users");
+    }
+
+    // § 8's last sentence: a fixture may itself declare fixture parameters,
+    // which resolve the same way — so this one is built *after* `schema`,
+    // whatever order the two are written in.
+    #[Fixture]
+    public static function repo(Schema $schema): Repo {
+        Ledger::$repos = Ledger::$repos + 1;
+        return new Repo($schema);
+    }
+
+    #[Test]
+    public function itIsHandedWhatItsTypeNames(Schema $schema): void {
+        Test::assertSame($schema->name, "users");
+    }
+
+    // Two parameters, resolved independently and passed in written order —
+    // the chained fixture beside the one it was itself built from.
+    #[Test]
+    public function itIsHandedEachInOrder(Repo $repo, Schema $schema): void {
+        Test::assertSame($repo->tag, "repo of users");
+        Test::assertSame($schema->name, "users");
+    }
+
+    // A test that declares no parameter is untouched by any of it.
+    #[Test]
+    public function itAsksForNothing(): void {
+        Test::assertSame(1, 1);
+    }
+
+    // The counts, asserted rather than read off a line: three tests above
+    // reached the same two values, so a fixture rebuilt per test would fail
+    // here while every line above still passed. `$schemas` is two because each
+    // class built its own — one roster per class, one build per roster.
+    #[Test]
+    public function itWasBuiltOnceForItsClass(): void {
+        Test::assertSame(Ledger::$schemas, 2);
+        Test::assertSame(Ledger::$repos, 1);
+    }
+}
+--EXPECTF--
+  OtherTest
+    ✓ itIsHandedItsOwnClassesFixture   %f ms
+    - itIsSkippedAndItsFixtureWithIt   %f ms
+      skipped: the only test asking for a `Cache`
+    ✓ aSkippedTestsFixtureIsNotBuilt   %f ms
+  RepoTest
+    ✓ itIsHandedWhatItsTypeNames       %f ms
+    ✓ itIsHandedEachInOrder            %f ms
+    ✓ itAsksForNothing                 %f ms
+    ✓ itWasBuiltOnceForItsClass        %f ms
+
+  0 failed, 6 passed, 1 skipped, 0 flaky in %d ms

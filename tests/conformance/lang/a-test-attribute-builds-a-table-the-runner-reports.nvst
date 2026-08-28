@@ -33,7 +33,7 @@ final class AlphaTest {
 
     // § 20: a skip states a reason, and its test is never constructed — the
     // assertion below would fail if it were.
-    #[Test(skip: "the fixture it needs arrives with §§ 8-9")]
+    #[Test(skip: "the behaviour it pins is not written yet")]
     public function twoIsSkippedWithItsReason(): void {
         Test::assertSame(2, 3);
     }
@@ -67,7 +67,7 @@ final class AlphaTest {
     ✓ zeroIsWrittenFirst               %f ms
     ✓ oneIsWrittenSecond               %f ms
     - twoIsSkippedWithItsReason        %f ms
-      skipped: the fixture it needs arrives with §§ 8-9
+      skipped: the behaviour it pins is not written yet
     ✗ aFailedAssertionNamesBothSides   %f ms
       Core\Test::assertSame failed: `$actual` is 4, `$expected` is 5
     ✗ aCaughtFailureStillFails         %f ms
