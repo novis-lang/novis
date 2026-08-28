@@ -2704,41 +2704,6 @@ fn lower_decl_type(ty: &Type, exprs: &ExprTypeTable, checked_types: &TypeInterne
     }
 }
 
-/// Translates an already-*checked* type — a [`TypeId`] recorded in an
-/// [`ExprInfo::Call`]/[`ExprInfo::New`]/[`ExprInfo::Property`] entry, naming a
-/// call's resolved parameter/return type or a property's declared field type
-/// — into this crate's own [`Ty`]. Distinct from [`lower_decl_type`], which
-/// reads a type straight off the AST instead: this one exists because a
-/// resolved call's parameter/return types (and a property's field type) come
-/// from `nvs_types`' own interner, not from a `Type` AST node this crate can
-/// lower directly (there may be no local `Type` node at all, e.g. an
-/// inherited method's parameter declared on a different class's source).
-/// `Class` erases to [`Ty::Object`], same as [`lower_decl_type`]'s `Name`
-/// case — see that variant's own doc comment for why identity doesn't need to
-/// survive this translation. `Enum` does *not* join it: ADR 0010 makes an enum
-/// a closed integer type, so it lowers to [`Ty::Enum`] carrying the backing
-/// type `nvs_types::ty::Ty::Enum` already knows (see that variant for why the
-/// backing rides in the checker's type rather than in a side table). `String` erases to [`Ty::Str`] and
-/// `Bytes` to [`Ty::Bytes`] — the same representations [`lower_decl_type`]
-/// already gives a local/parameter/return type spelled directly in source —
-/// see [`crate::lower`]'s module docs for the retain policy this now needs at
-/// a call-argument/return/property-field boundary, which
-/// [`Lowering::bind_local`], [`Lowering::lower_call_args`] and
-/// `StmtKind::Return`'s own arm all apply via [`is_aliasing_read`].
-///
-/// # Panics
-///
-/// Panics naming the unsupported shape for anything outside this slice's
-/// scope: either qualified (`tainted`/`secret`) string or bytes variant,
-/// `object`, an intersection, or either of
-/// `never`/`iterable` — neither of these
-/// has an IR representation yet (see the crate docs' known gaps). `mixed`
-/// erases to [`Ty::Tagged`] — see that variant's own doc comment for exactly
-/// how much this boundary does and doesn't do with one yet. A **union** never
-/// panics: it is [`Ty::Tagged`] unless every member erases to one and the same
-/// representation, in which case it is that one — ADR 0047 § 5's "zero
-/// additional runtime representation", which is why a member outside this
-/// scope is asked through [`erase_checked_ty`] rather than asserted.
 /// The per-option defaults recorded for the options-bag parameter at `index` —
 /// `nvs_types::core_lib` synthesizes exactly one `ConstArg::Options` entry per
 /// bag, so a bag parameter always has one.
@@ -2778,6 +2743,45 @@ pub(super) fn shape_class_label(sorted_fields: &[String]) -> String {
     format!("$shape{{{}}}", sorted_fields.join(","))
 }
 
+/// Translates an already-*checked* type — a [`TypeId`] recorded in an
+/// [`ExprInfo::Call`]/[`ExprInfo::New`]/[`ExprInfo::Property`] entry, naming a
+/// call's resolved parameter/return type or a property's declared field type
+/// — into this crate's own [`Ty`]. Distinct from [`lower_decl_type`], which
+/// reads a type straight off the AST instead: this one exists because a
+/// resolved call's parameter/return types (and a property's field type) come
+/// from `nvs_types`' own interner, not from a `Type` AST node this crate can
+/// lower directly (there may be no local `Type` node at all, e.g. an
+/// inherited method's parameter declared on a different class's source).
+/// `Class` erases to [`Ty::Object`], same as [`lower_decl_type`]'s `Name`
+/// case — see that variant's own doc comment for why identity doesn't need to
+/// survive this translation. `Enum` does *not* join it: ADR 0010 makes an enum
+/// a closed integer type, so it lowers to [`Ty::Enum`] carrying the backing
+/// type `nvs_types::ty::Ty::Enum` already knows (see that variant for why the
+/// backing rides in the checker's type rather than in a side table). `String`
+/// erases to [`Ty::Str`] and `Bytes` to [`Ty::Bytes`] — the same
+/// representations [`lower_decl_type`] already gives a local/parameter/return
+/// type spelled directly in source — see [`crate::lower`]'s module docs for
+/// the retain policy this now needs at a call-argument/return/property-field
+/// boundary, which [`Lowering::bind_local`], [`Lowering::lower_call_args`] and
+/// `StmtKind::Return`'s own arm all apply via [`is_aliasing_read`].
+///
+/// # Panics
+///
+/// Panics naming the unsupported shape for anything outside this slice's
+/// scope. `object` is **not** among them — it erases to [`Ty::Object`] with
+/// [`CheckedTy::Class`], [`CheckedTy::Callable`] and [`CheckedTy::Shape`], and
+/// the panic message says so. What is left is [`CheckedTy::Never`],
+/// [`CheckedTy::Iterable`], an intersection, and the two the checker
+/// substitutes away before this boundary ever sees them
+/// ([`CheckedTy::TypeVar`] and [`CheckedTy::CallableTo`], both rewritten by
+/// `nvs_types::generics::substitute`), so meeting one of those last two here
+/// is a checker bug rather than a missing representation. `mixed` erases to
+/// [`Ty::Tagged`] — see that variant's own doc comment for exactly how much
+/// this boundary does and doesn't do with one yet. A **union** never panics:
+/// it is [`Ty::Tagged`] unless every member erases to one and the same
+/// representation, in which case it is that one — ADR 0047 § 5's "zero
+/// additional runtime representation", which is why a member outside this
+/// scope is asked through [`erase_checked_ty`] rather than asserted.
 fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
     erase_checked_ty(id, checked_types).unwrap_or_else(|| {
         panic!(
