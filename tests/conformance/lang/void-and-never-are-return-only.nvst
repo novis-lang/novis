@@ -1,0 +1,43 @@
+--TEST--
+`void` and `never` are refused in a parameter and accepted in a return — ADR 0007 § 3
+--FILE--
+<?nvs
+// ADR 0007 § 3: "`void` and `never` are return-only." Neither has an argument
+// that satisfies it — `void` is the absence of a value and `never` is the
+// empty type — so a method declaring one can never be called at all. It is
+// refused at the declaration rather than at every call site.
+final class Refused {
+    public static function takesVoid(void $p): void {}
+
+    public static function takesNever(never $p): void {}
+}
+
+// The rule is the signature's, not the body's: an interface method and an
+// abstract one are just as uncallable, and `nvs_types::signatures` is the one
+// pass that reads every declared shape.
+interface Signature {
+    public function alsoRefused(never $p): int;
+}
+
+// Both spellings are still return types, and neither is reported here.
+final class Allowed {
+    public static function nothing(): void {}
+
+    public static function diverges(): never {
+        throw new LogicError("unreached");
+    }
+}
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0742]: `void` is a return type only, and this is a parameter
+  --> case.nvs:7:38
+%A
+error[E0742]: `never` is a return type only, and this is a parameter
+  --> case.nvs:9:39
+%A
+error[E0742]: `never` is a return type only, and this is a parameter
+   --> case.nvs:16:33
+%A
+error: aborting due to 3 errors

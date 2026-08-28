@@ -891,6 +891,7 @@ fn collect_members(
                     .iter()
                     .map(|p| lower_optional_type(p.ty.as_ref(), ctx, env))
                     .collect();
+                reject_void_or_never_params(&m.params, &params, env);
                 let param_names: Option<Vec<String>> = Some(
                     m.params
                         .iter()
@@ -1009,6 +1010,46 @@ fn record_promoted_properties(
 /// a slot on an instance, armed once where the instance is made, and an
 /// ordinary method has no such moment — it may be called any number of times,
 /// or none.
+/// ADR 0007 § 3: `void` and `never` are return-only, so neither is a parameter.
+///
+/// Read off the *lowered* type rather than the written spelling, so a `type`
+/// alias resolving to one is refused with the same code as the keyword — and
+/// so a qualifier or a `?` wrapper, neither of which can produce `Ty::Void` or
+/// `Ty::Never` at the top level, is left to the rules that already own it.
+///
+/// Here rather than in [`crate::check`] because that pass returns early for an
+/// abstract method and an interface signature, and the declaration is just as
+/// uncallable without a body.
+fn reject_void_or_never_params(
+    params: &[nvs_syntax::ast::Param],
+    lowered: &[TypeId],
+    env: &mut Env<'_>,
+) {
+    for (p, &ty) in params.iter().zip(lowered) {
+        let atom = match env.interner.get(ty) {
+            Ty::Void => "void",
+            Ty::Never => "never",
+            _ => continue,
+        };
+        let span = p.ty.as_ref().map_or(p.name, |t| t.span);
+        let why = match atom {
+            "void" => "`void` is the absence of a value, so no argument satisfies it",
+            _ => "`never` is the empty type, so no argument satisfies it",
+        };
+        env.diags.report(
+            Diagnostic::error(
+                code::E_VOID_OR_NEVER_PARAMETER,
+                format!("`{atom}` is a return type only, and this is a parameter"),
+            )
+            .with_primary(span, format!("declared `{atom}` here"))
+            .with_help(format!(
+                "{why} — a method declaring one can never be called. Write the type the \
+                 argument actually has, or drop the parameter"
+            )),
+        );
+    }
+}
+
 fn reject_promotion_outside_constructor(
     params: &[nvs_syntax::ast::Param],
     method: &str,

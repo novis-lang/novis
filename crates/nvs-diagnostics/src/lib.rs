@@ -1812,6 +1812,24 @@ pub mod code {
     /// answer the declaring class, and it is what the help names.
     pub const E_STATIC_RETURN_NOT_CALLED_CLASS: Code = Code::new("E0741");
 
+    /// A parameter declares `void` or `never`.
+    ///
+    /// ADR 0007 § 3 says both are return-only, and there is nothing else they
+    /// could mean in an argument position: `void` is the absence of a value,
+    /// so no argument satisfies it, and `never` is the empty type, so no
+    /// argument satisfies that either. A method declaring one has no callable
+    /// arity — every call site is refused for a reason phrased about the
+    /// argument rather than about the declaration that made it impossible.
+    ///
+    /// Refused at the declaration for that reason, in the one pass that reads
+    /// every method signature (`nvs_types::signatures`), so an abstract method
+    /// and an interface signature are covered as well as a body. Before this
+    /// code existed both spellings type-checked: `never` then panicked
+    /// `nvs_ir::lower`'s representation map and `void` lowered and died in
+    /// `nvs-codegen` reading a value of representation `void` — two internal
+    /// errors for one declaration nothing can call.
+    pub const E_VOID_OR_NEVER_PARAMETER: Code = Code::new("E0742");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");
