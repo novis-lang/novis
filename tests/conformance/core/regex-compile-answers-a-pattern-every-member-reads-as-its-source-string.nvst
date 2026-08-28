@@ -1,0 +1,114 @@
+--TEST--
+Core\Regex::compile answers a Pattern that every Pattern|string member reads exactly as it reads the source string, and its options are the inline flag groups — ADR 0056 §§ 2, 5
+--FILE--
+<?nvs
+// § 5's `compile` row and the six rows typed `Pattern|string`. What a compiled
+// pattern *is* — a handle carrying the source and its flags, cached eagerly —
+// is `regex-compile-carries-the-four-flags`'s subject. This case asks the
+// agreement question instead: whichever member takes the union answers the
+// same thing on either spelling, counted over a sweep rather than read off a
+// line, so a member that grew its own handling of the compiled arm fails here
+// while every printed row still looks right on its own.
+
+string $subject = "a1 B22 c333";
+array<string> $patterns = ["\\d+", "[a-z]+", "^a", "(?<w>\\d)(\\d)?", "z", " "];
+int $asked = 0;
+int $agreed = 0;
+foreach ($patterns as string $pattern) {
+    var $handle = Core\Regex::compile($pattern);
+
+    // Six members, six questions, one row. Each is asked twice with nothing
+    // between the two calls but which spelling of the pattern was handed in.
+    $asked = $asked + 1;
+    if (Core\Regex::matches($subject, $pattern) == Core\Regex::matches($subject, $handle)) {
+        $agreed = $agreed + 1;
+    }
+    $asked = $asked + 1;
+    if ((Core\Regex::match($subject, $pattern)?->text() ?? "none") == (Core\Regex::match($subject, $handle)?->text() ?? "none")) {
+        $agreed = $agreed + 1;
+    }
+    $asked = $asked + 1;
+    if (Core\Arr::count(Core\Regex::matchAll($subject, $pattern)) == Core\Arr::count(Core\Regex::matchAll($subject, $handle))) {
+        $agreed = $agreed + 1;
+    }
+    $asked = $asked + 1;
+    if (Core\Regex::replace($subject, $pattern, "<$0>") == Core\Regex::replace($subject, $handle, "<$0>")) {
+        $agreed = $agreed + 1;
+    }
+    $asked = $asked + 1;
+    if (Core\Regex::replaceWith($subject, $pattern, fn (Core\Regex\Match $m): string => "!") == Core\Regex::replaceWith($subject, $handle, fn (Core\Regex\Match $n): string => "!")) {
+        $agreed = $agreed + 1;
+    }
+    $asked = $asked + 1;
+    if (Core\Json::encode(Core\Regex::split($subject, $pattern)) == Core\Json::encode(Core\Regex::split($subject, $handle))) {
+        $agreed = $agreed + 1;
+    }
+}
+echo $agreed, " of ", $asked, " answers agree across the two spellings\n";
+
+// One row printed in full, so the sweep above is anchored to an answer and not
+// only to a tally — a pair of members that both returned nothing would agree
+// on every question.
+var $digits = Core\Regex::compile("\\d+");
+echo Core\Regex::replace($subject, $digits, "<$0>"), " / ", Core\Json::encode(Core\Regex::split($subject, $digits)), "\n";
+
+// The options are the inline flag groups, which is the other half of "reads it
+// as its source string": a flag set at `compile` and the same flag written
+// into the pattern text reach the same engine state. Asked of two members per
+// flag, because a flag is applied where the pattern is compiled and both
+// spellings have to arrive there.
+array<string> $inline = ["(?i)[a-z]+", "(?m)^.", "(?s)a.B", "(?U)a+"];
+array<string> $subjects = ["a1 B22 c333", "one\ntwo", "a\nB", "aaa"];
+int $flagged = 0;
+int $flagAsked = 0;
+int $row = 0;
+for (; $row < 4; $row = $row + 1) {
+    string $text = $subjects[$row as string];
+    string $spelled = $inline[$row as string];
+    var $option = Core\Regex::compile("[a-z]+", {caseInsensitive: true});
+    if ($row == 1) {
+        $option = Core\Regex::compile("^.", {multiline: true});
+    }
+    if ($row == 2) {
+        $option = Core\Regex::compile("a.B", {dotAll: true});
+    }
+    if ($row == 3) {
+        $option = Core\Regex::compile("a+", {ungreedy: true});
+    }
+    $flagAsked = $flagAsked + 2;
+    if (Core\Regex::replace($text, $spelled, "-") == Core\Regex::replace($text, $option, "-")) {
+        $flagged = $flagged + 1;
+    }
+    if (Core\Json::encode(Core\Regex::split($text, $spelled)) == Core\Json::encode(Core\Regex::split($text, $option))) {
+        $flagged = $flagged + 1;
+    }
+}
+echo $flagged, " of ", $flagAsked, " flag answers agree with the inline spelling\n";
+
+// A handle is not spent by being used: the same one answers the same question
+// the same way however many members have already read it.
+var $reused = Core\Regex::compile("\\d");
+echo Core\Arr::count(Core\Regex::matchAll($subject, $reused)), " ", Core\Regex::replace($subject, $reused, "#"), " ", Core\Arr::count(Core\Regex::matchAll($subject, $reused)), "\n";
+
+// And the one place the two spellings deliberately differ: *where* an
+// impossible pattern is refused. `compile` compiles eagerly and throws at the
+// call that named the mistake; the string spelling has no such call, so the
+// same pattern is refused at whichever member first uses it.
+try {
+    var $never = Core\Regex::compile("a(b");
+    echo "compiled\n";
+} catch (Throwable $atCompile) {
+    echo "refused at compile\n";
+}
+try {
+    echo (Core\Regex::matches("zz", "a(b") as string), "\n";
+} catch (Throwable $atUse) {
+    echo "refused at use\n";
+}
+--EXPECT--
+36 of 36 answers agree across the two spellings
+a<1> B<22> c<333> / ["a"," B"," c",""]
+8 of 8 flag answers agree with the inline spelling
+6 a# B## c### 6
+refused at compile
+refused at use
