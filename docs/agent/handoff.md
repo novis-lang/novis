@@ -5,51 +5,49 @@
 **M4's Stage 8, plus the acceptance gate's own open item.** The tree is at **867 conformance plus
 189 differential**, all green. Nothing is blocked.
 
-The guard-name debt is **2 unresolved of the 128 named test entries** `loop-goal.toml` holds, and
-`nvs-ir (control flow)` is now **0 of 7** — closed, joining `nvs-ir (targets and tags)`,
-`nvs-syntax (the last unparsed shapes)` and both `nvs-types` blocks. Both remaining names are in
-the next group. The debt file's two counts stay derived off the tree by the pass its header
-describes, never carried forward.
+The guard-name debt is **1 unresolved of the 128 named test entries** `loop-goal.toml` holds, and
+`nvs-codegen (fatal locals)` is now **0 of 1** — closed, joining `nvs-ir (control flow)`, `nvs-ir
+(targets and tags)`, `nvs-syntax (the last unparsed shapes)` and both `nvs-types` blocks. The one
+name left is Stage 8's own gate, and it is the next group. The debt file's two counts stay derived
+off the tree by the pass its header describes, never carried forward.
 
-This session closed the last `nvs-ir` refcount name, and it was a lowering fix rather than a test
-half. A transferred argument — and a transferred *receiver*, which is argument 0 — now rides
-`Lowering::owned_temporaries` under the new `TemporaryKind::Transferred`, so a later argument's
-throw releases it instead of leaking it. The whole subtlety is *when* it comes off:
-`Lowering::forget_transferred_since` runs immediately **before** the call is emitted at each of the
-three transferring sites, because `emit_fallible` builds the call's own fault edge from the stack
-as it stands and the callee releases its parameters on its throwing edge too. The field's
-`# Known gap` paragraph is gone; the mechanism is that field's doc plus
-`forget_transferred_since`'s.
+This session landed `a_fatal_releases_the_frames_locals` over the emitted code, and the shape is
+worth knowing before the next fatal-path guard: nothing in a program runs after a fatal, so the
+observation is a `#[global_allocator]`'s **balance** across the run — the shape `tests/arrays.rs`
+already uses, here counting bytes rather than requests. `Core\Arr::countBy` over a `float`-keyed
+subject is the trigger, being a `Fault::fatal` reachable from source with two locals live, and a
+second assertion on bytes *ever* allocated is what keeps the zero balance from being vacuous. The
+one allocation the run is meant to leave behind is the fatal's pending message, drained before the
+balance is read.
 
 ## Next group
 
-**The two remaining guard names, both about what a *frame* owes on an exit that is not a return.**
-They share no file with what this session had open, which is why this session stopped at one slice.
-File set: `crates/nvs-codegen/tests/throwing.rs:198` (the neighbouring half, whose fixture shape the
-first one reuses), `examples/fatal.nvs`, and `docs/agent/guard-name-debt.md:218` and `:320` for the
-two reconciliations.
+**Stage 8's end gate, and it is a classification slice rather than a lowering one.** File set:
+`crates/nvs-ir/` (the crate has no `tests/` directory — the guard is a new
+`crates/nvs-ir/tests/refusals.rs` or an in-crate `#[cfg(test)]` module), `tools/holes.py`, and
+`docs/agent/loop-goal.toml:1004` for the check block that names it.
 
-- [ ] **`a_fatal_releases_the_frames_locals`** — `docs/agent/guard-name-debt.md:218` says the work
-      is genuinely not done: `throwing.rs` asserts that a throwing frame releases the strings it
-      held (`crates/nvs-codegen/tests/throwing.rs:198`) and that a fatal is not caught, but nothing
-      asserts what ADR 0020's `FATAL` does to the frame's locals, and the valgrind sweep cannot see
-      it because `examples/fatal.nvs` is on its skip list for exiting non-zero by design. So the
-      assertion has to be made in `nvs-codegen`'s own test, over the emitted code, the way its
-      neighbour is.
-- [ ] **`every_refusal_is_a_diagnostic_or_decided`** — Stage 8's own gate, and the bare entry at
-      `docs/agent/guard-name-debt.md:320`. `python tools/holes.py` already reads every refusal site
-      out of `nvs-ir` and `nvs-codegen` and attributes it; the test is that walk asserted, with the
-      allowlist being `docs/agent/loop-goal.md` § *Standing decisions* and nothing else. That
-      section says the allowlist may never grow without a decision taken in the same session.
+- [ ] **`every_refusal_is_a_diagnostic_or_decided`** — `docs/agent/guard-name-debt.md:322`, the last
+      unresolved name, cause 3. The check's own comment at `docs/agent/loop-goal.toml:999` is the
+      specification: read `nvs-ir`'s and `nvs-codegen`'s sources for refusal sites and fail naming
+      every one not on an allowlist frozen in the test, which **may never grow**. `tools/holes.py`
+      already reads exactly those sites and is where the recognizer should come from rather than a
+      second regex.
+- [ ] **Decide the 17 standing sites before freezing the allowlist**, since the guard cannot go
+      green while a site is neither. `python tools/holes.py` attributes 15 of them to items 1, 4,
+      16 and 25 — item 1's nine are all `emit.rs` catch-all arms (`the binary operator {other:?}`
+      at `crates/nvs-codegen/src/emit.rs:1348`, `the terminator {other:?}` at `:3074`, `the runtime
+      helper {other:?}` at `:3458`), which read as internal-consistency arms unreachable from
+      source rather than as holes. The two unattributed ones are
+      `crates/nvs-codegen/src/ty.rs:116` and `:121`.
+- [ ] **Then the plan's `Open now` loses its acceptance-gate sentence**, the debt file's Stage 8
+      block closes, and `docs/agent/guard-name-debt.md` is a file of ticks only.
 
 ## Backlog
 
-- ADR 0007 § 2's `array<T> as array<U>` lowers, so the playbook bullets that route around it
-  (`Core\Csv::format`'s unreachable column, the `array<mixed>` element read) are now stale on that
-  clause — `docs/agent/playbook.md` owns them.
-- `nvs-ir` gap 1: `Class::method(...)` as a first-class callable still panics — the crate's own
-  module doc.
-- The three fixtures under `examples/` are the only place a whole program is run — `docs/plan/m4.md`
-  § *Verify*.
-- `landing_block`'s remaining inline-release producers are gone from its doc; the next refcount
-  question there is whichever new producer arrives, not a listed one.
+- Item 1's promotion-table lowering, 9 refusal sites — `python tools/holes.py --item 1`.
+- Item 16's named/spread argument lowering, 3 sites — checker half first, per
+  `docs/agent/loop-goal.md` § *Standing decisions*.
+- Item 25's `object` representation arm, 2 sites — same source.
+- The two unattributed `nvs-codegen/src/ty.rs` sites belong to no item and may want one.
+- ADR 0053 § 4's abandoned-generator `finally`, pre-authorized in § *Standing decisions*.

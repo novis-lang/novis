@@ -994,6 +994,14 @@ is why" — is this file.
   the output is the program's answer and not the program, or copy the first line from
   `examples/targets.nvs`. A `.nvst` case's `--FILE--` section has the same requirement and
   is harder to get wrong, every case in the tree carrying it.
+- **A `FATAL` cannot be triggered mid-run by the safepoint, because the flag can only be set before
+  the run and the script frame's own entry poll fires first** — which is why
+  `a_fatal_is_never_caught` sees empty output. The stack limit is no better: `arm_stack_limit`'s
+  soft tier answers a catchable `Recursion` long before the floor, so a runaway never reaches the
+  fatal tier. What *is* reachable from source, after locals are already live, is a
+  `Fault::fatal` from `nvs-stdlib` — `Core\Arr::countBy` over an `array<float>` is one
+  (`FATAL: Core\Arr::countBy expected an `int|string` key, got tag 4`). Reach for that when a test
+  needs a fatal to happen at a chosen point in a program rather than at its first instruction.
 
 ## Writing a test case
 

@@ -44,7 +44,7 @@
 > each to its item (`--item N` for one in full), `python tools/loop.py --list` prints the named
 > `.nvst` cases each stage still owes, and `python tools/gaps.py` ranks the thinnest class now that
 > the corpus is past its floor and depth is what is left. **The acceptance gate is itself an open
-> item**: 3 of the 128 guard tests `loop-goal.toml` names match nothing `cargo test` would run, so
+> item**: 1 of the 128 guard tests `loop-goal.toml` names match nothing `cargo test` would run, so
 > the check stops before it reaches them — [docs/agent/guard-name-debt.md](agent/guard-name-debt.md)
 > is the list and the three causes, and a session that lands a guard test reconciles its name there
 > in the same slice.
