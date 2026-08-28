@@ -946,7 +946,15 @@ pub(crate) fn check_stmt(
             step,
             body,
         } => {
-            for e in init {
+            // ADR 0109 §§ 1-2: the counter is declared here and is
+            // function-scoped, so § 1's declare-once rule applies to it
+            // through the same arm — a second `for (int $i = 0; …)` below is
+            // the re-declaration diagnostic that arm already reports, and the
+            // binding stays live after the loop.
+            if let Some(decl) = init.decl() {
+                check_stmt(decl, live, scope, return_ty, ctx, env);
+            }
+            for e in init.exprs() {
                 check_expr(e, None, live, scope, ctx, env);
             }
             // `cond` always runs at least once, even if the body never does.

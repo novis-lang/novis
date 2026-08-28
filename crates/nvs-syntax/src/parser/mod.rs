@@ -34,11 +34,11 @@
 //!
 //! # Backtracking, and how deep anything may nest
 //!
-//! Every production is a single, committed pass — except two statement forms
-//! whose grammar is ambiguous on a token prefix alone, which trial-parse the
-//! more specific production and [`Parser::restore`] a [`Checkpoint`] when the
-//! deciding token does not show up. Both are in [`stmt`], and that module's
-//! header names them.
+//! Every production is a single, committed pass — except three forms whose
+//! grammar is ambiguous on a token prefix alone, which trial-parse the more
+//! specific production and [`Parser::restore`] a [`Checkpoint`] when the
+//! deciding token does not show up. All three are in [`stmt`], and that
+//! module's header names them.
 //!
 //! A separate concern from either of the above: how *deep* one construct can
 //! nest inside another. [`Parser::enter_recursive`] bounds every kind of
@@ -58,11 +58,11 @@ use crate::ast::{
     AnonClassDecl, Arg, ArrayItem, AssignOp, Attribute, AttributeGroup, AutoloadDecl, AutoloadKind,
     BinaryOp, Block, CallArgs, CatchClause, ClassDecl, ClassMember, ClassMemberKind, ConstMember,
     DestructureElement, DestructureTarget, EnumCase, EnumDecl, Expr, ExprKind, FnBody, FnExpr,
-    ForeachBinding, ImplementsClause, IncDecOp, InterfaceDecl, MatchArm, MemberName, MethodMember,
-    Modifier, Name, NamespaceDecl, NewTarget, ObjectLiteralField, Param, PropertyHook,
-    PropertyHookBody, PropertyHookKind, PropertyMember, ShapeField, SpawnOption, SpawnOptionKey,
-    StaticVar, Stmt, StmtKind, StringPart, SwitchCase, Type, TypeAliasDecl, TypeAtom, TypeKind,
-    UnaryOp, UseDecl, Visibility,
+    ForInit, ForeachBinding, ImplementsClause, IncDecOp, InterfaceDecl, MatchArm, MemberName,
+    MethodMember, Modifier, Name, NamespaceDecl, NewTarget, ObjectLiteralField, Param,
+    PropertyHook, PropertyHookBody, PropertyHookKind, PropertyMember, ShapeField, SpawnOption,
+    SpawnOptionKey, StaticVar, Stmt, StmtKind, StringPart, SwitchCase, Type, TypeAliasDecl,
+    TypeAtom, TypeKind, UnaryOp, UseDecl, Visibility,
 };
 use crate::lexer::Lexer;
 use crate::token::{Keyword, Token, TokenKind};
@@ -137,10 +137,11 @@ pub struct Parser<'src, 'd> {
 /// release build too, which has larger per-frame overhead than either.
 const MAX_RECURSION_DEPTH: u32 = 96;
 
-/// A saved parser position, for the one place this parser backtracks: a
-/// statement whose grammar is genuinely ambiguous on a token prefix alone
-/// (a type-then-`$name` local declaration versus an ordinary expression
-/// statement; a destructuring target versus a plain array literal). Trying
+/// A saved parser position, for the three places this parser backtracks:
+/// grammar that is genuinely ambiguous on a token prefix alone (a
+/// type-then-`$name` local declaration versus an ordinary expression
+/// statement, at statement position and again in a `for` header's init
+/// clause; a destructuring target versus a plain array literal). Trying
 /// the more specific production and restoring on a mismatch is simpler and
 /// far less error-prone than hand-writing a lookahead classifier that
 /// duplicates the type grammar.

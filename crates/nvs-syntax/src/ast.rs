@@ -1000,6 +1000,48 @@ pub struct ForeachBinding {
     pub span: Span,
 }
 
+/// A `for` header's init clause, ADR 0109 § 1. Either one typed local
+/// declaration — ADR 0007 § 3.1's, unchanged and in full, including
+/// ADR 0037's `var` spelling — or the comma-separated expression list PHP's
+/// own `for` grammar has, which is what the condition and step clauses still
+/// are. Never both and never two declarations; `E0124` and `E0125` are what
+/// those two shapes are told (ADR 0109 § 3).
+///
+/// Scope is unchanged by the declaration form: the counter is function-scoped
+/// exactly as every other binding is (ADR 0109 § 2), which is why this carries
+/// a whole [`Stmt`] rather than a loop-scoped binding of its own.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ForInit {
+    /// `for (int $i = 0; …)` — exactly one [`StmtKind::LocalDecl`], boxed as a
+    /// whole statement so a walker reaches it through the arm it already has
+    /// for a declaration written anywhere else.
+    Decl(Box<Stmt>),
+    /// `for ($i = 0, $j = 1; …)`, empty for `for (;;)`.
+    Exprs(Vec<Expr>),
+}
+
+impl ForInit {
+    /// The clause's expressions — empty for the declaration form, whose
+    /// initializer is reached through [`Self::decl`] instead. A walker that
+    /// only cares about expressions keeps its existing `chain` this way.
+    #[must_use]
+    pub fn exprs(&self) -> &[Expr] {
+        match self {
+            Self::Decl(_) => &[],
+            Self::Exprs(exprs) => exprs,
+        }
+    }
+
+    /// The clause's declaration, if it is the declaration form.
+    #[must_use]
+    pub fn decl(&self) -> Option<&Stmt> {
+        match self {
+            Self::Decl(decl) => Some(decl),
+            Self::Exprs(_) => None,
+        }
+    }
+}
+
 /// One `catch` clause of a `try` statement. PHP 8's multi-type catch
 /// (`Type|Type $e`) and optional variable both fall out of reusing the
 /// ordinary type grammar and an `Option` — no separate type-list is needed.
@@ -1132,12 +1174,14 @@ pub enum StmtKind {
         /// The loop condition, tested after each iteration.
         cond: Expr,
     },
-    /// `for (init; cond; step) body`. Each clause is a comma-separated list
-    /// of expressions, any of which may be empty — PHP's own `for` grammar,
-    /// not a new one.
+    /// `for (init; cond; step) body`. The condition and step clauses are each
+    /// a comma-separated list of expressions, any of which may be empty —
+    /// PHP's own `for` grammar. The init clause is [`ForInit`], which adds
+    /// ADR 0109 § 1's declaration form to that list.
     For {
-        /// The initializer expressions, run once before the first iteration.
-        init: Vec<Expr>,
+        /// The initializer, run once before the first iteration: one typed
+        /// local declaration or a list of expressions (ADR 0109 § 1).
+        init: ForInit,
         /// The condition expressions; only the last one's truthiness is
         /// tested, exactly as PHP evaluates a comma list here.
         cond: Vec<Expr>,

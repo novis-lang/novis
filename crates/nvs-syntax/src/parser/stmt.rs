@@ -1,6 +1,6 @@
 //! Statements: every control-flow form, `echo`, `unset`, ADR 0007 § 3.1's
-//! typed local declaration and § 3.3's destructuring — and the two places the
-//! parser has to guess and take it back.
+//! typed local declaration and § 3.3's destructuring — and the three places
+//! the parser has to guess and take it back.
 //!
 //! `if`/`elseif`/`else`, `while`, `do`/`while`, `for`, `foreach` with ADR 0007
 //! § 3.2's mandatory typed bindings, `switch`, `break`/`continue`,
@@ -8,19 +8,22 @@
 //! `goto`, function-scope `static`) are all here, as is ADR 0037's `var $x =
 //! e;`.
 //!
-//! # The two backtracking sites
+//! # The three backtracking sites
 //!
-//! Both live here, because both are statements ambiguous on a token prefix
+//! All three live here, because all three are ambiguous on a token prefix
 //! alone: a typed local declaration versus an ordinary expression statement
 //! that happens to start with a name (`Foo $x = ...;` versus `Foo::bar();`),
-//! and a destructuring target versus a plain array-literal expression
-//! statement (`[int $a] = $p;` versus `[1, 2, 3];`). Each trial-parses the more
-//! specific production and [`Parser::restore`]s a [`Checkpoint`] if the
-//! deciding token — a `Variable` after the type, a `=` after the pattern —
-//! doesn't show up, rather than a hand-written lookahead classifier that would
-//! duplicate [`Parser::parse_type`]'s grammar and drift from it. See
-//! [`Parser::parse_stmt_maybe_local_decl`] and
-//! [`Parser::parse_stmt_maybe_destructure`].
+//! a destructuring target versus a plain array-literal expression statement
+//! (`[int $a] = $p;` versus `[1, 2, 3];`), and ADR 0109 § 1's `for` init
+//! clause, which is the same first ambiguity inside a header rather than at
+//! statement position (`for (int $i = 0; …)` versus
+//! `for ($i = Foo::bar(); …)`). Each trial-parses the more specific
+//! production and [`Parser::restore`]s a [`Checkpoint`] if the deciding token
+//! — a `Variable` after the type, a `=` after the pattern — doesn't show up,
+//! rather than a hand-written lookahead classifier that would duplicate
+//! [`Parser::parse_type`]'s grammar and drift from it. See
+//! [`Parser::parse_stmt_maybe_local_decl`],
+//! [`Parser::parse_stmt_maybe_destructure`] and [`Parser::parse_for_init`].
 //!
 //! Part of [`super`]'s one `impl Parser`, split across this directory so a
 //! session editing one layer of the grammar does not carry the rest in
@@ -318,10 +321,148 @@ impl<'src, 'd> Parser<'src, 'd> {
         list
     }
 
+    /// ADR 0109 § 1: a `for` header's init clause is either one ADR 0007
+    /// § 3.1 typed local declaration or an expression list, never both. Both
+    /// shapes are a comma-separated run of items, so the clause is parsed as
+    /// one — each item through [`Self::try_parse_for_decl`] — and a run that
+    /// turns out to hold two declarations or one of each is § 3's diagnostic
+    /// rather than a parse error about a semicolon. The condition and step
+    /// clauses are unchanged.
+    pub(super) fn parse_for_init(&mut self) -> ForInit {
+        let mut decl: Option<Stmt> = None;
+        let mut exprs = Vec::new();
+        let mut reported = false;
+        if self.at(TokenKind::Semicolon) {
+            return ForInit::Exprs(exprs);
+        }
+        loop {
+            let item = self.peek().span;
+            match self.try_parse_for_decl() {
+                // ADR 0109 § 3: one diagnostic per header, at the item that
+                // first breaks § 1's rule. A second one would only describe
+                // the same header again.
+                Some(second) if decl.is_some() => {
+                    if !reported {
+                        reported = true;
+                        self.diags.report(
+                            Diagnostic::error(
+                                code::E_FOR_INIT_TWO_DECLARATIONS,
+                                "a `for` init clause declares at most one binding",
+                            )
+                            .with_primary(
+                                second.span,
+                                "this is the header's second declaration (ADR 0109 § 1)",
+                            )
+                            .with_help(
+                                "declare the second binding above the loop — the counter is \
+                                 function-scoped either way (ADR 0109 § 2)",
+                            ),
+                        );
+                    }
+                }
+                // The declaration is kept even when it arrived after an
+                // expression, so a rejected header still declares its counter
+                // and § 3's one diagnostic is not followed by an `E0301` for
+                // every use of it — the cascade this ADR exists to delete.
+                Some(first) => {
+                    if !exprs.is_empty() {
+                        self.report_for_init_mixed(item, &mut reported);
+                    }
+                    decl = Some(first);
+                }
+                None => {
+                    let e = self.parse_expr();
+                    if decl.is_some() {
+                        self.report_for_init_mixed(item, &mut reported);
+                    } else {
+                        exprs.push(e);
+                    }
+                }
+            }
+            if self.eat(TokenKind::Comma).is_none() {
+                break;
+            }
+        }
+        match decl {
+            Some(decl) => ForInit::Decl(Box::new(decl)),
+            None => ForInit::Exprs(exprs),
+        }
+    }
+
+    /// ADR 0109 § 3's `E0124`, raised where the item that mixes the two
+    /// forms begins — in either order, since neither is more wrong than the
+    /// other.
+    fn report_for_init_mixed(&mut self, item: Span, reported: &mut bool) {
+        if *reported {
+            return;
+        }
+        *reported = true;
+        self.diags.report(
+            Diagnostic::error(
+                code::E_FOR_INIT_MIXES_DECL_AND_EXPR,
+                "a `for` init clause holds one declaration or a list of expressions, not both",
+            )
+            .with_primary(item, "this item is the other kind (ADR 0109 § 1)")
+            .with_help(
+                "move the extra initialiser above the loop, or make every item an expression",
+            ),
+        );
+    }
+
+    /// One init-clause item, if it is a declaration. Which one it is cannot
+    /// be decided from the first token — a `Name` starts both a class type
+    /// and a constant expression, and only the `$` after it settles it — so
+    /// the declaration is tried under a checkpoint and undone when no
+    /// variable follows, the same backtracking
+    /// [`Self::parse_stmt_maybe_local_decl`] does at statement position.
+    fn try_parse_for_decl(&mut self) -> Option<Stmt> {
+        let start = self.peek().span;
+        if self.at_keyword(Keyword::Var) {
+            self.bump();
+            return Some(self.parse_for_decl_tail(start, None));
+        }
+        if self.can_start_type() {
+            let cp = self.checkpoint();
+            let ty = self.parse_type();
+            // The same signal `parse_stmt_maybe_local_decl` trusts: a
+            // malformed type can still land on a `$variable` by coincidence,
+            // so a diagnostic reported during the trial is what says this was
+            // never a type.
+            if self.at(TokenKind::Variable) && self.diags.len() == cp.diags_len {
+                return Some(self.parse_for_decl_tail(start, Some(ty)));
+            }
+            self.restore(cp);
+        }
+        None
+    }
+
+    /// The tail of a `for` init declaration, both spellings, minus the `;` —
+    /// the header's own first semicolon terminates it and
+    /// [`Self::parse_for`] is what expects that. `ty: None` is ADR 0037's
+    /// `var`, whose initializer is mandatory for the same reason it is at
+    /// statement position: there is nothing else to infer the type from.
+    fn parse_for_decl_tail(&mut self, start: Span, ty: Option<Type>) -> Stmt {
+        let name = self.expect(TokenKind::Variable, "a variable name");
+        let value = if ty.is_none() {
+            self.expect(
+                TokenKind::Equals,
+                "`=` — `var` infers its type from the initializer, so one is required",
+            );
+            Some(self.parse_expr())
+        } else {
+            self.eat(TokenKind::Equals).map(|_| self.parse_expr())
+        };
+        let span = start.to(self.last_span);
+        Stmt {
+            span,
+            kind: StmtKind::LocalDecl { ty, name, value },
+        }
+    }
+
     pub(super) fn parse_for(&mut self, start: Span) -> Stmt {
         self.bump();
         self.expect(TokenKind::LParen, "`(`");
-        let init = self.parse_expr_list_until(TokenKind::Semicolon);
+        let init = self.parse_for_init();
         self.expect(TokenKind::Semicolon, "`;`");
         let cond = self.parse_expr_list_until(TokenKind::Semicolon);
         self.expect(TokenKind::Semicolon, "`;`");

@@ -400,7 +400,13 @@ fn check_stmt(stmt: &Stmt, src: &SourceFile, diags: &mut Diagnostics) {
             step,
             body,
         } => {
-            for e in init.iter().chain(cond).chain(step) {
+            // ADR 0109 § 1: the counter a declaration form binds is an
+            // ordinary local, so ADR 0029's `camelCase` rule reaches it
+            // through the same arm a declaration above the loop takes.
+            if let Some(decl) = init.decl() {
+                check_stmt(decl, src, diags);
+            }
+            for e in init.exprs().iter().chain(cond).chain(step) {
                 check_expr(e, src, diags);
             }
             check_stmt(body, src, diags);

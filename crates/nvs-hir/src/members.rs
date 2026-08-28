@@ -503,7 +503,12 @@ fn walk_stmt(stmt: &Stmt, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
             step,
             body,
         } => {
-            for x in init.iter().chain(cond).chain(step) {
+            // ADR 0109 § 1: an init clause may be the same `LocalDecl` the
+            // line above the loop used to hold, so it walks as a statement.
+            if let Some(decl) = init.decl() {
+                s!(decl);
+            }
+            for x in init.exprs().iter().chain(cond).chain(step) {
                 e!(x);
             }
             s!(body);

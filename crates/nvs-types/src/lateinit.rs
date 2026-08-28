@@ -169,7 +169,12 @@ fn walk_stmt(
             step,
             body,
         } => {
-            for e in init {
+            // ADR 0109 § 1: a declaration in the init clause runs once,
+            // before the loop, exactly where the line above it used to.
+            if let Some(decl) = init.decl() {
+                walk_stmt(decl, written, tracked, env);
+            }
+            for e in init.exprs() {
                 scan_expr(e, written, tracked, env);
             }
             for e in cond {

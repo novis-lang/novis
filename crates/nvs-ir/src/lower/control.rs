@@ -451,7 +451,7 @@ impl<'a> Lowering<'a> {
     /// [`Self::lower_expr_stmt`] and [`Self::lower_truthy_cond`] already name.
     pub(crate) fn lower_for(
         &mut self,
-        init: &[Expr],
+        init: &'a ForInit,
         cond: &[Expr],
         step: &[Expr],
         body: &'a Stmt,
@@ -464,8 +464,16 @@ impl<'a> Lowering<'a> {
              there evaluates and discards every expression but the last, and a discarded one may \
              assign; see the crate docs' known gaps"
         );
-        for e in init {
-            self.lower_expr_stmt(e, env, cur);
+        // ADR 0109 § 4: the declaration form lowers as the statement it is,
+        // into the pre-header block — the same slot store the line above the
+        // loop produced, at the same point.
+        match init {
+            ForInit::Decl(decl) => self.lower_stmt(decl, cur, env),
+            ForInit::Exprs(exprs) => {
+                for e in exprs {
+                    self.lower_expr_stmt(e, env, cur);
+                }
+            }
         }
 
         let mut seen = FxHashSet::default();
@@ -2043,7 +2051,15 @@ impl<'a> Lowering<'a> {
                 body,
             } => {
                 self.collect_reassigned_locals(body, seen, out);
-                for e in init.iter().chain(cond).chain(step) {
+                // ADR 0109 § 1's declaration form goes through the `LocalDecl`
+                // arm above, which scans the initializer without registering
+                // the counter — the counter is declared here, not re-pointed,
+                // so an enclosing loop owes it no phi, but `int $i = $n++`
+                // re-points `$n` and does owe one.
+                if let Some(decl) = init.decl() {
+                    self.collect_reassigned_locals(decl, seen, out);
+                }
+                for e in init.exprs().iter().chain(cond).chain(step) {
                     self.collect_reassigned_in_expr(e, seen, out);
                 }
             }
