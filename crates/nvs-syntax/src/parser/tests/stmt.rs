@@ -50,9 +50,108 @@ fn while_do_while_and_for() {
     else {
         panic!("expected a for loop: {s:?}");
     };
-    assert_eq!(init.len(), 1);
+    assert_eq!(init.exprs().len(), 1);
     assert_eq!(cond.len(), 1);
     assert_eq!(step.len(), 1);
+}
+
+/// The init clause of `for` as [`ForInit`], for a source that must parse
+/// clean — ADR 0109 § 1's two alternatives are told apart by asking this.
+fn for_init_of(src: &str) -> ForInit {
+    let s = parse_stmt_ok(src);
+    let StmtKind::For { init, .. } = s.kind else {
+        panic!("expected a for loop: {s:?}");
+    };
+    init
+}
+
+#[test]
+fn a_for_init_clause_declares_one_typed_local() {
+    // ADR 0109 § 1: the declaration form, in every spelling `local-decl`
+    // covers — a scalar type, ADR 0037's `var`, a nullable, a generic whose
+    // `<` the expression grammar also claims.
+    for src in [
+        "for (int $i = 0; $i < 3; $i = $i + 1) { }",
+        "for (var $i = 0; $i < 3; $i = $i + 1) { }",
+        "for (?string $i = null; $i == null; $i = \"x\") { }",
+        "for (array<int> $row = []; $i < 3; $i = $i + 1) { }",
+    ] {
+        let init = for_init_of(src);
+        let decl = init
+            .decl()
+            .unwrap_or_else(|| panic!("expected a declaration: {src}"));
+        let StmtKind::LocalDecl { name, value, .. } = &decl.kind else {
+            panic!("expected a local declaration: {decl:?}");
+        };
+        assert!(!name.is_empty(), "{src}");
+        assert!(value.is_some(), "{src}");
+        assert!(init.exprs().is_empty(), "{src}");
+    }
+}
+
+#[test]
+fn a_for_init_clause_is_still_a_list_of_expressions() {
+    // ADR 0109 § 1's trial parse in the other direction, plus the shape the
+    // corpus used before it. Each of the first four begins with a token that
+    // starts a *type* — a `Name`, `static`, `(` — and is an expression all
+    // the same, settled only by what does not follow it; that is the same
+    // backtracking site `parse_stmt_maybe_local_decl` already owns.
+    for (src, items) in [
+        ("for ($i = 0; $i < 2; $i = $i + 1) { }", 1),
+        ("for (Counter::tick(); $i < 2; $i = $i + 1) { }", 1),
+        ("for (static::tick(); $i < 2; $i = $i + 1) { }", 1),
+        ("for (($a || $b) ? f() : g(); $i < 2; $i = $i + 1) { }", 1),
+        ("for ($i = 0, $j = 1; $i < 2; $i = $i + 1) { }", 2),
+        ("for (;;) { }", 0),
+    ] {
+        let init = for_init_of(src);
+        assert!(init.decl().is_none(), "should not be a declaration: {src}");
+        assert_eq!(init.exprs().len(), items, "{src}");
+    }
+}
+
+#[test]
+fn a_for_init_clause_mixing_a_declaration_and_an_expression_is_e0124() {
+    // ADR 0109 § 3: one diagnostic naming the rule, in either order, and
+    // nothing else — the twelve-error resynchronisation cascade in that
+    // ADR's *Context* is what this replaces, so the count is the assertion.
+    for src in [
+        "for (int $i = 0, $j = 1; $i < 3; $i = $i + 1) { }",
+        "for ($j = 1, int $i = 0; $i < 3; $i = $i + 1) { }",
+    ] {
+        let (s, diags) = parse_stmt_with_diags(src);
+        let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+        assert_eq!(
+            codes,
+            vec![code::E_FOR_INIT_MIXES_DECL_AND_EXPR],
+            "for {src:?}: {diags:?}"
+        );
+        // The declaration is kept either way, so no later phase sees an
+        // undeclared counter and reports its own error about it.
+        let StmtKind::For { init, .. } = s.kind else {
+            panic!("expected a for loop: {s:?}");
+        };
+        assert!(init.decl().is_some(), "{src}");
+    }
+}
+
+#[test]
+fn a_for_init_clause_with_two_declarations_is_e0125() {
+    // ADR 0109 § 3's other code, for the shape a reader coming from C
+    // writes. Separate from E0124 because the fix is different: the second
+    // declaration goes above the loop.
+    let src = "for (int $i = 0, int $j = 0; $i < 3; $i = $i + 1) { }";
+    let (s, diags) = parse_stmt_with_diags(src);
+    let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+    assert_eq!(
+        codes,
+        vec![code::E_FOR_INIT_TWO_DECLARATIONS],
+        "for {src:?}: {diags:?}"
+    );
+    let StmtKind::For { init, .. } = s.kind else {
+        panic!("expected a for loop: {s:?}");
+    };
+    assert!(init.decl().is_some());
 }
 
 #[test]

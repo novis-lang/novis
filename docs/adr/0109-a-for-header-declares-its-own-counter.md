@@ -202,8 +202,14 @@ runs:
 - **§ 2's scope**, from the outside: the counter is readable after the loop, with the value that ended it,
   which is what makes this a spelling change rather than a scoping one. A second `for (int $i = 0; …)` in
   the same function is a re-declaration diagnostic naming the first, which is § 1's rule and not a new one.
-- **Both diagnostics of § 3**, each in its own case under `tests/conformance/diag/`: `E0124` for a mixed
-  init clause and `E0125` for two declarations in one.
+- **Both diagnostics of § 3**, each in its own case under `tests/conformance/reject/`, which is where a
+  refusal case lives: `a-for-init-clause-is-a-declaration-or-expressions-not-both.nvst` for `E0124` and
+  `a-for-init-clause-declares-at-most-one-binding.nvst` for `E0125`. Each asserts **one** diagnostic and
+  no second one, since the cascade in *Context* is what those codes exist to delete — which is also why
+  a rejected header still keeps whatever declaration it held, so no later phase reports an undeclared
+  counter. § 2's re-declaration is the third case there,
+  `a-second-for-header-redeclaring-its-counter-is-refused.nvst`, carrying ADR 0007 § 1's own `E0406`
+  rather than a code of this ADR's.
 
 The parser's own tests hold the grammar half — `crates/nvs-syntax/src/parser/tests/stmt.rs` gains the
 trial-parse's two directions, since a header whose init begins with a `Name` token could be either a
