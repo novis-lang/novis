@@ -756,8 +756,9 @@ tests = [
   # declared type has already answered keeps `E0482` where it is written.
   "an_array_index_through_a_mixed_base_defers_to_the_tag",
   "an_array_index_through_a_scalar_base_is_still_refused",
-  # Item 23 -- every ADR 0046 § 2 compile-time constant is a legal declared default, not just a
-  # literal and `[]`.
+  # Item 23 -- every ADR 0046 § 2 compile-time constant is a legal *property* default, not just a
+  # literal and `[]`. The parameter half is still a literal only, and `nvs_types::defaults`'s own
+  # module doc owns why (the emitter would hand a `ConstArg::Int` to an enum-typed IR position).
   "a_property_default_accepts_every_compile_time_constant",
   # Item 28 -- a `Core` class stringifies where the spec gives it a `toString`, and is diagnosed at
   # the `echo` where it does not. Never a panic below.

@@ -2275,17 +2275,17 @@ sibling in the same namespace unqualified.
   the real problem. ADR 0054 § 2 is why there is no suffix at all: a numeric literal is untyped
   until placed, so `decimal $d = 1.25;` is the whole spelling and the binding's declared type is
   what makes it a `decimal`.
-- **An enum is not spelled the way PHP spells it, and an enum case is not a property
-  default.** `enum Mode: int { case Read = 1; }` parses as a *class* and reports eight
-  errors on four lines, none of which says "wrong enum syntax": the Novis shape is
-  `enum Mode { Read = 1, Write = 2 }` — bare names, commas, no `case` keyword — and the
-  backing type is `enum Mask: uint { … }`, which is the only way to reach `EnumRepr::Uint`
-  since a case past `int` is `E0437` under the default backing. Then
-  `public Rank $rank = Rank::Silver;` is `E0472`: a case *is* a compile-time integer
-  constant (ADR 0010 § 3), but a property default accepts only a scalar literal or `[]`,
-  so an enum-typed property takes its value through `constructor`.
+- **An enum is not spelled the way PHP spells it.** `enum Mode: int { case Read = 1; }` parses
+  as a *class* and reports eight errors on four lines, none of which says "wrong enum syntax":
+  the Novis shape is `enum Mode { Read = 1, Write = 2 }` — bare names, commas, no `case`
+  keyword — and the backing type is `enum Mask: uint { … }`, which is the only way to reach
+  `EnumRepr::Uint` since a case past `int` is `E0437` under the default backing.
+  `public Rank $rank = Rank::Silver;` **does** compile — a property default takes ADR 0046 § 2's
+  whole constant set, an enum case and another class's `const` included
+  (`nvs_types::defaults::const_reference_default`) — but a *parameter* default still takes a
+  literal only, so `function m(Rank $r = Rank::Silver)` is `E0451`.
 - **A nullable property cannot default to `null`.** `public ?string $s = null;` is `E0472: a property
-  default must be a `string|null` literal — not a literal of the declared type`, and the same for
+  default must be a `string|null` constant — not a constant of the declared type`, and the same for
   `?object`, so a class in a case or a fixture cannot open a nullable slot the obvious way. What
   works is declaring it non-nullable and filling it in `constructor`, which is what the help text
   already says for the shapes it does mean to refuse. A **local** `?object $m = null;` is fine — it

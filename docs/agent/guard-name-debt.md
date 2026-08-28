@@ -17,10 +17,10 @@ for p in nvs-syntax nvs-hir nvs-types nvs-ir nvs-runtime nvs-codegen nvs-stdlib 
 ```
 
 then substring-match every `tests = [...]` entry in `loop-goal.toml` against that roster. Measured
-2026-08-28 at `e0c9f3e`: **54 of 156 named guard tests match nothing cargo would run.** **Forty-four**
-of those have since been reconciled — the ticked lines below — leaving **10**, over the **128**
+2026-08-28 at `e0c9f3e`: **54 of 156 named guard tests match nothing cargo would run.** **Forty-five**
+of those have since been reconciled — the ticked lines below — leaving **9**, over the **128**
 entries `tests = [...]` now holds across every `cargo-named` check (127 distinct: Stage 2 and Stage 5
-both name `a_disjoint_equality_does_not_compile`). Twenty-nine of the forty-four were a cause-2
+both name `a_disjoint_equality_does_not_compile`). Twenty-nine of the forty-five were a cause-2
 *move* out of a `tests = [...]` list and into `cases`, so the denominator moves with them, and three
 whole `[[check]]` blocks went that way entire — Stage 5's two and Stage 7's `nvs-stdlib (the
 assertion roster)`.
@@ -124,9 +124,17 @@ slice**. That is the only thing that keeps this file from growing back.
 - [x] `a_tagged_operand_converts_to_bytes` — cause 2, now owned by
       `as-bytes-over-a-tagged-operand-is-decided-by-its-runtime-tag.nvst` (added to the list)
 
-`nvs-types (targets and refusals)`, `cargo test -p nvs-types` — 1 of 7 unresolved
+`nvs-types (targets and refusals)`, `cargo test -p nvs-types` — 0 of 7 unresolved
 
-- [ ] `a_property_default_accepts_every_compile_time_constant`
+- [x] `a_property_default_accepts_every_compile_time_constant` — **cause 3, and now written** under
+      that exact name at [tests/classes.rs:329](../../crates/nvs-types/tests/classes.rs#L329). The
+      triage the item asked for came back "a fold to widen, not a test to write":
+      `eval_property_default` folded a literal and `[]` and nothing else, so an enum case and
+      another class's `const` — the other two members of ADR 0046 § 2's set — were `E0472`. It is
+      an agreement rather than a row per form: every named constant is asserted to fold to the
+      identical `ConstArg` the literal spelling of the same value folds to, with the two refusals
+      the widening must not have opened (a case of the wrong enum, a `secret` constant into a
+      plain slot) named at the end
 - [x] `a_nullable_conversion_that_cannot_fail_is_a_compile_error` — cause 2, and the item's "reaches
       lowering as a panic today" prediction was stale: `reject_unavailable_nullable_conversion`
       ([expr/operators.rs:1296](../../crates/nvs-types/src/expr/operators.rs#L1296)) refuses it as
