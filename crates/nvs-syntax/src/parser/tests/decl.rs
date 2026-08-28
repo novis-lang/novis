@@ -202,6 +202,46 @@ fn enum_cases_and_explicit_backing_type() {
     assert!(e.cases[0].value.is_some());
 }
 
+/// An enum case is a `PascalCase` name (ADR 0029), and every keyword is
+/// matched at its exact lower-case spelling (ADR 0062 § 2), so a case whose
+/// spelling *reads* as a keyword never collides with one. Swept rather than
+/// spot-checked: `parse_enum_body` admits only [`TokenKind::Ident`], so a
+/// single keyword that lexed at any other casing would send that row down the
+/// member path instead — which is what the lower-case half below pins.
+#[test]
+fn an_enum_case_named_with_a_keyword_parses() {
+    let names = [
+        "Match", "List", "Class", "Default", "Static", "Print", "New", "Echo", "Function", "Use",
+        "Case", "For", "Do", "Try", "Enum",
+    ];
+    for name in names {
+        let s = parse_stmt_ok(&format!("enum E {{ {name} }}"));
+        let StmtKind::EnumDecl(e) = s.kind else {
+            panic!("expected an enum decl for `{name}`: {s:?}");
+        };
+        assert_eq!(e.cases.len(), 1, "`{name}` did not parse as a case");
+        assert!(e.cases[0].value.is_none());
+    }
+
+    // All fifteen in one body, so a case-per-statement fluke cannot pass.
+    let s = parse_stmt_ok(&format!("enum E {{ {} }}", names.join(", ")));
+    let StmtKind::EnumDecl(e) = s.kind else {
+        panic!("expected an enum decl: {s:?}");
+    };
+    assert_eq!(e.cases.len(), names.len());
+
+    // The other side of the bound: the exact keyword spelling is not a case at
+    // all — it lexes as the keyword, so `parse_enum_body` takes the member path
+    // ADR 0010 § 3 refuses.
+    let (_, diags) = parse_stmt_with_diags("enum E { match }");
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_ENUM_MEMBER_UNSUPPORTED)),
+        "expected the enum-member refusal: {diags:?}"
+    );
+}
+
 #[test]
 fn enum_implements_method_and_string_backing_are_rejected() {
     let (_, diags) = parse_stmt_with_diags("enum Status implements Comparable { Active }");
@@ -325,6 +365,37 @@ fn use_import_plain_and_rejected_alias() {
         panic!("expected a use decl: {s:?}");
     };
     assert!(u.alias.is_some());
+}
+
+/// PHP's group-use form is refused, not parsed: one `use` names one import.
+/// `docs/adr/README.md` § *Decisions taken at project start* owns the rule.
+#[test]
+fn a_grouped_use_parses_or_names_the_rule_that_refuses_it() {
+    let (s, diags) = parse_stmt_with_diags("use App\\Models\\{User, Post};");
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_IMPORT_GROUP_UNSUPPORTED)),
+        "expected the group-use refusal: {diags:?}"
+    );
+    // The prefix still yields a `use` of its own, so nothing downstream sees a
+    // half-parsed import, and the `;` is consumed rather than left to reopen as
+    // a second statement.
+    let StmtKind::UseDecl(u) = s.kind else {
+        panic!("expected a use decl: {s:?}");
+    };
+    assert!(u.alias.is_none());
+
+    // A nested group is the same refusal, once — the brace walk is depth-aware.
+    let (_, diags) = parse_stmt_with_diags("use App\\{Models\\{User}, Post};");
+    assert_eq!(
+        diags
+            .iter()
+            .filter(|d| d.code == Some(code::E_IMPORT_GROUP_UNSUPPORTED))
+            .count(),
+        1,
+        "expected exactly one refusal: {diags:?}"
+    );
 }
 
 #[test]

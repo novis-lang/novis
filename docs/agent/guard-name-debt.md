@@ -17,10 +17,10 @@ for p in nvs-syntax nvs-hir nvs-types nvs-ir nvs-runtime nvs-codegen nvs-stdlib 
 ```
 
 then substring-match every `tests = [...]` entry in `loop-goal.toml` against that roster. Measured
-2026-08-28 at `e0c9f3e`: **54 of 156 named guard tests match nothing cargo would run.** **Forty-seven**
-of those have since been reconciled — the ticked lines below — leaving **7**, over the **128**
+2026-08-28 at `e0c9f3e`: **54 of 156 named guard tests match nothing cargo would run.** **Forty-nine**
+of those have since been reconciled — the ticked lines below — leaving **5**, over the **128**
 entries `tests = [...]` now holds across every `cargo-named` check (127 distinct: Stage 2 and Stage 5
-both name `a_disjoint_equality_does_not_compile`). Twenty-nine of the forty-seven were a cause-2
+both name `a_disjoint_equality_does_not_compile`). Twenty-nine of the forty-nine were a cause-2
 *move* out of a `tests = [...]` list and into `cases`, so the denominator moves with them, and three
 whole `[[check]]` blocks went that way entire — Stage 5's two and Stage 7's `nvs-stdlib (the
 assertion roster)`.
@@ -246,20 +246,23 @@ checks are gone rather than renamed.
 - [x] `a_reference_declares_the_same_type_on_both_sides` — cause 2, now
       `array/a-by-reference-binding-needs-a-variable-and-the-element-type.nvst` (added to the list)
 
-`nvs-syntax (the last unparsed shapes)`, `cargo test -p nvs-syntax` — 2 of 4 unresolved
+`nvs-syntax (the last unparsed shapes)`, `cargo test -p nvs-syntax` — 0 of 4 unresolved
 
-- [ ] `a_grouped_use_parses_or_names_the_rule_that_refuses_it` — **cause 3.** `parse_use_decl` handles
-      one path per statement; `use_import_plain_and_rejected_alias` covers the plain form and the
-      aliased refusal, and no test anywhere writes `use A\{B, C};`.
+- [x] `a_grouped_use_parses_or_names_the_rule_that_refuses_it` — was cause 3 in both halves: the group
+      form is now refused by `E0238` (`parse_use_decl`'s `recover_use_group`), and the test naming that
+      rule is [parser/tests/decl.rs:330](../../crates/nvs-syntax/src/parser/tests/decl.rs#L330) under
+      the guard's own name. `docs/adr/README.md` § *Decisions taken at project start* owns the rule.
 - [x] `a_goto_label_is_refused_by_the_diagnostic_that_refuses_goto` — cause 1, now
       [parser/tests/stmt.rs:434](../../crates/nvs-syntax/src/parser/tests/stmt.rs#L434)
       `goto_is_diagnosed_but_still_parses`
 - [x] `a_local_declared_with_a_bare_shape_type_parses` — cause 1, now
       [parser/tests/ty.rs:505](../../crates/nvs-syntax/src/parser/tests/ty.rs#L505)
       `shape_type_parses_in_every_declaration_slot`, which asserts every slot rather than the local
-- [ ] `an_enum_case_named_with_a_keyword_parses` — **cause 3.** `enum_cases_and_explicit_backing_type`
-      names `Active`/`Banned`/`Read`, and `a_mis_cased_enum_case_is_diagnosed` is the casing rule; no
-      test writes `enum E { Match }`.
+- [x] `an_enum_case_named_with_a_keyword_parses` — was cause 3 *in its test half only*: every keyword
+      lexes at its exact lower-case spelling (ADR 0062 § 2), so a `PascalCase` case never collides with
+      one and nothing had to change in the parser. Now
+      [parser/tests/decl.rs:205](../../crates/nvs-syntax/src/parser/tests/decl.rs#L205), sweeping
+      fifteen spellings and pinning the lower-case half against `E0220`.
 
 ### Stage 7 — testing
 
