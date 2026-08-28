@@ -1,0 +1,120 @@
+--TEST--
+`Core\Test::assertCount` holds exactly where `Core\Arr::count` answers the expected number — a length-by-expectation grid, both neighbours of every diagonal refused, and `uint`'s far end named in the report — ADR 0079 § 4
+--FILE--
+<?nvs
+// `assertCount`'s subject is an `array<T>` and its expectation a `uint`, which
+// is `Core\Arr::count`'s own signature -- `nvs_stdlib::test`'s doc comment owns
+// why, and the consequence worth pinning is that the two members must never be
+// able to disagree. This asks the whole grid rather than a line of it: every
+// length against every expectation, counted, so a member that stopped one entry
+// early still prints plausibly on its own row and fails here.
+
+use Core\Test;
+
+final class Ask {
+    public static function counted(array<string> $subject, uint $expected): string {
+        try {
+            Test::assertCount($subject, $expected);
+        } catch (Core\Test\Failure $fromCount) {
+            return "failed";
+        }
+        return "held";
+    }
+
+    public static function nested(array<array<string>> $subject, uint $expected): string {
+        try {
+            Test::assertCount($subject, $expected);
+        } catch (Core\Test\Failure $fromNested) {
+            return "failed";
+        }
+        return "held";
+    }
+
+    public static function reported(array<string> $subject, uint $expected): string {
+        try {
+            Test::assertCount($subject, $expected);
+        } catch (Core\Test\Failure $fromReport) {
+            return $fromReport->message;
+        }
+        return "held";
+    }
+}
+
+// 1. The grid: five subjects of length 0 through 4, each asked about every
+// expectation from 0 through 5. `held` must fall on the diagonal and nowhere
+// else, which is the bound asserted on both sides six times over -- one entry
+// short and one entry long are both present for every length.
+array<string> $rows = [];
+int $onDiagonal = 0;
+int $offDiagonal = 0;
+int $agreed = 0;
+
+int $length = 0;
+for (; $length < 5; $length = $length + 1) {
+    int $expected = 0;
+    for (; $expected < 6; $expected = $expected + 1) {
+        string $verdict = Ask::counted($rows, $expected as uint);
+        if (Core\Arr::count($rows) == $expected) {
+            if ($verdict == "held") {
+                $onDiagonal = $onDiagonal + 1;
+                $agreed = $agreed + 1;
+            }
+        } else {
+            if ($verdict == "failed") {
+                $offDiagonal = $offDiagonal + 1;
+                $agreed = $agreed + 1;
+            }
+        }
+    }
+    $rows[] = "row";
+}
+
+echo "onDiagonal=", $onDiagonal, "/5 offDiagonal=", $offDiagonal, "/25 agreed=", $agreed, "/30\n";
+
+// 2. The low end is a real row, not an absence: an empty array holds against
+// `0` and fails against `1`, and the loop above has already asked it.
+array<string> $empty = [];
+echo Ask::counted($empty, 0), " ", Ask::counted($empty, 1), "\n";
+
+// 3. What a count is *not*: it is entries, not distinct values, not keys of a
+// particular shape, and not anything below the top level. All three subjects
+// answer the number of entries `Core\Arr::count` answers and nothing else.
+array<string> $dupes = ["x", "x", "x"];
+array<string> $map = ["a" => "1", "b" => "2"];
+array<array<string>> $deep = [["a", "b", "c"], ["d"]];
+
+echo Ask::counted($dupes, 3), " ", Ask::counted($map, 2), " ", Ask::nested($deep, 2), "\n";
+echo Ask::nested($deep, 4), "\n";
+
+// 4. The count follows the subject rather than a length taken once: removing an
+// entry moves the expectation that holds, and re-adding one moves it back.
+unset($map["a"]);
+echo Ask::counted($map, 1), " ", Ask::counted($map, 2), "\n";
+$map["c"] = "3";
+echo Ask::counted($map, 2), "\n";
+
+// 5. `uint`'s far end. An expectation no array can ever reach is an ordinary
+// failure with both sides named -- not a refusal, and not a wrap back into
+// range. The literal is past `int` and is legal only because the parameter is a
+// `uint` (ADR 0007 § 4).
+echo Ask::reported($dupes, 18446744073709551615), "\n";
+echo Ask::reported($empty, 1), "\n";
+echo Ask::reported($dupes, 2), "\n";
+
+// 6. ADR 0063 R2's trailing bag sits in front of the report here as everywhere.
+try {
+    Test::assertCount($dupes, 2, {message: "the seed loaded two rows"});
+} catch (Core\Test\Failure $withMessage) {
+    echo $withMessage->message, "\n";
+}
+--EXPECT--
+onDiagonal=5/5 offDiagonal=25/25 agreed=30/30
+held failed
+held held held
+failed
+held failed
+held
+Core\Test::assertCount failed: `$actual` holds 3 entries, `$expected` is 18446744073709551615
+Core\Test::assertCount failed: `$actual` holds 0 entries, `$expected` is 1
+Core\Test::assertCount failed: `$actual` holds 3 entries, `$expected` is 2
+the seed loaded two rows: Core\Test::assertCount failed: `$actual` holds 3 entries, `$expected` is 2
