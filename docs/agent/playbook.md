@@ -672,6 +672,15 @@ is why" — is this file.
   against `writing_through_a_nested_subscript_separates_every_level` — is two different assertions,
   not a rename. `cargo test -p X -- --list` is the authority but costs a build; the grep answers the
   same question for nothing, and `python tools/loop.py --list` re-parses the toml afterwards.
+- **A guard name that looks like a rename is often a `.nvst` case instead, and the roster that
+  settles it is two greps, not `cargo test -- --list`.** `grep -rhoE "fn [a-z_]+"` over a crate's
+  `src` and `tests` gives the cargo half in one call, and `ls tests/conformance/*/ | grep -iE
+  "topic1|topic2|…"` gives the case half for a whole stage at once — thirteen names triaged in four
+  probes rather than thirteen. Two traps inside that: a name matching a *private function* is not a
+  match (`reject_arguments_to_implicit_constructor` is `expr/calls.rs`'s, and nothing calls it from a
+  test), and a case whose file name shares the topic still has to be read — Stage 5's ambiguous
+  attribute retrieval is `E0728` inside `an-attribute-retrieval-is-refused-where-it-cannot-be-folded`,
+  which its name does not say.
 
 ## Running things
 

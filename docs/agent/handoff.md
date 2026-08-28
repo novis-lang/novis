@@ -5,49 +5,48 @@
 **M4's Stage 8, plus the acceptance gate's own open item.** The tree is at **866 conformance plus
 189 differential**, all green. Nothing is blocked.
 
-The guard-name debt is **39 unresolved of 149 named guard tests**, down from 54 of 156. Fifteen were
-reconciled over one file set — `docs/agent/guard-name-debt.md` and `docs/agent/loop-goal.toml` —
-in three passes: the five confirmed cause-1 renames, all of Stage 3, and five of Stage 4's seven.
-Seven of the fifteen were cause 2 (the work landed as a `.nvst` case), which is why the denominator
-moved: a cause-2 fix deletes the `cargo-named` entry and names the case in the `nvs-suite` check
-instead. Three cases were added to that list — `a-break-level-that-names-no-target-is-a-diagnostic`,
-`an-operator-agrees-whether-its-operand-is-typed-or-tagged` and
-`as-bytes-over-a-tagged-operand-is-decided-by-its-runtime-tag` — each run green first.
+The guard-name debt is **17 unresolved of 135 named guard tests**, down from 39 of 149. Stages 5 and
+6 were carried through the same three-way triage over one file set — `docs/agent/guard-name-debt.md`
+and `docs/agent/loop-goal.toml` — resolving 22 of the 26 they held between them. Stage 5's two whole
+`[[check]]` blocks (`nvs-types (the declared features)`, `nvs-ir (the declared features)`) are
+**gone**: every one of their ten names was cause 2, so the ten `.nvst` cases that own them are named
+in the `nvs-suite` `cases` list instead. Ten cases were added to that list across the two stages, each
+run green first.
 
-What is left in the two stages that were touched is **cause 3 and honest**: the two owned-temporaries
-shapes (`an_inline_producer_releases_its_value_on_the_throw_path`,
-`a_transferred_argument_is_released_when_a_later_one_throws`) and `an_array_conversion_walks_its_
-elements`, which cannot be written until `array<T> as array<U>` stops panicking `nvs-ir`. Those stay
-listed and unticked on purpose; the debt file now records the cause per line.
+What is left in the two stages is cause 3 and honest, four lines with a reason each:
+`a_fatal_releases_the_frames_locals` (nothing asserts what a `FATAL` does to a frame's locals, and
+valgrind skips `examples/fatal.nvs` by design), `a_non_void_function_must_return_on_every_path` (the
+accepting half is two cases now in the list; no diagnostic anywhere names a body that falls off its
+end), `an_implicit_constructor_is_held_to_zero_arguments`, and the two nvs-syntax parse shapes
+(`use A\{B, C};` and a keyword-named enum case). The debt file records the cause per line.
 
 The debt file's own header sentence is the running count and is the thing to keep true.
 
 ## Next group
 
-**Carry the same three-way triage through Stages 5 and 6**, which is 23 of the remaining 39. One
-shared file set, unchanged from this session: `docs/agent/guard-name-debt.md` and
-`docs/agent/loop-goal.toml`, with `grep -rn "fn <name>" crates/<crate>/src crates/<crate>/tests` and
-`find tests/conformance -name "*<topic>*"` as the two probes, and `python tools/loop.py --list` as
-the toml's parse check.
+**Stage 7's remaining names, then the two Stage 4 lines still undecided.** Same shared file set,
+unchanged for a third session: `docs/agent/guard-name-debt.md` and `docs/agent/loop-goal.toml`, with
+`grep -rhoE "fn [a-z_]+" crates/<crate>/src crates/<crate>/tests` and
+`ls tests/conformance/*/ | grep -iE "<topic>"` as the two probes (the new playbook bullet is the
+shape), and `python tools/loop.py --list` as the toml's parse check.
 
-- [ ] **Stage 5's 13**, at `docs/agent/guard-name-debt.md:121-146` — four checks, one per crate
-      (`nvs-types` 123, `nvs-ir` 131, `nvs-stdlib` 139, `nvs-codegen` 144). The `nvs-ir` five are
-      observable behaviour (`inline_html_at_file_scope_lowers_to_an_echo`, the two `require` ones),
-      so expect cause 2 and check `tests/conformance/` before reaching for a rename.
-- [ ] **Stage 6's 13**, at `docs/agent/guard-name-debt.md:148-172` — `nvs-types (narrowing and
-      reachability)` at 150 is 9 of 11 and two of its lines already carry a "likely" hint;
-      `nvs-syntax (the last unparsed shapes)` at 167 is 4 of 4.
+- [ ] **Stage 7's names**, at `docs/agent/guard-name-debt.md:220` onward — the testing surface
+      (ADR 0079). Expect cause 3 to dominate: `loop-goal.toml`'s own comment on
+      `a-test-attribute-builds-a-table-the-runner-reports.nvst` says none of that surface exists yet,
+      so a name there is owed rather than misnamed and should stay unticked with the reason.
 - [ ] **The one Stage 4 line still undecided**, `the_object_top_type_erases_to_the_pointer_a_class_
-      does` at `docs/agent/guard-name-debt.md:104` — read
-      `a_property_access_through_a_plain_object_receiver_reads_by_name`
-      (`crates/nvs-ir/src/lower/tests.rs:963`) and its write twin at 1349 and decide rename or write.
+      does` — ADR 0036 § 4's erasure. Check `crates/nvs-ir/src/lower/expr.rs` for an
+      `ExprInfo::ShapeProperty` test and `tests/conformance/lang/a-shape-read-through-a-widened-view-
+      is-name-keyed.nvst` before reaching for a rename.
+- [ ] **Re-derive the header count once the stages are done**, by parsing `loop-goal.toml` and
+      summing `len(c["tests"])` — 135 today. The header sentence is the only running total and
+      a stage that moves entries between `tests` and `cases` moves the denominator.
 
 ## Backlog
 
-- Stages 7 and 8's remaining 4, `docs/agent/guard-name-debt.md:174-194` — both are cause 2/3 already
-  diagnosed in the file, and `every_refusal_is_a_diagnostic_or_decided` is red on its merits.
-- `gaps.py`'s per-member count no longer tracks coverage at the top of its table — the playbook
-  bullet from the previous session owns the check.
-- ADR 0007 § 2's `array<T> as array<U>` row does not lower (`crates/nvs-ir/src/lower/expr.rs:877`);
-  it blocks one guard test and a `Core\Csv::format` error path — `docs/agent/playbook.md` records
-  both.
+- A body that falls off its end has no diagnostic — `nvs-diagnostics` next free in the `E07xx` band
+  is `E0739` (`docs/agent/loop-goal.toml`, item 38).
+- `array<T> as array<U>` still panics `nvs-ir` at `lower/expr.rs:877`; three guard names wait on it.
+- `Class::method(...)` first-class callable panics `nvs-ir` — `nvs-ir` gap 1, playbook § Writing a
+  test case.
+- Grouped `use A\{B, C};` parses no path in `parser/decl.rs:240` — ADR 0021's neighbourhood.

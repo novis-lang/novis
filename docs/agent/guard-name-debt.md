@@ -17,10 +17,10 @@ for p in nvs-syntax nvs-hir nvs-types nvs-ir nvs-runtime nvs-codegen nvs-stdlib 
 ```
 
 then substring-match every `tests = [...]` entry in `loop-goal.toml` against that roster. Measured
-2026-08-28 at `e0c9f3e`: **54 of 156 named guard tests match nothing cargo would run.** Fifteen
-of those have since been reconciled — the ticked lines below — leaving **39**, over 149 named tests:
-seven of the fifteen were a cause-2 *move* out of a `tests = [...]` list and into `cases`, so the
-denominator moves too.
+2026-08-28 at `e0c9f3e`: **54 of 156 named guard tests match nothing cargo would run.** Thirty-seven
+of those have since been reconciled — the ticked lines below — leaving **17**, over 135 named tests:
+twenty-two of the thirty-seven were a cause-2 *move* out of a `tests = [...]` list and into `cases`,
+so the denominator moves too, and Stage 5's two whole `[[check]]` blocks went that way together.
 
 ## Why a name goes stale
 
@@ -120,56 +120,104 @@ slice**. That is the only thing that keeps this file from growing back.
 
 ### Stage 5 — declared features
 
-`nvs-types (the declared features)`, `cargo test -p nvs-types` — 5 of 5 unresolved
+`nvs-types (the declared features)` — **block deleted**, 5 of 5 resolved. Every one was cause 2: the
+work landed as a `.nvst` case, and `nvs-ir`'s block below went the same way, so the two `cargo-named`
+checks are gone rather than renamed.
 
-- [ ] `a_property_observer_is_resolved_and_its_signature_checked`
-- [ ] `a_by_delegation_supplies_every_member_of_the_interface_it_names`
-- [ ] `an_attribute_is_retrieved_by_its_own_type`
-- [ ] `an_ambiguous_attribute_retrieval_is_a_compile_error`
-- [ ] `an_explicit_call_site_type_argument_parses_and_checks`
+- [x] `a_property_observer_is_resolved_and_its_signature_checked` — cause 2, now
+      `class/a-property-observer-sees-every-write-its-class-makes.nvst`. There is no
+      observer-specific signature rule to name separately: `expr/members.rs`'s `observer_calls`
+      resolves `onPropertyGet`/`onPropertySet` through the class graph, so a wrong signature is
+      refused by the ordinary interface-conformance check.
+- [x] `a_by_delegation_supplies_every_member_of_the_interface_it_names` — cause 2, now
+      `class/a-delegate-field-must-be-able-to-answer-the-interface.nvst` (added to the list)
+- [x] `an_attribute_is_retrieved_by_its_own_type` — cause 2, now
+      `core/an-attribute-is-retrieved-by-the-shape-it-satisfies.nvst`
+- [x] `an_ambiguous_attribute_retrieval_is_a_compile_error` — cause 2, now `E0728` in
+      `reject/an-attribute-retrieval-is-refused-where-it-cannot-be-folded.nvst` (added to the list)
+- [x] `an_explicit_call_site_type_argument_parses_and_checks` — cause 2, the same case: it is the one
+      program where `Core\Attributes::all<T>(…)` is accepted and `get<int>(…)` refused, side by side.
 
-`nvs-ir (the declared features)`, `cargo test -p nvs-ir` — 5 of 5 unresolved
+`nvs-ir (the declared features)` — **block deleted**, 5 of 5 resolved, all cause 2.
 
-- [ ] `a_property_observer_runs_after_the_hook_or_the_storage`
-- [ ] `a_delegated_call_reaches_the_object_it_names`
-- [ ] `inline_html_at_file_scope_lowers_to_an_echo`
-- [ ] `a_required_file_runs_its_own_top_level_statements`
-- [ ] `a_require_in_value_position_answers_the_files_result`
+- [x] `a_property_observer_runs_after_the_hook_or_the_storage` — cause 2, the observer case above
+- [x] `a_delegated_call_reaches_the_object_it_names` — cause 2, now
+      `class/a-delegated-interface-forwards-to-the-object-it-names.nvst`
+- [x] `inline_html_at_file_scope_lowers_to_an_echo` — cause 2, now
+      `lang/inline-html-at-file-scope-is-echoed-in-place.nvst`
+- [x] `a_required_file_runs_its_own_top_level_statements` — cause 2, now
+      `lang/a-required-file-runs-its-own-top-level-statements.nvst`, the same name as a case
+- [x] `a_require_in_value_position_answers_the_files_result` — cause 2, now
+      `lang/a-required-file-hands-a-value-back.nvst` (added to the list)
 
-`nvs-stdlib (dump)`, `cargo test -p nvs-stdlib` — 2 of 2 unresolved
+`nvs-stdlib (dump)`, `cargo test -p nvs-stdlib` — 2 of 2 resolved, one of each cause.
 
-- [ ] `a_dump_builds_one_diagnostic_record`
-- [ ] `a_dump_redacts_a_secret_qualified_property`
+- [x] `a_dump_builds_one_diagnostic_record` — cause 1, now
+      [debug.rs:525](../../crates/nvs-stdlib/src/debug.rs#L525)
+      `a_dump_writes_to_the_diagnostic_channel_and_not_to_the_output`. Its own doc comment says why
+      this half stays a cargo test: `--EXPECT-ERROR--` is how the runner is told a case should
+      *fail*, so a suite cannot read standard error off a successful run.
+- [x] `a_dump_redacts_a_secret_qualified_property` — cause 2, now
+      `core/a-secret-typed-property-is-redacted-wherever-it-is-dumped.nvst`
 
-`nvs-codegen (fatal locals)`, `cargo test -p nvs-codegen` — 1 of 1 unresolved
+`nvs-codegen (fatal locals)`, `cargo test -p nvs-codegen` — 1 of 1 unresolved, **cause 3**.
 
-- [ ] `a_fatal_releases_the_frames_locals`
+- [ ] `a_fatal_releases_the_frames_locals` — the work is not done. `throwing.rs` asserts the
+      neighbouring half (`a_frame_that_throws_releases_the_strings_it_still_held`) and that a fatal
+      is not caught, but nothing asserts what a `FATAL` does to the frame's locals, and the valgrind
+      sweep cannot see it: `examples/fatal.nvs` is on its skip list for exiting non-zero by design.
 
 ### Stage 6 — checker and parser
 
-`nvs-types (narrowing and reachability)`, `cargo test -p nvs-types` — 9 of 11 unresolved
+`nvs-types (narrowing and reachability)`, `cargo test -p nvs-types` — 2 of 8 unresolved, both cause 3
 
 - [x] `an_instanceof_narrows_its_operand` — cause 1, now
       `an_instanceof_test_narrows_its_subject` (`crates/nvs-types/tests/narrowing.rs`)
 - [x] `a_literal_comparison_narrows_its_operand` — cause 1, now
       `a_comparison_against_a_literal_narrows_its_subject` (`crates/nvs-types/tests/narrowing.rs`)
-- [ ] `a_match_true_arm_narrows_its_subject`
-- [ ] `a_non_void_function_must_return_on_every_path`
-- [ ] `a_switch_and_a_try_contribute_to_definite_assignment`
-- [ ] `a_user_class_constant_has_a_type_at_an_expression_site`
-- [ ] `a_promoted_constructor_parameter_declares_its_property`
-- [ ] `an_implicit_constructor_is_held_to_zero_arguments` — likely
-      `reject_arguments_to_implicit_constructor`
-- [ ] `a_foreach_key_declared_past_string_is_a_compile_error`
-- [ ] `an_equality_between_incompatible_operands_is_a_compile_error`
-- [ ] `a_reference_declares_the_same_type_on_both_sides`
+- [x] `a_match_true_arm_narrows_its_subject` — cause 2, now
+      `lang/a-match-and-a-switch-over-true-narrow-per-arm.nvst` (added to the list)
+- [ ] `a_non_void_function_must_return_on_every_path` — **cause 3, and only half of it.** The
+      accepting side is two cases, both now in the list
+      (`lang/a-for-body-that-always-returns.nvst`, `lang/a-method-returns-early-from-inside-a-loop.nvst`).
+      The refusal has no home at all: nothing in `nvs-types` or `nvs-diagnostics` names a body that
+      falls off its end, so there is no diagnostic to assert and this line stays until one exists.
+- [x] `a_switch_and_a_try_contribute_to_definite_assignment` — cause 1, and it is two tests rather
+      than one: [locals.rs:109](../../crates/nvs-types/tests/locals.rs#L109)
+      `a_switch_with_default_and_a_break_in_every_case_assigns_definitely` and
+      [locals.rs:170](../../crates/nvs-types/tests/locals.rs#L170)
+      `a_trys_finally_assignment_reads_fine_after_it`. Both are named, so both must run.
+- [x] `a_user_class_constant_has_a_type_at_an_expression_site` — cause 1, now
+      [literal_types.rs:85](../../crates/nvs-types/tests/literal_types.rs#L85)
+      `a_class_constant_folds_and_an_enum_case_narrows`
+- [x] `a_promoted_constructor_parameter_declares_its_property` — cause 2, now
+      `class/a-promoted-constructor-parameter-is-a-property.nvst` (added to the list)
+- [ ] `an_implicit_constructor_is_held_to_zero_arguments` — **cause 3.** The earlier guess here named
+      `reject_arguments_to_implicit_constructor`, which is a *private function* in
+      `crates/nvs-types/src/expr/calls.rs`, not a test: nothing calls it from a test and no `.nvst`
+      case builds a no-constructor class with arguments. Do not tick this on the name alone.
+- [x] `a_foreach_key_declared_past_string_is_a_compile_error` — cause 2, now
+      `lang/a-foreach-key-binding-is-a-string-and-nothing-else.nvst` (added to the list)
+- [x] `an_equality_between_incompatible_operands_is_a_compile_error` — cause 1, now
+      [equality.rs:25](../../crates/nvs-types/tests/equality.rs#L25)
+      `a_disjoint_equality_does_not_compile`
+- [x] `a_reference_declares_the_same_type_on_both_sides` — cause 2, now
+      `array/a-by-reference-binding-needs-a-variable-and-the-element-type.nvst` (added to the list)
 
-`nvs-syntax (the last unparsed shapes)`, `cargo test -p nvs-syntax` — 4 of 4 unresolved
+`nvs-syntax (the last unparsed shapes)`, `cargo test -p nvs-syntax` — 2 of 4 unresolved
 
-- [ ] `a_grouped_use_parses_or_names_the_rule_that_refuses_it`
-- [ ] `a_goto_label_is_refused_by_the_diagnostic_that_refuses_goto`
-- [ ] `a_local_declared_with_a_bare_shape_type_parses`
-- [ ] `an_enum_case_named_with_a_keyword_parses`
+- [ ] `a_grouped_use_parses_or_names_the_rule_that_refuses_it` — **cause 3.** `parse_use_decl` handles
+      one path per statement; `use_import_plain_and_rejected_alias` covers the plain form and the
+      aliased refusal, and no test anywhere writes `use A\{B, C};`.
+- [x] `a_goto_label_is_refused_by_the_diagnostic_that_refuses_goto` — cause 1, now
+      [parser/tests/stmt.rs:434](../../crates/nvs-syntax/src/parser/tests/stmt.rs#L434)
+      `goto_is_diagnosed_but_still_parses`
+- [x] `a_local_declared_with_a_bare_shape_type_parses` — cause 1, now
+      [parser/tests/ty.rs:505](../../crates/nvs-syntax/src/parser/tests/ty.rs#L505)
+      `shape_type_parses_in_every_declaration_slot`, which asserts every slot rather than the local
+- [ ] `an_enum_case_named_with_a_keyword_parses` — **cause 3.** `enum_cases_and_explicit_backing_type`
+      names `Active`/`Banned`/`Read`, and `a_mis_cased_enum_case_is_diagnosed` is the casing rule; no
+      test writes `enum E { Match }`.
 
 ### Stage 7 — testing
 

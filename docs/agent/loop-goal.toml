@@ -785,37 +785,9 @@ tests = [
 # artefact M4's own Verify paragraph asks for.
 # ---------------------------------------------------------------------------------------------------
 
-[[check]]
-kind = "cargo-named"
-stage = "5 declared features"
-name = "nvs-types (the declared features)"
-args = ["test", "-p", "nvs-types"]
-tests = [
-  # Item 30 -- ADR 0014 §§ 2-3. The interface is known to `nvs-syntax` and `nvs-hir` and to no other
-  # crate today: no checker rule, no lowering, no runtime.
-  "a_property_observer_is_resolved_and_its_signature_checked",
-  # Item 31 -- ADR 0043's delegation, the half that did not land with its syntax.
-  "a_by_delegation_supplies_every_member_of_the_interface_it_names",
-  # Item 32 -- ADR 0046 §§ 4-6.
-  "an_attribute_is_retrieved_by_its_own_type",
-  "an_ambiguous_attribute_retrieval_is_a_compile_error",
-  "an_explicit_call_site_type_argument_parses_and_checks",
-]
-
-[[check]]
-kind = "cargo-named"
-stage = "5 declared features"
-name = "nvs-ir (the declared features)"
-args = ["test", "-p", "nvs-ir"]
-tests = [
-  "a_property_observer_runs_after_the_hook_or_the_storage",
-  "a_delegated_call_reaches_the_object_it_names",
-  # Item 34
-  "inline_html_at_file_scope_lowers_to_an_echo",
-  # Item 35 -- one frame per file, called from the require site, and ADR 0021 § 3's value form.
-  "a_required_file_runs_its_own_top_level_statements",
-  "a_require_in_value_position_answers_the_files_result",
-]
+# Items 30, 31, 32, 34 and 35 landed as `.nvst` cases rather than as cargo tests, so the two blocks
+# that named them by cargo test name are gone and the cases below own them -- see
+# guard-name-debt.md's cause 2. What is left here is the one item whose assertion a case cannot make.
 
 [[check]]
 kind = "cargo-named"
@@ -823,10 +795,11 @@ stage = "5 declared features"
 name = "nvs-stdlib (dump)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
-  # Item 33 -- ADR 0092's one record and its renderings, plus ADR 0033's redaction, which that ADR's
-  # own Verification section defers to M4 by name.
-  "a_dump_builds_one_diagnostic_record",
-  "a_dump_redacts_a_secret_qualified_property",
+  # Item 33 -- ADR 0092's one record and its renderings. The record's own doc comment says why this
+  # half cannot be a case: `--EXPECT-ERROR--` is how the runner is told a case should *fail*, so a
+  # suite has no way to read standard error off a successful run. ADR 0033's redaction row, which
+  # that ADR's Verification section defers to M4 by name, is a case and is listed below.
+  "a_dump_writes_to_the_diagnostic_channel_and_not_to_the_output",
 ]
 
 [[check]]
@@ -855,19 +828,18 @@ tests = [
   # Item 37 -- three of ADR 0007 § 6's four spellings, and the residue no longer restricted to a class.
   "an_instanceof_test_narrows_its_subject",
   "a_comparison_against_a_literal_narrows_its_subject",
-  "a_match_true_arm_narrows_its_subject",
-  # Item 38
+  # Item 38. The `match (true)` arm is a case rather than a cargo test, and so is the reachability
+  # half's accepting side; what is still owed here is the refusal of a body that falls off its end,
+  # which no diagnostic in `nvs-types` names yet.
   "a_non_void_function_must_return_on_every_path",
-  "a_switch_and_a_try_contribute_to_definite_assignment",
-  # Item 39
-  "a_user_class_constant_has_a_type_at_an_expression_site",
-  "a_promoted_constructor_parameter_declares_its_property",
+  "a_switch_with_default_and_a_break_in_every_case_assigns_definitely",
+  "a_trys_finally_assignment_reads_fine_after_it",
+  # Item 39. `an_implicit_constructor_is_held_to_zero_arguments` is genuinely owed: the refusal lives
+  # in `expr/calls.rs`'s private `reject_arguments_to_implicit_constructor`, which no test calls.
+  "a_class_constant_folds_and_an_enum_case_narrows",
   "an_implicit_constructor_is_held_to_zero_arguments",
-  "a_foreach_key_declared_past_string_is_a_compile_error",
   # Item 40
-  "an_equality_between_incompatible_operands_is_a_compile_error",
-  # Item 41
-  "a_reference_declares_the_same_type_on_both_sides",
+  "a_disjoint_equality_does_not_compile",
 ]
 
 [[check]]
@@ -879,8 +851,8 @@ tests = [
   # Item 42 -- each of these parses or is refused by a diagnostic that names its rule. A generic
   # parse error is not a refusal; loop-goal.md § What "no holes" means says why.
   "a_grouped_use_parses_or_names_the_rule_that_refuses_it",
-  "a_goto_label_is_refused_by_the_diagnostic_that_refuses_goto",
-  "a_local_declared_with_a_bare_shape_type_parses",
+  "goto_is_diagnosed_but_still_parses",
+  "shape_type_parses_in_every_declaration_slot",
   "an_enum_case_named_with_a_keyword_parses",
 ]
 
@@ -958,15 +930,34 @@ cases = [
   # Stage 5
   "tests/conformance/class/a-property-observer-sees-every-write-its-class-makes.nvst",
   "tests/conformance/class/a-delegated-interface-forwards-to-the-object-it-names.nvst",
+  # ADR 0043 § 4's other half: the forward exists for every member, so a field that cannot answer one
+  # of them is refused where the `by` is written rather than at the call.
+  "tests/conformance/class/a-delegate-field-must-be-able-to-answer-the-interface.nvst",
   # ADR 0046 §§ 4-5 match a payload *structurally* rather than by the attribute's name, so the case
   # is named for the shape it satisfies; "its own type" was the nominal reading that ADR refuses.
   "tests/conformance/core/an-attribute-is-retrieved-by-the-shape-it-satisfies.nvst",
+  # The refusal half of the same rule, and the only place the explicit call-site type argument
+  # `Core\Attributes::get<T>(…)` is both accepted and refused in one program: § 5's two-match
+  # ambiguity is E0728 here, decided at compile time rather than by a test run.
+  "tests/conformance/reject/an-attribute-retrieval-is-refused-where-it-cannot-be-folded.nvst",
   # ADR 0092's two halves, which one `.nvst` cannot hold: § 3's plaintext view over every node kind,
   # and § 5's redaction row, whose value never reaches the record at all.
   "tests/conformance/core/a-dump-renders-one-record-through-one-plaintext-view.nvst",
   "tests/conformance/core/a-secret-typed-property-is-redacted-wherever-it-is-dumped.nvst",
   "tests/conformance/lang/inline-html-at-file-scope-is-echoed-in-place.nvst",
   "tests/conformance/lang/a-required-file-runs-its-own-top-level-statements.nvst",
+  # ADR 0021 § 3's value form, which is a separate program from the statement form above.
+  "tests/conformance/lang/a-required-file-hands-a-value-back.nvst",
+  # Stage 6. Four rules whose assertion is a program rather than a checker unit test, so the
+  # `cargo-named` entries that used to name them are gone -- see guard-name-debt.md's cause 2.
+  # ADR 0007 § 6's fourth narrowing spelling, and the reachability half that a body can satisfy:
+  "tests/conformance/lang/a-match-and-a-switch-over-true-narrow-per-arm.nvst",
+  "tests/conformance/lang/a-for-body-that-always-returns.nvst",
+  "tests/conformance/lang/a-method-returns-early-from-inside-a-loop.nvst",
+  "tests/conformance/class/a-promoted-constructor-parameter-is-a-property.nvst",
+  # ADR 0007 § 3: a key is a `string` and nothing else, and a `&` binding agrees on the element type.
+  "tests/conformance/lang/a-foreach-key-binding-is-a-string-and-nothing-else.nvst",
+  "tests/conformance/array/a-by-reference-binding-needs-a-variable-and-the-element-type.nvst",
   # Stage 7. This is the one named case that is owed rather than misnamed: none of ADR 0079's surface
   # exists yet -- `#[Test]` is not on `nvs_types::derive::ATTRIBUTES`, `Core\Test` has no row in
   # `nvs_stdlib::registry`, and there is no table for a case to read back. It is written by item 43
