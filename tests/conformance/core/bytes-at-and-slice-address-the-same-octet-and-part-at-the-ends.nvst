@@ -1,0 +1,106 @@
+--TEST--
+Spec § 7: `Core\Bytes::at` names the same octet `slice` cuts a one-byte window at, over every index of a sweep, and the two part company exactly at the ends — `at` throws where `slice` clamps or answers the empty buffer — ADR 0009 § 1, ADR 0063 R4/R8
+--FILE--
+<?nvs
+// `at` and `slice` are one addressing rule read two ways: R8's sign rule over
+// the same buffer, one answering an octet and the other a window. Where they
+// agree, agreeing is the whole content of `at`; where they *disagree* — at the
+// two ends — the disagreement is deliberate and stated in each member's own
+// doc comment (an index that addresses nothing throws; an offset past the end
+// is the empty buffer, and one before the start clamps). Nothing asserted
+// either half: bytes-indexes-and-orders-by-byte-offset.nvst reads a handful of
+// indexes off each member separately, which is satisfied by two members that
+// have each drifted the same way. Here every index of a 19-wide sweep is asked
+// of both and the agreements are counted.
+class Probe {
+    // ADR 0063 R4: `at` returns `uint`, not `?uint`, so an index addressing
+    // nothing throws. `-1` is outside a byte's range and so cannot collide
+    // with an answer.
+    public static function octet(bytes $b, int $i): int {
+        try {
+            return Core\Bytes::at($b, $i) as int;
+        } catch (Throwable $e) {
+            return 0 - 1;
+        }
+    }
+}
+
+// There is no `bytes` literal (00-overview § 5), so the subject is hex — PNG's
+// eight-byte signature, whose octets include 0x89 and 0xff-adjacent values that
+// a signed reading would answer negative for.
+bytes $png = Core\Encoding::fromHex("89504e470d0a1a0a");
+int $n = Core\Bytes::length($png) as int;
+
+int $indexes = 0;
+int $answered = 0;
+int $threw = 0;
+int $oneByte = 0;
+int $agrees = 0;
+int $mirror = 0;
+// One index past each end, so the last addressable octet and the first
+// unaddressable one are two rows of the same loop: -9 … 9 over 8 bytes.
+int $i = 0 - ($n + 1);
+while ($i <= $n + 1) {
+    $indexes = $indexes + 1;
+    int $octet = Probe::octet($png, $i);
+    bytes $window = Core\Bytes::slice($png, $i, 1);
+    int $width = Core\Bytes::length($window) as int;
+    if ($width == 1) { $oneByte = $oneByte + 1; }
+    if ($octet < 0) { $threw = $threw + 1; }
+    if ($octet >= 0) {
+        $answered = $answered + 1;
+        // The comparison is a buffer against a buffer built from `at`'s own
+        // answer, rather than reading the window back with `at` — which would
+        // be the member checking itself.
+        if ($width == 1
+            && Core\Bytes::compare($window, Core\Bytes::fill(1, $octet as uint)) == 0) {
+            $agrees = $agrees + 1;
+        }
+    }
+    // R8's sign rule on `at` itself: the two spellings of one octet, asked of
+    // the same member rather than derived from `length`.
+    if ($i >= 0 && $i < $n) {
+        if (Probe::octet($png, $i) == Probe::octet($png, $i - $n)) {
+            $mirror = $mirror + 1;
+        }
+    }
+    $i = $i + 1;
+}
+echo "indexes ", $indexes, " answered ", $answered, " threw ", $threw, "\n";
+echo "windows ", $oneByte, " agree ", $agrees, " mirror ", $mirror, "\n";
+
+// The three indexes the two members answer differently, named one at a time.
+// Past the end they diverge in kind — a throw against the empty buffer — and
+// before the start they diverge in *value*: `slice` clamps a negative offset to
+// the start and so answers the first octet at an index `at` refuses outright.
+echo "at 8 -> ", Probe::octet($png, 8),
+    " slice [", Core\Encoding::toHex(Core\Bytes::slice($png, 8, 1)), "]\n";
+echo "at -9 -> ", Probe::octet($png, -9),
+    " slice [", Core\Encoding::toHex(Core\Bytes::slice($png, -9, 1)), "]\n";
+echo "at 7 -> ", Probe::octet($png, 7),
+    " slice [", Core\Encoding::toHex(Core\Bytes::slice($png, 7, 1)), "]\n";
+
+// The empty subject, where every index is past an end: `at` has no octet to
+// answer at any of them and `slice` has no window, so the sweep is uniform.
+bytes $none = Core\Encoding::fromHex("");
+int $emptyIndexes = 0;
+int $emptyThrew = 0;
+int $emptyWindows = 0;
+int $e = 0 - 2;
+while ($e <= 2) {
+    $emptyIndexes = $emptyIndexes + 1;
+    if (Probe::octet($none, $e) < 0) { $emptyThrew = $emptyThrew + 1; }
+    if (Core\Bytes::length(Core\Bytes::slice($none, $e, 1)) == 0) {
+        $emptyWindows = $emptyWindows + 1;
+    }
+    $e = $e + 1;
+}
+echo "empty subject: ", $emptyThrew, "/", $emptyIndexes, " threw, ",
+    $emptyWindows, " empty windows\n";
+--EXPECT--
+indexes 19 answered 16 threw 3
+windows 17 agree 16 mirror 8
+at 8 -> -1 slice []
+at -9 -> -1 slice [89]
+at 7 -> 10 slice [0a]
+empty subject: 5/5 threw, 5 empty windows
