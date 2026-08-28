@@ -320,8 +320,9 @@ tests = [
 
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 8 -- the corpus and the migration floor. 55% is this goal's own domains: the `ini_*` family,
-# `set_time_limit`, `memory_get_usage` and the rest of PHP's runtime-configuration surface.
+# Stage 8 -- the corpus and the migration floor. This goal owns the `ini_*` family, `gc_*`,
+# `opcache_*`, `set_time_limit` and the rest of PHP's runtime-configuration surface -- about
+# twenty-five names, so two points. 1-core-depth.toml's Stage 7 comment derives the whole curve.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
@@ -351,6 +352,6 @@ min_passing = 210
 [[check]]
 kind = "command"
 stage = "8 corpus and guards"
-name = "check-migration at 55%"
-argv = ["python", "tools/check-migration.py", "--min", "55"]
+name = "check-migration at 46%"
+argv = ["python", "tools/check-migration.py", "--min", "46"]
 want = ["inventory:", "classified:"]

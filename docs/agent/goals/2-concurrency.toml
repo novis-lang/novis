@@ -349,9 +349,12 @@ tests = [
   "a_coroutine_round_trip_stays_cheap",
 ]
 
+# `serialize`/`unserialize` and a handful of task names is all this goal owns in the inventory, so its
+# floor rises by two points and not by ten. 1-core-depth.toml's Stage 7 comment is where the whole
+# curve is derived; nothing here restates it.
 [[check]]
 kind = "command"
 stage = "9 guards"
-name = "check-migration at 50%"
-argv = ["python", "tools/check-migration.py", "--min", "50"]
+name = "check-migration at 44%"
+argv = ["python", "tools/check-migration.py", "--min", "44"]
 want = ["inventory:", "classified:"]

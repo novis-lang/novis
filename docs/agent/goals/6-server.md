@@ -194,6 +194,15 @@ what this adds.
 - **A mount routes and carries nothing else.** Policy is the per-app block's, which goal 3 built.
 - **`nvs ctl reload` is the socket's only operation**, and there is no network-reachable control surface in
   either direction of configuration. ADR 0078 § 6.
+- **No session installs a service, and item 21's checks are deliberately not end-to-end.** Registering
+  with the SCM needs administrator rights the loop does not have and should not be given, and a systemd
+  unit written to disk on an unattended box is a change nobody asked for. What is checked is what can be
+  checked without either: **every refusal** — the closed `serve`/`run` allowlist, a relative path, a
+  password on a command line, an install whose output would go nowhere, an ADR 0048 bundle — plus the
+  *shape* of what would be installed: a quoted absolute `ImagePath` on Windows, a printed unit on Linux
+  with `--install` withheld. That is the whole of ADR 0093's *Verification* that does not require a
+  privileged machine, and a session that finds the coverage thin has found this decision rather than a
+  gap. Real installation is a manual gate, fired by the user on a machine they chose.
 - **Raw/unparsed body access for an arbitrary content-type is an open gap**, flagged by ADR 0024's
   *Revisiting* and narrowed by m7.md to what `body()` and `bodyStream()` do not already answer. If a
   session finds it genuinely needed, that is a decided-and-recorded call in `Core\Request`'s module doc —
