@@ -1,0 +1,137 @@
+--TEST--
+`Core\Validate::isIp`'s numeric and structural bounds are each named beside the neighbour they refuse — the last octet value, the two group counts, a group's fourth hex digit and the one `::` an address may hold — and three sweeps count that exactly one width per family is accepted — docs/spec/01-core-library.md § 12
+
+--FILE--
+<?nvs
+// `crates/nvs-stdlib/src/validate.rs`'s helper doc says the grammar underneath
+// is `std::net::IpAddr`'s, so what this member accepts is a *closed* set of
+// widths and values rather than a shape that looks addressy. The existing
+// `validate-ip-families-and-the-two-byte-classes.nvst` asks what the
+// `{version}` option is for — the same subject answered differently by the two
+// families — and never asks the numbers. This case is the other half: every
+// bound below is written with the value one step past it on the same line, so
+// a parser that stops an entry early prints plausibly against neither half.
+
+// A dotted quad's octet is a byte. `255` is the last value it holds and `256`
+// is the first it does not, in the last position and in the first alike.
+echo "octet ",
+     (Core\Validate::isIp("192.0.2.255") ? "y" : "n"),
+     (Core\Validate::isIp("192.0.2.256") ? "y" : "n"),
+     (Core\Validate::isIp("255.255.255.255") ? "y" : "n"),
+     (Core\Validate::isIp("256.255.255.255") ? "y" : "n"),
+     (Core\Validate::isIp("0.0.0.0") ? "y" : "n"),
+     "\n";
+
+// The same bound asserted by counting rather than read off a line: eleven
+// consecutive last octets, of which the six at `250 … 255` are addresses and
+// the five above are not. A member that clamped, wrapped or truncated the
+// octet instead of refusing it answers `11` here while every line above still
+// reads `y`/`n` correctly.
+int $accepted = 0;
+int $n = 250;
+for (; $n <= 260; $n = $n + 1) {
+    if (Core\Validate::isIp("10.0.0." . ($n as string))) {
+        $accepted = $accepted + 1;
+    }
+}
+echo "octet-sweep ", $accepted as string, "\n";
+
+// Four octets, not three and not five — the count is part of the grammar, so
+// a prefix of an address is not one and neither is an address with a byte
+// appended.
+echo "quad ",
+     (Core\Validate::isIp("1.2.3") ? "y" : "n"),
+     (Core\Validate::isIp("1.2.3.4") ? "y" : "n"),
+     (Core\Validate::isIp("1.2.3.4.5") ? "y" : "n"),
+     "\n";
+
+// Counted over widths one to six: exactly one of them is an address.
+int $quads = 0;
+int $q = 1;
+string $dotted = "1";
+for (; $q <= 6; $q = $q + 1) {
+    if (Core\Validate::isIp($dotted)) {
+        $quads = $quads + 1;
+    }
+    $dotted = $dotted . ".1";
+}
+echo "quad-sweep ", $quads as string, "\n";
+
+// Eight groups uncompressed, on the same terms: seven is short and nine is
+// long, and neither is rescued by being otherwise well spelled.
+echo "groups ",
+     (Core\Validate::isIp("1:2:3:4:5:6:7") ? "y" : "n"),
+     (Core\Validate::isIp("1:2:3:4:5:6:7:8") ? "y" : "n"),
+     (Core\Validate::isIp("1:2:3:4:5:6:7:8:9") ? "y" : "n"),
+     "\n";
+
+// And counted the same way, over widths one to twelve.
+int $sixes = 0;
+int $g = 1;
+string $colons = "1";
+for (; $g <= 12; $g = $g + 1) {
+    if (Core\Validate::isIp($colons)) {
+        $sixes = $sixes + 1;
+    }
+    $colons = $colons . ":1";
+}
+echo "group-sweep ", $sixes as string, "\n";
+
+// A group is up to four hex digits, so `ffff` is a group and `fffff` is not —
+// the bound is on the digits written, not on the value, which is why the
+// leading zero `0fff` is the same group as `fff` rather than a fifth digit's
+// worth of overflow. `f` is the last hex digit and `g` is the first that is
+// not one; case is not part of the alphabet's bound.
+echo "digits ",
+     (Core\Validate::isIp("2001:ffff::1") ? "y" : "n"),
+     (Core\Validate::isIp("2001:fffff::1") ? "y" : "n"),
+     (Core\Validate::isIp("2001:0fff:0:0:0:0:0:1") ? "y" : "n"),
+     (Core\Validate::isIp("::f") ? "y" : "n"),
+     (Core\Validate::isIp("::g") ? "y" : "n"),
+     (Core\Validate::isIp("::F") ? "y" : "n"),
+     "\n";
+
+// `::` elides *at least one* group of zeros, which is a bound on both sides of
+// the same construct: seven written groups plus `::` is an address, eight
+// written groups plus `::` is not — there is nothing left for the `::` to
+// stand for. Its degenerate placements at either end, and the whole-address
+// form, are the other end of the same rule.
+echo "elide ",
+     (Core\Validate::isIp("1:2:3:4:5:6::8") ? "y" : "n"),
+     (Core\Validate::isIp("1:2:3:4:5:6:7::8") ? "y" : "n"),
+     (Core\Validate::isIp("::1") ? "y" : "n"),
+     (Core\Validate::isIp("1::") ? "y" : "n"),
+     "\n";
+
+// An embedded IPv4 tail is worth two groups, so it lands on both bounds at
+// once: six written groups plus a quad is eight, seven plus a quad is nine,
+// and the quad in the tail keeps the octet bound the first line pinned.
+echo "tail ",
+     (Core\Validate::isIp("1:2:3:4:5:6:1.2.3.4") ? "y" : "n"),
+     (Core\Validate::isIp("1:2:3:4:5:6:7:1.2.3.4") ? "y" : "n"),
+     (Core\Validate::isIp("::ffff:192.0.2.255") ? "y" : "n"),
+     (Core\Validate::isIp("::ffff:192.0.2.256") ? "y" : "n"),
+     (Core\Validate::isIp("::ffff:1.2.3.4.5") ? "y" : "n"),
+     "\n";
+
+// The `{version}` option narrows which family is accepted; it does not relax a
+// bound inside one. The value one step past each bound is still refused with
+// the option written, which is what keeps `{version: 4}` a filter rather than
+// a second, laxer parser.
+echo "option ",
+     (Core\Validate::isIp("192.0.2.255", {version: 4}) ? "y" : "n"),
+     (Core\Validate::isIp("192.0.2.256", {version: 4}) ? "y" : "n"),
+     (Core\Validate::isIp("1:2:3:4:5:6:7:8", {version: 6}) ? "y" : "n"),
+     (Core\Validate::isIp("1:2:3:4:5:6:7", {version: 6}) ? "y" : "n"),
+     "\n";
+--EXPECT--
+octet ynyny
+octet-sweep 6
+quad nyn
+quad-sweep 1
+groups nyn
+group-sweep 1
+digits ynyyny
+elide ynyy
+tail ynynn
+option ynyn
