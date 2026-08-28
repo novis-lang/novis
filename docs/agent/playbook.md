@@ -1820,6 +1820,16 @@ is why" — is this file.
   in the `catch` — and echoes that; which is also what lets the verdicts be *compared* to
   each other rather than read off the block, since the same message pinned once can then
   be counted over a whole corpus.
+- **`gaps.py --coverage` counts cases per member, and a member sitting at 2 may already be
+  at its bound.** A handoff derived `Core\Bytes::at`'s slice from that count — "the last
+  in-range index and the first out-of-range one, at both ends and over an empty receiver" —
+  and every clause of it was already in
+  `bytes-reads-name-the-octet-they-stop-at.nvst`, both ends of `int` itself included, so
+  there was nothing to write. The count is a proxy for depth and a case that asks five
+  things about one member scores as one. `grep -rn "Class::member" tests/conformance/` over
+  the item before writing costs one call; a duplicate case costs a session and then has to
+  be told apart from the real one forever after. If the item is already answered, say so in
+  the handoff and take the next one.
 
 ## Splitting a file that got too big
 
@@ -2377,6 +2387,17 @@ sibling in the same namespace unqualified.
   write the braces whenever a closure's whole body is one `void` call. Bisecting to it
   costs a scratch run per candidate, because the message names neither the closure nor the
   call.
+- **A size check is not a loop bound.** `Core\Bytes::repeat` and `Core\Str::repeat` both
+  checked the *product* — `affordable` on `len * times`, then the allocator — and then ran
+  `for _ in 0..times`. An empty subject makes that product zero for every count there is,
+  so both checks pass and the loop then runs a caller-supplied `uint` of iterations
+  appending nothing: `Core\Bytes::repeat($empty, 2000000000)` spun for 74 seconds to answer
+  the empty buffer, and `uint`'s maximum is an unbounded spin on the request path with a
+  caller's number as its only bound. Both short-circuit on an empty subject now. The
+  general shape to look for is a loop whose iteration count is the *caller's count* rather
+  than the *result's size*: the two size seams are both about how large the answer is, so
+  neither can see it, and nothing else in the tree can either — it builds, it is correct,
+  and it returns.
 
 ## Divergences and refusals already pinned
 

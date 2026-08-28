@@ -5,11 +5,18 @@ Core\Str::repeat at zero yields the empty string, which Core\Str::isEmpty is the
 echo Core\Str::repeat("ab", 3), "\n";
 echo "[", Core\Str::repeat("ab", 0), "]\n";
 echo "[", Core\Str::repeat("", 5), "]\n";
+// The count's own far end, over the same empty subject: the size checks are
+// about how large the result is, so an empty subject passes them for every
+// count there is and this line is the one place the *loop's* bound shows. It
+// is answered rather than run — `nvs_core_str_repeat`'s short-circuit, and
+// bytes-repeat-multiplies-and-answers-its-degenerate-counts.nvst is the twin.
+echo "[", Core\Str::repeat("", 18446744073709551615), "]\n";
 echo Core\Str::isEmpty("") as string, "|", Core\Str::isEmpty(" ") as string, "|\n";
 echo Core\Str::isEmpty(Core\Str::repeat("x", 0)) as string, "|\n";
 echo Core\Str::length(Core\Str::repeat("ab", 4)), "\n";
 --EXPECT--
 ababab
+[]
 []
 []
 1||

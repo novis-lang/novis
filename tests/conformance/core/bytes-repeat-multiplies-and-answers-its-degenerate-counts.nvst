@@ -1,0 +1,112 @@
+--TEST--
+Spec § 7: `Core\Bytes::repeat` multiplies its subject's length by its count, and zero, one and an empty subject are answered rather than counted out — ADR 0009 § 1, ADR 0063 R4
+--FILE--
+<?nvs
+// `repeat` has one interesting number in it and it is the count, so this case
+// is about what the count does at its two degenerate values and at the two
+// sizes that refuse it. The in-range answers are
+// bytes-sniffs-with-predicates-and-builds-with-fill-and-repeat.nvst; what is
+// here is the multiplication itself, counted, and the four ends.
+//
+// `crates/nvs-stdlib/src/bytes.rs` owns the member; the two refusal sentences
+// come from two different seams — `nvs_runtime::affordable`, which is the
+// policy check on a size, and `reserved`, which is the allocator itself.
+// count-shaped-producers-refuse-alike.nvst pins that those two sentences are
+// the *same* two at all eight count-shaped producers; what they are doing here
+// is naming the counts the empty subject then walks straight past.
+
+final class Rep {
+    public static function of(bytes $b, uint $times): string {
+        try {
+            return Core\Encoding::toHex(Core\Bytes::repeat($b, $times));
+        } catch (Throwable $e) {
+            return $e->message;
+        }
+    }
+}
+
+bytes $none = Core\Encoding::fromHex("");
+bytes $quad = Core\Encoding::fromHex("00112233");
+
+// The two degenerate counts, named beside the first count that builds
+// anything: zero is the empty buffer (PHP's `str_repeat` answer and
+// `Core\Str::repeat`'s), one is the subject itself and not a copy that differs
+// anywhere, and two is where the multiplication starts being visible.
+echo "[", Rep::of($quad, 0), "]\n";
+echo "[", Rep::of($quad, 1), "]\n";
+echo "[", Rep::of($quad, 2), "]\n";
+echo Core\Bytes::compare(Core\Bytes::repeat($quad, 1), $quad), "\n";
+
+// Counted over a table of four subjects and five counts: the result's length
+// is exactly the product, so a member that dropped or added a run is a number
+// short here rather than a plausible-looking hex line. The second tally is
+// what keeps the first from being satisfiable by a member that answers the
+// empty buffer everywhere.
+array<string> $subjects = ["", "ff", "0d0a", "00112233"];
+array<int> $counts = [0, 1, 2, 3, 5];
+int $rows = 0;
+int $product = 0;
+int $built = 0;
+foreach ($subjects as string $sh) {
+    foreach ($counts as int $c) {
+        bytes $b = Core\Encoding::fromHex($sh);
+        bytes $grown = Core\Bytes::repeat($b, $c as uint);
+        int $len = Core\Bytes::length($grown) as int;
+        $rows = $rows + 1;
+        if ($len == (Core\Bytes::length($b) as int) * $c) {
+            $product = $product + 1;
+        }
+        if ($len > 0) {
+            $built = $built + 1;
+        }
+    }
+}
+echo "rows ", $rows, " product ", $product, " nonempty ", $built, "\n";
+
+// The same claim asked as a recurrence rather than as a length, which is what
+// pins the *order* of the runs as well as their number: one more repetition is
+// the previous one with the subject joined onto its end. `Core\Bytes::join`
+// over a two-element array is the only concatenation `bytes` has.
+int $n = 0;
+int $steps = 0;
+int $agrees = 0;
+foreach ($subjects as string $rh) {
+    bytes $r = Core\Encoding::fromHex($rh);
+    for ($n = 1; $n <= 5; $n = $n + 1) {
+        array<bytes> $two = [Core\Bytes::repeat($r, ($n - 1) as uint), $r];
+        $steps = $steps + 1;
+        if (Core\Bytes::compare(Core\Bytes::repeat($r, $n as uint), Core\Bytes::join($two)) == 0) {
+            $agrees = $agrees + 1;
+        }
+    }
+}
+echo "steps ", $steps, " recurrence ", $agrees, "\n";
+
+// The far end of the count, where the two size seams live and answer with two
+// different sentences: `uint`'s maximum makes the product overflow before any
+// size exists to judge, while a count whose product is representable but
+// unservable reaches the allocator and is refused there. Both are catchable
+// throws and not an abort, which is what those seams' own doc comments are
+// written around.
+echo Rep::of($quad, 18446744073709551615), "\n";
+echo Rep::of($quad, 1000000000000000000), "\n";
+
+// The same two counts against an empty subject, which is the other side of
+// that bound: nothing about the count refuses anything — the product is zero
+// however large the count is, so both answer the empty buffer. A member that
+// reached those answers by *running* the loop would still print these two
+// lines, eventually; it is the pair above that makes them cheap, and the
+// short-circuit in `nvs_core_bytes_repeat` that makes them immediate.
+echo "[", Rep::of($none, 18446744073709551615), "]\n";
+echo "[", Rep::of($none, 1000000000000000000), "]\n";
+--EXPECT--
+[]
+[00112233]
+[0011223300112233]
+0
+rows 20 product 20 nonempty 12
+steps 20 recurrence 20
+Core\Bytes::repeat: the requested allocation is larger than any this process could hold
+Core\Bytes::repeat: the result is larger than any buffer this process could hold
+[]
+[]
