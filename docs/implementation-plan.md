@@ -1303,7 +1303,36 @@
 > half's guard read a second time. `mixed` is the one receiver deliberately still deferring: ADR
 > 0007 § 2 makes it the one unchecked position, so `nvs-ir`'s panic roster names it alone now and
 > the lowering that answers it from the receiver's runtime class is the next group.
-> `docs/adr/README.md` § *Where to look*'s own paragraph is that decision's home.
+> `docs/adr/README.md` § *Decisions taken at project start* owns that split, and the paragraph
+> beside it now owns the deferral's own **convention**: a call through a `mixed` receiver is
+> marshalled by the receiver's own descriptor rather than by a per-method thunk. Almost nothing has
+> to be marshalled at all, which is the fact the design turns on — ADR 0002 makes one calling
+> convention normative for every call, so `nvs_runtime::abi::NvsFn` already takes an array of
+> 16-byte tagged `Value`s and one tagged `out` slot, and `nvs-codegen`'s `store_value`/`load_value`
+> already write each argument and each return *with* its tag while a typed callee reads only the
+> payload half. So a site holding tagged values has tagged slots to fill and gets its answer back
+> tagged for the `mixed` the call's own type is, with no conversion in either direction. What is
+> missing is the callee's **declared shape** — its arity and which tag each parameter requires —
+> without which slot *i* is reinterpreted at the callee's own representation and an `int` handed to
+> a `string` parameter is an arbitrary dereference rather than a fault, the identical hole
+> `nvs_runtime::closure`'s module docs describe for `callable`, arrived at from the other side. The
+> method row on `ClassDesc` therefore carries them the way a closure object already carries
+> `FN_ARITY` and `FN_PARAM_TAGS` — the same nibble word, the same `CLOSURE_PARAM_TAG_ANY` for a
+> parameter whose representation is itself a tag — resolved once per class in
+> `ClassTable::set_methods` as `renderer` and `unwind` already are, with `check_param_tags` the one
+> implementation both paths share rather than a second copy of ADR 0007 § 2's `int`-into-`float`
+> widening. The thunk loses on three ranks of the priority ordering at once: `nvs-codegen` would
+> emit the tag rules a second time where a safety check wants one implementation (1), a thunk is a
+> second frame that still needs the same name lookup to be found at all (3), and it spends a whole
+> compiled function per method in every unit against sixteen bytes on a descriptor (5). Three shapes
+> are answered by a catchable throw rather than by dispatch, each because the row cannot describe
+> them and not as a rule about erasure: a non-`public` member, since a `mixed` receiver is outside
+> every class by construction; a variadic or `inout` parameter list, packed and written back at the
+> *call site*, which is the limit `E0721` already names for ADR 0043 § 4's synthesized forward; and
+> a `Core`-owned class, whose native members *borrow* argument 0 where a compiled method owns its
+> parameters — the very difference that made `renderer` its own descriptor field rather than a row
+> in the table. **The lowering itself is not landed**: `nvs-ir` still panics at `lower/expr.rs:2389`
+> on that one receiver, whose roster names it alone.
 > `tests/conformance/reject/a-method-call-through-a-receiver-that-names-no-class-is-refused.nvst`
 > pins all four refusals plus the nullable receiver's single code in one compile, with the two
 > spellings that do resolve — a named class, and a union narrowed by `instanceof` — written first,
