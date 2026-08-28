@@ -1,0 +1,175 @@
+--TEST--
+`Core\Json::decodeAs<T>` admits exactly the wire spellings a field's declared type names, and `uint` ⊂ `int` ⊂ `float` ⊂ `mixed` is strict at one named spelling each — ADR 0071 §§ 2 and 4, ADR 0007 § 2
+--FILE--
+<?nvs
+// ADR 0071 § 4's table read as a *bound*: one class per codec type, each with
+// the same single field, so a document differs only in the spelling it puts
+// there and the answer is the declared type's alone.
+#[Core\Json\Derive]
+class AsBool {
+    public bool $v;
+    public function constructor(bool $v) { $this->v = $v; }
+}
+#[Core\Json\Derive]
+class AsInt {
+    public int $v;
+    public function constructor(int $v) { $this->v = $v; }
+}
+#[Core\Json\Derive]
+class AsUint {
+    public uint $v;
+    public function constructor(uint $v) { $this->v = $v; }
+}
+#[Core\Json\Derive]
+class AsFloat {
+    public float $v;
+    public function constructor(float $v) { $this->v = $v; }
+}
+#[Core\Json\Derive]
+class AsStr {
+    public string $v;
+    public function constructor(string $v) { $this->v = $v; }
+}
+#[Core\Json\Derive]
+class AsMixed {
+    public mixed $v;
+    public function constructor(mixed $v) { $this->v = $v; }
+}
+
+class Probe {
+    public static function doc(string $spelling): string {
+        return "{\"v\":" . $spelling . "}";
+    }
+    // Six cells rather than one generic one: the class is written at the call
+    // site (ADR 0063 R4), so `decodeAs<T>` has no `T` a parameter could carry.
+    public static function asBool(string $spelling): bool {
+        try { Core\Json::decodeAs<AsBool>(Probe::doc($spelling)); return true; }
+        catch (Throwable $bad) { return false; }
+    }
+    public static function asInt(string $spelling): bool {
+        try { Core\Json::decodeAs<AsInt>(Probe::doc($spelling)); return true; }
+        catch (Throwable $bad) { return false; }
+    }
+    public static function asUint(string $spelling): bool {
+        try { Core\Json::decodeAs<AsUint>(Probe::doc($spelling)); return true; }
+        catch (Throwable $bad) { return false; }
+    }
+    public static function asFloat(string $spelling): bool {
+        try { Core\Json::decodeAs<AsFloat>(Probe::doc($spelling)); return true; }
+        catch (Throwable $bad) { return false; }
+    }
+    public static function asStr(string $spelling): bool {
+        try { Core\Json::decodeAs<AsStr>(Probe::doc($spelling)); return true; }
+        catch (Throwable $bad) { return false; }
+    }
+    public static function asMixed(string $spelling): bool {
+        try { Core\Json::decodeAs<AsMixed>(Probe::doc($spelling)); return true; }
+        catch (Throwable $bad) { return false; }
+    }
+    public static function mark(bool $taken): string {
+        return $taken ? "y" : "n";
+    }
+}
+
+// Every spelling JSON has, one per row, against every codec type in column
+// order `bool int uint float string mixed`.
+array<string> $spellings = ["true", "1", "-1", "1.0", "\"1\"", "[]", "null"];
+int $strayMixed = 0;   // taken by some type and refused by `mixed`
+int $strayFloat = 0;   // taken by `int` and refused by `float`
+int $strayInt = 0;     // taken by `uint` and refused by `int`
+int $nullTaken = 0;    // taken anywhere at all, on the `null` row
+foreach ($spellings as string $s) {
+    bool $b = Probe::asBool($s);
+    bool $i = Probe::asInt($s);
+    bool $u = Probe::asUint($s);
+    bool $f = Probe::asFloat($s);
+    bool $t = Probe::asStr($s);
+    bool $m = Probe::asMixed($s);
+    echo Core\Str::padEnd($s, 5), " ",
+        Probe::mark($b), Probe::mark($i), Probe::mark($u),
+        Probe::mark($f), Probe::mark($t), Probe::mark($m), "\n";
+    if (($b || $i || $u || $f || $t) && !$m) { $strayMixed = $strayMixed + 1; }
+    if ($i && !$f) { $strayFloat = $strayFloat + 1; }
+    if ($u && !$i) { $strayInt = $strayInt + 1; }
+    if ($s == "null" && ($b || $i || $u || $f || $t || $m)) { $nullTaken = $nullTaken + 1; }
+}
+
+// The three containments, counted over the whole sweep rather than read off a
+// row: `mixed` is exactly as checked as `mixed` ever is, so it takes whatever
+// any narrower type takes; `int` widens into a `float` field and nothing goes
+// the other way; and a `uint` field is an `int` field that also refuses the
+// negatives. A member answering plausibly row by row still fails these.
+echo "stray-mixed=", $strayMixed, " stray-float=", $strayFloat, " stray-int=", $strayInt, "\n";
+
+// Each containment is *strict*, and this is the spelling that makes it so.
+echo "strict-mixed=", Probe::mark(Probe::asMixed("[]") && !Probe::asFloat("[]")), "\n";
+echo "strict-float=", Probe::mark(Probe::asFloat("1.0") && !Probe::asInt("1.0")), "\n";
+echo "strict-int=", Probe::mark(Probe::asInt("-1") && !Probe::asUint("-1")), "\n";
+
+// ADR 0071 § 4: nullability belongs to the *type*, and the check runs ahead of
+// the type switch — so `null` is the one spelling even a `mixed` field refuses,
+// and `?T` in the neighbouring case is the only thing that admits it.
+echo "null-taken=", $nullTaken, "\n";
+
+// `uint`'s bound, named on both sides at each end. The floor is the ordinary
+// one, and the ceiling is not: ADR 0007 § 4 gives `uint` the range up to
+// 2^64−1, but a JSON document carries one number type and this reader refuses
+// a literal past `int` before any field is looked at, so `i64::MAX` is as high
+// as a `uint` field can be reached from the wire.
+echo "u-zero=", Probe::mark(Probe::asUint("0")), "\n";
+echo "u-max=", Probe::mark(Probe::asUint("9223372036854775807")), "\n";
+echo "u-over=", Probe::mark(Probe::asUint("9223372036854775808")), "\n";
+echo "i-max=", Probe::mark(Probe::asInt("9223372036854775807")), "\n";
+echo "i-over=", Probe::mark(Probe::asInt("9223372036854775808")), "\n";
+
+// ADR 0071 § 5: a refusal names the field it stopped at — but only when it got
+// as far as a field. The two `uint` refusals above are the pair that shows it:
+// one is the declared type refusing a value the document held, the other is the
+// document never being read, and only the first carries a path.
+try {
+    Core\Json::decodeAs<AsUint>("{\"v\":-1}");
+    echo "not reached\n";
+} catch (ParseError $negative) {
+    foreach ($negative->issues as {path: string, message: string} $issue) {
+        echo "floor path=[", $issue->path, "] ", $issue->message, "\n";
+    }
+}
+try {
+    Core\Json::decodeAs<AsUint>("{\"v\":9223372036854775808}");
+    echo "not reached\n";
+} catch (ParseError $ceiling) {
+    foreach ($ceiling->issues as {path: string, message: string} $issue) {
+        echo "ceiling path=[", $issue->path, "]\n";
+    }
+}
+// And the `int`/`float` split says which type refused, not which number: the
+// wire spelling `1.0` is "a number" to the reader either way.
+try {
+    Core\Json::decodeAs<AsInt>("{\"v\":1.0}");
+    echo "not reached\n";
+} catch (ParseError $fractional) {
+    foreach ($fractional->issues as {path: string, message: string} $issue) {
+        echo "fraction path=[", $issue->path, "] ", $issue->message, "\n";
+    }
+}
+--EXPECT--
+true  ynnnny
+1     nyyyny
+-1    nynyny
+1.0   nnnyny
+"1"   nnnnyy
+[]    nnnnny
+null  nnnnnn
+stray-mixed=0 stray-float=0 stray-int=0
+strict-mixed=y
+strict-float=y
+strict-int=y
+null-taken=0
+u-zero=y
+u-max=y
+u-over=n
+i-max=y
+i-over=n
+floor path=[v] expected uint, found a number
+ceiling path=[]
+fraction path=[v] expected int, found a number
