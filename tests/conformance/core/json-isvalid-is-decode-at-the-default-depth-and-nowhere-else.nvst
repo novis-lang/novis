@@ -1,0 +1,83 @@
+--TEST--
+`Core\Json::isValid` is `decode` at the *default* depth — it holds at 512 and refuses 513 on its own, and a raised or lowered cap moves `decode` away from it in both directions — spec § 6
+--FILE--
+<?nvs
+// `crates/nvs-stdlib/src/json.rs` documents `isValid` as answering "exactly
+// what `decode` would accept **at the default depth**". The first half of that
+// is already swept over a table of spellings; this case is the second half,
+// which no spelling can reach: `isValid` takes no `maxDepth`, so it has a bound
+// of its own, and agreement with `decode` is a fact about one particular cap
+// rather than about the pair.
+
+class Nest {
+    // A scalar document is depth 1 and each bracket is one more, so `$b`
+    // brackets around a scalar is depth `$b + 1` — PHP's own counting, which
+    // the neighbouring cap case pins.
+    public static function doc(int $b): string {
+        return Core\Str::repeat("[", $b as uint) . "1" . Core\Str::repeat("]", $b as uint);
+    }
+    public static function decodesDefault(string $doc): bool {
+        try { Core\Json::decode($doc); return true; }
+        catch (ParseError $deep) { return false; }
+    }
+    public static function decodesAt(string $doc, uint $cap): bool {
+        try { Core\Json::decode($doc, {maxDepth: $cap}); return true; }
+        catch (ParseError $capped) { return false; }
+    }
+    public static function mark(bool $yes): string {
+        return $yes ? "y" : "n";
+    }
+}
+
+// One window, reaching equally far either side of the bound, asked three ways.
+// The counts are what carry the claim: a member that answered plausibly at any
+// single depth still has to move one of these three numbers to be wrong.
+int $agreeDefault = 0;   // `isValid` == `decode` with no option
+int $splitRaised = 0;    // `decode` accepts under 1024 where `isValid` refuses
+int $splitLowered = 0;   // `isValid` accepts where `decode` refuses under 100
+int $valid = 0;          // `isValid` alone, over the window
+int $b = 508;
+for ($b = 508; $b <= 516; $b = $b + 1) {
+    var $doc = Nest::doc($b);
+    bool $ok = Core\Json::isValid($doc);
+    $valid = $valid + ($ok ? 1 : 0);
+    $agreeDefault = $agreeDefault + (($ok == Nest::decodesDefault($doc)) ? 1 : 0);
+    $splitRaised = $splitRaised + ((!$ok && Nest::decodesAt($doc, 1024)) ? 1 : 0);
+    $splitLowered = $splitLowered + (($ok && !Nest::decodesAt($doc, 100)) ? 1 : 0);
+}
+// 9 documents, depths 509 through 517: the four at 512 or below are valid, and
+// `decode` with no option says the same about all nine.
+echo "valid=", $valid, " agree=", $agreeDefault, "\n";
+// The two splits go in opposite directions, which is what "at the default
+// depth" means and what a single agreeing sweep cannot distinguish from
+// "`isValid` is `decode`": raising the cap makes `decode` accept five
+// documents `isValid` calls invalid, and lowering it makes `decode` refuse
+// the four `isValid` calls valid.
+echo "raised=", $splitRaised, " lowered=", $splitLowered, "\n";
+
+// `isValid`'s own bound, named on both sides. The default is a number this
+// member carries rather than borrows, so it is asserted here and not only
+// through `decode`: 511 brackets is depth 512 and holds, 512 is depth 513 and
+// does not.
+echo "at=", Nest::mark(Core\Json::isValid(Nest::doc(511))),
+    " past=", Nest::mark(Core\Json::isValid(Nest::doc(512))), "\n";
+
+// And the same pair under a raised cap, written out, because it is the whole
+// point: the document `isValid` just refused is well-formed JSON that `decode`
+// reads without complaint the moment the caller says how deep it will go.
+echo "raised-at=", Nest::mark(Nest::decodesAt(Nest::doc(512), 1024)),
+    " lowered-at=", Nest::mark(Nest::decodesAt(Nest::doc(511), 100)), "\n";
+
+// The bound is the only thing separating them. A document too deep for the
+// default and a document that is not JSON at all are the same `false`, since
+// `isValid` has nowhere to put the difference — that is the price of the
+// `bool`, and `decode`'s `ParseError` is where a caller goes for the reason.
+echo "deep=", Nest::mark(Core\Json::isValid(Nest::doc(600))),
+    " malformed=", Nest::mark(Core\Json::isValid("{oops}")),
+    " empty=", Nest::mark(Core\Json::isValid("")), "\n";
+--EXPECT--
+valid=4 agree=9
+raised=5 lowered=4
+at=y past=n
+raised-at=y lowered-at=n
+deep=n malformed=n empty=n
