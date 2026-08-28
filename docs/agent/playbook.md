@@ -1595,6 +1595,14 @@ is why" — is this file.
   has **no `mbstring`** (the playbook bullet above owns that) but **does** have `iconv`,
   and `strptime` was removed from PHP outright, so `DateTime::createFromFormat` is the
   twin a `Core\Time::parse` oracle is written against.
+- **A `Core` enum case cannot be held in a binding of its own type**, so a case that sweeps a
+  table of them writes each row out rather than looping. `Core\Charset $c = Core\Charset::Ascii;`
+  and `array<Core\Charset> $sets = [Core\Charset::Ascii, …]` are both `E0401` reading "expected
+  `Core\Charset`, found `Core\Charset`" — the assignability check between a `Core` enum's *case*
+  type and that enum's own type fails where the identical shape over a user-declared `enum Mode`
+  passes. The way round is to write the case inline at every call site, which is what the three
+  `encoding-*` differential cases do and why their sweeps are eight `if` lines rather than a
+  `foreach`. It is a checker hole rather than a rule, and the handoff's `## Backlog` carries it.
 
 ## Splitting a file that got too big
 
