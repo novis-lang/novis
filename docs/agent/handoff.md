@@ -2,57 +2,61 @@
 
 ## State
 
-**M4's Stage 8, depth.** The tree is at **785 conformance plus 189 differential**. `python
-tools/gaps.py --coverage` ranks by the median cases per member; `Core\Test` left the frontier
-this session (median 2.0 → 3.0), and its floor of 2 is now `assertThrows` alone. The thinnest
-class is now `Core\Regex\Match` (median 2.5, floor 1). Nothing is blocked.
+**M4's Stage 8, depth.** The tree is at **788 conformance plus 189 differential**. `python
+tools/gaps.py --coverage` ranks by the median cases per member; `Core\Regex\Match` left the
+frontier this session (median 2.5 → 4.5, floor 1 → 2). The thinnest classes are now
+`Core\Uri` and `Core\Regex`, both at median 3.0 with a floor of 1. Nothing is blocked.
 
-- **`test-assert-null-refuses-every-value-that-is-not-null.nvst`** separates ADR 0035 § 2's
-  falsy table from "is null" by running both sweeps and counting: nine falsy-but-not-null
-  subjects (both integer zeroes, both float zeroes, `""`, `"0"`, `false`, `[]`, an enum case
-  backed by `0`) all *fail*, six truthy ones fail identically, three spellings of `null` hold,
-  and all eighteen agree with `assertSame($x, null)`. The last block pins what the report cannot
-  say: `int` 0, `uint` 0, `0.0` and the enum case all render as `0`.
-- **`test-assert-count-agrees-with-arr-count-over-every-length.nvst`** asks a five-length by
-  six-expectation grid, so `held` falls on the diagonal and nowhere else — which is the bound
-  asserted on both sides once per length. Duplicates, a string-keyed map and a nested
-  `array<array<string>>` all count entries; an `unset` moves the expectation that holds; and
-  `18446744073709551615` is an ordinary failure with both sides named.
-- **`test-assert-does-not-throw-quotes-the-throw-it-caught.nvst`** quotes four throw shapes (a
-  throw three frames down, an empty message, `/ 0`'s `ArithmeticError`, and a failed assertion's
-  own report), then pins the half a report cannot show: the propagated class is
-  `Core\Test\Failure` and not the body's — the two `catch` clauses are ordered so the body's
-  `RuntimeError` would bind first if it were being passed through — and the next two assertions
-  hold rather than inheriting the pending throw. A six-body table then agrees with a hand-written
-  `try` around the same `callable`.
+- **`regex-match-offset-is-a-grapheme-index-from-zero-to-the-subject-length.nvst`** settles
+  the question one case could not ask: the unit. A ZWJ family sequence is one grapheme, five
+  code points and eighteen octets, so `x1` after one reports `1` and neither `5` nor
+  `PREG_OFFSET_CAPTURE`'s `18`; a combining accent and a `\r\n` pair are the same fact in
+  everyday shapes. The ceiling is named on both sides — the last non-empty match of `"abc"`
+  is at `2`, the zero-width `$` reaches `3` which is the subject's own length, a search from
+  `3` finds nothing and the empty pattern still matches exactly there, so `matchAll` over the
+  empty pattern walks `0 1 2 3`. A seven-match sweep then counts the invariant that only
+  holds under a grapheme index: `Core\Str::at($subject, $m->offset())` is the match's own
+  first character.
+- **`regex-match-groups-is-every-declared-group-counted.nvst`** makes the count a function of
+  the pattern alone — `1` plus one per numbered group plus one per name — and asserts the
+  tally over six patterns rather than any row, so PHP's default trimming of trailing
+  unmatched groups would fail here while every printed line still looked right. A
+  non-capturing group moves no number, an unreached optional group is a present `null`, and a
+  match with no groups is one entry rather than an empty array.
+- **`regex-match-group-agrees-with-groups-over-both-spellings-of-a-key.nvst`** asks
+  `group()` every key `groups()` listed and counts the agreement, then pins `group_key`'s own
+  rule: `2` and `"2"` are one key on the rows that throw as much as on the rows that answer,
+  while `"02"`, `"KIND"`, `""` and `-1` are undeclared keys. The bound is named on both sides
+  — `2` answers and `3` throws, quoting "declares no group `3`".
 
 ## Next group
 
-**`Core\Regex\Match`'s floor: `offset`, `groups` and `group`** — the file set is
-`crates/nvs-stdlib/src/regex.rs` plus `tests/conformance/core/`. The three registry rows are
-together at `regex.rs:310`, `:317` and `:324`, and the class's own slot list is at `:338`, so
-read those five lines once before taking the first slice: all three members read the same two
-slots off the same instance, which is why one file set covers the group.
+**`Core\Regex`'s own floor: `quote`, `replaceWith` and `compile`** — the file set is
+`crates/nvs-stdlib/src/regex.rs` plus `tests/conformance/core/`, the same file this session
+worked in. The three registry rows are at `regex.rs:171`, `:148` and `:104`.
 
-- [ ] **`offset`'s edges** (`regex.rs:324` the row, `:985` the implementation) — it sits at one
-      case, the fewest of any member on disk. A match at offset 0, a match at the very end of the
-      subject, an empty match, and a multi-byte subject are the boundaries: whether the number is
-      octets or characters is the question a single case never asks.
-- [ ] **`groups` is the whole capture list, counted** (`regex.rs:317`, `:966`) — a pattern with
-      no groups, one with an unmatched optional group, and one with more groups than the subject
-      filled; sweep a table and count rather than reading one line.
-- [ ] **`group` agrees with `groups` over every key** (`regex.rs:310`, `:929`, and `group_key`
-      just above it) — an agreement case: every index and every name `groups` answers, asked of
-      `group`, plus the key that names nothing.
+- [ ] **`quote`'s edges** (`regex.rs:171` the row, `:1258` the implementation) — one case on
+      disk. The boundary is which characters it escapes and which it leaves: the round trip
+      `Core\Regex::matches($s, Core\Regex::quote($s))` over a table of metacharacter-bearing
+      subjects is the invariant, counted, and an empty subject plus a subject that is nothing
+      but metacharacters are the edges.
+- [ ] **`replaceWith`'s callback contract** (`regex.rs:148`, `:1116`) — one case. What the
+      callback is handed is a `Match`, so the three members above are readable from inside
+      it; no match at all, a callback returning the empty string, and a `{limit:}` at `0` and
+      at one below the match count are the edges.
+- [ ] **`compile` answers a `Pattern` the other members take** (`regex.rs:104`, `:693`) —
+      three cases. The agreement shape: every member taking `Pattern|string` answers the same
+      thing for a compiled pattern as for its source string, counted over a sweep.
 
 ## Backlog
 
-- **An enum case erased to `mixed` reads falsy in a condition when it is backed by `0`**, which
-  ADR 0035 § 2's own table row and § 4 say is truthy — the tag is all the runtime helper has, and
-  ADR 0047 § 5 is why. Unpinned either way; ADR 0035's M3 verification bullet names this exact
-  row. Owner: `docs/adr/0035-truthy-boolean-context.md` § 4.
-- `Core\Test::assertThrows` is the class's remaining floor at two cases — `python tools/gaps.py --coverage`.
-- `Core\Uri::buildQuery`, `::compareTo` and `Core\Regex::quote`/`::replaceWith` each sit at one case — same tool.
-- 54 of the 156 guard tests `loop-goal.toml` names still match nothing `cargo test` runs — `docs/agent/guard-name-debt.md`.
-- ADR 0028 § 2's abandoned-generator `finally` is pre-authorized and unlanded — `docs/agent/loop-goal.md`.
-- `orient.py`'s `[context] playbook` names two selectors under *Writing a test case* that match no bullet; it warned twice this session — `docs/agent/loop-goal.toml`.
+- `Core\Uri`'s floor — `buildQuery` 1, `compareTo` 1, `decodeComponent` 2
+  (`crates/nvs-stdlib/src/uri.rs`); `compareTo` is content equality, and ADR 0090 § 4 forbids
+  `==` on two objects, so the spelling is `$a->compareTo($b) == 0`.
+- `Core\Time\Zone`'s floor — `system` 1, `fixed` 2, `offsetAt` 4 (`docs/agent/loop-goal.md`).
+- `Core\Str`'s floor — `fold` 1, `graphemes` 1, `indexOf` 1; the Windows `php` has no
+  `mbstring`, so the Unicode rows cite the UCD table rather than an oracle.
+- `matchAll` converts each offset over the whole prefix, so k matches in an n-byte subject is
+  O(n·k) — `crates/nvs-stdlib/src/regex.rs`'s module doc gap 3 owns the cursor that fixes it.
+- 54 of the 156 guard tests `loop-goal.toml` names match nothing `cargo test` runs —
+  `docs/agent/guard-name-debt.md`.

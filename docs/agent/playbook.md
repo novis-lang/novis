@@ -1762,6 +1762,17 @@ is why" — is this file.
   because ADR 0047 § 5 spends no representation on hiding it and the runtime table dispatches on
   the tag — while the same case behind its declared type is truthy, which is what ADR 0035 § 4
   actually decided. Do not assert the erased row as if it were the ADR's answer.
+- **A `!= null` narrowing does not survive into a loop body, so a nullable receiver is
+  nullable again inside a `foreach`.** `var $found = Core\Regex::match(…); if ($found !=
+  null) { $found->groups() … }` narrows fine, and `$found->group($key)` one line further in,
+  *inside a `foreach` over those groups*, is `E0459` — "this receiver is nullable" — with the
+  narrowing test still four lines above it. The same thing hits an argument: passing `$found`
+  to a `public static function` declaring `Core\Regex\Match` is `E0401: found
+  null|Core\Regex\Match` from inside the loop and accepted outside it. So a case whose sweep
+  is over a `?T`-answering member declares its helper's parameter `?Core\Regex\Match` and
+  reads it with `?->` plus a `??`, rather than narrowing once at the top and trusting it. In
+  the same family and cheaper to hit: `foreach ($m?->groups() as …)` is `E0443` outright, the
+  nullsafe chain's own `null` being part of the iterated type.
 
 ## Splitting a file that got too big
 
