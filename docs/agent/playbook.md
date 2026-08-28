@@ -1741,6 +1741,16 @@ is why" — is this file.
   three. The union spelling parses in a parameter position and widens to `Core\Digest` for the
   members that take the whole enum, so one helper can forward to both `hmac` and
   `Core\Hash::stream`.
+- **A member's *case count* does not say which shapes those cases already assert.**
+  `gaps.py --coverage` ranks by cases-per-member, so a member can sit at 2 and already have
+  both halves of its bound pinned — `Core\Bytes::at` did, in
+  `bytes-reads-name-the-octet-they-stop-at.nvst` (last index each way, first refused each way,
+  the empty receiver, and the refusal's own message) *and* in
+  `bytes-indexes-and-orders-by-byte-offset.nvst`. Read the member's existing cases before
+  writing the shape a handoff line asks for: what was actually left there was the index
+  *type*'s ends, `i64::MAX` and `i64::MIN`, where `addressed`'s count-back-from-the-end could
+  wrap into range, and that is two echo lines appended to the case that already owns the
+  boundary rather than a new file duplicating it.
 
 ## Splitting a file that got too big
 
