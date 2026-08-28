@@ -1603,6 +1603,14 @@ is why" — is this file.
   passes. The way round is to write the case inline at every call site, which is what the three
   `encoding-*` differential cases do and why their sweeps are eight `if` lines rather than a
   `foreach`. It is a checker hole rather than a rule, and the handoff's `## Backlog` carries it.
+- **A `for` header's initialiser cannot declare a typed local.** `for (int $i = 0; $i <
+  200000; $i = $i + 1)` is twelve diagnostics in one line — `E0102`/`E0101` at the type
+  keyword, then `E0301` and `E0401` on the `$i` that never got declared — because the
+  header's first clause is an *expression*, not a statement, and ADR 0007 § 1 wants every
+  binding declared. Declare it above the loop and leave the clause empty, or write the
+  `while` the loop already is: `int $i = 0; while ($i < 200000) { … $i = $i + 1; }`. The
+  first error's span points at the type keyword, which reads like the type is unknown
+  rather than unexpected, so it is worth knowing before the eleven that follow it.
 
 ## Splitting a file that got too big
 
