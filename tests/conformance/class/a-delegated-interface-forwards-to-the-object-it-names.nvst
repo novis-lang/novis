@@ -1,0 +1,110 @@
+--TEST--
+`implements I by $field;` synthesizes a forward per required member, reached through the class and through the interface alike, and an own method beats it — ADR 0043 § 4
+--FILE--
+<?nvs
+// ADR 0043 § 4: the compiler synthesizes, for every method the interface
+// requires, a one-line forward onto the named property. It is a real method on
+// the delegating class rather than a rewrite at the call site, which is what
+// the interface-typed reads further down assert.
+interface Greets {
+    public function greet(string $who): string;
+    public function shout(): void;
+}
+
+interface Counts {
+    public function count(): int;
+}
+
+final class Polite implements Greets {
+    public function greet(string $who): string {
+        return "Hello, " . $who;
+    }
+    public function shout(): void {
+        echo "HI\n";
+    }
+}
+
+// The forward carries ADR 0002's error edge like any other call, so a throwing
+// delegate leaves through it and is caught where the *outer* call is written.
+final class Rude implements Greets {
+    public function greet(string $who): string {
+        throw new LogicError("no");
+    }
+    public function shout(): void {
+        echo "GO AWAY\n";
+    }
+}
+
+final class Three implements Counts {
+    public function count(): int { return 3; }
+}
+
+// § 4: "two different fields may each satisfy a different interface in the
+// same `implements` list."
+final class Post implements Greets by $voice, Counts by $tally {
+    private Greets $voice;
+    private Counts $tally;
+
+    public function constructor(Greets $voice, Counts $tally) {
+        $this->voice = $voice;
+        $this->tally = $tally;
+    }
+}
+
+// § 4: "a class may still write its own method with the same name as a
+// delegated one — that is an ordinary override, and wins over the synthesized
+// forward." Only `shout` is written here, so `greet` is still forwarded.
+final class Loud implements Greets by $voice {
+    private Greets $voice;
+
+    public function constructor(Greets $voice) {
+        $this->voice = $voice;
+    }
+
+    public function shout(): void {
+        echo "MINE\n";
+    }
+}
+
+Post $p = new Post(new Polite(), new Three());
+echo $p->greet("world"), "\n";
+$p->shout();
+echo $p->count(), "\n";
+
+// The half a call-site rewrite could not answer: the receiver's static type is
+// the interface, so the call dispatches on `Post`'s runtime method table and
+// reaches the forward only because the forward is a row in it.
+Greets $g = $p;
+echo $g->greet("interface"), "\n";
+Counts $c = $p;
+echo $c->count(), "\n";
+
+Loud $l = new Loud(new Polite());
+$l->shout();
+echo $l->greet("own"), "\n";
+
+Post $bad = new Post(new Rude(), new Three());
+try {
+    echo $bad->greet("nobody"), "\n";
+} catch (Throwable $refused) {
+    echo "caught ", $refused->message, "\n";
+}
+
+// The agreement the shape asks for rather than a tenth line read off the
+// output: the two spellings of one call must answer the same thing, so a
+// forward that grew a second answer for the interface-typed receiver fails the
+// count while still looking right on its own line above.
+int $agreed = 0;
+if ($p->greet("a") == $g->greet("a")) { $agreed = $agreed + 1; }
+if ($p->count() == $c->count()) { $agreed = $agreed + 1; }
+echo "agreed=", $agreed, "/2\n";
+--EXPECT--
+Hello, world
+HI
+3
+Hello, interface
+3
+MINE
+Hello, own
+caught no
+agreed=2/2
