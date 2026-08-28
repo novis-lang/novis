@@ -1,0 +1,157 @@
+--TEST--
+`Core\Test::assertNull` asks "is the tag null", not "is this falsy": every falsy value that is not `null` fails, so does every truthy one, and three spellings of `null` hold — ADR 0079 § 4, ADR 0035 § 2, ADR 0047 § 5
+--FILE--
+<?nvs
+// `assertNull`'s parameter is `mixed` (ADR 0007 § 2's one unchecked position),
+// which is what lets a subject of *any* type reach it -- so the boundary worth
+// pinning is not a type the checker refuses, it is the values that a reader
+// most expects to pass. ADR 0035 § 2's falsy table and "is null" are two
+// different questions, and this case asserts they are answered separately by
+// running both sweeps and counting, rather than reading one verdict off a line.
+
+use Core\Test;
+
+enum Level: int {
+    Off = 0,
+    On = 1,
+}
+
+final class Ask {
+    public static function nullish(mixed $subject): string {
+        try {
+            Test::assertNull($subject);
+        } catch (Core\Test\Failure $fromNull) {
+            return "failed";
+        }
+        return "held";
+    }
+
+    // ADR 0035 § 2's table, resolved at run time because the subject is
+    // `mixed` -- § 3 makes that the one shape that pays for the helper.
+    public static function truthy(mixed $subject): string {
+        if ($subject) {
+            return "truthy";
+        }
+        return "falsy";
+    }
+
+    // The equality spelling of the same question, for the agreement below.
+    public static function same(mixed $subject): string {
+        try {
+            Test::assertSame($subject, null);
+        } catch (Core\Test\Failure $fromSame) {
+            return "failed";
+        }
+        return "held";
+    }
+
+    public static function reported(mixed $subject): string {
+        try {
+            Test::assertNull($subject);
+        } catch (Core\Test\Failure $fromReport) {
+            return $fromReport->message;
+        }
+        return "held";
+    }
+}
+
+// 1. The null side, in the three spellings a program actually writes: the
+// literal, a `?T` binding initialised to it, and a `?T` no literal wrote --
+// `Core\Arr::first` over an empty array answers `null` from inside a member.
+array<string> $empty = [];
+?string $absent = null;
+?string $noFirst = Core\Arr::first($empty);
+
+int $held = 0;
+array<mixed> $nulls = [null, $absent, $noFirst];
+foreach ($nulls as mixed $isNull) {
+    if (Ask::nullish($isNull) == "held") {
+        $held = $held + 1;
+    }
+}
+echo "held=", $held, "/3\n";
+
+// 2. Every falsy row of ADR 0035 § 2's table that is *not* `null`: both
+// integer zeroes (the `uint` one comes from `Core\Arr::count`, which is the
+// only way to name one here without a literal), both float zeroes, the empty
+// string and the one-character `"0"` the string row also calls falsy, `false`,
+// the empty array, and an enum case backed by `0` -- ADR 0035 § 4 is why that
+// last one is worth a row at all. Each must *fail*, and the falsy count is
+// asserted beside it so a member that quietly grew the truthy table's reading
+// cannot pass both halves.
+array<mixed> $falsy = [0, Core\Arr::count($empty), 0.0, -0.0, "", "0", false, [], Level::Off];
+
+int $falsyFailed = 0;
+int $wereFalsy = 0;
+foreach ($falsy as mixed $isFalsy) {
+    if (Ask::nullish($isFalsy) == "failed") {
+        $falsyFailed = $falsyFailed + 1;
+    }
+    if (Ask::truthy($isFalsy) == "falsy") {
+        $wereFalsy = $wereFalsy + 1;
+    }
+}
+echo "falsyFailed=", $falsyFailed, "/9 wereFalsy=", $wereFalsy, "/9\n";
+
+// 3. The other side of the same boundary: a truthy subject fails identically,
+// so "failed" is never the falsy table's answer being reported under another
+// name. `"0.0"` and a one-element array are the two rows PHP readers most often
+// expect to go the other way -- ADR 0035 § 2 lists both as truthy.
+array<mixed> $truthy = [1, "a", true, [0], "0.0", Level::On];
+
+int $truthyFailed = 0;
+int $wereTruthy = 0;
+foreach ($truthy as mixed $isTruthy) {
+    if (Ask::nullish($isTruthy) == "failed") {
+        $truthyFailed = $truthyFailed + 1;
+    }
+    if (Ask::truthy($isTruthy) == "truthy") {
+        $wereTruthy = $wereTruthy + 1;
+    }
+}
+echo "truthyFailed=", $truthyFailed, "/6 wereTruthy=", $wereTruthy, "/6\n";
+
+// 4. The agreement, over all eighteen subjects at once: `assertNull($x)` holds
+// exactly where `assertSame($x, null)` holds. The verdicts are compared rather
+// than each read off its own line, so a member that grew a second reading of
+// its subject fails the count even while every message still looks right.
+array<mixed> $every = [
+    null, $absent, $noFirst,
+    0, Core\Arr::count($empty), 0.0, -0.0, "", "0", false, [], Level::Off,
+    1, "a", true, [0], "0.0", Level::On,
+];
+
+int $agreed = 0;
+foreach ($every as mixed $subject) {
+    if (Ask::nullish($subject) == Ask::same($subject)) {
+        $agreed = $agreed + 1;
+    }
+}
+echo "agreed=", $agreed, "/18\n";
+
+// 5. What the report can and cannot tell apart. `int` 0, `uint` 0, `float` 0.0
+// and an enum case backed by `0` all render as `0`, because ADR 0047 § 5 spends
+// no representation on hiding a case's integer and the reporter has only the
+// tag -- so the *message* is not what distinguishes these rows, the count above
+// is. `-0.0` and `"0"` do print distinguishably.
+echo Ask::reported(0), "\n";
+echo Ask::reported(Level::Off), "\n";
+echo Ask::reported(0.0), "\n";
+echo Ask::reported(-0.0), "\n";
+echo Ask::reported(""), "\n";
+echo Ask::reported("0"), "\n";
+echo Ask::reported([]), "\n";
+echo Ask::reported(false), "\n";
+--EXPECT--
+held=3/3
+falsyFailed=9/9 wereFalsy=9/9
+truthyFailed=6/6 wereTruthy=6/6
+agreed=18/18
+Core\Test::assertNull failed: `$actual` is 0
+Core\Test::assertNull failed: `$actual` is 0
+Core\Test::assertNull failed: `$actual` is 0
+Core\Test::assertNull failed: `$actual` is -0
+Core\Test::assertNull failed: `$actual` is ""
+Core\Test::assertNull failed: `$actual` is "0"
+Core\Test::assertNull failed: `$actual` is an array of 0
+Core\Test::assertNull failed: `$actual` is false
