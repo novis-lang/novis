@@ -1,0 +1,96 @@
+--TEST--
+`Core\Test::assertThrows` matches the class it names and every descendant of it, and refuses the ancestor, the sibling and the body that throws nothing -- ADR 0079 § 4
+--FILE--
+<?nvs
+// The class argument is a *bound*, and ancestry makes it directional: naming
+// `RuntimeError` claims no more than that the failure is one, so a thrown
+// `ParseError` matches it -- the reading `catch (RuntimeError $e)` already has,
+// and the one PHP's `expectException` takes. The half a member could get wrong
+// while still printing plausibly on the accepting rows is the *other*
+// direction, so both are asserted here against one thrown class, and the
+// refusals are counted rather than read off their lines.
+//
+// The bodies are named static methods so each row runs one piece of code
+// rather than a re-spelling of it; a first-class `Class::method(...)`
+// reference does not exist yet, so the `callable` is a `fn` literal calling
+// one.
+
+final class Ran {
+    public static function parse(): void {
+        throw new ParseError("the input is not JSON");
+    }
+
+    public static function runtime(): void {
+        throw new RuntimeError("the world said no");
+    }
+
+    public static function quiet(): int {
+        return 7;
+    }
+}
+
+// The accepted side, over one thrown `ParseError`: the declared class exactly,
+// then each ancestor above it in `nvs_hir::errors::TREE` up to the root. A
+// member reading the class name for equality holds only the first of these.
+int $held = 0;
+
+Core\Test::assertThrows(fn (): void => { Ran::parse(); }, ParseError::class);
+$held = $held + 1;
+Core\Test::assertThrows(fn (): void => { Ran::parse(); }, RuntimeError::class);
+$held = $held + 1;
+Core\Test::assertThrows(fn (): void => { Ran::parse(); }, Throwable::class);
+$held = $held + 1;
+
+echo "held=", $held, "/3\n";
+
+// The refused side, and each row is the *nearest* one to an accepted row above
+// it. First: the same ancestry walked downwards -- a thrown `RuntimeError`
+// against the `ParseError` that descends from it. A member matching either
+// direction holds here and is wrong.
+int $refused = 0;
+
+try {
+    Core\Test::assertThrows(fn (): void => { Ran::runtime(); }, ParseError::class);
+} catch (Core\Test\Failure $downward) {
+    $refused = $refused + 1;
+    echo $downward->message, "\n";
+}
+
+// A sibling: `IOError` and the thrown `ParseError` share `RuntimeError` as a
+// parent and neither descends from the other, so the common ancestor is not
+// what the match is over.
+try {
+    Core\Test::assertThrows(fn (): void => { Ran::parse(); }, IOError::class);
+} catch (Core\Test\Failure $sibling) {
+    $refused = $refused + 1;
+    echo $sibling->message, "\n";
+}
+
+// A body that throws nothing at all -- the other edge entirely, and the one
+// whose detail names no thrown class because there was none. Its return value
+// is the member's to release, not the caller's.
+try {
+    Core\Test::assertThrows(fn (): int => { return Ran::quiet(); }, ParseError::class);
+} catch (Core\Test\Failure $silent) {
+    $refused = $refused + 1;
+    echo $silent->message, "\n";
+}
+
+// The third slot is ADR 0063 R2's option bag, and it decides nothing about the
+// match: it prefixes the report of a refusal the two arguments have already
+// settled.
+try {
+    Core\Test::assertThrows(fn (): void => { Ran::parse(); }, LogicError::class, {message: "the parser rejects it"});
+} catch (Core\Test\Failure $bagged) {
+    $refused = $refused + 1;
+    echo $bagged->message, "\n";
+}
+
+echo "refused=", $refused, "/4\n";
+--EXPECT--
+held=3/3
+Core\Test::assertThrows failed: `$body` threw RuntimeError, not ParseError: the world said no
+Core\Test::assertThrows failed: `$body` threw ParseError, not IOError: the input is not JSON
+Core\Test::assertThrows failed: `$body` returned without throwing ParseError
+the parser rejects it: Core\Test::assertThrows failed: `$body` threw ParseError, not LogicError: the input is not JSON
+refused=4/4
