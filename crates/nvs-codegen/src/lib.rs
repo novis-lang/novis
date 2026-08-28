@@ -225,6 +225,17 @@ pub enum CodegenError {
     /// An IR shape this slice does not lower — see the crate docs' scope list.
     #[error("nvs-codegen does not lower {0} yet")]
     Unsupported(String),
+    /// A question the IR's own invariants say is never asked, asked anyway.
+    ///
+    /// Always an engine bug rather than a language hole, exactly as
+    /// [`CodegenError::UnknownTarget`] is, and separated from
+    /// [`CodegenError::Unsupported`] for that reason rather than for its
+    /// wording: `tools/holes.py` reads the `Unsupported` constructor as the
+    /// inventory of shapes the language still refuses, and a bug sitting on
+    /// that worklist is an item no session can ever close.
+    /// `crates/nvs-ir/tests/refusals.rs` is the gate over that inventory.
+    #[error("internal error: {0}")]
+    Internal(String),
     /// Cranelift rejected the generated code, or the JIT module did.
     ///
     /// Rendered with the source's `Debug` as well as its `Display`: a verifier

@@ -322,6 +322,18 @@ Every one of these is settled. Implement it; do not re-open it.
 - **The allowlist in `every_refusal_is_a_diagnostic_or_decided` may never grow.** Every entry is a bullet
   in this section. A session that believes it needs a new one has found a decision, and takes it here —
   in this file, in the same session, with the reason — or it has found a hole it is trying to skip.
+- **A refusal site an open numbered item claims is scheduled, not undecided**, so it passes
+  `every_refusal_is_a_diagnostic_or_decided` without being on that allowlist. `tools/holes.py`'s own
+  attribution decides which item claims a site, and the last item closing is what leaves a site with
+  nowhere to belong — which is when the gate starts refusing everything the allowlist does not hold,
+  the end state its check's name describes. Attribution is by file, so the same test carries a
+  ceiling on the *total* count that ratchets down and never up; a new refusal beside an old one in a
+  claimed file would otherwise be invisible.
+- **A `CodegenError` no program can reach is `Internal`, not `Unsupported`.** `tools/holes.py` reads
+  the `Unsupported` constructor as the inventory of shapes the language still refuses, so an engine
+  invariant wearing that type is an item no session could ever close. `nvs_codegen::ty::tag_of`'s
+  two arms — a tagged value's static tag, and a representation that is not a value — are the first
+  two, and their doc comment already said no path asks.
 - **Picking every dependency but the two the user named** stays pre-authorized, unchanged from the
   previous goal.
 

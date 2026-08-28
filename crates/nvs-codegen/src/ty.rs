@@ -69,11 +69,14 @@ pub fn clif_ty(ty: Ty) -> Option<Type> {
 ///
 /// # Errors
 ///
-/// [`CodegenError::Unsupported`] for [`Ty::Tagged`], whose tag is by
+/// [`CodegenError::Internal`] for [`Ty::Tagged`], whose tag is by
 /// definition not a function of its static representation — it carries its own
 /// (see [`clif_ty`]), so every path that materializes one reads it from the
 /// value instead and never asks here. Reaching this arm means a caller
 /// forgot that. Likewise for [`Ty::Void`], which is not a value at all.
+/// Neither is a shape the language refuses, which is why neither is a
+/// [`CodegenError::Unsupported`]: no program reaches either one, so no item
+/// on `tools/holes.py`'s worklist could ever close it.
 /// An exception is an ordinary [`Tag::Object`] now, with no case of its own.
 pub(crate) fn tag_of(ty: Ty) -> Result<Tag, CodegenError> {
     Ok(match ty {
@@ -112,13 +115,13 @@ pub(crate) fn tag_of(ty: Ty) -> Result<Tag, CodegenError> {
         // the decision.
         Ty::Ref => Tag::Null,
         Ty::Tagged => {
-            return Err(CodegenError::Unsupported(
-                "the static tag of a tagged value, which carries its own".to_owned(),
+            return Err(CodegenError::Internal(
+                "asked for the static tag of a tagged value, which carries its own".to_owned(),
             ));
         }
         _ => {
-            return Err(CodegenError::Unsupported(format!(
-                "a value of representation {ty:?} crossing a call boundary"
+            return Err(CodegenError::Internal(format!(
+                "asked for the tag of representation {ty:?}, which is not a value"
             )));
         }
     })
