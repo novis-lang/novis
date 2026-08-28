@@ -1,0 +1,79 @@
+--TEST--
+Core\Arr::column appends a row missing the indexBy key under the next free integer key, which a later row's own key can then collide with, and its column and indexBy arguments answer the same for either spelling of a key, per spec § 2
+--FILE--
+<?nvs
+// `crates/nvs-stdlib/src/arr.rs:2218`'s doc settles two rules the spec's row
+// does not: a row missing the `indexBy` key still contributes, "under the next
+// integer key", and both key arguments go through `key_bytes`, so an `int` and
+// its written-out string name one cell. The sibling case
+// `arr-column-takes-one-cell-out-of-every-row` shows one instance of each;
+// this one asks *which* integer, and asks the agreement of every spelling in a
+// table rather than of two.
+
+// The next *free* integer, not the next position: it is `NvsArray::append`'s
+// counter, so a row keyed "5" moves it past 5, and a later "2" does not move
+// it back. Nothing else in the member states this — the appended keys are 6
+// and 7 while the rows sit at offsets 1 and 3.
+array<array<string>> $late = [
+    ["id" => "5", "name" => "Ada"],
+    ["name" => "Bo"],
+    ["id" => "2", "name" => "Cy"],
+    ["name" => "Di"],
+];
+echo Core\Json::encode(Core\Arr::column($late, "name", {indexBy: "id"})), "\n";
+
+// Where "one entry per matching row either way" stops holding: the appended
+// key is an ordinary key, so a later row whose `indexBy` cell *is* that
+// integer collapses onto it under the last-row-wins rule the doc states for
+// duplicates. Two matching rows, one entry — and the answer is a list, since
+// key "0" is all that was ever written.
+array<array<string>> $collide = [
+    ["name" => "Bo"],
+    ["id" => "0", "name" => "Ada"],
+];
+echo Core\Json::encode(Core\Arr::column($collide, "name", {indexBy: "id"})), "\n";
+
+// The agreement, counted rather than read off two lines: every key in the
+// table is asked of both arguments in both spellings, including a negative
+// one, one wider than a single digit, and one no row has. A member that grew
+// its own normalization on either argument fails here while still printing a
+// plausible column on each line.
+array<array<string>> $lists = [
+    [-1 => "wA", 0 => "xA", 1 => "yA", 10 => "zA"],
+    [-1 => "wB", 0 => "xB", 1 => "yB", 10 => "zB"],
+];
+array<string> $keys = ["-1", "0", "1", "10", "7"];
+int $asked = 0;
+int $columnAgrees = 0;
+int $indexAgrees = 0;
+foreach ($keys as string $k) {
+    $asked = $asked + 1;
+    if (Core\Json::encode(Core\Arr::column($lists, $k)) == Core\Json::encode(Core\Arr::column($lists, $k as int))) {
+        $columnAgrees = $columnAgrees + 1;
+    }
+    if (Core\Json::encode(Core\Arr::column($lists, 0, {indexBy: $k})) == Core\Json::encode(Core\Arr::column($lists, 0, {indexBy: $k as int}))) {
+        $indexAgrees = $indexAgrees + 1;
+    }
+}
+echo $asked as string, " ", $columnAgrees as string, " ", $indexAgrees as string, "\n";
+
+// What the agreeing rows agree *on*, so the count above is not five equal
+// emptinesses: a column no row has is empty, an `indexBy` no row has appends
+// every row under the fresh integers instead, and a negative column keyed by a
+// two-digit one carries both spellings through untouched.
+echo Core\Json::encode(Core\Arr::column($lists, "7")), "\n";
+echo Core\Json::encode(Core\Arr::column($lists, 0, {indexBy: "7"})), "\n";
+echo Core\Json::encode(Core\Arr::column($lists, -1, {indexBy: 10})), "\n";
+
+// `indexBy` naming the column itself is `flip` over that column: the values
+// become their own keys, and the duplicate collapses.
+array<array<string>> $same = [["k" => "a"], ["k" => "b"], ["k" => "a"]];
+echo Core\Json::encode(Core\Arr::column($same, "k", {indexBy: "k"})), "\n";
+--EXPECT--
+{"5":"Ada","6":"Bo","2":"Cy","7":"Di"}
+["Ada"]
+5 5 5
+[]
+["xA","xB"]
+{"zA":"wA","zB":"wB"}
+{"a":"a","b":"b"}

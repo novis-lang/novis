@@ -2204,9 +2204,11 @@ nvs_runtime::nvs_helper! {
     ///   that every non-ragged call — which is nearly all of them — would
     ///   then have to unwrap.
     /// - A row **missing the `indexBy` key** while having the column still
-    ///   contributes its value, under the next integer key. So the answer has
-    ///   one entry per matching row either way, and a partially keyed subject
-    ///   loses nothing.
+    ///   contributes its value, under the next integer key — the next *free*
+    ///   one, since it is `NvsArray::append`'s counter and a row keyed `"5"`
+    ///   moves it past 5. So a partially keyed subject loses nothing, unless
+    ///   the integer appended under is itself a later row's `indexBy` cell,
+    ///   where the collapse rule below applies like any other duplicate.
     /// - An `indexBy` cell that is **not an `int|string`** is a fault, which
     ///   is where PHP renumbers instead. The bullet above already spends the
     ///   "append it" answer on an *absent* key, so reusing it here would make
