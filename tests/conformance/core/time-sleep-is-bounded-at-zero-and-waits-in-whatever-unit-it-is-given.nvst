@@ -1,0 +1,95 @@
+--TEST--
+Spec § 4: `Core\Time::sleep` waits for every duration above zero and for none at or below it, and the unit the duration was spelled in changes nothing
+--FILE--
+<?nvs
+// `Core\Time::sleep(Duration $d): void` has one bound and it is at zero: a
+// duration at or below it is a wait of no time — "sleep until a moment already
+// past" is what a caller computing a deadline means — and every duration above
+// it is a real wait. Both sides are asserted here, because a member that
+// refused the non-positive half, or that rounded a sub-millisecond wait down to
+// nothing, would still look right against either half alone.
+
+// The last values that wait nothing, out to the far end of a `Duration`'s own
+// storage. None of them throws, and the whole sweep costs less than the single
+// wait below it does on its own.
+array<Core\Time\Duration> $nonPositive = [
+    Core\Time\Duration::nanoseconds(0),
+    Core\Time\Duration::nanoseconds(-1),
+    Core\Time\Duration::microseconds(-1),
+    Core\Time\Duration::milliseconds(-1),
+    Core\Time\Duration::seconds(-1),
+    (1h)->negated(),
+    Core\Time\Duration::nanoseconds(-9223372036854775807),
+];
+int $skipped = 0;
+var $before = Core\Time::monotonic();
+int $i = 0;
+while ($i < Core\Arr::count($nonPositive) as int) {
+    Core\Time::sleep($nonPositive[$i as string]);
+    $skipped = $skipped + 1;
+    $i = $i + 1;
+}
+int $skippedMs = Core\Time::monotonic()->minus($before)->toMilliseconds();
+echo $skipped as string, "|", $skippedMs < 40 ? "yes" : "no", "|\n";
+
+// The first value that waits. One nanosecond is above the bound, so the member
+// takes it as a wait rather than as nothing; the host's own resolution decides
+// how long it actually is, so the only thing assertable about it is the
+// direction — a wait is never negative, and never returns before it began.
+var $tinyMark = Core\Time::monotonic();
+Core\Time::sleep(1ns);
+echo Core\Time::monotonic()->minus($tinyMark)->toNanoseconds() >= 0 ? "yes" : "no", "|\n";
+
+// And a wait above the bound is never short. Four requests, each measured
+// against the clock that is allowed to measure it.
+array<Core\Time\Duration> $waits = [
+    Core\Time\Duration::milliseconds(1),
+    Core\Time\Duration::milliseconds(2),
+    Core\Time\Duration::milliseconds(5),
+    Core\Time\Duration::milliseconds(10),
+];
+int $requested = 0;
+int $waited = 0;
+int $w = 0;
+while ($w < Core\Arr::count($waits) as int) {
+    var $want = $waits[$w as string];
+    var $mark = Core\Time::monotonic();
+    Core\Time::sleep($want);
+    $requested = $requested + 1;
+    if (Core\Time::monotonic()->minus($mark)->toNanoseconds() >= $want->toNanoseconds()) {
+        $waited = $waited + 1;
+    }
+    $w = $w + 1;
+}
+echo $requested as string, "|", $waited as string, "|\n";
+
+// One millisecond, spelled four ways. `sleep` takes a `Duration` and not a
+// number, so the four PHP members it replaces — `sleep`, `usleep`,
+// `time_nanosleep`, `time_sleep_until` — differ only in a unit the value
+// already carries, and all four spellings have to wait the same one millisecond.
+array<Core\Time\Duration> $oneMilli = [
+    Core\Time\Duration::nanoseconds(1000000),
+    Core\Time\Duration::microseconds(1000),
+    Core\Time\Duration::milliseconds(1),
+    1ms,
+];
+int $spellings = 0;
+int $agree = 0;
+int $u = 0;
+while ($u < Core\Arr::count($oneMilli) as int) {
+    var $spelling = $oneMilli[$u as string];
+    $spellings = $spellings + 1;
+    var $unitMark = Core\Time::monotonic();
+    Core\Time::sleep($spelling);
+    if ($spelling->toNanoseconds() == 1000000
+        && Core\Time::monotonic()->minus($unitMark)->toNanoseconds() >= 1000000) {
+        $agree = $agree + 1;
+    }
+    $u = $u + 1;
+}
+echo $spellings as string, "|", $agree as string, "|\n";
+--EXPECT--
+7|yes|
+yes|
+4|4|
+4|4|
