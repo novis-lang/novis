@@ -271,7 +271,7 @@ tests = [
   # Item 5
   "a_power_operator_lowers_over_every_numeric_row",
   # Item 6
-  "a_spaceship_answers_minus_one_zero_or_one_for_a_scalar",
+  "the_spaceship_operator_is_the_compare_to_result_itself",
   # Item 7 -- both positions, and the address computation split out of `lower_reassignment` so a
   # re-evaluable target is read once.
   "an_increment_lowers_in_either_position",
