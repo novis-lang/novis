@@ -133,6 +133,15 @@ enum Command {
         /// The PHP binary a `--ORACLE--` case is compared against.
         #[arg(long, value_name = "PATH", default_value = "php")]
         php: PathBuf,
+        /// How a program's `#[Test]` run is reported (ADR 0079 § 22).
+        ///
+        /// The default is the human format, and it is what a `.nvst` tree is
+        /// always reported in: `nvs_test`'s own report is a conformance
+        /// summary rather than a suite of test methods, and § 23 keeps the two
+        /// from sharing anything — so naming a machine format beside a case
+        /// tree is refused rather than silently ignored.
+        #[arg(long, value_name = "FORMAT", default_value = "human")]
+        format: runner::Format,
     },
     /// Print build, host and third-party licensing information.
     ///
@@ -191,7 +200,12 @@ fn main() -> ExitCode {
             dump_asm,
             fault_inject,
         } => run_run(&file, dump_ir, dump_asm, fault_inject),
-        Command::Test { paths, filter, php } => run_test(&paths, filter, php),
+        Command::Test {
+            paths,
+            filter,
+            php,
+            format,
+        } => run_test(&paths, filter, php, format),
         Command::Info { licenses } => info::run(licenses),
     }
 }
@@ -490,7 +504,12 @@ fn run_run(
 /// Each case is run by spawning **this** binary — `nvs_test::run` documents
 /// why a subprocess rather than an in-process compile — so a debug build
 /// tests itself and a release build tests itself, with nothing to configure.
-fn run_test(paths: &[PathBuf], filter: Option<String>, php: PathBuf) -> ExitCode {
+fn run_test(
+    paths: &[PathBuf],
+    filter: Option<String>,
+    php: PathBuf,
+    format: runner::Format,
+) -> ExitCode {
     // ADR 0079 § 23's "`nvs test` runs both", decided by the path rather than
     // by a flag: a program is a `.nvs`/`.php` file and a conformance case is
     // not, so nothing has to be spelled out at the call site.
@@ -500,9 +519,16 @@ fn run_test(paths: &[PathBuf], filter: Option<String>, php: PathBuf) -> ExitCode
             return ExitCode::FAILURE;
         };
         return match front_end(path) {
-            Ok(checked) => runner::run(&checked),
+            Ok(checked) => runner::run(&checked, format),
             Err(code) => code,
         };
+    }
+    if format != runner::Format::Human {
+        // § 22's formats report a `#[Test]` run, and § 23 keeps the two suites
+        // from sharing a summary — so a machine format over a `.nvst` tree
+        // names a document this subcommand does not produce.
+        eprintln!("error: `--format` reports a program's `#[Test]` methods, not a `.nvst` tree");
+        return ExitCode::FAILURE;
     }
 
     let mut options = match nvs_test::Options::from_current_exe() {

@@ -1,7 +1,25 @@
 //! [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)'s
 //! runner: the `#[Test]` table a compile already built (§ 1), constructed and
 //! called (§ 20), judged off § 5's ledger — [`run_case`] owns why that and not
-//! the exception state — and reported in § 22's human format.
+//! the exception state — and reported in one of § 22's three formats.
+//!
+//! # One verdict, three renderings
+//!
+//! Every format renders the same [`Case`] list, and a verdict is decided once
+//! — [`Outcome::verdict`] — rather than per format, so the plaintext mark, the
+//! JSON string and the JUnit element cannot disagree about how a test came
+//! out. The plaintext one is the default and is written as the run goes, which
+//! is what keeps a long suite legible; a machine format is one document
+//! written at the end, because neither JSON nor XML has a prefix worth
+//! streaming.
+//!
+//! **Under a machine format the program's own output goes to stderr.** § 22
+//! writes `nvs test --format=json > results.json`, so stdout has to be the
+//! document and nothing else — a test's `echo` interleaved into it would make
+//! the redirect produce something no parser accepts. It is not captured into
+//! the document either: what a test printed is diagnostic output a person
+//! reads, and buffering a whole suite's worth of it to quote back is a cost
+//! every run would pay for the few that are being debugged.
 //!
 //! # Why the runner is here
 //!
@@ -38,9 +56,23 @@
 //! order *is* declaration order, which is what a reader of one file sees.
 
 use std::process::ExitCode;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use nvs_types::defaults::ConstArg;
+
+/// § 22's three report formats.
+///
+/// The roster lives here rather than in `main`, because what a format *is* is
+/// this module's question and `main` only has to name one on the command line.
+#[derive(Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum Format {
+    /// § 22's default: one line per test as the run goes, then the summary.
+    Human,
+    /// § 22's versioned JSON document, written to stdout at the end.
+    Json,
+    /// § 22's JUnit XML, the shape every CI system already ingests.
+    Junit,
+}
 
 /// How one test came out.
 enum Outcome {
@@ -57,8 +89,64 @@ enum Outcome {
     Exited(i64),
 }
 
-/// Compiles `checked` and runs every `#[Test]` it declares.
-pub(crate) fn run(checked: &crate::Checked) -> ExitCode {
+impl Outcome {
+    /// The one word every format names this outcome by.
+    ///
+    /// Each rendering reads its own mark, string or element off *this* rather
+    /// than matching the outcome a second time, which is what makes "the two
+    /// cannot disagree about a verdict" a property of the code rather than of
+    /// a review.
+    fn verdict(&self) -> &'static str {
+        match self {
+            Self::Passed => "passed",
+            Self::Skipped(_) => "skipped",
+            Self::Failed(_) => "failed",
+            Self::Exited(_) => "exited",
+        }
+    }
+
+    /// The plaintext mark, beside the verdict it renders so that a variant
+    /// this enum grows cannot take one without taking the other.
+    fn mark(&self) -> &'static str {
+        match self {
+            Self::Passed => "\u{2713}",
+            Self::Skipped(_) => "-",
+            Self::Failed(_) | Self::Exited(_) => "\u{2717}",
+        }
+    }
+
+    /// What went wrong, in the one line a machine format's `message` carries —
+    /// `None` for a test that did not fail. Several failed assertions read as
+    /// the first, the whole list staying available in the document's own
+    /// `failures` array.
+    fn message(&self) -> Option<String> {
+        match self {
+            Self::Passed => None,
+            Self::Skipped(reason) => Some(reason.clone()),
+            Self::Failed(reasons) => Some(
+                reasons
+                    .first()
+                    .cloned()
+                    .unwrap_or_else(|| "it failed".to_owned()),
+            ),
+            Self::Exited(code) => Some(format!("the test called exit({code})")),
+        }
+    }
+}
+
+/// One test's place in the run: what was called, how it came out, how long it
+/// took. The machine formats render a list of these at the end; the plaintext
+/// one renders each as it arrives.
+struct Case {
+    class: String,
+    method: String,
+    outcome: Outcome,
+    elapsed: Duration,
+}
+
+/// Compiles `checked` and runs every `#[Test]` it declares, reporting in
+/// `format`.
+pub(crate) fn run(checked: &crate::Checked, format: Format) -> ExitCode {
     let program = nvs_ir::lower::lower_program(
         crate::SCRIPT,
         &checked.program_files(),
@@ -75,16 +163,23 @@ pub(crate) fn run(checked: &crate::Checked) -> ExitCode {
         }
     };
 
-    let mut ctx = nvs_runtime::Ctx::stdout();
+    // The module doc owns why a machine format sends the program's own output
+    // to stderr: stdout is the document, and nothing else may be written to it.
+    let mut ctx = match format {
+        Format::Human => nvs_runtime::Ctx::stdout(),
+        Format::Json | Format::Junit => nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Stderr),
+    };
     unit.install_in(&mut ctx);
 
     let (mut passed, mut failed, mut skipped) = (0_usize, 0_usize, 0_usize);
     let mut exited = None;
+    let mut cases = Vec::new();
     let started = Instant::now();
     for class in checked.exprs.test_classes() {
-        let cases = checked.exprs.tests(class).unwrap_or_default();
-        println!("  {class}");
-        for case in cases {
+        if format == Format::Human {
+            println!("  {class}");
+        }
+        for case in checked.exprs.tests(class).unwrap_or_default() {
             let began = Instant::now();
             let outcome = run_case(&unit, &mut ctx, class, case);
             let elapsed = began.elapsed();
@@ -93,9 +188,19 @@ pub(crate) fn run(checked: &crate::Checked) -> ExitCode {
                 Outcome::Skipped(_) => skipped += 1,
                 Outcome::Failed(_) | Outcome::Exited(_) => failed += 1,
             }
-            report(&case.method, &outcome, elapsed);
+            if format == Format::Human {
+                report(&case.method, &outcome, elapsed);
+            }
             if let Outcome::Exited(code) = outcome {
                 exited = Some(code);
+            }
+            cases.push(Case {
+                class: class.to_owned(),
+                method: case.method.clone(),
+                outcome,
+                elapsed,
+            });
+            if exited.is_some() {
                 break;
             }
         }
@@ -110,10 +215,19 @@ pub(crate) fn run(checked: &crate::Checked) -> ExitCode {
         eprintln!("error: could not flush output: {error}");
         return ExitCode::FAILURE;
     }
-    println!(
-        "\n  {failed} failed, {passed} passed, {skipped} skipped in {:.0} ms",
-        started.elapsed().as_secs_f64() * 1000.0
-    );
+    let counts = Counts {
+        passed,
+        failed,
+        skipped,
+    };
+    match format {
+        Format::Human => println!(
+            "\n  {failed} failed, {passed} passed, {skipped} skipped in {:.0} ms",
+            started.elapsed().as_secs_f64() * 1000.0
+        ),
+        Format::Json => print!("{}", json_document(&cases, counts, started.elapsed())),
+        Format::Junit => print!("{}", junit_document(&cases, counts, started.elapsed())),
+    }
 
     if let Some(code) = exited {
         // `exit(n)` ended the program the way `nvs run` reports one, and the
@@ -203,14 +317,24 @@ fn skip_reason(case: &nvs_types::testing::TestCase) -> Option<String> {
     })
 }
 
+/// How the run came out, in the three counts every format's summary carries.
+#[derive(Clone, Copy)]
+struct Counts {
+    passed: usize,
+    failed: usize,
+    skipped: usize,
+}
+
+impl Counts {
+    fn total(self) -> usize {
+        self.passed + self.failed + self.skipped
+    }
+}
+
 /// § 22's one line per test: the mark, the method's own name, and how long it
 /// took.
-fn report(method: &str, outcome: &Outcome, elapsed: std::time::Duration) {
-    let mark = match outcome {
-        Outcome::Passed => "\u{2713}",
-        Outcome::Skipped(_) => "-",
-        Outcome::Failed(_) | Outcome::Exited(_) => "\u{2717}",
-    };
+fn report(method: &str, outcome: &Outcome, elapsed: Duration) {
+    let mark = outcome.mark();
     println!(
         "    {mark} {method:<32} {:.1} ms",
         elapsed.as_secs_f64() * 1000.0
@@ -224,5 +348,190 @@ fn report(method: &str, outcome: &Outcome, elapsed: std::time::Duration) {
             }
         }
         Outcome::Exited(code) => println!("      the test called exit({code})"),
+    }
+}
+
+/// § 22's versioned JSON: one object per run, over the very [`Case`] list the
+/// plaintext report renders a line at a time.
+///
+/// The version is at the root because that section promises a *versioned*
+/// schema, and a consumer that reads it knows what the rest of the keys mean.
+/// What § 22 additionally names — a structured diff, `#[Bench]`'s counters, a
+/// shrunk property counterexample, per-data-row results and per-test coverage
+/// — is absent because nothing produces any of it yet; each arrives as a new
+/// key beside these, which is the whole of what the version number buys.
+fn json_document(cases: &[Case], counts: Counts, total: Duration) -> String {
+    let mut out = String::from("{\n  \"schemaVersion\": 1,\n  \"summary\": {");
+    out.push_str(&format!(
+        "\"total\": {}, \"passed\": {}, \"failed\": {}, \"skipped\": {}, \"durationMs\": {:.3}}},\n  \"tests\": [",
+        counts.total(),
+        counts.passed,
+        counts.failed,
+        counts.skipped,
+        millis(total)
+    ));
+    for (at, case) in cases.iter().enumerate() {
+        out.push_str(if at == 0 { "\n    {" } else { ",\n    {" });
+        out.push_str("\"class\": ");
+        json_string(&case.class, &mut out);
+        out.push_str(", \"method\": ");
+        json_string(&case.method, &mut out);
+        out.push_str(", \"verdict\": ");
+        json_string(case.outcome.verdict(), &mut out);
+        out.push_str(&format!(", \"durationMs\": {:.3}", millis(case.elapsed)));
+        match &case.outcome {
+            Outcome::Passed => {}
+            Outcome::Skipped(reason) => {
+                out.push_str(", \"reason\": ");
+                json_string(reason, &mut out);
+            }
+            Outcome::Failed(reasons) => {
+                out.push_str(", \"failures\": [");
+                for (nth, reason) in reasons.iter().enumerate() {
+                    if nth > 0 {
+                        out.push_str(", ");
+                    }
+                    json_string(reason, &mut out);
+                }
+                out.push(']');
+            }
+            Outcome::Exited(code) => out.push_str(&format!(", \"exitCode\": {code}")),
+        }
+        out.push('}');
+    }
+    out.push_str(if cases.is_empty() {
+        "]\n}\n"
+    } else {
+        "\n  ]\n}\n"
+    });
+    out
+}
+
+/// § 22's JUnit XML: the shape every CI system already ingests, over the same
+/// [`Case`] list.
+///
+/// One `<testsuite>` per class, in the order the run took them, which is the
+/// grouping every reader of this format expects and the one the run already
+/// has — the roster is walked class by class, so a class's cases are
+/// consecutive and no second pass is needed to collect them. A `skipped` test
+/// is not a failure here either, matching both the exit code and § 20.
+fn junit_document(cases: &[Case], counts: Counts, total: Duration) -> String {
+    let mut out = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+    out.push_str(&format!(
+        "<testsuites tests=\"{}\" failures=\"{}\" skipped=\"{}\" time=\"{:.6}\">\n",
+        counts.total(),
+        counts.failed,
+        counts.skipped,
+        total.as_secs_f64()
+    ));
+    let mut at = 0;
+    while at < cases.len() {
+        let class = &cases[at].class;
+        let end = cases[at..]
+            .iter()
+            .position(|case| &case.class != class)
+            .map_or(cases.len(), |offset| at + offset);
+        let suite = &cases[at..end];
+        let failures = suite
+            .iter()
+            .filter(|case| matches!(case.outcome, Outcome::Failed(_) | Outcome::Exited(_)))
+            .count();
+        let skipped = suite
+            .iter()
+            .filter(|case| matches!(case.outcome, Outcome::Skipped(_)))
+            .count();
+        let elapsed: Duration = suite.iter().map(|case| case.elapsed).sum();
+        out.push_str("  <testsuite name=\"");
+        xml_text(class, &mut out);
+        out.push_str(&format!(
+            "\" tests=\"{}\" failures=\"{failures}\" skipped=\"{skipped}\" time=\"{:.6}\">\n",
+            suite.len(),
+            elapsed.as_secs_f64()
+        ));
+        for case in suite {
+            out.push_str("    <testcase name=\"");
+            xml_text(&case.method, &mut out);
+            out.push_str("\" classname=\"");
+            xml_text(class, &mut out);
+            out.push_str(&format!("\" time=\"{:.6}\"", case.elapsed.as_secs_f64()));
+            match &case.outcome {
+                Outcome::Passed => out.push_str("/>\n"),
+                Outcome::Skipped(_) => {
+                    out.push_str(">\n      <skipped message=\"");
+                    xml_text(&case.outcome.message().unwrap_or_default(), &mut out);
+                    out.push_str("\"/>\n    </testcase>\n");
+                }
+                Outcome::Failed(_) | Outcome::Exited(_) => {
+                    out.push_str(">\n      <failure message=\"");
+                    xml_text(&case.outcome.message().unwrap_or_default(), &mut out);
+                    out.push_str("\">");
+                    // The body carries every failed assertion where the
+                    // attribute carries the first: § 5's ledger keeps them all,
+                    // and a format that reported one would hide what it exists
+                    // to keep.
+                    if let Outcome::Failed(reasons) = &case.outcome {
+                        for reason in reasons {
+                            xml_text(reason, &mut out);
+                            out.push('\n');
+                        }
+                    }
+                    out.push_str("</failure>\n    </testcase>\n");
+                }
+            }
+        }
+        out.push_str("  </testsuite>\n");
+        at = end;
+    }
+    out.push_str("</testsuites>\n");
+    out
+}
+
+/// A duration as the milliseconds every report quotes.
+fn millis(elapsed: Duration) -> f64 {
+    elapsed.as_secs_f64() * 1000.0
+}
+
+/// `text` as a JSON string literal, quotes included.
+///
+/// Written here rather than taken from a crate: this is the only JSON the CLI
+/// produces, and `Core\Json` is a *runtime* member over runtime values, which
+/// a `&str` held by the runner is not.
+fn json_string(text: &str, out: &mut String) {
+    out.push('"');
+    for ch in text.chars() {
+        match ch {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            // Every other control character is spelled out; the rest, non-ASCII
+            // included, is written as itself, the document being UTF-8.
+            ch if (ch as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", ch as u32)),
+            ch => out.push(ch),
+        }
+    }
+    out.push('"');
+}
+
+/// `text` where XML admits character data, escaped for an attribute value and
+/// an element body alike so one function serves both.
+///
+/// A control character other than tab, newline and carriage return is not
+/// *representable* in XML 1.0 at all — not even as a numeric reference — so it
+/// is replaced rather than escaped, which is the only lossless-looking option
+/// this format leaves.
+fn xml_text(text: &str, out: &mut String) {
+    for ch in text.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&apos;"),
+            '\t' | '\n' | '\r' => out.push(ch),
+            ch if (ch as u32) < 0x20 => out.push('\u{fffd}'),
+            ch => out.push(ch),
+        }
     }
 }

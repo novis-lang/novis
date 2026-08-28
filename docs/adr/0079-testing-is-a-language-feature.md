@@ -664,6 +664,15 @@ $ nvs test --format=json  > results.json    # versioned schema
 $ nvs test --coverage=clover:cov.xml        # unchanged, ADR 0018
 ```
 
+All three formats render one `Outcome` list and a verdict is decided once, so the mark, the JSON string and
+the JUnit element cannot disagree about how a test came out — `nvs_cli::runner` is that argument's home, and
+also the home of two things this section leaves open. **A machine format sends the program's own output to
+stderr**, because the redirect above makes stdout the document and a test's `echo` interleaved into it would
+produce something no parser accepts; it is not quoted back into the document either, a whole suite's output
+being a cost every run would pay for the few being debugged. And **a machine format names a `#[Test]` run**,
+so `--format` beside a *23*-style `.nvst` tree is refused rather than silently ignored: the two share no
+summary, so there is no document for it to be about.
+
 The JSON schema is versioned and documented, and carries what JUnit XML has nowhere to put: a structured
 diff, `#[Bench]`'s counters, a shrunk property counterexample, per-data-row results, and **per-test
 coverage** — which is also what § 21 consumes. The VS Code Test Explorer
