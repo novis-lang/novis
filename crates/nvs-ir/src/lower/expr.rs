@@ -1483,6 +1483,19 @@ impl<'a> Lowering<'a> {
     /// so the tags decide it at run time. The label itself is unchanged by
     /// it, being written at its own representation either way.
     ///
+    /// An **enum** subject goes the other way and is compared one
+    /// representation *down*, on the integer ADR 0010 § 3 makes its cases:
+    /// [`Self::reinterpret_enum_to_backing`] relabels the subject once above
+    /// the chain and each label as it is lowered, exactly as
+    /// [`Self::lower_binary`] relabels a written `==` between two cases and
+    /// `Self::lower_literal_membership` ADR 0047 § 5's chain — `nvs-codegen`'s
+    /// `BinOp` table is `Ty::Int`/`Ty::Uint`/`Ty::Bool` and carries no
+    /// `Ty::Enum` row at all. The relabelling is free (no machine instruction)
+    /// and feeds the comparisons alone: the subject's own value is what the
+    /// arm-entry release reads, and a label still lowers at the subject's
+    /// *declared* representation so that `Mode::Read` resolves as the case it
+    /// names.
+    ///
     /// # Panics
     ///
     /// Panics — as engine invariants, not refusals — for a label whose
@@ -1508,6 +1521,17 @@ impl<'a> Lowering<'a> {
         // the slot's, exactly the split `Self::lower_ternary` applies to its
         // own reused condition.
         let owed = subj_ty.is_refcounted() && !self.aliasing_read(subject);
+        // An enum subject is compared one representation down, on the integer
+        // its cases *are* — the free `Reinterpret` of ADR 0010 § 5 row 1,
+        // which `Self::lower_binary` already makes for a written `==` between
+        // two cases and `Self::lower_literal_membership` for ADR 0047 § 5's
+        // chain, `nvs-codegen`'s `BinOp` table carrying no `Ty::Enum` row.
+        // It is made once, above the chain, and feeds the comparisons alone:
+        // `subj_v` stays the value the release below reads, and each label
+        // still lowers at the subject's *declared* representation so that
+        // `Mode::Read` resolves as the case it names.
+        let label_expect = subj_ty;
+        let (cmp_subj_v, cmp_subj_ty) = self.reinterpret_enum_to_backing(subj_v, subj_ty, cur);
 
         let arm_blocks: Vec<BlockId> = arms.iter().map(|_| self.new_block()).collect();
         let merge_block = self.new_block();
@@ -1525,7 +1549,13 @@ impl<'a> Lowering<'a> {
                 continue;
             };
             for cond in conditions {
-                let (cond_v, cond_ty) = self.lower_expr(cond, Some(subj_ty), env, &mut test_cur);
+                let (cond_v, cond_ty) =
+                    self.lower_expr(cond, Some(label_expect), env, &mut test_cur);
+                // The label takes the subject's own move, for the subject's
+                // own reason. `cond_v` is what the release below reads, so
+                // only the comparison sees the relabelled pair.
+                let (cmp_cond_v, cmp_cond_ty) =
+                    self.reinterpret_enum_to_backing(cond_v, cond_ty, &mut test_cur);
                 // ADR 0090 § 5's `mixed`-or-union row, which is the same row
                 // `Self::lower_binary` takes for a written `==`: where either
                 // side's representation is a runtime tag there is no machine
@@ -1535,13 +1565,13 @@ impl<'a> Lowering<'a> {
                 // beside a `mixed` is still a `ConstInt` — and needs no
                 // widening to get there, `nvs-codegen`'s helper convention
                 // storing every argument as a 16-byte tagged `Value` already.
-                let (eq_v, _) = if subj_ty == Ty::Tagged || cond_ty == Ty::Tagged {
+                let (eq_v, _) = if cmp_subj_ty == Ty::Tagged || cmp_cond_ty == Ty::Tagged {
                     self.emit(
                         test_cur,
                         Ty::Bool,
                         InstKind::HelperCall {
                             helper: Helper::Identical,
-                            args: vec![subj_v, cond_v],
+                            args: vec![cmp_subj_v, cmp_cond_v],
                         },
                     )
                 } else {
@@ -1551,18 +1581,18 @@ impl<'a> Lowering<'a> {
                     // an arrival here is a `nvs-ir` site that lowered a label
                     // against an expectation it then did not honour.
                     assert_eq!(
-                        cond_ty, subj_ty,
+                        cmp_cond_ty, cmp_subj_ty,
                         "nvs-ir lowers a `match` label only at the subject's own representation, \
                          or through `Helper::Identical` where one of the two is a tag — got \
-                         {cond_ty:?} against a {subj_ty:?} subject"
+                         {cmp_cond_ty:?} against a {cmp_subj_ty:?} subject"
                     );
                     self.emit(
                         test_cur,
                         Ty::Bool,
                         InstKind::BinOp {
                             op: BinOp::Eq,
-                            lhs: subj_v,
-                            rhs: cond_v,
+                            lhs: cmp_subj_v,
+                            rhs: cmp_cond_v,
                         },
                     )
                 };

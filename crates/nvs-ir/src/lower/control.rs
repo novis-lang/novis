@@ -703,6 +703,13 @@ impl<'a> Lowering<'a> {
             env.insert(subject_name.clone(), (subj_v, subj_ty));
         }
 
+        // An enum subject is compared on its backing integer, the same free
+        // relabelling [`Lowering::lower_match`] makes above its own label
+        // chain — that function's doc comment is the rule's home. The
+        // subject's own value and type are untouched by it: they are what the
+        // parked reserved binding and the releases below read.
+        let (cmp_subj_v, cmp_subj_ty) = self.reinterpret_enum_to_backing(subj_v, subj_ty, cur);
+
         let body_blocks: Vec<BlockId> = cases.iter().map(|_| self.new_block()).collect();
         let after_block = self.new_block();
         let default_index = cases.iter().position(|c| c.cond.is_none());
@@ -719,18 +726,23 @@ impl<'a> Lowering<'a> {
             };
             let (cond_v, cond_ty) =
                 self.lower_expr(cond, Some(subj_ty), &mut entry_env, &mut test_cur);
+            // The label takes the subject's own relabelling, for the
+            // subject's own reason; `cond_v` is still what the release below
+            // reads.
+            let (cmp_cond_v, cmp_cond_ty) =
+                self.reinterpret_enum_to_backing(cond_v, cond_ty, &mut test_cur);
             assert_eq!(
-                cond_ty, subj_ty,
+                cmp_cond_ty, cmp_subj_ty,
                 "nvs-ir lowers a `switch` label only at the subject's own representation — got \
-                 {cond_ty:?} against a {subj_ty:?} subject; see the crate docs' known gaps"
+                 {cmp_cond_ty:?} against a {cmp_subj_ty:?} subject; see the crate docs' known gaps"
             );
             let (eq_v, _) = self.emit(
                 test_cur,
                 Ty::Bool,
                 InstKind::BinOp {
                     op: BinOp::Eq,
-                    lhs: subj_v,
-                    rhs: cond_v,
+                    lhs: cmp_subj_v,
+                    rhs: cmp_cond_v,
                 },
             );
             // A comparison only reads its operands, so a label that no
