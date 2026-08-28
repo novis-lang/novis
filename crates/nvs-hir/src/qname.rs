@@ -182,7 +182,8 @@ mod tests {
         assert!(QName::parse("Stringable").is_reserved_global_interface());
         assert!(QName::parse("Iterable").is_reserved_global_interface());
         assert!(QName::parse("Iterator").is_reserved_global_interface());
-        assert!(!QName::parse("PropertyObserver").is_reserved_global_interface());
+        assert!(QName::parse("PropertyObserver").is_reserved_global_interface());
+        assert!(!QName::parse("Countable").is_reserved_global_interface());
         assert!(!QName::parse("App\\Comparable").is_reserved_global_interface());
     }
 

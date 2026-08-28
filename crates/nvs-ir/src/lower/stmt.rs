@@ -1015,15 +1015,21 @@ impl<'a> Lowering<'a> {
                         cur,
                     );
                 }
-                let (class, name, ty, set) = match self.exprs.lookup(target.span) {
-                    Some(ExprInfo::Property { class, name, ty }) => (class, name, *ty, None),
+                let (class, name, ty, set, observer) = match self.exprs.lookup(target.span) {
+                    Some(ExprInfo::Property {
+                        class,
+                        name,
+                        ty,
+                        observer,
+                    }) => (class, name, *ty, None, observer.clone()),
                     Some(ExprInfo::HookedProperty {
                         class,
                         name,
                         ty,
                         set,
+                        observer,
                         ..
-                    }) => (class, name, *ty, set.clone()),
+                    }) => (class, name, *ty, set.clone(), observer.clone()),
                     _ => panic!(
                         "nvs-ir: a property assignment target at {:?} has no entry in the \
                           typed-expression table, so it was not checked with the same table — \
@@ -1036,6 +1042,7 @@ impl<'a> Lowering<'a> {
                 let field_ty = lower_checked_ty(ty, self.checked_types);
                 let class_label = class.to_string();
                 let field_name = name.clone();
+                let observed_name = name.clone();
                 if let Some(label) = set {
                     let (object_v, receiver_ty) = self.lower_expr(object, None, env, cur);
                     // A narrowed `?T` receiver arrives tagged — see
@@ -1066,10 +1073,40 @@ impl<'a> Lowering<'a> {
                         },
                         env,
                     );
+                    // ADR 0014 § 3: the observer is told "the value the hook
+                    // actually committed, not necessarily the caller's
+                    // original argument", so this reads the backing slot back
+                    // rather than reusing `v`. A hooked property is always
+                    // backed (`nvs_types::signatures::PropertyHooks` owns that
+                    // decision), so there is always a slot to read, and a
+                    // `set` hook that commits somewhere else has committed
+                    // nothing here — which is what the slot then says.
+                    if let Some(calls) = observer {
+                        let (committed, _) = self.emit(
+                            *cur,
+                            field_ty,
+                            InstKind::FieldGet {
+                                object: object_v,
+                                class: class_label,
+                                field: field_name,
+                            },
+                        );
+                        self.emit_observer_call(
+                            *cur,
+                            object_v,
+                            receiver_ty,
+                            &observed_name,
+                            committed,
+                            field_ty,
+                            "onPropertySet",
+                            calls.set,
+                            env,
+                        );
+                    }
                     (v, field_ty)
                 } else {
                     let (object_v, receiver_ty) = self.lower_expr(object, None, env, cur);
-                    let (object_v, _) = self.untag_receiver(object_v, receiver_ty, *cur);
+                    let (object_v, receiver_ty) = self.untag_receiver(object_v, receiver_ty, *cur);
                     let (v, vty, aliasing) = self.lower_stored(stored, Some(field_ty), env, cur);
                     if field_ty.is_refcounted() && aliasing {
                         self.emit_retain(*cur, v);
@@ -1091,6 +1128,22 @@ impl<'a> Lowering<'a> {
                         self.emit_release(*cur, old_v);
                     }
                     self.emit_field_set(*cur, object_v, class_label, field_name, v);
+                    // ADR 0014 § 3's second step. With no `set` hook the slot
+                    // store *is* the commit, so `v` is exactly the committed
+                    // value and no read-back is owed.
+                    if let Some(calls) = observer {
+                        self.emit_observer_call(
+                            *cur,
+                            object_v,
+                            receiver_ty,
+                            &observed_name,
+                            v,
+                            field_ty,
+                            "onPropertySet",
+                            calls.set,
+                            env,
+                        );
+                    }
                     (v, field_ty)
                 }
             }

@@ -3,8 +3,8 @@
 //!
 //! [`nvs_hir::interfaces`] is the one home for *which* global interfaces the
 //! compiler declares and what type parameters each takes; this is the one
-//! place all four — `Comparable`, `Stringable`, `Iterable<T>` and
-//! `Iterator<T>` — become member signatures, in exactly the
+//! place all five — `Comparable`, `Stringable`, `PropertyObserver`,
+//! `Iterable<T>` and `Iterator<T>` — become member signatures, in exactly the
 //! [`ClassSignature`](crate::signatures::ClassSignature) shape
 //! [`crate::error_lib`] gives the exception tree and [`crate::core_lib`]
 //! gives `Core`. After this point `resolve_method` finds
@@ -54,14 +54,14 @@
 //! which it always should have.
 
 use nvs_hir::QName;
-use nvs_hir::interfaces::{COMPARABLE, ITERABLE, ITERATOR, STRINGABLE};
+use nvs_hir::interfaces::{COMPARABLE, ITERABLE, ITERATOR, PROPERTY_OBSERVER, STRINGABLE};
 use rustc_hash::FxHashMap;
 
 use crate::signatures::{MethodSig, SignatureTable};
 use crate::ty::{TypeId, TypeInterner};
 
-/// Adds `Comparable`, `Stringable`, `Iterable<T>` and `Iterator<T>` to
-/// `table`.
+/// Adds `Comparable`, `Stringable`, `PropertyObserver`, `Iterable<T>` and
+/// `Iterator<T>` to `table`.
 ///
 /// Called once, alongside [`crate::core_lib::seed`] and
 /// [`crate::error_lib::seed`], at the head of
@@ -84,6 +84,29 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
         [("toString".to_owned(), bodiless(Vec::new(), string_ty))]
             .into_iter()
             .collect(),
+    );
+
+    // ADR 0014 § 2's pair, written exactly as that section spells it. `$value`
+    // is `mixed` because one observer sees properties of every type, which is
+    // the boundary shape ADR 0007 § 2 reserves `mixed` for; both return `void`
+    // because an observer reports and does not decide (§ 3).
+    let void_ty = interner.void();
+    let mixed_ty = interner.mixed();
+    table.seed_class(
+        QName::parse(PROPERTY_OBSERVER),
+        FxHashMap::default(),
+        [
+            (
+                "onPropertyGet".to_owned(),
+                bodiless(vec![string_ty, mixed_ty], void_ty),
+            ),
+            (
+                "onPropertySet".to_owned(),
+                bodiless(vec![string_ty, mixed_ty], void_ty),
+            ),
+        ]
+        .into_iter()
+        .collect(),
     );
 
     let iterator_elem = elem_var(ITERATOR, interner);

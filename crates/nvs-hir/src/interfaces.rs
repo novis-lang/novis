@@ -37,12 +37,15 @@
 /// ([ADR 0028](../../../docs/adr/0028-closing-the-remaining-magic-methods.md)
 /// § 1) take none; `Iterable` and `Iterator`
 /// ([ADR 0053](../../../docs/adr/0053-iteration-and-generators.md) § 1) each
-/// take one. `PropertyObserver` is named the same way in
-/// [ADR 0014](../../../docs/adr/0014-property-observer.md) but is not
-/// implemented, so it is deliberately absent.
+/// take one. `PropertyObserver`
+/// ([ADR 0014](../../../docs/adr/0014-property-observer.md) § 2) takes none
+/// either: it is a contract an ordinary class implements, not a `Core` domain
+/// class, so it belongs on this roster beside `Comparable` rather than under a
+/// namespace.
 pub const RESERVED: &[(&str, &[&str])] = &[
     ("Comparable", &[]),
     ("Stringable", &[]),
+    ("PropertyObserver", &[]),
     ("Iterable", &["T"]),
     ("Iterator", &["T"]),
 ];
@@ -54,6 +57,11 @@ pub const COMPARABLE: &str = "Comparable";
 /// ADR 0028 § 1's `Stringable` — what an object owes to be converted to
 /// `string`, via its sole member `toString(): string`.
 pub const STRINGABLE: &str = "Stringable";
+
+/// ADR 0014 § 2's `PropertyObserver` — what a class implements to be told of
+/// every read and write of every property it declares, through
+/// `onPropertyGet(string, mixed): void` and its `onPropertySet` twin.
+pub const PROPERTY_OBSERVER: &str = "PropertyObserver";
 
 /// ADR 0053 § 1's `Iterable<T>` — a thing that can produce a fresh cursor.
 pub const ITERABLE: &str = "Iterable";
@@ -95,14 +103,15 @@ mod tests {
     }
 
     #[test]
-    fn the_two_older_interfaces_take_none() {
+    fn the_three_non_generic_interfaces_take_none() {
         assert_eq!(type_params("Comparable"), Some(&[][..]));
         assert_eq!(type_params("Stringable"), Some(&[][..]));
+        assert_eq!(type_params(PROPERTY_OBSERVER), Some(&[][..]));
     }
 
     #[test]
     fn a_name_that_is_not_reserved_has_no_type_parameters_at_all() {
         assert_eq!(type_params("Animal"), None);
-        assert!(!is_reserved_interface("PropertyObserver"));
+        assert!(!is_reserved_interface("Countable"));
     }
 }

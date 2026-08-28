@@ -54,6 +54,7 @@
 //! modules, which is the reach it had when `expr` was a single file.
 
 use super::*;
+use crate::expr_table::ObserverCalls;
 
 /// `Class::CONST` — [`super::infer`]'s `ExprKind::ClassConstAccess` arm.
 ///
@@ -557,6 +558,35 @@ pub(super) fn strip_nullsafe_receiver(
     object_ty
 }
 
+/// ADR 0014 § 3's second step for a property access on `qname`, or `None` when
+/// that class implements no `PropertyObserver`.
+///
+/// § 4 is what makes this a compile-time question at all: whether a class
+/// implements the interface is read off its declaration, so a class that never
+/// asked for the mechanism pays nothing and emits nothing — there is no
+/// runtime probe here and no branch below one.
+///
+/// The two labels are resolved through the class graph rather than spelled
+/// from `qname`, because an implementor may inherit either body from a parent,
+/// and each is kept only when the resolved declaration *has* one: a bodiless
+/// resolution names no compiled function, which is
+/// [`ObserverCalls`](crate::expr_table::ObserverCalls)' own convention.
+fn observer_calls(qname: &QName, env: &Env<'_>) -> Option<ObserverCalls> {
+    let observer = QName::parse(nvs_hir::interfaces::PROPERTY_OBSERVER);
+    if !nvs_hir::hierarchy::implements_interface(qname, &observer, env.graph) {
+        return None;
+    }
+    let label = |member: &str| {
+        crate::signatures::resolve_method(qname, member, env.signatures, env.graph)
+            .filter(|(_, sig)| sig.has_body)
+            .map(|(owner, _)| format!("{owner}::{member}"))
+    };
+    Some(ObserverCalls {
+        get: label("onPropertyGet"),
+        set: label("onPropertySet"),
+    })
+}
+
 /// [`check_property_access`]'s member half: everything after the receiver's
 /// own type is known, so that `?->` and `->` reach it identically.
 ///
@@ -707,6 +737,15 @@ pub(super) fn check_property_member(
                 let hooks = crate::signatures::hooks_of(&owner, &name, env.signatures);
                 let inside_own_hook =
                     ctx.current_hook == Some(name.as_str()) && is_this_receiver(object, env.src);
+                // An access inside the property's own hooks is the *backing
+                // slot* — which is ADR 0014 § 3's first step, the one the
+                // access that called this hook is already running the second
+                // step for. Observing it here would report one write twice,
+                // so this is the one property access on an observing class
+                // that carries no observer.
+                let observer = (!inside_own_hook)
+                    .then(|| observer_calls(&qname, env))
+                    .flatten();
                 if hooks != crate::signatures::PropertyHooks::default() && !inside_own_hook {
                     env.exprs.record(
                         object.span.to(*name_span),
@@ -728,6 +767,7 @@ pub(super) fn check_property_member(
                                     nvs_syntax::ast::PropertyHookKind::Set,
                                 )
                             }),
+                            observer,
                         },
                     );
                     return ty;
@@ -747,6 +787,7 @@ pub(super) fn check_property_member(
                         class: qname.clone(),
                         name: name.clone(),
                         ty,
+                        observer,
                     },
                 );
                 ty

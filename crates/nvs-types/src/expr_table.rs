@@ -196,6 +196,30 @@ pub enum ArgSlot {
 
 /// One resolved expression a later pass (today, only `nvs-ir`) needs more
 /// than just a [`TypeId`] for. `#[non_exhaustive]`: expect new variants as
+/// The two labels ADR 0014 § 3's observer step dispatches through, recorded on
+/// a property access whose receiver's class implements `PropertyObserver`.
+///
+/// § 3 makes the observer a *second* step over every read and write of every
+/// declared property, hooked or not, so it hangs off the access rather than
+/// off the property: one entry answers both `ExprInfo::Property` and
+/// `ExprInfo::HookedProperty`, and the consumer picks the half its direction
+/// names.
+///
+/// Each label is the **statically resolved** `"Owner::onPropertyGet"`, present
+/// only when that resolution has a body — exactly `ExprInfo::Call`'s
+/// `has_body` convention, and for its reason: the call dispatches on the
+/// receiver's runtime class (a subclass may override the observer), so the
+/// label is `InstKind::CallVirtual`'s fallback and never its target.
+/// [`crate::conformance`] is what makes both `Some` in practice; a class that
+/// implements the interface and declares neither body is refused there.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ObserverCalls {
+    /// `onPropertyGet`'s fallback label — the read half of § 3's pipeline.
+    pub get: Option<String>,
+    /// `onPropertySet`'s fallback label — the write half.
+    pub set: Option<String>,
+}
+
 /// `nvs-ir` widens past what this first slice needed — see the module docs.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -234,6 +258,9 @@ pub enum ExprInfo {
         name: String,
         /// The property's declared type.
         ty: TypeId,
+        /// ADR 0014 § 3's second step, or `None` when the receiver's class
+        /// implements no `PropertyObserver` — see [`ObserverCalls`].
+        observer: Option<ObserverCalls>,
     },
     /// A resolved `Class::$prop` access, read or write — the static
     /// counterpart of [`ExprInfo::Property`], and recorded for the same reason:
@@ -291,6 +318,10 @@ pub enum ExprInfo {
         /// declares no `set` hook with a body — in which case a write is an
         /// ordinary slot write.
         set: Option<String>,
+        /// ADR 0014 § 3's second step, or `None` when the receiver's class
+        /// implements no `PropertyObserver`. A hooked property is **not**
+        /// exempt from it — see [`ObserverCalls`].
+        observer: Option<ObserverCalls>,
     },
     /// A resolved property access whose receiver is an ADR 0036 § 4 **shape**
     /// that names the field — recorded *instead of* [`ExprInfo::Property`],

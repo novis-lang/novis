@@ -2754,6 +2754,75 @@ impl<'a> Lowering<'a> {
     /// every access it returns from and refuses the rest, and its own doc
     /// comment is that proof's only home. `lower_store`'s `PropertyAccess`
     /// arm asserts the same thing from the write side.
+    /// ADR 0014 § 3's second step: `$receiver->onPropertyGet($name, $value)`,
+    /// or its `onPropertySet` twin, emitted after the first step has settled
+    /// what the read produced or the write committed.
+    ///
+    /// **It dispatches on the receiver's runtime class**, exactly as
+    /// [`Self::lower_object_comparison`]'s `Comparable::compareTo` does and for
+    /// the same reason: a subclass may override the observer, and the interface
+    /// declaration itself has no body to name. `fallback` is the statically
+    /// resolved label `nvs_types` recorded, `None` when that resolution is
+    /// bodiless.
+    ///
+    /// It carries ADR 0002's error edge because § 3 says so outright — an
+    /// observer that throws still fails the access it was reporting, even
+    /// though the value had already been resolved.
+    ///
+    /// Ownership is the ordinary argument convention with nothing special in
+    /// it: [`InstKind::CallVirtual`] transfers the receiver and every argument,
+    /// so both the receiver and the observed value are retained here first —
+    /// this frame keeps its own claim on each, the value's because the caller
+    /// of a read still receives it and a write's slot still holds it. The name
+    /// is a fresh [`InstKind::ConstStr`] with exactly one use and transfers as
+    /// it stands. The value is widened to `mixed` *after* its retain, since
+    /// [`Self::coerce`]'s `Tag` transfers rather than duplicates.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the receiver and its representation, the observed property's \
+                  name, the settled value and its representation, and which \
+                  half of § 3's pipeline this is — every one of them differs \
+                  between the read site and the write site"
+    )]
+    pub(super) fn emit_observer_call(
+        &mut self,
+        cur: BlockId,
+        object_v: ValueId,
+        receiver_ty: Ty,
+        name: &str,
+        value: ValueId,
+        value_ty: Ty,
+        method: &str,
+        fallback: Option<String>,
+        env: &mut Env,
+    ) {
+        if receiver_ty.is_refcounted() {
+            self.emit_retain(cur, object_v);
+        }
+        if value_ty.is_refcounted() {
+            self.emit_retain(cur, value);
+        }
+        let (name_v, _) = self.emit(cur, Ty::Str, InstKind::ConstStr(name.to_owned()));
+        let tagged = self.coerce(cur, value, value_ty, Ty::Tagged, env);
+        let (desc, _) = self.emit(
+            cur,
+            Ty::ClassDesc,
+            InstKind::ClassDescOf { object: object_v },
+        );
+        self.emit_fallible(
+            cur,
+            Ty::Void,
+            InstKind::CallVirtual {
+                lsb: desc,
+                method: method.to_owned(),
+                fallback,
+                receiver: Some(object_v),
+                args: vec![name_v, tagged],
+            },
+            env,
+        );
+    }
+
     fn lower_property_access(
         &mut self,
         object: &Expr,
@@ -2783,15 +2852,21 @@ impl<'a> Lowering<'a> {
             };
             return self.lower_shape_property_access(object, &field, nullsafe, env, cur);
         }
-        let (class, name, ty, get) = match self.exprs.lookup(expr.span) {
-            Some(ExprInfo::Property { class, name, ty }) => (class, name, *ty, None),
+        let (class, name, ty, get, observer) = match self.exprs.lookup(expr.span) {
+            Some(ExprInfo::Property {
+                class,
+                name,
+                ty,
+                observer,
+            }) => (class, name, *ty, None, observer.clone()),
             Some(ExprInfo::HookedProperty {
                 class,
                 name,
                 ty,
                 get,
+                observer,
                 ..
-            }) => (class, name, *ty, get.clone()),
+            }) => (class, name, *ty, get.clone(), observer.clone()),
             _ => panic!(
                 "nvs-ir: a property access at {:?} has neither a resolved declaring class \
                   nor an ADR 0036 § 4 erased entry recorded in the typed-expression table, \
@@ -2805,6 +2880,7 @@ impl<'a> Lowering<'a> {
         let field_ty = lower_checked_ty(ty, self.checked_types);
         let class_label = class.to_string();
         let field_name = name.clone();
+        let observed_name = name.clone();
         // See the `MethodCall` arm above: `?->` guards the access on
         // the receiver not being `null`, `->` opens no guard.
         let mark = self.temporaries_mark();
@@ -2852,6 +2928,26 @@ impl<'a> Lowering<'a> {
                 },
             ),
         };
+        // ADR 0014 § 3's second step, on the read side: the value is settled
+        // first — by the `get` hook above or by the slot — and *that* value is
+        // what the observer is told about, never anything it answers, since
+        // `onPropertyGet` returns `void`. Emitted before the temporaries are
+        // released so a throw out of the observer body drops the base too,
+        // and before the fresh-producer retain below so the observer's own
+        // reference is accounted separately from the caller's.
+        if let Some(calls) = observer {
+            self.emit_observer_call(
+                *cur,
+                object_v,
+                receiver_ty,
+                &observed_name,
+                v,
+                ty,
+                "onPropertyGet",
+                calls.get,
+                env,
+            );
+        }
         if base_is_temporary {
             // The slot's reference dies with the base, so the value read out
             // of it needs one of its own first — `FieldGet` borrows, and
