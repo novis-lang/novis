@@ -2,70 +2,64 @@
 
 ## State
 
-**M4's Stage 6 is the frontier. The `mixed` receiver's calling convention is
-decided, its *descriptor* half is built, and the checker now records the call;
-the lowering and the runtime dispatch are what is left.**
-`docs/adr/README.md` § *Decisions taken at project start* has the paragraph
-that specifies all of it — the row carries arity and parameter tags,
-`nvs_runtime::closure`'s `check_param_tags` is the one implementation both
-erased paths share, and a tagged-ABI thunk per method was rejected on ranks 1,
-3 and 5 together. Do not re-open it.
+**M4's Stage 6 is the frontier, and the `mixed` receiver's whole deferral is now
+closed — convention, descriptor, checker, lowering, dispatch and case.** A call
+through a `mixed` receiver runs; `docs/adr/README.md` § *Decisions taken at
+project start* has the paragraph that specifies it and is not re-opened.
 
-- **`ExprInfo::ErasedCall { name }` is what the site records** for a `mixed`
-  receiver, and that variant's own doc comment is the home of why the name is
-  all it carries. Nothing else was recordable: no signature means no argument
-  mapping, so every written argument fills its own position.
-- **Three spellings are refused at the site rather than deferred** — `E0712`
-  (`name:`), `E0714` (`inout`) and the new `E0732` (ADR 0027's
-  `$m->method(...)`, which names a closure value and not a call). Each code's
-  doc comment in `nvs-diagnostics` owns its reason; the lowering does not have
-  to answer any of them.
-- **`nvs_runtime::MethodRow` is the method table's row**: name, code, `arity`,
-  `param_tags`, `public`, `native`. That type's own doc comment is the home of
-  what each field is for; `ClassDesc::method_row` is the reader the dispatch
-  slice wants.
-- **`native` is what a `Core` receiver is refused on** — true for exactly
-  `nvs_stdlib::instance`'s `Core`-owned rows, which borrow argument 0 and carry
-  no signature this crate could read a shape off.
-- **Nothing has to be marshalled in either direction**: `nvs-codegen`'s
-  `store_value` (`emit.rs:3130`) already writes each argument and each return
-  *with* its tag, `load_value` (`:3226`) reads the payload half at the callee's
-  representation.
+- **`nvs_ir::Helper::CallErasedMethod` is the call**, that variant's own doc
+  comment being the home of its shape: receiver tagged, member name an
+  immortal `ConstStr`, every argument in one array. `nvs_ir::lower::call`'s
+  `lower_erased_method_call` is the one emitter.
+- **`nvs_runtime::dispatch::call_erased_method` is the answer**, and its own
+  `# Errors` section is the roster of what it refuses and why each is
+  catchable. `nvs_call_erased_method` is the exported symbol.
+- **`check_param_tags` takes a word now, not a closure object** — that is what
+  makes it the one implementation ADR 0007 § 2's widening lives in for both
+  erased paths; `closure_param_tags` reads the closure half.
+- **A `Core` receiver is refused twice over**, and the second is worded off the
+  reserved namespace rather than off a row, because a `Core` class carries no
+  compiled method table for the first to read.
+- `lower_method_call`'s panic roster is empty: every receiver naming no class is
+  now either `E0477` at the checker or dispatched here.
 - M4's acceptance still names *Verification* sections for ADRs 0023, 0028 and
   0069; 0014 and 0046 have theirs.
 
 ## Next group
 
-**The `mixed` receiver's dispatch half, in this order.** One file set:
-`crates/nvs-ir/src/lower/expr.rs`, `crates/nvs-ir/src/ir.rs`,
-`crates/nvs-runtime/src/dispatch.rs`, `crates/nvs-codegen/src/emit.rs`, and a
-case under `tests/conformance/`. The checker half above is landed, so nothing
-here reaches `nvs-types` again.
+**ADR 0023's *Verification* section, which M4's acceptance has named since it
+was written and which no session has opened.** One file set:
+`docs/adr/0023-clone-serialize-and-cross-boundary-copy.md`, plus whatever
+`tests/conformance/class/` cases the section turns out to owe. Nothing here
+reaches `nvs-ir` or `nvs-runtime` again, so it shares no files with the group
+just closed — take it as a fresh window.
 
-- [ ] **Lower it** — `ExprInfo::ErasedCall` reaches
-      `Lowering::lower_method_call` (`crates/nvs-ir/src/lower/expr.rs:2379`,
-      whose panic roster names `mixed` alone) and becomes one helper carrying
-      ADR 0002's error edge: the receiver's tagged value, the member name as a
-      constant, and the arguments in written order. It is a `Helper` rather
-      than an `InstKind` for `CallClosureArray`'s reason — the count is a
-      run-time fact — and the call's type is `Ty::Tagged`.
-- [ ] **Dispatch it** — the runtime half in `crates/nvs-runtime`, beside
-      `closure`'s `check_param_tags`, which is the one implementation both
-      erased paths share: a tag that is not an object throws, a name the class
-      answers with no row throws, and the three shapes the row cannot describe
-      (a non-`public` member, a variadic or `inout` list, a `native` row) throw
-      the wording the ADR README paragraph fixes.
-- [ ] **The deferral's own `.nvst`** — the call that dispatches, the missing
-      name, the non-object receiver, and the agreement between the erased
-      spelling and the same call through the declared class, counted.
+- [ ] **Read what ADR 0023 already decides and what the tree already pins** —
+      the four rules are at
+      `docs/adr/0023-clone-serialize-and-cross-boundary-copy.md:50` (`clone`),
+      `:81` (the graph copy), `:121` (`unserialize`) and `:156` (why neither
+      depth reopens ADR 0022); *Consequences* is `:173` and the file ends at
+      `:239` with no *Verification* section at all. `python tools/gaps.py` and
+      `python tools/loop.py --list` name the `.nvst` cases the stage still
+      owes. Write the section over the cases that exist rather than inventing
+      rules.
+- [ ] **Write the section**, stating the things no case can assert, inserted
+      before *Alternatives rejected* at
+      `docs/adr/0023-clone-serialize-and-cross-boundary-copy.md:202` — the
+      shape ADR 0046 § *Verification* took, which is the worked example, over
+      four cases, two running and two refusing.
+- [ ] **Land whatever case the section names and the tree does not have**, one
+      `.nvst` under `tests/conformance/class/`.
 
 ## Backlog
 
-- A `require` whose path is not a string literal runs nothing at all, silently
-  — `nvs_hir::requires`' own known gap.
-- ADR 0033's container axis: an `array<T>` element and an ADR 0036 shape field
-  carry no `secret` bit — `nvs_stdlib::debug`'s known gap 1.
-- ADR 0092 § 6's `Throwable` record producer waits on the crate edge above
-  `nvs-runtime`'s fatal path.
-- `E0721`'s three unforwardable member shapes have no way out but writing the
-  member by hand — `resolve_delegations`' doc comment.
+- ADR 0028's and ADR 0069's *Verification* sections, the other two M4's
+  acceptance names — `docs/plan/m4.md` § *Verify*.
+- A `require` whose path is not a string literal runs nothing at all, silently,
+  in both forms — `nvs_hir::requires`' own known gap.
+- A shape literal's field carries no `secret` bit, its type being inferred —
+  `nvs_stdlib::debug`'s known gap 1, ADR 0033's unmodelled container axis.
+- Virtual dispatch by slot rather than by name, which is the other half of
+  `nvs-ir`'s item 8 — a lookup cost, M12.
+- `nvs_types::signatures`' own known gap: a class constant's declared type is
+  unmodelled, so `Class::TOKEN` infers `mixed` at every expression site.

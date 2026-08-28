@@ -1367,8 +1367,39 @@
 > carries its callee's arity and parameter tags in the value itself and so would need a class this
 > site does not have. The two refusals shared with `callable` are one walk over one wording pair
 > (`report_args_with_no_parameter_list`), so the two sites cannot grow two answers to one question.
-> **The lowering itself is still not landed**: `nvs-ir` still panics at `lower/expr.rs:2389` on that
-> one receiver, whose roster names it alone.
+> **The lowering and the dispatch are landed, and `lower_method_call`'s panic roster is empty**: a
+> `mixed` receiver is one `Helper::CallErasedMethod` (`nvs_ir::lower::call`'s
+> `lower_erased_method_call`), whose own doc comment argues the shape — the receiver travels still
+> **tagged**, `ReceiverProof::Erased` emitting no `Untag`, because nothing proved it holds an
+> object; the member name is an `InstKind::ConstStr`, which is an immortal address in the unit's
+> data section rather than an allocation per call; and every argument is packed into **one array**
+> rather than one helper slot each. The packing is `CallClosureArray`'s reason and here it holds at
+> every site, not only a spread's: a helper's argument count is a literal `nvs-codegen` writes
+> beside the slot, while what this list is judged against is a callee chosen when the call runs. The
+> call's type is `Ty::Tagged`, `mixed` being the only answer the checker has for a target it cannot
+> name, and its ownership is the closure call's throughout — receiver and array both borrowed,
+> released on both edges. `nvs_runtime::dispatch::call_erased_method` is the other end and it makes
+> every judgement a checker would have made, each as a **catchable** throw: a receiver whose tag is
+> no object, a class whose table has no such member, a member that is not `public`, a `native` row,
+> too few arguments for the arity the row records, and an argument whose tag is not the one the
+> parameter requires. That last one is not a second copy of anything — `check_param_tags` takes a
+> **word** now rather than a closure object, so ADR 0007 § 2's `int`-into-`float` widening is
+> written once and the `callable` path and this one cannot drift, `closure_param_tags` being the
+> closure half of where the word comes from. Two refusals are worded off the class rather than off a
+> row, and both are only reached on the failing edge: a **`Core`-owned** class carries no compiled
+> method table at all — only `nvs_stdlib::instance`'s engine-protocol rows — so `has no method`
+> would be a plausible wrong answer for a member the spec plainly gives it, and the reserved `Core`
+> namespace (ADR 0011 § 2) is what makes the descriptor's own name enough to tell. The `Core`
+> refusal that the ADR's paragraph names therefore arrives twice over, as the `native` bit for a row
+> that exists and as the namespace for the members that never reached a table. Valgrind-clean over a
+> fixture that calls through a freshly built receiver and abandons a freshly built `string` argument
+> on the refusal's error edge two hundred times.
+> `tests/conformance/lang/a-call-through-a-mixed-receiver-is-dispatched-on-its-value.nvst` pins the
+> dispatch itself — a subclass override reached through a receiver that names neither class, a
+> spread whose count is its own length, the one implicit widening, the callee's own throw travelling
+> back on ADR 0002's error edge, all six refusals, a `?->` receiver that ran no callee — and counts
+> nine agreements between the typed and the erased spelling of one question rather than reading one
+> off a line.
 > `tests/conformance/reject/a-call-through-a-mixed-receiver-refuses-what-it-cannot-defer.nvst` pins
 > all three in one compile with the positional call and the `...` spread — whose count is its own
 > run-time length — written first.

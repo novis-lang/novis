@@ -1,0 +1,101 @@
+--TEST--
+A method call on a `mixed` receiver is dispatched on the value, and every question a checker would have answered is a catchable throw (ADR 0036 § 4, ADR 0007 § 2)
+--FILE--
+<?nvs
+// ADR 0007 § 2 makes `mixed` the one unchecked position, so ADR 0036 § 4's
+// deferral covers a call as well as a property access: which class is behind
+// the handle, and whether there is one at all, is answered when the call runs
+// — from the receiver's own descriptor, whose method row carries the callee's
+// arity and parameter tags. Every *other* receiver naming no class is refused
+// where it is written (`E0477`).
+class Greeter {
+    public string $tag = "g";
+    public function greet(string $who): string { return "hi " . $who; }
+    public function sum(int $a, int $b): int { return $a + $b; }
+    public function widen(float $f): string { return $f as string; }
+    public function none(): string { return "nothing passed"; }
+    public function boom(string $why): string { throw new LogicError("boom " . $why); }
+    private function hidden(): string { return "unreachable"; }
+    public static function make(string $tag): Greeter {
+        Greeter $g = new Greeter();
+        $g->tag = $tag;
+        return $g;
+    }
+}
+
+class Louder extends Greeter {
+    public function greet(string $who): string { return "HI " . $who; }
+}
+
+// The dispatch itself: the receiver's runtime class answers, so a subclass
+// override runs where the declared type could have named neither.
+mixed $m = new Greeter();
+mixed $sub = new Louder();
+echo $m->greet("world"), "\n";
+echo $sub->greet("world"), "\n";
+echo $m->sum(40, 2) as string, "\n";
+echo $m->none(), "\n";
+
+// Every written argument fills its own position — there is no signature to map
+// one against — and a `...` argument's count is its subject's own length,
+// which is why the arguments travel as one array.
+array<int> $pair = [8, 34];
+echo $m->sum(...$pair) as string, "\n";
+
+// ADR 0007 § 2's one implicit conversion is the same one a written `as float`
+// takes: `check_param_tags` is one implementation, shared with `callable`.
+echo $m->widen(3), "\n";
+
+// The callee's own throw travels back on ADR 0002's error edge, unchanged.
+try {
+    echo $m->boom("here"), "\n";
+} catch (Throwable $e) {
+    echo "threw: ", $e->message, "\n";
+}
+
+// Six refusals a checker would have made, each a catchable throw here.
+try { echo $m->nope(), "\n"; } catch (Throwable $e) { echo "refused: ", $e->message, "\n"; }
+try { echo $m->hidden(), "\n"; } catch (Throwable $e) { echo "refused: ", $e->message, "\n"; }
+try { echo $m->greet(7) as string, "\n"; } catch (Throwable $e) { echo "refused: ", $e->message, "\n"; }
+try { echo $m->sum(1) as string, "\n"; } catch (Throwable $e) { echo "refused: ", $e->message, "\n"; }
+mixed $scalar = "plain";
+try { echo $scalar->greet("x"), "\n"; } catch (Throwable $e) { echo "refused: ", $e->message, "\n"; }
+mixed $uri = Core\Uri::parse("https://example.com/a");
+try { echo $uri->toString(), "\n"; } catch (Throwable $e) { echo "refused: ", $e->message, "\n"; }
+
+// A `?->` receiver that was `null` ran no callee at all.
+?mixed $absent = null;
+echo $absent?->greet("q") ?? "guarded", "\n";
+
+// The agreement the shape asks for, counted rather than read off a line: the
+// same question asked through the declared type and through a `mixed` holding
+// the same value has to answer the same thing, whatever the receiver was
+// spelled as. A fresh receiver each time, so the borrow is exercised too.
+int $agreed = 0;
+int $i = 0;
+array<string> $names = ["ada", "bob", "cy"];
+foreach ($names as string $who) {
+    Greeter $typed = Greeter::make($who);
+    mixed $erased = Greeter::make($who);
+    if ($typed->greet($who) == $erased->greet($who)) { $agreed = $agreed + 1; }
+    if ($typed->sum($i, 1) as string == $erased->sum($i, 1) as string) { $agreed = $agreed + 1; }
+    if ($typed->tag == $erased->tag) { $agreed = $agreed + 1; }
+    $i = $i + 1;
+}
+echo "agreed=", $agreed as string, "/9\n";
+--EXPECT--
+hi world
+HI world
+42
+nothing passed
+42
+3
+threw: boom here
+refused: `Greeter` has no method `nope()`
+refused: `Greeter::hidden` is not public, and a `mixed` receiver is outside every class
+refused: argument 1 to `Greeter::greet` must be of type string, int given
+refused: too few arguments to `Greeter::sum`: it declares 2 parameter(s), 1 given
+refused: cannot call `greet()` on string, which is not an object
+refused: `Core\Uri::toString` cannot be called through a `mixed` receiver: a `Core` member borrows its receiver where a compiled method owns its parameters, and no signature for one reaches the runtime — convert the receiver to `Core\Uri` first
+guarded
+agreed=9/9
