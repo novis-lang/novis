@@ -990,11 +990,54 @@
 > `catch` can act on, so a case naming one would go green while the rest slipped back — and
 > `an_uncatchable_status_leaves_a_try_through_a_block_that_releases_the_locals` pins the `onward`
 > exit's releases and its `Propagate`. Valgrind-clean over a fixture that abandons two freshly built
-> strings by calling `exit()` from inside a `try`, and over five of `examples/`. Three live tools
-> **are** the worklist and no session re-derives one: `python tools/holes.py` reads the refusal
-> sites out of `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item N` for one in
-> full), `python tools/loop.py --list` prints the named `.nvst` cases each stage still owes, and
-> `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> strings by calling `exit()` from inside a `try`, and over five of `examples/`. **ADR 0092's record
+> model exists, and `Core\Debug::dump` is its first producer** — item 33's larger half, landed as a
+> new leaf crate rather than as a member module, because § 1 of that ADR puts the model and all
+> three renderings in one crate that both the runtime and the front end can depend on and the
+> handoff's file set predated reading it. `nvs-render` holds § 1's closed node roster, § 2's
+> `Log\Level` and its fixed syslog mapping, § 5's four transformations and § 3's **plaintext**
+> rendering; `nvs_stdlib::debug` holds the walk that turns a runtime value into a record, plus
+> `dump` and `render` themselves. Three of the four transformations are structural rather than a
+> convention a producer is asked to follow, which is what makes § 5's *"decided once, in the model"*
+> true of the type and not of a review: control bytes and the bidi rule are `nvs_render::Rendered`'s
+> **one** constructor, so there is no spelling that puts an un-substituted byte into the model at
+> all; a cut is an `Elision` **node**, so the JSON and HTML renderings will print the same cut of
+> the same value rather than each choosing its own, which is exactly what PHP and Python get wrong
+> by truncating per formatter; and a cycle is a `Cycle` node naming an identity rather than a
+> `*RECURSION*` string. ADR 0087's predicate is **called** rather than restated, which is why
+> `nvs-render` has one dependency and it points the wrong way for now — `nvs-syntax`, whose `bidi`
+> module moves *down* into `nvs-render` the moment `nvs-runtime` or `nvs-diagnostics` becomes a
+> dependent, a move and not a copy, stated in that crate's own module doc and folded into ADR 0092 §
+> 1 rather than left to be rediscovered. § 4's destination took a second sink on `nvs_runtime::Ctx`:
+> a dump goes to **stderr** and never to stdout, so `prog | jq` keeps working, and
+> `write_diagnostic` is deliberately **not** routed through `Core\Out::capture`'s stack — capturing
+> a dump would swallow the very output it was written to make visible. That is a second `OutputSink`
+> field rather than a fourth variant, because the two channels differ in where they go and not in
+> what is written to them, and `OutputSink::Stderr` is the new variant both share. `render` is one
+> member and not a second mechanism: it answers the sink's carrier (`Core\Cli\Text` today) by ADR
+> 0088 § 5's rule verbatim, so `echo Core\Debug::render($x)` is singly escaped, and it is what makes
+> the whole plaintext view pinnable on **stdout** — `--EXPECT-ERROR--` is also what tells the
+> `.nvst` runner a case is expected to *fail*, so a successful run has no way to read standard
+> error, and the two halves of ADR 0092's own M4 bullet are split accordingly:
+> `tests/conformance/core/a-dump-renders-one-record-through-one-plaintext-view.nvst` pins every node
+> kind a `mixed` can reach — the eight scalars, both array shapes, an object with its class, its
+> identity and its declared properties, two closure arities, a self-referential `lateinit` cycle and
+> the `CR` substitution — and asserts that two `dump` calls put **nothing** on standard output,
+> while `a_dump_writes_to_the_diagnostic_channel_and_not_to_the_output` asserts the other side of
+> the same statement in Rust. **What item 33 still owes is redaction**, and it is one fact the
+> runtime does not carry rather than a design question: ADR 0033 § 4's `secret` is a qualifier on a
+> *declared* type, so neither the property half (a `Redacted` node where a `secret string` property
+> stands) nor the call-site half (a `secret` value at a `dump` argument refused by `nvs check`) can
+> be decided from a value's tag. `nvs_render::Node::Redacted` exists and every rendering handles it,
+> so what is missing is only the producer's decision and the descriptor bit it reads. Two smaller
+> gaps are stated at `nvs_stdlib::debug` rather than implied: an enum case dumps as its backing
+> integer, because ADR 0010 § 5 spends no tag on hiding one and a `mixed` cannot tell; and the
+> `Throwable` producer of § 6 is not here at all, its walk belonging to `nvs-runtime`'s fatal path
+> and therefore waiting on the crate edge above. Three live tools **are** the worklist and no
+> session re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and
+> `nvs-codegen` and attributes each to its item (`--item N` for one in full), `python tools/loop.py
+> --list` prints the named `.nvst` cases each stage still owes, and `python
+> tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

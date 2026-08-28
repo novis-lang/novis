@@ -137,11 +137,14 @@ ordering-for-display; a rendering supplies all four. That separation is the whol
 adding a fourth rendering later costs one implementation rather than five.
 
 **One crate owns the model and all three renderings**, and both the runtime and the compiler front end
-depend on it — provisionally `nvs-render`, created at the milestone that first needs it per
-[AGENTS.md](../../AGENTS.md). `nvs-diagnostics`'s existing terminal renderer moves into it and becomes one
-of the three; that module's own doc comment already anticipates this, naming "the same layout engine to
-emit LSP-shaped data" as a requirement it was built for. `nvs-runtime` depends on no `nvs-*` crate today,
-so the model cannot live in `nvs-diagnostics` and the dependency runs the other way.
+depend on it. It is `nvs-render`, and it exists: M4 created it with the model, the plaintext rendering and
+§ 5's four transformations, `nvs-stdlib` being its first dependent through `Core\Debug::dump`.
+`nvs-diagnostics`'s existing terminal renderer moves into it and becomes one of the three at M10; that
+module's own doc comment already anticipates this, naming "the same layout engine to emit LSP-shaped data"
+as a requirement it was built for. `nvs-runtime` depends on no `nvs-*` crate today, so the model cannot
+live in `nvs-diagnostics` and the dependency runs the other way — which is also why `nvs-render`'s own one
+dependency, ADR 0087's bidi predicate in `nvs-syntax`, is a **temporary** direction: that crate's module
+doc owns the move that inverts it once `nvs-runtime` or `nvs-diagnostics` becomes a dependent.
 
 ### 2. `Log\Level` is five cases, with a fixed syslog mapping
 
