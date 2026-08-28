@@ -199,6 +199,31 @@ No amendment to ADR 0022 is needed; this section exists so a future reader does 
   already flagged for `require` vs. `spawn script`; this ADR's diagnostics and docs should say, next to each
   other, which one `clone` gives and which one `serialize`/the isolate boundary gives.
 
+## Alternatives rejected
+
+- **Make `clone` recursive, unifying it with the graph copy.** Rejected: silently changes the observable
+  behaviour of every ported class relying on PHP's shallow-clone-then-shared-reference pattern, for a
+  consistency argument the two operations never needed to share.
+- **Keep `__clone()` only, as the "safer," longer-standing PHP hook.** Rejected for the same reason as
+  `__serialize`/`__unserialize`: still a class silently redefining a mechanical operation, and keeping one
+  hook while rejecting two others is an arbitrary line to defend later.
+- **Keep PHP's open serialize wire format for `nvs convert` compatibility.** Rejected: the open format's
+  looseness (any well-shaped payload naming any resolvable class) is exactly what makes PHP's
+  `unserialize()` attack surface possible even before a hook is considered; the closed, versioned format
+  removes that independently of the no-hooks decision, at the cost of foreign-format compatibility.
+- **Require a `data.unserialize` capability grant**, mirroring `script.spawn`. Rejected: `script.spawn`
+  exists because the reconstructed thing is *running code*; `unserialize()`'s reconstructed thing is inert
+  data, already bounded by memory/CPU limits and the closed-format/no-hook rules above.
+
+## Revisiting
+
+- **If a use case needs `unserialize()` to read a foreign or cross-version format**, that is a new,
+  separately-argued wire-format feature — not a reason to loosen this ADR's closed-format default.
+- **If a class genuinely needs copy customization** (duplicating an owned resource on `clone`, custom
+  versioning on `serialize`), the answer is an explicit method on that class, not a reopened hook — revisit
+  only if a real pattern shows the explicit-method answer is not enough, not on a single request for
+  parity with PHP.
+
 ## Verification
 
 **Only *1* is verifiable yet**, and that is a fact about the milestones rather than a gap: *2*'s live
@@ -249,28 +274,3 @@ current declaration, is refused rather than partially accepted; and a `tainted` 
 `decode` site ([ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 4). The isolate-boundary suite and
 this one **share** those fixtures rather than duplicating them, which is *2*'s "one operation, two
 carriers" asserted rather than described.
-
-## Alternatives rejected
-
-- **Make `clone` recursive, unifying it with the graph copy.** Rejected: silently changes the observable
-  behaviour of every ported class relying on PHP's shallow-clone-then-shared-reference pattern, for a
-  consistency argument the two operations never needed to share.
-- **Keep `__clone()` only, as the "safer," longer-standing PHP hook.** Rejected for the same reason as
-  `__serialize`/`__unserialize`: still a class silently redefining a mechanical operation, and keeping one
-  hook while rejecting two others is an arbitrary line to defend later.
-- **Keep PHP's open serialize wire format for `nvs convert` compatibility.** Rejected: the open format's
-  looseness (any well-shaped payload naming any resolvable class) is exactly what makes PHP's
-  `unserialize()` attack surface possible even before a hook is considered; the closed, versioned format
-  removes that independently of the no-hooks decision, at the cost of foreign-format compatibility.
-- **Require a `data.unserialize` capability grant**, mirroring `script.spawn`. Rejected: `script.spawn`
-  exists because the reconstructed thing is *running code*; `unserialize()`'s reconstructed thing is inert
-  data, already bounded by memory/CPU limits and the closed-format/no-hook rules above.
-
-## Revisiting
-
-- **If a use case needs `unserialize()` to read a foreign or cross-version format**, that is a new,
-  separately-argued wire-format feature — not a reason to loosen this ADR's closed-format default.
-- **If a class genuinely needs copy customization** (duplicating an owned resource on `clone`, custom
-  versioning on `serialize`), the answer is an explicit method on that class, not a reopened hook — revisit
-  only if a real pattern shows the explicit-method answer is not enough, not on a single request for
-  parity with PHP.

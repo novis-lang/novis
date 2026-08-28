@@ -136,7 +136,7 @@ missing or mistyped one is the ordinary `E0401` mismatch rather than an attribut
 payload § 2 has already refused is not then checked against the shape — the author is told about the value
 they wrote before they are told what it failed to satisfy.
 
-The one exemption is [ADR 0071](0071-json-codec-derivation.md) § 1's **compiler-recognized** attributes
+The one exemption is [ADR 0071](0071-derived-codecs.md) § 1's **compiler-recognized** attributes
 (`Core\Json\Derive`, `Core\Json\Field`, and whatever that closed, `Core`-owned roster grows), which are
 matched nominally by the compiler and name no shape at all; what their payloads may hold is
 `nvs_types::derive`'s own option check. The roster is closed and `Core`-owned precisely so this stays an
@@ -264,6 +264,42 @@ extension). It does not open user-defined generics — that stays exactly as out
   launch. If Novis never grows user-defined generics, this stays a narrow, single-purpose piece of syntax
   rather than the first instance of a general feature.
 
+## Alternatives rejected
+
+- **A full PHP/Java/C#-style attribute-class mechanism** (`#[Attribute] class Route { function
+  constructor(...) {} }`, lazily instantiated on read). Rejected outright — this is precisely the "class
+  overhead for what is fundamentally a bag of data" problem motivating this ADR. A `type` alias already gives
+  the same structural validation with no class, no constructor, and nothing ever instantiated.
+- **Stay with PHP's doc-comment convention.** Rejected — no compiler involvement, no structural checking, no
+  first-class retrieval; this is the status quo this ADR replaces, not an option to keep.
+- **Fully free-form payload, Go-struct-tag style (a bare string, parsed by convention).** Rejected — loses
+  structural checking entirely, pushing every validation concern to runtime, framework-side code with no
+  compiler help at all.
+- **Retrieval through `Core\Reflect`'s general-purpose walk** (`Core\Reflect::forClass(...)->getAttributes()`).
+  Rejected — reopens a second, broader introspection surface for a question the compiler can already answer
+  narrowly and statically; every attribute list is known at compile time, so a runtime walk-by-name only
+  throws that information away.
+- **A new `Foo::class`-style class-literal token, and a parallel property/parameter-reference token, instead
+  of reusing the `constructor` reference and a member-name string.** Rejected for this ADR's scope — every
+  class already has a nameable `constructor` reference, and a name string is no worse than what PHP's own
+  Reflection API already accepts for members that aren't independently callable. Revisit only if a `Foo::class`
+  token is ever added for an unrelated reason.
+- **Arbitrary runtime expressions as payload values**, matching PHP's actual attribute-argument flexibility
+  (any expression, including `new`). Rejected — it would turn "define a class" into an operation with an
+  execution order and side effects, and reopen the `tainted`/`secret`-flowing-into-a-retained-value question
+  this ADR closes for free by restricting to compile-time constants (§2).
+- **Bundle a starter set of compiler-recognized attributes (`#[Deprecated]`, `#[Override]`) into this same
+  ADR.** Rejected — keeps this decision scoped to one concern, the generic mechanism; each compiler-
+  recognized attribute has its own design questions (what a diagnostic looks like, whether it changes
+  codegen) better argued on their own.
+
+## Revisiting
+
+If Novis ever gains user-defined generics, reconsider whether §6's explicit `<T>` call-site syntax should
+generalize to ordinary user code rather than staying reserved to this one pair of built-ins. If a `Foo::class`-
+style literal is ever added for an unrelated reason, reconsider whether class-level lookup should use it
+instead of the `constructor` reference — purely a syntax question, since the semantics would be identical.
+
 ## Verification
 
 Four cases pin this ADR, and together they are the fixture set [M4's acceptance](../plan/m4.md) names for
@@ -319,39 +355,3 @@ What no case can pin, and is settled here instead: **there is no runtime lookup 
 call a compile-time replacement, and `nvs_stdlib::attributes` registers the two members against a body that
 aborts — so the assertion that no reflection table reaches the compiled unit is that a program which ran at
 all never called either one. `nvs_types::retrieval`'s module doc is that pass's home.
-
-## Alternatives rejected
-
-- **A full PHP/Java/C#-style attribute-class mechanism** (`#[Attribute] class Route { function
-  constructor(...) {} }`, lazily instantiated on read). Rejected outright — this is precisely the "class
-  overhead for what is fundamentally a bag of data" problem motivating this ADR. A `type` alias already gives
-  the same structural validation with no class, no constructor, and nothing ever instantiated.
-- **Stay with PHP's doc-comment convention.** Rejected — no compiler involvement, no structural checking, no
-  first-class retrieval; this is the status quo this ADR replaces, not an option to keep.
-- **Fully free-form payload, Go-struct-tag style (a bare string, parsed by convention).** Rejected — loses
-  structural checking entirely, pushing every validation concern to runtime, framework-side code with no
-  compiler help at all.
-- **Retrieval through `Core\Reflect`'s general-purpose walk** (`Core\Reflect::forClass(...)->getAttributes()`).
-  Rejected — reopens a second, broader introspection surface for a question the compiler can already answer
-  narrowly and statically; every attribute list is known at compile time, so a runtime walk-by-name only
-  throws that information away.
-- **A new `Foo::class`-style class-literal token, and a parallel property/parameter-reference token, instead
-  of reusing the `constructor` reference and a member-name string.** Rejected for this ADR's scope — every
-  class already has a nameable `constructor` reference, and a name string is no worse than what PHP's own
-  Reflection API already accepts for members that aren't independently callable. Revisit only if a `Foo::class`
-  token is ever added for an unrelated reason.
-- **Arbitrary runtime expressions as payload values**, matching PHP's actual attribute-argument flexibility
-  (any expression, including `new`). Rejected — it would turn "define a class" into an operation with an
-  execution order and side effects, and reopen the `tainted`/`secret`-flowing-into-a-retained-value question
-  this ADR closes for free by restricting to compile-time constants (§2).
-- **Bundle a starter set of compiler-recognized attributes (`#[Deprecated]`, `#[Override]`) into this same
-  ADR.** Rejected — keeps this decision scoped to one concern, the generic mechanism; each compiler-
-  recognized attribute has its own design questions (what a diagnostic looks like, whether it changes
-  codegen) better argued on their own.
-
-## Revisiting
-
-If Novis ever gains user-defined generics, reconsider whether §6's explicit `<T>` call-site syntax should
-generalize to ordinary user code rather than staying reserved to this one pair of built-ins. If a `Foo::class`-
-style literal is ever added for an unrelated reason, reconsider whether class-level lookup should use it
-instead of the `constructor` reference — purely a syntax question, since the semantics would be identical.

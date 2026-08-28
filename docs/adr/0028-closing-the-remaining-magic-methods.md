@@ -258,6 +258,33 @@ declaration. That is a decision rather than a consequence, and it is
   correctly, since [0022](0022-definite-property-initialization.md) never allowed such a property to be
   anything but initialized.
 
+## Alternatives rejected
+
+- **A declared `Disposable`/`Closeable` interface with scope-exit invocation.** No scope-exit-triggered call
+  exists anywhere else in Novis; see *Revisiting*.
+- **Keep `__destruct`, forbid throwing, skip it at request-heap teardown.** Still requires walking every live
+  object whose refcount reaches zero mid-request — the per-object cost [0004](0004-memory-for-simplicity.md)'s
+  wholesale drop avoids.
+- **Keep ambient `__isset`/`__unset` for parity.** Nothing left to intercept once [0014](0014-property-observer.md)
+  closed `__get`/`__set`'s fallback.
+- **Let `unset()` reset a non-nullable property to a type default.** [0022](0022-definite-property-initialization.md)
+  already rejected per-type silent defaults for exactly this reason.
+- **A `DebugRepresentable`-style interface for the dump.** No unsafe default to close off — would add a
+  customization surface with no motivating problem.
+  [0092](0092-one-diagnostic-record-three-renderings.md) § 7 reaffirms this rather than reopening it: its
+  record model is closed, which is this refusal expressed as a data type.
+- **Keep PHP's open `var_export()`/`__set_state` format for `nvs convert`.** Same
+  generated-code-as-data-format risk [0023](0023-clone-serialize-and-cross-boundary-copy.md) already closed
+  for serialize.
+
+## Revisiting
+
+- **A `Disposable`/scope-exit-cleanup construct**, if `nvs convert`'s M11 pass over real PHP `__destruct`
+  usage shows a pattern common enough that "call an explicit method" is a systematic burden rather than an
+  occasional one. Not decided here — see *Alternatives rejected*.
+- **Whether `Stringable` should have a stdlib-wide expectation** (e.g., every exception class implementing
+  it) is a stdlib design question for whichever milestone builds exceptions' base class, not this ADR.
+
 ## Verification
 
 The six sections divide into three kinds, and only the first has a program that *runs*: § 1 replaces a
@@ -308,30 +335,3 @@ for; the fixtures named here are the whole set [M4's acceptance](../plan/m4.md) 
 **At M11**, when the converter exists: it rewrites `__toString` to `Stringable`/`toString()` and
 `unset($obj->nullableProp)` to `$obj->nullableProp = null;` mechanically, and flags source using
 `__destruct` or `__set_state` as a `TODO` needing a human decision, per *Consequences*' negative list.
-
-## Alternatives rejected
-
-- **A declared `Disposable`/`Closeable` interface with scope-exit invocation.** No scope-exit-triggered call
-  exists anywhere else in Novis; see *Revisiting*.
-- **Keep `__destruct`, forbid throwing, skip it at request-heap teardown.** Still requires walking every live
-  object whose refcount reaches zero mid-request — the per-object cost [0004](0004-memory-for-simplicity.md)'s
-  wholesale drop avoids.
-- **Keep ambient `__isset`/`__unset` for parity.** Nothing left to intercept once [0014](0014-property-observer.md)
-  closed `__get`/`__set`'s fallback.
-- **Let `unset()` reset a non-nullable property to a type default.** [0022](0022-definite-property-initialization.md)
-  already rejected per-type silent defaults for exactly this reason.
-- **A `DebugRepresentable`-style interface for the dump.** No unsafe default to close off — would add a
-  customization surface with no motivating problem.
-  [0092](0092-one-diagnostic-record-three-renderings.md) § 7 reaffirms this rather than reopening it: its
-  record model is closed, which is this refusal expressed as a data type.
-- **Keep PHP's open `var_export()`/`__set_state` format for `nvs convert`.** Same
-  generated-code-as-data-format risk [0023](0023-clone-serialize-and-cross-boundary-copy.md) already closed
-  for serialize.
-
-## Revisiting
-
-- **A `Disposable`/scope-exit-cleanup construct**, if `nvs convert`'s M11 pass over real PHP `__destruct`
-  usage shows a pattern common enough that "call an explicit method" is a systematic burden rather than an
-  occasional one. Not decided here — see *Alternatives rejected*.
-- **Whether `Stringable` should have a stdlib-wide expectation** (e.g., every exception class implementing
-  it) is a stdlib design question for whichever milestone builds exceptions' base class, not this ADR.
