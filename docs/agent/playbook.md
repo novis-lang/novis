@@ -1716,6 +1716,16 @@ is why" — is this file.
   reports is the synthesized label. Keep a `callable` out of a case about how a value renders:
   the row pins a name no ADR owns. The same goes for `Tag::Resource` and `Tag::Unset`, which no
   file-scope expression produces at all.
+- **A `Core` enum case will not go in an array or through a parameter, but a `var` binding takes
+  one — and a `match` on an index is how a case sweeps a whole roster.** A source-written
+  `Core\Charset` does not unify with the registry's own enum type, so both
+  `array<Core\Charset> $sets = [...]` and a `Core\Charset` parameter are refused with `E0401`
+  ("expected `Core\Charset`, found `Core\Charset`"), and an array literal of cases under `var` is
+  `E0414` on top of that. What does work is `var $cs = Core\Charset::Utf8;`, and therefore
+  `var $cs = match ($i) { 0 => Core\Charset::Utf8, …, default => … };` inside a `for` over the
+  case count — which is what let the two encoding cases cross 41 charsets with a table of texts.
+  Both `encoding-text-round-trips-through-every-charset-the-registry-names.nvst` and
+  `encoding-isvalidtext-is-decodetext-s-verdict-over-the-whole-roster.nvst` carry the spelling.
 
 ## Splitting a file that got too big
 

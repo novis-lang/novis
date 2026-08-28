@@ -2,48 +2,55 @@
 
 ## State
 
-**M4's Stage 8, depth.** The tree is at **775 conformance plus 189 differential**. `python
-tools/gaps.py --coverage` ranks by the median cases per member; `Core\Time` left the frontier this
-session (2 → 3.0) and the thinnest classes are now `Core\Bytes` (median 2, floor 1 at `join`),
-`Core\Encoding` (2), `Core\Test` (2) and `Core\Hash\Stream` (2). Nothing is blocked.
+**M4's Stage 8, depth.** The tree is at **778 conformance plus 189 differential**. `python
+tools/gaps.py --coverage` ranks by the median cases per member; `Core\Encoding` left the frontier
+this session (2 → 3.0) and `Core\Bytes` came off its floor of 1. The thinnest classes are now
+`Core\Bytes` (median 2, floor 2), `Core\Test` (2) and `Core\Hash\Stream` (2, and only two members).
+Nothing is blocked.
 
-- Three cases landed, all over members carrying a single case each. `Core\Time`'s two: the three
-  epoch readings are one number at three resolutions, swept over 28 second/`nanos` rows and
-  counted, with `fromEpoch` rebuilding the instant from each reading through the floor
-  decomposition its `uint nanos` wants — 9 of those rows read one second *higher* than they were
-  written, which is the truncation-towards-zero the pair does; and `monotonic` is a twelve-read
-  sweep that never steps backwards, whose differences are `Duration`s in `Duration`'s own algebra,
-  plus one 20ms `sleep` the clock has to have noticed (the whole case costs 45ms).
-- `Core\Test`'s: `assertThrows` consumes the throw it matched **without** discharging the ledger
-  entry that raised it, so `expectFailure` around an `assertThrows(…, Core\Test\Failure::class)`
-  body still discharges — `nvs_stdlib::test`'s own doc comment on `nvs_core_test_assert_throws`
-  states this and nothing observed it. The failure *messages* of `assertCount` and `assertThrows`
-  were already pinned by the two cases `gaps.py --member` names, so this case took the ledger edge
-  instead of re-pinning them.
+- Three cases landed, all of the *agreement* shape over a swept table rather than another row of
+  what the existing cases already answer.
+- `Core\Encoding`'s two. The round-trip case crosses eight texts with all 41 charsets the registry
+  names, counting what each charset spelled against what came back byte-identical (328 pairs, 173
+  spelled, 171 identical). The two survivors that are spelled but not identical are named rather
+  than smoothed over: `euc-jp` and `shift_jis` both spell U+00A5 as `0x5c`, which their own
+  decoders read as U+005C — the WHATWG index's many-to-one encoder, not a mode Novis added, and
+  `iso-2022-jp` escaping into JIS X 0201 Roman is the contrast row that shows it. The second case
+  asks `isValidText` and `decodeText` the same question about each charset's output under all 41
+  charsets (1681 + 861 + 410 checks, agreement total), plus every prefix of a 1/3/4-byte UTF-8 run,
+  which is where a validator written apart from its decoder diverges first.
+- `Core\Bytes::join`'s: the separator arithmetic swept over part counts 0 to 8 with an empty
+  element at every position, and the answer compared byte for byte with `Core\Str::join` over the
+  same content — the pairing `bytes.rs`'s own doc comment and ADR 0063 R6 assert and nothing
+  observed. Its live-slot walk is pinned too: two `unset` elements take their separators with them.
 
 ## Next group
 
-**`Core\Encoding`'s three text members** — the file set is `crates/nvs-stdlib/src/encoding.rs` plus
-`tests/conformance/core/`. Two cases already touch them
-(`encoding-text-trio-converts-through-a-charset.nvst` and
-`encoding-charset-conversion-names-the-character-it-cannot-spell.nvst`), so read those first and
-take the boundary each leaves, not another row of what they already sweep.
+**`Core\Hash\Stream`'s two members, and `Core\Hash`'s own stream/hmac rows** — the file set is
+`crates/nvs-stdlib/src/hash.rs` plus `tests/conformance/core/`. Two cases already touch the
+streaming pair (`hash-streams-a-digest-in-chunks.nvst` and
+`hash-stream-chunking-is-not-observable.nvst`), so read those first and take the boundary each
+leaves rather than another chunking row.
 
-- [ ] **`encodeText`/`decodeText` round-trip every charset the registry names**
-      (`crates/nvs-stdlib/src/encoding.rs:321` `encodeText`, `:328` `decodeText`, implemented at
-      `encoding.rs:751` and `:781`) — the *agreement* shape: one table of texts crossed with the
-      charsets, counting the round trips that come back byte-identical against the ones that throw,
-      so a charset table that grew its own transliteration fails the count.
-- [ ] **`isValidText` agrees with `decodeText`'s verdict on every row of that same table**
-      (`encoding.rs:335`, implemented at `encoding.rs:809`) — the predicate is the throw, spelled as
-      a `bool`, and nothing yet asserts the two cannot disagree.
-- [ ] **`Core\Bytes::join` is the one member with a single case** (`gaps.py --coverage` floor 1) —
-      a different file set (`crates/nvs-stdlib/src/bytes.rs`), so take it only as a third.
+- [ ] **`update`/`finish` agree with `Core\Hash::of` over a sweep of chunk boundaries**
+      (`crates/nvs-stdlib/src/hash.rs:243` `update`, `:250` `finish`, implemented at `:573` and
+      `:601`) — the agreement shape: one input cut every way there is, counting the digests that
+      equal the one-shot answer, so a stream that carried a chunk boundary into its state fails the
+      count while every written-out row still prints.
+- [ ] **`finish`'s edges** (`hash.rs:601`, `Core\Hash::stream` at `:215`/`:549`) — an empty stream,
+      a `finish` with no `update` at all, and whatever a second `finish` or a post-`finish` `update`
+      does; check the `Fault::` constructor at the site before assuming a `catch` reaches it.
+- [ ] **`Core\Hash::hmac` agrees with the streamed digest of its own construction** (`hash.rs:201`,
+      implemented at `:468`) — HMAC is two hashes of a padded key, so the member and the pieces it
+      is built from can be asked the same question and counted.
 
 ## Backlog
 
-- `Core\Hash\Stream::update`/`finish` carry two cases each and are the smallest class on the
-  frontier — `docs/agent/loop-goal.md` § Stage 8.
-- `Core\Regex\Match::offset` carries one case, `Core\Uri::buildQuery`/`compareTo` one each —
-  `python tools/gaps.py --coverage`.
-- 54 of the 156 guard tests `loop-goal.toml` names still match nothing — `docs/agent/guard-name-debt.md`.
+- `E0401` "expected `Core\Charset`, found `Core\Charset`": a source-written `Core` enum type never
+  unifies with the registry's, so no case can pass one through a parameter — the playbook bullet
+  this session added has the workaround, but the checker hole is unowned (`nvs-types`).
+- `Core\Test` (median 2) and `Core\Bytes`'s `at`/`compare`/`contains` (median 2) are the frontier
+  after the group above — `python tools/gaps.py --coverage`.
+- `docs/agent/guard-name-debt.md`: 54 of the 156 guard tests `loop-goal.toml` names match nothing
+  `cargo test` runs.
+- `Core\Regex\Match::offset` and `Core\Uri::buildQuery` are still at one case each.
