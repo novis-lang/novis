@@ -18,7 +18,8 @@
 //! message below labels the sides `$actual` and `$expected` by **name**, so a
 //! reversed call still reads correctly.
 //!
-//! Both parameters are one [`CoreTy::Var`], which is what makes § 4's
+//! Both of an equality member's parameters are one [`CoreTy::Var`], which is
+//! what makes § 4's
 //! "a type mismatch is a compile error" true with no rule of its own:
 //! `nvs_types::generics` binds `T` from the first argument and substitutes it
 //! through the signature, so the second is checked against the first's type by
@@ -39,6 +40,25 @@
 //! `string` and `array<T>` rows from drifting: those are ADR 0090's, not this
 //! ADR's, and a second reading of them here would be a second set of
 //! PHP-divergence decisions nothing keeps in step.
+//!
+//! # The three predicate rows, and the two types they had to decide
+//!
+//! § 4's example writes `assertTrue`, `assertNull` and `assertCount` beside the
+//! table without giving them a signature, so each declares its subject here and
+//! the choice is this module's:
+//!
+//! * `assertTrue` takes a **`bool`**, not a `mixed` resolved through ADR 0035's
+//!   truthy table. That ADR makes a *condition* the one place a value is tested
+//!   without `as`, and an argument is not one.
+//! * `assertNull` takes a **`mixed`**, ADR 0007 § 2's one position that admits
+//!   every type — a `?T` would refuse the non-`null` half of the union the
+//!   question is about.
+//! * `assertCount` takes an **`array<T>`** and a `uint`, which is
+//!   `Core\Arr::count`'s own signature. A length is answered per domain in this
+//!   library, so a union subject would be a fourth answer to "how long is it",
+//!   decided by a tag rather than by the member the author named.
+//!
+//! Each member's own doc comment carries the argument in full.
 //!
 //! # The ledger, and the one member that discharges from it
 //!
@@ -63,9 +83,10 @@
 //!    from it, but the runner that reports one at the end of a test is later in
 //!    Stage 7 — so § 20's zero-assertion rule, which is a question about the
 //!    entry count, is owed rather than broken.
-//! 3. **The roster is three members**, the equality ones § 4 tabulates. The
-//!    `assertTrue`/`assertNull`/`assertCount`/`assertThrows` that section's
-//!    example also writes are the same shape and are owed.
+//! 3. **`assertThrows` is owed**, and with it § 20's `assertDoesNotThrow`. Both
+//!    run a `callable` and judge what came back rather than judging a value, so
+//!    they are the one shape on § 4's roster that is not an assertion *about*
+//!    its first argument; the rest of that roster is on disk.
 
 use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, Value, identity};
 
@@ -97,8 +118,9 @@ const MESSAGE: &[CoreOption] = &[CoreOption {
     default: Const::Null,
 }];
 
-/// `Core\Test`'s registry rows — § 4's three equality members, plus § 5's
-/// `expectFailure`. See
+/// `Core\Test`'s registry rows — § 4's three equality members, the three
+/// predicate ones its example writes beside them, and § 5's `expectFailure`.
+/// See
 /// [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
@@ -125,6 +147,31 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_test_assert_equals_deep",
         },
         CoreMethod {
+            name: "assertTrue",
+            params: &[CoreTy::Bool, CoreTy::Options(MESSAGE)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_test_assert_true",
+        },
+        CoreMethod {
+            name: "assertNull",
+            params: &[CoreTy::Mixed, CoreTy::Options(MESSAGE)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_test_assert_null",
+        },
+        CoreMethod {
+            name: "assertCount",
+            params: &[
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::Uint,
+                CoreTy::Options(MESSAGE),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_test_assert_count",
+        },
+        CoreMethod {
             name: "expectFailure",
             params: &[CoreTy::Callable],
             defaults: &[],
@@ -146,13 +193,16 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_test_assert_equals_deep" => {
             (nvs_core_test_assert_equals_deep as *const ()).cast()
         }
+        "nvs_core_test_assert_true" => (nvs_core_test_assert_true as *const ()).cast(),
+        "nvs_core_test_assert_null" => (nvs_core_test_assert_null as *const ()).cast(),
+        "nvs_core_test_assert_count" => (nvs_core_test_assert_count as *const ()).cast(),
         "nvs_core_test_expect_failure" => (nvs_core_test_expect_failure as *const ()).cast(),
         _ => return None,
     })
 }
 
 // ============================================================================
-// The three members
+// The members
 // ============================================================================
 
 nvs_runtime::nvs_helper! {
@@ -217,6 +267,103 @@ nvs_runtime::nvs_helper! {
                 "the two differ at {at}: `$actual` is {}, `$expected` is {}",
                 diff.actual, diff.expected
             ),
+            args[2],
+        ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test::assertTrue(bool $actual, {message?: string}): void` — § 4's
+    /// predicate row, and the one member whose subject is a *declared* `bool`
+    /// rather than a [`CoreTy::Var`].
+    ///
+    /// A `mixed` subject resolved through ADR 0035's truthy table would have
+    /// been the PHPUnit reading, and it is the wrong one here: that ADR makes a
+    /// **condition** the one place a value is tested without `as`, and an
+    /// argument is not one. So `assertTrue($rows)` is refused where it is
+    /// written, exactly as `if` would accept it and `bool $b = $rows;` would
+    /// not, and a test meaning to assert a non-empty array says
+    /// `Core\Arr::isEmpty($rows)` or writes the comparison out.
+    fn nvs_core_test_assert_true(ctx, args: [2]) {
+        let actual = args[0].as_bool().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Test::assertTrue expected {:?}, got tag {}",
+                Tag::Bool,
+                args[0].tag_byte()
+            ))
+        })?;
+        if actual {
+            return Ok(held(ctx, "assertTrue"));
+        }
+        Err(failed(ctx, "assertTrue", "`$actual` is false", args[1]))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test::assertNull(mixed $actual, {message?: string}): void` — § 4's
+    /// second predicate row.
+    ///
+    /// The subject is `mixed` rather than a `?T`: ADR 0007 § 2 makes `mixed`
+    /// the one position that admits every type, and a `?T` parameter would
+    /// refuse the `string` half of the very question this member asks about a
+    /// union. What it costs is that a subject whose declared type cannot hold
+    /// `null` at all still compiles — a mistake ADR 0047 § 4's literal types
+    /// would have to be extended to `null` to catch, which is not this
+    /// member's to decide.
+    fn nvs_core_test_assert_null(ctx, args: [2]) {
+        if matches!(args[0].tag(), None | Some(Tag::Null)) {
+            return Ok(held(ctx, "assertNull"));
+        }
+        Err(failed(
+            ctx,
+            "assertNull",
+            &format!("`$actual` is {}", shown(args[0])),
+            args[1],
+        ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test::assertCount(array<T> $actual, uint $expected, {message?: string}): void`
+    /// — § 4's third predicate row, and the one whose subject row had to be
+    /// decided rather than read off the ADR.
+    ///
+    /// The subject is an `array<T>` and nothing else, and the count is a
+    /// `uint`, which is `Core\Arr::count`'s own signature: a length is a
+    /// question the spec answers per domain — `Core\Str::length` counts
+    /// characters and `Core\Bytes::length` counts bytes — so a union subject
+    /// here would be a *fourth* answer to "how long is it", decided by a tag
+    /// rather than by the member the author named. A `string` subject is
+    /// therefore written `Core\Test::assertSame(Core\Str::length($s), 3)`,
+    /// which says which length it meant.
+    fn nvs_core_test_assert_count(ctx, args: [3]) {
+        let array = args[0].array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Test::assertCount expected {:?}, got tag {}",
+                Tag::Array,
+                args[0].tag_byte()
+            ))
+        })?;
+        #[expect(
+            unsafe_code,
+            reason = "a Tag::Array argument owns a reference to a live \
+                      allocation, so it is live for the length of this call"
+        )]
+        let count = unsafe { nvs_runtime::nvs_array_count(array) }.cast_unsigned();
+        let expected = args[1].as_uint().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Test::assertCount expected {:?}, got tag {}",
+                Tag::Uint,
+                args[1].tag_byte()
+            ))
+        })?;
+        if count == expected {
+            return Ok(held(ctx, "assertCount"));
+        }
+        Err(failed(
+            ctx,
+            "assertCount",
+            &format!("`$actual` holds {count} entries, `$expected` is {expected}"),
             args[2],
         ))
     }
@@ -610,10 +757,21 @@ const SHOWN_CHARS: usize = 64;
 mod tests {
     use super::*;
 
-    /// § 4's three equality members — every row but § 5's `expectFailure`,
-    /// which takes a body rather than a pair of subjects and has its own test
-    /// below.
+    /// § 4's three equality members — the rows that bind both subjects to one
+    /// type variable, which the predicate ones beside them deliberately do
+    /// not.
     fn equality_members() -> impl Iterator<Item = &'static CoreMethod> {
+        CLASS.methods.iter().filter(|method| {
+            matches!(
+                method.name,
+                "assertSame" | "assertEquals" | "assertEqualsDeep"
+            )
+        })
+    }
+
+    /// Every assertion — every row but § 5's `expectFailure`, which takes a
+    /// body rather than a subject and has its own test below.
+    fn asserting_members() -> impl Iterator<Item = &'static CoreMethod> {
         CLASS
             .methods
             .iter()
@@ -646,6 +804,34 @@ mod tests {
         }
     }
 
+    /// § 4's example writes the three predicate members with no signature, so
+    /// what each subject admits is this module's decision and is asserted here
+    /// rather than left to a reading of the rows above — the module docs carry
+    /// why each is the type it is.
+    #[test]
+    fn every_predicate_declares_the_one_subject_its_question_admits() {
+        for method in asserting_members() {
+            let admitted = match method.name {
+                // A `bool`, not a `mixed` resolved through ADR 0035's truthy
+                // table: an argument is not a condition.
+                "assertTrue" => vec![CoreTy::Bool],
+                // ADR 0007 § 2's one position that admits every type.
+                "assertNull" => vec![CoreTy::Mixed],
+                // `Core\Arr::count`'s own signature, which is where a length
+                // is answered for this domain.
+                "assertCount" => vec![CoreTy::Array(&CoreTy::Var("T")), CoreTy::Uint],
+                _ => continue,
+            };
+            let written = &method.params[..method.params.len() - 1];
+            assert_eq!(
+                format!("{written:?}"),
+                format!("{admitted:?}"),
+                "`{}` should take the subject its question admits",
+                method.name
+            );
+        }
+    }
+
     /// Every row's symbol has an address here, which is what
     /// [`crate::symbols`]' own sweep asserts across the whole registry — held
     /// once more locally so a member added above fails here rather than in a
@@ -666,10 +852,14 @@ mod tests {
     /// than to an empty `string`.
     #[test]
     fn the_only_option_is_a_message_that_defaults_to_absent() {
-        for method in equality_members() {
-            let CoreTy::Options(bag) = method.params[2] else {
+        for method in asserting_members() {
+            let last = method
+                .params
+                .last()
+                .unwrap_or_else(|| panic!("`{}` should take a subject", method.name));
+            let CoreTy::Options(bag) = last else {
                 panic!(
-                    "`{}`'s third parameter should be an options bag",
+                    "`{}`'s last parameter should be an options bag",
                     method.name
                 );
             };
@@ -693,7 +883,8 @@ mod tests {
             .expect("§ 5's member is registered");
         assert!(matches!(member.params, [CoreTy::Callable]));
         assert!(matches!(member.return_ty, CoreTy::Void));
-        // And it is the only row that is not one of § 4's three.
-        assert_eq!(equality_members().count(), CLASS.methods.len() - 1);
+        // And it is the only row that asserts nothing about a subject.
+        assert_eq!(asserting_members().count(), CLASS.methods.len() - 1);
+        assert_eq!(equality_members().count(), 3);
     }
 }
