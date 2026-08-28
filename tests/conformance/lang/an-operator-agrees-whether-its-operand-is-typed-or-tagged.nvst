@@ -134,15 +134,21 @@ $agreed = $agreed + Check::same("str . float", "x" . $f, "x" . $mf);
 $agreed = $agreed + Check::same("str . bool", "x" . $yes, "x" . $myes);
 $agreed = $agreed + Check::same("str . null", "x" . $n, "x" . $mn);
 
-// `lower_expr`'s own roster: the four shapes that branch, and `Paren`, which
+// `lower_expr`'s own roster: the five shapes that branch, and `Paren`, which
 // is transparent. Each is taken above the general `Binary` arm, so a tagged
-// operand reaches them by the same path a typed one does.
+// operand reaches them by the same path a typed one does. A `match` label is
+// the same ADR 0090 § 5 comparison a written `==` is, so a tagged subject
+// compares through `Helper::Identical` and answers what the typed one does --
+// including the fall-off to `default` where every label missed.
 $agreed = $agreed + Check::same("??", $n ?? "d", ($mn ?? "d") as string);
 $agreed = $agreed + Check::same("&&", Check::yn($yes && $no), Check::yn($myes && $mno));
 $agreed = $agreed + Check::same("||", Check::yn($yes || $no), Check::yn($myes || $mno));
 $agreed = $agreed + Check::same("?:", $yes ? "y" : "n", $myes ? "y" : "n");
 $agreed = $agreed + Check::same("paren", ((($s))), ((($ms))) as string);
+$agreed = $agreed + Check::same("match int", match ($a) { 7 => "hit", default => "miss" }, match ($ma) { 7 => "hit", default => "miss" });
+$agreed = $agreed + Check::same("match str", match ($s) { "ab" => "hit", default => "miss" }, match ($ms) { "ab" => "hit", default => "miss" });
+$agreed = $agreed + Check::same("match default", match ($b) { 7 => "hit", default => "miss" }, match ($mb) { 7 => "hit", default => "miss" });
 
-echo "agreed=", $agreed as string, "/45\n";
+echo "agreed=", $agreed as string, "/48\n";
 --EXPECT--
-agreed=45/45
+agreed=48/48

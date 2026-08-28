@@ -1475,12 +1475,20 @@ impl<'a> Lowering<'a> {
     /// [`Ty::Tagged`], [`Self::lower_ternary`]'s rule applied to N branches
     /// rather than two — [`Self::join_representations`] owns it.
     ///
+    /// A subject whose static type names no representation of its own — a
+    /// `mixed`, a union — compares against each label through
+    /// [`Helper::Identical`] rather than through [`BinOp::Eq`], which is
+    /// [`Self::lower_binary`]'s own rule for a written `==` over the same
+    /// pair: where one side is a tag there is no machine comparison to emit,
+    /// so the tags decide it at run time. The label itself is unchanged by
+    /// it, being written at its own representation either way.
+    ///
     /// # Panics
     ///
-    /// Panics for a label whose representation differs from the subject's,
-    /// and — as an engine invariant, not a refusal — for a `match` with no
-    /// arms at all, which `nvs_types` refuses as `E0476` before this crate
-    /// ever sees it.
+    /// Panics — as engine invariants, not refusals — for a label whose
+    /// representation differs from a subject that is not a tag, and for a
+    /// `match` with no arms at all, which `nvs_types` refuses as `E0476`
+    /// before this crate ever sees it.
     pub(super) fn lower_match(
         &mut self,
         subject: &Expr,
@@ -1518,21 +1526,46 @@ impl<'a> Lowering<'a> {
             };
             for cond in conditions {
                 let (cond_v, cond_ty) = self.lower_expr(cond, Some(subj_ty), env, &mut test_cur);
-                assert_eq!(
-                    cond_ty, subj_ty,
-                    "nvs-ir lowers a `match` label only at the subject's own representation — \
-                     got {cond_ty:?} against a {subj_ty:?} subject; see the crate docs' known \
-                     gaps"
-                );
-                let (eq_v, _) = self.emit(
-                    test_cur,
-                    Ty::Bool,
-                    InstKind::BinOp {
-                        op: BinOp::Eq,
-                        lhs: subj_v,
-                        rhs: cond_v,
-                    },
-                );
+                // ADR 0090 § 5's `mixed`-or-union row, which is the same row
+                // `Self::lower_binary` takes for a written `==`: where either
+                // side's representation is a runtime tag there is no machine
+                // comparison to emit, so the tags decide it in
+                // `nvs_runtime::value_identical`. A label is written at its
+                // own representation whatever the subject's is — a digit run
+                // beside a `mixed` is still a `ConstInt` — and needs no
+                // widening to get there, `nvs-codegen`'s helper convention
+                // storing every argument as a 16-byte tagged `Value` already.
+                let (eq_v, _) = if subj_ty == Ty::Tagged || cond_ty == Ty::Tagged {
+                    self.emit(
+                        test_cur,
+                        Ty::Bool,
+                        InstKind::HelperCall {
+                            helper: Helper::Identical,
+                            args: vec![subj_v, cond_v],
+                        },
+                    )
+                } else {
+                    // Not a refusal: `nvs_types` has already made every label
+                    // comparable with the subject (`E0466`, ADR 0090 § 6), and the arm above
+                    // takes the one pairing whose types name no static row. So
+                    // an arrival here is a `nvs-ir` site that lowered a label
+                    // against an expectation it then did not honour.
+                    assert_eq!(
+                        cond_ty, subj_ty,
+                        "nvs-ir lowers a `match` label only at the subject's own representation, \
+                         or through `Helper::Identical` where one of the two is a tag — got \
+                         {cond_ty:?} against a {subj_ty:?} subject"
+                    );
+                    self.emit(
+                        test_cur,
+                        Ty::Bool,
+                        InstKind::BinOp {
+                            op: BinOp::Eq,
+                            lhs: subj_v,
+                            rhs: cond_v,
+                        },
+                    )
+                };
                 if cond_ty.is_refcounted() && !self.aliasing_read(cond) {
                     self.emit_release(test_cur, cond_v);
                 }
