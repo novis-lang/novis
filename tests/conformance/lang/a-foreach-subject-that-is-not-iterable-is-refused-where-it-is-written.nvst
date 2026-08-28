@@ -1,0 +1,62 @@
+--TEST--
+`foreach` refuses every subject ADR 0053 § 3's closed list does not name, a `void` call among them, and defers only a `mixed` — ADR 0053 § 3, ADR 0007 § 2
+--FILE--
+<?nvs
+// ADR 0053 § 3's list is closed — an `array<T>`, an `Iterable<T>` or an
+// `Iterator<T>` — so a subject naming none of them has no elements to yield
+// and is refused where it is written rather than answered below. This sweeps
+// one spelling per shape, in source order, so a shape that stopped refusing
+// shows up as a missing line rather than as a plausible empty loop.
+//
+// A call that returns `void` is the shape this case was written for, and it
+// is one step earlier than the rest: the others have a type that answers the
+// question, while a `void` call has no value for the question to be about.
+// It is `E0443` and not the condition's `E0719` or the operand's `E0718`,
+// because a subject is neither — `nvs_types::expr::iteration`'s
+// `report_not_iterable` is that refusal's one home.
+class Effect {
+    public static function run(): void {}
+}
+class Plain {
+    public int $n = 1;
+}
+
+int $i = 7;
+string $s = "ab";
+bool $b = true;
+?string $optional = null;
+Plain $o = new Plain();
+
+foreach (Effect::run() as int $a) { echo $a; }
+foreach ($i as int $c) { echo $c; }
+foreach ($s as string $d) { echo $d; }
+foreach ($b as bool $e) { echo $e; }
+// A union naming no iterable type is judged as the union, not as its widest
+// member: the nullable half is exactly what a `foreach` cannot walk.
+foreach ($optional as string $f) { echo $f; }
+// An object is refused for naming neither interface — ADR 0053 § 2 makes
+// `Iterable`/`Iterator` the only two, so there is no other way in.
+foreach ($o as int $g) { echo $g; }
+
+// The one subject that is *not* refused, and is deliberately last: `mixed` is
+// ADR 0007 § 2's one unchecked position, so it defers whether there is an
+// array behind the handle at all rather than answering now. A line that
+// started refusing it would add a seventh error below.
+mixed $m = [1, 2];
+foreach ($m as int $h) { echo $h; }
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0443]: `foreach` cannot iterate a `void`
+%A
+error[E0443]: `foreach` cannot iterate a `int`
+%A
+error[E0443]: `foreach` cannot iterate a `string`
+%A
+error[E0443]: `foreach` cannot iterate a `bool`
+%A
+error[E0443]: `foreach` cannot iterate a `string|null`
+%A
+error[E0443]: `foreach` cannot iterate a `Plain`
+%A
+error: aborting due to 6 errors
