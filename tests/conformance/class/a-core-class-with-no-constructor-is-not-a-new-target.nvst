@@ -1,0 +1,45 @@
+--TEST--
+`new` on a `Core` class is held to the constructor roster, and an unregistered `Core` name is undeclared rather than a failure below the checker — ADR 0007 § 1, ADR 0011 § 1
+--FILE--
+<?nvs
+// A `Core` class is not constructed by a `constructor` member: its instances
+// come from the member that produces one, and the whole roster of names `new`
+// may be written on is `nvs_stdlib::registry::CONSTRUCTORS` — spec § 9's
+// collections and nothing else. So the two mistakes below are different ones,
+// and neither is the arity count a user class gets.
+
+// The accepted half, written first so that a name that stopped being
+// constructible shows up here rather than as a missing refusal below.
+Core\ObjectSet<int> $set = new Core\ObjectSet<int>();
+$set->add(1);
+echo $set->count(), "\n";
+
+// Registered, but with no constructor: the refusal names the member the class
+// does not have, and says the same thing however many arguments are written.
+mixed $bare = new Core\Str();
+mixed $args = new Core\Str("a", 1);
+
+// Not registered at all: `Core\` is a spelling, not a declaration, so this is
+// the ordinary undeclared-class answer rather than a failure below the
+// checker.
+mixed $gone = new Core\Bogus();
+--EXPECTF-ERROR--
+error[E0405]: `Core\Str` has no member named `constructor`
+   --> %s:16:15
+   |
+16 | mixed $bare = new Core\Str();
+   |               ^^^^^^^^^^^^^^ referenced here
+
+error[E0405]: `Core\Str` has no member named `constructor`
+   --> %s:17:15
+   |
+17 | mixed $args = new Core\Str("a", 1);
+   |               ^^^^^^^^^^^^^^^^^^^^ referenced here
+
+error[E0303]: `Core\Bogus` is not declared
+   --> %s:22:19
+   |
+22 | mixed $gone = new Core\Bogus();
+   |                   ^^^^^^^^^^ no matching declaration
+
+error: aborting due to 3 errors
