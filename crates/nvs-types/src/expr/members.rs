@@ -104,7 +104,14 @@ pub(super) fn infer_class_const(
             // nothing.
             let case = span_text(env.src, name).to_owned();
             if let Some(value) = env.enums.case(&qname, &case) {
-                env.exprs.record(expr.span, ExprInfo::EnumCase { value });
+                env.exprs.record(
+                    expr.span,
+                    ExprInfo::EnumCase {
+                        value,
+                        enum_: qname.clone(),
+                        case: case.clone(),
+                    },
+                );
             } else if qname.is_core() {
                 // One of the three places `Core`'s blanket trust is *narrowed*
                 // rather than relied on — [`super::calls::infer_static_call`]

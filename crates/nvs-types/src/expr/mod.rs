@@ -590,8 +590,16 @@ pub(super) fn infer(
         ExprKind::Fn(fn_expr) => check_fn_literal(expr, fn_expr, live, scope, ctx, env),
         ExprKind::Match { subject, arms } => {
             let subject_ty = check_expr(subject, None, live, scope, ctx, env);
+            // ADR 0007 § 6's fourth narrowing spelling: under `match (true)` a
+            // label is a condition rather than a value, so the arm body is
+            // checked under exactly what `crate::locals::narrow` installs for
+            // it — see [`crate::locals::is_true_literal`] for why only the
+            // written literal counts and why a `default` or comma-separated
+            // arm gets nothing.
+            let labels_are_conditions = crate::locals::is_true_literal(subject);
             let mut arm_types = Vec::with_capacity(arms.len());
             for arm in arms {
+                let mut narrowed = crate::locals::Narrowing::default();
                 if let Some(conds) = &arm.conditions {
                     for c in conds {
                         // ADR 0090 § 6: an arm is compared against the subject
@@ -601,8 +609,12 @@ pub(super) fn infer(
                         let cond_ty = check_expr(c, None, live, scope, ctx, env);
                         reject_disjoint_equality(subject_ty, cond_ty, c.span, env);
                     }
+                    if labels_are_conditions && let [only] = &conds[..] {
+                        narrowed = crate::locals::narrow(only, true, scope, env);
+                    }
                 }
                 arm_types.push(check_expr(&arm.body, None, live, scope, ctx, env));
+                narrowed.restore(scope);
             }
             if arm_types.is_empty() {
                 // A `match` is an expression, so an arm-less one has no value

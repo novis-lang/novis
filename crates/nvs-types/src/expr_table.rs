@@ -488,9 +488,20 @@ pub enum ExprInfo {
     ///
     /// Never recorded for an ordinary `Class::CONST`, whose value is unmodeled
     /// (see [`crate::expr`]'s own known gaps).
+    /// The enum and the case are carried beside the value for
+    /// [`ExprInfo::InstanceOf`]'s reason a second time: ADR 0047 § 4's guard
+    /// row narrows a local to the case's own `Ty::EnumCase`, and *which* case
+    /// a written `Mode::Read` names is a question about the namespace and the
+    /// imports of the site that wrote it — context
+    /// [`crate::locals::literal_residue`] does not carry. The value alone
+    /// cannot answer it: two cases of two enums may share one integer.
     EnumCase {
         /// The case's constant value, in its enum's backing type.
         value: crate::enums::EnumValue,
+        /// The enum the case belongs to, fully resolved.
+        enum_: QName,
+        /// The case's own name.
+        case: String,
     },
     /// `Core\Class::CONSTANT`, keyed by the whole access's own span.
     ///

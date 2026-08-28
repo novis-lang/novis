@@ -244,7 +244,7 @@ impl<'a> Lowering<'a> {
             // a **user-declared** class's constant records neither and is
             // still unlowered.
             ExprKind::ClassConstAccess { .. } => match self.exprs.lookup(expr.span) {
-                Some(ExprInfo::EnumCase { value }) => match value {
+                Some(ExprInfo::EnumCase { value, .. }) => match value {
                     nvs_types::EnumValue::Int(n) => {
                         self.emit(*cur, Ty::Enum(EnumRepr::Int), InstKind::ConstInt(*n))
                     }

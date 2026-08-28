@@ -1,0 +1,117 @@
+--TEST--
+A `match (true)` and a `switch (true)` narrow their subject per arm, under exactly what the arm's own label proves — ADR 0007 § 6, ADR 0047 § 4
+--FILE--
+<?nvs
+// ADR 0007 § 6's fourth narrowing spelling: under the subject `true` a label
+// is a condition rather than a value, so the arm body is checked under
+// whatever `nvs_types::locals::narrow` installs for that label — the same
+// three tests an `if` reaches, and no others.
+final class Dog {
+    public function speak(): string { return "woof"; }
+}
+
+final class Cat {
+    public function purr(): string { return "prr"; }
+}
+
+// The `!= null` residue, through a `match` arm.
+?Dog $held = new Dog();
+echo match (true) {
+    $held != null => $held->speak(),
+    default => "none",
+}, "\n";
+
+// The same label where it does not hold: `default` is taken, and it is
+// deliberately given no narrowing of its own.
+?Dog $empty = null;
+echo match (true) {
+    $empty != null => "held",
+    default => "none",
+}, "\n";
+
+// The `instanceof` residue, reaching one member of a union.
+Dog|Cat $either = new Cat();
+echo match (true) {
+    $either instanceof Cat => $either->purr(),
+    default => "none",
+}, "\n";
+
+// ADR 0047 § 4's guard row under the same subject: the comparison proves the
+// literal's own type, so the `string` member of the union is reachable.
+string|int $mode = "read";
+echo match (true) {
+    $mode == "read" => "reading",
+    default => "other",
+}, "\n";
+
+// A `!` inverts which edge proves the class, exactly as it does in an `if`.
+echo match (true) {
+    !($either instanceof Dog) => "not a dog",
+    default => "a dog",
+}, "\n";
+
+// The `switch` statement's labels are the same conditions.
+switch (true) {
+    case $held != null:
+        echo $held->speak(), "\n";
+        break;
+    default:
+        echo "none\n";
+}
+
+switch (true) {
+    case $either instanceof Cat:
+        echo $either->purr(), "\n";
+        break;
+    default:
+        echo "none\n";
+}
+
+switch (true) {
+    case $empty instanceof Dog:
+        echo "held\n";
+        break;
+    default:
+        echo "none\n";
+}
+
+// A subject that is *not* the written literal `true` narrows nothing at all —
+// a label there is a value compared against the subject, so nothing about the
+// arm taken says the label's own condition held. Pinned by the arm bodies
+// below reading nothing narrowed.
+bool $flag = true;
+echo match ($flag) {
+    $held != null => "agreed",
+    default => "disagreed",
+}, "\n";
+
+// The agreement the spelling exists for, counted rather than read off a line:
+// each label answers what the `if` written from the same condition answers.
+int $agreed = 0;
+
+string $nullViaIf = "none";
+if ($held != null) { $nullViaIf = $held->speak(); }
+string $nullViaMatch = match (true) { $held != null => $held->speak(), default => "none" };
+if ($nullViaIf == $nullViaMatch) { $agreed = $agreed + 1; }
+
+string $classViaIf = "none";
+if ($either instanceof Cat) { $classViaIf = $either->purr(); }
+string $classViaMatch = match (true) { $either instanceof Cat => $either->purr(), default => "none" };
+if ($classViaIf == $classViaMatch) { $agreed = $agreed + 1; }
+
+string $litViaIf = "other";
+if ($mode == "read") { $litViaIf = "reading"; }
+string $litViaMatch = match (true) { $mode == "read" => "reading", default => "other" };
+if ($litViaIf == $litViaMatch) { $agreed = $agreed + 1; }
+echo "agreed=", $agreed, "/3\n";
+--EXPECT--
+woof
+none
+prr
+reading
+not a dog
+woof
+prr
+none
+agreed
+agreed=3/3

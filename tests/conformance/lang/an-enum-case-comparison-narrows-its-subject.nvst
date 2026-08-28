@@ -1,0 +1,107 @@
+--TEST--
+A comparison against an enum case narrows its subject to that case's own type, on whichever edge the comparison proves it — ADR 0047 § 4, ADR 0007 § 6
+--FILE--
+<?nvs
+// ADR 0047 § 4's guard row, over the third of the three spellings
+// `nvs_types::locals::literal_residue` admits. A written case is not a
+// literal that cooks to a value with no context — which enum `Read` belongs
+// to is a question about the writing site's namespace and imports — so the
+// residue is read back off the `ExprInfo::EnumCase` the operand recorded when
+// it was checked, and it is § 3's `Ty::EnumCase` rather than the whole enum,
+// which is the entire point of the guard.
+enum Mode: int {
+    Read = 1,
+    Write = 2,
+}
+
+final class Only {
+    public static function read(Mode::Read $m): string { return "read"; }
+    public static function write(Mode::Write $m): string { return "write"; }
+}
+
+// A whole-enum subject reaches one case. `Only::read` declares `Mode::Read`
+// and nothing wider, so this line compiles only because the guard narrowed.
+Mode $m = Mode::Read;
+if ($m == Mode::Read) {
+    echo Only::read($m), "\n";
+} else {
+    echo "other\n";
+}
+
+// ADR 0090 § 1 leaves one equality operator and it is symmetric, so the case
+// may be written on either side.
+Mode $s = Mode::Read;
+if (Mode::Read == $s) {
+    echo Only::read($s), "\n";
+}
+
+// A declared union of two cases, reaching the one the guard names.
+Mode::Read|Mode::Write $u = Mode::Write;
+if ($u == Mode::Write) {
+    echo Only::write($u), "\n";
+}
+
+// `!=` proves the case on the edge where it does *not* hold, which is the
+// same edge written the other way round.
+Mode::Read|Mode::Write $g = Mode::Read;
+if ($g != Mode::Read) {
+    echo "not read\n";
+} else {
+    echo Only::read($g), "\n";
+}
+
+// ADR 0007 § 6's `match (true)`/`switch (true)`: a label there is a condition,
+// so the arm body sees the same narrowing the `if` spelling installs.
+Mode $viaMatch = Mode::Read;
+echo match (true) {
+    $viaMatch == Mode::Read => Only::read($viaMatch),
+    default => "other",
+}, "\n";
+
+Mode $viaSwitch = Mode::Write;
+switch (true) {
+    case $viaSwitch == Mode::Write:
+        echo Only::write($viaSwitch), "\n";
+        break;
+    default:
+        echo "other\n";
+}
+
+// The arm whose label does not hold is not reached, and `default` is given no
+// narrowing of its own — it stands for every case the labels above missed.
+Mode $missed = Mode::Write;
+echo match (true) {
+    $missed == Mode::Read => "read",
+    default => "fell through",
+}, "\n";
+
+// The agreement the guard row exists for, counted rather than read off a line:
+// each spelling answers what the plain `if` answers for the same subject.
+int $agreed = 0;
+
+string $ifRead = "other";
+if ($m == Mode::Read) { $ifRead = Only::read($m); }
+string $matchRead = match (true) { $m == Mode::Read => Only::read($m), default => "other" };
+if ($ifRead == $matchRead) { $agreed = $agreed + 1; }
+
+string $ifWrite = "other";
+if ($u == Mode::Write) { $ifWrite = Only::write($u); }
+string $switchWrite = "other";
+switch (true) {
+    case $u == Mode::Write:
+        $switchWrite = Only::write($u);
+        break;
+    default:
+        break;
+}
+if ($ifWrite == $switchWrite) { $agreed = $agreed + 1; }
+echo "agreed=", $agreed, "/2\n";
+--EXPECT--
+read
+read
+write
+read
+read
+write
+fell through
+agreed=2/2

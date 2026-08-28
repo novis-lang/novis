@@ -67,9 +67,15 @@
 //! `instanceof` narrows to the class it names**, which is the same discharge
 //! one type wider — a `mixed` or a union subject is one `Ty::Tagged` slot, and
 //! the proved class is exactly what the `Untag` relabels it to. **A literal
-//! comparison narrows to the literal's own type**, which costs nothing below
-//! the checker at all: ADR 0047 § 5 gives a literal type its base type's
-//! representation exactly, so the read is the same one either way.
+//! comparison narrows to the literal's own type**, an enum case included,
+//! which costs nothing below the checker at all: ADR 0047 § 5 gives a literal
+//! type and an enum-case type their base's representation exactly, so the read
+//! is the same one either way.
+//!
+//! **A `match (true)`/`switch (true)` label is a condition**, so each arm body
+//! is checked under whatever the three tests above prove for its own label —
+//! [`is_true_literal`] owns which subject qualifies, and why a `default` arm
+//! and a comma-separated run of labels are given nothing.
 //!
 //! **Known gaps**, beyond the ones `crate` docs already name: a `switch`
 //! case that silently falls through to the next one (no explicit `break`/
@@ -274,7 +280,7 @@ impl Narrowing {
     }
 
     /// Undoes what [`narrow`] installed, innermost first.
-    fn restore(self, scope: &LocalScope) {
+    pub(crate) fn restore(self, scope: &LocalScope) {
         let mut map = scope.narrowed.borrow_mut();
         for (name, installed, previous) in self.0.into_iter().rev() {
             if map.get(&name) != Some(&installed) {
@@ -346,7 +352,13 @@ fn null_test(cond: &Expr) -> Option<(Span, bool)> {
 /// `nvs-ir` produces the value, rather than at each consumer that wants it —
 /// so a subscript base, a `foreach` subject, an array-write root and an
 /// argument all see the narrow representation with no site left to forget.
-fn narrow(cond: &Expr, when: bool, scope: &LocalScope, env: &mut Env<'_>) -> Narrowing {
+///
+/// The three tests are what a *condition* proves, so every site that writes
+/// one reaches this: the `if`/`while` arms below, the guard clause
+/// [`check_block`] carries, and — through [`is_true_literal`] — each label of a
+/// `match (true)`/`switch (true)`, which is ADR 0007 § 6's fourth spelling and
+/// is a label only in where it is written.
+pub(crate) fn narrow(cond: &Expr, when: bool, scope: &LocalScope, env: &mut Env<'_>) -> Narrowing {
     let residue = match null_residue(cond, when, scope, env) {
         Some(found) => Some(found),
         None => match instanceof_residue(cond, when, scope, env) {
@@ -464,16 +476,22 @@ fn instanceof_test(cond: &Expr) -> Option<(Span, Span, bool)> {
 /// is that guard's simplest spelling. `==` proves the literal where it holds
 /// and `!=` where it does not, which is the same edge written two ways.
 ///
-/// The type is built from the literal's **text** rather than from what the
-/// condition inferred a moment ago, because an operand's inferred type is not
-/// recorded anywhere and re-inferring one would report its escape-grammar
-/// diagnostics a second time. That is also the whole of why the roster is
-/// closed at a string and an integer literal: those two cook to a value with
-/// no context at all, while an enum case (`$m == Mode::Read`) needs the
-/// namespace and the imports of the site that wrote it and reaches
-/// `crate::expr_table::ExprInfo::EnumCase`, which carries the case's backing
-/// value rather than its type. That spelling narrows nothing yet, which is a
-/// limit of this pass rather than a rule about the language.
+/// A **string or integer literal's** type is built from its own **text**
+/// rather than from what the condition inferred a moment ago, because an
+/// operand's inferred type is not recorded anywhere and re-inferring one would
+/// report its escape-grammar diagnostics a second time. Those two cook to a
+/// value with no context at all, which is what makes reading the text sound
+/// for them and unsound for the third spelling.
+///
+/// An **enum case** (`$m == Mode::Read`) is that third one, and it is read
+/// back off [`crate::expr_table::ExprInfo::EnumCase`] instead, for
+/// [`instanceof_residue`]'s reason: which case a written name means is a
+/// question about the namespace and the imports of the site that wrote it, and
+/// this walk carries neither. The residue is ADR 0047 § 3's `Ty::EnumCase` and
+/// not the whole enum — that is the point of the guard — and it costs nothing
+/// below the checker for § 5's reason, a case being its backing integer in
+/// every representation. The roster is closed at those three: anything else
+/// records no [`ExprInfo`] this can read and narrows nothing.
 ///
 /// The residue has to be a **subtype of what the local was declared**, so a
 /// comparison the declared type does not admit narrows nothing — it is a guard
@@ -500,7 +518,22 @@ fn literal_residue(
             env.interner
                 .int_literal(i64::from_str_radix(&digits, radix).ok()?)
         }
-        _ => return None,
+        // ADR 0047 § 4's guard row over an enum: `$m == Mode::Read` proves the
+        // case's own type, which is `Ty::EnumCase` rather than the enum. The
+        // enum and the case are read back off
+        // [`crate::expr_table::ExprInfo::EnumCase`], recorded when the operand
+        // was checked a moment ago, for [`instanceof_residue`]'s reason
+        // exactly — the name is placed by the writing site's namespace and
+        // imports, and this walk carries neither.
+        _ => {
+            let Some(ExprInfo::EnumCase { enum_, case, .. }) = env.exprs.lookup(literal.span)
+            else {
+                return None;
+            };
+            let (enum_, case) = (enum_.clone(), case.clone());
+            let backing = env.enums.backing_of(&enum_);
+            env.interner.enum_case(enum_, backing, case)
+        }
     };
     if residue == current {
         return None;
@@ -537,6 +570,31 @@ fn literal_test(cond: &Expr) -> Option<(Span, &Expr, bool)> {
             }
         }
         _ => None,
+    }
+}
+
+/// Whether `subject` is the written literal `true` — the subject of ADR 0007
+/// § 6's `match (true)` spelling, and of the `switch (true)` one beside it.
+///
+/// Under that subject a label is not a value the subject is compared against
+/// but a **condition** in its own right, so an arm is reached exactly where
+/// its label held and the body may be checked under everything [`narrow`]
+/// would install for it. Only the written literal counts, and deliberately not
+/// a `bool` local that happens to hold `true`: what makes the spelling narrow
+/// is that the label's own truth is what selected the arm, and a variable
+/// subject says only that the two agree — `$flag == ($x instanceof Foo)`
+/// proves the class on neither edge.
+///
+/// A label proves nothing for any *other* arm, so nothing is installed for a
+/// `default` arm or for one of a comma-separated run: `match (true)` evaluates
+/// labels in order and the arm taken is the first that held, which says the
+/// earlier ones did not — a residue this pass has no way to subtract, ADR 0007
+/// § 6's narrowings each naming a type rather than removing one.
+pub(crate) fn is_true_literal(subject: &Expr) -> bool {
+    match &subject.kind {
+        ExprKind::Paren(inner) => is_true_literal(inner),
+        ExprKind::Bool(value) => *value,
+        _ => false,
     }
 }
 
@@ -958,8 +1016,12 @@ pub(crate) fn check_stmt(
             // it as a level for both keywords, and `continue` then walks out
             // of it to the loop (see `check_exit_level`).
             env.exit_targets.push(false);
+            // ADR 0007 § 6's `switch (true)`: every label is a condition, so
+            // each case body is checked under what its own label proves.
+            let labels_are_conditions = is_true_literal(subject);
             for (i, case) in cases.iter().enumerate() {
                 let mut case_live = live.clone();
+                let mut narrowed = Narrowing::default();
                 if let Some(c) = &case.cond {
                     // ADR 0090 § 6: a `case` label is compared against the
                     // subject by the one equality rule, so a label whose type
@@ -967,8 +1029,12 @@ pub(crate) fn check_stmt(
                     // without the operator.
                     let label_ty = check_expr(c, None, &mut case_live, scope, ctx, env);
                     crate::expr::reject_disjoint_equality(subject_ty, label_ty, c.span, env);
+                    if labels_are_conditions {
+                        narrowed = narrow(c, true, scope, env);
+                    }
                 }
                 check_block(&case.body, &mut case_live, scope, return_ty, ctx, env);
+                narrowed.restore(scope);
                 let exits = case.body.last();
                 if exits.is_some_and(terminates) {
                     continue;
