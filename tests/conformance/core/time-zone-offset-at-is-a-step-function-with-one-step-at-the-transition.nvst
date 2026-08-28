@@ -1,0 +1,116 @@
+--TEST--
+Spec § 4: `offsetAt` takes the instant because an offset is a step function of it — constant between transitions, and one step across one
+--FILE--
+<?nvs
+// `$z->offsetAt(Instant $i)` asks for the instant precisely because an offset
+// is not a property of a zone: `Europe/Berlin` is `+01:00` in January and
+// `+02:00` in July. The property that says so is not any one row but the
+// *shape* of the answer — a step function — so what is asserted is that it is
+// constant inside a window, that it changes exactly at the transition instant,
+// and that the step is the one the zone's own history has rather than an hour.
+
+var $berlin = Core\Time\Zone::of("Europe/Berlin");
+var $lordHowe = Core\Time\Zone::of("Australia/Lord_Howe");
+
+final class Step {
+    // The offset one nanosecond before an instant and the offset at it, which
+    // is the finest resolution a transition can be asked about at all.
+    public static function across(Core\Time\Zone $z, Core\Time\Instant $at): string {
+        return ($z->offsetAt($at->minus(1ns))->toSeconds() as string)
+            . " -> " . ($z->offsetAt($at)->toSeconds() as string);
+    }
+
+    // How many of the instants in `$window` the zone answers `$offset` at.
+    public static function constantAt(Core\Time\Zone $z, array<Core\Time\Instant> $window, int $offset): int {
+        int $same = 0;
+        foreach ($window as Core\Time\Instant $at) {
+            if ($z->offsetAt($at)->toSeconds() == $offset) {
+                $same = $same + 1;
+            }
+        }
+        return $same;
+    }
+}
+
+// 1. The step itself, at both of the year's transitions and in both
+//    directions. A nanosecond is the whole width of the change: the last
+//    instant of one offset and the first instant of the next are adjacent, so
+//    there is no instant in between with a third answer.
+echo Step::across($berlin, Core\Time::fromIso("2024-03-31T01:00:00Z")), "|\n";
+echo Step::across($berlin, Core\Time::fromIso("2024-10-27T01:00:00Z")), "|\n";
+
+// A step is not an hour. Lord Howe Island moves by **half** an hour, so a
+// member that stored a whole-hour shift, or that rounded a transition to one,
+// answers plausibly for Berlin and fails here.
+echo Step::across($lordHowe, Core\Time::fromIso("2024-04-06T15:00:00Z")), "|\n";
+
+// Nor is an offset itself a whole number of minutes, before the zones were
+// standardised: Berlin ran on its own local mean time, 53 minutes and 28
+// seconds ahead of Greenwich, until 1893. An `offsetAt` that consulted only
+// the modern rule and not the zone's history answers `3600` here.
+echo $berlin->offsetAt(Core\Time::fromIso("1890-01-01T00:00:00Z"))->toSeconds() as string, "|\n";
+
+// 2. Constant between the steps, counted rather than sampled. Eight instants
+//    spread across the summer window all answer `+02:00` and none of the eight
+//    winter ones does, which is what makes this an assertion about the whole
+//    window rather than about the two rows printed above.
+array<Core\Time\Instant> $summer = [
+    Core\Time::fromIso("2024-03-31T01:00:00Z"),
+    Core\Time::fromIso("2024-03-31T01:00:01Z"),
+    Core\Time::fromIso("2024-04-01T00:00:00Z"),
+    Core\Time::fromIso("2024-06-21T12:00:00Z"),
+    Core\Time::fromIso("2024-08-15T23:30:00Z"),
+    Core\Time::fromIso("2024-10-26T12:00:00Z"),
+    Core\Time::fromIso("2024-10-27T00:59:59Z"),
+    Core\Time::fromIso("2024-10-27T00:59:59.999999999Z"),
+];
+array<Core\Time\Instant> $winter = [
+    Core\Time::fromIso("2024-01-01T00:00:00Z"),
+    Core\Time::fromIso("2024-02-29T12:00:00Z"),
+    Core\Time::fromIso("2024-03-31T00:59:59.999999999Z"),
+    Core\Time::fromIso("2024-10-27T01:00:00Z"),
+    Core\Time::fromIso("2024-11-15T06:00:00Z"),
+    Core\Time::fromIso("2024-12-31T23:59:59Z"),
+    Core\Time::fromIso("2025-01-15T12:00:00Z"),
+    Core\Time::fromIso("2025-03-30T00:59:59Z"),
+];
+echo Step::constantAt($berlin, $summer, 7200), " of 8 summer, ", Step::constantAt($berlin, $winter, 3600), " of 8 winter|\n";
+
+// 3. A zone with no transitions has no step at all, over the same sixteen
+//    instants: `Asia/Tokyo` has not moved since 1951, `Asia/Kolkata` is a half
+//    hour ahead permanently, and a `fixed` zone is one by construction. The
+//    same member, the same sweep, three zones whose answer never moves.
+echo Step::constantAt(Core\Time\Zone::of("Asia/Tokyo"), $summer, 32400)
+    + Step::constantAt(Core\Time\Zone::of("Asia/Tokyo"), $winter, 32400), "|",
+    Step::constantAt(Core\Time\Zone::of("Asia/Kolkata"), $summer, 19800)
+    + Step::constantAt(Core\Time\Zone::of("Asia/Kolkata"), $winter, 19800), "|",
+    Step::constantAt(Core\Time\Zone::fixed(2h), $summer, 7200)
+    + Step::constantAt(Core\Time\Zone::fixed(2h), $winter, 7200), "|\n";
+
+// 4. The offset is exactly the shift the reading applies — the agreement that
+//    ties this member to `Instant::in`. Reading an instant in the zone, and
+//    reading the instant moved forward by the offset in UTC, are the same
+//    civil time; a member answering the neighbouring window's offset would
+//    still look like a plausible number here and does not survive this.
+int $agree = 0;
+foreach ($summer as Core\Time\Instant $at) {
+    if ($at->in($berlin)->format("yyyy-MM-dd HH:mm:ss")
+        == $at->plus($berlin->offsetAt($at))->in(Core\Time\Zone::UTC)->format("yyyy-MM-dd HH:mm:ss")) {
+        $agree = $agree + 1;
+    }
+}
+foreach ($winter as Core\Time\Instant $moment) {
+    if ($moment->in($berlin)->format("yyyy-MM-dd HH:mm:ss")
+        == $moment->plus($berlin->offsetAt($moment))->in(Core\Time\Zone::UTC)->format("yyyy-MM-dd HH:mm:ss")) {
+        $agree = $agree + 1;
+    }
+}
+echo $agree, " of 16 readings agree|\n";
+--EXPECT--
+3600 -> 7200|
+7200 -> 3600|
+39600 -> 37800|
+3208|
+8 of 8 summer, 8 of 8 winter|
+16|16|16|
+16 of 16 readings agree|
