@@ -1,0 +1,49 @@
+--TEST--
+`Core\Test::expectFailure` requires that its body failed an assertion, reads the ledger rather than the throw, and is itself a failure when the body passed -- ADR 0079 § 5
+--FILE--
+<?nvs
+// The member inverts the usual reading: a body whose assertion *failed* is the
+// passing row, and a body that ran clean is the refusal. What it asks is what
+// the ledger says, not what class came back out of the body -- which is why
+// the third row below, whose body caught its own failure and returned
+// normally, is still discharged. That row is § 5's silently-passing test, and
+// it is the one a member written over the throw instead of over the ledger
+// would let through.
+//
+// The `callable` is written as a `fn` literal at each call site: a block body
+// declares its return type, and a first-class `Class::method(...)` reference
+// does not exist yet, so there is no shared body to name.
+
+int $discharged = 0;
+int $refused = 0;
+
+// The ordinary row: one failing assertion, discharged, and nothing propagates.
+try { Core\Test::expectFailure(fn (): void => { Core\Test::assertTrue(false); }); $discharged = $discharged + 1; } catch (Throwable $plain) { echo $plain->message, "\n"; }
+
+// The inverted row: a body in which nothing failed is itself a failure, and it
+// arrives as an ordinary catchable throw like any other assertion's.
+try { Core\Test::expectFailure(fn (): void => { Core\Test::assertTrue(true); }); $discharged = $discharged + 1; } catch (Throwable $passing) { $refused = $refused + 1; echo $passing->message, "\n"; }
+
+// The ledger, not the throw. This body swallows its own failure and returns
+// normally, so nothing about its control flow says a thing went wrong -- and
+// it is still discharged, because the failed assertion was recorded when it
+// ran and a `catch` does not unrecord it.
+try {
+    Core\Test::expectFailure(fn (): void => {
+        try { Core\Test::assertSame(1, 2); } catch (Throwable $swallowed) { }
+    });
+    $discharged = $discharged + 1;
+} catch (Throwable $caught) { echo $caught->message, "\n"; }
+
+// Only the failures are discharged: a body that passed one assertion and
+// failed another is the same accepting row as the first, the passing one
+// having really run.
+try { Core\Test::expectFailure(fn (): void => { Core\Test::assertTrue(true); Core\Test::assertNull(1); }); $discharged = $discharged + 1; } catch (Throwable $mixedBody) { echo $mixedBody->message, "\n"; }
+
+// Counted, not read off the lines: three accepting bodies with nothing in
+// common but a recorded failure, and one refusal. A member reading the throw
+// would keep the first and the last and lose the middle one.
+echo "discharged=", $discharged, "/3 refused=", $refused, "/1\n";
+--EXPECT--
+Core\Test::expectFailure failed: the callable ran without a failed assertion
+discharged=3/3 refused=1/1
