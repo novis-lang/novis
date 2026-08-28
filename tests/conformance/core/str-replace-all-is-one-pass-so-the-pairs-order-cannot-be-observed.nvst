@@ -1,0 +1,118 @@
+--TEST--
+`Core\Str::replaceAll` is one left-to-right pass over the subject, so all six orderings of a three-pair cycle answer the same string and none of them is the fold `replace` would give — spec § 1, ADR 0063 R20
+--FILE--
+<?nvs
+// `crates/nvs-stdlib/src/str.rs`'s own comment states the rule this case
+// counts: the subject is scanned once, the longest needle at each position
+// wins, and the text a pair produced is never rescanned. Both halves of that
+// are only visible on a table where one replacement's *output* is another
+// replacement's *needle* — here the cycle a -> b -> c -> a, where every pair
+// feeds the next one.
+
+class Fold {
+    // What `str_replace`'s array form does instead: each pair run over the
+    // whole subject in turn, so every earlier replacement is offered to every
+    // later pair. `Core\Str::replace` is that single pass, once per needle.
+    public static function apply(string $s, array<string> $order, array<string> $next): string {
+        string $out = $s;
+        foreach ($order as string $needle) {
+            $out = Core\Str::replace($out, $needle, $next[$needle]);
+        }
+        return $out;
+    }
+}
+
+array<string> $next = ["a" => "b", "b" => "c", "c" => "a"];
+
+// All six orderings of the same three pairs. The table is built in the loop
+// rather than written six times so the *insertion* order really differs —
+// that is the only thing a caller can vary here, and the claim is that it is
+// unobservable.
+array<array<string>> $orders = [
+    ["a", "b", "c"], ["a", "c", "b"], ["b", "a", "c"],
+    ["b", "c", "a"], ["c", "a", "b"], ["c", "b", "a"],
+];
+array<string> $subjects = ["abc", "cab", "aabbcc", "cabbage"];
+
+int $invariant = 0;
+int $foldAgrees = 0;
+foreach ($subjects as string $s) {
+    string $ref = "";
+    foreach ($orders as array<string> $order) {
+        array<string> $table = [];
+        foreach ($order as string $needle) {
+            $table[$needle] = $next[$needle];
+        }
+        string $got = Core\Str::replaceAll($s, $table);
+        if ($ref == "") {
+            $ref = $got;
+        }
+        if ($got == $ref) {
+            $invariant = $invariant + 1;
+        }
+        if (Fold::apply($s, $order, $next) == $ref) {
+            $foldAgrees = $foldAgrees + 1;
+        }
+    }
+    echo $s, " -> ", $ref, "\n";
+}
+// 24 of 24 orderings agree, and 0 of the 24 folds do: the two readings are not
+// the same operation with a tidier spelling, and a `replaceAll` that had drifted
+// into the fold would print the second number as something other than zero
+// while every line above still looked plausible.
+echo $invariant as string, " ", $foldAgrees as string, "\n";
+
+// The same rule counted on the output instead of on the ordering. Under
+// ["a" => "xa"] each matched span contributes exactly one character, so the
+// output is longer by the number of matches and no more — a rescan would not
+// terminate at all. Under ["a" => "b", "b" => "c"] a `c` in the output can only
+// come from a `b` or a `c` in the subject, never from an `a` that a previous
+// pair turned into a `b`; three of these subjects hold no `a` and so agree
+// either way, which is why the row that discriminates is counted rather than
+// shown.
+array<string> $rows = ["abcabc", "aaa", "cba", "bbb", "", "xyz", "abab"];
+int $grew = 0;
+int $carried = 0;
+foreach ($rows as string $s) {
+    array<string> $expand = ["a" => "xa"];
+    string $out = Core\Str::replaceAll($s, $expand);
+    if (Core\Str::length($out) as int - Core\Str::length($s) as int == Core\Str::countOf($s, "a") as int) {
+        $grew = $grew + 1;
+    }
+    array<string> $cross = ["a" => "b", "b" => "c"];
+    string $two = Core\Str::replaceAll($s, $cross);
+    if (Core\Str::countOf($two, "c") as int == Core\Str::countOf($s, "b") as int + Core\Str::countOf($s, "c") as int) {
+        $carried = $carried + 1;
+    }
+}
+echo $grew as string, " ", $carried as string, "\n";
+
+// A one-entry table is where the two members have to meet: `replaceAll` over a
+// single pair is `replace` with no options, including the rows where they could
+// most easily part — an overlapping needle, a needle that is absent, a
+// replacement that contains its own needle, an empty subject, an empty
+// replacement, and a needle that is one character but several bytes.
+array<string> $subj = ["banana", "aaa", "abc", "naïve", "hello", "", "aaa", "xx", "abab", "café"];
+array<string> $needles = ["an", "aa", "z", "ï", "l", "a", "a", "x", "ab", "é"];
+array<string> $repls = ["AN", "a", "-", "i", "L", "", "aa", "xx", "ba", "e"];
+int $agree = 0;
+int $i = 0;
+foreach ($subj as string $s) {
+    string $n = $needles[$i as string];
+    string $r = $repls[$i as string];
+    array<string> $one = [];
+    $one[$n] = $r;
+    if (Core\Str::replace($s, $n, $r) == Core\Str::replaceAll($s, $one)) {
+        $agree = $agree + 1;
+    }
+    $i = $i + 1;
+}
+echo $agree as string, "\n";
+--EXPECT--
+abc -> bca
+cab -> abc
+aabbcc -> bbccaa
+cabbage -> abccbge
+24 0
+7 7
+10
