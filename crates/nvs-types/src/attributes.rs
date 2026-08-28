@@ -98,7 +98,26 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         // which the constant walk above has just done.
         return;
     };
-    let Some(shape) = resolve_shape_alias(name, ctx, env) else {
+    // ADR 0071 § 1's compiler-recognized attributes are the one exemption to
+    // § 1's "the name is a shape-typed alias", and it is a closed,
+    // `Core`-owned roster rather than an escape hatch: such a name is matched
+    // *nominally*, so what its payload may hold is the recognizing pass's own
+    // option check rather than a shape. § 1's rule is about the userland
+    // names, which are the only ones that could ever be aliases. The name is
+    // resolved once, here, so that the roster test and the alias lookup below
+    // cannot place one `Name` two different ways.
+    let text = span_text(env.src, name.span).to_owned();
+    let qname = nvs_hir::resolve_ref(&text, ctx.namespace, ctx.imports);
+    if crate::derive::ATTRIBUTES
+        .iter()
+        .any(|want| qname == nvs_hir::QName::parse(want))
+    {
+        if constant && qname == nvs_hir::QName::parse(crate::derive::TEST) {
+            crate::testing::check_payload(&attr.fields, ctx, env);
+        }
+        return;
+    }
+    let Some(shape) = resolve_shape_alias(&qname, name, ctx, env) else {
         return;
     };
     // A payload with a computed value has already been reported once, and
@@ -132,25 +151,19 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
 /// attribute no kind to instantiate, and a `type Id = int;` is the same
 /// mistake one step along. Only a shape is handed back, and then the payload
 /// is checked against it.
-fn resolve_shape_alias(name: &Name, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Option<TypeId> {
-    let text = span_text(env.src, name.span).to_owned();
-    let qname = nvs_hir::resolve_ref(&text, ctx.namespace, ctx.imports);
-    // ADR 0071 § 1's compiler-recognized attributes are the one exemption,
-    // and it is a closed, `Core`-owned roster rather than an escape hatch:
-    // `#[Json\Derive]` names no shape because it is matched *nominally* by
-    // the compiler, and what its payload may hold is [`crate::derive`]'s own
-    // option check rather than a shape. ADR 0046 § 1's rule is about the
-    // userland names, which are the only ones that could ever be aliases.
-    if crate::derive::ATTRIBUTES
-        .iter()
-        .any(|want| qname == nvs_hir::QName::parse(want))
-    {
-        return None;
-    }
-    let Some(alias) = env.aliases.get(&qname).cloned() else {
+///
+/// `qname` is [`check_attribute`]'s own resolution of `name`, which has
+/// already taken ADR 0071 § 1's recognized roster out of this function's way.
+fn resolve_shape_alias(
+    qname: &nvs_hir::QName,
+    name: &Name,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Option<TypeId> {
+    let Some(alias) = env.aliases.get(qname).cloned() else {
         // The same roster [`crate::lower`]'s own name atom uses for "this
         // name denotes something," so one name is undeclared in one place.
-        let declared = env.symbols.get(&qname).is_some()
+        let declared = env.symbols.get(qname).is_some()
             || qname.is_core()
             || qname.is_reserved_global_class()
             || qname.is_reserved_global_interface();

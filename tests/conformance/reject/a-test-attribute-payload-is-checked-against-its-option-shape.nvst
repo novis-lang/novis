@@ -1,0 +1,76 @@
+--TEST--
+a `#[Test]` payload is checked against ADR 0079 § 1's option shape, so an unknown option, a mistyped one, one given twice and a computed value are each refused where they are written — ADR 0079 § 1, ADR 0046 §§ 1-2
+--FILE--
+<?nvs
+// ADR 0079 § 1: `#[Test]` marks a test method. It is one of ADR 0071 § 1's
+// compiler-recognized attributes, so it names no `type` alias and ADR 0046
+// § 1's shape rule does not apply to it — its payload is checked against the
+// option shape § 1 writes instead: `{skip?: string, at?: string, seed?: int,
+// db?: string, server?: bool, retries?: int, because?: string}`. Every field
+// is optional, which is why the bare form the ADR's own example writes is
+// the first accepted spelling below.
+use Core\Test;
+
+// The accepted half first, so a position that stops being accepted fails
+// here rather than as a missing refusal.
+class Accepted {
+    #[Test]
+    public function aNameIsTrimmed(): void {}
+
+    #[Test(skip: "blocked on Core\\Db, M8")]
+    public function itPersists(): void {}
+
+    #[Test(at: "midnight", seed: 7, db: "main", server: true, retries: 2, because: "flaky")]
+    public function everyOptionAtOnce(): void {}
+
+    // Fully qualified is the same attribute: the match is on the resolved
+    // name, so the `use` above is a convenience and never the rule.
+    #[Core\Test(seed: -1)]
+    public function writtenOutInFull(): void {}
+}
+
+class Refused {
+    // § 1's own bullet: `#[Test(skip: true)]` — a skip states a reason
+    // (§ 20), which the option's `string` type is what says.
+    #[Test(skip: true)]
+    public function aSkipStatesAReason(): void {}
+
+    // An option the roster does not name is refused rather than silently
+    // doing nothing, which is what a misspelling would otherwise be.
+    #[Test(skipped: "typo")]
+    public function anUnknownOption(): void {}
+
+    #[Test(seed: "seven")]
+    public function aMistypedOption(): void {}
+
+    #[Test(at: "a", at: "b")]
+    public function anOptionGivenTwice(): void {}
+
+    // A value that is not a compile-time constant is ADR 0046 § 2's refusal,
+    // made one step earlier — the author is told about the value they wrote
+    // before they are told what it failed to satisfy, so the roster check
+    // does not also report it.
+    #[Test(retries: $n)]
+    public function aComputedOption(): void {}
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `bool`
+   --> case.nvs:32:18
+%A
+error[E0454]: `skipped` is not an option of `#[Test]`
+   --> case.nvs:37:12
+%A
+error[E0401]: expected `int`, found `string`
+   --> case.nvs:40:18
+%A
+error[E0304]: the option `at` is given twice
+   --> case.nvs:43:21
+%A
+error[E0725]: an attribute's field value is not a compile-time constant
+   --> case.nvs:50:21
+%A
+error: aborting due to 5 errors

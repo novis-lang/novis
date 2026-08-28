@@ -67,16 +67,23 @@ and no interface to implement: nothing about a test is inferred from spelling, w
 [0029](0029-identifier-casing-is-checked.md) takes everywhere else.
 
 ```nvs
+use Core\Test;
+
 class UserTest {
     #[Test]
     public function aNameIsTrimmed(): void {
-        Core\Test::assertEquals(User::normalize("  ada "), "ada");
+        Test::assertEquals(User::normalize("  ada "), "ada");
     }
 
     #[Test(skip: "blocked on Core\\Db, M8")]
     public function itPersists(): void { }
 }
 ```
+
+`Core\Test` is one entry on [0071](0071-derived-codecs.md) § 1's closed list, so it is matched **nominally**
+and by the resolved name rather than by the spelling: `#[Core\Test]` and the `#[Test]` above are the same
+attribute, and a userland `class Test` is never it. The `use` is what places the bare form — the same one
+that lets the body write `Test::assertEquals`, since the marker and the assertions are one class.
 
 The compiler collects every `#[Test]` into a table, the way `#[Route]` builds the route table
 ([0077](0077-compile-time-routing.md)). Discovery therefore costs nothing at startup, and these are
@@ -89,7 +96,21 @@ The compiler collects every `#[Test]` into a table, the way `#[Route]` builds th
 
 `#[Test]`'s option shape is `{skip?: string, at?: string, seed?: int, db?: string, server?: bool,
 retries?: int, because?: string}`. Every field is validated at compile time as an attribute shape literal
-under [0046](0046-attributes-shape-literal-metadata.md).
+under [0046](0046-attributes-shape-literal-metadata.md) — its § 2 constant-only rule first, and then this
+roster. Every field being **optional** is what decides which of that ADR's two rules checks it: § 1's shape
+target requires each field it names to be present, which would refuse the bare `#[Test]` above, so the check
+is [0063](0063-core-api-conventions.md) R2's options-bag rule instead — an option the roster does not name is
+refused, one it does name is checked at that option's own type, one written twice is refused, and an absent
+one is simply absent. Two of the compile errors above therefore need no rule of their own: `skip: true` is a
+`bool` where the roster declares a `string`, and a misspelled option is refused rather than silently doing
+nothing. `nvs_types::testing` is the roster's one home, and `nvs_types::derive::ATTRIBUTES` the recognized
+name's.
+
+The table itself is built by the same pass, from `nvs_types::check`'s own walk — the only pass holding the
+namespace and import set a nominal match needs — and rides in `nvs_types::ExprTypeTable` keyed by class
+label, beside the derived codecs, since what it records is a fact about a *declaration* rather than about an
+expression. Each option is folded to the constant a parameter default is folded to, through the same
+function, so a `#[Test]` option is never a second literal grammar.
 
 ### 2. Every test runs in its own isolate, and the suite runs in parallel
 

@@ -123,6 +123,7 @@ with:
 | `Core\Command` | a method | [0086](0086-core-cli-terminal-is-a-sink.md) § 6 |
 | `Core\Option` | a parameter | [0086](0086-core-cli-terminal-is-a-sink.md) § 6 |
 | `Core\Argument` | a parameter | [0086](0086-core-cli-terminal-is-a-sink.md) § 6 |
+| `Core\Test` | a method | [0079](0079-testing-is-a-language-feature.md) § 1 |
 
 Spelling is irrelevant, resolution is everything:
 `#[Core\Json\Derive]` and `#[Json\Derive]` under the `use` above are the same attribute, and a userland

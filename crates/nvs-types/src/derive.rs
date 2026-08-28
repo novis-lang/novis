@@ -69,7 +69,12 @@ use crate::{Ctx, Env, span_text, strip_sigil};
 /// spelling of a userland name is any of them. Extended, never widened: ADR
 /// 0077's `Core\Route` is the next entry, and each one owes its own argued ADR
 /// section.
-pub const ATTRIBUTES: &[&str] = [DERIVE, FIELD].as_slice();
+///
+/// A name on this roster names no shape, so [`crate::attributes`]'s ADR 0046
+/// § 1 rule does not apply to it and what its payload may hold is the
+/// recognizing pass's own question: `#[Json\Derive]`/`#[Json\Field]` are this
+/// module's, `#[Test]` is [`crate::testing`]'s.
+pub const ATTRIBUTES: &[&str] = [DERIVE, FIELD, TEST].as_slice();
 
 /// `#[Json\Derive]` — ADR 0071 § 1's opt-in, on a class.
 pub const DERIVE: &str = r"Core\Json\Derive";
@@ -77,6 +82,12 @@ pub const DERIVE: &str = r"Core\Json\Derive";
 /// `#[Json\Field(name?: string, skip?: bool)]` — ADR 0071 § 3's per-field
 /// override, on a property.
 pub const FIELD: &str = r"Core\Json\Field";
+
+/// `#[Test(skip?: string, …)]` — ADR 0079 § 1's marker, on a method. It is
+/// the class the assertions are members of, so the `use Core\Test;` that lets
+/// a test body write `Test::assertEquals(…)` is the same one that places the
+/// attribute; [`crate::testing`] owns the payload.
+pub const TEST: &str = r"Core\Test";
 
 /// One derived class's JSON field list, in declaration order — ADR 0071 § 2's
 /// "declaration order fixes encode order, so output is byte-deterministic".
@@ -378,7 +389,7 @@ fn carries(groups: &[AttributeGroup], want: &str, ctx: &Ctx<'_>, env: &Env<'_>) 
 /// Whether one attribute is the named form spelling `want`. A bare
 /// `#[{...}]` names nothing at all (ADR 0046 § 1), so it is never one of
 /// ADR 0071's two nominal attributes.
-fn attribute_is(attr: &Attribute, want: &str, ctx: &Ctx<'_>, env: &Env<'_>) -> bool {
+pub(crate) fn attribute_is(attr: &Attribute, want: &str, ctx: &Ctx<'_>, env: &Env<'_>) -> bool {
     attr.name
         .as_ref()
         .is_some_and(|name| resolves_to(span_text(env.src, name.span), want, ctx))

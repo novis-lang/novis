@@ -216,6 +216,7 @@ pub mod lower;
 pub(crate) mod retrieval;
 pub mod signatures;
 pub mod string_lit;
+pub mod testing;
 pub mod ty;
 
 pub use check::{HOOK_VALUE_PARAM, check_program};

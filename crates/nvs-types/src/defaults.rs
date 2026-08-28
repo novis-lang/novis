@@ -251,7 +251,11 @@ pub(crate) fn eval_property_default(
 /// The shared literal decoder behind both entry points above: the value, or
 /// `None` for a shape neither accepts. Reports nothing — each caller names its
 /// own position in its own diagnostic.
-fn literal_default(expr: &Expr, declared: TypeId, env: &mut Env<'_>) -> Option<ConstArg> {
+pub(crate) fn literal_default(
+    expr: &Expr,
+    declared: TypeId,
+    env: &mut Env<'_>,
+) -> Option<ConstArg> {
     let (negated, inner) = match &expr.kind {
         ExprKind::Unary {
             op: UnaryOp::Neg,
