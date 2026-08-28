@@ -641,17 +641,33 @@
 > `tests/conformance/lang/a-subscript-through-a-mixed-base-is-decided-by-its-tag.nvst` pins the
 > element off a list and off a map, the absent key, the two non-array bases, all of it again under
 > `??`, and the agreement between a declared `array<int>` base and the same value read through a
-> `mixed`. **A `catch` binding has no methods at all, and PHP's accessors are refused where they are
-> written now rather than panicking below the checker.** Spec § 10 gives the exception tree
-> *properties* — `message`, `previous`, `backtrace` and `location` — and `nvs_types::error_lib`
-> seeds exactly those plus the synthesized constructor; what outlived that seeding was an
-> **exemption** in `infer_method_call`, which skipped the unknown-member refusal for every reserved
-> global class, so `$e->getMessage()` reached `nvs-ir` with no resolved target and panicked there
-> while `$e->nope` — the property half, which never had the exemption — refused cleanly. It is the
-> same `E0405` now, one mistake and one code whichever spelling reached it, and the only thing it
-> takes of its own is a help, because this is the one unknown method a *ported* program writes on
-> purpose: `nvs_types::expr::calls::report_exception_accessor` maps each PHP accessor to the
-> property that answers the same question — `getMessage` → `message`, `getPrevious` → `previous`,
+> `mixed`. **ADR 0007 § 2's grid is asserted at its boundaries now**, which is the half neither of
+> its two standing cases could reach: `conversions-that-succeed.nvst` runs the middle of each row
+> and `the-conversion-table-is-closed.nvst` refuses the pairs with no row at all, so
+> `tests/conformance/lang/every-remaining-conversion-row-runs-or-throws.nvst` names the last value
+> each `int`/`uint`/`float` row accepts beside the first it refuses — the `0 … i64::MAX` overlap in
+> both directions, a `float` past `i64::MAX` and past 2^64, a `uint` one value past 2^53, and the
+> digit run above `i64::MAX` that a `string` converts into a `uint` where the same run refuses into
+> an `int`. The operand arrives as a parameter throughout, because an operand whose own type already
+> names the value is refused where it is written (ADR 0047 § 6) and a bound this table is about has
+> to arrive at run time to be a throw at all. **The three tag-decided families gain the case that
+> asserts they agree with the typed spelling of the same question**, which is the one thing none of
+> their own cases can assert alone:
+> `tests/conformance/lang/a-mixed-value-answers-arithmetic-truth-and-a-subscript.nvst` sweeps
+> thirteen values through an operator, a condition and a subscript in source order and then counts
+> sixteen agreements against the declared-type twin of each, so a family that grows a second answer
+> fails on the count rather than looking right on its own line. **A `catch` binding has no methods
+> at all, and PHP's accessors are refused where they are written now rather than panicking below the
+> checker.** Spec § 10 gives the exception tree *properties* — `message`, `previous`, `backtrace`
+> and `location` — and `nvs_types::error_lib` seeds exactly those plus the synthesized constructor;
+> what outlived that seeding was an **exemption** in `infer_method_call`, which skipped the
+> unknown-member refusal for every reserved global class, so `$e->getMessage()` reached `nvs-ir`
+> with no resolved target and panicked there while `$e->nope` — the property half, which never had
+> the exemption — refused cleanly. It is the same `E0405` now, one mistake and one code whichever
+> spelling reached it, and the only thing it takes of its own is a help, because this is the one
+> unknown method a *ported* program writes on purpose:
+> `nvs_types::expr::calls::report_exception_accessor` maps each PHP accessor to the property that
+> answers the same question — `getMessage` → `message`, `getPrevious` → `previous`,
 > `getTrace`/`getTraceAsString` → `backtrace`, and `getFile`/`getLine` → `location`, a throw site
 > being one string rather than two — while `getCode`, the accessor with no counterpart at all since
 > ADR 0002 propagates a class rather than a number, names the whole roster instead, read from
