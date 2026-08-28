@@ -1,0 +1,85 @@
+--TEST--
+Core\Arr::overlayDeep answers exactly what ::overlay does except where both sides of a key hold a non-list array, and folds its variadic tail one layer at a time, per ADR 0069 § 1
+--FILE--
+<?nvs
+// `crates/nvs-stdlib/src/arr.rs:3748`'s doc says the recursion rule is the
+// *only* difference between the two members, and `merged` states the rule: it
+// recurses where both sides of a key hold an array and neither is a list.
+// `arr-combination-members-treat-every-key-alike` shows one row of each; this
+// one sweeps the ten ways the rule's condition can fail or hold and asserts
+// the difference by counting, so a member that recursed one case too eagerly —
+// into a list, into an empty array, past a scalar — fails here while still
+// printing a plausible merge on every line.
+array<array<array<mixed>>> $pairs = [
+    // both sides a map under the shared key: the one case that recurses
+    [["k" => ["a" => 1, "b" => 2]], ["k" => ["b" => 9]]],
+    // the layer's side is a list
+    [["k" => ["a" => 1]], ["k" => [7, 8]]],
+    // the base's side is a list
+    [["k" => [1, 2]], ["k" => ["a" => 9]]],
+    // both lists — the row PHP's `array_replace_recursive` merges
+    // element-wise and this member replaces wholesale
+    [["k" => [1, 2]], ["k" => [9]]],
+    // the base's side is a scalar, so there is nothing to recurse into
+    [["k" => 1], ["k" => ["a" => 9]]],
+    // ... and the layer's side is, which replaces rather than descends
+    [["k" => ["a" => 1]], ["k" => 9]],
+    // the key is only in the layer: one side is absent, not an array
+    [["k" => ["a" => 1]], ["j" => ["b" => 2]]],
+    // an empty array is a list, so neither of these two recurses
+    [["k" => []], ["k" => ["a" => 9]]],
+    [["k" => ["a" => 1]], ["k" => []]],
+    // the recursion is not depth-limited: three levels down still merges
+    [["k" => ["m" => ["a" => 1, "b" => 2]]], ["k" => ["m" => ["b" => 9]]]],
+];
+
+string $shape = "";
+int $rows = 0;
+int $differ = 0;
+foreach ($pairs as array<array<mixed>> $pair) {
+    array<mixed> $base = $pair["0"];
+    array<mixed> $layer = $pair["1"];
+    string $shallow = Core\Json::encode(Core\Arr::overlay($base, $layer));
+    string $deep = Core\Json::encode(Core\Arr::overlayDeep($base, $layer));
+    $rows = $rows + 1;
+    if ($shallow == $deep) {
+        $shape = $shape . "s";
+    } else {
+        $shape = $shape . "d";
+        $differ = $differ + 1;
+    }
+    // Both answers on every row, so the eight agreements are agreements on a
+    // value rather than on emptiness.
+    echo $shallow, "  ", $deep, "\n";
+}
+echo $shape, " ", $rows as string, " ", $differ as string, "\n";
+
+// The variadic tail is a left-to-right fold of the same one-layer step —
+// `for_each_layer` over `overlay_into`, not a widening view of all the layers
+// at once — so three layers in one call answer what two calls answer.
+array<array<mixed>> $a = ["db" => ["host" => "h", "port" => 1]];
+array<array<mixed>> $b = ["db" => ["port" => 2, "user" => "u"]];
+array<array<mixed>> $c = ["db" => ["port" => 3]];
+echo Core\Json::encode(Core\Arr::overlayDeep($a, $b, $c)), "\n";
+echo Core\Json::encode(Core\Arr::overlayDeep(Core\Arr::overlayDeep($a, $b), $c)), "\n";
+echo Core\Json::encode(Core\Arr::overlayDeep($a)), "\n";
+
+// ADR 0063 R3: the members are pure, and the nested arrays a deep merge
+// copies are copies — `$a`'s own nesting is unchanged by all of the above.
+echo Core\Json::encode($a), "\n";
+--EXPECT--
+{"k":{"b":9}}  {"k":{"a":1,"b":9}}
+{"k":[7,8]}  {"k":[7,8]}
+{"k":{"a":9}}  {"k":{"a":9}}
+{"k":[9]}  {"k":[9]}
+{"k":{"a":9}}  {"k":{"a":9}}
+{"k":9}  {"k":9}
+{"k":{"a":1},"j":{"b":2}}  {"k":{"a":1},"j":{"b":2}}
+{"k":{"a":9}}  {"k":{"a":9}}
+{"k":[]}  {"k":[]}
+{"k":{"m":{"b":9}}}  {"k":{"m":{"a":1,"b":9}}}
+dssssssssd 10 2
+{"db":{"host":"h","port":3,"user":"u"}}
+{"db":{"host":"h","port":3,"user":"u"}}
+{"db":{"host":"h","port":1}}
+{"db":{"host":"h","port":1}}

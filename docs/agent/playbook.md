@@ -1863,6 +1863,20 @@ is why" — is this file.
   their `--TEST--` lines — a sweep names the members it covers nowhere else. What was actually
   left in that class was found by reading the member doc comments for a rule with no case:
   a divergence from PHP that every existing case's *list* subject cannot observe.
+- **A nesting sweep is spelled `array<array<array<mixed>>>`, and `flatten` cannot be
+  iterated in a loop.** `Core\Arr::flatten($x)` over an `array<mixed> $x` is `E0401`
+  — its parameter is `array<array<T>>`, so the flat answer it converges on no longer
+  satisfies it and the fixed point is a *type* boundary rather than a catchable
+  throw. A "keep flattening until nothing changes" loop therefore has no spelling at
+  all, and the invariance has to be written as one step over many shapes instead:
+  `array<array<array<mixed>>> $rows = [...]` plus `foreach ($rows as array<array<mixed>>
+  $row)` lets rows of *different* nestings be data, since `mixed` holds a scalar and an
+  array alike and covariance carries an `array<array<string>>` into the same parameter.
+  Two more from the same corner: `$pair["0"]` indexes such a row (an array is indexed by
+  the string of the offset), and `Core\Str::countOf($json, "[") == 1` is how a case
+  asserts an answer holds no nested array at all. `key_bytes`'s refusal, meanwhile, is
+  `Fault::fatal` — so `Core\Arr::column`'s "an `indexBy` cell that is not an `int|string`"
+  bullet is owed no case, no handler reaching it.
 
 ## Splitting a file that got too big
 

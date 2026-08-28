@@ -2,65 +2,63 @@
 
 ## State
 
-**M4's Stage 8, depth.** The tree is at **823 conformance plus 189 differential**. Nothing is
-blocked.
+**M4's Stage 8, depth.** The tree is at **826 conformance plus 189 differential**, all green.
+Nothing is blocked.
 
-`Core\Uuid` is off the thin list — `python tools/gaps.py` now ranks it at depth 5.0, floor 3, where
-it opened the session at floor 2. Two cases landed, both over `crates/nvs-stdlib/src/uuid.rs`'s own
-doc comments:
+`Core\Arr` is off the floor — `python tools/gaps.py` ranks it at depth 5.0, **floor 2**, where it
+opened the session at floor 1. Three cases landed over `crates/nvs-stdlib/src/arr.rs`'s own doc
+comments, one per member of the previous handoff's group:
 
-- **`tryParse` and `parse` are one reader**, the *agreement* shape. The existing parse case asks
-  each member about its own subjects, so a `tryParse` that grew its own idea of the shape answered
-  plausibly on every line it appeared on. The new case asks all 18 subjects of both, renders a
-  throw and a `null` as the same empty string (no successful parse can produce one, `toString`
-  being 36 wide), and asserts the per-row equality plus six fixed counts. Three of the subjects are
-  one value in three case spellings, counted separately, so the agreement is on the *value* and not
-  merely on acceptance.
-- **`v7` carries the clock `Core\Time::now()` reads**, which is the claim `uuid.rs:309`'s doc makes
-  and no case could see: the two sibling cases assert that the leading field *increases* and opens
-  with `01`, which any monotonic counter satisfies. The new case reads the 48-bit field as the
-  number it is — `Core\Encoding::fromHex` over the first twelve hex digits, folded octet by octet
-  through `Core\Bytes::at` — and brackets one draw between two `toEpochMillis` reads. `v4`'s leading
-  field is asked the same question and lands elsewhere, which is what says the window can answer no.
-  A 32-draw sweep then bounds every stamp inside one window and counts repeats at 0, the second
-  being the 74-random-bits half of the layout.
+- **`flattenDeep` is `flatten` iterated to a fixed point.** Over a sweep of eight nestings, the
+  deep answer is unchanged by one further `flatten` and by a second deep walk, and holds no
+  nested array (`Core\Str::countOf($json, "[") == 1`); the fourth count says only three of the
+  eight rows would have been answered by a single `flatten`, which is what keeps the other three
+  counts from being vacuous. Where the iteration *stops* is a type, not a fault — see the new
+  playbook bullet.
+- **`column` appends under the next *free* integer**, not the next position: a row keyed `"5"`
+  moves the counter past 5 and a later `"2"` does not move it back, so the appended keys are 6 and
+  7. That exposed an overstatement in the member's own doc — an appended `0` collapses under a
+  later row whose `indexBy` cell is `0`, so "one entry per matching row either way" is not
+  unconditional. `arr.rs:2199`'s bullet now says both, and the case pins the collision.
+- **`overlayDeep` differs from `overlay` only where both sides of a key hold a non-list array**,
+  counted over the ten ways that condition can fail or hold — a list on either side, an empty
+  array on either side, a scalar, an absent key, three levels down. Exactly two of ten differ.
 
-`orient.py` printed two `!!` lines this session: `[context] playbook` in `docs/agent/loop-goal.toml`
-names `"Writing a test case > nvs-codegen has"` and `"Writing a test case > emitbinop's ordering"`,
-and no bullet under that heading leads with either — the two selectors are stale and should be
-re-pointed or dropped.
+The gap thirteen handoffs back still stands: **no `Core` class reaches
+`nvs_hir::implements_interface`**, so `Core\Uri::compareTo` exists while `$a < $b` over two `Uri`s
+is `E0411`. It is in the backlog and still deserves a session of its own.
 
-The gap eleven handoffs back still stands: **no `Core` class reaches `nvs_hir::implements_interface`**,
-so `Core\Uri::compareTo` exists while `$a < $b` over two `Uri`s is `E0411`. It is in the backlog and
-still deserves a session of its own.
+`orient.py`'s two `!!` lines are unchanged and still owed: `[context] playbook` in
+`docs/agent/loop-goal.toml` names `"Writing a test case > nvs-codegen has"` and `"Writing a test
+case > emitbinop's ordering"`, and no bullet under that heading leads with either — the two
+selectors are stale and should be re-pointed or dropped.
 
 ## Next group
 
-**`Core\Arr`'s three floor-1 members** — `gaps.py`'s thinnest members anywhere in the corpus, one
-file set: `crates/nvs-stdlib/src/arr.rs` and `tests/conformance/core/`. Each has exactly one case,
-and over `Core\Random`, `Core\Debug`, `Core\Bytes` and `Core\Uuid` alike the gap was never a missing
-row — read the member's doc comment first and look for the rule stated there that no case observes.
+**`Core\Str`'s three floor-1 members** — `gaps.py`'s thinnest members anywhere in the corpus now,
+one file set: `crates/nvs-stdlib/src/str.rs` and `tests/conformance/core/`. Each has exactly one
+case, and over `Core\Arr`, `Core\Uuid`, `Core\Bytes` and `Core\Debug` alike the gap was never a
+missing row — read the member's doc comment first and look for the rule stated there that no case
+observes.
 
-- [ ] **`flattenDeep` against `flatten`, as a fixed point** (`crates/nvs-stdlib/src/arr.rs:2161`) —
-      the *invariance* shape: `flattenDeep` is `flatten` applied until it stops changing, so
-      asserting that over a sweep of nestings is one rule rather than one row per depth.
-      `arr-flatten-unwraps-one-level-and-flatten-deep-all-of-them.nvst` is the case that exists.
-- [ ] **`column`'s missing key and its index argument** (`crates/nvs-stdlib/src/arr.rs:2218`) — the
-      *edges*: a key absent from some rows but not others, and the three-argument form's re-keying
-      when the index key collides. `arr-column-takes-one-cell-out-of-every-row.nvst` exists.
-- [ ] **`overlayDeep` against `overlay`** (`crates/nvs-stdlib/src/arr.rs:3748`) — no case names it
-      at all beyond the one; the *agreement* shape at depth 1, where the two must not differ.
+- [ ] **`fold` against `lower`, as the agreement they are not** (`crates/nvs-stdlib/src/str.rs:2214`)
+      — case-folding is not lowercasing, and the *agreement* shape asks both of one table and
+      counts where they part company (`ß`, `İ`, `ſ`) rather than reading one row off each.
+- [ ] **`graphemes` against `codePoints` and `length`** (`crates/nvs-stdlib/src/str.rs:1084`) — the
+      three ways to count a string, swept over one table so a cluster that a member splits
+      differently fails the count rather than one line.
+- [ ] **`indexOf`'s options and its `?uint` answer** (`crates/nvs-stdlib/src/str.rs:1538`) — four
+      arguments, and the boundary shape: the last offset that finds and the first that does not,
+      with `lastIndexOf` asked the same question.
 
 ## Backlog
 
 - No `Core` class reaches `nvs_hir::implements_interface`, so `Core\Uri::compareTo` exists while
-  `$a < $b` over two `Uri`s is `E0411` — `docs/agent/loop-goal.md`, its own session.
-- `[context] playbook` in `docs/agent/loop-goal.toml` has two stale bullet selectors under *Writing
-  a test case* (above).
-- `Core\Debug` is `gaps.py`'s thinnest class by median (3.5) with `dump` at 2 — `docs/agent/loop-goal.md`.
-- `Core\Str::fold` / `graphemes` / `indexOf` are floor-1 too, but the Windows `php` has no
-  `mbstring` for the Unicode rows — `docs/agent/playbook.md`.
+  `$a < $b` over two `Uri`s is `E0411` — `docs/agent/loop-goal.md`, a session of its own.
+- `[context] playbook` in `docs/agent/loop-goal.toml` has two stale selectors (above).
 - 54 of the 156 guard tests `loop-goal.toml` names match nothing `cargo test` runs —
   `docs/agent/guard-name-debt.md`.
-- `csv.rs:512`'s `Fault::thrown` is unreachable until ADR 0007 § 2's `array<T> as array<U>` lowers —
+- `Core\Debug` is the thinnest class at depth 3.5 (`dump` 2, `render` 5) — `python tools/gaps.py`.
+- `array<T> as array<U>` does not lower, which is what makes `csv.rs:512`'s refusal unreachable —
   `docs/agent/playbook.md`.
+- `Core\Math` at floor 2 (`atan2`, `ceil`, `floor`) is the next group after `Core\Str`.
