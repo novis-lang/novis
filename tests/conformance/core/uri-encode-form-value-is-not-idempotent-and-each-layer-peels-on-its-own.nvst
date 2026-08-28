@@ -1,0 +1,85 @@
+--TEST--
+`Core\Uri::encodeFormValue` is deliberately not idempotent — it escapes the `%` it writes, so over the ASCII sweep encoding twice is a fixed point for exactly the 65 bytes it passes through and differs for the other 63, one decode peels exactly one layer for all 128, and the space that became a `+` is re-encoded as `%2B` rather than left alone — spec § 12, RFC 3986 § 2.1
+--FILE--
+<?nvs
+// An encoder that skipped a byte already looking escaped — the "smart" encoder
+// that leaves `%41` alone — would pass every neighbouring case: it is still
+// inverse to its decoder over single bytes, still disagrees with
+// `encodeComponent` on exactly two, still passes 65 through. What it breaks is
+// text that legitimately contains a `%`, which is the commonest way a form
+// value gets corrupted in transit. So the property worth pinning is that
+// applying the encoder twice is *visible* and reversible, not that it is a
+// no-op.
+//
+// PHP 8.5's `urlencode` behaves the same way, and the two-step round trip below
+// was checked against `urldecode(urldecode(urlencode(urlencode($c))))` for the
+// whole sweep.
+
+int $fixedPoints = 0;
+int $changedAgain = 0;
+int $peelsOneLayer = 0;
+int $twoStepRoundTrip = 0;
+int $b = 0;
+for (; $b <= 127; $b = $b + 1) {
+    string $c = Core\Str::fromCodePoint($b as uint);
+    string $once = Core\Uri::encodeFormValue($c);
+    string $twice = Core\Uri::encodeFormValue($once);
+
+    // A byte the set passes through is unchanged however many times it goes
+    // round; every other byte's output holds a `%` or a `+`, both of which the
+    // encoder then has something to say about.
+    if ($twice == $once) {
+        $fixedPoints = $fixedPoints + 1;
+    } else {
+        $changedAgain = $changedAgain + 1;
+    }
+
+    // One decode undoes one encode and no more — the layers do not collapse,
+    // which is what makes a double encode recoverable rather than merely
+    // detectable.
+    if (Core\Uri::decodeFormValue($twice) == $once) {
+        $peelsOneLayer = $peelsOneLayer + 1;
+    }
+    if (Core\Uri::decodeFormValue(Core\Uri::decodeFormValue($twice)) == $c) {
+        $twoStepRoundTrip = $twoStepRoundTrip + 1;
+    }
+}
+echo "bytes 128, encoding twice is a fixed point for ", $fixedPoints,
+     " and changes ", $changedAgain, "\n";
+echo "one decode peels one layer ", $peelsOneLayer, "/128, two decodes recover the byte ",
+     $twoStepRoundTrip, "/128\n";
+
+// The witnesses, so the counts have rows behind them. The space is the
+// interesting one: its first encoding is a `+`, which is not a `%` at all, and
+// the encoder still has an answer for it — `%2B`, the escape a literal `+`
+// takes — so the two spellings of a space do not fold into one another under a
+// second pass.
+array<string> $witnesses = [" ", "%", "+", "~", "a", "%20"];
+foreach ($witnesses as string $witness) {
+    string $first = Core\Uri::encodeFormValue($witness);
+    echo "[", $witness, "] -> [", $first, "] -> [", Core\Uri::encodeFormValue($first), "]\n";
+}
+
+// And the bug the property exists to keep recoverable, read from the wire's
+// side: a value encoded twice and decoded once is *not* the original, and says
+// so — a program that reads it once gets the escape text back rather than a
+// plausible near-miss, and one more decode is the whole repair.
+string $typed = "50% off + tax";
+string $doubled = Core\Uri::encodeFormValue(Core\Uri::encodeFormValue($typed));
+echo "[", $doubled, "]\n";
+echo "[", Core\Uri::decodeFormValue($doubled), "]\n";
+echo "[", Core\Uri::decodeFormValue(Core\Uri::decodeFormValue($doubled)), "]\n";
+echo "recovered ", (Core\Uri::decodeFormValue(Core\Uri::decodeFormValue($doubled)) == $typed) as string, "|\n";
+--EXPECT--
+bytes 128, encoding twice is a fixed point for 65 and changes 63
+one decode peels one layer 128/128, two decodes recover the byte 128/128
+[ ] -> [+] -> [%2B]
+[%] -> [%25] -> [%2525]
+[+] -> [%2B] -> [%252B]
+[~] -> [%7E] -> [%257E]
+[a] -> [a] -> [a]
+[%20] -> [%2520] -> [%252520]
+[50%2525%2Boff%2B%252B%2Btax]
+[50%25+off+%2B+tax]
+[50% off + tax]
+recovered 1|
