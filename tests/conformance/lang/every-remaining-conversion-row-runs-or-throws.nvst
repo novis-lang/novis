@@ -1,0 +1,105 @@
+--TEST--
+Every ADR 0007 § 2 row between `int`, `uint` and `float` is asserted at both ends — the last value it accepts and the first it refuses — ADR 0007 §§ 2, 4
+--FILE--
+<?nvs
+// § 2's grid says each of these rows is "exact, or throws", and a row named
+// that way is only pinned by naming *where* it stops: `conversions-that-
+// succeed.nvst` runs the middle of each row and `the-conversion-table-is-
+// closed.nvst` refuses the pairs with no row at all, so what is left is the
+// boundary. Every row below prints the last accepted value beside the first
+// refused one, so a conversion that stops one value early or late shifts a
+// column rather than printing plausibly on its own.
+//
+// The operand is a parameter throughout: an operand whose own type already
+// names the value is refused where it is written (ADR 0047 § 6), so a bound
+// this table is about has to arrive at run time to be a throw at all.
+class Row {
+    public static function iToU(int $i): string {
+        try {
+            return ($i as uint) as string;
+        } catch (Throwable $e) {
+            return "threw";
+        }
+    }
+
+    public static function uToI(uint $u): string {
+        try {
+            return ($u as int) as string;
+        } catch (Throwable $e) {
+            return "threw";
+        }
+    }
+
+    public static function fToI(float $f): string {
+        try {
+            return ($f as int) as string;
+        } catch (Throwable $e) {
+            return "threw";
+        }
+    }
+
+    public static function fToU(float $f): string {
+        try {
+            return ($f as uint) as string;
+        } catch (Throwable $e) {
+            return "threw";
+        }
+    }
+
+    public static function uToF(uint $u): string {
+        try {
+            return ($u as float) as string;
+        } catch (Throwable $e) {
+            return "threw";
+        }
+    }
+
+    public static function sToU(string $s): string {
+        try {
+            return ($s as uint) as string;
+        } catch (Throwable $e) {
+            return "threw";
+        }
+    }
+
+    // The throw carries the operand's own type and value, which is what tells
+    // a lossy conversion apart from a pair the grid never had a row for.
+    public static function message(int $i): string {
+        try {
+            return ($i as uint) as string;
+        } catch (Throwable $e) {
+            return $e->message;
+        }
+    }
+}
+
+// `int` ↔ `uint`: the overlap is `0 … i64::MAX`, and each direction refuses
+// exactly the half of its source the other type cannot hold.
+echo "int->uint   ", Row::iToU(0), " ", Row::iToU(9223372036854775807), " ", Row::iToU(-1), "\n";
+echo "uint->int   ", Row::uToI(9223372036854775807), " ", Row::uToI(9223372036854775808), "\n";
+
+// `float` → `int` / `uint`: "integral and in range, or throws" — never a
+// rounding, which `a-lossy-conversion-throws.nvst` pins on the fraction side.
+// Here it is the *range*: 10^19 is past `i64::MAX` and 2^64 is past `uint`.
+echo "float->int  ", Row::fToI(-9007199254740992.0), " ", Row::fToI(1000000000000000000.0), " ", Row::fToI(10000000000000000000.0), "\n";
+echo "float->uint ", Row::fToU(0.0), " ", Row::fToU(10000000000000000000.0), " ", Row::fToU(18446744073709551616.0), "\n";
+echo "float->uint ", Row::fToU(-1.0), " ", Row::fToU(1.5), "\n";
+
+// `uint` → `float`: exact up to 2^53, where `f64` stops representing every
+// integer, and a throw one value past it rather than the nearest `f64`.
+echo "uint->float ", Row::uToF(0), " ", Row::uToF(9007199254740992), " ", Row::uToF(9007199254740993), "\n";
+
+// `string` → `uint` takes the whole `uint` range, so a digit run above
+// `i64::MAX` converts here where the same run refuses into an `int`.
+echo "string->uint ", Row::sToU("18446744073709551615"), " ", Row::sToU("-1"), "\n";
+
+echo Row::message(-1), "\n";
+--EXPECT--
+int->uint   0 9223372036854775807 threw
+uint->int   9223372036854775807 threw
+float->int  -9007199254740992 1000000000000000000 threw
+float->uint 0 10000000000000000000 threw
+float->uint threw threw
+uint->float 0 9.007199254741E+15 threw
+string->uint 18446744073709551615 threw
+cannot convert `int` -1 to `uint`
