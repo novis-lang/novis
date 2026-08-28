@@ -959,11 +959,42 @@
 > its last entry. `tests/conformance/lang/a-foreach-key-binding-is-a-string-and-nothing-else.nvst`
 > pins all five refusals in one compile — `int`, `uint`, `mixed`, a union, and a nested array's
 > inner key — with the accepted `string` spelling written first, so a position that stops being
-> accepted fails there rather than as a missing refusal. Three live tools **are** the worklist and
-> no session re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and
-> `nvs-codegen` and attributes each to its item (`--item N` for one in full), `python tools/loop.py
-> --list` prints the named `.nvst` cases each stage still owes, and `python
-> tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> accepted fails there rather than as a missing refusal. **Every instruction that returns a status
+> carries a landing block now**, which is item 36 and `nvs-codegen`'s known gap 3 deleted outright.
+> The rule used to be phrased over what a *program* can recover from: a call, a `new` and ADR 0007 §
+> 4's checked integer rows took ADR 0002's error edge, while a conversion helper, the truthy table,
+> `Helper::Identical` and the numeric comparison family, a `??` subscript, `as ?T`'s non-throwing
+> rows and `lower_decimal_binary`'s comparisons were emitted plainly — each of them returns a status
+> whose only non-`OK` value is a `FATAL` or an `EXITED`, and `nvs_ir::ir::Inst::on_error` stated the
+> consequence rather than hiding it: such an outcome released nothing at all. That is not a
+> cold-path saving but a leak of the whole frame, `O(requests served)` on a shape an attacker drives
+> (unbounded recursion) and on one an ordinary CLI program writes (`exit()`), so the rule is the
+> status now and `Inst::on_error` is its one home. The block sits on the failing edge, so nothing on
+> the request path pays for it. **The other half was `Terminator::Catch`**, and it is where the leak
+> actually reached a fixture: a landing block inside a `try` releases no local on its way to the
+> handler — the handler still names them — so an uncatchable status returned straight out of the
+> frame past every one. That terminator carries an `onward` block now, a second landing block of the
+> same frame performing exactly the sweep a `Propagate` at an unprotected site does, and
+> `nvs-codegen` branches to it rather than building a bare fail block of its own. Both of that
+> backend's `None` arms are internal-consistency checks now — `emit_status_check`'s and
+> `raise_arithmetic_error`'s — which is what enumerated the producers a grep could not:
+> `lower_decimal_binary`'s comparison rows, a `foreach` cursor's own `slot + 1`, whose `int` row
+> `nvs-codegen` emits checked whatever a slot index can actually reach, and the two instructions ADR
+> 0053 § 4's synthesized frames build by hand — the factory's `New` of the state object and
+> `gen#unwind`'s call into `advance()`, each lowered over an empty `Env` because that is what those
+> frames hold at the point they emit it. A closed `nvs-codegen` gap is deleted and its number
+> **retired**, never reused and never handed to a survivor, so the list has holes on purpose and
+> every `nvs-codegen gap N` written elsewhere keeps meaning what it meant.
+> `every_status_returning_instruction_carries_a_landing_block` asserts the rule as a sweep with a
+> count rather than off a named line — the shapes that used to be exempt were exactly the ones no
+> `catch` can act on, so a case naming one would go green while the rest slipped back — and
+> `an_uncatchable_status_leaves_a_try_through_a_block_that_releases_the_locals` pins the `onward`
+> exit's releases and its `Propagate`. Valgrind-clean over a fixture that abandons two freshly built
+> strings by calling `exit()` from inside a `try`, and over five of `examples/`. Three live tools
+> **are** the worklist and no session re-derives one: `python tools/holes.py` reads the refusal
+> sites out of `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item N` for one in
+> full), `python tools/loop.py --list` prints the named `.nvst` cases each stage still owes, and
+> `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

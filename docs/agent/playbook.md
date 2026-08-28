@@ -2087,6 +2087,15 @@ sibling in the same namespace unqualified.
   own-only record and the guard is silently not emitted. Flatten such a table along the class graph
   where it is recorded, rather than expecting the declaring class at the site — and note the failure
   is quiet, because a method that never touches `$this` runs perfectly well on a null receiver.
+- **A `nvs-ir` instruction's kind is often bound to a local first, so grepping `self.emit(` for a
+  literal `InstKind::` misses sites.** Sweeping every status-returning instruction onto
+  `emit_fallible` for item 36, a scanner that parsed the kind out of each `self.emit(...)` call
+  found 18 of 20; the two it could not see were `let call = InstKind::HelperCall { … };` followed by
+  `self.emit(cur, ty, call)` several lines down (`convert.rs`'s `as ?T` and `array<T> as array<U>`
+  rows). What found them was turning `nvs_codegen::emit`'s tolerant `None` arm into an
+  `internal(...)` refusal and running the crate's own tests: the backend already knows which
+  instructions return a status, so make it say so and let the suite enumerate the producers rather
+  than trusting a grep over the emitters.
 
 ## Divergences and refusals already pinned
 
