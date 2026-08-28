@@ -1100,7 +1100,31 @@ impl<'src, 'd> Parser<'src, 'd> {
         while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
             let before = self.peek().span;
             let attributes = self.parse_attribute_groups();
-            if matches!(self.peek().kind, TokenKind::Ident) {
+            if matches!(self.peek().kind, TokenKind::Keyword(Keyword::Case)) {
+                // PHP's `case Hearts = 1;`. The case itself is fine — only its
+                // spelling is wrong — so the keyword and the trailing `;` are
+                // consumed and the case is kept, which is what keeps this to
+                // one diagnostic instead of the `E0220` cascade the shape used
+                // to produce. Same discipline as ADR 0109 § 3's `for` header:
+                // refuse the spelling, keep the declaration.
+                let keyword = self.peek().span;
+                self.bump();
+                self.diags.report(
+                    Diagnostic::error(
+                        code::E_PHP_ENUM_CASE_UNSUPPORTED,
+                        "an enum case is not written with `case`",
+                    )
+                    .with_primary(keyword, "remove this keyword")
+                    .with_help(
+                        "an enum body is a comma list of bare `Name = 1,` cases, with no \
+                         `case` keyword and no `;` (ADR 0010 § 1)",
+                    ),
+                );
+                cases.push(self.finish_enum_case(before, attributes));
+                if self.eat(TokenKind::Semicolon).is_none() {
+                    self.eat(TokenKind::Comma);
+                }
+            } else if matches!(self.peek().kind, TokenKind::Ident) {
                 cases.push(self.finish_enum_case(before, attributes));
                 self.eat(TokenKind::Comma);
             } else {

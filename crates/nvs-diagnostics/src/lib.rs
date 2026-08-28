@@ -373,6 +373,14 @@ pub mod code {
     /// [`E_IMPORT_ALIAS_UNSUPPORTED`] is its sibling refusal on the other half
     /// of the same statement.
     pub const E_IMPORT_GROUP_UNSUPPORTED: Code = Code::new("E0238");
+    /// PHP's `case Name = 1;` enum-body spelling. Novis writes a case as a
+    /// bare `Name = 1,` in a comma list, with no `case` keyword — see
+    /// ADR 0010 § 1. Raised on the `case` keyword itself, once, in place of
+    /// the [`E_ENUM_MEMBER_UNSUPPORTED`] cascade the shape used to produce:
+    /// that code is for a *member* in an enum body and its "move this to a
+    /// separate class" help is the wrong answer here, since the case belongs
+    /// in the enum and only its spelling is wrong.
+    pub const E_PHP_ENUM_CASE_UNSUPPORTED: Code = Code::new("E0239");
 
     // --- E03xx name resolution ---------------------------------------------
     /// A variable read before anything was assigned to it.

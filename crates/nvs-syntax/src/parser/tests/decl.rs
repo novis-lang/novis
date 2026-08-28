@@ -242,6 +242,54 @@ fn an_enum_case_named_with_a_keyword_parses() {
     );
 }
 
+/// PHP's `case Hearts = 1;` body, answered the way `trait` and `(int)$x`
+/// already are: one `E02xx` code on the keyword, naming the spelling that
+/// works. The count is half the assertion — this shape used to produce a
+/// four-diagnostic cascade per case, led by an `E0220` whose "move this to a
+/// separate class" help is the answer for a *method* in an enum body and is
+/// actively wrong for a case, which belongs in the enum.
+#[test]
+fn a_php_shaped_enum_case_is_refused_naming_the_spelling_that_works() {
+    let (s, diags) = parse_stmt_with_diags("enum Suit: int { case Hearts = 1; case Spades = 2; }");
+    let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+    assert_eq!(
+        codes,
+        vec![
+            code::E_PHP_ENUM_CASE_UNSUPPORTED,
+            code::E_PHP_ENUM_CASE_UNSUPPORTED
+        ],
+        "one code per `case` and nothing else: {diags:?}"
+    );
+
+    // The spelling that works is named, not merely the one that does not.
+    assert!(
+        diags
+            .iter()
+            .all(|d| d.notes.iter().any(|n| n.contains("`Name = 1,`"))),
+        "the help must name the comma-list spelling: {diags:?}"
+    );
+
+    // The other half: the cases are *kept*, with their values, so no later
+    // phase sees an enum missing the members a program goes on to name — the
+    // same discipline ADR 0109 § 3 uses for a refused `for` init clause.
+    let StmtKind::EnumDecl(e) = s.kind else {
+        panic!("expected an enum decl: {s:?}");
+    };
+    assert_eq!(e.cases.len(), 2);
+    assert!(e.cases.iter().all(|c| c.value.is_some()));
+
+    // ADR 0062 § 2: a keyword matches at its exact lower-case spelling, so
+    // `Case` is an ordinary `PascalCase` case name and stays one. The bound
+    // is asserted on both sides so that widening the keyword arm to an
+    // ASCII-caseless match would fail here rather than silently refuse a
+    // legal enum.
+    let s = parse_stmt_ok("enum E { Case = 1 }");
+    let StmtKind::EnumDecl(e) = s.kind else {
+        panic!("expected an enum decl: {s:?}");
+    };
+    assert_eq!(e.cases.len(), 1);
+}
+
 #[test]
 fn enum_implements_method_and_string_backing_are_rejected() {
     let (_, diags) = parse_stmt_with_diags("enum Status implements Comparable { Active }");

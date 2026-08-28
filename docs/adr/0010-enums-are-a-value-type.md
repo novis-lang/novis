@@ -71,6 +71,14 @@ kept exactly, including that an explicit value resets the counter for whatever f
 share a value (an alias, as C# allows); nothing in this decision forbids it, because equality is value
 equality (*5*) and there is no identity to collide.
 
+**There is no `case` keyword.** An enum body is a comma list of bare `Name = 1,` cases, so PHP's
+`case Hearts = 1;` is a spelling this language does not have, and it is refused the way every other
+rejected PHP construct is: **`E0239`**, raised once on the `case` keyword itself and naming the comma-list
+spelling that works. The case is *kept* — only the keyword and its `;` are consumed — so an enum written
+PHP's way still declares every member a program goes on to name, and one diagnostic is the whole answer.
+That is deliberately not *3*'s `E0220`: a method or a constant in an enum body belongs somewhere else and
+is told so, while a case belongs exactly where it is written.
+
 ### 2. Exactly one underlying integer type per enum — the pure/backed split is gone
 
 PHP has three shapes: a pure enum (no backing value, only identity), a backed enum with an `int` value, and
