@@ -1,0 +1,143 @@
+--TEST--
+`Core\Encoding::encodeText` and `::decodeText` agree, over every charset the registry names crossed with a table of texts: a text a charset can spell comes back as itself — spec § 7, ADR 0009 § 3
+--FILE--
+<?nvs
+// `encoding-text-trio-converts-through-a-charset.nvst` pins what the trio
+// answers on a handful of rows, and
+// `encoding-charset-conversion-names-the-character-it-cannot-spell.nvst` what
+// each of the two throwing members says when it refuses. Neither asks the
+// question this one does, which is the *agreement* between the pair over the
+// whole roster: `Core\Charset` names 41 encodings and each one has its own
+// table, so the property that has to hold across all of them is that a text a
+// charset can spell decodes back to the text that was spelled. Asserted by
+// counting rather than row by row — a charset table that quietly grew a
+// transliterating or ignoring mode still encodes every row plausibly, and
+// fails the identical count here (ADR 0009 § 3: exact or a throw, no
+// `//TRANSLIT`, no `//IGNORE`, no U+FFFD).
+//
+// The charset is fetched through a `match` on the index rather than held in an
+// `array<Core\Charset>`: a source-written `Core\Charset` does not unify with
+// the registry's own enum type (`E0401`, "expected `Core\Charset`, found
+// `Core\Charset`"), so neither an array element nor a parameter can carry one,
+// while a `var` binding infers it and does.
+array<string> $texts = ["", "nvs", "café", "5 €", "あい", "Привет", "🦀", "¥100"];
+int $pairs = 0;
+int $spelledAll = 0;
+int $identicalAll = 0;
+string $odd = "";
+int $t = 0;
+for ($t = 0; $t < 8; $t = $t + 1) {
+    string $text = $texts[$t];
+    int $spelled = 0;
+    int $refused = 0;
+    int $same = 0;
+    int $i = 0;
+    for ($i = 0; $i < 41; $i = $i + 1) {
+        var $cs = match ($i) {
+            0 => Core\Charset::Utf8,
+            1 => Core\Charset::Utf16Le,
+            2 => Core\Charset::Utf16Be,
+            3 => Core\Charset::Ascii,
+            4 => Core\Charset::Latin1,
+            5 => Core\Charset::Ibm866,
+            6 => Core\Charset::Iso88592,
+            7 => Core\Charset::Iso88593,
+            8 => Core\Charset::Iso88594,
+            9 => Core\Charset::Iso88595,
+            10 => Core\Charset::Iso88596,
+            11 => Core\Charset::Iso88597,
+            12 => Core\Charset::Iso88598,
+            13 => Core\Charset::Iso88598I,
+            14 => Core\Charset::Iso885910,
+            15 => Core\Charset::Iso885913,
+            16 => Core\Charset::Iso885914,
+            17 => Core\Charset::Iso885915,
+            18 => Core\Charset::Iso885916,
+            19 => Core\Charset::Koi8R,
+            20 => Core\Charset::Koi8U,
+            21 => Core\Charset::Macintosh,
+            22 => Core\Charset::Windows874,
+            23 => Core\Charset::Windows1250,
+            24 => Core\Charset::Windows1251,
+            25 => Core\Charset::Windows1252,
+            26 => Core\Charset::Windows1253,
+            27 => Core\Charset::Windows1254,
+            28 => Core\Charset::Windows1255,
+            29 => Core\Charset::Windows1256,
+            30 => Core\Charset::Windows1257,
+            31 => Core\Charset::Windows1258,
+            32 => Core\Charset::XMacCyrillic,
+            33 => Core\Charset::Gbk,
+            34 => Core\Charset::Gb18030,
+            35 => Core\Charset::Big5,
+            36 => Core\Charset::EucJp,
+            37 => Core\Charset::Iso2022Jp,
+            38 => Core\Charset::ShiftJis,
+            39 => Core\Charset::EucKr,
+            default => Core\Charset::XUserDefined,
+        };
+        $pairs = $pairs + 1;
+        bytes $out = Core\Bytes::fill(0, 0);
+        bool $threw = false;
+        try {
+            $out = Core\Encoding::encodeText($text, $cs);
+        } catch (Throwable $noSpelling) {
+            $threw = true;
+        }
+        if ($threw) {
+            $refused = $refused + 1;
+        } else {
+            $spelled = $spelled + 1;
+            $spelledAll = $spelledAll + 1;
+            // The decode is asked for every text the charset spelled, so a
+            // charset whose encoder emits octets its own decoder refuses is
+            // caught here rather than being counted as a refusal above.
+            bool $back = false;
+            try {
+                $back = Core\Encoding::decodeText($out, $cs) == $text;
+            } catch (Throwable $unreadable) {
+                $back = false;
+            }
+            if ($back) {
+                $same = $same + 1;
+                $identicalAll = $identicalAll + 1;
+            } else {
+                $odd = $odd . " " . ($t as string) . ":" . ($i as string);
+            }
+        }
+    }
+    echo $spelled, " spelled, ", $refused, " refused, ", $same, " identical\n";
+}
+echo $pairs, " pairs, ", $spelledAll, " spelled, ", $identicalAll, " identical\n";
+echo "not identical:", $odd, "\n";
+
+// The two pairs that survive the sweep without being identical are the WHATWG
+// index's own many-to-one encoders, not a mode Novis added: `euc-jp` and
+// `shift_jis` both spell U+00A5 as `0x5c`, which their decoders read back as
+// U+005C. Novis reports what the table says rather than refusing the character
+// to keep a round trip it was never promised — the exactness ADR 0009 § 3 buys
+// is that nothing is *substituted* on the way through, which is why the
+// refusal count above and this line are two different claims.
+bytes $sjis = Core\Encoding::encodeText("¥100", Core\Charset::ShiftJis);
+echo Core\Encoding::toHex($sjis), " ", Core\Encoding::decodeText($sjis, Core\Charset::ShiftJis), "\n";
+bytes $euc = Core\Encoding::encodeText("¥100", Core\Charset::EucJp);
+echo Core\Encoding::toHex($euc), " ", Core\Encoding::decodeText($euc, Core\Charset::EucJp), "\n";
+// `iso-2022-jp` spells the same character by escaping into JIS X 0201 Roman,
+// where `0x5c` *is* U+00A5 — so it is in the identical count above, and it is
+// the row that shows the difference is the table's and not the member's.
+bytes $jp = Core\Encoding::encodeText("¥100", Core\Charset::Iso2022Jp);
+echo Core\Encoding::toHex($jp), " ", Core\Encoding::decodeText($jp, Core\Charset::Iso2022Jp), "\n";
+--EXPECT--
+41 spelled, 0 refused, 41 identical
+41 spelled, 0 refused, 41 identical
+21 spelled, 20 refused, 21 identical
+22 spelled, 19 refused, 22 identical
+10 spelled, 31 refused, 10 identical
+16 spelled, 25 refused, 16 identical
+4 spelled, 37 refused, 4 identical
+18 spelled, 23 refused, 16 identical
+328 pairs, 173 spelled, 171 identical
+not identical: 7:36 7:38
+5c313030 \100
+5c313030 \100
+1b284a5c3130301b2842 ¥100
