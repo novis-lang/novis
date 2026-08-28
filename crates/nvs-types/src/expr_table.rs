@@ -540,6 +540,7 @@ pub struct ExprTypeTable {
     property_types: FxHashMap<String, Vec<(String, TypeId)>>,
     static_properties: FxHashMap<String, Vec<(String, Option<crate::defaults::ConstArg>)>>,
     to_string: FxHashMap<Span, ResolvedCall>,
+    require_targets: FxHashMap<Span, nvs_diagnostics::SourceId>,
 }
 
 impl ExprTypeTable {
@@ -674,6 +675,32 @@ impl ExprTypeTable {
     #[must_use]
     pub fn property_defaults(&self, label: &str) -> &[(String, crate::defaults::ConstArg)] {
         self.property_defaults.get(label).map_or(&[], Vec::as_slice)
+    }
+
+    /// Records which file the `require` whose path expression is at `span`
+    /// resolved to — `nvs_hir::Loaded::requires`, copied across by whoever
+    /// ran both phases.
+    ///
+    /// This crate neither produces nor reads the fact: the `require` graph
+    /// walk is the only place a written path is joined to a base directory,
+    /// canonicalized and checked, and `nvs-ir` is the only consumer, needing
+    /// it to call that file's own script frame at the site. It rides here
+    /// for [`Self::record_property_defaults`]'s reason exactly — `nvs-ir` is
+    /// handed this table and not `nvs-hir`'s output, and threading a second
+    /// one through `lower_program` would change every caller (and every
+    /// frame below it, a `require` being writable inside any body) for a
+    /// fact that has a home beside the others here.
+    pub fn record_require_target(&mut self, span: Span, target: nvs_diagnostics::SourceId) {
+        self.require_targets.insert(span, target);
+    }
+
+    /// The file the `require` at `span` resolved to, or `None` for a path
+    /// that is not a literal, names nothing loadable, or closes a cycle —
+    /// each of which is already a diagnostic or ADR 0021's dynamic fallback,
+    /// so the site has nothing to call.
+    #[must_use]
+    pub fn require_target(&self, span: Span) -> Option<nvs_diagnostics::SourceId> {
+        self.require_targets.get(&span).copied()
     }
 
     /// Records the class labelled `label`'s **own** `static` properties and

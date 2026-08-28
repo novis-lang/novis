@@ -288,6 +288,17 @@ fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
 
     let mut interner = nvs_types::TypeInterner::new();
     let mut exprs = nvs_types::ExprTypeTable::new();
+    // The one edge only the walk above knows — which file each written
+    // `require` resolved to — carried across to `nvs-ir`, which calls that
+    // file's script frame at the site. This function is where both phases
+    // are in hand; see `ExprTypeTable::record_require_target` for why it
+    // rides in that table rather than in a second argument to
+    // `lower_program`.
+    for file in &loaded {
+        for &(span, target) in &file.requires {
+            exprs.record_require_target(span, target);
+        }
+    }
     let (enums, layouts) = {
         let files: Vec<nvs_types::ProgramFile<'_>> = loaded
             .iter()

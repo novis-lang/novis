@@ -337,14 +337,47 @@ impl<'a> Lowering<'a> {
                 key: None,
                 value: Some(v),
             } => self.lower_yield(v, env, cur),
-            // ADR 0021's statement form, lowered to nothing. The `require`
-            // graph is walked at compile time (`nvs_hir::resolve_program`),
-            // so by the time this runs the target's declarations are already
-            // in the same `crate::ir::Program` as this file's and there is
-            // nothing left for the site to do. The value form —
-            // `$c = require 'config.nvs';`, § 3's `mixed` — is a separate
-            // question and still a gap; see the crate docs.
-            ExprKind::Require { .. } => {}
+            // ADR 0021's statement form: a call to the required file's own
+            // script frame. The graph is walked at compile time
+            // (`nvs_hir::resolve_program`), so the target's *declarations*
+            // are already in this same `crate::ir::Program` and nothing here
+            // resolves a name — what the site still owes is the required
+            // file's own top-level statements, which run here, in source
+            // order, exactly where the `require` is written.
+            //
+            // The frame is the file's, not this one's: declarations cross a
+            // `require` and variables do not (ADR 0021 § *Decision*), which
+            // is what `nvs_types::locals` already checks each file's body
+            // under. It is called every time the statement is reached, PHP's
+            // own answer for `require` as opposed to `require_once` — the
+            // walk loads each file once, but that is a *compile*-time fact.
+            //
+            // A path this crate has no target for is a path that is not a
+            // literal, names nothing loadable, or closes a cycle: each is
+            // already a diagnostic or ADR 0021's dynamic fallback, so there
+            // is nothing to call and nothing to say here. The value form —
+            // `$c = require 'config.nvs';` — is `E0704` where it is written.
+            ExprKind::Require { path } => {
+                if let Some(target) = self.exprs.require_target(path.span) {
+                    // The frame returns `null` unless the file returned a
+                    // value (§ 3's `mixed`), and the statement form reads
+                    // neither — but the value is still this frame's to
+                    // release, exactly as a discarded object literal's is.
+                    let (v, ty) = self.emit_fallible(
+                        *cur,
+                        Ty::Tagged,
+                        InstKind::Call {
+                            target: crate::lower::file_script_label(target),
+                            receiver: None,
+                            args: Vec::new(),
+                        },
+                        env,
+                    );
+                    if ty.is_refcounted() {
+                        self.emit_release(*cur, v);
+                    }
+                }
+            }
             // ADR 0036 § 2's parenthesized reading, and every other one.
             // `nvs_syntax`'s `parse_statement_inner` commits a
             // statement-initial `{` to a *block*, so a discarded shape

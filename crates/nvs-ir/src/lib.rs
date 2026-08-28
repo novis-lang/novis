@@ -586,20 +586,21 @@
 //!     one line. What is unverified is whether anything below this crate reads
 //!     a class *label* off an operand it would now receive without one, which
 //!     is what a session landing it owes a check of.
-//! 22. **A `require`d file's own top-level statements are not run.**
-//!     [`lower::lower_program`] gives a script frame to `files[0]` — the entry
-//!     point — and takes only the *declarations* of every other file, and a
-//!     `require` in statement position lowers to nothing, because the graph is
-//!     already resolved by the time lowering starts. So a required file that
-//!     writes `echo "loaded";` at file scope compiles and stays silent, and
-//!     ADR 0021 § 3's value form (`$c = require 'config.nvs';`) is refused
-//!     where it is written — `E0704`, from `nvs_types::expr`, whose statement/
-//!     value split mirrors [`lower::Lowering::lower_expr_stmt`]'s. The
-//!     shape that closes both is one frame per file, called from the site, and
-//!     the open question it raises is whether that frame shares the caller's
-//!     locals (ADR 0021's "no isolation") or not — which is why this is
-//!     recorded rather than guessed at. The declaration half, which is what
-//!     ADR 0061's autoload map needs, runs today.
+//! 22. **A `require` used for its *value* is refused where it is written.**
+//!     ADR 0021 § 3's value form (`$c = require 'config.nvs';`) is `E0704`,
+//!     from `nvs_types::expr`, whose statement/value split mirrors
+//!     [`lower::Lowering::lower_expr_stmt`]'s. Closing it means a `return` at
+//!     a required file's own file scope handing a `mixed` back through the
+//!     frame — the frame is there now and already returns `Ty::Tagged`, so
+//!     what is missing is the `return` and the site reading it, not the call.
+//!     The statement half is closed: every file gets its own script frame
+//!     ([`lower::file_script_label`]) and the `require` site calls it, so a
+//!     required file's top-level statements run in source order, once per
+//!     time the statement is reached, which is PHP's answer for `require` as
+//!     opposed to `require_once`. The frame is the *file's*, not the
+//!     caller's: declarations cross a `require` and variables do not, which
+//!     is what `nvs_types::locals` already checks each file's body under —
+//!     ADR 0021 § *Decision* is that rule's home.
 
 pub mod ids;
 pub mod ir;

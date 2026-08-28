@@ -45,6 +45,20 @@ completely (no isolation — contrast [`spawn script`](0006-isolated-script-exec
 missing or unparseable target, and executing every time control reaches it. `include`, `include_once`, and
 `require_once` are rejected at parse time.**
 
+**"Sharing the calling frame" is about *declarations*, not about *variables*.** Every name a required file
+declares — a class, an interface, an enum, a `type` alias — is visible to the requiring file exactly as if
+it had been pasted in, which is the whole point of the construct and what the compile-time graph walk
+delivers. A local variable does not cross: `nvs_types::locals` checks each file's top-level body on its own
+([ADR 0007](0007-explicit-type-system.md) § 1's declare-once rule is per body), so a required file's `$x` is
+not the caller's and the caller's is not the required file's — and `nvs-ir` gives each file its own script
+frame accordingly. This is the safe reading of the two, and the only one the checker was ever able to make:
+a shared variable scope would need one flow-sensitive definite-assignment analysis spanning a graph whose
+shape a `require` inside an `if` decides at run time. It is *not* PHP's behaviour, where an included file
+does see the includer's locals; a program that relied on that passes what it means as a constructor argument
+or a static, and the divergence is [ADR 0006](0006-isolated-script-execution.md)'s isolation question only
+in the sense that both are about what crosses a boundary — nothing here is isolated, because the
+declarations are shared and the file runs in the caller's own process, request and capability set.
+
 ### 1. Why `require`, not a new keyword
 
 PHP's plain `require` already means exactly this — throw, no repeat guard, same frame — so no new keyword

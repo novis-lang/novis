@@ -69,7 +69,7 @@
 //! header) — see that variant's own doc comment for why only the shape is
 //! reserved this session.
 
-use nvs_diagnostics::{SourceFile, Span};
+use nvs_diagnostics::{SourceFile, SourceId, Span};
 use nvs_syntax::ast::{
     ArrayItem, AssignOp, BinaryOp, Block, CallArgs, CatchClause, ClassMemberKind,
     DestructureElement, DestructureTarget, Expr, ExprKind, FnBody, FnExpr, ForeachBinding,
@@ -397,25 +397,42 @@ fn field_reprs(
         .collect()
 }
 
+/// The name of the script frame holding the file `id`'s own top-level
+/// statements — every file's but the entry's, whose frame keeps the name
+/// [`lower_program`]'s caller handed it.
+///
+/// Computed from the [`SourceId`] at both ends rather than recorded
+/// anywhere: [`lower_program`] names the function, and
+/// `Lowering::lower_expr_stmt`'s `Require` arm names the call, each holding
+/// the id the other does — the producer through `ProgramFile::src`, the
+/// consumer through `nvs_types::ExprTypeTable::require_target`.
+///
+/// `#` and `$` are what make it unspellable, the same thing that keeps a
+/// generator's `gen#unwind` out of a program's reach: no `Class::method`
+/// label a source declaration can produce collides with one of these.
+#[must_use]
+pub fn file_script_label(id: SourceId) -> String {
+    format!("file#{}$script", id.raw())
+}
+
 /// Lowers a whole checked **program**: every class method that has a body in
-/// any of `files`, plus the *entry* file's own top-level statements as one
-/// script frame named `script`.
+/// any of `files`, plus each file's own top-level statements as its own
+/// script frame — the entry's named `script`, the rest [`file_script_label`].
 ///
 /// This is what a caller with a resolved `require`/`autoload` graph wants —
 /// [`lower_file`] is the one-file spelling, and [`lower_method`] and
 /// [`lower_script`] stay public for the narrower "lower exactly this one
 /// thing" cases the tests use.
 ///
-/// **`files[0]` is the entry point, and it is the only file that gets a
-/// script frame.** N files cannot all be `script`, and ADR 0021's "no
-/// isolation" is already honoured by the compile-time walk rather than at run
-/// time: a `require` statement lowers to nothing (`lower_expr_stmt`), because
-/// the target's declarations are in this same program by the time the site is
-/// reached. So a non-entry file contributes its *declarations* only, and a
-/// bare top-level statement written in a `require`d file is silently not run
-/// — the crate's own module doc records it as a known gap, since making it
-/// run means giving each file a frame and calling it from the `require`
-/// site, which is the isolation question ADR 0006 owns.
+/// **Every file gets a script frame, and `files[0]`'s is the one the runtime
+/// enters.** The entry's is named `script`; every other file's is
+/// [`file_script_label`], which the `require` site that named the file calls
+/// (`lower_expr_stmt`'s `Require` arm), so a top-level statement written in a
+/// required file runs where the `require` is written rather than not at all.
+/// N files cannot share one name, and they must not share one *frame*
+/// either: `nvs_types::locals` checks each file's top-level body on its own,
+/// so a required file's `$x` is not the caller's — declarations cross a
+/// `require` and variables do not (ADR 0021 § *Decision*).
 /// `nvs_hir::resolve_program`'s entry-first order is what makes indexing
 /// position zero right.
 ///
@@ -561,13 +578,25 @@ pub fn lower_program(
             &mut synthesized,
         );
     }
-    let entry = files
-        .first()
-        .expect("a program has at least its entry file");
-    let lowered = lower_script(script, entry.stmts, entry.src, exprs, checked_types, enums);
-    functions.push(lowered.function);
-    functions.extend(lowered.closures);
-    synthesized.extend(lowered.classes);
+    assert!(
+        !files.is_empty(),
+        "a program is its entry file plus whatever that reached"
+    );
+    for (i, file) in files.iter().enumerate() {
+        // Position zero is the runtime's entry point and keeps the name it
+        // was handed; every other file is entered from the `require` site
+        // that named it, under the label that site computes from the same
+        // `SourceId`.
+        let name = if i == 0 {
+            script.to_owned()
+        } else {
+            file_script_label(file.src.id())
+        };
+        let lowered = lower_script(&name, file.stmts, file.src, exprs, checked_types, enums);
+        functions.push(lowered.function);
+        functions.extend(lowered.closures);
+        synthesized.extend(lowered.classes);
+    }
     // The functions with no source text — see
     // `synthesized_exception_constructors`. Emitted unconditionally: the
     // exception tree is in every program's class table, so a unit that omitted
