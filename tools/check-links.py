@@ -5,10 +5,15 @@ match the file on disk.
     python tools/check-links.py            # every tracked .md file
     python tools/check-links.py docs/adr   # only under these paths
 
-**Advisory. It always exits 0, and nothing in this repository or in CI runs it.** It exists because a
-doc restructure moves dozens of relative links at once and a broken one is invisible until someone
-follows it — that is a real defect with a ten-second fix, unlike a doc that runs a few bytes long, which
-nothing here measures at all (docs/agent/doc-style.md § *Length targets*).
+**A gate: it exits non-zero on any finding, and CI's `docs` job runs it beside `adr.py --check`.** It
+exists because a doc restructure moves dozens of relative links at once and a broken one is invisible
+until someone follows it — that is a real defect with a ten-second fix, unlike a doc that runs a few
+bytes long, which nothing here measures at all (docs/agent/doc-style.md § *Length targets*).
+
+It was advisory, exiting 0 and run by nothing, for exactly as long as it took two renamed ADRs to
+accumulate citations by their old filenames. A linter nothing runs is a linter that reports the same
+findings for months; this one costs a second and needs no toolchain, so there is no reason for it to be
+the kind that only answers when asked.
 
 Two kinds of finding:
 
@@ -155,8 +160,9 @@ def main():
     else:
         sys.stdout.write(f"every link in {checked} markdown file(s) resolves, with matching case\n")
 
-    # Always 0: advisory by design. See this file's docstring.
-    return 0
+    # A finding is a link that does not resolve, which is a defect rather than a
+    # preference — so this is an exit status CI can act on. See the docstring.
+    return 1 if findings else 0
 
 
 if __name__ == "__main__":
