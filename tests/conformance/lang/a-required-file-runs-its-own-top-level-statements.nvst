@@ -1,0 +1,63 @@
+--TEST--
+A `require`d file's own top-level statements run where the `require` is written, once per time it is reached, in their own variable scope — ADR 0021 § *Decision*
+--FILE--
+<?nvs
+// ADR 0021 § *Decision*: `require` runs the target's statements in the
+// caller's frame at the point it is written, so a run is ordered against the
+// statements around it rather than hoisted like a declaration.
+echo "before\n";
+require 'lib.nvs';
+echo "after\n";
+
+// The declaration half, which never depended on the frame: the class the
+// required file declares was already visible before the `require` ran.
+echo Helper::greet(), "\n";
+
+// § *Decision* again, the half `require_once` does not have: the statement
+// runs the file every time control reaches it. `mid.nvs` requires a third
+// file of its own, so a nested `require` runs at its own site too.
+int $i = 0;
+while ($i < 2) {
+    require 'mid.nvs';
+    $i++;
+}
+
+// A required file has its own variable scope — declarations cross a
+// `require` and variables do not — so `$name` here is this file's, and the
+// `$name` `lib.nvs` declared at its own file scope is not in the way of it.
+string $name = "entry";
+echo $name, "\n";
+
+// Not reached at all on the arm the condition does not take: a `require` is
+// a statement, so it goes where a statement goes.
+if ($i == 99) {
+    require 'inner.nvs';
+}
+echo "end\n";
+--FILE lib.nvs--
+<?nvs
+string $name = "lib";
+echo "lib runs, and its own local is ", $name, "\n";
+class Helper {
+    public static function greet(): string {
+        return "greeted";
+    }
+}
+--FILE mid.nvs--
+<?nvs
+require 'inner.nvs';
+echo "mid\n";
+--FILE inner.nvs--
+<?nvs
+echo "inner\n";
+--EXPECT--
+before
+lib runs, and its own local is lib
+after
+greeted
+inner
+mid
+inner
+mid
+entry
+end
