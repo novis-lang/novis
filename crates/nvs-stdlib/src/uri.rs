@@ -779,13 +779,27 @@ fn read<'a>(text: &'a str, member: &str) -> Result<UriRef<&'a str>, Fault> {
 /// instruction to a producer. `toString` still gives the `:` back, because it
 /// answers with the text that was parsed rather than with a recomposition.
 fn port_of(authority: &Authority<'_>, member: &str) -> Result<Option<u16>, Fault> {
-    authority.port_to_u16().map_err(|_| {
-        Fault::thrown(format!(
-            "Core\\Uri::{member}(): the authority's port is not a TCP port number. RFC 3986 \
-             § 3.2.3 admits any run of digits and defines the component as a port, so a value \
-             outside 0-65535 has no `int` this member could answer with"
-        ))
-    })
+    authority
+        .port_to_u16()
+        .map_err(|_| port_out_of_range(member))
+}
+
+/// The refusal both ends of the port bound are drawn with.
+///
+/// It is written once because it is one rule asked from two directions:
+/// [`port_of`] reads a run of digits off text and finds it above `65535`,
+/// while [`nvs_core_uri_with`] is handed an `int` option that may also be
+/// *negative*, which the digit grammar cannot express at all. Left to
+/// recompose, a negative port becomes a `-` inside an authority and comes back
+/// as "a byte the URI grammar does not admit", which is a true sentence about
+/// the wrong thing — the value is out of range, and the bound is 0-65535 at
+/// both of its ends.
+fn port_out_of_range(member: &str) -> Fault {
+    Fault::thrown(format!(
+        "Core\\Uri::{member}(): the authority's port is not a TCP port number. RFC 3986 \
+         § 3.2.3 admits any run of digits and defines the component as a port, so a value \
+         outside 0-65535 has no `int` this member could answer with"
+    ))
 }
 
 /// A fresh `Core\Uri` holding `reference`'s text and its seven components.
@@ -1427,11 +1441,19 @@ nvs_runtime::nvs_helper! {
     /// Only a *thrown* fault becomes `null`. A `Fault::Fatal` — a wrong
     /// argument tag, an engine invariant — is not a failed parse and
     /// propagates unchanged.
+    ///
+    /// **Both** of `parse`'s throwing steps are folded, not just the grammar
+    /// one: [`read`] refuses text RFC 3986 § 4.1 does not admit, and [`built`]
+    /// refuses an authority whose port is outside `0-65535` ([`port_of`] —
+    /// § 3.2.3's grammar admits the digits and its prose does not admit the
+    /// number). Folding only the first would make `tryParse` throw for one of
+    /// the two texts `parse` throws for, which is exactly the parser/validator
+    /// divergence the paragraph above says this member exists to prevent.
     fn nvs_core_uri_try_parse(_ctx, args: [1]) {
         let text = text_of(args, "tryParse")?;
 
-        match read(text, "tryParse") {
-            Ok(reference) => built(&reference, "tryParse"),
+        match read(text, "tryParse").and_then(|reference| built(&reference, "tryParse")) {
+            Ok(value) => Ok(value),
             Err(Fault::Thrown(..)) => Ok(Value::null()),
             Err(other) => Err(other),
         }
@@ -1547,9 +1569,13 @@ nvs_runtime::nvs_helper! {
         let slots: [Value; 8] =
             std::array::from_fn(|index| crate::instance::slot(receiver, index));
         // The one option declared `int` rather than `string`, so it is read
-        // here rather than through `written`. An out-of-range one still
-        // recomposes and still parses; `port_of` inside `built` is what
-        // refuses it, with the message that names why.
+        // here rather than through `written` — and narrowed to a port here
+        // too, at both ends of the bound. A value above `65535` would still
+        // recompose and be refused by `port_of` inside `built`, but a
+        // *negative* one recomposes to a `-` the authority grammar does not
+        // admit at all, so `read` would refuse it a step earlier with a
+        // message about a byte. [`port_out_of_range`] is the one rule both
+        // ends draw.
         let port = if matches!(args[3].tag(), Some(Tag::Null)) {
             slots[PORT_SLOT].as_int()
         } else {
@@ -1559,6 +1585,10 @@ nvs_runtime::nvs_helper! {
                     args[3].tag_byte()
                 ))
             })?)
+        };
+        let port = match port {
+            Some(port) => Some(u16::try_from(port).map_err(|_| port_out_of_range("with"))?),
+            None => None,
         };
         let port = port.map(|port| port.to_string());
         let composed = Composed {

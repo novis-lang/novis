@@ -1,0 +1,100 @@
+--TEST--
+`Core\Uri`'s port is `0-65535` at both ends, absent where none and where an empty one was written, and `with` draws the same bound from the other direction — spec § 12, RFC 3986 § 3.2.3
+--FILE--
+<?nvs
+// RFC 3986 § 3.2.3's *grammar* is `*DIGIT` while its *prose* defines the
+// component as a TCP port number, and `port()` is where the two are
+// reconciled. So the bound is named at both of its ends rather than in the
+// middle: the last value each side accepts, beside the first it refuses.
+final class Show {
+    public static function port(string $text): string {
+        ?int $port = Core\Uri::parse($text)->port();
+        if ($port == null) {
+            return "null";
+        }
+        return $port as string;
+    }
+}
+
+// Accepted, bottom end to top. `00080` is the grammar being `*DIGIT` rather
+// than a canonical number — the digits are read, not the spelling. An empty
+// port and an absent one are both `null`, which is § 3.2.3's own instruction
+// to a producer and `port_of`'s one departure from giving back what was
+// written; a reference with no authority at all has nowhere to write one.
+array<string> $texts = [
+    "http://h:0/",
+    "http://h:1/",
+    "http://h:65535/",
+    "http://h:00080/",
+    "http://h:/",
+    "http://h/",
+    "/p",
+];
+foreach ($texts as string $text) {
+    echo "[", $text, "] port=", Show::port($text), "\n";
+}
+
+// One past the top, and two digit runs past it — including one no integer type
+// holds at all, which is the same refusal rather than a second one. Storing it
+// would answer with a number no caller could dial and truncating it would
+// answer with a different URI's port.
+array<string> $refused = [
+    "http://h:65536/",
+    "http://h:99999/",
+    "http://h:99999999999999999999/",
+];
+foreach ($refused as string $refusedText) {
+    try {
+        string $shown = Show::port($refusedText);
+        echo "[", $refusedText, "] port=", $shown, "\n";
+    } catch (Throwable $high) {
+        echo "[", $refusedText, "] refused\n";
+    }
+}
+
+// `with`'s `port` option is declared `int`, so it reaches the bound from the
+// other side and can be spelled *below* it as well — which is why both ends
+// are one refusal here rather than the grammar catching the negative one a
+// step earlier and reporting a stray byte.
+array<int> $accepted = [0, 1, 8080, 65535];
+foreach ($accepted as int $port) {
+    echo "with ", $port, " -> ", Core\Uri::parse("http://h/")->with({port: $port})->toString(), "\n";
+}
+array<int> $outside = [-1, 65536];
+foreach ($outside as int $beyond) {
+    try {
+        string $built = Core\Uri::parse("http://h/")->with({port: $beyond})->toString();
+        echo "with ", $beyond, " -> ", $built, "\n";
+    } catch (Throwable $moved) {
+        echo "with ", $beyond, ": ", $moved->message, "\n";
+    }
+}
+
+// The two members agree over the accepted range: what `with` writes is what
+// `port` reads back, counted rather than read off any one line.
+int $agreed = 0;
+foreach ($accepted as int $round) {
+    ?int $back = Core\Uri::parse("http://h/")->with({port: $round})->port();
+    if ($back == $round) {
+        $agreed = $agreed + 1;
+    }
+}
+echo "agreed=", $agreed, "/", Core\Arr::count($accepted) as int, "\n";
+--EXPECT--
+[http://h:0/] port=0
+[http://h:1/] port=1
+[http://h:65535/] port=65535
+[http://h:00080/] port=80
+[http://h:/] port=null
+[http://h/] port=null
+[/p] port=null
+[http://h:65536/] refused
+[http://h:99999/] refused
+[http://h:99999999999999999999/] refused
+with 0 -> http://h:0/
+with 1 -> http://h:1/
+with 8080 -> http://h:8080/
+with 65535 -> http://h:65535/
+with -1: Core\Uri::with(): the authority's port is not a TCP port number. RFC 3986 § 3.2.3 admits any run of digits and defines the component as a port, so a value outside 0-65535 has no `int` this member could answer with
+with 65536: Core\Uri::with(): the authority's port is not a TCP port number. RFC 3986 § 3.2.3 admits any run of digits and defines the component as a port, so a value outside 0-65535 has no `int` this member could answer with
+agreed=4/4

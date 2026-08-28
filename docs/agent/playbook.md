@@ -1634,6 +1634,14 @@ is why" — is this file.
   that compiles; a backtick and an apostrophe need nothing inside double quotes, and
   `'q\'s'` is the single-quoted form. One scratch `nvs run` settles which of these a
   version of the lexer takes.
+- **`echo` writes its operands one at a time, so a throwing call in the middle of one
+  leaves half a line on stdout.** `try { echo "[", $t, "] port=", Show::port($t), "\n"; }
+  catch (Throwable $e) { echo "[", $t, "] refused\n"; }` prints
+  `[x] port=[x] refused` — the first three operands were already written when the fourth
+  threw, and the catch starts a second line's worth of text on the same line. It reads as
+  a case whose expectation is subtly wrong rather than as a case written in the wrong
+  order. Evaluate the throwing call into a local *inside* the `try` and echo the whole
+  line after it: `string $shown = Show::port($t); echo "[", $t, "] port=", $shown, "\n";`.
 
 ## Splitting a file that got too big
 

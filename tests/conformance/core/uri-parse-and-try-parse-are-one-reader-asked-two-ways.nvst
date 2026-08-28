@@ -1,0 +1,108 @@
+--TEST--
+`Core\Uri::tryParse` answers `null` at exactly the subjects `Core\Uri::parse` throws at and the same URI everywhere else, over a sweep of both of `parse`'s refusing steps — spec § 12, ADR 0066 § 3a
+--FILE--
+<?nvs
+// `tryParse` is `parse` with `null` where it throws, and the point of writing
+// it that way is that a validator written as separate code from the parser is
+// how `filter_var(FILTER_VALIDATE_URL)` came to accept user-info `parse_url`
+// read differently. So what is asserted here is not what either member
+// answered on any one line — it is that the two **agree**, counted, over every
+// subject the sweep can build.
+array<string> $subjects = [
+    // Read: the seven components together, then each shape RFC 3986 § 4.1
+    // admits on its own. An empty port is § 3.2.3's own "absent", not a
+    // refusal, and both ends of the TCP range are inside the bound.
+    "https://user:pw@example.com:8080/a/b?q=1#f",
+    "http://h/",
+    "http://[::1]:80/",
+    "http://h:/",
+    "http://h:0/",
+    "http://h:65535/",
+    "mailto:a@b",
+    "//h/p",
+    "/p",
+    "p",
+    "a%2Fb",
+    "?q",
+    "#f",
+    "",
+    // Refused, and by **both** of `parse`'s throwing steps rather than one:
+    // the first two are a port the grammar admits and § 3.2.3's prose does not
+    // (`65536` is one past the bound `65535` above), the rest are the three
+    // kinds of text the grammar itself refuses — a `%` that begins no escape,
+    // a bracketed host that is no IPv6 address, and a byte outside the
+    // grammar. A member folding only the grammar step passes every later line
+    // and fails the count.
+    "http://h:65536/",
+    "http://h:99999/",
+    "%zz",
+    "%",
+    "http://[not-v6]/",
+    "http://a b/",
+    "ht<tp://h/",
+];
+
+int $agreed = 0;
+int $refused = 0;
+int $read = 0;
+
+foreach ($subjects as string $subject) {
+    string $p = "";
+    try {
+        $p = Core\Uri::parse($subject)->toString();
+    } catch (Throwable $threw) {
+        $p = "<throw>";
+    }
+
+    // `tryParse` is caught too, so a subject it starts throwing at is a
+    // disagreement on the count rather than an aborted case.
+    string $t = "";
+    try {
+        ?Core\Uri $u = Core\Uri::tryParse($subject);
+        if ($u == null) {
+            $t = "<null>";
+        } else {
+            $t = $u->toString();
+        }
+    } catch (Throwable $tried) {
+        $t = "<throw>";
+    }
+
+    // Where `parse` threw, agreement is `null`. Where it read, agreement is
+    // the same URI: `parse` reports rather than normalizes, so `toString`
+    // hands the subject's own text back and the two are comparable as text.
+    if ($p == "<throw>") {
+        $refused = $refused + 1;
+        if ($t == "<null>") { $agreed = $agreed + 1; }
+    } else {
+        $read = $read + 1;
+        if ($p == $t) { $agreed = $agreed + 1; }
+    }
+
+    echo "[", $subject, "] parse=", $p, " tryParse=", $t, "\n";
+}
+
+echo "read=", $read, " refused=", $refused, " agreed=", $agreed, "/", Core\Arr::count($subjects) as int, "\n";
+--EXPECT--
+[https://user:pw@example.com:8080/a/b?q=1#f] parse=https://user:pw@example.com:8080/a/b?q=1#f tryParse=https://user:pw@example.com:8080/a/b?q=1#f
+[http://h/] parse=http://h/ tryParse=http://h/
+[http://[::1]:80/] parse=http://[::1]:80/ tryParse=http://[::1]:80/
+[http://h:/] parse=http://h:/ tryParse=http://h:/
+[http://h:0/] parse=http://h:0/ tryParse=http://h:0/
+[http://h:65535/] parse=http://h:65535/ tryParse=http://h:65535/
+[mailto:a@b] parse=mailto:a@b tryParse=mailto:a@b
+[//h/p] parse=//h/p tryParse=//h/p
+[/p] parse=/p tryParse=/p
+[p] parse=p tryParse=p
+[a%2Fb] parse=a%2Fb tryParse=a%2Fb
+[?q] parse=?q tryParse=?q
+[#f] parse=#f tryParse=#f
+[] parse= tryParse=
+[http://h:65536/] parse=<throw> tryParse=<null>
+[http://h:99999/] parse=<throw> tryParse=<null>
+[%zz] parse=<throw> tryParse=<null>
+[%] parse=<throw> tryParse=<null>
+[http://[not-v6]/] parse=<throw> tryParse=<null>
+[http://a b/] parse=<throw> tryParse=<null>
+[ht<tp://h/] parse=<throw> tryParse=<null>
+read=14 refused=7 agreed=21/21
