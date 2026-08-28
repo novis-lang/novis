@@ -2683,7 +2683,7 @@ sibling in the same namespace unqualified.
   `KNOWN_ICE` comment recorded "`void` in a parameter is diagnosed" on the strength of the second
   one failing differently. Two minutes of `nvs run` on a two-line scratch file is what tells the
   three apart — a shape that panics, a shape that is refused, and a shape that reaches codegen and
-  dies there is a *third* outcome `tests/type_atoms.rs` cannot see at all, because it stops at
+  dies there is a *third* outcome `crates/nvs-ir/tests/type_atoms.rs` cannot see at all, because it stops at
   `lower_program`.
 
 ## Divergences and refusals already pinned
