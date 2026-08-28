@@ -1,0 +1,87 @@
+--TEST--
+Spec § 5: `Core\Regex\Match::groups` holds one entry per declared group plus one per name, and never trims an unmatched one
+--FILE--
+<?nvs
+// ADR 0063 R11: `groups()` is `$matches` under `PREG_UNMATCHED_AS_NULL`, and
+// there are no `PREG_*` constants to ask for the other reading. What that
+// buys is a *count* that is a function of the pattern alone — `1` for the
+// whole match, one per numbered group, and one more for each of those that
+// carries a name — so the assertion below is the tally rather than any one
+// row. A member that trimmed trailing unmatched groups the way PHP's default
+// does would still print every row here plausibly.
+array<string> $patterns = [
+    "abc",
+    "(a)(b)(c)",
+    "(?<first>a)(b)",
+    "(?<first>a)(?<second>b)",
+    "(a)(x)?(c)?",
+    "(?:a)(b)",
+];
+array<string> $subjects = ["abc", "abc", "ab", "ab", "a", "ab"];
+// 1 + numbered + named, worked out from the pattern and nothing else.
+array<int> $expected = [1, 4, 4, 5, 4, 2];
+int $held = 0;
+int $agreed = 0;
+int $keys = 0;
+int $row = 0;
+foreach ($patterns as string $pattern) {
+    var $found = Core\Regex::match($subjects[$row as string], $pattern);
+    if ($found != null) {
+        var $groups = $found->groups();
+        if (Core\Arr::count($groups) as int == $expected[$row as string]) {
+            $held = $held + 1;
+        }
+        // Every key `groups()` lists is a key `group()` answers, with the
+        // same value: the two members read the one array, so a disagreement
+        // is one of them having grown its own lookup.
+        foreach ($groups as string $key => ?string $value) {
+            $keys = $keys + 1;
+            if (($value ?? "null") == ($found?->group($key) ?? "null")) {
+                $agreed = $agreed + 1;
+            }
+        }
+    }
+    $row = $row + 1;
+}
+echo $held as string, "/6|\n";
+echo $agreed as string, "/", $keys as string, "|\n";
+
+// The order is `preg_match`'s: the whole match, then each group under its
+// name where it has one and then under its number.
+var $named = Core\Regex::match("ab", "(?<first>a)(?<second>b)");
+if ($named != null) {
+    foreach ($named->groups() as string $key => ?string $value) {
+        echo $key, "=", $value ?? "null", " ";
+    }
+}
+echo "|\n";
+
+// A group the pattern declares but the match did not reach is `null` and is
+// *present*, trailing or not — the entry is what tells "declared and did not
+// participate" from the throw `group()` raises for a group nobody declared.
+var $optional = Core\Regex::match("a", "(a)(x)?(c)?");
+if ($optional != null) {
+    foreach ($optional->groups() as string $key => ?string $value) {
+        echo $key, "=", $value ?? "null", " ";
+    }
+}
+echo "|\n";
+
+// A non-capturing group declares nothing, so it moves no number: `(b)` is
+// group 1 here and not group 2.
+var $shy = Core\Regex::match("ab", "(?:a)(b)");
+echo $shy?->group(1) ?? "null", "|\n";
+
+// `groups()` on a match with no groups at all is the whole match alone —
+// one entry, never an empty array.
+var $bare = Core\Regex::match("abc", "b");
+if ($bare != null) {
+    echo Core\Arr::count($bare->groups()) as string, "=", $bare->group(0) ?? "null", "|\n";
+}
+--EXPECT--
+6/6|
+20/20|
+0=ab first=a 1=a second=b 2=b |
+0=a 1=a 2=null 3=null |
+b|
+1=b|
