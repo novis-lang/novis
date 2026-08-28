@@ -1,0 +1,124 @@
+--TEST--
+`Core\Str::chunk`'s size is a bound named on both sides, and over every size the chunks re-join to the subject in whole clusters — spec § 1 *Extraction*, ADR 0009 § 2
+--FILE--
+<?nvs
+// The bound, both halves on one line. `0` is the last size refused and `1` the
+// first accepted, and a member that stopped one entry either way prints
+// plausibly against either half alone — the size-`1` line looks right beside a
+// member that also admitted `0`, and the refusal looks right beside one that
+// also refused `1`.
+try { echo Core\Str::join(Core\Str::chunk("abc", 0), "|"), "\n"; }
+catch (Throwable $zero) { echo "0 refused, "; }
+echo "1 accepted: ", Core\Str::join(Core\Str::chunk("abc", 1), "|"), "\n";
+
+// The subject is five clusters over eleven bytes, and only the first and last
+// are one byte each: `ä` is two, the emoji four, and the `e`-plus-combining-
+// acute is a two-code-point cluster that a code-point count would call six
+// units rather than five. That last row is the one a byte-counted `str_split`
+// or a code-point-counted `mb_str_split` divides through the middle of.
+string $s = "aä😀e\u{301}b";
+int $n = Core\Str::length($s) as int;
+echo $n, " clusters\n";
+
+// Four properties, each asserted by counting over every size from `1` to two
+// past the subject's own length, because a member answering plausibly on one
+// line is exactly what a single `echo` of one size cannot catch:
+//
+//   1. the chunks re-join to the subject — nothing dropped, nothing doubled;
+//   2. there are `ceil($n / $size)` of them — the count `chunk_split` and
+//      `str_split` both promise, and the one a member that emitted a trailing
+//      empty chunk would fail;
+//   3. every chunk but the last holds exactly `$size` units and the last holds
+//      between `1` and `$size` — "the last chunk is the only short one", from
+//      the member's own doc comment;
+//   4. their lengths sum to the subject's, which is the cluster rule itself:
+//      splitting the decomposed `é` would leave `e` and the bare mark counting
+//      one unit each, so the sum would come out six against a subject of five
+//      while property 1 still held.
+int $size = 0;
+int $rejoins = 0;
+int $counts = 0;
+int $shapes = 0;
+int $wholeClusters = 0;
+for ($size = 1; $size <= 7; $size = $size + 1) {
+    array<string> $pieces = Core\Str::chunk($s, $size as uint);
+    int $k = Core\Arr::count($pieces) as int;
+    if (Core\Str::join($pieces, "") == $s) {
+        $rejoins = $rejoins + 1;
+    }
+    if ($k == Core\Math::intDiv($n + $size - 1, $size)) {
+        $counts = $counts + 1;
+    }
+    int $seen = 0;
+    int $wellSized = 0;
+    int $sum = 0;
+    foreach ($pieces as string $piece) {
+        int $len = Core\Str::length($piece) as int;
+        $sum = $sum + $len;
+        $seen = $seen + 1;
+        if ($seen < $k) {
+            if ($len == $size) {
+                $wellSized = $wellSized + 1;
+            }
+        } else {
+            if (($len >= 1) && ($len <= $size)) {
+                $wellSized = $wellSized + 1;
+            }
+        }
+    }
+    if ($wellSized == $k) {
+        $shapes = $shapes + 1;
+    }
+    if ($sum == $n) {
+        $wholeClusters = $wholeClusters + 1;
+    }
+}
+// Seven sizes, and all four properties hold at every one of them.
+echo $rejoins, " ", $counts, " ", $shapes, " ", $wholeClusters, "\n";
+
+// One division read out loud, so the counts above are anchored to something a
+// reader can check by eye. The subject here is composed rather than decomposed
+// on purpose: the sweep's own `é` is a combining pair, and a `--EXPECT--` block
+// cannot show the difference between the two spellings at all — which is why
+// the sweep asserts it by counting units instead of printing them.
+echo Core\Str::join(Core\Str::chunk("aäb", 2), "|"), "\n";
+
+// The two ends of the sweep say what `chunk` agrees with. At `1` it is exactly
+// `Core\Str::graphemes` — same partition, same unit — and at any size the
+// subject cannot fill it is the subject, unsplit, in one chunk rather than
+// padded or refused.
+array<string> $ones = Core\Str::chunk($s, 1);
+array<string> $units = Core\Str::graphemes($s);
+int $agree = 0;
+int $u = 0;
+for ($u = 0; $u < $n; $u = $u + 1) {
+    if ($ones[$u as string] == $units[$u as string]) {
+        $agree = $agree + 1;
+    }
+}
+echo $agree, " of ", $n, " agree with graphemes\n";
+array<string> $whole = Core\Str::chunk($s, 99);
+if ((Core\Arr::count($whole) as int == 1) && ($whole["0"] == $s)) {
+    echo "99 is one chunk, identical to the subject\n";
+}
+
+// Empty text divides into nothing at every size, which is the one place this
+// member parts company with `split` — asserted across the sweep rather than at
+// one size, since "no chunks" is the answer a member that special-cased the
+// empty subject at size `1` alone would also print.
+int $emptySize = 0;
+int $emptied = 0;
+for ($emptySize = 1; $emptySize <= 7; $emptySize = $emptySize + 1) {
+    if (Core\Arr::count(Core\Str::chunk("", $emptySize as uint)) as int == 0) {
+        $emptied = $emptied + 1;
+    }
+}
+echo $emptied, " empty answers\n";
+--EXPECT--
+0 refused, 1 accepted: a|b|c
+5 clusters
+7 7 7 7
+aä|b
+5 of 5 agree with graphemes
+99 is one chunk, identical to the subject
+7 empty answers
