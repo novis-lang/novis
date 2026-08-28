@@ -1,0 +1,111 @@
+--TEST--
+each `#[TestWith]` row is its own reported case, called with the constants the checker folded (ADR 0079 §§ 8, 9, 20, 22)
+--RUN--
+test
+--FILE--
+<?nvs
+// § 9: "each row is its own reported case", so this is the runner's own
+// report and not the program's output — `--RUN--` above is what says so.
+use Core\Test;
+use Core\Test\Fixture;
+use Core\Test\TestWith;
+
+final class Norm {
+    public static function normalize(string $s): string {
+        return Core\Str::lower(Core\Str::trim($s));
+    }
+}
+
+final class AlphaTest {
+    // § 8: one fixture for the whole class, resolved by type.
+    #[Fixture]
+    public static function prefix(): string {
+        return "p:";
+    }
+
+    // § 9's own worked example: three rows, three cases, labelled `#0`..`#2`
+    // in the order they are written.
+    #[TestWith(input: "  ada ", want: "ada")]
+    #[TestWith(input: "ADA", want: "ada")]
+    #[TestWith(input: "", want: "")]
+    #[Test]
+    public function itNormalizes(string $input, string $want): void {
+        Test::assertEquals(Norm::normalize($input), $want);
+    }
+
+    // § 9: every constant a parameter can be declared at, so a row's four
+    // scalars and its `string` all reach the call as themselves.
+    #[TestWith(n: -2, u: 9, f: 1.5, ok: true, text: "one")]
+    #[TestWith(n: 3, u: 8, f: -0.5, ok: false, text: "two")]
+    #[Test]
+    public function itTakesEveryConstant(int $n, uint $u, float $f, bool $ok, string $text): void {
+        Test::assertTrue($ok == ($n < 0));
+        Test::assertTrue($u > 7);
+        Test::assertTrue($f < 2.0);
+        Test::assertTrue(Core\Str::length($text) == 3);
+    }
+
+    // § 9: a mix of the two sources in one method — `$prefix` is the
+    // fixture's by type, `$suffix` and `$n` are the row's by name.
+    #[TestWith(suffix: "x", n: 1)]
+    #[TestWith(suffix: "y", n: 2)]
+    #[Test]
+    public function itMixesTheTwoSources(string $prefix, string $suffix, int $n): void {
+        Test::assertSame($prefix . $suffix, "p:" . $suffix);
+        Test::assertTrue($n > 0);
+    }
+
+    // § 9: where both could answer, the row wins — `$prefix` is the fixture's
+    // type, and this row names it, so `r:` and not `p:` arrives.
+    #[TestWith(prefix: "r:")]
+    #[Test]
+    public function aRowBeatsAFixtureThatWouldAnswerToo(string $prefix): void {
+        Test::assertSame($prefix, "r:");
+    }
+
+    // Each row is judged on its own: the first holds and the second fails,
+    // which no single reported case could say.
+    #[TestWith(want: 1)]
+    #[TestWith(want: 2)]
+    #[Test]
+    public function onlyTheSecondRowFails(int $want): void {
+        Test::assertSame($want, 1);
+    }
+
+    // § 20's skip is per test, and a row is one — so it is stated once per
+    // row, and neither body is constructed.
+    #[TestWith(want: 1)]
+    #[TestWith(want: 2)]
+    #[Test(skip: "the behaviour it pins is not written yet")]
+    public function aSkippedRowStatesItsReason(int $want): void {
+        Test::assertSame($want, 99);
+    }
+
+    // § 1's own shape is untouched: a method with no row is one case under
+    // its own name, with no `#0` on it.
+    #[Test]
+    public function aMethodWithNoRowKeepsItsName(): void {
+        Test::assertSame("plain", "plain");
+    }
+}
+--EXPECTF--
+  AlphaTest
+    ✓ itNormalizes#0                   %f ms
+    ✓ itNormalizes#1                   %f ms
+    ✓ itNormalizes#2                   %f ms
+    ✓ itTakesEveryConstant#0           %f ms
+    ✓ itTakesEveryConstant#1           %f ms
+    ✓ itMixesTheTwoSources#0           %f ms
+    ✓ itMixesTheTwoSources#1           %f ms
+    ✓ aRowBeatsAFixtureThatWouldAnswerToo#0 %f ms
+    ✓ onlyTheSecondRowFails#0          %f ms
+    ✗ onlyTheSecondRowFails#1          %f ms
+      Core\Test::assertSame failed: `$actual` is 2, `$expected` is 1
+    - aSkippedRowStatesItsReason#0     %f ms
+      skipped: the behaviour it pins is not written yet
+    - aSkippedRowStatesItsReason#1     %f ms
+      skipped: the behaviour it pins is not written yet
+    ✓ aMethodWithNoRowKeepsItsName     %f ms
+
+  1 failed, 10 passed, 2 skipped, 0 flaky in %d ms
+--EXPECTF-ERROR--

@@ -2,67 +2,62 @@
 
 ## State
 
-**M4's Stage 7: ADR 0079 § 9's data rows are checked, folded and resolved
-against § 8's fixtures, and what Stage 7 owes is the runner half of § 9.**
-`python tools/loop.py --list` reports no named `.nvst` case owed by any stage.
+**M4's Stage 7 is closed: everything ADR 0079 § 24 puts at M4 is on disk**, § 9's
+runner half having landed last. `python tools/loop.py --list` reports no named
+`.nvst` case owed by any stage, so the frontier is **Stage 8's corpus floor of
+750** — the tree is at **742**.
 
-- **`#[TestWith(...)]` is `Core\Test\TestWith` on ADR 0071 § 1's recognized
-  roster** (`crates/nvs-types/src/derive.rs:112`), the one such name that may
-  repeat on a declaration. Its payload is matched against the *method's own
-  parameter list*, by name and by type, which is why `nvs_types::testing` checks
-  it and `crate::attributes` does not.
-- **One function resolves both sources** — `resolve_parameters`
-  (`crates/nvs-types/src/testing.rs:428`) — and asks the row's name **before**
-  the fixture's type, so a row wins a parameter a fixture would also have
-  answered. `TestCase::params` is one `Injection` per parameter and
-  `TestCase::rows` is each row folded in parameter order.
-- **Every way a row fails to describe its method is `E0738`**; a field twice is
-  `E0304`, and a parameter neither roster reaches keeps `E0736`, whose help now
-  names both answers and offers the row only to a `#[Test]`.
-- **The runner does not run a row yet.** `nvs_cli::runner::run_case`
-  (`crates/nvs-cli/src/runner.rs:463`) reports a row-filled test loudly rather
-  than calling it with a hole; `fixtures_needed` is the fixture positions alone.
-- **A fixture is shared, not copied**, until § 2's isolates (M5) — the same
-  shape class storage already has here. `nvs_cli::runner`'s module doc and
-  ADR 0079 § 8 are the two homes.
+- **Each `#[TestWith]` row is its own reported case.**
+  `nvs_cli::runner::invocations` (`crates/nvs-cli/src/runner.rs:556`) is the one
+  home of the expansion and of the `method#N` label; ADR 0079 § 9's own body
+  states the rule, including why a `skip:` is stated per row.
+- **A row's constants are materialized per call and released when it returns** —
+  `nvs_runtime::RowValues` (`crates/nvs-runtime/src/dispatch.rs:474`), a
+  per-call owner beside `Fixtures`' per-class one. One method per constant
+  shape, so the single reference each value carries never leaves that type.
+- **`run_case` walks `TestCase::params` positionally** and takes a fixture's
+  value borrowed from the class's set or a row's from the owner above; a hole in
+  either is reported as an internal inconsistency rather than called around.
+- **A fixture is shared, not copied**, until § 2's isolates (M5) — and so is
+  nothing about a row, which is built fresh per case. `nvs_cli::runner`'s module
+  doc and ADR 0079 §§ 8-9 are the two homes.
 - **A `static` method called from native code needs its slot 0 filled with the
   called class** (`nvs_runtime::Value::class_desc`); the playbook bullet under
   *Running things* is that trap's home.
-- **`Core\Test` has eight assertion members plus `expectFailure`**;
-  `crates/nvs-stdlib/src/test.rs`'s module doc is the home of why each subject
-  is the type it is.
-- The conformance corpus is at **741**.
+- `tools/leak-check.sh --test` is how a `nvs test` path is valgrinded; a
+  `#[Test(retries: N, because: …)]` over a failing assertion is how a per-call
+  edge is driven N times.
 
 ## Next group
 
-**The runner half of § 9, which is the whole of what Stage 7 still owes.** The
-file set is `crates/nvs-cli/src/runner.rs` (`run_case` at `:463`,
-`fixtures_needed` at `:527`, `run_with_retries` at `:307`, the `Case`/`Outcome`
-reporting at `:196`) plus `crates/nvs-runtime/src/dispatch.rs`
-(`Fixtures::values` at `:423`, whose ownership shape a row's own values need
-too):
+**Conformance depth toward Stage 8's floor of 750, over the thinnest two classes
+`python tools/gaps.py` ranks.** The file set is
+`crates/nvs-stdlib/src/time.rs` alone, and the cases go under
+`tests/conformance/core/`:
 
-- [ ] **Each row is its own reported, separately isolated case** — § 9's "each
-      row is its own reported case": one `Case` per row, labelled so the three
-      formats tell them apart, with the row's `ConstArg`s materialized into
-      `Value`s. `nvs-cli` forbids `unsafe`, so the release of a materialized
-      row belongs in a `nvs-runtime` owner beside `Fixtures` rather than in the
-      runner; `NvsStr::new` (`crates/nvs-runtime/src/string.rs:253`) is the one
-      allocation a row needs.
-- [ ] **The `.nvst` that pins both** — § 9's own worked example running through
-      `nvs test` (`--RUN--`, `crates/nvs-test`'s module doc), each row reported
-      on its own line with its own verdict, one row failing while its siblings
-      pass, and the fixture/row mix beside them.
+- [ ] **`Core\Time\DateTime` — depth 0.06, one case over 17 members**, and three
+      of them no case calls at all: `date` (`crates/nvs-stdlib/src/time.rs:2369`),
+      `dayOfYear` (`:2410`), `difference` (`:2333`). Reach for *agreement* —
+      one question asked of every member that shares a rule, counted — rather
+      than another row of the same shape (`docs/agent/conventions.md`).
+- [ ] **`Core\Time\Instant` — depth 0.11, one case over 9 members**, with
+      `compareTo` (`crates/nvs-stdlib/src/time.rs:1822`), `in` (`:2453`) and
+      `minus` (`:1796`) uncalled. A *bound asserted on both sides* is the shape
+      the ordering members ask for.
+- [ ] **`Core\Time::now`/`monotonic`/`at` have a PHP twin and no oracle case**
+      (`crates/nvs-stdlib/src/time.rs:1634`, `:1645`, `:1140`) — those go in
+      `tests/differential/`, never in `tests/conformance/`, and PHP computes the
+      expectation.
 
 ## Backlog
 
-- § 9's `#[TestSource(Fixtures::names)]` — rows computed at run time; ADR 0079
-  § 9 names it and nothing implements it.
-- § 2's isolate per test and § 20's parallelism (M5) — `nvs_cli::runner`'s own
-  module doc names both.
-- A `require` whose path is not a string literal runs nothing, silently —
-  `nvs_hir::requires`' own known gap.
-- `nvs_stdlib::debug` gap 1: an ADR 0036 shape field and an `array<T>` element
-  carry no `secret` bit (ADR 0033's unmodelled container axis).
-- `nvs_stdlib::test` gap 1: a non-`Comparable` object under `assertEquals`
-  throws where ADR 0079 § 4 writes a compile error.
+- `Core\Csv::format`'s "column N is not a `string`" throw is still unreachable
+  from source (`crates/nvs-stdlib/src/csv.rs:512`) — the playbook bullet owns why.
+- `Core\Test::assertEqualsDeep`'s depth-cap throw is unasserted
+  (`crates/nvs-stdlib/src/test.rs:692`).
+- A `require` whose path is not a string literal runs nothing, silently, in both
+  forms — `nvs_hir::requires`' own known gap.
+- ADR 0079's `#[TestSource]` (§ 9) and doubles (§§ 10-11) are M4S/M5, not this
+  goal.
+- `nvs_stdlib::debug`'s known gap 1: an ADR 0036 shape field and an `array<T>`
+  element carry no `secret` bit.

@@ -1860,10 +1860,32 @@
 > `#[Test]`, a `#[Fixture]` being a method § 9 attaches no row to. Nothing partial rides across: a
 > refusal anywhere answers with two empty lists, and a method whose row was already refused is not
 > then told which parameter that left unfilled — the second diagnostic would be the first one seen
-> from the other end. What Stage 7 still owes is the **runner** half: the rows are compile-checked
-> and folded but not yet materialized into calls, so `nvs_cli::runner::run_case` reports a test with
-> a row loudly rather than calling it with a hole in its argument list, and running one case per row
-> is the next slice.
+> from the other end. **§ 9's runner half is landed, and with it everything ADR 0079 § 24 puts at
+> M4.** Each row is its own reported case: `nvs_cli::runner::invocations` expands one `#[Test]`
+> method into one call per row, in the order the rows are written, under the label `method#N` — a
+> **label** rather than a field beside the method name, so § 22's three formats tell two rows apart
+> while still reading one verdict rather than deciding one each, and a `skip:` is stated once per
+> row because what § 20 skips is a test and a row is one. The argument list is walked positionally
+> off `TestCase::params`, a `Injection::Fixture` taking the borrowed value the class's set already
+> holds and a `Injection::Row` the constant this row folded to, so nothing below the checker
+> re-derives which source answers which parameter; a hole in either is reported as the internal
+> inconsistency it would be rather than called around. The materialization needed an owner and it is
+> `nvs_runtime::RowValues`, beside `Fixtures` and for that type's reason — a row's `string` is a
+> fresh allocation somebody must release and `nvs-cli` forbids `unsafe` outright — but a
+> **per-call** one where `Fixtures` is per-class, which is § 9's own rule rather than a convenience:
+> each row is its own case, so its values are built where the call is made and released when it
+> returns, and the call only ever borrows them (`call_at` retains what it passes). The roster is one
+> method per constant shape rather than a general `Value` way in, because the one reference each
+> carries is that type's and a caller that could hand one over could hand over a second; the five
+> shapes are exactly what `nvs_types::defaults::literal_default` folds a row field to, § 9 matching
+> a field against its parameter's *declared* type. The *isolation* half of § 9's sentence is § 2's
+> isolate and waits on M5 exactly as § 8's shared fixture does. ADR 0079 § 9 gains the paragraph
+> rather than being left to name a runner that reports a row loudly, and
+> `tests/conformance/lang/a-data-row-is-its-own-reported-case.nvst` pins the whole of it in one
+> report — § 9's own worked example as three cases, every constant shape, the fixture/row mix, the
+> row that beats a fixture answering its type, one failing row beside its passing sibling, the skip
+> stated per row, and the method with no row keeping its bare name. Valgrind-clean over a fixture
+> that materializes two rows through 201 retried attempts.
 > `tests/conformance/reject/a-data-row-is-matched-against-the-parameters-by-name-and-by-type.nvst`
 > pins all six refusals in one compile with § 9's own worked example and the fixture/row mix written
 > first, and `crates/nvs-types/tests/testing.rs` asserts the folded rows, the mix and the
