@@ -1,0 +1,131 @@
+--TEST--
+Spec § 7: `Core\Bytes::contains` is `startsWith` taken over every suffix and `endsWith` taken over every prefix, counted over 156 needles, and the number of positions each disjunction holds at is the needle's own occurrence count — ADR 0009 § 1, ADR 0063 R6
+--FILE--
+<?nvs
+// The three predicates are one search asked at three positions: a substring is
+// a prefix of some suffix, and equally a suffix of some prefix. Every other
+// case about them derives `contains` from `indexOf` and the two ends from
+// `slice` plus `compare` — `bytes-the-three-predicates-are-what-compare-and-
+// index-of-already-say.nvst` and `bytes-contains-agrees-with-index-of-over-
+// every-needle.nvst` — so all three are pinned against the *other* members and
+// none against each other. A `contains` with its own search and a `startsWith`
+// with its own comparison satisfy both of those cases while disagreeing here.
+//
+// `crates/nvs-stdlib/src/bytes.rs:608` is `contains`, `:619` and `:629` are the
+// two ends; the first calls `find` and the other two call Rust's own slice
+// predicates, so nothing in the implementation makes this identity hold by
+// construction.
+
+final class Windows {
+    // How many of the subject's suffixes begin with the needle — the same
+    // number as the needle's occurrence count, since a suffix is named by
+    // where it starts.
+    public static function fromStarts(bytes $subject, bytes $needle): int {
+        int $total = Core\Bytes::length($subject) as int;
+        int $hits = 0;
+        int $k = 0;
+        for ($k = 0; $k <= $total; $k = $k + 1) {
+            if (Core\Bytes::startsWith(Core\Bytes::slice($subject, $k, $total - $k), $needle)) {
+                $hits = $hits + 1;
+            }
+        }
+        return $hits;
+    }
+
+    // The mirror: how many of the subject's prefixes end with the needle,
+    // which names an occurrence by where it *ends* rather than where it
+    // starts. The two counts must be equal for every needle, because they
+    // count the same occurrences from opposite sides.
+    public static function fromEnds(bytes $subject, bytes $needle): int {
+        int $total = Core\Bytes::length($subject) as int;
+        int $hits = 0;
+        int $k = 0;
+        for ($k = 0; $k <= $total; $k = $k + 1) {
+            if (Core\Bytes::endsWith(Core\Bytes::slice($subject, 0, $k), $needle)) {
+                $hits = $hits + 1;
+            }
+        }
+        return $hits;
+    }
+
+    public static function yn(bool $b): string {
+        if ($b) { return "y"; }
+        return "n";
+    }
+}
+
+// 11 octets with "abra" at 0 and at 7 and a single "a" at five offsets, so a
+// needle may occur once, twice or five times and the position counts below are
+// real questions rather than a `0`/`1` split.
+bytes $subject = "abracadabra" as bytes;
+bytes $absent = "q" as bytes;
+bytes $empty = Core\Encoding::fromHex("");
+int $total = Core\Bytes::length($subject) as int;
+
+// 1. The identity, over every window of the subject and every one of those
+//    windows with an octet the subject does not hold appended — 156 needles,
+//    78 of them present and 78 absent, so neither disjunction can be satisfied
+//    by a predicate stuck on one answer.
+int $needles = 0;
+int $viaStarts = 0;
+int $viaEnds = 0;
+int $endsMatchStarts = 0;
+int $present = 0;
+int $start = 0;
+int $len = 0;
+for ($start = 0; $start <= $total; $start = $start + 1) {
+    for ($len = 0; $len <= $total - $start; $len = $len + 1) {
+        bytes $window = Core\Bytes::slice($subject, $start, $len);
+        bytes $near = Core\Bytes::join([$window, $absent], $empty);
+        $needles = $needles + 2;
+
+        bool $hasWindow = Core\Bytes::contains($subject, $window);
+        bool $hasNear = Core\Bytes::contains($subject, $near);
+        if ($hasWindow) { $present = $present + 1; }
+        if ($hasNear) { $present = $present + 1; }
+
+        int $windowStarts = Windows::fromStarts($subject, $window);
+        int $windowEnds = Windows::fromEnds($subject, $window);
+        int $nearStarts = Windows::fromStarts($subject, $near);
+        int $nearEnds = Windows::fromEnds($subject, $near);
+
+        // `contains` is exactly "some suffix begins with it", and exactly
+        // "some prefix ends with it". Both directions are counted, because a
+        // member reading one octet past its subject inflates one side only.
+        if ($hasWindow == ($windowStarts > 0)) { $viaStarts = $viaStarts + 1; }
+        if ($hasNear == ($nearStarts > 0)) { $viaStarts = $viaStarts + 1; }
+        if ($hasWindow == ($windowEnds > 0)) { $viaEnds = $viaEnds + 1; }
+        if ($hasNear == ($nearEnds > 0)) { $viaEnds = $viaEnds + 1; }
+        if ($windowStarts == $windowEnds) { $endsMatchStarts = $endsMatchStarts + 1; }
+        if ($nearStarts == $nearEnds) { $endsMatchStarts = $endsMatchStarts + 1; }
+    }
+}
+echo "needles ", $needles, " present ", $present, "\n";
+echo "viaStarts ", $viaStarts, " viaEnds ", $viaEnds, " agree ", $endsMatchStarts, "\n";
+
+// 2. The counts themselves, on four written needles, so the sweep above is
+//    anchored to numbers a reader can check by eye rather than only to a
+//    tally of agreements. The empty needle holds at all 12 positions — it
+//    begins every suffix and ends every prefix, the empty subject slice
+//    included — where the whole subject holds at exactly one.
+echo "empty ", Windows::fromStarts($subject, $empty), "/", Windows::fromEnds($subject, $empty),
+    " a ", Windows::fromStarts($subject, "a" as bytes), "/", Windows::fromEnds($subject, "a" as bytes),
+    " abra ", Windows::fromStarts($subject, "abra" as bytes), "/", Windows::fromEnds($subject, "abra" as bytes),
+    " whole ", Windows::fromStarts($subject, $subject), "/", Windows::fromEnds($subject, $subject),
+    " q ", Windows::fromStarts($subject, $absent), "/", Windows::fromEnds($subject, $absent), "\n";
+
+// 3. The bound the disjunction has to respect on the far side: a needle wider
+//    than the subject begins no suffix and ends no prefix, so both counts are
+//    zero and `contains` is false — the one row where a predicate that
+//    compared only as far as its shorter operand would report a position.
+bytes $doubled = Core\Bytes::join([$subject, $subject], $empty);
+echo "tooLong ", Windows::yn(Core\Bytes::contains($subject, $doubled)),
+    " ", Windows::fromStarts($subject, $doubled), "/", Windows::fromEnds($subject, $doubled),
+    " emptySubject ", Windows::yn(Core\Bytes::contains($empty, $empty)),
+    " ", Windows::fromStarts($empty, $empty), "/", Windows::fromEnds($empty, $empty),
+    " ", Windows::fromStarts($empty, $absent), "/", Windows::fromEnds($empty, $absent), "\n";
+--EXPECT--
+needles 156 present 78
+viaStarts 156 viaEnds 156 agree 156
+empty 12/12 a 5/5 abra 2/2 whole 1/1 q 0/0
+tooLong n 0/0 emptySubject y 1/1 0/0
