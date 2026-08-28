@@ -1,0 +1,51 @@
+--TEST--
+`Core\Test`'s failure messages quote a `string` to 64 characters, counted in characters rather than bytes, and mark with an ellipsis only what it dropped -- ADR 0079 § 4
+--FILE--
+<?nvs
+// `shown`'s own doc comment gives the reason the bound exists at all: a
+// message is written to a build log, so a subject the test happened to build
+// out of a large input would otherwise choose how many bytes that log gains.
+// This case asserts the bound at both of its ends, because a member that
+// stopped one character early -- or that appended the ellipsis to every
+// quoted string -- prints just as plausibly against either half alone.
+
+int $refused = 0;
+
+// The two subjects, differing by exactly one character. Their lengths are
+// echoed rather than asserted from the repeat count, so the rows below are
+// read against a measured 64 and 65.
+string $at = Core\Str::repeat("x", 64);
+string $over = Core\Str::repeat("x", 65);
+echo "lengths=", Core\Str::length($at), ",", Core\Str::length($over), "\n";
+
+// The last accepted length: quoted whole, with no ellipsis. The `$expected`
+// side is short on purpose -- both sides go through the same quoting, and a
+// second long one would only hide which of them the bound was applied to.
+try { Core\Test::assertSame($at, "-"); } catch (Throwable $whole) { $refused = $refused + 1; echo $whole->message, "\n"; }
+
+// The first refused length: the same 64 characters, then the ellipsis. What
+// it marks is the one character dropped, so the quoted run is unchanged.
+try { Core\Test::assertSame($over, "-"); } catch (Throwable $cut) { $refused = $refused + 1; echo $cut->message, "\n"; }
+
+// The unit is a character, not a byte: 65 two-byte characters are cut at the
+// same place as 65 one-byte ones, where a byte-wise bound would have stopped
+// after 32 of them and could have stopped mid-character.
+string $wide = Core\Str::repeat("é", 65);
+try { Core\Test::assertSame($wide, "-"); } catch (Throwable $multi) { $refused = $refused + 1; echo $multi->message, "\n"; }
+
+// The bound belongs to the rendering, not to the member: `assertEqualsDeep`
+// reaches the same quoting for the leaf it names at the end of a path.
+array<string> $rows = [$over];
+array<string> $edited = ["-"];
+try { Core\Test::assertEqualsDeep($rows, $edited); } catch (Throwable $leaf) { $refused = $refused + 1; echo $leaf->message, "\n"; }
+
+// Counted rather than read off the lines above: a member that started
+// answering one of these instead of refusing fails here.
+echo "refused=", $refused, "/4\n";
+--EXPECT--
+lengths=64,65
+Core\Test::assertSame failed: `$actual` is "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", `$expected` is "-"
+Core\Test::assertSame failed: `$actual` is "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…", `$expected` is "-"
+Core\Test::assertSame failed: `$actual` is "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé…", `$expected` is "-"
+Core\Test::assertEqualsDeep failed: the two differ at `$actual["0"]`: `$actual` is "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…", `$expected` is "-"
+refused=4/4
