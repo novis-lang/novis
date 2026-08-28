@@ -1880,8 +1880,18 @@ class Chain:
             say(f"  {line}", C.GRAY)
 
         shutil.copyfile(ROOT / nxt["toml"], GOAL_TOML)
-        shutil.copyfile(ROOT / nxt["md"], GOAL_MD)
-        shutil.copyfile(ROOT / nxt["handoff"], ROOT / "docs" / "agent" / "handoff.md")
+        # The prose and the handoff are markdown full of relative links, and installing them moves
+        # them one directory up -- out of `docs/agent/goals/` and into `docs/agent/`. Copying the
+        # bytes verbatim breaks every one of them, which `check-links.py` reports and nothing else
+        # notices, because orient.py prints link *text* and a session never follows one to find out.
+        GOAL_MD.write_text(
+            relocate_links(read_text(ROOT / nxt["md"]), Path(nxt["md"]).parent.name),
+            encoding="utf-8", newline="\n",
+        )
+        (ROOT / "docs" / "agent" / "handoff.md").write_text(
+            relocate_links(read_text(ROOT / nxt["handoff"]), Path(nxt["handoff"]).parent.name),
+            encoding="utf-8", newline="\n",
+        )
 
         # The spec has to be runnable before a session is spent against it. Same class of failure
         # as a TOML typo in the live goal, caught in the same place: before anything is launched.
@@ -1935,6 +1945,40 @@ class Chain:
             return (f"chain: `docker compose -f {compose} up` failed -- {r.first_err_line}. "
                     f"The live goal's checks need those services.")
         return ""
+
+
+def read_text(path):
+    return Path(path).read_text(encoding="utf-8")
+
+
+#: A markdown link's target: `](...)`, up to the closing paren. Reference-style links and bare URLs
+#: are deliberately not matched -- this repository writes inline links and nothing else, and a
+#: rewriter that guessed at other forms would be a second thing to keep right.
+LINK_RE = re.compile(r"\]\(([^)]+)\)")
+
+
+def relocate_links(text, from_dir):
+    """Rewrite a goal file's relative links for its new home one directory up.
+
+    A staged goal lives in `docs/agent/goals/` and is installed at `docs/agent/`, so every link in
+    it is off by exactly one level -- and in two different directions:
+
+    * `../../adr/0071-…` becomes `../adr/0071-…`: one `../` too many, so one is dropped. This is
+      right for `../../../crates/…` too, which loses one of its three and keeps two.
+    * `1-core-depth.toml` and `README.md` are siblings in `goals/`, and from `docs/agent/` they are
+      `goals/1-core-depth.toml` and `goals/README.md`.
+
+    An anchor, an absolute path and anything with a scheme are left exactly as they are.
+    """
+    def fix(m):
+        target = m.group(1)
+        if target.startswith(("#", "/", "http://", "https://", "mailto:")) or "://" in target:
+            return m.group(0)
+        if target.startswith("../"):
+            return f"]({target[3:]})"
+        return f"]({from_dir}/{target})"
+
+    return LINK_RE.sub(fix, text)
 
 
 def preflight(kind):
@@ -2528,6 +2572,12 @@ def run_cli():
              "parity program's. Without this the run stops at the first goal that goes green."
     )
     ap.add_argument(
+        "--chain-install", action="store_true",
+        help="with --chain: install the next staged goal and exit, without running a session. This "
+             "is the switch on its own -- run it when you want the new goal live before deciding "
+             "when to start the run, and `--chain` then resumes at it rather than installing again."
+    )
+    ap.add_argument(
         "--force", action="store_true", help="start even if .loop/running says a driver is up"
     )
     ap.add_argument(
@@ -2622,12 +2672,31 @@ def run_cli():
     # a line rather than a log prune, and before `claim_run` so it cannot leave `.loop/running`
     # behind on a refusal.
     chain = None
+    if opts.chain_install and not opts.chain:
+        say("--chain-install needs --chain to say which chain to install from", C.RED)
+        return 2
     if opts.chain:
         try:
             chain = Chain(opts.chain)
         except ChainError as e:
             say(str(e), C.RED)
             return 2
+        if opts.chain_install:
+            # The switch on its own. Deliberately separate from starting a run: installing a goal is
+            # a change to the repository that gets committed, and deciding when to spend three
+            # hundred sessions against it is a different decision made at a different moment.
+            if chain.finished:
+                say(f"chain: {chain.current['name']} is the last goal in "
+                    f"{rel_to_root(chain.path)} and is already installed", C.YELLOW)
+                return 0
+            fail = chain.install_next()
+            if fail:
+                say(fail, C.RED)
+                return 2
+            say("")
+            say(f"chain: `python tools/loop.py --chain {opts.chain} --max-sessions <n>` "
+                f"resumes here", C.CYAN)
+            return 0
         if chain.index < 0:
             # Nothing installed yet: entry 0 takes its floor from whatever goal the repository is
             # currently running, which is what the first switch is for. Everything after it takes
