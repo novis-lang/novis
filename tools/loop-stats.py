@@ -52,6 +52,32 @@ MUTATORS = ("Edit", "Write", "NotebookEdit")
 #: is a single command -- and the lookarounds keep `||` from being counted as two.
 SEPARATOR_RE = re.compile(r"(?<!\|)(?:;|&&)(?!\|)")
 
+#: A shell call carrying file content, which AGENTS.md rule 1 forbids outright: the shell parses
+#: apostrophes and backticks before it runs anything, so the tree gets whatever survived that.
+#: The three spellings the rule names, and nothing else --
+#:
+#:   * a heredoc, `<<'TAG'` / `<<"TAG"` / `<<TAG`, including one writing a script under
+#:     `.agent-tmp/` that then patches the tree, which is the shape this has actually taken;
+#:   * `sed -i`;
+#:   * a `>`/`>>` redirect to a path. `2>&1` and `>&2` are excluded by the lookbehind and the
+#:     `&` guard -- they redirect a stream, not content -- and so is `/dev/null`.
+#:
+#: Counted because it was invisible: nothing reported it, and a session doing it read as one that
+#: made no edits at all, since none of `MUTATORS` fired. `splice.py --patch` is the tool that
+#: replaces all three, and it is one call for any number of files.
+SHELL_WRITE_RE = re.compile(
+    r"<<-?\s*['\"]?\w+"
+    r"|\bsed\s+(?:[^|;&]*\s)?-i\b"
+    r"|(?<![0-9&<>])>>?\s*(?!&|/dev/null)[^\s|;&<>]+"
+)
+
+
+def shell_write(name, inp) -> bool:
+    """Does this call carry file content through a shell? See [`SHELL_WRITE_RE`]."""
+    if name not in ("Bash", "PowerShell") or not isinstance(inp, dict):
+        return False
+    return bool(SHELL_WRITE_RE.search(str(inp.get("command") or "")))
+
 # The ceiling is a QUALITY limit, not a capacity one, and it is deliberately a fixed number
 # rather than whatever the model reports. A coding agent degrades noticeably long before its
 # window is full -- it starts missing things it has already read -- and a session that degrades
@@ -202,7 +228,15 @@ def read_session(path):
         return None
 
     texts = [call_text(c) for c in calls]
-    mutations = [i for i, (name, _) in enumerate(calls) if name in MUTATORS]
+    # `splice.py` and a shell write are edits too. Leaving them out put a session that patched
+    # the tree entirely through heredocs -- 0053 of the 20260828-112939 run -- at 52 head calls
+    # and no work at all, which is not a slow orientation but a mis-read one.
+    shell_writes = [i for i, (name, inp) in enumerate(calls) if shell_write(name, inp)]
+    mutations = sorted(
+        [i for i, (name, _) in enumerate(calls) if name in MUTATORS]
+        + shell_writes
+        + [i for i, t in enumerate(texts) if "splice.py" in t]
+    )
     verifies = [i for i, t in enumerate(texts) if any(m in t for m in VERIFY_MARKERS)]
     commits = [i for i, t in enumerate(texts) if "git commit" in t]
 
@@ -228,6 +262,7 @@ def read_session(path):
         "work": tail_start - head,
         "tail": n - tail_start,
         "verify_runs": len(verifies),
+        "shell_writes": len(shell_writes),
         "commits": len(commits),
         "ctx_start": contexts[0] if contexts else 0,
         "ctx_end": max(contexts) if contexts else 0,
@@ -641,6 +676,26 @@ def main():
             "\n   NOTHING WAS BATCHED, in either sense: no message carried two tool calls and no\n"
             "   shell call carried two commands. That is the one case where the clock above is\n"
             "   the worst case and the cheapest saving really is untaken."
+        )
+
+    # AGENTS.md rule 1, measured. It is here rather than in a linter because the rule is about
+    # a risk that mostly does not fire -- a heredoc carrying Rust works until the day an
+    # apostrophe in a doc comment ends the quote early -- so what a run needs is the count, not
+    # a gate that would fail a session for a `.agent-tmp/` scratch file.
+    writers = [s for s in sessions if s["shell_writes"]]
+    if writers:
+        spliced = sum(1 for s in sessions if "splice" in json.dumps(s.get("attribution", {})))
+        print(
+            f"\n   THE SHELL IS CARRYING FILE CONTENT. {sum(s['shell_writes'] for s in writers)} "
+            f"call(s) across {len(writers)} of\n"
+            f"   {len(sessions)} session(s) used a heredoc, a `>` redirect or a `sed -i` where "
+            f"AGENTS.md rule 1\n"
+            f"   asks for Write/Edit or `python tools/splice.py --patch`. The shell parses "
+            f"apostrophes\n"
+            f"   and backticks before it runs anything, so this is the spelling that fails on a "
+            f"doc\n"
+            f"   comment rather than on anything the session did wrong."
+            + (f" ({spliced} session(s) used splice.py.)" if spliced else "")
         )
 
     window = context_window(sessions)
