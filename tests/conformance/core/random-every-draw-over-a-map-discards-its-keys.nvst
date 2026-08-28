@@ -1,0 +1,77 @@
+--TEST--
+Core\Random::pick, sample and shuffle agree that a subject's keys reach no answer — pick draws a value and never a key, and both array answers come back under fresh 0, 1, … keys — spec § 11, ADR 0063 R5, ADR 0007 § 5
+--FILE--
+<?nvs
+// One question asked of all three members that draw over an `array<T>`: what
+// becomes of the subject's own keys. Every sibling case draws over a *list*,
+// where a key and a position are the same number and the rule is invisible —
+// so this subject is keyed by name, and its keys and its values are disjoint
+// strings, which makes an answer that leaked a key a value this file can name.
+// `nvs_stdlib::random::pick`'s doc comment owns "the value, never the key",
+// which is where PHP's `array_rand` is diverged from, and `drawn`'s owns the
+// fresh `0, 1, …` that `sample` and `shuffle` share with `Core\Arr::values`.
+array<string> $map = ["alpha" => "one", "beta" => "two", "gamma" => "three"];
+var $keys = Core\Arr::keys($map);
+var $values = Core\Arr::values($map);
+
+// `pick`, counted over a sweep rather than read off one draw: every answer is
+// one of the three values, *none* is one of the three keys, and all three
+// values are reached. A member handing back a key — PHP's own answer — fails
+// the middle count on the first draw, and one answering a fixed entry fails
+// the last, where a spot check would have printed something plausible either
+// way.
+int $i = 0;
+int $isValue = 0;
+int $isKey = 0;
+array<string> $picks = [];
+for ($i = 0; $i < 150; $i = $i + 1) {
+    var $p = Core\Random::pick($map) as string;
+    $isValue = $isValue + (Core\Arr::contains($values, $p) ? 1 : 0);
+    $isKey = $isKey + (Core\Arr::contains($keys, $p) ? 1 : 0);
+    $picks = Core\Arr::append($picks, $p);
+}
+echo "pick ", $isValue, " ", $isKey, " ", Core\Arr::count(Core\Arr::unique($picks)), "\n";
+
+// `sample` draws distinct *entries*, so its two answers are two of the values
+// and neither of them is a key — the `diff` against the keys keeps both of
+// them, which is only true if the subject's naming reached nothing. The answer
+// is a list, whatever the subject was.
+int $sampleList = 0;
+int $sampleFromValues = 0;
+int $sampleNoKeys = 0;
+for ($i = 0; $i < 24; $i = $i + 1) {
+    var $two = Core\Random::sample($map, 2);
+    $sampleList = $sampleList + (Core\Arr::isList($two) ? 1 : 0);
+    $sampleFromValues = $sampleFromValues + ((Core\Arr::count(Core\Arr::diff($two, $values)) == 0) ? 1 : 0);
+    $sampleNoKeys = $sampleNoKeys + ((Core\Arr::count(Core\Arr::diff($two, $keys)) == 2) ? 1 : 0);
+}
+echo "sample ", $sampleList, " ", $sampleFromValues, " ", $sampleNoKeys, "\n";
+
+// `shuffle` is the whole subject reordered, so over a map it is the whole
+// subject's *values* reordered: sorting the answer gives the sorted values
+// back, not the sorted keys and not a mixture. PHP's `shuffle` renumbers too,
+// so this is the one member here where the key rule is not a divergence — the
+// point of asking it beside the other two is that they answer alike.
+var $sortedValues = Core\Json::encode(Core\Arr::sort($values));
+int $shuffleList = 0;
+int $shuffleWhole = 0;
+int $shuffleNoKeys = 0;
+for ($i = 0; $i < 24; $i = $i + 1) {
+    var $s = Core\Random::shuffle($map);
+    $shuffleList = $shuffleList + (Core\Arr::isList($s) ? 1 : 0);
+    $shuffleWhole = $shuffleWhole + ((Core\Json::encode(Core\Arr::sort($s)) == $sortedValues) ? 1 : 0);
+    $shuffleNoKeys = $shuffleNoKeys + ((Core\Arr::count(Core\Arr::diff($s, $keys)) == 3) ? 1 : 0);
+}
+echo "shuffle ", $shuffleList, " ", $shuffleWhole, " ", $shuffleNoKeys, "\n";
+
+// The keys themselves, rendered rather than counted: the two array answers are
+// keyed by position from zero, so the run is as long as the answer and says
+// nothing about which entries were drawn.
+echo "keys ",
+    Core\Json::encode(Core\Arr::keys(Core\Random::sample($map, 2))), " ",
+    Core\Json::encode(Core\Arr::keys(Core\Random::shuffle($map))), "\n";
+--EXPECT--
+pick 150 0 3
+sample 24 24 24
+shuffle 24 24 24
+keys ["0","1"] ["0","1","2"]
