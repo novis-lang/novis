@@ -87,7 +87,12 @@ pub(super) fn infer_method_call(
     };
     if resolved.is_none()
         && let MemberName::Ident(name_span) = method
-        && matches!(env.interner.get(receiver_ty), Ty::Object | Ty::Shape(_))
+        && !matches!(env.interner.get(receiver_ty), Ty::Mixed)
+        && class_qname_of(receiver_ty, env.interner).is_none()
+        // A nullable receiver whose non-`null` half *is* a class already took
+        // `E_NULLABLE_RECEIVER` on the way in ([`strip_nullsafe_receiver`]),
+        // and is one mistake rather than two.
+        && class_qname_of(env.interner.without_null(receiver_ty), env.interner).is_none()
     {
         let name = span_text(env.src, *name_span).to_owned();
         report_method_on_erased_receiver(object.span.to(*name_span), &name, receiver_ty, env);
@@ -585,37 +590,64 @@ pub(super) fn report_named_args_through_callable(args: &CallArgs, env: &mut Env<
     }
 }
 
-/// A method called on a receiver whose type names no class — a plain
-/// `object`, or an ADR 0036 shape.
+/// A method called on a receiver whose type names no class at all — a plain
+/// `object`, an ADR 0036 shape, a union naming no single class, an
+/// intersection, or a type that can hold no object in the first place (a
+/// scalar, an `array<T>`, a `callable`, a `void` call's result).
 ///
-/// ADR 0007 § 3 makes `object` the opaque top of every class type: it is a
-/// pointer with the class label erased, and it lists no members. A shape is
-/// the structural type beside it, and ADR 0036 gives it fields and no methods
-/// at all. ADR 0036 § 4 answered the *property* half of an erased receiver
-/// with a name-keyed runtime fetch and deliberately stopped there — a call
-/// additionally needs an argument list checked against a signature and a
-/// return type for the position it sits in, and an erased receiver supplies
-/// neither. There is no `__call` to fall back on either (ADR 0014), so the
-/// call is refused where it is written rather than reaching `nvs-ir` with no
-/// resolved target.
+/// It is **one** code across that whole family, because it is one mistake: a
+/// method is resolved against a class, and none of these names one. ADR 0007
+/// § 3 makes `object` the opaque top of every class type — a pointer with the
+/// class label erased, listing no members — and ADR 0036 gives a shape fields
+/// and no methods at all; a union names several classes or none, and a
+/// `Dog|Cat` receiver has no one signature for the argument list to be checked
+/// against or for the call's position to take its type from. That is also why
+/// the *property* half splits where this one does not: ADR 0036 § 4 answers an
+/// erased property read with a name-keyed runtime fetch and refuses the rest
+/// (`E_RECEIVER_HAS_NO_PROPERTIES`), while a call additionally needs a
+/// signature and a return type, which no receiver here supplies. There is no
+/// `__call` to fall back on either (ADR 0014), so every one of them is refused
+/// where it is written rather than reaching `nvs-ir` with no resolved target.
 ///
-/// Both narrowing spellings that recover a class are named in the help, and
-/// both already lower: `instanceof` proves it inside the guarded branch, and
-/// `as ClassName` converts to it or throws.
+/// `mixed` is deliberately **not** here: ADR 0007 § 2 makes it the one
+/// unchecked position and ADR 0036 § 4 defers it to a run-time answer, which
+/// is [`crate::expr`]'s own next slice rather than a refusal.
+///
+/// The help splits three ways because the fix does. A receiver that can hold
+/// an object is narrowed — both spellings already lower, `instanceof` proving
+/// the class inside the guarded branch (`crate::locals::instanceof_residue`)
+/// and `as ClassName` converting to it or throwing. One that cannot
+/// ([`can_hold_an_object`]) has nothing to narrow, so the help is the
+/// property half's: convert, or declare the receiver `mixed` and take the
+/// deferral. A `void` call has no value at all, so neither applies.
 fn report_method_on_erased_receiver(span: Span, name: &str, ty: TypeId, env: &mut Env<'_>) {
     let described = env.interner.describe(ty);
+    let help = if matches!(env.interner.get(ty), Ty::Void) {
+        format!(
+            "a call that returns `void` yields no value, so there is nothing for `{name}` to be \
+             called on — call `{name}` on the receiver you meant"
+        )
+    } else if can_hold_an_object(ty, env.interner) {
+        format!(
+            "narrow the receiver to the class that declares `{name}` first — \
+             `if ($x instanceof ClassName) {{ … }}`, or `$x as ClassName`; ADR 0007 § 3 makes \
+             `object` the opaque top of every class type, and ADR 0036 § 4 erases a property \
+             access through one but not a call"
+        )
+    } else {
+        format!(
+            "only an object has methods — convert the receiver to the class that declares \
+             `{name}` (`$x as Box`), or declare it `mixed`, which is the one unchecked position \
+             (ADR 0007 § 2) and defers the whole question to a catchable throw at run time"
+        )
+    };
     env.diags.report(
         Diagnostic::error(
             code::E_METHOD_ON_ERASED_RECEIVER,
             format!("`{described}` names no class, so it has no method `{name}`"),
         )
-        .with_primary(span, "called on an erased receiver here")
-        .with_help(format!(
-            "narrow the receiver to the class that declares `{name}` first — \
-             `if ($x instanceof ClassName) {{ … }}`, or `$x as ClassName`; ADR 0007 § 3 makes \
-             `object` the opaque top of every class type, and ADR 0036 § 4 erases a property \
-             access through one but not a call"
-        )),
+        .with_primary(span, "called on a receiver that names no class here")
+        .with_help(help),
     );
 }
 

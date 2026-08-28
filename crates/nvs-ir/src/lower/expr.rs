@@ -2389,9 +2389,10 @@ impl<'a> Lowering<'a> {
             panic!(
                 "nvs-ir: an instance method call at {:?} has no resolved target \
                  recorded in the typed-expression table — either it wasn't checked \
-                 with the same table, or its receiver was a `mixed`, a union or a \
-                 scalar, which the checker does not yet refuse (an *erased* one is \
-                 `E0477`); see the crate docs' known gaps",
+                 with the same table, or its receiver was a `mixed`, whose deferral \
+                 to a run-time answer this does not lower yet — every other receiver \
+                 naming no class is refused where it is written (`E0477`); see the \
+                 crate docs' known gaps",
                 expr.span
             );
         };

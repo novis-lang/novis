@@ -1,0 +1,89 @@
+--TEST--
+A method call is refused wherever the receiver's type names no class — a union, a scalar, an `array<T>`, a `void` call — and a receiver that may be `null` is still one mistake — ADR 0007 § 3, ADR 0036 § 4
+--FILE--
+<?nvs
+final class Dog {
+    public function speak(): string { return "woof"; }
+}
+
+final class Cat {
+    public function speak(): string { return "meow"; }
+}
+
+final class V {
+    public static function nothing(): void {}
+}
+
+// Accepted, and written first so that a spelling that stops resolving fails
+// here rather than as a missing refusal: a receiver that names one class
+// resolves against it, and ADR 0007 § 6's `instanceof` narrowing recovers
+// that class out of a union.
+Dog $d = new Dog();
+echo $d->speak(), "\n";
+
+Dog|Cat $narrowed = new Cat();
+if ($narrowed instanceof Cat) {
+    echo $narrowed->speak(), "\n";
+}
+
+// A method is resolved against a class, and a union names several or none —
+// there is no one signature to check the argument list against, and no one
+// return type for the call's position to take. `instanceof` and `as` are both
+// in the help because both already lower.
+Dog|Cat $u = new Dog();
+echo $u->speak(), "\n";
+
+// A type that can hold no object at all has nothing to narrow to, so the help
+// is the property half's instead: convert, or declare the receiver `mixed`,
+// which ADR 0007 § 2 makes the one unchecked position.
+string $s = "x";
+echo $s->speak(), "\n";
+
+array<int> $xs = [1];
+echo $xs->speak(), "\n";
+
+// A `void` call yields no value, so neither fix applies.
+echo V::nothing()->speak(), "\n";
+
+// A receiver that may be `null` whose non-`null` half *is* a class is one
+// mistake and takes one code: `E0459` on the way in, and no second refusal
+// behind it.
+?Dog $maybe = null;
+echo $maybe->speak(), "\n";
+--EXPECTF-ERROR--
+error[E0477]: `Dog|Cat` names no class, so it has no method `speak`
+   --> %s:31:6
+   |
+31 | echo $u->speak(), "\n";
+   |      ^^^^^^^^^ called on a receiver that names no class here
+   = help: narrow the receiver to the class that declares `speak` first — `if ($x instanceof ClassName) { … }`, or `$x as ClassName`; ADR 0007 § 3 makes `object` the opaque top of every class type, and ADR 0036 § 4 erases a property access through one but not a call
+
+error[E0477]: `string` names no class, so it has no method `speak`
+   --> %s:37:6
+   |
+37 | echo $s->speak(), "\n";
+   |      ^^^^^^^^^ called on a receiver that names no class here
+   = help: only an object has methods — convert the receiver to the class that declares `speak` (`$x as Box`), or declare it `mixed`, which is the one unchecked position (ADR 0007 § 2) and defers the whole question to a catchable throw at run time
+
+error[E0477]: `array<int>` names no class, so it has no method `speak`
+   --> %s:40:6
+   |
+40 | echo $xs->speak(), "\n";
+   |      ^^^^^^^^^^ called on a receiver that names no class here
+   = help: only an object has methods — convert the receiver to the class that declares `speak` (`$x as Box`), or declare it `mixed`, which is the one unchecked position (ADR 0007 § 2) and defers the whole question to a catchable throw at run time
+
+error[E0477]: `void` names no class, so it has no method `speak`
+   --> %s:43:6
+   |
+43 | echo V::nothing()->speak(), "\n";
+   |      ^^^^^^^^^^^^^^^^^^^ called on a receiver that names no class here
+   = help: a call that returns `void` yields no value, so there is nothing for `speak` to be called on — call `speak` on the receiver you meant
+
+error[E0459]: `null|Dog` may be `null`, so `->` cannot reach a member of it
+   --> %s:49:6
+   |
+49 | echo $maybe->speak(), "\n";
+   |      ^^^^^^ this receiver is nullable
+   = help: test it first — inside `if ($x != null) { … }` the receiver is no longer nullable — or use `?->`, which answers `null` instead of reaching the member
+
+error: aborting due to 5 errors

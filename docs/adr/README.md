@@ -476,7 +476,15 @@ it is written (`nvs_types::expr::calls::report_method_on_erased_receiver`), nami
 do resolve: `instanceof` proves the class inside the guarded branch, and `as ClassName` converts to it or
 throws. There is no `__call` to fall back on ([0014](0014-property-observer.md)), and § 3's "a dynamic call
 with runtime-checked arguments, at `mixed`'s cost" is deferred for `callable` and was never granted to
-`object`. Refusing is the reversible half of that pair: a later decision can turn this diagnostic into
+`object`. **It is one code across every receiver that names no class**, because it is one mistake and the
+resolution it fails is the same one: a union naming no single class, an intersection, and the types that
+can hold no object at all — a scalar, an `array<T>`, a `void` call's result — all take `E0477` too, with
+only the help splitting (narrow it, or convert it, or nothing at all for a value that does not exist).
+That is where the call half parts company with the property one, which splits a *deferral* off from
+`E0495`: a property read through an erased receiver has a name-keyed fetch to defer to and a call has
+nothing. `mixed` is the one receiver deliberately left out — [0007](0007-explicit-type-system.md) § 2 makes
+it the one unchecked position, so it defers rather than refuses, and until that lowering exists it is the
+one shape `nvs-ir`'s own panic at `lower/expr.rs` still names. Refusing is the reversible half of that pair: a later decision can turn this diagnostic into
 dispatch, while a program that already dispatched could not be taken back.
 
 **A closure parameter naming a class is checked against the argument's own ancestry, at the closure's

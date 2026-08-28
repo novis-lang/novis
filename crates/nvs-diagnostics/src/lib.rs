@@ -860,16 +860,24 @@ pub mod code {
     /// a `throw` expression, says the same thing and says it on purpose.
     pub const E_MATCH_NO_ARMS: Code = Code::new("E0476");
     /// A method called on a receiver whose type names no class: a plain
-    /// `object` (ADR 0007 § 3's opaque top of every class type) or an
-    /// ADR 0036 shape, neither of which lists a single method.
+    /// `object` (ADR 0007 § 3's opaque top of every class type), an ADR 0036
+    /// shape, a union naming no single class, or a type that can hold no
+    /// object at all — a scalar, an `array<T>`, a `void` call's result.
     ///
-    /// ADR 0036 § 4 gave the *property* half of an erased receiver a
-    /// name-keyed runtime fetch, and deliberately stopped there. A call needs
-    /// an argument list checked against a signature and a return type to bind
-    /// the position it sits in, and an erased receiver supplies neither — so
-    /// there is nothing here to resolve, and no `__call` to fall back on
-    /// (ADR 0014). Narrow first: `instanceof` proves the class, and
-    /// `as ClassName` converts to it.
+    /// One code across that whole family, because it is one mistake: a method
+    /// is resolved against a class and none of these names one. ADR 0036 § 4
+    /// gave the *property* half of an erased receiver a name-keyed runtime
+    /// fetch and deliberately stopped there — which is why the property half
+    /// splits into a deferral and [`E_RECEIVER_HAS_NO_PROPERTIES`] where this
+    /// one does not. A call needs an argument list checked against a
+    /// signature and a return type to bind the position it sits in, and no
+    /// receiver here supplies either, with no `__call` to fall back on
+    /// (ADR 0014). `mixed` is the one receiver deliberately *not* refused:
+    /// ADR 0007 § 2 makes it the one unchecked position, so it defers.
+    ///
+    /// The help follows the receiver: narrow one that can hold an object
+    /// (`instanceof` proves the class, `as ClassName` converts to it), and
+    /// convert or declare `mixed` for one that cannot.
     pub const E_METHOD_ON_ERASED_RECEIVER: Code = Code::new("E0477");
     /// An array element written through an ADR 0014 § 1 hooked property:
     /// `$obj->hooked[0] = v`, or any deeper subscript over the same base.
