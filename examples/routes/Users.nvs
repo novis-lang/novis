@@ -1,0 +1,46 @@
+<?nvs
+namespace App;
+
+// Reached only by § 5's scan: the entry point declares the root and never this
+// name. There is no base class, no naming rule and no directory layout — § 4
+// refuses all three — so this is an ordinary class whose methods happen to
+// carry an attribute.
+class Users
+{
+    // ADR 0077 § 1: `#[Core\Route]` is matched *nominally*, so a userland
+    // `type Route = {...}` is not it however it is spelled. § 3: the `{id}`
+    // capture must correspond to a parameter of the same name, and that
+    // parameter's declared type is what the segment converts to — `uint`, so
+    // `/users/abc` simply does not match, and a checked conversion launders
+    // (ADR 0024 § 2), which is why `$id` arrives unqualified rather than
+    // `tainted`.
+    //
+    // § 1: `name` is optional and never derived. Naming each route after the
+    // method that serves it is this fixture's own choice, and it is what lets
+    // the entry point's `Core\Router::url` calls name a route without a
+    // convention the compiler would have to invent.
+    #[\Core\Route(path:"/users/{id}", method: \Core\Http\Method::Get, name: "Users::show")]
+    public function show(uint $id): string
+    {
+        return "user " . $id;
+    }
+
+    // § 2: precedence is structural, not declaration-ordered — a literal
+    // segment beats a `{name}` capture — so `/users` and `/users/{id}` coexist
+    // with no ordering rule to remember, and moving either declaration between
+    // files cannot change which one wins.
+    #[\Core\Route(path:"/users", method: \Core\Http\Method::Get, name: "Users::index")]
+    public function index(): string
+    {
+        return "every user";
+    }
+
+    // The same path under a different verb is a different route, not a
+    // duplicate: § 3's duplicate-route error is over the `method` and the path
+    // *shape* together.
+    #[\Core\Route(path:"/users", method: \Core\Http\Method::Post, name: "Users::create")]
+    public function create(): string
+    {
+        return "created";
+    }
+}
