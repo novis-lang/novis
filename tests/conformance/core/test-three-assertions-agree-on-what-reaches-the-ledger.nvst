@@ -1,0 +1,122 @@
+--TEST--
+`assertSame`, `assertCount` and `assertDoesNotThrow` agree on what reaches ADR 0079 § 5's ledger: a failure is recorded whether or not its throw is caught, and a pass leaves nothing to discharge -- ADR 0079 §§ 4, 5, 20
+--FILE--
+<?nvs
+// § 5 makes the ledger the record and the throw the control flow, so the
+// question every assertion answers the same way is "what did you record?" --
+// not "what did you raise?". `Core\Test::expectFailure` is the one member that
+// reads the ledger back, and it reads it by *class of entry* rather than by the
+// pending throw, so it is the whole observation channel a program has here.
+//
+// Three members that share the ledger are asked the identical question through
+// it, and the agreements are counted rather than read off the lines: a member
+// that raises its failure without recording it looks correct on its own line
+// (the throw still arrives, and a `catch` still binds it) and fails here,
+// because the entry it never wrote is not there to discharge.
+//
+// The middle row of each triple is the one the throw cannot answer: the body
+// swallows the `Core\Test\Failure` itself and returns normally, so the only
+// evidence the assertion ever failed is the entry. § 5's silently-passing test
+// is exactly that program.
+//
+// What no program can observe is the *passing* entry itself: nothing in
+// `Core\Test` reports a tally, and `expectFailure` discharges only failures
+// (`nvs_runtime::Ctx::discharge_failures_from`). § 20's "a test that asserts
+// nothing fails" is what reads those, in `nvs_cli::runner`, so the third row of
+// each triple pins the half a program can see -- a held assertion leaves no
+// failure behind.
+
+final class Ran {
+    public static function sameFails(): void {
+        Core\Test::assertSame("a", "b");
+    }
+    public static function sameSwallowed(): void {
+        try {
+            Core\Test::assertSame("a", "b");
+        } catch (Core\Test\Failure $swallowedSame) {
+        }
+    }
+    public static function sameHolds(): void {
+        Core\Test::assertSame("a", "a");
+    }
+
+    public static function countFails(): void {
+        array<string> $rows = ["a", "b"];
+        Core\Test::assertCount($rows, 3);
+    }
+    public static function countSwallowed(): void {
+        array<string> $rows = ["a", "b"];
+        try {
+            Core\Test::assertCount($rows, 3);
+        } catch (Core\Test\Failure $swallowedCount) {
+        }
+    }
+    public static function countHolds(): void {
+        array<string> $rows = ["a", "b"];
+        Core\Test::assertCount($rows, 2);
+    }
+
+    // The `callable`-subject member, whose failure is provoked by the body it
+    // was handed rather than by a comparison -- a different path to the same
+    // ledger entry.
+    public static function quietFails(): void {
+        Core\Test::assertDoesNotThrow(fn (): void => { throw new ParseError("the input is not JSON"); });
+    }
+    public static function quietSwallowed(): void {
+        try {
+            Core\Test::assertDoesNotThrow(fn (): void => { throw new ParseError("the input is not JSON"); });
+        } catch (Core\Test\Failure $swallowedQuiet) {
+        }
+    }
+    public static function quietHolds(): void {
+        Core\Test::assertDoesNotThrow(fn (): int => { return 7; });
+    }
+}
+
+// Six bodies, two per member: the failure that propagates and the failure the
+// body swallowed. Both are one entry, so `expectFailure` holds over each.
+int $discharged = 0;
+
+Core\Test::expectFailure(fn (): void => { Ran::sameFails(); });
+$discharged = $discharged + 1;
+Core\Test::expectFailure(fn (): void => { Ran::sameSwallowed(); });
+$discharged = $discharged + 1;
+Core\Test::expectFailure(fn (): void => { Ran::countFails(); });
+$discharged = $discharged + 1;
+Core\Test::expectFailure(fn (): void => { Ran::countSwallowed(); });
+$discharged = $discharged + 1;
+Core\Test::expectFailure(fn (): void => { Ran::quietFails(); });
+$discharged = $discharged + 1;
+Core\Test::expectFailure(fn (): void => { Ran::quietSwallowed(); });
+$discharged = $discharged + 1;
+
+echo "discharged=", $discharged, "/6\n";
+
+// The other side, three bodies: each member held, so there is no failed entry
+// at or after the mark and `expectFailure` records one of its own. The first
+// prints its report; the other two are counted, since all three are the same
+// refusal and the count is what says they agreed.
+int $refused = 0;
+
+try {
+    Core\Test::expectFailure(fn (): void => { Ran::sameHolds(); });
+} catch (Core\Test\Failure $sameHeld) {
+    $refused = $refused + 1;
+    echo $sameHeld->message, "\n";
+}
+try {
+    Core\Test::expectFailure(fn (): void => { Ran::countHolds(); });
+} catch (Core\Test\Failure $countHeld) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Test::expectFailure(fn (): void => { Ran::quietHolds(); });
+} catch (Core\Test\Failure $quietHeld) {
+    $refused = $refused + 1;
+}
+
+echo "refused=", $refused, "/3\n";
+--EXPECT--
+discharged=6/6
+Core\Test::expectFailure failed: the callable ran without a failed assertion
+refused=3/3
