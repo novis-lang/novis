@@ -20,6 +20,53 @@ fn check_with_node(body: &str) -> Diagnostics {
     ))
 }
 
+/// Wraps `body` in a method taking an erased `object`, so that *failing* to
+/// narrow is observable: a method call on a plain `object` names no member and
+/// is refused where it is written, while the same call on a narrowed receiver
+/// resolves. A `mixed` subject would defer both to run time (ADR 0036 § 4) and
+/// assert nothing either way.
+fn check_with_erased_object(decls: &str, body: &str) -> Diagnostics {
+    check_src(&format!(
+        "<?nvs\n{decls}\nclass T {{\n  function m(object $v): void {{\n{body}\n  }}\n}}\n"
+    ))
+}
+
+/// The direction a program written against an abstraction actually takes: the
+/// subject is proved to implement the interface, so its members resolve.
+#[test]
+fn an_instanceof_test_narrows_its_subject_to_an_interface() {
+    let diags = check_with_erased_object(
+        "interface Labelled {\n  function label(): string;\n}",
+        "    if ($v instanceof Labelled) {\n      echo $v->label();\n    }",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// The same shape with no test at all, so the acceptance above is read as
+/// *narrowing* rather than as "an `object` receiver resolves anything".
+#[test]
+fn the_same_call_without_the_test_is_still_refused() {
+    let diags = check_with_erased_object(
+        "interface Labelled {\n  function label(): string;\n}",
+        "    echo $v->label();",
+    );
+    assert!(diags.has_errors(), "{diags:?}");
+}
+
+/// The one name still left out, and why: ADR 0053 § 2's iteration interfaces
+/// are written with a type argument everywhere they are declared, and
+/// `instanceof Iterator` supplies none — so narrowing to a bare `Iterator`
+/// would name a type no annotation does. `nvs_types::locals`' narrowing
+/// section owns the rule.
+#[test]
+fn an_interface_taking_type_arguments_narrows_nothing() {
+    let diags = check_with_erased_object(
+        "",
+        "    if ($v instanceof Iterator) {\n      echo $v->current() as string;\n    }",
+    );
+    assert!(diags.has_errors(), "{diags:?}");
+}
+
 fn refuses_nullable_receiver(diags: &Diagnostics) -> bool {
     diags
         .iter()
@@ -175,18 +222,19 @@ fn a_write_inside_an_instanceof_block_widens_it_again() {
     assert!(refuses_nullable_receiver(&diags), "{diags:?}");
 }
 
-/// The residue is restricted to a class, so an **interface** on the right
-/// narrows nothing — `nvs_types::locals`' `instanceof_residue` owns why, and
-/// this is the refusal that keeps it from being loosened by accident.
+/// An interface residue drops `null` like any other, which is the half of
+/// item 47 a `?T` subject sees: the test proves an object, and `null` is not
+/// one. The residue is `Labelled` rather than `Node` — a nominal type either
+/// way, so nothing downstream can tell which of the two installed it.
 #[test]
-fn an_instanceof_against_an_interface_narrows_nothing() {
+fn an_instanceof_against_an_interface_drops_null_too() {
     let diags = check_src(
         "<?nvs\ninterface Labelled {\n  function label(): string;\n}\n\
          class Node implements Labelled {\n  function label(): string { return \"n\"; }\n}\n\
          class T {\n  function m(?Node $n): void {\n    \
          if ($n instanceof Labelled) {\n      echo $n->label();\n    }\n  }\n}\n",
     );
-    assert!(refuses_nullable_receiver(&diags), "{diags:?}");
+    assert!(!diags.has_errors(), "{diags:?}");
 }
 
 /// Wraps `body` in a method taking a `"read"|"write"`, the shape ADR 0047 § 4's

@@ -1,0 +1,49 @@
+--TEST--
+`instanceof` against an interface narrows its subject to that interface, so the interface's own members resolve (ADR 0043, ADR 0007 § 1)
+--FILE--
+<?nvs
+// The subject is declared `object`, which names no member at all: every call
+// below resolves only because the test proved the interface. `nvs_types::locals`'
+// narrowing section owns the rule, and `nvs-ir` discharges the proved read as an
+// unchecked untag — which is why this runs the narrowed call rather than only
+// compiling it.
+interface Labelled {
+    public function label(): string;
+}
+
+class Tag implements Labelled {
+    public function label(): string {
+        return "tag";
+    }
+}
+
+class Plain {
+    public function name(): string {
+        return "plain";
+    }
+}
+
+object $a = new Tag();
+if ($a instanceof Labelled) {
+    echo $a->label(), "\n";
+}
+
+object $b = new Plain();
+if ($b instanceof Labelled) {
+    echo "labelled\n";
+} else {
+    echo "not labelled\n";
+}
+
+// The negated form installs the residue on the *other* edge, so the call sits
+// after the guard rather than inside it.
+object $c = new Tag();
+if (!($c instanceof Labelled)) {
+    echo "not labelled\n";
+} else {
+    echo $c->label(), "\n";
+}
+--EXPECT--
+tag
+not labelled
+tag

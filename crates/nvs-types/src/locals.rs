@@ -402,16 +402,22 @@ fn null_residue(
 /// writes — `if (!($x instanceof Foo)) { return; }` — narrows everything after
 /// it, exactly as the `== null` spelling already did.
 ///
-/// **The residue is restricted to a class**, and deliberately not widened to
-/// every name `instanceof` accepts. It has to be a type `nvs-ir` can erase to
-/// one pointer, because a narrowed read of a [`Ty::Tagged`](nvs_ir::ty::Ty)
-/// slot is discharged as an unchecked `nvs_ir::ir::InstKind::Untag` — so a
-/// declared class and one of the reserved global exception classes narrow,
-/// while an **interface** does not: ADR 0053 § 2's `Iterable`/`Iterator` take
-/// type arguments this test does not supply, and interning one without them
-/// would name a different type than the annotation does. `$x instanceof
-/// Comparable` therefore proves a `bool` and narrows nothing, which is a limit
-/// of this pass rather than a rule about the language.
+/// **The residue is a class or an interface**, and deliberately not every name
+/// `instanceof` accepts. It has to be a type `nvs-ir` can erase to one
+/// pointer, because a narrowed read of a [`Ty::Tagged`](nvs_ir::ty::Ty) slot is
+/// discharged as an unchecked `nvs_ir::ir::InstKind::Untag` — and a declared
+/// class, a user-declared interface and the reserved global names all erase to
+/// exactly that. Narrowing to an interface is the direction a program written
+/// against an abstraction actually uses, and it costs nothing extra here: the
+/// residue is nominal either way, and [`crate::signatures::resolve_method`]
+/// already answers an interface's members for a parameter declared with one.
+///
+/// The one name left out is a reserved interface that takes **type
+/// arguments**: ADR 0053 § 2's `Iterable`/`Iterator` are written
+/// `Iterator<int>` wherever they are declared and `instanceof Iterator`
+/// supplies nothing, so interning one here would name a different type than
+/// any annotation does. That one proves a `bool` and narrows nothing, which is
+/// a limit of this pass rather than a rule about the language.
 ///
 /// The class comes from `crate::expr_table::ExprInfo::InstanceOf`, recorded by
 /// [`crate::expr::members::infer_instanceof`] when the condition was checked a
@@ -440,9 +446,19 @@ fn instanceof_residue(
         return None;
     };
     let class = class.clone();
-    let is_class = matches!(env.symbols.get(&class), Some(sym) if sym.kind == SymbolKind::Class)
-        || class.is_reserved_global_class();
-    if !is_class {
+    let narrows = match env.symbols.get(&class).map(|sym| sym.kind) {
+        Some(kind) => matches!(kind, SymbolKind::Class | SymbolKind::Interface),
+        // A reserved global name has no declaration to find. The exception
+        // classes are ordinary classes; a reserved *interface* narrows only
+        // when its roster entry takes no type parameters.
+        None => {
+            class.is_reserved_global_class()
+                || (class.is_reserved_global_interface()
+                    && nvs_hir::interfaces::type_params(class.short_name())
+                        .is_none_or(<[&str]>::is_empty))
+        }
+    };
+    if !narrows {
         return None;
     }
     let residue = env.interner.class(class);
