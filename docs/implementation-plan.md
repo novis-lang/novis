@@ -1735,12 +1735,45 @@
 > closed **four** now — `run`, `test`, `test --format=json`, `test --format=junit` — carried as
 > `nvs_test::Subcommand::args`, a whole command line rather than one word, so the two things that
 > decide it still cannot spell a command line this binary does not have. ADR 0079 § 22 gains the
-> paragraph rather than being left to name behaviour nothing states. Three live tools **are** the
-> worklist and no session re-derives one: `python tools/holes.py` reads the refusal sites out of
-> `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item N` for one in full), `python
-> tools/loop.py --list` prints the named `.nvst` cases each stage still owes — **none**, Stage 7's
-> `#[Test]` table case having landed with the `--RUN--` section that lets a case reach the runner at
-> all — and `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> paragraph rather than being left to name behaviour nothing states. **ADR 0079 § 20's retry bullet
+> is landed at both of its ends.** A test that failed and then passed within its `retries:`
+> allowance is a fifth `Outcome` — `nvs_cli::runner::Outcome::Flaky`, carrying how many attempts it
+> took and the **last failed** attempt's own failures, the attempt that passed having produced
+> nothing to report — which is what makes "never as green" true of all three of § 22's formats at
+> once rather than of each separately: the verdict is decided in one place, so the mark (`!`), the
+> count in every summary, the JSON's `"verdict": "flaky"` with its `attempts` beside the `failures`
+> array, and the JUnit `<flakyFailure>` element cannot disagree about a run. That element is
+> Jenkins' own spelling for exactly this and is what keeps the suite's `failures` attribute from
+> counting it; there is no standard *attribute* for a flaky count, which is why the element is where
+> it shows up at all. Only a failure is retried, and that is not a rule about retries but about the
+> other three outcomes: a skip never ran, and an `exit(n)` ended the program rather than the test
+> (ADR 0020), so neither is something a second attempt could improve on. Each attempt is a fresh
+> instance with the ledger and any pending exception taken between them — `run_case` already took
+> both on every path, for the reason that made one test's ledger that test's — while class storage
+> is **not** reset, § 2's isolate per test being M5, which is what lets a `.nvst` observe how many
+> times a body was entered at all. A flaky test does **not** fail the run: retries exist precisely
+> so that a suite can pass in spite of one, and what § 20 takes away is the silence rather than the
+> green build. The other half of that bullet is the reason it charges for a retry, and it is a
+> **dependency between two options** rather than a type: § 1's roster admits each field on its own
+> and every one of them is optional, which is exactly what lets the bare `#[Test]` parse, so
+> `retries:` with no `because:` is refused once the whole payload has been walked (`E0734`,
+> `nvs_types::testing::check_retries_state_a_reason`) rather than at either field. ADR 0079 § 20
+> gains both enforcement sites rather than being left to name behaviour nothing makes.
+> `tests/conformance/lang/a-retried-test-that-passes-is-reported-as-flaky.nvst` pins the flaky
+> verdict beside the exhausted allowance whose report is its *last* attempt's, the passing test that
+> spends none of its allowance, the un-retried one, and the skip that is not retried — with a second
+> class counting how often each body was actually entered, so a shape that stopped retrying fails on
+> the count rather than on a verdict — and
+> `tests/conformance/reject/a-retry-states-the-reason-it-is-retried.nvst` pins both refusals with
+> the three accepted spellings written first. The flaky row is folded into all three standing
+> reports, the plaintext one and both machine twins, so one run is still pinned through three
+> renderings. What Stage 7 still owes is §§ 8-9's `#[Fixture]` and data rows, which is also what
+> `check_method_shape`'s parameter bullet waits on. Three live tools **are** the worklist and no
+> session re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and
+> `nvs-codegen` and attributes each to its item (`--item N` for one in full), `python tools/loop.py
+> --list` prints the named `.nvst` cases each stage still owes — **none**, Stage 7's `#[Test]` table
+> case having landed with the `--RUN--` section that lets a case reach the runner at all — and
+> `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

@@ -12,6 +12,8 @@ test --format=json
 use Core\Test;
 
 final class ReportTest {
+    public static int $attempts = 0;
+
     #[Test]
     public function aPassingTestCarriesOnlyItsVerdict(): void {
         Test::assertSame(1, 1);
@@ -43,16 +45,26 @@ final class ReportTest {
         echo "this goes to standard error\n";
         Test::assertTrue(true);
     }
+
+    // § 20: a test that passed within its retry allowance is its own verdict
+    // in every format — never the passing one — and it carries the attempt
+    // count beside the failures the attempt that flaked produced.
+    #[Test(retries: 1, because: "a static counter stands in for the real DNS § 20 names")]
+    public function aRetriedTestIsReportedAsFlaky(): void {
+        ReportTest::$attempts = ReportTest::$attempts + 1;
+        Test::assertSame(ReportTest::$attempts, 2);
+    }
 }
 --EXPECTF--
 {
   "schemaVersion": 1,
-  "summary": {"total": 4, "passed": 2, "failed": 1, "skipped": 1, "durationMs": %f},
+  "summary": {"total": 5, "passed": 2, "failed": 1, "skipped": 1, "flaky": 1, "durationMs": %f},
   "tests": [
     {"class": "ReportTest", "method": "aPassingTestCarriesOnlyItsVerdict", "verdict": "passed", "durationMs": %f},
     {"class": "ReportTest", "method": "aSkipCarriesItsReason", "verdict": "skipped", "durationMs": %f, "reason": "a reason with \"quotes\" and a < sign"},
     {"class": "ReportTest", "method": "everyFailedAssertionIsReported", "verdict": "failed", "durationMs": %f, "failures": ["Core\\Test::assertSame failed: `$actual` is \"first\", `$expected` is \"wrong\"", "Core\\Test::assertSame failed: `$actual` is \"second\", `$expected` is \"also wrong\""]},
-    {"class": "ReportTest", "method": "aTestsOwnOutputIsNotTheDocument", "verdict": "passed", "durationMs": %f}
+    {"class": "ReportTest", "method": "aTestsOwnOutputIsNotTheDocument", "verdict": "passed", "durationMs": %f},
+    {"class": "ReportTest", "method": "aRetriedTestIsReportedAsFlaky", "verdict": "flaky", "durationMs": %f, "attempts": 2, "failures": ["Core\\Test::assertSame failed: `$actual` is 1, `$expected` is 2"]}
   ]
 }
 --EXPECTF-ERROR--

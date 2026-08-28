@@ -77,5 +77,5 @@ final class AlphaTest {
   ZebraTest
     ✓ zulu                             %f ms
 
-  3 failed, 3 passed, 1 skipped in %d ms
+  3 failed, 3 passed, 1 skipped, 0 flaky in %d ms
 --EXPECTF-ERROR--

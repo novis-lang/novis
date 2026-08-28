@@ -12,6 +12,8 @@ test --format=junit
 use Core\Test;
 
 final class ReportTest {
+    public static int $attempts = 0;
+
     #[Test]
     public function aPassingTestCarriesOnlyItsVerdict(): void {
         Test::assertSame(1, 1);
@@ -41,11 +43,20 @@ final class ReportTest {
         echo "this goes to standard error\n";
         Test::assertTrue(true);
     }
+
+    // § 20: the flaky verdict in the shape CI already reads — a
+    // `<flakyFailure>` inside a `<testcase>` that is otherwise passing, so
+    // the suite's `failures` attribute below does not count it.
+    #[Test(retries: 1, because: "a static counter stands in for the real DNS § 20 names")]
+    public function aRetriedTestIsReportedAsFlaky(): void {
+        ReportTest::$attempts = ReportTest::$attempts + 1;
+        Test::assertSame(ReportTest::$attempts, 2);
+    }
 }
 --EXPECTF--
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites tests="4" failures="1" skipped="1" time="%f">
-  <testsuite name="ReportTest" tests="4" failures="1" skipped="1" time="%f">
+<testsuites tests="5" failures="1" skipped="1" time="%f">
+  <testsuite name="ReportTest" tests="5" failures="1" skipped="1" time="%f">
     <testcase name="aPassingTestCarriesOnlyItsVerdict" classname="ReportTest" time="%f"/>
     <testcase name="aSkipCarriesItsReason" classname="ReportTest" time="%f">
       <skipped message="a reason with &quot;quotes&quot; and a &lt; sign"/>
@@ -56,6 +67,10 @@ Core\Test::assertSame failed: `$actual` is &quot;second&quot;, `$expected` is &q
 </failure>
     </testcase>
     <testcase name="aTestsOwnOutputIsNotTheDocument" classname="ReportTest" time="%f"/>
+    <testcase name="aRetriedTestIsReportedAsFlaky" classname="ReportTest" time="%f">
+      <flakyFailure message="Core\Test::assertSame failed: `$actual` is 1, `$expected` is 2" attempts="2">Core\Test::assertSame failed: `$actual` is 1, `$expected` is 2
+</flakyFailure>
+    </testcase>
   </testsuite>
 </testsuites>
 --EXPECTF-ERROR--
