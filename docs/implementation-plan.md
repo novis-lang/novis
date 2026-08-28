@@ -1802,17 +1802,46 @@
 > the class with no roster and the nominal match in both directions — a `.nvst` can observe neither
 > a row nor its type until § 8's injection runs — while
 > `tests/conformance/reject/a-fixture-supplies-one-type-from-a-public-static-method.nvst` pins all
-> six refusals in one compile with § 8's own accepted shape written first. What Stage 7 still owes
-> is § 8's **injection** and § 9's data rows. § 1's parameter bullet waits on the first of those
-> rather than on the roster: a parameter the roster can now satisfy must not be *accepted* until the
-> runner can inject it, since the runner calls a test with no arguments, so resolving a parameter
-> and injecting it are one slice and refusing every parameter outright would refuse § 8's own
-> example. Three live tools **are** the worklist and no session re-derives one: `python
-> tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen` and attributes each to
-> its item (`--item N` for one in full), `python tools/loop.py --list` prints the named `.nvst`
-> cases each stage still owes — **none**, Stage 7's `#[Test]` table case having landed with the
-> `--RUN--` section that lets a case reach the runner at all — and `python tools/check-migration.py`
-> scores `docs/spec/02-php-migration.md`.
+> six refusals in one compile with § 8's own accepted shape written first. **ADR 0079 § 8's
+> injection runs end to end, and § 1's parameter bullet is closed with it.** Resolution is
+> `nvs_types::testing::resolve_injections`, a second pass over the two rosters rather than a step in
+> the walk that collects them, because a test may be written *above* the fixture that supplies it
+> and source order is not what a by-type resolution is about. Each parameter is matched by interned
+> type — the fixture's own return type and not a subtype of it, two fixtures able to answer one
+> parameter being the ambiguity `E_DUPLICATE_DECLARATION` already prevents — and what it resolves to
+> is recorded on the row as an **order** (`TestCase::fixtures`, `Fixture::fixtures`), so the runner
+> passes values positionally rather than re-deriving the match below a crate that holds no types. A
+> parameter no fixture supplies is `E0736` where the declaration is written, naming the type it
+> asked for, and it is **one** code for a test's parameter and a fixture's own because it is one
+> question asked of one roster; a fixture that requires itself, directly or through others, is
+> `E0737` naming the whole chain, and the rows on that cycle have their dependencies cleared so that
+> what rides across is always a graph some order builds. Two parameter *shapes* take the
+> declaration-shape codes instead (`E0733`/`E0735`): a variadic tail is packed and an `inout`
+> parameter written back at the **call site**, and a runner supplying one value per declared
+> parameter is neither — the limit `E0721` already names for ADR 0043 § 4's synthesized forward,
+> reached from the other side. The runner's half is `nvs_cli::runner::build_fixtures`: one
+> `nvs_runtime::Fixtures` per class, built before its first test in the dependency order the rows
+> record and dropped after its last. That type exists to put the **ownership** in one place — it
+> holds exactly one reference per built value and releases each on drop, which is what lets
+> `nvs-cli` forbid `unsafe` while holding values across many calls — and a fixture whose body throws
+> is reported against every test that asked for one rather than against the class, a test being what
+> a report has a line for. Only what a test that will actually run asks for is built, a `skip:`ped
+> test's fixture being setup nobody wanted. One thing had to be learnt one representation down: a
+> `static` method's slot 0 carries the **called class** (ADR 0008's late static binding), so a
+> native call into a fixture fills it with `Value::class_desc` exactly as a compiled call site does
+> — left `null` it segfaults rather than diagnosing anything. Until § 2's isolates exist (M5) the
+> value is **shared** rather than graph-copied into each test, so a test that mutates one is visible
+> to the next; that is the same shape class storage already has here, and M5 closes both at once.
+> ADR 0079 § 8 gains both enforcement paragraphs rather than being left to name passes that do not
+> make this, and `tools/leak-check.sh` gained a `--test` flag, `nvs test` being a program `nvs run`
+> cannot reach — valgrind-clean over a fixture that builds a chain of three fixtures from a freshly
+> built `string`, retries, fails an assertion and throws while holding one. What Stage 7 still owes
+> is § 9's data rows alone. Three live tools **are** the worklist and no session re-derives one:
+> `python tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen` and attributes
+> each to its item (`--item N` for one in full), `python tools/loop.py --list` prints the named
+> `.nvst` cases each stage still owes — **none**, Stage 7's `#[Test]` table case having landed with
+> the `--RUN--` section that lets a case reach the runner at all — and `python
+> tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

@@ -913,6 +913,12 @@ is why" — is this file.
   chase. Such a file is now counted and named as `unreadable`. The durable trap is the shape rather than
   the file — **any `panic!` between that `set_hook` and its matching `set_hook(prev_hook)` reports
   nothing**, so a new failure path in that loop must return a value the summary can print.
+- **A `static` method's slot 0 is the *called class*, not an empty receiver.** Calling one from Rust
+  (`nvs_runtime::abi::call` on a `Unit::function("Class::method")` address) with a `null` first slot
+  segfaults inside the callee rather than faulting anywhere a message could be printed: ADR 0008's late
+  static binding puts a `ClassDesc` there, `nvs_ir::lower` seeds it as `Param(0)` at `Ty::ClassDesc`, and
+  `Value::class_desc` is the encoding a compiled call site uses. An instance method's slot 0 is the
+  receiver as expected, so the trap only shows up the first time native code calls a `static` one.
 
 ## Writing a test case
 

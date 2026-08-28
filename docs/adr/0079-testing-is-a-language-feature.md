@@ -347,9 +347,30 @@ once; a non-`public` one cannot be called from outside its class; one returning 
 a parameter to take; and a method carrying **both** markers is one method claiming to be two things whose
 shapes contradict. Two fixtures of one class returning one type is neither of those and draws
 `E_DUPLICATE_DECLARATION`, this section resolving by type: it is one declaration made twice, and it is
-decidable from the roster alone with no parameter anywhere in it. What is *not* decidable there is the
-`Widget` line of the example above — a parameter no fixture supplies — which is a question asked from a
-method's parameter list and wants *9*'s data rows beside it, since those fill a parameter too.
+decidable from the roster alone with no parameter anywhere in it.
+
+The `Widget` line of the example above is `nvs_types::testing::resolve_injections`, which runs once the
+whole class is collected rather than as the walk descends, because a test may be written **above** the
+fixture that supplies it and source order is not what resolution is about. Each parameter is matched by
+interned type — the fixture's own return type and not a subtype of it, since two fixtures able to answer
+one parameter is the ambiguity the duplicate refusal exists to prevent — and what it resolves to is
+recorded on the row as an *order*, so the runner passes values positionally without re-deriving below a
+crate that holds no types. A parameter no fixture supplies is `E0736` where the declaration is written,
+naming the type it asked for, and it is one code for a test's parameter and a fixture's own because it is
+one question asked of one roster; a fixture that requires itself, directly or through others, is `E0737`,
+naming the whole chain (*9*'s data rows will fill a parameter by *name* and are the second answer the
+first of those will consult). Two parameter *shapes* are refused by the declaration-shape codes above
+instead: a variadic tail is packed and an `inout` parameter written back at the **call site**, and a
+runner supplying one value per declared parameter is neither — the limit ADR 0043 § 4's synthesized
+forward already names, reached from the other side.
+
+The runner's half is `nvs_cli::runner::build_fixtures`: one `nvs_runtime::Fixtures` per class, built
+before its first test in the dependency order the rows record and dropped after its last, holding exactly
+one reference per built value so that a test borrowing one can be called with it. Only what a test that
+will actually run asks for is built — a `skip:`ped test's fixture is setup nobody wanted. Until *2*'s
+isolates exist (M5) the value is **shared** rather than graph-copied into each test, so a test that
+mutates one is visible to the next; that is the same shape class storage already has here, and M5 closes
+both at once.
 
 ### 9. Data rows are compile-checked shape literals
 
