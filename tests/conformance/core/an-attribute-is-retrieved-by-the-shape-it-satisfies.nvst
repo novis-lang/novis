@@ -1,0 +1,106 @@
+--TEST--
+`Core\Attributes::get<T>`/`all<T>` answer the attached literals that structurally satisfy `T`, folded at the call site (ADR 0046 §§ 4-5)
+--FILE--
+<?nvs
+// ADR 0046 § 4: retrieval is structural, not nominal. `T` is a shape and an
+// attached literal is an answer exactly when it satisfies `T` under ADR 0036
+// § 3's width subtyping — whether it was attached bare or under a name, and
+// whatever that name was.
+type Route = {path: string};
+
+#[Route(path: "/users")]
+#[{audit: true}]
+class Controller {
+    // § 4: a property is named by its class's `constructor` reference plus a
+    // literal member name.
+    #[{column: "name", unique: true}]
+    public string $name = "";
+
+    #[{column: "age"}]
+    #[{column: "years"}]
+    public int $age = 0;
+
+    public function constructor() {}
+
+    // § 4: a method is named by its own first-class-callable reference, and a
+    // parameter by that reference plus a literal member name.
+    #[Route(path: "/show")]
+    public static function show(#[{inject: "repo"}] int $id): int {
+        return $id;
+    }
+}
+
+// The named form and the bare form are retrieved through one shape each,
+// because the name was only ever the check made where it was written.
+?Route $route = Core\Attributes::get<Route>(Controller::constructor(...));
+if ($route != null) { echo "class route=", $route->path, "\n"; }
+
+?{audit: bool} $audit = Core\Attributes::get<{audit: bool}>(Controller::constructor(...));
+if ($audit != null) { echo "class audit=", $audit->audit as string, "\n"; }
+
+// ADR 0036 § 3's width subtyping: the attached literal carries `unique` too,
+// and an extra field is fine.
+?{column: string} $column = Core\Attributes::get<{column: string}>(
+    Controller::constructor(...),
+    "name"
+);
+if ($column != null) { echo "name column=", $column->column, "\n"; }
+
+// § 5: nothing satisfies this shape, so the call *is* a compiled-in `null`.
+?{nosuch: string} $absent = Core\Attributes::get<{nosuch: string}>(Controller::constructor(...));
+echo "absent=", $absent != null ? "some" : "none", "\n";
+
+// § 5's other end: two matches are `all<T>`'s answer, in attach order.
+array<{column: string}> $both = Core\Attributes::all<{column: string}>(
+    Controller::constructor(...),
+    "age"
+);
+echo "age columns=", Core\Arr::count($both) as string, "\n";
+foreach ($both as {column: string} $one) { echo "  ", $one->column, "\n"; }
+
+// A shape nothing satisfies answers the empty array rather than `null`.
+array<{nosuch: string}> $empty = Core\Attributes::all<{nosuch: string}>(Controller::constructor(...));
+echo "empty=", Core\Arr::count($empty) as string, "\n";
+
+// § 4's method and parameter spellings.
+?Route $method = Core\Attributes::get<Route>(Controller::show(...));
+if ($method != null) { echo "method route=", $method->path, "\n"; }
+
+?{inject: string} $param = Core\Attributes::get<{inject: string}>(Controller::show(...), "repo");
+echo "param=", $param != null ? "some" : "none", "\n";
+
+?{inject: string} $named = Core\Attributes::get<{inject: string}>(Controller::show(...), "id");
+if ($named != null) { echo "param inject=", $named->inject, "\n"; }
+
+// § 4's *Consequences*: a computed member name resolves nothing, and that is
+// an empty result rather than a diagnostic.
+string $computed = "i" . "d";
+?{inject: string} $dynamic = Core\Attributes::get<{inject: string}>(Controller::show(...), $computed);
+echo "computed=", $dynamic != null ? "some" : "none", "\n";
+
+// The agreement the shape asks for: a retrieved payload is the same value a
+// hand-written literal of that shape is, field for field — § 5 replaces the
+// call with the payload itself, so the two have to be indistinguishable.
+Route $written = {path: "/users"};
+uint $agreed = 0;
+// A `!= null` narrows the binding inside the `if` body and nowhere else, so
+// each comparison is its own nested test rather than an `&&`.
+if ($route != null) { if ($route->path == $written->path) { $agreed = $agreed + 1; } }
+if ($method != null) { if ($method->path == "/show") { $agreed = $agreed + 1; } }
+if ($column != null) { if ($column->column == "name") { $agreed = $agreed + 1; } }
+if ($named != null) { if ($named->inject == "repo") { $agreed = $agreed + 1; } }
+echo "agreed=", $agreed as string, "/4\n";
+--EXPECT--
+class route=/users
+class audit=1
+name column=name
+absent=none
+age columns=2
+  age
+  years
+empty=0
+method route=/show
+param=none
+param inject=repo
+computed=none
+agreed=4/4

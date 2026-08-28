@@ -1,0 +1,68 @@
+--TEST--
+The four ways a `Core\Attributes` retrieval is refused where it is written (ADR 0046 §§ 4-5)
+--FILE--
+<?nvs
+type Route = {path: string};
+
+class Limits {
+    public const int MAX = 5;
+}
+
+#[Route(path: "/a")]
+#[Route(path: "/b")]
+#[{code: Limits::MAX}]
+class Twice {
+    public function constructor() {}
+}
+
+// Accepted first, so a position that stops being accepted fails here rather
+// than as a missing refusal: `all<T>` is what two matches are for.
+array<Route> $ok = Core\Attributes::all<Route>(Twice::constructor(...));
+echo Core\Arr::count($ok) as string, "\n";
+
+// § 5: `get` answers at most one, and two is decided here rather than by a
+// test run.
+?Route $ambiguous = Core\Attributes::get<Route>(Twice::constructor(...));
+
+// § 4: retrieval is structural, so `T` has to be a shape.
+?int $scalar = Core\Attributes::get<int>(Twice::constructor(...));
+
+// § 4: the target is a first-class-callable reference, inspected where it is
+// written — a closure value names no declaration.
+callable $fn = fn (): int => 1;
+?Route $computed = Core\Attributes::get<Route>($fn);
+
+// § 5: the payload satisfies the shape but holds a user-declared class
+// constant, whose value `nvs_types::signatures`' own known gap leaves
+// unmodeled — the same gap that leaves `Foo::CONST` unlowered anywhere else.
+?{code: mixed} $unfoldable = Core\Attributes::get<{code: mixed}>(Twice::constructor(...));
+--EXPECTF-ERROR--
+error[E0731]: this attribute satisfies the retrieved shape, but holds a value with no compile-time form
+   --> case.nvs:10:10
+   |
+10 | #[{code: Limits::MAX}]
+   |          ^^^^^^^^^^^ no constant form
+   = help: ADR 0046 § 5 replaces the retrieval with the payload itself, so every value in it has to be materializable — a user-declared class constant's value and an enum case are the two ADR 0046 § 2 admits and this compiler cannot yet inline
+
+error[E0728]: `Twice::constructor` carries 2 attached literals satisfying this shape
+   --> case.nvs:22:21
+   |
+22 | ?Route $ambiguous = Core\Attributes::get<Route>(Twice::constructor(...));
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `get` answers at most one
+   = help: ADR 0046 § 5: an attached-attribute list is static, so this is decided here rather than by a test run — write `Core\Attributes::all<T>(…)`, which answers every match
+
+error[E0729]: `Core\Attributes::get` retrieves a shape, and `int` is not one
+   --> case.nvs:25:16
+   |
+25 | ?int $scalar = Core\Attributes::get<int>(Twice::constructor(...));
+   |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `int` written here
+   = help: ADR 0046 § 4: retrieval is structural — an attached literal is an answer exactly when it satisfies `T` under ADR 0036 § 3's width subtyping, so `T` is an inline `{...}` or a `type` alias naming one
+
+error[E0730]: a `Core\Attributes` retrieval names no declaration
+   --> case.nvs:30:48
+   |
+30 | ?Route $computed = Core\Attributes::get<Route>($fn);
+   |                                                ^^^ this is not a declaration reference
+   = help: ADR 0046 § 4: the target is written as a first-class-callable reference and inspected where it is written — `Foo::bar(...)` for a method, and `Foo::constructor(...)` for the class itself, plus a literal member name for one of its properties or parameters
+
+error: aborting due to 4 errors
