@@ -2062,6 +2062,15 @@ sibling in the same namespace unqualified.
   The cheap diagnosis is to ask the *other* member kind the same question: a property half
   that refuses where the method half panics means the hole is an exemption in the checker,
   not a missing feature below it.
+- **A promoted constructor parameter is not a property at all yet**, so `private Greets
+  $inner` has to be written out in full in any fixture that reads it back. `public
+  function constructor(private Greets $inner) {}` parses and checks the *declaration*,
+  and then `$this->inner` is `E0313: `Outer` has no property named `inner``, because
+  `nvs_types::layout::own_properties` collects declared `ClassMemberKind::Property`
+  members and nothing else — a reader that gets past the checker (a synthesized ADR 0043
+  § 4 forward did) fails one crate down with "nvs-codegen does not lower the property
+  `Outer::inner`, which this unit declares no slot for yet". ADR 0043 § 4's own worked
+  example writes the field out, and so should a case.
 
 ## Divergences and refusals already pinned
 

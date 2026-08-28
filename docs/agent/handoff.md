@@ -2,47 +2,50 @@
 
 ## State
 
-**M4's frontier is ADR 0014, closed whole.** `PropertyObserver` is a reserved global
-interface, seeded, checked, lowered and pinned; ADR 0014 gained the § *Verification*
-section M4's acceptance has always named and which did not exist.
+**M4's frontier is ADR 0043 § 4, which now runs.** `implements I by $field;`
+synthesizes a real forwarding method per required member, reachable through the
+class and through the interface alike, with a `.nvst` case and a valgrind-clean
+fixture behind it.
 
-- **The mechanism has one home each and is not restated here**: the roster in
-  `nvs_hir::interfaces::RESERVED`, the two member signatures in `nvs_types::iter_lib`,
-  the compile-time "does this class observe" question in
-  `nvs_types::expr::members::observer_calls` (`crates/nvs-types/src/expr/members.rs:596`),
-  and the emission in `nvs_ir::lower::expr::Lowering::emit_observer_call`
-  (`crates/nvs-ir/src/lower/expr.rs:2757`). ADR 0014 § *Verification* owns the three
-  boundaries the sections above left open (own-hook access, `static`, recursion).
-- **`holes.py --cases` now names four**, and the next two are **not** case-writing
-  slices either — this session's was not, and the probe says the next is not:
-  `implements Greets by $inner;` parses and checks and then dies at run time with
-  *"a method with no body was called, and no class in the receiver's chain declared
-  one"*, so ADR 0043 § 3's forwarding has no lowering at all.
-- **`orient.py`'s pack was complete for this item**, but its `[context] modules` still
-  has no `nvs-runtime` and no `nvs-diagnostics` entry, and for this item it also had
-  no `nvs-hir` one — the reserved-interface roster is where the work started.
+- **The mechanism has one home each and is not restated here**: the resolution in
+  `nvs_types::conformance::resolve_delegations`
+  (`crates/nvs-types/src/conformance.rs:150`), the record it rides on in
+  `nvs_types::expr_table::Delegation` (`crates/nvs-types/src/expr_table.rs:577`),
+  the emission in `nvs_ir::lower::call::delegation_forward`
+  (`crates/nvs-ir/src/lower/call.rs:911`), and the method-table row in
+  `lower_program` (`crates/nvs-ir/src/lower/mod.rs:673`). Why it is a method and
+  not a call-site rewrite is `Delegation`'s own doc comment.
+- **Three member shapes get no forward** — `static`, variadic, and any `inout`
+  parameter — and each still reaches `nvs_abstract_method` if called. The
+  whole-class conformance exemption stays with them, because
+  `E_DELEGATE_TYPE_MISMATCH` does not exist and without it a member no forward
+  covers cannot be told from one whose field cannot answer it.
+- **`orient.py`'s pack was complete for this item**; `[context] modules` still has
+  no `nvs-runtime`, `nvs-diagnostics` or `nvs-hir` entry, and `nvs-hir`'s
+  `hierarchy` module doc was the one file outside the pack this session had to
+  correct.
 
 ## Next group
 
-**ADR 0043 § 3's `implements I by $field;` delegation, which is one hole and then its
-case.** The file set is `crates/nvs-types/src/`, `crates/nvs-ir/src/lower/` and
-`tests/conformance/class/` — the same three this session had open, and the same
-`ExprInfo`/`lower_call` seam.
+**ADR 0043 § 4's three remaining edges, which are all in the files this session had
+open.** The file set is `crates/nvs-types/src/` (`conformance.rs`, `layout.rs`),
+`crates/nvs-diagnostics/src/lib.rs` and `crates/nvs-ir/src/lower/call.rs`.
 
-- [ ] **Find where a delegated interface method resolves and why it lowers to a
-      bodiless target.** ADR 0043 § 3. The failure is `nvs_runtime`'s
-      `nvs_abstract_method`, reached from `InstKind::CallVirtual`'s `fallback: None`,
-      so the checker resolved `Outer::greet` to the *interface*'s bodiless declaration
-      — `crates/nvs-types/src/expr/calls.rs`'s method resolution and
-      `crates/nvs-ir/src/lower/call.rs:1` are the two ends. `nvs_hir` already parses
-      the `by $field` clause (`crates/nvs-syntax/src/parser/decl.rs`).
-- [ ] **Lower the forward**: a delegated method is a call on the named field, with the
-      receiver replaced and the arguments passed through. Mirror
-      `crates/nvs-ir/src/lower/expr.rs:2757`'s shape — one `FieldGet` for the field,
-      then one call on it — and decide there whether the forward is synthesized as a
-      method body or emitted at the call site.
-- [ ] **`tests/conformance/class/a-delegated-interface-forwards-to-the-object-it-names.nvst`**
-      — ADR 0043 § 3. `python tools/holes.py --cases` names it.
+- [ ] **`E_DELEGATE_TYPE_MISMATCH`, and the conformance check made per-member
+      instead of whole-class.** ADR 0043 § 4 bullet 1: `$field` must be a declared
+      property of a non-nullable class/interface type that satisfies the delegated
+      interface. `nvs_hir::implements_interface` answers it; the exemption to
+      narrow is `crates/nvs-types/src/conformance.rs:59`, the resolution to check
+      inside is `:150`, and the next free code is `E0720`.
+- [ ] **A `static`, variadic or `inout` member of a delegated interface gets a
+      forward or a diagnostic naming the rule** — never the `nvs_abstract_method`
+      `FATAL` it reaches today. The skip is `crates/nvs-types/src/conformance.rs:195`
+      and the shape that would have to widen is
+      `crates/nvs-ir/src/lower/call.rs:911`.
+- [ ] **A promoted constructor parameter is not a property**, so § 4's own worked
+      example does not compile. `crates/nvs-types/src/layout.rs:271`'s
+      `own_properties` and `:334`'s `flatten_methods` are the two ends; the
+      playbook bullet added this session is the symptom.
 
 ## Backlog
 

@@ -773,11 +773,45 @@
 > caller's `21`, a constructor's writes, an inherited observer over a subclass's own property, a
 > throwing one caught as an ordinary `Throwable`, not one line from a class that implements nothing,
 > and the count of observed writes over the whole file, so a property shape that stops reaching the
-> pipeline fails on the count rather than on a line. Three live tools **are** the worklist and no
-> session re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and
-> `nvs-codegen` and attributes each to its item (`--item N` for one in full), `python tools/loop.py
-> --list` prints the named `.nvst` cases each stage still owes, and `python
-> tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> pipeline fails on the count rather than on a line. **ADR 0043 § 4's `implements I by $field;`
+> delegation runs**, which is item 31 and the one hole where the front end accepted a program the
+> object model then had nothing to dispatch to: `Outer::greet` resolved to the *interface*'s
+> bodiless declaration, so `InstKind::CallVirtual` carried `fallback: None` and the receiver's own
+> method table had no row for the name at all — `nvs_runtime::nvs_abstract_method`, a `FATAL` naming
+> a compiler bug for a program that is correct. § 4 says the compiler synthesizes a one-line forward
+> per required member, and the decision this took is that a forward is a real **method** rather than
+> a rewrite at the call site: a receiver typed as the *interface* dispatches on the runtime class,
+> so a rewrite would forward `$post->touch()` and leave `$timestamped->touch()` reaching exactly the
+> nothing it reached before. The resolution is `nvs_types::conformance::resolve_delegations` — which
+> members the interface requires, and which of them the class already answers with a body, are
+> questions about the signature table and the class graph, neither of which `nvs-ir` holds — and it
+> rides across as `nvs_types::Delegation`, one record per forward, for the reason every other entry
+> in that table does. `nvs_ir::lower::call::delegation_forward` builds each one as a whole
+> `Function`: read the field, retain it (a field read borrows and `CallVirtual` transfers its
+> receiver), then the call, then the return, with `$this` released on both exits and every argument
+> transferred straight on. The call is late-bound with **no fallback** deliberately — the field's
+> declared type is the interface, whose member has no body to name — so the target is whatever the
+> field's runtime class answers, which is the whole of what delegating to it means. `lower_program`
+> adds the matching row to the class's method table, and skips a name the flattened table already
+> answers, which is § 4's "a class may still write its own method with the same name as a delegated
+> one" extended to an inherited body and an ADR 0043 § 2 interface default on the same terms. Three
+> member shapes get no forward and each is a hole rather than a rule, named in
+> `resolve_delegations`' own doc comment: a `static` member has no receiver to forward through, and
+> a variadic or `inout` parameter list is packed and written back at the *call site*, so passing it
+> straight on would pack it twice. The whole-class conformance exemption stays, and its reason is
+> now stated where it is made: § 4's `E_DELEGATE_TYPE_MISMATCH` — "does `$field`'s type satisfy this
+> interface" — is not built, and without it a member no forward covers cannot be told from one whose
+> field cannot answer it.
+> `tests/conformance/class/a-delegated-interface-forwards-to-the-object-it-names.nvst` pins the
+> forward through the class and through the interface alike, two interfaces delegating to two
+> different fields of one class, an own method beating the forward, a throwing delegate caught where
+> the outer call is written, and the agreement between the two spellings of one call; valgrind-clean
+> over a fixture that forwards a freshly built `string` and abandons one on the error edge two
+> hundred times each. Three live tools **are** the worklist and no session re-derives one: `python
+> tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen` and attributes each to
+> its item (`--item N` for one in full), `python tools/loop.py --list` prints the named `.nvst`
+> cases each stage still owes, and `python tools/check-migration.py` scores
+> `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,
