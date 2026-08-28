@@ -1,0 +1,82 @@
+--TEST--
+`Core\Uri::encodeComponent`'s answer is defined by the parser rather than by its own decoder: interpolated into a path segment, every one of the 128 ASCII bytes survives `Core\Uri::parse` and reads back out of `$uri->path` as itself, while the same bytes written raw leave the path or refuse the parse — spec § 12, RFC 3986 § 3.3
+--FILE--
+<?nvs
+// Every existing case asks this member against its own decoder, which is the
+// weaker of the two questions it has to answer: a pair of members could agree
+// perfectly with each other and still escape too little to be safe. The claim
+// the module doc actually makes — "a segment holding a `/` cannot climb out of
+// its position in the path, and a value holding an `&` cannot open a second
+// query pair" — is a claim about the *parser*, so it is asserted against the
+// parser, over the whole sweep and by counting.
+
+int $survived = 0;
+int $readBack = 0;
+int $rawStayed = 0;
+int $rawMoved = 0;
+int $rawRefused = 0;
+int $b = 0;
+for (; $b <= 127; $b = $b + 1) {
+    string $c = Core\Str::fromCodePoint($b as uint);
+
+    // The encoded form. `x` in front of the byte gives the segment content that
+    // is not itself in question, so a byte that vanished would show as a
+    // shorter path rather than as an empty one.
+    string $encoded = "http://h/x" . Core\Uri::encodeComponent($c);
+    try {
+        var $safe = Core\Uri::parse($encoded);
+        $survived = $survived + 1;
+        // `decodeComponent` leaves the `/` and the `x` alone, so decoding the
+        // whole path is the same question as decoding the segment and needs no
+        // member to cut one out.
+        if (Core\Uri::decodeComponent($safe->path()) == "/x" . $c) {
+            $readBack = $readBack + 1;
+        }
+    } catch (Throwable $encodedRefused) {
+        echo "encoded byte ", $b, " refused\n";
+    }
+
+    // The same byte written raw. This half is not a claim about what the parser
+    // should do — it is the measurement that says the encoding is doing work:
+    // a `?` opens a query, a `#` a fragment, and several bytes the grammar does
+    // not admit at all refuse outright.
+    string $rawText = "http://h/x" . $c;
+    try {
+        var $raw = Core\Uri::parse($rawText);
+        if ($raw->path() == "/x" . $c) {
+            $rawStayed = $rawStayed + 1;
+        } else {
+            $rawMoved = $rawMoved + 1;
+        }
+    } catch (Throwable $rawRejected) {
+        $rawRefused = $rawRefused + 1;
+    }
+}
+echo "bytes 128, encoded parse ", $survived, ", encoded reads back ", $readBack, "\n";
+echo "raw stayed in the path ", $rawStayed, ", raw moved to another component ", $rawMoved,
+     ", raw refused the parse ", $rawRefused, "\n";
+
+// The three bytes the sentence in the module doc names, each shown doing the
+// thing it is escaped to prevent and then not doing it. A raw `/` adds a
+// segment, a raw `?` moves the rest into the query, and a raw `#` into the
+// fragment; escaped, all three are one segment's content.
+array<string> $climbers = ["/", "?", "#"];
+foreach ($climbers as string $climber) {
+    var $loose = Core\Uri::parse("http://h/a" . $climber . "b");
+    var $tight = Core\Uri::parse("http://h/a" . Core\Uri::encodeComponent($climber) . "b");
+    echo "[", $climber, "] raw path [", $loose->path(), "] tight path [", $tight->path(),
+         "] decoded [", Core\Uri::decodeComponent($tight->path()), "]\n";
+}
+
+// And the query side of the same sentence, which is the other member's job but
+// the same property: a value holding an `&` and an `=` is one pair, not three,
+// because `buildQuery` writes it through `encodeFormValue`.
+var $built = Core\Uri::buildQuery(["q" => "a&b=c"]);
+echo "[", $built, "] ", Core\Arr::count(Core\Uri::parseQuery($built)) as int, " pair\n";
+--EXPECT--
+bytes 128, encoded parse 128, encoded reads back 128
+raw stayed in the path 80, raw moved to another component 2, raw refused the parse 46
+[/] raw path [/a/b] tight path [/a%2Fb] decoded [/a/b]
+[?] raw path [/a] tight path [/a%3Fb] decoded [/a?b]
+[#] raw path [/a] tight path [/a%23b] decoded [/a#b]
+[q=a%26b%3Dc] 1 pair
