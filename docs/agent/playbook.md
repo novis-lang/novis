@@ -1695,6 +1695,13 @@ is why" — is this file.
   asks the members about one row. In the same family, and cheap to trip over in a scratch
   probe: a file-scope `catch (Throwable $e1)` collides with a *later* `array<mixed> $e1 = …`
   (`E0406`), because the catch binding is the function's — name each catch for what it caught.
+- **A closure is an object of a compiler-synthesized class, so `shown`'s `a closure` arm is
+  unreachable from source.** `Core\Test::assertSame($f, $g)` over two `callable`s prints
+  ``a `Script$fn0` `` and ``a `Script$fn1` `` — ADR 0031's closure lowering makes a literal an
+  object with one field per capture, so the value carries `Tag::Object` and the class name it
+  reports is the synthesized label. Keep a `callable` out of a case about how a value renders:
+  the row pins a name no ADR owns. The same goes for `Tag::Resource` and `Tag::Unset`, which no
+  file-scope expression produces at all.
 
 ## Splitting a file that got too big
 

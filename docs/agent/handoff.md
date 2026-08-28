@@ -2,53 +2,54 @@
 
 ## State
 
-**M4's Stage 8, and `Core\Test`'s equality members now have their boundaries.** The tree is
-at **765 conformance plus 189 differential**. Three cases landed, all over
+**M4's Stage 8, and `Core\Test`'s failure *rendering* now has its bounds.** The tree is at
+**768 conformance plus 189 differential**. Three cases landed, all over
 `crates/nvs-stdlib/src/test.rs`, and the whole named group is done.
 
-- **`assertEqualsDeep`'s depth cap counts every level the walk descends, the `null` leaf
-  included.** A chain of **63** objects compares and **64** refuses — `MAX_DEPTH = 64` at
-  `test.rs:706`, checked at `:691` before the tag match, so the 64th call is the descent into
-  the innermost object's `next`. The path in the message carries 64 `->next` segments however
-  much graph is left below it.
-- **Two distinct allocations are needed to reach the cap at all.** `object_difference`'s
-  `std::ptr::eq` shortcut (`test.rs:800`) answers `None` for one allocation compared against
-  itself, so a 96-deep chain compared against *itself* passes — which is also why a sub-object
-  shared by both graphs does not spend the budget twice.
-- **A shape difference names the container, a leaf difference names the leaf.** A length, a
-  key or a class mismatch is reported at the container's own path (`$actual["1"]`), because
-  the first differing element is a position the two subjects do not share.
-- **`assertSame` and `assertEqualsDeep` part at exactly one thing: a second allocation.** Over
-  a 13-row sweep, 10 agree, 3 part (a twin, a `clone`, a twin one level down inside an array)
-  and 0 part the other way — identity passing where the structural walk fails is impossible by
-  construction, and that is what the counted `sameOnly=0` pins.
+- **A quoted `string` stops at 64 characters, counted in characters.** `SHOWN_CHARS = 64` at
+  `test.rs:912`; a 64-character subject is quoted whole and a 65-character one takes a trailing
+  `…` over the same 64. 65 two-byte characters cut at the same place, so a byte-wise bound is
+  ruled out. The bound belongs to `shown`, not to a member: `assertEqualsDeep`'s named leaf
+  goes through it too.
+- **A container is named by its size and an object by its class, never by its contents.**
+  `an array of 3`, `70 bytes`, ``a `Cell` `` — an empty array is `an array of 0` rather than a
+  word of its own, and two `Cell`s holding different properties render identically. That is what
+  makes the quoting bound worth anything: nothing else in a message can spill a subject.
+- **A `secret` property is compared but not quoted.** `test.rs:830` replaces both sides with
+  `«redacted»` at the property's own path, composed through containers as usual
+  (`$actual->creds["0"]->token`). The descent still happens: an agreeing pair passes, a differing
+  pair fails, and a non-secret sibling on the same class is quoted in full.
 
 ## Next group
 
-**`Core\Test`'s failure *rendering*** — the file set is `crates/nvs-stdlib/src/test.rs` plus
-`tests/conformance/core/`. Verified new this session: no case under `tests/conformance/`
-asserts `Core\Test`'s own quoting bound, and the one secret row on disk is a secret *leaf*.
+**`Core\Test`'s remaining rendering arms and its two non-assertion members** — the file set is
+`crates/nvs-stdlib/src/test.rs` plus `tests/conformance/core/`. `shown`'s container and `string`
+arms are now pinned; what is left is the scalar half and the two members that are not an
+assertion.
 
-- [ ] **A quoted `string` in a failure message stops at 64 characters** (`test.rs:872` `shown`,
-      `:902` `quoted`, `:912` `SHOWN_CHARS = 64`) — the *bound asserted on both sides* shape: a
-      64-character subject is quoted whole and a 65-character one ends in `…`. The reason is in
-      `shown`'s own doc comment (a message goes to a build log), so cite it rather than restate.
-- [ ] **A container is named by its size and an object by its class, never quoted**
-      (`test.rs:884`-`:892` — `bytes`, `array`, `object`, and `closure`/`resource` beside them)
-      — the *agreement* shape over every tag `shown` answers: one failing comparison per tag,
-      asserting that none of them puts contents in the message.
-- [ ] **A `secret` property redacts a difference found *below* it, and reports the secret
-      field's own path rather than the deeper one** (`test.rs:826`-`:838`, `REDACTED` at
-      `:844`) — `object_difference` replaces both the path and both sides when the slot is
-      secret, so a secret holding an object is a row the existing leaf case cannot see.
+- [ ] **`shown`'s scalar arms each render as themselves** (`test.rs:872` `shown`, arms at `:874`
+      `null`, `:876` `bool`, `:877` `int`, `:878` `uint`, `:879` `float`, `:880` `decimal`) — the
+      *invariance over a sweep* shape: `false` renders as `false` and not as the empty string
+      `bool as string` gives it, an `int` and a `uint` of the same digits render the same, and a
+      `float` renders through Rust's own `to_string`. Reach these through `assertSame`, whose two
+      arguments bind to one type variable, so each row needs a differing partner of its own type.
+- [ ] **`assertEquals` over an object with no `compareTo` refuses, naming the two members that
+      would work** (`test.rs:653`) — the *edges* shape. The message quotes the receiver through
+      `shown`, so it names the class; assert it against a class that does implement `Comparable`
+      on the line beside it, or the refusal reads as "objects are not supported".
+- [ ] **`expectFailure` discharges an expectation and nothing else does** (`test.rs:531` the doc,
+      `:579` the failure, `:584` `held`) — ADR 0079 § 5. A body whose assertion fails is the
+      passing row; a body that passes is the refusal. The `callable` goes in as a `fn` literal at
+      the call site, since a first-class `Class::method(...)` still panics `nvs-ir`.
 
 ## Backlog
 
-- `Core\Uri` reads as the thinnest class in `gaps.py` but its obvious boundaries are already on
-  disk — `tryParse`'s agreement, the port bound and `with` naming the first component that
-  moved each have a case. Rank it by what is *left*, not by depth (`docs/agent/loop-goal.md`).
-- The next thinnest classes with room: `Core\Time\DateTime` (17 members), `Core\ObjectMap`
-  (`objmap.rs`, 5 case files over 9 members), `Core\Random` (`random.rs`).
-- `csv.rs:512` is the one remaining unasserted `thrown` and is owed no case (playbook).
+- A `secret string` read out of its property and handed straight to `assertSame` is quoted in
+  full — the redaction at `test.rs:830` is scoped to the *slot*, and the tag carries no
+  qualifier. Whether that is intended belongs to ADR 0033 / ADR 0092 § 5, not to this module.
+- `shown`'s `Tag::Resource` and `Tag::Unset` arms are unreachable from source; owed a comment
+  saying so rather than a case (`crates/nvs-stdlib/src/test.rs`).
 - 54 of the 156 guard tests `loop-goal.toml` names match nothing `cargo test` runs —
   `docs/agent/guard-name-debt.md`.
+- `array<T> as array<U>` does not lower (`crates/nvs-ir/src/lower/expr.rs:877`), which is what
+  keeps `Core\Csv::format`'s non-`string` cell refusal unreachable — `docs/agent/playbook.md`.
