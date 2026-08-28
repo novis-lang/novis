@@ -62,6 +62,34 @@
 //! parameter no `#[Fixture]` supplies and no data row fills — is not decidable
 //! here at all and waits on §§ 8-9, which is what will hold both rosters.
 //!
+//! # § 8's `#[Fixture]` roster is the second table, keyed by type
+//!
+//! A fixture is built **once, in the parent isolate**, and injected into each
+//! test that declares a parameter of its type, so what a roster of them has to
+//! record is the *type* each one supplies — [`Fixture`] is one row, and
+//! [`check_fixture_shape`] is where the declaration is held to being able to
+//! supply one at all. Its three refusals are [`code::E_FIXTURE_METHOD_SHAPE`]
+//! and are the inverse of [`check_method_shape`]'s: a fixture that is not
+//! `static` has no instance to be built against, since § 20 gives each test
+//! its own and that is the opposite of once; a non-`public` one cannot be
+//! called from outside its class; and one returning `void` supplies nothing.
+//! The fourth is a member carrying **both** markers, which is one method
+//! claiming to be two things whose shapes contradict.
+//!
+//! `#[Fixture]` is matched nominally exactly as `#[Test]` is
+//! ([`crate::derive::FIXTURE`]), and carries no payload at all: what it
+//! supplies is its return type, so a field written on it is
+//! [`code::E_UNKNOWN_OPTION`] rather than an option that quietly does
+//! nothing.
+//!
+//! Two fixtures of one class returning **one** type is the roster's own
+//! refusal rather than a shape one — § 8 resolves by type, so it is one
+//! declaration made twice — and it is decidable here, with no parameter
+//! anywhere in it. What is *not* decidable here is § 1's remaining bullet, a
+//! `#[Test]` parameter no fixture supplies: that is a question about this
+//! roster asked from a method's parameter list, and it wants § 9's data rows
+//! beside it before it can be answered in one place.
+//!
 //! # The table is built while checking, and rides in [`crate::ExprTypeTable`]
 //!
 //! § 1's "the compiler collects every `#[Test]` into a table" is
@@ -149,22 +177,87 @@ pub struct TestCase {
     pub options: Vec<(String, ConstArg)>,
 }
 
-/// Every `#[Test]` method `decl` declares, recorded into
+/// One `#[Fixture]` method of one class — ADR 0079 § 8's roster, one row at a
+/// time.
+#[derive(Clone, Debug)]
+pub struct Fixture {
+    /// The method's own name, exactly as declared. Nothing about a fixture is
+    /// inferred from this spelling: § 8 resolves a request for one by
+    /// **type**, and the name is what a diagnostic points at.
+    pub method: String,
+    /// What the method returns, which is what it supplies. This is the key of
+    /// the whole roster, so it is the declared return type interned — a
+    /// parameter asking for a fixture is matched against it with the same
+    /// [`TypeId`] equality every other type question in this crate uses.
+    pub ty: TypeId,
+}
+
+/// Every `#[Test]` and `#[Fixture]` method `decl` declares, recorded into
 /// [`crate::ExprTypeTable`] under `class`'s label.
 ///
-/// A no-op — not even a row — for a class with no `#[Test]` at all, which is
-/// what makes a program that declares no tests pay nothing for this pass
-/// beyond the walk it already makes over the members.
+/// A no-op — not even a row — for a class carrying neither, which is what
+/// makes a program that declares no tests pay nothing for this pass beyond
+/// the walk it already makes over the members.
+///
+/// The two rosters are collected in **one** walk rather than in a pass each,
+/// because they are two questions about one member list: a method carrying
+/// both markers is refused here at all, and that refusal is not one either
+/// pass could make alone.
 pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     let mut cases: Vec<TestCase> = Vec::new();
+    let mut fixtures: Vec<Fixture> = Vec::new();
     for member in &decl.members {
         let ClassMemberKind::Method(m) = &member.kind else {
             continue;
         };
-        let Some(attr) = test_attribute(&m.attributes, ctx, env) else {
+        let test = attribute_named(&m.attributes, crate::derive::TEST, ctx, env);
+        let fixture = attribute_named(&m.attributes, crate::derive::FIXTURE, ctx, env);
+        if test.is_none() && fixture.is_none() {
             continue;
-        };
+        }
         let method = span_text(env.src, m.name).to_owned();
+        if test.is_some() && fixture.is_some() {
+            // The two shapes are inverted — § 1's test is an instance method
+            // returning nothing, § 8's fixture a `static` one returning
+            // something — so a member carrying both is not two facts about it
+            // but one contradiction, and neither roster gets a row rather
+            // than one roster getting a row the other has just refused.
+            report_fixture_shape(
+                m,
+                &method,
+                "is also a `#[Test]`",
+                "a fixture builds the value a test takes, so a method is one or the other",
+                env,
+            );
+            continue;
+        }
+        if let Some(attr) = fixture {
+            check_fixture_payload(attr, env);
+            let Some(ty) = check_fixture_shape(m, &method, class, env) else {
+                continue;
+            };
+            if let Some(prior) = fixtures.iter().find(|already| already.ty == ty) {
+                let described = env.interner.describe(ty);
+                let prior = prior.method.clone();
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_DUPLICATE_DECLARATION,
+                        format!(
+                            "`{class}` declares two `#[Fixture]` methods returning `{described}`"
+                        ),
+                    )
+                    .with_primary(m.name, format!("`{prior}` already supplies `{described}`"))
+                    .with_help(
+                        "ADR 0079 § 8 resolves a fixture by its type, so two of one type leave a \
+                         parameter asking for it with no answer",
+                    ),
+                );
+                continue;
+            }
+            fixtures.push(Fixture { method, ty });
+            continue;
+        }
+        let Some(attr) = test else { continue };
         check_method_shape(m, &method, class, env);
         if cases.iter().any(|case| case.method == method) {
             env.diags.report(
@@ -183,20 +276,113 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
     if !cases.is_empty() {
         env.exprs.record_tests(class.to_string(), cases);
     }
+    if !fixtures.is_empty() {
+        env.exprs.record_fixtures(class.to_string(), fixtures);
+    }
 }
 
-/// The `#[Test]` attached to one member, or `None`. The nominal match is
-/// [`crate::derive::attribute_is`]', so one roster answers "is this that
-/// attribute" for every recognized name.
-fn test_attribute<'a>(
+/// The recognized attribute `want` attached to one member, or `None`. The
+/// nominal match is [`crate::derive::attribute_is`]', so one roster answers
+/// "is this that attribute" for every recognized name.
+fn attribute_named<'a>(
     groups: &'a [AttributeGroup],
+    want: &str,
     ctx: &Ctx<'_>,
     env: &Env<'_>,
 ) -> Option<&'a Attribute> {
     groups
         .iter()
         .flat_map(|group| &group.attributes)
-        .find(|attr| crate::derive::attribute_is(attr, crate::derive::TEST, ctx, env))
+        .find(|attr| crate::derive::attribute_is(attr, want, ctx, env))
+}
+
+/// ADR 0079 § 8's declaration-shape refusals, for one `#[Fixture]` method,
+/// and the type it supplies when there is one.
+///
+/// Read off the resolved signature for [`check_method_shape`]'s reason
+/// exactly. `None` — no row at all — for a fixture with nothing to supply: a
+/// method the signature table has no row for, which `nvs_syntax` is already
+/// refusing, and one returning `void`, which has no type for § 8's by-type
+/// resolution to key on. The other two refusals still record their row, so
+/// that a test asking for the type is answered by the fixture the author
+/// plainly wrote rather than by a second diagnostic saying nothing supplies
+/// it.
+fn check_fixture_shape(
+    m: &MethodMember,
+    method: &str,
+    class: &QName,
+    env: &mut Env<'_>,
+) -> Option<TypeId> {
+    let signatures = env.signatures;
+    let sig = signatures
+        .get(class)
+        .and_then(|class_sig| class_sig.methods.get(method))?;
+    let return_ty = sig.return_ty;
+    let is_static = sig.is_static;
+    let visibility = sig.visibility;
+    if !is_static {
+        report_fixture_shape(
+            m,
+            method,
+            "is not `static`",
+            "a fixture is built once for the whole class, so declare it `static`",
+            env,
+        );
+    }
+    if visibility != Visibility::Public {
+        report_fixture_shape(
+            m,
+            method,
+            "is not `public`",
+            "the runner builds a fixture from outside its class, so declare it `public`",
+            env,
+        );
+    }
+    if matches!(env.interner.get(return_ty), Ty::Void) {
+        report_fixture_shape(
+            m,
+            method,
+            "returns `void`",
+            "a fixture is injected by its type, so declare the type it builds",
+            env,
+        );
+        return None;
+    }
+    Some(return_ty)
+}
+
+/// One [`code::E_FIXTURE_METHOD_SHAPE`], worded from what the declaration did.
+fn report_fixture_shape(m: &MethodMember, method: &str, did: &str, help: &str, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_FIXTURE_METHOD_SHAPE,
+            format!("the `#[Fixture]` method `{method}` {did}"),
+        )
+        .with_primary(m.name, did)
+        .with_help(help.to_owned()),
+    );
+}
+
+/// `#[Fixture]` carries no payload at all — § 8 writes it bare, and what it
+/// supplies is its return type rather than anything written on the marker.
+///
+/// So the roster [`OPTIONS`] is for `#[Test]` has no counterpart here, and a
+/// field is refused by the same [`code::E_UNKNOWN_OPTION`] a misspelt
+/// `#[Test]` option draws: it is the same mistake, an option that does
+/// nothing, and silence is the one answer that would let it look as though it
+/// had.
+fn check_fixture_payload(attr: &Attribute, env: &mut Env<'_>) {
+    for field in &attr.fields {
+        let name = span_text(env.src, field.name).to_owned();
+        env.diags.report(
+            Diagnostic::error(
+                code::E_UNKNOWN_OPTION,
+                format!("`{name}` is not an option of `#[Fixture]`"),
+            )
+            .with_primary(field.span, "no such option")
+            .with_help("`#[Fixture]` takes none: what it supplies is its declared return type"),
+        );
+    }
 }
 
 /// ADR 0079 § 1's three declaration-shape refusals, for one `#[Test]` method.

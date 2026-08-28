@@ -74,7 +74,7 @@ use crate::{Ctx, Env, span_text, strip_sigil};
 /// § 1 rule does not apply to it and what its payload may hold is the
 /// recognizing pass's own question: `#[Json\Derive]`/`#[Json\Field]` are this
 /// module's, `#[Test]` is [`crate::testing`]'s.
-pub const ATTRIBUTES: &[&str] = [DERIVE, FIELD, TEST].as_slice();
+pub const ATTRIBUTES: &[&str] = [DERIVE, FIELD, TEST, FIXTURE].as_slice();
 
 /// `#[Json\Derive]` — ADR 0071 § 1's opt-in, on a class.
 pub const DERIVE: &str = r"Core\Json\Derive";
@@ -88,6 +88,15 @@ pub const FIELD: &str = r"Core\Json\Field";
 /// a test body write `Test::assertEquals(…)` is the same one that places the
 /// attribute; [`crate::testing`] owns the payload.
 pub const TEST: &str = r"Core\Test";
+
+/// `#[Fixture]` — ADR 0079 § 8's marker, on a `static` method whose return
+/// type is what a test asks for by declaring a parameter of it. It sits in
+/// the `Core\Test` namespace beside [`crate::error_lib`]'s `Core\Test\Failure`
+/// rather than being a second segment of the class itself, because it names
+/// no member of anything: it is a recognized name and nothing else, so a file
+/// that writes it bare places it with `use Core\Test\Fixture;`.
+/// [`crate::testing`] owns what it may carry, which is nothing.
+pub const FIXTURE: &str = r"Core\Test\Fixture";
 
 /// One derived class's JSON field list, in declaration order — ADR 0071 § 2's
 /// "declaration order fixes encode order, so output is byte-deterministic".

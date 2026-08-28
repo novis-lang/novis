@@ -1671,6 +1671,25 @@ pub mod code {
     /// about `retries: 2` is ill-typed — the mistake is the option that is
     /// *absent*, which is the one thing an all-optional bag cannot say.
     pub const E_TEST_RETRIES_WITHOUT_REASON: Code = Code::new("E0734");
+    /// A `#[Fixture]` method the runner could not build a value from.
+    ///
+    /// ADR 0079 § 8 builds a fixture **once, in the parent isolate**, and
+    /// injects the value it returns into each test that declares a parameter
+    /// of its type — so a fixture that is not `static` has no instance to be
+    /// built against (§ 20 gives each test its own, which is the opposite of
+    /// once), a non-`public` one cannot be called from outside its class, and
+    /// one returning `void` produces nothing for a parameter to take. A
+    /// method carrying both markers is the fourth: `#[Test]` requires exactly
+    /// what this refuses, so it is one method claiming to be two things.
+    ///
+    /// It is a separate code from [`E_TEST_METHOD_SHAPE`] rather than a
+    /// widening of it because the two rules are inverted — a test is an
+    /// instance method returning nothing, a fixture a `static` one returning
+    /// something — so a single code would have to word its help both ways.
+    /// Two fixtures of one class returning one type is neither, and draws
+    /// [`E_DUPLICATE_DECLARATION`]: § 8 resolves by type, so it is one
+    /// declaration made twice.
+    pub const E_FIXTURE_METHOD_SHAPE: Code = Code::new("E0735");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

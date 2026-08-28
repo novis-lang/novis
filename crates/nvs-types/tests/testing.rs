@@ -1,15 +1,16 @@
-//! ADR 0079 § 1's `#[Test]` attribute: the payload check, and the table the
-//! compiler builds from it.
+//! ADR 0079 § 1's `#[Test]` attribute and § 8's `#[Fixture]`: the payload
+//! check, and the two tables the compiler builds from them.
 //!
-//! The table has no `.nvst` case and cannot have one yet: nothing runs a test
-//! until the runner arrives, so a program can observe neither the rows nor
-//! their order. It is asserted here instead, where the table itself is in
-//! hand — the payload's *refusals* are pinned by a `.nvst` alongside, since
-//! those a program does observe.
+//! Neither table has a `.nvst` case for its *rows*: the `#[Test]` one is
+//! reported by the runner, but a `#[Fixture]` row is observable only once §
+//! 8's injection runs, so nothing a program can print says which type a
+//! fixture supplies. They are asserted here instead, where the tables
+//! themselves are in hand — both rosters' *refusals* are pinned by a `.nvst`
+//! alongside, since those a program does observe.
 
 mod common;
 
-use common::check_src_table;
+use common::{check_src_declared, check_src_table};
 use nvs_types::defaults::ConstArg;
 
 /// The one shape ADR 0079 § 1's own example writes, with the `use Core\Test;`
@@ -76,6 +77,78 @@ fn each_option_is_folded_to_the_constant_a_parameter_default_folds_to() {
 fn a_bare_test_carries_no_options_rather_than_defaulted_ones() {
     let (_, options) = tests_of("  #[Test]\n  public function m(): void {}\n");
     assert!(options[0].is_empty());
+}
+
+/// ADR 0079 § 8's own worked example's shape, with the two imports that place
+/// the marker and the assertions, and a class for each fixture to build.
+fn fixture_src(members: &str) -> String {
+    format!(
+        "<?nvs\nuse Core\\Test;\nuse Core\\Test\\Fixture;\n\
+         class Schema {{}}\nclass Widget {{}}\n\
+         class RepoTest {{\n{members}\n}}\n"
+    )
+}
+
+#[test]
+fn a_fixture_attribute_builds_a_roster_keyed_by_what_it_returns() {
+    let (diags, declared) = check_src_declared(&fixture_src(
+        "  #[Fixture]\n  public static function schema(): Schema { return new Schema(); }\n\
+         \n  public static function notAFixture(): Widget { return new Widget(); }\n\
+         \n  #[Fixture]\n  public static function widget(): Widget { return new Widget(); }\n\
+         \n  #[Test]\n  public function itFinds(): void {}\n",
+    ));
+    assert!(!diags.has_errors(), "fixture was refused: {diags:?}");
+    let fixtures = declared.exprs().fixtures("RepoTest").unwrap();
+    // Declaration order, and only the marked members — the roster is what
+    // § 8 injects from, not every static method that returns something.
+    let rows: Vec<(&str, String)> = fixtures
+        .iter()
+        .map(|f| (f.method.as_str(), declared.interner.describe(f.ty)))
+        .collect();
+    assert_eq!(
+        rows,
+        [
+            ("schema", "Schema".to_owned()),
+            ("widget", "Widget".to_owned())
+        ]
+    );
+    // The two tables are separate: a class declaring both keeps a `#[Test]`
+    // row out of the roster a parameter is resolved against.
+    assert_eq!(
+        declared.exprs().tests("RepoTest").map(|cases| cases.len()),
+        Some(1)
+    );
+}
+
+#[test]
+fn a_class_with_no_fixture_has_no_roster_at_all() {
+    let (diags, declared) = check_src_declared(&fixture_src(
+        "  #[Test]\n  public function itFinds(): void {}\n",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+    assert!(declared.exprs().fixtures("RepoTest").is_none());
+}
+
+#[test]
+fn a_fixture_is_matched_nominally_exactly_as_a_test_is() {
+    // Fully qualified needs no import at all, and is the same attribute the
+    // `use`d spelling above names.
+    let (diags, declared) = check_src_declared(
+        "<?nvs\nclass Schema {}\nclass T {\n  #[Core\\Test\\Fixture]\n  \
+         public static function schema(): Schema { return new Schema(); }\n}\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+    assert_eq!(declared.exprs().fixtures("T").map(<[_]>::len), Some(1));
+
+    // A userland `Fixture` with nothing importing the `Core` one resolves to
+    // a different name, so it builds no row — and is refused as the
+    // undeclared name it is rather than silently marking the method.
+    let (diags, declared) = check_src_declared(
+        "<?nvs\nclass Schema {}\nclass T {\n  #[Fixture]\n  \
+         public static function schema(): Schema { return new Schema(); }\n}\n",
+    );
+    assert!(diags.has_errors());
+    assert!(declared.exprs().fixtures("T").is_none());
 }
 
 #[test]

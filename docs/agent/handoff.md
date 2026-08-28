@@ -2,69 +2,75 @@
 
 ## State
 
-**M4's Stage 7: § 20's retry is closed, and what Stage 7 still owes is
-§§ 8-9's fixtures.** `python tools/loop.py --list` reports no named `.nvst`
-case owed by any stage.
+**M4's Stage 7: § 8's `#[Fixture]` roster is built, and what Stage 7 still
+owes is that section's injection plus § 9's data rows.** `python
+tools/loop.py --list` reports no named `.nvst` case owed by any stage.
 
+- **A `#[Fixture]` roster is a second table beside § 1's**, keyed by the type
+  each row supplies; `crates/nvs-types/src/testing.rs`'s module doc is the
+  home of why the two are collected in one walk and why the fixture shape
+  rules are the inverse of a test's. ADR 0079 § 8 carries the rule.
+- **Four fixture declarations are `E0735`** — not `static`, not `public`,
+  returning `void`, or carrying `#[Test]` as well — and two fixtures of one
+  type are `E_DUPLICATE_DECLARATION`, § 8 resolving by type.
+- **A `#[Test]` method with a parameter is still accepted and still cannot
+  run**: the runner calls it with no arguments. Resolving a parameter against
+  the roster and injecting the value are **one** slice, not two — accepting a
+  resolvable parameter before the injection exists opens the hole it looks
+  like it closes, and refusing every parameter would refuse § 8's own
+  worked example.
 - **A retried test is flaky, in all three formats at once.**
   `Outcome::Flaky` is a fifth verdict carrying its attempt count and the last
   failed attempt's failures; `crates/nvs-cli/src/runner.rs`'s
-  `run_with_retries` is the home of why only a failure is retried, why the
-  *last* attempt is what is reported, and why a flaky test does not fail the
-  run. ADR 0079 § 20 carries the rule.
-- **`retries:` with no `because:` is `E0734`**, checked once the payload has
-  been walked because it is a dependency between two options and § 1's roster
-  is all-optional by construction —
-  `nvs_types::testing::check_retries_state_a_reason`.
+  `run_with_retries` is the home of why only a failure is retried.
 - **`nvs test` reports one run in three formats**, one `Outcome` list behind
   all of them; `crates/nvs-cli/src/runner.rs`'s module doc is the home of why
-  a verdict is decided once and where a machine format sends the program's
-  own output.
+  a verdict is decided once.
 - **`Core\Test` has eight assertion members plus `expectFailure`**;
   `crates/nvs-stdlib/src/test.rs`'s module doc is the home of why each subject
   is the type it is.
-- What Stage 7 still owes is §§ 8-9 alone: `#[Fixture]` and data rows, which
-  is what `nvs_types::testing::check_method_shape`'s parameter bullet waits
-  on. The roster is at `crates/nvs-cli/src/runner.rs`'s own module doc.
-- The conformance corpus is at **737**.
+- The conformance corpus is at **738**.
 
 ## Next group
 
-**§ 8's `#[Fixture]`, which is the last thing between a `#[Test]` method and
-its parameter list.** The file set is `crates/nvs-types/src/testing.rs` (the
-option roster at `:129`, `TestCase` at `:142`, `check_method_shape` at `:215`
-whose parameter bullet is deferred to exactly this, `check_payload` at `:291`)
-plus `crates/nvs-cli/src/runner.rs` (`run_with_retries` at `:281`, `run_case`
-at `:322`) and `crates/nvs-runtime/src/dispatch.rs:365`
-(`construct_and_call`, whose parameter-declaring constructor is today a
-catchable throw naming this very feature):
+**§ 8's injection, which is the whole of what stands between the roster and a
+test that takes a parameter.** The file set is
+`crates/nvs-types/src/testing.rs` (the roster at `:183`, `check_class_tests`
+at `:206`, `check_method_shape` at `:399` whose parameter bullet waits on
+this) plus `crates/nvs-cli/src/runner.rs` (`run_case` at `:343`,
+`run_with_retries` at `:281`) and
+`crates/nvs-runtime/src/dispatch.rs:365` (`construct_and_call`, which is
+where an argument list would be handed over and whose parameter-declaring
+constructor is today a catchable throw naming this feature):
 
-- [ ] **§ 8's `#[Fixture]` roster, built while checking** — ADR 0079 § 8
-      (`docs/adr/0079-testing-is-a-language-feature.md:304`) makes a fixture
-      built once in the parent and injected by parameter, so what is owed
-      first is the table: which methods of a class declare `#[Fixture]`, at
-      what return type, recorded beside `ExprTypeTable::tests` the way § 1's
-      own table is, in the same walk. `check_class_tests` at
-      `crates/nvs-types/src/testing.rs:158` is where it is collected.
-- [ ] **§ 1's parameter bullet, refused or resolved** — a `#[Test]` parameter
-      no fixture supplies is the fifth of § 1's compile errors and the one
-      `check_method_shape` (`crates/nvs-types/src/testing.rs:215`) explicitly
-      defers; with the roster in hand it is decided there, beside the three
-      shape refusals it already makes, under `E0733` or a code of its own.
-- [ ] **The runner's injection** — `construct_and_call`
-      (`crates/nvs-runtime/src/dispatch.rs:365`) calls with no arguments
-      today, and a parameter-declaring constructor is a catchable throw that
-      names §§ 8-9 by hand; both ends move together, one `.nvst` over a
-      fixture reaching two test methods.
+- [ ] **§ 1's parameter bullet, resolved against the roster** — ADR 0079 § 8
+      (`docs/adr/0079-testing-is-a-language-feature.md:304`) resolves a
+      `#[Test]` parameter **by type**, so each one is matched against the
+      class's `ExprTypeTable::fixtures` row and a parameter no row supplies is
+      refused where it is written, naming the type it asked for. Record the
+      resolution on `TestCase` (`crates/nvs-types/src/testing.rs:170`) so the
+      runner reads an order rather than re-deriving one. A fixture's *own*
+      fixture parameters resolve the same way and a cycle is a compile error,
+      which is that section's last sentence.
+- [ ] **The runner builds each fixture once and passes the values in** —
+      one call per row before the class's tests run, the value held for the
+      whole class, handed to `construct_and_call` as an argument list. § 8's
+      graph copy is `spawn`'s and is M5, so a value shared within one process
+      is the safe reading to land now and to say out loud at
+      `nvs_cli::runner`.
+- [ ] **The `.nvst` that pins both** — § 8's own worked example running, the
+      fixture built once for two tests counted rather than read off a line,
+      and the unsatisfiable parameter as a reject twin.
 
 ## Backlog
 
-- §§ 8-9's `#[Fixture]` and data rows — ADR 0079, the group above.
-- § 2's isolate per test and parallelism — M5, `nvs_cli::runner`'s own doc.
-- § 21's `nvs test --mutate` — ADR 0079 § 21, wants ADR 0018's coverage data.
+- § 9's data rows, the other half of what Stage 7 owes — ADR 0079 § 9.
+- § 2's isolate-per-test and parallelism (M5) — `crates/nvs-cli/src/runner.rs`.
+- `#[Fixture]` on a property or a const is not checked for a payload, only on
+  a method — `crates/nvs-types/src/testing.rs`.
 - A `require` whose path is not a string literal runs nothing, silently —
   `nvs_hir::requires`' own known gap.
-- `nvs_stdlib::debug` gap 1: an `array<T>` element and a shape literal's field
-  carry no `secret` bit — ADR 0033's unmodelled container axis.
-- `signatures.rs`' known gap: a class constant's declared type is unmodelled,
-  so `Class::CONST` infers `mixed` at every expression site.
+- ADR 0024 § 5's `string as Core\Html\Markup` waits on `Core\Html` (M7) —
+  `nvs-ir`'s own catch-all.
+- `signatures.rs` leaves a class constant's declared type unmodelled —
+  that module's own known gap.

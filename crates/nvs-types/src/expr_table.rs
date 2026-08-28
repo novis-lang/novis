@@ -604,6 +604,7 @@ pub struct ExprTypeTable {
     foreach: FxHashMap<Span, ForeachDrive>,
     codecs: FxHashMap<String, crate::derive::DerivedCodec>,
     tests: FxHashMap<String, Vec<crate::testing::TestCase>>,
+    fixtures: FxHashMap<String, Vec<crate::testing::Fixture>>,
     property_defaults: FxHashMap<String, Vec<(String, crate::defaults::ConstArg)>>,
     property_types: FxHashMap<String, Vec<(String, TypeId)>>,
     lateinit_properties: FxHashMap<String, Vec<String>>,
@@ -778,6 +779,31 @@ impl ExprTypeTable {
     #[must_use]
     pub fn tests(&self, label: &str) -> Option<&[crate::testing::TestCase]> {
         self.tests.get(label).map(Vec::as_slice)
+    }
+
+    /// Records ADR 0079 § 8's `#[Fixture]` roster for the class labelled
+    /// `label`, in declaration order — [`crate::testing::check_class_tests`]
+    /// read it off that class's members, in the same walk that read the
+    /// `#[Test]` table above, because the two are one question about one
+    /// class and two walks could disagree about which members it has.
+    pub(crate) fn record_fixtures(
+        &mut self,
+        label: String,
+        fixtures: Vec<crate::testing::Fixture>,
+    ) {
+        self.fixtures.insert(label, fixtures);
+    }
+
+    /// The `#[Fixture]` methods of the class labelled `label`, or `None` when
+    /// it declares none.
+    ///
+    /// Keyed by a class label for [`Self::tests`]' reason, and separate from
+    /// that table because the two rosters answer different questions: which
+    /// members are run, and which members supply a value to run them with. A
+    /// class may declare either without the other.
+    #[must_use]
+    pub fn fixtures(&self, label: &str) -> Option<&[crate::testing::Fixture]> {
+        self.fixtures.get(label).map(Vec::as_slice)
     }
 
     /// Every class that declares at least one `#[Test]`, sorted, so that a

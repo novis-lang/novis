@@ -309,6 +309,9 @@ parameter of its type. The copy is [0023](0023-clone-serialize-and-cross-boundar
 operation — the same one `spawn` uses — so its cost is a known quantity rather than a new mechanism.
 
 ```nvs
+use Core\Test;                              // places `#[Test]` and the assertions
+use Core\Test\Fixture;                      // places `#[Fixture]`, which is a name and nothing more
+
 class RepoTest {
     #[Fixture]
     public static function schema(): Schema {
@@ -330,6 +333,23 @@ than a null at runtime. A fixture may itself declare fixture parameters; a cycle
 This is pytest's best idea with types on it, and the cost is stated rather than hidden: a fixture crossing
 into a test is a graph copy, and a fixture holding something that cannot be copied — a live connection, a
 handle — is refused at compile time by the same rule that governs the `spawn` boundary.
+
+`#[Fixture]` is matched **nominally** exactly as *1*'s `#[Test]` is — `Core\Test\Fixture` on
+`nvs_types::derive::ATTRIBUTES`' closed, `Core`-owned roster — and carries no payload at all, what it
+supplies being its declared return type, so a field written on it is refused as the option it is not. The
+roster itself is built by the very walk that builds *1*'s table, `nvs_types::testing::check_class_tests`,
+because the two are two questions about one member list: one row per marked method, carrying the method's
+name and the interned type it returns, recorded beside the `#[Test]` table in `ExprTypeTable` and keyed by
+class label for that table's reason. Four declarations cannot supply a value and are refused where they are
+written (`E0735`, `check_fixture_shape`), each the inverse of the shape a test must have: one that is not
+`static` has no instance to be built against, § 20 giving each test its own and that being the opposite of
+once; a non-`public` one cannot be called from outside its class; one returning `void` supplies nothing for
+a parameter to take; and a method carrying **both** markers is one method claiming to be two things whose
+shapes contradict. Two fixtures of one class returning one type is neither of those and draws
+`E_DUPLICATE_DECLARATION`, this section resolving by type: it is one declaration made twice, and it is
+decidable from the roster alone with no parameter anywhere in it. What is *not* decidable there is the
+`Widget` line of the example above — a parameter no fixture supplies — which is a question asked from a
+method's parameter list and wants *9*'s data rows beside it, since those fill a parameter too.
 
 ### 9. Data rows are compile-checked shape literals
 

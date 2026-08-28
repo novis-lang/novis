@@ -1767,13 +1767,52 @@
 > `tests/conformance/reject/a-retry-states-the-reason-it-is-retried.nvst` pins both refusals with
 > the three accepted spellings written first. The flaky row is folded into all three standing
 > reports, the plaintext one and both machine twins, so one run is still pinned through three
-> renderings. What Stage 7 still owes is §§ 8-9's `#[Fixture]` and data rows, which is also what
-> `check_method_shape`'s parameter bullet waits on. Three live tools **are** the worklist and no
-> session re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and
-> `nvs-codegen` and attributes each to its item (`--item N` for one in full), `python tools/loop.py
-> --list` prints the named `.nvst` cases each stage still owes — **none**, Stage 7's `#[Test]` table
-> case having landed with the `--RUN--` section that lets a case reach the runner at all — and
-> `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> renderings. **ADR 0079 § 8's `#[Fixture]` roster exists, and it is a second table beside § 1's
+> rather than a column on it.** A fixture is built once in the parent isolate and injected into each
+> test that declares a parameter of its **type**, so what a roster of them records is the type each
+> one supplies: `nvs_types::testing::Fixture` is one row — the method's name, and its declared
+> return type interned, which is what a parameter will be matched against with the same `TypeId`
+> equality every other type question in this crate uses. It is collected by the very walk that
+> collects the `#[Test]` table (`check_class_tests`) rather than by a pass of its own, because the
+> two are two questions about one member list and the refusal of a method carrying **both** markers
+> is not one either pass could make alone; it rides in `ExprTypeTable` keyed by class label, for
+> that table's own reason, and a class declaring neither marker still records nothing at all.
+> `#[Fixture]` is matched **nominally** exactly as `#[Test]` is — `Core\Test\Fixture`, the fourth
+> entry on ADR 0071 § 1's closed, `Core`-owned roster, sitting in the `Core\Test` namespace beside
+> `Core\Test\Failure` rather than being a segment of the class itself, since it names no member of
+> anything — and it carries **no payload at all**, what it supplies being its declared return type,
+> so a field written on it is the same `E0454` a misspelt `#[Test]` option draws rather than an
+> option that quietly does nothing. Four declarations cannot supply a value and are refused where
+> they are written (`E0735`, `check_fixture_shape`), each of them the inverse of the shape
+> `check_method_shape` requires of a test: one that is not `static` has no instance to be built
+> against, § 20 giving each test its own and that being the opposite of once; a non-`public` one
+> cannot be called from outside its class; one returning `void` supplies nothing for a parameter to
+> take, and is the one refusal that also records no row, there being no type to key it on; and a
+> method carrying both markers is one method claiming to be two things whose shapes contradict, so
+> neither roster gets a row rather than one getting a row the other has just refused. The other two
+> still record theirs, so that a test asking for the type is answered by the fixture the author
+> plainly wrote rather than by a second diagnostic saying nothing supplies it. It is a separate code
+> from `E0733` rather than a widening of it because the two rules are inverted and one code would
+> have to word its help both ways. Two fixtures of one class returning **one** type is neither, and
+> draws `E_DUPLICATE_DECLARATION`: § 8 resolves by type, so it is one declaration made twice, and it
+> is the one § 8 rule decidable from the roster alone with no parameter anywhere in it. ADR 0079 § 8
+> gains the enforcement paragraph, and its own worked example gains the two `use` lines that place
+> both markers, exactly as § 1's was corrected. Asserted in `crates/nvs-types/tests/testing.rs` over
+> the declaration order, the recorded type of each row, the unmarked static method that is not one,
+> the class with no roster and the nominal match in both directions — a `.nvst` can observe neither
+> a row nor its type until § 8's injection runs — while
+> `tests/conformance/reject/a-fixture-supplies-one-type-from-a-public-static-method.nvst` pins all
+> six refusals in one compile with § 8's own accepted shape written first. What Stage 7 still owes
+> is § 8's **injection** and § 9's data rows. § 1's parameter bullet waits on the first of those
+> rather than on the roster: a parameter the roster can now satisfy must not be *accepted* until the
+> runner can inject it, since the runner calls a test with no arguments, so resolving a parameter
+> and injecting it are one slice and refusing every parameter outright would refuse § 8's own
+> example. Three live tools **are** the worklist and no session re-derives one: `python
+> tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen` and attributes each to
+> its item (`--item N` for one in full), `python tools/loop.py --list` prints the named `.nvst`
+> cases each stage still owes — **none**, Stage 7's `#[Test]` table case having landed with the
+> `--RUN--` section that lets a case reach the runner at all — and `python tools/check-migration.py`
+> scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

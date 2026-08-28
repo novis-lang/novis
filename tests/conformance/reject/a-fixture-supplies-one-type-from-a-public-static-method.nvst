@@ -1,0 +1,111 @@
+--TEST--
+a `#[Fixture]` is a `public static` method returning the type it supplies, and one class supplies each type once, ADR 0079 § 8
+--FILE--
+<?nvs
+// ADR 0079 § 8 builds a fixture once, in the parent isolate, and injects the
+// value it returns into each test that declares a parameter of its type. So
+// what the roster records is the type each one supplies, and a declaration
+// that cannot supply one is refused where it is written.
+use Core\Test;
+use Core\Test\Fixture;
+
+final class Schema {}
+final class Widget {}
+final class Cache {}
+final class Clock {}
+
+final class AcceptedTest {
+    // § 8's own worked example's shape: built once for the whole class, and
+    // named by the type it returns rather than by its own name.
+    #[Fixture]
+    public static function schema(): Schema {
+        return new Schema();
+    }
+
+    // A second fixture is fine as long as it supplies a different type,
+    // resolution being by type rather than by name.
+    #[Fixture]
+    public static function widget(): Widget {
+        return new Widget();
+    }
+
+    // A plain static method beside them is not a fixture: the marker is what
+    // says so, never the shape of the declaration.
+    public static function notAFixture(): Cache {
+        return new Cache();
+    }
+
+    #[Test]
+    public function itFinds(): void {
+        Test::assertSame(1, 1);
+    }
+}
+
+final class RefusedTest {
+    // Refused: a fixture is built once for the whole class, and § 20 gives
+    // each test its own instance, which is the opposite of once.
+    #[Fixture]
+    public function notStatic(): Schema {
+        return new Schema();
+    }
+
+    // Refused: the runner builds a fixture from outside its class.
+    #[Fixture]
+    private static function notPublic(): Widget {
+        return new Widget();
+    }
+
+    // Refused: a fixture is injected by its type, and `void` is not one.
+    #[Fixture]
+    public static function suppliesNothing(): void {
+    }
+
+    // Refused: `#[Fixture]` carries no payload at all — what it supplies is
+    // its declared return type.
+    #[Fixture(name: "cache")]
+    public static function withAnOption(): Cache {
+        return new Cache();
+    }
+
+    // Refused: `#[Test]` requires exactly what `#[Fixture]` refuses, so a
+    // method carrying both is one method claiming to be two things.
+    #[Test]
+    #[Fixture]
+    public static function bothAtOnce(): Clock {
+        return new Clock();
+    }
+}
+
+final class TwiceTest {
+    #[Fixture]
+    public static function schema(): Schema {
+        return new Schema();
+    }
+
+    // Refused: § 8 resolves by type, so a second fixture of one type leaves
+    // a parameter asking for it with no answer rather than with two.
+    #[Fixture]
+    public static function schemaAgain(): Schema {
+        return new Schema();
+    }
+}
+--EXPECTF-ERROR--
+error[E0735]: the `#[Fixture]` method `notStatic` is not `static`
+   --> case.nvs:45:21
+%A
+error[E0735]: the `#[Fixture]` method `notPublic` is not `public`
+   --> case.nvs:51:29
+%A
+error[E0735]: the `#[Fixture]` method `suppliesNothing` returns `void`
+   --> case.nvs:57:28
+%A
+error[E0454]: `name` is not an option of `#[Fixture]`
+   --> case.nvs:62:15
+%A
+error[E0735]: the `#[Fixture]` method `bothAtOnce` is also a `#[Test]`
+   --> case.nvs:71:28
+%A
+error[E0304]: `TwiceTest` declares two `#[Fixture]` methods returning `Schema`
+   --> case.nvs:85:28
+%A
+error: aborting due to 6 errors

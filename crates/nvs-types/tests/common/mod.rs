@@ -103,6 +103,13 @@ pub(crate) struct DeclaredTypes {
 }
 
 impl DeclaredTypes {
+    /// The table this run built — what a fixture asserting a recorded
+    /// `TypeId` needs beside [`Self::interner`], a `TypeId` meaning nothing
+    /// without the interner that issued it.
+    pub(crate) fn exprs(&self) -> &ExprTypeTable {
+        &self.exprs
+    }
+
     /// The `TypeId` the annotation `ty`, written on the binding `var`,
     /// interned to — `of("Mode", "$whole")`.
     ///
