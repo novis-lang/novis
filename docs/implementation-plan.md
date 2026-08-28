@@ -609,13 +609,26 @@
 > 6) and the tagged arm takes the one pairing whose types name no static row, so an arrival is a
 > `nvs-ir` site that lowered a label against an expectation it then did not honour. The agreement
 > case gains three rows for it — an `int` subject that hits, a `string` one that hits and one that
-> falls off to `default` — and reads `agreed=48/48`. An **enum** subject is the one `match` shape
-> still refused below the checker, and it is refused for the typed spelling rather than the tagged
-> one: `nvs-codegen does not lower a `Eq` over representation Enum(Int)`, which is ADR 0010 § 5's
-> own row and not this item's. **A `foreach` subject that is not iterable was already closed and
-> owed only its case.** ADR 0053 § 3's list is closed, so
-> `nvs_types::expr::iteration::report_not_iterable` refuses every subject naming none of it
-> (`E0443`) — a `void` call among them, one step earlier than the rest for the reason `E0719`
+> falls off to `default` — and reads `agreed=48/48`. An **enum** subject is the last `match` shape
+> that was refused below the checker, and it is closed one representation down rather than by a new
+> row. `Ty::Enum` is a zero-byte tag over an integer and `nvs-codegen`'s `BinOp` table carries no
+> row for it, so `Lowering::lower_match` relabels the subject once above its label chain and each
+> label as it is lowered, through the free `Reinterpret` of ADR 0010 § 5 row 1 that a written `==`
+> between two cases and ADR 0047 § 5's membership chain already used — the same move at the two
+> sites that had not made it yet, `Lowering::lower_switch` being the second and failing for exactly
+> the same reason. Neither relabelling is what the ownership reads: the subject's own value still
+> feeds the arm-entry release and a label's still feeds its own, so a refcounted subject under an
+> enum-free `match` lowers byte-identically to before, and a label still lowers at the subject's
+> *declared* representation so that `Mode::Read` resolves as the case it names. Both assertions
+> survive as internal-consistency checks over the relabelled pair.
+> `tests/conformance/enum/a-match-and-a-switch-over-an-enum-compare-on-the-backing-integer.nvst`
+> pins both backings, a label that hits, a fall-off to `default`, the fall-off with no `default` at
+> all (which throws) and a `switch` over each, and the agreement case gains the row that asserts the
+> typed and the tagged halves answer the same thing, reading `agreed=49/49`. `emit_binop`'s residue
+> roster names all four sites that compare an enum now rather than the two it had. **A `foreach`
+> subject that is not iterable was already closed and owed only its case.** ADR 0053 § 3's list is
+> closed, so `nvs_types::expr::iteration::report_not_iterable` refuses every subject naming none of
+> it (`E0443`) — a `void` call among them, one step earlier than the rest for the reason `E0719`
 > exists, and neither the condition's code nor the operand's, a subject being neither — and nothing
 > in `tests/` had ever pinned that code.
 > `tests/conformance/lang/a-foreach-subject-that-is-not-iterable-is-refused-where-it-is-written.nvst`

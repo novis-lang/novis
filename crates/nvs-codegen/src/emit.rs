@@ -1165,7 +1165,9 @@ impl Emitter<'_, '_> {
             // the roster is the four rows above plus this one. Equality is
             // answered for a `string`, a `bytes`, an `array<T>`, an object, an
             // enum case (through `Reinterpret` to its backing integer, in
-            // `nvs-ir`) and `null`; ordering is refused where it is *written*
+            // `nvs-ir`, at all four sites that compare one — a written `==`,
+            // ADR 0047 § 5's membership chain, and a `match` or a `switch`
+            // label chain) and `null`; ordering is refused where it is *written*
             // for every representation that is not a number or a `bool`
             // (`E0715`, and `E0411` for the object family), and `decimal`'s own
             // twelve rows never arrive here at all — `lower_decimal_binary`
