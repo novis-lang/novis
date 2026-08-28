@@ -839,3 +839,33 @@ neither blocks anything else.
   test that kills it; an assertion that every generated mutant compiles.
 - **§ 22:** the JSON output validated against its committed schema; the JUnit XML validated against the
   schema CI consumers use.
+
+**What is pinned today, and what a case cannot reach.** M4's tail landed §§ 1, 4, 5, 20 and 22's human
+half, so six cases answer the bullets above and the rest wait on the milestone § 24 gives them. § 1's
+compile errors are `reject/a-test-method-is-a-public-void-instance-method.nvst` (the three signature
+shapes and the duplicate name, one code because it is one question) and
+`reject/a-test-attribute-payload-is-checked-against-its-option-shape.nvst` (the payload, `skip: true`
+among it, refused by [ADR 0063](0063-parameter-lists-and-options-bags.md) R2's options-bag rule rather
+than by [ADR 0046](0046-attributes-shape-literal-metadata.md) § 1's shape rule, since every option is
+optional and a bare `#[Test]` is § 1's own example); the unsatisfiable-parameter bullet waits on §§ 8–9's
+two rosters, which is what decides whether a parameter is satisfiable at all. § 4 is
+`core/an-assertion-compares-its-subject-against-its-expectation.nvst`, and two of its bullets are runtime
+throws rather than diagnostics today — `nvs_stdlib::test`'s own known gaps say which, and why the class
+graph a refusal needs is `nvs_types`' to hold; § 6's redaction row is asserted inside that same case,
+which compares two `secret` strings and quotes neither. § 5 is
+`error/a-failed-assertion-is-caught-by-name.nvst` and
+`core/a-failure-consumed-on-purpose-is-spelled-expect-failure.nvst`. §§ 1, 20, 22 and 23 meet in one place
+— `lang/a-test-attribute-builds-a-table-the-runner-reports.nvst`, the one case run through `nvs test`
+rather than `nvs run`, which is what the `.nvst` format's own `--RUN--` section exists for: a row of the
+table, its order, a skip's reason and a verdict are observable nowhere but in the runner's report.
+
+Three claims have no program that can see them, and each is asserted where it is made rather than left
+implied. That the table is built *while checking*, with its declaration order and its folded options,
+is `crates/nvs-types/tests/testing.rs` — a `.nvst` sees the table only through a report, which cannot
+distinguish a row that was never recorded from one the runner declined to run. That
+`expectFailure` discharges only the failures raised inside its own body is
+`nvs_runtime::Ctx`'s own test, the ledger deliberately having no `Core` member that reads it (§ 5). And
+that the verdict is read off that ledger rather than off the exception state is `nvs_cli::runner`'s
+`run_case`, whose doc comment is the argument's home: a body that caught its own failure and one that
+never asserted are the two shapes a runner keyed on exceptions would report as passing, and the case
+above pins both.

@@ -1637,16 +1637,34 @@
 > than a member that does not resolve yet. Class order is the roster's **sorted** order rather than
 > § 20's declaration order, `ExprTypeTable::tests` being keyed by class label and recording no
 > sequence; within a class the order is declaration order, which is what a reader of one file sees.
-> Stage 8's named `a-test-attribute-builds-a-table-the-runner-reports.nvst` is still owed and is now
-> blocked on the `.nvst` format rather than on the runner: `nvs_test::run` spawns `nvs run case.nvs`
-> unconditionally (`crates/nvs-test/src/run.rs:225`), so no case can reach the runner at all until
-> that format can say which subcommand a case is run through. Three live tools **are** the worklist
-> and no session re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and
-> `nvs-codegen` and attributes each to its item (`--item N` for one in full), `python tools/loop.py
-> --list` prints the named `.nvst` cases each stage still owes — one, now that the retrieval and the
-> dump cases are named for the files that landed, and it is Stage 7's `#[Test]` table case, which
-> item 43 writes and nothing before it can — and `python tools/check-migration.py` scores
-> `docs/spec/02-php-migration.md`.
+> **A `.nvst` case says which subcommand it is run through, and Stage 8's named case is landed.**
+> `nvs_test::run` spawned `nvs run case.nvs` unconditionally, so no case could reach the runner at
+> all; `--RUN--` is the section that names it, one line holding `run` (the default) or `test`, and
+> the roster is **closed** to those two words so a misspelling is a parse error rather than a case
+> quietly run the other way. It applies to `--FILE--` alone — `--SKIPIF--` and `--CLEAN--` are the
+> runner's own scaffolding rather than the thing under test, so both stay `nvs run` — and
+> `crates/nvs-test`'s module doc is the format's one home, gaining the row and the paragraph.
+> `tests/conformance/lang/a-test-attribute-builds-a-table-the-runner-reports.nvst` is what it exists
+> for, and it is the one case in either tree run through `nvs test`: a row of § 1's table, its
+> order, a skip's reason and a verdict are observable nowhere but in the runner's own report, so it
+> pins declaration order within a class against the roster's sorted order across two, the skip with
+> its stated reason, § 4's both-sides failure message, § 5's caught failure that still fails and §
+> 20's empty ledger, through `--EXPECTF--`'s `%f` because § 22's report carries a per-test duration.
+> Its `--EXPECT-ERROR--` half is empty on purpose: three of its tests fail, so the run must exit
+> non-zero, and that section's presence is what the format already uses to say so. **ADR 0079 gained
+> the closing half of its § *Verification***, which M4's acceptance names: which of that section's
+> bullets six landed cases now answer, which two of § 4's rules are runtime throws rather than the
+> diagnostics the ADR writes (`nvs_stdlib::test`'s own known gaps), and the three claims no program
+> can see at all — that the table is built while checking with its declaration order and its folded
+> options (`crates/nvs-types/tests/testing.rs`), that `expectFailure` discharges only its own body's
+> failures (`nvs_runtime::Ctx`'s own test, the ledger deliberately having no `Core` member that
+> reads it), and that the verdict is read off that ledger rather than off the exception state
+> (`nvs_cli::runner::run_case`, whose doc comment is that argument's home). Three live tools **are**
+> the worklist and no session re-derives one: `python tools/holes.py` reads the refusal sites out of
+> `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item N` for one in full), `python
+> tools/loop.py --list` prints the named `.nvst` cases each stage still owes — **none**, Stage 7's
+> `#[Test]` table case having landed with the `--RUN--` section that lets a case reach the runner at
+> all — and `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,
