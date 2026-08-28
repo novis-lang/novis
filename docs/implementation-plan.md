@@ -641,10 +641,27 @@
 > `tests/conformance/lang/a-subscript-through-a-mixed-base-is-decided-by-its-tag.nvst` pins the
 > element off a list and off a map, the absent key, the two non-array bases, all of it again under
 > `??`, and the agreement between a declared `array<int>` base and the same value read through a
-> `mixed`. Three live tools **are** the worklist and no session re-derives one: `python
-> tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen` and attributes each to
-> its item (`--item N` for one in full), `python tools/loop.py --list` prints the named `.nvst`
-> cases each stage still owes, and `python tools/check-migration.py` scores
+> `mixed`. **A `catch` binding has no methods at all, and PHP's accessors are refused where they are
+> written now rather than panicking below the checker.** Spec § 10 gives the exception tree
+> *properties* — `message`, `previous`, `backtrace` and `location` — and `nvs_types::error_lib`
+> seeds exactly those plus the synthesized constructor; what outlived that seeding was an
+> **exemption** in `infer_method_call`, which skipped the unknown-member refusal for every reserved
+> global class, so `$e->getMessage()` reached `nvs-ir` with no resolved target and panicked there
+> while `$e->nope` — the property half, which never had the exemption — refused cleanly. It is the
+> same `E0405` now, one mistake and one code whichever spelling reached it, and the only thing it
+> takes of its own is a help, because this is the one unknown method a *ported* program writes on
+> purpose: `nvs_types::expr::calls::report_exception_accessor` maps each PHP accessor to the
+> property that answers the same question — `getMessage` → `message`, `getPrevious` → `previous`,
+> `getTrace`/`getTraceAsString` → `backtrace`, and `getFile`/`getLine` → `location`, a throw site
+> being one string rather than two — while `getCode`, the accessor with no counterpart at all since
+> ADR 0002 propagates a class rather than a number, names the whole roster instead, read from
+> `nvs_hir::errors::PROPERTIES` rather than copied so the help and the seeding cannot disagree.
+> `tests/conformance/error/a-catch-binding-has-properties-rather-than-phps-accessors.nvst` pins all
+> six spellings in one compile, the subclass binding among them, so a member the tree grows shifts a
+> line rather than answering plausibly. Three live tools **are** the worklist and no session
+> re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen`
+> and attributes each to its item (`--item N` for one in full), `python tools/loop.py --list` prints
+> the named `.nvst` cases each stage still owes, and `python tools/check-migration.py` scores
 > `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop

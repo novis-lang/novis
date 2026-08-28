@@ -2,48 +2,51 @@
 
 ## State
 
-**A `match` or a `switch` over an enum subject lowers.** Both label chains
-compare on the backing integer through
-`Lowering::reinterpret_enum_to_backing`, the move `lower_binary` and
-`lower_literal_membership` already made — `nvs_ir::lower::expr::lower_match`'s
-doc comment is the rule's home and `lower_switch`'s body comment points at
-it. The plan's `Open now` carries it.
+**A `catch` binding's members are settled and refused where they are written.** Spec § 10
+gives the exception tree properties and no accessors, so `$e->getMessage()` and every
+other PHP spelling is `E0405` with a help naming the property that answers the same
+question — `nvs_types::expr::calls::report_exception_accessor` is that mapping's home, and
+the plan's `Open now` carries the rule. It used to panic `nvs-ir`.
 
-- **`tests/conformance/enum/a-match-and-a-switch-over-an-enum-compare-on-the-backing-integer.nvst`
-  is new** and pins both backings, the hit, the `default` fall-off, the
-  throwing fall-off with no `default`, the same subject through a `mixed`,
-  and a `switch` over each.
-- **The agreement case reads `agreed=49/49`** — the enum `match` row agrees
-  from *below* (the backing integer) where the tagged one agrees from
-  `Helper::Identical`.
-- **A `catch` binding still has no callable members** — `$e->getMessage()`
-  panics `nvs-ir` at `lower/expr.rs:2281`. Unchanged.
-- **`orient.py`'s pack was complete for this item.** The two standing
-  manifest gaps are unchanged — `[context] modules` has no `nvs-runtime`
-  and no `nvs-diagnostics` entry.
+- **`tests/conformance/error/a-catch-binding-has-properties-rather-than-phps-accessors.nvst`
+  is new** and pins six spellings in one compile: the four accessors that map to a
+  property, `getCode` (which maps to none and names the roster), and the same refusal
+  through a `LogicError` binding rather than the root.
+- **`python tools/holes.py` reads 16 refusal sites and 9 named cases still to write.**
+  Every standing site belongs to a roster the plan already documents as an
+  internal-consistency check; the *cases* are the frontier now, not the sites.
+- **`orient.py`'s pack was complete for this item.** The two standing manifest gaps are
+  unchanged — `[context] modules` has no `nvs-runtime` and no `nvs-diagnostics` entry.
 
 ## Next group
 
-**The `catch` binding's members, over the one lowering file plus the checker
-one.** The files: `crates/nvs-ir/src/lower/expr.rs` and
-`crates/nvs-types/src/expr/`.
+**The two conversion-and-tagged corpus cases `holes.py --cases` still names, over the
+conversion lowering plus its checker half.** The files:
+`crates/nvs-ir/src/lower/convert.rs` and `crates/nvs-types/src/expr/`. Both are cases over
+landed work, so they are cheap and belong in one session.
 
-- [ ] **`$e->getMessage()` on a `catch` binding** — `crates/nvs-ir/src/lower/expr.rs:2281`
-      panics rather than lowering a call on the synthesized `Throwable`
-      binding, so a case reads `$e->message` instead. Decide whether the
-      member exists at all (spec § 10's `Throwable` shape) and either lower
-      it or refuse it with a diagnostic naming the property spelling —
-      never a panic. ADR 0002 owns the binding.
-- [ ] **The refusal's case** — one `.nvst` under `tests/conformance/error/`
-      pinning what the chosen answer prints, in the shape
-      `a-finally-runs-when-its-catch-body-throws.nvst` uses.
-- [ ] **`python tools/holes.py` re-read** after it lands, to see which item
-      the remaining `nvs-ir` panic sites attribute to.
+- [ ] **`tests/conformance/lang/every-remaining-conversion-row-runs-or-throws.nvst`** —
+      ADR 0007 § 2's grid, every row that has not been pinned yet, succeeding and
+      throwing. `crates/nvs-ir/src/lower/convert.rs:60` (`convert`) is the row table and
+      `crates/nvs-ir/src/lower/convert.rs:949` (`lower_array_restamp`) the element walk;
+      `tests/conformance/lang/conversions-that-succeed.nvst` and
+      `the-conversion-table-is-closed.nvst` are what is already pinned — read those first
+      so the new case adds boundaries rather than another row of the same shape.
+- [ ] **`tests/conformance/lang/a-mixed-value-answers-arithmetic-truth-and-a-subscript.nvst`**
+      — one `mixed` value answering all three families, which is an *agreement* case over
+      work already landed separately: the `ValueAdd` family, ADR 0035's truthy table and
+      `Helper::ValueIndexGet`. The three existing halves are
+      `arithmetic-over-a-mixed-operand-is-decided-by-its-tag.nvst`,
+      `a-subscript-through-a-mixed-base-is-decided-by-its-tag.nvst` and
+      `an-operator-agrees-whether-its-operand-is-typed-or-tagged.nvst`.
+- [ ] **`python tools/holes.py --cases` again** once both land, to pick the next pair.
 
 ## Backlog
-- `[context] modules` names no `nvs-runtime` and no `nvs-diagnostics`
-  pattern (docs/agent/loop-goal.toml).
-- `array<T> as array<U>` inside a `catch`-reachable position — see the
-  playbook's `Core\Csv::format` bullet.
-- ADR 0024 § 5's `string as Core\Html\Markup` waits on M7
-  (docs/implementation-plan.md, `Open now`).
+
+- A `mixed`/union/scalar receiver of an instance method call is still unrefused and
+  panics `nvs-ir` at `crates/nvs-ir/src/lower/expr.rs:2344` — the site's own message says
+  so; ADR 0036 § 4 is what decides whether it defers or refuses.
+- Seven more named cases under `[8 corpus and guards]`, listed by
+  `python tools/holes.py --cases`.
+- `[context] modules` in `docs/agent/loop-goal.toml` has no `nvs-runtime` and no
+  `nvs-diagnostics` entry.

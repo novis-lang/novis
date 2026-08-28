@@ -2036,13 +2036,23 @@ sibling in the same namespace unqualified.
   over two `string`s merely refused. So when closing an operator table at the checker, probe
   the `bool` row first and read its answer rather than its exit status; a refusal you can see
   is the good case.
-- **A `catch` binding's methods do not exist yet, whatever the clause names.** `catch (Throwable
-  $e) { echo $e->getMessage(); }` panics `nvs-ir` at `lower/expr.rs:2281` with *"an instance
-  method call has no resolved target recorded in the typed-expression table"*, and so does
-  `catch (LogicError $e)` — the message blames a `mixed`/union/scalar receiver, so it reads as a
-  checker/lowering mismatch rather than as the synthesized exception class simply having no
-  members. A scratch fixture or a `.nvst` case that wants to show *what* was thrown has to echo a
-  literal in the clause body instead.
+- **A `catch` binding has no methods at all, and that is now a diagnostic rather than a panic.**
+  `catch (Throwable $e) { echo $e->getMessage(); }` is `E0405` where it is written, with a help
+  naming the property that answers the same question (`->message`), and so is every other PHP
+  accessor — `nvs_types::expr::calls::report_exception_accessor` is that mapping's home. It used
+  to panic `nvs-ir` with *"an instance method call has no resolved target recorded in the
+  typed-expression table"*, a message blaming a `mixed`/union/scalar receiver, because the
+  exception tree was exempt from the unknown-member refusal long after `nvs_types::error_lib`
+  began seeding it. So a case that wants to show *what* was thrown reads `$e->message`, and the
+  spellings a ported program reaches for are refused where they are written.
+- **An exemption written for a class family that had no signatures outlives the seeding
+  and reads as a checker/lowering mismatch.** The exception tree was skipped by
+  `infer_method_call`'s unknown-member refusal (`!qname.is_reserved_global_class()`) long
+  after `nvs_types::error_lib` began seeding its properties and constructor, so
+  `$e->getMessage()` panicked `nvs-ir` while `$e->nope` refused cleanly one module over.
+  The cheap diagnosis is to ask the *other* member kind the same question: a property half
+  that refuses where the method half panics means the hole is an exemption in the checker,
+  not a missing feature below it.
 
 ## Divergences and refusals already pinned
 
