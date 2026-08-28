@@ -1,0 +1,83 @@
+--TEST--
+`Core\Uri::buildQuery` and `parseQuery` are inverse over a sweep of query strings — the array survives, the text is a fixed point, and key order is insertion order — with the two keys the wire cannot spell: one holding the bracket convention's own characters, and one that is empty — spec § 12
+--FILE--
+<?nvs
+// The neighbouring case shows what one call writes, row by row. This one asks
+// the question a row cannot: is the pair actually inverse. Two properties, both
+// counted over the whole table so a member answering plausibly on any single
+// row still fails here.
+//
+//   stable      — `parseQuery(buildQuery($a))` is `$a` again, for the array
+//                 `parseQuery` itself produced. This is the direction that
+//                 matters: a query string has several spellings for one set of
+//                 parameters, so the array is what has to survive.
+//   idempotent  — and once written, the text is a fixed point, so a value that
+//                 makes a second trip is not escaped a second time.
+array<string> $queries = [
+    "a=1&b=2",
+    "a[]=1&a[]=2",
+    "a[b][c]=d&a[b][e][]=f",
+    "x=&y",
+    "a+b=c+d",
+    "n[0]=z&n[1]=y",
+    "a[b][c][d][e]=x",
+    "",
+];
+int $rows = 0;
+int $stable = 0;
+int $idempotent = 0;
+foreach ($queries as string $q) {
+    $rows = $rows + 1;
+    var $once = Core\Uri::parseQuery($q);
+    var $text = Core\Uri::buildQuery($once);
+    // `Core\Json::encode` is how two `array<mixed>` are compared as a whole:
+    // it renders the nesting and the key order in one string, where reading
+    // the arrays element by element would stop at the first level.
+    if (Core\Json::encode(Core\Uri::parseQuery($text)) == Core\Json::encode($once)) {
+        $stable = $stable + 1;
+    }
+    if (Core\Uri::buildQuery(Core\Uri::parseQuery($text)) == $text) {
+        $idempotent = $idempotent + 1;
+    }
+}
+echo "rows ", $rows, " stable ", $stable, " idempotent ", $idempotent, "\n";
+
+// Key order is the array's own order, in both directions — `buildQuery` never
+// sorts, and `parseQuery` records the pairs as it reads them. A query string
+// is a sequence, so a member that ordered by name would change what a signed
+// request signs.
+echo Core\Uri::buildQuery(["b" => "1", "a" => "2", "c" => "3"]), "\n";
+echo Core\Uri::buildQuery(Core\Uri::parseQuery("z=1&m=2&a=3")), "\n";
+
+// The bound the sweep above is written to stay inside: the inverse holds for
+// every array `parseQuery` produced, and not for every array. A key holding
+// the bracket convention's own characters is escaped like any other byte — so
+// the text is right, and there is no second spelling that would let the
+// reader tell it from the nested value it is now indistinguishable from. PHP's
+// `http_build_query`/`parse_str` pair loses the same key the same way; the
+// wire has one bracket, not two.
+echo Core\Uri::buildQuery(["a[b]" => "v"]), "\n";
+echo Core\Json::encode(Core\Uri::parseQuery(Core\Uri::buildQuery(["a[b]" => "v"]))), "\n";
+
+// The other one: an empty name is written — the pair is a `=` with nothing to
+// its left — and then dropped on the way back, because a pair whose name
+// decodes to nothing has no name to record it under. Written and dropped, not
+// refused: `buildQuery` answers text a reader accepts, and the reader is where
+// the pair goes.
+echo "[", Core\Uri::buildQuery(["" => "v"]), "]\n";
+echo Core\Json::encode(Core\Uri::parseQuery(Core\Uri::buildQuery(["" => "v"]))), "\n";
+
+// An empty *value* is not the empty case: it keeps its pair, at every depth,
+// which is what makes the `x=&y` row above round-trip rather than shrink.
+echo Core\Uri::buildQuery(["a" => ["", "x"]]), "\n";
+echo "[", Core\Uri::buildQuery([]), "]\n";
+--EXPECT--
+rows 8 stable 8 idempotent 8
+b=1&a=2&c=3
+z=1&m=2&a=3
+a%5Bb%5D=v
+{"a":{"b":"v"}}
+[=v]
+[]
+a%5B0%5D=&a%5B1%5D=x
+[]
