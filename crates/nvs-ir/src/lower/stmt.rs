@@ -1488,7 +1488,12 @@ impl<'a> Lowering<'a> {
              was not checked with the same table"
         );
         // Every key, left to right and each exactly once, before anything is
-        // retained or descended into.
+        // retained or descended into. A freshly built one — a rendered
+        // subscript, a literal — is this frame's own reference with nowhere
+        // else to be found, and the descent below is fallible at every level,
+        // so each goes on `Self::owned_temporaries` for as long as something
+        // can throw over it.
+        let keys_mark = self.temporaries_mark();
         let mut inner_keys: Vec<(ValueId, bool)> = Vec::with_capacity(levels.len());
         for level in &levels {
             let ExprKind::Index {
@@ -1502,10 +1507,16 @@ impl<'a> Lowering<'a> {
                     level.span
                 );
             };
-            let (key_v, _key_ty, key_aliasing) = self.lower_array_key(key, env, cur);
+            let (key_v, key_ty, key_aliasing) = self.lower_array_key(key, env, cur);
+            if key_ty.is_refcounted() && !key_aliasing {
+                self.own_temporary(key_v);
+            }
             inner_keys.push((key_v, key_aliasing));
         }
         let (key_v, key_aliasing) = self.lower_rendered_array_key(index, env, cur);
+        if !key_aliasing {
+            self.own_temporary(key_v);
+        }
         // Down the chain, borrowing each row. A level is an ordinary element
         // *read* — [`AbsentKey::Throws`], so `unset($g["nope"]["1"])` throws
         // exactly as `$g["nope"]["1"]` would (ADR 0007 § 7 row 11, PHP being
@@ -1533,7 +1544,12 @@ impl<'a> Lowering<'a> {
         }
         // Nothing below throws, which is what makes this the first safe place
         // to own anything: one reference per row, because the removal and
-        // every store on the climb each consume one.
+        // every store on the climb each consume one. It is also where the keys
+        // stop needing the stack — from here each is either released by hand
+        // (the removal's, which only borrowed it) or consumed by an
+        // `InstKind::ArraySet` on the climb, and an entry surviving into
+        // either would be a second release of the same reference.
+        self.forget_temporaries_since(keys_mark);
         for row in arrays.iter().skip(1) {
             self.emit_retain(*cur, *row);
         }

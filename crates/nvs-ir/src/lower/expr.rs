@@ -1562,6 +1562,18 @@ impl<'a> Lowering<'a> {
         // the slot's, exactly the split `Self::lower_ternary` applies to its
         // own reused condition.
         let owed = subj_ty.is_refcounted() && !self.aliasing_read(subject);
+        // It is in flight for the whole label chain, and every comparison in
+        // that chain can throw — a label is an arbitrary expression, and a
+        // tagged pair goes through the fallible `Helper::Identical`. So it
+        // rides `Self::owned_temporaries` until the chain is behind us, which
+        // is what makes a throw out of a label drop it. The releases below are
+        // *not* replaced by that: the subject has one exit per arm plus the
+        // no-arm throw, and the stack releases at one point, so the staging
+        // ends with a `forget` and each exit keeps releasing by hand.
+        let subject_mark = self.temporaries_mark();
+        if owed {
+            self.own_temporary(subj_v);
+        }
         // An enum subject is compared one representation down, on the integer
         // its cases *are* — the free `Reinterpret` of ADR 0010 § 5 row 1,
         // which `Self::lower_binary` already makes for a written `==` between
@@ -1590,8 +1602,15 @@ impl<'a> Lowering<'a> {
                 continue;
             };
             for cond in conditions {
+                // The label is in flight for its own comparison, which is the
+                // one thing that can throw between building it and releasing
+                // it — the subject's case exactly, one value along.
+                let label_mark = self.temporaries_mark();
                 let (cond_v, cond_ty) =
                     self.lower_expr(cond, Some(label_expect), env, &mut test_cur);
+                if cond_ty.is_refcounted() && !self.aliasing_read(cond) {
+                    self.own_temporary(cond_v);
+                }
                 // The label takes the subject's own move, for the subject's
                 // own reason. `cond_v` is what the release below reads, so
                 // only the comparison sees the relabelled pair.
@@ -1638,6 +1657,7 @@ impl<'a> Lowering<'a> {
                         },
                     )
                 };
+                self.forget_temporaries_since(label_mark);
                 if cond_ty.is_refcounted() && !self.aliasing_read(cond) {
                     self.emit_release(test_cur, cond_v);
                 }
@@ -1658,6 +1678,10 @@ impl<'a> Lowering<'a> {
                 test_cur = next;
             }
         }
+        // Past every comparison, so the subject is back to being accounted for
+        // by hand: each arm entry and the no-arm throw below release it, and a
+        // stack entry surviving into either would release it twice.
+        self.forget_temporaries_since(subject_mark);
         match default_index {
             Some(i) => {
                 self.seal(test_cur, Terminator::Jump(arm_blocks[i]));
