@@ -680,7 +680,7 @@ pub(super) fn check_heredoc_run_issues(
 /// own initializer is still checked, so its errors are reported in the same
 /// run, and only the repeat is dropped from the interned shape — which keeps
 /// what flows onward a genuine set rather than a shape no reader agrees on.
-pub(super) fn check_object_literal(
+pub(crate) fn check_object_literal(
     fields: &[ObjectLiteralField],
     live: &mut FxHashSet<String>,
     scope: &LocalScope,

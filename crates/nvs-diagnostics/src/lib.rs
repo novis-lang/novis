@@ -1542,6 +1542,22 @@ pub mod code {
     /// evaluated *in*, which is what PHP's lazily-constructed attribute
     /// object has and this one deliberately does not.
     pub const E_ATTRIBUTE_VALUE_NOT_CONSTANT: Code = Code::new("E0725");
+    /// The named form of an attribute names something that is not a
+    /// shape-typed `type` alias —
+    /// [ADR 0046](../../../docs/adr/0046-attributes-shape-literal-metadata.md)
+    /// § 1. `Name` there is never a class and never a new namespace of
+    /// attribute kinds: it is a pre-existing alias whose right-hand side is a
+    /// shape, and its whole job is to be the type the attached literal is
+    /// checked against.
+    ///
+    /// A name nothing declared at all takes [`E_UNDEFINED_CLASS`] instead,
+    /// exactly as any other unresolvable name does — an attribute name is not
+    /// a second namespace, so it gets no "no such attribute" of its own. This
+    /// code is for a name that *does* denote something and denotes the wrong
+    /// thing: a class (the spelling PHP's attributes would have instantiated),
+    /// an interface, an enum, or a `type` alias for something that is not a
+    /// shape.
+    pub const E_ATTRIBUTE_NAME_NOT_A_SHAPE: Code = Code::new("E0726");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

@@ -207,7 +207,13 @@ fn check_stmts(
                     generator_elem: None,
                 };
                 check_members(&decl.members, &ctx, env);
-                crate::attributes::check_declaration(&decl.attributes, &decl.members, &[], env);
+                crate::attributes::check_declaration(
+                    &decl.attributes,
+                    &decl.members,
+                    &[],
+                    &ctx,
+                    env,
+                );
                 check_class_init(decl, &qname, env);
                 check_class_lateinit_reads(decl, &qname, env);
                 crate::conformance::check_class_conformance(decl, &qname, env);
@@ -226,7 +232,13 @@ fn check_stmts(
                     generator_elem: None,
                 };
                 check_members(&decl.members, &ctx, env);
-                crate::attributes::check_declaration(&decl.attributes, &decl.members, &[], env);
+                crate::attributes::check_declaration(
+                    &decl.attributes,
+                    &decl.members,
+                    &[],
+                    &ctx,
+                    env,
+                );
             }
             StmtKind::EnumDecl(decl) => {
                 let qname = QName::join(&current_ns, span_text(env.src, decl.name.span));
@@ -242,6 +254,7 @@ fn check_stmts(
                     &decl.attributes,
                     &decl.members,
                     &decl.cases,
+                    &ctx,
                     env,
                 );
             }

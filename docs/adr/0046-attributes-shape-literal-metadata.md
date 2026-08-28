@@ -123,6 +123,25 @@ Both forms attach; there is no third "declare a brand-new attribute kind" step, 
 `Name` in the named form is only ever a pre-existing `type` alias, resolved and checked the same way any
 other shape-typed position already is.
 
+`nvs_types::attributes` is where that is enforced, in the same walk over every attach site that § 2's rule
+uses. The name resolves through `nvs_hir::resolve_ref` and then through the `type` alias table, so a `use`
+import and a namespace place it exactly as they place any other name — and the three answers are
+deliberately three. A name **nothing declares** is the ordinary `E0303`: an attribute name is not a second
+namespace, so it gets no "no such attribute" of its own. A name that resolves to something that is **not a
+shape-typed alias** is `E0726` — a class is the spelling this exists to refuse, being what PHP would have
+instantiated, and a `type Id = int;` is the same mistake one step along. Only a shape gets the third answer,
+which is the check this whole form exists for: the attached literal is checked against it by
+`nvs_types::expr::is_assignable`, ADR 0036 § 3's width subtyping verbatim, so an extra field is fine and a
+missing or mistyped one is the ordinary `E0401` mismatch rather than an attribute-shaped diagnostic. A
+payload § 2 has already refused is not then checked against the shape — the author is told about the value
+they wrote before they are told what it failed to satisfy.
+
+The one exemption is [ADR 0071](0071-json-codec-derivation.md) § 1's **compiler-recognized** attributes
+(`Core\Json\Derive`, `Core\Json\Field`, and whatever that closed, `Core`-owned roster grows), which are
+matched nominally by the compiler and name no shape at all; what their payloads may hold is
+`nvs_types::derive`'s own option check. The roster is closed and `Core`-owned precisely so this stays an
+exemption rather than an escape hatch — every userland name is an alias or a mistake.
+
 ### 2. Payload values are compile-time constants only
 
 Every field value inside a `#[...]` literal must be a compile-time constant: a literal, another class's
