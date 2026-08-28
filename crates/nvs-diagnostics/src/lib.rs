@@ -1753,6 +1753,21 @@ pub mod code {
     /// asymmetric: every shape it cannot prove *falls through* is treated as
     /// exiting, so an unusual body is accepted rather than wrongly refused.
     pub const E_MISSING_RETURN: Code = Code::new("E0739");
+    /// The first-class callable spelling written on `new`: `new C(...)`.
+    ///
+    /// ADR 0027 § 1's kept list is a list of *members* — `Class::method(...)`,
+    /// `$obj->method(...)`, `self`/`static`/`parent::method(...)` — and a
+    /// constructor is not one of them: `new` names a class, and the closure
+    /// this syntax builds carries a callee, not an allocation. PHP refuses it
+    /// for the same reason ("cannot create Closure for new expression"), so
+    /// refusing it is the PHP-compatible answer as well as the only one with a
+    /// meaning. `fn (): C => new C(…)` is the closure that was wanted, and it
+    /// is what the help names.
+    ///
+    /// Separate from [`E_FIRST_CLASS_CALLABLE_ERASED_RECEIVER`] because the
+    /// two are opposite failures: that one resolves a member and has no class
+    /// to bind it to, this one names a class and has no member.
+    pub const E_FIRST_CLASS_CALLABLE_NEW: Code = Code::new("E0740");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

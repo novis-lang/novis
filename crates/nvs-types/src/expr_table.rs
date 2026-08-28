@@ -229,6 +229,34 @@ pub enum ExprInfo {
     /// [`nvs_syntax::ast::ExprKind::StaticCall`] whose receiver/class side
     /// resolved to a known signature.
     Call(ResolvedCall),
+    /// `Foo::bar(...)` / `$obj->method(...)` — ADR 0027 § 1's first-class
+    /// callable syntax, which *names* the resolved member rather than calling
+    /// it, and whose value is a closure over it.
+    ///
+    /// Recorded *instead of* [`ExprInfo::Call`] for the same span, and
+    /// carrying the same [`ResolvedCall`], because the two ends need exactly
+    /// the same facts about the target and differ only in what they do with
+    /// them: a call emits one, a reference captures one. A consumer tells them
+    /// apart by the variant rather than by re-reading
+    /// [`nvs_syntax::ast::CallArgs`] out of the AST, so the checker's reading
+    /// of the sentinel is the only one.
+    ///
+    /// Only ever recorded when the member resolved. The three shapes that
+    /// name no member are refused where they are written and record nothing:
+    /// a `mixed` receiver (`E_FIRST_CLASS_CALLABLE_ERASED_RECEIVER`, since a
+    /// closure carries its callee with it and ADR 0036 § 4's run-time
+    /// dispatch has no callee to carry), an erased `object`/shape receiver
+    /// (`E_METHOD_ON_ERASED_RECEIVER`), and an unresolved class expression,
+    /// which `nvs_hir::members` has already reported. So a consumer that
+    /// finds no entry on a first-class-callable span is looking at a program
+    /// that did not compile.
+    ///
+    /// `ResolvedCall::arg_slots` is empty here and means nothing: `(...)` is a
+    /// sentinel, not an argument list, so there are no written arguments to
+    /// map. Every other field is the one an ordinary call would carry,
+    /// [`ResolvedCall::static_class`] included — ADR 0027 § 1 makes
+    /// `static::helper(...)` late-bound exactly as `static::helper()` is.
+    CallableRef(ResolvedCall),
     /// `new Target(...)`. `ctor` is `None` for a class with no explicit
     /// `constructor` — legal per [`crate::expr`]'s own known gaps (no arity
     /// check against zero parameters), so a consumer must handle a `New`
@@ -1261,6 +1289,77 @@ mod tests {
         assert_eq!(call.class.to_string(), "T");
         assert_eq!(call.method, "a");
         assert_eq!(call.param_tys.len(), 1);
+    }
+
+    /// ADR 0027 § 1's first-class callable syntax names the member rather than
+    /// calling it, so the same resolved facts are recorded under a variant a
+    /// consumer cannot mistake for a call — see [`ExprInfo::CallableRef`].
+    #[test]
+    fn a_static_first_class_callable_records_the_resolved_target() {
+        let (exprs, span) = check_and_find_expr_span(
+            "<?nvs\nclass T {\n  static function make(int $x): int { return $x; }\n  function m(): callable {\n    return self::make(...);\n  }\n}\n",
+        );
+        let Some(ExprInfo::CallableRef(call)) = exprs.lookup(span) else {
+            panic!("expected a recorded `CallableRef` entry");
+        };
+        assert_eq!(call.class.to_string(), "T");
+        assert_eq!(call.method, "make");
+        assert_eq!(call.param_tys.len(), 1);
+        assert!(call.is_static);
+        // `self::` forwards the caller's called class rather than setting one,
+        // exactly as `self::make()` does — see `ResolvedCall::static_class`.
+        assert!(call.static_class.is_none());
+        // `(...)` is a sentinel, not an argument list: there is nothing to map.
+        assert!(call.arg_slots.is_empty());
+    }
+
+    /// The other half of the same rule: an explicitly named class *sets* the
+    /// called class, so ADR 0027 § 1's "late-bound, exactly like
+    /// `static::class`" survives the reference.
+    #[test]
+    fn a_named_class_first_class_callable_records_its_static_class() {
+        let (exprs, span) = check_and_find_expr_span(
+            "<?nvs\nclass T {\n  static function make(): int { return 1; }\n  function m(): callable {\n    return T::make(...);\n  }\n}\n",
+        );
+        let Some(ExprInfo::CallableRef(call)) = exprs.lookup(span) else {
+            panic!("expected a recorded `CallableRef` entry");
+        };
+        assert_eq!(
+            call.static_class.as_ref().map(ToString::to_string),
+            Some("T".to_owned())
+        );
+    }
+
+    #[test]
+    fn an_instance_first_class_callable_records_the_resolved_target() {
+        let (exprs, span) = check_and_find_expr_span(
+            "<?nvs\nclass T {\n  function a(int $x): int { return $x; }\n  function m(): callable {\n    return $this->a(...);\n  }\n}\n",
+        );
+        let Some(ExprInfo::CallableRef(call)) = exprs.lookup(span) else {
+            panic!("expected a recorded `CallableRef` entry");
+        };
+        assert_eq!(call.class.to_string(), "T");
+        assert_eq!(call.method, "a");
+        assert!(!call.is_static);
+    }
+
+    /// A closure carries its callee with it, so the one receiver ADR 0036 § 4
+    /// defers to run time has nothing to defer *to* — it is refused where it is
+    /// written and records nothing, which is what makes "no entry on a
+    /// first-class-callable span" mean "this program did not compile".
+    #[test]
+    fn a_first_class_callable_on_a_mixed_receiver_records_nothing_and_is_refused() {
+        let (exprs, span, diags) = check_fixture(
+            "<?nvs\nclass T {\n  function m(mixed $o): callable {\n    return $o->a(...);\n  }\n}\n",
+        );
+        assert!(exprs.lookup(span).is_none());
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code
+                    == Some(nvs_diagnostics::code::E_FIRST_CLASS_CALLABLE_ERASED_RECEIVER)),
+            "{diags:?}"
+        );
     }
 
     #[test]

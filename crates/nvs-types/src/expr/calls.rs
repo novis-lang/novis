@@ -131,8 +131,16 @@ pub(super) fn infer_method_call(
     // ADR 0027: `$obj->method(...)` (first-class callable syntax) names a
     // `Closure` value, not the method's return type — the sentinel
     // `CallArgs::FirstClassCallable` marks exactly this shape, ahead of the
-    // ordinary-call typing below.
+    // ordinary-call typing below. The target is still recorded, as
+    // `ExprInfo::CallableRef`: a closure carries its callee with it, so
+    // `nvs-ir` needs the same resolved facts a call needs. The erased and
+    // `mixed` receivers are already refused above and reach this with
+    // `resolved` at `None`, which records nothing.
     if matches!(args, CallArgs::FirstClassCallable) {
+        if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig) {
+            let call = resolved_call(qname.clone(), name.clone(), sig, slots, env.signatures);
+            env.exprs.record(expr.span, ExprInfo::CallableRef(call));
+        }
         return env.interner.callable();
     }
     // `nvs-ir` needs this call's resolved target (not just its return type) to
@@ -219,8 +227,17 @@ pub(super) fn infer_static_call(
         reject_secret_debug_argument(owner, name, args, &arg_types, env);
     }
     // See [`infer_method_call`]: first-class callable syntax names a `Closure`,
-    // not the resolved method's return type.
+    // not the resolved method's return type, and records `CallableRef` rather
+    // than `Call` for the same span. `static_class` is set here exactly as it
+    // is for a call — ADR 0027 § 1 keeps `static::helper(...)` late-bound.
     if matches!(args, CallArgs::FirstClassCallable) {
+        if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig) {
+            let mut call = resolved_call(qname.clone(), name.clone(), sig, slots, env.signatures);
+            if matches!(class.kind, ExprKind::ConstFetch(_)) {
+                call.static_class = resolve_class_expr(class, ctx, env);
+            }
+            env.exprs.record(expr.span, ExprInfo::CallableRef(call));
+        }
         return env.interner.callable();
     }
     // ADR 0046 §§ 4-5's retrieval, which is not a call at all once it has been
@@ -284,6 +301,7 @@ pub(super) fn infer_new(
         ctx,
         env,
     );
+    report_first_class_callable_new(args, target_qname.as_ref(), expr.span, env);
     let resolved = target_qname
         .clone()
         .and_then(|qname| resolve_method(&qname, "constructor", env.signatures, env.graph));
@@ -334,6 +352,41 @@ pub(super) fn infer_new(
         );
     }
     target_ty
+}
+
+/// Refuses `new C(...)` — the first-class callable sentinel written on `new`
+/// (`E_FIRST_CLASS_CALLABLE_NEW`).
+///
+/// ADR 0027 § 1 keeps the spelling for *members*, and a constructor is not
+/// one: the closure it builds carries a callee, and `new` names a class. PHP
+/// refuses the same expression, so this is the compatible answer as well as
+/// the only one with a meaning. Reported ahead of everything else `new`
+/// checks, and reported rather than left to `nvs-ir`, which would otherwise
+/// reach `lower_call_args` with a sentinel where an argument list belongs —
+/// this is the one shape that got a resolved `new` there at all.
+fn report_first_class_callable_new(
+    args: &CallArgs,
+    target: Option<&QName>,
+    span: Span,
+    env: &mut Env<'_>,
+) {
+    if !matches!(args, CallArgs::FirstClassCallable) {
+        return;
+    }
+    let named = target.map_or_else(|| "this class".to_owned(), |q| format!("`{q}`"));
+    env.diags.report(
+        Diagnostic::error(
+            code::E_FIRST_CLASS_CALLABLE_NEW,
+            "`new` has no first-class callable form".to_owned(),
+        )
+        .with_primary(span, format!("{named} is constructed here, not called"))
+        .with_help(
+            "ADR 0027 § 1 gives the `(...)` spelling to a member — `Class::method(...)`, \
+             `$obj->method(...)`, `self::method(...)` — and a constructor is not one. Write the \
+             closure out: `fn (): T => new T(…)`"
+                .to_owned(),
+        ),
+    );
 }
 
 /// Holds `new C(...)` on a class that declares no `constructor` to the zero
