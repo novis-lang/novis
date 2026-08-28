@@ -660,6 +660,18 @@ is why" — is this file.
   every row — so a group is taken from *members*, not from a class. Whatever the tool says, one
   `python tools/gaps.py --member 'Core\X::member'` before writing is what tells a claim that is
   missing from one that is already frozen.
+- **Triage a stale guard name by grepping `fn <name>` over the crate's `src` *and* `tests`, then by
+  looking for a `.nvst` case of the same name — and expect the answer to be cause 2 more often than
+  the debt file's own "likely" hint suggests.** Of twelve names triaged in one session, seven had
+  landed as conformance cases and three of those were *already listed* in `loop-goal.toml`'s
+  `nvs-suite` `cases`, so the fix was deleting the `cargo-named` entry, not renaming it — a rename
+  would have invented a Rust test that was never going to exist. Two more traps in the same call:
+  `crates/nvs-ir/tests/` does not exist (its guard tests are unit tests in `src/lower/tests.rs`, so
+  a `grep -r crates/nvs-ir/tests` fails silently and reads as "no such test"), and a name whose
+  claim differs from the landed test's — `a_nested_element_write_separates_only_the_inner_array`
+  against `writing_through_a_nested_subscript_separates_every_level` — is two different assertions,
+  not a rename. `cargo test -p X -- --list` is the authority but costs a build; the grep answers the
+  same question for nothing, and `python tools/loop.py --list` re-parses the toml afterwards.
 
 ## Running things
 

@@ -655,11 +655,12 @@ stage = "3 control and calls"
 name = "nvs-ir (control flow)"
 args = ["test", "-p", "nvs-ir"]
 tests = [
-  "a_do_while_lowers_its_condition_below_its_body",
+  # Item 9's `do`/`while` and item 12's `finally`-through-a-throwing-`catch` are owned by the
+  # conformance cases of the same names, already listed in the `nvs-suite` check below: `nvs-ir` has
+  # no lowering test for either, and the observable order is what both guards were about.
   "a_multi_level_break_leaves_the_loop_its_level_names",
-  "a_two_representation_ternary_widens_to_one",
-  "a_finally_runs_when_its_catch_body_throws",
-  "an_abandoned_generator_resumes_to_unwind",
+  "a_ternary_with_mismatched_branch_types_joins_at_the_tagged_representation",
+  "an_abandoned_generator_resumes_into_the_finally_it_is_suspended_inside",
   # Item 14 -- the two shapes the owned-temporaries stack still misses.
   "an_inline_producer_releases_its_value_on_the_throw_path",
   "a_transferred_argument_is_released_when_a_later_one_throws",
@@ -697,10 +698,11 @@ tests = [
   # ADR 0031 § 1 refuses the name and admits the spread.
   "a_named_argument_through_a_callable_is_refused",
   "a_spread_argument_through_a_callable_is_accepted",
-  # Item 10's diagnostic half: `nvs_types` does not check loop nesting at all today.
-  "a_break_past_its_nesting_is_a_compile_error",
+  # Item 10's diagnostic half landed as `nvs_types::locals::check_exit_level` (`E0475`), and no Rust
+  # test names it -- `a-break-level-that-names-no-target-is-a-diagnostic.nvst` in the `nvs-suite`
+  # check below owns it instead, over all five spellings the diagnostic refuses.
   # Item 17's other half, refused by decision rather than built (ADR 0031 § 2).
-  "a_reference_array_element_is_a_compile_error",
+  "an_array_element_passed_by_reference_is_diagnosed",
 ]
 
 
@@ -732,14 +734,16 @@ stage = "4 targets and mixed"
 name = "nvs-ir (targets and tags)"
 args = ["test", "-p", "nvs-ir"]
 tests = [
-  "a_static_property_is_an_assignment_target",
-  "a_nested_element_write_separates_only_the_inner_array",
-  "a_tagged_operand_dispatches_on_its_tag_for_arithmetic",
-  "a_tagged_operand_answers_the_truthy_table",
+  # A static property as an assignment target, the nested element write and the tag-dispatched
+  # arithmetic are owned by the conformance cases of those names in the `nvs-suite` check below --
+  # each landed with no `nvs-ir` test naming it, and each is an observable answer rather than a
+  # lowering shape.
+  "a_mixed_condition_dispatches_the_truthy_table_on_the_tag",
   "a_subscript_through_a_tagged_base_lowers",
   "the_object_top_type_erases_to_the_pointer_a_class_does",
+  # `array<T> as array<U>` is ADR 0007 § 2's one row that does not lower at all yet, so this guard is
+  # unwritten on its merits rather than misnamed.
   "an_array_conversion_walks_its_elements",
-  "a_tagged_operand_converts_to_bytes",
 ]
 
 [[check]]
@@ -849,8 +853,8 @@ name = "nvs-types (narrowing and reachability)"
 args = ["test", "-p", "nvs-types"]
 tests = [
   # Item 37 -- three of ADR 0007 § 6's four spellings, and the residue no longer restricted to a class.
-  "an_instanceof_narrows_its_operand",
-  "a_literal_comparison_narrows_its_operand",
+  "an_instanceof_test_narrows_its_subject",
+  "a_comparison_against_a_literal_narrows_its_subject",
   "a_match_true_arm_narrows_its_subject",
   # Item 38
   "a_non_void_function_must_return_on_every_path",
@@ -895,8 +899,8 @@ name = "nvs-types (the test table)"
 args = ["test", "-p", "nvs-types"]
 tests = [
   "a_test_attribute_builds_a_table_of_its_cases",
-  "a_fixture_attribute_is_resolved_for_the_cases_that_name_it",
-  "a_test_with_attribute_expands_to_one_case_per_row",
+  "a_fixture_attribute_builds_a_roster_keyed_by_what_it_returns",
+  "each_test_with_is_a_row_folded_in_parameter_order",
 ]
 
 [[check]]
@@ -936,6 +940,7 @@ cases = [
   # Stage 3
   "tests/conformance/lang/a-do-while-runs-its-body-before-its-condition.nvst",
   "tests/conformance/lang/a-break-leaves-the-level-it-names.nvst",
+  "tests/conformance/lang/a-break-level-that-names-no-target-is-a-diagnostic.nvst",
   "tests/conformance/lang/a-ternarys-two-arms-widen-to-one-value.nvst",
   "tests/conformance/error/a-finally-runs-when-its-catch-body-throws.nvst",
   "tests/conformance/iter/an-abandoned-generator-runs-the-finally-it-is-suspended-inside.nvst",
@@ -947,6 +952,8 @@ cases = [
   "tests/conformance/array/a-nested-element-write-separates-only-the-inner-array.nvst",
   "tests/conformance/class/a-static-property-is-written-and-read-through-its-class.nvst",
   "tests/conformance/lang/a-mixed-value-answers-arithmetic-truth-and-a-subscript.nvst",
+  "tests/conformance/lang/an-operator-agrees-whether-its-operand-is-typed-or-tagged.nvst",
+  "tests/conformance/lang/as-bytes-over-a-tagged-operand-is-decided-by-its-runtime-tag.nvst",
   "tests/conformance/lang/every-remaining-conversion-row-runs-or-throws.nvst",
   # Stage 5
   "tests/conformance/class/a-property-observer-sees-every-write-its-class-makes.nvst",
