@@ -1,0 +1,135 @@
+--TEST--
+Core\Math's `int`-parameter members are asked about both ends of `int` and refuse only where the *answer* has no room, while its `float`-parameter members cannot be asked about those ends at all — ADR 0007 §§ 2, 4 and docs/spec/01-core-library.md § 3
+--FILE--
+<?nvs
+// The depth claim is *a bound asserted on both sides*, and the bound is not
+// one: `Core\Math` splits into members declared over `int` and members
+// declared over `float`, and the two families stop in different places. An
+// `int` member stops where its own *answer* leaves `int` — one value for
+// `abs`, one pair for `intDiv`, one pairing for `gcd` — while a `float` member
+// stops where its *argument* does, at ADR 0007 § 2's 2^53, long before either
+// end of `int` is in sight. A member picked from the wrong family therefore
+// looks total on every row anyone would write and refuses the value the caller
+// actually had.
+//
+// What each member answers on a chosen row is read off a line in
+// math-magnitude-sign-and-the-two-extremes.nvst, and the intDiv/mod refusals
+// are in math-int-div-and-mod-at-the-edges-of-their-arms.nvst; neither asks
+// which family a member is in.
+
+int $max = Core\Math::INT_MAX;
+int $min = Core\Math::INT_MIN;
+
+// 1. `sign` is the one integer member with no refusal in the whole range: it
+//    reads a bit rather than computing a magnitude, so both ends and both of
+//    their neighbours answer. This is the baseline the rest part from.
+echo "sign: ", Core\Math::sign($min), Core\Math::sign($min + 1), "|",
+     Core\Math::sign($max - 1), Core\Math::sign($max), "\n";
+
+// 2. `abs` refuses at exactly one value in the type, and the last accepted one
+//    is its neighbour — named together, since a member that stopped one entry
+//    early prints plausibly against either half alone. The top end is total:
+//    the asymmetry is `int`'s, not the member's.
+echo "abs: ", Core\Math::abs($min + 1) as int, "|", Core\Math::abs($max) as int, "\n";
+int $absRefused = 0;
+try {
+    echo Core\Math::abs($min) as int;
+} catch (Throwable $noMagnitude) {
+    $absRefused = 1;
+}
+echo "abs at int min refused ", $absRefused, "\n";
+
+// 3. `gcd` and `lcm` take the whole range on both sides and walk it over
+//    `i128`, so what refuses is the conversion of the *answer* back: a bound
+//    in neither argument. `$min`'s magnitude is one past `int`'s largest, so
+//    every pairing whose answer *is* that magnitude refuses, and for `gcd`
+//    there are exactly two — `($min, 0)`, because every integer divides zero,
+//    and `($min, $min)`. Each is named beside a neighbouring pairing that
+//    answers, including the one a single step away.
+echo "gcd: ", Core\Math::gcd($min, 2), "|", Core\Math::gcd($min, $max), "|",
+     Core\Math::gcd($min, $min + 1), "
+";
+int $gcdRefusals = 0;
+try {
+    echo Core\Math::gcd($min, 0);
+} catch (Throwable $noRoomZero) {
+    $gcdRefusals = $gcdRefusals + 1;
+    echo "gcd at (int min, 0): ", $noRoomZero->message, "
+";
+}
+try {
+    echo Core\Math::gcd($min, $min);
+} catch (Throwable $noRoomSelf) {
+    $gcdRefusals = $gcdRefusals + 1;
+}
+// `lcm` is the mirror image at zero, and inverted everywhere else: it answers
+// before any multiplication happens, so the pairing that defeats `gcd` is the
+// one `lcm` never computes — while `($min, 1)`, which `gcd` answers with `1`,
+// is a product `lcm` has no room for.
+echo "lcm: ", Core\Math::lcm($min, 0), ", gcd refusals ", $gcdRefusals, "
+";
+int $lcmRefused = 0;
+try {
+    echo Core\Math::lcm($min, 1);
+} catch (Throwable $noProduct) {
+    $lcmRefused = 1;
+}
+echo "lcm at (int min, 1) refused ", $lcmRefused, "
+";
+
+// 4. The other family. Every member below is declared `float`, so an `int`
+//    argument reaches it only through ADR 0007 § 2's one implicit widening,
+//    which is exact or throws — and 2^53 is where it stops, which is 1024
+//    times short of `int`'s own ends. The sweep is counted over five members
+//    rather than read off one, so a member that grew a conversion of its own
+//    fails here while still looking right on its own line.
+int $edge = 9007199254740992;
+int $over = 9007199254740993;
+array<int> $magnitudes = [$edge, 0 - $edge, $over, 0 - $over, $max, $min];
+foreach ($magnitudes as int $mag) {
+    int $accepted = 0;
+    try { Core\Math::floor($mag); $accepted = $accepted + 1; } catch (Throwable $noFloor) { $accepted = $accepted; }
+    try { Core\Math::ceil($mag); $accepted = $accepted + 1; } catch (Throwable $noCeil) { $accepted = $accepted; }
+    try { Core\Math::truncate($mag); $accepted = $accepted + 1; } catch (Throwable $noTrunc) { $accepted = $accepted; }
+    try { Core\Math::mod($mag, 2.0); $accepted = $accepted + 1; } catch (Throwable $noMod) { $accepted = $accepted; }
+    try { Core\Math::hypot($mag, 0.0); $accepted = $accepted + 1; } catch (Throwable $noHypot) { $accepted = $accepted; }
+    echo "float family accepted ", $accepted, "/5\n";
+}
+
+// 5. The refusal is about the argument and says so, which is what tells it
+//    apart from the `int` family's three above: those name a member and its
+//    answer, this one names a conversion the member never saw. Known gap, and
+//    `nvs_runtime::helpers::does_not_fit`'s own doc comment owns it: a helper
+//    failure carries only a message, so this arrives as spec § 10's
+//    `RuntimeError` where ADR 0007 § 4 names `ArithmeticError` — which is the
+//    class the *same* rule raises at a `callable`'s parameter, pinned in
+//    arr-a-callback-float-parameter-widens-an-int-and-stops-at-2-53.nvst. So
+//    what is asserted here is the message and that a `Throwable` reaches it.
+try {
+    echo Core\Math::floor($over);
+} catch (Throwable $tooWide) {
+    echo "widening: ", $tooWide->message, "\n";
+}
+
+// 6. The last accepted magnitude arrives *whole* rather than rounded to
+//    something nearby, on both signs — an acceptance that silently lost the
+//    low bit would still count as an acceptance above.
+echo "2^53 whole: ", Core\Math::mod($edge, 4503599627370496.0), "|",
+     Core\Math::mod(0 - $edge, 4503599627370496.0), "|",
+     Core\Math::floor($edge), "\n";
+--EXPECT--
+sign: -1-1|11
+abs: 9223372036854775807|9223372036854775807
+abs at int min refused 1
+gcd: 2|1|1
+gcd at (int min, 0): Core\Math::gcd's answer does not fit an `int`
+lcm: 0, gcd refusals 2
+lcm at (int min, 1) refused 1
+float family accepted 5/5
+float family accepted 5/5
+float family accepted 0/5
+float family accepted 0/5
+float family accepted 0/5
+float family accepted 0/5
+widening: cannot convert `int` 9007199254740993 to `float`
+2^53 whole: 0|-0|9.007199254741E+15
