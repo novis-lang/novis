@@ -2,65 +2,64 @@
 
 ## State
 
-**M4's Stage 8, and `Core\Time\DateTime` is closed**: both of the session's slices were
-pure test cases over landed work, so no `crates/nvs-stdlib/src` line changed, and the
-class went 0.88 → **1.00** (17 cases over 17 members). The tree is at **757 conformance
-plus 189 differential**. `python tools/loop.py --list` still reports no named `.nvst`
-case owed by any stage, and `gaps.py --differential` still ranks 0.
+**M4's Stage 8, and `Core\ObjectSet` is closed**: both slices were pure test cases over
+landed work, so no `crates/nvs-stdlib/src` line changed, and the class went 0.89 →
+**1.11** (10 cases over 9 members). The tree is at **759 conformance plus 189
+differential**. `python tools/loop.py --list` still reports no named `.nvst` case owed by
+any stage, and `gaps.py --differential` still ranks 0. `Core\Time\Duration` (0.95) is now
+the thinnest class and `Core\Math` (0.97) the next.
 
-- **`with` bounds each of its seven components separately, and every refusal names the
-  one it refused.** `month` is 1..=12 at both ends, `day` has a static 1..=31 *and* a
-  bound from the month the same call is building (February 29th refused against this
-  receiver's 2023, accepted one option wider at 2024), the clock fields are zero-based so
-  their first refused value is their count, `nanos` stops at 999999999, `year` at ±9999,
-  and a value too wide for the field's own storage takes `time.rs:2238`'s earlier refusal
-  — which still names the component. `withTime` is the half that cannot be partial: a
-  `TimeOfDay` carries all four clock fields, so the receiver's nanos are replaced even
-  where nothing named them, and its bounds are `TimeOfDay::at`'s, checked a member earlier
-  and naming *that* member. Berlin's spring-forward gap is not a bound in either
-  spelling — both shift forward by it, which is the agreement
-  `nvs_core_time_datetime_with_time`'s doc states.
-- **`startOf`/`endOf` are one agreement over all eleven `Core\Unit` granularities**, and
-  `next`/`previous` one over all seven `Core\Weekday` cases, both asserted by counting.
-  `startOf(g)->plus(1, g)` is `endOf(g)` plus one nanosecond and `startOf(g) <= $d <=
-  endOf(g)`, over two receivers — an ordinary Berlin day and its 23-hour spring-forward
-  one, which is where an extent computed on a civil field rather than taken from the zone
-  would fall out. Both receivers agree 11/11.
+- **The algebra is degenerate at both of its own ends**, over four receivers — empty, a
+  singleton, three distinct members, and two equal-looking `Tag`s — with ten laws each,
+  asserted by counting the 40 agreements. Union and intersect with the receiver itself
+  are that receiver in *members* and not only in size; `diff` from itself and `intersect`
+  with a disjoint set are the two annihilators; a disjoint operand is `diff`'s identity
+  and adds its whole self to a `union`. The twins row carries the identity rule (ADR 0090
+  § 4): two `Tag("red")`s are two members and a third is neither of them.
+- **The six mutators are one invariant.** After every step of a scripted run —
+  a duplicate `add`, a `remove` of a value never held, a `clear` of an already-empty set,
+  an `add` after a `clear` — the count, the length of the `foreach`, the membership sweep
+  over the universe and `isEmpty` are asked together and must agree; 12 steps, 12
+  agreements. `clear` is then shown to be exactly `remove` over every element by emptying
+  two identical sets the two ways, and insertion order after a `clear` starts over.
 
-**`granularity.rs` is not the time-unit table** — it is `Core\Str`'s grapheme/code-point
-unit. `Core\Unit`'s cases are `time.rs:807` (`UNIT`), and the previous handoff pointed at
-the wrong file.
+**An algebra result is unparameterized** — `union`/`intersect`/`diff` return
+`CoreTy::Instance(NAME)` with no type argument, so it cannot be bound or passed anywhere.
+The playbook § *Writing a test case* holds the spelling that works; the fix is a registry
+one and is in the backlog below.
 
 ## Next group
 
-**`Core\ObjectSet` is the thinnest class left** (0.89, 8 cases over 9 members) and the
-file set is `crates/nvs-stdlib/src/objset.rs` plus `tests/conformance/core/`. Its rows are
-all in one block, `objset.rs:30-110`, so the first two slices share everything; the third
-is `Core\Time\Duration` (0.95) and a different file.
+**`Core\Time\Duration` is the thinnest class left** (0.95, 18 cases over 19 members) and
+the file set is `crates/nvs-stdlib/src/time.rs` plus `tests/conformance/core/`.
+`DURATION`'s block starts at `time.rs:130`, so the first two slices share it; the third is
+`Core\Math` and a different file.
 
-- [ ] **`Core\ObjectSet`'s algebra at its degenerate ends** (`objset.rs:86` `union`,
-      `objset.rs:93` `intersect`, `objset.rs:100` `diff`) — spec § 13. The identities and
-      the annihilators, counted rather than read off a line: union with the empty set and
-      with itself, intersect with itself and with a disjoint set, `diff` from itself and
-      from the empty set. Identity is what membership means here (ADR 0090 § 4), so two
-      equal-looking instances are two elements — assert that too.
-- [ ] **`add`/`remove`/`has`/`count`/`clear` are one invariant, not five members**
-      (`objset.rs:51` `add`, `objset.rs:58` `has`, `objset.rs:65` `remove`,
-      `objset.rs:72` `count`, `objset.rs:79` `isEmpty`, `objset.rs:107` `clear`). Adding a
-      member twice leaves the count alone, removing one that is absent is not an error,
-      `isEmpty` and `count() == 0` never disagree, and `clear` is `remove` over every
-      element. One sweep, one set of counters.
-- [ ] **`Core\Time\Duration`'s one uncased member** (`crates/nvs-stdlib/src/time.rs`,
-      `DURATION`'s block) — 0.95, 18 cases over 19 members. `python tools/gaps.py --class
-      'Core\Time\Duration'` names it; a different file set from the two above.
+- [ ] **`Core\Time\Duration`'s one uncased member** (`crates/nvs-stdlib/src/time.rs:130`,
+      `DURATION`'s block) — spec § 4. `python tools/gaps.py --member 'Core\Time\Duration'`
+      lists the seven cases that already exist; the member no case calls is what this
+      slice writes, and the shape to reach for is the boundary the member is written
+      around rather than another row of an existing table.
+- [ ] **`Duration`'s arithmetic at the ends of its own storage**
+      (`crates/nvs-stdlib/src/time.rs:130`, `DURATION`'s block) — spec § 4, ADR 0070 § 1.
+      The nanosecond scale is an `i64`, so a `plus`/`minus` that carries past it has a
+      first refused value and a last accepted one; name them together, and assert the
+      refusal is a catchable `Throwable` naming the member.
+- [ ] **`Core\Math`'s one uncased member** (`crates/nvs-stdlib/src/math.rs`) — 0.97, 37
+      cases over 38 members. `gaps.py --member 'Core\Math'` names it; a different file set
+      from the two above.
 
 ## Backlog
 
+- `Core\ObjectSet`/`Core\ObjectMap`'s `union`/`intersect`/`diff` (and every member
+  returning `CoreTy::Instance`) erase their type argument, so the result is
+  unbindable — `E0401` printing both sides as `Core\ObjectSet`. Two bugs in one, exactly
+  as the `Core\Unit` entry below: the erasure, and a diagnostic that renders the two sides
+  identically. The fix belongs to `nvs_stdlib::registry` plus `nvs_types`.
 - A `Core` enum cannot be swept from an `array<Core\Unit>` or passed through a
   user-declared `Core\Unit` parameter — `E0401`, rendered *"expected `Core\Unit`, found
-  `Core\Unit`"*. Two bugs in one: the restriction itself, and a diagnostic that prints
-  both sides identically. `docs/agent/playbook.md` § *Writing a test case* has the
-  workaround; the fix belongs to `nvs_types`.
+  `Core\Unit`"*. `docs/agent/playbook.md` § *Writing a test case* has the workaround; the
+  fix belongs to `nvs_types`.
 - 54 of the 156 guard tests `loop-goal.toml` names still match nothing `cargo test` would
   run — `docs/agent/guard-name-debt.md`.
-- `Core\Math` (0.97, 37/38) and `Core\Uri` are the classes just above the frontier.
+- `Core\Uri` and `Core\Time\DateTime` are the classes just above the frontier at 1.00.

@@ -1653,6 +1653,17 @@ is why" — is this file.
   assertion, exactly as the *invariance over a sweep* shape asks. `Core\Weekday` behaves
   the same; the case-to-parameter direction at a *`Core` member's own* row is fine, which
   is what makes the restriction easy to miss.
+- **`Core\ObjectSet`'s `union`/`intersect`/`diff` answer an *unparameterized*
+  `Core\ObjectSet`, so an algebra result can only be consumed by chaining off it.**
+  `objset.rs:89` spells the return type `CoreTy::Instance(NAME)`, which carries no type
+  argument, so `Core\ObjectSet<Tag> $u = $s->union($s);` and passing that result to a
+  helper are both `E0401: expected `Core\ObjectSet<Tag>`, found `Core\ObjectSet`` — a
+  diagnostic whose two sides read as the same class. Widening the helper's parameter to
+  the bare `Core\ObjectSet` does not rescue it either: that spelling is `E0442` in a
+  *declared* position. So "are these two sets the same" is written inline as
+  `$a->diff($b)->count() == 0 && $b->diff($a)->count() == 0` plus the counts, and a case
+  that wants a set-equality helper takes its two operands as the parameterized type and
+  never as an algebra result. `Core\ObjectMap`'s members have the same shape.
 
 ## Splitting a file that got too big
 
