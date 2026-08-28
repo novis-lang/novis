@@ -104,7 +104,7 @@ mod stmt;
 // `call`, `control`, `expr` and `stmt` only add methods to the one
 // `impl Lowering` below, so they export nothing to import. The three named
 // here also carry free items this module and its siblings call.
-use self::{closure::*, exception::*, generator::*};
+use self::{call::delegation_forward, closure::*, exception::*, generator::*};
 
 /// A local's current SSA binding: which value it holds, and at what
 /// representation type.
@@ -445,10 +445,13 @@ pub fn file_script_label(id: SourceId) -> String {
 /// label is skipped: nothing can call it by a name that was never resolved,
 /// so lowering it would only produce an unreachable function.
 ///
-/// Interfaces and enums are not walked. An `interface` method may carry a
-/// body ([ADR 0043](../../../docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)),
-/// but reaching one needs the `by`-delegation resolution and the dispatch
-/// that land with M4's object model; there is nothing to call it from today.
+/// Enums are not walked; interfaces are, because an `interface` method may
+/// carry a body
+/// ([ADR 0043](../../../docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)
+/// § 2) and a default is an ordinary compiled method under the interface's own
+/// label. § 4's `implements I by $field;` forwards have no declaration to walk
+/// at all — one is synthesized per `nvs_types::Delegation` at the end of this
+/// function, beside the method-table row that makes it reachable.
 ///
 /// # Panics
 ///
@@ -668,6 +671,37 @@ pub fn lower_program(
     // each record one. Nothing else here can repeat a label: `layouts` is a
     // map, and a closure's and a generator's class are named for the site.
     classes.dedup_by(|a, b| a.label == b.label);
+    // ADR 0043 § 4's `implements I by $field;` forwards: one synthesized
+    // method each, and one row each in the delegating class's method table,
+    // which is what a receiver typed as the *interface* dispatches through.
+    // `nvs_types::Delegation` is where every one of these was decided; this
+    // adds the two things only a lowered program has, the function and the
+    // row. A name the table already answers is left alone — § 4's "a class may
+    // still write its own method with the same name as a delegated one", and
+    // an inherited body or an ADR 0043 § 2 interface default on the same
+    // terms.
+    for delegation in exprs.delegations() {
+        let Some(class) = classes
+            .iter_mut()
+            .find(|class| class.label == delegation.class)
+        else {
+            continue;
+        };
+        if class
+            .methods
+            .iter()
+            .any(|(name, _)| *name == delegation.method)
+        {
+            continue;
+        }
+        let Some(function) = delegation_forward(delegation, checked_types) else {
+            continue;
+        };
+        class
+            .methods
+            .push((delegation.method.clone(), delegation.class.clone()));
+        functions.push(function);
+    }
 
     crate::ir::Program {
         functions,

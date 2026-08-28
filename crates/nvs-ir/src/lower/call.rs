@@ -1,4 +1,4 @@
-//! Call lowering: argument ownership, ADR 0063 R2's options bag flattened at the site, an `inout $x` argument staged and written back, and `$fn(...)` through the one helper a `Core` member's callback already takes.
+//! Call lowering: argument ownership, ADR 0063 R2's options bag flattened at the site, an `inout $x` argument staged and written back, `$fn(...)` through the one helper a `Core` member's callback already takes, and ADR 0043 § 4's `by $field` forward, which is a whole synthesized function rather than a lowered call.
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory so a
 //! session editing one area does not carry the rest in context. Every item
@@ -905,4 +905,131 @@ impl<'a> Lowering<'a> {
         self.pending_refs.push(StagedRef { holder, slot, ty });
         slot
     }
+}
+
+/// One ADR 0043 § 4 `implements I by $field;` forward, built as a whole
+/// [`Function`] — the shape `nvs_types::expr_table::Delegation` decided.
+///
+/// It is a synthesized **method** rather than a rewrite of the call site, and
+/// that is the decision in it: a receiver typed as the interface dispatches on
+/// its runtime class, so a rewrite would forward `$post->touch()` and leave
+/// `$timestamped->touch()` reaching nothing. `lower_program` adds the same
+/// name to the class's method table, which is what that dispatch reads.
+///
+/// The body is § 4's own one-liner, `return $this->field->method(...);`, in
+/// four instructions: read the field, retain it (a field read borrows, and
+/// [`InstKind::CallVirtual`] transfers its receiver), then the call, then the
+/// return. The call is late-bound with **no fallback** — the field's declared
+/// type is the interface, whose member has no body to name — so the target is
+/// whatever the field's runtime class answers, which is the whole point of
+/// delegating to it.
+///
+/// Ownership is the ordinary compiled-method convention: every parameter is
+/// transferred in, each argument is transferred straight on to the callee, and
+/// `$this` is the one reference this frame owes a release for — on the normal
+/// exit and again in the landing block, since a throwing callee already owns
+/// what it was handed.
+///
+/// `None` when a parameter or the return type names a representation
+/// [`super::erase_checked_ty`] has no row for, which is the same subtraction
+/// every other lowering makes rather than a decision of its own.
+pub(super) fn delegation_forward(
+    delegation: &nvs_types::Delegation,
+    checked_types: &TypeInterner,
+) -> Option<Function> {
+    let mut ids = IdGen::default();
+    let entry = ids.next_block();
+    let landing = ids.next_block();
+    let this = ids.next_value();
+    let inner = ids.next_value();
+    let desc = ids.next_value();
+
+    let plain = |kind: InstKind| Inst {
+        result: None,
+        ty: None,
+        kind,
+        on_error: None,
+    };
+    let defines = |result: ValueId, ty: Ty, kind: InstKind| Inst {
+        result: Some(result),
+        ty: Some(ty),
+        kind,
+        on_error: None,
+    };
+
+    let mut params = vec![Ty::Object];
+    let mut args = Vec::new();
+    let mut insts = vec![
+        plain(InstKind::Safepoint),
+        defines(this, Ty::Object, InstKind::Param(0)),
+    ];
+    for (at, param) in delegation.params.iter().enumerate() {
+        let ty = super::erase_checked_ty(*param, checked_types)?;
+        let value = ids.next_value();
+        // `at + 1`: slot zero is the receiver, exactly as an ordinary
+        // instance method's is.
+        insts.push(defines(
+            value,
+            ty,
+            InstKind::Param(u32::try_from(at + 1).ok()?),
+        ));
+        params.push(ty);
+        args.push(value);
+    }
+    insts.push(defines(
+        inner,
+        Ty::Object,
+        InstKind::FieldGet {
+            object: this,
+            class: delegation.class.clone(),
+            field: delegation.field.clone(),
+        },
+    ));
+    insts.push(plain(InstKind::Retain { operand: inner }));
+    insts.push(defines(
+        desc,
+        Ty::ClassDesc,
+        InstKind::ClassDescOf { object: inner },
+    ));
+    let ret = super::erase_checked_ty(delegation.return_ty, checked_types)?;
+    // A `void` member has no value to define, so the call defines none and the
+    // exit is `return;` — the same split every other `void` call already makes.
+    let answer = (ret != Ty::Void).then(|| ids.next_value());
+    insts.push(Inst {
+        result: answer,
+        ty: answer.map(|_| ret),
+        kind: InstKind::CallVirtual {
+            lsb: desc,
+            method: delegation.method.clone(),
+            fallback: None,
+            receiver: Some(inner),
+            args,
+        },
+        on_error: Some(landing),
+    });
+    insts.push(plain(InstKind::Release { operand: this }));
+
+    let (stmt_spans, edge_spans) = ids.into_spans();
+    Some(Function {
+        name: format!("{}::{}", delegation.class, delegation.method),
+        params,
+        ret,
+        blocks: vec![
+            BasicBlock {
+                id: entry,
+                insts,
+                term: Terminator::Return(answer),
+            },
+            BasicBlock {
+                id: landing,
+                insts: vec![plain(InstKind::Release { operand: this })],
+                term: Terminator::Propagate {
+                    frame: delegation.frame.clone(),
+                },
+            },
+        ],
+        entry,
+        stmt_spans,
+        edge_spans,
+    })
 }

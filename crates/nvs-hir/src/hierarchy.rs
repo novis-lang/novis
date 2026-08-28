@@ -9,10 +9,12 @@
 //! Interface by $field;` delegation (shared state). This module's own
 //! superseded trait-use/`insteadof` resolution (`trait_refs`, `insteadof`,
 //! `check_trait_conflicts`, `E_TRAIT_METHOD_CONFLICT`, and `ClassLinks`'
-//! former `traits` field) was removed along with it; the new default-method/
-//! private-method-visibility/`by`-delegation resolution the ADR's own
-//! *Consequences* and *Verification* sections call for is a follow-up
-//! session's work, not yet built.
+//! former `traits` field) was removed along with it. What replaced it is not
+//! here either: a default method's body and a private one's visibility are
+//! `nvs_types`', and § 4's `by $field` forwards are resolved in
+//! `nvs_types::conformance` and emitted in `nvs_ir::lower`, both of which need
+//! the signature table this pass runs before. This module's own share is the
+//! edge — the resolved `implements` target the delegation clause hangs off.
 //!
 //! Built in the same two-pass shape as [`crate::resolve`]: [`HierarchyResolver::collect_links`]
 //! walks a file's declarations, recording each one's raw `extends`/

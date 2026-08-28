@@ -25,9 +25,14 @@
 //! - **An `abstract` class is exempt.** Leaving a member to a subclass is
 //!   what the modifier means.
 //! - **A class using ADR 0043 § 4's `by $field` delegation is exempt, whole.**
-//!   Delegation supplies members from a property's own type, and nothing
-//!   resolves that yet (the plan lists `by`-delegation as open), so checking
-//!   such a class would report members delegation is meant to provide.
+//!   Delegation supplies members from a property's own type, so checking such
+//!   a class would report members the synthesized forwards provide. It is
+//!   exempt *whole* rather than per-member because the one thing that would
+//!   make the check exact — § 4's `E_DELEGATE_TYPE_MISMATCH`, "does `$field`'s
+//!   type satisfy this interface" — is not built yet: without it, a member no
+//!   forward covers is indistinguishable from one whose field cannot answer
+//!   it. [`resolve_delegations`] runs in that exemption's place, and its own
+//!   doc comment owns what a forward is and which members get one.
 //!
 //! The four compiler-declared global interfaces are *inside* it, and reach it
 //! the same way a source-declared one does: [`crate::iter_lib`] seeds every
@@ -42,7 +47,9 @@ use nvs_syntax::ast::{ClassDecl, Modifier};
 use rustc_hash::FxHashSet;
 
 use crate::Env;
+use crate::expr_table::Delegation;
 use crate::signatures::resolve_method;
+use crate::{span_text, strip_sigil};
 
 /// Reports one `E0449` per member of `decl`'s interfaces that nothing
 /// answers. See the module docs for the three exemptions.
@@ -51,6 +58,7 @@ pub(crate) fn check_class_conformance(decl: &ClassDecl, qname: &QName, env: &mut
         return;
     }
     if decl.implements.iter().any(|c| c.by_field.is_some()) {
+        resolve_delegations(decl, qname, env);
         return;
     }
 
@@ -107,18 +115,96 @@ fn collect_obligations(
         if !seen.insert(parent.clone()) {
             continue;
         }
-        if let Some(sig) = env.signatures.get(&parent) {
-            let mut names: Vec<&String> = sig
-                .methods
-                .iter()
-                .filter(|(_, m)| !m.has_body && !m.interface_private)
-                .map(|(name, _)| name)
-                .collect();
-            names.sort();
-            out.extend(names.into_iter().map(|n| (parent.clone(), n.clone())));
-        }
+        own_obligations(&parent, env, out);
         collect_obligations(&parent, env, seen, out);
     }
+}
+
+/// Records one [`Delegation`] per member an `implements I by $field;` clause
+/// makes the compiler synthesize a forward for — ADR 0043 § 4.
+///
+/// The obligation set is [`collect_obligations`]', asked of the *interface*
+/// rather than of the class: every bodiless, non-`interface_private` member it
+/// and its own ancestors declare. A member the class already answers with a
+/// body is skipped, which is § 4's "a class may still write its own method
+/// with the same name as a delegated one — that is an ordinary override" — and
+/// the same subtraction covers an inherited body and an ADR 0043 § 2 interface
+/// default, both of which `resolve_method` finds and neither of which a
+/// forward should displace.
+///
+/// Three member shapes get no forward, and each is a hole rather than a rule:
+/// a `static` member has no receiver to forward through (ADR 0008 gives class
+/// storage none), and a variadic or `inout` parameter list is packed and
+/// written back at the *call site*, so passing it straight on would pack it
+/// twice. Each still reaches `nvs_runtime::nvs_abstract_method` if it is
+/// called; the handoff's backlog names all three.
+fn resolve_delegations(decl: &ClassDecl, qname: &QName, env: &mut Env<'_>) {
+    let Some(links) = env.graph.get(qname) else {
+        return;
+    };
+    // The graph drops an `implements` entry that resolved to nothing, so the
+    // two lists only line up on a program with no name-resolution error in it.
+    // One that has one is already reported and will never be lowered, so there
+    // is nothing to resolve for it — and guessing which clause is which would
+    // synthesize a forward against the wrong interface.
+    if links.implements.len() != decl.implements.len() {
+        return;
+    }
+    let interfaces: Vec<QName> = links.implements.clone();
+    let label = qname.to_string();
+    for (clause, interface) in decl.implements.iter().zip(interfaces) {
+        let Some(field_span) = clause.by_field else {
+            continue;
+        };
+        let field = strip_sigil(span_text(env.src, field_span)).to_owned();
+        let (line, _) = env.src.line_col(field_span.start);
+        let mut seen = FxHashSet::default();
+        seen.insert(qname.clone());
+        let mut owed: Vec<(QName, String)> = Vec::new();
+        own_obligations(&interface, env, &mut owed);
+        seen.insert(interface.clone());
+        collect_obligations(&interface, env, &mut seen, &mut owed);
+        for (_, method) in owed {
+            if resolve_method(qname, &method, env.signatures, env.graph)
+                .is_some_and(|(_, sig)| sig.has_body)
+            {
+                continue;
+            }
+            let Some((_, sig)) = resolve_method(&interface, &method, env.signatures, env.graph)
+            else {
+                continue;
+            };
+            if sig.is_static || sig.variadic || sig.inout.iter().any(|inout| *inout) {
+                continue;
+            }
+            env.exprs.record_delegation(Delegation {
+                class: label.clone(),
+                method: method.clone(),
+                field: field.clone(),
+                params: sig.params.clone(),
+                return_ty: sig.return_ty,
+                frame: format!("{label}::{method}() at {}:{}", env.src.name(), line + 1),
+            });
+        }
+    }
+}
+
+/// One declaration's own bodiless, non-`interface_private` members, appended
+/// to `out` in the sorted order [`collect_obligations`] reads them in — the
+/// half of that walk that looks at the named declaration itself rather than at
+/// its ancestors.
+fn own_obligations(qname: &QName, env: &Env<'_>, out: &mut Vec<(QName, String)>) {
+    let Some(sig) = env.signatures.get(qname) else {
+        return;
+    };
+    let mut names: Vec<&String> = sig
+        .methods
+        .iter()
+        .filter(|(_, m)| !m.has_body && !m.interface_private)
+        .map(|(name, _)| name)
+        .collect();
+    names.sort();
+    out.extend(names.into_iter().map(|n| (qname.clone(), n.clone())));
 }
 
 #[cfg(test)]

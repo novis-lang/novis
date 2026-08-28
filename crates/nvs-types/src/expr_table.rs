@@ -572,6 +572,45 @@ pub struct ExprTypeTable {
     static_properties: FxHashMap<String, Vec<(String, Option<crate::defaults::ConstArg>)>>,
     to_string: FxHashMap<Span, ResolvedCall>,
     require_targets: FxHashMap<Span, nvs_diagnostics::SourceId>,
+    delegations: Vec<Delegation>,
+}
+
+/// One synthesized `implements I by $field;` forward —
+/// [ADR 0043](../../../docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)
+/// § 4's "the compiler synthesizes, for every method the interface requires, a
+/// one-line forward", resolved here and emitted in `nvs_ir::lower`.
+///
+/// It is resolved in this crate for the reason every other entry in this table
+/// is: which members an interface requires, and which of them the class
+/// already answers with a body, are questions about the signature table and
+/// the class graph, neither of which `nvs-ir` holds. What rides across is the
+/// finished decision — one record per method that needs a forward — so the
+/// lowering is a shape with no resolution left in it.
+///
+/// It is a **method**, not a rewrite at the call site: a receiver typed as the
+/// interface (`Timestamped $t = $post;`) dispatches on the runtime class, so
+/// the forward has to be a real row in that class's method table or the
+/// polymorphism delegation exists for does not work.
+#[derive(Clone, Debug)]
+pub struct Delegation {
+    /// The delegating class's label, rendered as
+    /// [`ExprTypeTable::method_label`]'s class half is.
+    pub class: String,
+    /// The forwarded method's own name.
+    pub method: String,
+    /// The property the forward reads its receiver out of, `$`-sigil not
+    /// included — `by $field`'s own name.
+    pub field: String,
+    /// The forwarded method's parameter types, positionally. The forward
+    /// declares exactly these and passes them straight on, so a call site's
+    /// own defaults have already been filled by the time one arrives.
+    pub params: Vec<TypeId>,
+    /// The forwarded method's declared return type.
+    pub return_ty: TypeId,
+    /// The `Class::method() at <file>:<line>` backtrace label the forward's
+    /// error edge propagates under, rendered here because this is where the
+    /// `by $field` clause's span can still be resolved to a line.
+    pub frame: String,
 }
 
 impl ExprTypeTable {
@@ -723,6 +762,23 @@ impl ExprTypeTable {
     /// fact that has a home beside the others here.
     pub fn record_require_target(&mut self, span: Span, target: nvs_diagnostics::SourceId) {
         self.require_targets.insert(span, target);
+    }
+
+    /// Records one synthesized `by $field` forward — see [`Delegation`], whose
+    /// doc comment owns why the decision is taken here and emitted there.
+    ///
+    /// Keyed by nothing: a forward is a fact about a *declaration* rather than
+    /// about an expression, and `nvs-ir` reads the whole list once while it
+    /// builds the class table, so a map would only be a slower `Vec`.
+    pub(crate) fn record_delegation(&mut self, delegation: Delegation) {
+        self.delegations.push(delegation);
+    }
+
+    /// Every synthesized `by $field` forward the program owes, in the order
+    /// the delegating classes were checked.
+    #[must_use]
+    pub fn delegations(&self) -> &[Delegation] {
+        &self.delegations
     }
 
     /// The file the `require` at `span` resolved to, or `None` for a path
