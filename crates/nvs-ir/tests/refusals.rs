@@ -55,7 +55,7 @@ const ALLOWLIST: &[(&str, &str)] = &[];
 /// A ratchet, not a target: a session that closes one lowers this in the same
 /// slice, and a session that adds one has to explain itself to a red test
 /// first. `python tools/holes.py` prints the current number.
-const CEILING: usize = 6;
+const CEILING: usize = 4;
 
 /// The repository root — this crate is `crates/nvs-ir`.
 fn root() -> PathBuf {

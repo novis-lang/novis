@@ -47,6 +47,13 @@ impl<'a> Lowering<'a> {
     /// or a by-reference argument that is neither a bare local nor a
     /// compile-time-known property.
     ///
+    /// The first-class callable sentinel is the fourth, and its roster is
+    /// closed: ADR 0027 § 1's two member spellings record
+    /// `nvs_types::expr_table::ExprInfo::CallableRef` rather than `Call`, so
+    /// [`super::expr`]'s call arms never dispatch here for one, and the two
+    /// shapes that name no member are diagnostics where they are written
+    /// (`E0732` for a `mixed` receiver, `E0740` for `new C(...)`).
+    ///
     /// # A `name:` argument
     ///
     /// Evaluation stays in **written** order — a named argument's own side
@@ -83,8 +90,13 @@ impl<'a> Lowering<'a> {
     ) -> LoweredArgs {
         let CallArgs::List(list) = args else {
             panic!(
-                "nvs-ir only lowers a plain positional argument list for a resolved call/`new` \
-                 — got {args:?}; see the crate docs' known gaps"
+                "nvs-ir: a resolved call/`new` reached argument lowering with \
+                 {args:?} where a written argument list belongs — this crate trusts \
+                 nvs_types::check_program to have settled every other shape. The \
+                 roster is closed: ADR 0027's `Class::method(...)` and \
+                 `$obj->method(...)` record `ExprInfo::CallableRef` and never reach \
+                 this function, `$m->method(...)` on a `mixed` receiver is `E0732`, \
+                 and `new C(...)` is `E0740`"
             );
         };
         // A variadic signature's last parameter is not one ABI argument per
@@ -842,11 +854,14 @@ impl<'a> Lowering<'a> {
     ///
     /// # Panics
     ///
-    /// Panics for a first-class-callable argument list, which is ADR 0027's
-    /// `$m->method(...)` and names a closure *value* rather than making a call
-    /// — `nvs_types` refuses it where it is written (`E0732`), as it refuses a
+    /// Panics naming any shape `nvs_types` is trusted to have settled first: a
     /// `name:` argument (`E0712`) and an `inout` one (`E0714`), neither of
-    /// which the deferral can express.
+    /// which the deferral can express, and the first-class-callable sentinel,
+    /// which is ADR 0027's `$m->method(...)` and names a closure *value*
+    /// rather than making a call — refused where it is written (`E0732`),
+    /// because a closure carries its callee and the deferral has none to
+    /// carry. No program constructs any of the three, so each is an engine
+    /// invariant rather than a shape the language still refuses.
     pub(super) fn lower_erased_method_call(
         &mut self,
         object: &Expr,
@@ -858,9 +873,11 @@ impl<'a> Lowering<'a> {
     ) -> (ValueId, Ty) {
         let CallArgs::List(list) = args else {
             panic!(
-                "nvs-ir only lowers a plain positional argument list for a call through a \
-                 `mixed` receiver — got {args:?}; nvs_types refuses ADR 0027's \
-                 `$m->method(...)` where it is written (`E0732`)"
+                "nvs-ir: a call through a `mixed` receiver reached lowering with \
+                 {args:?} where a written argument list belongs — `ExprInfo::ErasedCall` \
+                 is recorded only for the non-sentinel branch, ADR 0027's \
+                 `$m->method(...)` being refused where it is written (`E0732`), so no \
+                 program constructs this"
             );
         };
         assert!(

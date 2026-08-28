@@ -2436,7 +2436,11 @@ impl<'a> Lowering<'a> {
                  nvs_types::check_program with the same table? Every receiver naming \
                  no class is either refused where it is written (`E0477`) or, for the \
                  `mixed` ADR 0007 § 2 makes the one unchecked position, recorded as \
-                 `ExprInfo::ErasedCall` and lowered above",
+                 `ExprInfo::ErasedCall` and lowered above. ADR 0027's \
+                 `$obj->method(...)` is the one shape that resolves and still arrives \
+                 here: it records `ExprInfo::CallableRef` instead, because it names \
+                 the member rather than calling it, and this crate has no arm for it \
+                 yet",
                 expr.span
             );
         };
@@ -2618,7 +2622,10 @@ impl<'a> Lowering<'a> {
             panic!(
                 "nvs-ir: a static call at {:?} has no resolved target recorded in the \
                  typed-expression table — did this program pass \
-                 nvs_types::check_program with the same table?",
+                 nvs_types::check_program with the same table? ADR 0027's \
+                 `Class::method(...)` records `ExprInfo::CallableRef` rather than \
+                 `Call` — it names the member rather than calling it, and this crate \
+                 has no arm for it yet",
                 expr.span
             );
         };
