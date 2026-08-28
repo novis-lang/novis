@@ -1,0 +1,132 @@
+--TEST--
+`Core\Bytes::contains` answers `Core\Bytes::indexOf`'s presence for every needle, swept over every substring of one subject and every needle just outside it — spec § 7, ADR 0009 § 1, ADR 0063 R5 and R6
+--FILE--
+<?nvs
+// R6 gives this class two ways to ask the same question: `contains` is the
+// `bool` a magic-byte sniff writes, and `indexOf` is the `?uint` a slice
+// follows. They are two implementations of one search — `crates/nvs-stdlib/
+// src/bytes.rs:608` and `:559` — so the invariant that matters is that they
+// *agree*, on presence, for every needle. A `contains` that grew its own
+// search still prints plausibly on any written line.
+//
+// The sweep is every substring of one subject, which is the complete set of
+// needles the subject contains, crossed against the same set with one octet
+// the subject does not hold appended — the complete set of near misses.
+
+final class Search {
+    public static function has(bytes $h, bytes $needle): string {
+        if (Core\Bytes::contains($h, $needle)) {
+            return "y";
+        }
+        return "n";
+    }
+
+    public static function at(bytes $h, bytes $needle): string {
+        var $found = Core\Bytes::indexOf($h, $needle);
+        if ($found == null) {
+            return "-";
+        }
+        return $found as string;
+    }
+
+    // The agreement itself, as one question: presence answered by the `bool`
+    // member equals presence answered by the `?uint` one.
+    public static function agrees(bytes $h, bytes $needle): bool {
+        bool $said = Core\Bytes::contains($h, $needle);
+        var $found = Core\Bytes::indexOf($h, $needle);
+        return $said == ($found != null);
+    }
+}
+
+// 11 octets with a repeated four-octet run ("abra" at 0 and at 7) and a
+// repeated single one, so "first occurrence" is a real question rather than a
+// tautology over a subject with no repeats.
+bytes $subject = "abracadabra" as bytes;
+bytes $absent = "q" as bytes;
+bytes $empty = "" as bytes;
+var $total = Core\Bytes::length($subject) as int;
+
+// The three written answers the sweep generalizes: the whole subject, the
+// repeated run (found at its *first* offset, not its last), and the empty
+// needle, which is contained in every buffer including the empty one — Rust's
+// answer and PHP 8's, per the member's own doc comment.
+echo Search::has($subject, $subject), Search::at($subject, $subject), " ", Search::has($subject, "abra" as bytes), Search::at($subject, "abra" as bytes), "\n";
+echo Search::has($subject, $empty), Search::at($subject, $empty), " ", Search::has($empty, $empty), Search::at($empty, $empty), "\n";
+echo Search::has($empty, $absent), Search::at($empty, $absent), " ", Search::has($subject, $absent), Search::at($subject, $absent), "\n";
+
+// 1. Every substring of the subject, by start and length — the two degenerate
+//    lengths included, so each start contributes an empty needle and the run to
+//    the end. Each is contained, each is located, and the two members agree.
+//    `indexOf` may answer *earlier* than the offset the needle was cut from,
+//    which is the repeated-run case and is asserted rather than tolerated.
+int $needles = 0;
+int $held = 0;
+int $located = 0;
+int $agreed = 0;
+int $first = 0;
+int $start = 0;
+int $len = 0;
+for ($start = 0; $start <= $total; $start = $start + 1) {
+    for ($len = 0; $len <= $total - $start; $len = $len + 1) {
+        bytes $needle = Core\Bytes::slice($subject, $start, $len);
+        $needles = $needles + 1;
+        if (Core\Bytes::contains($subject, $needle)) {
+            $held = $held + 1;
+        }
+        var $found = Core\Bytes::indexOf($subject, $needle);
+        if ($found != null) {
+            $located = $located + 1;
+            if (($found as int) <= $start) {
+                $first = $first + 1;
+            }
+        }
+        if (Search::agrees($subject, $needle)) {
+            $agreed = $agreed + 1;
+        }
+    }
+}
+echo $needles, " needles, ", $held, " held, ", $located, " located, ", $first, " at or before their cut, ", $agreed, " agreed\n";
+
+// 2. The same set of needles with one octet the subject does not hold appended:
+//    every one of them is absent, and the two members agree about that too. A
+//    search that stopped comparing at the subject's end would report these
+//    present and keeps every count above.
+int $misses = 0;
+int $refused = 0;
+int $missing = 0;
+int $alsoAgreed = 0;
+for ($start = 0; $start <= $total; $start = $start + 1) {
+    for ($len = 0; $len <= $total - $start; $len = $len + 1) {
+        bytes $near = Core\Bytes::join([Core\Bytes::slice($subject, $start, $len), $absent], $empty);
+        $misses = $misses + 1;
+        if (Core\Bytes::contains($subject, $near) == false) {
+            $refused = $refused + 1;
+        }
+        if (Core\Bytes::indexOf($subject, $near) == null) {
+            $missing = $missing + 1;
+        }
+        if (Search::agrees($subject, $near)) {
+            $alsoAgreed = $alsoAgreed + 1;
+        }
+    }
+}
+echo $misses, " near misses, ", $refused, " refused, ", $missing, " missing, ", $alsoAgreed, " agreed\n";
+
+// 3. A needle longer than the subject can never be contained, however much of
+//    the subject it starts with — the other direction of the same off-by-one,
+//    and the one a length check alone would get right for the wrong reason.
+echo Search::has($subject, Core\Bytes::join([$subject, $subject], $empty)), " ", Search::has($subject, Core\Bytes::join([$subject, $absent], $empty)), " ", Search::has($subject, Core\Bytes::join([$absent, $subject], $empty)), "\n";
+
+// 4. Octets outside what a `string` can name search the same way, because the
+//    unit is the byte and nothing decodes: 0x00 is an ordinary needle here,
+//    where a C-string search would stop at it.
+bytes $nul = Core\Encoding::fromHex("00ff00");
+echo Search::has($nul, Core\Encoding::fromHex("00")), Search::at($nul, Core\Encoding::fromHex("00")), " ", Search::has($nul, Core\Encoding::fromHex("ff00")), Search::at($nul, Core\Encoding::fromHex("ff00")), " ", Search::has($nul, Core\Encoding::fromHex("0000")), Search::at($nul, Core\Encoding::fromHex("0000")), "\n";
+--EXPECT--
+y0 y0
+y0 y0
+n- n-
+78 needles, 78 held, 78 located, 78 at or before their cut, 78 agreed
+78 near misses, 78 refused, 78 missing, 78 agreed
+n n n
+y0 y1 n-
