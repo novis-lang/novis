@@ -1783,6 +1783,17 @@ is why" — is this file.
   spellings to get right on the way: a block-bodied `fn` must declare its return type, there is no `++`
   or `+=` so it is `$t->n = $t->n + 1`, and the closure may be declared fresh inside a `foreach` body
   (the binding is the function's, but re-executing its declaration is not a second declaration).
+- **The handoff's named group may already be on disk, under a filename that does not say so.**
+  Two of this group's three items — the four encoders' round-trip sweep and `with` agreeing with
+  the seven readers — were already written, as
+  `uri-percent-coders-are-two-inverse-pairs-over-a-byte-sweep.nvst` and
+  `uri-seven-readers-with-and-tostring-are-one-parse.nvst`, neither of which reads like the item
+  that named it. `gaps.py` counts *calls* per member, so a member three cases mention in passing
+  still ranks thin while the property you were about to assert is already pinned. The check is two
+  seconds and belongs before the first read of the implementation: `ls tests/conformance/core/ |
+  grep -i <class>` and then `sed -n '2p'` over every hit — the `--TEST--` line is written to be
+  exactly this index. Take the ranking off `gaps.py`, but take *which property is still open* off
+  those lines.
 
 ## Splitting a file that got too big
 
