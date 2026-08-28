@@ -1514,13 +1514,49 @@
 > `tests/conformance/reject/a-test-method-is-a-public-void-instance-method.nvst` pins all eight
 > refusals in one compile — the three shapes, the declaration that is wrong three ways, and the
 > duplicate name — with the accepted `#[Test]` and two plain `static`/`private` helpers written
-> first, so a position that stops being accepted fails there rather than as a missing refusal. Three
-> live tools **are** the worklist and no session re-derives one: `python tools/holes.py` reads the
-> refusal sites out of `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item N` for
-> one in full), `python tools/loop.py --list` prints the named `.nvst` cases each stage still owes —
-> one, now that the retrieval and the dump cases are named for the files that landed, and it is
-> Stage 7's `#[Test]` table case, which item 43 writes and nothing before it can — and `python
-> tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> first, so a position that stops being accepted fails there rather than as a missing refusal. **ADR
+> 0079 § 4's assertion surface exists, and `Core\Test` is registered as an ordinary `Core` class.**
+> The marker and the assertions are one `QName` on purpose, so a single `use Core\Test;` places
+> both, and until this landed the `Test::assertEquals` § 1's own worked example calls resolved
+> against nothing at all. `nvs_stdlib::test` is the class half beside
+> `nvs_types::derive::ATTRIBUTES`' attribute half, and its three rows are § 4's table: `assertSame`,
+> `assertEquals` and `assertEqualsDeep`, each `(T $actual, T $expected, {message?: string}): void`.
+> **Subject first**, which is the opposite of PHPUnit's order and falls out of ADR 0063 rather than
+> out of a preference — and because reversing the two is the commonest mistake in the ecosystem this
+> language is migrated from, every failure message labels the sides `$actual` and `$expected` by
+> **name**, so a reversed call still reads correctly. § 4's "a type mismatch is a compile error"
+> needed no rule of its own: both parameters are one `CoreTy::Var("T")`, so `nvs_types::generics`
+> binds `T` from the first argument under its first-binding-wins rule and the second is judged
+> against it by the ordinary assignability check every `Core` call already goes through. The three
+> rows are **one comparison with two substitutions at the object row**, which is what keeps the
+> scalar, `string` and `array<T>` rows from growing a second reading: those are ADR 0090 § 3's table
+> and `nvs_runtime::identity::value_identical` is the whole of them, so `assertSame` adds nothing to
+> it at all, `assertEquals` replaces the object row with ADR 0013's `compareTo` through
+> `nvs_runtime::call_method`, and `assertEqualsDeep` replaces it with a structural walk that reports
+> **where** the two differ (`$actual->rows["1"]`, in the spelling a program subscripts with) rather
+> than only that they do. Two bounds are the walk's own and both are stated at their site: an Novis
+> array cannot contain itself (ADR 0090 § 3), so the only structure that can recur is an object
+> graph, and a 64-level cap plus a same-allocation shortcut is what bounds it — refusing to answer
+> past the cap rather than comparing half a graph silently; and ADR 0092 § 5's redaction row is read
+> at the one place this module quotes a value, so a `secret` property is still *compared* — whether
+> two secrets agree is not itself a secret — while neither side is quoted back into a message a
+> build log keeps. Two of § 4's rules are runtime throws rather than the compile errors the ADR
+> writes, and both are recorded as `nvs_stdlib::test`'s own known gaps rather than left implied: a
+> non-`Comparable` object under `assertEquals` throws catchably naming `assertEqualsDeep`, that
+> refusal being `nvs_types`' to make and wanting a class graph this crate does not hold; and a
+> failure is a throw and **not yet a ledger entry**, so a `catch` around an assertion still hides it
+> — § 5's ledger is the next slice, and the `Core\Test\Failure` class and
+> `Core\Test::expectFailure(callable)` it names arrive with it.
+> `tests/conformance/core/an-assertion-compares-its-subject-against-its-expectation.nvst` pins the
+> scalar and `array<T>` rows agreeing under two members, the object row parting three ways, the
+> `{message: …}` bag in front of the report, both diff paths, the redaction, and the count of
+> refusals over the whole file rather than a line read off each. Three live tools **are** the
+> worklist and no session re-derives one: `python tools/holes.py` reads the refusal sites out of
+> `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item N` for one in full), `python
+> tools/loop.py --list` prints the named `.nvst` cases each stage still owes — one, now that the
+> retrieval and the dump cases are named for the files that landed, and it is Stage 7's `#[Test]`
+> table case, which item 43 writes and nothing before it can — and `python tools/check-migration.py`
+> scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,
