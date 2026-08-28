@@ -1457,8 +1457,9 @@
 > fixture. Three live tools **are** the worklist and no session re-derives one: `python
 > tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen` and attributes each to
 > its item (`--item N` for one in full), `python tools/loop.py --list` prints the named `.nvst`
-> cases each stage still owes, and `python tools/check-migration.py` scores
-> `docs/spec/02-php-migration.md`.
+> cases each stage still owes — one, now that the retrieval and the dump cases are named for the
+> files that landed, and it is Stage 7's `#[Test]` table case, which item 43 writes and nothing
+> before it can — and `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

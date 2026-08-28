@@ -2,55 +2,65 @@
 
 ## State
 
-**M4's Stage 6 is the frontier, and every *Verification* section M4's acceptance
-names now exists** — ADRs 0014, 0023, 0028, 0046 and 0069 all have one. Nothing
-in ADR 0028 is re-opened.
+**M4's Stage 6 is closed and Stage 7 is the frontier.** Every named `.nvst` case
+`python tools/loop.py --list` reports is on disk except one, and that one is owed
+rather than misnamed.
 
-- **ADR 0028's absences are verified where the name is written**, not where a
-  hook would have fired:
-  `tests/conformance/reject/every-magic-method-name-this-adr-closes-is-unspellable.nvst`
-  takes all six magic names in one compile as `E0111`.
-- **Two of that ADR's own claims were corrected rather than pinned** — § 4's
-  "annotated with each property's declared visibility", which ADR 0092 § 3's
-  plaintext rendering does not print, and the trailing headingless verification
-  block, now folded into `## Verification`.
-- What no case can reach is § 2's **discarded** throw out of an abandoned
-  generator's `finally`: it prints nothing, exactly as a `finally` that never
-  ran does. `nvs_runtime::Ctx::with_pending_set_aside` is its home.
+- The two stale names in `docs/agent/loop-goal.toml` now point at the files that
+  landed: ADR 0046 §§ 4-5's retrieval is
+  `core/an-attribute-is-retrieved-by-the-shape-it-satisfies.nvst` (structural, not
+  nominal), and ADR 0092's dump is its two cases — § 3's plaintext view and § 5's
+  property redaction — which one `.nvst` cannot hold.
+- **Nothing of ADR 0079 exists**: `#[Test]` is not on `nvs_types::derive::ATTRIBUTES`
+  (`crates/nvs-types/src/derive.rs:72`), `Core\Test` has no row in
+  `nvs_stdlib::registry`, and no table is built. Stage 7 is unstarted work, not a
+  gap in a landed feature; the toml says so at the case rather than leaving it to be
+  re-derived.
+- The conformance corpus is at **725** against Stage 8's floor of 750.
 
 ## Next group
 
-**The three cases `python tools/loop.py --list` still calls "not written yet",
-two of which are landed under other names.** One file set:
-`docs/agent/loop-goal.toml` around `:955`, plus `tests/conformance/`. It reaches
-no crate, so take it as a fresh window.
+**ADR 0079 § 1 — `#[Test]` and the table the compiler builds from it**, which is
+Stage 7's first item and the three `nvs-types` guards `loop-goal.toml:897` names.
+One file set: `crates/nvs-types/src/derive.rs`, `attributes.rs`, `check.rs`,
+`expr_table.rs`, plus `docs/adr/0079-testing-is-a-language-feature.md`.
 
-- [ ] **Point the two landed names at the cases that exist** —
-      `docs/agent/loop-goal.toml:955` names
-      `lang/an-attribute-is-retrieved-by-its-own-type.nvst`, which landed as
-      `core/an-attribute-is-retrieved-by-the-shape-it-satisfies.nvst` (ADR 0046
-      §§ 4-5, structural not nominal, so the *name* is the stale half), and
-      `:956` names `lang/a-dump-renders-one-record-and-redacts-a-secret.nvst`,
-      which landed as `core/a-dump-renders-one-record-through-one-plaintext-view.nvst`
-      plus `core/a-secret-typed-property-is-redacted-wherever-it-is-dumped.nvst`
-      (ADR 0092 § 5's two halves, which a single `.nvst` cannot hold — one
-      compiles and one is refused). Check each pair actually covers the named
-      claim before renaming rather than after.
-- [ ] **Decide what `docs/agent/loop-goal.toml:960`'s
-      `a-test-attribute-builds-a-table-the-runner-reports.nvst` still owes** —
-      it is Stage 7's, over the surface
-      `docs/adr/0079-testing-is-a-language-feature.md:62` declares — a `#[Test]`
-      method and the table built while compiling. Write it if that surface is
-      there, and say so in the handoff if it is not; ADR 0079 § 2's isolates are
-      M5, so the runner half may not be reachable yet.
+- [ ] **`#[Test]` joins the compiler-recognized roster and its payload is checked**
+      (ADR 0079 § 1; ADR 0071 § 1 owns the roster's closure) —
+      `crates/nvs-types/src/derive.rs:72` is `ATTRIBUTES`, `:75` the two existing
+      names; the payload shape is `{skip?: string, at?: string, seed?: int,
+      db?: string, server?: bool, retries?: int, because?: string}`, validated as an
+      ADR 0046 shape literal, and `crates/nvs-types/src/attributes.rs:90`'s
+      `check_attribute` is where a recognized name is already exempted from the
+      shape-alias resolution.
+- [ ] **The table is collected while checking, and rides in `ExprTypeTable`** —
+      `crates/nvs-types/src/check.rs:226` is the per-class call
+      `derive::check_class_derive` already takes, `derive.rs:148` its shape, and
+      `crates/nvs-types/src/expr_table.rs:599` the table it is recorded into, for
+      `DerivedCodec`'s reason. Guard: `a_test_attribute_builds_a_table_of_its_cases`.
+- [ ] **§ 1's five compile errors** — a duplicate name in one class, a `static` /
+      non-`void` / non-`public` `#[Test]`, an unfilled parameter, and
+      `#[Test(skip: true)]`. Next free type code is **E0733** (the `E04xx` band is
+      full at `E0499`).
 
 ## Backlog
 
-- A `require` whose path is not a string literal runs nothing, silently, in both
-  forms — `nvs_hir::requires`' own known gap.
-- ADR 0033's container axis: an `array<T>` element and an ADR 0036 shape field
-  carry no `secret` bit — `nvs_stdlib::debug`'s known gap 1.
-- `Core\Reflect` is what makes ADR 0022 § 3's never-written state reachable from
-  outside a `lateinit` property (M6).
-- ADR 0028 §§ 2-3's converter half is M11's, per that ADR's new *Verification*
-  closing paragraph.
+- ADR 0079 §§ 8-9's `#[Fixture]`/`#[TestWith]` — the other two `nvs-types` guards
+  (`docs/agent/loop-goal.toml:897`).
+- ADR 0079 §§ 4-6's `Core\Test` roster and ledger, and § 22's three reporters — the
+  `nvs-stdlib` guards at `docs/agent/loop-goal.toml:906`.
+- `tests/conformance/lang/a-test-attribute-builds-a-table-the-runner-reports.nvst`,
+  written by item 43 once the table above exists.
+- The conformance floor: 725 on disk against Stage 8's 750
+  (`docs/agent/loop-goal.md` § *Stage 8*).
+- `nvs_types::derive`'s known gap 1 (`crates/nvs-types/src/derive.rs:36`) says a
+  promoted constructor parameter is not a field; the plan records promotion as
+  landed in `layout` and `signatures`, so that sentence is likely stale — check
+  before trusting it.
+- A `require` whose path is not a string literal runs nothing at all, silently, in
+  both forms (`nvs_hir::requires`' own known gap).
+
+**The orientation pack was missing Stage 7 entirely.** `[context] adrs` names no
+section of ADR 0079 and `[context] modules` no `nvs-types/src/{derive,attributes}.rs`,
+so this session read both by hand; the next group needs `0079 §§ 1, 8, 9, 24` and
+those two module lines added.
