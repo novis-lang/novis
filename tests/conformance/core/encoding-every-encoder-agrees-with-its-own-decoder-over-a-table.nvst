@@ -1,0 +1,115 @@
+--TEST--
+`Core\Encoding`'s three encoders each agree with their own decoder over one table of buffers, counted rather than read off lines, and the URL-safe spelling is the standard one with two substitutions and no padding — spec § 7, RFC 4648 §§ 4, 5 and 6
+--FILE--
+<?nvs
+// One question asked of all three pairs: does `toX` followed by `fromX` give
+// back the octets it started from? The sweep is asserted by *counting*
+// agreements, so a member that answers plausibly on one row and drops an
+// octet on another still fails here — which reading a row off a line would
+// not catch.
+final class Trip {
+    // `fromHex` is the only way to name a buffer that is not UTF-8
+    // (ADR 0009 § 1), so every row is written as hex and compared as hex.
+    public static function base64(string $hex): bool {
+        bytes $raw = Core\Encoding::fromHex($hex);
+        string $written = Core\Encoding::toBase64($raw);
+        return Core\Encoding::toHex(Core\Encoding::fromBase64($written)) == $hex;
+    }
+
+    public static function base64Url(string $hex): bool {
+        bytes $raw = Core\Encoding::fromHex($hex);
+        string $written = Core\Encoding::toBase64Url($raw);
+        return Core\Encoding::toHex(Core\Encoding::fromBase64Url($written)) == $hex;
+    }
+
+    public static function base32(string $hex): bool {
+        bytes $raw = Core\Encoding::fromHex($hex);
+        string $written = Core\Encoding::toBase32($raw);
+        return Core\Encoding::toHex(Core\Encoding::fromBase32($written)) == $hex;
+    }
+
+    // The two base64 spellings differ in exactly two symbols and in whether
+    // the last group is padded: § 5's alphabet is § 4's with `+` → `-` and
+    // `/` → `_`, and `toBase64Url` is unpadded, which is the `rtrim` in the
+    // PHP idiom `encoding.rs` names. Comparing against a `trimEnd`ed left
+    // side also pins that the URL-safe output is never padded *differently*:
+    // any `=` it carried would leave the two unequal.
+    public static function urlIsSwappedStandard(string $hex): bool {
+        bytes $raw = Core\Encoding::fromHex($hex);
+        string $standard = Core\Encoding::toBase64($raw);
+        string $swapped = Core\Str::replace(Core\Str::replace($standard, "+", "-"), "/", "_");
+        return Core\Str::trimEnd($swapped, {characters: "="}) == Core\Encoding::toBase64Url($raw);
+    }
+}
+
+// Eleven buffers: seven lengths walking base64's three-octet group twice,
+// one that carries base32's five-octet group past its own boundary, and the
+// buffers reaching the alphabets' last symbols — `ffffff` is `////`, `fbff`
+// puts a `+` in the first position, and `00ff80fe` is not UTF-8 at all.
+array<string> $rows = [
+    "",
+    "6d",
+    "6d77",
+    "6d776c",
+    "6d776c21",
+    "6d776c2121",
+    "6d776c212121",
+    "00ff80fe",
+    "ffffff",
+    "fbff",
+    "00112233445566778899aabbccddeeff",
+];
+
+int $total = 0;
+int $b64 = 0;
+int $url = 0;
+int $b32 = 0;
+int $all = 0;
+foreach ($rows as string $hex) {
+    $total = $total + 1;
+    bool $one = Trip::base64($hex);
+    bool $two = Trip::base64Url($hex);
+    bool $three = Trip::base32($hex);
+    if ($one) { $b64 = $b64 + 1; }
+    if ($two) { $url = $url + 1; }
+    if ($three) { $b32 = $b32 + 1; }
+    // The agreement itself: all three pairs answer for the same buffer, so a
+    // pair that is internally consistent but reads a different buffer than
+    // its siblings cannot pass this line while passing its own.
+    if ($one && $two && $three) { $all = $all + 1; }
+}
+
+echo "rows ", $total, "\n";
+echo "base64 ", $b64, "\n";
+echo "base64url ", $url, "\n";
+echo "base32 ", $b32, "\n";
+echo "all three ", $all, "\n";
+
+int $swapped = 0;
+foreach ($rows as string $again) {
+    if (Trip::urlIsSwappedStandard($again)) { $swapped = $swapped + 1; }
+}
+echo "url is swapped standard ", $swapped, "\n";
+
+// The two rows the substitution count would be vacuous without: one whose
+// standard spelling holds both `+` and `/`, and one whose group is whole, so
+// neither side is padded and the substitution is all there is to see.
+echo Core\Encoding::toBase64(Core\Encoding::fromHex("fbff")), " ",
+     Core\Encoding::toBase64Url(Core\Encoding::fromHex("fbff")), "\n";
+echo Core\Encoding::toBase64(Core\Encoding::fromHex("ffffff")), " ",
+     Core\Encoding::toBase64Url(Core\Encoding::fromHex("ffffff")), "\n";
+
+// And base32's own spelling of one of them, which shares no symbol with
+// either base64 alphabet at that position: RFC 4648 § 6 is upper case and
+// unpadded here, the form an `otpauth:` secret is written in.
+echo Core\Encoding::toBase32(Core\Encoding::fromHex("ffffff")), "\n";
+--EXPECT--
+rows 11
+base64 11
+base64url 11
+base32 11
+all three 11
+url is swapped standard 11
++/8= -_8
+//// ____
+77776
