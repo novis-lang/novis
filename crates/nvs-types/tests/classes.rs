@@ -127,6 +127,46 @@ fn a_constructor_argument_is_type_checked() {
     assert!(diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)));
 }
 
+/// A class that declares no `constructor` still has one, and it takes nothing:
+/// `nvs_types::expr::calls`' `reject_arguments_to_implicit_constructor` owns
+/// why an argument written there has no home at all — there is no signature to
+/// check it against and `nvs-ir` lowers the `new` with `ctor: None`, so it was
+/// never even evaluated for its effects.
+#[test]
+fn an_implicit_constructor_is_held_to_zero_arguments() {
+    let diags = check_src(
+        "<?nvs\nclass Plain {\n  public int $n = 0;\n}\nclass T {\n  function m(): void {\n    Plain $p = new Plain(1, 2);\n  }\n}\n",
+    );
+    let found = diags
+        .iter()
+        .find(|d| d.code == Some(code::E_ARITY_MISMATCH))
+        .unwrap_or_else(|| panic!("{diags:?}"));
+    assert!(
+        found.message.contains("expected 0 argument(s), found 2"),
+        "the count is against the zero arguments an implicit constructor takes: {found:?}"
+    );
+}
+
+/// The same class constructed the one way it accepts.
+#[test]
+fn an_implicit_constructor_accepts_a_bare_new() {
+    let diags = check_src(
+        "<?nvs\nclass Plain {\n  public int $n = 0;\n}\nclass T {\n  function m(): void {\n    Plain $p = new Plain();\n  }\n}\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// The refusal is about the *resolved* constructor, not about the constructed
+/// class declaring one itself: `new Dog(1)` on a `Dog extends Animal` invokes
+/// `Animal::constructor` and is checked against that signature.
+#[test]
+fn an_inherited_constructor_is_not_an_implicit_one() {
+    let diags = check_src(
+        "<?nvs\nclass Animal {\n  function constructor(int $legs) {}\n}\nclass Dog extends Animal {}\nclass T {\n  function m(): void {\n    Dog $d = new Dog(1);\n  }\n}\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
 #[test]
 fn a_static_call_return_type_is_recovered() {
     let diags = check_src(
