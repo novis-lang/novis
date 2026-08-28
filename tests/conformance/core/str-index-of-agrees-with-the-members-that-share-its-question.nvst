@@ -1,0 +1,121 @@
+--TEST--
+`Core\Str::indexOf`'s `?uint` answer agrees with `contains`, `countOf` and `lastIndexOf` about occurrence, and its position is a grapheme index `slice` accepts — spec § 1 *Search*, ADR 0063 R5/R8, ADR 0009 § 2
+--FILE--
+<?nvs
+// Four members answer the same underlying question — does this needle occur,
+// and where — and `indexOf`'s own doc comment makes two further claims no row
+// read off a line can check: that absence is `null` rather than a position, and
+// that the position counts in the class's unit, "directly usable as
+// `Core\Str::slice`'s offset". Both are asked of every row of one table and
+// counted, so a member that grew its own answer for a single row fails here.
+array<string> $hays = [
+    "The Quick, brown",
+    "banana",
+    "abc",
+    "café au lait",
+    "👍🏽 hello 👍🏽",
+    "HELLO",
+    "aaa",
+    "ǅungla",
+    "MiXeD case",
+];
+array<string> $needles = [
+    "brown",
+    "an",
+    "zz",
+    "au",
+    "hello",
+    "l",
+    "aa",
+    "ungla",
+    "mixed",
+];
+
+int $rows = Core\Arr::count($hays) as int;
+int $total = 0;
+int $found = 0;
+int $containsAgrees = 0;   // contains($h, $n) == (indexOf(...) != null)
+int $countAgrees = 0;      // countOf($h, $n) > 0 == the same
+int $lastAgrees = 0;       // lastIndexOf answers null on exactly the same rows
+int $lastIsAtOrAfter = 0;  // ...and is never before the first occurrence
+int $sliceRoundTrips = 0;  // slice($h, at, length($n)) == $n — the unit claim
+int $fromIsIdempotent = 0; // searching from the answer answers the answer again
+int $nextIsStrictlyAfter = 0;
+int $onlyInsensitive = 0;  // absent case-sensitively, present case-insensitively
+
+int $i = 0;
+while ($i < $rows) {
+    string $h = $hays[$i as string];
+    string $n = $needles[$i as string];
+    $total = $total + 1;
+
+    ?uint $at = Core\Str::indexOf($h, $n);
+    ?uint $last = Core\Str::lastIndexOf($h, $n);
+    ?uint $ci = Core\Str::indexOf($h, $n, {caseInsensitive: true});
+
+    if (Core\Str::contains($h, $n) == ($at != null)) {
+        $containsAgrees = $containsAgrees + 1;
+    }
+    if ((Core\Str::countOf($h, $n) > 0) == ($at != null)) {
+        $countAgrees = $countAgrees + 1;
+    }
+    if (($last != null) == ($at != null)) {
+        $lastAgrees = $lastAgrees + 1;
+    }
+    if (($at == null) && ($ci != null)) {
+        $onlyInsensitive = $onlyInsensitive + 1;
+    }
+
+    if ($at != null) {
+        $found = $found + 1;
+        int $pos = $at as int;
+        if ($last != null) {
+            if ($last as int >= $pos) {
+                $lastIsAtOrAfter = $lastIsAtOrAfter + 1;
+            }
+        }
+        // The doc comment's own property: the answer is a position in the
+        // class's unit, so it indexes `slice` directly. A byte offset would
+        // pass rows 1 to 3 and fail the accented and emoji ones.
+        if (Core\Str::slice($h, $pos, Core\Str::length($n) as int) == $n) {
+            $sliceRoundTrips = $sliceRoundTrips + 1;
+        }
+        // R8's `from` is a position in the same unit, so handing back the
+        // answer finds it again, and starting one past it cannot find it there.
+        if (Core\Str::indexOf($h, $n, {from: $pos}) == $at) {
+            $fromIsIdempotent = $fromIsIdempotent + 1;
+        }
+        ?uint $next = Core\Str::indexOf($h, $n, {from: $pos + 1});
+        if ($next == null) {
+            $nextIsStrictlyAfter = $nextIsStrictlyAfter + 1;
+        } else {
+            if ($next as int > $pos) {
+                $nextIsStrictlyAfter = $nextIsStrictlyAfter + 1;
+            }
+        }
+    }
+    $i = $i + 1;
+}
+
+// Every row: the three predicates agree with `indexOf` about occurrence.
+echo $total, " ", $containsAgrees, " ", $countAgrees, " ", $lastAgrees, "\n";
+// Every found row: the position is `slice`'s, `from` accepts it back, the next
+// search is strictly later, and the last occurrence is not before the first.
+echo $found, " ", $sliceRoundTrips, " ", $fromIsIdempotent, " ", $nextIsStrictlyAfter, " ", $lastIsAtOrAfter, "\n";
+// Six of the nine occur at all and two more only case-insensitively, which is
+// what keeps the counts above from being a table nothing was ever absent in.
+echo $onlyInsensitive, "\n";
+
+// The two rows a byte offset would have answered differently, shown outright:
+// `é` is two bytes and the emoji sequence eight, so a position counted in
+// bytes would read 6 and 9 rather than 5 and 2.
+echo (Core\Str::indexOf("café au lait", "au") ?? 99) as string, " ", (Core\Str::indexOf("👍🏽 hello 👍🏽", "hello") ?? 99) as string, "\n";
+// And absence, which is `null` and not `0` — the one thing PHP's `strpos`
+// contract cannot say.
+echo (Core\Str::indexOf("abc", "zz") ?? 99) as string, " ", (Core\Str::indexOf("abc", "a") ?? 99) as string, "\n";
+--EXPECT--
+9 9 9 9
+6 6 6 6 6
+2
+5 2
+99 0
