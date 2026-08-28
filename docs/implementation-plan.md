@@ -807,11 +807,39 @@
 > different fields of one class, an own method beating the forward, a throwing delegate caught where
 > the outer call is written, and the agreement between the two spellings of one call; valgrind-clean
 > over a fixture that forwards a freshly built `string` and abandons one on the error edge two
-> hundred times each. Three live tools **are** the worklist and no session re-derives one: `python
-> tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen` and attributes each to
-> its item (`--item N` for one in full), `python tools/loop.py --list` prints the named `.nvst`
-> cases each stage still owes, and `python tools/check-migration.py` scores
-> `docs/spec/02-php-migration.md`.
+> hundred times each. **ADR 0043 § 4's first bullet is checked now, and the conformance check is per
+> member rather than per class.** `nvs_types::conformance::check_delegate_field` asks the question §
+> 4 names — is `$field` a declared property of the class, of a **non-nullable** class or interface
+> type that satisfies the delegated interface — and refuses it where the clause is written
+> (`E0720`), each half being a failure the synthesized forward has no answer for: a name that is no
+> property has no slot to read, a `null` in the slot names no class to dispatch on, and a type that
+> does not reach the interface names no member for the late-bound call to land on. The judgement is
+> `nvs_hir::implements_interface`'s, which is reflexive, so a field declared *as* the interface
+> satisfies it in zero steps — § 4's own worked example's spelling. That code is what buys the
+> per-member exemption: `resolve_delegations` hands back the set of members it actually supplies,
+> and `check_class_conformance` runs its ordinary `E0449` walk over everything else, so a class
+> delegating one interface is still judged on every other one it claims — the whole-class exemption
+> used to swallow that outright. A clause whose field is refused marks that interface's whole
+> obligation set covered, so the author reads one diagnostic about the field rather than one per
+> member. The three member shapes the forward cannot express are refused too (`E0721`) rather than
+> left to reach `nvs_runtime::nvs_abstract_method`, a `FATAL` naming a compiler bug for a program
+> the front end had accepted: a `static` member has no receiver to read the field off and a variadic
+> or `inout` parameter list is packed and written back at the *call site*, so a forward would do it
+> twice. Each is a limit of this compiler rather than a rule about delegation,
+> `resolve_delegations`' own doc comment is its home, and the way out is § 4's existing one — write
+> the member on the class by hand, which beats a forward anyway.
+> `tests/conformance/class/a-delegate-field-must-be-able-to-answer-the-interface.nvst` pins all four
+> `E0720` shapes plus the per-member `E0449` in one compile, and
+> `a-delegated-member-the-forward-cannot-express-is-refused.nvst` the three `E0721` ones beside the
+> own-method way out. ADR 0043 § 4 gains both bullets rather than being left to disagree with the
+> tree, and `ImplementsClause`'s own doc comment is corrected where it named `nvs-hir` as the owner
+> of a check that needs the signature table. What is **not** closed is § 4's
+> promoted-constructor-parameter half: such a parameter is no property in `nvs_types::layout`, so
+> the ADR's own worked example is `E0720` today. Three live tools **are** the worklist and no
+> session re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and
+> `nvs-codegen` and attributes each to its item (`--item N` for one in full), `python tools/loop.py
+> --list` prints the named `.nvst` cases each stage still owes, and `python
+> tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,
