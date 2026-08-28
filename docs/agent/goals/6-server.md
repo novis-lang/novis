@@ -161,8 +161,8 @@ gets its first adversarial traffic.
 28. **Path traversal, header injection and request-smuggling suites pass**, and a request whose isolates
     are still running when the client disconnects leaves none of them behind.
 29. **`wrk`/`oha` throughput against PHP 8.5 + FPM + opcache, recorded in `benches/`.** A number, committed.
-30. **`python tools/check-migration.py` reports 100% classified.** Every one of the oracle build's 925
-    functions and 240 types is a `member`, `language` or `dropped` row; every `member` row's member is
+30. **`python tools/check-migration.py` reports 100% classified.** Every one of the oracle build's 1151
+    functions and 253 types is a `member`, `language` or `dropped` row; every `member` row's member is
     registered; every one of them has a conformance case. **This is the parity program's stop condition**
     and the last check in the chain.
 

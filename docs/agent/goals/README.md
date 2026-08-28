@@ -82,8 +82,11 @@ TOML for a doubled floor before restarting.
 ## What stops the run
 
 - **The last goal goes green.** That is the parity program finished, and the check that says so is
-  `python tools/check-migration.py` reporting 100% classified — every one of the oracle build's 925
-  functions and 240 types accounted for, every `member` row registered, every one of them cased.
+  `python tools/check-migration.py` reporting 100% classified — every one of the oracle build's **1151
+  functions and 253 types** accounted for, every `member` row registered, every one of them cased. The
+  inventory grew from 925 on 2026-08-29, when the oracle build gained `mysqli`, `pgsql` and `sqlite3`:
+  the three APIs [ADR 0067](../../adr/0067-core-db.md) replaces are now inside the audit rather than a
+  named hole beside it.
 - **A goal reports `BLOCKED`.** Reserved for a decision that is expensive to reverse *and* has no safe
   default. Every goal's standing decisions exist to make this rare.
 - **`--max-stalls` consecutive sessions move `HEAD` nowhere.**

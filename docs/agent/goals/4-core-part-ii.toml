@@ -494,13 +494,13 @@ args = ["test", "tests/differential/"]
 min_passing = 250
 
 # The largest single jump in the program, and it is the measure of the goal rather than a side effect:
-# 330 of the 634 names still open on 2026-08-29 are this goal's -- the filesystem, streams, processes,
-# crypto, hashing, output buffering, reflection and the `get_*`/`is_*` families. Modelled at 79%; the
-# floor is 75, four points under, because a family this pass attributed to goal 4 and that turns out to
+# 458 of the 860 names still open on 2026-08-29 are this goal's -- the filesystem, streams, processes,
+# crypto, hashing, output buffering, reflection and the `get_*`/`is_*` families. Modelled at 78%; the
+# floor is 74, four points under, because a family this pass attributed to goal 4 and that turns out to
 # belong elsewhere must not fail a run. 1-core-depth.toml's Stage 7 comment derives the whole curve.
 [[check]]
 kind = "command"
 stage = "10 gates"
-name = "check-migration at 75%"
-argv = ["python", "tools/check-migration.py", "--min", "75"]
+name = "check-migration at 74%"
+argv = ["python", "tools/check-migration.py", "--min", "74"]
 want = ["inventory:", "classified:"]

@@ -352,6 +352,6 @@ min_passing = 210
 [[check]]
 kind = "command"
 stage = "8 corpus and guards"
-name = "check-migration at 46%"
-argv = ["python", "tools/check-migration.py", "--min", "46"]
+name = "check-migration at 36%"
+argv = ["python", "tools/check-migration.py", "--min", "36"]
 want = ["inventory:", "classified:"]

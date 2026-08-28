@@ -355,6 +355,6 @@ tests = [
 [[check]]
 kind = "command"
 stage = "9 guards"
-name = "check-migration at 44%"
-argv = ["python", "tools/check-migration.py", "--min", "44"]
+name = "check-migration at 34%"
+argv = ["python", "tools/check-migration.py", "--min", "34"]
 want = ["inventory:", "classified:"]

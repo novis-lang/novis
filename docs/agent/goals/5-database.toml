@@ -328,9 +328,10 @@ want = ["rows=3", "ada", "grace", "alan", "affected=1", "typed row ok"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 10 -- the corpus and the migration floor. `mysqli`, `pgsql` and `sqlite3` are absent from the
-# oracle build entirely, so this floor rises by less than the goal's size suggests: `PDO` is in the
-# build and its family plus the `Core\Queue` surface is what moves. Two points.
+# Stage 10 -- the corpus and the migration floor, and this is the second-largest jump in the program.
+# The oracle build gained `mysqli`, `pgsql` and `sqlite3` on 2026-08-29, so the three APIs ADR 0067
+# replaces are now IN the inventory rather than a named hole beside it: 227 names, a fifth of the whole
+# table, all of them this goal's. Modelled at 98%; the floor is 94.
 # 1-core-depth.toml's Stage 7 comment derives the whole curve.
 # ---------------------------------------------------------------------------------------------------
 
@@ -362,6 +363,6 @@ min_passing = 255
 [[check]]
 kind = "command"
 stage = "10 corpus"
-name = "check-migration at 77%"
-argv = ["python", "tools/check-migration.py", "--min", "77"]
+name = "check-migration at 94%"
+argv = ["python", "tools/check-migration.py", "--min", "94"]
 want = ["inventory:", "classified:"]

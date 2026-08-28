@@ -46,7 +46,7 @@
 > goal has not been made — that is a deliberate act, and its three steps are in
 > [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's own residue is the 1000-case
 > corpus count, which orders 1–4 meet as the suite grows; nothing else about M4 is open. What the
-> program is measured by is `python tools/check-migration.py` at 100% classified, which stood at 31%
+> program is measured by is `python tools/check-migration.py` at 100% classified, which stood at 25%
 > the day the program was scheduled. `python tools/gaps.py`, `python tools/holes.py` and
 > `python tools/check-migration.py --report` are the three worklists behind it, and no session
 > re-derives one.
@@ -133,10 +133,17 @@ and the server sits on all of them.
 | [6 server](agent/goals/6-server.md) | M7 | `nvs serve`, the request-facing `Core` classes, mounts, uploads, `Core\Session`, the control socket |
 
 **The program's own stop condition is `python tools/check-migration.py` reporting 100% classified** —
-every one of the oracle build's 925 functions and 240 types accounted for as a `member`, `language` or
-`dropped` row, every `member` row's member registered, and every one of them carrying a conformance case.
-It was 31% when the program was scheduled. A count of conformance cases is a proxy for parity; a table
-that enumerates the source of truth is not.
+every one of the oracle build's **1151 functions and 253 types** accounted for as a `member`, `language`
+or `dropped` row, every `member` row's member registered, and every one of them carrying a conformance
+case. It was 25% when the program was scheduled. A count of conformance cases is a proxy for parity; a
+table that enumerates the source of truth is not.
+
+**The oracle build gained `mysqli`, `pgsql` and `sqlite3` on 2026-08-29**, which is why that inventory is
+1151 rather than the 925 the program was first sized against. It is a better program for it: 236 of the
+new names are the three APIs [ADR 0067](adr/0067-core-db.md) exists to replace, so *"one API replaces
+`PDO`, `mysqli`, `pgsql` and `sqlite3`"* stops being an assertion about four APIs and becomes an audit of
+236 functions, each with a row saying what became of it. The floors in each goal were re-derived against
+the new denominator in the same commit.
 
 **The two columns are not the same unit.** The parenthesised weeks are the original estimate, written for
 a human team before any code existed; **Loop-days** is what this project's unattended loop actually spends,

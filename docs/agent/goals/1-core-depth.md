@@ -26,7 +26,7 @@ them, and each has a tool that counts it so no session re-derives one:
    pass, the OpenAPI emitter and ADR 0061 § 3's program enumeration are all specified, none implemented.
    `nvs_types::derive::ATTRIBUTES` at [derive.rs:77](../../../crates/nvs-types/src/derive.rs) is the
    closed list they join, and it holds five names where the ADRs name twelve.
-3. **The migration rows.** `python tools/check-migration.py` was at **31%** (291 of 925 functions) when
+3. **The migration rows.** `python tools/check-migration.py` was at **25%** (291 of 1151 functions) when
    this goal was written. This goal takes the domains M4S owns — strings, arrays, numbers, dates, regex,
    encoding, JSON, paths — to a row each. That is not a documentation slice: a row is where the audit
    happens, and three functions reached a full member-by-member review with no home at all precisely

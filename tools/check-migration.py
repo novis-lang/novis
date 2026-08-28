@@ -45,9 +45,16 @@ OUTCOMES = {"member", "language", "dropped", "open"}
 # Extensions the oracle build does not load, so their functions are absent from the inventory and
 # cannot be audited. Named here rather than left implicit: an unaudited extension is a known hole,
 # not an empty one. Regenerating the inventory against a fuller build shrinks this list.
+#
+# **The three database extensions came off it on 2026-08-29**, when the oracle build gained `mysqli`,
+# `pgsql` and `sqlite3` and the inventory was regenerated: 925 functions became 1151. That is the
+# point at which [ADR 0067](../docs/adr/0067-core-db.md)'s central claim -- one API replaces `PDO`,
+# `mysqli`, `pgsql` and `sqlite3` -- stops being an assertion about four APIs and becomes an audit of
+# 236 named functions. Everything still on this list is either a Tier 1 extension (`gd`, `intl`,
+# `zip`, `exif`) or a subsystem whose replacement is `Core`'s own, and none of it is parity work.
 UNAUDITED = [
     "mbstring", "curl", "openssl", "sodium", "sockets", "intl", "gd", "exif", "fileinfo",
-    "mysqli", "pgsql", "sqlite3", "zip", "posix", "pcntl", "gettext", "ftp", "ldap", "soap",
+    "zip", "posix", "pcntl", "gettext", "ftp", "ldap", "soap",
     "bz2", "xsl", "tidy", "shmop", "sysvsem", "imap", "snmp", "dba", "enchant",
 ]
 

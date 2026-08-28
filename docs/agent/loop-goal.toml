@@ -1363,24 +1363,30 @@ tests = [
 # Stage 7 -- the migration rows. The parity program's own measure, raised one goal at a time.
 #
 # EVERY FLOOR IN THIS PROGRAM IS MEASURED, NOT GUESSED, AND THIS COMMENT IS THE ONE HOME FOR HOW.
-# The 634 names `check-migration.py --report` listed on 2026-08-29 were attributed to the goal that
-# owns each family, by prefix, against the 291 already classified (31%):
+# The 860 names `check-migration.py --report` listed on 2026-08-29 were attributed to the goal that
+# owns each family, by prefix, against the 291 already classified (25% of 1151):
 #
-#     goal 1  strings, arrays, numbers, dates, regex, encoding, JSON, paths     108 names   -> 43%
-#     goal 4  streams, files, hashes, reflection, output, process, crypto       330 names   -> 79%
-#     goal 6  sessions, headers, request input                                   33 names   -> 82%
-#     unattributed by that prefix pass (var_*, iterator_*, misc)                163 names   -> 100%
+#     goal 1  strings, arrays, numbers, dates, regex, encoding, JSON, paths     108 names   -> 35%
+#     goal 2  serialize, unserialize, the task surface                            8 names   -> 35%
+#     goal 3  ini_*, gc_*, opcache_*, set_time_limit, memory_*                   34 names   -> 38%
+#     goal 4  streams, files, hashes, reflection, output, process, crypto       458 names   -> 78%
+#     goal 5  mysqli, pg_*, sqlite3, PDO                                        227 names   -> 98%
+#     goal 6  sessions, headers, request input                                   33 names   -> 100%
 #
-# The unattributed 163 are an artefact of the classifier rather than a real gap -- they belong to goals
-# 1 and 4 -- so the true curve sits somewhat above the modelled one. Each goal's floor is therefore set
-# one to four points BELOW its modelled figure, which is what makes it a floor rather than a prediction:
-# a domain boundary this pass guessed wrong must not fail a run. A goal that lands its domains and comes
-# out higher raises the next goal's floor in the same commit, and says so.
+# THE DENOMINATOR IS 1151 AND NOT 925 because the oracle build gained `mysqli`, `pgsql` and `sqlite3`
+# on 2026-08-29 and the inventory was regenerated: +226 functions, +13 types, none removed. Two of this
+# program's floors were wrong by more than ten points before that, in opposite directions -- goal 5 owns
+# a fifth of the whole table now, where against the old build it owned almost nothing.
+#
+# The prefix pass cannot be exact: a family it attributes to one goal may turn out to belong to another.
+# So each floor is set two to four points BELOW its modelled figure, which is what makes it a floor
+# rather than a prediction -- a boundary guessed wrong must not fail a run. A goal that lands its domains
+# and comes out higher raises the next goal's floor in the same commit, and says so.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
 kind = "command"
 stage = "7 migration"
-name = "check-migration at 42%"
-argv = ["python", "tools/check-migration.py", "--min", "42"]
+name = "check-migration at 33%"
+argv = ["python", "tools/check-migration.py", "--min", "33"]
 want = ["inventory:", "classified:"]
