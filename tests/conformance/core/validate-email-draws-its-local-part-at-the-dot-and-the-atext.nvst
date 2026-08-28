@@ -1,0 +1,125 @@
+--TEST--
+`Core\Validate::isEmail`'s local part is a dot-atom of RFC 5322 § 3.2.3 `atext`, so a leading, trailing or doubled dot is refused where an interior one is not, and the 128 ASCII code points sort into the two counts that difference carves out — docs/spec/01-core-library.md § 12
+--FILE--
+<?nvs
+// § 12's `isEmail` is a *line*, not a parser: `crates/nvs-stdlib/src/validate.rs`'s
+// module doc states it as one `@`, a dot-atom local part of at most 64 bytes,
+// and a hostname of at least two labels — and states the four RFC 5322 shapes
+// it refuses on purpose. `validate-length-limits-are-pinned-on-both-sides.nvst`
+// already owns the two lengths from both sides; this case owns the local part's
+// *character* boundary, which is the half a member can get wrong while still
+// accepting every address anyone types by hand.
+//
+// Each row names the last accepted spelling beside the nearest refused one, and
+// each is cited to the rule it comes from rather than to whatever the member
+// printed.
+final class Mail {
+    public static function yn(bool $b): string {
+        return $b ? "y" : "n";
+    }
+
+    // Whether `$local` is accepted as a local part, asked through the one
+    // domain every row below shares so that a refusal is never the domain's.
+    public static function local(string $local): bool {
+        return Core\Validate::isEmail($local . "@example.com");
+    }
+
+    // A single code point, for the two sweeps at the foot of the case.
+    public static function one(int $c): string {
+        return Core\Str::fromCodePoint($c as uint);
+    }
+}
+
+// "An atom has at least one byte" is the whole of the dot rule: a leading, a
+// trailing and a doubled dot are all one empty atom, and an interior dot
+// between two non-empty atoms is what a dot-atom *is*. The module doc names
+// this as one rule rather than three.
+echo "dots ",
+     Mail::yn(Mail::local(".a")),
+     Mail::yn(Mail::local("a.b")),
+     Mail::yn(Mail::local("a.")),
+     Mail::yn(Mail::local("a..b")),
+     Mail::yn(Mail::local("a.b.c")),
+     "\n";
+
+// The empty local part is the same rule read at the whole string: a dot-atom
+// is one or more atoms, so there is no atom at all here.
+echo "empty ", Mail::yn(Mail::local("")), "\n";
+
+// Plus-addressing, and the nineteen specials `atext` admits, written out in one
+// local part. A member that took the alphanumerics and stopped answers `n` on
+// the second of these while agreeing with every other row in the case.
+echo "specials ",
+     Mail::yn(Mail::local("user+tag")),
+     Mail::yn(Mail::local("!#\$%&'*+-/=?^_`{|}~")),
+     "\n";
+
+// The characters at either side of that set: `-` and `_` are `atext` and the
+// hyphen is not special at a local part's edge the way it is in a domain label,
+// while a space, a comma, a colon and the four bytes RFC 5322 gives structural
+// meaning to are not `atext` at all.
+echo "atext ",
+     Mail::yn(Mail::local("-a-")),
+     Mail::yn(Mail::local("_a_")),
+     Mail::yn(Mail::local("a b")),
+     Mail::yn(Mail::local("a,b")),
+     Mail::yn(Mail::local("a:b")),
+     Mail::yn(Mail::local("a[b")),
+     Mail::yn(Mail::local("a\\b")),
+     Mail::yn(Mail::local("a\"b")),
+     "\n";
+
+// The four shapes the module doc refuses deliberately, every one of them legal
+// under RFC 5322: a quoted local part, a domain literal, a comment, and any
+// byte over `0x7F` — the last refused as *not yet encoded* rather than as
+// unrepresentable, an internationalized local part wanting SMTPUTF8.
+echo "rfc ",
+     Mail::yn(Core\Validate::isEmail("\"a b\"@example.com")),
+     Mail::yn(Core\Validate::isEmail("a@[192.0.2.1]")),
+     Mail::yn(Core\Validate::isEmail("a(comment)@example.com")),
+     Mail::yn(Core\Validate::isEmail("café@example.com")),
+     "\n";
+
+// The subject splits at its *first* `@`, so a second one is a byte in the
+// domain rather than a second separator — and there it is not a hostname
+// character, which is why this is refused once rather than parsed twice.
+echo "at ",
+     Mail::yn(Core\Validate::isEmail("a@b@example.com")),
+     Mail::yn(Core\Validate::isEmail("a@example.com")),
+     "\n";
+
+// Every ASCII code point in two positions: alone as the whole local part, and
+// between two atoms of an otherwise well-formed one. `atext` is 62
+// alphanumerics plus the nineteen specials, so 81 stand alone — and 82 sit in
+// the middle, the extra one being `.`, which is the dot rule seen from the
+// other side. They therefore agree at 127 of the 128 code points, and the one
+// disagreement is the whole subject of the first row above: a member that
+// treated a dot as an ordinary atom byte would agree at all 128.
+int $single = 0;
+int $interior = 0;
+int $agree = 0;
+int $c = 0;
+for (; $c < 128; $c = $c + 1) {
+    string $ch = Mail::one($c);
+    bool $alone = Mail::local($ch);
+    bool $inside = Mail::local("ab" . $ch . "cd");
+    if ($alone) {
+        $single = $single + 1;
+    }
+    if ($inside) {
+        $interior = $interior + 1;
+    }
+    if ($alone == $inside) {
+        $agree = $agree + 1;
+    }
+}
+echo "sweep ", $single as string, "|", $interior as string, "|",
+     $agree as string, "\n";
+--EXPECT--
+dots nynny
+empty n
+specials yy
+atext yynnnnnn
+rfc nnnn
+at ny
+sweep 81|82|127
