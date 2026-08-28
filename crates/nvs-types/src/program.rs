@@ -218,4 +218,61 @@ mod tests {
             "a refused enumeration must record nothing for `nvs-ir` to lower"
         );
     }
+
+    /// § 3's second refusal, and the bound it rests on asserted from both
+    /// sides: what the expansion cannot write is `new Needy(8080)`, so the
+    /// test is `required() > 0` rather than "declares a constructor" — the
+    /// same class with the same parameter *defaulted* is enumerated and
+    /// carries its constructor. A member that read the parameter count
+    /// instead would refuse both and still look right on the first half
+    /// alone. The class is named in the message because the fix is in that
+    /// class rather than at the call the diagnostic points at.
+    #[test]
+    fn an_implementor_without_a_no_argument_constructor_is_named() {
+        let (exprs, span, diags) = check(
+            "<?nvs\n\
+             interface Module { public function tag(): string; }\n\
+             class Needy implements Module {\n\
+                 public function constructor(int $port) {}\n\
+                 public function tag(): string { return \"n\"; }\n\
+             }\n\
+             Core\\Program::implementing<Module>();\n",
+        );
+        let named = diags.iter().find(|d| {
+            d.code
+                == Some(nvs_diagnostics::code::E_PROGRAM_IMPLEMENTOR_NEEDS_NO_ARGUMENT_CONSTRUCTOR)
+        });
+        let named = named.unwrap_or_else(|| panic!("expected E0744, got: {diags:?}"));
+        assert!(
+            named.message.contains("Needy"),
+            "the diagnostic must name the class to fix: {}",
+            named.message
+        );
+        assert!(
+            !matches!(exprs.lookup(span), Some(ExprInfo::ProgramInstances { .. })),
+            "a refused enumeration must record nothing for `nvs-ir` to lower"
+        );
+
+        let (exprs, span, diags) = check(
+            "<?nvs\n\
+             interface Module { public function tag(): string; }\n\
+             class Needy implements Module {\n\
+                 public function constructor(int $port = 8080) {}\n\
+                 public function tag(): string { return \"n\"; }\n\
+             }\n\
+             Core\\Program::implementing<Module>();\n",
+        );
+        assert!(
+            !diags.has_errors(),
+            "an optional argument is not one: {diags:?}"
+        );
+        let Some(ExprInfo::ProgramInstances { classes, ctors }) = exprs.lookup(span) else {
+            panic!("the call recorded no expansion: {:?}", exprs.lookup(span));
+        };
+        assert_eq!(
+            classes.iter().map(ToString::to_string).collect::<Vec<_>>(),
+            ["Needy"]
+        );
+        assert_eq!(ctors.as_slice(), [Some("Needy::constructor".to_owned())]);
+    }
 }

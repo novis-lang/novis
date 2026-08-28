@@ -171,8 +171,6 @@ tests = [
   # § 3 -- the order is the ADR's, not the filesystem's, and that is the half that rots silently.
   "an_interface_enumeration_is_sorted_by_qualified_name",
   "an_abstract_class_is_not_enumerated",
-  # § 3 -- "each such class needs a no-argument constructor; a diagnostic names any that does not".
-  "an_implementor_without_a_no_argument_constructor_is_named",
 ]
 
 [[check]]
@@ -185,6 +183,11 @@ tests = [
   # per-request like any other object and nothing crosses an isolate boundary.
   "program_implementing_expands_to_new_expressions",
   "program_implementing_refuses_a_non_interface_type_argument",
+  # § 3 -- "each such class needs a no-argument constructor; a diagnostic names any that does not".
+  # It is asserted here and not in `nvs-hir` because `implementors` answers over the class graph and
+  # never sees a signature: `required() > 0` is a question only this pass can ask, so `E0744` is
+  # reported here and no `-p nvs-hir` test can reach it.
+  "an_implementor_without_a_no_argument_constructor_is_named",
 ]
 
 [[check]]
