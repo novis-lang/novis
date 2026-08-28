@@ -2579,6 +2579,14 @@ sibling in the same namespace unqualified.
   it is the `void` return rather than the call or the arrow that is unlowerable. Every existing
   `Core\Out::capture` case in the corpus already uses the block body, which is why nothing had
   caught it. Write the braces; the panic names neither the closure nor its return type.
+- **A refusal the parser writes takes an `E02xx` code, not the `E01xx` "next free parser code."** The
+  bands are by *kind*, not by which crate reports them: `E01xx` is a malformed parse, `E02xx` is
+  "rejected PHP constructs", and a PHP spelling Novis declines is the second one however early it is
+  caught. `E_IMPORT_ALIAS_UNSUPPORTED` (`E0212`), `E_ENUM_MEMBER_UNSUPPORTED` (`E0220`) and
+  `E_IMPORT_GROUP_UNSUPPORTED` (`E0238`) are all reported from `parser/decl.rs`. So a `loop-goal.toml`
+  comment naming "the next free parser code" is naming the band `brief.py` prints for `E01xx`, which is
+  the wrong half of the registry for a refusal — find the sibling refusal's code first and take the
+  number next to it.
 
 ## Divergences and refusals already pinned
 
