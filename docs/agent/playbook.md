@@ -2047,6 +2047,12 @@ is why" — is this file.
   making it function-scoped either way. And `core.autocrlf=true` here means every rewritten file draws
   a loud `CRLF will be replaced by LF` warning from git that says nothing about your edit — read
   `git diff --stat`, not the warnings.
+- **An interface method needs `public` in a `.nvst` case but not in a `nvs-types` unit fixture**, so
+  a shape checked green by `crates/nvs-types/tests/common`'s `check_src` can still fail the case
+  runner with `E0122` ("a method must declare `public`, `protected` or `private`"). `check_src`
+  runs `parse` → `resolve` → `check_program` and nothing else; the casing/visibility pass
+  `nvs-cli`'s `front_end` runs is not in it. So `interface Labelled { function label(): string; }`
+  is a fine unit fixture and a broken case file, and the fix is one keyword rather than a hunt.
 
 ## Splitting a file that got too big
 

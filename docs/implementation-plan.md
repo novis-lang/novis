@@ -38,8 +38,8 @@
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
 > **Open now:** **Stage 00 of [docs/agent/loop-goal.md](agent/loop-goal.md) is the frontier** — six
-> shapes a program reaches for on its first page, of which **three are now closed and three are
-> not**. **ADR 0109's `for` header is done, corpus and all**: the init clause is
+> shapes a program reaches for on its first page, of which **five are now closed and one is not**.
+> **ADR 0109's `for` header is done, corpus and all**: the init clause is
 > `nvs_syntax::ast::ForInit`, one typed local declaration or an expression list, with
 > `E0124`/`E0125` on the two shapes § 3 refuses, and 55 loops across 29 files under `tests/` and
 > `examples/` now declare their counter in the header — the exclusion § *Consequences* names (a
@@ -50,17 +50,24 @@
 > four-diagnostic `E0220` cascade that shape used to produce. **Item 45 is closed as well**: a
 > user-declared class constant carries a declared type and a placed value in
 > `nvs_types::signatures::ConstSig`, so `Limits::MAX` reads at its own annotation through `extends`,
-> `implements` and `self::` alike, and lowers to the constant instruction its literal does. The
-> gate's whole `nvs-syntax` block is green and its `nvs-types` block now stops at item 46 rather
-> than at item 45. Still open beside it: `new static()`'s type, `instanceof` against an interface,
-> `new` on a `Core` class with no constructor, and the shape table that would have caught them. That
-> file defines what a *hole* is; three tools are the worklist and no session re-derives one —
-> `python tools/holes.py` (`--item N`), `python tools/loop.py --list`, `python tools/gaps.py`. **Six
-> of the gate's names are deliberately unwritten** and the acceptance test stops at the first check
-> holding one; [guard-name-debt.md](agent/guard-name-debt.md) § *Stage 00's ten* says why renaming
-> one is the wrong fix. Stage 8's [refusals.rs](../crates/nvs-ir/tests/refusals.rs) carries a
-> ceiling of **4**, which item 49 re-derives: its recognizer matches by phrasing rather than by
-> shape, so that number is a floor on the truth rather than the truth.
+> `implements` and `self::` alike, and lowers to the constant instruction its literal does. **Items
+> 46 and 47 are closed too**: a member declaring `static` records
+> `nvs_types::signatures::MethodSig::returns_static`, so `Leaf::make()` on a `Base::make(): static`
+> answers a `Leaf` at both the instance-call and static-call sites, and a body that would break that
+> promise (`return new self();`) is refused as `E0741` rather than left as a hole — that refusal is
+> the session's own decision, taken under the priority ordering and recorded at the bit it guards.
+> `instanceof` now narrows to a user-declared interface and to every reserved global name but the
+> two ADR 0053 § 2 iteration interfaces, which take a type argument the test does not supply. The
+> gate's whole `nvs-syntax` block is green and its `nvs-types` block now stops at item 48. Still
+> open beside it: `new` on a `Core` class with no constructor, and the shape table that would have
+> caught the rest. That file defines what a *hole* is; three tools are the worklist and no session
+> re-derives one — `python tools/holes.py` (`--item N`), `python tools/loop.py --list`, `python
+> tools/gaps.py`. **Six of the gate's names are deliberately unwritten** and the acceptance test
+> stops at the first check holding one; [guard-name-debt.md](agent/guard-name-debt.md) § *Stage 00's
+> ten* says why renaming one is the wrong fix. Stage 8's
+> [refusals.rs](../crates/nvs-ir/tests/refusals.rs) carries a ceiling of **4**, which item 49
+> re-derives: its recognizer matches by phrasing rather than by shape, so that number is a floor on
+> the truth rather than the truth.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

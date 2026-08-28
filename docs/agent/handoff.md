@@ -2,58 +2,53 @@
 
 ## State
 
-**M4, Stage 00, and three of its six shapes are closed.** Item 45 landed this session: a
-user-declared class constant now has a declared type and a value.
-`nvs_types::signatures::ConstSig` holds both — the written annotation interned in the pass that
-already holds the declaration and the value together, and the value placed in that type by
-`defaults::literal_default`, so `const uint WIDE = 5;` arrives as a `ConstUint`. A read resolves
-through `extends`, `implements` and `self::` (`signatures::resolve_const`), records the value as
-`ExprInfo::CoreConst` and lowers to exactly the instruction the written literal does. ADR 0109's
-`for` header and item 50's `E0239` are unchanged from the previous session.
+**M4, Stage 00, and five of its six shapes are closed.** Items 46 and 47 landed this session and
+the gate's `nvs-types` block now stops at item 48.
 
-`crates/nvs-types/src/consts.rs` keeps its own job and is not a duplicate: it folds a value for
-ADR 0047 § 2's *type* position and for ADR 0033 § 4's `secret` bit, and it runs before there is an
-interner, which is the whole reason the type lives one table over. Seven doc sites that said a
-class constant's type was unmodeled are reconciled, ADR 0033's own sentence included — the sink
-still reads the bit from `ConstTable` because a payload is folded before the class name in it is
-resolved, which is now the stated reason.
+`nvs_types::signatures::MethodSig::returns_static` records that a declaration wrote `static` as its
+return type — read off the *written* annotation, because lowering is what loses the distinction
+(`lower_type` interns `static` and `self` to the same class). `crate::expr::calls` substitutes the
+called class at exactly two `return_ty` sites: the receiver's own type at an instance call, and
+`called_class_of`'s answer at a static call — an explicitly named class for `Base::make()`, the
+enclosing class for all three of `self`/`static`/`parent`, since late static binding forwards
+through `parent::` where `resolve_class_expr` would not.
 
-**One shape is left unlowered and it is narrower than the item**: a constant whose value has no
-constant form at all (`const ROWS = [1, 2];`) reads as `mixed` and still panics
-`nvs_ir::lower::expr`'s `ClassConstAccess` arm, whose message now names that shape alone. The arm
-count `refusals.rs` ceilings is unchanged.
+**The soundness question item 46 arrived carrying is decided, and it is decided as a refusal.** A
+body declaring `static` must answer the called class, so `return new self();` is `E0741`. The
+whitelist is `$this`, `new static(...)`, and a call forwarded through `static`/`self`/`parent`/
+`$this` to a member that itself returns `static`; `crate::returns::for_each_return` is the walk.
+That is stricter than PHP, which accepts the declaration and raises a `TypeError` only at a
+subclass call site — the reasoning, and the three alternatives weighed against it, is at
+`MethodSig::returns_static` and in `E_STATIC_RETURN_NOT_CALLED_CLASS`'s own doc. `ResolvedCall`
+deliberately still records the *declared* return type: `nvs-ir` reads it for a representation, and
+a class and its subclass erase to the same `Ty::Object`.
 
-**Item 46 has a design question inside it, found while scoping and not yet answered.** `static` in
-a return annotation interns to the *declaring* class in `lower.rs:143`'s `resolve_special`, so a
-call site cannot tell it from `self`. Recording a `returns_static` bit on `MethodSig` and
-substituting the called class at `calls.rs:156`/`calls.rs:268` is the contained fix — but it is
-unsound as stated: `Base::make(): static { return new self(); }` type-checks inside the body
-(where `static` *is* `Base`) and would then hand a `Leaf`-typed binding a `Base`. PHP catches that
-at run time; Novis has no such check. Decide it in the session that lands it — refusing the body,
-or accepting the hole and pinning it — and record the decision where the bit is declared.
+**`instanceof` narrows to an interface now.** `locals.rs`'s `instanceof_residue` accepts
+`SymbolKind::Interface` and every reserved global name whose `nvs_hir::interfaces` roster entry
+takes no type parameters — which leaves out only `Iterable`/`Iterator`, written with an argument
+wherever they are declared. Nothing in `nvs-ir` needed teaching: an interface residue erases to the
+same pointer a class one does, and the new conformance case runs the narrowed call rather than only
+compiling it.
 
 ## Next group
 
-**Items 46-47, the rest of the gate's `nvs-types` check.** One file set:
-`crates/nvs-types/src/expr/calls.rs`, `crates/nvs-types/src/signatures.rs`,
-`crates/nvs-types/src/locals.rs`, with tests in `crates/nvs-types/tests/`.
+**Item 48 and then the corpus it wants.** One file set: `crates/nvs-types/src/expr/calls.rs`,
+`crates/nvs-stdlib/src/registry.rs`, with cases under `tests/conformance/class/`.
 
-- [ ] **Item 46 — `new static()` and a `: static` return resolve to the called class.**
-      ADR 0008's late static binding, as a type. `crates/nvs-types/src/lower.rs:143` is where
-      `static` loses its identity; `crates/nvs-types/src/signatures.rs:53` is `MethodSig` and
-      `:883` its one user-source construction site (four more: `core_lib.rs:89`,
-      `error_lib.rs:189`, `iter_lib.rs:153`, `expr/args.rs:934`); `crates/nvs-types/src/expr/calls.rs:156`
-      and `:268` are the two `return_ty` sites to substitute at. `ResolvedCall::static_class`
-      already carries the called class for *dispatch* — read it before inventing a second one.
-      Gate name: `a_static_return_type_resolves_to_the_called_class`.
-- [ ] **Item 47 — `instanceof` narrows to an interface, not only to a class.**
-      `crates/nvs-types/src/locals.rs` owns the residue; the class direction is green
-      (`crates/nvs-types/tests/narrowing.rs:145`). Gate name:
-      `an_instanceof_test_narrows_its_subject_to_an_interface` — and note
-      `docs/agent/guard-name-debt.md` § *Stage 00's remaining names* on why the near-twin already
-      in the tree must not be renamed into it.
-- [ ] **Item 48 — `new` on a `Core` class with no constructor is a diagnostic.** Same crate, the
-      `new` half of `calls.rs`. Gate name: `a_core_class_with_no_constructor_refuses_arguments`.
+- [ ] **Item 48 — `new` on a `Core` class with no constructor is a diagnostic.**
+      `crates/nvs-types/src/expr/calls.rs:322` is `infer_new`, `:450` is
+      `reject_arguments_to_implicit_constructor` (which already holds a *user* class to zero
+      arguments) and `:925` is `check_new_target`, whose `NewTarget::Name` arm lets a `Core` name
+      through on `qname.is_core()` with no registry lookup at all. The user-class half is pinned by
+      `tests/conformance/class/a-class-with-no-constructor-takes-no-arguments.nvst`, so the shape
+      of the diagnostic is settled and only the `Core` side is missing. Gate name:
+      `a_core_class_with_no_constructor_refuses_arguments`.
+- [ ] **A `.nvst` case for the `Core` half of the same rule**, beside the user-class one named
+      above — one arity rule, both sides of the `Core`/user line, which is what that gate check's
+      own comment in `docs/agent/loop-goal.toml:256` asks for.
+- [ ] **Item 49's shape table**, if the two above leave room:
+      `every_spellable_expression_reaches_a_diagnostic_or_an_ir` — the sweep that would have found
+      items 45-48 rather than having them found one at a time. `docs/agent/loop-goal.md` owns it.
 
 ## Backlog
 
@@ -61,7 +56,7 @@ or accepting the hole and pinning it — and record the decision where the bit i
   rather than being diagnosed — `crates/nvs-types/src/lib.rs`'s known gaps.
 - ADR 0046 § 5's payload folder could now resolve a class constant, but `retrieval.rs`'s
   `fold_value` carries no namespace context to resolve the class name with — that module's docs.
-- Item 49's `every_spellable_expression_reaches_a_diagnostic_or_an_ir`, the shape table that
-  would have found item 45 — `docs/agent/loop-goal.md`.
+- `E0741`'s whitelist ignores a `?static` or a union naming `static`; `writes_static_return` owns
+  why the conservative half is to answer the declared type there.
 - `refusals.rs`' recognizer matches a refusal by phrasing, so its ceiling of 4 is a floor —
   item 49 owns it.
