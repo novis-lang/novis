@@ -1913,6 +1913,15 @@ is why" — is this file.
   so declare it above and use a `while`), and a `Core` member's by-name surface is an
   options bag, so it is `$u->with({scheme: "ftp"})` and never `$u->with(scheme: "ftp")`,
   which is `E0485`.
+- **A `--EXPECT--` block cannot tell a composed `é` from a decomposed one, and the failure
+  prints as two identical-looking blocks.** A case over `Core\Str` that echoes a subject built
+  with `\u{301}` (or any combining mark) will fail against an expectation typed as the composed
+  character, and the runner's *expected* and *actual* render byte-for-byte alike in the terminal,
+  so the diff says nothing. Assert a decomposed cluster by **counting** instead — the sum of
+  `Core\Str::length` over the pieces against the subject's, which is the cluster property the case
+  wanted anyway — and keep the eyeball line on a subject whose characters have one spelling. The
+  neighbouring bullet about a trailing space before a `\n` is the same family of invisible
+  mismatch.
 
 ## Splitting a file that got too big
 

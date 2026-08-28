@@ -1,0 +1,99 @@
+--TEST--
+`Core\Str::fromCodePoint` and `fromCodePoints` admit exactly Unicode's scalar values, named on both sides of all three boundaries, and agree at every point — spec § 1 *Transformation*, ADR 0009 § 1
+--FILE--
+<?nvs
+class Points {
+    // One mark per code point over a window: `+` where both members produced a
+    // string, `-` where both refused, and `!` where they disagreed — so the
+    // printed window is the agreement assertion as well as the bound, and a
+    // member that grew its own admitted set fails visibly rather than by a
+    // count that could be read as an off-by-one.
+    public static function marks(int $from, int $to): string {
+        string $out = "";
+        int $p = 0;
+        string $single = "-";
+        string $list = "-";
+        for ($p = $from; $p <= $to; $p = $p + 1) {
+            $single = "-";
+            $list = "-";
+            try {
+                string $one = Core\Str::fromCodePoint($p as uint);
+                if (Core\Str::length($one) as int == 1) {
+                    $single = "+";
+                }
+            } catch (Throwable $refusedOne) {
+                $single = "-";
+            }
+            try {
+                string $many = Core\Str::fromCodePoints([$p as uint]);
+                if (Core\Str::length($many) as int == 1) {
+                    $list = "+";
+                }
+            } catch (Throwable $refusedMany) {
+                $list = "-";
+            }
+            if ($single == $list) {
+                $out = $out . $single;
+            } else {
+                $out = $out . "!";
+            }
+        }
+        return $out;
+    }
+}
+
+// The admitted set is the Unicode *scalar values*, which is three boundaries
+// and six answers, not the two refusals a `throws` case can show on its own.
+// Each window is centred on a boundary and reaches equally far either side, so
+// the last accepted value and the first refused one are named together and a
+// member stopping one entry early cannot print plausibly against either half.
+
+// U+0000 is a scalar value and produces a string of length one: the lower end
+// of the range is not a boundary at all, which is worth pinning because `chr`'s
+// callers and PHP's `mb_chr` both treat `0` as a special answer.
+echo "0000: ", Points::marks(0, 3), "\n";
+
+// The surrogate range opens at U+D800. Below it is text; the range itself is
+// not, because UTF-8 cannot encode a surrogate at all — this is a hole in the
+// middle of the admitted set rather than a ceiling.
+echo "d800: ", Points::marks(55293, 55298), "\n";
+
+// ...and closes at U+DFFF, so U+E000 is text again. A member that took the
+// surrogates as merely "high" would refuse everything above U+D7FF and still
+// print the window above correctly.
+echo "e000: ", Points::marks(57341, 57346), "\n";
+
+// U+10FFFF is the last scalar value there is. Above it nothing is text, and
+// the window shows the ceiling from both sides.
+echo "10ffff: ", Points::marks(1114108, 1114113), "\n";
+
+// The round trip, over a table rather than a row, because the pair's whole
+// contract is that `codePoints` and `fromCodePoints` are inverses: every
+// subject survives the trip, and the rebuilt string has exactly as many code
+// points as the array it came from — the second count being what a member that
+// dropped or doubled one element would fail while the first still held for
+// most rows.
+array<string> $subjects = [
+    "", "a", "héllo", "straße", "日本語", "\u{1F1E6}\u{1F1F9}", "e\u{301}", "\u{10FFFF}", "\u{0}b",
+];
+int $rows = 0;
+int $round = 0;
+int $sameCount = 0;
+foreach ($subjects as string $s) {
+    $rows = $rows + 1;
+    array<uint> $points = Core\Str::codePoints($s);
+    string $rebuilt = Core\Str::fromCodePoints($points);
+    if ($rebuilt == $s) {
+        $round = $round + 1;
+    }
+    if (Core\Arr::count(Core\Str::codePoints($rebuilt)) as int == Core\Arr::count($points) as int) {
+        $sameCount = $sameCount + 1;
+    }
+}
+echo $rows, " ", $round, " ", $sameCount, "\n";
+--EXPECT--
+0000: ++++
+d800: +++---
+e000: ---+++
+10ffff: ++++--
+9 9 9
