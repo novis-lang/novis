@@ -237,6 +237,8 @@ tests = [
   # ADR 0109 § 3 -- the two shapes that still do not parse, each by its own code.
   "a_for_init_clause_mixing_a_declaration_and_an_expression_is_e0124",
   "a_for_init_clause_with_two_declarations_is_e0125",
+  # Item 50 -- PHP's enum body, answered the way `trait` and `(int)` already are.
+  "a_php_shaped_enum_case_is_refused_naming_the_spelling_that_works",
 ]
 
 [[check]]

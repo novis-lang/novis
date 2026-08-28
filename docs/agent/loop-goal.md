@@ -113,6 +113,16 @@ its migration touches every other stage's cases.
     is worded, and **re-derive `refusals.rs`'s `CEILING` once, from the true count, saying so in the
     commit**: a ratchet set from a blind count is not a ratchet, and 4 is what the blind count said.
     `crates/nvs-ir/tests/type_atoms.rs`, `crates/nvs-ir/tests/refusals.rs`, `tools/holes.py`.
+50. **PHP's `case Name = 1;` enum spelling is refused by name.** The `E02xx` band exists for a rejected
+    PHP construct answered with one diagnostic naming its ADR, and it mostly delivers: `trait` is
+    `E0227` quoting ADR 0043, `(int)$x` is `E0225` quoting ADR 0034. An enum body written PHP's way is
+    the outlier — Novis spells a case `Hearts = 1,` in a comma list
+    ([ADR 0010](../adr/0010-enums-are-a-value-type.md) § 1) and PHP's `case Hearts = 1;` produces four
+    diagnostics, none of which names that. The one that fires, `E0220`, points at the `1` and advises
+    "move this to a separate class", which is the answer for a *method* in an enum body and is actively
+    wrong here. One `E02xx` code, raised on the `case` keyword, naming the spelling that works. Next
+    free in that band is `E0239`. `crates/nvs-syntax/src/parser/decl.rs`,
+    `crates/nvs-diagnostics/src/lib.rs`.
 
 ## Stage 0 — the operator table, before anything else
 

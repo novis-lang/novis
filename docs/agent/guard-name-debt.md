@@ -91,6 +91,7 @@ They are:
 - `every_spellable_expression_reaches_a_diagnostic_or_an_ir` — item 49. Its sibling
   `every_spellable_type_reaches_a_diagnostic_or_an_ir` is Stage 8's, exists, and is green; this is the
   expression-and-statement half, and the two are not the same check.
+- `a_php_shaped_enum_case_is_refused_naming_the_spelling_that_works` — item 50.
 
 Delete a bullet here when its test lands, exactly as the ticked lines below are deleted-in-place.
 
