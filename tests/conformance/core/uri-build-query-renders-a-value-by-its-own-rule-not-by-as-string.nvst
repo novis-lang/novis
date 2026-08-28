@@ -1,0 +1,86 @@
+--TEST--
+`Core\Uri::buildQuery` renders each value by the query string's own rule rather than by `as string`, and the divergences are exactly the two it is written around: `false` is `0` and a `null` drops its pair — spec § 12, ADR 0007 § 2
+--FILE--
+<?nvs
+// The three neighbouring cases assert `buildQuery` against `parseQuery` — the
+// inverse, the fixed point, the bracket convention. None of them can see what
+// this one asks: whether a value's *text* is the conversion ADR 0007 § 2
+// already defines. It is not, and `scalar_text` in uri.rs says why — a query
+// string has no spelling for an absent value, and `false as string` is the
+// empty string, which on the wire is indistinguishable from `""`.
+//
+// So the whole table is swept and the agreements are **counted**: a member
+// that quietly reached for `as string` would print nine plausible lines and
+// fail on the two that matter.
+class Box {
+    public int $n = 1;
+}
+
+array<mixed> $values = [1, 0, -7, 3.5, 0.0, true, false, "a b", "", "1", null, [1, 2]];
+
+int $dropped = 0;
+int $agreed = 0;
+int $diverged = 0;
+
+foreach ($values as mixed $v) {
+    array<mixed> $one = ["k" => $v];
+    string $built = Core\Uri::buildQuery($one);
+
+    // `as string` from a `mixed` is the checked conversion, so the nested
+    // array's row is a throw rather than a rendering — that is the third kind
+    // of value here, and the reason the comparison is guarded.
+    string $direct = "<throws>";
+    try {
+        $direct = $v as string;
+    } catch (Throwable $e) {
+        $direct = "<throws>";
+    }
+
+    // Agreement is `k=` plus the form encoding of what `as string` answered:
+    // the encoder is not what is under test here, so it is applied to both
+    // sides rather than asserted on one.
+    string $verdict = "";
+    if ($built == "") {
+        $dropped = $dropped + 1;
+        $verdict = "dropped";
+    } else {
+        if ($direct != "<throws>" && $built == "k=" . Core\Uri::encodeFormValue($direct)) {
+            $agreed = $agreed + 1;
+            $verdict = "agrees";
+        } else {
+            $diverged = $diverged + 1;
+            $verdict = "diverges";
+        }
+    }
+
+    echo "[", $built, "] as-string=[", $direct, "] ", $verdict, "\n";
+}
+
+// `null` is the row worth reading twice: `as string` has a spelling for it and
+// the wire does not, so the pair goes rather than being written empty — which
+// is what keeps `parseQuery(buildQuery($a))` an inverse.
+echo "dropped=", $dropped, " agreed=", $agreed, " diverged=", $diverged, "\n";
+
+// `scalar_text`'s own throw, and it is a `Fault::thrown`, so a handler reaches
+// it: a value that is neither a scalar nor a nested array has no query text at
+// all, and the member says so rather than writing something.
+try {
+    echo Core\Uri::buildQuery(["k" => new Box()]), "\n";
+} catch (Throwable $o) {
+    echo "an object has no query text\n";
+}
+--EXPECT--
+[k=1] as-string=[1] agrees
+[k=0] as-string=[0] agrees
+[k=-7] as-string=[-7] agrees
+[k=3.5] as-string=[3.5] agrees
+[k=0] as-string=[0] agrees
+[k=1] as-string=[1] agrees
+[k=0] as-string=[] diverges
+[k=a+b] as-string=[a b] agrees
+[k=] as-string=[] agrees
+[k=1] as-string=[1] agrees
+[] as-string=[] dropped
+[k%5B0%5D=1&k%5B1%5D=2] as-string=[<throws>] diverges
+dropped=1 agreed=9 diverged=2
+an object has no query text
