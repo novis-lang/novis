@@ -1,0 +1,87 @@
+--TEST--
+Core\Arr::flattenDeep is Core\Arr::flatten iterated to a fixed point — invariant under one further flatten step, idempotent, and reaching the leaves on every nesting, per spec § 2 and ADR 0069 § 3
+--FILE--
+<?nvs
+// `crates/nvs-stdlib/src/arr.rs:2161`'s doc says `flattenDeep` walks every
+// level with an explicit stack, where `flatten` unwraps exactly one. That
+// makes it the fixed point of `flatten`: applying one more level of unwrapping
+// to its answer cannot change it. The sibling case
+// `arr-flatten-unwraps-one-level-and-flatten-deep-all-of-them` asks each
+// member what it answers, one row per nesting; this one asks whether the two
+// members stand in that relation at all, over a sweep, and asserts it by
+// counting.
+//
+// Every row is a nesting of a different depth and shape. The declared type is
+// the deepest one the checker can name — `flatten`'s parameter binds `T` to
+// `mixed` below the second level, which is exactly the erasure the doc comment
+// calls unsound to claim back.
+array<array<array<mixed>>> $rows = [
+    [["a", "b"], ["c"]],
+    [[], ["c"], []],
+    [[["a"], ["b"]], [["c"]]],
+    [["a", ["b", ["c"]]], []],
+    [[[[["deep"]]]], ["x"]],
+    [[1, [2]], [[[3]]], []],
+    [[], []],
+    [["a", 1, ["b", 2, [["c"]]]]],
+];
+
+// Four counters rather than four echoed answers: a member that unwraps one
+// level too few still prints a plausible array on its own line, and only the
+// per-row equality catches it.
+int $seen = 0;
+int $invariant = 0;
+int $idempotent = 0;
+int $leaves = 0;
+int $oneStepEnough = 0;
+
+foreach ($rows as array<array<mixed>> $row) {
+    string $deep = Core\Json::encode(Core\Arr::flattenDeep($row));
+    $seen = $seen + 1;
+
+    // The fixed point itself: one more `flatten` before the deep walk changes
+    // nothing it answers.
+    if ($deep == Core\Json::encode(Core\Arr::flattenDeep(Core\Arr::flatten($row)))) {
+        $invariant = $invariant + 1;
+    }
+
+    // ... and one more deep walk after it changes nothing either, which is the
+    // same property read from the other side.
+    if ($deep == Core\Json::encode(Core\Arr::flattenDeep(Core\Arr::flattenDeep($row)))) {
+        $idempotent = $idempotent + 1;
+    }
+
+    // The iteration ran to the end rather than stopping somewhere plausible:
+    // a JSON list holding no list of its own has exactly one `[`.
+    if (Core\Str::countOf($deep, "[") == 1) {
+        $leaves = $leaves + 1;
+    }
+
+    // What makes the three counts above non-vacuous: on how many rows would a
+    // single `flatten` already have answered it? Only the three whose nesting
+    // is two deep, so the other five genuinely iterate.
+    if ($deep == Core\Json::encode(Core\Arr::flatten($row))) {
+        $oneStepEnough = $oneStepEnough + 1;
+    }
+}
+echo $seen as string, " ", $invariant as string, " ", $idempotent as string, " ", $leaves as string, " ", $oneStepEnough as string, "\n";
+
+// The iteration spelled out on a uniform nesting, where the number of steps is
+// known: three deep is two `flatten`s, and the second one is the step after
+// which nothing changes.
+array<array<array<mixed>>> $uniform = [[["a"], ["b"]], [["c"]]];
+echo Core\Json::encode(Core\Arr::flatten(Core\Arr::flatten($uniform))), "\n";
+echo Core\Json::encode(Core\Arr::flattenDeep($uniform)), "\n";
+
+// Where the iteration stops is a *type*, not a fault: `flatten`'s parameter is
+// `array<array<T>>`, so the flat answer it converges on no longer satisfies it
+// and `Core\Arr::flatten($already)` is `E0401` rather than a throw. On the
+// same value `flattenDeep` is the identity, which is the fixed-point law's
+// other half and the one a program can still write.
+array<mixed> $already = ["a", "b"];
+echo Core\Json::encode(Core\Arr::flattenDeep($already)), "\n";
+--EXPECT--
+8 8 8 8 3
+["a","b","c"]
+["a","b","c"]
+["a","b"]
