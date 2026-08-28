@@ -340,9 +340,8 @@ toggle ever breaks after an upgrade, diff those files against
 
 ## What is deliberately not here yet
 
-An **interactive playground**. Novis compiles to WebAssembly as a second
-codegen backend, which is what would make one possible — and that backend does
-not exist before milestone M14. Rather than ship a second implementation of the
-language in JavaScript that would disagree with the real compiler, the site uses
-static, highlighted, real code samples, and will grow a playground when there is
-something honest to run.
+An **interactive playground**. Running Novis in a browser would need a wasm32
+codegen backend, and that target is retired rather than pending (ADR 0025 holds
+what it would have cost and what would reopen it). Rather than ship a second
+implementation of the language in JavaScript that would disagree with the real
+compiler, the site uses static, highlighted, real code samples.

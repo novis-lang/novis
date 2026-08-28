@@ -88,7 +88,6 @@ one's verification passes.
 | [M10](plan/m10.md) | Developer tooling and IDE integration (~14 weeks; scope shifted by ADR 0040, net change undetermined) | ~8 |
 | [M11](plan/m11.md) | PHP transpiler (~10 weeks) | ~3 |
 | [M12](plan/m12.md) | Optimising JIT tier (ongoing) | measurement-bound |
-| [M14](plan/m14.md) | Optional wasm32 browser target | not estimated |
 | [M15](plan/m15.md) | Packages, the registry and the supply chain (~8 weeks; scheduled after M6) | ~3 + a calendar floor |
 | [M16](plan/m16.md) | `nvs/web`, `nvs new`, and the framework (~12 weeks; scheduled after M7 and M8) | ~4 |
 

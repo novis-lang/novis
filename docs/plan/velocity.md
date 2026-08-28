@@ -55,7 +55,7 @@ reached 48 files before item 1 rewrote them. That cost grows with surface area.
 
 M12 gets no projection. It is measurement-bound — the ledger is
 [docs/perf/userland-gap.md](../perf/userland-gap.md), and closing a gap there is benchmark iterations, not
-code volume. M14 was never estimated.
+code volume.
 
 ## What would break the projection
 

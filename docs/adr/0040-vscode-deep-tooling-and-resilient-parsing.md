@@ -74,8 +74,8 @@
 
 ### 1. Timeline: a new milestone, M4B, between M4 and M5
 
-Inserted as **M4B** (not renumbered into the M5–M14 sequence) specifically to avoid renumbering the ~30
-cross-references to M5 through M14 across other ADRs for a purely additive milestone — the same
+Inserted as **M4B** (not renumbered into the M5-and-up sequence) specifically to avoid renumbering the ~30
+cross-references to M5 and above across other ADRs for a purely additive milestone — the same
 low-churn instinct [AGENTS.md](../../AGENTS.md) already applies to documentation. M4B pulls forward,
 **scoped down to a minimal subset**, work that M10 was going to do anyway:
 
@@ -321,7 +321,7 @@ first, so the catalog is honest about sequencing rather than implying all of it 
 - **Build custom UI for coverage gutters and profiler flamegraphs instead of VS Code's native Test Coverage
   API and the speedscope format.** Rejected: both already exist, are already maintained, and building
   Novis-specific equivalents is pure unnecessary scope against the simplicity priority.
-- **Renumber M5–M14 to M6–M15 to fit M4B in sequence.** Rejected: ~30 cross-references to those milestone
+- **Renumber every milestone from M5 up to fit M4B in sequence.** Rejected: ~30 cross-references to those milestone
   numbers exist across other ADRs; renumbering them is pure churn for a naming preference, not a
   correctness requirement — "M4B" reads unambiguously as "between M4 and M5."
 
