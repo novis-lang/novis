@@ -547,12 +547,6 @@ is why" — is this file.
   `target/debug/nvs.exe` in one call told the whole story, where editing the site the item named
   would have closed nothing. Ask every spelling that reaches the same lowering before you believe
   the item's, and `git log -S` on the code the item quotes says whether its half already landed.
-- **`wsl.exe -- bash /mnt/<drive>/<repo>/…` from the Bash tool needs `MSYS_NO_PATHCONV=1` in front of it.**
-  Git Bash rewrites a `/mnt/…` argument into a Windows path *before* `wsl.exe` sees it, so
-  `tools/leak-check.sh`'s own documented invocation fails with
-  `bash: C:/Program Files/Git/mnt/<drive>/<repo>/tools/leak-check.sh: No such file or directory`, which reads
-  as a missing file rather than as a mangled argument. The prefix is the whole fix; the script and
-  the paths it is handed are right.
 - **A `splice.py` anchor copied out of `peek.py`'s output can carry a line break `peek` added.**
   `peek` wraps a long prose line for display, so a two-line anchor taken from a `.md` file may be
   one line on disk — the refusal then reads *"the anchor matches for its first 100 character(s) …
@@ -965,18 +959,6 @@ is why" — is this file.
   live one, and grepping for the *tag* it claims to catch is the cheap way to tell them apart.
   `crates/nvs-stdlib/tests/allocation_policy.rs`'s `no_member_revalidates_a_string_argument` is the
   source scan that keeps the pair out now.
-- **The WSL valgrind leg has to be launched from PowerShell, not from the Bash tool.** `wsl.exe --
-  bash /mnt/<drive>/<repo>/tools/leak-check.sh <case>` under Git Bash dies with *"bash: C:/Program
-  Files/Git/mnt/<drive>/<repo>/tools/leak-check.sh: No such file or directory"* — MSYS rewrites any argument
-  that looks like a POSIX path into a Windows one before `wsl.exe` ever sees it, and the error names
-  a path nobody typed. The same command through the PowerShell tool runs unchanged; `MSYS_NO_PATHCONV=1`
-  is the other way. This is one call's worth of confusion every time a session adds a refcount edge.
-- **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh …` needs `MSYS_NO_PATHCONV=1` in front of it
-  when the Bash tool is what runs it.** Git Bash rewrites the `/mnt/...` argument into
-  `C:/Program Files/Git/mnt/...` before `wsl.exe` ever sees it, and the failure reads as a missing
-  script rather than as a mangled path — *`bash: C:/Program Files/Git/mnt/<drive>/<repo>/tools/leak-check.sh:
-  No such file or directory`*. The file-passed-by-path shape `commands.md` documents is otherwise
-  unchanged, and the PowerShell tool needs no prefix.
 - **A roster probe binds its subject; it never `echo`s it, and it gets one panic per run.**
   Sweeping "which `BinaryOp` reaches this catch-all" over a scratch file, an `echo $subject`
   line goes through `concat_operand` first — so an `array<int>` operand reported *that*
@@ -986,17 +968,6 @@ is why" — is this file.
   enumerates all of the *refused* shapes, while lowering panics on the first shape that gets
   that far, so each panicking shape costs its own edit-and-run. Put the shapes you expect to
   be refused in one file and the ones you expect to lower in another.
-- **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh …` needs `MSYS_NO_PATHCONV=1` in front of it when
-  it goes through the Bash tool**, which is Git Bash: without it the `/mnt/<drive>/<repo>/...` argument is
-  rewritten to `C:/Program Files/Git/mnt/<drive>/<repo>/...` before `wsl.exe` ever sees it, and the failure reads
-  as a missing script rather than as a mangled path. PowerShell passes it through unchanged.
-- **`tools/leak-check.sh` has to be run from PowerShell, not from the Bash tool.** `wsl.exe -- bash
-  /mnt/<drive>/<repo>/tools/leak-check.sh <fixture>` is the spelling `commands.md` gives, and under Git Bash
-  it fails with `bash: C:/Program Files/Git/mnt/<drive>/<repo>/tools/leak-check.sh: No such file or
-  directory` — MSYS rewrites any argument that looks like an absolute POSIX path into a Windows one
-  before `wsl.exe` ever sees it. The same command from the PowerShell tool runs unchanged. Prefixing
-  `MSYS_NO_PATHCONV=1` also works, but the shorter rule is that anything handing `/mnt/...` to
-  `wsl.exe` belongs in PowerShell.
 - **`return $local;` retains nothing — it hands the binding's own reference out and tells
   `release_all_locals` to skip that name.** So any binding `release_all_locals` was never going to
   release anyway silently loses the retain: an `inout` parameter is a `Ty::Ref` cell, not
