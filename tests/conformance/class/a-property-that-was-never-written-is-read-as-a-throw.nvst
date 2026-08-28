@@ -1,0 +1,87 @@
+--TEST--
+A slot that was never written reads as a catchable throw, never as a value standing in for one — ADR 0022 § 3, ADR 0038 § 1
+--FILE--
+<?nvs
+// ADR 0022 § 3: the residual runtime case. ADR 0022 § 2 discharges every
+// other non-nullable property at its constructor, so a `lateinit` property
+// (ADR 0038) is the one declaration that can reach the state at all — and
+// ADR 0038 § 3's intraprocedural check already refuses the reads it can see,
+// which is why every read below is written from outside the class.
+class Logger {
+  public function name(): string { return "log"; }
+}
+
+class Widget {
+  public lateinit Logger $logger;
+  public string $label = "w";
+  public function attach(Logger $l): void { $this->logger = $l; }
+  public static function make(): Widget { return new Widget(); }
+}
+
+class Panel extends Widget {
+  public string $title = "p";
+}
+
+int $throws = 0;
+
+// The throw is an ordinary `Throwable`, propagated by checked return like any
+// other failure — not ADR 0020's fatal ladder, which § 3 is explicit about.
+Widget $w = new Widget();
+try {
+  echo $w->logger->name(), "\n";
+} catch (Throwable $e) {
+  $throws = $throws + 1;
+  echo "unwritten: ", $e->message, "\n";
+}
+
+// § 3's second bullet: nothing is handed back for the caller to inspect, so
+// there is no `null` to test against either. `??` sees a throw, not an absent
+// value, which is what makes the guard different from a nullable read.
+try {
+  echo $w->logger->name(), "\n";
+} catch (Throwable $e) {
+  $throws = $throws + 1;
+}
+
+// Every *other* property of the same object is unaffected: the state belongs
+// to the slot, not to the instance.
+echo "label=", $w->label, "\n";
+
+// § 3's third bullet: writing first works exactly like any other write, and
+// every later read sees it.
+$w->attach(new Logger());
+echo "written=", $w->logger->name(), "\n";
+echo "again=", $w->logger->name(), "\n";
+
+// A receiver that is only a temporary reaches the same guard — the read is
+// the frame's, not the binding's.
+try {
+  echo Widget::make()->logger->name(), "\n";
+} catch (Throwable $e) {
+  $throws = $throws + 1;
+}
+
+// The slot is armed for a subclass's instances too, the marker following the
+// inherited slot the way a declared default does, and the message names the
+// class the *site* did — which is the class the access resolved against.
+Panel $p = new Panel();
+try {
+  echo $p->logger->name(), "\n";
+} catch (Throwable $e) {
+  $throws = $throws + 1;
+  echo "subclass: ", $e->message, "\n";
+}
+$p->attach(new Logger());
+echo "subclass written=", $p->logger->name(), " title=", $p->title, "\n";
+
+// Counted rather than read off the lines above, so a read that stops
+// reaching the guard fails here instead of looking plausible on its own line.
+echo "throws=", $throws as string, "\n";
+--EXPECT--
+unwritten: `Widget`'s property `$logger` is read before it is written
+label=w
+written=log
+again=log
+subclass: `Panel`'s property `$logger` is read before it is written
+subclass written=log title=p
+throws=4

@@ -864,17 +864,47 @@
 > `parent::constructor`, and § 4's delegation naming a promoted field, with the count of agreements
 > over the file; `two-interfaces-delegating-to-one-field-both-forward-to-it.nvst` is § 4 bullet 3's
 > other half, `implements A by $x, B by $x` synthesizing both member sets onto the one field with an
-> own method still beating either forward. What is **not** closed and is backlogged rather than left
-> implied: a visibility keyword on a *non*-constructor method's parameter declares nothing and is
-> silently ignored where PHP refuses it, and § 4 bullet 2's "calling a delegated method before
-> `$field` is written" cannot throw what it is supposed to throw, because ADR 0022 § 3's
-> never-written storage state does not exist in the tree at all — a `lateinit` property read before
-> its first write hands back a null receiver rather than throwing, and under a delegation clause the
-> forward dispatches on it and overflows the stack. Three live tools **are** the worklist and no
-> session re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and
-> `nvs-codegen` and attributes each to its item (`--item N` for one in full), `python tools/loop.py
-> --list` prints the named `.nvst` cases each stage still owes, and `python
-> tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> own method still beating either forward. **ADR 0022 § 3's never-written storage state exists
+> now**, which closes § 4 bullet 2 with it and is the last thing either ADR was waiting on. The
+> state is `nvs_runtime::Tag::Unset`, one more discriminant on the value representation exactly as §
+> 3's own paragraph priced it — **zero additional bytes per property** — and a slot is stamped with
+> it by the very pass that arms a declared `= expr` default, `nvs_types::FieldDefault::Unset` riding
+> in the same `(slot, recipe)` list rather than in a second one beside it. Until `Core\Reflect`
+> exists (M6) the one declaration that reaches the state is a **`lateinit`** property (ADR 0038), §
+> 2 discharging every other non-nullable one at its constructor, and ADR 0038 § 3's intraprocedural
+> check already refuses the reads it can see — so what the runtime answers is the read from outside
+> the class. **The two readers ask the question differently and answer it the same way, which is the
+> decision in this**: a reader holding the whole slot goes by the tag
+> (`nvs_runtime::nvs_object_slot_get`), while the compiled read goes by the **payload**, null in
+> this state and in no other because ADR 0038 § 1 restricts `lateinit` to a non-nullable class or
+> interface type — one compare on the pointer the `FieldGet` had already loaded, rather than a
+> second load of the tag byte. `InstKind::IsNull` gained a `Ty::Object` row for it, one
+> representation down from the tag test it already was, and
+> `nvs_ir::lower::expr::Lowering::emit_never_written_guard` is that argument's one home. The throw
+> is a `LogicError` — spec § 10's "a bug in the program", not ADR 0020's ladder, § 3 being explicit
+> that this is catchable — and the erased read raises the same wording so that one failure reads one
+> way. ADR 0043 § 4 bullet 2 is the same guard on the **forward's** own read, and it is not the null
+> receiver it looks like: `InstKind::ClassDescOf` over an unwritten slot reads the *forwarding*
+> class back, so the forward calls itself until the stack is gone, and `delegation_forward`'s
+> guarded edge is also the one place that function's ownership is not the callee's — no call runs,
+> so every argument it was transferred is released where the callee would have released it. Two
+> `.nvst` cases pin it, `a-property-that-was-never-written-is-read-as-a-throw.nvst` over the outside
+> read, the second read, the untouched sibling property, the write-then-read, a temporary receiver
+> and a subclass instance, and `a-delegate-reached-before-its-field-is-written-throws.nvst` over the
+> forward through the class and through the interface alike, a forwarded member with arguments, and
+> the agreement between the forward's read and the direct one; valgrind-clean over a fixture that
+> abandons a freshly built `string` argument on the refused edge and a freshly built receiver on the
+> read's, two hundred times each. One number moved to make room:
+> `FN_PARAM_TAG_ANY`/`CLOSURE_PARAM_TAG_ANY`, the closure parameter nibble that is deliberately
+> *not* a tag, was twelve — the first number past the roster — and is fifteen, the top of the
+> nibble, so that the next discriminant the roster grows cannot collide with it either;
+> `nvs-codegen`'s `the_any_nibble_denotes_no_tag_at_all` is what caught that and is the guard either
+> way. What is **not** closed and is backlogged rather than left implied: a visibility keyword on a
+> *non*-constructor method's parameter declares nothing and is silently ignored where PHP refuses
+> it. Three live tools **are** the worklist and no session re-derives one: `python tools/holes.py`
+> reads the refusal sites out of `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item
+> N` for one in full), `python tools/loop.py --list` prints the named `.nvst` cases each stage still
+> owes, and `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

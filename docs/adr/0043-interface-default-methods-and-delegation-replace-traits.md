@@ -184,7 +184,10 @@ $this->timestamps->touch(); }`. Rules:
 - `$field` is subject to [ADR 0022](0022-definite-property-initialization.md)'s ordinary definite-assignment
   rule (or may be `lateinit` per [ADR 0038](0038-lateinit-property-modifier.md)) — no new initialization
   mechanism. Calling a delegated method before `$field` is written throws exactly the checked error those
-  ADRs already define for an unwritten non-nullable property; there is no third throw invented here.
+  ADRs already define for an unwritten non-nullable property; there is no third throw invented here. The
+  synthesized forward's own read carries that check rather than inheriting it, because the forward reads the
+  slot and then dispatches on the class the value's header names: unguarded, an unwritten slot reads the
+  *forwarding* class back and the forward calls itself until the stack is gone.
 - Two different interfaces may delegate to the same field (`implements A by $x, B by $x`) if `$x`'s type
   implements both. Two different fields may each satisfy a different interface in the same `implements` list.
 - A class may still write its own method with the same name as a delegated one — that is an ordinary

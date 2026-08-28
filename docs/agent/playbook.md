@@ -2071,6 +2071,22 @@ sibling in the same namespace unqualified.
   § 4 forward did) fails one crate down with "nvs-codegen does not lower the property
   `Outer::inner`, which this unit declares no slot for yet". ADR 0043 § 4's own worked
   example writes the field out, and so should a case.
+- **A new `nvs_runtime::Tag` discriminant collides with a nibble that was chosen as "one past the
+  roster".** `FN_PARAM_TAG_ANY`/`CLOSURE_PARAM_TAG_ANY` — the closure-parameter nibble meaning "no
+  argument can be wrong for this one" — was `12` because the tag roster ran to eleven, so adding
+  `Tag::Unset = 12` made every `mixed` closure parameter demand a tag instead. Nothing about it is
+  visible from the tag's own crate; what caught it is `nvs-codegen`'s
+  `the_any_nibble_denotes_no_tag_at_all`, one test holding three crates' copies of one number
+  together, and the five conformance cases that then failed all named closure arguments rather than
+  the tag. Both constants are `15` now, parked at the top of the nibble on purpose.
+- **A property access records the class the *receiver* was typed as, not the class that declared the
+  property.** `nvs_types::expr::members::check_property_member` writes `ExprInfo::Property { class:
+  qname }` from the receiver, which is right for `InstKind::FieldGet` (a slot index computed against
+  a base class is valid for every subclass) and wrong for any per-property fact `nvs-ir` looks up by
+  that label: an inherited `lateinit` read through a subclass answers `false` against the parent's
+  own-only record and the guard is silently not emitted. Flatten such a table along the class graph
+  where it is recorded, rather than expecting the declaring class at the site — and note the failure
+  is quiet, because a method that never touches `$this` runs perfectly well on a null receiver.
 
 ## Divergences and refusals already pinned
 

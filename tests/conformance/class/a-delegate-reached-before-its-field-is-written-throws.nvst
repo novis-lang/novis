@@ -1,0 +1,76 @@
+--TEST--
+A delegated call whose `by $field` slot was never written throws where the call is written — ADR 0043 § 4 bullet 2, ADR 0022 § 3
+--FILE--
+<?nvs
+// ADR 0043 § 4 bullet 2: "calling a delegated method before `$field` is
+// written throws". The forward reads the field and dispatches on whatever
+// class the value's own header names, so an unwritten slot is not a
+// null-receiver bug one call down — it is ADR 0022 § 3's storage state
+// reaching a read, and the forward guards it exactly as a written
+// `$outer->inner` is guarded. E0720 admits only a non-nullable class- or
+// interface-typed field, and ADR 0022 § 2 discharges every one of those at
+// its constructor, so `lateinit` (ADR 0038) is the one declaration that can
+// reach here at all.
+interface Greeter {
+  public function greet(): string;
+  public function shout(string $suffix): string;
+}
+
+class Polite implements Greeter {
+  public function greet(): string { return "hello"; }
+  public function shout(string $suffix): string { return "HELLO" . $suffix; }
+}
+
+class Outer implements Greeter by $inner {
+  public lateinit Polite $inner;
+  public function attach(Polite $p): void { $this->inner = $p; }
+}
+
+int $throws = 0;
+
+Outer $o = new Outer();
+
+// Through the class's own type…
+try {
+  echo $o->greet(), "\n";
+} catch (Throwable $e) {
+  $throws = $throws + 1;
+  echo "unwritten: ", $e->message, "\n";
+}
+
+// …and through the interface, which is the spelling a rewrite at the call
+// site would have missed: the forward is a real method, so both dispatch to
+// it and both reach the same guard.
+Greeter $g = $o;
+try {
+  echo $g->greet(), "\n";
+} catch (Throwable $e) {
+  $throws = $throws + 1;
+}
+
+// A forwarded member with arguments takes the same edge, and the argument is
+// released there rather than handed to a callee that never runs.
+try {
+  echo $o->shout("!" . "?"), "\n";
+} catch (Throwable $e) {
+  $throws = $throws + 1;
+}
+
+// Writing the field first works exactly like any other write, and every
+// later forward sees it — ADR 0022 § 3's third bullet, through the forward.
+$o->attach(new Polite());
+echo $o->greet(), "\n";
+echo $g->greet(), "\n";
+echo $o->shout("!"), "\n";
+
+// The direct read of the same field agrees with the forward's own, which is
+// the thing neither line can assert alone.
+echo "direct=", $o->inner->greet(), "\n";
+echo "throws=", $throws as string, "\n";
+--EXPECT--
+unwritten: `Outer`'s property `$inner` is read before it is written
+hello
+hello
+HELLO!
+direct=hello
+throws=3

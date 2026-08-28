@@ -110,6 +110,17 @@ requires stating the cost: the same tagged-value representation that gives `uint
 gives this marker a free tag too — one more discriminant on the existing value representation, **zero
 additional bytes per property**.
 
+That state is `nvs_runtime::Tag::Unset`, whose own doc comment is its home, and a slot is stamped with it at
+construction by the same one-store-per-slot pass that arms a declared `= expr` default. Until `Core\Reflect`
+exists (ADR 0019, M6) the one declaration that can reach the state is a **`lateinit` property**
+([ADR 0038](0038-lateinit-property-modifier.md)) — *2* discharges every other non-nullable property at its
+constructor — and ADR 0038 § 3's intraprocedural check already refuses the reads it can see, so what the
+runtime answers is the read from outside the class. The two readers ask the question differently and get one
+answer: a reader holding the whole slot goes by the tag (`nvs_runtime::nvs_object_slot_get`), while the
+compiled read goes by the payload, which is null in this state and in no other because ADR 0038 § 1 restricts
+`lateinit` to a non-nullable class or interface type — one compare on the pointer it had already loaded,
+rather than a second load of the tag byte.
+
 ## Consequences
 
 **Positive**
@@ -181,8 +192,8 @@ Verification, in the order it becomes possible:
   assignment on one branch of an `if`/`else`, a subclass constructor with a path that never calls
   `parent::constructor(...)`, a class with no constructor and a non-nullable property with no default. A
   promoted parameter and an inline default both compile with no diagnostic.
-- **M4**: reading a property on a `Core\Reflect`-constructed instance that was never written throws the
-  checked error described in *3*; writing first and then reading succeeds normally; a class implementing
+- **M4**: reading a property that was never written throws the checked error described in *3* — a
+  `lateinit` one, `Core\Reflect` being M6; writing first and then reading succeeds normally; a class implementing
   `PropertyObserver` ([ADR 0014](0014-property-observer.md)) still runs its pipeline correctly once a value
   has actually been committed, hooked or not.
 - **M11**: the converter flags PHP source whose constructor leaves a typed property unset on some path as
