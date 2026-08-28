@@ -1,0 +1,58 @@
+--TEST--
+A `catch` binding answers through properties, so every PHP accessor is refused where it is written — spec § 10, ADR 0002
+--FILE--
+<?nvs
+// Spec § 10 gives the exception tree `message`, `previous`, `backtrace` and
+// `location`, and `nvs_types::error_lib` seeds exactly those plus the
+// synthesized constructor. A ported program writes PHP's accessors on
+// purpose, so each is the ordinary unknown-member refusal with a help naming
+// the property that answers the same question — never a panic below the
+// checker.
+try {
+    throw new LogicError("boom");
+} catch (Throwable $e) {
+    echo $e->getMessage(), "\n";
+    echo $e->getPrevious(), "\n";
+    echo $e->getTraceAsString(), "\n";
+    // `getFile` and `getLine` are one property here: a throw site is one
+    // string.
+    echo $e->getFile(), "\n";
+    // `getCode` is the accessor with no counterpart at all — ADR 0002
+    // propagates a class, never a number — so it names the whole roster
+    // instead of one property.
+    echo $e->getCode(), "\n";
+}
+
+// The subclass spelling is the same rule: the refusal is keyed on the
+// exception tree, not on the root.
+try {
+    throw new LogicError("again");
+} catch (LogicError $e2) {
+    echo $e2->getMessage(), "\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0405]: `Throwable` has no method named `getMessage`
+%A
+   = help: the exception tree declares properties rather than accessors — write `->message`; spec § 10 lists `message`, `previous`, `backtrace`, `location`
+%A
+error[E0405]: `Throwable` has no method named `getPrevious`
+%A
+   = help: the exception tree declares properties rather than accessors — write `->previous`; spec § 10 lists `message`, `previous`, `backtrace`, `location`
+%A
+error[E0405]: `Throwable` has no method named `getTraceAsString`
+%A
+   = help: the exception tree declares properties rather than accessors — write `->backtrace`; spec § 10 lists `message`, `previous`, `backtrace`, `location`
+%A
+error[E0405]: `Throwable` has no method named `getFile`
+%A
+   = help: the exception tree declares properties rather than accessors — write `->location`; spec § 10 lists `message`, `previous`, `backtrace`, `location`
+%A
+error[E0405]: `Throwable` has no method named `getCode`
+%A
+   = help: the exception tree declares `message`, `previous`, `backtrace`, `location` and no method but its constructor
+%A
+error[E0405]: `LogicError` has no method named `getMessage`
+%A
+error: aborting due to 6 errors
