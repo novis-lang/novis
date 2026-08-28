@@ -246,6 +246,7 @@ fn resolve_delegations(
                 params: sig.params.clone(),
                 return_ty: sig.return_ty,
                 frame: format!("{label}::{method}() at {}:{}", env.src.name(), line + 1),
+                span: field_span,
             });
         }
     }

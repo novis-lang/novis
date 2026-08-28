@@ -1711,6 +1711,15 @@ pub fn value_to_string(value: Value) -> Result<Value, Fault> {
         }
         Some(Tag::Closure) => Err(refused("a closure")),
         Some(Tag::Resource) => Err(refused("a resource")),
+        // Not a row: `Tag::Unset` is ADR 0022 § 3's storage state and never a
+        // value, every read that could hand one out turning it into a throw
+        // first (`crate::nvs_object_slot_get`, and `nvs_ir::lower`'s guard on
+        // the compiled read). So an arrival is one of those readers having
+        // been bypassed, which is a compiler bug rather than a conversion
+        // this table refuses.
+        Some(Tag::Unset) => Err(Fault::fatal(
+            "internal error: a never-written property slot reached a conversion",
+        )),
     }
 }
 
@@ -2495,6 +2504,11 @@ pub fn value_truthy(value: Value) -> bool {
             count != 0
         }),
         Some(Tag::Object | Tag::Closure | Tag::Resource) => true,
+        // ADR 0022 § 3's storage state, which is not a value and cannot be
+        // tested for truth — see `value_to_string`'s own arm for why an
+        // arrival is a compiler bug. This function has no error channel, so
+        // it takes the same floor a tag byte denoting nothing at all takes.
+        Some(Tag::Unset) => false,
     }
 }
 

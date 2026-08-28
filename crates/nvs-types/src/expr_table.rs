@@ -569,6 +569,7 @@ pub struct ExprTypeTable {
     codecs: FxHashMap<String, crate::derive::DerivedCodec>,
     property_defaults: FxHashMap<String, Vec<(String, crate::defaults::ConstArg)>>,
     property_types: FxHashMap<String, Vec<(String, TypeId)>>,
+    lateinit_properties: FxHashMap<String, Vec<String>>,
     static_properties: FxHashMap<String, Vec<(String, Option<crate::defaults::ConstArg>)>>,
     to_string: FxHashMap<Span, ResolvedCall>,
     require_targets: FxHashMap<Span, nvs_diagnostics::SourceId>,
@@ -611,6 +612,11 @@ pub struct Delegation {
     /// error edge propagates under, rendered here because this is where the
     /// `by $field` clause's span can still be resolved to a line.
     pub frame: String,
+    /// The `by $field` clause's own span — the nearest thing a synthesized
+    /// forward has to a written position, and all it needs one for is the
+    /// conditional edges of the ADR 0022 § 3 guard
+    /// (`nvs_ir::lower::call::delegation_forward`).
+    pub span: Span,
 }
 
 impl ExprTypeTable {
@@ -732,6 +738,42 @@ impl ExprTypeTable {
         defaults: Vec<(String, crate::defaults::ConstArg)>,
     ) {
         self.property_defaults.insert(label, defaults);
+    }
+
+    /// Records the class labelled `label`'s **own** `lateinit` properties
+    /// (ADR 0038 § 1) — [`crate::signatures::ClassSignature::lateinit_properties`],
+    /// copied across at check time for [`Self::record_property_defaults`]'
+    /// reason exactly.
+    ///
+    /// `nvs-ir` is the consumer and needs it twice, both for ADR 0022 § 3's
+    /// never-written storage state: to arm such a slot with the marker at
+    /// construction, and to guard the compiled read of one. Sorted here so
+    /// that a lowered program is reproducible for an unchanged file, the
+    /// signature's own set being a hash set.
+    pub(crate) fn record_lateinit_properties(&mut self, label: String, mut names: Vec<String>) {
+        names.sort();
+        self.lateinit_properties.insert(label, names);
+    }
+
+    /// The class labelled `label`'s own `lateinit` properties, sorted —
+    /// empty for the overwhelming majority of classes, which declare none.
+    ///
+    /// **Own only**, exactly as [`Self::property_defaults`] is: an inherited
+    /// one is recorded under the class that declared it.
+    #[must_use]
+    pub fn lateinit_properties(&self, label: &str) -> &[String] {
+        self.lateinit_properties
+            .get(label)
+            .map_or(&[], Vec::as_slice)
+    }
+
+    /// Whether the class labelled `label` declares `$name` `lateinit` itself
+    /// — the per-property question [`Self::lateinit_properties`] answers per
+    /// class, asked at a resolved property access, whose recorded class is
+    /// already the *declaring* one.
+    #[must_use]
+    pub fn is_lateinit_property(&self, label: &str, name: &str) -> bool {
+        self.lateinit_properties(label).iter().any(|p| p == name)
     }
 
     /// The class labelled `label`'s own property defaults, in declaration

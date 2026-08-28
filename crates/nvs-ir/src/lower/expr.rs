@@ -2881,6 +2881,10 @@ impl<'a> Lowering<'a> {
         let class_label = class.to_string();
         let field_name = name.clone();
         let observed_name = name.clone();
+        // ADR 0022 § 3's never-written state, asked of the *declaring* class,
+        // which is what the table recorded. A `get` hook answers with its own
+        // body rather than with the slot, so there is nothing to guard there.
+        let never_written = get.is_none() && self.exprs.is_lateinit_property(&class_label, name);
         // See the `MethodCall` arm above: `?->` guards the access on
         // the receiver not being `null`, `->` opens no guard.
         let mark = self.temporaries_mark();
@@ -2918,15 +2922,28 @@ impl<'a> Lowering<'a> {
                     env,
                 )
             }
-            None => self.emit(
-                *cur,
-                field_ty,
-                InstKind::FieldGet {
-                    object: object_v,
-                    class: class_label,
-                    field: field_name,
-                },
-            ),
+            None => {
+                let read = self.emit(
+                    *cur,
+                    field_ty,
+                    InstKind::FieldGet {
+                        object: object_v,
+                        class: class_label.clone(),
+                        field: field_name,
+                    },
+                );
+                if never_written {
+                    self.emit_never_written_guard(
+                        read.0,
+                        &class_label,
+                        &observed_name,
+                        expr.span,
+                        env,
+                        cur,
+                    );
+                }
+                read
+            }
         };
         // ADR 0014 § 3's second step, on the read side: the value is settled
         // first — by the `get` hook above or by the slot — and *that* value is
@@ -2963,6 +2980,93 @@ impl<'a> Lowering<'a> {
             self.release_temporaries_since(mark, *cur);
         }
         self.close_nullsafe(guard, v, ty, env, cur)
+    }
+
+    /// [ADR 0022](../../../docs/adr/0022-definite-property-initialization.md)
+    /// § 3's never-written storage state, on the compiled read: `value` is
+    /// the object `class`'s slot for `$field` just handed back, and this
+    /// leaves `cur` on the block where it is a real instance.
+    ///
+    /// **The test is the payload, not the tag**, and that is the whole reason
+    /// this is three instructions rather than a call. The state is only
+    /// reachable on a `lateinit` property (ADR 0038), whose declared type
+    /// ADR 0038 § 1 restricts to a non-nullable class or interface — one
+    /// pointer, null in this state and in no other, since ADR 0022 § 2
+    /// discharges every other non-nullable property at its constructor and a
+    /// `?T` is not a `lateinit` at all. So [`InstKind::IsNull`] over the
+    /// [`Ty::Object`] already loaded answers the same question
+    /// `nvs_runtime::Tag::Unset` answers for a reader holding the whole slot,
+    /// at one compare and no second load. `nvs_runtime::Value::unset` is that
+    /// argument's other end.
+    ///
+    /// **It borrows.** `InstKind::FieldGet` took no reference and this takes
+    /// none either: the throw edge abandons nothing the slot still owns, and
+    /// the caller's own accounting for the read is unchanged by the guard
+    /// standing between the two.
+    ///
+    /// The class is `LogicError` — spec § 10's entry for "a bug in the
+    /// program", the same one [`Self::lower_match`]'s unmatched subject
+    /// raises — and not ADR 0020's fatal ladder, § 3 being explicit that this
+    /// is a catchable, recoverable condition. The wording is
+    /// `nvs_runtime::nvs_object_slot_get`'s, so the erased read and this one
+    /// report one failure one way.
+    fn emit_never_written_guard(
+        &mut self,
+        value: ValueId,
+        class: &str,
+        field: &str,
+        span: Span,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) {
+        let (is_unset, _) = self.emit(*cur, Ty::Bool, InstKind::IsNull { operand: value });
+        let unset = self.new_block();
+        let written = self.new_block();
+        let unset_edge = self.ids.next_edge(span);
+        let written_edge = self.ids.next_edge(span);
+        self.seal(
+            *cur,
+            Terminator::Branch {
+                cond: is_unset,
+                then_block: unset,
+                then_edge: unset_edge,
+                else_block: written,
+                else_edge: written_edge,
+            },
+        );
+        let (message, _) = self.emit(
+            unset,
+            Ty::Str,
+            InstKind::ConstStr(format!(
+                "`{class}`'s property `${field}` is read before it is written"
+            )),
+        );
+        // Argument 2 is the `{previous}` bag flattened to its own `null`
+        // default, widened into the `Ty::Tagged` slot spec § 10's
+        // `Throwable|null` erases to — the list `Self::lower_match`'s own
+        // throw builds by hand, for the same reason.
+        let (absent, _) = self.emit(unset, Ty::Null, InstKind::ConstNull);
+        let absent = self.coerce(unset, absent, Ty::Null, Ty::Tagged, env);
+        let (exception, _) = self.emit_fallible(
+            unset,
+            Ty::Object,
+            InstKind::New {
+                class: "LogicError".to_owned(),
+                ctor: Some(THROWABLE_CTOR.to_owned()),
+                args: vec![message, absent],
+            },
+            env,
+        );
+        self.write_throw_location(unset, exception);
+        let landing = self.landing_block(env);
+        self.seal(
+            unset,
+            Terminator::Throw {
+                value: exception,
+                landing,
+            },
+        );
+        *cur = written;
     }
 
     /// `{x: 1, y: 2}` — [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md)

@@ -930,12 +930,31 @@ impl<'a> Lowering<'a> {
 /// exit and again in the landing block, since a throwing callee already owns
 /// what it was handed.
 ///
+/// **`never_written` splits the entry block in two**, and it is
+/// [ADR 0022](../../../docs/adr/0022-definite-property-initialization.md)
+/// § 3 reaching the one read this function makes. A `lateinit` delegate field
+/// (ADR 0038) is the only one `E0720` admits that no constructor is obliged to
+/// fill, and dispatching on what the slot then holds is not a null-receiver
+/// bug one call down but an unbounded recursion: [`InstKind::ClassDescOf`] on
+/// a slot holding nothing reads the *forwarding* class back and the forward
+/// calls itself until the stack is gone. So the read is guarded exactly as a
+/// written `$w->logger` is — `Lowering::emit_never_written_guard` owns the
+/// argument for why the test is the payload — and the throw is the same
+/// `LogicError`, worded the same way, so that ADR 0043 § 4's forward reports
+/// the failure ADR 0022 § 3 defines rather than one of its own.
+///
+/// The guarded edge is the one place this function's ownership is not the
+/// callee's: no call runs, so every argument it was transferred is released
+/// where the callee would have released it, and `$this` is left to the
+/// landing block that already owes it.
+///
 /// `None` when a parameter or the return type names a representation
 /// [`super::erase_checked_ty`] has no row for, which is the same subtraction
 /// every other lowering makes rather than a decision of its own.
 pub(super) fn delegation_forward(
     delegation: &nvs_types::Delegation,
     checked_types: &TypeInterner,
+    never_written: bool,
 ) -> Option<Function> {
     let mut ids = IdGen::default();
     let entry = ids.next_block();
@@ -957,6 +976,7 @@ pub(super) fn delegation_forward(
         on_error: None,
     };
 
+    let mut entry_block = entry;
     let mut params = vec![Ty::Object];
     let mut args = Vec::new();
     let mut insts = vec![
@@ -985,6 +1005,83 @@ pub(super) fn delegation_forward(
             field: delegation.field.clone(),
         },
     ));
+    // ADR 0022 § 3's guard, which splits the entry block: an unguarded
+    // forward lowers to exactly the blocks it always did.
+    let mut guard_blocks = Vec::new();
+    if never_written {
+        let is_unset = ids.next_value();
+        let unset = ids.next_block();
+        let body = ids.next_block();
+        insts.push(defines(
+            is_unset,
+            Ty::Bool,
+            InstKind::IsNull { operand: inner },
+        ));
+        let entry_insts = std::mem::take(&mut insts);
+        let mut refused = Vec::new();
+        // No call runs on this edge, so each argument's transferred
+        // reference is this frame's to pay back; `$this` is the landing
+        // block's, which every other exit already leaves to it.
+        for (&arg, param) in args.iter().zip(params.iter().skip(1)) {
+            if param.is_refcounted() {
+                refused.push(plain(InstKind::Release { operand: arg }));
+            }
+        }
+        let message = ids.next_value();
+        let absent = ids.next_value();
+        let tagged = ids.next_value();
+        let exception = ids.next_value();
+        refused.push(defines(
+            message,
+            Ty::Str,
+            InstKind::ConstStr(format!(
+                "`{}`'s property `${}` is read before it is written",
+                delegation.class, delegation.field
+            )),
+        ));
+        // Argument 2 is the `{previous}` bag flattened to its own `null`
+        // default, widened into the `Ty::Tagged` slot spec § 10's
+        // `Throwable|null` erases to — the list every hand-built throw in
+        // this crate assembles, `Lowering::lower_match`'s included.
+        refused.push(defines(absent, Ty::Null, InstKind::ConstNull));
+        refused.push(defines(
+            tagged,
+            Ty::Tagged,
+            InstKind::Tag { operand: absent },
+        ));
+        refused.push(Inst {
+            result: Some(exception),
+            ty: Some(Ty::Object),
+            kind: InstKind::New {
+                class: "LogicError".to_owned(),
+                ctor: Some(super::exception::THROWABLE_CTOR.to_owned()),
+                args: vec![message, tagged],
+            },
+            on_error: Some(landing),
+        });
+        let unset_edge = ids.next_edge(delegation.span);
+        let body_edge = ids.next_edge(delegation.span);
+        guard_blocks.push(BasicBlock {
+            id: entry,
+            insts: entry_insts,
+            term: Terminator::Branch {
+                cond: is_unset,
+                then_block: unset,
+                then_edge: unset_edge,
+                else_block: body,
+                else_edge: body_edge,
+            },
+        });
+        guard_blocks.push(BasicBlock {
+            id: unset,
+            insts: refused,
+            term: Terminator::Throw {
+                value: exception,
+                landing,
+            },
+        });
+        entry_block = body;
+    }
     insts.push(plain(InstKind::Retain { operand: inner }));
     insts.push(defines(
         desc,
@@ -1010,24 +1107,26 @@ pub(super) fn delegation_forward(
     insts.push(plain(InstKind::Release { operand: this }));
 
     let (stmt_spans, edge_spans) = ids.into_spans();
+    let mut blocks = guard_blocks;
+    blocks.extend([
+        BasicBlock {
+            id: entry_block,
+            insts,
+            term: Terminator::Return(answer),
+        },
+        BasicBlock {
+            id: landing,
+            insts: vec![plain(InstKind::Release { operand: this })],
+            term: Terminator::Propagate {
+                frame: delegation.frame.clone(),
+            },
+        },
+    ]);
     Some(Function {
         name: format!("{}::{}", delegation.class, delegation.method),
         params,
         ret,
-        blocks: vec![
-            BasicBlock {
-                id: entry,
-                insts,
-                term: Terminator::Return(answer),
-            },
-            BasicBlock {
-                id: landing,
-                insts: vec![plain(InstKind::Release { operand: this })],
-                term: Terminator::Propagate {
-                    frame: delegation.frame.clone(),
-                },
-            },
-        ],
+        blocks,
         entry,
         stmt_spans,
         edge_spans,

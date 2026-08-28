@@ -254,9 +254,13 @@ pub struct ClassDesc {
     /// shortened its argument list would call the constructor with the wrong
     /// arity.
     ctor_arity: usize,
-    /// Each field slot that carries a declared `= expr` default, as `(slot,
-    /// value)` in slot order — empty for a class that declares none, which is
-    /// most of them. Filled by [`ClassTable::set_defaults`].
+    /// Each field slot this class arms at construction, as `(slot, recipe)`
+    /// in slot order — empty for a class that arms none, which is most of
+    /// them. Filled by [`ClassTable::set_defaults`].
+    ///
+    /// Two kinds of entry, and [`FieldDefault::Unset`] says why they share
+    /// one list: a declared `= expr` default, and the never-written marker
+    /// ADR 0022 § 3 owes a `lateinit` slot.
     ///
     /// This is the whole of what a property initializer *is* at run time:
     /// [`NvsObj::new`] writes these slots straight after nulling them, so a
@@ -350,6 +354,18 @@ pub enum FieldDefault {
     /// `[]` — a fresh empty array, which is the only array constant there is
     /// (`nvs_types::defaults::ConstArg::EmptyArray`).
     EmptyArray,
+    /// **Not a default at all**: the "never written" marker
+    /// [ADR 0022](../../../docs/adr/0022-definite-property-initialization.md)
+    /// § 3 owes a slot no constructor is obliged to fill — today a `lateinit`
+    /// property's (ADR 0038), which is the one declaration ADR 0022 § 2
+    /// exempts.
+    ///
+    /// It rides in this list rather than in a second one beside it because it
+    /// is the same pass: [`NvsObj::new`] already walks one `(slot, recipe)`
+    /// list and stores one value per entry, and a class that declares neither
+    /// a default nor a `lateinit` property still walks an empty list. What it
+    /// materializes is [`Value::unset`], which owns nothing.
+    Unset,
 }
 
 impl FieldDefault {
@@ -364,6 +380,7 @@ impl FieldDefault {
             Self::Float(v) => Value::float(*v),
             Self::Str(s) => Value::str(crate::NvsStr::new(s.as_bytes())),
             Self::EmptyArray => Value::array(crate::NvsArray::new()),
+            Self::Unset => Value::unset(),
         }
     }
 }
@@ -914,9 +931,10 @@ impl NvsObj {
         let object = unsafe { Self::alloc(class) };
         #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
         let desc = unsafe { &*class };
-        // Every declared `= expr` default, written over the null the slot was
-        // just given — see [`ClassDesc::defaults`]. `set_field` releases what
-        // it overwrites, which is a `null` here and therefore free.
+        // Every armed slot — a declared `= expr` default, or ADR 0022 § 3's
+        // never-written marker — written over the null the slot was just
+        // given; see [`ClassDesc::defaults`]. `set_field` releases what it
+        // overwrites, which is a `null` here and therefore free.
         for (slot, default) in &desc.defaults {
             object.set_field(*slot, default.materialize());
         }
@@ -1866,6 +1884,10 @@ pub unsafe extern "C" fn nvs_object_field_get(ptr: *mut ObjHeader, index: usize)
 /// PHP's own wording — a `mixed` is the only receiver that reaches it, every
 /// other non-object being `E0495` at check time (ADR 0007 § 7 row 13).
 ///
+/// A third when the slot was never written — ADR 0022 § 3, whose storage
+/// state is [`Tag::Unset`] and whose only reachable declaration is a
+/// `lateinit` property (ADR 0038).
+///
 /// # Safety
 ///
 /// `ctx` and `out` must satisfy [`crate::run_helper`]'s contract, `receiver`
@@ -1927,7 +1949,21 @@ pub unsafe extern "C" fn nvs_object_slot_get(
             reason = "the slot came out of this object's own descriptor, so it is \
                       inside the allocation and was initialized by `new`"
         )]
-        Ok(unsafe { *field_ptr(ptr, slot) })
+        let held = unsafe { *field_ptr(ptr, slot) };
+        // ADR 0022 § 3: a slot that was never written reads as a throw, never
+        // as a value standing in for one. This is the reader that holds the
+        // whole slot rather than its payload, so the *tag* is what answers —
+        // which is why `Tag::Unset` is a tag at all. Only a `lateinit`
+        // property (ADR 0038) can be in the state; the compiled read makes
+        // the same refusal from the payload alone, `nvs_ir::lower`'s
+        // `emit_never_written_guard` owning that half.
+        if held.tag() == Some(Tag::Unset) {
+            return Err(Fault::thrown(format!(
+                "`{}`'s property `${name}` is read before it is written",
+                desc.name()
+            )));
+        }
+        Ok(held)
     };
     #[expect(
         unsafe_code,

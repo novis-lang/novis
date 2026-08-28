@@ -30,9 +30,11 @@ use crate::string::{NvsStr, StrHeader};
 
 /// Which of the runtime's representations a [`Value`]'s payload is.
 ///
-/// The roster is the plan's § *Value representation*. Two of the twelve have
+/// The roster is the plan's § *Value representation*. Two of its twelve have
 /// no representation behind them yet — see the crate docs' known gap 1 — but
-/// they are numbered now so the discriminants never have to move.
+/// they are numbered now so the discriminants never have to move. The
+/// thirteenth, [`Self::Unset`], is not on that roster at all: it is a storage
+/// state rather than a value, and its own doc comment says why it lives here.
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum Tag {
@@ -81,6 +83,27 @@ pub enum Tag {
     /// static type is gone; the crate docs' § *`bytes` is a tag, not a second
     /// heap shape* is the one home for that decision and for what it spends.
     Bytes = 11,
+    /// **Not a value**: the "never written" storage state
+    /// [ADR 0022](../../../docs/adr/0022-definite-property-initialization.md)
+    /// § 3 requires of a property slot, distinct from every legal value
+    /// including [`Self::Null`]. The payload is zero.
+    ///
+    /// It is a tag rather than a flag beside the slot for that section's own
+    /// reason — one more discriminant on a representation that already
+    /// carries one costs **zero additional bytes per property** — and it is
+    /// deliberately outside the type system: nothing in `nvs_types` produces
+    /// it, no expression evaluates to it, and every read that could hand one
+    /// to user code turns it into a checked throw first
+    /// ([`crate::nvs_object_slot_get`], and `nvs_ir::lower`'s guard on the
+    /// compiled read). It is not refcounted, so a slot still holding one
+    /// sweeps like a `null` when the object is freed.
+    ///
+    /// Only a `lateinit` property (ADR 0038) can currently reach the state:
+    /// ADR 0022 § 2 discharges every other non-nullable property at its
+    /// constructor. `Core\Reflect`'s constructor-bypassing instantiation
+    /// (ADR 0019, M6) is the other one § 3 names, and it will need no new
+    /// state — only the same stamp on every slot it does not fill.
+    Unset = 12,
 }
 
 impl Tag {
@@ -104,6 +127,7 @@ impl Tag {
             9 => Self::Resource,
             10 => Self::Decimal,
             11 => Self::Bytes,
+            12 => Self::Unset,
             _ => return None,
         })
     }
@@ -131,6 +155,11 @@ impl Tag {
             Self::Resource => "resource",
             Self::Decimal => "decimal",
             Self::Bytes => "bytes",
+            // The one entry that is not a Novis type name, because the
+            // state is not a value: nothing user code can hold has this
+            // tag, so a message that reaches it is reporting a slot, not an
+            // operand.
+            Self::Unset => "an unset property",
         }
     }
 
@@ -189,6 +218,24 @@ impl Value {
     #[must_use]
     pub const fn null() -> Self {
         Self::new(Tag::Null, 0)
+    }
+
+    /// The "never written" storage state — see [`Tag::Unset`], which owns the
+    /// decision. Not a value: this is what a slot holds, never what an
+    /// expression produces.
+    ///
+    /// The payload is zero deliberately, and that is what the *compiled* read
+    /// tests. A slot in this state belongs to a `lateinit` property, whose
+    /// declared type ADR 0038 § 1 restricts to a non-nullable class or
+    /// interface — one pointer, which is null in this state and in no other —
+    /// so `nvs_ir::lower`'s guard is one compare against the payload it had
+    /// already loaded rather than a second load of the tag byte. The tag is
+    /// what a reader holding the *whole* slot goes by
+    /// ([`crate::nvs_object_slot_get`]), where there is no declared type to
+    /// make that argument from.
+    #[must_use]
+    pub const fn unset() -> Self {
+        Self::new(Tag::Unset, 0)
     }
 
     /// A `bool`.
@@ -719,7 +766,8 @@ mod tests {
         #[expect(unsafe_code, reason = "constructing the shape a miscompile would")]
         let bogus = unsafe { Value::from_parts(Tag::Null, 0) };
         assert_eq!(bogus.tag(), Some(Tag::Null));
-        assert_eq!(Tag::from_byte(12), None);
+        assert_eq!(Tag::from_byte(12), Some(Tag::Unset));
+        assert_eq!(Tag::from_byte(13), None);
         assert_eq!(Tag::from_byte(u8::MAX), None);
     }
 

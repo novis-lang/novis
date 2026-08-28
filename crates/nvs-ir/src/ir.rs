@@ -963,6 +963,13 @@ pub enum InstKind {
     /// The only instruction that reads a tag, and the whole of what `??`,
     /// `?->` and a nullable narrowing test. It borrows its operand: no
     /// retain, no release, no ownership transfer.
+    ///
+    /// A [`crate::ty::Ty::Object`] operand is admitted too, and is the same
+    /// compare one representation down: an object is a bare pointer and a
+    /// null one *is* `null` (`nvs_runtime::object`'s own decision). Its one
+    /// producer is `nvs_ir::lower`'s `emit_never_written_guard`, where the
+    /// null pointer is ADR 0022 § 3's never-written slot rather than a value
+    /// any expression produced.
     IsNull {
         /// The tagged value being tested.
         operand: ValueId,

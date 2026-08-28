@@ -83,10 +83,15 @@ pub const CLOSURE_PARAM_TAGS_SLOT: usize = 1;
 /// parameter is `mixed`, `?T` or another union, whose representation *is* a
 /// tag chosen at run time, so no argument can be wrong for it.
 ///
-/// Twelve is the first number past the tag roster and can therefore never
-/// collide with one — [`Tag::from_byte`] answering `None` for it is half of
-/// `nvs-codegen`'s `the_any_nibble_denotes_no_tag_at_all`.
-pub const CLOSURE_PARAM_TAG_ANY: u8 = 12;
+/// Fifteen is the **top** of the nibble rather than the first number past the
+/// tag roster, and that is deliberate: it was twelve until ADR 0022 § 3's
+/// never-written storage state took that discriminant ([`Tag::Unset`]), so a
+/// nibble chosen as "one past the last tag" is one that collides the next
+/// time the roster grows. [`Tag::from_byte`] answering `None` for it is half
+/// of `nvs-codegen`'s `the_any_nibble_denotes_no_tag_at_all`, which is what
+/// caught that collision; `nvs_ir::lower::FN_PARAM_TAG_ANY` is the other end
+/// of the same number and the two are held together by that test.
+pub const CLOSURE_PARAM_TAG_ANY: u8 = 15;
 
 /// How many parameters [`CLOSURE_PARAM_TAGS_SLOT`] can describe: one nibble
 /// each in a 64-bit payload. A closure declaring more cannot be called —

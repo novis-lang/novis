@@ -212,6 +212,7 @@ fn check_stmts(
                 crate::conformance::check_class_conformance(decl, &qname, env);
                 crate::derive::check_class_derive(decl, &qname, &ctx, env);
                 record_property_defaults(&qname, env);
+                record_lateinit_properties(&qname, env);
                 record_static_properties(&qname, env);
             }
             StmtKind::InterfaceDecl(decl) => {
@@ -289,6 +290,44 @@ fn record_property_defaults(qname: &QName, env: &mut Env<'_>) {
     let defaults = sig.property_defaults.clone();
     env.exprs
         .record_property_defaults(qname.to_string(), defaults);
+}
+
+/// The same move for the class's `lateinit` properties (ADR 0038 § 1), which
+/// `nvs-ir` needs for ADR 0022 § 3's never-written storage state — see
+/// [`crate::expr_table::ExprTypeTable::record_lateinit_properties`].
+///
+/// **Flattened, unlike [`record_property_defaults`]'s own-only entry**, and
+/// that is the one thing to get right here: a property access records the
+/// class the *receiver* was typed as
+/// ([`crate::expr::members::check_property_member`]), not the one that
+/// declared the property, so a subclass label has to answer for what it
+/// inherited or an inherited `lateinit` read would be guarded on the parent
+/// and unguarded on every child. That is the same direction `nvs_runtime`'s
+/// own layout decision takes — a slot index computed against a base class is
+/// valid for every subclass — rather than a second lookup rule.
+fn record_lateinit_properties(qname: &QName, env: &mut Env<'_>) {
+    let mut names: Vec<String> = Vec::new();
+    let mut pending = vec![qname.clone()];
+    let mut seen: Vec<QName> = Vec::new();
+    while let Some(current) = pending.pop() {
+        if seen.contains(&current) {
+            continue;
+        }
+        if let Some(sig) = env.signatures.get(&current) {
+            names.extend(sig.lateinit_properties.iter().cloned());
+        }
+        if let Some(links) = env.graph.get(&current) {
+            pending.extend(links.extends.iter().cloned());
+            pending.extend(links.implements.iter().cloned());
+        }
+        seen.push(current);
+    }
+    if names.is_empty() {
+        return;
+    }
+    names.dedup();
+    env.exprs
+        .record_lateinit_properties(qname.to_string(), names);
 }
 
 /// The same move for the class's own `static` properties — see

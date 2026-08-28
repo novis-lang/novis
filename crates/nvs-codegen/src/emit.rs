@@ -756,8 +756,20 @@ impl Emitter<'_, '_> {
             }
             InstKind::IsNull { operand } => {
                 let (value, from) = self.value(*operand)?;
+                // An object-typed operand is a bare pointer, and a null one
+                // *is* Novis's `null` (`nvs_runtime::object`'s own decision).
+                // The one producer is `nvs_ir::lower`'s ADR 0022 § 3 guard,
+                // whose doc comment owns why a never-written `lateinit` slot
+                // is exactly this compare.
+                if from == Ty::Object {
+                    let value = self.b.ins().icmp_imm_u(IntCC::Equal, value, 0);
+                    self.define(inst, value)?;
+                    return Ok(cur);
+                }
                 if from != Ty::Tagged {
-                    return Err(internal("`is.null` of a value that is not tagged"));
+                    return Err(internal(
+                        "`is.null` of a value that is neither tagged nor an object",
+                    ));
                 }
                 let (tag_word, _) = self.split_tagged(value);
                 // `Tag::Null` is the only tag whose byte is zero, and every

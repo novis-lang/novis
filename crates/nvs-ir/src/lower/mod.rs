@@ -260,8 +260,15 @@ struct TryFrame<'a> {
     finally: Option<&'a Block>,
 }
 
-/// The class labelled `label`'s declared property defaults, resolved against
-/// its own flattened slot order — [`crate::ir::Class::defaults`].
+/// The class labelled `label`'s armed field slots, resolved against its own
+/// flattened slot order — [`crate::ir::Class::defaults`].
+///
+/// Two kinds of entry, which [`nvs_types::FieldDefault::Unset`] owns the
+/// sharing of: a declared `= expr` default, and ADR 0022 § 3's never-written
+/// marker on a `lateinit` slot (ADR 0038). The two cannot collide — ADR 0038
+/// § 1's `lateinit` is what a property with no initializer declares — but the
+/// join below is written so that a default wins anyway, since a slot may only
+/// be armed once and a written initializer is the one the author can see.
 ///
 /// Its own class first and then every ancestor, so a subclass redeclaring a
 /// property wins the slot the two share; a name the layout has no slot for is
@@ -289,6 +296,15 @@ fn property_defaults(
                 continue;
             }
             image[slot] = field_default(value);
+        }
+        for property in exprs.lateinit_properties(owner) {
+            let Some(slot) = layout.slot_of(property) else {
+                continue;
+            };
+            if image[slot].is_some() {
+                continue;
+            }
+            image[slot] = Some(FieldDefault::Unset);
         }
     }
     image
@@ -694,7 +710,12 @@ pub fn lower_program(
         {
             continue;
         }
-        let Some(function) = delegation_forward(delegation, checked_types) else {
+        // ADR 0022 § 3 on the forward's own read: a `lateinit` delegate
+        // field (ADR 0038) is the one E0720 admits that no constructor is
+        // obliged to fill, and dispatching on what it then holds is what
+        // `delegation_forward`'s guard exists to stop.
+        let never_written = exprs.is_lateinit_property(&delegation.class, &delegation.field);
+        let Some(function) = delegation_forward(delegation, checked_types, never_written) else {
             continue;
         };
         class
@@ -2906,10 +2927,14 @@ pub(crate) const FN_PARAM_TAGS_CAPACITY: usize = 16;
 
 /// The [`FN_PARAM_TAGS`] nibble for a parameter no argument can be wrong for.
 ///
-/// Deliberately not a `nvs_runtime::Tag` discriminant — the roster runs to
-/// eleven, so twelve is free and can never be mistaken for a tag a value
-/// actually carries.
-pub const FN_PARAM_TAG_ANY: u8 = 12;
+/// Deliberately not a `nvs_runtime::Tag` discriminant, and parked at the
+/// **top** of the nibble rather than one past the roster's end so that it
+/// stays that way: it was twelve until ADR 0022 § 3's never-written storage
+/// state took that discriminant, and a nibble chosen as "one past the last
+/// tag" is a nibble that collides the next time the roster grows.
+/// `nvs-codegen`'s `the_any_nibble_denotes_no_tag_at_all` is what caught it
+/// and is the guard either way.
+pub const FN_PARAM_TAG_ANY: u8 = 15;
 
 /// The [`FN_PARAM_TAGS`] nibble a parameter represented as `ty` requires.
 ///
