@@ -39,10 +39,12 @@
 //!   rather than checked against whether the hook actually commits a value —
 //!   this module has no model of a hook's body at all.
 //! - A promoted constructor-parameter property (`function constructor(public
-//!   int $x) {}`) is not recorded as a property anywhere yet
-//!   (`nvs_hir::members`'s and `crate::signatures`'s own pre-existing gap),
-//!   so it neither needs nor gets a definite-assignment check here — this
-//!   mirrors, rather than fixes, that gap.
+//!   int $x) {}`) is a property everywhere else now — `crate::signatures`
+//!   records its type and visibility, `crate::layout` gives it a slot — and
+//!   it is deliberately no obligation here: the store is emitted from the
+//!   binding by `nvs_ir::lower::promoted_stores` rather than written in the
+//!   body, so ADR 0022 § 2 is discharged by construction and there is nothing
+//!   for a constructor body to be checked against.
 //! - [`scan_expr`] only descends into a handful of common composite
 //!   expression forms (assignment, calls, binary/unary/cast/ternary,
 //!   `instanceof`, array literals). A `$this->prop = ...` or

@@ -280,15 +280,30 @@ fn own_methods(members: &[nvs_syntax::ast::ClassMember], src: &SourceFile) -> Ve
         .collect()
 }
 
-/// One declaration's own instance-property names, in declaration order.
+/// One declaration's own instance-property names, in declaration order — a
+/// written `public int $n;` and a promoted constructor parameter alike, each
+/// where it stands among the members.
+///
+/// A promoted parameter occupies an ordinary slot, because it is an ordinary
+/// property: `nvs_types::signatures` records its type and visibility and
+/// `nvs_ir::lower` stores the argument into this slot at constructor entry.
+/// Its place in the order is the `constructor` member's own, which is all
+/// that "declaration order" can mean for it — nothing reads a slot by number
+/// across two declarations, `flatten_fields` keying every field by name.
 fn own_properties(members: &[nvs_syntax::ast::ClassMember], src: &SourceFile) -> Vec<String> {
     members
         .iter()
-        .filter_map(|member| match &member.kind {
+        .flat_map(|member| match &member.kind {
             ClassMemberKind::Property(p) if !is_static(p) => {
-                Some(crate::strip_sigil(span_text(src, p.name)).to_owned())
+                vec![crate::strip_sigil(span_text(src, p.name)).to_owned()]
             }
-            _ => None,
+            ClassMemberKind::Method(m) if span_text(src, m.name) == "constructor" => m
+                .params
+                .iter()
+                .filter(|p| p.is_promoted())
+                .map(|p| crate::strip_sigil(span_text(src, p.name)).to_owned())
+                .collect(),
+            _ => Vec::new(),
         })
         .collect()
 }

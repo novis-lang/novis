@@ -841,6 +841,15 @@ pub fn lower_method(
         param_tys.push(bound_ty);
     }
 
+    // PHP 8's constructor promotion: the parameter *is* the property, so the
+    // store the author did not write is emitted here, before the body, in
+    // declaration order. See `promoted_stores`.
+    if let Some(class) = name.rsplit_once("::").and_then(|(class, method)| {
+        (method == "constructor" && !is_static).then_some(class.to_owned())
+    }) {
+        promoted_stores(&mut low, entry, &class, m, src, &env);
+    }
+
     let body = m.body.as_ref().expect(
         "lower_method requires a method with a body — nothing to lower for an abstract one",
     );
@@ -873,6 +882,49 @@ pub fn lower_method(
         },
         closures,
         classes,
+    }
+}
+
+/// Emits the field store each promoted constructor parameter stands for —
+/// `constructor(public int $n)` being exactly `constructor(int $n) { $this->n
+/// = $n; }` with the assignment supplied here rather than written.
+///
+/// Emitted into the entry block, ahead of the body, so a constructor that
+/// reads `$this->n` reads what it was passed, and in declaration order, which
+/// is the order the author would have written the assignments in.
+///
+/// Two halves of [`Lowering::lower_reassignment`]'s property policy apply and
+/// one does not. The **retain** does: a compiled method owns its parameters
+/// and releases each at every exit, so the slot needs a reference of its own.
+/// The **coercion** does not, because a promoted parameter's declared type is
+/// the property's declared type — one declaration, one representation. Nor
+/// does the **release of the old value**: this is the first store this slot
+/// ever sees, the instance having been allocated by the `new` that reached
+/// this call, so there is nothing there to drop.
+///
+/// A `static` method cannot be a constructor and is not asked; a parameter
+/// with no visibility keyword declares nothing
+/// ([`nvs_syntax::ast::Param::is_promoted`]).
+fn promoted_stores(
+    low: &mut Lowering<'_>,
+    entry: BlockId,
+    class: &str,
+    m: &MethodMember,
+    src: &SourceFile,
+    env: &Env,
+) {
+    let this = low
+        .this
+        .expect("an instance method's receiver is seeded before its parameters");
+    for p in m.params.iter().filter(|p| p.is_promoted()) {
+        let field = strip_sigil(span_text(src, p.name)).to_owned();
+        let Some(&(v, ty)) = env.get(&field) else {
+            continue; // the binding above skipped it; nothing to store
+        };
+        if ty.is_refcounted() {
+            low.emit_retain(entry, v);
+        }
+        low.emit_field_set(entry, this, class.to_owned(), field, v);
     }
 }
 

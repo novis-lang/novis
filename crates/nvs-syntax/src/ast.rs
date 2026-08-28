@@ -502,6 +502,37 @@ pub struct Param {
     pub default: Option<Expr>,
 }
 
+impl Param {
+    /// Whether this parameter declares a property rather than only a binding
+    /// — PHP 8's constructor promotion, which
+    /// [ADR 0043](../../../docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)
+    /// § 4's own worked example spells `constructor(private Clock $clock)`.
+    ///
+    /// A **visibility** keyword is what promotes, exactly as in PHP: it is
+    /// the only modifier that says where the property may be read from, and
+    /// `readonly` alone declares nothing to be read. The predicate lives here
+    /// rather than in each of the three crates that asks it, because a
+    /// promoted parameter is a property in all of them — the signature table
+    /// (`nvs_types::signatures`), the slot list (`nvs_types::layout`), the
+    /// `$this->x` existence check (`nvs_hir::members`) and the store the
+    /// constructor makes (`nvs_ir::lower::promoted_stores`) have to agree on
+    /// which parameters they are, and a fourth spelling is how they would
+    /// stop agreeing.
+    ///
+    /// Whether the enclosing method is actually a `constructor` is not asked
+    /// here: that is one caller's question, and the callers that matter are
+    /// looking at a constructor already.
+    #[must_use]
+    pub fn is_promoted(&self) -> bool {
+        self.modifiers.iter().any(|m| {
+            matches!(
+                m,
+                Modifier::Public | Modifier::Protected | Modifier::Private
+            )
+        })
+    }
+}
+
 /// The body of an `fn` closure literal (ADR 0031 § 1): an expression with an
 /// implicit return, or a block requiring an explicit `return`.
 #[derive(Clone, Debug, PartialEq)]

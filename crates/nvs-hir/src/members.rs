@@ -54,9 +54,9 @@
 //!   besides, split across crates the same way the paragraph below splits a
 //!   missing property; a method reaches it through
 //!   `expr::members::check_method_visibility`, which `new Foo(...)` takes too
-//!   so a `private` constructor is the singleton it was written to be. The one
-//!   declaration neither crate reads a level from is a promoted constructor
-//!   parameter, since no table records one as a property.
+//!   so a `private` constructor is the singleton it was written to be. A
+//!   promoted constructor parameter is read from like any other declaration:
+//!   `nvs_types::signatures` records its visibility beside its type.
 //! - A property access on any receiver other than `$this` — a typed local, a
 //!   chained call result, `self::factory()`'s return, an explicit
 //!   `new Foo()` — is never checked *here*, since this module has no static
@@ -236,9 +236,20 @@ impl MemberResolver {
         for member in members {
             match &member.kind {
                 ClassMemberKind::Method(m) => {
-                    entry
-                        .methods
-                        .insert(src.span_text(m.name).unwrap_or_default().to_owned());
+                    let name = src.span_text(m.name).unwrap_or_default().to_owned();
+                    // A promoted constructor parameter declares a property,
+                    // so `$this->n` inside the class resolves to one — see
+                    // `nvs_syntax::ast::Param::is_promoted`, which is the one
+                    // home of which parameters those are.
+                    if name == "constructor" {
+                        for p in m.params.iter().filter(|p| p.is_promoted()) {
+                            let text = src.span_text(p.name).unwrap_or_default();
+                            entry
+                                .props
+                                .insert(text.strip_prefix('$').unwrap_or(text).to_owned());
+                        }
+                    }
+                    entry.methods.insert(name);
                 }
                 ClassMemberKind::Const(c) => {
                     entry

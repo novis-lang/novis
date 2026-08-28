@@ -829,6 +829,9 @@ fn collect_members(
                 let visibility = declared_visibility(&m.modifiers).unwrap_or(Visibility::Public);
                 let is_static = m.modifiers.contains(&Modifier::Static);
                 let name = span_text(env.src, m.name).to_owned();
+                if name == "constructor" {
+                    record_promoted_properties(&m.params, &params, qname, table, env);
+                }
                 table.entry(qname.clone()).methods.insert(
                     name,
                     MethodSig {
@@ -850,6 +853,46 @@ fn collect_members(
             }
             ClassMemberKind::Const(_) | ClassMemberKind::Error => {}
             _ => {}
+        }
+    }
+}
+
+/// Records each promoted constructor parameter (`constructor(public int $n)`,
+/// [`nvs_syntax::ast::Param::is_promoted`]) as a property of `qname`, with the
+/// type the parameter declares and the visibility its keyword names.
+///
+/// This is the whole of what "a promoted parameter *is* a property" means on
+/// this side: [`resolve_property`] answers it, so a `$this->n` read, an
+/// `$obj->n` access, an ADR 0094 visibility check and ADR 0043 § 4's
+/// `check_delegate_field` all see it with no case of their own.
+/// [`crate::layout`] gives it the slot, and `nvs_ir::lower` emits the store.
+///
+/// Three of the maps beside `properties` are deliberately left alone.
+/// **`required_properties`** is ADR 0022 § 2's obligation, and a promoted
+/// parameter discharges it by construction — the store is emitted from the
+/// binding rather than written in the body, so there is nothing for a
+/// constructor to be checked against. **`property_defaults`** holds what a
+/// `new` arms a slot with before the constructor runs, and a promoted
+/// parameter's `= expr` is the *parameter's* default, applied at the call
+/// site by [`collect_defaults`] and stored by the same assignment every other
+/// argument is. **`hooked_properties`** has no spelling to record: a
+/// parameter list has nowhere to write a hook body.
+fn record_promoted_properties(
+    params: &[nvs_syntax::ast::Param],
+    types: &[TypeId],
+    qname: &QName,
+    table: &mut SignatureTable,
+    env: &mut Env<'_>,
+) {
+    for (p, &ty) in params.iter().zip(types) {
+        if !p.is_promoted() {
+            continue;
+        }
+        let name = strip_sigil(span_text(env.src, p.name)).to_owned();
+        let sig = table.entry(qname.clone());
+        sig.properties.insert(name.clone(), ty);
+        if let Some(level) = declared_visibility(&p.modifiers) {
+            sig.property_visibility.insert(name, level);
         }
     }
 }

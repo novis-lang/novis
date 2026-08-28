@@ -1,0 +1,118 @@
+--TEST--
+A promoted constructor parameter is an ordinary property — declared, visible, inherited, and namable by an `implements … by $field` clause — ADR 0043 § 4, ADR 0022 § 2
+--FILE--
+<?nvs
+// `constructor(public int $n)` is exactly `constructor(int $n) { $this->n =
+// $n; }` with the assignment supplied by the compiler: one slot, one declared
+// type, one visibility keyword. `nvs_types::signatures` records the property,
+// `nvs_types::layout` gives it the slot, and `nvs_ir::lower::promoted_stores`
+// emits the store at constructor entry, ahead of the body.
+class Point {
+    public function constructor(public int $x, public int $y) {}
+    public function sum(): int {
+        // Read through `$this` inside the same body the parameters bind in —
+        // the store lands before the body runs, so this is what was passed.
+        return $this->x + $this->y;
+    }
+}
+
+Point $p = new Point(3, 4);
+echo $p->x, ",", $p->y, " sum=", $p->sum(), "\n";
+
+// A visibility keyword is what promotes, so it is also what the ADR 0094
+// access check reads: `private` is reachable from the class's own bodies and
+// nowhere else. A parameter with no keyword declares nothing at all.
+class Vault {
+    public function constructor(private string $secret, public string $label, int $unused) {}
+    public function reveal(): string {
+        return $this->secret;
+    }
+}
+
+Vault $v = new Vault("shh", "front", 0);
+echo $v->label, "=", $v->reveal(), "\n";
+
+// A promoted parameter's `= expr` is the *parameter's* default, applied at the
+// call site that omits it, and stored by the same assignment every other
+// argument is.
+class Tagged {
+    public function constructor(public string $tag = "d", public int $n = 2) {}
+}
+
+Tagged $a = new Tagged();
+Tagged $b = new Tagged("x", 9);
+echo $a->tag, $a->n, " ", $b->tag, $b->n, "\n";
+
+// ADR 0022 § 2 is discharged by construction: the class writes no assignment
+// and needs none, and a subclass reaches the slot its parent promoted.
+class Base {
+    public function constructor(public string $name) {}
+}
+
+class Kid extends Base {
+    public function constructor(string $name, public int $age) {
+        parent::constructor($name);
+    }
+    public function own(): string {
+        return $this->name;
+    }
+}
+
+Kid $k = new Kid("ann", 4);
+echo $k->own(), "/", $k->name, "/", $k->age, "\n";
+
+// ADR 0043 § 4 bullet 1: "`$field` must be an ordinary declared property of
+// the class (or a promoted constructor parameter)". The delegate field below
+// is one, so `check_delegate_field` finds its type and the synthesized forward
+// finds its slot — through the class and through the interface alike.
+interface Timestamped {
+    public function touch(): void;
+    public function last(): int;
+}
+
+class Tracker implements Timestamped {
+    private int $at = 0;
+    public function touch(): void {
+        $this->at = $this->at + 1;
+    }
+    public function last(): int {
+        return $this->at;
+    }
+}
+
+class Post implements Timestamped by $tracker {
+    public function constructor(private Tracker $tracker, public string $title) {}
+}
+
+Post $post = new Post(new Tracker(), "hello");
+$post->touch();
+$post->touch();
+echo $post->title, " ", $post->last(), "\n";
+
+Timestamped $through = $post;
+$through->touch();
+echo $through->last(), "\n";
+
+// Agreement rather than another row of the same shape: every promoted
+// parameter above answers what the argument it was passed says, counted over
+// the file so a promotion that stopped storing fails the count instead of
+// shifting one line.
+int $agreed = 0;
+if ($p->x == 3) { $agreed = $agreed + 1; }
+if ($p->y == 4) { $agreed = $agreed + 1; }
+if ($v->label == "front") { $agreed = $agreed + 1; }
+if ($v->reveal() == "shh") { $agreed = $agreed + 1; }
+if ($a->tag == "d") { $agreed = $agreed + 1; }
+if ($b->n == 9) { $agreed = $agreed + 1; }
+if ($k->name == "ann") { $agreed = $agreed + 1; }
+if ($k->age == 4) { $agreed = $agreed + 1; }
+if ($post->title == "hello") { $agreed = $agreed + 1; }
+echo "agreed=", $agreed, "/9\n";
+--EXPECT--
+3,4 sum=7
+front=shh
+d2 x9
+ann/ann/4
+hello 2
+3
+agreed=9/9
