@@ -1,0 +1,160 @@
+--TEST--
+`Core\ObjectSet<T>`'s `union`, `intersect` and `diff` are one partition of two sets rather than three walks — inclusion-exclusion, the two halves each operand splits into, and membership decided the same way on every element of the domain — over a sweep of overlapping pairs — docs/spec/01-core-library.md § 9, ADR 0090 § 4
+--FILE--
+<?nvs
+// The existing algebra cases ask the *degenerate* ends — a set against itself
+// and against a disjoint one — and that a result is new rather than a mutated
+// operand. Neither reaches the case the three members exist for: two sets that
+// **partly** overlap, where a walk that counted a shared element twice, or
+// dropped it from the wrong side, still answers plausibly at both ends.
+//
+// The overlap is only reachable because membership is identity (ADR 0090 § 4):
+// two sets share an element exactly when they were handed the same instance,
+// so every row below selects from one pool of eight `Tag`s by index.
+//
+// Every derived set is written as a *chain*. `union`, `intersect` and `diff`
+// return `CoreTy::Instance` with no type argument
+// (`crates/nvs-stdlib/src/objset.rs:89`), so the answer is a
+// `Core\ObjectSet` that no declared type accepts — binding it is `E0401`
+// against `Core\ObjectSet<Tag>` and the bare spelling is `E0442`. A `Core`
+// member's own parameter does take it, which is what makes the laws below
+// expressible at all.
+
+final class Tag {
+    public function constructor(public readonly string $name) {}
+}
+
+final class Sets {
+    // The pool is indexed by the *string* of the offset, which is how an
+    // array is subscripted here.
+    public static function pick(array<Tag> $pool, array<string> $indexes): Core\ObjectSet<Tag> {
+        Core\ObjectSet<Tag> $s = new Core\ObjectSet<Tag>();
+        foreach ($indexes as string $i) {
+            $s->add($pool[$i]);
+        }
+        return $s;
+    }
+}
+
+array<Tag> $pool = [
+    new Tag("a"), new Tag("b"), new Tag("c"), new Tag("d"),
+    new Tag("e"), new Tag("f"), new Tag("g"), new Tag("h"),
+];
+
+// Five selections, crossed with themselves: identical, nested, half-shared,
+// touching in one element and disjoint pairs all appear among the 25 rows,
+// and so does the empty operand on both sides.
+array<array<string>> $rows = [
+    [],
+    ["0"],
+    ["0", "1", "2", "3"],
+    ["2", "3", "4", "5"],
+    ["5", "6", "7"],
+];
+
+// The whole pool, as the domain every membership question is asked over —
+// including the elements no operand holds, which is where a `diff` that
+// answered by omission rather than by exclusion shows up.
+array<string> $every = ["0", "1", "2", "3", "4", "5", "6", "7"];
+
+int $laws = 0;
+int $lawRows = 0;
+int $members = 0;
+int $memberRows = 0;
+
+foreach ($rows as array<string> $left) {
+    foreach ($rows as array<string> $right) {
+        $lawRows = $lawRows + 1;
+        Core\ObjectSet<Tag> $a = Sets::pick($pool, $left);
+        Core\ObjectSet<Tag> $b = Sets::pick($pool, $right);
+
+        // Inclusion-exclusion: the shared members are counted once by `union`
+        // and once by `intersect`, and by nothing else. A `union` that
+        // appended both walks fails here and nowhere in the degenerate cases.
+        if ($a->union($b)->count() + $a->intersect($b)->count()
+            == $a->count() + $b->count()) {
+            $laws = $laws + 1;
+        }
+
+        // Each operand is exactly its own private half plus the shared one.
+        if ($a->count() == $a->intersect($b)->count() + $a->diff($b)->count()) {
+            $laws = $laws + 1;
+        }
+        if ($b->count() == $a->intersect($b)->count() + $b->diff($a)->count()) {
+            $laws = $laws + 1;
+        }
+
+        // And the three pieces tile the union with nothing left over.
+        if ($a->union($b)->count()
+            == $a->diff($b)->count() + $a->intersect($b)->count() + $b->diff($a)->count()) {
+            $laws = $laws + 1;
+        }
+
+        // The tiling holds in members and not only in counts: the private half
+        // put back together with the shared one is the operand itself, tested
+        // in both directions because one `diff` being empty only says one set
+        // is contained in the other.
+        if ($a->diff($b)->union($a->intersect($b))->diff($a)->count() == 0) {
+            $laws = $laws + 1;
+        }
+        if ($a->diff($a->diff($b)->union($a->intersect($b)))->count() == 0) {
+            $laws = $laws + 1;
+        }
+        if ($b->diff($a)->union($a->intersect($b))->diff($b)->count() == 0) {
+            $laws = $laws + 1;
+        }
+        if ($b->diff($b->diff($a)->union($a->intersect($b)))->count() == 0) {
+            $laws = $laws + 1;
+        }
+
+        // `union` and `intersect` are symmetric; `diff` is the one that is
+        // not, and its two directions share nothing.
+        if ($a->union($b)->diff($b->union($a))->count() == 0) { $laws = $laws + 1; }
+        if ($b->union($a)->diff($a->union($b))->count() == 0) { $laws = $laws + 1; }
+        if ($a->intersect($b)->diff($b->intersect($a))->count() == 0) { $laws = $laws + 1; }
+        if ($a->diff($b)->intersect($b->diff($a))->count() == 0) { $laws = $laws + 1; }
+
+        // Removing the second operand from the union leaves exactly the
+        // first's private half — the identity a walk that forgot the overlap
+        // gets wrong in one direction only.
+        if ($a->union($b)->diff($b)->diff($a->diff($b))->count() == 0) { $laws = $laws + 1; }
+        if ($a->diff($b)->diff($a->union($b)->diff($b))->count() == 0) { $laws = $laws + 1; }
+        if ($a->union($b)->diff($a)->diff($b->diff($a))->count() == 0) { $laws = $laws + 1; }
+        if ($b->diff($a)->diff($a->union($b)->diff($a))->count() == 0) { $laws = $laws + 1; }
+
+        // Membership itself, decided over the whole pool rather than over the
+        // members that happen to be present: every element of the domain is
+        // placed the same way by each result as by the two operands.
+        foreach ($every as string $index) {
+            $memberRows = $memberRows + 1;
+            Tag $t = $pool[$index];
+            bool $inA = $a->has($t);
+            bool $inB = $b->has($t);
+            if ($a->union($b)->has($t) == ($inA || $inB)) { $members = $members + 1; }
+            if ($a->intersect($b)->has($t) == ($inA && $inB)) { $members = $members + 1; }
+            if ($a->diff($b)->has($t) == ($inA && !$inB)) { $members = $members + 1; }
+            if ($b->diff($a)->has($t) == ($inB && !$inA)) { $members = $members + 1; }
+        }
+    }
+}
+
+echo "laws: ", $laws, "/", $lawRows * 16, "\n";
+echo "membership: ", $members, "/", $memberRows * 4, "\n";
+
+// One row rendered, so the sweep is legible as well as counted: a four-member
+// set against a four-member set sharing two of them.
+Core\ObjectSet<Tag> $some = Sets::pick($pool, ["0", "1", "2", "3"]);
+Core\ObjectSet<Tag> $more = Sets::pick($pool, ["2", "3", "4", "5"]);
+echo "sizes: ", $some->count(), " ", $more->count(),
+     " union ", $some->union($more)->count(),
+     " inter ", $some->intersect($more)->count(),
+     " left-only ", $some->diff($more)->count(),
+     " right-only ", $more->diff($some)->count(), "\n";
+
+// And neither operand moved under any of it.
+echo "operands: ", $some->count(), " ", $more->count(), "\n";
+--EXPECT--
+laws: 400/400
+membership: 800/800
+sizes: 4 4 union 6 inter 2 left-only 2 right-only 2
+operands: 4 4

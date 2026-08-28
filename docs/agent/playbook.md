@@ -1930,6 +1930,17 @@ is why" — is this file.
   and sweep the *documents* instead — that is what
   `json-decode-as-admits-exactly-its-declared-type.nvst` does. In the same family: `Core\Str` has
   `padEnd`/`padStart` and no `padRight`, and no `concat` at all — `.` is the concatenation.
+- **`Core\ObjectSet`'s `union`, `intersect` and `diff` answer a set no declared type
+  accepts, so a derived set can only be *chained*.** Their rows are
+  `return_ty: CoreTy::Instance(NAME)` with no type argument
+  (`crates/nvs-stdlib/src/objset.rs:89`), so `Core\ObjectSet<Tag> $u = $a->union($b);`
+  is `E0401: expected Core\ObjectSet<Tag>, found Core\ObjectSet` and the bare spelling
+  `Core\ObjectSet $u` is `E0442: takes 1 type argument(s), not 0` — there is no third
+  spelling, and passing the answer to a case's own `public static function` helper fails
+  the same `E0401`. What *does* take it is a `Core` member's own parameter, whose type is
+  the same bare `Instance`, so every law over a derived set is written as one chain
+  (`$a->diff($b)->union($a->intersect($b))->diff($a)->count() == 0`), and a "these two
+  sets are equal" check is that chain in both directions rather than a named helper.
 
 ## Splitting a file that got too big
 
