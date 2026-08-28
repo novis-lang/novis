@@ -1,0 +1,179 @@
+--TEST--
+`Core\Debug::render` makes a repeated object a `[cycle -> #n]` exactly when the repeat is an *ancestor* of itself, renders a sibling repeat whole both times, and every marker names an id printed above it — spec § 16, ADR 0092 §§ 1 and 5
+--FILE--
+<?nvs
+// `nvs_stdlib::debug`'s `Seen::leave` states the rule this pins: the walk
+// pops the object it entered last, "so a *sibling* that repeats an object is
+// not a cycle, only an ancestor is." The rendering case beside this one shows
+// one self-cycle, which is the shape that cannot tell the two apart — an
+// implementation that never popped would render every second occurrence of any
+// object as a cycle and still print that one row correctly.
+//
+// This is the invariance shape: one question — does this rendering hold a
+// cycle marker at all — asked of six graphs and *counted*, so a walk that
+// answers each graph plausibly still fails on the total. The second count is
+// the property that makes a marker usable rather than decorative: an id it
+// names is an id printed on the path above it.
+class Sweep {
+    // The marker occurrences in one rendering. `split` cuts at every one, so
+    // the pieces are one more than the cuts.
+    public static function markers(string $rendered): uint {
+        return Core\Arr::count(Core\Str::split($rendered, "[cycle -> ")) - 1;
+    }
+
+    // Every id a marker names is also printed as an object header in the same
+    // rendering. Three ids is every depth these six graphs reach.
+    public static function resolvable(string $rendered): bool {
+        array<string> $ids = ["1", "2", "3"];
+        foreach ($ids as string $id) {
+            if (Core\Str::contains($rendered, "-> #" . $id . "]")
+                && !Core\Str::contains($rendered, "#" . $id . " (")) {
+                return false;
+            }
+        }
+        return true;
+    }
+}
+
+class Node {
+    public lateinit Node $a;
+    public function constructor(public string $name) {}
+}
+class Pair {
+    public function constructor(public Node $left, public Node $right) {}
+}
+class Bag {
+    public array<mixed> $items = [];
+    public function constructor(public string $name) {}
+}
+
+// Three graphs that loop, at three different depths. The last one is the one
+// that says the marker's id is a *position on the path* rather than a counter:
+// the loop closes on the middle object, not on the root.
+Node $self = new Node("self");
+$self->a = $self;
+
+Node $x = new Node("x");
+Node $y = new Node("y");
+$x->a = $y;
+$y->a = $x;
+
+Node $head = new Node("head");
+Node $mid = new Node("mid");
+Node $tail = new Node("tail");
+$head->a = $mid;
+$mid->a = $tail;
+$tail->a = $mid;
+
+// Three that repeat an object without any of them being its own ancestor. A
+// diamond through two properties, the same object twice in a container, and a
+// container reached through a property — the container being where a walk that
+// tracked "seen anywhere" rather than "seen above" would first go wrong.
+Node $leaf = new Node("leaf");
+Pair $diamond = new Pair($leaf, $leaf);
+
+array<mixed> $twice = [$leaf, $leaf];
+
+Bag $bag = new Bag("bag");
+$bag->items = [$leaf, $leaf];
+
+array<string> $rendered = [
+    Core\Debug::render($self) as string,
+    Core\Debug::render($x) as string,
+    Core\Debug::render($head) as string,
+    Core\Debug::render($diamond) as string,
+    Core\Debug::render($twice) as string,
+    Core\Debug::render($bag) as string,
+];
+
+// The sweep, counted. Three of six graphs loop, and they are the three that
+// hold an ancestor repeat — an implementation that treated any repeat as a
+// cycle answers six here, and one that popped too eagerly answers fewer than
+// three.
+uint $looping = 0;
+uint $resolvable = 0;
+foreach ($rendered as string $one) {
+    if (Sweep::markers($one) > 0) {
+        $looping = $looping + 1;
+    }
+    if (Sweep::resolvable($one)) {
+        $resolvable = $resolvable + 1;
+    }
+}
+echo "graphs ", Core\Arr::count($rendered), "\n";
+echo "holding a cycle ", $looping, "\n";
+echo "every marker resolvable ", $resolvable, "\n";
+
+// The two repeats that are not cycles are rendered *whole* both times, which
+// the count above cannot see: a walk could drop the second occurrence rather
+// than mark it and still hold no marker.
+echo "the leaf twice in a pair ", Sweep::markers($rendered["3"]), " markers, ",
+     Core\Arr::count(Core\Str::split($rendered["3"], "leaf")) - 1, " renderings\n";
+echo "the leaf twice in a bag ", Sweep::markers($rendered["5"]), " markers, ",
+     Core\Arr::count(Core\Str::split($rendered["5"], "leaf")) - 1, " renderings\n";
+
+// And the three loops, shown, because a count of markers says nothing about
+// which id each names. The mid-loop is where the ids differ.
+foreach ($rendered as string $one) {
+    echo $one, "\n";
+}
+--EXPECT--
+graphs 6
+holding a cycle 3
+every marker resolvable 6
+the leaf twice in a pair 0 markers, 2 renderings
+the leaf twice in a bag 0 markers, 2 renderings
+Node#1 (2) {
+  $a => [cycle -> #1]
+  $name => string(4) "self"
+}
+Node#1 (2) {
+  $a => Node#2 (2) {
+    $a => [cycle -> #1]
+    $name => string(1) "y"
+  }
+  $name => string(1) "x"
+}
+Node#1 (2) {
+  $a => Node#2 (2) {
+    $a => Node#3 (2) {
+      $a => [cycle -> #2]
+      $name => string(4) "tail"
+    }
+    $name => string(3) "mid"
+  }
+  $name => string(4) "head"
+}
+Pair#1 (2) {
+  $left => Node#2 (2) {
+    $a => null
+    $name => string(4) "leaf"
+  }
+  $right => Node#2 (2) {
+    $a => null
+    $name => string(4) "leaf"
+  }
+}
+array(2) [
+  0 => Node#1 (2) {
+    $a => null
+    $name => string(4) "leaf"
+  }
+  1 => Node#1 (2) {
+    $a => null
+    $name => string(4) "leaf"
+  }
+]
+Bag#1 (2) {
+  $items => array(2) [
+    0 => Node#2 (2) {
+      $a => null
+      $name => string(4) "leaf"
+    }
+    1 => Node#2 (2) {
+      $a => null
+      $name => string(4) "leaf"
+    }
+  ]
+  $name => string(3) "bag"
+}
