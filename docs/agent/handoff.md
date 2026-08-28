@@ -2,60 +2,65 @@
 
 ## State
 
-**M4's Stage 8, depth.** The tree is at **806 conformance plus 189 differential**. Nothing
+**M4's Stage 8, depth.** The tree is at **808 conformance plus 189 differential**. Nothing
 is blocked.
 
-One **availability bug** was found and closed this session, and it is worth knowing about
-because the shape recurs: `Core\Bytes::repeat` and `Core\Str::repeat` bounded their loop by
-the caller's count rather than by the result's size, so an empty subject walked past both
-size checks and spun — 74 seconds for a count of 2e9, unbounded at `uint`'s maximum. Both
-short-circuit now (`crates/nvs-stdlib/src/bytes.rs:@nvs_core_bytes_repeat` and
-`str.rs:@nvs_core_str_repeat` own the reasoning in their doc comments), and the playbook
-bullet under *Writing Novis itself* names the shape. The remaining count-shaped producers
-have **not** been audited for it — that is the next group's first item.
+The audit the last handoff asked for is **done, and the six named sites were clean** of the
+loop-bound shape: every loop in `Core\Str::padStart`/`padEnd` (through `padding_run` and
+`write_run`) and in `Core\Arr::padStart`/`padEnd` (through `append_copies`) writes at least
+one byte or one entry per turn, over a size `nvs_runtime::affordable` already bounded, so
+none is paced by the caller's `uint`. An empty padding is refused before the run is
+computed, and `write_run`'s division by the piece count cannot see a zero, a non-empty
+string being at least one grapheme.
 
-The `Core\Bytes` floor the last handoff named turned out to be mostly already asserted:
-`at`'s whole item was in `bytes-reads-name-the-octet-they-stop-at.nvst` and the
-`startsWith`/`endsWith` agreement item was in
-`bytes-the-three-predicates-are-what-compare-and-index-of-already-say.nvst`, which sweeps
-all 64 ordered pairs of a table. Neither was rewritten. What landed is `repeat`'s half,
-which was the one genuinely open item in that group.
+What the audit *did* find is one crate down, and its playbook bullet under *Writing Novis
+itself* owns the shape: `affordable` accepts up to `isize::MAX` and the string header is
+prepended after it, so `Core\Str::repeat`/`padStart`/`padEnd` at exactly that count reached
+`str_layout` and took the process with a FATAL.
+`crates/nvs-runtime/src/string.rs:@try_str_layout` closes it for every `built_fallibly`
+caller, and `count-shaped-producers-answer-the-last-count-the-seam-accepts.nvst` pins all
+eight producers at that boundary and at one count past it.
 
-The gap two handoffs back still stands: **no `Core` class reaches
+Two things about the pad members were **already asserted** and were not rewritten: the
+empty-padding pair is in `str-replace-and-pad-are-the-identity-at-their-own-bound.nvst`,
+and uneven truncation is in `str-pad-members.nvst`. What was not asserted, and now is, is
+that the run is a function of the shortfall alone — which is also how
+`nvs_core_str_pad_start`'s doc comment was found wrong: it said the run is cut "at the end
+nearest the subject" for *both* members, which is true of `padStart` only.
+
+The gap three handoffs back still stands: **no `Core` class reaches
 `nvs_hir::implements_interface`**, so `Core\Uri::compareTo` exists while `$a < $b` over two
 `Uri`s is `E0411`. It is in the backlog and still deserves a session of its own.
 
 ## Next group
 
-**The rest of the count-shaped producers, and the pad members' own degenerate arguments** —
-one file set: `crates/nvs-stdlib/src/str.rs`, `crates/nvs-stdlib/src/arr.rs` and
-`tests/conformance/core/`. `count-shaped-producers-refuse-alike.nvst` already names the
-eight members and pins their two refusal sentences; what none of them is asked is whether
-the *work* is bounded by the result rather than by the count.
+**The `Core\Arr` half of the same questions** — one file set: `crates/nvs-stdlib/src/arr.rs`
+and `tests/conformance/core/`. Nothing here needs `str.rs` open.
 
-- [ ] **Audit the other six count-shaped producers for the loop-bound hole this session
-      closed** (`str.rs:2031` `padStart`, `str.rs:2047` `padEnd`, `str.rs:2068`
-      `padding_run`, `str.rs:2106` `write_run`, `arr.rs:1974` `padStart`, `arr.rs:1991`
-      `padEnd`) — one slice. The question at each is whether any loop's iteration count
-      comes from the caller's `uint` rather than from the size already reserved. `write_run`
-      divides by the padding's piece count, so an empty padding is the row to check first.
-      Fix what is holed and say in the case comment which ones were already clean.
-- [ ] **`Core\Str::padStart`/`padEnd`'s degenerate padding** (`str.rs:2068`) — one case. An
-      empty padding, a padding wider than the gap it fills, and a target at or below the
-      subject's own length, named together, with whichever of those is a throw pinned by its
-      message.
 - [ ] **`Core\Arr::padStart`/`padEnd` agree with their `Core\Str` twins on the degenerate
-      rows** (`arr.rs:1974`) — one case, the *agreement* shape: the same three degenerate
-      targets asked of both pairs, asserting that the four members answer alike rather than
-      what each answered.
+      rows** (`arr.rs:1974`, `arr.rs:1991`, shared helper `arr.rs:@padding`) — one case.
+      The three the string pair now has pinned and the array pair does not: a `$size` at or
+      below the subject's count is the identity *on the values* though not on the keys, the
+      padded entries are all the one `$value` and never a copy of it (`append_borrowed`
+      retains, `arr.rs:@append_borrowed`), and the shortfall is counted from the subject's
+      own count so a map's keys never enter it.
+- [ ] **`Core\Arr::fill`'s own degenerate count** (`arr.rs:@nvs_core_arr_fill`) — one case,
+      or one block folded into the above. `fill(0, $v)` is the empty array, and it is the
+      one count-shaped `Core\Arr` producer with no subject, so it is where the seam's bound
+      is the count itself rather than the count plus what is already held.
+- [ ] **Whether any other `built_fallibly` caller checks a size it does not then allocate**
+      (`crates/nvs-stdlib/src/str.rs:@built_fallibly` and its call sites) — one slice. The
+      hole closed this session was the *seam* being untotal; the second half is a member
+      whose `affordable` argument and whose `built_fallibly` argument are different
+      expressions, which is a catchable throw now but may still carry the wrong sentence.
 
 ## Backlog
 
 - No `Core` class reaches `nvs_hir::implements_interface`, so `Core\Uri::compareTo` exists
-  while `$a < $b` over two `Uri`s is `E0411` — ADR 0013 owns the rule.
-- `gaps.py --coverage`'s ranking is by case count, which is a proxy for depth; the classes
-  it names at 3.0 (`Core\Encoding`, `Core\Test`, `Core\Random`, `Core\Debug`) each have
-  several multi-claim cases already, so read the bodies before believing the rank.
-- `docs/agent/guard-name-debt.md` — 54 of 156 guard names match nothing `cargo test` runs.
-- ADR 0007 § 2's `array<T> as array<U>` conversion does not lower, which is what keeps
-  `Core\Csv::format`'s non-`string` cell refusal unreachable from source.
+  while `$a < $b` over two `Uri`s is `E0411` — its own session, `docs/agent/loop-goal.md`.
+- `affordable` is not yet a budget; ADR 0004 settles that the `[limits.hard]` per-request
+  ceiling attaches at that seam at M6 — `crates/nvs-runtime/src/abi.rs:@affordable`.
+- `array<T> as array<U>` does not lower, which is what makes `Core\Csv::format`'s
+  non-`string` cell unreachable — `docs/agent/playbook.md`, *Writing a test case*.
+- 54 of the 156 guard tests `loop-goal.toml` names match nothing `cargo test` would run —
+  `docs/agent/guard-name-debt.md`.

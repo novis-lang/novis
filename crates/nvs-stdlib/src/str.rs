@@ -2026,8 +2026,15 @@ nvs_runtime::nvs_helper! {
     /// — replacing PHP's `str_pad` with `STR_PAD_LEFT`.
     ///
     /// A subject already at least `$length` long comes back unchanged, and a
-    /// padding run that does not divide evenly is truncated at the end nearest
-    /// the subject — both PHP's behaviour, verified against 8.5.
+    /// padding run that does not divide evenly is cut at **the run's own
+    /// end** — [`write_run`] writes whole copies of the padding and then a
+    /// prefix of one more, so the dropped piece is the one abutting the
+    /// subject here and the one ending the result in [`nvs_core_str_pad_end`].
+    /// Both are PHP's behaviour, verified against 8.5. This comment used to
+    /// say "the end nearest the subject" for the pair, which is true of only
+    /// one of them; `str-pad-members-place-one-run-they-both-agree-on.nvst`
+    /// asserts the run is a function of the shortfall alone and pins the two
+    /// sides against each other.
     fn nvs_core_str_pad_start(_ctx, args: [3]) {
         let subject = text(&args[0], "padStart", "the subject")?;
         let length = count(&args[1], "padStart", "the target length")?;

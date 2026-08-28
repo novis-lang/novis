@@ -1,0 +1,86 @@
+--TEST--
+`Core\Str::padStart` and `::padEnd` cut one and the same run at the run's own end, and place it on opposite sides of a subject they never otherwise touch — spec § 1, ADR 0009 § 2
+--FILE--
+<?nvs
+// The two members share `padding_run` and `write_run`, so what is worth
+// asserting is not a row of either one's output — `str-pad-members.nvst` has
+// those — but that the run is a *function of the shortfall alone*. Written as
+// an agreement over a sweep: whatever the subject, the padding a member adds
+// must be exactly what the same member gives an **empty** subject asked for
+// the shortfall, and the two members must add the identical run.
+//
+// That is a stronger question than either member's own line answers. A member
+// that cut the run at the end nearest the subject rather than at the run's own
+// end still reads plausibly beside its arguments — `padEnd("ab", 7, "xy")` is
+// `"abxyxyx"`, whose dropped piece is the *far* end, and `padStart` drops the
+// near one, because both cut what `write_run` writes last. Only asking both of
+// them the same question catches a member that grew its own direction.
+final class Run {
+    /// Whether both members place, on their own side, exactly the run an empty
+    /// subject is given for the same shortfall — and reach the width doing it.
+    public static function agrees(string $subject, uint $width, string $padding): int {
+        uint $have = Core\Str::length($subject);
+        uint $want = $width;
+        if ($have > $want) {
+            $want = $have;
+        }
+        string $run = Core\Str::padStart("", $want - $have, $padding);
+        string $before = Core\Str::padStart($subject, $width, $padding);
+        string $after = Core\Str::padEnd($subject, $width, $padding);
+        if ($before != $run . $subject) {
+            return 0;
+        }
+        if ($after != $subject . $run) {
+            return 0;
+        }
+        // Counted in ADR 0009 § 2's unit, which is what makes the row below
+        // with a combining mark in the padding an assertion and not a
+        // coincidence: a run cut mid-cluster would leave a bare combining mark
+        // that this length does not count, and the width would come up short.
+        if (Core\Str::length($before) != $want) {
+            return 0;
+        }
+        if (Core\Str::length($after) != $want) {
+            return 0;
+        }
+        return 1;
+    }
+}
+
+// Three subjects and three paddings, none of whose lengths divide the others,
+// so most of the sweep's cells cut the run partway through a copy. The
+// two-piece padding whose first piece is `e` + a combining acute is the one
+// that makes the cut a cluster boundary rather than a byte offset.
+array<string> $subjects = ["", "x", "abcd"];
+array<string> $paddings = ["-", "xy", "e\u{301}n", "abc"];
+
+int $agreed = 0;
+int $asked = 0;
+uint $one = 1;
+uint $width = 0;
+uint $widths = 9;
+foreach ($subjects as string $subject) {
+    foreach ($paddings as string $padding) {
+        $width = 0;
+        while ($width < $widths) {
+            $asked = $asked + 1;
+            $agreed = $agreed + Run::agrees($subject, $width, $padding);
+            $width = $width + $one;
+        }
+    }
+}
+echo "both place the shortfall's own run: ", $agreed, " of ", $asked, "\n";
+
+// The same fact said once without the sweep, because the sweep proves it and
+// this shows it: an empty subject gets the identical string from both members,
+// and it is whole pieces of the padding however the shortfall falls.
+echo "[", Core\Str::padStart("", 5, "e\u{301}n"), "][", Core\Str::padEnd("", 5, "e\u{301}n"), "]\n";
+
+// And the cut is at the run's own end on both sides, which is the one place
+// the two look different: the piece `padStart` drops abuts the subject, the
+// piece `padEnd` drops ends the result.
+echo "[", Core\Str::padStart("x", 3, "xyz"), "][", Core\Str::padEnd("x", 3, "xyz"), "]\n";
+--EXPECT--
+both place the shortfall's own run: 108 of 108
+[énéné][énéné]
+[xyx][xxy]

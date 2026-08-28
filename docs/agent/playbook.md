@@ -1830,6 +1830,19 @@ is why" — is this file.
   the item before writing costs one call; a duplicate case costs a session and then has to
   be told apart from the real one forever after. If the item is already answered, say so in
   the handoff and take the next one.
+- **A `for` header takes expressions only, so a swept counter is a `while` with the
+  counter declared above it** — `for (uint $w = 0; $w < 9; $w = $w + 1)` is six parse
+  errors pointing at the `uint`. Declared once at file scope it is the function's, so a
+  nested sweep resets it (`$w = 0;`) at the top of the outer body rather than redeclaring.
+  In the same family: incrementing a `uint` needs a `uint` to add, so the case declares
+  `uint $one = 1;` and writes `$w = $w + $one` — a bare `1` is an `int` with no
+  representable common type.
+- **A `--EXPECT--` block written by hand gets *precomposed* accented letters and the case
+  emits *decomposed* ones**, which render identically in every terminal and in the diff
+  the runner prints — so the failure reads as "expected X, actual X" and looks like a
+  line-ending bug. Any case whose subject is ADR 0009 § 2's grapheme unit has combining
+  marks in its output; build the block from the binary's own bytes rather than by typing
+  it.
 
 ## Splitting a file that got too big
 
@@ -2398,6 +2411,17 @@ sibling in the same namespace unqualified.
   than the *result's size*: the two size seams are both about how large the answer is, so
   neither can see it, and nothing else in the tree can either — it builds, it is correct,
   and it returns.
+- **`nvs_runtime::affordable` is not the last check, and the gap is one header wide.** It
+  accepts any size up to `isize::MAX` and knows nothing of the container header the
+  allocation then prepends, so a `Core\Str` producer handed exactly `isize::MAX` cleared
+  the check and reached `str_layout`, whose two `expect`s panicked — a FATAL no program
+  can catch, out of the *fallible* `NvsStr::try_build`. `try_str_layout` closes it for
+  every `built_fallibly` caller. The recognition test for the shape: a member whose size
+  check and whose allocation are two different expressions — `padding_run` bounds the run
+  it is about to add while `built_fallibly` allocates that run *plus the subject* — and
+  the boundary count is the largest the first one accepts, not a round number. The
+  `Core\Bytes` and `Core\Arr` families were already clean, their `Vec`-backed reserves
+  being genuinely total.
 
 ## Divergences and refusals already pinned
 
