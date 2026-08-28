@@ -1,0 +1,164 @@
+--TEST--
+`Core\Encoding`'s decoders are bounded on both sides in two independent ways — the symbol counts a group admits, and the last symbol whose trailing bits an octet reads — with the accepted and the refused named together — spec § 7, ADR 0009 § 3, RFC 4648 §§ 3.5, 4, 5 and 6
+--FILE--
+<?nvs
+// The neighbouring cases pin what each decoder accepts and what each says when
+// it refuses. This one pins the *boundaries*: for every bound, the last input
+// still read and the first one refused, side by side, because a decoder that
+// stops one symbol early prints plausibly against either half alone.
+//
+// Every operand here is written out of `A`s, which is the zero symbol in both
+// alphabets. That is what keeps the two bounds independent: an all-`A` text
+// carries no set bit at all, so it can never fail the canonical-bits bound,
+// and whether it is read is a question about its *length* alone.
+final class Reads {
+    public static function base32(string $s): bool {
+        try {
+            Core\Encoding::fromBase32($s);
+            return true;
+        } catch (Throwable $badBase32) {
+            return false;
+        }
+    }
+
+    public static function base64(string $s): bool {
+        try {
+            Core\Encoding::fromBase64($s);
+            return true;
+        } catch (Throwable $badBase64) {
+            return false;
+        }
+    }
+
+    public static function base64Url(string $s): bool {
+        try {
+            Core\Encoding::fromBase64Url($s);
+            return true;
+        } catch (Throwable $badBase64Url) {
+            return false;
+        }
+    }
+}
+
+// Bound one, base32: § 6's group is five octets in eight symbols, so the only
+// symbol counts a partial group can take are the ones some octet count
+// produces — 2, 4, 5, 7 and 8. Counts 1, 3 and 6 are between two of those and
+// spell no whole number of octets, so each is refused rather than rounded to
+// the octet below. Sweeping 1 through 8 names both sides of all three
+// boundaries in one pass.
+string $readable = "";
+string $refused = "";
+int $k = 0;
+for ($k = 1; $k < 9; $k = $k + 1) {
+    string $group = Core\Str::repeat("A", $k as uint);
+    if (Reads::base32($group)) {
+        $readable = $readable . " " . ($k as string);
+    } else {
+        $refused = $refused . " " . ($k as string);
+    }
+}
+echo "base32 reads", $readable, "\n";
+echo "base32 refuses", $refused, "\n";
+
+// The same bound for base64url, whose group is three octets in four symbols:
+// 2, 3 and 4 are the counts, and 1 is the one below the first of them. 5 is
+// the first count past a whole group, which is the other side of the same
+// boundary — this form is unpadded, so a trailing symbol has nowhere to hide.
+string $urlReads = "";
+string $urlRefuses = "";
+int $m = 0;
+for ($m = 1; $m < 6; $m = $m + 1) {
+    string $part = Core\Str::repeat("A", $m as uint);
+    if (Reads::base64Url($part)) {
+        $urlReads = $urlReads . " " . ($m as string);
+    } else {
+        $urlRefuses = $urlRefuses . " " . ($m as string);
+    }
+}
+echo "base64url reads", $urlReads, "\n";
+echo "base64url refuses", $urlRefuses, "\n";
+
+// And for the padded form, where the bound is narrower rather than the same
+// one shifted: § 4's spelling is written to a whole four symbols always, so a
+// bare count that is not a multiple of four is refused however few bits it
+// leaves over. The padded partial groups are the counts the sweep above
+// admits, written the standard way.
+string $stdReads = "";
+string $stdRefuses = "";
+int $n = 0;
+for ($n = 1; $n < 9; $n = $n + 1) {
+    string $bare = Core\Str::repeat("A", $n as uint);
+    if (Reads::base64($bare)) {
+        $stdReads = $stdReads . " " . ($n as string);
+    } else {
+        $stdRefuses = $stdRefuses . " " . ($n as string);
+    }
+}
+echo "base64 reads", $stdReads, "\n";
+echo "base64 refuses", $stdRefuses, "\n";
+echo Core\Encoding::toHex(Core\Encoding::fromBase64("AA==")), " ",
+     Core\Encoding::toHex(Core\Encoding::fromBase64("AAA=")), "\n";
+
+// Bound two, and the one a length sweep cannot reach: RFC 4648 § 3.5's
+// canonical form. A two-symbol group carries twelve bits and spends eight, so
+// the final symbol's low four bits must be zero — which is true of exactly
+// four of the sixty-four, at every sixteenth position. Counting the whole
+// alphabet is what names both sides here: the last accepted symbol and the
+// first refused one are adjacent 48 times over, and asserting the count plus
+// the accepted set catches a decoder that masks the wrong width just as well
+// as one that masks nothing.
+string $alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+int $pairOk = 0;
+string $pairNames = "";
+int $i = 0;
+for ($i = 0; $i < 64; $i = $i + 1) {
+    string $symbol = Core\Str::slice($alphabet, $i, 1);
+    if (Reads::base64("A" . $symbol . "==")) {
+        $pairOk = $pairOk + 1;
+        $pairNames = $pairNames . $symbol;
+    }
+}
+echo "two-symbol groups ", $pairOk, " of 64: ", $pairNames, "\n";
+
+// A three-symbol group spends sixteen of its eighteen bits, so the mask is
+// two bits wide rather than four and the accepted set is sixteen symbols at
+// every fourth position — the same rule, one bound over.
+int $tripleOk = 0;
+string $tripleNames = "";
+int $j = 0;
+for ($j = 0; $j < 64; $j = $j + 1) {
+    string $last = Core\Str::slice($alphabet, $j, 1);
+    if (Reads::base64("AA" . $last . "=")) {
+        $tripleOk = $tripleOk + 1;
+        $tripleNames = $tripleNames . $last;
+    }
+}
+echo "three-symbol groups ", $tripleOk, " of 64: ", $tripleNames, "\n";
+
+// Base32's own version of bound two, on its own alphabet: a two-symbol group
+// carries ten bits and spends eight, so the mask is two bits and the accepted
+// set is eight of the thirty-two. The two decoders share the rule and not the
+// width, which is why each is asserted against its own alphabet.
+string $base32Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+int $b32Ok = 0;
+string $b32Names = "";
+int $p = 0;
+for ($p = 0; $p < 32; $p = $p + 1) {
+    string $tail = Core\Str::slice($base32Alphabet, $p, 1);
+    if (Reads::base32("A" . $tail)) {
+        $b32Ok = $b32Ok + 1;
+        $b32Names = $b32Names . $tail;
+    }
+}
+echo "base32 two-symbol groups ", $b32Ok, " of 32: ", $b32Names, "\n";
+--EXPECT--
+base32 reads 2 4 5 7 8
+base32 refuses 1 3 6
+base64url reads 2 3 4
+base64url refuses 1 5
+base64 reads 4 8
+base64 refuses 1 2 3 5 6 7
+00 0000
+two-symbol groups 4 of 64: AQgw
+three-symbol groups 16 of 64: AEIMQUYcgkosw048
+base32 two-symbol groups 8 of 32: AEIMQUY4
