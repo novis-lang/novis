@@ -931,6 +931,13 @@ is why" — is this file.
   static binding puts a `ClassDesc` there, `nvs_ir::lower` seeds it as `Param(0)` at `Ty::ClassDesc`, and
   `Value::class_desc` is the encoding a compiled call site uses. An instance method's slot 0 is the
   receiver as expected, so the trap only shows up the first time native code calls a `static` one.
+- **A scratch `.nvs` file needs its `<?nvs` opener, and without one it "runs" and exits 0.**
+  Everything before the opening tag is *inline HTML*, which lowers to an `echo` of the raw
+  span — so a scratch file written without it prints its own source back and reports
+  success, which reads as "the shape lowered" when nothing was compiled at all. Check that
+  the output is the program's answer and not the program, or copy the first line from
+  `examples/targets.nvs`. A `.nvst` case's `--FILE--` section has the same requirement and
+  is harder to get wrong, every case in the tree carrying it.
 
 ## Writing a test case
 
@@ -1620,6 +1627,13 @@ is why" — is this file.
   type runs. A user-declared `enum Local: int` is fine both ways, so it is `Core`-specific.
   The way round is to factor the *comparison* instead: pass the two formatted strings, or
   two `DateTime`s and an `int`, and write the enum case at each call site.
+- **A `$` inside a double-quoted string interpolates, and the escape is `\$`.** A case
+  about a character class writes the class out — RFC 5322's `atext` is
+  `!#$%&'*+-/=?^_` plus a backtick and `{|}~` — and the bare `$%` in the middle of it is
+  read as a variable rather than as two bytes. `"!#\$%&'*+-/=?^_`{|}~"` is the spelling
+  that compiles; a backtick and an apostrophe need nothing inside double quotes, and
+  `'q\'s'` is the single-quoted form. One scratch `nvs run` settles which of these a
+  version of the lexer takes.
 
 ## Splitting a file that got too big
 
