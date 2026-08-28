@@ -1,0 +1,93 @@
+--TEST--
+Core\Random::pick, sample and shuffle hand back the subject's own entries rather than copies of them — every answer is identical to an entry, never equal to a field-identical twin, and a write through a drawn handle is a write to the subject — spec § 11, ADR 0090, ADR 0023 § 1
+--FILE--
+<?nvs
+// The invariant `nvs_stdlib::random::owned_value_at` is written around: a draw
+// names a *slot* and retains the value sitting in it, so what comes back is the
+// subject's own entry with one more reference, not a copy made to hand over.
+// Every other case in this class draws over scalars, where copying and sharing
+// are indistinguishable by construction — an object is the smallest subject
+// that can tell them apart, because ADR 0090 makes `==` over two objects
+// identity and ADR 0023 § 1 makes an object shared rather than copy-on-write.
+class Cell {
+    public int $n;
+
+    public function constructor(int $n) {
+        $this->n = $n;
+    }
+}
+
+var $a = new Cell(1);
+var $b = new Cell(2);
+var $c = new Cell(4);
+array<Cell> $subject = [$a, $b, $c];
+
+// The other side of the bound, and what makes every count below mean anything:
+// three cells with the same field values as the subject's. If `==` were
+// field-wise rather than identity, these would answer alike and the case would
+// be asserting nothing — so each sweep counts both, and the second count is the
+// one a copying implementation passes.
+var $twinA = new Cell(1);
+var $twinB = new Cell(2);
+var $twinC = new Cell(4);
+
+// `pick`, counted over a sweep: 60 draws, every one of them identical to one of
+// the three entries and none of them equal to a twin. A member that copied on
+// the way out would print `pick 0 0` — the answer is neither the entry nor a
+// twin, since a fresh copy is identical to nothing at all.
+int $i = 0;
+int $own = 0;
+int $twin = 0;
+for ($i = 0; $i < 60; $i = $i + 1) {
+    var $p = Core\Random::pick($subject);
+    $own = $own + (($p == $a || $p == $b || $p == $c) ? 1 : 0);
+    $twin = $twin + (($p == $twinA || $p == $twinB || $p == $twinC) ? 1 : 0);
+}
+echo "pick ", $own, " ", $twin, "\n";
+
+// `sample` and `shuffle` both answer through `drawn`, which stores each slot's
+// value into a fresh array — a second place the retain has to happen, and the
+// one where a copy would be cheapest to make. Asked of both together: every
+// entry of every answer is one of the subject's own, 20 draws of 2 and 20 of 3.
+int $sampled = 0;
+int $sampledTwin = 0;
+int $shuffled = 0;
+int $shuffledTwin = 0;
+for ($i = 0; $i < 20; $i = $i + 1) {
+    foreach (Core\Random::sample($subject, 2) as Cell $e) {
+        $sampled = $sampled + (($e == $a || $e == $b || $e == $c) ? 1 : 0);
+        $sampledTwin = $sampledTwin + (($e == $twinA || $e == $twinB || $e == $twinC) ? 1 : 0);
+    }
+    foreach (Core\Random::shuffle($subject) as Cell $e) {
+        $shuffled = $shuffled + (($e == $a || $e == $b || $e == $c) ? 1 : 0);
+        $shuffledTwin = $shuffledTwin + (($e == $twinA || $e == $twinB || $e == $twinC) ? 1 : 0);
+    }
+}
+echo "sample ", $sampled, " ", $sampledTwin, "\n";
+echo "shuffle ", $shuffled, " ", $shuffledTwin, "\n";
+
+// Identity asserted a second way, without `==` at all: a write through a drawn
+// handle is a write to the subject's entry. Which cell `pick` names is drawn,
+// so no individual field is renderable — but the sum over all three is, and it
+// moves by exactly the 100 written through whichever handle came back. A copy
+// leaves it at 7.
+var $drawn = Core\Random::pick($subject);
+if ($drawn != null) {
+    $drawn->n = $drawn->n + 100;
+}
+echo "sum ", $a->n + $b->n + $c->n, "\n";
+
+// The same through the array-shaped answer, where every entry is written to, so
+// the sum is deterministic whatever order the shuffle produced. The twins are
+// summed beside it as the untouched control: nothing this file did reached
+// them, and a member handing back copies would leave the left number at 70.
+foreach (Core\Random::shuffle($subject) as Cell $e) {
+    $e->n = $e->n * 10;
+}
+echo "after ", $a->n + $b->n + $c->n, " ", $twinA->n + $twinB->n + $twinC->n, "\n";
+--EXPECT--
+pick 60 0
+sample 40 0
+shuffle 60 0
+sum 107
+after 1070 7
