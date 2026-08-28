@@ -1353,6 +1353,33 @@ fn writing_through_a_plain_object_receiver_writes_by_name() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
+/// `object` is the opaque top of every class type (ADR 0007 § 3) and it
+/// costs **no** representation of its own: [`erase_checked_ty`] answers
+/// [`Ty::Object`] for a named class, for a shape and for the top type
+/// alike, so nothing below this boundary can read a class label off a
+/// parameter, a return or a receiver. That is an *agreement* claim across
+/// three receivers rather than anything one lowering prints, which is why
+/// it is asserted here and not in a snapshot: the two neighbouring tests
+/// above pin how an erased access *reads* (by name, at `Ty::Tagged`), and
+/// a snapshot of one receiver could not have caught the other two drifting
+/// away from it. What the erasure drops is the field list, and `SlotGet`
+/// finding a name on the concrete descriptor is what replaces it —
+/// [`erase_checked_ty`]'s own arm is the one home for the rule.
+#[test]
+fn the_object_top_type_erases_to_the_pointer_a_class_does() {
+    let (f, ..) = lower_first_method(
+        "<?nvs\nclass T {\n  function m(T $named, object $top, {x: int} $shape): object {\n    return $top;\n  }\n}\n",
+    );
+    // Index 0 is the implicit receiver, itself a `T` and so erased by the
+    // same arm; 1..=3 are the three written spellings.
+    assert_eq!(
+        f.params,
+        vec![Ty::Object, Ty::Object, Ty::Object, Ty::Object],
+        "a class, the top type and a shape must share one representation"
+    );
+    assert_eq!(f.ret, Ty::Object, "and a return position is not special");
+}
+
 /// `"a" . "b"` — two fresh literal operands lower to a single
 /// `InstKind::Concat`, with no retain of either operand (each is only
 /// read to build the new buffer, exactly the way `InstKind::FieldGet`
