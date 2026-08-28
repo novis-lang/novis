@@ -1,5 +1,5 @@
 ---
-source: crates/nvs-ir/src/lower/mod.rs
+source: crates/nvs-ir/src/lower/tests.rs
 expression: "print_program(&p, map.file(file))"
 ---
 fn <script>() -> tagged {
@@ -23,7 +23,9 @@ fn <script>() -> tagged {
     release v5
     release v2
     release v0
-    return
+    v6 = const.int 1  ; int
+    v7 = tag v6  ; tagged
+    return v7
   bb1:
     release v5
     release v2

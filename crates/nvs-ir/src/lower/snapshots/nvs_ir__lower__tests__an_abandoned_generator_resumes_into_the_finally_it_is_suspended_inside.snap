@@ -125,7 +125,9 @@ fn G::two$gen::gen#unwind(object) -> void {
 fn <script>() -> tagged {
   bb0:
     safepoint
-    return
+    v0 = const.int 1  ; int
+    v1 = tag v0  ; tagged
+    return v1
 }
 
 fn Throwable::constructor(object, string, tagged) -> void {

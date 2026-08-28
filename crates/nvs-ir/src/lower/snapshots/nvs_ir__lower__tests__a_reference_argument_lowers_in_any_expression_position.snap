@@ -1,5 +1,5 @@
 ---
-source: crates/nvs-ir/src/lower/mod.rs
+source: crates/nvs-ir/src/lower/tests.rs
 expression: text
 ---
 fn <script>() -> tagged {
@@ -35,7 +35,9 @@ fn <script>() -> tagged {
     release v16
     helper.echo_str v17 ! bb3
     release v17
-    return
+    v18 = const.int 1  ; int
+    v19 = tag v18  ; tagged
+    return v19
   bb1:
     release v1
     propagate "<script>() at t.nvs:6"

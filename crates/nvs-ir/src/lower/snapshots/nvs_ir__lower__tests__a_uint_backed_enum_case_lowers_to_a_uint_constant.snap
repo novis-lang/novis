@@ -1,5 +1,5 @@
 ---
-source: crates/nvs-ir/src/lower/mod.rs
+source: crates/nvs-ir/src/lower/tests.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn <script>() -> tagged {
@@ -8,5 +8,7 @@ fn <script>() -> tagged {
     ; stmt s0 @3:1-3:28
     v0 = const.uint 2  ; enum:uint
     v1 = reinterpret v0  ; uint
-    return
+    v2 = const.int 1  ; int
+    v3 = tag v2  ; tagged
+    return v3
 }

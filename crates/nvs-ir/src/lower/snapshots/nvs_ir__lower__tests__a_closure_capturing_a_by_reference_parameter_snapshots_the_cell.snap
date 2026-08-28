@@ -1,5 +1,5 @@
 ---
-source: crates/nvs-ir/src/lower/mod.rs
+source: crates/nvs-ir/src/lower/tests.rs
 expression: "print_program(&p, map.file(file))"
 ---
 fn T::make(classdesc, ref) -> object {
@@ -34,7 +34,9 @@ fn T$fn0::invoke(object) -> string {
 fn <script>() -> tagged {
   bb0:
     safepoint
-    return
+    v0 = const.int 1  ; int
+    v1 = tag v0  ; tagged
+    return v1
 }
 
 fn Throwable::constructor(object, string, tagged) -> void {

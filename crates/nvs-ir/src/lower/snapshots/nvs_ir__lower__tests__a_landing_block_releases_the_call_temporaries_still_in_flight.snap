@@ -1,5 +1,5 @@
 ---
-source: crates/nvs-ir/src/lower/mod.rs
+source: crates/nvs-ir/src/lower/tests.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn <script>() -> tagged {
@@ -17,7 +17,9 @@ fn <script>() -> tagged {
     v3 = instanceof v2, Throwable  ; bool
     branch v3 -> bb4 (e0), bb5 (e1)
   bb2:
-    return
+    v5 = const.int 1  ; int
+    v6 = tag v5  ; tagged
+    return v6
   bb3:
     release v0
     catch -> bb1

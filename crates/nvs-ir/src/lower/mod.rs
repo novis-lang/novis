@@ -999,7 +999,9 @@ pub fn lower_property_hook(
 ///   hands a value back to whatever `require`d the file, and
 ///   [ADR 0021](../../../docs/adr/0021-single-file-inclusion-construct.md)
 ///   types that boundary `mixed`. A file that never returns falls through to
-///   the same `Terminator::Return(None)` seal `lower_method` uses.
+///   a seal handing back the tagged `1` § 3 names for that case, which is
+///   PHP's own answer — not the `Terminator::Return(None)` `lower_method`
+///   uses, a `Ty::Tagged` frame owing its caller a value on every exit.
 ///
 /// Declarations are skipped rather than lowered: a class's methods are
 /// lowered separately, one [`lower_method`] call each. A
@@ -1029,7 +1031,15 @@ pub fn lower_script(
     low.lower_script_stmts(stmts, &mut cur, &mut env);
     if !low.is_terminated(cur) {
         low.release_all_locals(cur, &env, None);
-        low.seal(cur, Terminator::Return(None));
+        // ADR 0021 § 3 names the value of a file that never `return`s: `1`,
+        // which is PHP's own answer for a `require` of such a file. So the
+        // fall-through seal is a tagged integer rather than the
+        // `Terminator::Return(None)` `lower_method` uses — a `Ty::Tagged`
+        // frame always hands a value back, and the one place that would
+        // otherwise be free is exactly the one the ADR pins.
+        let (one, _) = low.emit(cur, Ty::Int, InstKind::ConstInt(1));
+        let one = low.coerce(cur, one, Ty::Int, Ty::Tagged, &mut env);
+        low.seal(cur, Terminator::Return(Some(one)));
     }
 
     let pending = std::mem::take(&mut low.closures);

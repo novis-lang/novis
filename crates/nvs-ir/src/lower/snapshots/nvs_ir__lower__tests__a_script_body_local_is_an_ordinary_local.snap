@@ -1,5 +1,5 @@
 ---
-source: crates/nvs-ir/src/lower/mod.rs
+source: crates/nvs-ir/src/lower/tests.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn <script>() -> tagged {
@@ -14,7 +14,9 @@ fn <script>() -> tagged {
     v3 = helper.int_to_string v2  ; string
     helper.echo_str v3 ! bb2
     release v3
-    return
+    v4 = const.int 1  ; int
+    v5 = tag v4  ; tagged
+    return v5
   bb1:
     propagate "<script>() at t.nvs:3"
   bb2:

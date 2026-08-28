@@ -78,7 +78,9 @@ fn G::upTo$gen::current(object) -> int {
 fn <script>() -> tagged {
   bb0:
     safepoint
-    return
+    v0 = const.int 1  ; int
+    v1 = tag v0  ; tagged
+    return v1
 }
 
 fn Throwable::constructor(object, string, tagged) -> void {
