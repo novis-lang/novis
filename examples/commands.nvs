@@ -1,0 +1,29 @@
+<?nvs
+// ADR 0086 § 6's compile-time command table, as a program.
+//
+// Structurally identical to ADR 0077's route table with the routes swapped for
+// commands, and built by the same ADR 0061 § 3 scan — so, as there, the
+// `autoload` root is what finds the classes nothing names.
+autoload 'App' from './commands';
+
+// § 6's own readers of the table are `Core\Command::run`, `::help` and
+// `::completions`. `run` dispatches and is out of this goal's scope, and the
+// other two answer a `Core\Cli\Text`, which carries no member until M8
+// (`crates/nvs-stdlib/src/out.rs`) — so this program reads the table's
+// *classes* through the enumeration the table is itself built from, and asks
+// each for the usage line its `#[Command]` declares.
+//
+// That is what makes this fixture assert something rather than echo three
+// frozen strings: the enumeration is what parses and checks the two
+// declarations, so § 6's three compile errors — a duplicate command name, two
+// options sharing a spelling, an `#[Option]` on a parameter whose declared
+// type has no conversion from `string` — are reachable from here.
+var $commands = Core\Program::implementing<App\Command>();
+
+// Sorted by fully-qualified name (ADR 0061 § 3), so `App\Greet` precedes
+// `App\Migrate` and the order never depends on filesystem enumeration.
+foreach ($commands as App\Command $command) {
+    echo $command->usage(), "\n";
+}
+
+echo "commands=", Core\Arr::count($commands), "\n";

@@ -1,0 +1,14 @@
+<?nvs
+namespace App;
+
+// The interface the entry point enumerates. ADR 0061 § 3: `T` must be an
+// interface type, because what the enumeration is *for* is that the result can
+// be called — `usage()` resolves here and would not on an `object`.
+interface Command
+{
+    // The usage line ADR 0086 § 6 says nobody should have to write: it is
+    // generated from the table by `Core\Command::help`, and this member exists
+    // only so the fixture can read the same fact before `Core\Cli\Text` has a
+    // member to render one with.
+    public function usage(): string;
+}

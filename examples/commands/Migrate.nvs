@@ -1,0 +1,24 @@
+<?nvs
+namespace App;
+
+class Migrate implements Command
+{
+    // A second command, so the table has something to be a table of: § 6's
+    // duplicate-name error is over two `#[Command]`s sharing a `name`, and
+    // these two do not.
+    #[\Core\Command(name: "migrate", about: "Apply pending migrations")]
+    public static function migrate(
+        #[\Core\Option(about: "Print what would happen")] bool $pretend,
+    ): uint {
+        // § 6: a `#[Command]` method returns `void` (status 0) or the `uint`
+        // process exit status. That is the one place ADR 0086 diverges from
+        // 0077 — a CLI has one entry point and no pipeline to own, so this
+        // table dispatches where the route table stops at matching.
+        return $pretend ? 0 : 1;
+    }
+
+    public function usage(): string
+    {
+        return "migrate [--pretend]";
+    }
+}
