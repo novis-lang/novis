@@ -32,6 +32,37 @@ pub enum Oracle {
     Diverges(String),
 }
 
+/// Which `nvs` subcommand a case's own `--FILE--` is run through.
+///
+/// `--RUN--` names it, and the default is [`Subcommand::Run`] — a case is a
+/// program whose output is the expectation. [`Subcommand::Test`] is the other
+/// half of [ADR 0079](../../../docs/adr/0079-testing-and-assertions.md) § 23:
+/// the program declares `#[Test]` classes and what the case pins is the
+/// runner's own report of running them.
+///
+/// It applies to `--FILE--` alone. `--SKIPIF--` and `--CLEAN--` are the
+/// runner's own scaffolding rather than the thing under test, so both are
+/// always `nvs run`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Subcommand {
+    /// `nvs run case.nvs` — the program is the case.
+    #[default]
+    Run,
+    /// `nvs test case.nvs` — the program's `#[Test]` methods are the case.
+    Test,
+}
+
+impl Subcommand {
+    /// The word it is written as, in `--RUN--` and on the command line alike.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Run => "run",
+            Self::Test => "test",
+        }
+    }
+}
+
 /// One file a case puts on disk beside its own `--FILE--`.
 ///
 /// Written by `--FILE <relative/path>--`, which may appear any number of
@@ -58,6 +89,8 @@ pub struct Case {
     pub skipif: Option<String>,
     /// `--FILE--`, the Novis program under test.
     pub file: String,
+    /// `--RUN--`, the subcommand that program is run through.
+    pub run: Subcommand,
     /// Every `--FILE <relative/path>--`, in the order they were written.
     pub aux: Vec<AuxFile>,
     /// `--EXPECT--` or `--EXPECTF--`, matched against standard output.
@@ -137,6 +170,7 @@ const KNOWN: &[&str] = &[
     "CLEAN",
     "ORACLE",
     "ORACLE-DIVERGES",
+    "RUN",
 ];
 
 /// The three `.phpt` sections that parse for the M11 importer's sake but have
@@ -324,6 +358,22 @@ pub fn parse(path: &Path, text: &str) -> Result<Case, ParseError> {
         return Err(err("`--FILE--` is empty", Some(file_line)));
     }
 
+    // The roster is closed, so a misspelling is refused where it is written
+    // rather than silently running the case the other way.
+    let run = match take("RUN") {
+        None => Subcommand::Run,
+        Some((line, body)) => match body.trim() {
+            "run" => Subcommand::Run,
+            "test" => Subcommand::Test,
+            other => {
+                return Err(err(
+                    format!("`--RUN--` is `run` or `test`, not `{other}`"),
+                    Some(line),
+                ));
+            }
+        },
+    };
+
     let expect = pick(
         &take("EXPECT"),
         &take("EXPECTF"),
@@ -388,6 +438,7 @@ pub fn parse(path: &Path, text: &str) -> Result<Case, ParseError> {
             .map(|(_, body)| body)
             .filter(|body| !body.trim().is_empty()),
         file,
+        run,
         aux,
         expect,
         expect_error,
@@ -422,6 +473,25 @@ mod tests {
     }
 
     const MINIMAL: &str = "--TEST--\nthe title\n--FILE--\n<?nvs\necho 1;\n--EXPECT--\n1\n";
+
+    #[test]
+    fn a_case_that_says_nothing_is_run_through_nvs_run() {
+        assert_eq!(case(MINIMAL).expect("it parses").run, Subcommand::Run);
+    }
+
+    #[test]
+    fn a_run_section_names_the_subcommand_the_program_goes_through() {
+        let parsed = case(&format!("--RUN--\ntest\n{MINIMAL}")).expect("it parses");
+        assert_eq!(parsed.run, Subcommand::Test);
+        assert_eq!(parsed.run.as_str(), "test");
+    }
+
+    #[test]
+    fn a_run_section_naming_no_subcommand_is_refused_where_it_is_written() {
+        let error = case(&format!("--RUN--\ncheck\n{MINIMAL}")).expect_err("the roster is closed");
+        assert_eq!(error.line, Some(1));
+        assert!(error.message.contains("`run` or `test`"), "{error}");
+    }
 
     #[test]
     fn a_minimal_case_parses_into_its_three_sections() {

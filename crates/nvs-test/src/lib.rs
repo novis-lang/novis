@@ -32,7 +32,7 @@
 //! | `--ARGS--` | extra arguments for the run |
 //! | `--ENV--` | environment variables for the run |
 //!
-//! Five are Novis's own. Two of those are the differential pair
+//! Six are Novis's own. Two of those are the differential pair
 //! `docs/agent/loop-goal.md` names:
 //!
 //! | section | meaning |
@@ -42,6 +42,22 @@
 //! | `--EXPECT-ERROR--` | expected standard error, compared literally |
 //! | `--EXPECTF-ERROR--` | expected standard error, with `%` escapes |
 //! | `--FILE <relative/path>--` | another file, written beside `--FILE--`; repeatable |
+//! | `--RUN--` | `run` (the default) or `test`: the subcommand `--FILE--` goes through |
+//!
+//! ## Which subcommand a case is run through
+//!
+//! `--RUN--` is how a case reaches
+//! [ADR 0079](../../../docs/adr/0079-testing-and-assertions.md)'s other
+//! runner. `--RUN--\ntest` runs `nvs test case.nvs`, so the program declares
+//! `#[Test]` classes and what the case pins is the *report* of running them —
+//! the only way a `.nvst` can observe the `#[Test]` table at all, since a row
+//! and its order are visible nowhere else. The roster is closed to those two
+//! words, so a misspelling is a parse error rather than a case quietly run
+//! the other way, and the section applies to `--FILE--` alone: `--SKIPIF--`
+//! and `--CLEAN--` are the runner's own scaffolding and are always `nvs run`.
+//!
+//! § 22's report carries a per-test duration, so such a case wants
+//! `--EXPECTF--`'s `%f` rather than `--EXPECT--`.
 //!
 //! ## More than one file
 //!
@@ -127,7 +143,7 @@ use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-pub use case::{Case, Expectation, Oracle, ParseError};
+pub use case::{Case, Expectation, Oracle, ParseError, Subcommand};
 pub use run::{Options, Outcome};
 
 /// The extension a case file carries.

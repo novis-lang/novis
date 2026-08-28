@@ -25,7 +25,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-use crate::case::{Case, Oracle};
+use crate::case::{Case, Oracle, Subcommand};
 use crate::expect::{matches, normalize, shown};
 
 /// How the runner reaches the two binaries it drives.
@@ -103,7 +103,7 @@ pub fn run_case(case: &Case, opts: &Options, workdir: &Path, php_available: bool
     }
 
     if let Some(source) = &case.skipif {
-        match run_nvs(opts, workdir, "skipif.nvs", source) {
+        match run_nvs(opts, workdir, "skipif.nvs", source, Subcommand::Run) {
             Err(error) => return Outcome::Fail(vec![format!("--SKIPIF--: {error}")]),
             Ok(output) => {
                 let text = String::from_utf8_lossy(&output.stdout);
@@ -126,13 +126,13 @@ pub fn run_case(case: &Case, opts: &Options, workdir: &Path, php_available: bool
         // `--CLEAN--`'s whole job is tidying up after the case; its own
         // output is not an expectation and a failure in it must not turn a
         // passing case red.
-        let _ = run_nvs(opts, workdir, "clean.nvs", source);
+        let _ = run_nvs(opts, workdir, "clean.nvs", source, Subcommand::Run);
     }
     outcome
 }
 
 fn judge(case: &Case, opts: &Options, workdir: &Path) -> Outcome {
-    let output = match run_nvs(opts, workdir, "case.nvs", &case.file) {
+    let output = match run_nvs(opts, workdir, "case.nvs", &case.file, case.run) {
         Ok(output) => output,
         Err(error) => return Outcome::Fail(vec![format!("could not run the case: {error}")]),
     };
@@ -219,10 +219,20 @@ fn write_aux(workdir: &Path, relative: &str, body: &str) -> io::Result<()> {
     fs::write(target, body)
 }
 
-/// Writes `source` into `workdir` as `name` and runs `nvs run` on it.
-fn run_nvs(opts: &Options, workdir: &Path, name: &str, source: &str) -> io::Result<Output> {
+/// Writes `source` into `workdir` as `name` and runs `nvs <sub>` on it.
+///
+/// `sub` is [`Subcommand::as_str`]'s word, so the two things that decide it —
+/// a case's `--RUN--` section and the scaffolding's fixed `run` — cannot spell
+/// a subcommand this binary does not have.
+fn run_nvs(
+    opts: &Options,
+    workdir: &Path,
+    name: &str,
+    source: &str,
+    sub: Subcommand,
+) -> io::Result<Output> {
     fs::write(workdir.join(name), source)?;
-    spawn(&opts.nvs, &["run".as_ref(), name.as_ref()], workdir)
+    spawn(&opts.nvs, &[sub.as_str().as_ref(), name.as_ref()], workdir)
 }
 
 /// Writes `source` into `workdir` as `oracle.php` and runs PHP on it.
