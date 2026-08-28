@@ -1,0 +1,55 @@
+--TEST--
+`Core\Test`'s failure messages name an `array<T>` and a `bytes` by their size and an object by its class, so no container's contents are ever quoted -- ADR 0079 § 4
+--FILE--
+<?nvs
+// The neighbouring bound on a quoted `string` would buy nothing if a container
+// spilled its elements instead, so `shown` renders every container as a size
+// and every object as a class name. That is the same reason -- a message goes
+// to a build log -- stated for the shapes that have no length of their own,
+// and it is why `assertEqualsDeep` says *where* two subjects differ: the leaf
+// it names is the only thing a reader wants quoted.
+
+final class Cell {
+    public function constructor(public string $name) {}
+}
+
+int $refused = 0;
+
+// Every element here is 70 characters, past the quoting bound next door. None
+// of them appears: what is printed is a count, and the two subjects differ by
+// their length alone.
+string $long = Core\Str::repeat("x", 70);
+array<string> $two = [$long, $long];
+array<string> $one = [$long];
+try { Core\Test::assertSame($two, $one); } catch (Throwable $sized) { $refused = $refused + 1; echo $sized->message, "\n"; }
+
+// Nesting changes nothing, and an empty container is still named by its size
+// rather than by a word of its own -- a rendering that walked one level to
+// decide what to say would print differently on exactly these two rows.
+array<array<string>> $deep = [[$long], [$long], [$long]];
+array<array<string>> $none = [];
+try { Core\Test::assertSame($deep, $none); } catch (Throwable $nested) { $refused = $refused + 1; echo $nested->message, "\n"; }
+
+// Two objects of one class, holding different property values, render
+// identically: the class name is the whole of what is said. This is the row a
+// rendering that reached for a property would fail, and it is why the message
+// below repeats itself.
+Cell $held = new Cell($long);
+Cell $other = new Cell("-");
+try { Core\Test::assertSame($held, $other); } catch (Throwable $classed) { $refused = $refused + 1; echo $classed->message, "\n"; }
+
+// `bytes` is the third: a count, never a decoded run, because ADR 0009 makes
+// it the type with no promise of being text at all.
+bytes $wide = $long as bytes;
+bytes $thin = "-" as bytes;
+try { Core\Test::assertSame($wide, $thin); } catch (Throwable $counted) { $refused = $refused + 1; echo $counted->message, "\n"; }
+
+// Counted rather than read off the lines above: a member that started
+// answering one of these instead of refusing fails here.
+echo "refused=", $refused, "/4\n";
+--EXPECT--
+Core\Test::assertSame failed: `$actual` is an array of 2, `$expected` is an array of 1
+Core\Test::assertSame failed: `$actual` is an array of 3, `$expected` is an array of 0
+Core\Test::assertSame failed: `$actual` is a `Cell`, `$expected` is a `Cell`
+Core\Test::assertSame failed: `$actual` is 70 bytes, `$expected` is 1 bytes
+refused=4/4
