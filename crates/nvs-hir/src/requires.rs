@@ -212,6 +212,10 @@ pub fn resolve_program(
     // already probed, so a miss costs one probe rather than one per mention.
     let mut sites: Vec<Site> = Vec::new();
     let mut wanted: Vec<(QName, Span)> = Vec::new();
+    // § 3's opt-in: the first `implementing<T>()` site seen, and `None` once
+    // the scan it asked for has run. A program writing no such call leaves it
+    // `None` for the whole walk and never lists a directory.
+    let mut scan: Option<Span> = None;
     let mut probed: FxHashSet<QName> = FxHashSet::default();
     let mut autoload_map: Option<AutoloadMap> = None;
 
@@ -228,6 +232,7 @@ pub fn resolve_program(
             let mut harvest = Harvest::default();
             find_require_literals(&stmts, map.file(id), &mut harvest);
             wanted.append(&mut harvest.names);
+            scan = scan.or_else(|| harvest.scans.first().copied());
             let targets = std::mem::take(&mut harvest.requires);
             let base_dir = map
                 .file(id)
@@ -333,6 +338,40 @@ pub fn resolve_program(
         let built = autoload_map.get_or_insert_with(|| AutoloadMap::build(&sites, diags));
         if built.is_empty() {
             break;
+        }
+
+        // § 3's scan: for a program that called `implementing<T>()`, every
+        // name the roots declare becomes a file to load, whether or not
+        // anything mentions it — the one place resolution is not lazy. It
+        // runs once, after the `require` chain has drained, because that is
+        // when the map is complete; the files it queues are drained by the
+        // loop above on the next turn, and any `autoload` they write is
+        // refused the same way an autoloaded file's is.
+        //
+        // Each file arrives under the name `AutoloadMap::resolve` would have
+        // found it by, so `check_file_shape` holds a scanned file to exactly
+        // the rule a probed one already answers to.
+        if let Some(site) = scan.take() {
+            for (name, path) in built.enumerate() {
+                if !done.insert(path.clone()) {
+                    continue;
+                }
+                let Ok(new_id) = map.load(&path) else {
+                    continue;
+                };
+                by_path.insert(path.clone(), new_id);
+                let new_stmts = parse_file(map.file(new_id), diags);
+                check_declarations(&new_stmts, map.file(new_id), diags);
+                autoload::check_file_shape(
+                    &new_stmts,
+                    map.file(new_id),
+                    name.short_name(),
+                    site,
+                    diags,
+                );
+                work.push((new_id, new_stmts, vec![path]));
+            }
+            continue;
         }
 
         let mut next: Option<(QName, Span, PathBuf)> = None;
@@ -502,6 +541,12 @@ struct Harvest {
     /// not compile. `Core`'s own names are dropped, since nothing on disk
     /// declares them.
     names: Vec<(QName, Span)>,
+    /// Every `Core\Program::implementing<T>()` call site written in this
+    /// file. ADR 0061 § 3's opt-in lives here rather than in the checker
+    /// because the scan has to happen while the walk can still load files —
+    /// by the time `nvs-types` reaches the call, the graph it expands
+    /// against is already closed.
+    scans: Vec<Span>,
     /// The namespace in force at the statement being walked.
     namespace: Vec<String>,
     /// The `use` imports in force at the statement being walked, keyed by
@@ -523,6 +568,36 @@ fn record_name(name: &Name, src: &SourceFile, out: &mut Harvest) {
         return;
     }
     out.names.push((qname, name.span));
+}
+
+/// ADR 0061 § 3's enumeration, spelled out: the one class and member whose
+/// appearance anywhere in the program turns every autoload root's whole tree
+/// into files to load.
+const PROGRAM_CLASS: &str = r"Core\Program";
+const IMPLEMENTING_MEMBER: &str = "implementing";
+
+/// Whether this static call is `Core\Program::implementing<T>()`.
+///
+/// Matched nominally against the *resolved* class name, so a `use Core;` plus
+/// `Program::implementing<Module>()` is the same call as the fully written
+/// one and a userland class named `Program` is not any of them. The member
+/// name is compared as written: a computed `::{$m}()` is not this call, and
+/// treating it as one would mean scanning the tree for a program that may
+/// never make it.
+fn is_program_scan(class: &Expr, method: &MemberName, src: &SourceFile, out: &Harvest) -> bool {
+    let ExprKind::ConstFetch(name) = &class.kind else {
+        return false;
+    };
+    let MemberName::Ident(member) = method else {
+        return false;
+    };
+    let (Some(class_text), Some(member_text)) = (src.span_text(name.span), src.span_text(*member))
+    else {
+        return false;
+    };
+    member_text == IMPLEMENTING_MEMBER
+        && crate::hierarchy::resolve_ref(class_text, &out.namespace, &out.imports)
+            == QName::parse(PROGRAM_CLASS)
 }
 
 /// Records every name a type expression mentions. A shape type's fields, a
@@ -1000,6 +1075,9 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Harvest) {
             type_args,
             args,
         } => {
+            if is_program_scan(class, method, src, out) {
+                out.scans.push(expr.span);
+            }
             e!(class);
             walk_member_name(method, src, out);
             walk_types(type_args, src, out);
@@ -1879,6 +1957,139 @@ require './Lib/Helper.nvs';
                 .iter()
                 .any(|d| d.code == Some(code::E_AUTOLOAD_GLOB_SHAPE)),
             "{diags:?}"
+        );
+    }
+
+    /// ADR 0061 § 3's scan, asserted whole: every name the roots declare, in
+    /// one fully-qualified order, with a nested directory becoming a
+    /// namespace segment the same way [`AutoloadMap::resolve`] turns one back
+    /// into a directory. The fixture holds every entry the walk must pass
+    /// over in silence — a directory that cannot name a segment, a file that
+    /// is not a `.nvs`, a stem that is not `PascalCase` — because that half
+    /// is the reason § 1 refuses to diagnose what a glob sweeps.
+    #[test]
+    fn the_scan_enumerates_every_name_the_roots_declare() {
+        let dir = TempDir::new("autoload-enumerate");
+        for sub in ["src", "src/Http", "src/.git", "vendor"] {
+            fs::create_dir_all(dir.path.join(sub)).expect("create root");
+        }
+        dir.write(
+            "src/Core.nvs",
+            "<?nvs\nnamespace Framework;\nclass Core {}\n",
+        );
+        dir.write("src/Http/Router.nvs", "<?nvs\n");
+        dir.write("src/.git/Head.nvs", "<?nvs\n");
+        dir.write("src/README.md", "not a declaration\n");
+        dir.write("src/lowercase.nvs", "<?nvs\n");
+        dir.write("vendor/Compat.nvs", "<?nvs\n");
+
+        let mut map = SourceMap::new();
+        let id = scratch_id(&mut map);
+        let mut diags = Diagnostics::new();
+        let autoload = AutoloadMap::build(
+            &[site(&dir, id, prefix("Framework", &["./src", "./vendor"]))],
+            &mut diags,
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+
+        let names: Vec<String> = autoload
+            .enumerate()
+            .into_iter()
+            .map(|(qname, _path)| qname.to_string())
+            .collect();
+        assert_eq!(
+            names,
+            vec![
+                r"Framework\Compat".to_owned(),
+                r"Framework\Core".to_owned(),
+                r"Framework\Http\Router".to_owned(),
+            ],
+        );
+    }
+
+    /// ADR 0061 § 3's opt-in, asserted as the difference it makes: one
+    /// program writes `implementing<T>()` and collects a class nothing
+    /// requires and nothing names, and the other differs only by not writing
+    /// the call and never sees that class at all. Asserted as a pair because
+    /// either half alone is satisfied by a walk that always scans, or by one
+    /// that never does.
+    #[test]
+    fn only_a_program_that_asks_for_the_enumeration_scans_the_roots() {
+        let dir = TempDir::new("autoload-scan");
+        fs::create_dir_all(dir.path.join("src")).expect("create root");
+        dir.write(
+            "Bootstrap.nvs",
+            "<?nvs\nautoload 'Framework' from './src';\n",
+        );
+        dir.write(
+            "src/Mailer.nvs",
+            "<?nvs\nnamespace Framework;\nclass Mailer {}\n",
+        );
+        dir.write(
+            "scanning.nvs",
+            concat!(
+                "<?nvs\n",
+                "require './Bootstrap.nvs';\n",
+                "interface Module {}\n",
+                "var $modules = Core\\Program::implementing<Module>();\n",
+            ),
+        );
+        dir.write(
+            "quiet.nvs",
+            concat!(
+                "<?nvs\n",
+                "require './Bootstrap.nvs';\n",
+                "interface Module {}\n",
+            ),
+        );
+
+        let mailer = QName::parse(r"Framework\Mailer");
+
+        let (scanned, diags) = resolve_entry(&dir, "scanning.nvs");
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert!(scanned.symbols.contains(&mailer));
+
+        let (quiet, diags) = resolve_entry(&dir, "quiet.nvs");
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert!(!quiet.symbols.contains(&mailer));
+    }
+
+    /// The two directions have to agree about which file declares a name, or
+    /// § 3's enumeration would instantiate a class the rest of the compiler
+    /// resolves somewhere else. A name under two roots of one prefix is the
+    /// case where they could part: `resolve` probes in declaration order and
+    /// takes the first hit, so the scan lists that same file once.
+    #[test]
+    fn a_name_under_two_roots_is_enumerated_at_the_file_resolve_would_pick() {
+        let dir = TempDir::new("autoload-enumerate-shadow");
+        for sub in ["override", "src"] {
+            fs::create_dir_all(dir.path.join(sub)).expect("create root");
+        }
+        dir.write("override/Core.nvs", "<?nvs\n");
+        dir.write("src/Core.nvs", "<?nvs\n");
+
+        let mut map = SourceMap::new();
+        let id = scratch_id(&mut map);
+        let mut diags = Diagnostics::new();
+        let autoload = AutoloadMap::build(
+            &[site(
+                &dir,
+                id,
+                prefix("Framework", &["./override", "./src"]),
+            )],
+            &mut diags,
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+
+        let found = autoload.enumerate();
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(found[0].0, QName::parse(r"Framework\Core"));
+        assert_eq!(
+            found[0].1,
+            autoload
+                .resolve(&QName::parse(r"Framework\Core"))
+                .hit
+                .expect("the name resolves to a file"),
         );
     }
 
