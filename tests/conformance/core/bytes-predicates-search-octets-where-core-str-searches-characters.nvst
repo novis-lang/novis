@@ -1,0 +1,188 @@
+--TEST--
+Spec § 7: `Core\Bytes::contains`, `startsWith` and `endsWith` search octets where `Core\Str`'s three search characters — they answer the same question on every needle a `string` can name, and 18 of the 28 windows of one subject are needles no `string` can name at all — ADR 0009 §§ 1-3, ADR 0063 R6
+--FILE--
+<?nvs
+// `Core\Bytes` and `Core\Str` carry the same three predicate names, and every
+// other case about them uses an ASCII subject, where the two classes cannot be
+// told apart. ADR 0009 § 2 makes a `string` position a *character* and § 1
+// makes a `bytes` position an *octet*, so the whole difference lives on a
+// subject whose characters are wider than one byte — and it is a difference in
+// the **domain**, not in the answers: on a needle both classes can be asked,
+// they agree, and what separates them is how many needles there are to ask
+// about.
+//
+// The subject is 4 characters and 7 octets — `a` (1), `é` (2), `漢` (3), `b`
+// (1) — so its interior boundaries are at octets 1, 3 and 6, and a window may
+// start or end in three places no character does. `crates/nvs-stdlib/
+// src/bytes.rs:608`, `:619` and `:629` are the three members; `str.rs:840`,
+// `:850` and `:860` are their counterparts, and neither trio calls the other.
+
+final class Unit {
+    // `bool as string` renders `false` as the empty string (ADR 0007 § 2), so
+    // a rendered answer needs a spelling of its own to be visible.
+    public static function yn(bool $b): string {
+        if ($b) { return "y"; }
+        return "n";
+    }
+
+    // Whether a buffer is a needle `Core\Str` could be handed at all: a
+    // `string` is UTF-8 by ADR 0009 § 2, so an octet run that splits a
+    // character has no `string` spelling and no `Core\Str::contains` call.
+    public static function namable(bytes $w): bool {
+        return Core\Encoding::isValidText($w, Core\Charset::Utf8);
+    }
+}
+
+string $subject = "aé漢b";
+bytes $buffer = $subject as bytes;
+int $chars = Core\Str::length($subject) as int;
+int $octets = Core\Bytes::length($buffer) as int;
+
+// 1. The two units, named on the same subject. `$subject as bytes` is the
+//    identity on the buffer (ADR 0009 § 3), so the counts below are two
+//    measurements of one value rather than of two.
+echo "chars ", $chars, " octets ", $octets, " hex ", Core\Encoding::toHex($buffer), "\n";
+
+// 2. Each character's own position, answered by both classes: `Core\Str`
+//    counts characters and `Core\Bytes` counts octets, and the byte answer is
+//    exactly the octet length of the character prefix before it. Counted, so a
+//    member reporting the engine's byte offset through the `string` door — the
+//    bug ADR 0009 § 2 exists to prevent — fails here rather than looking
+//    plausible on the `a` row, where the two units still coincide.
+int $placed = 0;
+int $differ = 0;
+int $c = 0;
+for ($c = 0; $c < $chars; $c = $c + 1) {
+    string $one = Core\Str::slice($subject, $c, 1);
+    var $charAt = Core\Str::indexOf($subject, $one);
+    var $byteAt = Core\Bytes::indexOf($buffer, $one as bytes);
+    int $before = Core\Bytes::length(Core\Str::slice($subject, 0, $c) as bytes) as int;
+    if ($charAt != null && $byteAt != null) {
+        if (($charAt as int) == $c && ($byteAt as int) == $before) {
+            $placed = $placed + 1;
+        }
+        if (($charAt as int) != ($byteAt as int)) {
+            $differ = $differ + 1;
+        }
+    }
+}
+echo "placed ", $placed, "/", $chars, " differing offsets ", $differ, "\n";
+
+// 3. Every character-aligned needle — the complete set of needles both classes
+//    can be asked — put to all three predicates in both classes. 15 windows in
+//    character space, three questions each, and the answers must be equal at
+//    every one: the two trios are two searches over one buffer, and a `bytes`
+//    predicate that decoded, or a `string` predicate that did not, disagrees
+//    here while still printing plausibly on any single row.
+int $aligned = 0;
+int $agreed = 0;
+int $held = 0;
+int $start = 0;
+int $len = 0;
+for ($start = 0; $start <= $chars; $start = $start + 1) {
+    for ($len = 0; $len <= $chars - $start; $len = $len + 1) {
+        string $needle = Core\Str::slice($subject, $start, $len);
+        bytes $raw = $needle as bytes;
+        $aligned = $aligned + 1;
+        if (Core\Str::contains($subject, $needle) == Core\Bytes::contains($buffer, $raw)) {
+            $agreed = $agreed + 1;
+        }
+        if (Core\Str::startsWith($subject, $needle) == Core\Bytes::startsWith($buffer, $raw)) {
+            $agreed = $agreed + 1;
+        }
+        if (Core\Str::endsWith($subject, $needle) == Core\Bytes::endsWith($buffer, $raw)) {
+            $agreed = $agreed + 1;
+        }
+        // Not a tautology over three `false`s: every aligned window is a
+        // substring of the subject, so all 15 are held by both classes.
+        if (Core\Str::contains($subject, $needle) && Core\Bytes::contains($buffer, $raw)) {
+            $held = $held + 1;
+        }
+    }
+}
+echo "aligned ", $aligned, " agreed ", $agreed, "/", $aligned * 3, " held ", $held, "\n";
+
+// 4. Every non-empty window in *octet* space — the complete set of needles
+//    `Core\Bytes` can be asked, which is what the class is for. All 28 are
+//    contained, because the unit is the octet and nothing decodes; only 10 of
+//    them are namable as a `string` at all, and those 10 are exactly the 10
+//    non-empty windows the character sweep above produced. The other 18 split
+//    a character at one end or the other, and `Core\Str::contains` cannot be
+//    called with any of them.
+//
+// The empty window is deliberately outside this sweep and named on its own
+// line below: it is aligned at every octet, so counting it here would put the
+// same needle in the table eight times and blur exactly the 10/18 split this
+// half exists to show.
+int $windows = 0;
+int $contained = 0;
+int $namable = 0;
+int $matched = 0;
+int $from = 0;
+int $width = 0;
+int $cs = 0;
+int $cl = 0;
+for ($from = 0; $from < $octets; $from = $from + 1) {
+    for ($width = 1; $width <= $octets - $from; $width = $width + 1) {
+        bytes $window = Core\Bytes::slice($buffer, $from, $width);
+        $windows = $windows + 1;
+        if (Core\Bytes::contains($buffer, $window)) {
+            $contained = $contained + 1;
+        }
+        if (Unit::namable($window)) {
+            $namable = $namable + 1;
+            // A namable window is one the character sweep already cut: search
+            // the character-aligned needles for the same octets. `matched`
+            // equalling `namable` is what makes "the two domains meet exactly
+            // at the character boundaries" a count rather than a claim.
+            bool $found = false;
+            for ($cs = 0; $cs <= $chars; $cs = $cs + 1) {
+                for ($cl = 1; $cl <= $chars - $cs; $cl = $cl + 1) {
+                    if (Core\Bytes::compare(Core\Str::slice($subject, $cs, $cl) as bytes, $window) == 0) {
+                        $found = true;
+                    }
+                }
+            }
+            if ($found) { $matched = $matched + 1; }
+        }
+    }
+}
+echo "windows ", $windows, " contained ", $contained, " namable ", $namable,
+    " matched ", $matched, " unnamable ", $windows - $namable, "\n";
+
+// 5. The three cuts a character has, named. A prefix ending inside `é`, a
+//    suffix starting inside `漢`, and a window spanning the tail of one
+//    character and the head of the next: each is found by the octet predicate
+//    that owns that end, and none of the three is a `string`.
+bytes $headSplit = Core\Encoding::fromHex("61c3");
+bytes $tailSplit = Core\Encoding::fromHex("a262");
+bytes $across = Core\Encoding::fromHex("a9e6");
+echo "prefix ", Unit::yn(Core\Bytes::startsWith($buffer, $headSplit)),
+    Unit::yn(Unit::namable($headSplit)),
+    " suffix ", Unit::yn(Core\Bytes::endsWith($buffer, $tailSplit)),
+    Unit::yn(Unit::namable($tailSplit)),
+    " across ", Unit::yn(Core\Bytes::contains($buffer, $across)),
+    Unit::yn(Unit::namable($across)), "\n";
+
+// 6. The needle at the other end of the bound, where the two classes must not
+//    diverge: the empty needle is a prefix, a suffix and a substring in both
+//    classes, and a one-octet needle wider than nothing but narrower than a
+//    character is held by `Core\Bytes` alone. The continuation octet of `é`
+//    is that needle, and `Core\Str` has no spelling for it.
+bytes $none = Core\Encoding::fromHex("");
+bytes $continuation = Core\Encoding::fromHex("a9");
+echo "empty ", Unit::yn(Core\Str::contains($subject, "")),
+    Unit::yn(Core\Bytes::contains($buffer, $none)),
+    Unit::yn(Core\Str::startsWith($subject, "")),
+    Unit::yn(Core\Bytes::startsWith($buffer, $none)),
+    Unit::yn(Core\Str::endsWith($subject, "")),
+    Unit::yn(Core\Bytes::endsWith($buffer, $none)),
+    " continuation ", Unit::yn(Core\Bytes::contains($buffer, $continuation)),
+    Unit::yn(Unit::namable($continuation)), "\n";
+--EXPECT--
+chars 4 octets 7 hex 61c3a9e6bca262
+placed 4/4 differing offsets 2
+aligned 15 agreed 45/45 held 15
+windows 28 contained 28 namable 10 matched 10 unnamable 18
+prefix yn suffix yn across yn
+empty yyyyyy continuation yn
