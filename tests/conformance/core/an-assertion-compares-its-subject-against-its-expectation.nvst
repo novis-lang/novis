@@ -1,0 +1,98 @@
+--TEST--
+`Core\Test`'s three equality members compare subject-first, label both sides by name and differ only at the object row -- ADR 0079 § 4
+--FILE--
+<?nvs
+// § 4's table is one comparison with two substitutions at the object row, so
+// this case asks each member the same questions and reads where they part.
+
+class Cell implements Comparable {
+    public function constructor(public int $n) {}
+    public function compareTo(self $other): int { return $this->n <=> $other->n; }
+}
+
+class Plain {
+    public function constructor(public int $n) {}
+}
+
+class Box {
+    public function constructor(public string $label, public array<int> $rows) {}
+}
+
+// ADR 0092 § 5's redaction row, asked of a failure message rather than of a
+// dump: whether two secrets differ is reportable, what they hold is not.
+class Vault {
+    public function constructor(public secret string $token, public int $id) {}
+}
+
+int $refused = 0;
+
+// The rows every member shares -- ADR 0090 § 3's scalar and `array<T>` table,
+// read once rather than three times.
+int $one = 1;
+int $two = 2;
+Core\Test::assertSame($one, 1);
+Core\Test::assertEquals($one, 1);
+echo "a scalar agrees under both\n";
+
+array<int> $xs = [1, 2, 3];
+array<int> $ys = [1, 2, 3];
+array<int> $zs = [1, 9, 3];
+Core\Test::assertSame($xs, $ys);
+Core\Test::assertEqualsDeep($xs, $ys);
+echo "an array agrees under both\n";
+
+// The object row, where the three part company: identity, `Comparable`, and
+// the structural walk.
+Cell $left = new Cell(4);
+Cell $right = new Cell(4);
+Core\Test::assertEquals($left, $right);
+Core\Test::assertSame($left, $left);
+echo "a comparable object is equal but not the same\n";
+
+try { Core\Test::assertSame($left, $right); } catch (Throwable $e) { $refused = $refused + 1; echo $e->message, "\n"; }
+
+// Both sides are named rather than numbered, so a call written in PHPUnit's
+// order still reads correctly.
+try { Core\Test::assertSame($one, $two); } catch (Throwable $e) { $refused = $refused + 1; echo $e->message, "\n"; }
+
+// ADR 0063 R2's trailing bag -- § 4's own `{message: ...}`, in front of the
+// report rather than replacing it.
+try { Core\Test::assertEquals($one, $two, {message: "a fresh counter is one"}); } catch (Throwable $e) { $refused = $refused + 1; echo $e->message, "\n"; }
+
+// The deep walk reports *where*, in the spelling a program subscripts with.
+try { Core\Test::assertEqualsDeep($xs, $zs); } catch (Throwable $e) { $refused = $refused + 1; echo $e->message, "\n"; }
+
+// A non-`Comparable` object names the member that walks it. ADR 0079 § 4
+// refuses this where it is written; until `nvs_types` makes that refusal it is
+// this throw -- `nvs_stdlib::test`'s own known gap 1.
+Plain $p = new Plain(1);
+Plain $q = new Plain(1);
+try { Core\Test::assertEquals($p, $q); } catch (Throwable $e) { $refused = $refused + 1; echo $e->message, "\n"; }
+Core\Test::assertEqualsDeep($p, $q);
+echo "the same object walks equal where `Comparable` refuses to answer\n";
+
+// One level in, and the path names the property it descended through.
+Box $b1 = new Box("a", $xs);
+Box $b2 = new Box("a", $zs);
+try { Core\Test::assertEqualsDeep($b1, $b2); } catch (Throwable $e) { $refused = $refused + 1; echo $e->message, "\n"; }
+
+Vault $v1 = new Vault("alpha", 7);
+Vault $v2 = new Vault("beta", 7);
+try { Core\Test::assertEqualsDeep($v1, $v2); } catch (Throwable $e) { $refused = $refused + 1; echo $e->message, "\n"; }
+
+// Counted rather than read off the lines above: a member that stops refusing
+// fails here even where its own line still looks plausible.
+echo "refused=", $refused, "\n";
+--EXPECT--
+a scalar agrees under both
+an array agrees under both
+a comparable object is equal but not the same
+Core\Test::assertSame failed: `$actual` is a `Cell`, `$expected` is a `Cell`
+Core\Test::assertSame failed: `$actual` is 1, `$expected` is 2
+a fresh counter is one: Core\Test::assertEquals failed: `$actual` is 1, `$expected` is 2
+Core\Test::assertEqualsDeep failed: the two differ at `$actual["1"]`: `$actual` is 2, `$expected` is 9
+Core\Test::assertEquals compares an object only through `Comparable`, and a `Plain` declares no `compareTo` — write `Core\Test::assertEqualsDeep` for a structural comparison, or `Core\Test::assertSame` for identity
+the same object walks equal where `Comparable` refuses to answer
+Core\Test::assertEqualsDeep failed: the two differ at `$actual->rows["1"]`: `$actual` is 2, `$expected` is 9
+Core\Test::assertEqualsDeep failed: the two differ at `$actual->token`: `$actual` is «redacted», `$expected` is «redacted»
+refused=7

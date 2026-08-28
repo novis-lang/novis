@@ -742,6 +742,10 @@ pub const CLASSES: &[CoreClass] = &[
     // § 4's `dump` and `render` only — the coverage, trace and profile members
     // that section also lists are ADR 0018's and land at M10.
     crate::debug::CLASS,
+    // [ADR 0079](../../../../docs/adr/0079-testing-is-a-language-feature.md)
+    // § 4's assertion surface rather than a spec § of its own: testing is a
+    // language feature, and `Core\Test` is the same `QName` `#[Test]` names.
+    crate::test::CLASS,
     // § 13, and here only because § 12's `Core\Out::capture` answers with it —
     // ADR 0088 § 5. [`crate::cli`]'s module docs own why the rest of
     // `Core\Cli` is not here.
