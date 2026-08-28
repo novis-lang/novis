@@ -65,8 +65,8 @@ slice**. That is the only thing that keeps this file from growing back.
 
 ## Stage 00's remaining names are cause 3, and deliberately so
 
-`loop-goal.toml`'s Stage 00 blocks name four tests and three `.nvst` cases that **do not exist yet**, so
-the acceptance test fails at the first check holding one and reaches nothing behind it. That is the same
+`loop-goal.toml`'s Stage 00 blocks name one test that **does not exist yet**, so
+the acceptance test fails at the first check holding it and reaches nothing behind it. That is the same
 *symptom* as the fifty-four above and it is not the same *bug*, so do not "reconcile" one of them:
 
 | | the fifty-four | Stage 00's remainder |
@@ -77,12 +77,6 @@ the acceptance test fails at the first check holding one and reaches nothing beh
 
 They are:
 
-- `a_static_return_type_resolves_to_the_called_class` — item 46.
-- `an_instanceof_test_narrows_its_subject_to_an_interface` — item 47. Note the near-twin already in the
-  tree: `an_instanceof_test_narrows_its_subject` (`crates/nvs-types/tests/narrowing.rs:145`) is the
-  *class* direction and is green. Matching the new name against it is exactly the mistake this section
-  exists to prevent, because the substring match would pass.
-- `a_core_class_with_no_constructor_refuses_arguments` — item 48.
 - `every_spellable_expression_reaches_a_diagnostic_or_an_ir` — item 49. Its sibling
   `every_spellable_type_reaches_a_diagnostic_or_an_ir` is Stage 8's, exists, and is green; this is the
   expression-and-statement half, and the two are not the same check.

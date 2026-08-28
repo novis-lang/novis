@@ -2,61 +2,66 @@
 
 ## State
 
-**M4, Stage 00, and five of its six shapes are closed.** Items 46 and 47 landed this session and
-the gate's `nvs-types` block now stops at item 48.
+**M4, Stage 00, and all six of its shapes are closed.** Item 48 landed this session together with the
+three Stage 00 conformance cases whose names the gate held but the tree did not, so every Stage 00
+check but item 49's is green.
 
-`nvs_types::signatures::MethodSig::returns_static` records that a declaration wrote `static` as its
-return type — read off the *written* annotation, because lowering is what loses the distinction
-(`lower_type` interns `static` and `self` to the same class). `crate::expr::calls` substitutes the
-called class at exactly two `return_ty` sites: the receiver's own type at an instance call, and
-`called_class_of`'s answer at a static call — an explicitly named class for `Base::make()`, the
-enclosing class for all three of `self`/`static`/`parent`, since late static binding forwards
-through `parent::` where `resolve_class_expr` would not.
+`crates/nvs-types/src/expr/calls.rs`'s `check_new_target` now holds a `Core` `new` target to
+`nvs_stdlib::registry` rather than to the `Core\` spelling. `QName::is_core` is a *spelling* test —
+anything under `Core\` answers it — so accepting a target on that alone let `new Core\Bogus()` past
+every check the checker has and fail in `nvs-codegen` with "this unit declares no descriptor for it",
+an internal message for an ordinary typo. It is `E0303` now. The two `Core` mistakes stay distinct on
+purpose: a *registered* class with no constructor keeps `infer_new`'s `E0405` naming the member it has
+not got, because `nvs_stdlib::registry::CONSTRUCTORS` is the whole roster of names `new` may be written
+on and "this class is not constructible" is a different fact from "this class does not exist". The
+arity half of the same rule was already right and needed nothing — a scratch probe, not a reading of
+the item, is what settled that.
 
-**The soundness question item 46 arrived carrying is decided, and it is decided as a refusal.** A
-body declaring `static` must answer the called class, so `return new self();` is `E0741`. The
-whitelist is `$this`, `new static(...)`, and a call forwarded through `static`/`self`/`parent`/
-`$this` to a member that itself returns `static`; `crate::returns::for_each_return` is the walk.
-That is stricter than PHP, which accepts the declaration and raises a `TypeError` only at a
-subclass call site — the reasoning, and the three alternatives weighed against it, is at
-`MethodSig::returns_static` and in `E_STATIC_RETURN_NOT_CALLED_CLASS`'s own doc. `ResolvedCall`
-deliberately still records the *declared* return type: `nvs-ir` reads it for a representation, and
-a class and its subclass erase to the same `Ty::Object`.
+**`Core` is two rosters and the registry is only the first.** `nvs_hir::errors::TREE`'s one namespaced
+row, `Core\Test\Failure`, is trusted through `is_core` rather than through
+`QName::is_reserved_global_class` — that predicate's own doc says so — so the arm carries
+`errors::is_exception_class` beside the registry lookup, and
+`the_namespaced_exception_tree_row_is_still_a_new_target` pins it. The playbook bullet under *Writing
+Novis itself* owns the trap.
 
-**`instanceof` narrows to an interface now.** `locals.rs`'s `instanceof_residue` accepts
-`SymbolKind::Interface` and every reserved global name whose `nvs_hir::interfaces` roster entry
-takes no type parameters — which leaves out only `Iterable`/`Iterator`, written with an argument
-wherever they are declared. Nothing in `nvs-ir` needed teaching: an interface residue erases to the
-same pointer a class one does, and the new conformance case runs the narrowed call rather than only
-compiling it.
+**Three conformance cases now pin work that had only unit tests.** Items 45, 46 and 47 landed their
+`nvs-types` tests in earlier sessions but not their corpus, and `loop-goal.toml`'s Stage 00
+`nvs-suite` block named all three files. They are under `tests/conformance/lang/` and each runs the
+narrowed or substituted thing rather than only compiling it. One behaviour they pinned that no doc
+stated: a nested `instanceof` guard replaces the residue rather than intersecting with it — the
+playbook bullet under *Writing a test case* owns it.
+
+`docs/agent/guard-name-debt.md` § *Stage 00's remaining names* is down to one bullet, item 49's, and
+its intro count is rewritten to match.
 
 ## Next group
 
-**Item 48 and then the corpus it wants.** One file set: `crates/nvs-types/src/expr/calls.rs`,
-`crates/nvs-stdlib/src/registry.rs`, with cases under `tests/conformance/class/`.
+**Item 49, which is the last Stage 00 shape and is three edits in three files.** One file set:
+`crates/nvs-ir/tests/type_atoms.rs`, `crates/nvs-ir/tests/refusals.rs`, `tools/holes.py`. Take them in
+this order — the third is a *measurement* the second one records, so it cannot come first.
 
-- [ ] **Item 48 — `new` on a `Core` class with no constructor is a diagnostic.**
-      `crates/nvs-types/src/expr/calls.rs:322` is `infer_new`, `:450` is
-      `reject_arguments_to_implicit_constructor` (which already holds a *user* class to zero
-      arguments) and `:925` is `check_new_target`, whose `NewTarget::Name` arm lets a `Core` name
-      through on `qname.is_core()` with no registry lookup at all. The user-class half is pinned by
-      `tests/conformance/class/a-class-with-no-constructor-takes-no-arguments.nvst`, so the shape
-      of the diagnostic is settled and only the `Core` side is missing. Gate name:
-      `a_core_class_with_no_constructor_refuses_arguments`.
-- [ ] **A `.nvst` case for the `Core` half of the same rule**, beside the user-class one named
-      above — one arity rule, both sides of the `Core`/user line, which is what that gate check's
-      own comment in `docs/agent/loop-goal.toml:256` asks for.
-- [ ] **Item 49's shape table**, if the two above leave room:
-      `every_spellable_expression_reaches_a_diagnostic_or_an_ir` — the sweep that would have found
-      items 45-48 rather than having them found one at a time. `docs/agent/loop-goal.md` owns it.
+- [ ] **Widen the atom table to a roster of source shapes** (`loop-goal.md` item 49, ADR 0007 § 3).
+      `crates/nvs-ir/tests/type_atoms.rs:232` is `every_spellable_type_reaches_a_diagnostic_or_an_ir`,
+      which walks every *type* atom through two declaration positions. The sibling this owes is
+      `every_spellable_expression_reaches_a_diagnostic_or_an_ir` — a class-constant read, a `new`, a
+      call through each receiver kind, each statement form, each asserted to reach a diagnostic or an
+      IR. That is the gate name still unwritten, and `guard-name-debt.md` names it.
+- [ ] **Teach `tools/holes.py`'s `REFUSAL` to recognize a panic by shape, not by phrasing.**
+      `tools/holes.py:53` is the recognizer's own comment: it is a three-phrase match over `panic!`,
+      `assert!`'s second argument and `CodegenError::Unsupported`, which is why item 45's panic was
+      invisible to it. Match the construct rather than the wording.
+- [ ] **Re-derive `refusals.rs`'s `CEILING` from the true count, and say so in the commit.**
+      `crates/nvs-ir/tests/refusals.rs` carries **4**, which the plan already records as a floor on
+      the truth rather than the truth — it came from the blind count the recognizer above produced. A
+      ratchet set from a blind count is not a ratchet.
 
 ## Backlog
 
-- A class constant whose value has no constant form (`const ROWS = [1, 2];`) panics `nvs-ir`
-  rather than being diagnosed — `crates/nvs-types/src/lib.rs`'s known gaps.
-- ADR 0046 § 5's payload folder could now resolve a class constant, but `retrieval.rs`'s
-  `fold_value` carries no namespace context to resolve the class name with — that module's docs.
-- `E0741`'s whitelist ignores a `?static` or a union naming `static`; `writes_static_return` owns
-  why the conservative half is to answer the declared type there.
-- `refusals.rs`' recognizer matches a refusal by phrasing, so its ceiling of 4 is a floor —
-  item 49 owns it.
+- There is no intersection type, so two `instanceof` guards cannot both hold — decided nowhere yet;
+  if it is ever wanted, it is an ADR, not a checker fix (`nvs_types::locals`' narrowing section).
+- `new Core\Order()` on a `Core` *enum* now answers "`Core\Order` is not declared", which is true of
+  the class position it was written in but says nothing about the enum (`nvs-types/src/expr/calls.rs`
+  `check_new_target`).
+- Stage 8's `refusals.rs` ceiling ratchets down and never up; a new refusal beside an old one in a
+  claimed file is otherwise invisible (`loop-goal.md` § *Standing decisions*).
+- ADR 0028 § 2's abandoned-generator `finally`, still unlanded (`loop-goal.md` § *Standing decisions*).

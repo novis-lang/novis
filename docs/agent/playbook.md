@@ -2053,6 +2053,13 @@ is why" — is this file.
   runs `parse` → `resolve` → `check_program` and nothing else; the casing/visibility pass
   `nvs-cli`'s `front_end` runs is not in it. So `interface Labelled { function label(): string; }`
   is a fine unit fixture and a broken case file, and the fix is one keyword rather than a hunt.
+- **A nested `instanceof` guard *replaces* the residue rather than intersecting with it.** There is no
+  intersection type, so inside `if ($v instanceof Labelled) { if ($v instanceof Counted) { ... } }` the
+  subject is a `Counted` and nothing else, and `$v->label()` there is `E0405: \`Counted\` has no method
+  named \`label\``, pointing at the *inner* interface for a member the outer guard proved. Read what the
+  outer guard bought into a local before writing the second test —
+  `tests/conformance/lang/an-instanceof-guard-narrows-to-an-interface.nvst` writes it that way and says
+  so in the case.
 
 ## Splitting a file that got too big
 
@@ -2677,6 +2684,13 @@ sibling in the same namespace unqualified.
   a `mixed` parameter — rather than to hunt for the next thing that still infers `mixed`. So when
   a slice widens what the checker knows about a shape, `grep` the test tree for that shape used
   as a *source* and not as a subject.
+- **`Core` is two rosters, not one, and the second is the exception tree.** Narrowing a `Core` name
+  from the `is_core()` spelling test to `nvs_stdlib::registry` looks total — the registry's own docs
+  call `CLASSES` the whole roster — and it refuses `new Core\Test\Failure(...)`, which lives in
+  `nvs_hir::errors::TREE` instead. `QName::is_reserved_global_class`'s doc comment says so out loud
+  ("its one namespaced row is trusted to exist through `is_core`"), on the predicate you are *not*
+  editing, so it is only found by the conformance leg. Any check that reads `is_core()` as "in the
+  registry" owes `errors::is_exception_class` beside it.
 
 ## Divergences and refusals already pinned
 

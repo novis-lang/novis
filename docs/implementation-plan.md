@@ -38,17 +38,16 @@
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
 > **Open now:** **Stage 00 of [docs/agent/loop-goal.md](agent/loop-goal.md) is the frontier** — six
-> shapes a program reaches for on its first page, of which **five are now closed and one is not**.
-> **ADR 0109's `for` header is done, corpus and all**: the init clause is
-> `nvs_syntax::ast::ForInit`, one typed local declaration or an expression list, with
-> `E0124`/`E0125` on the two shapes § 3 refuses, and 55 loops across 29 files under `tests/` and
-> `examples/` now declare their counter in the header — the exclusion § *Consequences* names (a
-> counter read after its loop, or shared by two loops) leaves the rest declared above, and the ADR's
-> own case keeps both forms on purpose. **Item 50 is closed beside it**: PHP's `case Hearts = 1;` is
-> `E0239`, raised once on the `case` keyword and naming the comma-list spelling ([ADR
-> 0010](adr/0010-enums-are-a-value-type.md) § 1), with the case *kept* — which retires the
-> four-diagnostic `E0220` cascade that shape used to produce. **Item 45 is closed as well**: a
-> user-declared class constant carries a declared type and a placed value in
+> shapes a program reaches for on its first page, of which **all six are now closed**. **ADR 0109's
+> `for` header is done, corpus and all**: the init clause is `nvs_syntax::ast::ForInit`, one typed
+> local declaration or an expression list, with `E0124`/`E0125` on the two shapes § 3 refuses, and
+> 55 loops across 29 files under `tests/` and `examples/` now declare their counter in the header —
+> the exclusion § *Consequences* names (a counter read after its loop, or shared by two loops)
+> leaves the rest declared above, and the ADR's own case keeps both forms on purpose. **Item 50 is
+> closed beside it**: PHP's `case Hearts = 1;` is `E0239`, raised once on the `case` keyword and
+> naming the comma-list spelling ([ADR 0010](adr/0010-enums-are-a-value-type.md) § 1), with the case
+> *kept* — which retires the four-diagnostic `E0220` cascade that shape used to produce. **Item 45
+> is closed as well**: a user-declared class constant carries a declared type and a placed value in
 > `nvs_types::signatures::ConstSig`, so `Limits::MAX` reads at its own annotation through `extends`,
 > `implements` and `self::` alike, and lowers to the constant instruction its literal does. **Items
 > 46 and 47 are closed too**: a member declaring `static` records
@@ -57,14 +56,18 @@
 > promise (`return new self();`) is refused as `E0741` rather than left as a hole — that refusal is
 > the session's own decision, taken under the priority ordering and recorded at the bit it guards.
 > `instanceof` now narrows to a user-declared interface and to every reserved global name but the
-> two ADR 0053 § 2 iteration interfaces, which take a type argument the test does not supply. The
-> gate's whole `nvs-syntax` block is green and its `nvs-types` block now stops at item 48. Still
-> open beside it: `new` on a `Core` class with no constructor, and the shape table that would have
-> caught the rest. That file defines what a *hole* is; three tools are the worklist and no session
-> re-derives one — `python tools/holes.py` (`--item N`), `python tools/loop.py --list`, `python
-> tools/gaps.py`. **Six of the gate's names are deliberately unwritten** and the acceptance test
-> stops at the first check holding one; [guard-name-debt.md](agent/guard-name-debt.md) § *Stage 00's
-> ten* says why renaming one is the wrong fix. Stage 8's
+> two ADR 0053 § 2 iteration interfaces, which take a type argument the test does not supply. **Item
+> 48 is closed last**: a `new` target under `Core\` is held to `nvs_stdlib::registry` rather than to
+> the namespace spelling, so an unregistered name is `E0303` where it used to reach `nvs-codegen`'s
+> "declares no descriptor for it", while a registered class with no `constructor` keeps `E0405`
+> naming the member it has not got. Stage 00's three missing conformance cases are written too — the
+> class constant, `new static()` through two levels, and the `instanceof` interface guard — so the
+> gate's `nvs-syntax`, `nvs-types` and Stage 00 conformance blocks are all green and the frontier is
+> item 49's shape table alone. That file defines what a *hole* is; three tools are the worklist and
+> no session re-derives one — `python tools/holes.py` (`--item N`), `python tools/loop.py --list`,
+> `python tools/gaps.py`. **One of the gate's names is deliberately unwritten** and the acceptance
+> test stops at the first check holding one; [guard-name-debt.md](agent/guard-name-debt.md) § *Stage
+> 00's remaining names* says why renaming it is the wrong fix. Stage 8's
 > [refusals.rs](../crates/nvs-ir/tests/refusals.rs) carries a ceiling of **4**, which item 49
 > re-derives: its recognizer matches by phrasing rather than by shape, so that number is a floor on
 > the truth rather than the truth.
