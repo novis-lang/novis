@@ -181,6 +181,17 @@ pub mod code {
     /// § 1, which carries `require`'s literal-only restriction for the same
     /// reason.
     pub const E_AUTOLOAD_PATH_NOT_LITERAL: Code = Code::new("E0123");
+    /// A `for` init clause holding a declaration *and* an expression, in
+    /// either order — `for (int $i = 0, $j = 1; …)` and
+    /// `for ($j = 1, int $i = 0; …)` alike. See
+    /// [ADR 0109](../../../docs/adr/0109-a-for-header-declares-its-own-counter.md)
+    /// § 3, whose § 1 makes the clause one or the other and never both.
+    pub const E_FOR_INIT_MIXES_DECL_AND_EXPR: Code = Code::new("E0124");
+    /// A `for` init clause holding two declarations, `for (int $i = 0, int
+    /// $j = 0; …)` — the shape a reader coming from C writes. Separate from
+    /// [`E_FOR_INIT_MIXES_DECL_AND_EXPR`] because the fix is different:
+    /// the second declaration goes above the loop. ADR 0109 § 3.
+    pub const E_FOR_INIT_TWO_DECLARATIONS: Code = Code::new("E0125");
 
     // --- E02xx rejected PHP constructs -------------------------------------
     // Novis accepts PHP 8.5 syntax as a *pragmatic* superset. These constructs
