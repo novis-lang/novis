@@ -1913,6 +1913,42 @@ pub enum Helper {
     /// with no bit pattern to complement and takes the refusal rather than a
     /// row.
     ValueBitNot,
+    /// `$m[$k]` where the base's static type named no element type at all —
+    /// [`InstKind::ArrayGet`] asked of a [`crate::ty::Ty::Tagged`] base, whose
+    /// tag is what answers *whether there is an array here* before the key is
+    /// looked up.
+    ///
+    /// This is
+    /// [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) § 4's
+    /// deferral applied to a subscript rather than to a member access: a
+    /// `mixed` is [ADR 0007](../../../docs/adr/0007-explicit-type-system.md)
+    /// § 2's one unchecked position, so the read is the tag's question and not
+    /// the site's, and every base whose *declared* type already answers it —
+    /// a scalar, an untested `?array<T>`, a union naming no array — is
+    /// refused where it is written instead (`E0482`).
+    ///
+    /// It is a `Helper` rather than a widening of `InstKind::ArrayGet` because
+    /// the two differ in exactly one row and it is the one that must not be
+    /// shared: a non-array base is an *internal inconsistency* for the
+    /// statically typed read, whose base is an `array<T>` by declaration, and
+    /// a **catchable throw** here, carrying `E0482`'s own wording. The key and
+    /// the absent-key answer are the same in both — `nvs_runtime::helpers`'
+    /// `value_index` is the one implementation, and its doc comment is those
+    /// rows' home.
+    ///
+    /// The result is [`crate::ty::Ty::Tagged`] for [`Self::ValueAdd`]'s
+    /// reason: the element's type is whatever the array turns out to hold.
+    /// The base and the key are both **borrowed**, exactly as `ArrayGet`
+    /// borrows them, and the error edge is [`Inst::on_error`] as for every
+    /// read that can fail on an absent key.
+    ValueIndexGet,
+    /// `$m[$k]` under a `??` — [`Self::ValueIndexGet`] with
+    /// [`AbsentKey::Null`]'s answer, and one row wider: a base whose tag is
+    /// not an array answers `null` too rather than throwing, which is what
+    /// PHP's `??` does for `$m["k"]` over any `$m` at all. Infallible, so it
+    /// carries no error edge — the same split
+    /// [`AbsentKey`] draws for the statically typed pair.
+    ValueIndexOptionalGet,
     /// `a == b` over two operands at least one of which the checker typed
     /// `secret` —
     /// [ADR 0033](../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)

@@ -3124,7 +3124,18 @@ impl<'a> Lowering<'a> {
     /// class: a base that declares no element type has no
     /// `ExprInfo::Index` entry at all, and `nvs_types` refuses one as
     /// `E0482` where it is written, so the panic here is an invariant
-    /// check rather than a gap. `base[]` (`index`
+    /// check rather than a gap.
+    ///
+    /// **A [`Ty::Tagged`] base is the one that declares nothing and is not
+    /// refused**, because it is ADR 0007 § 2's unchecked position: a `mixed`
+    /// defers whether there is an array here at all, which is ADR 0036 § 4's
+    /// deferral one storage kind along from a member access, so the read goes
+    /// to [`Helper::ValueIndexGet`] (or [`Helper::ValueIndexOptionalGet`]
+    /// under a `??`) and the tag answers. The choice is made off the base's
+    /// *representation* rather than off the recorded entry, exactly as
+    /// [`Self::lower_instanceof`] reads its own subject's.
+    ///
+    /// `base[]` (`index`
     /// is `None`) has no meaning as a read at all — it is PHP's
     /// append syntax, assignment-target-only — and `nvs_types`
     /// refuses it as `E0481` where it is written, so the arm here is
@@ -3168,10 +3179,6 @@ impl<'a> Lowering<'a> {
         } else {
             AbsentKey::Throws
         };
-        let result_ty = match absent {
-            AbsentKey::Throws => lower_checked_ty(*elem_ty, self.checked_types),
-            AbsentKey::Null => Ty::Tagged,
-        };
         // Exactly `Self::lower_property_access`'s rule, one storage kind
         // along: a base that is itself a fresh producer — `$m->rows()["0"]` —
         // has no other owner, so this frame owes its release, and the element
@@ -3194,10 +3201,42 @@ impl<'a> Lowering<'a> {
         if key_is_temporary {
             self.own_temporary(key_v);
         }
-        let kind = InstKind::ArrayGet {
-            array: array_v,
-            key: key_v,
-            absent,
+        // A tagged base has no declared element type to answer with — the
+        // element is whatever the array turns out to hold — so it takes the
+        // representation the guarded read already takes, and
+        // `Lowering::coerce` absorbs it into a declared type by the rows it
+        // absorbs integer `/`'s union with.
+        let result_ty = if base_ty == Ty::Tagged {
+            Ty::Tagged
+        } else {
+            match absent {
+                AbsentKey::Throws => lower_checked_ty(*elem_ty, self.checked_types),
+                AbsentKey::Null => Ty::Tagged,
+            }
+        };
+        // ADR 0036 § 4's deferral, one storage kind along from a member
+        // access: a base whose representation is a tag has not yet answered
+        // *whether there is an array here*, so the read goes to the helper
+        // pair that asks the tag rather than to the instruction, whose base
+        // is an `array<T>` by declaration. `nvs_types` records the same
+        // `ExprInfo::Index` either way — it is the base's own representation
+        // that picks here, exactly as it does for `instanceof`'s subject.
+        let kind = if base_ty == Ty::Tagged {
+            let helper = if *guarded {
+                Helper::ValueIndexOptionalGet
+            } else {
+                Helper::ValueIndexGet
+            };
+            InstKind::HelperCall {
+                helper,
+                args: vec![array_v, key_v],
+            }
+        } else {
+            InstKind::ArrayGet {
+                array: array_v,
+                key: key_v,
+                absent,
+            }
         };
         let result = match absent {
             AbsentKey::Throws => self.emit_fallible(*cur, result_ty, kind, env),

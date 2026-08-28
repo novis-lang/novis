@@ -1,5 +1,5 @@
 --TEST--
-a subscript whose base declares no element type is refused where it is written, for a `mixed`, a scalar, a `string` and an untested `?array<T>` alike — ADR 0007 § 5, ADR 0009 § 2
+a subscript whose base has already answered that it holds no array is refused where it is written — a scalar, a `string`, an untested `?array<T>`, and a `mixed` in a *write* target — ADR 0007 § 5, ADR 0009 § 2
 --FILE--
 <?nvs
 // ADR 0007 § 5 checks an element read and write against the array's *declared*
@@ -8,10 +8,18 @@ a subscript whose base declares no element type is refused where it is written, 
 // these — ADR 0007 § 7 row 8's family — and Novis refuses at check time instead.
 // A `string` is not an exception: ADR 0009 § 2 indexes one by extended
 // grapheme cluster through `Core\Str`, deliberately not through a subscript.
-// The last one is the sharpest: a nullable array has an element type only
-// once it is known not to be `null`, so an *untested* one is refused here
+// The `?array<string>` is the sharpest: a nullable array has an element type
+// only once it is known not to be `null`, so an *untested* one is refused here
 // while the same subscript inside an `if ($rows != null)` narrows and runs
 // (`nvs_types::locals`' narrowing docs own that half).
+//
+// `mixed` is the one base that is *not* refused for a read: it is ADR 0007
+// § 2's unchecked position, so whether there is an array here is the tag's
+// question and not the site's, exactly as ADR 0036 § 4 defers a property
+// access through an erased receiver. Only the **write** below is refused —
+// an element write separates a copy-on-write buffer and needs a holder to
+// write the separated one back through, which a value that is only a tag does
+// not name.
 mixed $m = "x";
 $m["0"] = "1";
 echo $m["0"], "\n";
@@ -26,18 +34,15 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0482]: `mixed` cannot be subscripted
-   --> case.nvs:13:1
-%A
-error[E0482]: `mixed` cannot be subscripted
-   --> case.nvs:14:6
+   --> case.nvs:21:1
 %A
 error[E0482]: `int` cannot be subscripted
-   --> case.nvs:16:6
+   --> case.nvs:24:6
 %A
 error[E0482]: `string` cannot be subscripted
-   --> case.nvs:18:6
+   --> case.nvs:26:6
 %A
 error[E0482]: `null|array<string>` cannot be subscripted
-   --> case.nvs:20:6
+   --> case.nvs:28:6
 %A
-error: aborting due to 5 errors
+error: aborting due to 4 errors

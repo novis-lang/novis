@@ -3326,3 +3326,52 @@ bool $differ = $mac != $sent;
     assert!(text.contains("helper.secret_eq"), "{text}");
     assert!(text.contains("not "), "{text}");
 }
+
+/// ADR 0036 § 4's deferral, one storage kind along from a member access: a
+/// `mixed` base defers *whether there is an array here* as well as which
+/// one, so a subscript through it reaches the helper pair that asks the
+/// operand's tag rather than `InstKind::ArrayGet`, whose own base is an
+/// `array<T>` by declaration.
+///
+/// Read off the rendering rather than snapshotted, because what is pinned
+/// is *which* entry point each of the two reads takes and which of them
+/// can throw — a snapshot would go red for any unrelated renumbering and
+/// say nothing about either.
+#[test]
+fn a_subscript_through_a_tagged_base_lowers() {
+    let (f, map, file) = lower_first_method(concat!(
+        "<?nvs\nclass T {\n",
+        "  function read(mixed $m): mixed {\n",
+        "    mixed $plain = $m[0];\n",
+        "    mixed $guarded = $m[\"k\"] ?? \"d\";\n",
+        "    return $guarded;\n",
+        "  }\n}\n",
+    ));
+    let text = print_function(&f, map.file(file));
+    assert!(
+        !text.contains("array_required_get") && !text.contains("array_optional_get"),
+        "a tagged base reached the statically typed read, whose non-array row \
+         is an internal inconsistency rather than a catchable throw: {text}"
+    );
+    for line in text.lines() {
+        if line.contains("value_index_get") {
+            assert!(
+                line.contains(" ! bb"),
+                "the unguarded read lost the error edge an absent key and a \
+                 non-array tag both leave by: {line}"
+            );
+        }
+        if line.contains("value_index_optional_get") {
+            assert!(
+                !line.contains(" ! bb"),
+                "the guarded read grew an error edge it has no failure for: {line}"
+            );
+        }
+    }
+    assert_eq!(text.matches("value_index_get").count(), 1, "{text}");
+    assert_eq!(
+        text.matches("value_index_optional_get").count(),
+        1,
+        "{text}"
+    );
+}

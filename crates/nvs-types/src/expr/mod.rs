@@ -485,8 +485,25 @@ pub(super) fn infer(
             } else {
                 base_ty
             };
+            // A `mixed` base is ADR 0007 § 2's one unchecked position, so
+            // ADR 0036 § 4's deferral applies to a subscript exactly as it
+            // does to a member access: the base defers not only which array
+            // is behind the handle but whether there is one at all, and the
+            // *tag* answers both below (`nvs_ir::Helper::ValueIndexGet`).
+            // The element is then `mixed` too — an array behind a `mixed`
+            // carries no declared element type either.
+            //
+            // A **write** target is deliberately not part of this: an element
+            // write through an erased base has ADR 0007 § 5's copy-on-write
+            // separation to write back through a holder that is only a tag,
+            // and until that exists `E0482` refuses it where it is written
+            // rather than leaving `nvs-ir` to panic.
+            let deferred_to_the_tag = matches!(env.interner.get(base_ty), Ty::Mixed)
+                && !env.write_target_levels.contains_key(&expr.span);
+            let mixed = env.interner.mixed();
             let elem_ty = match env.interner.get(base_ty) {
                 Ty::Array(elem) => Some(*elem),
+                Ty::Mixed if deferred_to_the_tag => Some(mixed),
                 _ => None,
             };
             match elem_ty {

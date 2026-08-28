@@ -3369,6 +3369,8 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::ValueShr => "nvs_value_shr",
         Helper::ValueNeg => "nvs_value_neg",
         Helper::ValueBitNot => "nvs_value_bit_not",
+        Helper::ValueIndexGet => "nvs_value_index_get",
+        Helper::ValueIndexOptionalGet => "nvs_value_index_optional_get",
         Helper::SecretEq => "nvs_secret_eq",
         Helper::CallClosure => "nvs_call_closure",
         Helper::CallClosureArray => "nvs_call_closure_array",

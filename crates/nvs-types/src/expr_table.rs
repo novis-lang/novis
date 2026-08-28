@@ -328,10 +328,17 @@ pub enum ExprInfo {
         ty: TypeId,
     },
     /// A resolved array-element access (`$arr[$expr]`, read or write) whose
-    /// base statically resolved to a known `Ty::Array` element type — never
-    /// recorded when the base erased to `mixed` (an untyped/unresolved
-    /// array), leaving a consumer with nothing compile-time-known to read.
-    /// There is no element-access counterpart to
+    /// base statically resolved to a known `Ty::Array` element type, **or**
+    /// erased to `mixed` in a read position, where ADR 0036 § 4's deferral
+    /// applies one storage kind along from a member access: the element type
+    /// is `mixed` too, and `nvs-ir` picks
+    /// [`nvs_ir::Helper::ValueIndexGet`](../../nvs_ir/ir/enum.Helper.html)
+    /// over `InstKind::ArrayGet` off the base's own representation rather
+    /// than off anything recorded here. Every other base — a scalar, an
+    /// untested `?array<T>`, a union naming no array — is `E0482` where it
+    /// is written and records nothing, and so is a `mixed` in a **write**
+    /// target, whose copy-on-write separation has no holder to write back
+    /// through. There is no element-access counterpart to
     /// [`ExprInfo::ShapeProperty`]'s erased half: a property has a written
     /// name to key a runtime fetch on and a subscript has only a value.
     /// Recorded
@@ -1134,15 +1141,29 @@ mod tests {
         assert!(matches!(exprs.lookup(span), Some(ExprInfo::Index { .. })));
     }
 
-    /// An array subscript through a `mixed`-erased base records nothing —
-    /// mirroring [`ExprInfo::Property`]'s own "nothing compile-time-known to
-    /// read" treatment of a shape/plain-`object` receiver — and, since there
-    /// is then no element type for `nvs-ir` to lower against, `E0482` refuses
-    /// it where it is written rather than leaving that crate to panic.
+    /// An array subscript through a `mixed`-erased base is ADR 0036 § 4's
+    /// deferral rather than a refusal: the entry is recorded with a `mixed`
+    /// element type, and `nvs-ir` reads the base's *representation* to pick
+    /// the tag-asking read (`nvs_ir::Helper::ValueIndexGet`) over the
+    /// statically typed one. Nothing is diagnosed, because there is nothing
+    /// the declared type could have answered.
     #[test]
-    fn an_array_index_through_a_mixed_base_records_nothing_and_is_refused() {
+    fn an_array_index_through_a_mixed_base_defers_to_the_tag() {
         let (exprs, span, diags) = check_fixture(
             "<?nvs\nclass T {\n  function m(): mixed {\n    return T::UNTYPED[0];\n  }\n  const UNTYPED = 1;\n}\n",
+        );
+        assert!(matches!(exprs.lookup(span), Some(ExprInfo::Index { .. })));
+        assert_eq!(diags.iter().count(), 0);
+    }
+
+    /// The other side of that bound: a base whose *declared* type already
+    /// answers "there is no array here" keeps `E0482` where it is written,
+    /// because the deferral is what `mixed` is for and a type that has
+    /// answered the question does not get to ask it again at run time.
+    #[test]
+    fn an_array_index_through_a_scalar_base_is_still_refused() {
+        let (exprs, span, diags) = check_fixture(
+            "<?nvs\nclass T {\n  function m(int $n): mixed {\n    return $n[0];\n  }\n}\n",
         );
         assert!(exprs.lookup(span).is_none());
         assert_eq!(diags.iter().count(), 1);

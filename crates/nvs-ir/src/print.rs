@@ -522,6 +522,8 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::ValueShr => "value_shr",
         Helper::ValueNeg => "value_neg",
         Helper::ValueBitNot => "value_bit_not",
+        Helper::ValueIndexGet => "value_index_get",
+        Helper::ValueIndexOptionalGet => "value_index_optional_get",
         Helper::SecretEq => "secret_eq",
         Helper::CallClosure => "call_closure",
         Helper::CallClosureArray => "call_closure_array",

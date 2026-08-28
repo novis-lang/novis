@@ -298,6 +298,18 @@ One type parameter, not two, because the key type is fixed by the language.
   refused where it is written, `array<mixed>` being the target every tag satisfies and the way round it.
 - The empty literal `[]` has type `array<never>`, which satisfies every `array<T>`, so invariance never gets
   in the way of initialising.
+- **A subscript through a `mixed` is the tag's question, not the site's.** A base that declares an element
+  type is checked where it is written, and a base whose declared type can hold no array at all — a scalar, an
+  untested `?array<T>`, a union naming none — is refused there (`E0482`), because a type that has already
+  answered the question does not get to ask it again at run time. `mixed` is *2*'s one unchecked position, so
+  it defers not only which array is behind the handle but whether there is one, exactly as
+  [0036](0036-anonymous-object-shapes.md) § 4 defers a property access through an erased receiver — and the
+  answers are that section's two, one storage kind along: the element, or a catchable throw carrying the same
+  "only an `array<T>` has elements" wording the refusal above uses, never PHP's warning-plus-`null`. Under a
+  `??` both failures answer `null` instead, which is what PHP's own null-coalescing read does for any subject.
+  The **write** side is not deferred: an element write separates a copy-on-write buffer and needs a holder to
+  write the separated one back through, which a value that is only a tag does not name, so `$m[$k] = v` keeps
+  the refusal above.
 - **Array literals are checked against the target type, never inferred and then compared.** Because every
   binding is annotated, a literal always has a target. This is the second place where the mandatory
   annotation deletes machinery rather than adding it, and it is why

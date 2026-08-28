@@ -352,6 +352,87 @@ crate::nvs_helper! {
     }
 }
 
+/// The catchable throw a subscript through a tagged base raises when the tag
+/// turns out not to be an array at all.
+///
+/// It carries `nvs_types::expr::report_unsubscriptable`'s own wording
+/// (`E0482`) on purpose: "only an `array<T>` has elements" is one rule, and a
+/// base that hid the answer behind a `mixed` should read as the same refusal
+/// the site makes wherever the declared type shows it. PHP warns and yields
+/// `null` here; ADR 0007 § 7 row 11 already records that divergence for the
+/// absent key, and this is the same one storage kind up.
+fn not_subscriptable(base: Value) -> Fault {
+    Fault::thrown(format!(
+        "`{}` cannot be subscripted — only an `array<T>` has elements",
+        tag_name(base)
+    ))
+}
+
+/// The two rows of `nvs_ir::Helper::ValueIndexGet` and its
+/// `…OptionalGet` twin: an element read whose base is a
+/// `nvs_ir::Ty::Tagged`, so that *whether there is an array* is the tag's
+/// question rather than the site's.
+///
+/// One implementation for both, the arrangement
+/// [`crate::helpers::nvs_tagged_to_bytes`]'s own twin already uses, because
+/// they differ in exactly one axis. `absent_is_null` is `??`'s guard, and it
+/// widens **both** failures rather than only the key one: PHP's `$m["k"] ??
+/// "d"` yields `"d"` for every `$m` that is not an array as readily as for an
+/// array missing the key, so a guarded read has no throw at all. Unguarded,
+/// the two failures are distinct and both catchable — [`undefined_key`] for a
+/// key the array does not hold, [`not_subscriptable`] for a base that is no
+/// array.
+///
+/// The answer is **borrowed**, exactly as [`nvs_array_required_get`]'s is:
+/// the entry lives as long as the array holding it, which the caller owns for
+/// the duration of the call.
+fn value_index(base: Value, key: Value, absent_is_null: bool) -> Result<Value, Fault> {
+    let Some(array) = base.array_ptr() else {
+        if absent_is_null {
+            return Ok(Value::null());
+        }
+        return Err(not_subscriptable(base));
+    };
+    #[expect(
+        unsafe_code,
+        reason = "a Tag::Array argument owns a reference to a live \
+                  allocation, so it is live for this read, and so is the \
+                  Tag::Str key beside it"
+    )]
+    let found = unsafe {
+        if let Some(key) = key.str_ptr() {
+            crate::array::entry(array, NvsStr::bytes_of(key))
+        } else if let Some(index) = key.as_int() {
+            crate::array::entry_at_index(array, index)
+        } else {
+            return Err(wrong_tag("nvs_value_index_get", Tag::Str, key));
+        }
+    };
+    match found {
+        Some(value) => Ok(value),
+        None if absent_is_null => Ok(Value::null()),
+        None => Err(undefined_key(key)),
+    }
+}
+
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::ValueIndexGet` — `$m[$k]` where the base's static
+    /// type named no element type, so its tag names one instead. See
+    /// [`value_index`].
+    fn nvs_value_index_get(_ctx, args: [2]) {
+        value_index(args[0], args[1], false)
+    }
+}
+
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::ValueIndexOptionalGet` — [`nvs_value_index_get`]
+    /// under a `??`, which answers `null` for a missing key *and* for a base
+    /// that is no array. See [`value_index`].
+    fn nvs_value_index_optional_get(_ctx, args: [2]) {
+        value_index(args[0], args[1], true)
+    }
+}
+
 crate::nvs_helper! {
     /// `nvs_ir::Helper::Identical` — `==` where at least one operand is a
     /// `mixed` or a union, which is
@@ -2445,6 +2526,11 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("nvs_array_row_for_write", address(nvs_array_row_for_write)),
         ("nvs_array_required_get", address(nvs_array_required_get)),
         ("nvs_array_optional_get", address(nvs_array_optional_get)),
+        ("nvs_value_index_get", address(nvs_value_index_get)),
+        (
+            "nvs_value_index_optional_get",
+            address(nvs_value_index_optional_get),
+        ),
         ("nvs_value_identical", address(nvs_value_identical)),
         ("nvs_numeric_eq", address(nvs_numeric_eq)),
         ("nvs_numeric_lt", address(nvs_numeric_lt)),
