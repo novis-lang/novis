@@ -17,10 +17,10 @@ for p in nvs-syntax nvs-hir nvs-types nvs-ir nvs-runtime nvs-codegen nvs-stdlib 
 ```
 
 then substring-match every `tests = [...]` entry in `loop-goal.toml` against that roster. Measured
-2026-08-28 at `e0c9f3e`: **54 of 156 named guard tests match nothing cargo would run.** **Forty-five**
-of those have since been reconciled — the ticked lines below — leaving **9**, over the **128**
+2026-08-28 at `e0c9f3e`: **54 of 156 named guard tests match nothing cargo would run.** **Forty-seven**
+of those have since been reconciled — the ticked lines below — leaving **7**, over the **128**
 entries `tests = [...]` now holds across every `cargo-named` check (127 distinct: Stage 2 and Stage 5
-both name `a_disjoint_equality_does_not_compile`). Twenty-nine of the forty-five were a cause-2
+both name `a_disjoint_equality_does_not_compile`). Twenty-nine of the forty-seven were a cause-2
 *move* out of a `tests = [...]` list and into `cases`, so the denominator moves with them, and three
 whole `[[check]]` blocks went that way entire — Stage 5's two and Stage 7's `nvs-stdlib (the
 assertion roster)`.
@@ -211,7 +211,7 @@ checks are gone rather than renamed.
 
 ### Stage 6 — checker and parser
 
-`nvs-types (narrowing and reachability)`, `cargo test -p nvs-types` — 2 of 8 unresolved, both cause 3
+`nvs-types (narrowing and reachability)`, `cargo test -p nvs-types` — 0 of 8 unresolved — closed
 
 - [x] `an_instanceof_narrows_its_operand` — cause 1, now
       `an_instanceof_test_narrows_its_subject` (`crates/nvs-types/tests/narrowing.rs`)
@@ -219,11 +219,10 @@ checks are gone rather than renamed.
       `a_comparison_against_a_literal_narrows_its_subject` (`crates/nvs-types/tests/narrowing.rs`)
 - [x] `a_match_true_arm_narrows_its_subject` — cause 2, now
       `lang/a-match-and-a-switch-over-true-narrow-per-arm.nvst` (added to the list)
-- [ ] `a_non_void_function_must_return_on_every_path` — **cause 3, and only half of it.** The
-      accepting side is two cases, both now in the list
+- [x] `a_non_void_function_must_return_on_every_path` — was cause 3 and is now landed under its own
+      name: [returns.rs:30](../../crates/nvs-types/tests/returns.rs#L30), over the `E0739` that
+      `nvs_types::returns` now reports. The accepting side stays two cases
       (`lang/a-for-body-that-always-returns.nvst`, `lang/a-method-returns-early-from-inside-a-loop.nvst`).
-      The refusal has no home at all: nothing in `nvs-types` or `nvs-diagnostics` names a body that
-      falls off its end, so there is no diagnostic to assert and this line stays until one exists.
 - [x] `a_switch_and_a_try_contribute_to_definite_assignment` — cause 1, and it is two tests rather
       than one: [locals.rs:109](../../crates/nvs-types/tests/locals.rs#L109)
       `a_switch_with_default_and_a_break_in_every_case_assigns_definitely` and
@@ -234,10 +233,11 @@ checks are gone rather than renamed.
       `a_class_constant_folds_and_an_enum_case_narrows`
 - [x] `a_promoted_constructor_parameter_declares_its_property` — cause 2, now
       `class/a-promoted-constructor-parameter-is-a-property.nvst` (added to the list)
-- [ ] `an_implicit_constructor_is_held_to_zero_arguments` — **cause 3.** The earlier guess here named
-      `reject_arguments_to_implicit_constructor`, which is a *private function* in
-      `crates/nvs-types/src/expr/calls.rs`, not a test: nothing calls it from a test and no `.nvst`
-      case builds a no-constructor class with arguments. Do not tick this on the name alone.
+- [x] `an_implicit_constructor_is_held_to_zero_arguments` — was cause 3 *in its test half only*: the
+      refusal itself was already landed in `crates/nvs-types/src/expr/calls.rs`'s private
+      `reject_arguments_to_implicit_constructor`, and what was owed was a test calling it. Now
+      [classes.rs:136](../../crates/nvs-types/tests/classes.rs#L136), with the bare-`new` and
+      inherited-constructor halves beside it.
 - [x] `a_foreach_key_declared_past_string_is_a_compile_error` — cause 2, now
       `lang/a-foreach-key-binding-is-a-string-and-nothing-else.nvst` (added to the list)
 - [x] `an_equality_between_incompatible_operands_is_a_compile_error` — cause 1, now

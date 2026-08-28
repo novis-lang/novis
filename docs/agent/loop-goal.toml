@@ -824,13 +824,13 @@ tests = [
   "an_instanceof_test_narrows_its_subject",
   "a_comparison_against_a_literal_narrows_its_subject",
   # Item 38. The `match (true)` arm is a case rather than a cargo test, and so is the reachability
-  # half's accepting side; what is still owed here is the refusal of a body that falls off its end,
-  # which no diagnostic in `nvs-types` names yet.
+  # half's accepting side. The refusal half landed as `E0739`: `nvs_types::returns` decides whether a
+  # path reaches the end of a body, and `tests/returns.rs` pins it and every shape it must not report.
   "a_non_void_function_must_return_on_every_path",
   "a_switch_with_default_and_a_break_in_every_case_assigns_definitely",
   "a_trys_finally_assignment_reads_fine_after_it",
-  # Item 39. `an_implicit_constructor_is_held_to_zero_arguments` is genuinely owed: the refusal lives
-  # in `expr/calls.rs`'s private `reject_arguments_to_implicit_constructor`, which no test calls.
+  # Item 39. The refusal lives in `expr/calls.rs`'s private
+  # `reject_arguments_to_implicit_constructor`, and `tests/classes.rs` now calls it.
   "a_class_constant_folds_and_an_enum_case_narrows",
   "an_implicit_constructor_is_held_to_zero_arguments",
   # Item 40
