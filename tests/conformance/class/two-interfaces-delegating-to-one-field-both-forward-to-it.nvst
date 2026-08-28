@@ -1,0 +1,82 @@
+--TEST--
+`implements A by $x, B by $x` synthesizes both member sets onto the one field, and an own method still beats either forward — ADR 0043 § 4
+--FILE--
+<?nvs
+// ADR 0043 § 4 bullet 3: "two different interfaces may delegate to the same
+// field if `$x`'s type implements both." Nothing about a clause is per-class —
+// `nvs_types::conformance::resolve_delegations` walks the `implements` list
+// clause by clause, so one field named twice is two obligation sets resolved
+// against the one property, and `check_delegate_field` judges it twice for the
+// two interfaces it has to satisfy.
+interface Greets {
+    public function greet(string $who): string;
+    public function wave(): void;
+}
+
+interface Counts {
+    public function count(): int;
+}
+
+final class Aide implements Greets, Counts {
+    private int $seen = 0;
+    public function greet(string $who): string {
+        $this->seen = $this->seen + 1;
+        return "Hello, " . $who;
+    }
+    public function wave(): void {
+        echo "*wave*\n";
+    }
+    public function count(): int {
+        return $this->seen;
+    }
+}
+
+// The field is a promoted constructor parameter, which § 4 bullet 1 admits in
+// so many words — the forward reads the slot it declares like any other.
+final class Desk implements Greets by $aide, Counts by $aide {
+    public function constructor(private Aide $aide) {}
+}
+
+Desk $desk = new Desk(new Aide());
+echo $desk->greet("Ada"), "\n";
+$desk->wave();
+echo "count=", $desk->count(), "\n";
+
+// A forward is a real method on `Desk`, so a receiver typed as either
+// interface reaches the same one — the three members are one field's.
+Greets $greets = $desk;
+Counts $counts = $desk;
+echo $greets->greet("Bo"), "\n";
+echo "count=", $counts->count(), "\n";
+
+// § 4 bullet 4: an own method is an ordinary override and wins over the
+// synthesized forward, whichever of the two clauses would have supplied it.
+final class Quiet implements Greets by $aide, Counts by $aide {
+    public function constructor(private Aide $aide) {}
+    public function count(): int {
+        return -1;
+    }
+}
+
+Quiet $quiet = new Quiet(new Aide());
+$quiet->greet("Cy");
+echo "own=", $quiet->count(), " forwarded=", $quiet->greet("Di"), "\n";
+
+// The agreement the shape asks for: each spelling of one call answers what the
+// other does, counted, so a clause that stopped forwarding fails the count
+// rather than shifting one line.
+Greets $qg = $quiet;
+int $agreed = 0;
+if ($desk->greet("x") == $greets->greet("x")) { $agreed = $agreed + 1; }
+if ($desk->count() == $counts->count()) { $agreed = $agreed + 1; }
+if ($quiet->greet("y") == $qg->greet("y")) { $agreed = $agreed + 1; }
+if ($quiet->count() == -1) { $agreed = $agreed + 1; }
+echo "agreed=", $agreed, "/4\n";
+--EXPECT--
+Hello, Ada
+*wave*
+count=1
+Hello, Bo
+count=2
+own=-1 forwarded=Hello, Di
+agreed=4/4
