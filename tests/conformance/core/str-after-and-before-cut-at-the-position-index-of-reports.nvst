@@ -1,0 +1,98 @@
+--TEST--
+`Core\Str::before`/`after` cut the subject at exactly the position `indexOf`/`lastIndexOf` report and hand back the two `slice` windows either side of it, so the three members never disagree about where an occurrence is — spec § 1
+--FILE--
+<?nvs
+// `crates/nvs-stdlib/src/str.rs`'s `cut_at` is one function serving both
+// members, and its answer is "where the occurrence begins, and how long it
+// is". Nothing in a `before`/`after` line shows that this is the *same*
+// occurrence the search members found, so it is asked of a whole table and
+// counted: for every row, `before` must be `slice($s, 0, $at)` and `after`
+// must be `slice($s, $at + length($needle))`, with `$at` taken from `indexOf`
+// and, under `{last: true}`, from `lastIndexOf`.
+
+array<string> $subjects = [
+    "a,b,c", "abc", "=x", "x=", "aaa", "naïve café",
+    "a,b,c", "abc", "", "café", "a\r\nb", "banana",
+];
+array<string> $needles = [
+    ",", "z", "=", "=", "aa", "é",
+    "a,b,c", "", "x", "é", "\r\n", "na",
+];
+
+int $rows = 0;
+int $firstAgrees = 0;
+int $lastAgrees = 0;
+int $rebuilt = 0;
+int $absence = 0;
+int $earliest = 0;
+int $latest = 0;
+string $trace = "";
+int $i = 0;
+foreach ($subjects as string $s) {
+    string $n = $needles[$i as string];
+    $i = $i + 1;
+    $rows = $rows + 1;
+
+    ?uint $at = Core\Str::indexOf($s, $n);
+    ?string $head = Core\Str::before($s, $n);
+    ?string $tail = Core\Str::after($s, $n);
+    // Absence is one answer given three times: a needle that does not occur is
+    // `null` from all three members, never `""` from the cut pair (ADR 0063 R5,
+    // and PHP's `false` is not what either returns).
+    if ($at == null) {
+        if ($head == null && $tail == null) {
+            $absence = $absence + 1;
+        }
+        $trace = $trace . "-/- ";
+        continue;
+    }
+
+    int $k = $at as int;
+    int $len = Core\Str::length($n) as int;
+    if ($head == Core\Str::slice($s, 0, $k) && $tail == Core\Str::slice($s, $k + $len)) {
+        $firstAgrees = $firstAgrees + 1;
+    }
+    // The needle is excluded by both members, so putting it back is the
+    // subject — the one assertion that fails if either member kept it, which
+    // is where `after` parts from PHP's `strstr`.
+    if (($head ?? "") . $n . ($tail ?? "") == $s) {
+        $rebuilt = $rebuilt + 1;
+    }
+
+    ?uint $lastAt = Core\Str::lastIndexOf($s, $n);
+    ?string $lastHead = Core\Str::before($s, $n, {last: true});
+    ?string $lastTail = Core\Str::after($s, $n, {last: true});
+    int $lastK = ($lastAt ?? 0) as int;
+    if ($lastHead == Core\Str::slice($s, 0, $lastK) && $lastTail == Core\Str::slice($s, $lastK + $len)) {
+        $lastAgrees = $lastAgrees + 1;
+    }
+    if (($lastHead ?? "") . $n . ($lastTail ?? "") == $s) {
+        $rebuilt = $rebuilt + 1;
+    }
+
+    // What "first" and "last" mean, said without naming a position: nothing
+    // before the first occurrence is an occurrence, and nothing after the last
+    // one is either. Both hold on nine of the ten rows that have an
+    // occurrence at all — the tenth is the empty needle, which occurs
+    // everywhere including in the empty prefix it cuts.
+    if (Core\Str::indexOf($head ?? "", $n) == null) {
+        $earliest = $earliest + 1;
+    }
+    if (Core\Str::indexOf($lastTail ?? "", $n) == null) {
+        $latest = $latest + 1;
+    }
+
+    $trace = $trace . $k as string . "/" . $lastK as string . " ";
+}
+
+// The positions themselves, first/last, in row order. `aaa` with `aa` is the
+// row worth reading twice: the occurrences overlap, so the last one starts at
+// 1 and not at 2, and the cut members follow it there. `abc` with an empty
+// needle is the other: it occurs at 0 and at 3, both ends of the subject.
+echo $trace, "|\n";
+echo $rows as string, " ", $firstAgrees as string, " ", $lastAgrees as string,
+     " ", $rebuilt as string, " ", $absence as string,
+     " ", $earliest as string, " ", $latest as string, "\n";
+--EXPECT--
+1/3 -/- 0/0 1/1 0/1 9/9 0/0 0/3 -/- 3/3 1/1 2/4 |
+12 10 10 20 2 9 9
