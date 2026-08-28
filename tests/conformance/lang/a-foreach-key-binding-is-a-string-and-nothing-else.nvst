@@ -1,0 +1,82 @@
+--TEST--
+A `foreach` key binding over an `array<T>` is declared `string` or refused where it is written — ADR 0007 § 5
+--FILE--
+<?nvs
+// ADR 0007 § 5: "every key is a `string`. There is no integer key." So an
+// array's key binding is not an unprovable narrowing — it is the one type the
+// container stores, and every other declared type is always wrong. Before
+// `E0723` each of these type-checked and then tripped `nvs-ir`'s own
+// assertion, which named a compiler gap for a mistake in the program.
+array<int> $a = ["x" => 1, "y" => 2];
+
+// The accepted spelling, written first: a position that stops being accepted
+// fails here rather than as a missing refusal below.
+foreach ($a as string $ok => int $v1) {
+    echo $ok, "=", $v1, "\n";
+}
+
+// `int` is PHP's own key type and the mistake a port makes.
+foreach ($a as int $ki => int $v2) {
+    echo $v2, "\n";
+}
+
+foreach ($a as uint $ku => int $v3) {
+    echo $v3, "\n";
+}
+
+// `mixed` is ADR 0007 § 2's one unchecked position and still wrong here:
+// there is no second key type for it to be the union of.
+foreach ($a as mixed $km => int $v4) {
+    echo $v4, "\n";
+}
+
+foreach ($a as int|string $kn => int $v5) {
+    echo $v5, "\n";
+}
+
+// A nested array's inner key is the same question one level in.
+array<array<int>> $grid = ["r" => ["c" => 1]];
+foreach ($grid as string $r => array<int> $row) {
+    foreach ($row as int $c => int $v6) {
+        echo $c, $v6, "\n";
+    }
+}
+
+echo "unreachable\n";
+--EXPECTF-ERROR--
+error[E0723]: an array's key binding is a `string`, not `int`
+   --> %s:16:16
+   |
+16 | foreach ($a as int $ki => int $v2) {
+   |                ^^^^^^^ this binds as `int`
+   = help: ADR 0007 § 5 gives an `array<T>` one stored key type — every key is a `string`, and `$a[8]` is normalised to `$a["8"]` at the subscript rather than converted — so write `string $k`, and convert inside the body if the loop wants another type
+
+error[E0723]: an array's key binding is a `string`, not `uint`
+   --> %s:20:16
+   |
+20 | foreach ($a as uint $ku => int $v3) {
+   |                ^^^^^^^^ this binds as `uint`
+   = help: ADR 0007 § 5 gives an `array<T>` one stored key type — every key is a `string`, and `$a[8]` is normalised to `$a["8"]` at the subscript rather than converted — so write `string $k`, and convert inside the body if the loop wants another type
+
+error[E0723]: an array's key binding is a `string`, not `mixed`
+   --> %s:26:16
+   |
+26 | foreach ($a as mixed $km => int $v4) {
+   |                ^^^^^^^^^ this binds as `mixed`
+   = help: ADR 0007 § 5 gives an `array<T>` one stored key type — every key is a `string`, and `$a[8]` is normalised to `$a["8"]` at the subscript rather than converted — so write `string $k`, and convert inside the body if the loop wants another type
+
+error[E0723]: an array's key binding is a `string`, not `string|int`
+   --> %s:30:16
+   |
+30 | foreach ($a as int|string $kn => int $v5) {
+   |                ^^^^^^^^^^^^^^ this binds as `string|int`
+   = help: ADR 0007 § 5 gives an `array<T>` one stored key type — every key is a `string`, and `$a[8]` is normalised to `$a["8"]` at the subscript rather than converted — so write `string $k`, and convert inside the body if the loop wants another type
+
+error[E0723]: an array's key binding is a `string`, not `int`
+   --> %s:37:22
+   |
+37 |     foreach ($row as int $c => int $v6) {
+   |                      ^^^^^^ this binds as `int`
+   = help: ADR 0007 § 5 gives an `array<T>` one stored key type — every key is a `string`, and `$a[8]` is normalised to `$a["8"]` at the subscript rather than converted — so write `string $k`, and convert inside the body if the loop wants another type
+
+error: aborting due to 5 errors

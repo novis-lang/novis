@@ -131,10 +131,10 @@ fn a_key_binding_over_a_cursor_is_refused() {
     );
 }
 
-/// `array<T>` records no key type at all, so a key binding over one is
-/// deliberately unchecked -- see `crate::expr::check_foreach_key`.
+/// ADR 0007 § 5 gives an `array<T>` one stored key type, and it is the one
+/// this binding declares -- see `crate::expr::check_foreach_key`.
 #[test]
-fn a_key_binding_over_an_array_is_left_alone() {
+fn a_string_key_binding_over_an_array_is_accepted() {
     let diags = check_src(
         "<?nvs\n\
          class T {\n\
@@ -144,4 +144,24 @@ fn a_key_binding_over_an_array_is_left_alone() {
          }\n",
     );
     assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// Every other declared key type is always wrong rather than unprovable:
+/// no array can produce one. ADR 0007 § 5.
+#[test]
+fn a_non_string_key_binding_over_an_array_is_refused() {
+    for key_ty in ["int", "uint", "mixed", "int|string"] {
+        let diags = check_src(&format!(
+            "<?nvs\n\
+             class T {{\n\
+             \x20 function m(array<int> $a): void {{\n\
+             \x20\x20 foreach ($a as {key_ty} $k => int $n) {{ echo $n; }}\n\
+             \x20 }}\n\
+             }}\n"
+        ));
+        assert!(
+            diags.iter().any(|d| d.code == Some(code::E_FOREACH_KEY_TY)),
+            "{key_ty}: {diags:?}"
+        );
+    }
 }

@@ -1495,6 +1495,25 @@ pub mod code {
     /// slot on an instance, armed once at `new`, and a method that may be
     /// called any number of times has no such moment.
     pub const E_PROMOTED_PARAM_OUTSIDE_CONSTRUCTOR: Code = Code::new("E0722");
+    /// A `foreach` key binding over an `array<T>` declared as anything but
+    /// `string` — ADR 0007 § 5's "every key is a `string`" read at the one
+    /// place a program can name a key's type.
+    ///
+    /// An array has exactly one stored key type, so `foreach ($a as int $k
+    /// => …)` is not a narrowing the checker cannot prove: it is always
+    /// wrong. It is a separate code from [`E_TYPE_MISMATCH`] because there is
+    /// no *value* being assigned here for the two types to disagree about —
+    /// the subject's own container fixes the answer — and the help therefore
+    /// names the rule rather than the pair.
+    ///
+    /// Unrefused it reached no diagnostic *and* no answer: `nvs-ir` lowers a
+    /// key binding only at `string` (ADR 0007 § 5 again, one crate down) and
+    /// asserted on anything else, so a mistake in the program surfaced as a
+    /// panic naming a compiler gap. A subscript's `$a[8]` is normalised to
+    /// `$a["8"]` at the subscript rather than converted, and there is no
+    /// matching normalisation on the way *out* of a `foreach` — which is why
+    /// the binding is refused instead of being given the conversion.
+    pub const E_FOREACH_KEY_TY: Code = Code::new("E0723");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

@@ -907,8 +907,9 @@ impl<'a> Lowering<'a> {
     /// 0053's `Iterable`/`Iterator` are a separate lowering, over a
     /// user-visible interface rather than these primitives), for a key
     /// binding declared as anything but `string` (ADR 0007 § 5 makes every
-    /// stored key a `string`; an `int` key binding needs a string-to-int
-    /// conversion nothing lowers yet), and for a binding with no declared
+    /// stored key a `string`, and `nvs_types` reports `E0723` for every other
+    /// declared key type, so an arrival is an internal inconsistency rather
+    /// than a program), and for a binding with no declared
     /// type at all, which `nvs_types` already diagnosed.
     #[expect(
         clippy::too_many_arguments,
@@ -967,8 +968,8 @@ impl<'a> Lowering<'a> {
             assert!(
                 ty == Ty::Str,
                 "nvs-ir lowers a `foreach` key binding only at `string`, ADR 0007 § 5's one \
-                 stored key type — got {ty:?}, which would need a string-to-key conversion this \
-                 crate does not have; see the crate docs' known gaps"
+                 stored key type — got {ty:?}, and nvs_types reports E0723 for every other \
+                 declared key type before this runs"
             );
             strip_sigil(span_text(self.src, k.name)).to_owned()
         });

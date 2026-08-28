@@ -938,11 +938,32 @@
 > and two against the implicit constructor, the inherited count beside them, and the accepted `new
 > Plain()` and `new Derived(1)` written first so that a position that stops being accepted fails
 > there rather than as a missing refusal. `nvs-types`' own known-gaps list loses the entry rather
-> than keeping a gap the tree closed. Three live tools **are** the worklist and no session
-> re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen`
-> and attributes each to its item (`--item N` for one in full), `python tools/loop.py --list` prints
-> the named `.nvst` cases each stage still owes, and `python tools/check-migration.py` scores
-> `docs/spec/02-php-migration.md`.
+> than keeping a gap the tree closed. **A `foreach` key binding over an `array<T>` is a `string` or
+> it is refused**, which is item 39's last gap and the whole of that item now closed. ADR 0007 § 5
+> gives the container **one** stored key type — "every key is a `string`. There is no integer key" —
+> so the type parameter is the value's and a key binding declaring anything else is not an
+> unprovable narrowing but always wrong: no array can produce an `int` key to fill it.
+> `nvs_types::expr::iteration::check_foreach_key` refuses it where it is written (`E0723`), `mixed`
+> among the refused, there being no second key type for it to be the union of; the normalisation
+> that reads `$a[8]` as `$a["8"]` happens at the *subscript*, and there is none on the way back out
+> of a loop. A binding that declared no type at all is left alone, `nvs_syntax` already reporting
+> that omission and the `mixed` it lowers to being an error-recovery placeholder rather than
+> something the author wrote. Unrefused it reached no diagnostic *and* no answer: `nvs-ir` lowers a
+> key binding only at `string` and asserted on everything else, so a mistake in the program surfaced
+> as a panic naming a compiler gap — that assertion is an internal-consistency check now and says
+> so. The cursor keeps its own `E0444`, ADR 0053 § 1 giving `Iterator<T>` no key at all, so one rule
+> still draws one code. That function's doc comment had argued the opposite — that ADR 0007 § 5
+> fixes "the two legal key types, `int` and `string`", which that section deletes outright — and is
+> corrected rather than reconciled, as is the `nvs-types` unit test that pinned the key binding as
+> deliberately unchecked. ADR 0007 § 5 gains the paragraph, and `nvs-types`' known-gaps list loses
+> its last entry. `tests/conformance/lang/a-foreach-key-binding-is-a-string-and-nothing-else.nvst`
+> pins all five refusals in one compile — `int`, `uint`, `mixed`, a union, and a nested array's
+> inner key — with the accepted `string` spelling written first, so a position that stops being
+> accepted fails there rather than as a missing refusal. Three live tools **are** the worklist and
+> no session re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and
+> `nvs-codegen` and attributes each to its item (`--item N` for one in full), `python tools/loop.py
+> --list` prints the named `.nvst` cases each stage still owes, and `python
+> tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

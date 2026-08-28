@@ -340,38 +340,74 @@ pub(crate) fn check_foreach_inout(
     }
 }
 
-/// Checks a `foreach` key binding — which today means refusing one over a
-/// cursor and nothing else.
+/// Checks a `foreach` key binding: a cursor has no key at all, and an
+/// `array<T>`'s key is a `string` and nothing else.
 ///
-/// # Why an array's key binding is unchecked
+/// # Why an array's key binding is exact
 ///
-/// `array<T>` records the *value* type and no key type at all (ADR 0007 § 5
-/// fixes the two legal key types, `int` and `string`, but not which one a
-/// given array holds). So a declared `string $k` is neither provable nor
-/// refutable here: the only sound statement about it is `int|string`, and
-/// requiring every author to write that union — over a map whose keys are all
-/// strings by construction — would be noise, not safety. Narrowing it
-/// properly needs `array<K, V>`, which is its own decision. A cursor is the
-/// opposite case: ADR 0053 § 1 gives `Iterator<T>` exactly `advance()` and
-/// `current()`, so there is provably no key, and that *is* refused.
+/// ADR 0007 § 5 gives the container **one** stored key type — "every key is a
+/// `string`. There is no integer key" — so the type parameter is the value's
+/// and the key needs none. That makes `foreach ($a as int $k => …)` neither a
+/// narrowing nor a widening but simply wrong: no array can produce an `int`
+/// key for the binding to hold. The same goes for a `mixed $k`, which would
+/// be a widening if there were a second key type to widen over and is instead
+/// a binding at a representation the loop never produces — ADR 0007 § 5
+/// normalises `$a[8]` to `$a["8"]` at the *subscript*, and there is no
+/// conversion on the way back out.
+///
+/// A cursor is the sharper case: ADR 0053 § 1 gives `Iterator<T>` exactly
+/// `advance()` and `current()`, so there is provably no key at all, and it
+/// keeps its own code.
+///
+/// A binding that declared no type is left alone — `nvs_syntax`'s parser
+/// already reported the omission, and the `mixed` its absence lowers to is an
+/// error-recovery placeholder rather than something the author wrote (see
+/// [`nvs_syntax::ast::ForeachBinding::ty`]).
 pub(crate) fn check_foreach_key(
     source: &ForeachSource,
-    _declared: TypeId,
+    declared: TypeId,
     binding: &ForeachBinding,
     env: &mut Env<'_>,
 ) {
-    if matches!(source, ForeachSource::Cursor { .. }) {
-        env.diags.report(
-            Diagnostic::error(
-                code::E_FOREACH_KEY_ON_CURSOR,
-                "an `Iterable`/`Iterator` subject has no key to bind",
-            )
-            .with_primary(binding.span, "no key exists here")
-            .with_help(
-                "ADR 0053 § 1 gives `Iterator<T>` exactly `advance()` and `current()`; \
-                 drop the `$k =>` or iterate an `array<T>` instead",
-            ),
-        );
+    match *source {
+        ForeachSource::Cursor { .. } => {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_FOREACH_KEY_ON_CURSOR,
+                    "an `Iterable`/`Iterator` subject has no key to bind",
+                )
+                .with_primary(binding.span, "no key exists here")
+                .with_help(
+                    "ADR 0053 § 1 gives `Iterator<T>` exactly `advance()` and `current()`; \
+                     drop the `$k =>` or iterate an `array<T>` instead",
+                ),
+            );
+        }
+        ForeachSource::Array { .. } => {
+            if binding.ty.is_none() {
+                return;
+            }
+            let string = env.interner.string();
+            if declared != string {
+                let got = env.interner.describe(declared);
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_FOREACH_KEY_TY,
+                        format!("an array's key binding is a `string`, not `{got}`"),
+                    )
+                    .with_primary(binding.span, format!("this binds as `{got}`"))
+                    .with_help(
+                        "ADR 0007 § 5 gives an `array<T>` one stored key type — every key is a \
+                         `string`, and `$a[8]` is normalised to `$a[\"8\"]` at the subscript \
+                         rather than converted — so write `string $k`, and convert inside the \
+                         body if the loop wants another type",
+                    ),
+                );
+            }
+        }
+        // `mixed`, or a subject already diagnosed as something else — one
+        // mistake, one diagnostic.
+        ForeachSource::Unchecked => {}
     }
 }
 

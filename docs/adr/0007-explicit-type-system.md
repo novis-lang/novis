@@ -273,6 +273,12 @@ The container is unchanged — an insertion-ordered hash with copy-on-write valu
 What is observably different is what comes *back*: `Core\Arr::keys()` returns `array<string>`, and
 `foreach ($a as string $k => …)` types `$k` as `string`. That is the whole blast radius, listed in *7*.
 
+Because there is exactly one stored key type, a key binding declaring any other one is **always** wrong
+rather than merely unprovable, and is refused where it is written (`E0723`): `foreach ($a as int $k => …)`
+is the port's own spelling and there is no array that can fill it, `mixed` has no second key type to be the
+union of, and the normalisation above runs at the *subscript* rather than on the way back out of a loop. A
+cursor keeps its own refusal (`E0444`), ADR 0053 § 1 giving `Iterator<T>` no key at all.
+
 **The element type may be declared, and nests to any depth.**
 
 ```php
