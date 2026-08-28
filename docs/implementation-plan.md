@@ -714,14 +714,35 @@
 > `tests/conformance/lang/a-required-file-runs-its-own-top-level-statements.nvst` pins the placement
 > against the statements around it, the declaration half that never depended on a frame, two
 > iterations of a loop each running a nested pair innermost-first, the untaken `if` arm that runs
-> nothing, and the required file's own `$name` beside the entry's. What gap 22 keeps is its other
-> half: ADR 0021 § 3's value form (`$c = require 'config.nvs';`) is still `E0704` where it is
-> written, and the frame it needs is now there and already returns `Ty::Tagged` — what is missing is
-> a `return` at a required file's file scope and the site reading it. Three live tools **are** the
-> worklist and no session re-derives one: `python tools/holes.py` reads the refusal sites out of
-> `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item N` for one in full), `python
-> tools/loop.py --list` prints the named `.nvst` cases each stage still owes, and `python
-> tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> nothing, and the required file's own `$name` beside the entry's. **Gap 22's other half is closed
+> with it, and `nvs-ir`'s known gap 22 is deleted outright.** ADR 0021 § 3's value form (`$c =
+> require 'config.nvs';`) lowers to the very call the statement form already emitted, with its
+> result kept instead of released — `lower_expr`'s arm and `lower_expr_stmt`'s are one call and one
+> story, the second owning the reasoning about the frame and about running every time the site is
+> reached. The frame's return type is `Ty::Tagged` by construction, so the value needs no
+> conversion, and it is a fresh producer, so the consumer owns it. `E0704`
+> (`E_REQUIRE_VALUE_UNLOWERED`) is retired and is never reused; `nvs_types::expr::infer`'s arm now
+> checks the path and answers `mixed`, ADR 0007 § 2's one unchecked position being the whole of §
+> 3's reasoning, so a typed binding takes the same `as` any other `mixed` boundary needs. The half
+> that had no lowering at all was the *other* end: a file that never `return`s. § 3 names its value
+> — `1`, PHP's own answer — so `lower_script`'s fall-through seal hands back a tagged `1` rather
+> than the `Terminator::Return(None)` `lower_method` uses, a `Ty::Tagged` frame owing its caller a
+> value on every exit. A file-scope `return expr;` needed nothing: it reaches `lower_stmt`'s
+> ordinary arm through `lower_script_stmts`, and `self.ret_ty` is that frame's `Ty::Tagged`, so the
+> item's lowering half was landed by the frame that carried it. What is *not* closed and is now
+> backlogged rather than left implied: a `require` whose path is not a string literal runs nothing
+> at all, silently, in both forms — `nvs_hir::requires`' own known gap treats it as dynamic, and the
+> value form takes the same `1` for the same reason.
+> `tests/conformance/lang/a-required-file-hands-a-value-back.nvst` pins the returned value, the `1`
+> of a file that returns nothing, the target's `$part` beside the entry's own, the same site reached
+> twice returning twice through a static the declaration owns, and the same again inside a loop
+> body; valgrind-clean over a fixture that requires a freshly built `string` two hundred times.
+> `an-uncompiled-construct-is-refused-where-it-is-written.nvst` loses its `E0704` half and now pins
+> `E0703` alone, with both `require` forms beside it as the lines no diagnostic names. Three live
+> tools **are** the worklist and no session re-derives one: `python tools/holes.py` reads the
+> refusal sites out of `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item N` for
+> one in full), `python tools/loop.py --list` prints the named `.nvst` cases each stage still owes,
+> and `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

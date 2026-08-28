@@ -1,0 +1,63 @@
+--TEST--
+`require` used for its value hands back what the target file's own file-scope `return` returned, `1` where it returned nothing at all, and a fresh value every time the site is reached (ADR 0021 §§ 3 and *Decision*)
+--FILE--
+<?nvs
+// ADR 0021 § 3: `require`'s value is what a `return`-ing target hands back,
+// typed `mixed` at the boundary because it cannot be known statically — so
+// a typed binding takes the same explicit `as` any other `mixed` boundary
+// value needs (ADR 0007 § 2's one unchecked position).
+mixed $v = require 'gives.nvs';
+echo "value=", $v as string, "\n";
+
+// § 3's other half: a file that never `return`s hands back `1`, PHP's own
+// answer for a `require` of such a file. Its statements still run, in place,
+// which is what the line above the value proves.
+mixed $p = require 'plain.nvs';
+echo "plain=", $p as string, "\n";
+
+// The frame is the *file's*, not this one's — declarations cross a `require`
+// and variables do not (§ *Decision*) — so the target's `$part` below is not
+// this file's, and this one is untouched by having required it.
+string $part = "entry";
+mixed $again = require 'gives.nvs';
+echo "part=", $part, "\n";
+
+// "Executing every time control reaches it" (§ *Decision*), so a site reached
+// twice returns twice: the target counts its own runs through a static, which
+// is storage a declaration owns rather than a frame.
+mixed $one = require 'counts.nvs';
+mixed $two = require 'counts.nvs';
+echo "runs=", $one as string, ",", $two as string, "\n";
+
+// The same site inside a loop body, for the same reason.
+int $i = 0;
+for (; $i < 2; $i++) {
+    mixed $each = require 'counts.nvs';
+    echo "loop=", $each as string, "\n";
+}
+
+class Runs {
+    public static int $n = 0;
+}
+--FILE gives.nvs--
+<?nvs
+string $part = "handed";
+echo "gives ran\n";
+return $part . " back";
+--FILE plain.nvs--
+<?nvs
+echo "plain ran\n";
+--FILE counts.nvs--
+<?nvs
+Runs::$n = Runs::$n + 1;
+return Runs::$n;
+--EXPECT--
+gives ran
+value=handed back
+plain ran
+plain=1
+gives ran
+part=entry
+runs=1,2
+loop=3
+loop=4
