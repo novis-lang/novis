@@ -379,15 +379,19 @@ checker matches against the method's parameters **by name and by type**. Each ro
 separately isolated case.
 
 ```nvs
+use Core\Test;
+use Core\Test\TestWith;
+
 #[TestWith(input: "  ada ", want: "ada")]
 #[TestWith(input: "ADA",    want: "ada")]
 #[TestWith(input: "",       want: "")]
+#[Test]
 public function itNormalizes(string $input, string $want): void {
-    Core\Test::assertEquals(User::normalize($input), $want);
+    Test::assertEquals(User::normalize($input), $want);
 }
 
 #[TestWith(input: 7, want: "ada")]
-// E0xxx: data row field `input` is `int`; parameter `$input` is `string`.
+// E0738: data row field `input` is `int`; parameter `$input` is `string`.
 ```
 
 `#[TestSource(Fixtures::names)]` names a static method returning rows, for data that is computed or too
@@ -396,7 +400,26 @@ price of computing them, and it is why the literal form is the one to reach for 
 
 A `#[Test]` method with parameters must have every parameter satisfied by a fixture (§ 8) or by data rows;
 a mix of the two in one method is allowed, and each parameter's source is unambiguous because fixtures
-resolve by type and rows by name.
+resolve by type and rows by name. Where both could answer one parameter — a row names it *and* a fixture
+supplies its type — the **row** wins: it was written against this method's own parameter list, while a
+fixture answers every method of the class at once.
+
+**Enforcement.** `#[TestWith]` is one of [ADR 0071](0071-derived-codecs.md) § 1's compiler-recognized
+names (`Core\Test\TestWith`), matched nominally like the two markers above it, and it is the one of them
+that may repeat on a declaration. `nvs_types::testing::resolve_parameters` is where a row meets the method
+it is attached to, and every way the two can fail to line up is `E0738`, one code because it is one
+question asked once per row and the fix is the same every time — write the row against the parameter list:
+a field naming no parameter, a value that is not a literal of that parameter's declared type, a row
+omitting a field its siblings supply, and the marker written on a method that is no `#[Test]` at all. That
+third one is a rule this section does not write out and that falls out of each row being a case: the
+parameters a method declares do not vary row by row, so every row of one method fills the same ones. A
+field written twice is `E0304`, the code one mistake made twice already draws, and a parameter **neither**
+roster reaches keeps § 8's own `E0736` — one refusal for one question, whose help names both answers.
+
+Each row's values are folded to the constants a parameter default folds to, in **parameter** order rather
+than in the order the fields happen to be written, because that is the order the call is made in;
+`nvs_types::testing::TestCase::rows` is what that is recorded as, and `Injection` beside it is which of the
+two sources answers each position.
 
 ### 10. A double is a shape of closures, structurally checked against an interface
 

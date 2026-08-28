@@ -1,0 +1,105 @@
+--TEST--
+a `#[TestWith(...)]` data row names the method's parameters and gives each the type it declares, ADR 0079 § 9
+--FILE--
+<?nvs
+// ADR 0079 § 9 matches a data row's shape literal against the method's
+// parameters **by name and by type**, and reports each row as its own case.
+// Two rules fall out of that and are refused here: a row describes the method
+// it is attached to, and every row of one method fills the same parameters,
+// because the parameters a method declares do not vary row by row.
+use Core\Test;
+use Core\Test\Fixture;
+use Core\Test\TestWith;
+
+final class Schema {}
+
+final class AcceptedTest {
+    // § 9's own worked example, accepted: three rows over one method, each
+    // one its own case.
+    #[Test]
+    #[TestWith(input: "  ada ", want: "ada")]
+    #[TestWith(input: "ADA",    want: "ada")]
+    #[TestWith(input: "",       want: "")]
+    public function itNormalizes(string $input, string $want): void {
+        Test::assertSame($input, $input);
+        Test::assertSame($want, $want);
+    }
+
+    // § 9's "a mix of the two in one method is allowed": `$s` is answered by
+    // type and `$n` by name, and neither is ambiguous.
+    #[Test]
+    #[TestWith(n: 1)]
+    #[TestWith(n: 2)]
+    public function itCounts(Schema $s, int $n): void {
+        Test::assertSame($n, $n);
+    }
+
+    #[Fixture]
+    public static function schema(): Schema {
+        return new Schema();
+    }
+}
+
+final class StrayTest {
+    // Refused: a row on a method that is no `#[Test]` names a call that is
+    // never made.
+    #[TestWith(input: "ada")]
+    public function notATest(string $input): void {
+    }
+}
+
+final class NamesTest {
+    // Refused: `itNormalizes` declares no parameter `$inputs`.
+    #[Test]
+    #[TestWith(inputs: "ada", want: "ada")]
+    public function itNormalizes(string $input, string $want): void {
+    }
+
+    // Refused: § 9's own worked example's second error — the field is an
+    // `int` where the parameter is declared `string`.
+    #[Test]
+    #[TestWith(input: 7)]
+    public function itTrims(string $input): void {
+    }
+
+    // Refused: one row fills `$want` and the other does not, so the second
+    // describes a call that cannot be made.
+    #[Test]
+    #[TestWith(input: "a", want: "a")]
+    #[TestWith(input: "b")]
+    public function itFolds(string $input, string $want): void {
+    }
+
+    // Refused: one field, given twice.
+    #[Test]
+    #[TestWith(input: "a", input: "b")]
+    public function itRepeats(string $input): void {
+    }
+
+    // Refused: `$missing` is named by no row and its type is supplied by no
+    // `#[Fixture]` of this class, so neither roster reaches it.
+    #[Test]
+    #[TestWith(input: "a")]
+    public function itNeedsMore(string $input, int $missing): void {
+    }
+}
+--EXPECTF-ERROR--
+error[E0738]: this `#[TestWith]` is on a method that is not a `#[Test]`
+   --> case.nvs:43:15
+%A
+error[E0738]: `itNormalizes` declares no parameter `$inputs`
+   --> case.nvs:51:16
+%A
+error[E0738]: the data row field `input` is not a `string` literal, which is what `$input` is declared as
+   --> case.nvs:58:16
+%A
+error[E0738]: this data row of `itFolds` gives no `$want`, which another does
+   --> case.nvs:66:15
+%A
+error[E0304]: the data row field `input` is given twice
+   --> case.nvs:72:28
+%A
+error[E0736]: nothing supplies `$missing` of the #[Test] method `itNeedsMore`, which `NamesTest` declares as `int`
+   --> case.nvs:80:21
+%A
+error: aborting due to 6 errors

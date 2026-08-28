@@ -12,6 +12,7 @@ mod common;
 
 use common::{check_src_declared, check_src_table};
 use nvs_types::defaults::ConstArg;
+use nvs_types::testing::Injection;
 
 /// The one shape ADR 0079 § 1's own example writes, with the `use Core\Test;`
 /// that places both the attribute and the assertions the body calls.
@@ -83,7 +84,7 @@ fn a_bare_test_carries_no_options_rather_than_defaulted_ones() {
 /// the marker and the assertions, and a class for each fixture to build.
 fn fixture_src(members: &str) -> String {
     format!(
-        "<?nvs\nuse Core\\Test;\nuse Core\\Test\\Fixture;\n\
+        "<?nvs\nuse Core\\Test;\nuse Core\\Test\\Fixture;\nuse Core\\Test\\TestWith;\n\
          class Schema {{}}\nclass Widget {{}}\n\
          class RepoTest {{\n{members}\n}}\n"
     )
@@ -135,14 +136,94 @@ fn a_parameter_is_resolved_to_the_fixture_supplying_its_type_in_parameter_order(
     assert!(!diags.has_errors(), "resolution was refused: {diags:?}");
     let cases = declared.exprs().tests("RepoTest").unwrap();
     assert_eq!(
-        cases[0].fixtures,
-        ["widget".to_owned(), "schema".to_owned()]
+        cases[0].params,
+        [
+            Injection::Fixture("widget".to_owned()),
+            Injection::Fixture("schema".to_owned())
+        ]
     );
+    // No `#[TestWith]` anywhere, so the case is the one call § 1 describes.
+    assert!(cases[0].rows.is_empty());
     // § 8's last sentence: a fixture's own parameters resolve the same way,
     // which is what gives the runner a build order.
     let fixtures = declared.exprs().fixtures("RepoTest").unwrap();
     assert!(fixtures[0].fixtures.is_empty());
     assert_eq!(fixtures[1].fixtures, ["schema".to_owned()]);
+}
+
+#[test]
+fn each_test_with_is_a_row_folded_in_parameter_order() {
+    // ADR 0079 § 9's own worked example, plus the fact no line of it states:
+    // a row is folded into **parameter** order rather than into the order its
+    // fields happen to be written, because that is the order the call is made
+    // in. The second row writes `want` first for exactly that reason.
+    let (diags, exprs) = check_src_table(
+        "<?nvs\nuse Core\\Test;\nuse Core\\Test\\TestWith;\n\
+         class UserTest {\n\
+         \x20 #[Test]\n\
+         \x20 #[TestWith(input: \"  ada \", want: \"ada\")]\n\
+         \x20 #[TestWith(want: \"ada\", input: \"ADA\")]\n\
+         \x20 public function itNormalizes(string $input, string $want): void {}\n}\n",
+    );
+    assert!(!diags.has_errors(), "rows were refused: {diags:?}");
+    let cases = exprs.tests("UserTest").unwrap();
+    assert_eq!(cases[0].params, [Injection::Row, Injection::Row]);
+    assert_eq!(
+        cases[0].rows,
+        [
+            [
+                Some(ConstArg::Str("  ada ".to_owned())),
+                Some(ConstArg::Str("ada".to_owned()))
+            ],
+            [
+                Some(ConstArg::Str("ADA".to_owned())),
+                Some(ConstArg::Str("ada".to_owned()))
+            ]
+        ]
+    );
+}
+
+#[test]
+fn a_row_and_a_fixture_fill_one_parameter_list_between_them() {
+    // § 9's "a mix of the two in one method is allowed, and each parameter's
+    // source is unambiguous because fixtures resolve by type and rows by
+    // name". The row's own position holds its value and the fixture's holds
+    // `None`, so the runner walks one list rather than joining two.
+    let (diags, declared) = check_src_declared(&fixture_src(
+        "  #[Test]\n  #[TestWith(n: 1)]\n  #[TestWith(n: 2)]\n\
+         \x20 public function itCounts(Schema $s, int $n): void {}\n\
+         \n  #[Fixture]\n  public static function schema(): Schema { return new Schema(); }\n",
+    ));
+    assert!(!diags.has_errors(), "the mix was refused: {diags:?}");
+    let cases = declared.exprs().tests("RepoTest").unwrap();
+    assert_eq!(
+        cases[0].params,
+        [Injection::Fixture("schema".to_owned()), Injection::Row]
+    );
+    assert_eq!(
+        cases[0].rows,
+        [
+            [None, Some(ConstArg::Int(1))],
+            [None, Some(ConstArg::Int(2))]
+        ]
+    );
+}
+
+#[test]
+fn a_row_wins_a_parameter_a_fixture_would_also_have_answered() {
+    // The two rosters overlap here on purpose: `$n` is an `int`, which the
+    // fixture supplies, *and* is named by the row. A name is the more specific
+    // of the two — the row was written against this method, while the fixture
+    // answers every method of the class — so the row wins, which is § 9's
+    // "each parameter's source is unambiguous".
+    let (diags, declared) = check_src_declared(&fixture_src(
+        "  #[Test]\n  #[TestWith(n: 1)]\n\
+         \x20 public function itCounts(int $n): void {}\n\
+         \n  #[Fixture]\n  public static function count(): int { return 3; }\n",
+    ));
+    assert!(!diags.has_errors(), "the overlap was refused: {diags:?}");
+    let cases = declared.exprs().tests("RepoTest").unwrap();
+    assert_eq!(cases[0].params, [Injection::Row]);
 }
 
 #[test]

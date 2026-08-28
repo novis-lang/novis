@@ -1835,13 +1835,45 @@
 > ADR 0079 § 8 gains both enforcement paragraphs rather than being left to name passes that do not
 > make this, and `tools/leak-check.sh` gained a `--test` flag, `nvs test` being a program `nvs run`
 > cannot reach — valgrind-clean over a fixture that builds a chain of three fixtures from a freshly
-> built `string`, retries, fails an assertion and throws while holding one. What Stage 7 still owes
-> is § 9's data rows alone. Three live tools **are** the worklist and no session re-derives one:
-> `python tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen` and attributes
-> each to its item (`--item N` for one in full), `python tools/loop.py --list` prints the named
-> `.nvst` cases each stage still owes — **none**, Stage 7's `#[Test]` table case having landed with
-> the `--RUN--` section that lets a case reach the runner at all — and `python
-> tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> built `string`, retries, fails an assertion and throws while holding one. **ADR 0079 § 9's data
+> rows are checked where they are written, and a `#[Test]` parameter now has two answers rather than
+> one.** `#[TestWith(...)]` joins ADR 0071 § 1's closed, `Core`-owned roster as `Core\Test\TestWith`
+> — the ADR's own spelling kept rather than the shorter `With` a namespace would allow — and it is
+> the one recognized name that may **repeat** on a declaration, each occurrence being a row and each
+> row its own case. Its payload is checked against no shape and no roster of option names, which is
+> why it is `nvs_types::testing`'s rather than `crate::attributes`': what it is matched against is
+> the *parameter list of the method it is on*, and only the walk that collects the class holds that.
+> So one function answers both questions — `resolve_parameters`, which asked § 8's by type and now
+> asks § 9's by name **first**: a row was written against this method's own parameter list while a
+> fixture answers every method of the class at once, so the more specific of the two wins a
+> parameter both could fill, and that precedence is § 9's "each parameter's source is unambiguous"
+> rather than a rule invented here. What rides across is an `Injection` per parameter (fixture or
+> row) plus each row folded to the constants a parameter default folds to, in **parameter** order
+> rather than in the order the fields were written, because that is the order the call is made in.
+> Every way a row can fail to describe its method is one code (`E0738`), because it is one question
+> asked once per row and the fix is the same every time: a field naming no parameter, a value that
+> is not a literal of that parameter's declared type — § 9's own worked error — the marker on a
+> method that is no `#[Test]` at all, and a row omitting a field its siblings supply, which is a
+> rule § 9 does not write out and that falls out of each row being a case: the parameters a method
+> declares do not vary row by row. A field written twice keeps `E0304` and a parameter **neither**
+> roster reaches keeps `E0736`, whose help gains the second answer and offers it only to a
+> `#[Test]`, a `#[Fixture]` being a method § 9 attaches no row to. Nothing partial rides across: a
+> refusal anywhere answers with two empty lists, and a method whose row was already refused is not
+> then told which parameter that left unfilled — the second diagnostic would be the first one seen
+> from the other end. What Stage 7 still owes is the **runner** half: the rows are compile-checked
+> and folded but not yet materialized into calls, so `nvs_cli::runner::run_case` reports a test with
+> a row loudly rather than calling it with a hole in its argument list, and running one case per row
+> is the next slice.
+> `tests/conformance/reject/a-data-row-is-matched-against-the-parameters-by-name-and-by-type.nvst`
+> pins all six refusals in one compile with § 9's own worked example and the fixture/row mix written
+> first, and `crates/nvs-types/tests/testing.rs` asserts the folded rows, the mix and the
+> precedence, a table's rows being observable in no program until the runner reports one. Three live
+> tools **are** the worklist and no session re-derives one: `python tools/holes.py` reads the
+> refusal sites out of `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item N` for
+> one in full), `python tools/loop.py --list` prints the named `.nvst` cases each stage still owes —
+> **none**, Stage 7's `#[Test]` table case having landed with the `--RUN--` section that lets a case
+> reach the runner at all — and `python tools/check-migration.py` scores
+> `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

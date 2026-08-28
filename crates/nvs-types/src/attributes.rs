@@ -272,7 +272,7 @@ fn check_value(expr: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> bool {
 /// expression kind this does not name is refused, so a shape the grammar
 /// grows is refused until someone decides it belongs in a constant pool,
 /// rather than accepted because nothing said otherwise.
-fn is_constant(expr: &Expr) -> bool {
+pub(crate) fn is_constant(expr: &Expr) -> bool {
     match &expr.kind {
         ExprKind::Null
         | ExprKind::Bool(_)

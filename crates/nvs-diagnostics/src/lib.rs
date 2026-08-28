@@ -1698,9 +1698,9 @@ pub mod code {
     /// runtime" — this is that diagnostic, and it is the `Widget` line of that
     /// section's own worked example. One code covers a test's parameter and a
     /// fixture's own, because it is one question asked of one roster: what
-    /// supplies this type. § 9's data rows will fill a parameter *by name*
-    /// and are the other answer this refusal will have to consult once they
-    /// exist.
+    /// supplies this type. § 9's data rows are the other answer, and they
+    /// fill a parameter **by name**, so this fires only where neither roster
+    /// reaches it — which is why the help names both.
     pub const E_FIXTURE_PARAMETER_UNSUPPLIED: Code = Code::new("E0736");
     /// A `#[Fixture]` that requires itself, directly or through others.
     ///
@@ -1710,6 +1710,25 @@ pub mod code {
     /// a cycle *is* supplied — by a roster that cannot be built in any order,
     /// which is a fact about the chain rather than about any one parameter.
     pub const E_FIXTURE_CYCLE: Code = Code::new("E0737");
+    /// A `#[TestWith(...)]` data row that does not describe the method it is
+    /// attached to.
+    ///
+    /// ADR 0079 § 9 matches a row's shape literal against the method's
+    /// parameters **by name and by type**, so one code covers every way the
+    /// two can fail to line up: a field naming no parameter, a field whose
+    /// value is not a literal of that parameter's declared type, a row that
+    /// leaves out a field its siblings supply — every row of one method fills
+    /// the same parameters, because the parameters a method declares do not
+    /// vary row by row — and the marker written on a method that is no
+    /// `#[Test]` at all.
+    ///
+    /// It is one code because it is one question — does this row describe
+    /// this method — asked once per row, and because the fix is the same
+    /// every time: write the row against the parameter list. A parameter
+    /// **no** row names is not this code but
+    /// [`E_FIXTURE_PARAMETER_UNSUPPLIED`], that being a question about the
+    /// two rosters rather than about a row.
+    pub const E_TEST_ROW_FIELD: Code = Code::new("E0738");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

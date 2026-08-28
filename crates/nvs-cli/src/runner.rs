@@ -213,7 +213,7 @@ pub(crate) fn run(checked: &crate::Checked, format: Format) -> ExitCode {
                 // test is what a report has a line for, and a suite that lost
                 // a whole class silently is what § 20 is written against.
                 Some(FixtureFailure::Exited(code)) => Outcome::Exited(*code),
-                Some(FixtureFailure::Threw(message)) if !case.fixtures.is_empty() => {
+                Some(FixtureFailure::Threw(message)) if !fixtures_needed(case).is_empty() => {
                     Outcome::Failed(vec![message.clone()])
                 }
                 _ => run_with_retries(&unit, &mut ctx, class, case, &fixtures),
@@ -366,7 +366,7 @@ fn build_fixtures(
         if skip_reason(case).is_some() {
             continue;
         }
-        for needed in &case.fixtures {
+        for needed in fixtures_needed(case) {
             collect_fixture(needed, roster, &mut order);
         }
     }
@@ -452,12 +452,32 @@ fn run_case(
     if let Some(reason) = skip_reason(case) {
         return Outcome::Skipped(reason);
     }
+    // § 9's data rows are resolved and folded by the checker
+    // (`nvs_types::testing::TestCase::rows`) and are not yet materialized into
+    // the call: running one per row is the next slice. Reported loudly rather
+    // than called with a hole in its argument list, which is the one thing
+    // this must not do.
+    if case
+        .params
+        .iter()
+        .any(|source| matches!(source, nvs_types::testing::Injection::Row))
+    {
+        return Outcome::Failed(vec![format!(
+            "`{class}::{}` is filled by a `#[TestWith]` data row: ADR 0079 § 9's rows are \
+             compile-checked but not yet run",
+            case.method
+        )]);
+    }
     // § 8's injection: one value per declared parameter, in the order the
-    // checker resolved them (`nvs_types::testing::TestCase::fixtures`), so
+    // checker resolved them (`nvs_types::testing::TestCase::params`), so
     // nothing here re-derives which fixture answers which parameter. The
     // values are borrowed from the set that owns them — the call retains its
     // own, exactly as any other call on a value this frame holds does.
-    let Some(args) = fixtures.values(&case.fixtures) else {
+    let needed: Vec<String> = fixtures_needed(case)
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+    let Some(args) = fixtures.values(&needed) else {
         return Outcome::Failed(vec![format!(
             "internal error: `{class}::{}` asks for a `#[Fixture]` that was not built",
             case.method
@@ -504,6 +524,23 @@ fn run_case(
         ]);
     }
     Outcome::Passed
+}
+
+/// The `#[Fixture]` methods `case` asks for, in parameter order.
+///
+/// A §§ 8-9 parameter list is a list of *sources*
+/// (`nvs_types::testing::Injection`), and only a fixture's has a value to be
+/// built ahead of the call: a row's is folded into the case itself. So this is
+/// the fixture positions alone, which is what both the build order and
+/// `nvs_runtime::Fixtures::values` are keyed by.
+fn fixtures_needed(case: &nvs_types::testing::TestCase) -> Vec<&str> {
+    case.params
+        .iter()
+        .filter_map(|source| match source {
+            nvs_types::testing::Injection::Fixture(name) => Some(name.as_str()),
+            nvs_types::testing::Injection::Row => None,
+        })
+        .collect()
 }
 
 /// The `skip:` option's reason, or `None` for a test that runs.

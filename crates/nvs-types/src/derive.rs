@@ -74,7 +74,7 @@ use crate::{Ctx, Env, span_text, strip_sigil};
 /// § 1 rule does not apply to it and what its payload may hold is the
 /// recognizing pass's own question: `#[Json\Derive]`/`#[Json\Field]` are this
 /// module's, `#[Test]` is [`crate::testing`]'s.
-pub const ATTRIBUTES: &[&str] = [DERIVE, FIELD, TEST, FIXTURE].as_slice();
+pub const ATTRIBUTES: &[&str] = [DERIVE, FIELD, TEST, FIXTURE, TEST_WITH].as_slice();
 
 /// `#[Json\Derive]` — ADR 0071 § 1's opt-in, on a class.
 pub const DERIVE: &str = r"Core\Json\Derive";
@@ -97,6 +97,19 @@ pub const TEST: &str = r"Core\Test";
 /// that writes it bare places it with `use Core\Test\Fixture;`.
 /// [`crate::testing`] owns what it may carry, which is nothing.
 pub const FIXTURE: &str = r"Core\Test\Fixture";
+
+/// `#[TestWith(...)]` — ADR 0079 § 9's data row, on a `#[Test]` method. It
+/// sits in the `Core\Test` namespace beside [`FIXTURE`] and for that entry's
+/// reason exactly, and it keeps the ADR's own spelling rather than the
+/// shorter `With` a namespace would allow: `#[TestWith]` is what § 9 writes,
+/// and a file that spells it bare places it with `use Core\Test\TestWith;`.
+///
+/// It is on this roster rather than being an ADR 0046 § 1 shape alias because
+/// the shape it is checked against is not written anywhere: it is the
+/// *parameter list* of the method it is attached to, which only
+/// [`crate::testing::check_class_tests`] holds. That module owns what a row
+/// may carry.
+pub const TEST_WITH: &str = r"Core\Test\TestWith";
 
 /// One derived class's JSON field list, in declaration order — ADR 0071 § 2's
 /// "declaration order fixes encode order, so output is byte-deterministic".

@@ -112,10 +112,10 @@ final class UninjectableTest {
     }
 }
 --EXPECTF-ERROR--
-error[E0736]: no `#[Fixture]` of `MissingTest` supplies `Widget`, which the #[Test] method `itMisses` declares as `$w`
+error[E0736]: nothing supplies `$w` of the #[Test] method `itMisses`, which `MissingTest` declares as `Widget`
    --> case.nvs:42:21
 %A
-error[E0736]: no `#[Fixture]` of `MissingTest` supplies `Widget`, which the #[Fixture] method `derived` declares as `$w`
+error[E0736]: nothing supplies `$w` of the #[Fixture] method `derived`, which `MissingTest` declares as `Widget`
    --> case.nvs:49:28
 %A
 error[E0737]: `CycleTest`'s `#[Fixture]` methods require each other: left -> right -> left

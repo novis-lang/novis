@@ -95,12 +95,31 @@
 //! [`resolve_injections`] is § 8's by-type resolution and runs *after* the
 //! walk above, because a test may be written above the fixture that supplies
 //! it. What each parameter resolves to is recorded as an order on the row
-//! ([`TestCase::fixtures`], [`Fixture::fixtures`]) so the runner reads one
+//! ([`TestCase::params`], [`Fixture::fixtures`]) so the runner reads one
 //! rather than re-deriving it below a crate that holds no types; a parameter
 //! nothing supplies is [`code::E_FIXTURE_PARAMETER_UNSUPPLIED`] and a fixture
-//! that requires itself is [`code::E_FIXTURE_CYCLE`]. § 9's data rows are the
-//! second answer this will consult, and until they exist a fixture is the only
-//! one.
+//! that requires itself is [`code::E_FIXTURE_CYCLE`].
+//!
+//! # § 9's data rows are the second answer, and they resolve by name
+//!
+//! `#[TestWith(...)]` ([`crate::derive::TEST_WITH`]) is the one recognized
+//! attribute that may repeat on a declaration, each occurrence being a row and
+//! each row its own reported case. Its payload is checked against no shape and
+//! no roster of option names: what it is matched against is the *parameter
+//! list of the method it is attached to*, by name and by type, which is why it
+//! is checked here rather than in [`crate::attributes`] — that pass holds one
+//! attribute and this walk holds the member.
+//!
+//! So [`resolve_parameters`] answers both questions in one place, and asks the
+//! row one first: a row names a parameter of *this* method while a fixture
+//! answers every method of the class at once, so the more specific of the two
+//! wins a parameter both could fill. § 9's "each parameter's source is
+//! unambiguous" is that precedence, and [`Injection`] is what it is recorded
+//! as. One rule § 9 does not write out falls out of each row being a case:
+//! every row of one method fills the same parameters, because the parameters a
+//! method declares do not vary row by row — a row omitting a field its
+//! siblings supply is [`code::E_TEST_ROW_FIELD`] along with every other way a
+//! row can fail to describe its method.
 //!
 //! # The table is built while checking, and rides in [`crate::ExprTypeTable`]
 //!
@@ -187,15 +206,42 @@ pub struct TestCase {
     /// option the author left out is absent rather than defaulted — what a
     /// missing `retries` means is the runner's question and not this table's.
     pub options: Vec<(String, ConstArg)>,
-    /// ADR 0079 § 8's injection, resolved: which `#[Fixture]` of this class
-    /// supplies each declared parameter, in **parameter order**.
+    /// ADR 0079 §§ 8-9's injection, resolved: where each declared parameter's
+    /// value comes from, in **parameter order**.
     ///
     /// An *order* rather than a set, because the runner passes values
-    /// positionally and re-deriving which fixture answers which parameter
-    /// would mean re-doing the by-type resolution below a crate that holds no
-    /// types. Empty for the parameterless test § 1's own example writes, which
-    /// is what makes a program that declares no fixture pay nothing for this.
-    pub fixtures: Vec<String>,
+    /// positionally and re-deriving which source answers which parameter
+    /// would mean re-doing the by-type and by-name resolution below a crate
+    /// that holds no types. Empty for the parameterless test § 1's own example
+    /// writes, which is what makes a program that declares no fixture and no
+    /// row pay nothing for this.
+    pub params: Vec<Injection>,
+    /// § 9's data rows, one per `#[TestWith(...)]` attached to the method, in
+    /// source order — each of them **parameter-length**, holding a value at
+    /// exactly the positions [`Self::params`] marks [`Injection::Row`].
+    ///
+    /// Parameter-length rather than only as long as the fields written, so the
+    /// runner walks one list per call rather than joining two: position `i` is
+    /// answered by `params[i]`, and a `Row` there reads this row's own `i`.
+    /// Empty for a test with no rows at all, which is the one call § 1
+    /// describes.
+    pub rows: Vec<Vec<Option<ConstArg>>>,
+}
+
+/// Where one declared parameter's value comes from — ADR 0079 § 9's "each
+/// parameter's source is unambiguous because fixtures resolve by type and
+/// rows by name".
+///
+/// A name is the more specific of the two, so a parameter some row names is a
+/// [`Self::Row`] even where a `#[Fixture]` supplies its type as well: the row
+/// was written against *this* method's parameter list, while a fixture answers
+/// every method of the class at once.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Injection {
+    /// The named `#[Fixture]` method of the same class, built once (§ 8).
+    Fixture(String),
+    /// This case's own data row (§ 9), read at the same position.
+    Row,
 }
 
 /// One `#[Fixture]` method of one class — ADR 0079 § 8's roster, one row at a
@@ -220,6 +266,15 @@ pub struct Fixture {
     pub fixtures: Vec<String>,
 }
 
+/// One `#[TestWith(...)]` as written, before it has been matched against
+/// anything: the payload's own span, which is what a refusal about the *row*
+/// points at, and its fields, which is what a refusal about one value points
+/// into.
+struct RawRow {
+    span: Span,
+    fields: Vec<ObjectLiteralField>,
+}
+
 /// Every `#[Test]` and `#[Fixture]` method `decl` declares, recorded into
 /// [`crate::ExprTypeTable`] under `class`'s label.
 ///
@@ -234,6 +289,7 @@ pub struct Fixture {
 pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     let mut cases: Vec<TestCase> = Vec::new();
     let mut case_spans: Vec<Span> = Vec::new();
+    let mut case_rows: Vec<Vec<RawRow>> = Vec::new();
     let mut fixtures: Vec<Fixture> = Vec::new();
     let mut fixture_spans: Vec<Span> = Vec::new();
     for member in &decl.members {
@@ -242,7 +298,14 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
         };
         let test = attribute_named(&m.attributes, crate::derive::TEST, ctx, env);
         let fixture = attribute_named(&m.attributes, crate::derive::FIXTURE, ctx, env);
+        let rows = rows_attached(&m.attributes, ctx, env);
         if test.is_none() && fixture.is_none() {
+            // § 9 attaches a row to a `#[Test]`, and to nothing else: what a
+            // row is matched against is that method's parameter list, and a
+            // method the runner never calls has no call for one to fill. A
+            // marker that silently did nothing is the mistake the whole
+            // recognized roster exists to prevent.
+            report_stray_rows(&rows, "is not a `#[Test]`", env);
             continue;
         }
         let method = span_text(env.src, m.name).to_owned();
@@ -262,6 +325,9 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
             continue;
         }
         if let Some(attr) = fixture {
+            // A fixture is built **once** for the whole class, so a row — one
+            // case per row — has nothing here to vary.
+            report_stray_rows(&rows, "is a `#[Fixture]` rather than a `#[Test]`", env);
             check_fixture_payload(attr, env);
             let Some(ty) = check_fixture_shape(m, &method, class, env) else {
                 continue;
@@ -309,14 +375,17 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
         cases.push(TestCase {
             method,
             options,
-            fixtures: Vec::new(),
+            params: Vec::new(),
+            rows: Vec::new(),
         });
         case_spans.push(m.name);
+        case_rows.push(rows);
     }
     resolve_injections(
         class,
         &mut cases,
         &case_spans,
+        &case_rows,
         &mut fixtures,
         &fixture_spans,
         env,
@@ -341,17 +410,19 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
 /// about types.
 ///
 /// What each parameter resolves to is recorded as an **order** on the row
-/// ([`TestCase::fixtures`]), because the runner passes values positionally and
+/// ([`TestCase::params`]), because the runner passes values positionally and
 /// nothing below this crate holds a [`TypeId`] to redo the match against.
 ///
-/// § 9's data rows will fill a parameter by *name* and are the second answer
-/// this refusal will consult; until they exist a fixture is the only one, so
-/// a parameter no fixture supplies is refused outright rather than left to a
-/// runner that would call the method with a hole in its argument list.
+/// § 9's data rows fill a parameter by *name* and are the second answer this
+/// refusal consults, so a parameter **neither** roster reaches is refused
+/// outright rather than left to a runner that would call the method with a
+/// hole in its argument list. A name is the more specific of the two, so a
+/// row wins a parameter a fixture's type would also have answered.
 fn resolve_injections(
     class: &QName,
     cases: &mut [TestCase],
     case_spans: &[Span],
+    case_rows: &[Vec<RawRow>],
     fixtures: &mut [Fixture],
     fixture_spans: &[Span],
     env: &mut Env<'_>,
@@ -365,81 +436,273 @@ fn resolve_injections(
         .collect();
     for (index, span) in fixture_spans.iter().enumerate() {
         let method = fixtures[index].method.clone();
-        fixtures[index].fixtures =
-            resolve_parameters(class, &method, "#[Fixture]", *span, &roster, env);
+        let (params, _) =
+            resolve_parameters(class, &method, "#[Fixture]", *span, &roster, &[], env);
+        // A `#[Fixture]` is resolved against no rows at all — § 9 attaches one
+        // to a `#[Test]`, and `check_class_tests` has already refused every
+        // other member carrying the marker — so every position here is a
+        // fixture's, and the other arm is an internal-consistency check on
+        // that call rather than a shape a program can have.
+        fixtures[index].fixtures = params
+            .into_iter()
+            .map(|source| match source {
+                Injection::Fixture(name) => name,
+                Injection::Row => {
+                    unreachable!("a `#[Fixture]` is resolved against no data rows")
+                }
+            })
+            .collect();
     }
     reject_fixture_cycles(class, fixtures, fixture_spans, env);
     for (index, span) in case_spans.iter().enumerate() {
         let method = cases[index].method.clone();
-        cases[index].fixtures = resolve_parameters(class, &method, "#[Test]", *span, &roster, env);
+        let rows = case_rows.get(index).map_or(&[][..], Vec::as_slice);
+        let (params, rows) =
+            resolve_parameters(class, &method, "#[Test]", *span, &roster, rows, env);
+        cases[index].params = params;
+        cases[index].rows = rows;
     }
 }
 
-/// One marked method's parameters, each resolved to the `#[Fixture]` method
-/// supplying its type — or refused where the declaration is written
-/// ([`code::E_FIXTURE_PARAMETER_UNSUPPLIED`]).
+/// One marked method's parameters, each resolved to the source that fills it
+/// — the `#[Fixture]` method supplying its type (§ 8), or this method's own
+/// data rows naming it (§ 9) — plus those rows folded, parameter-length.
 ///
-/// The match is [`TypeId`] equality, which is § 8's "resolution is by type"
-/// exactly: an interned type is the same id wherever it is written, so a
+/// The fixture match is [`TypeId`] equality, which is § 8's "resolution is by
+/// type" exactly: an interned type is the same id wherever it is written, so a
 /// parameter declaring the fixture's own return type is the one that resolves
 /// and a subtype of it deliberately is not — a fixture supplies *a* type, and
 /// admitting an assignable one would make two fixtures able to answer one
 /// parameter, which is the very ambiguity the duplicate refusal above exists
-/// to prevent.
+/// to prevent. The row match is by **name**, and it is asked first: a row is
+/// written against this method's own parameter list while a fixture answers
+/// every method of the class at once, so the more specific of the two wins.
+///
+/// Nothing partial rides across. A refusal anywhere — a row field naming no
+/// parameter, a value that is not a literal of that parameter's type, a row
+/// omitting a field its siblings supply, a parameter neither roster reaches —
+/// answers with two empty lists, so what [`crate::ExprTypeTable`] holds is
+/// always a call the runner can make.
 ///
 /// A method the signature table has no row for resolves to nothing, for
-/// [`check_method_shape`]'s reason. The span pointed at is the method's own
-/// name rather than the parameter's: a [`crate::signatures::MethodSig`]
-/// records no per-parameter span, and the declaration is what the author has
-/// to change either way.
+/// [`check_method_shape`]'s reason. The span a parameter's own refusal points
+/// at is the method's name rather than the parameter's: a
+/// [`crate::signatures::MethodSig`] records no per-parameter span, and the
+/// declaration is what the author has to change either way. A row's own
+/// refusals point into the row, which is where they are written.
 fn resolve_parameters(
     class: &QName,
     method: &str,
     marker: &str,
     span: Span,
     roster: &[(String, TypeId)],
+    rows: &[RawRow],
     env: &mut Env<'_>,
-) -> Vec<String> {
+) -> (Vec<Injection>, Vec<Vec<Option<ConstArg>>>) {
     let Some(sig) = env
         .signatures
         .get(class)
         .and_then(|class_sig| class_sig.methods.get(method))
     else {
-        return Vec::new();
+        return (Vec::new(), Vec::new());
     };
     let params = sig.params.clone();
     let names = sig.param_names.clone();
-    let mut resolved = Vec::with_capacity(params.len());
-    for (position, ty) in params.iter().enumerate() {
-        if let Some((supplier, _)) = roster.iter().find(|(_, supplies)| supplies == ty) {
-            resolved.push(supplier.clone());
-            continue;
-        }
-        let described = env.interner.describe(*ty);
-        let parameter = names
+    let position_of = |want: &str| {
+        names
             .as_ref()
-            .and_then(|names| names.get(position))
+            .and_then(|declared| declared.iter().position(|name| name == want))
+    };
+    let describe = |position: usize| {
+        names
+            .as_ref()
+            .and_then(|declared| declared.get(position))
             .map_or_else(
                 || format!("parameter {}", position + 1),
                 |name| format!("${name}"),
+            )
+    };
+
+    // § 9's rows, field by field: each names a parameter, and its value is a
+    // literal of that parameter's declared type or the row is not one for this
+    // method at all.
+    let mut ok = true;
+    let mut folded: Vec<Vec<Option<ConstArg>>> = vec![vec![None; params.len()]; rows.len()];
+    let mut written: Vec<Vec<bool>> = vec![vec![false; params.len()]; rows.len()];
+    for (index, row) in rows.iter().enumerate() {
+        for field in &row.fields {
+            let name = span_text(env.src, field.name).to_owned();
+            let Some(position) = position_of(&name) else {
+                report_row_field(
+                    field.span,
+                    format!("`{method}` declares no parameter `${name}`"),
+                    "ADR 0079 § 9 matches a data row against the method's parameters by name: \
+                     write the field the parameter is called, or declare the parameter",
+                    env,
+                );
+                ok = false;
+                continue;
+            };
+            if written[index][position] {
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_DUPLICATE_DECLARATION,
+                        format!("the data row field `{name}` is given twice"),
+                    )
+                    .with_primary(field.span, "already set above"),
+                );
+                ok = false;
+                continue;
+            }
+            written[index][position] = true;
+            // A value ADR 0046 § 2 has already refused as computed is not then
+            // judged against the parameter's type: the author is told about
+            // the value they wrote before they are told what it failed to
+            // satisfy.
+            if !crate::attributes::is_constant(&field.value) {
+                ok = false;
+                continue;
+            }
+            let declared = params[position];
+            if let Some(value) = crate::defaults::literal_default(&field.value, declared, env) {
+                folded[index][position] = Some(value);
+            } else {
+                let want = env.interner.describe(declared);
+                let parameter = describe(position);
+                report_row_field(
+                    field.span,
+                    format!(
+                        "the data row field `{name}` is not a `{want}` literal, which is what \
+                         `{parameter}` is declared as"
+                    ),
+                    "ADR 0079 § 9 matches a data row against the method's parameters by name \
+                     **and** by type, so that a row is compiled into the call it will be made \
+                     with",
+                    env,
+                );
+                ok = false;
+            }
+        }
+    }
+
+    // A parameter one row names is filled by every row: the parameters a
+    // method declares do not vary row by row, so a row leaving one out
+    // describes a call that cannot be made.
+    let by_row: Vec<bool> = (0..params.len())
+        .map(|position| written.iter().any(|row| row[position]))
+        .collect();
+    for (index, row) in rows.iter().enumerate() {
+        for position in 0..params.len() {
+            if !by_row[position] || written[index][position] {
+                continue;
+            }
+            let parameter = describe(position);
+            report_row_field(
+                row.span,
+                format!("this data row of `{method}` gives no `{parameter}`, which another does"),
+                "ADR 0079 § 9 reports each row as its own case, so every one of them fills the \
+                 same parameters: give this row the field too, or take it off the others and \
+                 supply the parameter with a `#[Fixture]`",
+                env,
             );
+            ok = false;
+        }
+    }
+
+    // A method whose rows have already been refused is not then told which
+    // parameter that left unfilled: a field naming no parameter takes its
+    // parameter's answer away with it, so the second diagnostic is the first
+    // one seen from the other end. The author fixes the row.
+    if !ok {
+        return (Vec::new(), Vec::new());
+    }
+
+    let mut resolved = Vec::with_capacity(params.len());
+    for (position, ty) in params.iter().enumerate() {
+        if by_row[position] {
+            resolved.push(Injection::Row);
+            continue;
+        }
+        if let Some((supplier, _)) = roster.iter().find(|(_, supplies)| supplies == ty) {
+            resolved.push(Injection::Fixture(supplier.clone()));
+            continue;
+        }
+        let described = env.interner.describe(*ty);
+        let parameter = describe(position);
         env.diags.report(
             Diagnostic::error(
                 code::E_FIXTURE_PARAMETER_UNSUPPLIED,
                 format!(
-                    "no `#[Fixture]` of `{class}` supplies `{described}`, which the {marker} \
-                     method `{method}` declares as `{parameter}`"
+                    "nothing supplies `{parameter}` of the {marker} method `{method}`, which \
+                     `{class}` declares as `{described}`"
                 ),
             )
             .with_primary(span, format!("`{parameter}` asks for `{described}`"))
-            .with_help(
-                "ADR 0079 § 8 resolves a parameter by its type: declare a `public static` \
-                 `#[Fixture]` on this class returning that type",
-            ),
+            // § 9 attaches a row to a `#[Test]` and to nothing else, so the
+            // second answer is offered only where it can be taken: naming it
+            // to a `#[Fixture]`'s parameter would be a fix that is itself
+            // refused.
+            .with_help(if marker == "#[Test]" {
+                format!(
+                    "ADR 0079 § 8 resolves a parameter by its type and § 9 by its name: \
+                     declare a `public static` `#[Fixture]` on this class returning \
+                     `{described}`, or write a `#[TestWith({parameter}: ...)]` row on the \
+                     method"
+                )
+            } else {
+                format!(
+                    "ADR 0079 § 8 resolves a parameter by its type: declare a `public static` \
+                     `#[Fixture]` on this class returning `{described}`"
+                )
+            }),
         );
-        return Vec::new();
+        return (Vec::new(), Vec::new());
     }
-    resolved
+    (resolved, folded)
+}
+
+/// One [`code::E_TEST_ROW_FIELD`] — § 9's "by name and by type", wherever a
+/// row and the method it is attached to fail to line up.
+fn report_row_field(at: Span, message: String, help: &str, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(code::E_TEST_ROW_FIELD, message)
+            .with_primary(at, "this data row does not describe the method it is on")
+            .with_help(help.to_owned()),
+    );
+}
+
+/// Every `#[TestWith(...)]` attached to one member, in source order — § 9's
+/// "each row is its own reported case" is what makes this the one recognized
+/// name that may repeat on a declaration.
+fn rows_attached(groups: &[AttributeGroup], ctx: &Ctx<'_>, env: &Env<'_>) -> Vec<RawRow> {
+    groups
+        .iter()
+        .flat_map(|group| &group.attributes)
+        .filter(|attr| crate::derive::attribute_is(attr, crate::derive::TEST_WITH, ctx, env))
+        .map(|attr| RawRow {
+            span: attr.payload,
+            fields: attr.fields.clone(),
+        })
+        .collect()
+}
+
+/// § 9 attaches a data row to a `#[Test]` method and to nothing else: this is
+/// every other member carrying one, refused where the marker is written.
+///
+/// A marker that quietly did nothing is what ADR 0071 § 1's closed, recognized
+/// roster exists to prevent — an attribute the compiler acts on either acts or
+/// says why it cannot.
+fn report_stray_rows(rows: &[RawRow], did: &str, env: &mut Env<'_>) {
+    for row in rows {
+        report_row_field(
+            row.span,
+            format!("this `#[TestWith]` is on a method that {did}"),
+            "ADR 0079 § 9 reports each row of a `#[Test]` as its own case, so a row on \
+             anything else names a call that is never made: mark the method `#[Test]`, or \
+             drop the row",
+            env,
+        );
+    }
 }
 
 /// § 8's last sentence: a fixture may declare fixture parameters of its own,
