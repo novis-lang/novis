@@ -17,10 +17,10 @@ for p in nvs-syntax nvs-hir nvs-types nvs-ir nvs-runtime nvs-codegen nvs-stdlib 
 ```
 
 then substring-match every `tests = [...]` entry in `loop-goal.toml` against that roster. Measured
-2026-08-28 at `e0c9f3e`: **54 of 156 named guard tests match nothing cargo would run.** **Forty**
-of those have since been reconciled — the ticked lines below — leaving **14**, over the **132**
-entries `tests = [...]` now holds across every `cargo-named` check (131 distinct: Stage 2 and Stage 5
-both name `a_disjoint_equality_does_not_compile`). Twenty-five of the forty were a cause-2
+2026-08-28 at `e0c9f3e`: **54 of 156 named guard tests match nothing cargo would run.** **Forty-four**
+of those have since been reconciled — the ticked lines below — leaving **10**, over the **128**
+entries `tests = [...]` now holds across every `cargo-named` check (127 distinct: Stage 2 and Stage 5
+both name `a_disjoint_equality_does_not_compile`). Twenty-nine of the forty-four were a cause-2
 *move* out of a `tests = [...]` list and into `cases`, so the denominator moves with them, and three
 whole `[[check]]` blocks went that way entire — Stage 5's two and Stage 7's `nvs-stdlib (the
 assertion roster)`.
@@ -124,13 +124,33 @@ slice**. That is the only thing that keeps this file from growing back.
 - [x] `a_tagged_operand_converts_to_bytes` — cause 2, now owned by
       `as-bytes-over-a-tagged-operand-is-decided-by-its-runtime-tag.nvst` (added to the list)
 
-`nvs-types (targets and refusals)`, `cargo test -p nvs-types` — 5 of 11 unresolved
+`nvs-types (targets and refusals)`, `cargo test -p nvs-types` — 1 of 7 unresolved
 
 - [ ] `a_property_default_accepts_every_compile_time_constant`
-- [ ] `a_nullable_conversion_that_cannot_fail_is_a_compile_error`
-- [ ] `a_nullable_conversion_that_does_not_exist_is_a_compile_error`
-- [ ] `a_nullsafe_assignment_target_is_a_compile_error`
-- [ ] `an_element_write_through_a_hooked_property_is_a_compile_error`
+- [x] `a_nullable_conversion_that_cannot_fail_is_a_compile_error` — cause 2, and the item's "reaches
+      lowering as a panic today" prediction was stale: `reject_unavailable_nullable_conversion`
+      ([expr/operators.rs:1296](../../crates/nvs-types/src/expr/operators.rs#L1296)) refuses it as
+      `E0709` in the checker, so nothing reaches `nvs-ir` at all
+- [x] `a_nullable_conversion_that_does_not_exist_is_a_compile_error` — cause 2, the other end of the
+      same table (`E0708`), and **the same case owns both**:
+      `tests/conformance/lang/the-nullable-conversion-table-is-closed-at-both-ends.nvst` names six
+      cannot-fail rows and three no-such-row pairs in one program, which is the point — a case
+      asserting one end alone cannot see the table drift open at the other.
+      `classes.rs:196`'s `a_class_type_still_refuses_the_nullable_conversion` is § 3's third,
+      absolute row and stays a Rust test of its own
+- [x] `a_nullsafe_assignment_target_is_a_compile_error` — cause 2, not the new-diagnostic slice the
+      item predicted: the refusal is landed at
+      [expr/assign.rs:493](../../crates/nvs-types/src/expr/assign.rs#L493) under `E0479`, and
+      `tests/conformance/class/a-nullsafe-assignment-target-is-refused.nvst` already pins both
+      spellings that reach it. `crates/nvs-types/tests/` holds no test naming it, so the name moved
+      to the `conformance` `cases` list rather than being renamed
+- [x] `an_element_write_through_a_hooked_property_is_a_compile_error` — cause 2, the same shape as
+      its nullsafe twin above: the refusal is landed at
+      [expr/assign.rs:533](../../crates/nvs-types/src/expr/assign.rs#L533) and
+      `tests/conformance/array/an-element-write-through-a-hooked-property-is-refused.nvst` pins all
+      four subscript spellings. `by_reference.rs:119`'s
+      `a_hooked_property_passed_by_reference_is_diagnosed` is a different claim — the argument
+      position, not the write target — so this was not a rename of it
 
 ### Stage 5 — declared features
 
