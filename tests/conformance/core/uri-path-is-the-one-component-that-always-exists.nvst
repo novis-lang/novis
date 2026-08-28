@@ -1,0 +1,103 @@
+--TEST--
+`$uri->path` answers a `string` for every reference the grammar admits, where the other six readers each answer `null` somewhere — RFC 3986 § 3.3's path is not optional, and `""` is a path rather than the absence of one — spec § 12
+--FILE--
+<?nvs
+// Six of `Core\Uri`'s seven component readers are typed `?string` (or `?int`);
+// `path` alone is `string`, because RFC 3986 § 3.3 makes the path the one
+// component every reference has. That is a claim about a whole grammar, not
+// about a line, so it is asserted by *counting* absences over a corpus that
+// reaches every shape § 4.1 admits: a member that answered `null` for the
+// pathless-looking `http://a` would still print plausibly on every other row.
+//
+// The static half of the same claim needs no assertion and cannot have one:
+// `$uri->path() == null` does not compile, ADR 0090 § 4 refusing an equality
+// whose two sides are statically disjoint, and `string $p = $uri->path();`
+// needs neither an `as` nor a `??`. Both are visible below by their absence.
+
+final class Show {
+    // A `?string` rendered so that absent and empty are different characters.
+    public static function some(?string $held): string {
+        if ($held == null) {
+            return "-";
+        }
+        return "[" . $held . "]";
+    }
+}
+
+array<string> $corpus = [
+    // With an authority, with and without anything after it.
+    "http://a/b/c",
+    "http://u:p@a:8080/b?q=1#f",
+    "http://a",
+    "http://a?q=1",
+    "http://a#f",
+    "file:///tmp",
+    // A scheme and no authority: § 3.3's path-absolute and path-rootless.
+    "http:/rooted",
+    "http:g",
+    "urn:isbn:1",
+    // § 4.1's relative references, which have no scheme at all.
+    "/relative",
+    "//h",
+    "?q=1",
+    "#f",
+    "",
+];
+
+int $noScheme = 0;
+int $noUserInfo = 0;
+int $noHost = 0;
+int $noPort = 0;
+int $noPath = 0;
+int $noQuery = 0;
+int $noFragment = 0;
+int $emptyPath = 0;
+int $pathInText = 0;
+foreach ($corpus as string $written) {
+    Core\Uri $uri = Core\Uri::parse($written);
+    if ($uri->scheme() == null) { $noScheme = $noScheme + 1; }
+    if ($uri->userInfo() == null) { $noUserInfo = $noUserInfo + 1; }
+    if ($uri->host() == null) { $noHost = $noHost + 1; }
+    if ($uri->port() == null) { $noPort = $noPort + 1; }
+    if ($uri->query() == null) { $noQuery = $noQuery + 1; }
+    if ($uri->fragment() == null) { $noFragment = $noFragment + 1; }
+
+    // No `?string` here, so there is nothing to test for `null` — the counter
+    // exists to be printed as the zero it must be, and the empty-path counter
+    // is what the six above would have been measuring instead.
+    string $path = $uri->path();
+    if ($path == "") { $emptyPath = $emptyPath + 1; }
+    if (Core\Str::contains($uri->toString(), $path)) { $pathInText = $pathInText + 1; }
+}
+echo "absent: scheme ", $noScheme, ", userInfo ", $noUserInfo, ", host ", $noHost,
+     ", port ", $noPort, ", query ", $noQuery, ", fragment ", $noFragment,
+     ", path ", $noPath, " of ", Core\Arr::count($corpus) as int, "\n";
+echo "empty path ", $emptyPath, ", path present in the recomposed text ", $pathInText, "\n";
+
+// The rows themselves, so the counts above are readable rather than asserted in
+// the dark: `-` is absent, `[…]` is present and possibly empty. The last column
+// is the one that never shows a `-`.
+foreach ($corpus as string $row) {
+    Core\Uri $each = Core\Uri::parse($row);
+    echo Show::some($row), " scheme ", Show::some($each->scheme()),
+         " host ", Show::some($each->host()),
+         " query ", Show::some($each->query()),
+         " path [", $each->path(), "]\n";
+}
+--EXPECT--
+absent: scheme 5, userInfo 13, host 7, port 13, query 11, fragment 11, path 0 of 14
+empty path 7, path present in the recomposed text 14
+[http://a/b/c] scheme [http] host [a] query - path [/b/c]
+[http://u:p@a:8080/b?q=1#f] scheme [http] host [a] query [q=1] path [/b]
+[http://a] scheme [http] host [a] query - path []
+[http://a?q=1] scheme [http] host [a] query [q=1] path []
+[http://a#f] scheme [http] host [a] query - path []
+[file:///tmp] scheme [file] host [] query - path [/tmp]
+[http:/rooted] scheme [http] host - query - path [/rooted]
+[http:g] scheme [http] host - query - path [g]
+[urn:isbn:1] scheme [urn] host - query - path [isbn:1]
+[/relative] scheme - host - query - path [/relative]
+[//h] scheme - host [h] query - path []
+[?q=1] scheme - host - query [q=1] path []
+[#f] scheme - host - query - path []
+[] scheme - host - query - path []
