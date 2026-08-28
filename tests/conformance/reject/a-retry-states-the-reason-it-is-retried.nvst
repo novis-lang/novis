@@ -1,0 +1,52 @@
+--TEST--
+a `#[Test(retries: n)]` with no `because:` beside it is refused where it is written, ADR 0079 § 20 charging a written reason for every retry
+--FILE--
+<?nvs
+// ADR 0079 § 20 grants retries and charges a reason for them in one sentence:
+// a retried test is reported as flaky rather than green, and the `because:`
+// is what a reader of the attribute has in place of the run that produced it.
+// The rule is a dependency between two options rather than a type, which is
+// why the all-optional roster § 1 writes cannot say it.
+use Core\Test;
+
+final class AcceptedTest {
+    // The spelling § 20's own bullet writes.
+    #[Test(retries: 2, because: "real DNS")]
+    public function aRetryWithItsReason(): void {
+        Test::assertSame(1, 1);
+    }
+
+    // `because:` on its own is an ordinary option and needs no `retries:` to
+    // be written: the dependency runs one way only.
+    #[Test(because: "a reason nothing had to be retried for")]
+    public function aReasonWithNoRetry(): void {
+        Test::assertSame(1, 1);
+    }
+
+    // A test with neither is the bare form, which is what most tests are.
+    #[Test]
+    public function neitherOptionAtAll(): void {
+        Test::assertSame(1, 1);
+    }
+
+    // Refused: the retry states nothing.
+    #[Test(retries: 2)]
+    public function aRetryWithNoReason(): void {
+        Test::assertSame(1, 1);
+    }
+
+    // Refused too, and for the same reason: an allowance of zero is still a
+    // written `retries:`, and the option is what the rule is about.
+    #[Test(skip: "a skip is not a reason to retry", retries: 0)]
+    public function aRetryBesideAnUnrelatedOption(): void {
+        Test::assertSame(1, 1);
+    }
+}
+--EXPECTF-ERROR--
+error[E0734]: `retries` is given with no `because`
+   --> case.nvs:30:12
+%A
+error[E0734]: `retries` is given with no `because`
+   --> case.nvs:37:53
+%A
+error: aborting due to 2 errors

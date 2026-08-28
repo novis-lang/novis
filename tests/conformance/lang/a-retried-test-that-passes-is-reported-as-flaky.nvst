@@ -1,0 +1,90 @@
+--TEST--
+a `#[Test(retries: n)]` that fails and then passes is flaky rather than green, and an allowance nothing needs is never spent (ADR 0079 §§ 20, 22)
+--RUN--
+test
+--FILE--
+<?nvs
+// § 20: retries exist and are reported as flaky, never as green. How many
+// times a body was entered is observable only in class storage — § 2's
+// isolate per test is M5, so a `static` property survives between attempts —
+// and `TallyTest` below is where those counts are asserted, the roster's
+// sorted order putting it after the class it counts.
+use Core\Test;
+
+final class RetryTest {
+    public static int $flakyRuns = 0;
+    public static int $stubbornRuns = 0;
+    public static int $steadyRuns = 0;
+    public static int $unretriedRuns = 0;
+    public static int $skippedRuns = 0;
+
+    // § 20: the flaky one. It fails on its first attempt and passes on its
+    // second, so it is neither of the two verdicts either attempt alone would
+    // have given — and what is reported is the failed attempt's own message.
+    #[Test(retries: 2, because: "a static counter stands in for the real DNS § 20 names")]
+    public function itPassesOnItsSecondAttempt(): void {
+        RetryTest::$flakyRuns = RetryTest::$flakyRuns + 1;
+        Test::assertSame(RetryTest::$flakyRuns, 2);
+    }
+
+    // The allowance exhausted: three attempts, all failing, so the verdict is
+    // the plain failure and the message is the *last* attempt's rather than
+    // the first — `$actual` is 3 below, which is what says so.
+    #[Test(retries: 2, because: "nothing here ever passes, which is what exhausting an allowance means")]
+    public function itFailsEveryAttemptItIsGiven(): void {
+        RetryTest::$stubbornRuns = RetryTest::$stubbornRuns + 1;
+        Test::assertSame(RetryTest::$stubbornRuns, 0);
+    }
+
+    // An allowance is spent only on a failure: this one passes first, so its
+    // counter reads 1 in the tally and its verdict is the ordinary green one.
+    #[Test(retries: 2, because: "an allowance nothing needs is still an allowance")]
+    public function itPassesFirstAndIsNotRetried(): void {
+        RetryTest::$steadyRuns = RetryTest::$steadyRuns + 1;
+        Test::assertSame(RetryTest::$steadyRuns, 1);
+    }
+
+    // No `retries:` at all is an allowance of zero: one attempt, one failure.
+    #[Test]
+    public function itIsRunOnceWithNoAllowance(): void {
+        RetryTest::$unretriedRuns = RetryTest::$unretriedRuns + 1;
+        Test::assertSame(RetryTest::$unretriedRuns, 99);
+    }
+
+    // § 20: a skip never ran, so there is nothing for a second attempt to
+    // improve on — the counter below stays at 0.
+    #[Test(skip: "skipped rather than retried", retries: 2, because: "the skip is what decides")]
+    public function itIsSkippedRatherThanRetried(): void {
+        RetryTest::$skippedRuns = RetryTest::$skippedRuns + 1;
+    }
+}
+
+final class TallyTest {
+    // The agreement the marks above cannot assert: how often each body was
+    // actually entered, counted rather than read off a verdict.
+    #[Test]
+    public function eachBodyRanAsOftenAsItsAllowanceAllowed(): void {
+        Test::assertSame(RetryTest::$flakyRuns, 2);
+        Test::assertSame(RetryTest::$stubbornRuns, 3);
+        Test::assertSame(RetryTest::$steadyRuns, 1);
+        Test::assertSame(RetryTest::$unretriedRuns, 1);
+        Test::assertSame(RetryTest::$skippedRuns, 0);
+    }
+}
+--EXPECTF--
+  RetryTest
+    ! itPassesOnItsSecondAttempt       %f ms
+      flaky: it passed on attempt 2, having failed with:
+      Core\Test::assertSame failed: `$actual` is 1, `$expected` is 2
+    ✗ itFailsEveryAttemptItIsGiven     %f ms
+      Core\Test::assertSame failed: `$actual` is 3, `$expected` is 0
+    ✓ itPassesFirstAndIsNotRetried     %f ms
+    ✗ itIsRunOnceWithNoAllowance       %f ms
+      Core\Test::assertSame failed: `$actual` is 1, `$expected` is 99
+    - itIsSkippedRatherThanRetried     %f ms
+      skipped: skipped rather than retried
+  TallyTest
+    ✓ eachBodyRanAsOftenAsItsAllowanceAllowed %f ms
+
+  2 failed, 2 passed, 1 skipped, 1 flaky in %d ms
+--EXPECTF-ERROR--
