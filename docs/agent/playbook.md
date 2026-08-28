@@ -2662,6 +2662,15 @@ sibling in the same namespace unqualified.
   knowing before writing a guard: the probe calls are *conditional*, so a "subtract one call per
   `StmtMarker`" correction over a whole-function count is measuring nothing; and `Cell::plainOne`
   emits 23 calls of which 5 are on that path.
+- **A fixture that needed a `mixed` value has probably reached for whatever was `mixed` that
+  week, and closing a gap moves it.** `an_array_index_through_a_mixed_base_defers_to_the_tag`
+  (`crates/nvs-types/src/expr_table.rs`) used `T::UNTYPED[0]` over an unannotated `const UNTYPED
+  = 1;` purely because a class constant inferred `mixed`; the moment item 45 gave one a type it
+  became an `int` subscript and the test failed on the *deferral* it was written to assert, not
+  on anything about constants. The fix is to give such a fixture the erasure it actually means —
+  a `mixed` parameter — rather than to hunt for the next thing that still infers `mixed`. So when
+  a slice widens what the checker knows about a shape, `grep` the test tree for that shape used
+  as a *source* and not as a subject.
 
 ## Divergences and refusals already pinned
 
