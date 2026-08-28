@@ -1,0 +1,118 @@
+--TEST--
+`Core\Validate::isDomain` accepts a name exactly when every label of it is accepted as a name of its own and the total stays inside RFC 1123 § 2.1's 253 bytes — so the number of labels is bounded by nothing else, and the last width accepted sits beside the first refused — docs/spec/01-core-library.md § 12
+
+--FILE--
+<?nvs
+// `crates/nvs-stdlib/src/validate.rs`'s module doc states `isDomain` as "one or
+// more labels joined by single `.`" plus two byte limits, and the corpus
+// already pins what a *label* is (`validate-domain-labels-are-ldh-and-agree-with-the-email-domain.nvst`,
+// code point by code point) and what the limits are
+// (`validate-length-limits-are-pinned-on-both-sides.nvst`, 63 and 253 on both
+// sides). What neither asks is the sentence that joins them: that the member is
+// the **conjunction** over the labels and nothing more, so every rule about
+// dots is the label rule seen from outside, and the depth of a name is capped
+// only by its length in bytes.
+final class Host {
+    public static function yn(bool $b): string {
+        return $b ? "y" : "n";
+    }
+
+    // Each label asked as a name in its own right. A single label is a legal
+    // hostname here — the module doc's `localhost` divergence from `isEmail` —
+    // which is what makes this decomposition well formed at all.
+    public static function everyLabelIsADomain(string $d): bool {
+        bool $all = true;
+        foreach (Core\Str::split($d, ".") as string $label) {
+            if (!Core\Validate::isDomain($label)) {
+                $all = false;
+            }
+        }
+        return $all;
+    }
+}
+
+// Fourteen names, all far inside 253 bytes, so the only rule that can decide
+// any of them is the label rule. Every dot-shaped refusal in the corpus is
+// here — leading, trailing, doubled — and each is *predicted* by an empty
+// label failing on its own rather than asserted as a rule about dots.
+array<string> $names = [
+    "a.test",
+    "a-b.c-d.test",
+    "localhost",
+    "1.2.3.4",
+    "x.y.z.w.example.test",
+    "A.TEST",
+    "-a.test",
+    "a.-b.test",
+    "a.b-.test",
+    "a..test",
+    "a.test.",
+    ".a.test",
+    "a_b.test",
+    "ex\u{e4}mple.test",
+];
+
+int $agree = 0;
+string $answers = "";
+foreach ($names as string $d) {
+    bool $whole = Core\Validate::isDomain($d);
+    if ($whole == Host::everyLabelIsADomain($d)) {
+        $agree = $agree + 1;
+    }
+    $answers = $answers . Host::yn($whole);
+}
+echo "answers ", $answers, "\n";
+echo "agree ", $agree as string, "\n";
+
+// Depth is free until the total is not. A name of `n` single-byte labels is
+// `2n - 1` bytes, so it is legal for as long as that stays inside 253 — which
+// is 127 labels, and the sweep counts them rather than the case asserting a
+// label ceiling that does not exist. A member that capped the depth at any of
+// the numbers a DNS implementation might reach for answers below 127 here.
+int $deep = 0;
+string $chain = "a";
+int $n = 1;
+for (; $n <= 140; $n = $n + 1) {
+    if (Core\Validate::isDomain($chain)) {
+        $deep = $deep + 1;
+    }
+    $chain = $chain . ".a";
+}
+echo "depth ", $deep as string, "\n";
+
+// The same bound named on both sides, and named as a byte count rather than a
+// label count: 127 labels is 253 bytes and is a name, 128 labels is 255 bytes
+// and is not — and one label of 63 bytes with 95 single-byte labels after it
+// is 253 bytes as well, so it is accepted for the identical reason with a
+// third of the depth.
+string $l127 = "a";
+int $i = 1;
+for (; $i < 127; $i = $i + 1) {
+    $l127 = $l127 . ".a";
+}
+string $l128 = $l127 . ".a";
+
+string $wide = Core\Str::repeat("b", 63 as uint);
+int $k = 0;
+for (; $k < 95; $k = $k + 1) {
+    $wide = $wide . ".a";
+}
+
+echo "total ",
+     Host::yn(Core\Validate::isDomain($l127)),
+     Host::yn(Core\Validate::isDomain($l128)),
+     Host::yn(Core\Validate::isDomain($wide)),
+     Host::yn(Core\Validate::isDomain($wide . ".a")),
+     "\n";
+
+echo "bytes ",
+     Core\Bytes::length($l127 as bytes) as string, "|",
+     Core\Bytes::length($l128 as bytes) as string, "|",
+     Core\Bytes::length($wide as bytes) as string,
+     "\n";
+--EXPECT--
+answers yyyyyynnnnnnnn
+agree 14
+depth 127
+total ynyn
+bytes 253|255|253
