@@ -1611,6 +1611,15 @@ is why" — is this file.
   `while` the loop already is: `int $i = 0; while ($i < 200000) { … $i = $i + 1; }`. The
   first error's span points at the type keyword, which reads like the type is unknown
   rather than unexpected, so it is worth knowing before the eleven that follow it.
+- **A `Core` enum cannot be a parameter's declared type**, so a sweep over `Core\Unit` or
+  `Core\Weekday` cannot be factored into a closure or a helper that takes the case. `fn
+  (Core\Unit $u): string => …` compiles, and the *call* is then `E0401: expected
+  `Core\Unit`, found `Core\Unit`` — a written annotation for a registry-owned enum interns
+  to a different type than the one `CoreTy::Enum` seeds, and `$u as int` inside such a body
+  is `E0708` for the same reason, where `$d->weekday() as int` off the member's own return
+  type runs. A user-declared `enum Local: int` is fine both ways, so it is `Core`-specific.
+  The way round is to factor the *comparison* instead: pass the two formatted strings, or
+  two `DateTime`s and an `int`, and write the enum case at each call site.
 
 ## Splitting a file that got too big
 

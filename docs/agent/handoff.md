@@ -2,65 +2,55 @@
 
 ## State
 
-**M4's Stage 8 is where the work is, and the differential gap is closed**: `python
-tools/gaps.py --differential` ranks **0** members with a PHP twin and no oracle case, the
-three `Core\Time` clocks having landed this session. The tree is at **743 conformance plus
-189 differential**, so the frontier is the conformance floor of 750 and, past coverage,
-depth — `python tools/gaps.py` is what ranks it and `python tools/loop.py --list` still
-reports no named `.nvst` case owed by any stage.
+**M4's Stage 8 is where the work is, and `Core\Time\DateTime` is no longer the thinnest
+class**: its three calendar-arithmetic members gained the cases § 4's opening rule asks
+for, so the tree is at **746 conformance plus 189 differential** and `python
+tools/gaps.py` now ranks `Core\ObjectMap` (0.78) thinnest, then `Core\Validate` (0.83)
+and `Core\Uri` (0.84). The frontier is still the conformance floor of 750 and, past
+coverage, depth; `python tools/loop.py --list` reports no named `.nvst` case owed by any
+stage, and `python tools/gaps.py --differential` still ranks 0.
 
-- **None of the three clock members has a value a case can pin**, so each case asserts a
-  *property* both implementations hold, computed on each side from that side's own clock:
-  `now` is a bracket (a fixed past instant, a fixed future one, the three scales of one
-  reading agreeing) plus the ISO round trip; `monotonic` is an ordering plus "this is not
-  a wall clock", the two implementations not even sharing an origin; `sleep` is the *cost*
-  measured on the monotonic clock, at least what was asked for and under a ceiling.
-- **One divergence was found and is not decided**: `Core\Time::sleep` returns at once for
-  a negative `Duration` where all three of PHP's functions raise a `ValueError`. The sleep
-  case pins the property both sides do hold — a negative request costs no time — and names
-  the difference in its own prose rather than pinning it; it is in `## Backlog`.
-- The thinnest class by depth is now **`Core\Time\DateTime` at 0.71** (12 cases over 17
-  members), which is what the next group takes.
+- The three landed cases are the three shapes: **agreement** (one step asked of a
+  `DateTime` and of its `toInstant()`, counted over nine exact units and then parted by a
+  short month, a DST night and a leap year), **a bound at both ends** (`startOf`/`endOf`
+  over all eleven `Core\Unit` cases, each `endOf` asserted to be exactly one nanosecond
+  short of the next repetition's start), and **an edge** (`next`/`previous` asked for the
+  weekday the receiver already is, which is a whole week away and never the receiver).
+- **A `Core` enum cannot be a closure or method parameter's declared type** — the
+  playbook bullet under *Writing a test case* has the spelling and the two codes. It is
+  why none of the three sweeps is factored over `Core\Unit`; each factors the comparison
+  instead. It is a checker hole rather than a case-writing rule, and it is in `## Backlog`.
 
 ## Next group
 
-**`Core\Time\DateTime`'s calendar arithmetic**, the thinnest class `python tools/gaps.py`
-ranks. The file set is `crates/nvs-stdlib/src/time.rs` for the signatures and
-`tests/conformance/core/` for the cases — the same signatures this session read, so the
-anchors below are already resolved. § 4's opening rule is what every slice is about: a
-`DateTime` moves by a count of a `Unit`, a calendar step a DST boundary or a short month
-can lengthen, where an `Instant` moves by an exact `Duration`.
+**`Core\ObjectMap`'s edges**, the thinnest class `python tools/gaps.py` ranks. The file set
+is `crates/nvs-stdlib/src/objmap.rs` for the signatures and `tests/conformance/core/` for
+the cases; the three standing cases are `object-map-keys-on-identity.nvst`,
+`object-map-iterates-its-keys.nvst` and
+`object-map-pairs-its-two-lists-through-every-write.nvst`, so what is left is what each
+member answers where it stops accepting.
 
-- [ ] **`plus`/`minus` are not `Duration` arithmetic** (`crates/nvs-stdlib/src/time.rs:918`,
-      `:925`) — the *agreement* shape: the same step asked of a `DateTime` and of its
-      `toInstant()` must **differ** across a DST boundary and across a short month
-      (2024-01-31 plus one month, 2024-03-10 in `America/New_York` plus one day), and
-      agree everywhere else, counted over a sweep rather than read off a line.
-- [ ] **`startOf`/`endOf` over every `Core\Unit`** (`time.rs:960`, `:967`) — the *bound
-      asserted on both sides*: the last instant each keeps beside the first it does not,
-      for each unit, plus the invariant that `startOf` is never after its subject and
-      `endOf` never before it.
-- [ ] **`next`/`previous` over every `Core\Weekday`** (`time.rs:932`, `:939`) — the edge
-      the member is written around is a subject that is *already* that weekday: seven
-      rows each way from one fixed date, asserting each answer is strictly after (before)
-      the subject and lands on the named weekday, counted.
+- [ ] **`get`/`remove` on a key the map does not hold** (`objmap.rs:84`, `:98`) — the
+      *edge* shape: what an absent key answers, what `remove` answers for one, and that a
+      failed `remove` leaves `count` and the two lists exactly as they were.
+- [ ] **`clear`/`isEmpty`/`count` agree over a sweep** (`objmap.rs:105`, `:112`, `:133`) —
+      the *invariance* shape: `count` and `isEmpty` say the same thing after every write,
+      overwrite, removal and clear, counted rather than read off a line, and a cleared map
+      is reusable rather than merely empty.
+- [ ] **`set` over a key already held is an overwrite, not a second pair**
+      (`objmap.rs:77`) — the *agreement* shape: `keys()` and `values()` stay index-paired
+      and the count does not grow, identity being the key (ADR 0090 § 3).
 
 ## Backlog
 
-- A `Core` enum case is not assignable to a binding of its own type — `Core\Charset $c =
-  Core\Charset::Ascii;` is `E0401`, and so is `array<Core\Charset> $s = [...]` and
-  `Core\Unit $u = Core\Unit::Month;`, while the same shape over a user `enum` compiles.
-  Every `Core` enum argument must therefore be written inline at its call site. Owner:
-  `nvs_types::expr::is_assignable` against ADR 0047 § 5's literal/case types.
-- `Core\Time::sleep` returns at once for a negative `Duration` where `sleep`, `usleep` and
-  `time_nanosleep` all raise a `ValueError`. Priority 2 says PHP-compatible observable
-  behaviour, so the likely answer is a throw; owner is `docs/spec/01-core-library.md` § 4,
-  and the divergence is named in the new sleep case's prose.
-- A `require` whose path is not a string literal runs nothing at all, silently, in both
-  forms — `nvs_hir::requires`' own known gap.
-- ADR 0033's container axis: a `secret` value behind an `array<T>` element or an ADR 0036
-  shape field carries no bit — `nvs_stdlib::debug`'s known gap 1.
-- `nvs_stdlib::test`'s known gap 1: a non-`Comparable` object under `assertEquals` throws
-  where ADR 0079 § 4 writes a compile error.
-- `signatures.rs`' known gap: a class constant's declared type is unmodelled, so
-  `Class::TOKEN` infers `mixed` at every expression site.
+- A written `Core\Unit`/`Core\Weekday` annotation is not the registry's enum type
+  (`E0401` at the call, `E0708` at an `as int` inside) — no owning doc yet; it is a
+  `nvs_types` type-interning hole, not a `Core\Time` one.
+- `Core\Time::sleep` returns at once for a negative `Duration` where all three of PHP's
+  functions raise a `ValueError` — named in the sleep case's own prose, undecided.
+- `Core\Validate` (0.83) and `Core\Uri` (0.84) are the next two thinnest classes after
+  `Core\ObjectMap` — `python tools/gaps.py`.
+- A `require` whose path is not a string literal runs nothing, silently, in both forms —
+  `nvs_hir::requires`' own known gap.
+- ADR 0024 § 4's sink list and ADR 0033's `Core\Log` inspection wait on M7/M8 `Core`
+  classes — `docs/agent/loop-goal.md` § *Standing decisions*.
