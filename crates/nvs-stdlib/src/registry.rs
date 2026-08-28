@@ -735,6 +735,10 @@ pub const CLASSES: &[CoreClass] = &[
     crate::csv::CLASS,
     crate::validate::CLASS,
     crate::out::CLASS,
+    // § 16. [ADR 0092](../../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+    // § 4's `dump` and `render` only — the coverage, trace and profile members
+    // that section also lists are ADR 0018's and land at M10.
+    crate::debug::CLASS,
     // § 13, and here only because § 12's `Core\Out::capture` answers with it —
     // ADR 0088 § 5. [`crate::cli`]'s module docs own why the rest of
     // `Core\Cli` is not here.

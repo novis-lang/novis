@@ -1,0 +1,94 @@
+--TEST--
+`Core\Debug::render` renders ADR 0092 § 1's record model through § 3's plaintext view, and § 4's `dump` writes to the diagnostic channel rather than to standard output
+--FILE--
+<?nvs
+// ADR 0092 § 1: a node is tagged with the Novis type it *is*, so `int(1)` and
+// `string(1) "1"` are two different lines -- the one thing `print_r` cannot do.
+echo Core\Debug::render(42), "\n";
+echo Core\Debug::render("42"), "\n";
+echo Core\Debug::render(null), "\n";
+echo Core\Debug::render(true), "\n";
+echo Core\Debug::render(1.5), "\n";
+
+uint $big = 18446744073709551615;
+echo Core\Debug::render($big), "\n";
+
+decimal $money = 19.90;
+echo Core\Debug::render($money), "\n";
+
+bytes $raw = "ab" as bytes;
+echo Core\Debug::render($raw), "\n";
+
+// § 1: an `array`'s two shapes are two node kinds, decided by the keys.
+array<int> $list = [10, 20];
+echo Core\Debug::render($list), "\n";
+array<int> $map = ["a" => 1, "b" => 2];
+echo Core\Debug::render($map), "\n";
+
+// § 1 and ADR 0028 § 4: a class instance shows its class, its identity and its
+// *declared* properties -- never a `toString` result, and never a hook (§ 7).
+class Point {
+    public function constructor(public int $x, public int $y) {}
+}
+echo Core\Debug::render(new Point(1, 2)), "\n";
+
+// ADR 0031 § 2: a closure has no user-visible state, so it renders as the
+// signature it declares rather than as an object full of captures.
+echo Core\Debug::render(fn (int $n): int => $n), "\n";
+echo Core\Debug::render(fn (int $a, int $b): int => $a + $b), "\n";
+
+// § 5: a cycle is an identity, not a `*RECURSION*` string, so a rendering can
+// link the repeat rather than only announce it.
+class Ring {
+    public lateinit Ring $next;
+    public function constructor(public string $name) {}
+}
+Ring $ring = new Ring("a");
+$ring->next = $ring;
+echo Core\Debug::render($ring), "\n";
+
+// § 5: the control-byte substitution is applied on the way *into* the record,
+// so every rendering inherits one answer -- ADR 0086 § 1's table, and the
+// CWE-117 property a plaintext view would otherwise lose. A bare `CR` becomes
+// its U+2400-block Control Picture; `TAB` is not substituted at all, and the
+// backslash on its line is the plaintext view's own quoting rather than a
+// second transformation.
+echo Core\Debug::render("a\rb"), "\n";
+echo Core\Debug::render("a\tb"), "\n";
+
+// § 4: a dump goes to the diagnostic channel, so `prog | jq` keeps working.
+// Nothing below this line reaches standard output but the marker itself, which
+// is what the expectation asserts.
+Core\Debug::dump(1, "two", [3]);
+Core\Debug::dump();
+echo "stdout-is-only-this\n";
+--EXPECT--
+int(42)
+string(2) "42"
+null
+bool(true)
+float(1.5)
+uint(18446744073709551615)
+decimal(19.90)
+bytes(2) 0x6162
+array(2) [
+  0 => int(10)
+  1 => int(20)
+]
+array(2) [
+  "a" => int(1)
+  "b" => int(2)
+]
+Point#1 (2) {
+  $x => int(1)
+  $y => int(2)
+}
+callable(1 parameter)
+callable(2 parameters)
+Ring#1 (2) {
+  $next => [cycle -> #1]
+  $name => string(1) "a"
+}
+string(3) "a␍b"
+string(3) "a\tb"
+stdout-is-only-this

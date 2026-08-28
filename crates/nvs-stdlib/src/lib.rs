@@ -201,6 +201,7 @@ mod cldr;
 mod cli;
 mod csv;
 mod cursor;
+mod debug;
 mod encoding;
 mod format;
 pub mod granularity;
@@ -281,6 +282,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| bytes::address(symbol))
         .or_else(|| csv::address(symbol))
         .or_else(|| cursor::address(symbol))
+        .or_else(|| debug::address(symbol))
         .or_else(|| encoding::address(symbol))
         .or_else(|| hash::address(symbol))
         .or_else(|| heap::address(symbol))

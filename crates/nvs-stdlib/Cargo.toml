@@ -10,6 +10,11 @@ repository.workspace = true
 
 [dependencies]
 nvs-runtime.workspace = true
+# ADR 0092 § 1: the record model and its renderings live in one crate that both
+# the runtime and the front end can depend on. `Core\Debug::dump` is its first
+# producer -- `crate::debug` builds a record and hands it to the plaintext
+# rendering, rather than formatting a value here.
+nvs-render.workspace = true
 # ADR 0070 § 5: the duration grammar has exactly one implementation, and it is
 # `nvs_syntax::duration` -- the lexer reads the source literal with it, this
 # crate reads a run-time string with it, and `nvs.toml` will read a directive
