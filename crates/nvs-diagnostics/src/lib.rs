@@ -1830,6 +1830,36 @@ pub mod code {
     /// errors for one declaration nothing can call.
     pub const E_VOID_OR_NEVER_PARAMETER: Code = Code::new("E0742");
 
+    /// `Core\Program::implementing<T>()`'s type argument is not an interface.
+    ///
+    /// ADR 0061 § 3 writes the constraint into the signature itself — "`T` must
+    /// be an interface type" — and the ADR says why it is not a convenience:
+    /// the interface is what gives `$module->register($this)` a static type,
+    /// where [`E_METHOD_ON_ERASED_RECEIVER`]'s `object` is opaque and a shape
+    /// describes data rather than methods. A class, an enum or a scalar written
+    /// here would enumerate something, but nothing could then be *called* on
+    /// what came back, so the answer would be an array nobody can use.
+    ///
+    /// Reported where the type argument is written, in the same pass that
+    /// expands the call, because the expansion needs the answer anyway.
+    pub const E_PROGRAM_TYPE_ARG_NOT_AN_INTERFACE: Code = Code::new("E0743");
+
+    /// A class the enumeration would instantiate declares a constructor that
+    /// takes arguments.
+    ///
+    /// ADR 0061 § 3: "Each such class needs a no-argument constructor; a
+    /// diagnostic names any that does not, and dependencies arrive through the
+    /// interface's own methods instead." The call expands to one `new`
+    /// expression per implementor and there is no call site to write arguments
+    /// at, so this is refused rather than defaulted — a constructor parameter
+    /// with a default would otherwise make the enumeration silently pick it.
+    ///
+    /// The primary span is the *call*, not the offending declaration: the
+    /// program being compiled is the one that asked for the enumeration, and
+    /// the implementing class may be in a file this program only reached
+    /// through § 3's scan. The class is named in the message and in the help.
+    pub const E_PROGRAM_IMPLEMENTOR_NEEDS_NO_ARGUMENT_CONSTRUCTOR: Code = Code::new("E0744");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

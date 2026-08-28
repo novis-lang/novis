@@ -576,6 +576,36 @@ pub enum ExprInfo {
         /// The constant's value, in its declared type.
         value: ConstArg,
     },
+    /// `Core\Program::implementing<T>()`, keyed by the call's own span —
+    /// [ADR 0061](../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+    /// § 3's enumeration, already answered.
+    ///
+    /// The sibling of [`ExprInfo::CoreConst`] for a fold whose answer is not a
+    /// constant: § 3 expands the call "to an array literal of `new`
+    /// expressions", and a `new` allocates. So what is recorded is the *list*
+    /// rather than a value, and `nvs-ir` emits one `InstKind::New` per entry
+    /// into one `InstKind::ArrayNew` — exactly the instructions the array
+    /// literal a program could have written by hand lowers to, which is what
+    /// makes the instances per-request like any other object
+    /// ([ADR 0006](../../../docs/adr/0006-isolated-script-execution.md)).
+    ///
+    /// Recorded *instead of* [`ExprInfo::Call`] for the same span, for
+    /// [`crate::retrieval`]'s reason: one span carries one entry, and
+    /// `nvs-ir` would otherwise lower the call it was told to replace.
+    /// `nvs_stdlib::program` registers a body that aborts if one ever does.
+    ProgramInstances {
+        /// Every non-abstract class implementing the written interface, sorted
+        /// by fully-qualified name — `nvs_hir::implementors`' answer verbatim,
+        /// so the order is the ADR's rather than the filesystem's.
+        classes: Vec<QName>,
+        /// Each entry's resolved `constructor` label
+        /// (`"Owner::constructor"`), or `None` where the class declares none
+        /// — the same convention [`ExprInfo::New`]'s `ctor` carries, and
+        /// resolved here for its reason: `nvs-ir` cannot re-walk the hierarchy
+        /// to find the declaring class. One entry per `classes` entry, in the
+        /// same order.
+        ctors: Vec<Option<String>>,
+    },
     /// An [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
     /// `fn` closure literal, keyed by the literal's own span.
     ///

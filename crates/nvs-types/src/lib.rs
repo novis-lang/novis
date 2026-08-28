@@ -214,6 +214,7 @@ pub mod lateinit;
 pub mod layout;
 pub mod locals;
 pub mod lower;
+pub(crate) mod program;
 pub(crate) mod retrieval;
 pub(crate) mod returns;
 pub mod signatures;

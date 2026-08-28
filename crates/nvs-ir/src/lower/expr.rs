@@ -219,6 +219,18 @@ impl<'a> Lowering<'a> {
                     let value = value.clone();
                     return self.emit_const_arg(&value, env, *cur);
                 }
+                // ADR 0061 § 3's enumeration, answered in `nvs check` and
+                // recorded as the list of classes rather than as a constant,
+                // because what it expands to allocates. `nvs_stdlib::program`
+                // registers a body that aborts precisely so a call that
+                // slipped past this is loud rather than plausible.
+                if let Some(ExprInfo::ProgramInstances { classes, ctors }) =
+                    self.exprs.lookup(expr.span)
+                {
+                    let classes: Vec<String> = classes.iter().map(ToString::to_string).collect();
+                    let ctors = ctors.clone();
+                    return self.lower_program_instances(&classes, &ctors, env, cur);
+                }
                 self.lower_static_call(class, args, expr, env, cur)
             }
             ExprKind::PropertyAccess {
@@ -2404,6 +2416,46 @@ impl<'a> Lowering<'a> {
         let built = self.emit_fallible(*cur, Ty::Object, kind, env);
         self.flush_ref_writebacks(staged_refs, env, *cur);
         built
+    }
+
+    /// `Core\Program::implementing<T>()` — [ADR 0061](../../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+    /// § 3's expansion, emitted as the array literal it is specified to be.
+    ///
+    /// One `InstKind::New` per implementor with no arguments, gathered into
+    /// one `InstKind::ArrayNew` — instruction for instruction what
+    /// `[new Alpha(), new Beta()]` written by hand lowers to through
+    /// [`Self::lower_array_literal`]'s keyless fast path, which is the whole
+    /// point of § 3 specifying an *array literal of `new` expressions* rather
+    /// than a runtime answer. Nothing is retained: each entry is a fresh
+    /// allocation transferred straight into the array, exactly as an
+    /// element that is not an aliasing read already is.
+    ///
+    /// `nvs_types::program` resolved both halves — the classes and each one's
+    /// declaring constructor — for [`Self::lower_new`]'s reason: this crate
+    /// cannot re-walk the hierarchy, and a class with no `constructor` of its
+    /// own may still inherit one.
+    fn lower_program_instances(
+        &mut self,
+        classes: &[String],
+        ctors: &[Option<String>],
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let mut entries = Vec::with_capacity(classes.len());
+        for (index, class) in classes.iter().enumerate() {
+            let built = self.emit_fallible(
+                *cur,
+                Ty::Object,
+                InstKind::New {
+                    class: class.clone(),
+                    ctor: ctors.get(index).cloned().flatten(),
+                    args: Vec::new(),
+                },
+                env,
+            );
+            entries.push((index.to_string(), built.0));
+        }
+        self.emit(*cur, Ty::Array, InstKind::ArrayNew { entries })
     }
 
     /// `$obj->method(...)`/`$this->method(...)` — the receiver is
