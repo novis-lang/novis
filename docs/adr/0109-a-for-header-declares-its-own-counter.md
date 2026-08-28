@@ -1,0 +1,199 @@
+# ADR 0109 — A `for` header may declare its own counter, and an init clause is a declaration or an expression list, never both
+
+- **Status:** Proposed
+- **Date:** 2026-08-28
+- **Scope:** the `for` statement's **init clause** only — whether it may hold one
+  [0007](0007-explicit-type-system.md) § 3.1 typed local declaration, and what a header that does not is
+  diagnosed as. It does **not** touch the condition or step clauses, which stay expression lists; it does
+  **not** change scoping, which stays function-scoped for every binding
+  ([0007](0007-explicit-type-system.md) § 1); and it does **not** touch `foreach`, whose binding slot
+  [0007](0007-explicit-type-system.md) § 3.2 already owns.
+- **Amended by:** none.
+
+**This is `Proposed`, which is why there is no `Amends:` field yet.** Accepting it obliges one row in
+[0007](0007-explicit-type-system.md) § 1's binding-site table, that ADR's `Amended by:` gaining `0109`,
+and this ADR gaining the matching `Amends:` — all three in the commit that flips the status, per
+[conventions.md](../agent/conventions.md) § *An ADR*. Nothing is written into 0007 before then, because a
+folded amendment states a rule as currently true and this one is not yet.
+
+> **In short:** `foreach` got a type slot and `for` did not, so `for (int $i = 0; …)` does not parse at
+> all — the init clause is an expression list, and a typed declaration in it produces a cascade of a dozen
+> errors whose first is about a `;` and whose loudest is a wrong claim that the counter is `mixed`. The
+> only way to write a counted loop is to declare the counter on the line above and reassign it in the
+> header, which every case in `tests/conformance/` does. That is not a scoping decision — declaration is
+> function-scoped either way, so nothing about where `$i` is visible changes — it is purely that one of
+> the two loop forms was given a slot and the other was not. **The init clause becomes either one typed
+> local declaration or an expression list, never a mix**, and a header that mixes them is one diagnostic
+> naming this rule rather than a parse error naming a semicolon.
+
+## Context
+
+[0007](0007-explicit-type-system.md) § 1 makes every binding site declare a type, and lists the three
+positions PHP has no slot for that gain one: a local variable at its declaration, a `foreach` key and
+value, and a destructuring pattern. A `for` header's init clause is not in that table, and
+`nvs_syntax`'s `parse_for` reflects it exactly — all three clauses are `parse_expr_list_until`, so the
+init clause admits only expressions.
+
+The consequence is not a missing convenience. It is that the shape a reader arrives with does not parse,
+and what they are told instead is about punctuation:
+
+```
+for (int $i = 0; $i < 3; $i = $i + 1) {
+```
+
+produces twelve diagnostics. `int $i` parses as far as `int`, which is not an expression, so the header
+is resynchronised in the wrong place; `$i` is then read before any assignment reaches it (`E0301`, twice);
+`$i = $i + 1` is checked against nothing and reported as `E0401: expected int, found mixed`, which is a
+claim about a type the program never wrote; and the run ends with `E0101: expected ';'` and `E0102:
+expected an expression` pointing at the closing parenthesis. Not one of the twelve names the actual rule.
+
+The working spelling is two statements:
+
+```
+int $i = 0;
+for ($i = 0; $i < 3; $i = $i + 1) {
+```
+
+Every `for` loop in `tests/conformance/` is written that way, including the nested ones that declare
+`int $i = 0; int $j = 0;` above a pair of loops. It works, it is not ambiguous, and it costs a line — the
+argument for changing it is not the line.
+
+## Decision
+
+### 1. The init clause is a declaration or an expression list
+
+```
+for-init := local-decl | expr (',' expr)* | ε
+```
+
+`local-decl` is [0007](0007-explicit-type-system.md) § 3.1's typed local declaration, unchanged and in
+full: `int $i = 0`, `var $i = 0` ([0037](0037-var-local-type-inference.md)), and any other type the
+grammar's `type` production spells. Exactly **one** declaration, with no comma tail — `for (int $i = 0,
+int $j = 0; …)` is refused, see § 3.
+
+The condition and step clauses are unchanged, and stay expression lists. A step clause is a
+reassignment (`$i = $i + 1`) or an increment, both of which are expressions already; nothing there ever
+wanted a declaration.
+
+### 2. Scope is unchanged, and that is the point of writing it down
+
+The counter is **function-scoped**, exactly as [0007](0007-explicit-type-system.md) § 1 makes every
+binding. `for (int $i = 0; …)` declares `$i` for the rest of the enclosing function, and a second loop
+below it that writes `for (int $i = 0; …)` again is a re-declaration diagnostic naming the first — the
+same answer § 1 already gives for any re-declared name, since "there is no shadowing".
+
+So this ADR buys **no** new scoping and deliberately does not offer any. C's and Java's loop-scoped
+counter is a different decision, it interacts with definite assignment and with `inout`
+([0107](0107-by-reference-parameters-are-spelled-inout-at-both-ends.md)), and nothing in the language
+needs it today. What this buys is that the declaration sits where the loop that uses it is, and that the
+shape a reader writes first is the shape that works.
+
+### 3. Diagnostics
+
+Two, both new, both in the parser's `E01xx` band because both are grammatical:
+
+*   **`E0124`** — *a `for` init clause holds one declaration or a list of expressions, not both*. Raised
+    where the second item begins, on `for (int $i = 0, $j = 1; …)` and on `for ($j = 1, int $i = 0; …)`
+    alike. The help names the two spellings that do work: move the extra initialiser above the loop, or
+    make both of them expressions.
+*   **`E0125`** — *a `for` init clause declares at most one binding*. Raised on the second `local-decl` of
+    `for (int $i = 0, int $j = 0; …)`, which is the shape a reader coming from C writes and which § 1's
+    single-declaration rule refuses. Separate from `E0124` because the fix is different: this one is two
+    declarations, and the answer is that the second goes above the loop.
+
+Both quote this section. Neither replaces an existing code — the twelve-diagnostic cascade in *Context*
+is not a diagnostic about `for` at all, it is resynchronisation debris, and it disappears when the shape
+parses.
+
+### 4. What the checker and `nvs-ir` owe
+
+Nothing new in either. A `for` init declaration is the same `StmtKind::LocalDecl` a declaration anywhere
+else is, and the header lowers as it already does: `nvs_types::locals` applies § 1's declare-once rule to
+it unchanged, and `nvs-ir`'s `lower_for` receives a statement where it previously received an expression
+list. This is a grammar change with a resolution consequence and no representation consequence at all —
+which is the whole reason it is affordable at M4.
+
+### 5. Tradeoffs
+
+Recorded because AGENTS.md asks for them by name on every surface change.
+
+*   **Performance:** none, in either direction. The declaration lowers to the same slot store the line
+    above the loop lowered to, at the same point in the same block.
+*   **Memory:** none. Same binding, same frame slot, same lifetime — § 2's function scope is what makes
+    that true.
+*   **Usability:** the reason for the change. The PHP-shaped loop a reader writes gains a typed spelling
+    that works, and the twelve-error cascade goes away.
+*   **Simplicity of the language surface:** this is the cost, and it is small but real. `for` gains a
+    second init shape, so the statement grammar has one more production and a reader has one more
+    alternative to know about. It is bought with § 1's own consistency: every *other* binding position in
+    the language has a type slot, and the argument for `for` not having one was never made — it was an
+    omission from the table, not a decision in it.
+*   **Simplicity of the implementation:** one checkpointed trial parse in `parse_for`, the same technique
+    `array<T>` in expression position already uses ([0007](0007-explicit-type-system.md) § 3), plus two
+    diagnostics. No new IR, no new type, no new representation.
+
+## Consequences
+
+**Positive.** `for (int $i = 0; …)` compiles and means what it looks like. The binding-site table in
+[0007](0007-explicit-type-system.md) § 1 becomes exhaustive over the statement grammar rather than
+exhaustive-minus-one. The parser's worst diagnostic cascade in a common shape is deleted rather than
+improved. And a reader who learns `foreach ($rows as int $row)` can now guess the `for` spelling and be
+right, which is the property a small surface is for.
+
+**Negative.** Two spellings of a counted loop now work — `for (int $i = 0; …)` and the declare-above form
+every existing case uses — and nothing makes one canonical. `nvs fmt`
+([0039](0039-canonical-code-formatting.md)) does not rewrite between them, since that would be a semantic
+edit and § 3 of that ADR is explicit that formatting is not one. The existing corpus is not migrated:
+`tests/conformance/` keeps the declare-above spelling wherever it already has it, because a case's source
+is evidence about the shape it was written for and rewriting 40 files to a new preference would cost the
+review of all 40 to prove nothing.
+
+**Neutral.** `nvs convert` (M11) is unaffected either way: PHP's `for ($i = 0; …)` has no type to carry, so
+the converter's existing "declare the local at first assignment" rule already produces the declare-above
+form, and it is free to keep doing so.
+
+## Alternatives rejected
+
+*   **Leave the grammar and improve the diagnostic only** — one message naming the declare-above
+    spelling, instead of twelve. Rejected as the *whole* answer, though it is a strict improvement on
+    today: it makes the omission legible without making it defensible. A reader who is told "declare the
+    counter above the loop" will reasonably ask why `foreach` does not say the same thing, and there is no
+    answer. This ADR keeps the diagnostic half — §§ 3's two codes are exactly that message, for the shapes
+    that still do not parse.
+
+*   **Loop-scoped counters, as in C and Java.** `for (int $i = 0; …)` binds `$i` for the loop and nothing
+    after it. Rejected here, not on merit but on blast radius: it is a second scoping rule in a language
+    that has exactly one ([0007](0007-explicit-type-system.md) § 1's function scope), and it would have to
+    say what it means for definite assignment, for a closure capturing the counter
+    ([0031](0031-callable-is-the-only-closure-type.md)), and for `inout`
+    ([0107](0107-by-reference-parameters-are-spelled-inout-at-both-ends.md) § 1's frame rule). Every one of
+    those is a decision worth its own argument, and none of them is what the twelve-error cascade is about.
+
+*   **A comma-separated list of declarations**, `for (int $i = 0, int $j = 0; …)`. Rejected: § 1 declares
+    one binding per declaration everywhere else in the language, and a second shape here would be the only
+    place two names are declared by one statement. `E0125` in § 3 is what a reader who tries it is told.
+
+*   **Allow a declaration in the step clause too**, for symmetry. Rejected as meaningless: the step clause
+    runs once per iteration, and a declaration that ran more than once would be a re-declaration on the
+    second — § 1's own rule refuses it, so there is nothing to allow.
+
+## Verification
+
+One case, `tests/conformance/lang/a-for-header-declares-its-own-counter.nvst`, pins every rule above that
+runs:
+
+- **The declaration form loops**, `for (int $i = 0; $i < 3; $i = $i + 1)`, printing `0 1 2` — and the
+  `var` spelling beside it, since [0037](0037-var-local-type-inference.md)'s inference is part of § 1's
+  `local-decl` and not a separate production.
+- **The expression form still loops**, unchanged, with the counter declared above — the shape every
+  existing case uses, asserted here so that adding the new production cannot silently break the old one.
+- **§ 2's scope**, from the outside: the counter is readable after the loop, with the value that ended it,
+  which is what makes this a spelling change rather than a scoping one. A second `for (int $i = 0; …)` in
+  the same function is a re-declaration diagnostic naming the first, which is § 1's rule and not a new one.
+- **Both diagnostics of § 3**, each in its own case under `tests/conformance/diag/`: `E0124` for a mixed
+  init clause and `E0125` for two declarations in one.
+
+The parser's own tests hold the grammar half — `crates/nvs-syntax/src/parser/tests/stmt.rs` gains the
+trial-parse's two directions, since a header whose init begins with a `Name` token could be either a
+declaration or an expression until the `$` after it settles which, and that is the same backtracking site
+that module already tests for `array<T>`.
