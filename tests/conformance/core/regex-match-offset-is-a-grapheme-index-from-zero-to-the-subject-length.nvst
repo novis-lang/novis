@@ -1,0 +1,96 @@
+--TEST--
+Spec § 5: `Core\Regex\Match::offset` counts ADR 0009 § 2's graphemes, from `0` to the subject's own length inclusive
+--FILE--
+<?nvs
+// ADR 0063 R8: a position Novis hands back is in the same unit every other
+// `string` position uses, which ADR 0009 § 2 fixes as the grapheme cluster.
+// A single case can read `0` off a match at the start and never learn which
+// of the three plausible units it is counting, so every block below is a
+// place where the three answers differ.
+
+// 1. The floor. A match at the very beginning is `0`, and so is a zero-width
+// match there — the offset is where the match *starts*, not how much of it
+// there is.
+var $head = Core\Regex::match("abc", "a");
+echo ($head?->offset() ?? -1) as string, "@", $head?->text() ?? "?", "|\n";
+var $empty = Core\Regex::match("abc", "");
+echo ($empty?->offset() ?? -1) as string, "@", $empty?->text() ?? "?", "|\n";
+
+// 2. The ceiling, asserted on both sides. The last *non-empty* match of a
+// three-character subject starts at `2`; the zero-width match `$` reaches
+// `3`, which is the subject's own length and one past its last character.
+// Nothing can report more: a search starting past the end finds nothing at
+// all, while the empty pattern still matches exactly there.
+echo Core\Str::length("abc") as string, "|\n";
+var $last = Core\Regex::match("abc", "[a-z]$");
+echo ($last?->offset() ?? -1) as string, "|\n";
+var $end = Core\Regex::match("abc", "$");
+echo ($end?->offset() ?? -1) as string, "@", $end?->text() ?? "?", "|\n";
+var $past = Core\Regex::match("abc", "[a-z]", {from: 3});
+echo ($past?->offset() ?? -1) as string, "|\n";
+var $atEnd = Core\Regex::match("abc", "", {from: 3});
+echo ($atEnd?->offset() ?? -1) as string, "|\n";
+
+// The empty pattern therefore matches once per position *and* once at the
+// end, so `matchAll` walks `0 … length` and the count is length + 1.
+foreach (Core\Regex::matchAll("abc", "") as Core\Regex\Match $one) {
+    echo $one->offset() as string, " ";
+}
+echo "|\n";
+
+// 3. The unit. A ZWJ family sequence is one grapheme, five code points and
+// eighteen octets, so a subject that opens with one tells all three answers
+// apart: `x1` starts at grapheme `1`, and neither at `5` nor at `18`.
+// `PREG_OFFSET_CAPTURE`'s byte position is the one this deliberately is not.
+var $fam = "\u{1f468}\u{200d}\u{1f469}\u{200d}\u{1f467}x1";
+echo Core\Str::length($fam) as string, "/", Core\Arr::count(Core\Str::codePoints($fam)) as string, "|\n";
+var $tail = Core\Regex::match($fam, "x\\d");
+echo ($tail?->offset() ?? -1) as string, "|\n";
+
+// A combining accent and a `\r\n` pair are the everyday shapes of the same
+// thing: `cafe` + U+0301 is four characters of five code points, and CR LF
+// is one cluster of two.
+var $acc = "cafe\u{301} bar";
+echo Core\Str::length($acc) as string, "/", Core\Arr::count(Core\Str::codePoints($acc)) as string, "|\n";
+echo (Core\Regex::match($acc, "bar")?->offset() ?? -1) as string, "|\n";
+var $crlf = "a\r\nb";
+echo Core\Str::length($crlf) as string, "/", Core\Arr::count(Core\Str::codePoints($crlf)) as string, "|\n";
+echo (Core\Regex::match($crlf, "b")?->offset() ?? -1) as string, "|\n";
+
+// 4. The invariant, counted rather than read off a line: the character at
+// `offset()` in the subject is the match's own first character. That holds
+// for every match under a grapheme index and fails under either other unit
+// the moment the subject stops being ASCII, so the tally is what asserts it
+// — a member answering plausibly row by row still misses the total.
+array<string> $subjects = ["a1 b2 c3", "cafe\u{301} bar bar", "\u{1f468}\u{200d}\u{1f469}\u{200d}\u{1f467}xy x"];
+array<string> $patterns = ["[a-z]\\d", "bar", "x"];
+int $agree = 0;
+int $seen = 0;
+int $row = 0;
+foreach ($subjects as string $subject) {
+    var $pattern = $patterns[$row as string];
+    foreach (Core\Regex::matchAll($subject, $pattern) as Core\Regex\Match $one) {
+        $seen = $seen + 1;
+        if (Core\Str::at($subject, $one->offset()) == Core\Str::at($one->text(), 0)) {
+            $agree = $agree + 1;
+        }
+    }
+    $row = $row + 1;
+}
+echo $seen as string, "/", $agree as string, "|\n";
+--EXPECT--
+0@a|
+0@|
+3|
+2|
+3@|
+-1|
+3|
+0 1 2 3 |
+3/7|
+1|
+8/9|
+5|
+3/4|
+2|
+7/7|
