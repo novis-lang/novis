@@ -2636,6 +2636,19 @@ sibling in the same namespace unqualified.
   reasoning: `Class::method(...)` and `$obj->method(...)` both died a whole file earlier at
   `expr.rs`'s "no resolved target recorded" panic, `$m->method(...)` was already a diagnostic, and the one
   shape that actually reached `lower_call_args` was `new C(...)` — which nothing in the item mentioned.
+- **A function's disassembly holds more cold blocks than its IR does, so "skip the `Propagate`
+  blocks" does not skip the cold path.** Counting `call` lines in a whole `--dump-asm` section
+  prices an access for three other mechanisms: for `$c->n = $c->n + 1` the extra calls are an
+  ArithmeticError *construction* — which lives in a block codegen invents for the `seto` check and
+  that corresponds to no `nvs_ir` block at all — plus the landing block's `Release` and its
+  `Propagate`. What actually separates hot from cold in the VCode text is one shape: `testX`
+  immediately followed by `jnz labelA; j labelB`. That is how *every* status word is checked — a
+  call's error return, an overflow's `seto`, the safepoint's pending-exception field, and the ADR
+  0018 probe's null table pointer — so walking the `blockN:` graph from the entry and never
+  following that `jnz` gives the path a run that throws nothing takes. Two consequences worth
+  knowing before writing a guard: the probe calls are *conditional*, so a "subtract one call per
+  `StmtMarker`" correction over a whole-function count is measuring nothing; and `Cell::plainOne`
+  emits 23 calls of which 5 are on that path.
 
 ## Divergences and refusals already pinned
 

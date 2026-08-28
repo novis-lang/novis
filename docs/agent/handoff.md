@@ -2,63 +2,48 @@
 
 ## State
 
-**M4's Stage 8, with the refusal ceiling at 4 — and one red acceptance check that is not a
-missing test.** The tree is at 868 conformance plus 189 differential. Nothing is blocked.
+**M4's Stage 8, with the refusal ceiling at 4, and the acceptance gate green again.** The tree is
+at 868 conformance plus 189 differential. Nothing is blocked.
 
-`abi-probe [9 guards]` has failed after sessions 0055, 0056 and 0057.
-`a_class_without_a_property_observer_costs_nothing_extra` reports 9 emitted calls where ADR 0014
-§ 4 wants 0. **It is the guard that is wrong, not the lowering** — that judgement is this
-session's, made from the IR and confirmed by running the shape, and the next session's job is to
-land it, not to re-derive it:
+`abi-probe [9 guards]`, red after sessions 0055-0057, is closed: all 12 tests in
+`benches/abi-probe/tests/perf_guards.rs` pass under `cargo test --release -p nvs-abi-probe`. The
+guard was wrong, not the lowering, exactly as the previous session judged. `emitted_calls` became
+`path_calls` (`perf_guards.rs:808`): it parses the section's `blockN:` bodies out of the VCode
+text, walks them from the entry, and refuses to follow the taken edge of a `test`-then-`jnz` pair,
+which is the one shape every status check compiles to. Three more unhooked accesses now measure 0
+extra calls against the hooked pair's 12, and the probe/safepoint correction the slope used to
+carry is gone with it — those calls sit behind a status test too, so they were never on the path.
+The playbook bullet under *Writing Novis itself* owns the recognition rules.
 
-* Each extra `$c->n = $c->n + 1` grows `Cell::plainOne`'s IR by exactly `BinOp`, `ConstInt`,
-  `FieldGet`, `FieldSet`, `StmtMarker` and one **`Release`** of the receiver.
-* Those releases are not on the hot path and are not a double release. `Cell::plainOne` ends with
-  `BlockId(4) Return`, `BlockId(5) Propagate` and `BlockId(6) Propagate`, each holding one
-  `Release { operand: $c }` — three **mutually exclusive** edges, one per fallible instruction's
-  landing block, exactly one of which runs. A program of that shape run under `nvs run` prints
-  the right answer, exits 0, and reads its `string` field back afterwards.
-* The loop body itself, `BlockId(3)`, holds `FieldGet`/`BinOp`/`FieldSet` and **no call at all**.
-  ADR 0014 § 4's claim is intact.
-* What broke is `emitted_calls` at `benches/abi-probe/tests/perf_guards.rs:815`: it scans the
-  whole function's disassembly, so a cold landing block counts as per-access cost. That became
-  wrong when `bba9818` gave every status-returning instruction a landing block.
-
-Two things landed here that are not the fix. `tools/orient.py` now prints the driver's last
-acceptance verdict in the RUN section, and inlines `session.py --template` so the tail is two
-calls rather than three. `tools/loop-stats.py` counts shell-carried file writes and treats them
-and `splice.py` as edits, which moved the run's fixed cost from 49% of calls to 43% — the old
-figure was counting a heredoc session's work as orientation.
+ADR 0014 § 4 now records the judgement itself: "direct field load or store" is a claim about the
+path that runs, and a landing block's `Release` belongs to ADR 0002's checked return and ADR 0007
+§ 4's overflow throw rather than to this ADR. Its *Verification* bullet was quoting the old
+"beyond the probe sites they add" wording and now quotes the new one.
 
 ## Next group
 
-**Make the guard measure the hot path, then decide what the cold edges owe.** File set:
-`benches/abi-probe/tests/perf_guards.rs` (`emitted_calls` at :815, the slope at :916, the
-assertion at :941), `docs/adr/0014-*.md` § 4, and `crates/nvs-ir/src/lower/stmt.rs:1108-1130` if
-the answer turns out to need the lowering after all.
+**Item 25, `object` as a declared type — both remaining `nvs-ir` refusal sites are in one file.**
+File set: `crates/nvs-ir/src/lower/mod.rs`, `crates/nvs-ir/tests/refusals.rs`, and one new case
+under `tests/conformance/lang/`. Read the item with `python tools/holes.py --item 25`.
 
-- [ ] **Count calls on the path that runs, not in the whole function.** `emitted_calls` takes a
-      function's whole disassembly; the guard wants the blocks a straight-line execution passes
-      through. Excluding blocks terminated by `Terminator::Propagate` is the smallest change that
-      says what ADR 0014 § 4 actually claims. The failure message already names the IR slope, so
-      the next failure will say which instruction grew rather than only how many calls did.
-- [ ] **Record the judgement in ADR 0014 § 4**: an access on an observer-free class is a direct
-      field load or store *on the path that runs*, and a landing block releasing the receiver is
-      not a dispatch the access asked for. One paragraph, not a new ADR — this is the goal's
-      § *Standing decisions* "decide and record" case.
-- [ ] **Keep the second half honest.** `hooked_extra > 0` at :951 is what stops the guard passing
-      vacuously; whatever `emitted_calls` becomes, the hooked slope must still show the calls an
-      opt-in costs.
+- [ ] **Judge the two sites before writing anything.** Both messages already list `object` among
+      what they lower (`crates/nvs-ir/src/lower/mod.rs:2701` for a declared type,
+      `crates/nvs-ir/src/lower/mod.rs:2784` for a resolved call's parameter or return), so the
+      refusal that is left may be the catch-all rather than the feature. If it is, this is the
+      goal's § *Standing decisions* "a panic naming the roster that proves nothing reaches it"
+      case and the slice is a doc comment plus the ceiling, not a lowering.
+- [ ] **Close whichever half is real**, anchored at `erase_checked_ty`
+      (`crates/nvs-ir/src/lower/mod.rs:2206` is item 25's own anchor). The playbook's "teaching
+      `nvs-ir` a new receiver or value shape is two edits" bullet is about exactly this function.
+- [ ] **Ratchet `crates/nvs-ir/tests/refusals.rs`'s `CEILING`** from 4 by whatever this closed,
+      and pin the result in a `tests/conformance/lang/` case that declares an `object`, passes one
+      as a parameter and returns one.
 
 ## Backlog
 
-- The 4 refusal sites: item 16's lowering half (`call.rs`, named/spread arguments), item 25's
-  `object` representation arm, item 4's `stmt.rs` declaration catch-all. `python tools/holes.py
-  --item N` prints any of them, and `refusals.rs`'s `CEILING` ratchets down with them.
-- **At the M4 → M4B boundary, not before:** the pack is 72 KB, of which the traps are ~36 KB and
-  the ADR sections ~17 KB. `0035 §4`, `0031 §2` and `0036 §2/§4` are Stages 3 and 5, both landed,
-  and there are 0 named cases left to write, so the `Core`-era case-writing bullets no longer
-  earn their place. Re-run `python tools/playbook.py --goal --min 3` against the current module
-  list. Then re-measure with `loop-stats.py` and only then revisit the 120k slice gate in
-  AGENTS.md — sessions are ending at ~110k against a 200k ceiling, so there is room, but that
-  number is taken from the measurement and not from this bullet.
+- Item 16's lowering half (`crates/nvs-ir/src/lower/call.rs:773`, named/spread arguments through a
+  `callable`) and item 4's `stmt.rs` declaration catch-all — the other two of the four sites.
+- **At the M4 → M4B boundary, not before:** re-run `python tools/playbook.py --goal --min 3`
+  against the current module list, then re-measure with `loop-stats.py` and only then revisit the
+  120k slice gate in AGENTS.md.
+- `python tools/gaps.py` ranks the thinnest `Core` classes once the refusal sites are gone.
