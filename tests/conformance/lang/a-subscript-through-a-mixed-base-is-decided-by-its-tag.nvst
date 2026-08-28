@@ -1,0 +1,67 @@
+--TEST--
+A subscript whose base is `mixed` is answered from the base's runtime tag — the element, the absent key, the base that is no array, and all of it again under `??` — ADR 0007 § 2, ADR 0007 § 5, ADR 0036 § 4
+--FILE--
+<?nvs
+// ADR 0007 § 2 makes `mixed` the one unchecked position, so `$m[1]` defers
+// not only *which* array is behind the handle but *whether there is one* —
+// ADR 0036 § 4's deferral, one storage kind along from a member access. The
+// four rows below are `nvs_runtime::helpers::value_index`'s, whose doc comment
+// is their home; this pins what each of them prints.
+mixed $list = [10, 20, 30];
+mixed $map = ["a" => 1, "b" => 2];
+mixed $text = "not an array";
+mixed $number = 7;
+
+// The row that answers: a present key, off a list and off a map alike.
+echo $list[1], "\n";
+echo $map["b"], "\n";
+
+// A base whose *declared* type already answers agrees with the deferred read
+// for the same value — the deferral changes when the question is asked, never
+// what the answer is.
+array<int> $declared = [10, 20, 30];
+mixed $erased = $declared;
+echo $declared[2], " ", $erased[2], "\n";
+
+// The two rows that throw. A `catch` binding has no callable members yet, so
+// each arm prints a marker rather than the message; that the throw is
+// *catchable* is the claim — ADR 0002 propagates it by checked return like any
+// other call, never through ADR 0020's fatal ladder.
+try {
+    echo $list[9], "\n";
+    echo "not reached\n";
+} catch (Throwable $e) {
+    echo "absent key: threw\n";
+}
+try {
+    echo $text[0], "\n";
+    echo "not reached\n";
+} catch (Throwable $e) {
+    echo "base is no array: threw\n";
+}
+try {
+    echo $number[0], "\n";
+    echo "not reached\n";
+} catch (Throwable $e) {
+    echo "base is a number: threw\n";
+}
+
+// Under `??` both failures answer `null` instead, which is what PHP's own
+// null-coalescing read does for any subject at all — so the same three
+// spellings that threw above fall through to their default here, and the row
+// that answers is unchanged by the `??`.
+echo $list[1] ?? "default", "\n";
+echo $list[9] ?? "default", "\n";
+echo $text[0] ?? "default", "\n";
+echo $number[0] ?? "default", "\n";
+--EXPECT--
+20
+2
+30 30
+absent key: threw
+base is no array: threw
+base is a number: threw
+20
+default
+default
+default
