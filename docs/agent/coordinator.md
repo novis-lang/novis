@@ -149,7 +149,7 @@ Check kinds:
 | `ordered` | each element of `want` appears in `stdout`/`stderr`, each after the one before it |
 | `contains` | named substrings appear on the named streams |
 | `min-bytes` | the named stream is at least `min_bytes` long (this is how `--dump-asm` is checked) |
-| `nvs-suite` | `nvs …` exits 0 **and** prints `N passed, M failed` with `M == 0` and `N >= min_passing` |
+| `nvs-suite` | `nvs …` exits 0 **and** prints `N passed, M failed` with `M == 0`, and `N >= min_passing` where that key is given — a check whose worklist is its `cases` list omits it |
 | `cargo-named` | `cargo test …` exits 0 **and** each named test actually ran — a suite that never ran the guard is green too |
 
 `exit = "nonzero"` inverts the exit expectation for the fixtures that fail by design.

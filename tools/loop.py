@@ -7,7 +7,7 @@ Runs on Windows, Linux and macOS. On Windows the acceptance test gets a second l
 a JIT is exactly where a calling-convention divergence between two targets hides; on Linux the native leg
 already is that target, so there is one leg plus the valgrind sweep.
 
-    python tools/loop.py --max-sessions 300
+    python tools/loop.py --max-sessions 300 --effort medium
     python tools/loop.py --max-sessions 300 --full-output   # no truncation anywhere
     python tools/loop.py --goal-only                        # run the acceptance test and exit
     python tools/loop.py --leg-only                         # just the Linux leg, and exit
@@ -1334,7 +1334,12 @@ class Goal:
                     return f"{label}: case {want} is not written yet"
                 if f"SKIP {want}" in flat:
                     return f"{label}: case {want} was skipped, so nothing ran it"
-            if int(m.group(1)) < c["min_passing"]:
+            # `min_passing` is optional, and a suite check that omits it is not a mistake: a stage
+            # whose worklist is its `cases` list -- Stage 00 names the shapes a first page reaches
+            # for -- has no corpus size to reach, and a threshold there would be a second number
+            # saying what the case list already says. Absent means "no stopping condition here".
+            floor = c.get("min_passing")
+            if floor is not None and int(m.group(1)) < floor:
                 # Held, not returned. A `min_passing` threshold is the loop's STOPPING condition --
                 # "is the corpus big enough yet" -- and not a correctness signal; the two lines
                 # above are the correctness half and they have just passed, so every case that
@@ -1343,7 +1348,7 @@ class Goal:
                 # growing, which is dozens of sessions, and priority 1 does not wait behind
                 # priority 4. `check()` reports this after all of them.
                 self.short.append(
-                    f"{label}: only {m.group(1)} passing case(s), wanted at least {c['min_passing']}"
+                    f"{label}: only {m.group(1)} passing case(s), wanted at least {floor}"
                 )
         elif c["kind"] == "cargo-named":
             for name in c["tests"]:
