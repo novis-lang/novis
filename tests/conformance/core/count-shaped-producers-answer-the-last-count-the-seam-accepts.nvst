@@ -1,0 +1,177 @@
+--TEST--
+The last count `nvs_runtime::affordable` accepts is answered by the allocator and not by the process dying, and the entry a pad member already holds is what moves that bound one count — spec §§ 1, 2, 7, ADR 0004
+--FILE--
+<?nvs
+// `count-shaped-producers-refuse-alike.nvst` pins that the eight agree about
+// *which* of the two sentences a count gets. What it never asks is the count
+// on the boundary itself: the largest one `affordable` lets through, which is
+// therefore the first one the allocator alone has to answer for.
+//
+// That count is where this session's audit found the one hole. The six sites
+// named for it — `Core\Str::padStart`/`padEnd`, their shared `padding_run` and
+// `write_run`, and `Core\Arr::padStart`/`padEnd` through `append_copies` —
+// were all clean of the loop-bound shape `Core\Bytes::repeat` had, because
+// every one of their loops writes at least one byte or one entry per turn and
+// the bytes were already checked. What was not clean is one count lower down:
+// `affordable` accepts a size up to `isize::MAX` and knows nothing of the
+// header the allocation then prepends, so `isize::MAX` cleared the check and
+// had no `Layout` at all. `NvsStr::try_build` — the fallible producer — went
+// through the infallible `str_layout` and panicked, which is a FATAL no
+// program can catch. `nvs_runtime::string`'s `try_str_layout` owns that seam
+// now.
+//
+// **The assertion is that this case prints anything at all.** A FATAL takes
+// the process with no output, so every count below reaching a `catch` is what
+// says the refusal stayed a throw. The counts are then asserted as a
+// partition, so a member that borrows a sibling's noun still fails here while
+// reading plausibly on its own line.
+final class Bound {
+    public static function noun(string $member, string $message): string {
+        if (Core\Str::startsWith($message, $member) == false) {
+            return "unnamed";
+        }
+        if (Core\Str::endsWith($message, ": the requested allocation is larger than any this process could hold")) {
+            return "seam";
+        }
+        if (Core\Str::endsWith($message, ": the result is larger than any string this process could hold")) {
+            return "string";
+        }
+        if (Core\Str::endsWith($message, ": the result is larger than any buffer this process could hold")) {
+            return "buffer";
+        }
+        if (Core\Str::endsWith($message, ": the result is larger than any array this process could hold")) {
+            return "array";
+        }
+        return "other";
+    }
+
+    public static function strRepeat(string $unit, uint $n): string {
+        try {
+            Core\Str::repeat($unit, $n);
+            return "served";
+        } catch (RuntimeError $repeated) {
+            return Bound::noun('Core\Str::repeat', $repeated->message);
+        }
+    }
+
+    public static function strPadStart(uint $n): string {
+        try {
+            Core\Str::padStart("x", $n, "y");
+            return "served";
+        } catch (RuntimeError $before) {
+            return Bound::noun('Core\Str::padStart', $before->message);
+        }
+    }
+
+    public static function strPadEnd(uint $n): string {
+        try {
+            Core\Str::padEnd("x", $n, "y");
+            return "served";
+        } catch (RuntimeError $after) {
+            return Bound::noun('Core\Str::padEnd', $after->message);
+        }
+    }
+
+    public static function bytesRepeat(uint $n): string {
+        try {
+            Core\Bytes::repeat("x" as bytes, $n);
+            return "served";
+        } catch (RuntimeError $copies) {
+            return Bound::noun('Core\Bytes::repeat', $copies->message);
+        }
+    }
+
+    public static function bytesFill(uint $n): string {
+        try {
+            Core\Bytes::fill($n, 65);
+            return "served";
+        } catch (RuntimeError $filled) {
+            return Bound::noun('Core\Bytes::fill', $filled->message);
+        }
+    }
+
+    public static function arrFill(uint $n): string {
+        try {
+            Core\Arr::fill($n, 0);
+            return "served";
+        } catch (RuntimeError $entries) {
+            return Bound::noun('Core\Arr::fill', $entries->message);
+        }
+    }
+
+    public static function arrPadStart(array<int> $a, uint $n): string {
+        try {
+            Core\Arr::padStart($a, $n, 0);
+            return "served";
+        } catch (RuntimeError $ahead) {
+            return Bound::noun('Core\Arr::padStart', $ahead->message);
+        }
+    }
+
+    public static function arrPadEnd(array<int> $a, uint $n): string {
+        try {
+            Core\Arr::padEnd($a, $n, 0);
+            return "served";
+        } catch (RuntimeError $behind) {
+            return Bound::noun('Core\Arr::padEnd', $behind->message);
+        }
+    }
+}
+
+array<int> $one = [1];
+
+// `isize::MAX` exactly, drawn one byte per count so the product is the count.
+// This is the row that was a FATAL: the size clears `affordable` and then has
+// no layout, because the string header is prepended to it.
+array<string> $accepted = [
+    Bound::strRepeat("x", 9223372036854775807),
+    Bound::strPadStart(9223372036854775807),
+    Bound::strPadEnd(9223372036854775807),
+    Bound::bytesRepeat(9223372036854775807),
+    Bound::bytesFill(9223372036854775807),
+];
+
+// The array family counts in entries of sixteen bytes, so its own last
+// accepted count is `isize::MAX / 16`.
+array<string> $entries = [
+    Bound::arrFill(576460752303423487),
+    Bound::arrPadStart($one, 576460752303423487),
+    Bound::arrPadEnd($one, 576460752303423487),
+];
+
+int $held = 0;
+foreach ($accepted as string $octets) {
+    if (($octets == "string") || ($octets == "buffer")) {
+        $held = $held + 1;
+    }
+}
+foreach ($entries as string $slots) {
+    if ($slots == "array") {
+        $held = $held + 1;
+    }
+}
+echo "the seam's last count is the allocator's first: ", $held, " of 8\n";
+
+// The other side of the same bound, one count further on, where the seam is
+// what answers. The string row gets there through a two-byte unit, a `uint`
+// argument having no way to name a count past `isize::MAX` that is not already
+// past every buffer the machine has.
+echo "one count further is the seam: ",
+    Bound::strRepeat("xy", 4611686018427387904), " ",
+    Bound::bytesRepeat(18446744073709551615), " ",
+    Bound::arrFill(576460752303423488), "\n";
+
+// And the entry a pad member already holds is worth exactly one count of that
+// bound: `padEnd` reaches only `$size - 1` further entries, so the count that
+// puts `fill` past the seam leaves the pads one short of it, still answering
+// in the allocator's words. That is the whole difference the audit was about —
+// what these members check is the run they are about to add, and what they
+// allocate is that run plus the subject they already have.
+echo "a held entry moves the bound by one: ",
+    Bound::arrPadStart($one, 576460752303423488), " ",
+    Bound::arrPadEnd($one, 576460752303423488), " ",
+    Bound::arrPadEnd($one, 576460752303423489), "\n";
+--EXPECT--
+the seam's last count is the allocator's first: 8 of 8
+one count further is the seam: seam seam seam
+a held entry moves the bound by one: array array seam

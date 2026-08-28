@@ -205,11 +205,24 @@ pub fn immortal_header_bytes(len: usize) -> [u8; PAYLOAD_OFFSET] {
 /// Takes the *capacity*, never the length: this is the layout an allocation is
 /// both made and freed with, and those two must be the same one.
 fn str_layout(cap: usize) -> Layout {
-    let size = PAYLOAD_OFFSET
-        .checked_add(cap)
-        .expect("string capacity overflows the address space");
-    Layout::from_size_align(size, std::mem::align_of::<StrHeader>())
-        .expect("string layout is always valid: alignment is a power of two")
+    try_str_layout(cap).expect("string capacity overflows the address space")
+}
+
+/// [`str_layout`], answering `None` for a capacity no allocation could have.
+///
+/// The two ways a layout does not exist are the same two `str_layout` used to
+/// `expect` its way past: the header plus `cap` overflowing `usize`, and the
+/// sum exceeding `isize::MAX`, which `Layout` refuses. Both are reachable from
+/// a `Core` member taking a `uint` count — `nvs_runtime::affordable` accepts
+/// anything up to `isize::MAX` and knows nothing of the header this allocation
+/// then prepends, so a capacity of exactly `isize::MAX` clears that check and
+/// has no layout. Answering `None` here is what makes
+/// [`NvsStr::try_build`] total, and so what turns that case into the catchable
+/// throw its callers already word — a FATAL for a resource refusal a program
+/// asked for is the one outcome the fallible path exists to avoid.
+fn try_str_layout(cap: usize) -> Option<Layout> {
+    let size = PAYLOAD_OFFSET.checked_add(cap)?;
+    Layout::from_size_align(size, std::mem::align_of::<StrHeader>()).ok()
 }
 
 /// How much room a string of `len` bytes takes when it has to grow to hold
@@ -369,7 +382,7 @@ impl NvsStr {
             len <= cap,
             "an Novis string's length never exceeds its capacity"
         );
-        let layout = str_layout(cap);
+        let layout = try_str_layout(cap)?;
         #[expect(
             unsafe_code,
             reason = "a flexible-array-member allocation cannot be expressed \
