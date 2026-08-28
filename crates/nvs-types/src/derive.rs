@@ -51,8 +51,8 @@
 use nvs_diagnostics::{Diagnostic, code};
 use nvs_hir::QName;
 use nvs_syntax::ast::{
-    Arg, AttributeGroup, CallArgs, ClassDecl, ClassMemberKind, ExprKind, Modifier, Param,
-    PropertyMember,
+    Attribute, AttributeGroup, ClassDecl, ClassMemberKind, ExprKind, Modifier, ObjectLiteralField,
+    Param, PropertyMember,
 };
 
 use nvs_stdlib::CodecTy;
@@ -334,23 +334,19 @@ struct Overrides {
 /// ADR 0071 § 3's two options with a literal of the right type.
 fn field_overrides(groups: &[AttributeGroup], ctx: &Ctx<'_>, env: &mut Env<'_>) -> Overrides {
     let mut out = Overrides::default();
-    for arg in attribute_args(groups, FIELD, ctx, env) {
-        let Some(name_span) = arg.name else {
-            report_field_arg(arg, "a `#[Json\\Field]` argument must be named", env);
-            continue;
-        };
-        match (span_text(env.src, name_span), &arg.value.kind) {
+    for field in attribute_fields(groups, FIELD, ctx, env) {
+        match (span_text(env.src, field.name), &field.value.kind) {
             ("name", ExprKind::Str(span)) => {
                 out.name = Some(crate::string_lit::cook_string_literal(env.src, *span));
             }
             ("skip", ExprKind::Bool(value)) => out.skip = *value,
             ("name" | "skip", _) => report_field_arg(
-                arg,
+                field,
                 "`name` takes a `string` literal and `skip` a `bool` literal",
                 env,
             ),
             _ => report_field_arg(
-                arg,
+                field,
                 "`#[Json\\Field]` has exactly two options, `name` and `skip`",
                 env,
             ),
@@ -359,11 +355,11 @@ fn field_overrides(groups: &[AttributeGroup], ctx: &Ctx<'_>, env: &mut Env<'_>) 
     out
 }
 
-/// One `E_DERIVE_FIELD_ATTRIBUTE`, at the offending argument.
-fn report_field_arg(arg: &Arg, why: &str, env: &mut Env<'_>) {
+/// One `E_DERIVE_FIELD_ATTRIBUTE`, at the offending field.
+fn report_field_arg(field: &ObjectLiteralField, why: &str, env: &mut Env<'_>) {
     env.diags.report(
         Diagnostic::error(code::E_DERIVE_FIELD_ATTRIBUTE, why.to_owned())
-            .with_primary(arg.span, "not an option this attribute declares")
+            .with_primary(field.span, "not an option this attribute declares")
             .with_help(
                 "ADR 0071 § 3: `#[Json\\Field(name?: string, skip?: bool)]` — there is no \
                  whole-class naming policy and no third option",
@@ -376,27 +372,33 @@ fn carries(groups: &[AttributeGroup], want: &str, ctx: &Ctx<'_>, env: &Env<'_>) 
     groups
         .iter()
         .flat_map(|group| &group.attributes)
-        .any(|attr| resolves_to(span_text(env.src, attr.name.span), want, ctx))
+        .any(|attr| attribute_is(attr, want, ctx, env))
 }
 
-/// Every argument written on the *first* `want`-named attribute in `groups`.
+/// Whether one attribute is the named form spelling `want`. A bare
+/// `#[{...}]` names nothing at all (ADR 0046 § 1), so it is never one of
+/// ADR 0071's two nominal attributes.
+fn attribute_is(attr: &Attribute, want: &str, ctx: &Ctx<'_>, env: &Env<'_>) -> bool {
+    attr.name
+        .as_ref()
+        .is_some_and(|name| resolves_to(span_text(env.src, name.span), want, ctx))
+}
+
+/// Every field written on the *first* `want`-named attribute in `groups`.
 ///
 /// The first: a second `#[Json\Field]` on one property is a mistake this pass
 /// does not yet report, and reading both would silently merge two overrides.
-fn attribute_args<'a>(
+fn attribute_fields<'a>(
     groups: &'a [AttributeGroup],
     want: &str,
     ctx: &Ctx<'_>,
     env: &Env<'_>,
-) -> &'a [Arg] {
+) -> &'a [ObjectLiteralField] {
     groups
         .iter()
         .flat_map(|group| &group.attributes)
-        .find(|attr| resolves_to(span_text(env.src, attr.name.span), want, ctx))
-        .and_then(|attr| match &attr.args {
-            Some(CallArgs::List(args)) => Some(args.as_slice()),
-            _ => None,
-        })
+        .find(|attr| attribute_is(attr, want, ctx, env))
+        .map(|attr| attr.fields.as_slice())
         .unwrap_or_default()
 }
 

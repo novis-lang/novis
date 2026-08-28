@@ -883,9 +883,11 @@ fn walk_member_name(member: &MemberName, src: &SourceFile, out: &mut Harvest) {
 fn walk_attributes(groups: &[AttributeGroup], src: &SourceFile, out: &mut Harvest) {
     for group in groups {
         for attr in &group.attributes {
-            record_name(&attr.name, src, out);
-            if let Some(args) = &attr.args {
-                walk_args(args, src, out);
+            if let Some(name) = &attr.name {
+                record_name(name, src, out);
+            }
+            for field in &attr.fields {
+                walk_expr(&field.value, src, out);
             }
         }
     }

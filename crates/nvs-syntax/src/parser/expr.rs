@@ -1247,8 +1247,24 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// whole literal, so one bad field doesn't hide problems with the rest.
     pub(super) fn parse_object_literal_expr(&mut self) -> Expr {
         let start = self.bump().span; // '{'
+        let fields = self.parse_object_literal_fields(TokenKind::RBrace);
+        let close = self.expect(TokenKind::RBrace, "`}`");
+        Expr {
+            span: start.to(close),
+            kind: ExprKind::ObjectLiteral(fields),
+        }
+    }
+
+    /// The `name: value, ...` run between an already-consumed opener and the
+    /// `close` its caller is about to expect. Shared with ADR 0046 § 1's
+    /// attribute payload, whose named form writes the same run inside
+    /// parentheses — one rule about what a field may be, in one place.
+    pub(super) fn parse_object_literal_fields(
+        &mut self,
+        close: TokenKind,
+    ) -> Vec<ObjectLiteralField> {
         let mut fields = Vec::new();
-        while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
+        while !self.at(close) && !self.at(TokenKind::Eof) {
             if self.at(TokenKind::LBracket) {
                 let key_start = self.bump().span; // '['
                 let _ = self.parse_expr();
@@ -1287,11 +1303,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 break;
             }
         }
-        let close = self.expect(TokenKind::RBrace, "`}`");
-        Expr {
-            span: start.to(close),
-            kind: ExprKind::ObjectLiteral(fields),
-        }
+        fields
     }
 
     // ========================================================================

@@ -422,14 +422,25 @@ pub struct AttributeGroup {
     pub span: Span,
 }
 
-/// One `Name` or `Name(args)` inside an [`AttributeGroup`].
+/// One attribute inside an [`AttributeGroup`] — ADR 0046 § 1's two forms,
+/// `Name(field: value, ...)` and a bare `{field: value, ...}`.
+///
+/// Both attach the *same* thing: [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md)
+/// § 2's anonymous object literal. The named form is sugar for a name
+/// immediately followed by that literal, so the payload is
+/// [`ObjectLiteralField`]s in either case rather than a [`CallArgs`] list —
+/// an attribute payload has no positional argument, no shorthand and no
+/// computed key, which is the object literal's rule and not a second one.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Attribute {
-    /// The attribute class's name.
-    pub name: Name,
-    /// The constructor-style argument list, if written.
-    pub args: Option<CallArgs>,
-    /// The whole attribute, name and args.
+    /// The `type` alias the named form names, or `None` for the bare form.
+    pub name: Option<Name>,
+    /// The attached literal's fields, in source order.
+    pub fields: Vec<ObjectLiteralField>,
+    /// The payload literal alone — the parenthesized list or the braced one,
+    /// and the name itself where the named form wrote no list at all.
+    pub payload: Span,
+    /// The whole attribute, name and payload.
     pub span: Span,
 }
 

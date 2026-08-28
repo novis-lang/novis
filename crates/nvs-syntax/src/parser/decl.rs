@@ -55,16 +55,42 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
+    /// One attribute — ADR 0046 § 1's named `Name(field: value, ...)` or bare
+    /// `{field: value, ...}`. Both carry the same payload, so the
+    /// parenthesized list is parsed by the very function that parses an
+    /// ADR 0036 § 2 object literal's fields: an attribute payload is that
+    /// literal written without its braces, not an argument list, so a
+    /// positional argument is "expected a field name" where it is written
+    /// rather than something a later pass has to refuse.
     pub(super) fn parse_attribute(&mut self) -> Attribute {
         let start = self.peek().span;
+        if self.at(TokenKind::LBrace) {
+            let open = self.bump().span; // '{'
+            let fields = self.parse_object_literal_fields(TokenKind::RBrace);
+            let close = self.expect(TokenKind::RBrace, "`}`");
+            let payload = open.to(close);
+            return Attribute {
+                name: None,
+                fields,
+                payload,
+                span: payload,
+            };
+        }
         let name = self.parse_name();
-        let args = if self.at(TokenKind::LParen) {
-            Some(self.parse_call_args())
+        let (fields, payload) = if self.at(TokenKind::LParen) {
+            let open = self.bump().span; // '('
+            let fields = self.parse_object_literal_fields(TokenKind::RParen);
+            let close = self.expect(TokenKind::RParen, "`)`");
+            (fields, open.to(close))
         } else {
-            None
+            (Vec::new(), name.span)
         };
-        let span = start.to(self.last_span);
-        Attribute { name, args, span }
+        Attribute {
+            name: Some(name),
+            fields,
+            payload,
+            span: start.to(self.last_span),
+        }
     }
 
     // ========================================================================

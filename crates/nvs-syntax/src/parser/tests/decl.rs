@@ -656,3 +656,43 @@ fn an_autoload_declaration_owes_a_from_and_a_root() {
         );
     }
 }
+
+/// ADR 0046 § 1's two attach forms carry one payload between them: the named
+/// `Name(field: value)` and the bare `{field: value}` differ in whether a
+/// name was written and in nothing else, and a name written with no list at
+/// all attaches an empty literal rather than a second kind of attribute.
+#[test]
+fn both_attach_forms_carry_one_object_literal_payload() {
+    let s = parse_stmt_ok(
+        "#[Route(path: \"/users\", method: \"GET\"), {tag: 1}] \
+         #[Audit] \
+         class UserController {}",
+    );
+    let StmtKind::ClassDecl(class) = s.kind else {
+        panic!("expected a class decl: {s:?}");
+    };
+    assert_eq!(class.attributes.len(), 2);
+    let named = &class.attributes[0].attributes[0];
+    assert!(named.name.is_some());
+    assert_eq!(named.fields.len(), 2);
+    let bare = &class.attributes[0].attributes[1];
+    assert!(bare.name.is_none());
+    assert_eq!(bare.fields.len(), 1);
+    let listless = &class.attributes[1].attributes[0];
+    assert!(listless.name.is_some());
+    assert!(listless.fields.is_empty());
+}
+
+/// An attribute payload is ADR 0036 § 2's literal without its braces, so it
+/// takes that literal's rules rather than an argument list's: a positional
+/// value has no field name to be, in either form.
+#[test]
+fn an_attribute_payload_has_no_positional_field() {
+    for src in [
+        "#[Route(\"/users\")] class C {}",
+        "#[{\"/users\"}] class C {}",
+    ] {
+        let (_, diags) = parse_stmt_with_diags(src);
+        assert!(diags.has_errors(), "expected an error for {src:?}");
+    }
+}
