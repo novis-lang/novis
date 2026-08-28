@@ -1,0 +1,91 @@
+--TEST--
+`Core\Test::assertThrows` consumes the throw it matched without discharging the failure that raised it, and `assertCount` names both sides of an empty subject -- ADR 0079 §§ 4, 5
+--FILE--
+<?nvs
+// § 5's ledger is what `expectFailure` reads, and `assertThrows` never writes
+// to it: matching a throw is not the same act as recording that an assertion
+// failed, so an assertion provoked *inside* an `assertThrows` body is still
+// owed a discharge afterwards. That is the whole reason a test claiming an
+// assertion fails writes `expectFailure` and not
+// `assertThrows(..., Core\Test\Failure::class)`, and nothing else observes it:
+// both spellings look identical from the throw alone.
+//
+// The bodies are named static methods so each row runs one piece of code
+// rather than a re-spelling of it; a first-class `Class::method(...)`
+// reference does not exist yet, so the `callable` is a `fn` literal calling
+// one.
+
+final class Ran {
+    public static function miscount(): void {
+        array<string> $rows = ["a", "b", "c"];
+        Core\Test::assertCount($rows, 2);
+    }
+
+    public static function parse(): void {
+        throw new ParseError("the input is not JSON");
+    }
+
+    // A failing assertion, caught by the member that claims it -- the throw is
+    // consumed and the ledger entry it wrote is not.
+    public static function catchesTheFailure(): void {
+        Core\Test::assertThrows(fn (): void => { Ran::miscount(); }, Core\Test\Failure::class);
+    }
+
+    // An ordinary exception, caught the same way. No assertion failed here, so
+    // there is nothing in the ledger for anyone to discharge.
+    public static function catchesTheParseError(): void {
+        Core\Test::assertThrows(fn (): void => { Ran::parse(); }, ParseError::class);
+    }
+
+    // `assertThrows` failing on its own account: the class it was given is not
+    // the one thrown, so *it* records a failure, which is an ordinary entry.
+    public static function namesTheWrongClass(): void {
+        Core\Test::assertThrows(fn (): void => { Ran::parse(); }, LogicError::class);
+    }
+}
+
+int $discharged = 0;
+int $refused = 0;
+
+try {
+    Core\Test::expectFailure(fn (): void => { Ran::catchesTheFailure(); });
+    $discharged = $discharged + 1;
+} catch (Throwable $keptTheEntry) {
+    echo "the entry was lost: ", $keptTheEntry->message, "\n";
+}
+
+try {
+    Core\Test::expectFailure(fn (): void => { Ran::namesTheWrongClass(); });
+    $discharged = $discharged + 1;
+} catch (Throwable $ownFailure) {
+    echo "the member's own failure was lost: ", $ownFailure->message, "\n";
+}
+
+try {
+    Core\Test::expectFailure(fn (): void => { Ran::catchesTheParseError(); });
+    $discharged = $discharged + 1;
+} catch (Throwable $recordedNothing) {
+    $refused = $refused + 1;
+    echo $recordedNothing->message, "\n";
+}
+
+// Two bodies discharged and one refused, counted rather than read off the
+// lines above: a member that discharged the entry it consumed would lose the
+// first, and one that wrote an entry for every throw it matched would keep the
+// third.
+echo "discharged=", $discharged, "/2 refused=", $refused, "/1\n";
+
+// § 4's other edge, on the subject `assertCount` is written around: an empty
+// array is a length like any other, and the report names both sides of it with
+// ADR 0063 R2's bag in front, exactly as the predicate members' reports do.
+array<string> $empty = [];
+Core\Test::assertCount($empty, 0);
+try {
+    Core\Test::assertCount($empty, 1, {message: "the page holds a screenful"});
+} catch (Core\Test\Failure $short) {
+    echo $short->message, "\n";
+}
+--EXPECT--
+Core\Test::expectFailure failed: the callable ran without a failed assertion
+discharged=2/2 refused=1/1
+the page holds a screenful: Core\Test::assertCount failed: `$actual` holds 0 entries, `$expected` is 1

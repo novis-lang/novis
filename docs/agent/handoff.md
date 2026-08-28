@@ -2,50 +2,48 @@
 
 ## State
 
-**M4's Stage 8, and the depth worklist itself was the bug.** The tree is at **772 conformance plus
-189 differential**. `python tools/gaps.py --coverage` now ranks by the **median cases per member**
-rather than by case-files ÷ members, prints each class's `FLOOR` (its worst member) and names the
-three members it asks least, with anchors — the old quotient ranked by class size and sent the
-previous session at a `Core\Math` group whose three claims were all already on disk (playbook,
-*Tooling*). Nothing is blocked.
+**M4's Stage 8, depth.** The tree is at **775 conformance plus 189 differential**. `python
+tools/gaps.py --coverage` ranks by the median cases per member; `Core\Time` left the frontier this
+session (2 → 3.0) and the thinnest classes are now `Core\Bytes` (median 2, floor 1 at `join`),
+`Core\Encoding` (2), `Core\Test` (2) and `Core\Hash\Stream` (2). Nothing is blocked.
 
-- The re-ranked frontier is `Core\Bytes`, `Core\Test`, `Core\Time` and `Core\Encoding` at a median
-  of 2, each with members carrying a single case.
-- One of those closed here: `Core\Bytes`'s three predicates now have an *agreement* case beside
-  their coverage one, asserting over all 64 ordered pairs of a table that `contains` is
-  `indexOf(...) != null`, that `startsWith`/`endsWith` are the two windows `slice` cuts compared by
-  `compare`, and that `compare` is antisymmetric with a zero exactly at mutual prefixes. The three
-  true-tallies (20/17/16) are what stops a predicate stuck on one answer from agreeing with a
-  derivation stuck with it.
+- Three cases landed, all over members carrying a single case each. `Core\Time`'s two: the three
+  epoch readings are one number at three resolutions, swept over 28 second/`nanos` rows and
+  counted, with `fromEpoch` rebuilding the instant from each reading through the floor
+  decomposition its `uint nanos` wants — 9 of those rows read one second *higher* than they were
+  written, which is the truncation-towards-zero the pair does; and `monotonic` is a twelve-read
+  sweep that never steps backwards, whose differences are `Duration`s in `Duration`'s own algebra,
+  plus one 20ms `sleep` the clock has to have noticed (the whole case costs 45ms).
+- `Core\Test`'s: `assertThrows` consumes the throw it matched **without** discharging the ledger
+  entry that raised it, so `expectFailure` around an `assertThrows(…, Core\Test\Failure::class)`
+  body still discharges — `nvs_stdlib::test`'s own doc comment on `nvs_core_test_assert_throws`
+  states this and nothing observed it. The failure *messages* of `assertCount` and `assertThrows`
+  were already pinned by the two cases `gaps.py --member` names, so this case took the ledger edge
+  instead of re-pinning them.
 
 ## Next group
 
-**`Core\Time`'s thinnest three, and `Core\Test`'s assertion members** — the file set is
-`crates/nvs-stdlib/src/time.rs` plus `tests/conformance/core/`, with `test.rs` for the third.
-Take the members `gaps.py` names, not a class: run `python tools/gaps.py --member 'Core\Time::…'`
-first, because this is the run that learned what a stale worklist costs.
+**`Core\Encoding`'s three text members** — the file set is `crates/nvs-stdlib/src/encoding.rs` plus
+`tests/conformance/core/`. Two cases already touch them
+(`encoding-text-trio-converts-through-a-charset.nvst` and
+`encoding-charset-conversion-names-the-character-it-cannot-spell.nvst`), so read those first and
+take the boundary each leaves, not another row of what they already sweep.
 
-- [ ] **`Core\Time::fromEpoch` round-trips every `Instant` member that answers an epoch count**
-      (`crates/nvs-stdlib/src/time.rs:1116` `fromEpoch`, `time.rs:1683` its implementation, with
-      `Instant::toEpochSeconds` `time.rs:704`, `toEpochMillis` `:711` and `toEpochMicros` `:718`,
-      each carrying one case) — the *agreement* shape: one swept table of epoch
-      values, asserting the three resolutions agree with each other about the same instant and that
-      `fromEpoch` undoes each, counted rather than read off the rows.
-- [ ] **`Core\Time::monotonic` is ordered where the wall clock is not** (`crates/nvs-stdlib/src/time.rs:1102`, implemented at
-      `time.rs:1648`, one case) — the *invariant* shape: a sweep of reads is non-decreasing, and its difference is a
-      `Duration` rather than a clock reading. Check first what `sleep` costs in a case's runtime;
-      keep the sweep tight enough that the suite does not pay for it.
-- [ ] **`Core\Test::assertCount` and `assertThrows` name what failed** (`crates/nvs-stdlib/src/test.rs:172`
-      and `:183`, implemented at `test.rs:365` and `:430`, one case each) — the *edges* shape, alongside the ledger case that already
-      exists: a wrong count and a body throwing the wrong class each produce a message, read back
-      through `expectFailure`.
+- [ ] **`encodeText`/`decodeText` round-trip every charset the registry names**
+      (`crates/nvs-stdlib/src/encoding.rs:321` `encodeText`, `:328` `decodeText`, implemented at
+      `encoding.rs:751` and `:781`) — the *agreement* shape: one table of texts crossed with the
+      charsets, counting the round trips that come back byte-identical against the ones that throw,
+      so a charset table that grew its own transliteration fails the count.
+- [ ] **`isValidText` agrees with `decodeText`'s verdict on every row of that same table**
+      (`encoding.rs:335`, implemented at `encoding.rs:809`) — the predicate is the throw, spelled as
+      a `bool`, and nothing yet asserts the two cannot disagree.
+- [ ] **`Core\Bytes::join` is the one member with a single case** (`gaps.py --coverage` floor 1) —
+      a different file set (`crates/nvs-stdlib/src/bytes.rs`), so take it only as a third.
 
 ## Backlog
 
-- `Core\Regex\Match::offset` and `Core\Regex::quote`/`replaceWith` carry one case each — `gaps.py`.
-- `Core\Str::fold`/`graphemes`/`indexOf` and `Core\Arr::column`/`flattenDeep`/`overlayDeep` are the
-  single-case members of the two largest classes — `gaps.py`.
-- 68 unasserted error paths, 65 of them `Fault::fatal` and mostly internal — `gaps.py --errors`.
-- The `every_refusal_is_a_diagnostic_or_decided` allowlist may never grow — loop-goal.md.
-- 54 of the 156 guard tests `loop-goal.toml` names match nothing `cargo test` runs —
-  docs/agent/guard-name-debt.md.
+- `Core\Hash\Stream::update`/`finish` carry two cases each and are the smallest class on the
+  frontier — `docs/agent/loop-goal.md` § Stage 8.
+- `Core\Regex\Match::offset` carries one case, `Core\Uri::buildQuery`/`compareTo` one each —
+  `python tools/gaps.py --coverage`.
+- 54 of the 156 guard tests `loop-goal.toml` names still match nothing — `docs/agent/guard-name-debt.md`.
