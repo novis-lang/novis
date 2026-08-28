@@ -1,0 +1,96 @@
+--TEST--
+`Core\Str::fold` then `Core\Str::compare` is a caseless equality that contains `compare`'s own `{caseInsensitive: true}` and is strictly coarser than it, and folding a key again changes nothing — spec § 1 *Transformation*, ADR 0090 § 1
+--FILE--
+<?nvs
+// The member's doc comment says folding is "the strict form of `compare`'s
+// `{caseInsensitive: true}`", whose per-character simple mapping cannot see
+// `ß` and `SS` as the same. That is a claim about two *relations*, and a
+// single pair cannot tell a strict containment from a coincidence: it needs
+// both halves counted over every ordered pair — nothing the option calls equal
+// that folding calls different, and something folding calls equal that the
+// option does not.
+array<string> $table = [
+    "straße",
+    "STRASSE",
+    "Strasse",
+    "ﬁle",
+    "FILE",
+    "ΟΔΥΣΣΕΥΣ",
+    "Οδυσσευς",
+    "ǅungla",
+    "ǆungla",
+];
+
+int $n = Core\Arr::count($table) as int;
+int $i = 0;
+int $j = 0;
+int $pairs = 0;
+int $optionEqual = 0;   // compare($a, $b, {caseInsensitive: true}) == 0
+int $foldEqual = 0;     // compare(fold($a), fold($b)) == 0
+int $escapes = 0;       // the option said equal, folding did not — must be 0
+int $coarser = 0;       // folding said equal, the option did not
+for ($i = 0; $i < $n; $i = $i + 1) {
+    for ($j = 0; $j < $n; $j = $j + 1) {
+        string $a = $table[$i as string];
+        string $b = $table[$j as string];
+        $pairs = $pairs + 1;
+        bool $byOption = Core\Str::compare($a, $b, {caseInsensitive: true}) == 0;
+        bool $byFold = Core\Str::compare(Core\Str::fold($a), Core\Str::fold($b)) == 0;
+        if ($byOption) {
+            $optionEqual = $optionEqual + 1;
+        }
+        if ($byFold) {
+            $foldEqual = $foldEqual + 1;
+        }
+        if ($byOption && (!$byFold)) {
+            $escapes = $escapes + 1;
+        }
+        if ($byFold && (!$byOption)) {
+            $coarser = $coarser + 1;
+        }
+    }
+}
+// 81 ordered pairs. The option calls 13 of them equal and folding calls 21,
+// with no pair in the first set outside the second: the containment is what
+// the fourth number being zero says, and a member that had merely grown a
+// second, differently-wrong caseless mapping would fail there while still
+// answering plausibly on any one row. The 8 extra pairs are three families,
+// and each is a case pairing a per-character mapping cannot express: `ß`
+// against `ss` (4 pairs, the two spellings each way), the `ﬁ` ligature against
+// `fi` (2), and the two Greek sigmas (2), where the option keeps the final
+// form `lower` has to keep and folding does not.
+echo $pairs, " ", $optionEqual, " ", $foldEqual, " ", $escapes, " ", $coarser, "\n";
+
+// A folded string is already a key, so folding it again is the identity — the
+// property that lets a caller fold once and compare many times, which is the
+// reason given for two members rather than a third option on `compare`.
+// Asserted over the same table, plus the two extremes the table has no row
+// for.
+array<string> $keys = [
+    "straße", "STRASSE", "ﬁle", "ΟΔΥΣΣΕΥΣ", "ǅungla", "ſatz", "ÄRGER", "", "plain ascii",
+];
+int $idempotent = 0;
+int $stable = 0;
+foreach ($keys as string $k) {
+    string $once = Core\Str::fold($k);
+    if (Core\Str::fold($once) == $once) {
+        $idempotent = $idempotent + 1;
+    }
+    // Stronger, and the property `fold` is written for: a key is invariant
+    // under either case mapping applied to it first, so the whole case-variant
+    // family of a word reaches one key rather than a family of keys.
+    if ((Core\Str::fold(Core\Str::upper($k)) == $once) && (Core\Str::fold(Core\Str::lower($k)) == $once)) {
+        $stable = $stable + 1;
+    }
+}
+echo $idempotent, " ", $stable, " of ", Core\Arr::count($keys), "\n";
+
+// The pair that separates the two relations, read out loud: an expansion the
+// option's per-character mapping has no way to see, against one it does.
+echo Core\Str::compare("STRASSE", "straße", {caseInsensitive: true}), " ",
+     Core\Str::compare(Core\Str::fold("STRASSE"), Core\Str::fold("straße")), " ",
+     Core\Str::compare("STRASSE", "Strasse", {caseInsensitive: true}), "\n";
+--EXPECT--
+81 13 21 0 8
+9 9 of 9
+-1 0 0
