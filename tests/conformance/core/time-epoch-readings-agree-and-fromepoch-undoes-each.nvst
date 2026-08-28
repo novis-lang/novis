@@ -1,0 +1,77 @@
+--TEST--
+Spec § 4: `Instant`'s three epoch readings agree about one instant, and `Core\Time::fromEpoch` rebuilds it from each of them
+--FILE--
+<?nvs
+// The three readers are three resolutions of one number, and `fromEpoch` is
+// the way back. Asserted over a swept table by *counting*, so a reader that
+// grew its own second-to-subsecond arithmetic fails here while still looking
+// right on the single line it carries in
+// time-instant-is-an-absolute-point.nvst.
+class Epoch {
+    // The instant a `$perSecond`-resolution epoch count names. `fromEpoch`
+    // adds its `nanos` option *after* the second and that option is a `uint`,
+    // so the rebuild needs the floor decomposition — the second at or below
+    // the reading — and not the truncating one the readers answer with.
+    public static function rebuild(int $count, int $perSecond): Core\Time\Instant {
+        int $q = Core\Math::intDiv($count, $perSecond);
+        int $r = $count - $q * $perSecond;
+        if ($r < 0) {
+            $q = $q - 1;
+            $r = $r + $perSecond;
+        }
+        return Core\Time::fromEpoch($q, {nanos: ($r * Core\Math::intDiv(1000000000, $perSecond)) as uint});
+    }
+}
+
+// Both sides of the epoch, at four subsecond offsets each. Every `nanos` here
+// is a whole millisecond, so all three resolutions hold the row exactly and
+// any disagreement between them is the member's, not the table's.
+array<int> $seconds = [0, 1, 0 - 1, 1705320000, 0 - 1705320000, 86400, 0 - 86400];
+array<int> $nanos = [0, 1000000, 250000000, 999000000];
+int $rows = 0;
+int $agree = 0;   // each reading is the next one up, divided
+int $placed = 0;  // and each is where the written second-plus-`nanos` pair puts it
+int $back = 0;    // `fromEpoch` undoes all three
+int $toZero = 0;  // the second a reading truncates towards is zero, not minus infinity
+foreach ($seconds as int $s) {
+    foreach ($nanos as int $n) {
+        var $at = Core\Time::fromEpoch($s, {nanos: $n as uint});
+        int $sec = $at->toEpochSeconds();
+        int $mil = $at->toEpochMillis();
+        int $mic = $at->toEpochMicros();
+        $rows = $rows + 1;
+        if ($mil == Core\Math::intDiv($mic, 1000) && $sec == Core\Math::intDiv($mil, 1000)) {
+            $agree = $agree + 1;
+        }
+        if ($mic == $s * 1000000 + Core\Math::intDiv($n, 1000) && $mil == $s * 1000 + Core\Math::intDiv($n, 1000000)) {
+            $placed = $placed + 1;
+        }
+        // Reading, rebuilding and reading again answers the same count at each
+        // resolution; at the finest one it answers the same *instant*, which
+        // is the round trip the other two cannot make on their own.
+        if (Epoch::rebuild($mic, 1000000)->toEpochMicros() == $mic
+            && Epoch::rebuild($mil, 1000)->toEpochMillis() == $mil
+            && Core\Time::fromEpoch($sec)->toEpochSeconds() == $sec
+            && Epoch::rebuild($mic, 1000000)->compareTo($at) == 0) {
+            $back = $back + 1;
+        }
+        // A negative second carrying a positive `nanos` reads one second
+        // *higher* than it was written with, because the pair truncates
+        // towards zero. Nine of the 28 rows are that shape.
+        if ($sec != $s && $sec == $s + 1) {
+            $toZero = $toZero + 1;
+        }
+    }
+}
+echo $rows as string, "|", $agree as string, "|", $placed as string, "|", $back as string, "|", $toZero as string, "|\n";
+
+// The row the sign story hinges on, written out once: a quarter second after
+// `-1` is three quarters of a second *before* the epoch, and each reader says
+// so at its own resolution.
+var $before = Core\Time::fromEpoch(0 - 1, {nanos: 250000000});
+echo $before->toEpochSeconds() as string, "|", $before->toEpochMillis() as string, "|", $before->toEpochMicros() as string, "|\n";
+echo $before->toIso(), "|\n";
+--EXPECT--
+28|28|28|28|9|
+0|-750|-750000|
+1969-12-31T23:59:59.25Z|
