@@ -1,0 +1,89 @@
+--TEST--
+`Core\Arr::fill` answers the same run its two padding siblings add for the same count, degenerate counts included, and `::fillKeys` is what replaces PHP's dropped `$start_index` — spec § 2
+--FILE--
+<?nvs
+// `fill`, `padStart` and `padEnd` all reach `append_copies`, so the run each
+// one adds for a count of `$n` is the same run. That is the question this case
+// asks — of all three at once, so a member that grew its own answer at a
+// degenerate count fails here while its own line still reads plausibly.
+// `arr-fill-and-fill-keys-repeat-one-value.nvst` has the rows; the boundary at
+// the far end is `count-shaped-producers-answer-the-last-count-the-seam-accepts`.
+final class Run {
+    /// Whether the three callers of the one helper answer the identical run
+    /// for `$count`, and whether it is `$count` entries long.
+    public static function agrees(uint $count, string $value): int {
+        array<string> $empty = [];
+        array<string> $filled = Core\Arr::fill($count, $value);
+        if (Core\Arr::count($filled) != $count) {
+            return 0;
+        }
+        string $run = Core\Str::join($filled, ",");
+        if (Core\Str::join(Core\Arr::padStart($empty, $count, $value), ",") != $run) {
+            return 0;
+        }
+        if (Core\Str::join(Core\Arr::padEnd($empty, $count, $value), ",") != $run) {
+            return 0;
+        }
+        // Always a list, at every count — the keys are `0, 1, …` and nothing
+        // about the count changes that.
+        if (Core\Arr::isList($filled) != true) {
+            return 0;
+        }
+        return 1;
+    }
+}
+
+int $agreed = 0;
+int $asked = 0;
+uint $one = 1;
+uint $count = 0;
+uint $counts = 6;
+while ($count < $counts) {
+    $asked = $asked + 1;
+    $agreed = $agreed + Run::agrees($count, "v");
+    $count = $count + $one;
+}
+echo "one run, three members: ", $agreed, " of ", $asked, "\n";
+
+// The two degenerate counts said once each, because the sweep proves them and
+// this shows them: zero is an empty array rather than a throw — which is what
+// lets a computed count through unguarded — and one is a single entry rather
+// than the empty the saturating arithmetic beside it could have produced.
+echo Core\Arr::count(Core\Arr::fill(0, "v")), Core\Arr::count(Core\Arr::fill(1, "v")), "\n";
+echo "[", Core\Str::join(Core\Arr::fill(1, "v"), ","), "]\n";
+
+// PHP's `array_fill($start, $count, $v)` is dropped, and the doc comment names
+// what replaces it: `$start` of zero is this member, and any other keys are
+// `fillKeys` over the keys the caller actually wants. So `array_fill(5, 3, 'v')`
+// is spelled here, and it answers the same entries under the same keys.
+array<string|int> $from5 = [5, 6, 7];
+var $shifted = Core\Arr::fillKeys($from5, "v");
+echo Core\Str::join(Core\Arr::keys($shifted), ","), " ", Core\Str::join($shifted, ","), "\n";
+// And it is *not* a list, which is the shape the dropped parameter would have
+// let `fill` produce and every caller then have to reason about.
+echo Core\Arr::isList($shifted) as string, "|", Core\Arr::isList(Core\Arr::fill(3, "v")) as string, "\n";
+
+// The entries are the one `$value` rather than a copy of it, exactly as the
+// padding members' are: `append_copies` stores a fresh reference to the same
+// value each time. Mutating it through the original handle is visible in all
+// three, and ADR 0090 § 4 makes `==` on two objects the identity comparison.
+final class Box {
+    public int $n = 0;
+}
+Box $b = new Box();
+array<Box> $boxes = Core\Arr::fill(3, $b);
+$b->n = 4;
+echo $boxes["0"]->n, $boxes["1"]->n, $boxes["2"]->n, "\n";
+if ($boxes["0"] == $boxes["2"]) {
+    echo "one value, repeated\n";
+} else {
+    echo "copied\n";
+}
+--EXPECT--
+one run, three members: 6 of 6
+01
+[v]
+5,6,7 v,v,v
+|1
+444
+one value, repeated
