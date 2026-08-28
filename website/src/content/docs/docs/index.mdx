@@ -5,23 +5,23 @@ edit: open
 tableOfContents: false
 ---
 
-import Pillars from '~/components/Pillars.astro';
-import Pillar from '~/components/Pillar.astro';
+import Cards from '~/components/Cards.astro';
+import Card from '~/components/Card.astro';
 
 The manual. Start at the top if you are new; every page opens with a short
 explanation before it goes into detail, so you can stop reading as soon as you
 have what you came for.
 
-<Pillars cols={3}>
-  <Pillar kicker="Start here" title="Getting started" href="start/install/" linkText="Install">
+<Cards cols={3}>
+  <Card kicker="Start here" title="Getting started" href="start/install/" linkText="Install">
     What Novis is, how to get it, and what a program looks like. Honest about what does not run yet.
-  </Pillar>
+  </Card>
 
-  <Pillar kicker="The language" title="Language" href="language/types/" linkText="Types">
+  <Card kicker="The language" title="Language" href="language/types/" linkText="Types">
     Types, values, control flow, iteration and generators — how the language itself behaves.
-  </Pillar>
+  </Card>
 
-  <Pillar
+  <Card
     kicker="The point"
     title="Isolation and safety"
     href="safety/isolated-scripts/"
@@ -29,8 +29,8 @@ have what you came for.
   >
     Running untrusted code safely, keeping secrets from leaking, and stopping untrusted input from
     reaching a query. This is what Novis is for.
-  </Pillar>
-</Pillars>
+  </Card>
+</Cards>
 
 ## Two things worth knowing before you read further
 

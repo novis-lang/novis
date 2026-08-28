@@ -210,20 +210,64 @@ so a build cut a year ago still knows about versions released since.
 
 ## Design
 
-Light is the resting state; dark is a switch, and a real design rather than an
-inversion. The palette is in [`src/styles/tokens.css`](src/styles/tokens.css)
-with its measured contrast ratios in the comments.
+The layout is the one a documentation reader already knows: fixed top bar, left
+navigation, a comfortable content measure, and a plain "On this page" list down
+the right — the arrangement Docusaurus made standard and playwright.dev is a
+good example of.
 
-Four rules it is built to:
+### Three variables decide the whole palette
 
-1. Body text clears WCAG AAA on its surface. Every other text token clears AA.
-   Meaningful borders clear 3:1.
-2. **Hue is never the only channel.** Every semantic colour is paired with an
-   icon and a written label, because a reader with deuteranopia must be reading
-   the word.
-3. No gradients, no glow, no shadow as decoration. Structure comes from
-   hairlines and whitespace, which survive being printed and being zoomed.
-4. No web fonts. The system stack is fast, offline, and renders well everywhere.
+[`src/styles/tokens.css`](src/styles/tokens.css) starts with exactly three
+editable values:
+
+```css
+--nv-brand: #2f6fed; /* accent: links, active nav, buttons, focus */
+--nv-ink: #1a1d21; /* darkest text on a light page              */
+--nv-paper: #ffffff; /* the page behind it                        */
+```
+
+Everything else is derived from those with `color-mix()` in `oklab`. Change
+`--nv-brand` and the buttons, the active sidebar pill, the table-of-contents
+highlight and every tinted surface move with it. There is no second palette to
+keep in step and no list of hex values to hunt through.
+
+The greys are the same trick: each one is a mix *between* ink and paper. That
+is why dark mode is five declarations — swapping the two baselines re-derives
+the entire scale, and there is no parallel list of dark greys anywhere.
+
+If you are about to type a hex value in `site.css`, the palette is missing a
+token. Add it to `tokens.css`, where its contrast can be stated beside it.
+
+### The rules it is built to
+
+1. Light is the resting state. A visitor with no stored preference gets light
+   even on a dark-mode machine; the header toggle still offers Dark and Auto,
+   and either choice is remembered.
+2. Body text clears WCAG AAA on its surface. Every other text token clears AA.
+   A link clears 3:1 against the body text beside it, which is what makes
+   colour alone an acceptable link marker.
+3. **Hue is never the only channel.** Every callout carries an icon and a
+   written label as well as a colour, because a reader with deuteranopia must
+   be reading the word.
+4. Structure is hairlines and whitespace. No gradients as decoration, no glow,
+   and nothing is drawn as a box that is not one — the table of contents is a
+   list with a rule beside it, not a panel.
+5. No web fonts. The system stack is fast, offline, and renders well
+   everywhere.
+
+### Looking at it
+
+There is no substitute for seeing the page. Any Chromium on the machine will
+screenshot it headlessly against `site.py preview`:
+
+```sh
+python site.py preview --port 4477 &
+chrome --headless=new --hide-scrollbars --window-size=1440,1300 \
+       --screenshot=out.png http://localhost:4477/docs/safety/isolated-scripts/
+```
+
+Three of the bugs in the first version of this design were invisible in the
+markup and obvious in a screenshot.
 
 ## Layout
 

@@ -1,0 +1,33 @@
+---
+/**
+ * One card inside `<Cards>`.
+ *
+ * `kicker` is a short category label, not a slogan. It exists so cards can be
+ * told apart by word and shape before colour, which matters for a reader who
+ * cannot separate the hues.
+ */
+interface Props {
+  kicker?: string;
+  title: string;
+  href?: string;
+  linkText?: string;
+}
+
+const { kicker, title, href, linkText = 'Read more' } = Astro.props;
+---
+
+<article class="nv-card">
+  {kicker && <span class="nv-card-kicker">{kicker}</span>}
+  <h3>{title}</h3>
+  {/* A div, not a p: MDX hands slot content over already wrapped in a
+      paragraph, and a <p> inside a <p> is closed early by the parser — which
+      leaves empty paragraphs behind and knocks the cards out of alignment. */}
+  <div class="nv-card-body"><slot /></div>
+  {
+    href && (
+      <a href={href}>
+        {linkText} <span aria-hidden="true">&rarr;</span>
+      </a>
+    )
+  }
+</article>

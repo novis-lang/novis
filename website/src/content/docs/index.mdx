@@ -4,6 +4,11 @@ description: A memory-safe, compiled language for platforms that run code and ho
 template: splash
 editUrl: false
 edit: review
+# Without this the tab reads "Novis | Novis", because the page title and the
+# site title are the same word.
+head:
+  - tag: title
+    content: 'Novis — a language for running code you did not write'
 sources:
   - adr/0080-the-audience-nvs-is-built-for.md@697b6af8f171
   - adr/0006-isolated-script-execution.md@1a3fd78cd2e3
@@ -20,8 +25,8 @@ hero:
       variant: minimal
 ---
 
-import Pillars from '~/components/Pillars.astro';
-import Pillar from '~/components/Pillar.astro';
+import Cards from '~/components/Cards.astro';
+import Card from '~/components/Card.astro';
 import Section from '~/components/Section.astro';
 
 <div class="nv-landing">
@@ -47,8 +52,8 @@ Novis moves those three from discipline into the compiler.
   lead="Not a framework, not a linter, not a checklist. These are properties of the compiler and the runtime."
 >
 
-<Pillars cols={3}>
-  <Pillar
+<Cards cols={3}>
+  <Card
     kicker="Isolation"
     title="Every job gets its own memory"
     href="docs/safety/isolated-scripts/"
@@ -57,9 +62,9 @@ Novis moves those three from discipline into the compiler.
     Run another file with a fresh heap, fresh globals and its own slice of the caller's budget —
     inside the same process. A crash, an endless loop or a memory blowout ends that one job. Nothing
     else notices.
-  </Pillar>
+  </Card>
 
-  <Pillar
+  <Card
     kicker="Qualifiers"
     title="The compiler knows which values are dangerous"
     href="docs/safety/secret/"
@@ -68,9 +73,9 @@ Novis moves those three from discipline into the compiler.
     Mark a value <code>secret</code> and it cannot reach a log or an error page. Input arrives{' '}
     <code>tainted</code> and cannot reach a query, a shell or a template until something has cleaned
     it. Both are checked when the code compiles, not when it runs.
-  </Pillar>
+  </Card>
 
-  <Pillar
+  <Card
     kicker="Concurrency"
     title="No coloured functions"
     href="docs/language/iteration/"
@@ -79,8 +84,8 @@ Novis moves those three from discipline into the compiler.
     Any function may wait for I/O. There is no <code>async</code> keyword splitting your codebase in
     two, and no rule about which half may call which. One process serves many requests, each fully
     isolated.
-  </Pillar>
-</Pillars>
+  </Card>
+</Cards>
 
 </Section>
 

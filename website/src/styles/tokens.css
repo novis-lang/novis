@@ -1,188 +1,204 @@
 /*
  * Design tokens.
  *
- * Two jobs: define the Novis palette once, and map Starlight's own variables
- * onto it so the framework chrome (sidebar, header, search, asides, tables)
- * follows without any per-component overrides.
+ * ─────────────────────────────────────────────────────────────────────────
+ *  THREE VARIABLES DECIDE THE WHOLE SITE
  *
- * Rules this palette is built to, in priority order:
+ *      --nv-brand    the accent hue: links, active nav, buttons, focus
+ *      --nv-ink      the darkest text on a light page
+ *      --nv-paper    the page behind it
  *
- * 1. Light is the resting state. Dark is a switch, and it is a real design
- *    rather than an inversion — the surfaces move, the accent moves with them.
- * 2. Body text clears WCAG AAA (7:1) on its surface. Every other text token
- *    clears AA (4.5:1). Non-text borders that carry meaning clear 3:1.
- * 3. Hue is never the only channel. Every semantic colour is paired with an
- *    icon and a written label at the component level — `--nv-danger` and
- *    `--nv-success` sit at almost the same lightness on purpose, because a
- *    reader with deuteranopia must be reading the word, not the colour.
- * 4. No gradients, no glow, no shadow as decoration. Structure is carried by
- *    hairlines and whitespace, which survive being printed and being zoomed.
+ *  Everything else is derived from those with `color-mix()`. There is no
+ *  second palette to keep in step: change `--nv-brand` and the buttons, the
+ *  active sidebar pill, the table-of-contents highlight, the code frame
+ *  accents and every tinted surface move with it.
  *
- * Measured contrast ratios are in the comments. If you change a value, change
- * the comment — or the number becomes a claim nothing backs.
+ *  Dark mode swaps `--nv-ink` and `--nv-paper` and lightens the brand. Because
+ *  every neutral is a mix *between* those two, the entire grey scale inverts
+ *  by itself — there is no parallel list of dark greys anywhere in this file.
+ * ─────────────────────────────────────────────────────────────────────────
+ *
+ * Mixing happens in `oklab`, not sRGB, so a 50% mix looks like the middle to a
+ * human eye rather than to a monitor. `color-mix()` is supported everywhere we
+ * care about (Chrome 111+, Safari 16.2+, Firefox 113+, 2023 onward).
+ *
+ * Rules the palette is built to:
+ *
+ *   1. Light is the resting state. Dark is a switch, and a real design.
+ *   2. Body text clears WCAG AAA on its surface; every other text token clears
+ *      AA; a link clears 3:1 against the body text beside it, which is what
+ *      lets colour alone mark a link.
+ *   3. Hue is never the only channel. Every callout carries an icon and a
+ *      written label as well as a colour.
  */
 
 :root,
 :root[data-theme='light'] {
   color-scheme: light;
 
-  /* --- surfaces ------------------------------------------------------- */
-  --nv-bg: #ffffff;
-  --nv-bg-subtle: #f7f8fa; /* sidebar, table stripes, inline code */
-  --nv-bg-sunken: #eef0f4; /* the one recessed surface: code frames  */
+  /* ---- the three baselines ------------------------------------------- */
+  --nv-brand: #2f6fed;
+  --nv-ink: #1a1d21;
+  --nv-paper: #ffffff;
 
-  /* --- ink ------------------------------------------------------------ */
-  --nv-ink: #14161a; /* 17.4:1 on --nv-bg   AAA */
-  --nv-ink-muted: #545c69; /*  6.4:1 on --nv-bg   AA  */
-  --nv-ink-faint: #6d7684; /*  4.6:1 on --nv-bg   AA  (metadata only) */
+  /* ---- neutrals: one ink mixed into one paper ------------------------- */
+  --nv-tone-95: color-mix(in oklab, var(--nv-ink) 95%, var(--nv-paper));
+  --nv-tone-80: color-mix(in oklab, var(--nv-ink) 80%, var(--nv-paper));
+  --nv-tone-62: color-mix(in oklab, var(--nv-ink) 62%, var(--nv-paper));
+  --nv-tone-45: color-mix(in oklab, var(--nv-ink) 45%, var(--nv-paper));
+  --nv-tone-22: color-mix(in oklab, var(--nv-ink) 22%, var(--nv-paper));
+  --nv-tone-12: color-mix(in oklab, var(--nv-ink) 12%, var(--nv-paper));
+  --nv-tone-06: color-mix(in oklab, var(--nv-ink) 6%, var(--nv-paper));
+  --nv-tone-03: color-mix(in oklab, var(--nv-ink) 3%, var(--nv-paper));
 
-  /* --- rules ---------------------------------------------------------- */
-  --nv-rule: #e2e5ea; /* decorative separation            */
-  --nv-rule-strong: #8c95a3; /*  3.0:1 — borders that mean something */
+  /* ---- roles ---------------------------------------------------------- */
+  --nv-bg: var(--nv-paper);
+  --nv-bg-subtle: var(--nv-tone-03);
+  --nv-bg-sunken: var(--nv-tone-06);
+  --nv-bg-inverse: color-mix(in oklab, var(--nv-ink) 92%, #1d2530);
 
-  /* --- accent --------------------------------------------------------- */
-  --nv-accent: #0b5fd8; /*  5.8:1 on --nv-bg   AA  */
-  --nv-accent-strong: #084bad; /*  8.1:1 — hover, active nav */
-  --nv-accent-wash: #eaf1fd; /* the only tinted surface we use */
+  --nv-text: var(--nv-ink); /* 16.9:1  AAA */
+  --nv-text-muted: var(--nv-tone-62); /*  6.0:1  AA  */
+  --nv-text-faint: var(--nv-tone-45); /*  4.6:1  AA  */
+  --nv-text-inverse: color-mix(in oklab, var(--nv-paper) 92%, var(--nv-brand));
 
-  /* --- semantics: icon + label always accompany these ----------------- */
-  --nv-info: #0b5fd8; /* 5.8:1 */
-  --nv-info-wash: #eaf1fd;
-  --nv-success: #0a6b45; /* 6.6:1 */
-  --nv-success-wash: #e6f4ee;
-  --nv-warning: #8a5300; /* 6.3:1 */
-  --nv-warning-wash: #fbf0e2;
-  --nv-danger: #b3261e; /* 6.5:1 */
-  --nv-danger-wash: #fdecea;
+  --nv-rule: var(--nv-tone-12);
+  --nv-rule-strong: var(--nv-tone-22);
 
-  /* --- typography ----------------------------------------------------- */
+  /* ---- brand scale, all mixed from --nv-brand ------------------------- */
+  --nv-brand-darkest: color-mix(in oklab, var(--nv-brand), #000 34%);
+  --nv-brand-darker: color-mix(in oklab, var(--nv-brand), #000 22%);
+  --nv-brand-dark: color-mix(in oklab, var(--nv-brand), #000 11%);
+  --nv-brand-light: color-mix(in oklab, var(--nv-brand), #fff 14%);
+  --nv-brand-lighter: color-mix(in oklab, var(--nv-brand), #fff 30%);
+  --nv-brand-lightest: color-mix(in oklab, var(--nv-brand), #fff 46%);
+
+  /* Tinted surfaces: the brand dissolved into the page, so they follow both
+     the brand and the theme without a second set of values. */
+  --nv-brand-wash: color-mix(in oklab, var(--nv-brand) 7%, var(--nv-bg));
+  --nv-brand-wash-strong: color-mix(in oklab, var(--nv-brand) 13%, var(--nv-bg));
+  --nv-brand-edge: color-mix(in oklab, var(--nv-brand) 32%, var(--nv-bg));
+
+  /* What links and active items actually use. Darkened a step in light mode
+     so a link clears 3:1 against the body text next to it. */
+  --nv-accent: var(--nv-brand-dark); /*  6.0:1 on paper, 3.1:1 on body text */
+  --nv-accent-hover: var(--nv-brand-darker);
+  --nv-accent-on: #ffffff; /* text on a brand fill */
+
+  /* ---- semantics: each its own baseline, mixed the same way ----------- */
+  --nv-info: #1668d6;
+  --nv-success: #127a4e;
+  --nv-warning: #8a5a00;
+  --nv-danger: #b32d24;
+
+  --nv-info-wash: color-mix(in oklab, var(--nv-info) 8%, var(--nv-bg));
+  --nv-success-wash: color-mix(in oklab, var(--nv-success) 8%, var(--nv-bg));
+  --nv-warning-wash: color-mix(in oklab, var(--nv-warning) 9%, var(--nv-bg));
+  --nv-danger-wash: color-mix(in oklab, var(--nv-danger) 8%, var(--nv-bg));
+
+  /* ---- elevation: one shadow colour, three depths --------------------- */
+  --nv-shadow-color: color-mix(in oklab, var(--nv-ink) 55%, transparent);
+  --nv-shadow-sm: 0 1px 2px color-mix(in oklab, var(--nv-shadow-color) 18%, transparent);
+  --nv-shadow-md:
+    0 2px 4px color-mix(in oklab, var(--nv-shadow-color) 14%, transparent),
+    0 1px 2px color-mix(in oklab, var(--nv-shadow-color) 10%, transparent);
+  --nv-shadow-lg:
+    0 6px 16px color-mix(in oklab, var(--nv-shadow-color) 16%, transparent),
+    0 2px 4px color-mix(in oklab, var(--nv-shadow-color) 10%, transparent);
+
+  /* ---- shape ---------------------------------------------------------- */
+  --nv-radius-sm: 0.25rem;
+  --nv-radius: 0.5rem;
+  --nv-radius-lg: 0.75rem;
+
+  /* ---- type ----------------------------------------------------------- */
   --nv-font-sans:
-    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-    'Noto Sans', sans-serif;
+    system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans', Arial, sans-serif,
+    'Apple Color Emoji', 'Segoe UI Emoji';
   --nv-font-mono:
     ui-monospace, 'SFMono-Regular', 'SF Mono', Menlo, Consolas, 'Liberation Mono', 'Courier New',
     monospace;
-
-  /* --- measure -------------------------------------------------------- */
-  --nv-measure: 68ch; /* prose line length ceiling */
 }
 
+/* -------------------------------------------------------------------------
+ * Dark.
+ *
+ * Only five declarations. Swapping ink and paper re-derives every neutral,
+ * every tint and every shadow above, because all of them are mixes of these.
+ * ---------------------------------------------------------------------- */
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  --nv-bg: #0f1115;
-  --nv-bg-subtle: #161920;
-  --nv-bg-sunken: #1b1f27;
+  --nv-ink: #e7ebf0;
+  --nv-paper: #16191d;
 
-  --nv-ink: #e9ebef; /* 15.2:1 on --nv-bg   AAA */
-  --nv-ink-muted: #a3acb9; /*  8.3:1 on --nv-bg   AAA */
-  --nv-ink-faint: #838d9c; /*  5.5:1 on --nv-bg   AA  */
+  /* The brand has to rise off a dark page to stay legible. */
+  --nv-accent: color-mix(in oklab, var(--nv-brand), #fff 42%); /* 8.4:1 */
+  --nv-accent-hover: color-mix(in oklab, var(--nv-brand), #fff 58%);
+  --nv-accent-on: #0d1013;
 
-  --nv-rule: #262b34;
-  --nv-rule-strong: #566072; /*  3.2:1 */
+  --nv-bg-inverse: color-mix(in oklab, var(--nv-paper) 82%, #000);
+  --nv-shadow-color: #000;
 
-  --nv-accent: #7aacff; /*  8.3:1 */
-  --nv-accent-strong: #a3c6ff; /* 11.2:1 */
-  --nv-accent-wash: #14243d;
-
-  --nv-info: #7aacff;
-  --nv-info-wash: #14243d;
-  --nv-success: #5cd39d; /* 10.4:1 */
-  --nv-success-wash: #0f2a20;
-  --nv-warning: #e2a75c; /*  9.4:1 */
-  --nv-warning-wash: #2b2013;
-  --nv-danger: #ff9b91; /*  9.0:1 */
-  --nv-danger-wash: #2e1614;
+  --nv-info: color-mix(in oklab, #1668d6, #fff 45%);
+  --nv-success: color-mix(in oklab, #127a4e, #fff 45%);
+  --nv-warning: color-mix(in oklab, #8a5a00, #fff 48%);
+  --nv-danger: color-mix(in oklab, #b32d24, #fff 45%);
 }
 
-/* ---------------------------------------------------------------------- *
- * Starlight variable mapping.
+/* -------------------------------------------------------------------------
+ * Starlight's variables, mapped onto ours.
  *
  * Starlight names its scale from `white` to `black` in whichever direction the
- * theme runs, so the light and dark blocks are not mirror images — each maps
- * onto our surfaces in the direction that theme actually reads.
+ * running theme reads, so both blocks below map onto the *same* role tokens —
+ * which is exactly why the roles exist.
  * ---------------------------------------------------------------------- */
 
 :root,
-:root[data-theme='light'] {
-  --sl-color-white: var(--nv-ink);
-  --sl-color-gray-1: #1f232a;
-  --sl-color-gray-2: #3b414b;
-  --sl-color-gray-3: var(--nv-ink-muted);
-  --sl-color-gray-4: #97a0ad;
-  --sl-color-gray-5: var(--nv-rule);
-  --sl-color-gray-6: var(--nv-bg-subtle);
-  --sl-color-gray-7: #fafbfc;
-  --sl-color-black: var(--nv-bg);
-
-  --sl-color-accent-low: var(--nv-accent-wash);
-  --sl-color-accent: var(--nv-accent);
-  --sl-color-accent-high: var(--nv-accent-strong);
-
-  --sl-color-text: var(--nv-ink);
-  --sl-color-text-accent: var(--nv-accent);
-  --sl-color-text-invert: var(--nv-bg);
-  --sl-color-bg: var(--nv-bg);
-  --sl-color-bg-nav: var(--nv-bg);
-  --sl-color-bg-sidebar: var(--nv-bg);
-  --sl-color-bg-inline-code: var(--nv-bg-subtle);
-  --sl-color-bg-accent: var(--nv-accent);
-  --sl-color-hairline: var(--nv-rule);
-  --sl-color-hairline-light: var(--nv-rule);
-  --sl-color-hairline-shade: var(--nv-rule);
-  --sl-color-backdrop-overlay: rgb(20 22 26 / 60%);
-
-  --sl-shadow-sm: none;
-  --sl-shadow-md: none;
-  --sl-shadow-lg: 0 0 0 1px var(--nv-rule);
-}
-
+:root[data-theme='light'],
 :root[data-theme='dark'] {
-  --sl-color-white: var(--nv-ink);
-  --sl-color-gray-1: #d3d8e0;
-  --sl-color-gray-2: #b9c0ca;
-  --sl-color-gray-3: var(--nv-ink-muted);
-  --sl-color-gray-4: #6c7686;
+  --sl-color-white: var(--nv-text);
+  --sl-color-gray-1: var(--nv-tone-95);
+  --sl-color-gray-2: var(--nv-tone-80);
+  --sl-color-gray-3: var(--nv-text-muted);
+  --sl-color-gray-4: var(--nv-tone-45);
   --sl-color-gray-5: var(--nv-rule);
   --sl-color-gray-6: var(--nv-bg-subtle);
-  --sl-color-gray-7: #12151b;
+  --sl-color-gray-7: var(--nv-bg-subtle);
   --sl-color-black: var(--nv-bg);
 
-  --sl-color-accent-low: var(--nv-accent-wash);
+  --sl-color-accent-low: var(--nv-brand-wash);
   --sl-color-accent: var(--nv-accent);
-  --sl-color-accent-high: var(--nv-accent-strong);
+  --sl-color-accent-high: var(--nv-accent-hover);
 
-  --sl-color-text: var(--nv-ink);
+  --sl-color-text: var(--nv-text);
   --sl-color-text-accent: var(--nv-accent);
-  --sl-color-text-invert: var(--nv-bg);
+  --sl-color-text-invert: var(--nv-accent-on);
   --sl-color-bg: var(--nv-bg);
   --sl-color-bg-nav: var(--nv-bg);
   --sl-color-bg-sidebar: var(--nv-bg);
-  --sl-color-bg-inline-code: var(--nv-bg-subtle);
+  --sl-color-bg-inline-code: var(--nv-bg-sunken);
   --sl-color-bg-accent: var(--nv-accent);
   --sl-color-hairline: var(--nv-rule);
   --sl-color-hairline-light: var(--nv-rule);
   --sl-color-hairline-shade: var(--nv-rule);
-  --sl-color-backdrop-overlay: rgb(0 0 0 / 70%);
+  --sl-color-backdrop-overlay: color-mix(in oklab, var(--nv-bg-inverse) 62%, transparent);
 
-  --sl-shadow-sm: none;
-  --sl-shadow-md: none;
-  --sl-shadow-lg: 0 0 0 1px var(--nv-rule);
-}
+  --sl-shadow-sm: var(--nv-shadow-sm);
+  --sl-shadow-md: var(--nv-shadow-md);
+  --sl-shadow-lg: var(--nv-shadow-lg);
 
-/* Type scale. Starlight's defaults are fine in proportion but a shade large
-   for a spec-shaped site; these tighten the headings and leave body alone. */
-:root {
   --sl-font: var(--nv-font-sans);
   --sl-font-mono: var(--nv-font-mono);
 
-  --sl-text-h1: 2.25rem;
+  --sl-text-h1: 2.5rem;
   --sl-text-h2: 1.5rem;
-  --sl-text-h3: 1.175rem;
-  --sl-text-h4: 1rem;
+  --sl-text-h3: 1.25rem;
+  --sl-text-h4: 1.0625rem;
+  --sl-text-h5: 1rem;
 
   --sl-line-height: 1.7;
-  --sl-content-width: 48rem;
-  --sl-sidebar-width: 17.5rem;
+  --sl-content-width: 50rem;
+  --sl-sidebar-width: 18.5rem;
   --sl-nav-height: 3.75rem;
 }

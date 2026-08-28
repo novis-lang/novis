@@ -8,13 +8,25 @@
  * chooses `auto`, still gets exactly what they chose — the toggle in the header
  * is Starlight's own and is untouched.
  *
+ * Setting `data-theme` here is not enough on its own. Starlight's
+ * `<ThemeSelect>` runs a moment later and calls `onThemeChange(loadTheme())`
+ * in its custom element's constructor; with nothing in storage that resolves
+ * to `auto`, which reads the OS preference and puts the page straight back
+ * into dark. So the default is recorded *in storage* rather than only on the
+ * element, and ThemeSelect then agrees with us instead of undoing us.
+ *
+ * The distinction that makes this safe: Starlight writes `''` for "auto" and
+ * leaves the key absent when the visitor has never chosen. Only the absent
+ * case is filled in, so someone who deliberately picked "Auto" keeps it.
+ *
  * KNOWN COUPLING. This file reimplements a Starlight internal contract: the
  * `window.StarlightThemeProvider.updatePickers()` function that
- * `<ThemeSelect>` calls, and the `#theme-icons` template it reads. If a
+ * `<ThemeSelect>` calls, the `#theme-icons` template it reads, and the
+ * `starlight-theme` storage key and its `''`-means-auto encoding. If a
  * Starlight upgrade breaks the theme toggle, this file is the first place to
  * look — diff it against
- * `node_modules/@astrojs/starlight/components/ThemeProvider.astro`.
- * `python site.py check` warns when the upstream file's shape has drifted.
+ * `node_modules/@astrojs/starlight/components/ThemeProvider.astro` and
+ * `ThemeSelect.astro`. `python site.py check` warns when either has drifted.
  */
 ---
 
@@ -22,29 +34,43 @@
   window.StarlightThemeProvider = (() => {
     const KEY = 'starlight-theme';
 
-    /** What the visitor explicitly chose, or null if they never did. */
+    /**
+     * The visitor's choice: 'light' | 'dark' | 'auto', or null if they have
+     * never made one. Starlight writes '' for auto, which is why an empty
+     * string is not the same as an absent key here.
+     */
     function storedTheme() {
       try {
         const v = localStorage.getItem(KEY);
-        return v === 'light' || v === 'dark' || v === 'auto' ? v : null;
+        if (v === null) return null;
+        return v === 'light' || v === 'dark' ? v : 'auto';
       } catch {
-        // Private mode, disabled storage, embedded webview. Light it is.
+        // Private mode, disabled storage, embedded webview.
         return null;
       }
     }
 
-    /** Resolve a choice (or the absence of one) to an actual theme. */
     function resolve(choice) {
-      if (choice === 'dark') return 'dark';
-      if (choice === 'light') return 'light';
+      if (choice === 'dark' || choice === 'light') return choice;
       if (choice === 'auto') {
         return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
       }
-      // No stored choice. This is the line that differs from upstream.
+      // Never chosen. This is the line that differs from upstream, which
+      // would fall through to the OS preference here.
       return 'light';
     }
 
-    const choice = storedTheme();
+    let choice = storedTheme();
+    if (choice === null) {
+      choice = 'light';
+      // Record it, or ThemeSelect resolves the empty state as 'auto' and
+      // flips the page back on a dark-mode machine.
+      try {
+        localStorage.setItem(KEY, 'light');
+      } catch {
+        /* storage unavailable; the attribute below still holds for this page */
+      }
+    }
     document.documentElement.dataset.theme = resolve(choice);
 
     return {
