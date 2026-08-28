@@ -156,6 +156,12 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
     (SQLite) and a gate written by the goal that needs an exemption is a gate with an exemption in it.
 32. **No class outside Tier 0 registers a name beginning `Core\`.** Same paragraph, same reason.
 
+## The harness this goal owes
+
+**`python tools/gen-attribution.py --check-c-deps`** — item 31's enumeration. That tool already walks the
+dependency tree to regenerate the notice file, so the C-dependency ledger is a second question over a walk
+it already does, not a second walk. m8.md names it as CI infrastructure rather than a fixture.
+
 ## Acceptance
 
 **The checks live in [`4-core-part-ii.toml`](4-core-part-ii.toml), and only there.**

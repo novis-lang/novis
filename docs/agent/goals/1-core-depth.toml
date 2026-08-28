@@ -291,7 +291,7 @@ kind = "command"
 stage = "4 openapi"
 name = "nvs build --openapi emits 3.1"
 argv = ["{nvs}", "build", "--openapi", "examples/routes.nvs"]
-stdout_contains = ['"openapi": "3.1', '"/users/{id}"', '"operationId"']
+want = ['"openapi": "3.1', '"/users/{id}"', '"operationId"']
 
 [[check]]
 kind = "cargo-named"
@@ -407,4 +407,4 @@ kind = "command"
 stage = "7 migration"
 name = "check-migration at 45%"
 argv = ["python", "tools/check-migration.py", "--min", "45"]
-stdout_contains = ["inventory:", "classified:"]
+want = ["inventory:", "classified:"]

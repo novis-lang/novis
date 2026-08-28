@@ -350,4 +350,4 @@ kind = "command"
 stage = "9 guards"
 name = "check-migration at 50%"
 argv = ["python", "tools/check-migration.py", "--min", "50"]
-stdout_contains = ["inventory:", "classified:"]
+want = ["inventory:", "classified:"]

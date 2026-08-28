@@ -56,22 +56,28 @@ Three rules bind every one of them, and they are the reason the run can be left 
 
 ## Starting the chain
 
-Four steps. The third is the one that is easy to skip and expensive to skip.
+Three steps.
 
-1. Confirm M4's goal is green: `python tools/loop.py --goal-only`.
+1. Confirm the goal the repository is currently running is green: `python tools/loop.py --goal-only`.
+   Whatever that goal is becomes goal 1's floor, so this is not a formality — it is the moment the floor
+   is decided.
 2. `python tools/loop-stats.py` and `python tools/loop-stats.py --attribute`.
    [loop-authoring.md](../loop-authoring.md) § 1 makes this step zero and § 9 says the numbers move. Set
    the slice budget from what it prints and **say which and why in the commit**. The 200k ceiling is not
    a number to re-derive; the *projection* is.
-3. `python tools/goal-switch.py docs/agent/goals/1-core-depth.toml` — this folds M4's whole acceptance
-   list into goal 1 as its floor. Doing it by hand is how a floor gets silently dropped, and a missing
-   floor looks exactly like a passing one.
-4. `python tools/loop.py --chain docs/agent/goals/chain.toml --max-sessions <n>`.
+3. `python tools/loop.py --chain docs/agent/goals/chain.toml --max-sessions <n>`.
 
-`--chain` is what makes the rest unattended: on `GOAL REACHED` the driver runs step 3 for the *next* goal
-itself, copies it into `docs/agent/loop-goal.md`/`.toml`, seeds `docs/agent/handoff.md` from that goal's
-`.handoff.md`, commits the switch, and starts the next session. Without it the run stops six times and
-waits for a human, which is the same run with five extra nights in it.
+**The driver does the switching, including the first one.** It runs `tools/goal-switch.py` against the
+entry it is about to install — which folds the live goal's whole acceptance list in as that entry's floor
+— copies the three files into `docs/agent/loop-goal.md`/`.toml` and `docs/agent/handoff.md`, commits that
+switch, and starts the session. On `GOAL REACHED` it does the same for the next entry and keeps going.
+Without `--chain` the run stops six times and waits for a human, which is the same run with five extra
+nights in it.
+
+`.loop/chain.json` records which entry is installed, and it is what makes "exactly once per entry" a fact
+rather than an intention: **`goal-switch.py` is not idempotent** — it inserts at a marker it leaves in
+place, so running it twice inserts the floor twice. If you ever delete that state file, check the entry's
+TOML for a doubled floor before restarting.
 
 ## What stops the run
 

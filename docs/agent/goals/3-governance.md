@@ -18,7 +18,7 @@ and a cache artifact that must be rejected is a test. The third is not, and it i
 **"every syscall-touching entry point is gated" is a claim about a set, not about a case.** So it is
 checked the way M4 checked its refusal sites — a test that reads `nvs-stdlib`'s own registry and fails
 naming any member that touches the filesystem, the network, the clock-with-side-effects or a process and
-carries no capability. That test is Stage 5's, it is this goal's real acceptance, and its allowlist may
+carries no capability. That test is Stage 6's, it is this goal's real acceptance, and its allowlist may
 never grow.
 
 ## Stage 0 — the catch-up
@@ -80,7 +80,7 @@ The one file set the next four items share: a directive's declaration, and how a
 
 10. **Capability enforcement at every syscall-touching stdlib entry point.** The mechanism is this stage's
     ADR slot (§ *Standing decisions*); the *rule* is that a member either declares the capability it needs
-    or is proven not to need one, and Stage 5's test is what proves the set is closed. Path-bearing
+    or is proven not to need one, and Stage 6's test is what proves the set is closed. Path-bearing
     capabilities resolve **canonicalise-then-prefix**, so a path reaching a granted root through `..` or a
     symlink does not match — item 6 wrote that comparison once.
 11. **Safepoint-driven limit enforcement.** Memory and CPU caps terminate a runaway script as a `FATAL`,
@@ -134,6 +134,16 @@ The one file set the next four items share: a directive's declaration, and how a
     which is why it is this goal's last stage rather than its own goal.
 20. **A bundled executable runs identically to `nvs run` against the same source, on all three platforms.**
     ADR 0048's own verification list.
+
+## The harness this goal owes
+
+Two acceptance checks name a tool flag that does not exist yet, and writing it is part of the item
+rather than a follow-up to it. Neither is a new tool:
+
+- **`python tools/bench.py --warm-start --max-ms 10`** — m6.md's *Verify* names "warm-cache CLI startup
+  under 10 ms" and nothing measures it. Item 14's own number, and it belongs beside the cache it measures.
+- **`python tools/try.py --bundle <file> --expect <line>`** — item 20's "runs identically to `nvs run`",
+  which is a comparison rather than an assertion about one output.
 
 ## Acceptance
 

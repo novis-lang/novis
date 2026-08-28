@@ -137,7 +137,7 @@ stage = "2 config tree"
 name = "nvs config check names the offending line"
 argv = ["{nvs}", "config", "check", "tests/config/duplicate-key.toml"]
 exit = "nonzero"
-stderr_contains = ["duplicate", "duplicate-key.toml:"]
+want = ["duplicate", "duplicate-key.toml:"]
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -244,7 +244,7 @@ kind = "command"
 stage = "5 artifact cache"
 name = "a warm-cache CLI start stays under 10ms"
 argv = ["python", "tools/bench.py", "--warm-start", "--max-ms", "10"]
-stdout_contains = ["warm start"]
+want = ["warm start"]
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -301,7 +301,7 @@ kind = "command"
 stage = "7 bundler"
 name = "nvs build --compile produces a runnable binary"
 argv = ["python", "tools/try.py", "--bundle", "examples/hello.nvs", "--expect", "Hello, World!"]
-stdout_contains = ["Hello, World!"]
+want = ["Hello, World!"]
 
 [[check]]
 kind = "cargo-named"
@@ -348,4 +348,4 @@ kind = "command"
 stage = "8 corpus and guards"
 name = "check-migration at 55%"
 argv = ["python", "tools/check-migration.py", "--min", "55"]
-stdout_contains = ["inventory:", "classified:"]
+want = ["inventory:", "classified:"]

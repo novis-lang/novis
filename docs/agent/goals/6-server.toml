@@ -369,7 +369,7 @@ kind = "command"
 stage = "9 the claims"
 name = "throughput against PHP 8.5 + FPM + opcache, recorded"
 argv = ["python", "tools/bench.py", "--serve-vs-fpm", "--record", "benches/serve.json"]
-stdout_contains = ["requests/sec", "recorded"]
+want = ["requests/sec", "recorded"]
 
 [[check]]
 kind = "nvs-suite"
@@ -409,7 +409,7 @@ kind = "command"
 stage = "9 the claims"
 name = "check-migration at 100% -- PARITY"
 argv = ["python", "tools/check-migration.py", "--min", "100"]
-stdout_contains = ["100% covered"]
+want = ["100% covered"]
 
 [[check]]
 kind = "cargo-named"

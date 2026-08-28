@@ -458,7 +458,7 @@ kind = "command"
 stage = "10 gates"
 name = "the C-dependency ledger is unchanged"
 argv = ["python", "tools/gen-attribution.py", "--check-c-deps"]
-stdout_contains = ["C dependencies"]
+want = ["C dependencies"]
 
 [[check]]
 kind = "nvs-suite"
@@ -497,4 +497,4 @@ kind = "command"
 stage = "10 gates"
 name = "check-migration at 85%"
 argv = ["python", "tools/check-migration.py", "--min", "85"]
-stdout_contains = ["inventory:", "classified:"]
+want = ["inventory:", "classified:"]

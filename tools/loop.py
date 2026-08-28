@@ -63,6 +63,7 @@ RUNNING = RUNDIR / "running"
 GOALCACHE = RUNDIR / "goal-green.json"
 LIMIT = RUNDIR / "limit.json"
 INTERRUPTED = RUNDIR / "interrupted.json"
+CHAINSTATE = RUNDIR / "chain.json"
 
 IS_WINDOWS = os.name == "nt"
 
@@ -1031,7 +1032,7 @@ CHECK_KEYS = {
     "contains":    (("file",),                    ("args", "exit", "stderr_contains",
                                                    "stdout_contains")),
     "min-bytes":   (("file", "min_bytes"),        ("args", "exit", "stream")),
-    "command":     (("name", "argv"),             ("cwd", "want", "memoize")),
+    "command":     (("name", "argv"),             ("cwd", "want", "memoize", "exit")),
     "nvs-suite":   (("name", "args"),             ("cases", "memoize", "min_passing")),
     "cargo-named": (("name", "args", "tests"),    ("memoize",)),
 }
@@ -1382,9 +1383,20 @@ class Goal:
         if c["kind"] == "command":
             if self.remembered(c["name"]):
                 return ""
-            r = self.timed(label, lambda: capture(c["argv"][0], c["argv"][1:],
+            # `{nvs}` is the CLI the leg already built. A check that wants to run a subcommand --
+            # `nvs config check`, `nvs build --openapi`, `nvs queue migrate` -- would otherwise
+            # either hard-code a profile-dependent path or pay for a second `cargo run`, which is
+            # one workspace fingerprint scan to start a binary already sitting on disk.
+            argv = [(leg.binary if a == "{nvs}" else a) for a in c["argv"]]
+            r = self.timed(label, lambda: capture(argv[0], argv[1:],
                                                   cwd=ROOT / c.get("cwd", ".")))
-            if r.code != 0:
+            # Some commands fail by design -- `nvs config check` over a file that must be refused
+            # is one, and its exit code is the assertion. `exit = "nonzero"` inverts the
+            # expectation exactly as it does on a fixture.
+            wanted_nonzero = c.get("exit") == "nonzero"
+            if wanted_nonzero and r.code == 0:
+                return f"{label}: exit 0, and this check asserts a non-zero exit"
+            if not wanted_nonzero and r.code != 0:
                 return f"{label}: exit {r.code} -- {r.first_err_line}"
             missing = ordered_in(r.out + "\n" + r.err, c.get("want", []))
             if missing:
@@ -1762,6 +1774,191 @@ def load_goal():
     they handle a `TOMLDecodeError`, and `validate_spec` says why the checking happens here.
     """
     return Goal(tomllib.loads(GOAL_TOML.read_text(encoding="utf-8")))
+
+
+# --------------------------------------------------------------------------------- chain
+
+
+class ChainError(Exception):
+    """A chain file that cannot be walked. Raised at start-up, before a session is launched, for
+    the same reason `GoalError` is: a run of hundreds of sessions must not discover on its fourth
+    day that entry five names a file nobody wrote."""
+
+
+class Chain:
+    """A sequence of staged goals the driver walks by itself.
+
+    `docs/agent/goals/chain.toml` is the order; each entry names a `.md`, a `.toml` and a
+    `.handoff.md`. When the live goal's acceptance list goes green the driver **advances**: it runs
+    `tools/goal-switch.py` against the next entry -- which folds the goal that just passed into it
+    as its floor -- copies the three files into place, commits that switch, and starts the next
+    session. Without this a six-goal program stops five times and waits for a human, which is the
+    same program with five extra nights in it.
+
+    Two things are deliberately not automated, and both are in the class of "expensive to get
+    wrong and cheap to do once":
+
+    * **The floor is carried by `goal-switch.py`, as a subprocess.** Re-implementing that text
+      splice here would be a second copy of the one operation whose failure mode is silent -- a
+      missing floor looks exactly like a passing one.
+    * **`goal-switch.py` is not idempotent**: it inserts at a marker it leaves in place, so running
+      it twice inserts the floor twice. `.loop/chain.json` is what makes "exactly once per entry"
+      a fact rather than an intention, and it survives a driver that is killed mid-run.
+    """
+
+    def __init__(self, path):
+        self.path = Path(path)
+        if not self.path.is_file():
+            raise ChainError(f"{rel_to_root(self.path)} does not exist")
+        try:
+            spec = tomllib.loads(self.path.read_text(encoding="utf-8"))
+        except tomllib.TOMLDecodeError as e:
+            raise ChainError(f"{rel_to_root(self.path)} did not parse: {e}") from e
+        self.goals = spec.get("goal", [])
+        if not self.goals:
+            raise ChainError(f"{rel_to_root(self.path)} holds no [[goal]] entry")
+        for i, g in enumerate(self.goals, 1):
+            for key in ("name", "md", "toml", "handoff"):
+                if key not in g:
+                    raise ChainError(f"goal {i} in {rel_to_root(self.path)} has no `{key}`")
+            for key in ("md", "toml", "handoff"):
+                if not (ROOT / g[key]).is_file():
+                    raise ChainError(f"goal {i} ({g['name']}) names {g[key]}, which does not exist")
+        self.index = self._restore()
+
+    def _restore(self):
+        """Where the chain stands, from `.loop/chain.json`, or -1 for "nothing installed yet".
+
+        A state file naming a different chain is ignored rather than trusted: two chains in one
+        repository is not a thing this supports, and silently resuming the wrong one is worse than
+        starting over.
+        """
+        if not CHAINSTATE.exists():
+            return -1
+        try:
+            state = json.loads(CHAINSTATE.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return -1
+        if state.get("chain") != self.path.as_posix():
+            return -1
+        i = state.get("index", -1)
+        return i if isinstance(i, int) and -1 <= i < len(self.goals) else -1
+
+    def _save(self):
+        CHAINSTATE.write_text(
+            json.dumps({"chain": self.path.as_posix(), "index": self.index}, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+    @property
+    def current(self):
+        return self.goals[self.index] if 0 <= self.index < len(self.goals) else None
+
+    @property
+    def finished(self):
+        return self.index >= len(self.goals) - 1
+
+    def install_next(self):
+        """Advance one entry: switch the floor into it, copy it into place, commit. Returns "" on
+        success or a one-line reason the run should stop."""
+        nxt = self.goals[self.index + 1]
+        say("")
+        step(f"chain: switching to goal {self.index + 2} of {len(self.goals)} -- {nxt['name']}",
+             C.CYAN)
+
+        fail = preflight(nxt.get("preflight"))
+        if fail:
+            return fail
+
+        # The floor. `goal-switch.py` reads the LIVE goal, so this has to happen before the copy.
+        # On the first entry there is no previous chain goal and the live one is whatever the run
+        # started against -- which is exactly the floor that entry wants.
+        r = capture(sys.executable, [str(ROOT / "tools" / "goal-switch.py"), nxt["toml"]])
+        if r.code != 0:
+            return f"chain: goal-switch failed for {nxt['name']} -- {r.first_err_line}"
+        for line in stdout_lines(r.out):
+            say(f"  {line}", C.GRAY)
+
+        shutil.copyfile(ROOT / nxt["toml"], GOAL_TOML)
+        shutil.copyfile(ROOT / nxt["md"], GOAL_MD)
+        shutil.copyfile(ROOT / nxt["handoff"], ROOT / "docs" / "agent" / "handoff.md")
+
+        # The spec has to be runnable before a session is spent against it. Same class of failure
+        # as a TOML typo in the live goal, caught in the same place: before anything is launched.
+        try:
+            Goal(tomllib.loads(GOAL_TOML.read_text(encoding="utf-8")))
+        except (tomllib.TOMLDecodeError, GoalError) as e:
+            return f"chain: {nxt['name']}'s acceptance list is not runnable -- {e}"
+
+        self.index += 1
+        self._save()
+
+        # A memoized check's verdict belongs to the goal that asked for it. Carrying it across a
+        # switch would let a check the previous goal memoized stand in for one the new goal names.
+        GOALCACHE.unlink(missing_ok=True)
+
+        message = (
+            f"docs(loop): the chain advances to {nxt['name']}\n\n"
+            f"Written by tools/loop.py --chain from {rel_to_root(self.path)}. The previous goal's\n"
+            f"whole acceptance list is this one's floor, carried verbatim by goal-switch.py and\n"
+            f"relabelled -- see docs/agent/goals/README.md for why that is mechanical.\n"
+        )
+        msg_file = ROOT / ".agent-tmp" / "chain-switch.txt"
+        msg_file.parent.mkdir(parents=True, exist_ok=True)
+        msg_file.write_text(message, encoding="utf-8", newline="\n")
+        git("add", nxt["toml"], "docs/agent/loop-goal.toml", "docs/agent/loop-goal.md",
+            "docs/agent/handoff.md")
+        git("commit", "-F", str(msg_file))
+        say(f"chain: goal {self.index + 1} of {len(self.goals)} is live -- {nxt['name']}", C.GREEN)
+        return ""
+
+    def bring_up_services(self):
+        """`[docker]` in the live goal: the containers its checks need, up once per run.
+
+        Once per run and not once per iteration, for the reason the WSL leg and the valgrind sweep
+        are memoized: standing up five database servers costs minutes and cannot change a
+        deterministic verdict. `--wait` is what makes "up" mean "healthy" rather than "started".
+        """
+        try:
+            spec = tomllib.loads(GOAL_TOML.read_text(encoding="utf-8"))
+        except tomllib.TOMLDecodeError:
+            return ""
+        docker = spec.get("docker") or {}
+        compose = docker.get("compose")
+        if not compose:
+            return ""
+        services = docker.get("services", [])
+        step(f"chain: bringing up {len(services) or 'the'} service(s) from {compose}", C.CYAN)
+        r = capture("docker", ["compose", "-f", compose, "up", "-d", "--wait", *services],
+                    timeout=1800)
+        if r.code != 0:
+            return (f"chain: `docker compose -f {compose} up` failed -- {r.first_err_line}. "
+                    f"The live goal's checks need those services.")
+        return ""
+
+
+def preflight(kind):
+    """An external precondition a goal names, checked before its first session rather than after
+    its first six hours.
+
+    Only one exists: `preflight = "docker"`, for the goal whose drivers ADR 0067 verifies against
+    real servers. A run that grinds against a check that cannot pass is worse than one that stops
+    in the first minute, and the failure is loud on purpose -- a skipped driver matrix leaves the
+    four network drivers unproven while every other check goes green.
+    """
+    if not kind:
+        return ""
+    if kind != "docker":
+        return f"chain: unknown preflight {kind!r} -- the only one is \"docker\""
+    if not shutil.which("docker"):
+        return ("chain: this goal needs Docker and the `docker` command is not on PATH. "
+                "Install Docker Desktop, or run this goal by hand.")
+    r = capture("docker", ["info", "--format", "{{.ServerVersion}}"], timeout=120)
+    if r.code != 0:
+        return ("chain: this goal needs a reachable Docker daemon and `docker info` failed. "
+                "Start Docker Desktop and re-run; nothing has been spent.")
+    say(f"chain: docker daemon {r.out.strip()} is up", C.GRAY)
+    return ""
 
 
 # -------------------------------------------------------------------------------- driver
@@ -2325,6 +2522,12 @@ def run_cli():
     )
     ap.add_argument("--list", action="store_true", help="print the acceptance plan and exit")
     ap.add_argument(
+        "--chain", metavar="CHAIN_TOML",
+        help="walk a sequence of staged goals: on GOAL REACHED, carry the floor into the next one "
+             "with goal-switch.py, install it, and keep going. docs/agent/goals/chain.toml is the "
+             "parity program's. Without this the run stops at the first goal that goes green."
+    )
+    ap.add_argument(
         "--force", action="store_true", help="start even if .loop/running says a driver is up"
     )
     ap.add_argument(
@@ -2415,6 +2618,41 @@ def run_cli():
     if not LEDGER.exists():
         LEDGER.write_text("# Loop ledger\n", encoding="utf-8", newline="\n")
 
+    # The chain, if there is one. Built before `make_room` so a chain file with a typo in it costs
+    # a line rather than a log prune, and before `claim_run` so it cannot leave `.loop/running`
+    # behind on a refusal.
+    chain = None
+    if opts.chain:
+        try:
+            chain = Chain(opts.chain)
+        except ChainError as e:
+            say(str(e), C.RED)
+            return 2
+        if chain.index < 0:
+            # Nothing installed yet: entry 0 takes its floor from whatever goal the repository is
+            # currently running, which is what the first switch is for. Everything after it takes
+            # its floor from the entry before.
+            fail = chain.install_next()
+            if fail:
+                say(fail, C.RED)
+                return 2
+            try:
+                goal = load_goal()
+            except (tomllib.TOMLDecodeError, GoalError) as e:
+                say(f"{rel_to_root(GOAL_TOML)}: {e}", C.RED)
+                return 2
+        else:
+            say(f"chain: resuming at goal {chain.index + 1} of {len(chain.goals)} -- "
+                f"{chain.current['name']}", C.CYAN)
+            fail = preflight(chain.current.get("preflight"))
+            if fail:
+                say(fail, C.RED)
+                return 2
+        fail = chain.bring_up_services()
+        if fail:
+            say(fail, C.RED)
+            return 2
+
     TICKER.set(phase="making room", detail="pruning earlier runs' logs and scratch")
     if not make_room(opts):
         return 2
@@ -2422,7 +2660,7 @@ def run_cli():
         return 2
     CONTROL.enable()
     try:
-        drive(opts, goal)
+        drive(opts, goal, chain)
     except KeyboardInterrupt:
         say("")
         say(
@@ -2436,7 +2674,7 @@ def run_cli():
     return 0
 
 
-def drive(opts, goal):
+def drive(opts, goal, chain=None):
     """The session loop itself. Split out so `main` can hold the `.loop/running` marker across it,
     and drop it on any exit -- a normal stop, a Ctrl-C, or an exception."""
     prompt_text = PROMPT.read_text(encoding="utf-8")
@@ -2595,8 +2833,36 @@ def drive(opts, goal):
         # The verdict on session `i` is the last thing that belongs in session `i`'s log.
         CONSOLE.close_session()
         if not fail:
-            reason = "GOAL REACHED: every acceptance check in docs/agent/loop-goal.toml passes"
-            break
+            if chain is None:
+                reason = "GOAL REACHED: every acceptance check in docs/agent/loop-goal.toml passes"
+                break
+            done = chain.current["name"]
+            ledger(f"## goal reached: {done} -- every check in its acceptance list passes")
+            say(f"GOAL REACHED: {done}", C.GREEN)
+            if chain.finished:
+                reason = (f"CHAIN COMPLETE: {done} was the last goal in "
+                          f"{rel_to_root(chain.path)}, and every one of them is green")
+                break
+            switch = chain.install_next()
+            if switch:
+                reason = switch
+                break
+            switch = chain.bring_up_services()
+            if switch:
+                reason = switch
+                break
+            ledger(f"## run continues on {chain.current['name']} "
+                   f"(goal {chain.index + 1} of {len(chain.goals)})")
+            # A new goal is a new worklist, so a stall streak from the old one says nothing about
+            # it -- and the first session of any goal is the one most likely to spend itself
+            # reading rather than committing.
+            stalls = 0
+            try:
+                goal = load_goal()
+            except (tomllib.TOMLDecodeError, GoalError) as e:
+                reason = f"chain: {rel_to_root(GOAL_TOML)} did not load after the switch -- {e}"
+                break
+            continue
         ledger(f"       goal check: {fail}")
 
         if line.startswith("DONE"):

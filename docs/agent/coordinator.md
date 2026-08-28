@@ -40,6 +40,7 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 |---|---|
 | `docs/agent/session-prompt.md` | The fixed prompt handed to every session. Also holds the `docs/agent/handoff.md` handoff contract. |
 | `docs/agent/loop-authoring.md` | How a *new* goal is written: measure first, **scope the context**, what makes one drivable, what to pre-authorize, the stage order. Read before rewriting either half below. |
+| `docs/agent/goals/` | A *chain* of staged goals and the contract for walking one. `chain.toml` is the order; `python tools/loop.py --chain <it>` advances on `GOAL REACHED` instead of stopping, carrying each goal's acceptance list into the next as its floor. `.loop/chain.json` is which entry is installed. Its README is the only home for all of that. |
 | `tools/orient.py` | The whole of a session's step 1, narrowed by the goal's `[context]` manifest. Slices the live files; holds no copy. `--audit` says what the pack cost. **The driver runs it and pipes the output to the session on stdin** — a session that fetched its own paid three calls and ~20k for a 13k pack, because the harness spills a result that size to a file and reading it back costs more than the pack. |
 | `tools/loop-stats.py` | What the last run's sessions actually cost, measured out of `.loop/logs/`. Every constant this design rests on, re-derived rather than remembered. `--attribute` charges the context to whatever fetched it. |
 | `docs/agent/loop-goal.md` | The loop's target and the decisions pre-authorized on the way there — the prose. |
@@ -58,6 +59,7 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 | `.loop/running` | Written by the driver while it is up, deleted on every exit. Anything else about to touch this tree checks it first — `brief.py` and `orient.py` both print it loudly, and any by-hand pass over shared files should refuse to start while it is there. Starting a second driver is refused unless you pass `--force`. |
 
 | `.loop/limit.json` | The deadline of a usage window the driver is waiting out, so one killed or rebooted mid-wait does not start the next run straight back into the same wall. Deleted when the window reopens. |
+| `.loop/chain.json` | Which entry of a `--chain` run is installed. `goal-switch.py` is not idempotent, so this is what makes each entry's floor get carried exactly once across a driver that is killed and restarted. |
 | `.loop/interrupted.json` | Written when a session was cut off with work still uncommitted — the paths, and why. `orient.py` prints it at the top of the pack, so the next session knows those files are somebody's unfinished slice and not the state it was meant to start from. Deleted by the next session that leaves a clean tree. |
 
 `.loop/` is gitignored in full — everything the driver writes at run time lives under it.
@@ -72,13 +74,18 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
          (each NDJSON event is appended to .loop/logs/<run>-NNNN.log and rendered live to the console --
           text, thinking, tool calls with their full input, tool results, and the turn/cost summary;
           everything printed, and every subprocess's output, is teed to .loop/logs/<run>-console.log)
+    (--chain, before the first session: install the next staged goal -- goal-switch.py carries the
+     live goal's checks in as its floor, the three files are copied into place, the switch is
+     committed, and any [docker] services the goal declares are brought up once)
     if a rate_limit_event said `rejected`  -> sleep until its resetsAt, then re-run this session --
                                               not a failure, not a stall, and not one of --max-sessions
     if the CLI exited non-zero             -> exponential backoff, retry; give up after --max-retries
     copy this session's subagent transcripts into .loop/logs/<run>-NNNN.subagents/
     read .loop/status.txt, diff HEAD, append one ledger line
     run the acceptance test from docs/agent/loop-goal.toml
-      -> passes                            -> stop, GOAL REACHED
+      -> passes, no --chain                -> stop, GOAL REACHED
+      -> passes, --chain has a next goal   -> install it and keep going, stall streak reset
+      -> passes, --chain is on its last    -> stop, CHAIN COMPLETE
     if status is DONE but acceptance fails -> stop and say so (the session was wrong)
     if status is BLOCKED                   -> stop, surface the decision
     if HEAD did not move                   -> stall++; stop after --max-stalls consecutive stalls
@@ -151,8 +158,10 @@ Check kinds:
 | `min-bytes` | the named stream is at least `min_bytes` long (this is how `--dump-asm` is checked) |
 | `nvs-suite` | `nvs …` exits 0 **and** prints `N passed, M failed` with `M == 0`, and `N >= min_passing` where that key is given — a check whose worklist is its `cases` list omits it |
 | `cargo-named` | `cargo test …` exits 0 **and** each named test actually ran — a suite that never ran the guard is green too |
+| `command` | an arbitrary `argv` exits as expected and its combined output holds `want`'s substrings in order. `{nvs}` in `argv` is the CLI the leg already built, so a subcommand check costs no second build |
 
-`exit = "nonzero"` inverts the exit expectation for the fixtures that fail by design.
+`exit = "nonzero"` inverts the exit expectation for the fixtures that fail by design, and for a `command`
+whose failure *is* the assertion — `nvs config check` over a file that must be refused.
 
 `cases = [...]` on an `nvs-suite` check is the `.nvst` twin of `cargo-named`, and exists for the same
 reason: each named case must be **on disk and not skipped**, because a suite is green when a case was

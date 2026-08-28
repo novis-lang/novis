@@ -143,6 +143,22 @@ crates, and it has the reset that § 13 calls the good case. The other four are 
     diagnostic naming `Core\Taint::assertTrusted`.
 25. **A query emits a `query` span with no parameter values anywhere in it** — § 11.
 
+## The harness this goal owes, and it is Stage 2's first slice
+
+Two files that do not exist, and the goal cannot verify itself without them. They are named here rather
+than left to be invented at 2 a.m. by the session that first needs a server:
+
+- **`tests/db/compose.yaml`** — MySQL, MariaDB, PostgreSQL, SQL Server and Redis, each pinned to a version
+  and each with a healthcheck, so `docker compose up -d --wait` means *healthy* rather than *started*.
+  Redis is there because goal 4's shared cache tier and goal 6's fleet lease both use it, and one compose
+  file is better than two that drift.
+- **`python tools/db-matrix.py`** — runs ADR 0067's per-driver list against those servers and prints one
+  `<driver>: ok` line each. It is a harness rather than a test: the assertions are `nvs-db`'s own, and
+  this is what points them at five endpoints and reports which one failed.
+
+Write both before the first driver, not after: a driver with no server to run against is a driver whose
+tests are all mocks, and that is the one shape ADR 0067's *Verification* refuses.
+
 ## Acceptance
 
 **The checks live in [`5-database.toml`](5-database.toml), and only there.** Four of the five drivers are

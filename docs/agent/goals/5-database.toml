@@ -222,9 +222,7 @@ kind = "command"
 stage = "6 the matrix"
 name = "the five-driver matrix"
 argv = ["python", "tools/db-matrix.py", "--all"]
-stdout_contains = [
-  "mysql: ok", "mariadb: ok", "postgres: ok", "mssql: ok", "sqlite: ok",
-]
+want = ["mysql: ok", "mariadb: ok", "postgres: ok", "mssql: ok", "sqlite: ok"]
 
 [[check]]
 kind = "cargo-named"
@@ -283,7 +281,7 @@ kind = "command"
 stage = "8 queue"
 name = "nvs queue migrate creates both tables"
 argv = ["{nvs}", "queue", "migrate", "--connection", "main", "--dry-run"]
-stdout_contains = ["jobs", "dead_letter"]
+want = ["jobs", "dead_letter"]
 
 [[check]]
 kind = "exact"
@@ -363,4 +361,4 @@ kind = "command"
 stage = "10 corpus"
 name = "check-migration at 90%"
 argv = ["python", "tools/check-migration.py", "--min", "90"]
-stdout_contains = ["inventory:", "classified:"]
+want = ["inventory:", "classified:"]

@@ -5,8 +5,17 @@ name has a recorded outcome. This script is what records that it does.
 
   python tools/check-migration.py            # audit; exit 1 on a structural error
   python tools/check-migration.py --report    # audit, then list every unclassified name
+  python tools/check-migration.py --min 85    # also exit 1 below 85% classified
   python tools/check-migration.py --seed      # emit rows derived from 01-core-library.md's
                                               # Replaces column, for pasting into the table
+
+`--min` is what the parity program gates on. Coverage on its own is deliberately not an error -- the
+table is filled in over several passes and CI going red at 31% would say nothing -- so the threshold
+is named by whoever is asserting it. Each of the six goals under docs/agent/goals/ carries its own,
+rising to 100 in the last one, which is the program's stop condition. The percentage compared is the
+one printed on the `open:` line: classified names over the inventory's function count, rounded the
+same way, so a run that prints "85% covered" passes `--min 85` and nothing has to reconcile two
+roundings.
 
 Three inputs, each with one job:
 
@@ -214,10 +223,11 @@ def main() -> int:
     # A name with no row and a name whose row says `open` are the same thing: undecided.
     unclassified = [f for f in functions if rows.get(f, ("open", ""))[0] == "open"]
 
+    covered = round(100 * (1 - len(unclassified) / max(len(functions), 1)))
     print(f"inventory: {len(functions)} functions, {len(types)} types "
           f"({INVENTORY.relative_to(ROOT)})")
     print(f"rows:      {len(rows)}  classified: {len(rows) - len([r for r in rows.values() if r[0] == 'open'])}")
-    print(f"open:      {len(unclassified)}  ({100 * (1 - len(unclassified) / max(len(functions), 1)):.0f}% covered)")
+    print(f"open:      {len(unclassified)}  ({covered}% covered)")
     print(f"unaudited extensions (absent from this build): {', '.join(UNAUDITED)}")
 
     if "--report" in sys.argv and unclassified:
@@ -236,6 +246,23 @@ def main() -> int:
     if complete and unclassified:
         print(f"\nheader says Complete: yes, but {len(unclassified)} names are unclassified")
         return 1
+
+    # `--min N` -- the parity program's gate. Compared against the same rounded figure the `open:`
+    # line prints, so a run that says "85% covered" passes `--min 85`.
+    if "--min" in sys.argv:
+        at = sys.argv.index("--min")
+        if at + 1 >= len(sys.argv):
+            print("\n--min needs a percentage, e.g. --min 85")
+            return 2
+        try:
+            floor = int(sys.argv[at + 1])
+        except ValueError:
+            print(f"\n--min takes a whole percentage, not {sys.argv[at + 1]!r}")
+            return 2
+        if covered < floor:
+            print(f"\n{covered}% covered, below the {floor}% this run asserts "
+                  f"-- {len(unclassified)} name(s) still unclassified, `--report` lists them")
+            return 1
 
     return 0
 

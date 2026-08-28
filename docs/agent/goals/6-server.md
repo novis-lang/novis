@@ -166,6 +166,13 @@ gets its first adversarial traffic.
     registered; every one of them has a conformance case. **This is the parity program's stop condition**
     and the last check in the chain.
 
+## The harness this goal owes
+
+**`python tools/bench.py --serve-vs-fpm --record benches/serve.json`** — item 29. m7.md asks for the
+number to be *recorded*, not merely produced, so the flag writes it and the check asserts it was written.
+PHP 8.5 is already on this machine and in the WSL distro as the differential oracle; FPM and opcache are
+what this adds.
+
 ## Acceptance
 
 **The checks live in [`6-server.toml`](6-server.toml), and only there.**
