@@ -1904,6 +1904,15 @@ is why" — is this file.
   absorb the fatal report with a trailing `%A` under `--EXPECTF-ERROR--`. 163 cases carry an error
   section and many of them also carry `--EXPECT--`, so there is no discriminator to relax the rule
   with; a section meaning "stderr of a run that succeeded" would be a new one.
+- **A `.nvst` case cannot hold `Core` instances in an `array<mixed>`** — `$one as Core\Uri`
+  on an element is `E0711` ("ADR 0007 § 2 tabulates no conversion into an object"), so a
+  sweep that builds many objects and then asks one question of each has to collect the
+  *answers*, not the objects: `$built[] = $u->toString();` and assert over the text. Two
+  other spellings cost time in the same session and are worth having together: a `for`
+  header cannot declare a typed local (`for (uint $i = 0; …)` is `E0102` at the type name,
+  so declare it above and use a `while`), and a `Core` member's by-name surface is an
+  options bag, so it is `$u->with({scheme: "ftp"})` and never `$u->with(scheme: "ftp")`,
+  which is `E0485`.
 
 ## Splitting a file that got too big
 
