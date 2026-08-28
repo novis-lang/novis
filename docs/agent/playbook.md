@@ -2109,6 +2109,14 @@ sibling in the same namespace unqualified.
   exempt the first and leave the second alone — and the tests that pin them are the ones that
   fail first: `tests/conformance/lang/a-class-named-only-by-an-attribute-is-autoloaded.nvst` and
   the four `json-derive-*` cases.
+- **An expression-bodied `fn (): void => <a void call>` does not lower**, and its
+  block-bodied twin does. `Core\Test::expectFailure(fn (): void => Test::assertSame(1, 2));`
+  fails the whole compilation with *"nvs-codegen does not lower an operand used before it
+  is defined"*, naming a compiler bug for a shape the checker accepted, while
+  `fn (): void => { Test::assertSame(1, 2); }` runs — the two differ by nothing else, so
+  write the braces whenever a closure's whole body is one `void` call. Bisecting to it
+  costs a scratch run per candidate, because the message names neither the closure nor the
+  call.
 
 ## Divergences and refusals already pinned
 

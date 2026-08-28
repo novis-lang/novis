@@ -2,61 +2,58 @@
 
 ## State
 
-**M4's Stage 7 is under way: ADR 0079 §§ 1, 4 and 5 are closed but for § 1's
-parameter bullet, and the runner is what is left.** `#[Test]` is recognized and
-its table built, `Core\Test`'s three equality members run, and a failed
-assertion now throws the named `Core\Test\Failure` *and* records a ledger entry
-`nvs_runtime::Ctx` holds and no `Core` member reads back.
+**M4's Stage 7: ADR 0079 §§ 1, 4, 5, 20 and 22's human half are closed, and
+the runner runs.** `nvs test <program.nvs>` compiles the program, constructs
+each `#[Test]` class and calls its methods one fresh instance at a time, and
+reports § 22's human format with the verdict read off § 5's ledger.
 
-- **`Core\Test\Failure` is a row of `nvs_hir::errors::TREE`**, the tree's one
-  namespaced entry, so a `catch` by name, `new`, `instanceof Throwable` and the
-  inherited constructor all fell out of the table rather than out of new cases.
-  `QName::is_core` is what makes it trusted-to-exist;
-  `is_reserved_global_class` stays single-segment on purpose.
-- **Nothing reads the ledger yet**, which is `nvs_stdlib::test`'s known gap 2:
-  `Ctx::take_assertions` is the accessor and the runner is what will call it, so
-  § 20's zero-assertion rule is owed rather than broken. Stage 8's named
-  `a-test-attribute-builds-a-table-the-runner-reports.nvst` still waits on that
-  runner and is the one named case `python tools/loop.py --list` reports missing.
-- § 4's roster is still the three equality members only. The
-  `assertTrue`/`assertNull`/`assertCount`/`assertThrows` that section's example
-  also writes are the same shape and are owed —
-  `nvs_stdlib::test`'s known gap 3.
-- § 1's remaining compile error — a `#[Test]` parameter no `#[Fixture]` supplies
-  and no data row fills — is not decidable in `nvs_types::testing` at all and
-  belongs with §§ 8-9.
+- **`nvs_cli::runner` is the runner and its module doc is the home** of what it
+  owes and of the two decisions it took: the entry file's own top-level
+  statements do not run, and class order is the roster's sorted order rather
+  than § 20's declaration order (`ExprTypeTable::tests` records no sequence).
+- **`nvs_runtime::construct_and_call` is construct-call-release** and
+  `nvs_codegen::Unit::call_on_new_instance` the half above it, which is where
+  the descriptor's liveness is provable — `nvs-cli` forbids `unsafe`, so
+  neither could have been written there.
+- **Nothing reads `Ctx::take_assertions` but the runner**, and that is now a
+  reader rather than a gap: `nvs_stdlib::test`'s known gap 2 is closed.
+- § 4's roster is still the three equality members. `assertTrue`/`assertNull`/
+  `assertCount`/`assertThrows` are owed (`nvs_stdlib::test`'s known gap 3), and
+  § 20's `assertDoesNotThrow` joins them — the empty-ledger failure names the
+  rule rather than that member because it does not resolve yet.
+- **Stage 8's named case is blocked on the `.nvst` format, not on the runner.**
+  `nvs_test::run` spawns `nvs run case.nvs` unconditionally, so no case can
+  reach `nvs test <program>` at all. That is the next group's first slice.
 - The conformance corpus is at **730**.
 
 ## Next group
 
-**The runner, §§ 20 and 22.** It is the reader every landed half is waiting
-for, and its file set is the two this session left in hand plus the CLI:
-`crates/nvs-types/src/expr_table.rs:779` (`ExprTypeTable::tests(label)` and
-`test_classes()`, the rows nothing calls),
-`crates/nvs-runtime/src/ctx.rs` (`Ctx::take_assertions`, the ledger's one
-reader-to-be, beside `record_assertion`), `crates/nvs-stdlib/src/test.rs` and
-`crates/nvs-cli/src/` with ADR 0079 §§ 20, 22.
+**Letting a `.nvst` case run through the runner, then writing the one Stage 8
+owes.** The file set is `crates/nvs-test/` plus one new case:
 
-- [ ] **The runner constructs each `#[Test]` class and calls its methods**
-      (ADR 0079 § 20) — declaration order, no arguments, no result, one
-      instance per test method; `ExprTypeTable::tests` is the roster and
-      `nvs-cli` is where a subcommand can reach both it and a `Ctx`.
-- [ ] **A test's verdict is read off the ledger, not the exception state**
-      (ADR 0079 § 5) — `Ctx::take_assertions` between tests, so a `catch`
-      around an assertion still reports FAILED, and a test that produced no
-      entry at all fails under § 20's zero-assertion rule.
+- [ ] **A `.nvst` case can say it is run through `nvs test`** — a section
+      beside `--ARGS--`, or a `--FILE--` variant; `crates/nvs-test/src/run.rs:225`
+      is the one `spawn(&opts.nvs, &["run", name])`, `crates/nvs-test/src/case.rs:130`
+      the section roster and `crates/nvs-test/src/lib.rs:23` the table that
+      documents it. The runner's report carries a per-test duration, so the
+      case wants `--EXPECTF--`'s `%f`, not `--EXPECT--`.
 - [ ] **`a-test-attribute-builds-a-table-the-runner-reports.nvst`** (ADR 0079
-      §§ 1, 20) — Stage 8's one named case still missing, and the first thing
-      that can observe a `#[Test]` row or its order at all.
+      §§ 1, 20) — the last named case `python tools/loop.py --list` reports
+      missing: declaration order within a class, a skip with its reason, a
+      failure, and a caught failure that still fails.
+- [ ] **ADR 0079 § *Verification*** — the section M4's acceptance names, over
+      the four cases that now pin §§ 1, 4, 5 and 20, plus what only a Rust test
+      can assert (`crates/nvs-cli/src/runner.rs:141`).
 
 ## Backlog
 
-- `assertTrue`/`assertNull`/`assertCount`/`assertThrows` — `nvs_stdlib::test`
-  known gap 3, ADR 0079 § 4.
-- A non-`Comparable` object under `assertEquals` is a throw where the ADR
-  refuses the program — `nvs_stdlib::test` known gap 1.
-- A `#[Test]` parameter no `#[Fixture]` supplies — ADR 0079 §§ 8-9.
-- A `require` whose path is not a string literal runs nothing, silently —
-  `nvs_hir::requires` known gap.
-- ADR 0092 § 6's `Throwable` record producer — `nvs_stdlib::debug`'s own note.
-- A shape literal's field carries no `secret` bit — `nvs_stdlib::debug` gap 1.
+- § 4's `assertTrue`/`assertNull`/`assertCount`/`assertThrows` and § 20's
+  `assertDoesNotThrow` — `nvs_stdlib::test`'s known gap 3.
+- § 22's `--format=junit` and `--format=json`, and § 20's `retries:`/`FLAKY` —
+  `nvs_cli::runner`'s module doc.
+- An expression-bodied `fn (): void => <a void call>` does not lower —
+  playbook, *Writing Novis itself*; the block-bodied form is the way round.
+- § 1's last compile error, a `#[Test]` parameter no `#[Fixture]` supplies —
+  waits on §§ 8-9, stated at `nvs_types::testing::check_method_shape`.
+- ADR 0079 § 20's declaration order across classes wants a sequence on
+  `ExprTypeTable::tests`; the runner sorts instead.

@@ -1594,8 +1594,54 @@
 > the discharge leaves alone — each counting its agreements rather than reading one off a line. ADR
 > 0079 § 5 gains the enforcement paragraph rather than being left to name passes that do not make
 > this. Valgrind-clean over a fixture that discharges, refuses and catches with a freshly built
-> `string` operand on each edge two hundred times. Three live tools **are** the worklist and no
-> session re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and
+> `string` operand on each edge two hundred times. **ADR 0079's runner exists, and it is `nvs test`
+> rather than a subcommand of its own.** § 23 says one subcommand runs both formats, and which one
+> is meant is read off the *path* rather than off a flag: a `.nvs`/`.php` file is a program whose
+> compiled test table is run, anything else is the `.nvst` tree that subcommand already ran, and the
+> two are refused in one invocation, reporting differently and sharing no summary. `nvs_cli::runner`
+> is where it lives because it is the one crate holding a checked program and a runtime context in
+> one scope — the roster is a *front-end* table (`nvs_types::ExprTypeTable::tests`) and the instance
+> it constructs is a compiled unit's. Nothing is discovered at startup: § 1's table was settled
+> while the program was compiled, so there is no directory scan and no reflection, only a walk of
+> what the compile handed over. **The entry file's own top-level statements do not run**, which is
+> that module's own decision and recorded in its doc comment: a program's script body is the
+> program, and running it would run the thing under test as a side effect of testing it, once per
+> suite and in whatever order the entry point happened to be written — every file the
+> `require`/`autoload` graph reached is still *compiled*, that being what declares the classes and
+> what the checker judged. Two crates below gained the entry point that makes this possible with no
+> `unsafe` in `nvs-cli`, which forbids it outright. `nvs_runtime::construct_and_call` is the
+> construct-call-release trio and is § 20's "one instance per test method" in one place: § 7's
+> constructor is run where the class declares one, and a class that declares none carries no
+> `constructor` row at all, so the allocation with its armed defaults *is* the whole of
+> construction. A constructor that declares parameters is a **catchable throw** naming §§ 8-9's
+> `#[Fixture]` injection rather than the engine fault an arity mismatch would otherwise be, because
+> it is a limit of this runner and not a mistake in the program, so the suite reports that test and
+> carries on. `nvs_codegen::Unit::call_on_new_instance` is the half above it, and is where the
+> descriptor's liveness is *provable* rather than promised — the table is the unit's own.
+> `run_helper`'s `Fault`-to-status translation is extracted as `nvs_runtime::abi::record_fault` for
+> it, the runner recording the same way with no helper frame around it, and two copies of that match
+> being two answers to what a `Fault::Fatal` leaves behind. **The verdict is read off § 5's ledger
+> and not off the exception state**, which is the whole of what makes a test hard to pass by
+> accident: a body that caught its own `Core\Test\Failure` returns normally and has still failed,
+> and every failed assertion the ledger holds is reported rather than the first, since a body that
+> caught several would otherwise hide exactly what that ledger exists to keep. A throw is consulted
+> **last** and only answers for a test whose ledger is clean — an exception raised by the code under
+> test rather than by an assertion about it — and an empty ledger is § 20's own first bullet, a test
+> that asserted nothing failing for a second reason. The ledger and the pending exception are both
+> *taken* on every path, which is what keeps one test's from being reported against the next. § 20's
+> `skip:` is honoured with its stated reason and its test is never constructed. What the runner
+> still owes is named at `nvs_cli::runner` rather than implied: § 2's isolate-per-test and
+> parallelism (M5), § 20's `retries:` and its `FLAKY` section, § 22's
+> `--format=junit`/`--format=json`, and § 20's `assertDoesNotThrow`, which is the way out of the
+> empty-ledger rule and arrives with § 4's remaining members — so the message names the rule rather
+> than a member that does not resolve yet. Class order is the roster's **sorted** order rather than
+> § 20's declaration order, `ExprTypeTable::tests` being keyed by class label and recording no
+> sequence; within a class the order is declaration order, which is what a reader of one file sees.
+> Stage 8's named `a-test-attribute-builds-a-table-the-runner-reports.nvst` is still owed and is now
+> blocked on the `.nvst` format rather than on the runner: `nvs_test::run` spawns `nvs run case.nvs`
+> unconditionally (`crates/nvs-test/src/run.rs:225`), so no case can reach the runner at all until
+> that format can say which subcommand a case is run through. Three live tools **are** the worklist
+> and no session re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and
 > `nvs-codegen` and attributes each to its item (`--item N` for one in full), `python tools/loop.py
 > --list` prints the named `.nvst` cases each stage still owes — one, now that the retrieval and the
 > dump cases are named for the files that landed, and it is Stage 7's `#[Test]` table case, which
