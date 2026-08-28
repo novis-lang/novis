@@ -1672,6 +1672,20 @@ is why" — is this file.
   `array<Core\Time\Duration> $each = [0s, 1ns, …]` of `Core` instances iterates with a typed
   `foreach` binding, `continue` skips the row a law does not apply to, and a bare
   `Core\X::member($arg);` is a legal statement when the case only wants the throw.
+- **A handoff's named group can be already landed, and `gaps.py`'s depth number will not
+  say so.** The `Core\Math` group named three slices — `abs`/`sign`/`intDiv`/`mod` at the
+  ends of `int`, `clamp`/`min`/`max` agreeing on one ordering, `toBase`/`fromBase` at the
+  radix ends — and all three claims were on disk verbatim
+  (`math-int-div-and-mod-at-the-edges-of-their-arms`, `math-magnitude-sign-and-the-two-
+  extremes`, `math-clamp-agrees-with-the-min-max-composition-until-the-range-is-empty`,
+  `math-both-base-members-stop-at-the-same-two-bases`). Depth is cases *per member*, so a
+  class can rank thinnest while every claim anyone would think of is already made. **One
+  `ls tests/conformance/core/ | grep -i <class>` plus a `head -8` of the two nearest names
+  costs one call and is the first thing to spend it on** — before reading the member's
+  implementation, not after. When they are all taken, do not write a fourth row of the
+  same shape: find the claim no case makes (here, that `Core\Math` splits into an
+  `int`-parameter family that reaches both ends of `int` and a `float`-parameter family
+  that stops at 2^53), and say in the handoff that the group's premise was stale.
 
 ## Splitting a file that got too big
 
