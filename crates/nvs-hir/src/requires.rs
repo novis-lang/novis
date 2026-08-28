@@ -134,6 +134,25 @@ pub struct Loaded {
     pub id: SourceId,
     /// Its whole parsed body, moved here once and never re-parsed.
     pub stmts: Vec<Stmt>,
+    /// Every `require` written *in this file* whose literal path this walk
+    /// resolved, as the span of the path expression paired with the file it
+    /// named.
+    ///
+    /// This walk is the only place that edge exists: it joins the base
+    /// directory, canonicalizes, and decides whether the target had already
+    /// been loaded, so a later phase holding only the literal text would have
+    /// to re-derive all three — a second copy of the rule, and one that would
+    /// disagree the moment [`check_path_case`] or the cycle check changed.
+    /// `nvs-ir` needs exactly this to call a required file's own script frame
+    /// at the `require` site (`nvs-ir`'s known gap 22), and its span key is
+    /// what survives both the `Stmt` move above and the crate boundary.
+    ///
+    /// A path that is not a literal, that resolves to nothing loadable, or
+    /// that closes a cycle contributes no entry — each is already a
+    /// diagnostic, or the dynamic fallback ADR 0021 leaves alone. A path
+    /// naming a file some *other* file already required does contribute one:
+    /// the file is loaded once, and both sites name it.
+    pub requires: Vec<(Span, SourceId)>,
 }
 
 /// Resolves the `require` graph reachable from one entry file into a single
@@ -174,8 +193,15 @@ pub fn resolve_program(
     let mut loaded: Vec<Loaded> = Vec::new();
     let mut done: FxHashSet<PathBuf> = FxHashSet::default();
     let entry_chain: Vec<PathBuf> = canonical_path(map.file(entry_id)).into_iter().collect();
+    // `done` answers "has this path been walked"; `by_path` answers "as which
+    // file", which is what a `require` naming an already-loaded path needs to
+    // record its own edge. They are two maps rather than one because a path
+    // can be marked done and then fail to load, and an entry with no id is
+    // exactly what such a `require` must not be handed.
+    let mut by_path: FxHashMap<PathBuf, SourceId> = FxHashMap::default();
     for path in &entry_chain {
         done.insert(path.clone());
+        by_path.insert(path.clone(), entry_id);
     }
 
     let mut work: Vec<(SourceId, Vec<Stmt>, Vec<PathBuf>)> =
@@ -208,6 +234,7 @@ pub fn resolve_program(
                 .path()
                 .and_then(|p| p.parent().map(Path::to_path_buf));
 
+            let mut file_requires: Vec<(Span, SourceId)> = Vec::new();
             if let Some(base_dir) = base_dir {
                 let file_sites: Vec<Site> = harvest
                     .autoloads
@@ -265,6 +292,12 @@ pub fn resolve_program(
                         continue;
                     }
                     if done.contains(&canonical) {
+                        // Loaded once, named twice: the second site still owns
+                        // an edge to it, because it is still a `require` that
+                        // runs that file's frame.
+                        if let Some(&already) = by_path.get(&canonical) {
+                            file_requires.push((span, already));
+                        }
                         continue;
                     }
                     done.insert(canonical.clone());
@@ -278,6 +311,8 @@ pub fn resolve_program(
                         );
                         continue;
                     };
+                    by_path.insert(canonical.clone(), new_id);
+                    file_requires.push((span, new_id));
                     let new_stmts = parse_file(map.file(new_id), diags);
                     check_declarations(&new_stmts, map.file(new_id), diags);
                     let mut new_chain = chain.clone();
@@ -286,7 +321,11 @@ pub fn resolve_program(
                 }
             }
 
-            loaded.push(Loaded { id, stmts });
+            loaded.push(Loaded {
+                id,
+                stmts,
+                requires: file_requires,
+            });
         }
 
         // Every file the `require` chain can reach is collected, so the map is
@@ -323,6 +362,9 @@ pub fn resolve_program(
         let Ok(new_id) = map.load(&path) else {
             continue;
         };
+        // An autoloaded file is reachable by a written `require` too, and such
+        // a site owns the same edge a first-loading one does.
+        by_path.insert(path.clone(), new_id);
         let new_stmts = parse_file(map.file(new_id), diags);
         check_declarations(&new_stmts, map.file(new_id), diags);
         autoload::check_file_shape(&new_stmts, map.file(new_id), name.short_name(), span, diags);
@@ -1161,6 +1203,59 @@ mod tests {
         let stmts = parse_file(map.file(entry_id), &mut diags);
         let (module, loaded, _autoload) = resolve_program(entry_id, stmts, &mut map, &mut diags);
         (module, loaded, map, diags)
+    }
+
+    /// The edge `nvs-ir` cannot re-derive: which file a written `require`
+    /// actually named. Two files require the same target, so one of the
+    /// three edges is recorded from the already-loaded branch rather than
+    /// from the load itself, and both must still name the one `SourceId`
+    /// that file was loaded as — the whole point of keeping `by_path`
+    /// beside `done`. The target that does not exist contributes none.
+    #[test]
+    fn every_resolved_require_records_the_file_it_named() {
+        let dir = TempDir::new("edges");
+        dir.write("shared.nvs", "<?nvs\nclass Shared {}\n");
+        dir.write("a.nvs", "<?nvs\nrequire 'shared.nvs';\nclass A {}\n");
+        dir.write("b.nvs", "<?nvs\nrequire 'shared.nvs';\nclass B {}\n");
+        dir.write(
+            "main.nvs",
+            "<?nvs
+require 'a.nvs';
+require 'b.nvs';
+require 'nope.nvs';
+",
+        );
+
+        let (_, loaded, map, _diags) = resolve_entry_loaded(&dir, "main.nvs");
+        let name_of = |id: SourceId| -> String {
+            map.file(id)
+                .path()
+                .and_then(Path::file_name)
+                .expect("every fixture was loaded from disk")
+                .to_string_lossy()
+                .into_owned()
+        };
+
+        let mut edges: Vec<(String, String)> = Vec::new();
+        for file in &loaded {
+            for &(span, target) in &file.requires {
+                // The span is the key `nvs-ir` will look this up by, so it
+                // has to belong to the file that wrote the `require`.
+                assert_eq!(span.file, file.id, "a require's span is its own file's");
+                edges.push((name_of(file.id), name_of(target)));
+            }
+        }
+        edges.sort();
+
+        assert_eq!(
+            edges,
+            [
+                ("a.nvs".to_owned(), "shared.nvs".to_owned()),
+                ("b.nvs".to_owned(), "shared.nvs".to_owned()),
+                ("main.nvs".to_owned(), "a.nvs".to_owned()),
+                ("main.nvs".to_owned(), "b.nvs".to_owned()),
+            ]
+        );
     }
 
     /// ADR 0062 § 3's whole point, stated as the invariant that holds on

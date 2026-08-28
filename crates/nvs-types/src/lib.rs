@@ -251,9 +251,18 @@ use crate::signatures::SignatureTable;
 /// program: a class declared in one file is referenced from another, so the
 /// tables have to be complete before any body is checked. `nvs_hir::Loaded`
 /// is where the CLI's slice comes from, in entry-first load order.
+///
+/// **The file's own [`nvs_diagnostics::SourceId`] is `src.id()`**, and this
+/// struct deliberately carries no second copy of it. A consumer that has to
+/// match a file against something keyed by id — `nvs-ir` calling the script
+/// frame a `require` resolved to (`nvs_hir::Loaded::requires`) — asks the
+/// source file, which is the one place the id has ever lived; a field here
+/// would be a value every one of this struct's two dozen construction sites
+/// has to supply and that could be supplied wrongly.
 #[derive(Debug, Clone, Copy)]
 pub struct ProgramFile<'a> {
-    /// The file's source text, for every span this walk resolves.
+    /// The file's source text, for every span this walk resolves, and — as
+    /// [`nvs_diagnostics::SourceFile::id`] — its own id.
     pub src: &'a SourceFile,
     /// Its whole parsed body — top-level statements and declarations alike.
     pub stmts: &'a [nvs_syntax::ast::Stmt],
