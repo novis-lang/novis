@@ -831,6 +831,8 @@ fn collect_members(
                 let name = span_text(env.src, m.name).to_owned();
                 if name == "constructor" {
                     record_promoted_properties(&m.params, &params, qname, table, env);
+                } else {
+                    reject_promotion_outside_constructor(&m.params, &name, env);
                 }
                 table.entry(qname.clone()).methods.insert(
                     name,
@@ -894,6 +896,52 @@ fn record_promoted_properties(
         if let Some(level) = declared_visibility(&p.modifiers) {
             sig.property_visibility.insert(name, level);
         }
+    }
+}
+
+/// Refuses a visibility keyword on the parameter of a method that is not the
+/// `constructor` (`E0722`), which is ADR 0043 § 4's own backlog line.
+///
+/// [`record_promoted_properties`] above is only ever reached from a
+/// constructor, so the keyword written anywhere else declared nothing, took no
+/// slot and was silently ignored — PHP refuses it, and so does this. The
+/// judgement is [`nvs_syntax::ast::Param::is_promoted`]'s, unchanged: that
+/// predicate deliberately does not ask which method encloses it, because that
+/// is this caller's question and no other's.
+///
+/// Widening promotion to every method was never the alternative. A property is
+/// a slot on an instance, armed once where the instance is made, and an
+/// ordinary method has no such moment — it may be called any number of times,
+/// or none.
+fn reject_promotion_outside_constructor(
+    params: &[nvs_syntax::ast::Param],
+    method: &str,
+    env: &mut Env<'_>,
+) {
+    for p in params {
+        if !p.is_promoted() {
+            continue;
+        }
+        let keyword = match declared_visibility(&p.modifiers) {
+            Some(Visibility::Public) => "public",
+            Some(Visibility::Protected) => "protected",
+            Some(Visibility::Private) => "private",
+            None => continue,
+        };
+        env.diags.report(
+            Diagnostic::error(
+                code::E_PROMOTED_PARAM_OUTSIDE_CONSTRUCTOR,
+                format!(
+                    "`{keyword}` on a parameter promotes it to a property, and only a \
+                     `constructor` declares one"
+                ),
+            )
+            .with_primary(p.span, format!("declared `{keyword}` on `{method}`"))
+            .with_help(
+                "drop the keyword — a parameter is a binding here. To declare a property, \
+                 write it on the class or promote it in the `constructor`",
+            ),
+        );
     }
 }
 

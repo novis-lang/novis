@@ -181,6 +181,13 @@ $this->timestamps->touch(); }`. Rules:
   non-nullable class or interface type whose type fully satisfies the delegated interface — checked the same
   way any `implements` claim is checked, just on `$field`'s type instead of the class's own. A mismatch is
   `E_DELEGATE_TYPE_MISMATCH`.
+- **A visibility keyword promotes only in the `constructor`**, and is refused on any other method's
+  parameter (`E_PROMOTED_PARAM_OUTSIDE_CONSTRUCTOR`). `public`/`protected`/`private` on a parameter is PHP 8's
+  promotion and nothing else — it says where a *property* may be read from, and an ordinary method has no
+  allocation to promote into: a property is a slot on an instance, armed once where the instance is made,
+  and a method may be called any number of times or none. `nvs_syntax::ast::Param::is_promoted` is the one
+  home of *which* parameters promote and deliberately does not ask which method encloses it; that is
+  `nvs_types::signatures`' question, asked in both directions there.
 - `$field` is subject to [ADR 0022](0022-definite-property-initialization.md)'s ordinary definite-assignment
   rule (or may be `lateinit` per [ADR 0038](0038-lateinit-property-modifier.md)) — no new initialization
   mechanism. Calling a delegated method before `$field` is written throws exactly the checked error those

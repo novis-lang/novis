@@ -1,0 +1,82 @@
+--TEST--
+A visibility keyword on a parameter promotes it to a property only in the `constructor`, and is refused on every other method — ADR 0043 § 4
+--FILE--
+<?nvs
+// `nvs_syntax::ast::Param::is_promoted` is the one home of which parameters
+// promote, and `nvs_types::signatures::record_promoted_properties` only ever
+// asks it of a constructor — so until `E0722` the keyword written on any other
+// method declared nothing, took no slot and was silently ignored, where PHP
+// refuses it outright.
+//
+// All three keywords, on an instance method, a static one and an interface
+// declaration alike, sorted in source order: a position that stops refusing
+// shows up as a missing line rather than as a parameter that quietly is not a
+// property.
+interface Sink {
+    public function accept(public int $n): void;
+}
+
+final class Box {
+    public int $kept;
+
+    // The one position that does promote, and the reason the others cannot:
+    // a property is a slot on an instance, armed once where the instance is
+    // made, and a method called any number of times has no such moment.
+    public function constructor(private int $seed) {
+        $this->kept = $seed;
+    }
+
+    public function set(private int $n): void {
+        echo $n, "\n";
+    }
+
+    public static function make(protected string $s): string {
+        return $s;
+    }
+
+    // `inout` and a default are ordinary parameter spellings and say nothing
+    // about promotion; the keyword beside them is still the whole mistake.
+    public function bump(public inout int $n, private string $tag = "t"): void {
+        $n = $n + 1;
+        echo $tag, "\n";
+    }
+}
+
+echo "unreachable\n";
+--EXPECTF-ERROR--
+error[E0722]: `public` on a parameter promotes it to a property, and only a `constructor` declares one
+   --> %s:13:28
+   |
+13 |     public function accept(public int $n): void;
+   |                            ^^^^^^^^^^^^^ declared `public` on `accept`
+   = help: drop the keyword — a parameter is a binding here. To declare a property, write it on the class or promote it in the `constructor`
+
+error[E0722]: `private` on a parameter promotes it to a property, and only a `constructor` declares one
+   --> %s:26:25
+   |
+26 |     public function set(private int $n): void {
+   |                         ^^^^^^^^^^^^^^ declared `private` on `set`
+   = help: drop the keyword — a parameter is a binding here. To declare a property, write it on the class or promote it in the `constructor`
+
+error[E0722]: `protected` on a parameter promotes it to a property, and only a `constructor` declares one
+   --> %s:30:33
+   |
+30 |     public static function make(protected string $s): string {
+   |                                 ^^^^^^^^^^^^^^^^^^^ declared `protected` on `make`
+   = help: drop the keyword — a parameter is a binding here. To declare a property, write it on the class or promote it in the `constructor`
+
+error[E0722]: `public` on a parameter promotes it to a property, and only a `constructor` declares one
+   --> %s:36:26
+   |
+36 |     public function bump(public inout int $n, private string $tag = "t"): void {
+   |                          ^^^^^^^^^^^^^^^^^^^ declared `public` on `bump`
+   = help: drop the keyword — a parameter is a binding here. To declare a property, write it on the class or promote it in the `constructor`
+
+error[E0722]: `private` on a parameter promotes it to a property, and only a `constructor` declares one
+   --> %s:36:47
+   |
+36 |     public function bump(public inout int $n, private string $tag = "t"): void {
+   |                                               ^^^^^^^^^^^^^^^^^^^^^^^^^ declared `private` on `bump`
+   = help: drop the keyword — a parameter is a binding here. To declare a property, write it on the class or promote it in the `constructor`
+
+error: aborting due to 5 errors

@@ -1478,6 +1478,23 @@ pub mod code {
     /// the author has today: write the member on the class by hand, which
     /// § 4 already allows and which the forward would have lost to.
     pub const E_DELEGATE_MEMBER_NOT_FORWARDABLE: Code = Code::new("E0721");
+    /// A visibility keyword on a parameter of a method that is not the
+    /// `constructor` — ADR 0043 § 4's own backlog line.
+    ///
+    /// `public`/`protected`/`private` on a parameter is PHP 8's constructor
+    /// promotion and nothing else: it says where a **property** may be read
+    /// from, and only a constructor declares one.
+    /// [`nvs_syntax::ast::Param::is_promoted`] is the one home of which
+    /// parameters promote, and `crate::signatures::record_promoted_properties`
+    /// only ever asks it of a constructor — so the keyword written anywhere
+    /// else declared nothing, gave no slot and was silently ignored, where
+    /// PHP refuses it outright.
+    ///
+    /// It is a diagnostic rather than a widening of promotion because an
+    /// ordinary method has no allocation to promote *into*: a property is a
+    /// slot on an instance, armed once at `new`, and a method that may be
+    /// called any number of times has no such moment.
+    pub const E_PROMOTED_PARAM_OUTSIDE_CONSTRUCTOR: Code = Code::new("E0722");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
