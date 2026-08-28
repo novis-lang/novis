@@ -1256,12 +1256,38 @@
 > backing value rather than its type. The residue must be a **subtype of what the local was
 > declared**, so this is a guard reaching one member of a union and never a re-declaration. It costs
 > nothing below the checker: ADR 0047 § 5 gives a literal type its base type's representation
-> exactly, so the narrowed read is the read it already was. What is left of § 6's four is `match
-> (true)` and the enum-case spelling of the comparison. Three live tools **are** the worklist and no
-> session re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and
-> `nvs-codegen` and attributes each to its item (`--item N` for one in full), `python tools/loop.py
-> --list` prints the named `.nvst` cases each stage still owes, and `python
-> tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> exactly, so the narrowed read is the read it already was. **ADR 0007 § 6's narrowing list is
+> closed at all four spellings.** The last two were one function each beside the three residues they
+> join. **A `match (true)`/`switch (true)` label is a condition**, so each arm body is checked under
+> whatever `narrow` installs for that label — `nvs_types::locals::is_true_literal` is the one home
+> of which subject qualifies, and only the *written* literal does: what makes the spelling narrow is
+> that the label's own truth is what selected the arm, while a `bool` local holding `true` says only
+> that the two agree, and `$flag == ($x instanceof Foo)` proves the class on neither edge. A
+> `default` arm and a comma-separated run of labels are deliberately given nothing — `match (true)`
+> takes the first label that held, so reaching a later arm says the earlier ones did *not*, which is
+> a residue this pass has no way to express, § 6's narrowings each naming a type rather than
+> removing one. Both sites take it, the `Match` expression arm in `nvs_types::expr` and the `Switch`
+> statement one in `locals`, and a case falling through to the next is the known gap that module doc
+> already names rather than a new one. **A comparison against an enum case narrows to that case's
+> own type**, which is ADR 0047 § 4's guard row over the third of the three spellings
+> `literal_residue` admits and the one that could not be read off the operand's text: a string and
+> an integer literal cook to a value with no context at all, while which enum a written `Read`
+> belongs to is a question about the writing site's namespace and its imports, which that walk
+> carries neither of. So it is read back off `ExprInfo::EnumCase`, recorded when the operand was
+> checked a moment earlier, exactly as `instanceof_residue` reads its own class — and that record
+> gained the enum's `QName` and the case's name beside the backing value it already carried, because
+> the value alone cannot answer it: two cases of two enums may share one integer. The residue is §
+> 3's `Ty::EnumCase` and not the whole enum, which is the entire point of the guard, and it costs
+> nothing below the checker for § 5's reason, a case being its backing integer in every
+> representation. Two cases pin the pair, `a-match-and-a-switch-over-true-narrow-per-arm.nvst` over
+> the three residues under both subjects with the non-`true` subject and the `default` arm beside
+> them, and `an-enum-case-comparison-narrows-its-subject.nvst` over the whole-enum subject, the
+> declared union of two cases, either operand order and the `!=` edge — each counting its agreement
+> with the plain `if` spelling of the same guard rather than reading it off a line. Three live tools
+> **are** the worklist and no session re-derives one: `python tools/holes.py` reads the refusal
+> sites out of `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item N` for one in
+> full), `python tools/loop.py --list` prints the named `.nvst` cases each stage still owes, and
+> `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,
