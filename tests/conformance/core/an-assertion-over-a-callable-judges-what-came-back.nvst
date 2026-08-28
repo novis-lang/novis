@@ -1,0 +1,163 @@
+--TEST--
+`Core\Test::assertThrows` matches the class its body threw, an ancestor included, and `assertDoesNotThrow` is the claim that a body completes -- ADR 0079 §§ 4, 20
+--FILE--
+<?nvs
+// The two members on § 4's roster whose subject is a `callable` rather than a
+// value: each runs the body and judges what came back. What a case can observe
+// is which bodies each accepts, what a refusal says, and that both agree with
+// the `try`/`catch` a reader would otherwise have written by hand.
+
+use Core\Test;
+
+final class Body {
+    // The bodies are named methods so that the member and the hand-written
+    // `try` below run the *same* code rather than two spellings of it.
+    public static function parse(): void {
+        throw new ParseError("the input is not JSON");
+    }
+
+    public static function quiet(): void {
+    }
+}
+
+int $agreed = 0;
+
+// 1. The exact class. `ParseError::class` folds to the fully qualified name as
+// a `string` constant, so the expectation is a name and no class value has to
+// exist for a member to take one.
+// Written out in full here and through the `use` below, which are one member
+// either way.
+Core\Test::assertThrows(fn (): void => { Body::parse(); }, ParseError::class);
+Test::assertThrows(fn (): void => { Body::parse(); }, ParseError::class);
+echo "the exact class holds\n";
+
+// 2. An ancestor matches, which is what a `catch` naming that class would bind:
+// `ParseError` extends `RuntimeError` extends `Throwable`.
+Test::assertThrows(fn (): void => { Body::parse(); }, RuntimeError::class);
+Test::assertThrows(fn (): void => { Body::parse(); }, Throwable::class);
+echo "every ancestor holds\n";
+
+// 3. The wrong class fails, naming the class the body *did* throw and that
+// throw's own message -- which together are what say whether the test or the
+// code under it is wrong.
+try {
+    Test::assertThrows(fn (): void => { Body::parse(); }, LogicError::class);
+} catch (Core\Test\Failure $wrong) {
+    echo $wrong->message, "\n";
+}
+
+// 4. A body that throws nothing is the other failure, with ADR 0063 R2's
+// `{message: ...}` bag in front of the report.
+try {
+    Test::assertThrows(fn (): void => { Body::quiet(); }, ParseError::class, {message: "the decode refuses"});
+} catch (Core\Test\Failure $silent) {
+    echo $silent->message, "\n";
+}
+
+// 5. § 20's member is the same three edges judged the other way round, and the
+// assertion a test whose whole claim is "this completes" writes.
+Core\Test::assertDoesNotThrow(fn (): void => { Body::quiet(); });
+Test::assertDoesNotThrow(fn (): void => { Body::quiet(); });
+echo "a body that completes holds\n";
+try {
+    Test::assertDoesNotThrow(fn (): void => { Body::parse(); }, {message: "the config loads"});
+} catch (Core\Test\Failure $threw) {
+    echo $threw->message, "\n";
+}
+
+// 6. The verdict that propagates is the assertion's own `Core\Test\Failure`
+// and never the exception it is reporting -- so a `catch` around either member
+// sees one class whichever way the body went.
+try {
+    Test::assertThrows(fn (): void => { Body::parse(); }, LogicError::class);
+} catch (ParseError $leaked) {
+    echo "the reported throw leaked\n";
+} catch (Core\Test\Failure $verdict) {
+    echo "the verdict is the assertion's own\n";
+}
+
+// 7. Agreement: each member answers what the hand-written `try`/`catch` of the
+// same question answers. Counted rather than read off a line, so a member that
+// grew a second reading fails here while still looking right above.
+bool $held = false;
+bool $caught = false;
+
+try {
+    Test::assertThrows(fn (): void => { Body::parse(); }, ParseError::class);
+    $held = true;
+} catch (Core\Test\Failure $one) {
+}
+try {
+    Body::parse();
+} catch (ParseError $two) {
+    $caught = true;
+}
+if ($held == $caught) { $agreed = $agreed + 1; }
+
+$held = false;
+$caught = false;
+try {
+    Test::assertThrows(fn (): void => { Body::parse(); }, LogicError::class);
+    $held = true;
+} catch (Core\Test\Failure $three) {
+}
+try {
+    Body::parse();
+} catch (LogicError $four) {
+    $caught = true;
+} catch (Throwable $five) {
+}
+if ($held == $caught) { $agreed = $agreed + 1; }
+
+$held = false;
+$caught = false;
+try {
+    Test::assertThrows(fn (): void => { Body::quiet(); }, ParseError::class);
+    $held = true;
+} catch (Core\Test\Failure $six) {
+}
+try {
+    Body::quiet();
+} catch (ParseError $seven) {
+    $caught = true;
+}
+if ($held == $caught) { $agreed = $agreed + 1; }
+
+$held = false;
+$caught = false;
+try {
+    Test::assertDoesNotThrow(fn (): void => { Body::quiet(); });
+    $held = true;
+} catch (Core\Test\Failure $eight) {
+}
+try {
+    Body::quiet();
+} catch (Throwable $nine) {
+    $caught = true;
+}
+if ($held != $caught) { $agreed = $agreed + 1; }
+
+$held = false;
+$caught = false;
+try {
+    Test::assertDoesNotThrow(fn (): void => { Body::parse(); });
+    $held = true;
+} catch (Core\Test\Failure $ten) {
+}
+try {
+    Body::parse();
+} catch (Throwable $eleven) {
+    $caught = true;
+}
+if ($held != $caught) { $agreed = $agreed + 1; }
+
+echo "agreed=", $agreed, "/5\n";
+--EXPECT--
+the exact class holds
+every ancestor holds
+Core\Test::assertThrows failed: `$body` threw ParseError, not LogicError: the input is not JSON
+the decode refuses: Core\Test::assertThrows failed: `$body` returned without throwing ParseError
+a body that completes holds
+the config loads: Core\Test::assertDoesNotThrow failed: `$body` threw: the input is not JSON
+the verdict is the assertion's own
+agreed=5/5

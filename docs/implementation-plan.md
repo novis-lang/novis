@@ -1681,16 +1681,41 @@
 > the holding side of each, the failing side with both sides named, ADR 0063 R2's `{message: …}` bag
 > in front of the report, and five agreements between each predicate and the equality spelling of
 > the same question, counted rather than read off a line, with each member written in both the
-> qualified and the `use`d spelling. `nvs_stdlib::test`'s known gap 3 is now `assertThrows` alone,
-> with § 20's `assertDoesNotThrow` beside it: both run a `callable` and judge what came back rather
-> than judging a value, which is the one shape on that roster that is not an assertion *about* its
-> first argument, and `nvs_cli::runner`'s empty-ledger message still names the rule rather than that
-> member because it does not resolve yet. Three live tools **are** the worklist and no session
-> re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen`
-> and attributes each to its item (`--item N` for one in full), `python tools/loop.py --list` prints
-> the named `.nvst` cases each stage still owes — **none**, Stage 7's `#[Test]` table case having
-> landed with the `--RUN--` section that lets a case reach the runner at all — and `python
-> tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> qualified and the `use`d spelling. **ADR 0079 § 4's roster is closed, and the two members that
+> close it are the one shape on it whose subject is a `callable` rather than a value.**
+> `assertThrows` and § 20's `assertDoesNotThrow` are written over the same three edges and differ
+> only in which one they call a failure: the body returned, the body threw, or the body ended the
+> request — a `FATAL` or an `EXITED`, which is nobody's assertion to judge (ADR 0020) and propagates
+> unchanged. Each **consumes** the throw it judged with `Ctx::take_pending`, so what propagates is
+> the assertion's own `Core\Test\Failure` rather than the exception it is reporting, and a `catch`
+> around either member sees one class whichever way the body went. `assertThrows`' expectation is a
+> **`string`** because that is what `ParseError::class` folds to, so the match is by name and no
+> class value has to exist for a member to take one; what decides it is the new
+> `Ctx::pending_conforms_to`, and the decision recorded there is that an **ancestor matches** — a
+> test naming `RuntimeError` claims no more than that the failure is one, which is what PHP's own
+> `expectException` does and what makes the assertion agree with the `catch` a reader would have
+> written instead. The ancestry is read off the *descriptor* (`ClassDesc::conforms_to_name`,
+> `Ctx::pending_desc` resolving a helper-raised `Pending::Message` through `error_desc` and a
+> program-raised `Pending::Thrown` through the object's own header) rather than off a second copy of
+> `nvs_hir::errors::TREE` in `nvs-runtime`, so the two cannot disagree about what `ParseError`
+> descends from; a failure with no exception class installed matches nothing, which is that module's
+> known gap 2 and is unreachable from a compiled unit. Consuming a throw is deliberately **not**
+> discharging a ledger entry: a body whose throw was a failed assertion keeps its own,
+> `Core\Test::expectFailure` staying the one member that discharges, so a test asserting that an
+> assertion fails still writes that one. `assertDoesNotThrow` is also § 20's way out of the
+> empty-ledger rule, so `nvs_cli::runner`'s message names the member now rather than only the rule.
+> `tests/conformance/core/an-assertion-over-a-callable-judges-what-came-back.nvst` pins the exact
+> class, both ancestors, the wrong class named beside the message the body threw, the body that
+> threw nothing, both `{message: …}` bags, the verdict that does not leak the reported class, and
+> five agreements between each member and the hand-written `try`/`catch` of the same question,
+> counted rather than read off a line. `nvs_stdlib::test`'s known gap 3 is deleted outright and its
+> gap 2 — "nothing reads the ledger yet" — went with the runner that landed before it. Three live
+> tools **are** the worklist and no session re-derives one: `python tools/holes.py` reads the
+> refusal sites out of `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item N` for
+> one in full), `python tools/loop.py --list` prints the named `.nvst` cases each stage still owes —
+> **none**, Stage 7's `#[Test]` table case having landed with the `--RUN--` section that lets a case
+> reach the runner at all — and `python tools/check-migration.py` scores
+> `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,
