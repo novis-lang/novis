@@ -1,0 +1,100 @@
+--TEST--
+Spec § 4: `Zone::system()` reads the host, so what is asserted is that it is invariant, that the reader gives it back, and that it is a zone like any other
+--FILE--
+<?nvs
+// `Core\Time\Zone::system()` is the one member of § 4 whose answer this suite
+// cannot name: it is whatever the host is configured for, and the three CI
+// runners, WSL and a developer's box need not agree. So every claim below is a
+// *property* asked of that answer rather than a value read off it, and each is
+// counted over a sweep so a member answering plausibly once still fails.
+
+final class Reads {
+    // Whether the id `VV` printed names a zone the reader accepts *and* that
+    // zone is the host's. The one host where the text is not the id is one
+    // with no IANA name at all — a bare `TZ=+02:00`, or a Windows zone with no
+    // mapping — where `system()` answers the fixed zone it in fact is and `VV`
+    // has no name to render, printing `UTC`. That branch is named rather than
+    // silently folded in, because it is the only one this cannot hold on.
+    public static function idNames(string $id, Core\Time\Zone $sys, Core\Time\Instant $at): bool {
+        if (Core\Time\Zone::of($id)->offsetAt($at)->toSeconds() == $sys->offsetAt($at)->toSeconds()) {
+            return true;
+        }
+        return $id == "UTC";
+    }
+}
+
+// The sweep is over instants, since an offset is a property of a zone *at an
+// instant*: a region zone answers differently in January and July, and the
+// epoch and a far-future date are where a zone database's own bounds sit.
+array<Core\Time\Instant> $sweep = [
+    Core\Time::fromIso("1970-01-01T00:00:00Z"),
+    Core\Time::fromIso("2024-01-15T12:00:00Z"),
+    Core\Time::fromIso("2024-07-15T12:00:00Z"),
+    Core\Time::fromIso("2099-12-31T23:59:59Z"),
+];
+var $sys = Core\Time\Zone::system();
+var $probe = Core\Time::fromIso("2024-01-15T12:00:00Z");
+string $id = $probe->in($sys)->format("VV");
+
+// 1. Invariance, with repetition as the sweep. `system()` is a reading, so the
+//    property that replaces a value is that reading it again changes nothing:
+//    sixteen calls, each asked for its offset at all four instants and for the
+//    id it renders. A member that consulted the host per call and got a
+//    different answer — or that cached the offset rather than the zone, and so
+//    stopped tracking a transition — fails the count while every single line
+//    it prints still looks right.
+int $stable = 0;
+int $sameId = 0;
+int $c = 0;
+for ($c = 0; $c < 16; $c = $c + 1) {
+    var $again = Core\Time\Zone::system();
+    foreach ($sweep as Core\Time\Instant $at) {
+        if ($again->offsetAt($at)->toSeconds() == $sys->offsetAt($at)->toSeconds()) {
+            $stable = $stable + 1;
+        }
+    }
+    if ($probe->in($again)->format("VV") == $id) {
+        $sameId = $sameId + 1;
+    }
+}
+echo $stable, " of 64, ", $sameId, " of 16|\n";
+
+// 2. The zone reader gives it back. `$d->zone()` re-derives the zone from the
+//    `DateTime` rather than carrying the caller's value through, so it is a
+//    genuine round trip: converting an instant in the host zone and asking the
+//    result what zone it is in answers the host zone, and rebuilding the same
+//    reading through *that* is byte-identical down to the offset and the id.
+// 3. Whatever the host is, the answer is an ordinary zone: its offset is a
+//    whole number of seconds within the ±25:59:59 `Zone::fixed` accepts, which
+//    is asserted by handing it to `fixed` — the member that throws on either
+//    failure — and getting the same offset back.
+int $reader = 0;
+int $rebuilt = 0;
+int $ordinary = 0;
+int $names = 0;
+foreach ($sweep as Core\Time\Instant $moment) {
+    var $read = $moment->in($sys)->zone();
+    if ($read->offsetAt($moment)->toSeconds() == $sys->offsetAt($moment)->toSeconds()) {
+        $reader = $reader + 1;
+    }
+    if ($moment->in($read)->format("yyyy-MM-dd HH:mm:ss XXX VV") == $moment->in($sys)->format("yyyy-MM-dd HH:mm:ss XXX VV")) {
+        $rebuilt = $rebuilt + 1;
+    }
+    if (Core\Time\Zone::fixed($sys->offsetAt($moment))->offsetAt($moment)->toSeconds() == $sys->offsetAt($moment)->toSeconds()) {
+        $ordinary = $ordinary + 1;
+    }
+    if (Reads::idNames($id, $sys, $moment)) {
+        $names = $names + 1;
+    }
+}
+echo $reader, "|", $rebuilt, "|", $ordinary, "|", $names, "|\n";
+
+// 4. It is a value, never an ambient default: there is no
+//    `date_default_timezone_set`, so a conversion that named its own zone
+//    reads the same on every host — which is the whole reason this member's
+//    answer can be unknown here without any other case becoming unstable.
+echo $probe->in(Core\Time\Zone::UTC)->format("HH:mm XXX"), "|\n";
+--EXPECT--
+64 of 64, 16 of 16|
+4|4|4|4|
+12:00 Z|
