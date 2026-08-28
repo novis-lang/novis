@@ -1,0 +1,60 @@
+--TEST--
+Core\Random::bytes draws over the whole octet range rather than over any text subset of it — 6000 single-octet draws reach all 256 values, NUL among them, and the high bit is set about half the time — spec § 11, ADR 0009 §§ 1 and 3
+
+--FILE--
+<?nvs
+// What `bytes` answers is a *buffer*, and every existing case pins the shape
+// of one: its length, that two draws differ, that an oversized count refuses
+// (`random-bytes-draws-a-raw-buffer`, `random-every-draw-is-swept-for-its-
+// invariants`, `random-an-oversized-draw-names-the-check-that-refused-it`).
+// A generator restricted to printable ASCII — the shape a `string`-backed
+// implementation drifts into, since ADR 0009 § 1 is what keeps the two types
+// apart — holds every one of those counts while quietly answering with under
+// a quarter of the entropy its count promises. The range itself is therefore
+// the invariant, and it is counted over a sweep rather than read off a draw.
+//
+// Every draw here is *one* octet, so its `Core\Encoding::toHex` rendering is
+// exactly that octet's own two digits and nothing straddles a boundary; ADR
+// 0009 § 3 is why the comparison happens in hex at all rather than by reading
+// the buffer as a `string`.
+int $i = 0;
+int $sized = 0;
+int $distinct = 0;
+int $highBit = 0;
+int $nuls = 0;
+string $seen = ";";
+array<string> $tops = ["8", "9", "a", "b", "c", "d", "e", "f"];
+uint $one = 1;
+
+for ($i = 0; $i < 6000; $i = $i + 1) {
+    string $pair = Core\Encoding::toHex(Core\Random::bytes($one));
+    $sized = $sized + ((Core\Str::length($pair) == 2) ? 1 : 0);
+
+    // Distinct values, counted against everything drawn so far. Missing any
+    // one of the 256 over this many draws is a `256 * (255/256) ** 6000`
+    // event — under 1 in 10^7 — so "all of them were reached" is an assertion
+    // about the generator's range and not about this run's luck.
+    if (!Core\Str::contains($seen, ";" . $pair . ";")) {
+        $distinct = $distinct + 1;
+        $seen = $seen . $pair . ";";
+    }
+
+    // The high bit, which is the half of the range no text encoding produces
+    // freely, and the NUL, which is the one value a C-string-shaped buffer
+    // cannot carry at all.
+    foreach ($tops as string $t) {
+        $highBit = $highBit + (Core\Str::startsWith($pair, $t) ? 1 : 0);
+    }
+    $nuls = $nuls + (($pair == "00") ? 1 : 0);
+}
+
+echo "octets ", $sized, " of 6000\n";
+echo "distinct ", $distinct, "\n";
+echo ($highBit > 2700 && $highBit < 3300) ? "high bit about half" : "high bit skewed", "\n";
+echo ($nuls > 0) ? "nul drawn" : "nul never drawn", "\n";
+
+--EXPECT--
+octets 6000 of 6000
+distinct 256
+high bit about half
+nul drawn
