@@ -2014,6 +2014,16 @@ sibling in the same namespace unqualified.
   a tagged answer one crate down or it owes a diagnostic that names `mixed`
   explicitly. `python tools/holes.py --item N` lists the sites; running the
   shape in a scratch `.agent-tmp/*.nvs` is what tells the two apart in one call.
+- **`nvs-codegen` has *two* catch-alls under one operator, and the cheap-looking one is the
+  dangerous one.** `emit_binop` reports "a `Sub` over representation `Str`" from a
+  representation gate near the top and "the binary operator `Mod`" from the match at the
+  bottom, so which message a hole prints tells you which gate it fell through, not how bad it
+  is. The gate's condition is `matches!(ty, Ty::Int | Ty::Uint | Ty::Bool)` — **`Ty::Bool` is
+  `integral`** — so an unrowed `bool` pair never reaches either message: `true + true` lowered
+  to an `iadd` over the `i8` a `bool` is stored in and printed a *number*, where the same hole
+  over two `string`s merely refused. So when closing an operator table at the checker, probe
+  the `bool` row first and read its answer rather than its exit status; a refusal you can see
+  is the good case.
 
 ## Divergences and refusals already pinned
 

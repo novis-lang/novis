@@ -497,11 +497,38 @@
 > abandons a freshly built `string` operand on that edge four hundred times, and
 > `tests/conformance/lang/a-unary-operator-over-a-mixed-operand-is-decided-by-its-tag.nvst` pins
 > fifteen lines of the pair, the seven throws among them. The unary catch-all's own roster comment
-> is now `emit_binop`'s residue exactly: the three representations no source expression has. Three
-> live tools **are** the worklist and no session re-derives one: `python tools/holes.py` reads the
-> refusal sites out of `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item N` for
-> one in full), `python tools/loop.py --list` prints the named `.nvst` cases each stage still owes,
-> and `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> is now `emit_binop`'s residue exactly: the three representations no source expression has. **ADR
+> 0007 § 4's arithmetic table is closed at the operand end now, and closing it took `emit_binop`'s
+> operator catch-all with it.** That table's operands are the numeric types — `int`, `uint`,
+> `float`, and `decimal` through ADR 0054 § 3 — and everything else PHP adds it adds by *converting*
+> first, which § 2 never does by itself, so a `bool`, a `string`, a `bytes`, an `array<T>`, a
+> `callable`, `null` and an object have no `+` at all and are refused where they are written
+> (`E0716`), an enum keeping ADR 0010 § 5's own `E0415` so that one rule draws one code. `bool` is
+> the operand the refusal exists for and the one that was worse than a panic: `nvs_ir::ty::Ty::Bool`
+> is `nvs-codegen`'s `integral`, so `true + true` reached an `iadd` over the `i8` a `bool` is stored
+> in and `echo`ed `1` where PHP prints `2`, while `$s - $s` and `$xs / $xs` reached the
+> *representation* catch-all one gate earlier and only refused. The second half is `%` over a
+> `float` (`E0717`), the one refusal both operands are numbers for: PHP converts both to an integer
+> and answers one, § 4's own float row would answer a `float`, and the spec's `Core\Math::mod` row
+> settles it the third way — "integer `%` is the operator" — so it is refused at **both** ends,
+> `nvs_runtime::helpers::value_arith` raising the same rule as a catchable throw where only the tags
+> can see it. ADR 0007 § 4 gains the closure paragraph and the `%` caveat on its float row rather
+> than being left to disagree with the tree. What that leaves `emit_binop`'s operator catch-all is
+> nothing: everything reaching it shares one representation and it is `float` or `bool`, the two
+> rows the six early returns above do not handle, and the five surviving pairs are `Shl`/`Shr` over
+> either (`E0706`), `Div`/`Mod`/`Pow` over a `bool` (`E0716`) and `Mod` over a `float` (`E0717`) —
+> its roster comment now says so in the shape the other five carry, and the representation
+> catch-all's own is corrected where it named `float` `%` as its neighbour's target. **Item 26 was
+> already closed at the language level and what it owed was the fixture.** ADR 0007 § 2's grid gives
+> a `bool` source the "anything → `string`" row and no numeric one, so `bool as string` runs through
+> `Helper::BoolToString` (pinned by `conversions-that-succeed.nvst`) and `$yes as int` is the
+> `E0708` the closed-grid pass already landed (pinned by `the-conversion-table-is-closed.nvst`);
+> `examples/targets.nvs` still spelled the refused half, so it is a branch said out loud there now
+> and `asInt=1` is unchanged. Three live tools **are** the worklist and no session re-derives one:
+> `python tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen` and attributes
+> each to its item (`--item N` for one in full), `python tools/loop.py --list` prints the named
+> `.nvst` cases each stage still owes, and `python tools/check-migration.py` scores
+> `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,
