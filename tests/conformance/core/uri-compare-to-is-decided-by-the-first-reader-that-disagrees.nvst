@@ -1,0 +1,140 @@
+--TEST--
+`$uri->compareTo` is the lexicographic order over the seven component readers in their declared order — for every ordered pair of a corpus its answer is the answer the *first* reader that disagrees would give, and every one of the seven decides some pair — spec § 12, ADR 0013
+--FILE--
+<?nvs
+// The compositional question, which is the one no row of a table asks: not
+// "what did this pair answer" but "is the answer a function of the parts at
+// all". The neighbouring total-order case names two orderings by hand (a
+// scheme deciding before a host, a host before a path); this one predicts
+// every pair from the readers and counts the agreements, so a member that
+// grew its own comparison — over the text, or over a component the readers
+// cannot see — fails here while still printing plausibly on any single line.
+//
+// The corpus is deliberately free of percent-escapes and of dot segments, so
+// the only part of RFC 3986 § 6.2.2 the prediction has to reproduce by hand is
+// § 6.2.2.1's case fold on the scheme and the host. The other two rewrites
+// have their own cases.
+
+final class Part {
+    // § 6.2.2.1, applied to the two components it reaches and to no other.
+    public static function fold(?string $held): ?string {
+        if ($held != null) {
+            return Core\Str::lower($held);
+        }
+        return null;
+    }
+
+    // Two `?string` components ordered as the class orders them: absent before
+    // present, and `Core\Str::compare` otherwise, which is the only ordering
+    // two `string`s have (ADR 0007 § 4 gives them no `<`).
+    public static function texts(?string $a, ?string $b): int {
+        if ($a != null) {
+            if ($b != null) {
+                return Core\Str::compare($a, $b);
+            }
+            return 1;
+        }
+        if ($b != null) {
+            return 0 - 1;
+        }
+        return 0;
+    }
+
+    // The port is the one component that is a number, so it is the one the
+    // prediction cannot make out of `Core\Str::compare`.
+    public static function ports(?int $a, ?int $b): int {
+        if ($a != null) {
+            if ($b != null) {
+                if ($a < $b) { return 0 - 1; }
+                if ($a > $b) { return 1; }
+                return 0;
+            }
+            return 1;
+        }
+        if ($b != null) {
+            return 0 - 1;
+        }
+        return 0;
+    }
+
+    // Component `$index` of the two references, in the order the readers are
+    // declared on the class: scheme, userInfo, host, port, path, query,
+    // fragment. `path` is the one that is not nullable, so it is the one row
+    // that needs no absent-before-present rule.
+    public static function compare(string $left, string $right, int $index): int {
+        var $a = Core\Uri::parse($left);
+        var $b = Core\Uri::parse($right);
+        if ($index == 0) { return Part::texts(Part::fold($a->scheme()), Part::fold($b->scheme())); }
+        if ($index == 1) { return Part::texts($a->userInfo(), $b->userInfo()); }
+        if ($index == 2) { return Part::texts(Part::fold($a->host()), Part::fold($b->host())); }
+        if ($index == 3) { return Part::ports($a->port(), $b->port()); }
+        if ($index == 4) { return Core\Str::compare($a->path(), $b->path()); }
+        if ($index == 5) { return Part::texts($a->query(), $b->query()); }
+        return Part::texts($a->fragment(), $b->fragment());
+    }
+
+    // The index of the first reader that disagrees, or `7` when none does.
+    public static function decider(string $left, string $right): int {
+        int $index = 0;
+        while ($index < 7) {
+            if (Part::compare($left, $right, $index) != 0) {
+                return $index;
+            }
+            $index = $index + 1;
+        }
+        return 7;
+    }
+
+    // What the seven readers say the answer has to be.
+    public static function predict(string $left, string $right): int {
+        int $first = Part::decider($left, $right);
+        if ($first == 7) {
+            return 0;
+        }
+        return Part::compare($left, $right, $first);
+    }
+}
+
+// Nine references: one base, one differing from it only in what § 6.2.2.1
+// folds, and one per reader position. The port row is `:9` against `:8080`,
+// where a text ordering answers the opposite of a numeric one.
+array<string> $corpus = [
+    "http://u@a.example:8080/p?q#f",
+    "HTTP://u@A.EXAMPLE:8080/p?q#f",
+    "https://u@a.example:8080/p?q#f",
+    "http://v@a.example:8080/p?q#f",
+    "http://u@b.example:8080/p?q#f",
+    "http://u@a.example:9/p?q#f",
+    "http://u@a.example:8080/z?q#f",
+    "http://u@a.example:8080/p?r#f",
+    "http://u@a.example:8080/p?q#g",
+];
+
+// All 81 ordered pairs. The prediction is built out of the readers alone and
+// never looks at `compareTo`, so an agreement on every pair is the statement
+// that the member is the composition of its parts.
+int $pairs = 0;
+int $agreed = 0;
+foreach ($corpus as string $left) {
+    foreach ($corpus as string $right) {
+        $pairs = $pairs + 1;
+        if (Core\Uri::parse($left)->compareTo(Core\Uri::parse($right)) == Part::predict($left, $right)) {
+            $agreed = $agreed + 1;
+        }
+    }
+}
+echo "pairs ", $pairs, " agreeing with the readers ", $agreed, "\n";
+
+// The prediction is only worth as much as the corpus reaches, so the second
+// half says which reader decided the base against each of the other eight:
+// `7` for the base itself and for the pair § 6.2.2.1 makes equivalent, then
+// `0` through `6` once each.
+// Every position in the tuple gets to decide, which is what stops the count
+// above from being satisfied by a member that only ever looks at the scheme.
+foreach ($corpus as string $other) {
+    echo Part::decider("http://u@a.example:8080/p?q#f", $other);
+}
+echo "\n";
+--EXPECT--
+pairs 81 agreeing with the readers 81
+770123456

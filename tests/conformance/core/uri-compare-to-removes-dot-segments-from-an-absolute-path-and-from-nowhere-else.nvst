@@ -1,0 +1,102 @@
+--TEST--
+`$uri->compareTo` applies RFC 3986 § 5.2.4 to an *absolute* path and to nothing else: the same six rewrites all hold with a leading `/` and none of them holds without one, a query and a fragment keep their dot segments, and § 5.2.4's two trailing cases leave the path ending in `/` — spec § 12, RFC 3986 § 6.2.2.3
+--FILE--
+<?nvs
+// § 6.2.2.3 is the one of § 6.2.2's three rewrites with a *precondition*, and
+// the precondition is the whole content: a relative reference's leading `..`
+// is meaningful until something resolves it, so folding it away would answer
+// that `../a` and `a` are one URI when they are two references to two
+// different resources. That is a claim about a boundary, so both sides of it
+// are counted over the same six rewrites rather than shown once each.
+
+final class Same {
+    public static function uris(string $a, string $b): int {
+        return Core\Uri::parse($a)->compareTo(Core\Uri::parse($b));
+    }
+}
+
+// The six rewrites, written as the path an author would write and the path
+// § 5.2.4 leaves. Under an authority every path is absolute, so all six hold.
+array<string> $written = [
+    "http://h/a/../b",
+    "http://h/a/./b",
+    "http://h/a/b/../../c",
+    "http://h/../a",
+    "http://h/a/..",
+    "http://h/a/.",
+];
+array<string> $folded = [
+    "http://h/b",
+    "http://h/a/b",
+    "http://h/c",
+    "http://h/a",
+    "http://h/",
+    "http://h/a/",
+];
+int $at = 0;
+int $equal = 0;
+foreach ($written as string $long) {
+    if (Same::uris($long, $folded[$at as string]) == 0) { $equal = $equal + 1; }
+    $at = $at + 1;
+}
+echo "absolute paths folded ", $equal, " of 6\n";
+
+// The identical six with the leading `/` taken off, which is § 4.1's relative
+// reference: none of them holds. A member that ran `remove_dot_segments` over
+// every path would print `6` here and stay plausible on every row above.
+array<string> $relative = [
+    "a/../b",
+    "a/./b",
+    "a/b/../../c",
+    "../a",
+    "a/..",
+    "a/.",
+];
+array<string> $shortened = [
+    "b",
+    "a/b",
+    "c",
+    "a",
+    "",
+    "a/",
+];
+int $next = 0;
+int $stillEqual = 0;
+foreach ($relative as string $long) {
+    if (Same::uris($long, $shortened[$next as string]) == 0) { $stillEqual = $stillEqual + 1; }
+    $next = $next + 1;
+}
+echo "relative paths folded ", $stillEqual, " of 6\n";
+
+// A scheme does not make a path absolute — § 3.3's path-rootless is what
+// `http:a/../b` has — so the precondition is the leading `/` and not the
+// presence of a scheme or an authority. Named beside the path-absolute
+// spelling that differs from it by exactly that byte.
+echo "rootless ", Same::uris("http:a/../b", "http:b"),
+     " path-absolute ", Same::uris("http:/a/../b", "http:/b"), "\n";
+
+// The other axis of the same precondition: § 6.2.2.3 is about the *path*, so
+// a query and a fragment keep every dot segment they were written with, even
+// though the bytes are identical to the path row that folds.
+echo "query ", Same::uris("http://h/p?a/../b", "http://h/p?b"),
+     " fragment ", Same::uris("http://h/p#a/../b", "http://h/p#b"), "\n";
+
+// Two things a segment list makes easy to get wrong, both of them § 5.2.4's
+// own steps rather than anything this member invents. A trailing `.` or `..`
+// appends an empty segment, which is why the two rows above pair with paths
+// ending in `/` — `/a/..` is `/` and not the empty path, and `/a/.` is `/a/`
+// and not `/a`. And an *empty interior* segment is not a dot segment at all,
+// so `/a//b` keeps it.
+echo "trailing ", Same::uris("http://h/a/..", "http://h"),
+     " interior ", Same::uris("http://h/a//b", "http://h/a/b"), "\n";
+
+// Climbing above the root is a no-op rather than an error: § 5.2.4 step 2C
+// pops an empty buffer and carries on, so a path of nothing but `..` is `/`.
+echo "above ", Same::uris("http://h/../../..", "http://h/"), "\n";
+--EXPECT--
+absolute paths folded 6 of 6
+relative paths folded 0 of 6
+rootless -1 path-absolute 0
+query -1 fragment -1
+trailing 1 interior -1
+above 0

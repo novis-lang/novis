@@ -1,0 +1,106 @@
+--TEST--
+`$uri->compareTo`'s two normalizations have two different scopes: RFC 3986 § 6.2.2.1 folds case in exactly two of the six components that can hold a letter, while § 6.2.2.2 rewrites an escape in all five that can hold one — and normalizing an escape's spelling is never decoding it — spec § 12, ADR 0013
+--FILE--
+<?nvs
+// The neighbouring `uri-compares-by-normalized-components` case asks *whether*
+// each of § 6.2.2's three rewrites happens, one row each. This one asks how far
+// each reaches, which no single row can show: a member that lower-cased the
+// whole reference passes the scheme and host rows and fails the other four, and
+// one that normalized escapes in the path alone passes the path row and fails
+// four more. Both scopes are therefore counted over the components rather than
+// read off a line.
+
+final class Same {
+    public static function uris(string $a, string $b): int {
+        return Core\Uri::parse($a)->compareTo(Core\Uri::parse($b));
+    }
+}
+
+// § 6.2.2.1. One reference, and each of the six components that can hold a
+// letter re-spelled in upper case in turn. `port` is the seventh reader and
+// has no case to change, which is why the denominator is six and not seven.
+string $base = "http://u@a.example:8080/p?q#f";
+array<string> $cased = [
+    "HTTP://u@a.example:8080/p?q#f",
+    "http://U@a.example:8080/p?q#f",
+    "http://u@A.EXAMPLE:8080/p?q#f",
+    "http://u@a.example:8080/P?q#f",
+    "http://u@a.example:8080/p?Q#f",
+    "http://u@a.example:8080/p?q#F",
+];
+int $folded = 0;
+foreach ($cased as string $variant) {
+    if (Same::uris($base, $variant) == 0) { $folded = $folded + 1; }
+}
+echo "case-insensitive components ", $folded, " of 6\n";
+
+// Which two, named against the four either side of them: the scheme and the
+// host fold, the user info between them does not, and neither does anything
+// after the port. A host is case-insensitive because DNS is; a path is not,
+// because § 6.2.2.1 says only the scheme and the host are.
+echo "scheme ", Same::uris($base, "HTTP://u@a.example:8080/p?q#f"),
+     " userInfo ", Same::uris($base, "http://U@a.example:8080/p?q#f"),
+     " host ", Same::uris($base, "http://u@A.EXAMPLE:8080/p?q#f"), "\n";
+
+// § 6.2.2.2, first half: an escape spelling an *unreserved* character is that
+// character. Five components can hold an escape at all — a scheme is
+// `ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )` by § 3.1 and a port is digits —
+// and the rewrite reaches every one of them.
+array<string> $escaped = [
+    "http://%75@a.example:8080/p?q#f",
+    "http://u@%61.example:8080/p?q#f",
+    "http://u@a.example:8080/%70?q#f",
+    "http://u@a.example:8080/p?%71#f",
+    "http://u@a.example:8080/p?q#%66",
+];
+int $decoded = 0;
+foreach ($escaped as string $spelling) {
+    if (Same::uris($base, $spelling) == 0) { $decoded = $decoded + 1; }
+}
+echo "components decoding an unreserved escape ", $decoded, " of 5\n";
+
+// § 6.2.2.2, second half, over the same five: an escape spelling a *reserved*
+// octet stays an escape, but its two hex digits are upper case, so the two
+// spellings of one octet are one reference. `%2c` is a comma, which is a
+// sub-delimiter and so outside § 2.3's unreserved set in every component.
+array<string> $lowerHex = [
+    "http://u%2cv@a.example/p",
+    "http://a%2cb.example/p",
+    "http://a.example/p%2cq",
+    "http://a.example/p?x%2cy",
+    "http://a.example/p#x%2cy",
+];
+array<string> $upperHex = [
+    "http://u%2Cv@a.example/p",
+    "http://a%2Cb.example/p",
+    "http://a.example/p%2Cq",
+    "http://a.example/p?x%2Cy",
+    "http://a.example/p#x%2Cy",
+];
+int $at = 0;
+int $agreed = 0;
+foreach ($lowerHex as string $low) {
+    if (Same::uris($low, $upperHex[$at as string]) == 0) { $agreed = $agreed + 1; }
+    $at = $at + 1;
+}
+echo "components folding an escape's hex ", $agreed, " of 5\n";
+
+// The bound that half sits against, both sides named together: rewriting an
+// escape's *spelling* is not decoding it. `%2f` and `%2F` are one URI; neither
+// of them is a `/`, because a `/` in a path is a separator and an escaped one
+// is a byte inside a segment.
+echo "hex ", Same::uris("http://h/a%2fb", "http://h/a%2Fb"),
+     " decoded ", Same::uris("http://h/a%2fb", "http://h/a/b"), "\n";
+
+// The other end of § 6.2.2.2 has no row here and cannot have one: `normalized`
+// keeps a `%` that begins no escape as the byte it was written as, but `parse`
+// refuses such a reference outright (§ 4.1, "a `%` that does not begin a `%XX`
+// escape"), so no program can hand this member one. The branch is defensive
+// against a `Uri` built some other way, not behaviour a case can pin.
+
+--EXPECT--
+case-insensitive components 2 of 6
+scheme 0 userInfo 1 host 0
+components decoding an unreserved escape 5 of 5
+components folding an escape's hex 5 of 5
+hex 0 decoded -1
