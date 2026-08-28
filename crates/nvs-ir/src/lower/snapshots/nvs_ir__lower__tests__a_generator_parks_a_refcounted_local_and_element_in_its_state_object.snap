@@ -6,11 +6,13 @@ fn G::two(classdesc) -> object {
   bb0:
     safepoint
     v0 = param 0  ; classdesc
-    v1 = new G::two$gen()  ; object
+    v1 = new G::two$gen() ! bb1  ; object
     v2 = const.int 0  ; int
     field.set v1, G::two$gen::gen#state, v2
     field.set v1, G::two$gen::gen#unwind, v2
     return v1
+  bb1:
+    propagate "G::two() at t.nvs:1"
 }
 
 fn G::two$gen::advance(object) -> bool {

@@ -13,8 +13,8 @@ fn <script>() -> tagged {
     v3 = call Adder::bump(this: v1, v2) ! bb1  ; void
     v4 = ref.load v2  ; int
     ; stmt s2 @7:1-7:9
-    v5 = helper.int_to_string v4  ; string
-    helper.echo_str v5 ! bb2
+    v5 = helper.int_to_string v4 ! bb2  ; string
+    helper.echo_str v5 ! bb3
     release v5
     v6 = const.int 1  ; int
     v7 = tag v6  ; tagged
@@ -22,6 +22,8 @@ fn <script>() -> tagged {
   bb1:
     propagate "<script>() at t.nvs:6"
   bb2:
+    propagate "<script>() at t.nvs:7"
+  bb3:
     release v5
     propagate "<script>() at t.nvs:7"
 }

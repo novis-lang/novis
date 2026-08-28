@@ -199,8 +199,10 @@ class T {
 }
 
 /// Outside a `try`, a landing block releases the frame's live refcounted
-/// locals before the status travels onward — `nvs-codegen`'s known gap 3,
-/// stated as IR rather than left to the backend.
+/// locals before the status travels onward — stated as IR rather than left
+/// to the backend, which is what closed `nvs-codegen`'s known gap 3 for a
+/// `THROWN`. The two tests below extend the same sweep to every other
+/// non-`OK` status and to the `try`-protected exit.
 #[test]
 fn a_propagating_landing_block_releases_the_frames_live_strings() {
     let (f, map, file) = lower_script_src(
@@ -2897,6 +2899,107 @@ fn an_integer_modulo_carries_an_error_edge_and_a_float_division_does_not() {
     assert!(division.on_error.is_none(), "{division:?}");
 }
 
+/// Every instruction that *returns a status* carries a landing block,
+/// whether or not a program can recover from what that status says —
+/// [`Inst::on_error`](crate::ir::Inst::on_error) is that rule's one home and
+/// `nvs_codegen::emit`'s own `emit_status_check` refuses an arrival without
+/// one.
+///
+/// Asserted as a sweep over the whole function rather than off a named line,
+/// because the shapes that used to be exempt were exactly the ones no
+/// `catch` can act on — a conversion helper, the truthy table, a `??` read.
+/// A case naming one of them would go green while the rest slipped back, and
+/// what the exemption cost was a leak of every local the frame held.
+/// `BinOp`/`UnOp` are left out here on purpose: only ADR 0007 § 4's checked
+/// integer rows return a status at all, and the neighbouring
+/// `an_integer_modulo_carries_an_error_edge_and_a_float_division_does_not`
+/// pins both halves of that split.
+#[test]
+fn every_status_returning_instruction_carries_a_landing_block() {
+    let (f, map, file) = lower_script_src(concat!(
+        "<?nvs\n",
+        "string $s = \"x\";\n",
+        "int $n = 7;\n",
+        "array<string> $a = [\"k\" => \"v\"];\n",
+        "mixed $m = $a;\n",
+        "if ($s) { echo $s, $n, \"\\n\"; }\n",
+        "string $got = $a[\"k\"];\n",
+        "mixed $opt = $m[\"nope\"] ?? \"d\";\n",
+        "echo $got, $opt as string, \"\\n\";\n",
+    ));
+    let mut checked = 0;
+    for inst in f.blocks.iter().flat_map(|b| &b.insts) {
+        let returns_status = matches!(
+            inst.kind,
+            InstKind::HelperCall { .. }
+                | InstKind::CoreCall { .. }
+                | InstKind::Call { .. }
+                | InstKind::CallVirtual { .. }
+                | InstKind::New { .. }
+                | InstKind::NewDynamic { .. }
+                | InstKind::SlotGet { .. }
+                | InstKind::SlotSet { .. }
+                | InstKind::ArrayGet { .. }
+                | InstKind::ArrayAppend { .. }
+                | InstKind::ArraySpread { .. }
+        );
+        if returns_status {
+            checked += 1;
+            assert!(
+                inst.on_error.is_some(),
+                "a status-returning instruction with no landing block: {inst:?}"
+            );
+        }
+    }
+    // The fixture is only evidence if it actually reaches the shapes the
+    // exemption used to cover, so the count is asserted rather than assumed.
+    assert!(checked >= 8, "{}", print_function(&f, map.file(file)));
+}
+
+/// [`Terminator::Catch`]'s second exit, and the other half of the rule
+/// above: a landing block inside a `try` releases no local on its way to the
+/// handler, so a status the handler never sees has to leave by a block that
+/// performs the same sweep a `Propagate` at an unprotected site does.
+/// Without it a `FATAL` or an `EXITED` raised inside any `try` leaked the
+/// whole frame.
+#[test]
+fn an_uncatchable_status_leaves_a_try_through_a_block_that_releases_the_locals() {
+    let (f, _, _) = lower_script_src(concat!(
+        "<?nvs\n",
+        "string $s = \"x\";\n",
+        "try {\n",
+        "  echo $s, \"\\n\";\n",
+        "} catch (Throwable $e) {\n",
+        "  echo \"caught\\n\";\n",
+        "}\n",
+    ));
+    let onward = f
+        .blocks
+        .iter()
+        .find_map(|b| match b.term {
+            Terminator::Catch { onward, .. } => Some(onward),
+            _ => None,
+        })
+        .expect("the fixture lowers one protected call");
+    let block = f
+        .blocks
+        .iter()
+        .find(|b| b.id.index() == onward.index())
+        .expect("the onward block exists");
+    assert!(
+        block
+            .insts
+            .iter()
+            .any(|i| matches!(i.kind, InstKind::Release { .. })),
+        "the uncatchable exit released nothing: {block:?}"
+    );
+    assert!(
+        matches!(block.term, Terminator::Propagate { .. }),
+        "{:?}",
+        block.term
+    );
+}
+
 /// A file declaring no class still lowers, and still carries both rosters
 /// no source declares — `nvs_hir::errors`' exception tree, with its one
 /// synthesized constructor, and `nvs_hir::interfaces`' four global
@@ -3335,9 +3438,15 @@ bool $differ = $mac != $sent;
 /// `array<T>` by declaration.
 ///
 /// Read off the rendering rather than snapshotted, because what is pinned
-/// is *which* entry point each of the two reads takes and which of them
-/// can throw — a snapshot would go red for any unrelated renumbering and
-/// say nothing about either.
+/// is *which* entry point each of the two reads takes — a snapshot would go
+/// red for any unrelated renumbering and say nothing about that.
+///
+/// Both carry an error edge, and that is not what tells them apart: every
+/// instruction returning a status does, whether or not a *program* can fail
+/// in it, so that an uncatchable one leaves the frame swept
+/// ([`Inst::on_error`](crate::ir::Inst::on_error)). What the guarded read
+/// answers for an absent key or a non-array tag is `null`, and that is a
+/// value rather than an edge.
 #[test]
 fn a_subscript_through_a_tagged_base_lowers() {
     let (f, map, file) = lower_first_method(concat!(
@@ -3355,17 +3464,10 @@ fn a_subscript_through_a_tagged_base_lowers() {
          is an internal inconsistency rather than a catchable throw: {text}"
     );
     for line in text.lines() {
-        if line.contains("value_index_get") {
+        if line.contains("value_index_get") || line.contains("value_index_optional_get") {
             assert!(
                 line.contains(" ! bb"),
-                "the unguarded read lost the error edge an absent key and a \
-                 non-array tag both leave by: {line}"
-            );
-        }
-        if line.contains("value_index_optional_get") {
-            assert!(
-                !line.contains(" ! bb"),
-                "the guarded read grew an error edge it has no failure for: {line}"
+                "a status-returning read with no landing block: {line}"
             );
         }
     }

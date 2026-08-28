@@ -1313,13 +1313,14 @@ impl<'a> Lowering<'a> {
                     let row_ty = self.row_ty_of(level);
                     let array = *arrays.last().expect("pushed the root above");
                     let (row, _) = match *key {
-                        Some((key_v, _)) => self.emit(
+                        Some((key_v, _)) => self.emit_fallible(
                             *cur,
                             row_ty,
                             InstKind::HelperCall {
                                 helper: Helper::ArrayRowForWrite,
                                 args: vec![array, key_v],
                             },
+                            env,
                         ),
                         // An append level has nothing to descend *into*: PHP
                         // starts a fresh row and the climb below appends it,

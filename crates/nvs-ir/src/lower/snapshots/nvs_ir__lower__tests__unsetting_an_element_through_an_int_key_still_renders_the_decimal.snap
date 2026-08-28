@@ -1,5 +1,5 @@
 ---
-source: crates/nvs-ir/src/lower/mod.rs
+source: crates/nvs-ir/src/lower/tests.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn m(object, array) -> void {
@@ -9,10 +9,14 @@ fn m(object, array) -> void {
     v1 = param 1  ; array
     ; stmt s0 @4:5-4:18
     v2 = const.int 0  ; int
-    v3 = helper.int_to_string v2  ; string
+    v3 = helper.int_to_string v2 ! bb1  ; string
     v4 = array.unset v1, v3  ; array
     release v3
     release v4
     release v0
     return
+  bb1:
+    release v1
+    release v0
+    propagate "m() at t.nvs:4"
 }

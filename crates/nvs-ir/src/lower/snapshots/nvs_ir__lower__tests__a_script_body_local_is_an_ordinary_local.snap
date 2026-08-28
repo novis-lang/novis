@@ -11,8 +11,8 @@ fn <script>() -> tagged {
     v1 = const.int 2  ; int
     v2 = add v0, v1 ! bb1  ; int
     ; stmt s2 @4:1-4:9
-    v3 = helper.int_to_string v2  ; string
-    helper.echo_str v3 ! bb2
+    v3 = helper.int_to_string v2 ! bb2  ; string
+    helper.echo_str v3 ! bb3
     release v3
     v4 = const.int 1  ; int
     v5 = tag v4  ; tagged
@@ -20,6 +20,8 @@ fn <script>() -> tagged {
   bb1:
     propagate "<script>() at t.nvs:3"
   bb2:
+    propagate "<script>() at t.nvs:4"
+  bb3:
     release v3
     propagate "<script>() at t.nvs:4"
 }

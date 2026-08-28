@@ -1,5 +1,5 @@
 ---
-source: crates/nvs-ir/src/lower/mod.rs
+source: crates/nvs-ir/src/lower/tests.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn m(object) -> int {
@@ -12,7 +12,7 @@ fn m(object) -> int {
     v2 = call T::inner(this: v1) ! bb3  ; int
     ; stmt s2 @7:7-7:19
     v3 = const.str "done"  ; string
-    helper.echo_str v3 ! bb4
+    helper.echo_str v3 ! bb5
     release v3
     release v0
     return v2
@@ -20,23 +20,26 @@ fn m(object) -> int {
     v4 = take.thrown  ; object
     ; stmt s3 @7:7-7:19
     v5 = const.str "done"  ; string
-    helper.echo_str v5 ! bb5
+    helper.echo_str v5 ! bb6
     release v5
-    throw v4 -> bb6
+    throw v4 -> bb7
   bb2:
     release v0
     return
   bb3:
-    catch -> bb1
+    catch -> bb1 else bb4
   bb4:
+    release v0
+    propagate "m() at t.nvs:5"
+  bb5:
     release v3
     release v0
     propagate "m() at t.nvs:7"
-  bb5:
+  bb6:
     release v5
     release v0
     propagate "m() at t.nvs:7"
-  bb6:
+  bb7:
     release v0
     propagate "m() at t.nvs:7"
 }

@@ -152,7 +152,7 @@ impl<'a> Lowering<'a> {
                 self.emit(cur, to, InstKind::Tag { operand: v })
             }
             (_, Ty::Bool) => {
-                let b = self.truthy_convert(v, from, cur);
+                let b = self.truthy_convert(v, from, cur, env);
                 if from.is_refcounted() && !self.aliasing_read(operand) {
                     self.emit_release(cur, v);
                 }
@@ -167,13 +167,14 @@ impl<'a> Lowering<'a> {
                     Ty::Decimal => Helper::DecimalToString,
                     _ => Helper::FloatToString,
                 };
-                self.emit(
+                self.emit_fallible(
                     cur,
                     Ty::Str,
                     InstKind::HelperCall {
                         helper,
                         args: vec![v],
                     },
+                    env,
                 )
             }
             // ADR 0007 § 2's "anything → `string`" row at `null`, and the same
@@ -440,19 +441,15 @@ impl<'a> Lowering<'a> {
             helper,
             args: vec![v],
         };
-        // One row still carries ADR 0002's error edge, and it is not the
-        // conversion failing: a `string` target may run the operand's own
-        // `toString()`, whose exception is the *program's* and propagates
-        // unchanged — `null` here means "this conversion had no answer" and
-        // nothing else (`Helper::ToStringOrNull`). The numeric rows and the
-        // `bytes` one cannot fault at all and are emitted plainly, so none of
-        // them pays for a landing block — a `bytes` target runs no user code,
-        // its two rows being one retag over the allocation already there.
-        let out = if to == Ty::Str {
-            self.emit_fallible(cur, Ty::Tagged, call, env)
-        } else {
-            self.emit(cur, Ty::Tagged, call)
-        };
+        // One row can *throw*, and it is not the conversion failing: a
+        // `string` target may run the operand's own `toString()`, whose
+        // exception is the *program's* and propagates unchanged — `null` here
+        // means "this conversion had no answer" and nothing else
+        // (`Helper::ToStringOrNull`). The numeric rows and the `bytes` one
+        // cannot fault at all, and still take the same edge, because every
+        // helper returns a status and an uncatchable one has to leave the
+        // frame swept (`Inst::on_error`).
+        let out = self.emit_fallible(cur, Ty::Tagged, call, env);
         if from.is_refcounted() && !self.aliasing_read(operand) {
             self.emit_release(cur, v);
         }
@@ -491,7 +488,13 @@ impl<'a> Lowering<'a> {
     /// position, so no program reaches it. [`Ty::Null`] *is* in the table and
     /// is reachable only from the literal `null`: a `?T` is one
     /// [`Ty::Tagged`] slot and takes that row instead.
-    pub(super) fn truthy_convert(&mut self, v: ValueId, ty: Ty, cur: BlockId) -> ValueId {
+    pub(super) fn truthy_convert(
+        &mut self,
+        v: ValueId,
+        ty: Ty,
+        cur: BlockId,
+        env: &Env,
+    ) -> ValueId {
         match ty {
             Ty::Bool => v,
             Ty::Int | Ty::Uint | Ty::Float | Ty::Decimal | Ty::Str | Ty::Bytes => {
@@ -514,24 +517,26 @@ impl<'a> Lowering<'a> {
                         unreachable!("matched above")
                     }
                 };
-                self.emit(
+                self.emit_fallible(
                     cur,
                     Ty::Bool,
                     InstKind::HelperCall {
                         helper,
                         args: vec![v],
                     },
+                    env,
                 )
                 .0
             }
             Ty::Array => {
-                self.emit(
+                self.emit_fallible(
                     cur,
                     Ty::Bool,
                     InstKind::HelperCall {
                         helper: Helper::ArrayTruthy,
                         args: vec![v],
                     },
+                    env,
                 )
                 .0
             }
@@ -554,13 +559,14 @@ impl<'a> Lowering<'a> {
             // moves into `Helper::ValueTruthy` and the arms above become the
             // cases where a static type already picked one.
             Ty::Tagged => {
-                self.emit(
+                self.emit_fallible(
                     cur,
                     Ty::Bool,
                     InstKind::HelperCall {
                         helper: Helper::ValueTruthy,
                         args: vec![v],
                     },
+                    env,
                 )
                 .0
             }
@@ -586,8 +592,9 @@ impl<'a> Lowering<'a> {
         ty: Ty,
         is_alias: bool,
         cur: BlockId,
+        env: &Env,
     ) -> ValueId {
-        let cond_v = self.truthy_convert(v, ty, cur);
+        let cond_v = self.truthy_convert(v, ty, cur, env);
         if ty.is_refcounted() && !is_alias {
             self.emit_release(cur, v);
         }
@@ -611,7 +618,8 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
     ) -> ValueId {
         let (v, ty) = self.lower_expr(cond, None, env, cur);
-        self.truthy_value(v, ty, self.aliasing_read(cond), *cur)
+        let is_alias = self.aliasing_read(cond);
+        self.truthy_value(v, ty, is_alias, *cur, env)
     }
 
     /// ADR 0007 § 2's `as` — the one conversion spelling. The target
@@ -974,8 +982,11 @@ impl<'a> Lowering<'a> {
             },
             args: vec![v, word],
         };
+        // The `null`-answering walk cannot fault, and still takes the error
+        // edge its checked twin does: every helper returns a status and an
+        // uncatchable one has to leave the frame swept (`Inst::on_error`).
         let out = if or_null {
-            self.emit(*cur, Ty::Tagged, call)
+            self.emit_fallible(*cur, Ty::Tagged, call, env)
         } else {
             self.emit_fallible(*cur, Ty::Array, call, env)
         };
@@ -1369,13 +1380,14 @@ impl<'a> Lowering<'a> {
             };
             let (wanted, _) = self.emit(*cur, ty, kind);
             let (equal, _) = if value_ty == Ty::Tagged {
-                self.emit(
+                self.emit_fallible(
                     *cur,
                     Ty::Bool,
                     InstKind::HelperCall {
                         helper: Helper::Identical,
                         args: vec![value, wanted],
                     },
+                    env,
                 )
             } else {
                 self.emit(

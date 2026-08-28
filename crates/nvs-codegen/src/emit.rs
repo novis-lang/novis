@@ -1831,12 +1831,11 @@ impl Emitter<'_, '_> {
                     .ins()
                     .jump(target, &[codegen::ir::BlockArg::Value(status)]);
             }
-            // The pre-error-edge shape `Self::emit_status_check` also keeps
-            // for a `None`: return the status onward, releasing nothing.
-            // Unreachable from `nvs_ir::lower`, which emits every one of
+            // The same internal-consistency check `Self::emit_status_check`
+            // makes, for the same reason: `nvs_ir::lower` emits every one of
             // these instructions through `emit_fallible`.
             None => {
-                self.b.ins().return_(&[status]);
+                return Err(internal("an arithmetic throw with no error edge"));
             }
         }
         Ok(())
@@ -2921,34 +2920,32 @@ impl Emitter<'_, '_> {
     /// the decision between propagating and entering a `catch`. The status
     /// travels there as that block's one parameter.
     ///
-    /// `None` keeps the pre-error-edge shape: return the status onward from a
-    /// bare fail block, releasing nothing. That is reached only by the
-    /// instructions whose sole non-`OK` outcome is a `FATAL` — see
-    /// `Inst::on_error`'s own doc comment, which states that consequence
-    /// rather than hiding it.
+    /// `None` is an internal-consistency check rather than a shape: an
+    /// instruction that returns a status carries a landing block, whatever
+    /// that status can be, because a `FATAL` and an `EXITED` leave the frame
+    /// too and leaving them no cleanup path leaked every local it held.
+    /// `Inst::on_error` is that rule's one home, and `nvs_ir::lower` emits
+    /// every such instruction through `Lowering::emit_fallible`, so an arrival
+    /// here is a `nvs-ir` site that used the plain `Lowering::emit` for one of
+    /// them.
     fn emit_status_check(
         &mut self,
         status: Value,
         on_error: Option<BlockId>,
     ) -> Result<Block, CodegenError> {
+        let Some(landing) = on_error else {
+            return Err(internal(
+                "a status-returning instruction with no error edge",
+            ));
+        };
         let failed = self
             .b
             .ins()
             .icmp_imm_s(IntCC::NotEqual, status, i64::from(OK));
         let cont = self.b.create_block();
-        match on_error {
-            Some(landing) => {
-                let target = self.block(landing)?;
-                let args = [codegen::ir::BlockArg::Value(status)];
-                self.b.ins().brif(failed, target, &args, cont, &[]);
-            }
-            None => {
-                let fail = self.b.create_block();
-                self.b.ins().brif(failed, fail, &[], cont, &[]);
-                self.b.switch_to_block(fail);
-                self.b.ins().return_(&[status]);
-            }
-        }
+        let target = self.block(landing)?;
+        let args = [codegen::ir::BlockArg::Value(status)];
+        self.b.ins().brif(failed, target, &args, cont, &[]);
         self.b.switch_to_block(cont);
         Ok(cont)
     }
@@ -3037,21 +3034,29 @@ impl Emitter<'_, '_> {
                     .call(callee, &[self.ctx_p, address, len, status]);
                 self.b.ins().return_(&[status]);
             }
-            Terminator::Catch { handler } => {
+            Terminator::Catch { handler, onward } => {
                 let status = self.landing_status()?;
                 // Only a `THROWN` is catchable: ADR 0020 keeps a `FATAL` out
                 // of every `catch`, at the type level in the language and by
-                // this comparison in the generated code.
+                // this comparison in the generated code. The other edge is a
+                // landing block of `nvs-ir`'s own — it ends in `Propagate`, so
+                // it takes the status as its one parameter exactly as this
+                // block did — and the frame's locals are released there rather
+                // than here, which is why this arm builds no block of its own.
                 let caught = self
                     .b
                     .ins()
                     .icmp_imm_s(IntCC::Equal, status, i64::from(THROWN));
                 let args = self.phi_args(block.id, *handler)?;
                 let target = self.block(*handler)?;
-                let onward = self.b.create_block();
-                self.b.ins().brif(caught, target, &args, onward, &[]);
-                self.b.switch_to_block(onward);
-                self.b.ins().return_(&[status]);
+                let onward = self.block(*onward)?;
+                self.b.ins().brif(
+                    caught,
+                    target,
+                    &args,
+                    onward,
+                    &[codegen::ir::BlockArg::Value(status)],
+                );
             }
             // No reachable target: `nvs_ir::ir::Terminator` is seven variants
             // and the arms above are all seven — `Return` in both its shapes,

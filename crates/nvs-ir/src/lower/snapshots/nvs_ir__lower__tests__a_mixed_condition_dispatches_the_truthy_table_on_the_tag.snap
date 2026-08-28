@@ -1,5 +1,5 @@
 ---
-source: crates/nvs-ir/src/lower/mod.rs
+source: crates/nvs-ir/src/lower/tests.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn m(object, tagged) -> bool {
@@ -8,15 +8,19 @@ fn m(object, tagged) -> bool {
     v0 = param 0  ; object
     v1 = param 1  ; tagged
     ; stmt s0 @4:5-6:6
-    v2 = helper.value_truthy v1  ; bool
-    branch v2 -> bb2 (e0), bb1 (e1)
+    v2 = helper.value_truthy v1 ! bb1  ; bool
+    branch v2 -> bb3 (e0), bb2 (e1)
   bb1:
+    release v0
+    release v1
+    propagate "m() at t.nvs:4"
+  bb2:
     ; stmt s3 @7:5-7:18
     v4 = const.bool false  ; bool
     release v0
     release v1
     return v4
-  bb2:
+  bb3:
     ; stmt s1 @4:13-6:6
     ; stmt s2 @5:7-5:19
     v3 = const.bool true  ; bool

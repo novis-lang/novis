@@ -8,7 +8,7 @@ fn T::make(classdesc, ref) -> object {
     v0 = param 0  ; classdesc
     v1 = param 1  ; ref
     ; stmt s0 @4:5-4:32
-    v2 = new T$fn0()  ; object
+    v2 = new T$fn0() ! bb1  ; object
     v3 = const.int 0  ; int
     field.set v2, T$fn0::fn#arity, v3
     v4 = const.int 0  ; int
@@ -17,6 +17,8 @@ fn T::make(classdesc, ref) -> object {
     retain v5
     field.set v2, T$fn0::s, v5
     return v2
+  bb1:
+    propagate "T::make() at t.nvs:4"
 }
 
 fn T$fn0::invoke(object) -> string {

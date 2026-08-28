@@ -1,5 +1,5 @@
 ---
-source: crates/nvs-ir/src/lower.rs
+source: crates/nvs-ir/src/lower/tests.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn m(object) -> bool {
@@ -9,18 +9,21 @@ fn m(object) -> bool {
     ; stmt s0 @4:5-6:6
     v1 = class.of v0  ; classdesc
     v2 = call T::make(this: v1) ! bb1  ; array
-    v3 = helper.array_truthy v2  ; bool
+    v3 = helper.array_truthy v2 ! bb2  ; bool
     release v2
-    branch v3 -> bb3 (e0), bb2 (e1)
+    branch v3 -> bb4 (e0), bb3 (e1)
   bb1:
     release v0
     propagate "m() at t.nvs:4"
   bb2:
+    release v0
+    propagate "m() at t.nvs:4"
+  bb3:
     ; stmt s3 @7:5-7:18
     v5 = const.bool false  ; bool
     release v0
     return v5
-  bb3:
+  bb4:
     ; stmt s1 @4:23-6:6
     ; stmt s2 @5:7-5:19
     v4 = const.bool true  ; bool

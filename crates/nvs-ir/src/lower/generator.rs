@@ -614,7 +614,10 @@ pub(super) fn lower_generator_factory(
     let (recv_v, _) = low.emit(entry, recv_ty, InstKind::Param(0));
     let mut param_tys = vec![recv_ty];
 
-    let (gen_v, _) = low.emit(
+    // The landing block is over an empty `Env` because that is what this
+    // frame holds here: the state object is the first thing it allocates, so
+    // a failing status has nothing of its own to release and only propagates.
+    let (gen_v, _) = low.emit_fallible(
         entry,
         Ty::Object,
         InstKind::New {
@@ -622,6 +625,7 @@ pub(super) fn lower_generator_factory(
             ctor: None,
             args: Vec::new(),
         },
+        &Env::default(),
     );
     let (zero, _) = low.emit(entry, Ty::Int, InstKind::ConstInt(0));
     low.emit_field_set(entry, gen_v, class.to_owned(), GEN_STATE.to_owned(), zero);
@@ -969,7 +973,13 @@ pub(super) fn lower_generator_unwind(
     // The retain is what makes argument 0 *borrowed* — see this function's own
     // doc comment for why this one method inverts the convention.
     low.emit_retain(resume, gen_v);
-    low.emit(
+    // Over an empty `Env` for `generator_factory`'s reason: this entry point
+    // binds no local of its own, and the reference it holds on `gen_v` is the
+    // one `advance` consumes on either edge. A status coming back out of it
+    // is the caller's — `nvs_runtime::object::dismantle` reached this from a
+    // release path, and `Ctx::with_pending_set_aside` is what decides what
+    // becomes of a throw raised there.
+    low.emit_fallible(
         resume,
         Ty::Bool,
         InstKind::Call {
@@ -977,6 +987,7 @@ pub(super) fn lower_generator_unwind(
             receiver: Some(gen_v),
             args: Vec::new(),
         },
+        &Env::default(),
     );
     low.seal(resume, Terminator::Return(None));
 

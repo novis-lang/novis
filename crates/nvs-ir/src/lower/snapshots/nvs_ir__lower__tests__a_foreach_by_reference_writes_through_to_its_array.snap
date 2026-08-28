@@ -1,5 +1,5 @@
 ---
-source: crates/nvs-ir/src/lower/mod.rs
+source: crates/nvs-ir/src/lower/tests.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn m(object, array) -> void {
@@ -19,12 +19,12 @@ fn m(object, array) -> void {
     branch v7 -> bb2 (e0), bb3 (e1)
   bb2:
     v8 = const.int 1  ; int
-    v9 = add v5, v8  ; int
+    v9 = add v5, v8 ! bb4  ; int
     v10 = array.value_at v4, v5  ; int
     ; stmt s1 @4:34-6:6
     ; stmt s2 @5:7-5:19
     v11 = const.int 1  ; int
-    v12 = add v10, v11 ! bb4  ; int
+    v12 = add v10, v11 ! bb5  ; int
     v13 = array.key_at v4, v5  ; string
     v14 = array.set v4, v13, v12  ; array
     safepoint
@@ -34,6 +34,10 @@ fn m(object, array) -> void {
     release v0
     return
   bb4:
+    release v4
+    release v0
+    propagate "m() at t.nvs:4"
+  bb5:
     release v4
     release v0
     propagate "m() at t.nvs:5"

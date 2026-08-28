@@ -214,7 +214,10 @@ impl BasicBlock {
             Terminator::Return(_) | Terminator::Propagate { .. } => {}
             Terminator::Jump(target) => out.push(*target),
             Terminator::Throw { landing, .. } => out.push(*landing),
-            Terminator::Catch { handler } => out.push(*handler),
+            Terminator::Catch { handler, onward } => {
+                out.push(*handler);
+                out.push(*onward);
+            }
             Terminator::Switch { arms, default, .. } => {
                 out.extend(arms.iter().map(|(_, target, _)| *target));
                 out.push(*default);
@@ -247,32 +250,45 @@ pub struct Inst {
     /// the landing block a non-`OK` status returned by this instruction
     /// branches to.
     ///
-    /// `Some` for the instructions that can actually fail: [`InstKind::Call`],
-    /// [`InstKind::CallVirtual`], [`InstKind::New`],
-    /// [`InstKind::NewDynamic`], the two [`InstKind::HelperCall`]s that leave
-    /// by a non-`OK` status ([`Helper::EchoStr`]'s write, which can fail, and
-    /// [`Helper::Exit`], whose success *is* one), and **every integer
-    /// arithmetic row** — `+`, `-`, `*`, `/` and `%` over
+    /// **`Some` for every instruction that returns a status at all**, which is
+    /// the rule rather than a list of the ones a *program* can fail in:
+    /// [`InstKind::Call`], [`InstKind::CallVirtual`], [`InstKind::New`],
+    /// [`InstKind::NewDynamic`], [`InstKind::CoreCall`], every
+    /// [`InstKind::HelperCall`], [`InstKind::SlotGet`]/[`InstKind::SlotSet`],
+    /// [`InstKind::ArrayGet`] in both of [`crate::ir::AbsentKey`]'s shapes,
+    /// [`InstKind::ArrayAppend`], [`InstKind::ArraySpread`], and **every
+    /// integer arithmetic row** — `+`, `-`, `*`, `/` and `%` over
     /// [`crate::ty::Ty::Int`]/[`crate::ty::Ty::Uint`] as an
     /// [`InstKind::BinOp`], and unary `-` over the same two as an
-    /// [`InstKind::UnOp`]. All six throw
+    /// [`InstKind::UnOp`]. All six of those throw
     /// [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4's
     /// `ArithmeticError`: the two divisions on a zero divisor, and the other
     /// four on overflow, which that section makes a throw rather than a wrap
     /// or a promotion to `float`. None of the six is a call at all —
     /// `nvs-codegen` tests and raises inline, so this edge is the frame's
-    /// cleanup path and nothing else. `None` everywhere else, which is not a
-    /// gap in two different ways — a comparison, a float row and a
-    /// [`InstKind::Concat`] return no status at all, and a *conversion*
-    /// helper (`Helper::IntToString`, the truthy table) returns one whose only
-    /// non-`OK` value is the miscompile guard `nvs_runtime::helpers` describes:
-    /// a `FATAL`, which no cleanup path and no `catch` can act on, so giving
-    /// it a landing block would emit code for an outcome that ends the request
-    /// regardless.
+    /// cleanup path and nothing else. `None` is for the instructions that
+    /// return no status to check: a comparison, a float row, an
+    /// [`InstKind::Concat`], a constant, a phi, a refcount operation, a
+    /// relabelling.
     ///
-    /// The consequence is stated rather than hidden: a `FATAL` raised inside a
-    /// frame does not release that frame's locals. A `THROWN` — the one a
-    /// program can produce and recover from — always does.
+    /// **A status a `catch` cannot act on still gets a landing block**, and
+    /// that is the whole reason the rule is phrased over the status rather
+    /// than over what a program can recover from. A conversion helper
+    /// (`Helper::IntToString`, the truthy table) fails only by the miscompile
+    /// guard `nvs_runtime::helpers` describes, `Helper::Exit`'s *success* is a
+    /// non-`OK` status, and a stack-limit or deadline stop can arrive out of
+    /// any call at all — each of those is a `FATAL` or an `EXITED` that ends
+    /// the request rather than something a `catch` selects. Giving them no
+    /// landing block was cheaper by a cold block per site and cost a leak of
+    /// the entire frame every time one fired, which is `O(requests served)`
+    /// growth on a shape an attacker can drive (unbounded recursion) and on
+    /// one an ordinary CLI program writes (`exit()`). The block is on the
+    /// failing edge, so nothing on the request path pays for it.
+    ///
+    /// [`Terminator::Catch`] is the other half: a landing block *inside* a
+    /// `try` releases no local on the way to its handler, so its `onward`
+    /// exit — the one an uncatchable status takes — is where those releases
+    /// live.
     ///
     /// The landing block it names holds exactly the
     /// [`InstKind::Release`]s this frame owes on the error path — the frame's
@@ -1673,8 +1689,9 @@ pub enum Helper {
     /// § 1's non-throwing form of [`Self::ToArrayOf`], over that helper's one
     /// implementation of the walk rather than a second copy of it. Answers
     /// `null` exactly where the checked spelling throws, and cannot fault at
-    /// all — the walk runs no user code — so, like
-    /// [`Self::ToBytesOrNull`], it is emitted with no landing block.
+    /// all — the walk runs no user code. Like [`Self::ToBytesOrNull`] it
+    /// still carries a landing block, because it still returns a status:
+    /// [`Inst::on_error`] is that rule's home.
     ToArrayOfOrNull,
     /// Writes one already-[`crate::ty::Ty::Str`] operand's cooked bytes to
     /// the process's standard output, unescaped — `echo`'s one and only
@@ -2183,16 +2200,28 @@ pub enum Terminator {
         frame: String,
     },
     /// A landing block's exit inside a `try`: on `THROWN`, enter `handler`;
-    /// on any other non-`OK` status, return it onward the way
-    /// [`Terminator::Propagate`] does.
+    /// on any other non-`OK` status, take `onward`.
     ///
     /// No frame is recorded here, and deliberately so: the backtrace holds the
     /// frames the exception actually unwound *out of*, and a caught throw
     /// never leaves this one. See `nvs_runtime::throwable`'s own docs for why
     /// that differs from PHP's construction-time stack snapshot.
+    ///
+    /// `onward` is a second landing block of this same frame, and it is what
+    /// makes the two exits release the same things. Entering `handler`
+    /// releases no local, because the handler and everything after it still
+    /// name them; leaving the frame instead has to drop every one, exactly as
+    /// [`Terminator::Propagate`] does at a site with no `catch` above it. A
+    /// `FATAL` and an `EXITED` are the statuses that take this edge — no
+    /// `catch` admits either ([ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md))
+    /// — so before it existed a `try` region turned every one of them into a
+    /// leak of the whole frame.
     Catch {
         /// The `catch` clause's handler block.
         handler: BlockId,
+        /// The uncatchable-status exit: releases this frame's locals and ends
+        /// in [`Terminator::Propagate`]. See above.
+        onward: BlockId,
     },
     /// An N-way branch on an integer value: the first arm whose case equals
     /// `value` is entered, `default` when none does.

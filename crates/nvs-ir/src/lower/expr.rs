@@ -456,9 +456,10 @@ impl<'a> Lowering<'a> {
             if !aliasing {
                 self.own_temporary(v);
             }
-            // The one conversion-free helper that can genuinely fail: a write
-            // to the request's output. See `Inst::on_error` for why the
-            // scalar-to-string conversions around it carry no landing block.
+            // The one conversion-free helper that can genuinely *throw*: a
+            // write to the request's output. The scalar-to-string conversions
+            // around it carry a landing block too, for the reason every
+            // status-returning instruction does — see `Inst::on_error`.
             let landing = self.landing_block(env);
             self.block_insts[cur.index() as usize].push(Inst {
                 result: None,
@@ -650,13 +651,14 @@ impl<'a> Lowering<'a> {
                         unreachable!("matched above")
                     }
                 };
-                let (sv, _) = self.emit(
+                let (sv, _) = self.emit_fallible(
                     *cur,
                     Ty::Str,
                     InstKind::HelperCall {
                         helper,
                         args: vec![v],
                     },
+                    env,
                 );
                 (sv, false)
             }
@@ -1345,7 +1347,7 @@ impl<'a> Lowering<'a> {
     ) -> (ValueId, Ty) {
         let (cond_v, cond_ty) = self.lower_expr(cond, None, env, cur);
         let cond_is_alias = self.aliasing_read(cond);
-        let truthy_v = self.truthy_convert(cond_v, cond_ty, *cur);
+        let truthy_v = self.truthy_convert(cond_v, cond_ty, *cur, env);
         let pre_block = *cur;
         if then.is_some() && cond_ty.is_refcounted() && !cond_is_alias {
             self.emit_release(pre_block, cond_v);
@@ -1596,13 +1598,14 @@ impl<'a> Lowering<'a> {
                 // widening to get there, `nvs-codegen`'s helper convention
                 // storing every argument as a 16-byte tagged `Value` already.
                 let (eq_v, _) = if cmp_subj_ty == Ty::Tagged || cmp_cond_ty == Ty::Tagged {
-                    self.emit(
+                    self.emit_fallible(
                         test_cur,
                         Ty::Bool,
                         InstKind::HelperCall {
                             helper: Helper::Identical,
                             args: vec![cmp_subj_v, cmp_cond_v],
                         },
+                        env,
                     )
                 } else {
                     // Not a refusal: `nvs_types` has already made every label
@@ -1898,13 +1901,14 @@ impl<'a> Lowering<'a> {
             Ty::Str => (v, Ty::Str, self.aliasing_read(expr)),
             Ty::Int => (v, Ty::Int, false),
             Ty::Uint => {
-                let (sv, _) = self.emit(
+                let (sv, _) = self.emit_fallible(
                     *cur,
                     Ty::Str,
                     InstKind::HelperCall {
                         helper: Helper::UintToString,
                         args: vec![v],
                     },
+                    env,
                 );
                 (sv, Ty::Str, false)
             }
@@ -1935,13 +1939,14 @@ impl<'a> Lowering<'a> {
         if ty != Ty::Int {
             return (v, aliasing);
         }
-        let (sv, _) = self.emit(
+        let (sv, _) = self.emit_fallible(
             *cur,
             Ty::Str,
             InstKind::HelperCall {
                 helper: Helper::IntToString,
                 args: vec![v],
             },
+            env,
         );
         (sv, false)
     }
@@ -2177,7 +2182,7 @@ impl<'a> Lowering<'a> {
         let class = class.clone();
         let ret = lower_checked_ty(*return_ty, self.checked_types);
         let names: Vec<String> = captures.iter().map(|(n, _)| n.clone()).collect();
-        let (obj, _) = self.emit(
+        let (obj, _) = self.emit_fallible(
             *cur,
             Ty::Object,
             InstKind::New {
@@ -2185,6 +2190,7 @@ impl<'a> Lowering<'a> {
                 ctor: None,
                 args: Vec::new(),
             },
+            env,
         );
         let arity = i64::try_from(fn_expr.params.len()).expect("a parameter list fits an i64");
         let (arity_v, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(arity));
@@ -3133,7 +3139,7 @@ impl<'a> Lowering<'a> {
              layout the two sides agree on"
         );
         let class = shape_class_label(&sorted);
-        let (obj, _) = self.emit(
+        let (obj, _) = self.emit_fallible(
             *cur,
             Ty::Object,
             InstKind::New {
@@ -3141,6 +3147,7 @@ impl<'a> Lowering<'a> {
                 ctor: None,
                 args: Vec::new(),
             },
+            env,
         );
         // What each field's initializer lowered to, keyed by name so the
         // list handed to `record_shape_class` is in the class's own sorted
@@ -3531,10 +3538,12 @@ impl<'a> Lowering<'a> {
                 absent,
             }
         };
-        let result = match absent {
-            AbsentKey::Throws => self.emit_fallible(*cur, result_ty, kind, env),
-            AbsentKey::Null => self.emit(*cur, result_ty, kind),
-        };
+        // Both shapes take an error edge, and for different reasons: the
+        // throwing one because an absent key is ADR 0002's own failure, the
+        // `null`-answering one because the primitive still returns a status
+        // and an uncatchable one has to leave the frame swept — see
+        // `Inst::on_error`.
+        let result = self.emit_fallible(*cur, result_ty, kind, env);
         if base_is_temporary {
             // That makes the whole expression a *fresh producer*, which is why
             // `Lowering::aliasing_read` reports an index read off a temporary

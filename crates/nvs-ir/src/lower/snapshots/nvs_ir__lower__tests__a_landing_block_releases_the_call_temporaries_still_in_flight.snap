@@ -15,27 +15,29 @@ fn <script>() -> tagged {
   bb1:
     v2 = take.thrown  ; object
     v3 = instanceof v2, Throwable  ; bool
-    branch v3 -> bb4 (e0), bb5 (e1)
+    branch v3 -> bb5 (e0), bb6 (e1)
   bb2:
     v5 = const.int 1  ; int
     v6 = tag v5  ; tagged
     return v6
   bb3:
     release v0
-    catch -> bb1
+    catch -> bb1 else bb4
   bb4:
+    propagate "<script>() at t.nvs:3"
+  bb5:
     ; stmt s2 @6:3-6:17
     v4 = const.str "caught"  ; string
-    helper.echo_str v4 ! bb6
+    helper.echo_str v4 ! bb7
     release v4
     release v2
     jump bb2
-  bb5:
-    throw v2 -> bb7
   bb6:
+    throw v2 -> bb8
+  bb7:
     release v4
     release v2
     propagate "<script>() at t.nvs:6"
-  bb7:
+  bb8:
     propagate "<script>() at t.nvs:6"
 }

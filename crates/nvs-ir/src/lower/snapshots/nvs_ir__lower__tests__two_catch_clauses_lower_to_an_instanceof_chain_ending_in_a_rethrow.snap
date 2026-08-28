@@ -13,40 +13,42 @@ fn <script>() -> tagged {
   bb1:
     v2 = take.thrown  ; object
     v3 = instanceof v2, LogicError  ; bool
-    branch v3 -> bb4 (e0), bb5 (e1)
+    branch v3 -> bb5 (e0), bb6 (e1)
   bb2:
     v7 = const.int 1  ; int
     v8 = tag v7  ; tagged
     return v8
   bb3:
-    catch -> bb1
+    catch -> bb1 else bb4
   bb4:
+    propagate "<script>() at t.nvs:6"
+  bb5:
     ; stmt s2 @8:3-8:16
     v4 = const.str "logic"  ; string
-    helper.echo_str v4 ! bb6
+    helper.echo_str v4 ! bb7
     release v4
     release v2
     jump bb2
-  bb5:
-    v5 = instanceof v2, IOError  ; bool
-    branch v5 -> bb7 (e2), bb8 (e3)
   bb6:
+    v5 = instanceof v2, IOError  ; bool
+    branch v5 -> bb8 (e2), bb9 (e3)
+  bb7:
     release v4
     release v2
     propagate "<script>() at t.nvs:8"
-  bb7:
+  bb8:
     ; stmt s3 @10:3-10:13
     v6 = const.str "io"  ; string
-    helper.echo_str v6 ! bb9
+    helper.echo_str v6 ! bb10
     release v6
     release v2
     jump bb2
-  bb8:
-    throw v2 -> bb10
   bb9:
+    throw v2 -> bb11
+  bb10:
     release v6
     release v2
     propagate "<script>() at t.nvs:10"
-  bb10:
+  bb11:
     propagate "<script>() at t.nvs:10"
 }

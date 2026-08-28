@@ -29,7 +29,8 @@
 //! ends in [`nvs_ir::ir::Terminator::Propagate`] (record this frame on the
 //! exception's backtrace, then return the status) or
 //! [`nvs_ir::ir::Terminator::Catch`] (on `THROWN`, enter the handler; anything
-//! else returns onward). A `throw` reaches the same block through
+//! else takes that terminator's `onward` block, which sweeps the frame the
+//! way a `Propagate` does). A `throw` reaches the same block through
 //! [`nvs_ir::ir::Terminator::Throw`], which raises the exception and jumps
 //! with a constant `THROWN`.
 //!
@@ -101,7 +102,10 @@
 //! Narrow by authorization, not by accident — `docs/agent/loop-goal.md` allows
 //! the first backend to be exactly as wide as `nvs run examples/hello.nvs`
 //! requires, and each gap below is a missing *lowering*, not a missing
-//! decision:
+//! decision. **A closed gap is deleted and its number retired**, never reused
+//! and never handed to a survivor, so the list has holes on purpose — every
+//! `nvs-codegen` gap N named anywhere else in the tree keeps meaning what it
+//! meant when it was written:
 //!
 //! Exceptions are ordinary objects here: `Ty::Throwable` is gone, a user class
 //! `extends Throwable` compiles like any other, and a typed `catch` is an
@@ -139,11 +143,6 @@
 //!    at [`nvs_ir::ir::Terminator::Branch`]'s lowering, which is the only one
 //!    of that ADR's three sites still missing — the statement-boundary probe
 //!    and the call-site `TRACE`/`PROFILE` pair are both emitted.
-//! 3. **A `FATAL` still leaks the frame's locals.** A `THROWN` does not: its
-//!    landing block releases them before the status travels on. The
-//!    asymmetry is `nvs_ir`'s, not this crate's — see
-//!    [`nvs_ir::ir::Inst::on_error`], which explains why an outcome no
-//!    cleanup path and no `catch` can act on gets no landing block at all.
 //! 4. **Two identical string literals are two data objects.** Each
 //!    `InstKind::ConstStr` emits its own immortal header and payload under its
 //!    own name, so a unit that writes `"id"` in forty places holds forty

@@ -1,5 +1,5 @@
 ---
-source: crates/nvs-ir/src/lower.rs
+source: crates/nvs-ir/src/lower/tests.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn m(object, int, int) -> int {
@@ -9,14 +9,17 @@ fn m(object, int, int) -> int {
     v1 = param 1  ; int
     v2 = param 2  ; int
     ; stmt s0 @4:5-4:21
-    v3 = helper.int_truthy v1  ; bool
-    branch v3 -> bb1 (e0), bb2 (e1)
+    v3 = helper.int_truthy v1 ! bb1  ; bool
+    branch v3 -> bb2 (e0), bb3 (e1)
   bb1:
-    jump bb3
+    release v0
+    propagate "m() at t.nvs:4"
   bb2:
-    jump bb3
+    jump bb4
   bb3:
-    v4 = phi [bb1: v1, bb2: v2]  ; int
+    jump bb4
+  bb4:
+    v4 = phi [bb2: v1, bb3: v2]  ; int
     release v0
     return v4
 }

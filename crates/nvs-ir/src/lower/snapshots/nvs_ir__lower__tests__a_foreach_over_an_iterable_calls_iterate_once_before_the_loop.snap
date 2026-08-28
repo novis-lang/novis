@@ -1,5 +1,5 @@
 ---
-source: crates/nvs-ir/src/lower/mod.rs
+source: crates/nvs-ir/src/lower/tests.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn m(object, object) -> void {
@@ -32,8 +32,8 @@ fn m(object, object) -> void {
     v7 = call.virtual v6::current else <abstract>(this: v3) ! bb6  ; int
     ; stmt s1 @4:29-6:6
     ; stmt s2 @5:7-5:15
-    v8 = helper.int_to_string v7  ; string
-    helper.echo_str v8 ! bb7
+    v8 = helper.int_to_string v7 ! bb7  ; string
+    helper.echo_str v8 ! bb8
     release v8
     safepoint
     jump bb2
@@ -48,6 +48,11 @@ fn m(object, object) -> void {
     release v0
     propagate "m() at t.nvs:4"
   bb7:
+    release v3
+    release v1
+    release v0
+    propagate "m() at t.nvs:5"
+  bb8:
     release v8
     release v3
     release v1

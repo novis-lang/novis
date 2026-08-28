@@ -1127,7 +1127,12 @@ impl<'a> Lowering<'a> {
         let mut body_env = header_env.clone();
         let mut body_cur = body_block;
         let (one_v, _) = self.emit(body_cur, Ty::Int, InstKind::ConstInt(1));
-        let (next_v, _) = self.emit(
+        // A slot index cannot reach `i64::MAX`, so this add never throws —
+        // but ADR 0007 § 4's checked `int` row is what `nvs-codegen` emits for
+        // it either way, and every instruction that returns a status carries a
+        // landing block (`Inst::on_error`). The block is on an edge no run
+        // takes.
+        let (next_v, _) = self.emit_fallible(
             body_cur,
             Ty::Int,
             InstKind::BinOp {
@@ -1135,6 +1140,7 @@ impl<'a> Lowering<'a> {
                 lhs: slot_v,
                 rhs: one_v,
             },
+            &body_env,
         );
         body_env.insert(cursor_name.clone(), (next_v, Ty::Int));
         if let Some(name) = &key_binding {

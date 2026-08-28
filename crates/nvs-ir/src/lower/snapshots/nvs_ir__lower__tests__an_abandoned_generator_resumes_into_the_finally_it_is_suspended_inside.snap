@@ -6,11 +6,13 @@ fn G::two(classdesc) -> object {
   bb0:
     safepoint
     v0 = param 0  ; classdesc
-    v1 = new G::two$gen()  ; object
+    v1 = new G::two$gen() ! bb1  ; object
     v2 = const.int 0  ; int
     field.set v1, G::two$gen::gen#state, v2
     field.set v1, G::two$gen::gen#unwind, v2
     return v1
+  bb1:
+    propagate "G::two() at t.nvs:1"
 }
 
 fn G::two$gen::advance(object) -> bool {
@@ -114,12 +116,14 @@ fn G::two$gen::gen#unwind(object) -> void {
     v4 = const.int 1  ; int
     field.set v0, G::two$gen::gen#unwind, v4
     retain v0
-    v5 = call G::two$gen::advance(this: v0)  ; bool
+    v5 = call G::two$gen::advance(this: v0) ! bb4  ; bool
     return
   bb2:
     return
   bb3:
     jump bb2
+  bb4:
+    propagate "G::two$gen::gen#unwind() at t.nvs:1"
 }
 
 fn <script>() -> tagged {

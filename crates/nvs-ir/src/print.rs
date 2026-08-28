@@ -343,8 +343,13 @@ fn print_term(out: &mut String, term: &Terminator) {
         Terminator::Propagate { frame } => {
             let _ = writeln!(out, "    propagate {frame:?}");
         }
-        Terminator::Catch { handler } => {
-            let _ = writeln!(out, "    catch -> {}", block_name(*handler));
+        Terminator::Catch { handler, onward } => {
+            let _ = writeln!(
+                out,
+                "    catch -> {} else {}",
+                block_name(*handler),
+                block_name(*onward)
+            );
         }
         Terminator::Switch {
             value,

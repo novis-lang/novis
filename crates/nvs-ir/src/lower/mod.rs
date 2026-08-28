@@ -1769,6 +1769,11 @@ impl<'a> Lowering<'a> {
     ///   handler and everything after it still name those locals, and the
     ///   binding each one has on the exception path travels through this
     ///   block's own entry in [`TryFrame::edges`] into the handler's phis.
+    ///   That exit is taken on a `THROWN` alone, so it comes with a second
+    ///   block for every other non-`OK` status — [`Terminator::Catch`]'s
+    ///   `onward` — which performs exactly the sweep the propagating exit
+    ///   above does, since such a status leaves the frame without the handler
+    ///   ever naming a thing.
     ///
     /// [`Self::owned_temporaries`] is released on **both** exits, ahead of
     /// either, and that is the one thing the asymmetry does not reach: a
@@ -1802,7 +1807,14 @@ impl<'a> Lowering<'a> {
         match innermost.map(|at| (at, self.try_stack[at].handler)) {
             Some((at, Some(handler))) => {
                 self.try_stack[at].edges.push((b, env.clone()));
-                self.seal(b, Terminator::Catch { handler });
+                // The uncatchable-status exit, and the one place this frame's
+                // locals are dropped on a path that neither returns nor enters
+                // a handler — see `Terminator::Catch`'s own doc comment.
+                let onward = self.new_block();
+                self.release_all_locals(onward, env, None);
+                let frame = self.frame_label();
+                self.seal(onward, Terminator::Propagate { frame });
+                self.seal(b, Terminator::Catch { handler, onward });
             }
             Some((_, None)) => unreachable!("rposition only matches a frame with a handler"),
             None => {

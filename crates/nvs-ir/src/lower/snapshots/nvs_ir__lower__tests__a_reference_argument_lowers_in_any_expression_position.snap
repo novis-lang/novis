@@ -13,17 +13,17 @@ fn <script>() -> tagged {
     v3 = ref.slot v0  ; ref
     v4 = call Adder::bump(this: v2, v3) ! bb1  ; int
     v5 = ref.load v3  ; int
-    v6 = helper.int_to_string v4  ; string
+    v6 = helper.int_to_string v4 ! bb2  ; string
     v7 = const.str " then "  ; string
-    v8 = helper.int_to_string v5  ; string
+    v8 = helper.int_to_string v5 ! bb3  ; string
     v9 = const.str " and "  ; string
     v10 = class.desc Adder  ; classdesc
     v11 = ref.slot v5  ; ref
-    v12 = call Adder::bump(this: v10, v11) ! bb2  ; int
+    v12 = call Adder::bump(this: v10, v11) ! bb4  ; int
     v13 = ref.load v11  ; int
-    v14 = helper.int_to_string v12  ; string
+    v14 = helper.int_to_string v12 ! bb5  ; string
     v15 = const.str " then "  ; string
-    v16 = helper.int_to_string v13  ; string
+    v16 = helper.int_to_string v13 ! bb6  ; string
     v17 = concat v1, v6, v7, v8, v9, v14, v15, v16  ; string
     release v1
     release v6
@@ -33,7 +33,7 @@ fn <script>() -> tagged {
     release v14
     release v15
     release v16
-    helper.echo_str v17 ! bb3
+    helper.echo_str v17 ! bb7
     release v17
     v18 = const.int 1  ; int
     v19 = tag v18  ; tagged
@@ -43,12 +43,36 @@ fn <script>() -> tagged {
     propagate "<script>() at t.nvs:6"
   bb2:
     release v1
+    propagate "<script>() at t.nvs:6"
+  bb3:
+    release v1
+    release v6
+    release v7
+    propagate "<script>() at t.nvs:6"
+  bb4:
+    release v1
     release v6
     release v7
     release v8
     release v9
     propagate "<script>() at t.nvs:6"
-  bb3:
+  bb5:
+    release v1
+    release v6
+    release v7
+    release v8
+    release v9
+    propagate "<script>() at t.nvs:6"
+  bb6:
+    release v1
+    release v6
+    release v7
+    release v8
+    release v9
+    release v14
+    release v15
+    propagate "<script>() at t.nvs:6"
+  bb7:
     release v17
     propagate "<script>() at t.nvs:6"
 }

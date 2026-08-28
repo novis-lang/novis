@@ -97,14 +97,12 @@ impl<'a> Lowering<'a> {
             ),
         };
         let inst = InstKind::HelperCall { helper, args };
-        // Only the arithmetic rows can fail: every one of them throws
+        // Only the arithmetic rows can *throw*: every one of them raises
         // `ArithmeticError` on either overflow kind, and `/` on a zero
-        // divisor. A comparison is total.
-        let (v, _) = if ty == Ty::Decimal {
-            self.emit_fallible(*cur, ty, inst, env)
-        } else {
-            self.emit(*cur, ty, inst)
-        };
+        // divisor. A comparison is total — and still takes an error edge,
+        // because every helper returns a status and an uncatchable one has to
+        // leave the frame swept (`Inst::on_error`).
+        let (v, _) = self.emit_fallible(*cur, ty, inst, env);
         if negate {
             return self.emit(
                 *cur,
@@ -205,7 +203,8 @@ impl<'a> Lowering<'a> {
     /// same way a bare `&&`/`||`/ternary does.
     pub(super) fn lower_not(&mut self, inner: &Expr, env: &mut Env, cur: &mut BlockId) -> ValueId {
         let (v, ty) = self.lower_expr(inner, None, env, cur);
-        let b = self.truthy_value(v, ty, self.aliasing_read(inner), *cur);
+        let is_alias = self.aliasing_read(inner);
+        let b = self.truthy_value(v, ty, is_alias, *cur, env);
         self.emit(
             *cur,
             Ty::Bool,
@@ -346,13 +345,14 @@ impl<'a> Lowering<'a> {
         // the mantissa is unsigned, so there is no asymmetric minimum
         // to overflow the way `-i64::MIN` does.
         if ty == Ty::Decimal && matches!(op, AstUnaryOp::Neg) {
-            return self.emit(
+            return self.emit_fallible(
                 *cur,
                 Ty::Decimal,
                 InstKind::HelperCall {
                     helper: Helper::DecimalNeg,
                     args: vec![v],
                 },
+                env,
             );
         }
         // ADR 0007 § 4's unary rows for the operand shape the binary arms above
@@ -553,13 +553,14 @@ impl<'a> Lowering<'a> {
         // into that row's own comparison.
         if matches!(op, BinaryOp::Eq | BinaryOp::NotEq) && (lty == Ty::Tagged || rty == Ty::Tagged)
         {
-            let (equal, _) = self.emit(
+            let (equal, _) = self.emit_fallible(
                 *cur,
                 Ty::Bool,
                 InstKind::HelperCall {
                     helper: Helper::Identical,
                     args: vec![lv, rv],
                 },
+                env,
             );
             // Released per operand rather than per pair: the two sides may
             // hold different representations here, which is the whole reason
@@ -718,13 +719,14 @@ impl<'a> Lowering<'a> {
             && matches!(lty, Ty::Int | Ty::Uint | Ty::Float)
             && matches!(rty, Ty::Int | Ty::Uint | Ty::Float)
         {
-            let (equal, _) = self.emit(
+            let (equal, _) = self.emit_fallible(
                 *cur,
                 Ty::Bool,
                 InstKind::HelperCall {
                     helper: Helper::NumericEq,
                     args: vec![lv, rv],
                 },
+                env,
             );
             // Nothing is released: every representation in this arm is a
             // scalar, so neither operand is `Ty::is_refcounted`.
@@ -764,13 +766,14 @@ impl<'a> Lowering<'a> {
                 Some(ExprInfo::SecretEquality)
             )
         {
-            let (equal, _) = self.emit(
+            let (equal, _) = self.emit_fallible(
                 *cur,
                 Ty::Bool,
                 InstKind::HelperCall {
                     helper: Helper::SecretEq,
                     args: vec![lv, rv],
                 },
+                env,
             );
             // Both operands are refcounted, and both are only *read* — the
             // same rule the `BinOp` table below applies to its own, written
@@ -812,13 +815,14 @@ impl<'a> Lowering<'a> {
             && matches!(lty, Ty::Int | Ty::Uint | Ty::Float)
             && matches!(rty, Ty::Int | Ty::Uint | Ty::Float)
         {
-            return self.emit(
+            return self.emit_fallible(
                 *cur,
                 Ty::Int,
                 InstKind::HelperCall {
                     helper: Helper::NumericCmp,
                     args: vec![lv, rv],
                 },
+                env,
             );
         }
         if matches!(
@@ -836,7 +840,7 @@ impl<'a> Lowering<'a> {
             };
             // Nothing is released: every representation in this arm is a
             // scalar, so neither operand is `Ty::is_refcounted`.
-            return self.emit(*cur, Ty::Bool, InstKind::HelperCall { helper, args });
+            return self.emit_fallible(*cur, Ty::Bool, InstKind::HelperCall { helper, args }, env);
         }
         // ADR 0007 § 4's "either operand a `float`" row, made real: the
         // checker types the pair `float`, but until here both operands still
