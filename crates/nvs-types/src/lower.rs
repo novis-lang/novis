@@ -573,6 +573,18 @@ fn resolve_name_type(
             env.interner.enum_(qname, backing)
         }
         Some(_) => env.interner.class(qname),
+        // A `Core`-owned enum is in no symbol table — nothing declared it —
+        // but `crate::enums` seeded it exactly as `lower_member_type` above
+        // reads it back for the `Core\Digest::Sha1` spelling. Without this
+        // arm a written `Core\Digest` annotation interned as `Ty::Class`,
+        // which no `Core` signature's `Ty::Enum` unified with: the two print
+        // the same qname, so the mismatch arrived as "expected `Core\Digest`,
+        // found `Core\Digest`" and a digest could not be passed through a
+        // parameter at all.
+        None if qname.is_core() && env.enums.get(&qname).is_some() => {
+            let backing = env.enums.backing_of(&qname);
+            env.interner.enum_(qname, backing)
+        }
         None if qname.is_core()
             || qname.is_reserved_global_class()
             || qname.is_reserved_global_interface() =>
@@ -691,6 +703,24 @@ mod tests {
             panic!("expected array<...>, got {:?}", interner.get(id));
         };
         assert!(matches!(interner.get(*elem), Ty::Class(q, _) if q.to_string() == "Foo"));
+    }
+
+    #[test]
+    fn a_core_enum_name_resolves_to_an_enum_type_not_a_class() {
+        // Nothing declares `Core\Digest`, so the symbol table has no entry for
+        // it and the `is_core()` arm below used to intern a `Ty::Class` — which
+        // no registry row's `Ty::Enum` unified with, though both print the same
+        // qname. `array<...>` for the same ADR 0015 § 6 reason as above.
+        let (id, interner, diags) = lower_alias("<?nvs\ntype Probe = array<Core\\Digest>;\n");
+        assert!(!diags.has_errors(), "{diags:?}");
+        let Ty::Array(elem) = interner.get(id) else {
+            panic!("expected array<...>, got {:?}", interner.get(id));
+        };
+        assert!(
+            matches!(interner.get(*elem), Ty::Enum(q, _) if q.to_string() == r"Core\Digest"),
+            "expected an enum type, got {:?}",
+            interner.get(*elem)
+        );
     }
 
     #[test]
