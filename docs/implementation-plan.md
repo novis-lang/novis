@@ -43,11 +43,13 @@
 > `python tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen` and attributes
 > each to its item (`--item N` for one in full), `python tools/loop.py --list` prints the named
 > `.nvst` cases each stage still owes, and `python tools/gaps.py` ranks the thinnest class now that
-> the corpus is past its floor and depth is what is left. **The acceptance gate is itself an open
-> item**: 1 of the 128 guard tests `loop-goal.toml` names match nothing `cargo test` would run, so
-> the check stops before it reaches them — [docs/agent/guard-name-debt.md](agent/guard-name-debt.md)
-> is the list and the three causes, and a session that lands a guard test reconciles its name there
-> in the same slice.
+> the corpus is past its floor and depth is what is left. **The acceptance gate's own names are all
+> live**: every one of the 128 guard tests `loop-goal.toml` names now matches a test `cargo test`
+> runs, so the check reaches its last block —
+> [docs/agent/guard-name-debt.md](agent/guard-name-debt.md) is the list and the three causes, and a
+> session that lands a guard test reconciles its name there in the same slice. Stage 8's own gate,
+> [crates/nvs-ir/tests/refusals.rs](../crates/nvs-ir/tests/refusals.rs), is what holds the line now:
+> it fails on any refusal site no open item claims, and carries a ceiling on the total.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

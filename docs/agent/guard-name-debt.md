@@ -17,8 +17,8 @@ for p in nvs-syntax nvs-hir nvs-types nvs-ir nvs-runtime nvs-codegen nvs-stdlib 
 ```
 
 then substring-match every `tests = [...]` entry in `loop-goal.toml` against that roster. Measured
-2026-08-28 at `e0c9f3e`: **54 of 156 named guard tests match nothing cargo would run.** **Fifty-three**
-of those have since been reconciled — the ticked lines below — leaving **1**, over the **128**
+2026-08-28 at `e0c9f3e`: **54 of 156 named guard tests match nothing cargo would run.** **All
+fifty-four** have since been reconciled — the ticked lines below — leaving **none**, over the **128**
 entries `tests = [...]` now holds across every `cargo-named` check (127 distinct: Stage 2 and Stage 5
 both name `a_disjoint_equality_does_not_compile`). Twenty-nine of the fifty-three were a cause-2
 *move* out of a `tests = [...]` list and into `cases`, so the denominator moves with them, and three
@@ -320,6 +320,8 @@ below (plus `a-test-attribute-builds-a-table-the-runner-reports.nvst`, already l
 
 ### Stage 8 — corpus and guards
 
-`nvs-ir (no refusal left)`, `cargo test -p nvs-ir` — 1 of 1 unresolved, **cause 3**
+`nvs-ir (no refusal left)`, `cargo test -p nvs-ir` — 0 of 1 unresolved, **cause 3**
 
-- [ ] `every_refusal_is_a_diagnostic_or_decided`
+- [x] `every_refusal_is_a_diagnostic_or_decided` — written as
+      [refusals.rs](../../crates/nvs-ir/tests/refusals.rs), which runs `tools/holes.py` over the
+      tree rather than carrying a second recognizer for a refusal site
