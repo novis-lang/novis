@@ -108,20 +108,19 @@ const ATOMS: &[&str] = &[
 /// `docs/agent/loop-goal.md`, and the test fails just as loudly on an entry
 /// that has *stopped* panicking — the ratchet only turns one way.
 const KNOWN_ICE: &[(&str, Position)] = &[
-    // Item 25. All three reach `erase_checked_ty`'s `_ => None` and then
-    // `lower_checked_ty`'s panic.
+    // Item 25's one remaining row. It reaches `erase_checked_ty`'s
+    // `_ => None` and then `lower_checked_ty`'s panic.
     //
-    // `never` has a **parameter** row as well as a return one, which is the
-    // finding this table exists for: ADR 0007 § 3 says `void` and `never` are
-    // return-only, `void` in a parameter is diagnosed, and `never` in a
-    // parameter is not — it type-checks and reaches the same panic. Closing
-    // this half is the checker's rule, not a representation.
-    ("never", Position::Param),
+    // `never` had a **parameter** row as well, which is the finding this table
+    // exists for: ADR 0007 § 3 says `void` and `never` are return-only, and
+    // neither was refused there — `never` panicked here and `void` lowered and
+    // died one crate further down. `E0742` refuses both at the declaration now
+    // (`nvs_types::signatures`). `iterable` and an intersection went the other
+    // way in the same slice and have representations (`Ty::Tagged` and the
+    // member fold), so what is left is `never` in a *return*, where the
+    // representation is the open question: a function that cannot return has
+    // no value to give one to.
     ("never", Position::Return),
-    ("iterable", Position::Param),
-    ("iterable", Position::Return),
-    ("Marker&Other", Position::Param),
-    ("Marker&Other", Position::Return),
 ];
 
 /// Where in a declaration the atom is written.

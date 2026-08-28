@@ -2885,19 +2885,53 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Opti
         // union that collects them. Everything else still admits more than
         // one runtime shape and is tagged, `?T` (`Union([Null, T])`) included:
         // `Ty::Null` and `Ty::Str` are two representations, not one.
-        CheckedTy::Union(members) => {
-            let mut shared: Option<Ty> = None;
-            for member in members {
-                match (erase_checked_ty(*member, checked_types), shared) {
-                    (Some(ty), None) => shared = Some(ty),
-                    (Some(ty), Some(seen)) if ty == seen => {}
-                    _ => return Some(Ty::Tagged),
-                }
-            }
-            shared.unwrap_or(Ty::Tagged)
-        }
+        CheckedTy::Union(members) => shared_erasure(members, checked_types),
+        // An intersection takes the *same* rule, for the same reason and with
+        // a different argument for it. A union is one of its members at run
+        // time; an intersection is all of them at once — but either way the
+        // question here is only how many runtime shapes the position admits,
+        // and a value satisfying `Marker&Other` is one object pointer exactly
+        // as a value satisfying `Marker|Other` is. So `A&B` over two class
+        // atoms is `Ty::Object`, and a spellable-but-uninhabitable pair like
+        // `int&string` is `Ty::Tagged` rather than a panic — the answer that
+        // is wrong for no value, since no value reaches it.
+        //
+        // ADR 0007 § 3 admits the type and `nvs_types::expr::assign` has no
+        // arm making anything assignable to one, so nothing can inhabit an
+        // intersection today; this arm is what lets the *declaration* compile
+        // rather than panic below a checker that accepted it.
+        CheckedTy::Intersection(members) => shared_erasure(members, checked_types),
+        // `iterable` is PHP's `array|Traversable` and Novis keeps that reading
+        // (ADR 0053 § 1): two runtime shapes, so the representation is the
+        // tagged one `mixed` and every other multi-shape position already
+        // uses. Deliberately **not** `Ty::Object` — an `array<T>` is not an
+        // object pointer, so the object erasure would be a correctness trap
+        // waiting for the day `assign` grows the arm that makes an array
+        // assignable here. Nothing is assignable to `iterable` today, so this
+        // arm is likewise the declaration's, not any value's.
+        CheckedTy::Iterable => Ty::Tagged,
         _ => return None,
     })
+}
+
+/// The one runtime shape a member list admits, or [`Ty::Tagged`] where it
+/// admits more than one.
+///
+/// Shared by the union and intersection arms of [`erase_checked_ty`]: both ask
+/// the same question — how many representations does this position hold — and
+/// ADR 0047 § 5's "there is no second representation" is what makes the answer
+/// a fold rather than a case analysis. A member with no erasure at all is one
+/// more shape below, so it tags too.
+fn shared_erasure(members: &[TypeId], checked_types: &TypeInterner) -> Ty {
+    let mut shared: Option<Ty> = None;
+    for member in members {
+        match (erase_checked_ty(*member, checked_types), shared) {
+            (Some(ty), None) => shared = Some(ty),
+            (Some(ty), Some(seen)) if ty == seen => {}
+            _ => return Ty::Tagged,
+        }
+    }
+    shared.unwrap_or(Ty::Tagged)
 }
 
 /// What an assignment stores, once its target's address is settled.

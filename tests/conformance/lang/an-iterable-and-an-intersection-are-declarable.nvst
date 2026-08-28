@@ -1,0 +1,42 @@
+--TEST--
+`iterable` and an intersection are declarable in both positions and compile to a representation — ADR 0007 § 3
+--FILE--
+<?nvs
+// ADR 0007 § 3's grammar spells both, and until this landed a program that
+// merely *declared* one type-checked and then panicked `nvs-ir` below the
+// checker that accepted it. Neither is inhabitable yet — `nvs_types::expr::assign`
+// has no arm making an `array<T>`, a generator or a class assignable to either
+// — so this case pins the declaration, which is exactly what the arms are for.
+interface Other {
+    public function other(): int;
+}
+
+final class Marker implements Other {
+    public function other(): int {
+        return 1;
+    }
+}
+
+final class Declares {
+    // `iterable` is `array|Traversable`: two runtime shapes, so it erases to
+    // the tagged representation rather than to an object pointer.
+    public static function takesIterable(iterable $p): void {}
+
+    public static function givesIterable(): iterable {
+        throw new LogicError("unreached");
+    }
+
+    // An intersection folds its members the way a union does — both of these
+    // are one object pointer, so `Marker&Other` is one too.
+    public static function takesBoth(Marker&Other $p): void {}
+
+    public static function givesBoth(): Marker&Other {
+        throw new LogicError("unreached");
+    }
+}
+
+// A class whose methods are never called still compiles, which is the claim.
+Marker $m = new Marker();
+echo $m->other(), "\n";
+--EXPECT--
+1
