@@ -58,11 +58,14 @@ body {
  * Top bar
  * ======================================================================== */
 
-.header {
+/* Two elements carry the class `header`: the `<header>` landmark, and the grid
+   Starlight lays the bar out with inside it. Chrome belongs on the landmark;
+   padding and columns are the grid's business and adding to them here shifts
+   everything in the bar by a gutter. */
+header.header {
   background: var(--nv-bg);
   border-block-end: 1px solid var(--nv-rule);
   box-shadow: var(--nv-shadow-sm);
-  padding-inline: 1rem;
 }
 
 /* Starlight draws a divider between stacked content panels — under the page
@@ -82,29 +85,55 @@ body {
   margin-block-start: 0;
 }
 
-/* The search button reads as a field, the way every docs site's does. */
-site-search button[data-open-modal] {
-  border: 1px solid var(--nv-rule-strong);
-  border-radius: var(--nv-radius);
-  background: var(--nv-bg-subtle);
-  color: var(--nv-text-muted);
-  font-size: 0.875rem;
-  padding: 0.35rem 0.6rem;
-  min-width: 12rem;
-  justify-content: flex-start;
-  gap: 0.5rem;
+/* ---- search -----------------------------------------------------------
+ *
+ * Starlight hands the button the whole free grid column — `width: 100%` up to
+ * 22rem — and leaves it against that column's left edge, so it renders as a
+ * 350px empty field floating in the middle of the bar with the shortcut hint
+ * stranded at the far end. A compact field at the right-hand end, next to the
+ * repository link, is both what the reference sites do and what stops the box
+ * dominating a header whose other contents are small.
+ *
+ * Everything here is scoped to >= 50rem, because below that Starlight replaces
+ * the field with a bare icon button. Styling that one as a field — a fixed
+ * min-width in particular — is what pushed it out under the menu button.
+ */
+@media (min-width: 50rem) {
+  site-search button[data-open-modal] {
+    /* The button is not a grid item: it sits inside a flex wrapper that fills
+       the grid's middle column, so an auto inline-start margin is what moves
+       it to the right-hand end. `justify-self` would be aimed at a grid parent
+       it does not have, and silently does nothing. */
+    margin-inline-start: auto;
+    width: 100%;
+    max-width: 15rem;
+    height: 2.25rem;
+    gap: 0.45rem;
+    padding-inline: 0.6rem 0.45rem;
+    border: 1px solid var(--nv-rule-strong);
+    border-radius: var(--nv-radius);
+    background: var(--nv-bg-subtle);
+    color: var(--nv-text-muted);
+    font-size: 0.875rem;
+  }
+
+  site-search button[data-open-modal]:hover {
+    border-color: var(--nv-accent);
+    background: var(--nv-bg);
+    color: var(--nv-text);
+  }
 }
 
-site-search button[data-open-modal]:hover {
-  border-color: var(--nv-accent);
-  color: var(--nv-text);
-}
-
+/* The hint reads as a key. Starlight tints it with the same grey as the field
+   itself, which makes it disappear into the background it sits on. */
 site-search button[data-open-modal] > kbd {
   background: var(--nv-bg);
   border: 1px solid var(--nv-rule);
   border-radius: var(--nv-radius-sm);
   color: var(--nv-text-faint);
+  font-size: 0.6875rem;
+  padding-inline: 0.3rem;
+  line-height: 1.4;
 }
 
 /* ======================================================================== *
