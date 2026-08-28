@@ -1773,6 +1773,16 @@ is why" — is this file.
   reads it with `?->` plus a `??`, rather than narrowing once at the top and trusting it. In
   the same family and cheaper to hit: `foreach ($m?->groups() as …)` is `E0443` outright, the
   nullsafe chain's own `null` being part of the iterated type.
+- **How a case counts what a callback did: ADR 0031 § 2's `Counter` object, at file scope, in a
+  block-bodied `fn`.** A closure captures by value and there is no `use (&$n)`, so "was this callback
+  called, and how often" looks unaskable from a `.nvst` case — but a captured *object* is still shared,
+  and the whole shape lowers today: `final class Seen { public int $calls = 0; }`, `var $t = new
+  Seen();`, then `fn (Core\Regex\Match $m): string => { $t->calls = $t->calls + 1; return "X"; }` handed
+  straight to `Core\Regex::replaceWith`. The counter is readable after the member returns, which is what
+  turns "the answer looks right" into "the callback ran exactly `min(limit, matches)` times". Three
+  spellings to get right on the way: a block-bodied `fn` must declare its return type, there is no `++`
+  or `+=` so it is `$t->n = $t->n + 1`, and the closure may be declared fresh inside a `foreach` body
+  (the binding is the function's, but re-executing its declaration is not a second declaration).
 
 ## Splitting a file that got too big
 
