@@ -1,0 +1,120 @@
+--TEST--
+`$uri->compareTo` is a total order and not only an equality test: antisymmetric, reflexive and transitive over a corpus, decided component by component in the readers' declared order rather than over the text, with an absent component sorting before an empty one — spec § 12, ADR 0013, ADR 0090 § 4
+--FILE--
+<?nvs
+// The neighbouring case asserts *what* § 6.2.2 normalizes before the
+// comparison happens, row by row. This one asserts the thing no row can show:
+// that the answer is an order at all. ADR 0013 makes `compareTo` the member
+// `Comparable` declares, so a member that merely answered `0` for equal and
+// something plausible otherwise would pass every row above and still be unfit
+// for a sort.
+//
+// The corpus is ten references differing in one component each, plus one that
+// differs from the first only in the two things § 6.2.2 folds — so a zero
+// appears off the diagonal as well as on it.
+array<string> $corpus = [
+    "http://a.example/p",
+    "http://b.example/a",
+    "https://a.example/p",
+    "http://a.example/p?q",
+    "http://a.example/p#f",
+    "http://a.example:81/p",
+    "http://u@a.example/p",
+    "HTTP://A.EXAMPLE/p",
+    "mailto:x@a.example",
+    "/relative",
+];
+
+// All 100 ordered pairs, counted rather than read off a line: the answer is
+// always one of the three literals ADR 0013 names, it reverses when the
+// operands do, and it is `0` exactly on the diagonal plus the one pair the
+// normalization makes equivalent. A member ordering by text would still
+// satisfy the first two and fail the last.
+int $pairs = 0;
+int $antisymmetric = 0;
+int $inThree = 0;
+int $reflexive = 0;
+int $zeros = 0;
+foreach ($corpus as string $left) {
+    foreach ($corpus as string $right) {
+        $pairs = $pairs + 1;
+        var $ab = Core\Uri::parse($left)->compareTo(Core\Uri::parse($right));
+        var $ba = Core\Uri::parse($right)->compareTo(Core\Uri::parse($left));
+        if ($ab == 0 - $ba) { $antisymmetric = $antisymmetric + 1; }
+        if (($ab == 0 - 1) || ($ab == 0) || ($ab == 1)) { $inThree = $inThree + 1; }
+        if ($ab == 0) { $zeros = $zeros + 1; }
+        if ($left == $right) {
+            if ($ab == 0) { $reflexive = $reflexive + 1; }
+        }
+    }
+}
+echo "pairs ", $pairs, " antisymmetric ", $antisymmetric, " in {-1,0,1} ", $inThree, "\n";
+echo "reflexive ", $reflexive, " zeros ", $zeros, "\n";
+
+// Transitivity is the property a sort actually depends on, and the only one
+// that needs three references to state. All 1000 ordered triples: wherever
+// `$a` does not follow `$b` and `$b` does not follow `$c`, `$a` does not
+// follow `$c`.
+int $triples = 0;
+int $transitive = 0;
+foreach ($corpus as string $a) {
+    foreach ($corpus as string $b) {
+        foreach ($corpus as string $c) {
+            $triples = $triples + 1;
+            var $x = Core\Uri::parse($a)->compareTo(Core\Uri::parse($b));
+            var $y = Core\Uri::parse($b)->compareTo(Core\Uri::parse($c));
+            var $z = Core\Uri::parse($a)->compareTo(Core\Uri::parse($c));
+            if (($x < 1) && ($y < 1)) {
+                if ($z < 1) { $transitive = $transitive + 1; }
+            } else {
+                $transitive = $transitive + 1;
+            }
+        }
+    }
+}
+echo "triples ", $triples, " transitive ", $transitive, "\n";
+
+// Which order it is, named on its own lines: the components in the order the
+// readers are declared, earlier deciding before later. `http` sorts before
+// `https` even though its host sorts after, and the host decides before the
+// path for the same reason.
+echo Core\Uri::parse("http://z.example/z")->compareTo(Core\Uri::parse("https://a.example/a")), "\n";
+echo Core\Uri::parse("http://a.example/z")->compareTo(Core\Uri::parse("http://b.example/a")), "\n";
+
+// The port is a number, not the text of one, which is the cheapest witness
+// that the comparison runs over components at all: `:9` sorts before `:10`
+// while the two references' own text sorts the other way.
+echo Core\Uri::parse("http://a.example:9/z")->compareTo(Core\Uri::parse("http://a.example:10/a")), "\n";
+echo Core\Str::compare("http://a.example:9/z", "http://a.example:10/a"), "\n";
+
+// The bound every nullable reader brings with it: an *absent* component sorts
+// before an *empty* one, and before any present value. A relative reference
+// has no scheme, `…/` has no query, and `…/?` has one that is the empty
+// string — three distinct references, not two.
+echo Core\Uri::parse("/relative")->compareTo(Core\Uri::parse("http://a.example/")), "\n";
+echo Core\Uri::parse("http://a.example/")->compareTo(Core\Uri::parse("http://a.example/?")), "\n";
+echo Core\Uri::parse("http://a.example/")->compareTo(Core\Uri::parse("http://a.example/#")), "\n";
+
+// ADR 0090 § 4: `==` on two objects is identity and there is no `__equals`, so
+// two `Uri`s that compare equal are still two objects. `compareTo($o) == 0` is
+// the spelling for "the same URI", and this is the pair that tells the two
+// questions apart.
+var $one = Core\Uri::parse("http://a.example/p");
+var $two = Core\Uri::parse("HTTP://A.EXAMPLE/p");
+echo $one->compareTo($two), "\n";
+if ($one == $two) { echo "same object\n"; } else { echo "two objects\n"; }
+if ($one == $one) { echo "identity\n"; }
+--EXPECT--
+pairs 100 antisymmetric 100 in {-1,0,1} 100
+reflexive 10 zeros 12
+triples 1000 transitive 1000
+-1
+-1
+-1
+1
+-1
+-1
+-1
+0
+two objects
+identity
