@@ -684,11 +684,44 @@
 > last section is the agreement the shape asks for rather than a sixth line read off the output —
 > five runs captured through `Core\Out::capture` and compared with an `echo` of the same literal,
 > counted, so a run that grew a rendering of its own fails the count while still looking plausible
-> on its own line. Three live tools **are** the worklist and no session re-derives one: `python
-> tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen` and attributes each to
-> its item (`--item N` for one in full), `python tools/loop.py --list` prints the named `.nvst`
-> cases each stage still owes, and `python tools/check-migration.py` scores
-> `docs/spec/02-php-migration.md`.
+> on its own line. **A `require`d file's own top-level statements run now**, which is `nvs-ir`'s
+> known gap 22 at its statement half and the last of the two file-scope shapes `holes.py --cases`
+> named. Three things had to meet, and only the first was hard to place: `nvs_hir::resolve_program`
+> is the one pass that joins a written path to a base directory, canonicalizes it and decides
+> whether the target was already loaded, so it is the only place the `span -> SourceId` edge exists
+> — it hands one out per file now (`Loaded::requires`), keeping a `by_path` map beside its `done`
+> set so that a `require` naming a file some *other* file already pulled in records the same id
+> rather than none. That edge rides to `nvs-ir` in `ExprTypeTable`, beside the property defaults and
+> the codecs and for exactly their reason: `nvs-ir` is handed that table and not `nvs-hir`'s output,
+> and a `require` is writable inside any body, so a second argument to `lower_program` would have
+> changed every frame-lowering signature below it as well. `nvs_types::ProgramFile` gained **no** id
+> field — `src.id()` has always been the file's own id, and a second copy is a value two dozen
+> construction sites would have to supply and could supply wrongly. Then `lower_program` gives
+> **every** file a script frame rather than only `files[0]` — the entry keeps the name its caller
+> handed it, the rest take `file_script_label`, computed from the `SourceId` at both ends rather
+> than recorded — and the `require` site emits one `InstKind::Call` to the frame it named, releasing
+> the `Ty::Tagged` the frame returns exactly as a discarded object literal releases its own. It is
+> called **every time** the statement is reached, PHP's answer for `require` as against
+> `require_once`; the walk loading each file once is a compile-time fact, so a `require` in a loop
+> body runs its target once per iteration and a nested `require` runs at its own site. **The frame
+> is the file's, not the caller's**, and that is the decision this took: ADR 0021's "sharing the
+> calling frame completely" was already false for variables in the tree, because `nvs_types::locals`
+> checks each file's top-level body on its own, so the safe reading — declarations cross a `require`
+> and variables do not — is folded into ADR 0021 § *Decision* rather than left for the body to
+> disagree with. It is a divergence from PHP, where an included file does see the includer's locals,
+> and the alternative would want one flow-sensitive definite-assignment analysis spanning a graph
+> whose shape a `require` inside an `if` decides at run time.
+> `tests/conformance/lang/a-required-file-runs-its-own-top-level-statements.nvst` pins the placement
+> against the statements around it, the declaration half that never depended on a frame, two
+> iterations of a loop each running a nested pair innermost-first, the untaken `if` arm that runs
+> nothing, and the required file's own `$name` beside the entry's. What gap 22 keeps is its other
+> half: ADR 0021 § 3's value form (`$c = require 'config.nvs';`) is still `E0704` where it is
+> written, and the frame it needs is now there and already returns `Ty::Tagged` — what is missing is
+> a `return` at a required file's file scope and the site reading it. Three live tools **are** the
+> worklist and no session re-derives one: `python tools/holes.py` reads the refusal sites out of
+> `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item N` for one in full), `python
+> tools/loop.py --list` prints the named `.nvst` cases each stage still owes, and `python
+> tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

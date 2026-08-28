@@ -2,60 +2,55 @@
 
 ## State
 
-**M4's frontier is the two file-scope statement shapes `holes.py --cases` still named.** The
-first is landed as one corpus case over already-landed work, taking that tool from 7 named cases
-to 6; the second is a real multi-crate feature and is **not started** — this session stopped at
-the point where it had located every blocker, rather than half-landing it. Nothing in `crates/`
-changed.
+**M4's frontier past the two file-scope statement shapes.** Both are landed: an inline-HTML run's
+placement (last session) and now a `require`d file's own top-level statements, which was
+`nvs-ir` known gap 22's statement half and a three-crate change. `holes.py --cases` should name
+neither.
 
-- **`tests/conformance/lang/inline-html-at-file-scope-is-echoed-in-place.nvst`** pins a run's
-  *placement* (in source order, per iteration, per taken arm, in a method body) and its agreement
-  with an `echo` of the same literal, counted through `Core\Out::capture`. The plan's `Open now`
-  carries what it asserts; the sibling `inline-html-is-written-verbatim.nvst` keeps *what* a run
-  writes.
-- **`require` still runs nothing of the required file's own top-level statements**, and the shape
-  that closes it is now scoped rather than guessed: `nvs_hir::requires::resolve_program` is the
-  only place that knows which file a written path resolved to, and neither `nvs_types::ProgramFile`
-  nor the `ExprTypeTable` carries that edge, so `nvs-ir` at the site has the literal path text and
-  nothing else. Re-deriving the resolution inside `nvs-ir` is the wrong direction — it would be a
-  second copy of the canonicalization rule.
-- **One decision that group has to take and record** (pre-authorized, no ADR): ADR 0021's "sharing
-  the calling frame completely" is already false for *variables* in the tree, because
-  `nvs_types::locals` checks each file's top-level body on its own, so a `require`d file's `$x` is
-  not the caller's. The safe reading is that declarations cross a `require` and variables do not;
-  fold one sentence saying so into ADR 0021 § *Decision* rather than leaving the body to disagree.
+- **`require` runs the target's top-level statements at the site.** The mechanism is one sentence
+  in three homes and is not restated here: `nvs_hir::Loaded::requires` (the `span -> SourceId`
+  edge, and why only the walk can produce it), `nvs_types::ExprTypeTable::record_require_target`
+  (why it rides in that table rather than in a `lower_program` argument), and
+  `nvs_ir::lower::file_script_label` (the per-file frame). `nvs-ir`'s gap 22 now records only what
+  is left.
+- **The decision this session took, recorded rather than left open**: declarations cross a
+  `require` and variables do not. ADR 0021 § *Decision* now says so in its own paragraph, with the
+  PHP divergence named. `nvs_types::locals` had already made it true; the ADR body was the thing
+  disagreeing.
+- **`nvs_types::ProgramFile` deliberately gained no `id` field** — `src.id()` is the file's own id
+  and always was. Its doc comment carries that, so a future session does not add the copy.
+- **An autoloaded file now gets a script frame nothing calls.** It is correct (no statement reaches
+  such a file, so nothing of its body should run) but it is a compiled, unreachable function per
+  autoloaded file. Backlogged rather than fixed: skipping it wants `lower_program` to know which
+  files the walk reached by `require` and which by the map, which is one more edge out of
+  `nvs-hir`.
 - **`orient.py`'s pack was complete for this item.** The two standing manifest gaps are unchanged —
   `[context] modules` has no `nvs-runtime` and no `nvs-diagnostics` entry.
 
 ## Next group
 
-**`require` runs the required file's own top-level statements — `nvs-ir` gap 22, in three slices
-that share one file set.** The files: `crates/nvs-hir/src/requires.rs`,
-`crates/nvs-types/src/lib.rs`, `crates/nvs-cli/src/main.rs`, `crates/nvs-ir/src/lower/mod.rs` and
-`crates/nvs-ir/src/lower/stmt.rs`.
+**ADR 0021 § 3's value form — `$c = require 'config.nvs';`, gap 22's other half — in three slices
+over one file set.** The files: `crates/nvs-types/src/expr/mod.rs`,
+`crates/nvs-ir/src/lower/mod.rs`, `crates/nvs-ir/src/lower/stmt.rs`.
 
-- [ ] **Carry the resolved edge out of the graph walk.** `resolve_program` at
-      `crates/nvs-hir/src/requires.rs:163` already turns each `(literal, span)` its `walk_expr`
-      harvests (`crates/nvs-hir/src/requires.rs:874`) into a canonical `PathBuf`; record that as a
-      `span -> SourceId` map on its `Loaded` output, and give `nvs_types::ProgramFile`
-      (`crates/nvs-types/src/lib.rs:255`) the file's own id. `crates/nvs-cli/src/main.rs:245` and
-      `:292` are the two builders of that list.
-- [ ] **One script frame per file, called from the site.** `lower_program`
-      (`crates/nvs-ir/src/lower/mod.rs:443`, doc comment at `:400` states today's
-      `files[0]`-only rule and has to be corrected with it) lowers a `lower_script` for every file
-      under a per-file label, and `ExprKind::Require` at `crates/nvs-ir/src/lower/stmt.rs:347`
-      — today an empty arm — emits the `Call` to the label the site's span resolves to. ADR 0021
-      § 2: it runs *every time* control reaches it, so this is a call and not a once-guard.
-- [ ] **`tests/conformance/lang/a-required-file-runs-its-own-top-level-statements.nvst`**, the
-      named case, plus the ADR 0021 sentence above. A multi-file case is `--FILE <path>--`
-      repeated (`crates/nvs-test`'s module doc); pin a `require` inside a loop, since running once
-      per reach is the half a once-guard would still pass.
+- [ ] **A `return expr;` at a required file's file scope returns it from that file's frame.**
+      `lower_script` (`crates/nvs-ir/src/lower/mod.rs:1010`) seals with `Terminator::Return(None)`
+      against a declared `Ty::Tagged`; `lower_script_stmts`
+      (`crates/nvs-ir/src/lower/stmt.rs:20`) is where a file-scope `return` arrives.
+      `nvs_types::check::check_program` already types that frame's return as `mixed` — its
+      `ScriptFrame::return_ty` says so — so this is the lowering half alone.
+- [ ] **The `require` site reads the value.** `crates/nvs-ir/src/lower/stmt.rs:340` already emits
+      the call and discards its `Ty::Tagged`; the expression form needs the same call in
+      `lower_expr` and the refusal at `crates/nvs-types/src/expr/mod.rs:743`
+      (`E_REQUIRE_VALUE_UNLOWERED`, `E0704`) retired with it. `E0704`'s own constant at
+      `crates/nvs-diagnostics/src/lib.rs:1216` goes too — a retired code is never reused.
+- [ ] **`tests/conformance/lang/a-required-file-hands-a-value-back.nvst`** — the value of a file
+      that returns, of one that does not (`null`, ADR 0021 § 3's `mixed`), and the same `require`
+      reached twice returning twice.
 
 ## Backlog
 
-- ADR 0021 § 3's value form (`$c = require 'config.nvs';`) is `E0704` and stays a gap until the
-  frame above exists to return from — `crates/nvs-ir/src/lib.rs` gap 22.
-- Four corpus cases remain named by `python tools/holes.py --cases`: the property observer, the
-  delegated interface, the attribute retrieved by its own type, and the dump that redacts a secret.
-- `docs/agent/loop-goal.toml`'s `[context] modules` names no `nvs-runtime` and no
-  `nvs-diagnostics` — unchanged from the previous handoff.
+- An autoloaded file's uncalled script frame is compiled dead code — `nvs-ir` `lower_program`.
+- `[context] modules` still names no `nvs-runtime` and no `nvs-diagnostics` — `loop-goal.toml`.
+- `python tools/gaps.py` for the next depth-case group once gap 22 closes — `docs/agent/commands.md`.
+- ADR 0024 § 5's `string as Core\Html\Markup` waits on `Core\Html` (M7) — `nvs-ir` catch-all roster.

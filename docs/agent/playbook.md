@@ -954,13 +954,15 @@ is why" — is this file.
   calling it, so a plan that lands the rows in one session and the cases in another leaves the tree red
   in between — and `verify.py` reports it as a `-p nvs-stdlib` test failure with nothing about the
   member in the message. A class constant counts too: `Core\Path::SEPARATOR` needs a case that writes it.
-- **A multi-file `.nvst` case works now — but only the entry file's statements run.**
+- **A multi-file `.nvst` case runs every file's statements, each in its own variable scope.**
   `--FILE <relative/path>--` repeats and writes another file into the case's working directory
   (`crates/nvs-test`'s module doc), and `nvs-cli`'s `front_end` resolves, checks and lowers the whole
-  `require`/`autoload` graph, so a class declared in a second file is reachable from `nvs run`. What a
-  second file contributes is its *declarations*: a bare `echo` at its file scope compiles and prints
-  nothing (`nvs-ir` gap 22). So a case pins the second file by *using* what it declares, never by what it
-  echoes on its own.
+  `require`/`autoload` graph, so a class declared in a second file is reachable from `nvs run` *and* a bare
+  `echo` at its file scope prints, where the `require` is written and once per time that statement is
+  reached. Two things a case still cannot assume: a required file's `$x` is not the caller's (ADR 0021
+  § *Decision* — declarations cross, variables do not), and an *autoloaded* file is reached by no
+  statement at all, so only its declarations ever run. This bullet used to say the opposite half of the
+  first sentence.
 - **A `--EXPECTF-ERROR--` case must not also *use* what the broken declaration would have provided.**
   Diagnostics are ordered by phase, not by file, so an `E0303` from the entry point's reference is printed
   *before* the resolution error the case exists to pin, and the block no longer matches at its first line.
