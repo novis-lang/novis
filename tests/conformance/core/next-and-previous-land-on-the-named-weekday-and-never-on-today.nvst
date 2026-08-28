@@ -1,0 +1,73 @@
+--TEST--
+Spec § 4: `next`/`previous` land on the named `Core\Weekday` strictly later or strictly earlier, with the clock untouched — the receiver's own weekday included
+--FILE--
+<?nvs
+// The edge these two are written around is the weekday the receiver already
+// is: "next Wednesday" asked on a Wednesday is seven days on and never the
+// receiver itself, which is the one row a member computing a remainder gets
+// wrong while looking right on the other six. The sweep at the foot asserts
+// all three properties over every case of `Core\Weekday` rather than reading
+// one off each line.
+var $utc = Core\Time\Zone::UTC;
+var $fmt = "EEE yyyy-MM-dd HH:mm:ss.SSSSSSSSS";
+var $clock = "HH:mm:ss.SSSSSSSSS";
+// 2024-05-15 is a Wednesday, and the nanosecond is there to be preserved.
+var $d = Core\Time::at(2024, 5, 15, $utc, {hour: 13, minute: 45, second: 30, nanos: 7});
+echo $d->format($fmt), "|\n";
+
+// The two edges, written out: the receiver's own weekday goes a whole week in
+// either direction, and the neighbouring day goes one.
+echo $d->next(Core\Weekday::Wednesday)->format($fmt), "|\n";
+echo $d->previous(Core\Weekday::Wednesday)->format($fmt), "|\n";
+echo $d->next(Core\Weekday::Thursday)->format($fmt), "|\n";
+echo $d->previous(Core\Weekday::Tuesday)->format($fmt), "|\n";
+echo $d->next(Core\Weekday::Monday)->format($fmt), "|\n";
+echo $d->previous(Core\Weekday::Sunday)->format($fmt), "|\n";
+
+// One row of the sweep: the step is a whole number of days in `$lo .. $hi`,
+// it lands on the weekday that was named, and the clock is the receiver's.
+var $ok = fn (Core\Time\DateTime $from, Core\Time\DateTime $to, int $want, int $lo, int $hi): int =>
+    ((($to->weekday() as int) == $want)
+        && ($from->difference($to, Core\Unit::Day) >= $lo)
+        && ($from->difference($to, Core\Unit::Day) <= $hi)
+        && ($from->format("HH:mm:ss.SSSSSSSSS") == $to->format("HH:mm:ss.SSSSSSSSS"))) ? 1 : 0;
+
+var $forward = 0;
+$forward = $forward + ($ok($d, $d->next(Core\Weekday::Monday), Core\Weekday::Monday as int, 1, 7) as int);
+$forward = $forward + ($ok($d, $d->next(Core\Weekday::Tuesday), Core\Weekday::Tuesday as int, 1, 7) as int);
+$forward = $forward + ($ok($d, $d->next(Core\Weekday::Wednesday), Core\Weekday::Wednesday as int, 1, 7) as int);
+$forward = $forward + ($ok($d, $d->next(Core\Weekday::Thursday), Core\Weekday::Thursday as int, 1, 7) as int);
+$forward = $forward + ($ok($d, $d->next(Core\Weekday::Friday), Core\Weekday::Friday as int, 1, 7) as int);
+$forward = $forward + ($ok($d, $d->next(Core\Weekday::Saturday), Core\Weekday::Saturday as int, 1, 7) as int);
+$forward = $forward + ($ok($d, $d->next(Core\Weekday::Sunday), Core\Weekday::Sunday as int, 1, 7) as int);
+echo "forward=", $forward as string, "|\n";
+
+var $back = 0;
+$back = $back + ($ok($d, $d->previous(Core\Weekday::Monday), Core\Weekday::Monday as int, -7, -1) as int);
+$back = $back + ($ok($d, $d->previous(Core\Weekday::Tuesday), Core\Weekday::Tuesday as int, -7, -1) as int);
+$back = $back + ($ok($d, $d->previous(Core\Weekday::Wednesday), Core\Weekday::Wednesday as int, -7, -1) as int);
+$back = $back + ($ok($d, $d->previous(Core\Weekday::Thursday), Core\Weekday::Thursday as int, -7, -1) as int);
+$back = $back + ($ok($d, $d->previous(Core\Weekday::Friday), Core\Weekday::Friday as int, -7, -1) as int);
+$back = $back + ($ok($d, $d->previous(Core\Weekday::Saturday), Core\Weekday::Saturday as int, -7, -1) as int);
+$back = $back + ($ok($d, $d->previous(Core\Weekday::Sunday), Core\Weekday::Sunday as int, -7, -1) as int);
+echo "back=", $back as string, "|\n";
+
+// The clock is the *civil* one, so a step over New York's spring-forward night
+// keeps the wall time and changes the offset — which is what makes this a
+// calendar step and not `Instant::plus`.
+var $ny = Core\Time\Zone::of("America/New_York");
+var $s = Core\Time::at(2024, 3, 8, $ny, {hour: 15, minute: 30});
+echo $s->next(Core\Weekday::Monday)->format("EEE yyyy-MM-dd HH:mm XXX"), "|\n";
+echo $s->previous(Core\Weekday::Friday)->format("EEE yyyy-MM-dd HH:mm XXX"), "|\n";
+--EXPECT--
+Wed 2024-05-15 13:45:30.000000007|
+Wed 2024-05-22 13:45:30.000000007|
+Wed 2024-05-08 13:45:30.000000007|
+Thu 2024-05-16 13:45:30.000000007|
+Tue 2024-05-14 13:45:30.000000007|
+Mon 2024-05-20 13:45:30.000000007|
+Sun 2024-05-12 13:45:30.000000007|
+forward=7|
+back=7|
+Mon 2024-03-11 15:30 -04:00|
+Fri 2024-03-01 15:30 -05:00|
