@@ -154,7 +154,11 @@ pub fn call_closure(ctx: &mut Ctx, closure: Value, args: &[Value]) -> Result<Val
     // check both refuses and *converts*: a widened `int` must reach the callee
     // as a `float` while the caller keeps owning the `int` it passed. Neither
     // tag is refcounted, so the retain below is unaffected by the substitution.
-    check_param_tags(closure, &mut slots[1..])?;
+    check_param_tags(
+        "a `callable`",
+        closure_param_tags(closure)?,
+        &mut slots[1..],
+    )?;
     #[expect(
         unsafe_code,
         reason = "every value here is one the caller already owns a reference \
@@ -340,9 +344,47 @@ pub fn closure_arity(closure: Value) -> Result<usize, Fault> {
         .map_err(|_| Fault::fatal("internal error: a `callable` recorded a negative arity"))
 }
 
-/// Refuses `args` unless every one of them carries the tag the closure's
+/// The [`CLOSURE_PARAM_TAGS_SLOT`] word `closure` recorded — the nibbles
+/// [`check_param_tags`] judges its arguments against, read straight off the
+/// object with no call made.
+///
+/// Split out of that check so the check itself takes a word: an erased method
+/// call reads the same encoding off [`crate::MethodRow::param_tags`] instead,
+/// and only *where the word comes from* differs between the two paths.
+///
+/// # Errors
+///
+/// [`Fault::Fatal`] when `closure` is not a closure value at all, or when its
+/// tag slot does not hold an `int` — both compiler or runtime bugs rather than
+/// anything a program can write.
+fn closure_param_tags(closure: Value) -> Result<u64, Fault> {
+    let ptr = closure.obj_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "internal error: a `callable` argument carried tag {} rather than an object",
+            closure.tag_byte()
+        ))
+    })?;
+    #[expect(
+        unsafe_code,
+        reason = "the caller owns a reference to this object, and the slot \
+                  index is one every closure class has by construction"
+    )]
+    let slot = unsafe { crate::object::nvs_object_field_get(ptr, CLOSURE_PARAM_TAGS_SLOT) };
+    let word = slot.as_int().ok_or_else(|| {
+        Fault::fatal(format!(
+            "internal error: a `callable`'s parameter-tag slot carried tag {} rather than an int",
+            slot.tag_byte()
+        ))
+    })?;
+    // The sixteenth nibble sits in the sign bit; the slot holds the same 64
+    // bits either way, and only the nibbles are ever read.
+    Ok(u64::from_ne_bytes(word.to_ne_bytes()))
+}
+
+/// Refuses `args` unless every one of them carries the tag the callee's
 /// corresponding parameter declares — the check that stands in for the one no
-/// checker can make.
+/// checker can make — over the nibble `word` that callee recorded, naming it
+/// `callee` in whatever it has to report.
 ///
 /// [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md) § 1
 /// gives `callable` no parameter list, so a call site has nothing to compare
@@ -352,6 +394,15 @@ pub fn closure_arity(closure: Value) -> Result<usize, Fault> {
 /// tell, because the closure object carries what the literal declared
 /// (`nvs_ir::lower`'s `FN_PARAM_TAGS`), and it is on the path *both* callers
 /// take: a `Core` member's callback and ADR 0031's `$fn(...)` alike.
+///
+/// **It is the erased *method* call's check too**, which is why it takes a
+/// word rather than a closure object. A `mixed` receiver defers the same
+/// question one storage kind along (ADR 0036 § 4), and
+/// [`crate::MethodRow::param_tags`] carries the callee's nibbles in this very
+/// encoding so that ADR 0007 § 2's one implicit conversion is written once —
+/// two copies of it are two places for it to stop agreeing.
+/// `docs/adr/README.md` § *Decisions taken at project start* owns that
+/// decision, and [`crate::dispatch::call_erased_method`] is the other caller.
 ///
 /// One shift, one mask and one byte comparison per argument, on the callback
 /// path — priority 3 spent on priority 1, which is the direction AGENTS.md's
@@ -386,39 +437,17 @@ pub fn closure_arity(closure: Value) -> Result<usize, Fault> {
 /// tag was never written down is exactly the read this function exists to
 /// prevent, and no spec callback comes close to sixteen parameters.
 ///
-/// [`Fault::Fatal`] when the closure is not a closure value, when its tag slot
-/// does not hold an `int`, or when either side carries a byte that denotes no
-/// representation at all — each of those is a compiler or runtime bug rather
-/// than something a program can write.
-fn check_param_tags(closure: Value, args: &mut [Value]) -> Result<(), Fault> {
-    let ptr = closure.obj_ptr().ok_or_else(|| {
-        Fault::fatal(format!(
-            "internal error: a `callable` argument carried tag {} rather than an object",
-            closure.tag_byte()
-        ))
-    })?;
-    #[expect(
-        unsafe_code,
-        reason = "the caller owns a reference to this object, and the slot \
-                  index is one every closure class has by construction"
-    )]
-    let slot = unsafe { crate::object::nvs_object_field_get(ptr, CLOSURE_PARAM_TAGS_SLOT) };
-    let word = slot.as_int().ok_or_else(|| {
-        Fault::fatal(format!(
-            "internal error: a `callable`'s parameter-tag slot carried tag {} rather than an int",
-            slot.tag_byte()
-        ))
-    })?;
-    // The sixteenth nibble sits in the sign bit; the slot holds the same 64
-    // bits either way, and only the nibbles are ever read.
-    let word = u64::from_ne_bytes(word.to_ne_bytes());
-
+/// [`Fault::Fatal`] when either side carries a byte that denotes no
+/// representation at all — a compiler or runtime bug rather than something a
+/// program can write. Where the word itself comes from is the caller's, and so
+/// are the faults reading it can raise ([`closure_param_tags`]).
+pub(crate) fn check_param_tags(callee: &str, word: u64, args: &mut [Value]) -> Result<(), Fault> {
     for (i, arg) in args.iter_mut().enumerate() {
         if i >= CLOSURE_PARAM_TAGS_CAPACITY {
             return Err(Fault::thrown_as(
                 crate::ThrownClass::Logic,
                 format!(
-                    "a `callable` declaring more than {CLOSURE_PARAM_TAGS_CAPACITY} parameters \
+                    "{callee} declares more than {CLOSURE_PARAM_TAGS_CAPACITY} parameters and \
                      cannot be called: nothing recorded what its parameter {} requires",
                     i + 1
                 ),
@@ -431,14 +460,14 @@ fn check_param_tags(closure: Value, args: &mut [Value]) -> Result<(), Fault> {
         }
         let required = Tag::from_byte(nibble).ok_or_else(|| {
             Fault::fatal(format!(
-                "internal error: a `callable` recorded nibble {nibble} for parameter {}, which \
+                "internal error: {callee} recorded nibble {nibble} for parameter {}, which \
                  denotes no representation",
                 i + 1
             ))
         })?;
         let given = arg.tag().ok_or_else(|| {
             Fault::fatal(format!(
-                "internal error: argument {} to a `callable` carried tag {}, which denotes no \
+                "internal error: argument {} to {callee} carried tag {}, which denotes no \
                  representation",
                 i + 1,
                 arg.tag_byte()
@@ -459,7 +488,7 @@ fn check_param_tags(closure: Value, args: &mut [Value]) -> Result<(), Fault> {
                     Fault::thrown_as(
                         crate::ThrownClass::Arithmetic,
                         format!(
-                            "cannot convert argument {} to a `callable` from `{}` to `float`",
+                            "cannot convert argument {} to {callee} from `{}` to `float`",
                             i + 1,
                             given.describe()
                         ),
@@ -470,7 +499,7 @@ fn check_param_tags(closure: Value, args: &mut [Value]) -> Result<(), Fault> {
             return Err(Fault::thrown_as(
                 crate::ThrownClass::Logic,
                 format!(
-                    "argument {} to a `callable` must be of type {}, {} given",
+                    "argument {} to {callee} must be of type {}, {} given",
                     i + 1,
                     required.describe(),
                     given.describe()
