@@ -47,10 +47,9 @@ pub(super) struct PendingClosure {
 ///
 /// Read at the *literal*, where the declared types are still in hand, and
 /// stored in the object the literal builds; that constant owns the encoding
-/// and why the object carries it at all. Parameters past
-/// [`FN_PARAM_TAGS_CAPACITY`] contribute no nibble, which is what makes
-/// `nvs_runtime::call_closure` refuse the call rather than pass an argument it
-/// cannot judge.
+/// and why the object carries it at all. This half is the *lowering* of each
+/// declared type — the packing itself is [`super::pack_param_tags`], shared
+/// with the method row `nvs-codegen` writes for the same reader.
 ///
 /// # Panics
 ///
@@ -61,19 +60,12 @@ pub(super) fn param_tags_word(
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
 ) -> i64 {
-    let mut word: u64 = 0;
-    for (i, p) in fn_expr
-        .params
-        .iter()
-        .take(FN_PARAM_TAGS_CAPACITY)
-        .enumerate()
-    {
+    let word = super::pack_param_tags(fn_expr.params.iter().map(|p| {
         let decl_ty =
             p.ty.as_ref()
                 .unwrap_or_else(|| panic!("ADR 0007 § 1: every parameter has a declared type"));
-        let nibble = param_tag_nibble(lower_decl_type(decl_ty, exprs, checked_types));
-        word |= u64::from(nibble) << (i * 4);
-    }
+        lower_decl_type(decl_ty, exprs, checked_types)
+    }));
     // A sixteenth parameter puts a nibble in the sign bit. The slot holds the
     // same 64 bits whichever way they are read, and the reader takes them
     // apart nibble by nibble.
@@ -278,7 +270,9 @@ pub(super) fn lower_closure(
             field_reprs: Vec::new(),
             secret_fields: Vec::new(),
             conforms: Vec::new(),
-            methods: vec![(FN_INVOKE.to_owned(), class.clone())],
+            // Public: a closure's environment class is unspellable, so nothing
+            // can name this member at all except the runtime's own call path.
+            methods: vec![(FN_INVOKE.to_owned(), class.clone(), true)],
             // A closure is not a declaration and carries no attribute, and
             // every one of its slots is written by the factory that builds it.
             codec: Vec::new(),

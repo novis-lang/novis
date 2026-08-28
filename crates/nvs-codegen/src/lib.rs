@@ -407,6 +407,16 @@ struct Jit {
     /// any body is emitted, so a call may name a function defined later in
     /// the unit (or itself).
     functions: FxHashMap<String, cranelift_module::FuncId>,
+    /// Every function's *declared shape*, by the same Novis name — its arity
+    /// and its parameter-tag word, read off `nvs_ir::ir::Function::params` in
+    /// the same declaration pass that fills [`Jit::functions`].
+    ///
+    /// Recorded for every function and read for the methods alone: a
+    /// `nvs_runtime::MethodRow` carries the shape a caller holding only tagged
+    /// values needs, and this is the one place that fact is still in hand —
+    /// [`Jit::bind_method_tables`] runs after finalization, where a function is
+    /// an address and nothing else.
+    shapes: FxHashMap<String, MethodShape>,
     /// Every class the unit declares — the descriptors compiled code points
     /// at, and the field-slot index every `FieldGet`/`FieldSet` resolves
     /// through.
@@ -453,6 +463,35 @@ struct Classes {
     ids: FxHashMap<String, nvs_runtime::ClassId>,
 }
 
+/// One compiled function's declared shape, as
+/// `nvs_runtime::MethodRow` carries it: how many parameters it takes and which
+/// runtime tag each one requires.
+///
+/// The receiver is subtracted here and nowhere else. `nvs_ir::ir::Function`'s
+/// parameter 0 is the implicit `$this` (that field's own doc comment), while a
+/// row describes what a *call site* writes — so a caller compares its argument
+/// count against this and fills the callee's slots from 1.
+#[derive(Clone, Copy, Debug, Default)]
+struct MethodShape {
+    arity: u32,
+    param_tags: u64,
+}
+
+impl MethodShape {
+    /// `params` as a row, with parameter 0 read as the receiver.
+    ///
+    /// A function with no parameters at all is a script frame or a synthesized
+    /// factory rather than a method — it has no receiver to subtract, and no
+    /// method table names it either, so a zero arity is the answer both ways.
+    fn of(params: &[nvs_ir::Ty]) -> Self {
+        let declared = params.split_first().map_or(&[][..], |(_, rest)| rest);
+        Self {
+            arity: u32::try_from(declared.len()).unwrap_or(u32::MAX),
+            param_tags: nvs_ir::lower::pack_param_tags(declared.iter().copied()),
+        }
+    }
+}
+
 /// One class's compiled-in identity and field-slot map.
 #[derive(Debug)]
 struct ClassEntry {
@@ -463,12 +502,12 @@ struct ClassEntry {
     /// declaring class is valid for every subclass.
     slots: FxHashMap<String, usize>,
     /// This class's own id in `Classes::table`, and every method it answers as
-    /// `(method name, declaring class label)` — kept until [`Jit::finish`],
-    /// which is the first moment a compiled function has an address to put in
-    /// the runtime descriptor's method table. See
+    /// `(method name, declaring class label, is `public`)` — kept until
+    /// [`Jit::finish`], which is the first moment a compiled function has an
+    /// address to put in the runtime descriptor's method table. See
     /// `nvs_runtime::ClassTable::set_methods`.
     id: nvs_runtime::ClassId,
-    methods: Vec<(String, String)>,
+    methods: Vec<(String, String, bool)>,
 }
 
 impl Classes {
@@ -797,6 +836,7 @@ impl Jit {
             module,
             sigs,
             functions: FxHashMap::default(),
+            shapes: FxHashMap::default(),
             classes: Classes::default(),
             statics: FxHashMap::default(),
             static_defaults: Vec::new(),
@@ -841,6 +881,8 @@ impl Jit {
                     source: Box::new(source),
                 })?;
             self.functions.insert(function.name.clone(), id);
+            self.shapes
+                .insert(function.name.clone(), MethodShape::of(&function.params));
         }
         for function in &program.functions {
             self.compile_function(function)?;
@@ -959,9 +1001,24 @@ impl Jit {
             let methods = entry
                 .methods
                 .iter()
-                .filter_map(|(method, declaring)| {
-                    let id = self.functions.get(&format!("{declaring}::{method}"))?;
-                    Some((method.clone(), self.module.get_finalized_function(*id)))
+                .filter_map(|(method, declaring, public)| {
+                    let label = format!("{declaring}::{method}");
+                    let id = self.functions.get(&label)?;
+                    // The shape is recorded under the very label the address
+                    // is, in the one pass that saw the function, so the two
+                    // halves of a row cannot describe two different callees.
+                    let shape = self.shapes.get(&label).copied().unwrap_or_default();
+                    Some(nvs_runtime::MethodRow {
+                        name: method.clone(),
+                        code: self.module.get_finalized_function(*id),
+                        arity: shape.arity,
+                        param_tags: shape.param_tags,
+                        public: *public,
+                        // Every row here is a compiled Novis function, which
+                        // owns its parameters — `nvs-stdlib` is the only
+                        // producer of a native one.
+                        native: false,
+                    })
                 })
                 .collect();
             self.classes.table.set_methods(entry.id, methods);
@@ -1167,4 +1224,37 @@ fn sanitize(name: &str) -> String {
     name.chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nvs_ir::Ty;
+    use nvs_ir::lower::FN_PARAM_TAG_ANY;
+
+    /// The row a descriptor carries describes what a **call site** writes, and
+    /// `nvs_ir::ir::Function::params` describes what the *callee* declares —
+    /// the two differ by the implicit receiver in slot 0, and [`MethodShape`]
+    /// is the one place that difference is taken. Getting it wrong is not a
+    /// wrong count but a shifted one: every nibble would then judge the
+    /// argument beside the one it describes, which is the priority-1 hole the
+    /// word exists to close, arrived at from inside the compiler.
+    #[test]
+    fn a_method_shape_subtracts_the_receiver_and_packs_the_rest() {
+        // `$this`, then `string`, then `int` — nibbles 5 and 2 (`param_tag_nibble`).
+        let shape = MethodShape::of(&[Ty::Object, Ty::Str, Ty::Int]);
+        assert_eq!(shape.arity, 2);
+        assert_eq!(shape.param_tags, 0x25);
+
+        // A `mixed` parameter is the one nibble that is not a tag.
+        let tagged = MethodShape::of(&[Ty::Object, Ty::Tagged]);
+        assert_eq!(tagged.arity, 1);
+        assert_eq!(tagged.param_tags, u64::from(FN_PARAM_TAG_ANY));
+
+        // A receiver and nothing else, and a frame with no receiver at all —
+        // a script body — both answer zero rather than underflowing.
+        assert_eq!(MethodShape::of(&[Ty::Object]).arity, 0);
+        assert_eq!(MethodShape::of(&[]).arity, 0);
+        assert_eq!(MethodShape::of(&[]).param_tags, 0);
+    }
 }

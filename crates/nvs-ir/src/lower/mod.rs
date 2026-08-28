@@ -731,7 +731,7 @@ pub fn lower_program(
         if class
             .methods
             .iter()
-            .any(|(name, _)| *name == delegation.method)
+            .any(|(name, _, _)| *name == delegation.method)
         {
             continue;
         }
@@ -743,9 +743,11 @@ pub fn lower_program(
         let Some(function) = delegation_forward(delegation, checked_types, never_written) else {
             continue;
         };
+        // Public: § 4 synthesizes a forward for an *interface* member, and an
+        // interface has no other visibility to inherit.
         class
             .methods
-            .push((delegation.method.clone(), delegation.class.clone()));
+            .push((delegation.method.clone(), delegation.class.clone(), true));
         functions.push(function);
     }
 
@@ -3041,6 +3043,31 @@ pub fn param_tag_nibble(ty: Ty) -> u8 {
         // argument to judge either.
         Ty::Tagged | Ty::Void => FN_PARAM_TAG_ANY,
     }
+}
+
+/// The [`FN_PARAM_TAGS`] word for a parameter list already lowered to its
+/// representations: one [`param_tag_nibble`] each, in declaration order, least
+/// significant first.
+///
+/// The one implementation of that packing. Its two callers pack the same word
+/// for two readers that must agree — `lower::closure`'s
+/// `param_tags_word` writes it into a closure object for
+/// `nvs_runtime::call_closure`, and `nvs-codegen` writes it into a
+/// `nvs_runtime::MethodRow` for the erased call ADR 0036 § 4 defers — and both
+/// readers are one `check_param_tags`, so two packings would be two chances
+/// for the shift or the capacity to be read differently.
+///
+/// Parameters past [`FN_PARAM_TAGS_CAPACITY`] contribute no nibble, which is
+/// what makes the reader refuse the call rather than pass an argument it
+/// cannot judge. The receiver is **not** one of these: a caller fills the
+/// declared parameters and the callee's own slot 0 is its receiver, so both
+/// callers hand over the explicit list alone.
+pub fn pack_param_tags(params: impl IntoIterator<Item = Ty>) -> u64 {
+    let mut word: u64 = 0;
+    for (i, ty) in params.into_iter().take(FN_PARAM_TAGS_CAPACITY).enumerate() {
+        word |= u64::from(param_tag_nibble(ty)) << (i * 4);
+    }
+    word
 }
 
 /// How many `array<…>` levels one [`array_element_tags`] word describes: a

@@ -228,12 +228,12 @@ pub struct ClassDesc {
     /// checks identity first.
     conforms: Vec<*const ClassDesc>,
     /// Every method callable on an instance of this class — its own plus
-    /// every inherited one — as `(name, code address)`, sorted by name so
+    /// every inherited one — as a [`MethodRow`], sorted by name so
     /// [`ClassDesc::method`] is a binary search. Empty until
     /// [`ClassTable::set_methods`] fills it, which `nvs-codegen` does after
     /// the unit is finalized: see this module's docs for why a name and not a
     /// slot index.
-    methods: Vec<(String, *const u8)>,
+    methods: Vec<MethodRow>,
     /// [ADR 0071](../../../docs/adr/0071-derived-codecs.md)'s derived JSON
     /// field list, in declaration order — empty for every class not carrying
     /// `#[Json\Derive]`, which is the default and costs one empty `Vec` per
@@ -329,6 +329,71 @@ pub struct ClassDesc {
     /// answered once per class at [`ClassTable::set_methods`] time. **Cost:**
     /// one pointer per class, once per process, not per instance.
     unwind: *const u8,
+}
+
+/// One row of a [`ClassDesc`]'s method table: a name, the compiled address it
+/// answers with, and the **declared shape** a caller holding only tagged
+/// values needs in order to fill that callee's slots safely.
+///
+/// Nothing has to be marshalled between a tagged site and a compiled callee —
+/// ADR 0002 makes one calling convention normative, so `nvs-codegen` already
+/// writes every argument and every return *with* its tag and a typed callee
+/// reads only the payload half. What is missing at a site that knows no class
+/// is the callee's own shape, without which slot *i* is reinterpreted at the
+/// callee's representation and an `int` handed to a `string` parameter is an
+/// arbitrary dereference rather than a fault — the identical hole
+/// [`crate::closure`]'s module docs describe for `callable`, arrived at from
+/// the other side. So the row carries what a closure object already carries in
+/// `nvs_ir::lower`'s `FN_ARITY` and `FN_PARAM_TAGS` slots, in the same
+/// encoding, and [`crate::closure`]'s `check_param_tags` is the one
+/// implementation both paths share rather than a second copy of ADR 0007 § 2's
+/// `int`-into-`float` widening. `docs/adr/README.md` § *Decisions taken at
+/// project start* owns why this rides on the descriptor rather than on a
+/// per-method thunk.
+///
+/// **Cost:** the two words and the `bool` are 16 bytes per method per class,
+/// once per process and not per instance — the whole of what the thunk this
+/// replaces would have spent a compiled function each on.
+#[derive(Clone, Debug)]
+pub struct MethodRow {
+    /// The method name, as written. The table is sorted on this.
+    pub name: String,
+    /// The compiled function's address — what [`ClassDesc::method`] answers
+    /// and what every caller through this table jumps to.
+    pub code: *const u8,
+    /// How many parameters the callee declares, **not** counting the implicit
+    /// receiver in slot 0: the count a site that wrote the argument list is
+    /// judged against, exactly as a closure's `FN_ARITY` is.
+    pub arity: u32,
+    /// Which runtime [`Tag`] each declared parameter requires, one nibble per
+    /// parameter and the receiver excluded, parameter 0 in the least
+    /// significant nibble — `nvs_ir::lower`'s `FN_PARAM_TAGS` encoding
+    /// verbatim, `nvs_ir::lower::FN_PARAM_TAG_ANY` for a parameter whose
+    /// representation is itself a tag. Sixteen parameters fit; a callee
+    /// declaring more is refused rather than passed an argument nothing
+    /// checked, which is [`crate::closure`]'s own rule.
+    pub param_tags: u64,
+    /// Whether the member is `public` — the one visibility question a receiver
+    /// that names no class can ask, since such a site is outside every class
+    /// by construction. Answered at the declaration by `nvs_types::layout` and
+    /// carried down; a row nothing told is public, which is what keeps a
+    /// synthesized method (an exception constructor, a generator's state
+    /// machine, an ADR 0043 § 4 forward) callable.
+    pub public: bool,
+    /// Whether [`Self::code`] is a **native** ADR 0002 helper rather than a
+    /// compiled Novis function — true for exactly the `Core`-owned members
+    /// `nvs_stdlib::instance` puts in this table.
+    ///
+    /// The two differ in ownership, which is the same difference that made
+    /// [`ClassDesc::render`] its own field rather than a row here: a native
+    /// member *borrows* argument 0 where a compiled method owns its
+    /// parameters, so a caller that transferred a reference would leave the
+    /// receiver leaked and one that did not would free it twice. Neither
+    /// [`Self::arity`] nor [`Self::param_tags`] describes such a row at all —
+    /// this crate is handed an address and no signature — so the bit is what a
+    /// caller reaching this table without a class in hand refuses on, rather
+    /// than a shape it could believe.
+    pub native: bool,
 }
 
 /// The name of the resume-to-unwind entry point on a generator's state class,
@@ -563,10 +628,22 @@ impl ClassDesc {
     /// the statically resolved target as the fallback.
     #[must_use]
     pub fn method(&self, name: &str) -> Option<*const u8> {
+        self.method_row(name).map(|row| row.code)
+    }
+
+    /// The whole [`MethodRow`] `name` names — the address *and* the declared
+    /// shape a caller holding only tagged values has to check its arguments
+    /// against before it jumps.
+    ///
+    /// The same binary search [`ClassDesc::method`] makes, which is why that
+    /// one is written over this rather than beside it: two searches over one
+    /// table are two places for the precedence order to be read differently.
+    #[must_use]
+    pub fn method_row(&self, name: &str) -> Option<&MethodRow> {
         self.methods
-            .binary_search_by(|(have, _)| have.as_str().cmp(name))
+            .binary_search_by(|row| row.name.as_str().cmp(name))
             .ok()
-            .map(|index| self.methods[index].1)
+            .map(|index| &self.methods[index])
     }
 
     /// How many methods this descriptor answers for — its own plus every
@@ -819,7 +896,7 @@ impl ClassTable {
         desc.ctor_arity = ctor_arity;
     }
 
-    /// Fills in `id`'s method table — `(name, code address)` pairs, which this
+    /// Fills in `id`'s method table — one [`MethodRow`] per name, which this
     /// sorts by name so [`ClassDesc::method`] can binary-search them.
     ///
     /// Separate from [`ClassTable::define`] because a compiled function has no
@@ -829,14 +906,14 @@ impl ClassTable {
     /// # Panics
     ///
     /// If `id` does not belong to this table.
-    pub fn set_methods(&mut self, id: ClassId, methods: Vec<(String, *const u8)>) {
+    pub fn set_methods(&mut self, id: ClassId, methods: Vec<MethodRow>) {
         let desc = self
             .classes
             .get_mut(id.0)
             .expect("a class id always belongs to the table that handed it out");
         desc.methods = methods;
-        desc.methods.sort_by(|(a, _), (b, _)| a.cmp(b));
-        desc.methods.dedup_by(|(a, _), (b, _)| a == b);
+        desc.methods.sort_by(|a, b| a.name.cmp(&b.name));
+        desc.methods.dedup_by(|a, b| a.name == b.name);
         // Resolved once per class here rather than once per dying instance in
         // `dismantle` — see `ClassDesc::unwind`.
         desc.unwind = desc
@@ -2214,6 +2291,19 @@ mod tests {
     use crate::counting_alloc;
     use crate::string::NvsStr;
 
+    /// One method row of a shape nothing here is testing: a public, nullary
+    /// method. The tests that are about the shape write it out.
+    fn row(name: &str, code: *const u8) -> MethodRow {
+        MethodRow {
+            name: name.to_owned(),
+            code,
+            arity: 0,
+            param_tags: 0,
+            public: true,
+            native: false,
+        }
+    }
+
     /// A table with `Animal`, `Dog extends Animal`, and a `Greets` interface
     /// `Dog` implements — the shape `examples/objects.nvs` needs.
     fn hierarchy() -> (ClassTable, ClassId, ClassId, ClassId) {
@@ -2257,11 +2347,8 @@ mod tests {
         let base: *const u8 = (nvs_object_new as *const ()).cast();
         let over: *const u8 = (nvs_object_retain as *const ()).cast();
         let miss: *const u8 = (nvs_object_release as *const ()).cast();
-        table.set_methods(animal, vec![("describe".to_owned(), base)]);
-        table.set_methods(
-            dog,
-            vec![("describe".to_owned(), over), ("bark".to_owned(), base)],
-        );
+        table.set_methods(animal, vec![row("describe", base)]);
+        table.set_methods(dog, vec![row("describe", over), row("bark", base)]);
 
         #[expect(unsafe_code, reason = "the table outlives every borrow here")]
         unsafe {
@@ -2284,6 +2371,63 @@ mod tests {
                 nvs_class_method(std::ptr::null(), name.as_ptr(), name.len(), miss),
                 miss
             );
+        }
+    }
+
+    #[test]
+    fn a_method_row_carries_the_callees_declared_shape_past_the_sort() {
+        // The row is what a caller holding only tagged values reads before it
+        // fills the callee's slots — `MethodRow` owns why. What is under test
+        // is that the shape survives the name sort and the override dedup:
+        // both are written over the name alone, so a row that lost its arity
+        // or its `public` bit there would still answer the right address.
+        let mut table = ClassTable::new();
+        let id = table.define("Greeter", &[] as &[&str], &[]);
+        let own: *const u8 = (nvs_object_new as *const ()).cast();
+        let inherited: *const u8 = (nvs_object_retain as *const ()).cast();
+        table.set_methods(
+            id,
+            vec![
+                MethodRow {
+                    name: "greet".to_owned(),
+                    code: own,
+                    arity: 2,
+                    // `string` then `int`, parameter 0 in the low nibble.
+                    param_tags: 0x25,
+                    public: true,
+                    native: false,
+                },
+                // The superclass's own `greet`, appended after it exactly as
+                // `nvs_types::layout` flattens a chain — the override wins.
+                MethodRow {
+                    name: "greet".to_owned(),
+                    code: inherited,
+                    arity: 0,
+                    param_tags: 0,
+                    public: false,
+                    native: false,
+                },
+                MethodRow {
+                    name: "hidden".to_owned(),
+                    code: inherited,
+                    arity: 0,
+                    param_tags: 0,
+                    public: false,
+                    native: false,
+                },
+            ],
+        );
+
+        #[expect(unsafe_code, reason = "the table outlives every borrow here")]
+        unsafe {
+            let desc = &*table.desc(id);
+            let greet = desc.method_row("greet").expect("the class declares it");
+            assert_eq!(greet.code, own);
+            assert_eq!(greet.arity, 2);
+            assert_eq!(greet.param_tags, 0x25);
+            assert!(greet.public);
+            assert!(!desc.method_row("hidden").expect("declared").public);
+            assert!(desc.method_row("absent").is_none());
         }
     }
 

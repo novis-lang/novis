@@ -117,12 +117,15 @@ pub struct Class {
     /// transitively, as labels. Excludes the class itself.
     pub conforms: Vec<String>,
     /// Every method an instance of this class answers, as `(method name,
-    /// declaring class label)` — a straight copy of
+    /// declaring class label, is `public`)` — a straight copy of
     /// `nvs_types::layout::ClassLayout::methods`, which owns the precedence
-    /// rule. `nvs-codegen` turns each pair into the compiled address the
-    /// runtime descriptor's method table holds, which is what
-    /// [`InstKind::CallVirtual`] dispatches through.
-    pub methods: Vec<(String, String)>,
+    /// rule and the visibility bit. `nvs-codegen` turns each row into the
+    /// `nvs_runtime::MethodRow` the runtime descriptor's method table holds,
+    /// which is what [`InstKind::CallVirtual`] dispatches through, joining the
+    /// compiled address and the callee's declared shape onto it — neither of
+    /// which exists until a function has been compiled, which is why only the
+    /// bit that has no source below the front end travels here.
+    pub methods: Vec<(String, String, bool)>,
     /// [ADR 0071](../../../docs/adr/0071-derived-codecs.md)'s derived JSON
     /// codec, in declaration order — empty for a class carrying no
     /// `#[Json\Derive]`, which is every class in a program that never writes

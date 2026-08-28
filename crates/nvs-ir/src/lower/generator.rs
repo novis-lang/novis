@@ -533,13 +533,16 @@ pub(super) fn lower_generator(
         // `instanceof`. Stated rather than left implicit: an
         // `$gen instanceof Iterator` would answer `false`.
         conforms: vec![nvs_hir_iterator_label()],
+        // Public, all three: a state class is unspellable and its members are
+        // named by `foreach`'s own lowering and by `dismantle`, neither of
+        // which is inside any class.
         methods: {
             let mut methods = vec![
-                (GEN_ADVANCE.to_owned(), class.clone()),
-                (GEN_CURRENT_METHOD.to_owned(), class.clone()),
+                (GEN_ADVANCE.to_owned(), class.clone(), true),
+                (GEN_CURRENT_METHOD.to_owned(), class.clone(), true),
             ];
             if !owed.is_empty() {
-                methods.push((GEN_UNWIND_METHOD.to_owned(), class));
+                methods.push((GEN_UNWIND_METHOD.to_owned(), class, true));
             }
             methods
         },

@@ -73,16 +73,23 @@ pub struct ClassLayout {
     /// separately (`nvs_runtime::ClassDesc::conforms_to`).
     pub conforms: Vec<String>,
     /// Every method callable on an instance of this class, as `(method name,
-    /// declaring class label)` — its own first, then the nearest ancestor
-    /// declaring each name it does not. Only methods with a *body*: an
-    /// abstract or bodiless interface method has no code to name.
+    /// declaring class label, is `public`)` — its own first, then the nearest
+    /// ancestor declaring each name it does not. Only methods with a *body*:
+    /// an abstract or bodiless interface method has no code to name.
     ///
     /// This is what `nvs_runtime::ClassDesc::method` answers a
     /// `static::method(...)` dispatch from, so the precedence has to be the
     /// language's: a class's own override, then its superclass chain, then an
     /// interface default (ADR 0043 § 2). A depth-first walk that takes
     /// `extends` before `implements` produces exactly that order.
-    pub methods: Vec<(String, String)>,
+    ///
+    /// The visibility bit is carried because it has no source below the front
+    /// end and one dispatch needs it: a call whose receiver names no class is
+    /// outside every class by construction, so `nvs_runtime::MethodRow` — the
+    /// far end of this table — answers a non-`public` member with a throw
+    /// rather than with the address. Every other visibility question is
+    /// answered where the call is written, against the signature table.
+    pub methods: Vec<(String, String, bool)>,
 }
 
 impl ClassLayout {
@@ -161,7 +168,7 @@ pub fn build_class_layouts(
     graph: &ClassGraph,
 ) -> ClassLayoutTable {
     let mut own: FxHashMap<QName, Vec<String>> = FxHashMap::default();
-    let mut own_methods: FxHashMap<QName, Vec<String>> = FxHashMap::default();
+    let mut own_methods: FxHashMap<QName, Vec<(String, bool)>> = FxHashMap::default();
     // The exception tree first: it has no source declaration to collect from
     // (`nvs_hir::errors`), and a user class extending it needs its four slots
     // already claimed before its own are appended.
@@ -175,7 +182,10 @@ pub fn build_class_layouts(
         // that no source walk can find. One per class that declares
         // properties of its own — `nvs_hir::errors::declares_constructor`.
         let methods = if nvs_hir::errors::declares_constructor(name) {
-            vec!["constructor".to_owned()]
+            // Public: spec § 10's tree is constructed by every program that
+            // throws, and a synthesized member writes no modifier — see
+            // `own_methods` on why absent reads as `public`.
+            vec![("constructor".to_owned(), true)]
         } else {
             Vec::new()
         };
@@ -231,7 +241,7 @@ fn collect_own(
     src: &SourceFile,
     namespace: &[String],
     out: &mut FxHashMap<QName, Vec<String>>,
-    methods: &mut FxHashMap<QName, Vec<String>>,
+    methods: &mut FxHashMap<QName, Vec<(String, bool)>>,
 ) {
     let mut current = namespace.to_vec();
     for stmt in stmts {
@@ -266,15 +276,25 @@ fn collect_own(
     }
 }
 
-/// One declaration's own method names — only those with a body, since a
-/// bodiless one has no compiled code for a descriptor to point at.
-fn own_methods(members: &[nvs_syntax::ast::ClassMember], src: &SourceFile) -> Vec<String> {
+/// One declaration's own method names, each with whether it is `public` — only
+/// those with a body, since a bodiless one has no compiled code for a
+/// descriptor to point at.
+///
+/// A declaration that wrote no visibility keyword at all counts as `public`,
+/// which is `nvs_syntax::check_declarations`' `E_MISSING_VISIBILITY` already
+/// being reported for it: this pass only has to not invent a level for source
+/// that is being refused anyway, and the same reading is what keeps a
+/// synthesized method — an exception constructor, ADR 0053 § 4's state machine
+/// — callable, none of them writing a modifier.
+fn own_methods(members: &[nvs_syntax::ast::ClassMember], src: &SourceFile) -> Vec<(String, bool)> {
     members
         .iter()
         .filter_map(|member| match &member.kind {
-            ClassMemberKind::Method(m) if m.body.is_some() => {
-                Some(span_text(src, m.name).to_owned())
-            }
+            ClassMemberKind::Method(m) if m.body.is_some() => Some((
+                span_text(src, m.name).to_owned(),
+                !m.modifiers.contains(&Modifier::Private)
+                    && !m.modifiers.contains(&Modifier::Protected),
+            )),
             _ => None,
         })
         .collect()
@@ -347,17 +367,18 @@ fn flatten_fields(
 }
 
 /// Appends every method `qname` answers to `methods`, as `(name, declaring
-/// class label)` — its own first, then its superclass chain's, then any
-/// interface default it inherits. The first entry for a name wins, which is
-/// what makes an override beat the declaration it overrides.
+/// class label, is `public`)` — its own first, then its superclass chain's,
+/// then any interface default it inherits. The first entry for a name wins,
+/// which is what makes an override beat the declaration it overrides, and it
+/// carries that declaration's own visibility with it.
 ///
 /// `walked` guards the cyclic `extends` the hierarchy pass has already
 /// diagnosed, exactly like [`flatten_fields`]' own `seen`.
 fn flatten_methods(
     qname: &QName,
     graph: &ClassGraph,
-    own: &FxHashMap<QName, Vec<String>>,
-    methods: &mut Vec<(String, String)>,
+    own: &FxHashMap<QName, Vec<(String, bool)>>,
+    methods: &mut Vec<(String, String, bool)>,
     walked: &mut Vec<QName>,
 ) {
     if walked.contains(qname) {
@@ -366,9 +387,9 @@ fn flatten_methods(
     walked.push(qname.clone());
     let label = qname.to_string();
     if let Some(names) = own.get(qname) {
-        for name in names {
-            if !methods.iter().any(|(have, _)| have == name) {
-                methods.push((name.clone(), label.clone()));
+        for (name, public) in names {
+            if !methods.iter().any(|(have, _, _)| have == name) {
+                methods.push((name.clone(), label.clone(), *public));
             }
         }
     }

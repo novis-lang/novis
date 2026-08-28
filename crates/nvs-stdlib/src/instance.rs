@@ -128,14 +128,30 @@ const DISPATCH_ROSTER: &[(&str, &[(&str, &str)])] = &[
 
 /// `class`'s method table, as [`ClassTable::set_methods`] takes it — empty for
 /// every class not on [`DISPATCH_ROSTER`], which is most of them.
-fn dispatch_table(class: &str) -> Vec<(String, *const u8)> {
+///
+/// Every row here is `native`, which is the whole of what
+/// `nvs_runtime::MethodRow` can say about one: these addresses are ADR 0002
+/// helpers that **borrow** argument 0, and this crate holds no signature for
+/// them, so the arity and the parameter tags a compiled method's row carries
+/// are left at zero rather than guessed. That field is what a caller with no
+/// class in hand refuses on; the callers that reach these rows today —
+/// `foreach` over a cursor, `crate::sequence` — name the member statically and
+/// know the convention because they wrote it.
+fn dispatch_table(class: &str) -> Vec<nvs_runtime::MethodRow> {
     DISPATCH_ROSTER
         .iter()
         .find(|(name, _)| *name == class)
         .map(|(_, members)| {
             members
                 .iter()
-                .map(|(member, symbol)| ((*member).to_owned(), crate::address_of(symbol)))
+                .map(|(member, symbol)| nvs_runtime::MethodRow {
+                    name: (*member).to_owned(),
+                    code: crate::address_of(symbol),
+                    arity: 0,
+                    param_tags: 0,
+                    public: true,
+                    native: true,
+                })
                 .collect()
         })
         .unwrap_or_default()
@@ -452,7 +468,7 @@ mod tests {
             assert!(
                 dispatch_table(class)
                     .iter()
-                    .any(|(member, _)| member == sequence::ITERATE),
+                    .any(|row| row.name == sequence::ITERATE),
                 "{class} is `Iterable` to the checker and answers no `{}` at run time",
                 sequence::ITERATE
             );
@@ -460,7 +476,7 @@ mod tests {
         let cursor = dispatch_table(crate::cursor::NAME);
         for member in [sequence::ADVANCE, sequence::CURRENT] {
             assert!(
-                cursor.iter().any(|(found, _)| found == member),
+                cursor.iter().any(|row| row.name == member),
                 "the cursor every `iterate()` hands back owes `{member}`"
             );
         }

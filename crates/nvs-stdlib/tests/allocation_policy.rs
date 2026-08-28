@@ -328,7 +328,17 @@ fn closure_of(arity: usize, invoke: nvs_runtime::NvsFn) -> nvs_runtime::Value {
     let id = table.define("{closure}", &["arity", "params"], &[]);
     table.set_methods(
         id,
-        vec![(nvs_runtime::CLOSURE_INVOKE.to_owned(), invoke as *const u8)],
+        vec![nvs_runtime::MethodRow {
+            name: nvs_runtime::CLOSURE_INVOKE.to_owned(),
+            code: invoke as *const u8,
+            // A closure is called through `call_closure`, which reads the
+            // arity and the tags off the *object*'s own two slots below rather
+            // than off this row — see `nvs_runtime::MethodRow`.
+            arity: 0,
+            param_tags: 0,
+            public: true,
+            native: false,
+        }],
     );
     let table: &'static nvs_runtime::ClassTable = Box::leak(Box::new(table));
     #[expect(
