@@ -1,0 +1,81 @@
+--TEST--
+`Core\Test`'s failure messages render each scalar as itself -- `false` is the word, an `int` and a `uint` of the same digits agree, and a `float` and a `decimal` each keep their own spelling -- ADR 0079 § 4
+--FILE--
+<?nvs
+// The container arms next door say a *size* because a message goes to a build
+// log; the scalar arms have the opposite obligation, because a scalar is the
+// leaf `assertEqualsDeep` has just finished naming and quoting it is the whole
+// point. So each arm renders the value as itself, and none of them borrows a
+// conversion the language already has: `bool as string` gives `false` the
+// empty string, which would print a failure with a column missing.
+//
+// `assertSame` binds both arguments to one type variable, so every row below
+// needs a differing partner of its own type -- which is also why `null` is
+// reached through a `?int` rather than on its own.
+
+int $refused = 0;
+
+// `null` is one word, and the `?int` carrying it is the only way a nullable
+// subject reaches this member at all.
+?int $nothing = null;
+?int $some = 5;
+try { Core\Test::assertSame($nothing, $some); } catch (Throwable $nulled) { $refused = $refused + 1; echo $nulled->message, "\n"; }
+
+// The row `bool as string` cannot serve: it renders `false` as the empty
+// string, so a message built out of it would read `$actual` is , which is the
+// failure this arm exists to avoid. Both words are printed in full.
+bool $no = false;
+bool $yes = true;
+try { Core\Test::assertSame($no, $yes); } catch (Throwable $flagged) { $refused = $refused + 1; echo $flagged->message, "\n"; }
+echo "bool as string gives [", $no as string, "] and [", $yes as string, "]\n";
+
+// An `int` prints its sign, and a `uint` prints its own range rather than the
+// two's-complement reading of it: `18446744073709551615` is not `-1`, and the
+// line above proves this case can tell those apart.
+int $big = 9223372036854775807;
+int $neg = -1;
+try { Core\Test::assertSame($big, $neg); } catch (Throwable $signed) { $refused = $refused + 1; echo $signed->message, "\n"; }
+
+uint $same = 9223372036854775807 as uint;
+uint $past = 18446744073709551615;
+try { Core\Test::assertSame($same, $past); } catch (Throwable $unsigned) { $refused = $refused + 1; echo $unsigned->message, "\n"; }
+
+// A `float` renders through Rust's own `to_string`, which is why `1.0` is `1`
+// and not `1.0` -- and a `decimal` renders through its own, which keeps the
+// scale it was written with, so `1.00` stays `1.00`. The two arms sit next to
+// each other and answer differently for the same number on purpose.
+float $one = 1.0;
+float $half = 0.5;
+try { Core\Test::assertSame($one, $half); } catch (Throwable $floated) { $refused = $refused + 1; echo $floated->message, "\n"; }
+
+decimal $padded = 1.00;
+decimal $money = 19.90;
+try { Core\Test::assertSame($padded, $money); } catch (Throwable $scaled) { $refused = $refused + 1; echo $scaled->message, "\n"; }
+
+// The invariance, asserted rather than read off the two lines above: the same
+// digits under two different tags render the same string. A member that let
+// the tag reach the rendering -- a suffix, a width, a sign it only prints for
+// one of them -- fails here while both of its own lines still look right.
+string $intMsg = "";
+string $uintMsg = "";
+try { Core\Test::assertSame($big, $neg); } catch (Throwable $keptInt) { $intMsg = $keptInt->message; }
+try { Core\Test::assertSame($same, $past); } catch (Throwable $keptUint) { $uintMsg = $keptUint->message; }
+string $intShown = Core\Str::before(Core\Str::after($intMsg, "is ") ?? "", ",") ?? "";
+string $uintShown = Core\Str::before(Core\Str::after($uintMsg, "is ") ?? "", ",") ?? "";
+int $agreed = 0;
+try { Core\Test::assertSame($intShown, $uintShown); $agreed = $agreed + 1; } catch (Throwable $disagreed) { echo $disagreed->message, "\n"; }
+echo "shown=", $intShown, "\n";
+
+// Counted, not read off the lines: an arm that answered plausibly instead of
+// refusing subtracts from one of these.
+echo "refused=", $refused, "/6 agreed=", $agreed, "/1\n";
+--EXPECT--
+Core\Test::assertSame failed: `$actual` is null, `$expected` is 5
+Core\Test::assertSame failed: `$actual` is false, `$expected` is true
+bool as string gives [] and [1]
+Core\Test::assertSame failed: `$actual` is 9223372036854775807, `$expected` is -1
+Core\Test::assertSame failed: `$actual` is 9223372036854775807, `$expected` is 18446744073709551615
+Core\Test::assertSame failed: `$actual` is 1, `$expected` is 0.5
+Core\Test::assertSame failed: `$actual` is 1.00, `$expected` is 19.90
+shown=9223372036854775807
+refused=6/6 agreed=1/1
