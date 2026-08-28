@@ -702,6 +702,14 @@ is why" — is this file.
   that consumed the value, the release does not belong there. Moving it earlier made all nineteen
   diffs vanish — a correct fix here changes no fixture that has nothing fallible *after* a staged
   argument.
+- **`tools/holes.py` reads 160 raw bytes back from a literal for the words
+  `CodegenError::Unsupported`, and a *comment* counts.** So a catch-all reclassified to
+  `CodegenError::Internal` whose comment explains "this is an `internal` rather than a
+  `CodegenError::Unsupported`" is still on the worklist afterwards, and the count moves by
+  two when you closed three. The recognizer cannot tell a comment from code — it is a
+  window over the raw text, deliberately, so that a constructor wrapped by rustfmt is still
+  found. Write the justification as "rather than an `Unsupported`", or put it further than
+  160 bytes away; `python tools/holes.py` immediately after the edit is the whole check.
 
 ## Running things
 

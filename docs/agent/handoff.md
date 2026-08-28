@@ -2,47 +2,44 @@
 
 ## State
 
-**M4's Stage 8 gate is on disk and green, and the guard-name debt is closed.** The tree is at
-**867 conformance plus 189 differential**. Nothing is blocked.
+**Item 1 is closed at the refusal level, and the ceiling has fallen from 15 to 6.** The tree is
+at **867 conformance plus 189 differential**. Nothing is blocked.
 
-`crates/nvs-ir/tests/refusals.rs` is `every_refusal_is_a_diagnostic_or_decided`: it runs
-`tools/holes.py` over the tree — the tree's one recognizer for a refusal site, never a second regex
-— and fails on any site no open numbered item in `loop-goal.md` claims and no allowlist entry holds.
-The allowlist is **empty and may never grow**; the two judgements that keep it that way are bullets
-in `loop-goal.md` § *Standing decisions*, and the test's own module doc is the mechanism's home.
-Attribution is by file, so the same test carries `CEILING` — **15**, the tree's current total — which
-ratchets down and never up, and a session that closes a site lowers it in the same slice or the
-test says so.
+All nine `nvs-codegen` catch-alls item 1 claimed were engine invariants, not language holes: each
+already carried a roster comment proving no lowering constructs what it matches, and each is now a
+`CodegenError::Internal` through `nvs_codegen::emit::internal`, which is itself an `Internal` now
+rather than an `Unsupported`. `crates/nvs-codegen/src/emit.rs`'s module doc is the home of the rule
+in that crate; `docs/agent/loop-goal.md` § *Standing decisions* is its home overall.
 
-The 15 that stand are all claimed: item 1 holds 9 (every one an `emit.rs` catch-all arm), item 16
-three, item 25 two, item 4 one. `python tools/holes.py --item N` prints any of them.
+`crates/nvs-ir/tests/refusals.rs` is unchanged in mechanism — `CEILING` is 6, the allowlist is still
+empty and may never grow. The six that stand are item 4's one (`nvs-ir/src/lower/stmt.rs:269`), item
+16's three and item 25's two; `python tools/holes.py --item N` prints any of them.
 
 ## Next group
 
-**The `emit.rs` catch-alls, classified the way `ty.rs`'s two just were.** Each is a `_ =>` over an
-IR enum that lowering itself builds, so each is either a real hole or an engine invariant that no
-program reaches — and the second kind is `CodegenError::Internal` rather than
-`CodegenError::Unsupported`, which is what takes it off `holes.py`'s worklist. The proof each slice
-owes is the same: name the variants lowering can construct, and show the arm holds none of them.
-File set: `crates/nvs-codegen/src/emit.rs`, `crates/nvs-ir/tests/refusals.rs` (the `CEILING`
-constant), `crates/nvs-ir/src/ir.rs` (the enums being matched).
+**Item 16's three, the named/spread argument refusals.** These are the first of the six that are
+*real* holes rather than classifications, and the standing decision orders them: the checker half
+lands before the lowering half. Read the sites first — `python tools/holes.py --item 16` — because
+this group's shape depends on whether each is a checker gap or a lowering one.
+File set: `crates/nvs-types/src/expr/` (the checker half), `crates/nvs-ir/src/lower/call.rs` (the
+lowering half), `crates/nvs-ir/tests/refusals.rs` (the `CEILING` constant).
 
-- [ ] **The three whole-enum arms** — `emit.rs:3074` (`the terminator {other:?}`), `emit.rs:3458`
-      (`the runtime helper {other:?}`), `emit.rs:2906` (`a refcount operation on representation
-      {other:?}`). `Terminator` and `Helper` are `nvs-ir`'s own enums and lowering is their only
-      producer; a variant nothing constructs is an invariant, one lowering emits is a hole.
-- [ ] **The three representation arms** — `emit.rs:670` (`reinterpret`), `emit.rs:711` (widening
-      into a tagged value), `emit.rs:750` (narrowing out of one). ADR 0007 § 2's grid is what says
-      which pairs a program can ask for.
-- [ ] **The three operator arms** — `emit.rs:1204`, `emit.rs:1348`, `emit.rs:1904`. These are item
-      1's actual work (`python tools/holes.py --item 1`), ADR 0007 § 4's promotion table, and the
-      only ones of the nine likely to be a real hole rather than a classification.
+- [ ] **Read item 16's three sites and split them checker-half / lowering-half**, then land the
+      checker half: `crates/nvs-ir/src/lower/call.rs` is the anchor `holes.py` reports, and
+      `crates/nvs-types/src/expr/operators.rs:403` is the neighbouring checker file the pack maps.
+      ADR 0063 R2's options bag is what `call.rs`'s own module doc says it already flattens.
+- [ ] **Land the lowering half in `crates/nvs-ir/src/lower/call.rs`**, and lower `CEILING` in
+      `crates/nvs-ir/tests/refusals.rs:58` in the same slice — the test says so if you forget.
+- [ ] **Item 25's two, `object` as a declared type has a representation arm** — same `CEILING`
+      edit, and the standing decision already settles the design (`object` erases to the same
+      pointer a named class does), so only the "does anything below read a class label" check is
+      work.
 
 ## Backlog
 
-- Items 16 (named/spread arguments, 3 sites) and 25 (`object`'s representation arm, 2 sites) —
-  `docs/agent/loop-goal.md`, both still with their own file sets.
-- Item 4, the bitwise operators, 1 site — `docs/agent/loop-goal.md`.
-- `holes.py`'s attribution is by enclosing function first and by *nearest anchor in the same file*
-  second, so an item's anchors are load-bearing for the Stage 8 gate now; `tools/holes.py`'s own
-  docstring owns that.
+- Item 4's one site is `nvs-ir/src/lower/stmt.rs:269`, a control-flow-slice refusal whose message
+  is about local declarations rather than about bitwise operators — check the attribution before
+  taking it (`docs/agent/loop-goal.md` item 4).
+- `docs/agent/guard-name-debt.md` is at 0; the file can go when nothing references it.
+- The `[context]` manifest wanted nothing this session did not have; `docs/agent/loop-goal.toml`
+  needs no new selector.

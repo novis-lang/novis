@@ -49,7 +49,10 @@
 > [docs/agent/guard-name-debt.md](agent/guard-name-debt.md) is the list and the three causes, and a
 > session that lands a guard test reconciles its name there in the same slice. Stage 8's own gate,
 > [crates/nvs-ir/tests/refusals.rs](../crates/nvs-ir/tests/refusals.rs), is what holds the line now:
-> it fails on any refusal site no open item claims, and carries a ceiling on the total.
+> it fails on any refusal site no open item claims, and carries a ceiling on the total, which is
+> **6** — down from 15, item 1's nine `nvs-codegen` catch-alls having turned out to be engine
+> invariants rather than holes and become `CodegenError::Internal`. What is left is item 4's one,
+> item 16's three and item 25's two.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,
