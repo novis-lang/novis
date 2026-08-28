@@ -55,7 +55,15 @@ const ALLOWLIST: &[(&str, &str)] = &[];
 /// A ratchet, not a target: a session that closes one lowers this in the same
 /// slice, and a session that adds one has to explain itself to a red test
 /// first. `python tools/holes.py` prints the current number.
-const CEILING: usize = 4;
+///
+/// **It went 4 → 17 without a line of `nvs-ir` changing**, which is the one
+/// direction a ratchet is otherwise not allowed to move: the 4 came from a
+/// recognizer matching three fixed phrasings, so it was a floor on the truth
+/// rather than the truth, and 17 is what the same tree holds once a site is
+/// read from the construct that carries it. Nothing was added; thirteen sites
+/// were always there and unseen. A ratchet set from a blind count is not a
+/// ratchet, and this is the last time this number may rise.
+const CEILING: usize = 17;
 
 /// The repository root — this crate is `crates/nvs-ir`.
 fn root() -> PathBuf {
