@@ -2,74 +2,63 @@
 
 ## State
 
-**M4's Stage 8, depth.** The tree is at **850 conformance plus 189 differential**, all green.
+**M4's Stage 8, depth.** The tree is at **853 conformance plus 189 differential**, all green.
 Nothing is blocked.
 
-Two cases landed, in two different classes, because the group the previous handoff named
-turned out to be **already answered**: `gaps.py` ranks `Core\Bytes::contains`, `endsWith` and
-`indexOf` as its thinnest three, but the *agreement* shape they were to be given is on disk
-twice already — `bytes-contains-agrees-with-index-of-over-every-needle.nvst` and
-`bytes-the-three-predicates-are-what-compare-and-index-of-already-say.nvst` — and the
-needle-length bound, the empty needle and the binary octets (NUL and high-bit alike) are held
-by `bytes-both-predicates-hold-the-same-bound-on-the-needles-length.nvst` and the sniffing
-case. Reading the eight `--TEST--` lines first is what found this; it is the cheapest move
-against a class `gaps.py` ranks by count.
+Three cases landed, all `Core\Validate`, over one file set — the class was `gaps.py`'s
+smallest at depth 4.0 / floor 3 and is now depth 4.5 / floor 4, so it is off the top of that
+table. What each adds, beyond the eight cases already there:
 
-What was genuinely unasked in that class was `indexOf`'s **`from` option**, which the whole
-corpus reached with two spot values (`{from: 5}` and `{from: -5}`, one subject, one needle):
+- **`isIp` names its numbers.** The existing case asks what `{version}` is *for*; this one asks
+  the grammar: `255` beside `256` in the last octet and the first, four octets beside three and
+  five, eight groups beside seven and nine, four hex digits beside five, and — the bound worth
+  the case on its own — `::` elides *at least one* group, so seven written groups plus `::` is
+  an address and eight is not. Three counted sweeps carry the same three bounds without naming
+  a number: eleven last octets accept six, six dotted widths accept one, twelve group widths
+  accept one.
+- **`isAscii` and `isDomain` were each given the *compositional* question**, which is what the
+  corpus had no case for in either class: the whole is the **conjunction over the parts**,
+  counted over a table rather than read off a line. `isAscii($s)` equals the conjunction over
+  `Core\Str::codePoints`, and equally `Core\Bytes::length($s as bytes) == Core\Str::length($s)`
+  — two independent statements of one property, 16 subjects each, plus two runs of a hundred
+  that grow a subject a character at a time. `isDomain($d)` equals the conjunction over
+  `Core\Str::split($d, ".")`, which is what makes every dot-shaped refusal in the corpus a
+  *prediction* of an empty label rather than a rule of its own.
+- **Depth in a domain is bounded by nothing but the 253 bytes.** A name of `n` single-byte
+  labels is `2n − 1` bytes, so 127 labels is accepted and 128 refused, and a 63-byte label
+  followed by 95 short ones is accepted at the identical total with a third of the depth.
 
-- **`from` resolves where `slice`'s offset resolves.** Both read ADR 0063 R8's sign rule
-  through the same `offset` helper (`crates/nvs-stdlib/src/bytes.rs:367`), so the case sweeps
-  from below `-length` to past `length` and asserts, by counting, that the **empty needle**'s
-  answer — which is the resolved position itself, `find` answering `Some(0)` — equals
-  `length($s) - length(slice($s, $f))`, and that every needle's answer is the tail's answer
-  shifted by that same position. Nothing in the case re-implements the clamp it checks.
+That compositional move is the general one and it cost no new spellings: where the corpus
+already pins a member's line on a single element, the unasked question is the sweep over whole
+subjects that must agree with it.
 
-`Core\ObjectSet`'s algebra was the second: its existing cases ask the degenerate ends (a set
-against itself, against a disjoint one) and that a result is new rather than a mutated operand,
-so a *partial* overlap — the case the three members exist for — was untouched. 25 pairs from
-one pool of eight identities, 16 laws each (inclusion-exclusion, both operands' two halves, the
-three-piece tiling, the two symmetries and `diff`'s asymmetry) plus membership decided over the
-whole domain rather than over the members present. A `union` that appended both walks fails the
-first law and nothing in the degenerate cases.
-
-The playbook's new bullet is the trap that cost the second slice a rewrite: a set returned by
-`union`/`intersect`/`diff` has no writable type, so every derived set is a chain. That is a
-real hole and it is in the backlog.
-
-`orient.py`'s pack was complete for this group; nothing outside it was read.
+`orient.py`'s pack was otherwise complete, with one gap: **`[context] modules` names no
+`nvs-stdlib/src/*.rs` pattern**, so `validate.rs`'s module doc — the home of every line these
+three cases pin, and the first thing any depth case in a `Core` class needs — cost a `peek.py`
+of its own.
 
 ## Next group
 
-**`Core\Validate`** — 8 cases over 6 members, the smallest class in `gaps.py`'s table, floor 3
-at depth 4.0. One shared file set: `crates/nvs-stdlib/src/validate.rs` plus
-`tests/conformance/core/`. Read the eight existing `--TEST--` lines first (the group above is
-why): the length limits, the LDH label rule, the `atext` local part and the `{version}` option
-are each already held by a case of their own.
+**`Core\Uri`** — 19 cases over 30 members, `gaps.py`'s thinnest class now (depth 4.0, floor 3).
+One shared file set: `crates/nvs-stdlib/src/uri.rs` plus `tests/conformance/core/`. Read the
+existing `--TEST--` lines first — that is what found two of this session's three questions.
 
-- [ ] **`Core\Validate::isIp`** (3 cases) — row `validate.rs:177`, helper `validate.rs:420`.
-      *A bound on both sides*: what the existing case asks is the `{version}` option refusing
-      the other family's spelling, not the numbers — so the last dotted-quad octet accepted
-      (`255`) beside the first refused (`256`), the leading-zero form, the group count and the
-      one `::` an IPv6 address may hold beside the second, each named with its neighbour.
-- [ ] **`Core\Validate::isAscii`** (4 cases) — row `validate.rs:191`, helper `validate.rs:450`.
-      *Agreement*: it and `isPrintable` cross twice already; what no case asks is whether it
-      agrees with `Core\Encoding::isValidText` over a byte sweep, which is the other member
-      that decides what a `string` may hold.
-- [ ] **`Core\Validate::isDomain`** (4 cases) — row `validate.rs:170`, helper `validate.rs:402`.
-      *Edges*: the trailing root dot, a single label with no dot at all, and the interaction
-      between the label-length limit and the total-length one — the two limits' case pins each
-      alone.
+- [ ] **`Core\Uri::compareTo`** (3 cases) — row `uri.rs:506`, helper `uri.rs:1689`.
+      ADR 0090 § 4 is the constraint and the playbook's `loop-goal.toml` bullet is about this
+      exact member: `==` on two objects is identity, there is no `Equatable`, and
+      `$a->compareTo($b) == 0` is *the* content-equality spelling. The compositional shape above
+      transfers — an ordering must agree with itself over a pool of URIs (antisymmetry,
+      transitivity, and agreement with the normalized rendering), counted over the pairs.
+- [ ] **`Core\Uri::path`** (3 cases) — row `uri.rs:433`, helper `uri.rs:1507`.
+- [ ] **`Core\Uri::decodeFormValue`** (3 cases) — row `uri.rs:382`, helper `uri.rs:1772`.
 
 ## Backlog
 
-- No `Core` class reaches `nvs_hir::implements_interface`, so `Core\Uri::compareTo` exists
-  while `$a < $b` over two `Uri`s is `E0411` — docs/agent/loop-goal.md, deserves its own session.
-- `Core\ObjectSet::union`/`intersect`/`diff` return an un-parameterized `Core\ObjectSet`, which
-  no declared type accepts (`crates/nvs-stdlib/src/objset.rs:89`) — a derived set cannot be
-  bound or passed to a user function. Same shape for `Core\ObjectMap` if its rows match.
-- `Core\Csv::format`'s "column N is not a `string`" refusal is unreachable from source until
-  ADR 0007 § 2's `array<T> as array<U>` lowers — playbook, § *Writing a test case*.
-- 54 of the 156 guard tests `loop-goal.toml` names match nothing `cargo test` runs —
-  docs/agent/guard-name-debt.md.
-- `Core\Uri` is now the thinnest class in `gaps.py` (compareTo 3, decodeFormValue 3, path 3).
+- A set returned by `union`/`intersect`/`diff` has no writable type, so every derived
+  `Core\ObjectSet` is a chain — playbook, *Writing a test case*.
+- `docs/agent/guard-name-debt.md`: 54 of the 156 guard tests `loop-goal.toml` names match
+  nothing `cargo test` runs.
+- 65 unasserted `Fault::fatal` paths (`python tools/gaps.py --errors`); `csv.rs:512`'s `thrown`
+  is unreachable from source and is owed no case (playbook).
+- Next thinnest after `Core\Uri`: `Core\Bytes`, `Core\Test`, `Core\Random`, `Core\Time`, all at
+  depth 4.0.
