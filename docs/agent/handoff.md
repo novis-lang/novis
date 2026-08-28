@@ -2,62 +2,53 @@
 
 ## State
 
-**M4's Stage 8, depth.** The tree is at **815 conformance plus 189 differential**. Nothing is
+**M4's Stage 8, depth.** The tree is at **817 conformance plus 189 differential**. Nothing is
 blocked.
 
-`Core\Test` is done as a depth target — `gaps.py` now ranks it 4.0/floor 3, out of the thin end.
-Two cases landed, both sweeps rather than more rows. `assertThrows`'s class argument is pinned as
-a **bound with a direction**: one thrown `ParseError` held against `ParseError`, `RuntimeError`
-and `Throwable` (ancestry matches upward, `Ctx::pending_conforms_to`'s own decision note), and
-refused against the `ParseError` a thrown `RuntimeError` does not descend to, against the sibling
-`IOError`, and against a body that returned — four refusals counted, with the option bag shown
-prefixing a report it does not otherwise decide. And `assertSame`/`assertCount`/`assertDoesNotThrow`
-are asserted to **agree on what reaches § 5's ledger**: a failure records whether its throw
-propagates or the body swallows it (six discharges through `expectFailure`, counted), and a held
-assertion leaves no failure to discharge (three refusals, counted).
+`Core\Random` is done as a depth target, and it took two cases neither of which is the work the
+previous handoff named. All three items of that group were **already asserted** — see the new
+playbook bullet under *Writing a test case*, which is the reusable half. What was actually
+missing was found by reading the member doc comments for a rule no existing case could observe,
+every one of them drawing over a *list*:
 
-The third slice of the last group is **closed with no case**: `assertCount`'s two `Fault::fatal`
-sites cannot be reached from source at all, its parameters being `array<T>` and `uint`. That is
-now a playbook bullet under *Divergences and refusals already pinned*.
+- **The subject's keys reach no answer**, asked of `pick`, `sample` and `shuffle` together over a
+  map whose keys and values are disjoint strings. `pick` draws a value and never a key (150 draws,
+  counted both ways, all three values reached) — the `array_rand` divergence `random::pick`'s doc
+  comment owns; both array answers come back a list under fresh `0, 1, …` keys, rendered as well
+  as counted.
+- **`sample`'s order is itself drawn**, the other `array_rand` divergence, which no count of
+  entries can see. A two-entry sample puts the lower-positioned entry first in *some* of 40 draws
+  and not all — a preserving implementation gives 40 and a reversing one 0, so it is a bound on
+  both sides. Plus the full-width draw as a permutation, and the two widths with no order at all.
 
-One thing a program cannot observe and the next session should not try to: nothing in `Core\Test`
-reports a ledger tally, and `expectFailure` discharges only *failed* entries
-(`Ctx::discharge_failures_from`), so a **passing** entry's own record is visible only to
-`nvs_cli::runner` under § 20. A case claiming to count passes would be claiming more than it sees.
+Both cases are probabilistic by construction and were re-run eight times before the wrap; the
+failure probabilities are stated in the case comments (the tightest is 2^-40).
 
-The gap six handoffs back still stands: **no `Core` class reaches `nvs_hir::implements_interface`**,
+The gap seven handoffs back still stands: **no `Core` class reaches `nvs_hir::implements_interface`**,
 so `Core\Uri::compareTo` exists while `$a < $b` over two `Uri`s is `E0411`. It is in the backlog
 and still deserves a session of its own.
 
 ## Next group
 
-**`Core\Random`, the thinnest class `gaps.py` now ranks** (depth 3.0, floor 2, 7 cases over 7
-members) — one file set: `crates/nvs-stdlib/src/random.rs` and `tests/conformance/core/`. Nothing
-here needs `test.rs` open. Seven cases already exist under `tests/conformance/core/random-*`; read
-their `--TEST--` lines first so a new one adds a boundary rather than another row.
+**`Core\Random`'s remaining unasserted rule, then the next class `gaps.py` ranks** — one file set:
+`crates/nvs-stdlib/src/random.rs` and `tests/conformance/core/`. Read the existing cases' bodies
+before writing, per the new playbook bullet.
 
-- [ ] **`Core\Random::float` is bounded on both sides of the unit interval**
-      (`crates/nvs-stdlib/src/random.rs:285`, `args: [0]`) — one case, the *bound* shape. It takes
-      no arguments at all, so the only thing to assert is the interval: sweep a few hundred draws
-      and count that every one satisfies `>= 0.0` and the half-open `< 1.0`, which is the half a
-      member built on a closed division gets wrong. Float `<`, `>` and `&&` all lower (playbook).
-- [ ] **`Core\Random::pick` over the degenerate array** (`random.rs:428`) — one case, the *edge*
-      shape. The one-element array (the only draw whose answer is determined), and the empty one,
-      whose refusal's `Fault::` constructor decides whether the case can `catch` it — check the
-      constructor at the site before assuming, per the playbook.
-- [ ] **`Core\Random::shuffle` preserves the multiset it was given** (`random.rs:485`) — one case,
-      the *invariance over a sweep* shape. Sort the shuffled result and assert it equals the sorted
-      input, counted over a table of lengths including 0 and 1, so a member that drops or
-      duplicates an element fails while any single shuffle still looks plausible.
+- [ ] **A drawn entry is the subject's own value, not a copy of it**
+      (`crates/nvs-stdlib/src/random.rs:220` — `owned_value_at`'s retain) — one case, the
+      *invariant* shape. Draw with `pick` and `shuffle` over an `array<mixed>` of objects and
+      assert identity against the subject's entries (ADR 0090 makes `==` over two objects
+      identity), which is what the slot-based draw buys and what a copying implementation loses.
+      Nothing in `Core\Random`'s seven cases uses a non-scalar element at all.
+- [ ] **Take `gaps.py`'s next-thinnest class after re-running it** — the rank moves once these two
+      cases land, and the bullet above is the reason not to trust the previous rank's group
+      unread.
 
 ## Backlog
 
-- No `Core` class reaches `nvs_hir::implements_interface`, so `Core\Uri::compareTo` exists while
-  `$a < $b` over two `Uri`s is `E0411` — its own session; owned by ADR 0013.
-- `Core\Debug` is the other 3.0/floor-2 class (`dump` 2, `render` 4) — the group after `Core\Random`.
-- `Core\Str::fold`, `graphemes` and `indexOf` have one case each, the tree's thinnest members —
-  `gaps.py`, and the playbook's `mbstring` bullet applies to their oracles.
+- No `Core` class reaches `nvs_hir::implements_interface`; `$a < $b` over two `Core\Uri`s is
+  `E0411` (ADR 0013, and the plan's *Open now*).
 - 54 of the 156 guard tests `loop-goal.toml` names match nothing `cargo test` runs —
   `docs/agent/guard-name-debt.md`.
-- `array<T> as array<U>` is the conversion row `nvs-ir` still panics on (`lower/expr.rs:877`) —
-  ADR 0007 § 2 owns the row.
+- `Core\Random\Seeded` is unbuilt (`random.rs` module doc, known gap 1).
+- `ThreadRng` is not reseeded on `fork` (`random.rs` module doc, known gap 2).

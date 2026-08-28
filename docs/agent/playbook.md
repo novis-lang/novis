@@ -1853,6 +1853,16 @@ is why" — is this file.
   as well as the count, and the spelling is `Core\Str::slice($s, $i, 1)`. The existing
   `Core\Str::slice("YWJjZAYW", 0, $k)` reads as either semantics, which is why it is not
   the place to check.
+- **`gaps.py` ranks a class by *cases per member*, and a sweep case is one case however many
+  members it asserts.** A handoff group derived from that rank can name work that is already
+  done: `Core\Random` ranked thin at 7 cases over 7 members, but
+  `random-every-draw-is-swept-for-its-invariants` already counted `float`'s half-open `[0, 1)`
+  over 120 draws and `shuffle`'s multiset over `[1, 1, 2, 3, 3]`, and
+  `random-draws-over-an-array` already pinned `pick` on both degenerate subjects. So before
+  writing a ranked member's case, read the *bodies* of the class's existing cases and not only
+  their `--TEST--` lines — a sweep names the members it covers nowhere else. What was actually
+  left in that class was found by reading the member doc comments for a rule with no case:
+  a divergence from PHP that every existing case's *list* subject cannot observe.
 
 ## Splitting a file that got too big
 
