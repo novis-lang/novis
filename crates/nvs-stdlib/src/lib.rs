@@ -218,6 +218,7 @@ mod objset;
 mod ordering;
 mod out;
 pub mod path;
+mod program;
 pub mod random;
 pub mod regex;
 pub mod registry;
@@ -295,6 +296,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| objset::address(symbol))
         .or_else(|| out::address(symbol))
         .or_else(|| path::address(symbol))
+        .or_else(|| program::address(symbol))
         .or_else(|| random::address(symbol))
         .or_else(|| regex::address(symbol))
         .or_else(|| test::address(symbol))
