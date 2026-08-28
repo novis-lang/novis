@@ -1166,7 +1166,55 @@
 > nested in an array and in an object literal, an inherited declaration, and the
 > property/method/parameter attach sites — with the plain constant and a `tainted` one written
 > first, `tainted` being accepted on purpose since ADR 0024 answers a question about a value's shape
-> and no ADR names a payload as a taint sink. Three live tools **are** the worklist and no session
+> and no ADR names a payload as a taint sink. **ADR 0046 §§ 4-5's structural retrieval runs, and
+> item 32 is closed but for one target spelling.** `Core\Attributes::get<T>` and `::all<T>` are
+> registered like any other `Core` class (`nvs_stdlib::attributes`) and implemented by nothing at
+> all: § 5 says a declaration's attached-attribute list is static and § 2 has already proved every
+> payload value is a compile-time constant, so `nvs check` **replaces the call with its answer** — a
+> compiled-in `null`, the matched literal itself, or the array of them — and the two registered
+> symbols name a body that aborts precisely so a call that slipped past the fold is loud rather than
+> plausible. The matching is § 4's *structural, not nominal* rule verbatim: an attached literal is
+> an answer exactly when it satisfies `T` under `crate::expr::is_assignable`, ADR 0036 § 3's width
+> subtyping and the same test a shape-typed binding goes through, whether it was attached bare or
+> under a name and whatever that name was — so there is no second namespace of attribute-kind names
+> for unrelated frameworks to collide in, and a bare `#[{...}]` is retrievable exactly like a named
+> one. `nvs_types::retrieval` is that pass's one home. Three decisions in it are worth naming. The
+> **table is built whole, ahead of the walk** (`build_attribute_table`), for `build_const_table`'s
+> reason: a retrieval may be written above the declaration it asks about, in the same file or
+> another, so a table filled as the walk descends would answer differently depending on source
+> order. The target is **inspected syntactically**, exactly as ADR 0033 § 4's sinks inspect a
+> literal argument — `Foo::bar(...)` here is a written name and never a closure value, which is what
+> makes a compile-time answer possible at all — and § 4's two overlapping spellings are *joined*
+> rather than ordered: `constructor` plus a member name is both "the property named that" and "the
+> constructor parameter named that", which are the same declaration for an ADR 0043 § 4 promoted
+> parameter, so both rosters are consulted. And the fold's **value is a constant**, `ConstArg`
+> gaining a `Shape` and an `Array` variant that `nvs-ir`'s `emit_const_arg` materializes — the shape
+> through the very `shape_class_label` a written literal of the same field set gets, because two
+> classes for one shape would make the field offsets they agree on a coincidence. Four refusals land
+> with it, each where it is written: two matches under `get` is `E0728` naming `::all<T>` as the fix
+> (§ 5's "a genuine improvement over PHP/Java/C#", where that is a question a test run answers), a
+> `T` that is not a shape is `E0729`, a target that names no declaration is `E0730`, and a matched
+> payload holding a value with no constant form is `E0731` — a **user-declared** class constant,
+> whose value `signatures.rs`'s own known gap leaves unmodeled, and an enum case, which reaches a
+> program through `ExprInfo::EnumCase` rather than through a constant. Neither is refused where it
+> is *attached*: § 2 admits both, and an attribute nobody retrieves costs nothing. A computed
+> `$member` needs no refusal either — § 4's *Consequences* already fixes it as an empty result, so
+> `get` folds to `null` and `all` to the empty array.
+> `tests/conformance/core/an-attribute-is-retrieved-by-the-shape-it-satisfies.nvst` pins the named
+> and the bare form retrieved through one shape each, the width-subtyping widening, the compiled-in
+> `null`, two matches under `all` in attach order, all four § 4 target spellings, the computed
+> member name, and the agreement between a retrieved payload and a hand-written literal of the same
+> shape counted rather than read off a line;
+> `tests/conformance/reject/an-attribute-retrieval-is-refused-where-it-cannot-be-folded.nvst` pins
+> all four codes in one compile with the accepted `all<T>` spelling written first. What is left of
+> item 32 is one spelling and it is a *name-resolution* gap rather than this pass's:
+> `Foo::constructor(...)` on a class that writes no `constructor` is `E0309` from
+> `nvs_hir::members::check_member_ref`, even though ADR 0022 synthesizes one and § 4 leans on
+> exactly that ("this needs no new 'class as a value' token"). Widening `member_declared` outright
+> is the wrong fix — it would also admit a written `Foo::constructor()` call, which `nvs_types`
+> records no target for and `nvs-ir` then panics on — so the exemption has to be threaded from the
+> first-class-callable call site with a `nvs_types` refusal beside it, and both cases above
+> therefore declare a constructor. --- new-end Three live tools **are** the worklist and no session
 > re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen`
 > and attributes each to its item (`--item N` for one in full), `python tools/loop.py --list` prints
 > the named `.nvst` cases each stage still owes, and `python tools/check-migration.py` scores
