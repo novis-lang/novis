@@ -2,55 +2,55 @@
 
 ## State
 
-**M4's Stage 8 is where the work is, and `Core\Time\DateTime` is no longer the thinnest
-class**: its three calendar-arithmetic members gained the cases § 4's opening rule asks
-for, so the tree is at **746 conformance plus 189 differential** and `python
-tools/gaps.py` now ranks `Core\ObjectMap` (0.78) thinnest, then `Core\Validate` (0.83)
-and `Core\Uri` (0.84). The frontier is still the conformance floor of 750 and, past
-coverage, depth; `python tools/loop.py --list` reports no named `.nvst` case owed by any
-stage, and `python tools/gaps.py --differential` still ranks 0.
+**M4's Stage 8 is where the work is, and `Core\ObjectMap` is no longer the thinnest
+class**: its two absent-key/sweep cases landed, so the tree is at **748 conformance plus
+189 differential** and `python tools/gaps.py` now ranks `Core\Validate` (0.83) thinnest,
+then `Core\Uri` (0.84) and `Core\Random` (0.86); `Core\ObjectMap` reads 1.00 (9 cases
+over 9 members). The frontier is still the conformance floor of 750 and, past coverage,
+depth; `python tools/loop.py --list` reports no named `.nvst` case owed by any stage, and
+`python tools/gaps.py --differential` still ranks 0.
 
-- The three landed cases are the three shapes: **agreement** (one step asked of a
-  `DateTime` and of its `toInstant()`, counted over nine exact units and then parted by a
-  short month, a DST night and a leap year), **a bound at both ends** (`startOf`/`endOf`
-  over all eleven `Core\Unit` cases, each `endOf` asserted to be exactly one nanosecond
-  short of the next repetition's start), and **an edge** (`next`/`previous` asked for the
-  weekday the receiver already is, which is a whole week away and never the receiver).
-- **A `Core` enum cannot be a closure or method parameter's declared type** — the
-  playbook bullet under *Writing a test case* has the spelling and the two codes. It is
-  why none of the three sweeps is factored over `Core\Unit`; each factors the comparison
-  instead. It is a checker hole rather than a case-writing rule, and it is in `## Backlog`.
+- The two landed cases are two of the four shapes: **an edge**
+  (`object-map-get-and-remove-on-an-absent-key.nvst` — what `get` answers for a key the
+  map never held, for one removed, and for one whose stored value is `null`, plus that a
+  `remove` matching nothing leaves `count` and both lists byte-identical) and
+  **invariance over a sweep** (`object-map-count-is-empty-and-clear-agree-over-a-sweep.nvst`
+  — `count`, `isEmpty` and the two lists' lengths asserted to agree at all 17 points of a
+  write/re-write/remove/clear sweep, counted rather than read off a line).
+- **The group's third slice was already pinned and was not written.** "`set` over a key
+  already held is an overwrite, not a second pair" is
+  `object-map-pairs-its-two-lists-through-every-write.nvst`'s second and fifth sections
+  (the re-`set` in place, the re-added key landing at the end) plus the re-`set` rows of
+  the new sweep; a third case over that rule would be another row of the same shape, which
+  conventions.md § *A `.nvst` test case* rules out.
 
 ## Next group
 
-**`Core\ObjectMap`'s edges**, the thinnest class `python tools/gaps.py` ranks. The file set
-is `crates/nvs-stdlib/src/objmap.rs` for the signatures and `tests/conformance/core/` for
-the cases; the three standing cases are `object-map-keys-on-identity.nvst`,
-`object-map-iterates-its-keys.nvst` and
-`object-map-pairs-its-two-lists-through-every-write.nvst`, so what is left is what each
-member answers where it stops accepting.
+**`Core\Validate`'s remaining edges**, the thinnest class `python tools/gaps.py` ranks.
+The file set is `crates/nvs-stdlib/src/validate.rs` for the lines each predicate draws and
+`tests/conformance/core/` for the cases; the standing five already own the four length
+limits on both sides, the `{version?: 4|6}` literal union, the `isIp` families, the
+`isAscii`/`isPrintable` bounds and the four structural predicates agreeing about a
+degenerate sweep — so what is left is each predicate's own *character* boundary.
 
-- [ ] **`get`/`remove` on a key the map does not hold** (`objmap.rs:84`, `:98`) — the
-      *edge* shape: what an absent key answers, what `remove` answers for one, and that a
-      failed `remove` leaves `count` and the two lists exactly as they were.
-- [ ] **`clear`/`isEmpty`/`count` agree over a sweep** (`objmap.rs:105`, `:112`, `:133`) —
-      the *invariance* shape: `count` and `isEmpty` say the same thing after every write,
-      overwrite, removal and clear, counted rather than read off a line, and a cleared map
-      is reusable rather than merely empty.
-- [ ] **`set` over a key already held is an overwrite, not a second pair**
-      (`objmap.rs:77`) — the *agreement* shape: `keys()` and `values()` stay index-paired
-      and the count does not grow, identity being the key (ADR 0090 § 3).
+- [ ] **`isMac`'s accepted spellings and the first refused one** (`validate.rs:184`) — the
+      *bound at both ends* shape: which separator forms and which hex case the member
+      takes, named beside the nearest spelling it refuses.
+- [ ] **`isEmail`'s local part** (`validate.rs:163`) — the *edge* shape: the leading,
+      trailing and consecutive dot, plus-addressing, and the first character the member
+      stops accepting, each cited to the RFC the member implements rather than to whatever
+      it printed.
+- [ ] **`isDomain`'s label characters** (`validate.rs:170`) — the *edge* shape again: a
+      leading and a trailing hyphen, an underscore, a trailing dot, and the agreement
+      between `isDomain($d)` and `isEmail("a@" . $d)` over the same sweep, counted.
 
 ## Backlog
 
-- A written `Core\Unit`/`Core\Weekday` annotation is not the registry's enum type
-  (`E0401` at the call, `E0708` at an `as int` inside) — no owning doc yet; it is a
-  `nvs_types` type-interning hole, not a `Core\Time` one.
-- `Core\Time::sleep` returns at once for a negative `Duration` where all three of PHP's
-  functions raise a `ValueError` — named in the sleep case's own prose, undecided.
-- `Core\Validate` (0.83) and `Core\Uri` (0.84) are the next two thinnest classes after
-  `Core\ObjectMap` — `python tools/gaps.py`.
-- A `require` whose path is not a string literal runs nothing, silently, in both forms —
-  `nvs_hir::requires`' own known gap.
-- ADR 0024 § 4's sink list and ADR 0033's `Core\Log` inspection wait on M7/M8 `Core`
-  classes — `docs/agent/loop-goal.md` § *Standing decisions*.
+- `Core\Uri` (0.84) and `Core\Random` (0.86) are the next two thinnest —
+  `python tools/gaps.py`.
+- A `Core` enum cannot be a closure or method parameter's declared type, so a sweep
+  factors its comparison rather than its subject — playbook, *Writing a test case*.
+- 68 unasserted error paths, 65 of them `Fault::fatal` — `python tools/gaps.py --errors`,
+  judged before written (playbook has the four-`nvs run` recipe).
+- `csv.rs:512`'s `thrown` is unreachable from source — playbook, and it stays owed nothing.
+- `orient.py` printed everything this session needed; no `[context]` field was missing.

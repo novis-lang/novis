@@ -1,0 +1,107 @@
+--TEST--
+`Core\ObjectMap<K, V>::count`, `::isEmpty` and `::clear` agree with each other and with both lists at every point of a sweep — docs/spec/01-core-library.md § 9
+--FILE--
+<?nvs
+// The *invariance over a sweep* shape: the four ways to ask how much a map
+// holds — `count`, `isEmpty`, and the length of each of the two positionally
+// paired lists — are one question, so what is asserted is that they **agree**
+// after every write, and it is asserted by a count rather than read off a
+// line. A member that grew a tally of its own fails here while still looking
+// right wherever it is printed alone.
+final class Tag {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+final class Agree {
+    // A case's own helper is a `public static function` inside a class, and a
+    // compiler-owned generic type is accepted in its parameter list.
+    public static function holds(Core\ObjectMap<Tag, int> $m, int $want): int {
+        uint $n = $m->count();
+        bool $ok = $n == ($want as uint);
+        if ($m->isEmpty() != ($want == 0)) {
+            $ok = false;
+        }
+        if (Core\Arr::count($m->keys()) != $n) {
+            $ok = false;
+        }
+        if (Core\Arr::count($m->values()) != $n) {
+            $ok = false;
+        }
+        return $ok ? 1 : 0;
+    }
+}
+
+Tag $a = new Tag("a");
+Tag $b = new Tag("b");
+Tag $c = new Tag("c");
+Tag $d = new Tag("d");
+array<Tag> $tags = [$a, $b, $c, $d];
+
+Core\ObjectMap<Tag, int> $m = new Core\ObjectMap<Tag, int>();
+int $agreed = 0;
+int $checks = 0;
+int $held = 0;
+
+// A map that was never written to is the sweep's first row.
+$agreed = $agreed + Agree::holds($m, $held);
+$checks = $checks + 1;
+
+foreach ($tags as Tag $inserted) {
+    $m->set($inserted, 1);
+    $held = $held + 1;
+    $agreed = $agreed + Agree::holds($m, $held);
+    $checks = $checks + 1;
+}
+echo $m->count(), " ", $m->isEmpty() ? "empty" : "filled", "\n";
+
+// A re-`set` over a key already held overwrites in place, so the four answers
+// move together by nothing at all.
+foreach ($tags as Tag $rewritten) {
+    $m->set($rewritten, 2);
+    $agreed = $agreed + Agree::holds($m, $held);
+    $checks = $checks + 1;
+}
+echo $m->count(), "\n";
+
+foreach ($tags as Tag $dropped) {
+    $m->remove($dropped);
+    $held = $held - 1;
+    $agreed = $agreed + Agree::holds($m, $held);
+    $checks = $checks + 1;
+}
+echo $m->count(), " ", $m->isEmpty() ? "empty" : "filled", "\n";
+
+// `clear` answers the same four ways whatever the map held on the way in, and
+// asking it twice is the same as asking it once.
+$m->set($a, 1);
+$m->set($b, 2);
+$m->set($c, 3);
+$agreed = $agreed + Agree::holds($m, 3);
+$checks = $checks + 1;
+
+$m->clear();
+$agreed = $agreed + Agree::holds($m, 0);
+$checks = $checks + 1;
+
+$m->clear();
+$agreed = $agreed + Agree::holds($m, 0);
+$checks = $checks + 1;
+
+// A cleared map is an ordinary empty map rather than a spent one: it takes a
+// write and the four answers move with it.
+$m->set($d, 9);
+$agreed = $agreed + Agree::holds($m, 1);
+$checks = $checks + 1;
+echo $m->count(), " ", $m->isEmpty() ? "empty" : "filled", " ", $m->get($d) ?? -1, "\n";
+
+echo "agreed=", $agreed, "/", $checks, "\n";
+--EXPECT--
+4 filled
+4
+0 empty
+1 filled 9
+agreed=17/17
