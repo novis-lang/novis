@@ -355,6 +355,13 @@ pub mod code {
     /// [`E_CLOSURE_USE_BY_REF_UNSUPPORTED`] each name a rule rather than a
     /// spelling, and `inout` is not what replaces any of them.
     pub const E_BY_REFERENCE_MARKER_RETIRED: Code = Code::new("E0237");
+    /// `use App\Models\{User, Post};` — PHP's group-use form. One `use`
+    /// statement imports exactly one name, so the short name a file introduces
+    /// is always written on a line of its own: `docs/adr/README.md`
+    /// § *Decisions taken at project start* owns the rule, and
+    /// [`E_IMPORT_ALIAS_UNSUPPORTED`] is its sibling refusal on the other half
+    /// of the same statement.
+    pub const E_IMPORT_GROUP_UNSUPPORTED: Code = Code::new("E0238");
 
     // --- E03xx name resolution ---------------------------------------------
     /// A variable read before anything was assigned to it.

@@ -635,3 +635,13 @@ put a run-time question inside every name resolution, layout and dispatch decisi
 paid for once here rather than at every later lookup. What it costs is PHP's conditional-class idiom,
 whose two real uses — a polyfill and a feature switch — are `require` of one file or the other, which is
 static and already works.
+
+**One `use` names one import; PHP's group form is refused.** `use App\Models\{User, Post};` is `E0238`
+where the `\{` is written, sibling to [0015](0015-no-name-aliasing.md) § 2's `E0212` on the other half of
+the same statement. That ADR's rule is that a name is reachable under exactly the spelling it was declared
+with, and the group form does not break it — every short name it introduces is still that name — so this
+is priority 4 rather than priority 2: a second spelling of a statement that already exists, whose payoff
+is fewer lines and whose cost is that the set of short names a file introduces is no longer a `grep` for
+`^use` returning one name per line. Novis takes the line-per-import reading, the same trade the alias
+refusal already made. The parser reports and then skips the brace group, so the statement still yields a
+`UseDecl` for the prefix that was written and nothing downstream sees a half-parsed import.

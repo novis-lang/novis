@@ -237,9 +237,20 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
+    /// `use App\Models\User;` — one import, one statement.
+    ///
+    /// Two PHP spellings of the same statement are refused rather than
+    /// parsed: renaming (`as Other`, ADR 0015 § 2) and the group form
+    /// (`use App\Models\{User, Post};`, `docs/adr/README.md` § *Decisions
+    /// taken at project start*). Both are reported and then skipped, so the
+    /// statement still yields a [`UseDecl`] for the path that was written and
+    /// nothing downstream sees a half-parsed import.
     pub(super) fn parse_use_decl(&mut self, start: Span) -> Stmt {
         self.bump(); // 'use'
         let path = self.parse_name();
+        if self.at(TokenKind::Backslash) && self.peek_at(1).kind == TokenKind::LBrace {
+            self.recover_use_group(path.span);
+        }
         let alias = if self.eat_keyword(Keyword::As).is_some() {
             Some(self.expect(TokenKind::Ident, "an alias name"))
         } else {
@@ -264,6 +275,36 @@ impl<'src, 'd> Parser<'src, 'd> {
             span,
             kind: StmtKind::UseDecl(UseDecl { span, path, alias }),
         }
+    }
+
+    /// Reports the group-use refusal and eats `\{ ... }`, leaving the caller
+    /// at the `;` it was already going to expect.
+    fn recover_use_group(&mut self, path: Span) {
+        let open = self.bump().span; // '\'
+        self.bump(); // '{'
+        let mut depth = 1usize;
+        let mut last = self.last_span;
+        while depth > 0 && !self.at(TokenKind::Eof) {
+            let tok = self.bump();
+            match tok.kind {
+                TokenKind::LBrace => depth += 1,
+                TokenKind::RBrace => depth -= 1,
+                _ => {}
+            }
+            last = tok.span;
+        }
+        self.diags.report(
+            Diagnostic::error(
+                code::E_IMPORT_GROUP_UNSUPPORTED,
+                "an import cannot name a group of names",
+            )
+            .with_primary(open.to(last), "group import not supported")
+            .with_help(
+                "write one `use` statement per imported name, each ending in the short name it \
+                 introduces",
+            )
+            .with_secondary(path, "the shared prefix"),
+        );
     }
 
     /// `autoload 'Prefix' from 'a', 'b';` and `autoload discover 'glob';` —
