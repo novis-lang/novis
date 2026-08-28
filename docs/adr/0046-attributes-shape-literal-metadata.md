@@ -264,6 +264,62 @@ extension). It does not open user-defined generics — that stays exactly as out
   launch. If Novis never grows user-defined generics, this stays a narrow, single-purpose piece of syntax
   rather than the first instance of a general feature.
 
+## Verification
+
+Four cases pin this ADR, and together they are the fixture set [M4's acceptance](../plan/m4.md) names for
+it. Two run — the retrieval and the reference — and two refuse, because a `.nvst` has one verdict and a
+compile that reports a diagnostic runs nothing after it.
+
+- **Both attach forms are one shape** (*1*).
+  `tests/conformance/core/an-attribute-is-retrieved-by-the-shape-it-satisfies.nvst` attaches a named
+  `#[Route(path: "/users")]` and a bare `#[{audit: true}]` to one class and retrieves each through a shape
+  of its own, which is the assertion that the name was only ever the check made where the attribute was
+  written. `tests/conformance/reject/an-attribute-name-is-a-shape-typed-type-alias.nvst` is the check
+  itself, in one compile: an undeclared name is the ordinary `E0303`, a class or a scalar alias is `E0726`,
+  and a payload that fails the shape is the ordinary `E0401` — an attribute-shaped name resolving to
+  nothing an attribute can be is refused where it is *attached*, and the width-subtyping widening is
+  written first so a position that stops being accepted fails there rather than as a missing refusal.
+- **A payload is compile-time constants and nothing else** (*2*).
+  `tests/conformance/reject/an-attribute-payload-is-a-compile-time-constant.nvst` pins all five refusals
+  (`E0725`) in one compile — a variable, a call, a `new`, an interpolated string and a parameter's own
+  attribute — with eight accepted field shapes ahead of them. The admitted list is closed, so this is what
+  fails when the grammar grows a shape nobody decided belongs in a constant pool.
+  `tests/conformance/reject/a-secret-class-constant-cannot-reach-an-attribute-payload.nvst` is *2*'s one
+  interaction with a qualifier: a class constant is a compile-time constant, so it is the only way a
+  `secret` value could reach a payload at all, and it is [ADR 0033](0033-secret-qualifier-for-confidential-values.md)
+  § 4's fifth sink (`E0727`) rather than a rule of this ADR's.
+- **Repeatable, with no arity checking at attach time** (*3*), asserted by *counting* rather than off a
+  line: two `#[{column: ...}]` attaches answer `all<{column: string}>` with both, in attach order, and two
+  `#[Route]` attaches are what make `get<Route>` the `E0728` the refusal case pins.
+- **Retrieval is structural, not nominal** (*4*), and the four target spellings are inspected where they
+  are written. The run case retrieves a class's, a method's, a property's and a parameter's attributes,
+  takes the width-subtyping widening, folds to a compiled-in `null` where nothing matches and to the empty
+  array under `all<T>`, resolves a computed `$member` to an empty result rather than a diagnostic, and
+  closes with the agreement the shape asks for — a retrieved payload compared field for field with a
+  hand-written literal of the same shape, counted, because *5* replaces the call with that payload and the
+  two therefore have to be indistinguishable.
+- **A reference to a synthesized `constructor` resolves** — *4*'s class target rests on
+  [ADR 0022](0022-definite-property-initialization.md) § 2's "every class has one, definitely", so it names
+  the constructor of a class whose body writes none.
+  `tests/conformance/reject/a-synthesized-constructor-is-referenced-and-not-called.nvst` pins that
+  retrieval against such a class beside the boundary: a *written* `Plain::constructor()`, and the ported
+  `parent::constructor()` with it, resolves to no signature at all and keeps its `E0309`. That is the one
+  place this ADR widens name resolution, and it is widened for the reference spelling alone.
+- **Ambiguity, a non-shape `T`, a target that is no declaration, and a payload with no constant form**
+  (*5*) are `E0728`/`E0729`/`E0730`/`E0731`, all four in one compile in
+  `tests/conformance/reject/an-attribute-retrieval-is-refused-where-it-cannot-be-folded.nvst`, with the
+  accepted `all<T>` spelling written first. `E0731` is the one that is not about the retrieval's own
+  spelling: a matched payload holding a user-declared class constant or an enum case has no form to be
+  compiled in, which is `nvs_types::signatures`' own known gap surfacing at the one site that needs the
+  value rather than the name.
+- ***6*'s explicit `<T>` needs no case of its own**: every retrieval above is written through it, so a
+  parse or resolution that stopped working takes all four cases with it.
+
+What no case can pin, and is settled here instead: **there is no runtime lookup to test.** *5* makes the
+call a compile-time replacement, and `nvs_stdlib::attributes` registers the two members against a body that
+aborts — so the assertion that no reflection table reaches the compiled unit is that a program which ran at
+all never called either one. `nvs_types::retrieval`'s module doc is that pass's home.
+
 ## Alternatives rejected
 
 - **A full PHP/Java/C#-style attribute-class mechanism** (`#[Attribute] class Route { function
