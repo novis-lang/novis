@@ -2,64 +2,65 @@
 
 ## State
 
-**M4's Stage 8, and `Core\Uri` is closed**: its last unasked edge landed, so the class
-is at depth 1.00 with every member cased and no boundary left that `gaps.py` names. The
-tree is at **755 conformance plus 189 differential**. Both slices this session were
-*pure test cases* — unlike the two before them, neither member disagreed with its own doc
-comment, so no `crates/nvs-stdlib/src` line changed:
+**M4's Stage 8, and `Core\Time\DateTime` is closed**: both of the session's slices were
+pure test cases over landed work, so no `crates/nvs-stdlib/src` line changed, and the
+class went 0.88 → **1.00** (17 cases over 17 members). The tree is at **757 conformance
+plus 189 differential**. `python tools/loop.py --list` still reports no named `.nvst`
+case owed by any stage, and `gaps.py --differential` still ranks 0.
 
-- **`with` already draws each component's own grammar, at both ends.** A scheme is
-  RFC 3986 § 3.1's `ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )` because `recompose`
-  concatenates and `read` (`uri.rs:747`) decides, so the first byte is the half a
-  hand-written rule would get wrong: `1x`, `+a`, `-a`, `.a`, `a_b` and the empty scheme
-  are all refused while `a.`, `a+`, `a-` and `HTTP` are read.
-  `uri-with-draws-the-scheme-grammar-and-tells-an-empty-host-from-none.nvst` counts 8
-  accepted against 9 refused rather than reading a row, and pins the other half the item
-  named: an **empty** host is a different authority from an **absent** one (`http:///p`
-  against `http:/p`), each preserved under a `with` that does not mention the host, since
-  `with` replaces and never removes.
-- **`Core\Random::int`'s closed bound now reaches the ends of `int` itself.** The
-  standing sweep asks for a die and for ±2^62; what none asked is the singleton at each
-  extreme, the whole 2^64-value range, and the two-value ranges hard against each end —
-  the places an implementation computing `$max - $min + 1` overflows.
-  `random-int-s-closed-bound-reaches-the-ends-of-int-itself.nvst` names the first refused
-  range at both extremes too, so the empty-range throw is pinned where the numbers in its
-  message are the type's own.
+- **`with` bounds each of its seven components separately, and every refusal names the
+  one it refused.** `month` is 1..=12 at both ends, `day` has a static 1..=31 *and* a
+  bound from the month the same call is building (February 29th refused against this
+  receiver's 2023, accepted one option wider at 2024), the clock fields are zero-based so
+  their first refused value is their count, `nanos` stops at 999999999, `year` at ±9999,
+  and a value too wide for the field's own storage takes `time.rs:2238`'s earlier refusal
+  — which still names the component. `withTime` is the half that cannot be partial: a
+  `TimeOfDay` carries all four clock fields, so the receiver's nanos are replaced even
+  where nothing named them, and its bounds are `TimeOfDay::at`'s, checked a member earlier
+  and naming *that* member. Berlin's spring-forward gap is not a bound in either
+  spelling — both shift forward by it, which is the agreement
+  `nvs_core_time_datetime_with_time`'s doc states.
+- **`startOf`/`endOf` are one agreement over all eleven `Core\Unit` granularities**, and
+  `next`/`previous` one over all seven `Core\Weekday` cases, both asserted by counting.
+  `startOf(g)->plus(1, g)` is `endOf(g)` plus one nanosecond and `startOf(g) <= $d <=
+  endOf(g)`, over two receivers — an ordinary Berlin day and its 23-hour spring-forward
+  one, which is where an extent computed on a civil field rather than taken from the zone
+  would fall out. Both receivers agree 11/11.
 
-`python tools/loop.py --list` still reports no named `.nvst` case owed by any stage, and
-`gaps.py --differential` still ranks 0.
+**`granularity.rs` is not the time-unit table** — it is `Core\Str`'s grapheme/code-point
+unit. `Core\Unit`'s cases are `time.rs:807` (`UNIT`), and the previous handoff pointed at
+the wrong file.
 
 ## Next group
 
-**`Core\Time\DateTime` is the thinnest class left** (0.88, 15 cases over 17 members) and
-the file set is `crates/nvs-stdlib/src/time.rs` plus `tests/conformance/core/`. Its rows
-are all in one block, `time.rs:911-1023`, so the first two slices share everything. The
-third is a different file and is only worth taking if the first two leave real room.
+**`Core\ObjectSet` is the thinnest class left** (0.89, 8 cases over 9 members) and the
+file set is `crates/nvs-stdlib/src/objset.rs` plus `tests/conformance/core/`. Its rows are
+all in one block, `objset.rs:30-110`, so the first two slices share everything; the third
+is `Core\Time\Duration` (0.95) and a different file.
 
-- [ ] **`with` and `withTime` have no *component* boundary case** (`time.rs:946` `with`,
-      `time.rs:953` `withTime`) — spec § 13. This is the same shape this session just
-      wrote for `Core\Uri::with`: each option has its own bound and none of them is
-      asked about. A month at `0` and at `13`, a day at `29` against February in a
-      non-leap year and in a leap one, an hour at `24`, a nanosecond at `1000000000` —
-      the last accepted value and the first refused one named together, and the refusal
-      saying which component rather than that the result is not a time.
-- [ ] **`startOf`/`endOf` are an agreement, not two members** (`time.rs:960` `startOf`,
-      `time.rs:967` `endOf`, with `next`/`previous` at `time.rs:932`/`939`) — spec § 13.
-      One question asked of every granularity: `endOf(g)` is the last instant strictly
-      inside the unit and `startOf(g)->plus(one g)` is the instant after it, so the two
-      must **agree** for every granularity rather than each answering plausibly on its
-      own row. `crates/nvs-stdlib/src/granularity.rs` is the table to sweep.
 - [ ] **`Core\ObjectSet`'s algebra at its degenerate ends** (`objset.rs:86` `union`,
-      `objset.rs:93` `intersect`, `objset.rs:100` `diff`) — 0.89, second-thinnest, and a
-      *different* file set. Union with the empty set and with itself, intersect with
-      itself and with a disjoint set, `diff` from itself — the identities and the
-      annihilators, counted.
+      `objset.rs:93` `intersect`, `objset.rs:100` `diff`) — spec § 13. The identities and
+      the annihilators, counted rather than read off a line: union with the empty set and
+      with itself, intersect with itself and with a disjoint set, `diff` from itself and
+      from the empty set. Identity is what membership means here (ADR 0090 § 4), so two
+      equal-looking instances are two elements — assert that too.
+- [ ] **`add`/`remove`/`has`/`count`/`clear` are one invariant, not five members**
+      (`objset.rs:51` `add`, `objset.rs:58` `has`, `objset.rs:65` `remove`,
+      `objset.rs:72` `count`, `objset.rs:79` `isEmpty`, `objset.rs:107` `clear`). Adding a
+      member twice leaves the count alone, removing one that is absent is not an error,
+      `isEmpty` and `count() == 0` never disagree, and `clear` is `remove` over every
+      element. One sweep, one set of counters.
+- [ ] **`Core\Time\Duration`'s one uncased member** (`crates/nvs-stdlib/src/time.rs`,
+      `DURATION`'s block) — 0.95, 18 cases over 19 members. `python tools/gaps.py --class
+      'Core\Time\Duration'` names it; a different file set from the two above.
 
 ## Backlog
 
-- `Core\Csv::format`'s "column N is not a `string`" (`csv.rs:512`) is the one unasserted
-  `thrown` left and no program can reach it — it waits on ADR 0007 § 2's
-  `array<T> as array<U>` conversion row, which panics `nvs-ir` today.
-- 54 of the 156 guard names in `loop-goal.toml` match nothing `cargo test` runs;
-  `docs/agent/guard-name-debt.md` is the list and the three causes.
-- `Core\Time\Duration` (0.95) and `Core\Math` (0.97) are the next two after DateTime.
+- A `Core` enum cannot be swept from an `array<Core\Unit>` or passed through a
+  user-declared `Core\Unit` parameter — `E0401`, rendered *"expected `Core\Unit`, found
+  `Core\Unit`"*. Two bugs in one: the restriction itself, and a diagnostic that prints
+  both sides identically. `docs/agent/playbook.md` § *Writing a test case* has the
+  workaround; the fix belongs to `nvs_types`.
+- 54 of the 156 guard tests `loop-goal.toml` names still match nothing `cargo test` would
+  run — `docs/agent/guard-name-debt.md`.
+- `Core\Math` (0.97, 37/38) and `Core\Uri` are the classes just above the frontier.

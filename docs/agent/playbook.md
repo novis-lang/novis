@@ -1642,6 +1642,17 @@ is why" — is this file.
   a case whose expectation is subtly wrong rather than as a case written in the wrong
   order. Evaluate the throwing call into a local *inside* the `try` and echo the whole
   line after it: `string $shown = Show::port($t); echo "[", $t, "] port=", $shown, "\n";`.
+- **A `Core` enum reaches a `Core` member only as the case written at the call site.** A
+  `Core\Unit` is `E0401` the moment it travels through anything the program declares: an
+  `array<Core\Unit>` literal refuses every element, and a helper's own
+  `public static function f(Core\Unit $u)` refuses both its uses and its call sites — with
+  the diagnostic reading *"expected `Core\Unit`, found `Core\Unit`"*, which is why it looks
+  like a compiler bug rather than a missing conversion. So a sweep over a `Core` enum's
+  cases cannot be factored at all: write the rows out (a generator script into
+  `.agent-tmp/` is the cheap way to author 22 of them) and let counters carry the
+  assertion, exactly as the *invariance over a sweep* shape asks. `Core\Weekday` behaves
+  the same; the case-to-parameter direction at a *`Core` member's own* row is fine, which
+  is what makes the restriction easy to miss.
 
 ## Splitting a file that got too big
 

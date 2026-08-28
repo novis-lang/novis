@@ -1,0 +1,215 @@
+--TEST--
+Spec § 4: `startOf` and `endOf` agree over every granularity, and `next`/`previous` over every weekday
+--FILE--
+<?nvs
+// Spec § 4. `startOf` and `endOf` are not two members that each answer
+// plausibly on their own row: they are one agreement, asked here of every
+// `Core\Unit` granularity at once and asserted by *counting*, so a member that
+// grew its own idea of a unit's extent fails here while still printing a
+// believable line. `endOf(g)` is the **last instant strictly inside** the
+// unit, so the instant after it is `startOf(g)` plus one `g` — that identity,
+// and the bracketing `startOf(g) <= $d <= endOf(g)`, is the whole question.
+//
+// The second receiver is Berlin's spring-forward day, which is 23 hours long:
+// an extent computed on a civil field rather than taken from the zone agrees
+// on the first receiver and not on the second.
+var $berlin = Core\Time\Zone::of("Europe/Berlin");
+var $d = Core\Time::at(2024, 5, 15, $berlin, {hour: 13, minute: 45, second: 30, nanos: 123456789});
+var $dst = Core\Time::at(2024, 3, 31, $berlin, {hour: 13, minute: 45, second: 30, nanos: 123456789});
+int $agree = 0;
+int $brackets = 0;
+int $strict = 0;
+int $landed = 0;
+int $kept = 0;
+int $near = 0;
+
+// Eleven granularities, twice. A `Core\Unit` reaches a `Core` member only as
+// the case written at the call site — an `array<Core\Unit>` element and a
+// helper's own `Core\Unit` parameter are both `E0401` today — so the rows are
+// written out and the counters are what carries the assertion.
+var $sANanosecond = $d->startOf(Core\Unit::Nanosecond);
+var $eANanosecond = $d->endOf(Core\Unit::Nanosecond);
+if ($sANanosecond->plus(1, Core\Unit::Nanosecond)->difference($eANanosecond->plus(1, Core\Unit::Nanosecond), Core\Unit::Nanosecond) == 0) { $agree = $agree + 1; }
+if ((($sANanosecond->difference($d, Core\Unit::Nanosecond) >= 0) && ($d->difference($eANanosecond, Core\Unit::Nanosecond) >= 0))
+    && ($sANanosecond->difference($eANanosecond, Core\Unit::Nanosecond) >= 0)) { $brackets = $brackets + 1; }
+var $sAMicrosecond = $d->startOf(Core\Unit::Microsecond);
+var $eAMicrosecond = $d->endOf(Core\Unit::Microsecond);
+if ($sAMicrosecond->plus(1, Core\Unit::Microsecond)->difference($eAMicrosecond->plus(1, Core\Unit::Nanosecond), Core\Unit::Nanosecond) == 0) { $agree = $agree + 1; }
+if ((($sAMicrosecond->difference($d, Core\Unit::Nanosecond) >= 0) && ($d->difference($eAMicrosecond, Core\Unit::Nanosecond) >= 0))
+    && ($sAMicrosecond->difference($eAMicrosecond, Core\Unit::Nanosecond) >= 0)) { $brackets = $brackets + 1; }
+var $sAMillisecond = $d->startOf(Core\Unit::Millisecond);
+var $eAMillisecond = $d->endOf(Core\Unit::Millisecond);
+if ($sAMillisecond->plus(1, Core\Unit::Millisecond)->difference($eAMillisecond->plus(1, Core\Unit::Nanosecond), Core\Unit::Nanosecond) == 0) { $agree = $agree + 1; }
+if ((($sAMillisecond->difference($d, Core\Unit::Nanosecond) >= 0) && ($d->difference($eAMillisecond, Core\Unit::Nanosecond) >= 0))
+    && ($sAMillisecond->difference($eAMillisecond, Core\Unit::Nanosecond) >= 0)) { $brackets = $brackets + 1; }
+var $sASecond = $d->startOf(Core\Unit::Second);
+var $eASecond = $d->endOf(Core\Unit::Second);
+if ($sASecond->plus(1, Core\Unit::Second)->difference($eASecond->plus(1, Core\Unit::Nanosecond), Core\Unit::Nanosecond) == 0) { $agree = $agree + 1; }
+if ((($sASecond->difference($d, Core\Unit::Nanosecond) >= 0) && ($d->difference($eASecond, Core\Unit::Nanosecond) >= 0))
+    && ($sASecond->difference($eASecond, Core\Unit::Nanosecond) >= 0)) { $brackets = $brackets + 1; }
+var $sAMinute = $d->startOf(Core\Unit::Minute);
+var $eAMinute = $d->endOf(Core\Unit::Minute);
+if ($sAMinute->plus(1, Core\Unit::Minute)->difference($eAMinute->plus(1, Core\Unit::Nanosecond), Core\Unit::Nanosecond) == 0) { $agree = $agree + 1; }
+if ((($sAMinute->difference($d, Core\Unit::Nanosecond) >= 0) && ($d->difference($eAMinute, Core\Unit::Nanosecond) >= 0))
+    && ($sAMinute->difference($eAMinute, Core\Unit::Nanosecond) >= 0)) { $brackets = $brackets + 1; }
+var $sAHour = $d->startOf(Core\Unit::Hour);
+var $eAHour = $d->endOf(Core\Unit::Hour);
+if ($sAHour->plus(1, Core\Unit::Hour)->difference($eAHour->plus(1, Core\Unit::Nanosecond), Core\Unit::Nanosecond) == 0) { $agree = $agree + 1; }
+if ((($sAHour->difference($d, Core\Unit::Nanosecond) >= 0) && ($d->difference($eAHour, Core\Unit::Nanosecond) >= 0))
+    && ($sAHour->difference($eAHour, Core\Unit::Nanosecond) >= 0)) { $brackets = $brackets + 1; }
+var $sADay = $d->startOf(Core\Unit::Day);
+var $eADay = $d->endOf(Core\Unit::Day);
+if ($sADay->plus(1, Core\Unit::Day)->difference($eADay->plus(1, Core\Unit::Nanosecond), Core\Unit::Nanosecond) == 0) { $agree = $agree + 1; }
+if ((($sADay->difference($d, Core\Unit::Nanosecond) >= 0) && ($d->difference($eADay, Core\Unit::Nanosecond) >= 0))
+    && ($sADay->difference($eADay, Core\Unit::Nanosecond) >= 0)) { $brackets = $brackets + 1; }
+var $sAWeek = $d->startOf(Core\Unit::Week);
+var $eAWeek = $d->endOf(Core\Unit::Week);
+if ($sAWeek->plus(1, Core\Unit::Week)->difference($eAWeek->plus(1, Core\Unit::Nanosecond), Core\Unit::Nanosecond) == 0) { $agree = $agree + 1; }
+if ((($sAWeek->difference($d, Core\Unit::Nanosecond) >= 0) && ($d->difference($eAWeek, Core\Unit::Nanosecond) >= 0))
+    && ($sAWeek->difference($eAWeek, Core\Unit::Nanosecond) >= 0)) { $brackets = $brackets + 1; }
+var $sAMonth = $d->startOf(Core\Unit::Month);
+var $eAMonth = $d->endOf(Core\Unit::Month);
+if ($sAMonth->plus(1, Core\Unit::Month)->difference($eAMonth->plus(1, Core\Unit::Nanosecond), Core\Unit::Nanosecond) == 0) { $agree = $agree + 1; }
+if ((($sAMonth->difference($d, Core\Unit::Nanosecond) >= 0) && ($d->difference($eAMonth, Core\Unit::Nanosecond) >= 0))
+    && ($sAMonth->difference($eAMonth, Core\Unit::Nanosecond) >= 0)) { $brackets = $brackets + 1; }
+var $sAQuarter = $d->startOf(Core\Unit::Quarter);
+var $eAQuarter = $d->endOf(Core\Unit::Quarter);
+if ($sAQuarter->plus(1, Core\Unit::Quarter)->difference($eAQuarter->plus(1, Core\Unit::Nanosecond), Core\Unit::Nanosecond) == 0) { $agree = $agree + 1; }
+if ((($sAQuarter->difference($d, Core\Unit::Nanosecond) >= 0) && ($d->difference($eAQuarter, Core\Unit::Nanosecond) >= 0))
+    && ($sAQuarter->difference($eAQuarter, Core\Unit::Nanosecond) >= 0)) { $brackets = $brackets + 1; }
+var $sAYear = $d->startOf(Core\Unit::Year);
+var $eAYear = $d->endOf(Core\Unit::Year);
+if ($sAYear->plus(1, Core\Unit::Year)->difference($eAYear->plus(1, Core\Unit::Nanosecond), Core\Unit::Nanosecond) == 0) { $agree = $agree + 1; }
+if ((($sAYear->difference($d, Core\Unit::Nanosecond) >= 0) && ($d->difference($eAYear, Core\Unit::Nanosecond) >= 0))
+    && ($sAYear->difference($eAYear, Core\Unit::Nanosecond) >= 0)) { $brackets = $brackets + 1; }
+var $sBNanosecond = $dst->startOf(Core\Unit::Nanosecond);
+var $eBNanosecond = $dst->endOf(Core\Unit::Nanosecond);
+if ($sBNanosecond->plus(1, Core\Unit::Nanosecond)->difference($eBNanosecond->plus(1, Core\Unit::Nanosecond), Core\Unit::Nanosecond) == 0) { $agree = $agree + 1; }
+if ((($sBNanosecond->difference($dst, Core\Unit::Nanosecond) >= 0) && ($dst->difference($eBNanosecond, Core\Unit::Nanosecond) >= 0))
+    && ($sBNanosecond->difference($eBNanosecond, Core\Unit::Nanosecond) >= 0)) { $brackets = $brackets + 1; }
+var $sBMicrosecond = $dst->startOf(Core\Unit::Microsecond);
+var $eBMicrosecond = $dst->endOf(Core\Unit::Microsecond);
+if ($sBMicrosecond->plus(1, Core\Unit::Microsecond)->difference($eBMicrosecond->plus(1, Core\Unit::Nanosecond), Core\Unit::Nanosecond) == 0) { $agree = $agree + 1; }
+if ((($sBMicrosecond->difference($dst, Core\Unit::Nanosecond) >= 0) && ($dst->difference($eBMicrosecond, Core\Unit::Nanosecond) >= 0))
+    && ($sBMicrosecond->difference($eBMicrosecond, Core\Unit::Nanosecond) >= 0)) { $brackets = $brackets + 1; }
+var $sBMillisecond = $dst->startOf(Core\Unit::Millisecond);
+var $eBMillisecond = $dst->endOf(Core\Unit::Millisecond);
+if ($sBMillisecond->plus(1, Core\Unit::Millisecond)->difference($eBMillisecond->plus(1, Core\Unit::Nanosecond), Core\Unit::Nanosecond) == 0) { $agree = $agree + 1; }
+if ((($sBMillisecond->difference($dst, Core\Unit::Nanosecond) >= 0) && ($dst->difference($eBMillisecond, Core\Unit::Nanosecond) >= 0))
+    && ($sBMillisecond->difference($eBMillisecond, Core\Unit::Nanosecond) >= 0)) { $brackets = $brackets + 1; }
+var $sBSecond = $dst->startOf(Core\Unit::Second);
+var $eBSecond = $dst->endOf(Core\Unit::Second);
+if ($sBSecond->plus(1, Core\Unit::Second)->difference($eBSecond->plus(1, Core\Unit::Nanosecond), Core\Unit::Nanosecond) == 0) { $agree = $agree + 1; }
+if ((($sBSecond->difference($dst, Core\Unit::Nanosecond) >= 0) && ($dst->difference($eBSecond, Core\Unit::Nanosecond) >= 0))
+    && ($sBSecond->difference($eBSecond, Core\Unit::Nanosecond) >= 0)) { $brackets = $brackets + 1; }
+var $sBMinute = $dst->startOf(Core\Unit::Minute);
+var $eBMinute = $dst->endOf(Core\Unit::Minute);
+if ($sBMinute->plus(1, Core\Unit::Minute)->difference($eBMinute->plus(1, Core\Unit::Nanosecond), Core\Unit::Nanosecond) == 0) { $agree = $agree + 1; }
+if ((($sBMinute->difference($dst, Core\Unit::Nanosecond) >= 0) && ($dst->difference($eBMinute, Core\Unit::Nanosecond) >= 0))
+    && ($sBMinute->difference($eBMinute, Core\Unit::Nanosecond) >= 0)) { $brackets = $brackets + 1; }
+var $sBHour = $dst->startOf(Core\Unit::Hour);
+var $eBHour = $dst->endOf(Core\Unit::Hour);
+if ($sBHour->plus(1, Core\Unit::Hour)->difference($eBHour->plus(1, Core\Unit::Nanosecond), Core\Unit::Nanosecond) == 0) { $agree = $agree + 1; }
+if ((($sBHour->difference($dst, Core\Unit::Nanosecond) >= 0) && ($dst->difference($eBHour, Core\Unit::Nanosecond) >= 0))
+    && ($sBHour->difference($eBHour, Core\Unit::Nanosecond) >= 0)) { $brackets = $brackets + 1; }
+var $sBDay = $dst->startOf(Core\Unit::Day);
+var $eBDay = $dst->endOf(Core\Unit::Day);
+if ($sBDay->plus(1, Core\Unit::Day)->difference($eBDay->plus(1, Core\Unit::Nanosecond), Core\Unit::Nanosecond) == 0) { $agree = $agree + 1; }
+if ((($sBDay->difference($dst, Core\Unit::Nanosecond) >= 0) && ($dst->difference($eBDay, Core\Unit::Nanosecond) >= 0))
+    && ($sBDay->difference($eBDay, Core\Unit::Nanosecond) >= 0)) { $brackets = $brackets + 1; }
+var $sBWeek = $dst->startOf(Core\Unit::Week);
+var $eBWeek = $dst->endOf(Core\Unit::Week);
+if ($sBWeek->plus(1, Core\Unit::Week)->difference($eBWeek->plus(1, Core\Unit::Nanosecond), Core\Unit::Nanosecond) == 0) { $agree = $agree + 1; }
+if ((($sBWeek->difference($dst, Core\Unit::Nanosecond) >= 0) && ($dst->difference($eBWeek, Core\Unit::Nanosecond) >= 0))
+    && ($sBWeek->difference($eBWeek, Core\Unit::Nanosecond) >= 0)) { $brackets = $brackets + 1; }
+var $sBMonth = $dst->startOf(Core\Unit::Month);
+var $eBMonth = $dst->endOf(Core\Unit::Month);
+if ($sBMonth->plus(1, Core\Unit::Month)->difference($eBMonth->plus(1, Core\Unit::Nanosecond), Core\Unit::Nanosecond) == 0) { $agree = $agree + 1; }
+if ((($sBMonth->difference($dst, Core\Unit::Nanosecond) >= 0) && ($dst->difference($eBMonth, Core\Unit::Nanosecond) >= 0))
+    && ($sBMonth->difference($eBMonth, Core\Unit::Nanosecond) >= 0)) { $brackets = $brackets + 1; }
+var $sBQuarter = $dst->startOf(Core\Unit::Quarter);
+var $eBQuarter = $dst->endOf(Core\Unit::Quarter);
+if ($sBQuarter->plus(1, Core\Unit::Quarter)->difference($eBQuarter->plus(1, Core\Unit::Nanosecond), Core\Unit::Nanosecond) == 0) { $agree = $agree + 1; }
+if ((($sBQuarter->difference($dst, Core\Unit::Nanosecond) >= 0) && ($dst->difference($eBQuarter, Core\Unit::Nanosecond) >= 0))
+    && ($sBQuarter->difference($eBQuarter, Core\Unit::Nanosecond) >= 0)) { $brackets = $brackets + 1; }
+var $sBYear = $dst->startOf(Core\Unit::Year);
+var $eBYear = $dst->endOf(Core\Unit::Year);
+if ($sBYear->plus(1, Core\Unit::Year)->difference($eBYear->plus(1, Core\Unit::Nanosecond), Core\Unit::Nanosecond) == 0) { $agree = $agree + 1; }
+if ((($sBYear->difference($dst, Core\Unit::Nanosecond) >= 0) && ($dst->difference($eBYear, Core\Unit::Nanosecond) >= 0))
+    && ($sBYear->difference($eBYear, Core\Unit::Nanosecond) >= 0)) { $brackets = $brackets + 1; }
+
+// `next`/`previous` are the same agreement over `Core\Weekday`: strictly
+// later and strictly earlier, landing on the weekday named, keeping the time
+// of day, and never more than a whole week away. The receiver is itself a
+// Wednesday, which is the row where "strictly later" and "at most seven days"
+// are the same bound seen from both sides.
+var $nMonday = $d->next(Core\Weekday::Monday);
+var $pMonday = $d->previous(Core\Weekday::Monday);
+if (($d->difference($nMonday, Core\Unit::Nanosecond) > 0) && ($pMonday->difference($d, Core\Unit::Nanosecond) > 0)) { $strict = $strict + 1; }
+if ((($nMonday->weekday() as int) == (Core\Weekday::Monday as int)) && (($pMonday->weekday() as int) == (Core\Weekday::Monday as int))) { $landed = $landed + 1; }
+if (($nMonday->format("HH:mm:ss.SSSSSSSSS") == $d->format("HH:mm:ss.SSSSSSSSS"))
+    && ($pMonday->format("HH:mm:ss.SSSSSSSSS") == $d->format("HH:mm:ss.SSSSSSSSS"))) { $kept = $kept + 1; }
+if (($d->difference($nMonday, Core\Unit::Day) <= 7) && ($pMonday->difference($d, Core\Unit::Day) <= 7)) { $near = $near + 1; }
+var $nTuesday = $d->next(Core\Weekday::Tuesday);
+var $pTuesday = $d->previous(Core\Weekday::Tuesday);
+if (($d->difference($nTuesday, Core\Unit::Nanosecond) > 0) && ($pTuesday->difference($d, Core\Unit::Nanosecond) > 0)) { $strict = $strict + 1; }
+if ((($nTuesday->weekday() as int) == (Core\Weekday::Tuesday as int)) && (($pTuesday->weekday() as int) == (Core\Weekday::Tuesday as int))) { $landed = $landed + 1; }
+if (($nTuesday->format("HH:mm:ss.SSSSSSSSS") == $d->format("HH:mm:ss.SSSSSSSSS"))
+    && ($pTuesday->format("HH:mm:ss.SSSSSSSSS") == $d->format("HH:mm:ss.SSSSSSSSS"))) { $kept = $kept + 1; }
+if (($d->difference($nTuesday, Core\Unit::Day) <= 7) && ($pTuesday->difference($d, Core\Unit::Day) <= 7)) { $near = $near + 1; }
+var $nWednesday = $d->next(Core\Weekday::Wednesday);
+var $pWednesday = $d->previous(Core\Weekday::Wednesday);
+if (($d->difference($nWednesday, Core\Unit::Nanosecond) > 0) && ($pWednesday->difference($d, Core\Unit::Nanosecond) > 0)) { $strict = $strict + 1; }
+if ((($nWednesday->weekday() as int) == (Core\Weekday::Wednesday as int)) && (($pWednesday->weekday() as int) == (Core\Weekday::Wednesday as int))) { $landed = $landed + 1; }
+if (($nWednesday->format("HH:mm:ss.SSSSSSSSS") == $d->format("HH:mm:ss.SSSSSSSSS"))
+    && ($pWednesday->format("HH:mm:ss.SSSSSSSSS") == $d->format("HH:mm:ss.SSSSSSSSS"))) { $kept = $kept + 1; }
+if (($d->difference($nWednesday, Core\Unit::Day) <= 7) && ($pWednesday->difference($d, Core\Unit::Day) <= 7)) { $near = $near + 1; }
+var $nThursday = $d->next(Core\Weekday::Thursday);
+var $pThursday = $d->previous(Core\Weekday::Thursday);
+if (($d->difference($nThursday, Core\Unit::Nanosecond) > 0) && ($pThursday->difference($d, Core\Unit::Nanosecond) > 0)) { $strict = $strict + 1; }
+if ((($nThursday->weekday() as int) == (Core\Weekday::Thursday as int)) && (($pThursday->weekday() as int) == (Core\Weekday::Thursday as int))) { $landed = $landed + 1; }
+if (($nThursday->format("HH:mm:ss.SSSSSSSSS") == $d->format("HH:mm:ss.SSSSSSSSS"))
+    && ($pThursday->format("HH:mm:ss.SSSSSSSSS") == $d->format("HH:mm:ss.SSSSSSSSS"))) { $kept = $kept + 1; }
+if (($d->difference($nThursday, Core\Unit::Day) <= 7) && ($pThursday->difference($d, Core\Unit::Day) <= 7)) { $near = $near + 1; }
+var $nFriday = $d->next(Core\Weekday::Friday);
+var $pFriday = $d->previous(Core\Weekday::Friday);
+if (($d->difference($nFriday, Core\Unit::Nanosecond) > 0) && ($pFriday->difference($d, Core\Unit::Nanosecond) > 0)) { $strict = $strict + 1; }
+if ((($nFriday->weekday() as int) == (Core\Weekday::Friday as int)) && (($pFriday->weekday() as int) == (Core\Weekday::Friday as int))) { $landed = $landed + 1; }
+if (($nFriday->format("HH:mm:ss.SSSSSSSSS") == $d->format("HH:mm:ss.SSSSSSSSS"))
+    && ($pFriday->format("HH:mm:ss.SSSSSSSSS") == $d->format("HH:mm:ss.SSSSSSSSS"))) { $kept = $kept + 1; }
+if (($d->difference($nFriday, Core\Unit::Day) <= 7) && ($pFriday->difference($d, Core\Unit::Day) <= 7)) { $near = $near + 1; }
+var $nSaturday = $d->next(Core\Weekday::Saturday);
+var $pSaturday = $d->previous(Core\Weekday::Saturday);
+if (($d->difference($nSaturday, Core\Unit::Nanosecond) > 0) && ($pSaturday->difference($d, Core\Unit::Nanosecond) > 0)) { $strict = $strict + 1; }
+if ((($nSaturday->weekday() as int) == (Core\Weekday::Saturday as int)) && (($pSaturday->weekday() as int) == (Core\Weekday::Saturday as int))) { $landed = $landed + 1; }
+if (($nSaturday->format("HH:mm:ss.SSSSSSSSS") == $d->format("HH:mm:ss.SSSSSSSSS"))
+    && ($pSaturday->format("HH:mm:ss.SSSSSSSSS") == $d->format("HH:mm:ss.SSSSSSSSS"))) { $kept = $kept + 1; }
+if (($d->difference($nSaturday, Core\Unit::Day) <= 7) && ($pSaturday->difference($d, Core\Unit::Day) <= 7)) { $near = $near + 1; }
+var $nSunday = $d->next(Core\Weekday::Sunday);
+var $pSunday = $d->previous(Core\Weekday::Sunday);
+if (($d->difference($nSunday, Core\Unit::Nanosecond) > 0) && ($pSunday->difference($d, Core\Unit::Nanosecond) > 0)) { $strict = $strict + 1; }
+if ((($nSunday->weekday() as int) == (Core\Weekday::Sunday as int)) && (($pSunday->weekday() as int) == (Core\Weekday::Sunday as int))) { $landed = $landed + 1; }
+if (($nSunday->format("HH:mm:ss.SSSSSSSSS") == $d->format("HH:mm:ss.SSSSSSSSS"))
+    && ($pSunday->format("HH:mm:ss.SSSSSSSSS") == $d->format("HH:mm:ss.SSSSSSSSS"))) { $kept = $kept + 1; }
+if (($d->difference($nSunday, Core\Unit::Day) <= 7) && ($pSunday->difference($d, Core\Unit::Day) <= 7)) { $near = $near + 1; }
+
+echo "agree ", $agree as string, "/22\n";
+echo "brackets ", $brackets as string, "/22\n";
+echo "strict ", $strict as string, "/7 landed ", $landed as string, "/7 kept ", $kept as string, "/7 near ", $near as string, "/7\n";
+echo ($d->weekday() as int) as string, "|", $d->difference($nWednesday, Core\Unit::Day) as string, "|\n";
+
+// What the counts are counting, on the two rows worth reading: an ordinary
+// Berlin day spans 23 whole hours from its first instant to its last, and the
+// spring-forward day spans 22 — the same `startOf`/`endOf` pair, told apart by
+// the zone rather than by the calendar.
+echo $sADay->format("yyyy-MM-dd HH:mm:ss XXX"), " .. ", $eADay->format("yyyy-MM-dd HH:mm:ss XXX"), "|\n";
+echo $sBDay->format("yyyy-MM-dd HH:mm:ss XXX"), " .. ", $eBDay->format("yyyy-MM-dd HH:mm:ss XXX"), "|\n";
+echo $sADay->difference($eADay, Core\Unit::Hour) as string, "|", $sBDay->difference($eBDay, Core\Unit::Hour) as string, "|\n";
+--EXPECT--
+agree 22/22
+brackets 22/22
+strict 7/7 landed 7/7 kept 7/7 near 7/7
+2|7|
+2024-05-15 00:00:00 +02:00 .. 2024-05-15 23:59:59 +02:00|
+2024-03-31 00:00:00 +01:00 .. 2024-03-31 23:59:59 +02:00|
+23|22|
