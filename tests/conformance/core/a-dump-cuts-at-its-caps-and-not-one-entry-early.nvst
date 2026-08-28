@@ -1,0 +1,83 @@
+--TEST--
+Each of the record's three caps is asserted at both sides of its own bound — the last value carried whole and the first one cut — and every cut is an `Elision` node in the model rather than a truncation the rendering chose — ADR 0092 § 1, § 3, § 5
+--FILE--
+<?nvs
+// ADR 0092 § 5: a cut is a *node*, decided once in the model, so every
+// rendering shows the same cut of the same value. `nvs_render::Caps`'
+// defaults are the bounds this pins: 1024 bytes of one scalar, 100 entries
+// of one container, 8 levels of container.
+class Probe {
+    // A rendering says "cut" exactly when it carries an elision node, so a
+    // bound that moved by one entry changes a word rather than a byte count.
+    public static function cut(Core\Cli\Text $rendered): string {
+        if (Core\Str::contains($rendered as string, "[elided")) {
+            return "cut";
+        }
+        return "whole";
+    }
+}
+
+// The text cap, both sides. The rendered prefix is the other half of the
+// assertion: a carried scalar names its own length, a cut one names the cap
+// followed by `+`, so a rendering that cut without saying so fails here too.
+string $atText = Core\Str::repeat("a", 1024);
+string $overText = Core\Str::repeat("a", 1025);
+echo "text 1024: ", Probe::cut(Core\Debug::render($atText)), "\n";
+echo "text 1025: ", Probe::cut(Core\Debug::render($overText)), "\n";
+echo "prefix 1024: ", Core\Str::contains(Core\Debug::render($atText) as string, "string(1024) ") as string, "\n";
+echo "prefix 1025: ", Core\Str::contains(Core\Debug::render($overText) as string, "string(1024+) ") as string, "\n";
+
+// The entries cap, both sides. The elision node names how many entries were
+// dropped *and* the container's real length, which is what makes a cut
+// container distinguishable from a short one.
+array<int> $atEntries = Core\Arr::fill(100, 7);
+array<int> $overEntries = Core\Arr::fill(101, 7);
+echo "entries 100: ", Probe::cut(Core\Debug::render($atEntries)), "\n";
+echo "entries 101: ", Probe::cut(Core\Debug::render($overEntries)), "\n";
+echo "count 101: ", Core\Str::contains(Core\Debug::render($overEntries) as string, "[elided: 1 of 101 entries]") as string, "\n";
+
+// The depth cap, both sides. Eight levels of container are carried; the
+// ninth is where the walk stops, and it stops with a node rather than with a
+// missing branch.
+array<mixed> $atDepth = [[[[[[[[7]]]]]]]];
+array<mixed> $overDepth = [[[[[[[[[7]]]]]]]]];
+echo "depth 8: ", Probe::cut(Core\Debug::render($atDepth)), "\n";
+echo "depth 9: ", Probe::cut(Core\Debug::render($overDepth)), "\n";
+echo Core\Debug::render($overDepth), "\n";
+
+// A `secret` property is not an elision and does not consume one: the two
+// transformations are independent nodes, so a redacted slot still leaves the
+// container's other entries to be counted against the entries cap.
+class Vault {
+    public secret string $token = "s3cr3t";
+    public int $n = 1;
+}
+echo "vault: ", Probe::cut(Core\Debug::render(new Vault())), "\n";
+--EXPECT--
+text 1024: whole
+text 1025: cut
+prefix 1024: 1
+prefix 1025: 1
+entries 100: whole
+entries 101: cut
+count 101: 1
+depth 8: whole
+depth 9: cut
+array(1) [
+  0 => array(1) [
+    0 => array(1) [
+      0 => array(1) [
+        0 => array(1) [
+          0 => array(1) [
+            0 => array(1) [
+              0 => array(1) [
+                0 => [elided: below the depth cap]
+              ]
+            ]
+          ]
+        ]
+      ]
+    ]
+  ]
+]
+vault: whole

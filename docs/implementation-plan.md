@@ -1024,8 +1024,8 @@
 > identity and its declared properties, two closure arities, a self-referential `lateinit` cycle and
 > the `CR` substitution — and asserts that two `dump` calls put **nothing** on standard output,
 > while `a_dump_writes_to_the_diagnostic_channel_and_not_to_the_output` asserts the other side of
-> the same statement in Rust. **Item 33's call-site half of redaction is landed, and what it still
-> owes is the property half.** ADR 0092 § 5 states redaction as two halves of one rule about one
+> the same statement in Rust. **Item 33 is closed — both halves of ADR 0092 § 5's redaction row, and
+> the caps case with them.** ADR 0092 § 5 states redaction as two halves of one rule about one
 > record — a property whose *declared* type carries `secret` becomes a `Redacted` node, and a
 > `secret` value handed straight to the dump is refused by `nvs check` — and neither can be decided
 > from a value's tag, `secret` being a qualifier on a declared type. The second half needs nothing
@@ -1049,16 +1049,44 @@
 > the composed `secret tainted string`, with the accepted `$plain` and `tainted` spellings written
 > first so a position that stops being accepted fails there rather than as a missing refusal;
 > `tainted` is deliberately accepted, § 5's closing paragraph making the record's framing what keeps
-> a dumped tainted value safe. `nvs_render::Node::Redacted` exists and every rendering handles it,
-> so what the property half still owes is the producer's decision and the descriptor bit it reads.
-> Two smaller gaps are stated at `nvs_stdlib::debug` rather than implied: an enum case dumps as its
-> backing integer, because ADR 0010 § 5 spends no tag on hiding one and a `mixed` cannot tell; and
-> the `Throwable` producer of § 6 is not here at all, its walk belonging to `nvs-runtime`'s fatal
-> path and therefore waiting on the crate edge above. Three live tools **are** the worklist and no
-> session re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and
-> `nvs-codegen` and attributes each to its item (`--item N` for one in full), `python tools/loop.py
-> --list` prints the named `.nvst` cases each stage still owes, and `python
-> tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> a dumped tainted value safe. **The property half is a bit per field slot, carried down the
+> vertical rather than recomputed at any point on it**, because nothing below the checker could
+> recompute it: a `secret string` is byte-identical to a `string` in every representation under the
+> qualifier — same tag, same slot, same allocation — so a walk holding only a value has no question
+> to ask. `nvs_types::expr::type_is_secret` decides it at the one end where the qualifier still
+> exists, `nvs_ir::lower::field_slots` joins it onto the slot order in the *same* walk that already
+> answers each slot's representation (two walks over one table could disagree about which
+> declaration won a slot, and a redaction that named the wrong slot discloses the value it was meant
+> to hide), `nvs_ir::ir::Class::secret_fields` carries it,
+> `nvs_runtime::ClassTable::set_secret_fields` puts it on the descriptor beside `field_tags`, and
+> `nvs_stdlib::debug`'s walk reads it off the **instance** — which is what makes a `secret` property
+> redact through a `mixed` exactly as through its own type, and a *nested* object's `secret`
+> property redact by its own class's declaration one level down. The value is never walked at all
+> rather than walked and discarded, so a redacted slot contributes no elision node saying how long
+> it was. `ClassDesc::field_is_secret` is deliberately a `bool` rather than `field_tag`'s `Option`:
+> that one distinguishes "unknown" from "admits several", and there is no third answer to whether a
+> type carries a qualifier — `false` for a slot nothing told, which is safe only because a
+> *declared* `secret` property always reaches the join. An ADR 0036 shape literal's field is the one
+> declaration-shaped thing that carries no bit, its type being *inferred* from its initializer, and
+> it joins the `array<T>` element as ADR 0033's unmodelled container axis in `nvs_stdlib::debug`'s
+> own known gap 1 rather than as a hole in this rule.
+> `tests/conformance/core/a-secret-typed-property-is-redacted-wherever-it-is-dumped.nvst` pins the
+> slot beside its plain neighbours, the same instance through `mixed`, `secret` alone against
+> `tainted` alone and the two composed, an inherited slot and the subclass's own, a nested object,
+> an ADR 0043 § 4 promoted parameter, and the agreement between the typed and the erased spelling
+> counted rather than read off a line. The three caps gain the case they were owed alongside —
+> `a-dump-cuts-at-its-caps-and-not-one-entry-early.nvst` names the last value each carries whole
+> beside the first it cuts (1024/1025 bytes of one scalar, 100/101 entries of one container, 8/9
+> levels of container), asserts each cut is an `Elision` node in the model rather than a truncation
+> a rendering chose, and pins that a redaction is not an elision and consumes none. Two smaller gaps
+> are stated at `nvs_stdlib::debug` rather than implied: an enum case dumps as its backing integer,
+> because ADR 0010 § 5 spends no tag on hiding one and a `mixed` cannot tell; and the `Throwable`
+> producer of § 6 is not here at all, its walk belonging to `nvs-runtime`'s fatal path and therefore
+> waiting on the crate edge above. Three live tools **are** the worklist and no session re-derives
+> one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen` and
+> attributes each to its item (`--item N` for one in full), `python tools/loop.py --list` prints the
+> named `.nvst` cases each stage still owes, and `python tools/check-migration.py` scores
+> `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

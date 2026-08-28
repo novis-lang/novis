@@ -2,19 +2,25 @@
 
 ## State
 
-**M4's frontier is Stage 5's item 33, and only its property half is left.** ADR 0092's record
-model and plaintext rendering are the leaf crate **`nvs-render`**; `Core\Debug::dump`/`render`
-are registered `Core` members; and the redaction row's **call-site** half now refuses a
-`secret` argument at either member (`E0724`).
+**M4's frontier is Stage 5, and item 33 is closed end to end.** ADR 0092's record model and
+plaintext rendering are the leaf crate **`nvs-render`**; `Core\Debug::dump`/`render` are
+registered `Core` members; and § 5's redaction row is now closed at *both* halves — the
+call-site refusal (`E0724`) and the `secret`-typed property, which renders as
+`nvs_render::Node::Redacted`.
 
-- **Redaction is two halves of one rule** (ADR 0092 § 5). The call-site one is
-  `nvs_types::expr::quals::reject_secret_debug_argument`
-  (`crates/nvs-types/src/expr/quals.rs:263`), called from `infer_static_call`
-  (`crates/nvs-types/src/expr/calls.rs:188`). The property one — a `secret`-typed property
-  rendering as `Redacted` — is untouched and needs a descriptor bit the runtime does not carry.
-- **It is a call-site rule because both members declare `mixed`**, which a `secret string`
-  satisfies; the checker is the last point the qualifier exists at. Same mechanism split ADR
-  0033 § 4 already makes for `Core\Log::write`.
+- **The property half is a descriptor bit, and the vertical is four crates long**:
+  `nvs_types::expr::type_is_secret` (`crates/nvs-types/src/expr/mod.rs:88`) →
+  `nvs_ir::lower::field_slots` (`crates/nvs-ir/src/lower/mod.rs:391`) →
+  `nvs_ir::ir::Class::secret_fields` → `nvs_runtime::ClassTable::set_secret_fields`
+  (`crates/nvs-runtime/src/object.rs:713`) → `ClassDesc::field_is_secret`, read by
+  `nvs_stdlib::debug::object_body` (`crates/nvs-stdlib/src/debug.rs:426`). The plan's
+  *Open now* paragraph is the one home for why each hop exists.
+- **`field_reprs` is now `field_slots` and returns a pair.** The representation and the
+  `secret` bit come off one join over one table on purpose — two walks could disagree about
+  which declaration won a slot, and a redaction naming the wrong slot discloses the value.
+- **What still has no bit is a container**: an `array<T>` element and an ADR 0036 shape
+  literal's field. Both are ADR 0033's unmodelled container axis; `nvs_stdlib::debug`'s known
+  gap 1 is their one home.
 - **`nvs-render` depends on `nvs-syntax` and that edge is temporary** — ADR 0087's bidi
   predicate, called rather than restated. It inverts (a **move** of `nvs_syntax::bidi` down)
   the moment `nvs-runtime` or `nvs-diagnostics` becomes a dependent. That crate's module doc
@@ -24,31 +30,22 @@ are registered `Core` members; and the redaction row's **call-site** half now re
 
 ## Next group
 
-**Finishing item 33: the property half, then the caps case.** The file set is
-`crates/nvs-types/src/layout.rs`, `crates/nvs-stdlib/src/instance.rs`,
-`crates/nvs-runtime/src/object.rs` and `crates/nvs-stdlib/src/debug.rs` — the vertical a
-per-field tag has to run down, `ClassDesc::renderer`/`ClassDesc::unwind` being the two
-precedents for putting a compile-time answer on the descriptor.
+**Stage 5's next item, whatever `python tools/loop.py --list` names first.** Item 33 owned this
+session's whole file set and nothing in it is left open, so the next group is chosen from the
+tools rather than from here — `holes.py` for a refusal site, `loop.py --list` for a named case
+the stage still owes.
 
-- [ ] **A `secret`-typed property renders as `Redacted`** — ADR 0033 § 4's debug-dump bullet,
-      ADR 0092 § 5's redaction row. The walk is
-      `nvs_stdlib::debug` (`crates/nvs-stdlib/src/debug.rs:126`) and the node already exists
-      (`nvs_render::Node::Redacted`); what is missing is the *declared* type reaching the
-      walk, which only a descriptor bit can carry — `ClassDesc::renderer` (set in
-      `nvs_stdlib::instance`) is the shape to copy, one bit per slot rather than one per class.
-      `nvs_types::expr::quals::is_secret` (`crates/nvs-types/src/expr/quals.rs:59`) is the
-      predicate that decides it at the one end that knows.
-- [ ] **The elision and depth caps get their own case** — ADR 0092 § 5's fourth M4 bullet. Over
-      landed work, so it is a `.nvst` and nothing else: a cut is an `Elision` node built in
-      `nvs-render`, so the case asserts what the plaintext view prints at the boundary and one
-      past it, both sides named together.
+- [ ] **Take the first open Stage 5 item `python tools/loop.py --list` names**, and read its
+      anchors with one `python tools/peek.py --locate` call before opening anything.
+- [ ] **Then the next one it names**, if it shares that file set.
 
 ## Backlog
 
-- A `require` whose path is not a string literal runs nothing at all, silently, in both forms —
-  `nvs_hir::requires`' own known gap.
-- `Core\Secret::reveal` does not exist in `nvs_stdlib::registry`, so `E0724`'s help names a
-  spelling no program can write yet (ADR 0033 § 4, M6/M8).
-- The `Throwable` producer of ADR 0092 § 6 waits on the crate edge above `nvs-runtime`.
-- An enum case dumps as its backing integer — stated at `nvs_stdlib::debug`, ADR 0010 § 5.
-- ADR 0024 § 4's sink list and ADR 0033's `Core\Log` inspection wait on M7/M8 `Core` classes.
+- A `secret` value inside an `array<T>` element or an ADR 0036 shape field is not redacted —
+  `nvs_stdlib::debug` known gap 1, ADR 0033's container axis.
+- An enum case dumps as its backing integer — `nvs_stdlib::debug` known gap 2, ADR 0010 § 5.
+- ADR 0092 § 6's `Throwable` producer belongs to `nvs-runtime`'s fatal path — known gap 3.
+- `nvs_syntax::bidi` moves down into `nvs-render` once a second dependent exists — that
+  crate's module doc § *Where this sits*.
+- A `require` whose path is not a string literal runs nothing, silently — `nvs_hir::requires`.
+- ADR 0092 § 4's HTTP rows (a dump under `[debug] inline`, and never in a JSON body) are M7's.
