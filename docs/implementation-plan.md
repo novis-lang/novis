@@ -37,23 +37,18 @@
 > the ADR that owns a topic, and `python tools/adr.py --stats` shapes the whole set. What a crate
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
-> **Open now:** **M4's language holes are the frontier**, ordered and grouped by file set in
-> [docs/agent/loop-goal.md](agent/loop-goal.md), which is also where what a *hole* is, and why it is
-> checkable, is defined. Three live tools **are** the worklist and no session re-derives one:
-> `python tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen` and attributes
-> each to its item (`--item N` for one in full), `python tools/loop.py --list` prints the named
-> `.nvst` cases each stage still owes, and `python tools/gaps.py` ranks the thinnest class now that
-> the corpus is past its floor and depth is what is left. **The acceptance gate's own names are all
-> live**: every one of the 128 guard tests `loop-goal.toml` names now matches a test `cargo test`
-> runs, so the check reaches its last block —
-> [docs/agent/guard-name-debt.md](agent/guard-name-debt.md) is the list and the three causes, and a
-> session that lands a guard test reconciles its name there in the same slice. Stage 8's own gate,
-> [crates/nvs-ir/tests/refusals.rs](../crates/nvs-ir/tests/refusals.rs), is what holds the line now:
-> it fails on any refusal site no open item claims, and carries a ceiling on the total, which is
-> **4** — down from 15, because item 1's nine `nvs-codegen` catch-alls and two of item 16's three
-> turned out to be engine invariants rather than holes: a shape no program constructs is a
-> `CodegenError::Internal` in `nvs-codegen`, and in `nvs-ir` a panic naming the roster that proves
-> nothing reaches it. What is left is item 4's one, item 16's one and item 25's two.
+> **Open now:** **Stage 00 of [docs/agent/loop-goal.md](agent/loop-goal.md) is the frontier** — six
+> shapes a program reaches for on its first page, each of which does not parse or panics the compiler:
+> ADR 0109's `for` header and the corpus migration behind it, a user-declared class constant,
+> `new static()`'s type, `instanceof` against an interface, `new` on a `Core` class with no
+> constructor, and the shape table that would have caught them. That file defines what a *hole* is;
+> three tools are the worklist and no session re-derives one — `python tools/holes.py` (`--item N`),
+> `python tools/loop.py --list`, `python tools/gaps.py`. **Ten of the gate's names are deliberately
+> unwritten** and the acceptance test stops at its first check until they land;
+> [guard-name-debt.md](agent/guard-name-debt.md) § *Stage 00's ten* says why renaming one is the wrong
+> fix. Stage 8's [refusals.rs](../crates/nvs-ir/tests/refusals.rs) carries a ceiling of **4**, which
+> item 49 re-derives: its recognizer matches three phrasings and item 45's panic uses none of them, so
+> that number is a floor on the truth rather than the truth.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

@@ -37,6 +37,83 @@ the test. **That allowlist may never grow.** Every entry on it is a decision in 
 forbids outright. `python tools/holes.py` prints the same inventory as a worklist, mapped to the items
 below, so that no session re-derives it.
 
+**A refusal site is not the only way a hole hides.** `holes.py` recognizes one by *phrasing* — three house
+sentences — and `refusals.rs` counts *arms*. A panic worded differently is invisible to the first, and a
+catch-all arm is one number to the second however many shapes fall into it. Both blind spots have now been
+hit: `lower_checked_ty`'s single arm was hiding three shapes, and reading a user-declared class constant
+panics in a sentence the recognizer does not match, so it is not among the four sites either tool reports.
+`crates/nvs-ir/tests/type_atoms.rs` is the answer to the first — a table of *shapes*, each asserted to
+reach a diagnostic or an IR — and Stage 00's item 49 widens it past declared types, which is the only
+reason the count below can be trusted.
+
+## Stage 00 — the shapes a program reaches for on its first page
+
+**Ahead of Stage 0 and of Stage 0a, because these are not holes at the edge of the surface — they are
+things a reader writes in the first twenty lines of their first program, and each one either does not
+parse or panics the compiler.** A corpus written around them teaches the workaround, which is Stage 0's
+own compounding argument applied to a shape rather than to an operator: the difference is that Stage 0's
+items make a case *subtly* wrong, and these make it unwritable.
+
+**Until this stage is empty, a session takes its group from here**, and item 44 is first within it because
+its migration touches every other stage's cases.
+
+44. **A `for` header declares its own counter, and the corpus moves to it.**
+    [ADR 0109](../adr/0109-a-for-header-declares-its-own-counter.md).
+    `for (int $i = 0; $i < 3; $i = $i + 1)` does not parse: `parse_for` reads all three
+    clauses as expression lists, and a typed declaration in the first produces twelve diagnostics whose
+    first is about a `;` and one of which claims the counter is `mixed`. The init clause becomes one
+    typed local declaration *or* a list of expressions and never both (§ 1), with `E0124` and `E0125` for
+    the two shapes that still do not parse (§ 3). The checker and `nvs-ir` are owed nothing new — § 4 —
+    which is what makes this a parser slice.
+
+    **The migration is half the item, not a follow-up.** Every `for` in `tests/conformance/`,
+    `tests/differential/` and `examples/` whose counter is declared on the line above and reassigned in
+    the header takes the declaration into the header. Nobody writing a counted loop declares it above by
+    choice; the corpus reads that way only because there was no other option, and it is what a
+    contributor greps to find the house spelling. The expected output of every one of those cases is
+    unchanged — the counter is function-scoped either way (§ 2) — so the suites staying green *is* the
+    review. A counter read after its loop, or shared by two, stays declared above.
+    `crates/nvs-syntax/src/parser/stmt.rs:321` (`parse_for`),
+    `crates/nvs-syntax/src/parser/tests/stmt.rs`, `crates/nvs-diagnostics/src/lib.rs`.
+45. **A user-declared class constant has a type and a value.** [ADR 0011](../adr/0011-functions-and-constants-are-class-members.md)
+    makes every constant a class constant, so `public const int MAX = 3;` is *the* way to write one — and
+    reading it panics `nvs-ir`. Both halves are open: the checker types `Limits::MAX` and `self::MAX` as
+    `mixed` (so a method declaring `int` and returning one is `E0403`), and `nvs-ir` has nothing to lower
+    it to, because `nvs_types` records a value only for an enum case or a `Core` constant.
+    `crates/nvs-ir/src/lower/expr.rs:262`, `crates/nvs-types/src/consts.rs`,
+    `crates/nvs-types/src/expr/members.rs`. This is the half of old item 39 that was real; the other
+    three clauses of that item are closed, which is why it is gone.
+46. **`new static()` and a `: static` return resolve to the called class.** [docs/plan/m4.md](../plan/m4.md)'s
+    acceptance names this outright — "`new static()` through two levels of inheritance returns the called
+    class" — and it fails at the checker rather than at run time: with `Base::make(): static`, the call
+    `Leaf::make()` types as `Base`, so `Leaf $made = Leaf::make();` is `E0401`. The resolution rule is
+    [ADR 0008](../adr/0008-static-and-global.md)'s late static binding; what is missing is the *type* a
+    call site gives `static`, which is the receiver's own class rather than the declaring one.
+    `crates/nvs-types/src/expr/calls.rs`.
+47. **`instanceof` narrows to an interface, not only to a class.** The class direction works —
+    `object $a = new Square(); if ($a instanceof Square) { $a->area(); }` runs — and the interface
+    direction does not: `if ($b instanceof Shape)` leaves `$b` at `object`, and the call inside the guard
+    is `E0477`, whose own help tells the reader to narrow with `instanceof` first. An interface is what a
+    program written against an abstraction narrows *to*, so this is the direction that matters.
+    `crates/nvs-types/src/locals.rs` owns the residue and what invalidates one; item 37 in Stage 6 is the
+    remaining narrowing spellings and no longer claims `instanceof` narrows nothing.
+48. **`new` on a `Core` class the registry gives no constructor is a diagnostic.** `new Core\Error("x")`
+    panics naming `nvs_types`' own missing zero-arity check; the same shape on a *user* class already
+    answers `E0402` (`expected 0 argument(s), found 1 — `Square` declares no `constructor``). One rule,
+    one diagnostic, both sides. `crates/nvs-ir/src/lower/expr.rs:2368`,
+    `crates/nvs-types/src/expr/calls.rs`.
+49. **The shape table covers expressions and statements, not only declared types.** This stage's own
+    guard, and it is last here because it is written against what items 44-48 close.
+    `crates/nvs-ir/tests/type_atoms.rs` walks every atom [ADR 0007](../adr/0007-explicit-type-system.md)
+    § 3 spells through two declaration positions; item 45's panic is not a *type*, so nothing caught it —
+    not that table, not `refusals.rs`, and not `holes.py`, whose recognizer is a three-phrase match the
+    message does not use. Widen the table to a roster of **source shapes** — a class-constant read, a
+    `new`, a call through each receiver kind, each statement form — each asserted to reach a diagnostic
+    or an IR. Then widen `holes.py`'s `REFUSAL` to recognize a panic by what it *is* rather than by how it
+    is worded, and **re-derive `refusals.rs`'s `CEILING` once, from the true count, saying so in the
+    commit**: a ratchet set from a blind count is not a ratchet, and 4 is what the blind count said.
+    `crates/nvs-ir/tests/type_atoms.rs`, `crates/nvs-ir/tests/refusals.rs`, `tools/holes.py`.
+
 ## Stage 0 — the operator table, before anything else
 
 **Every other stage's fixtures are written against these rules, so a case written before they land is
@@ -239,17 +316,20 @@ ledger distinguishes "the unit guards are green" from "the program runs".
 
 ## Stage 6 — the checker and the front end
 
-37. **ADR 0007 § 6's other three narrowing spellings.** `== null`/`!= null` over a plain local narrows;
-    `instanceof`, a comparison against a literal-typed value and `match (true)` do not, and the residue is
-    restricted to a class. `crates/nvs-types/src/locals.rs` owns the rule and what invalidates one.
+37. **ADR 0007 § 6's other narrowing spellings.** `== null`/`!= null` over a plain local narrows, and so
+    does `instanceof` against a *class* — Stage 00's item 47 is its interface half, and this item is what
+    is left once that lands: a comparison against a literal-typed value, and `match (true)`.
+    `crates/nvs-types/src/locals.rs` owns the rule and what invalidates one.
 38. **Exhaustive control-flow reachability** — "every path through this non-`void` function returns", and
     `switch`/`try` bodies contributing to definite assignment after them rather than conservatively
     nothing.
-39. **The four signature-level gaps**: a user-declared class constant's type at an expression site, a
-    promoted constructor-parameter property, a class with no explicit `constructor` held to a
-    zero-argument arity check on `new`, and a `foreach` **key** binding declared at anything but `string`
-    (ADR 0007 § 5 gives an array one stored key type, so it is always wrong, and today it type-checks and
-    then trips an assertion in `nvs-ir`). `crates/nvs-types/src/expr/mod.rs`, `signatures`.
+39. ~~**The four signature-level gaps.**~~ **Gone**, and the audit that emptied it is worth one line
+    because three of the four were closed without anyone noticing they had been. A promoted
+    constructor-parameter property works; a `new` with arguments on a user class with no `constructor` is
+    `E0402`; a `foreach` key binding declared at anything but `string` is `E0723`, a diagnostic quoting
+    ADR 0007 § 5, not the `nvs-ir` assertion this item described. The fourth — a class constant's type at
+    an expression site — was real, and is Stage 00's item 45 together with the lowering half this item
+    never mentioned.
 40. **One equality-operand compatibility pass.** No general check exists for any type pair today — not
     `int` against `uint`, not two different enums — which is why singling enums out was declined. ADR 0090
     § 2's `reject_disjoint_equality` is the one-sided half that exists; this is the rest of it.
