@@ -1,0 +1,84 @@
+--TEST--
+`Core\Test::assertEqualsDeep` walks 63 levels of containment and refuses at the 64th, naming `$actual` and the whole path -- ADR 0079 § 4, ADR 0090 § 3
+--FILE--
+<?nvs
+// The bound, asserted on both sides. An Novis array cannot contain itself
+// (ADR 0090 § 3), so the only structure that can recur is an object graph, and
+// the depth cap in `crates/nvs-stdlib/src/test.rs` is what bounds the walk --
+// that module's own doc comment owns the number and why refusing beats
+// comparing half a graph. The subject is therefore built by a loop rather than
+// written as a literal.
+
+final class Node {
+    public function constructor(public ?Node $next) {}
+}
+
+final class Chain {
+    // `$levels` objects, the innermost holding `null`. Every call allocates a
+    // fresh chain, so two of them are never the same object -- which is the
+    // half of the walk the cap can actually reach.
+    public static function of(int $levels): ?Node {
+        ?Node $head = null;
+        int $i = 0;
+        while ($i < $levels) {
+            $head = new Node($head);
+            $i = $i + 1;
+        }
+        return $head;
+    }
+}
+
+int $agreed = 0;
+
+// The accepted side. 63 objects, whose `null` leaf is the 63rd level walked,
+// and the walk reaches a scalar before the cap does.
+?Node $deep = Chain::of(63);
+?Node $twin = Chain::of(63);
+Core\Test::assertEqualsDeep($deep, $twin);
+echo "63 levels compare\n";
+
+// The refused side, one object further. The message is asked about rather than
+// quoted: the path it carries is 64 segments long, and a member that truncated
+// it -- or that named `$expected`, or counted its own levels differently --
+// would still print plausibly against a quoted line.
+?Node $over = Chain::of(64);
+?Node $overTwin = Chain::of(64);
+try {
+    Core\Test::assertEqualsDeep($over, $overTwin);
+    echo "64 levels compared, which is the failure this case exists to catch\n";
+} catch (Throwable $capped) {
+    if (Core\Str::contains($capped->message, "walked 64 levels of containment")) { $agreed = $agreed + 1; }
+    if (Core\Str::contains($capped->message, 'at `$actual->next')) { $agreed = $agreed + 1; }
+    if (Core\Str::countOf($capped->message, "->next") == 64) { $agreed = $agreed + 1; }
+    if (Core\Str::contains($capped->message, "Core\\Test::assertSame")) { $agreed = $agreed + 1; }
+    echo "64 levels refuse\n";
+}
+
+// Deeper still stops in the same place: the cap is where the walk gives up,
+// not a function of how much graph is left below it.
+?Node $far = Chain::of(96);
+?Node $farTwin = Chain::of(96);
+try {
+    Core\Test::assertEqualsDeep($far, $farTwin);
+    echo "96 levels compared, which is the failure this case exists to catch\n";
+} catch (Throwable $beyond) {
+    if (Core\Str::countOf($beyond->message, "->next") == 64) { $agreed = $agreed + 1; }
+    echo "96 levels refuse at the same 64\n";
+}
+
+// One allocation is equal to itself under every row of the walk, so the same
+// chain compared against itself never spends the budget at all -- which is why
+// a sub-object shared by both graphs does not spend it twice either.
+Core\Test::assertEqualsDeep($far, $far);
+echo "a chain deeper than the cap compares against itself\n";
+
+// Counted rather than read off the lines above: a member that stopped
+// refusing, or that refused with a thinner message, fails here while every
+// line above still looks right.
+echo "agreed=", $agreed, "/5\n";
+--EXPECT--
+63 levels compare
+64 levels refuse
+96 levels refuse at the same 64
+a chain deeper than the cap compares against itself
+agreed=5/5
