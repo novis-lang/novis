@@ -1,0 +1,82 @@
+--TEST--
+Every operator refuses a call that returns `void` where it is written, and `.` alone keeps its own code — ADR 0007 § 4
+--FILE--
+<?nvs
+// ADR 0007 § 4's table names rows for the types a value can have, and a call
+// that returns `void` produces no value at all — so the question of which row
+// applies never arises and the refusal is one step earlier than every other
+// one in that table. Unrefused, each line below reached `nvs-ir` with nothing
+// to lower and failed the whole compilation naming a compiler bug.
+//
+// This sweeps one spelling per operator family, in source order, so a family
+// that stopped refusing shows up as a missing line *and* as a shifted `.`
+// below rather than as a plausible answer.
+class Effect {
+    public static function run(): void {}
+}
+
+int $a = 1;
+
+// Arithmetic: the four shapes `binary_result` routes separately.
+mixed $add = Effect::run() + $a;
+mixed $pow = Effect::run() ** $a;
+mixed $mod = $a % Effect::run();
+mixed $div = Effect::run() / $a;
+// Ordering, both the `bool`-valued four and `<=>`.
+mixed $lt = Effect::run() < $a;
+mixed $cmp = Effect::run() <=> $a;
+// Equality, which ADR 0090 § 2 judges by disjointness — a value that does not
+// exist is not disjoint from anything, so this one is refused here or nowhere.
+mixed $eq = Effect::run() == $a;
+// The three that are not table rows at all: a condition, a null test and the
+// bitwise pair ADR 0007 § 4 keeps over `int` and `uint`.
+mixed $and = Effect::run() && $a;
+mixed $coalesce = Effect::run() ?? $a;
+mixed $bitand = Effect::run() & $a;
+mixed $shl = Effect::run() << $a;
+
+// `.` is the one operator that keeps its own code: `E0707`'s roster already
+// names a `void` call among the four types with no implicit `string` form,
+// and that is the sentence an author who wrote `echo` needs. One rule, one
+// code — this line is here to pin the split, not the refusal.
+mixed $concat = Effect::run() . "x";
+
+// The three arithmetic prefixes, `+` included: it is the identity over every
+// type the table does name, and the identity of nothing is still nothing.
+mixed $neg = -Effect::run();
+mixed $plus = +Effect::run();
+mixed $bitnot = ~Effect::run();
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0718]: a call that returns `void` has no value, so it is not an operand
+%A
+error[E0718]: a call that returns `void` has no value, so it is not an operand
+%A
+error[E0718]: a call that returns `void` has no value, so it is not an operand
+%A
+error[E0718]: a call that returns `void` has no value, so it is not an operand
+%A
+error[E0718]: a call that returns `void` has no value, so it is not an operand
+%A
+error[E0718]: a call that returns `void` has no value, so it is not an operand
+%A
+error[E0718]: a call that returns `void` has no value, so it is not an operand
+%A
+error[E0718]: a call that returns `void` has no value, so it is not an operand
+%A
+error[E0718]: a call that returns `void` has no value, so it is not an operand
+%A
+error[E0718]: a call that returns `void` has no value, so it is not an operand
+%A
+error[E0718]: a call that returns `void` has no value, so it is not an operand
+%A
+error[E0707]: `void` has no string form
+%A
+error[E0718]: a call that returns `void` has no value, so it is not an operand
+%A
+error[E0718]: a call that returns `void` has no value, so it is not an operand
+%A
+error[E0718]: a call that returns `void` has no value, so it is not an operand
+%A
+error: aborting due to 15 errors

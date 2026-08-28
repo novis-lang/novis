@@ -133,6 +133,12 @@ pub(super) fn binary_result(
     span: Span,
     env: &mut Env<'_>,
 ) -> TypeId {
+    // Ahead of the whole table: an operand that is not a value has no row to
+    // be judged by, whichever operator it was written under. `.` is the one
+    // exception and keeps its own code — [`reject_void_operand`] says why.
+    if let Some(mixed) = reject_void_operand(op, lhs, rhs, span, env) {
+        return mixed;
+    }
     match op {
         // ADR 0024 § 2 / ADR 0033 § 2: concatenating a qualified operand with
         // an unqualified one poisons the result on that axis, the same
@@ -453,6 +459,64 @@ enum Unordered {
     Str,
     Enum,
     Other,
+}
+
+/// A call that returns `void` is not an operand of anything, and this is the
+/// refusal that says so — one step earlier than every other one in this file.
+///
+/// The refusals around it each read a *row* of ADR 0007 § 4's table and object
+/// that the operand names none. A `void` call names none either, but for a
+/// reason no row can be about: it has no value at all, so there is nothing
+/// there to look up. That is why this runs ahead of all of them, and ahead of
+/// the "type not yet known" pass-through each of them shares —
+/// [`equality_domain`] answers `None` for `Ty::Void` exactly as it does for
+/// `mixed`, but `mixed`'s answer comes from a runtime tag it *has* and this
+/// one has no value to carry a tag.
+///
+/// Unrefused it reached neither a diagnostic nor an answer: `nvs-ir` lowers a
+/// `void` call to no value, so `V::nothing() + 1` failed the whole compilation
+/// with "nvs-codegen does not lower an operand used before it is defined",
+/// which names a bug in the compiler for what is a mistake in the program.
+///
+/// `.` is deliberately **not** routed here — [`code::E_NO_STRING_FORM`]
+/// already names a `void` call in its own roster, alongside the three other
+/// types with no implicit `string` form, and one rule draws one code.
+/// [`code::E_VOID_IS_NOT_AN_OPERAND`]'s doc comment is this split's home.
+/// Returns `Some(mixed)` once diagnosed, `None` for every operand the caller's
+/// own table should answer itself.
+fn reject_void_operand(
+    op: BinaryOp,
+    lhs: TypeId,
+    rhs: TypeId,
+    span: Span,
+    env: &mut Env<'_>,
+) -> Option<TypeId> {
+    if op == BinaryOp::Concat {
+        return None;
+    }
+    if !matches!(env.interner.get(lhs), Ty::Void) && !matches!(env.interner.get(rhs), Ty::Void) {
+        return None;
+    }
+    report_void_operand(span, env);
+    Some(env.interner.mixed())
+}
+
+/// The one diagnostic both operand positions report — the binary operators
+/// through [`reject_void_operand`] and the three arithmetic prefixes through
+/// [`reject_unary_arith_operand`], so that they agree on their wording as well
+/// as on their rule.
+fn report_void_operand(span: Span, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_VOID_IS_NOT_AN_OPERAND,
+            "a call that returns `void` has no value, so it is not an operand",
+        )
+        .with_primary(span, "operated on here")
+        .with_help(
+            "ADR 0007 § 4's table has no row for a value that is not one; give the callee a \
+             return type and `return` from it, or call it as its own statement",
+        ),
+    );
 }
 
 /// ADR 0007 § 4's ordering row is a **closed** list, so an operand it does not
@@ -992,6 +1056,14 @@ pub(super) fn report_int_uint(span: Span, env: &mut Env<'_>) {
 /// every type is legal in, and `@` never reaches the checker at all — the
 /// parser refuses it as `E0236`.
 pub(super) fn reject_unary_arith_operand(op: UnaryOp, ty: TypeId, span: Span, env: &mut Env<'_>) {
+    // The same step-earlier objection the binary operators make, and the same
+    // code: `-V::nothing()` has no operand rather than an operand with no row.
+    // Unary `+` is refused here too, though it is the identity over every type
+    // the table does name — the identity of nothing is still nothing.
+    if matches!(env.interner.get(ty), Ty::Void) {
+        report_void_operand(span, env);
+        return;
+    }
     let spelling = match op {
         UnaryOp::Neg => "-",
         UnaryOp::Plus => "+",

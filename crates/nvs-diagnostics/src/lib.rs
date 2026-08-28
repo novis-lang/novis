@@ -1408,6 +1408,26 @@ pub mod code {
     /// `decimal % float` is [`E_DECIMAL_FLOAT_ARITHMETIC`] instead: that pair
     /// has no common arithmetic type at all, which is the earlier objection.
     pub const E_FLOAT_MODULO: Code = Code::new("E0717");
+    /// A call that returns `void` used as an operator's operand.
+    ///
+    /// Every other refusal in this band is "this type names no row of
+    /// ADR 0007 § 4's table". This one is a step earlier: a `void` call has no
+    /// value *at all*, so there is no operand for a row to be about, and the
+    /// question of which row applies never arises. The two ends of the
+    /// language agree on nothing here — `nvs-ir` has no representation to
+    /// lower and `nvs-codegen` no machine type to emit — so it is refused
+    /// where it is written rather than reaching either.
+    ///
+    /// Deliberately not the `.` operator's, which keeps
+    /// [`E_NO_STRING_FORM`]: that code's roster already names a `void` call
+    /// among the four types with no implicit `string` form, and it is the
+    /// wording an author who wrote `echo` or an interpolated piece needs. One
+    /// rule, one code, both ways round.
+    ///
+    /// A `void` call in a *condition* is neither of these two and is still
+    /// open — ADR 0035 makes a condition the one place a value is tested
+    /// without `as`, and "a value" is exactly what is missing.
+    pub const E_VOID_IS_NOT_AN_OPERAND: Code = Code::new("E0718");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
