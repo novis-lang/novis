@@ -952,11 +952,19 @@ cases = [
   # Stage 5
   "tests/conformance/class/a-property-observer-sees-every-write-its-class-makes.nvst",
   "tests/conformance/class/a-delegated-interface-forwards-to-the-object-it-names.nvst",
-  "tests/conformance/lang/an-attribute-is-retrieved-by-its-own-type.nvst",
-  "tests/conformance/lang/a-dump-renders-one-record-and-redacts-a-secret.nvst",
+  # ADR 0046 §§ 4-5 match a payload *structurally* rather than by the attribute's name, so the case
+  # is named for the shape it satisfies; "its own type" was the nominal reading that ADR refuses.
+  "tests/conformance/core/an-attribute-is-retrieved-by-the-shape-it-satisfies.nvst",
+  # ADR 0092's two halves, which one `.nvst` cannot hold: § 3's plaintext view over every node kind,
+  # and § 5's redaction row, whose value never reaches the record at all.
+  "tests/conformance/core/a-dump-renders-one-record-through-one-plaintext-view.nvst",
+  "tests/conformance/core/a-secret-typed-property-is-redacted-wherever-it-is-dumped.nvst",
   "tests/conformance/lang/inline-html-at-file-scope-is-echoed-in-place.nvst",
   "tests/conformance/lang/a-required-file-runs-its-own-top-level-statements.nvst",
-  # Stage 7
+  # Stage 7. This is the one named case that is owed rather than misnamed: none of ADR 0079's surface
+  # exists yet -- `#[Test]` is not on `nvs_types::derive::ATTRIBUTES`, `Core\Test` has no row in
+  # `nvs_stdlib::registry`, and there is no table for a case to read back. It is written by item 43
+  # (§ 24's "M4/M4S tail" row: §§ 1, 4-6, 8-9 and the single-process runner), not before it.
   "tests/conformance/lang/a-test-attribute-builds-a-table-the-runner-reports.nvst",
   # Stage 0a -- ADR 0107. The 14 cases that spelled `&$` moved to `inout` with their expected output
   # unchanged, which is the check that ADR 0107 changed no semantics; this one pins the new shapes.
