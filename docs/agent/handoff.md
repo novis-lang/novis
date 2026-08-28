@@ -2,48 +2,56 @@
 
 ## State
 
-**Goal 1 of the parity program has just started; nothing of it has landed yet.** The previous goal —
-M4, language completeness — reached its whole acceptance list, and that list is now this goal's Stage 1
-floor. A failure there is a real regression and never a scope question: nothing in this goal lowers
-anything, so `nvs-ir` and `nvs-codegen` should not change at all.
+**Goal 1 of the parity program: ADR 0061 § 3's program enumeration is landed in `nvs-hir`, and only
+there.** `AutoloadMap::enumerate` lists every name the autoload roots declare,
+`nvs_hir::implementors` filters the class graph to the non-abstract classes reaching one interface,
+and `requires::resolve_program` runs the scan for — and only for — a program that writes
+`Core\Program::implementing<T>()`. `nvs-ir` and `nvs-codegen` are untouched, as this goal requires.
 
-M4S Part I is **registered** — `crates/nvs-stdlib/tests/spec-members-outstanding.txt` holds no keys — and
-registered is not finished. Three tools are the worklist and no session re-derives one:
-`python tools/gaps.py` (depth per class, and the unasserted error paths),
-`python tools/check-migration.py --report` (the PHP names with no row), and `python tools/loop.py --list`
-(the acceptance list itself).
+**What is missing is the call itself.** `Core\Program` has no `nvs-stdlib` registry row, so a program
+writing `implementing<T>()` today triggers the scan in HIR and is then rejected by `nvs-types` as an
+unknown `Core` class. Nothing below `nvs-types` is in the way; the next group is the whole remainder.
+
+The group's ordering had a gap worth knowing: the call site cannot expand until the classes are *in*
+the graph, so the load had to land before it. That is done — the group below starts where the last one
+meant to.
+
+**`python tools/verify.py` is red at `HEAD`, and not from this work.**
+`crates/nvs-ir/tests/refusals.rs` fails with 17 unattributed `nvs-ir` lowering refusals — the goal
+switch orphaned every site M4's item list used to claim, and goal 1's does not. It is the *first*
+failure, so the gate stops there and never reaches the `.nvst` trees or clippy. This session ran the
+remaining steps by hand instead: fmt, build, `--workspace --no-fail-fast` (81 targets green, that one
+red), conformance 880/880, differential 189/189, clippy clean. Deciding which goal claims those sites
+is the user's call, not a session's — the test refuses its own allowlist as the fix.
 
 ## Next group
 
-**ADR 0061 § 3's program enumeration.** It is Stage 0 and it is first because three later items are the
-same scan — `#[Route]`'s table, `#[Command]`'s table and the OpenAPI emitter all filter this enumeration
-(ADR 0077 § 5 says so outright), so writing any of them first means writing the walk three times.
+**ADR 0061 § 3's call site.** One file set: `crates/nvs-stdlib/src/registry.rs`,
+`crates/nvs-types/src/expr/calls.rs`, `examples/program.nvs`.
 
-One file set: `crates/nvs-hir/src/autoload.rs`, `crates/nvs-hir/src/hierarchy.rs`,
-`crates/nvs-types/src/expr/calls.rs`.
-
-- [ ] **The program walk answers "which non-abstract classes implement `T`".** `AutoloadMap::build` at
-      `crates/nvs-hir/src/autoload.rs:162` already turns a program's `autoload` sites into prefix → roots
-      and `resolve` turns a `QName` into the file that declares it; what is missing is the other
-      direction — enumerate every class the program declares, filter by `implements_interface`
-      (`crates/nvs-hir/src/hierarchy.rs`, already there), and **sort by fully-qualified name** so the
-      order never depends on filesystem enumeration. ADR 0061 § 3.
-- [ ] **`Core\Program::implementing<T>()` expands at its call site** to an array literal of `new`
-      expressions, one per enumerated class — so the instances are per-request like every other object
-      and nothing crosses an isolate boundary. The expansion belongs beside the other generic call
-      handling in `crates/nvs-types/src/expr/calls.rs`. A `T` that is not an interface type is a
-      diagnostic, and so is an enumerated class with no no-argument constructor: ADR 0061 § 3 names both,
-      and the second is the one that is easy to leave out because it only fires on a real program.
-- [ ] **`examples/program.nvs` and its case.** Three classes implementing one interface across two files
-      reached by `autoload`, printed in name order. The fixture is what proves the walk sees a class it
-      was never `require`d to see, which no unit test over a synthetic module does.
+- [ ] **`Core\Program::implementing<T>()` resolves as a `Core` member.** The class needs its own
+      module and a `CLASSES` row (`crates/nvs-stdlib/src/registry.rs:709`) — the four edits in
+      `docs/agent/conventions.md`, with the wrinkle that `T` is a *type argument* rather than a
+      parameter, so the row's shape is the open question, not the body. ADR 0061 § 3.
+- [ ] **The call expands to an array literal of `new` expressions.**
+      `crates/nvs-types/src/expr/calls.rs:182` (`infer_static_call`) is the arm; the list is
+      `nvs_hir::implementors(&target, &env.graph)`, already sorted. Every selected class needs a
+      no-argument constructor and a diagnostic names any that does not — next free in the types band
+      is `E0743`. ADR 0061 § 3.
+- [ ] **`examples/program.nvs` and its conformance case.** Three classes implementing one interface
+      across two files, one of them abstract, asserting the order and the exclusion. ADR 0061 § 3.
 
 ## Backlog
 
-- `nvs_types::derive::ATTRIBUTES` holds five names where ADRs 0071, 0077, 0085, 0086 and 0102 name
-  twelve. Items 2–6 are the rest, and they are one group after this one.
-- `python tools/gaps.py`'s *unasserted error paths* list stood at 68 sites, 65 of them `Fault::fatal`.
-  Judge before writing: a `fatal` may be an invariant no program reaches, and the answer there is a
-  comment at the site, not a case.
-- ADR 0057's folding pass does not exist; three modules mention the ADR in a doc comment and nothing
-  reads any of them.
+- **The refusals guard is red at `HEAD`** (`crates/nvs-ir/tests/refusals.rs`, 17 sites from
+  `python tools/holes.py --unattributed`). Until a goal claims them, every session's `verify.py` stops
+  at `test` and never runs the `.nvst` trees or clippy.
+- ADR 0077's route table filters the same enumeration — `AutoloadMap::enumerate` is built for it and
+  needs no second walk (ADR 0077 § 5).
+- A scanned file is held to `autoload::check_file_shape`, so a root holding a non-declaration file
+  starts diagnosing once a program scans; worth a case when § 3 is reachable from source.
+- `Core\Command`'s table and the OpenAPI emitter are the other two filters of the same scan
+  (ADR 0086, ADR 0085).
+- `python tools/gaps.py` still owns the per-class conformance depth worklist for M4S Part I.
+- `python tools/check-migration.py --report` is the parity program's own measure, unmoved by this
+  session.

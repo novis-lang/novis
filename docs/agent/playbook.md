@@ -731,6 +731,15 @@ is why" — is this file.
   declare which kind it is, as `CodegenError` already does with `Internal` versus `Unsupported`.
   Budget an audit of all 89 before touching that regex; the classification is the work, not the
   pattern.
+- **`verify.py`'s test step can be red before you have touched anything, and the failure names
+  `nvs-ir` rather than the goal switch that caused it.** `crates/nvs-ir/tests/refusals.rs` attributes
+  every `nvs-ir` lowering refusal to an open item in `docs/agent/loop-goal.md`, so installing a new
+  goal orphans every site the old goal's items claimed — 17 of them the day the parity chain's goal 1
+  went in, in a crate the session that first hit it never opened. `python tools/holes.py
+  --unattributed` says whether it is yours: if every site sits in a crate your diff does not touch, it
+  is not. The gate stops at the first failure, so this one hides the `.nvst` trees and clippy behind
+  it; run those by hand until it is closed. That test refuses its own allowlist as the fix, and it is
+  right to.
 
 ## Running things
 
