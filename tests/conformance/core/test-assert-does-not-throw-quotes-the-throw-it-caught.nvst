@@ -1,0 +1,158 @@
+--TEST--
+`Core\Test::assertDoesNotThrow` fails as its own class carrying the caught throw's message, takes the pending throw so nothing downstream sees it, and agrees with a hand-written `try` over a table of bodies — ADR 0079 §§ 4, 20, ADR 0002
+--FILE--
+<?nvs
+// The member's whole output on failure is the message of the throw it caught,
+// so this case asks what that quoting can and cannot say -- an empty message, a
+// throw raised several frames down, one raised by a `Core` member rather than
+// by `throw`, and one that is itself an assertion's report. The second half is
+// the part a single line cannot show: the pending throw is *taken*
+// (`nvs_stdlib::test`'s doc comment at the helper owns why), so the class that
+// propagates is this member's own and the next assertion starts clean.
+
+use Core\Test;
+
+final class Body {
+    // Several frames, so the message quoted is the throw's own and not the
+    // name of whatever the callback called first.
+    public static function deep(int $depth): void {
+        if ($depth == 0) {
+            throw new RuntimeError("the bottom of the stack");
+        }
+        Body::deep($depth - 1);
+    }
+
+    // A `Throwable` may carry no message at all, and then there is nothing
+    // after the colon -- the report is still the member's own.
+    public static function blank(): void {
+        throw new LogicError("");
+    }
+
+    // Not a `throw` in source: ADR 0007 § 4 makes `/ 0` an `ArithmeticError`,
+    // and this member cannot tell the two origins apart.
+    public static function divide(): void {
+        int $zero = 0;
+        float $q = 7 / $zero;
+        echo $q, "\n";
+    }
+
+    // A failed assertion is a throw like any other, so its report is quoted
+    // inside this one's -- and the colon in it is not a separator this member
+    // parses.
+    public static function failing(): void {
+        Test::assertTrue(false);
+    }
+
+    public static function quiet(): void {
+    }
+
+    // A body need not answer `void`: the value comes back and is released,
+    // never inspected.
+    public static function value(): string {
+        return "returned";
+    }
+}
+
+// 1. The four throw shapes, each quoted verbatim after `$body` threw:.
+try {
+    Test::assertDoesNotThrow(fn (): void => { Body::deep(3); });
+} catch (Core\Test\Failure $fromDepth) {
+    echo $fromDepth->message, "\n";
+}
+
+try {
+    Test::assertDoesNotThrow(fn (): void => { Body::blank(); });
+} catch (Core\Test\Failure $fromBlank) {
+    echo "[", $fromBlank->message, "]\n";
+}
+
+try {
+    Test::assertDoesNotThrow(fn (): void => { Body::divide(); });
+} catch (Core\Test\Failure $fromArithmetic) {
+    echo $fromArithmetic->message, "\n";
+}
+
+try {
+    Test::assertDoesNotThrow(fn (): void => { Body::failing(); });
+} catch (Core\Test\Failure $fromAssertion) {
+    echo $fromAssertion->message, "\n";
+}
+
+// 2. The class that propagates is this member's, not the body's. The two
+// clauses are written in the order that would bind the body's own class first
+// if the throw were being passed through -- `RuntimeError` is what `deep`
+// raises, and it does not bind.
+try {
+    Test::assertDoesNotThrow(fn (): void => { Body::deep(0); });
+} catch (RuntimeError $asBody) {
+    echo "bound as the body's own class\n";
+} catch (Core\Test\Failure $asFailure) {
+    echo "bound as Core\\Test\\Failure\n";
+}
+
+// 3. And the pending throw is gone: the very next assertion holds rather than
+// inheriting it, which is the half of ADR 0002's protocol a report cannot show.
+Test::assertDoesNotThrow(fn (): void => { Body::quiet(); });
+Test::assertDoesNotThrow(fn (): string => Body::value());
+echo "two held after a failure\n";
+
+// 4. The agreement, counted: over a table of bodies the member holds exactly
+// where a hand-written `try` around the *same* callback catches nothing. Each
+// row is asked both ways, so a member that grew its own idea of which throws
+// count fails here while every message above still reads correctly.
+final class Ran {
+    public static function asserted(callable $body): string {
+        try {
+            Test::assertDoesNotThrow($body);
+        } catch (Core\Test\Failure $fromMember) {
+            return "threw";
+        }
+        return "completed";
+    }
+
+    public static function byHand(callable $body): string {
+        try {
+            $body();
+        } catch (Throwable $fromHand) {
+            return "threw";
+        }
+        return "completed";
+    }
+}
+
+array<callable> $bodies = [
+    fn (): void => { Body::quiet(); },
+    fn (): string => Body::value(),
+    fn (): void => { Body::deep(2); },
+    fn (): void => { Body::blank(); },
+    fn (): void => { Body::divide(); },
+    fn (): void => { Body::failing(); },
+];
+
+int $agreed = 0;
+int $completed = 0;
+foreach ($bodies as callable $body) {
+    if (Ran::asserted($body) == Ran::byHand($body)) {
+        $agreed = $agreed + 1;
+    }
+    if (Ran::asserted($body) == "completed") {
+        $completed = $completed + 1;
+    }
+}
+echo "agreed=", $agreed, "/6 completed=", $completed, "/6\n";
+
+// 5. ADR 0063 R2's bag sits in front of the report here as everywhere else.
+try {
+    Test::assertDoesNotThrow(fn (): void => { Body::deep(1); }, {message: "the migration applies"});
+} catch (Core\Test\Failure $withMessage) {
+    echo $withMessage->message, "\n";
+}
+--EXPECT--
+Core\Test::assertDoesNotThrow failed: `$body` threw: the bottom of the stack
+[Core\Test::assertDoesNotThrow failed: `$body` threw: ]
+Core\Test::assertDoesNotThrow failed: `$body` threw: Division by zero
+Core\Test::assertDoesNotThrow failed: `$body` threw: Core\Test::assertTrue failed: `$actual` is false
+bound as Core\Test\Failure
+two held after a failure
+agreed=6/6 completed=2/6
+the migration applies: Core\Test::assertDoesNotThrow failed: `$body` threw: the bottom of the stack
