@@ -1,0 +1,123 @@
+--TEST--
+Spec § 4: `Core\Time\Duration`'s four arithmetic members are bounded at both ends of the `i64` nanosecond count, and every refusal is one sentence naming its own member (ADR 0063 R4)
+--FILE--
+<?nvs
+// A `Duration` is an exact `i64` count of nanoseconds, so the type has two
+// ends and the arithmetic has to stop at both of them. Both are reachable
+// from source: the top through the constructor, the bottom by stepping one
+// nanosecond past the top's negation -- which is already the asymmetry the
+// rest of this case is written around, since `i64` has one more value below
+// zero than above it.
+var $max = Core\Time\Duration::nanoseconds(9223372036854775807);
+var $min = $max->negated()->minus(1ns);
+echo $max->toNanoseconds() as string, "|", $min->toNanoseconds() as string, "|\n";
+
+// Every refusal below is counted rather than read off its line, so a member
+// that grew its own wording fails here while still looking right above.
+var $refused = 0;
+
+// `plus`, at both ends: the last accepted addition and the first refused one,
+// on each side. `$max->plus($min)` is the widest accepted sum there is.
+echo $max->plus(0ns)->toNanoseconds() as string, "|\n";
+try {
+    echo $max->plus(1ns)->toNanoseconds() as string, "|\n";
+} catch (RuntimeError $overMax) {
+    echo $overMax->message, "|\n";
+    $refused = $refused + (Core\Str::contains($overMax->message, "longer than") ? 1 : 0);
+}
+echo $max->plus($min)->toNanoseconds() as string, "|\n";
+try {
+    echo $min->plus($min)->toNanoseconds() as string, "|\n";
+} catch (RuntimeError $underSum) {
+    echo $underSum->message, "|\n";
+    $refused = $refused + (Core\Str::contains($underSum->message, "longer than") ? 1 : 0);
+}
+
+// `minus`, the same two sides. A duration minus itself is zero at either end;
+// one nanosecond below the bottom, and the whole width of the type, are not.
+echo $min->minus(0ns)->toNanoseconds() as string, "|\n";
+try {
+    echo $min->minus(1ns)->toNanoseconds() as string, "|\n";
+} catch (RuntimeError $underMin) {
+    echo $underMin->message, "|\n";
+    $refused = $refused + (Core\Str::contains($underMin->message, "longer than") ? 1 : 0);
+}
+echo $min->minus($min)->toNanoseconds() as string, "|\n";
+try {
+    echo $max->minus($min)->toNanoseconds() as string, "|\n";
+} catch (RuntimeError $wholeWidth) {
+    echo $wholeWidth->message, "|\n";
+    $refused = $refused + (Core\Str::contains($wholeWidth->message, "longer than") ? 1 : 0);
+}
+
+// `multipliedBy` reaches one nanosecond short of the top exactly, and the
+// next factor up is refused -- the boundary is the product, not the operand.
+var $half = Core\Time\Duration::nanoseconds(4611686018427387903);
+echo $half->multipliedBy(2)->toNanoseconds() as string, "|\n";
+try {
+    echo $half->plus(1ns)->multipliedBy(2)->toNanoseconds() as string, "|\n";
+} catch (RuntimeError $overProduct) {
+    echo $overProduct->message, "|\n";
+    $refused = $refused + (Core\Str::contains($overProduct->message, "longer than") ? 1 : 0);
+}
+
+// The bottom value survives a factor of 1 and of 0, and is refused by the one
+// factor between them -- `multipliedBy(-1)` is `negated` written the other
+// way round, and it stops at exactly the same value.
+echo $min->multipliedBy(1)->toNanoseconds() as string, "|", $min->multipliedBy(0)->toNanoseconds() as string, "|\n";
+try {
+    echo $min->multipliedBy(-1)->toNanoseconds() as string, "|\n";
+} catch (RuntimeError $negatedByFactor) {
+    echo $negatedByFactor->message, "|\n";
+    $refused = $refused + (Core\Str::contains($negatedByFactor->message, "longer than") ? 1 : 0);
+}
+
+// `negated` is an involution everywhere it answers, and the bottom value is
+// the single place in the whole type where it does not answer at all.
+echo $max->negated()->toNanoseconds() as string, "|\n";
+echo $max->negated()->negated()->compareTo($max) as string, "|", $min->plus(1ns)->negated()->negated()->compareTo($min->plus(1ns)) as string, "|\n";
+try {
+    echo $min->negated()->toNanoseconds() as string, "|\n";
+} catch (RuntimeError $unNegatable) {
+    echo $unNegatable->message, "|\n";
+    $refused = $refused + (Core\Str::contains($unNegatable->message, "longer than") ? 1 : 0);
+}
+
+// `parse` meets the same ceiling from the other side, and is the one refusal
+// here that is a `ParseError` rather than a `RuntimeError`: nothing failed to
+// fit, a text failed to read. Its sentence is still the same sentence.
+try {
+    echo Core\Time\Duration::parse("9223372036854775808ns")->toNanoseconds() as string, "|\n";
+} catch (ParseError $tooWide) {
+    echo $tooWide->message, "|\n";
+    $refused = $refused + (Core\Str::contains($tooWide->message, "longer than") ? 1 : 0);
+}
+
+// Eight refusals, one sentence: each named its own member above, and all
+// eight agree on what they refused.
+echo $refused as string, "|\n";
+
+// `compareTo` is the member the ends cannot reach: it answers the sign of a
+// subtraction without performing it, so it has a value at exactly the pair
+// `minus` has to refuse.
+echo $max->compareTo($min) as string, "|", $min->compareTo($max) as string, "|", $max->compareTo($max) as string, "|\n";
+--EXPECT--
+9223372036854775807|-9223372036854775808|
+9223372036854775807|
+Core\Time\Duration::plus(): this duration is longer than `Core\Time\Duration` can hold|
+-1|
+Core\Time\Duration::plus(): this duration is longer than `Core\Time\Duration` can hold|
+-9223372036854775808|
+Core\Time\Duration::minus(): this duration is longer than `Core\Time\Duration` can hold|
+0|
+Core\Time\Duration::minus(): this duration is longer than `Core\Time\Duration` can hold|
+9223372036854775806|
+Core\Time\Duration::multipliedBy(): this duration is longer than `Core\Time\Duration` can hold|
+-9223372036854775808|0|
+Core\Time\Duration::multipliedBy(): this duration is longer than `Core\Time\Duration` can hold|
+-9223372036854775807|
+0|0|
+Core\Time\Duration::negated(): this duration is longer than `Core\Time\Duration` can hold|
+Core\Time\Duration::parse(): this duration is longer than `Core\Time\Duration` can hold|
+8|
+1|-1|0|
