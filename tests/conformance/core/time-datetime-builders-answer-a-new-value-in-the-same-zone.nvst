@@ -1,0 +1,123 @@
+--TEST--
+Spec § 4: every `DateTime` builder answers a new value in the same zone, and never a civil time that zone does not have
+--FILE--
+<?nvs
+// § 4 gives `DateTime` eight members that answer another `DateTime` — `plus`,
+// `minus`, `next`, `previous`, `with`, `withTime`, `startOf` and `endOf` — and
+// the rule they share is not what any one of them computes but what all of
+// them are. Each can be answered on its own, which is exactly how they come
+// to disagree, so this case asks the same three questions of every one of
+// them over a table that crosses both of Europe/Berlin's transitions, and
+// counts the agreements rather than reading a line off each.
+class Builder {
+    // Everything a `DateTime` holds, read as text: the civil fields, the
+    // offset the zone was on, and the zone's own id.
+    public static function text(Core\Time\DateTime $d): string {
+        return $d->format("yyyy-MM-dd HH:mm:ss.SSSSSSSSS XXX VV");
+    }
+
+    // 1. The receiver still reads as it did. A builder is a member of a
+    //    *value*, not PHP's `DateTime::modify`, which writes the receiver and
+    //    hands `$this` back — the divergence a ported program feels first.
+    // 2. The zone travels through the builder. `Instant::in` is the only
+    //    member that changes it, so a builder that resolved through UTC on
+    //    the way would show up here and nowhere else.
+    // 3. The answer is a civil time the zone actually has, checked by reading
+    //    it back off its own instant: a builder landing in a spring-forward
+    //    gap would render one wall clock and store another.
+    public static function holds(string $beforeText, Core\Time\DateTime $receiver, Core\Time\DateTime $built): int {
+        int $held = 0;
+        if (Builder::text($receiver) == $beforeText) {
+            $held = $held + 1;
+        }
+        if ($built->format("VV") == $receiver->format("VV")) {
+            $held = $held + 1;
+        }
+        if (Builder::text($built->toInstant()->in($built->zone())) == Builder::text($built)) {
+            $held = $held + 1;
+        }
+        return $held;
+    }
+}
+
+// Both ends of a year, a leap day, the two instants Berlin changes offset at,
+// and a plain summer afternoon — read in four zones, one of them on a half
+// hour and one whose summer is the other half of the year.
+array<string> $rows = [
+    "2023-01-01T00:00:00Z",
+    "2023-12-31T23:59:59.999999999Z",
+    "2024-02-29T12:00:00Z",
+    "2024-03-31T00:30:00Z",
+    "2024-10-27T00:30:00Z",
+    "2025-07-04T16:45:30.5Z",
+];
+array<string> $zones = ["UTC", "Europe/Berlin", "Asia/Kolkata", "Pacific/Auckland"];
+
+int $checks = 0;
+int $held = 0;
+foreach ($rows as string $rowText) {
+    foreach ($zones as string $zoneId) {
+        var $d = Core\Time::fromIso($rowText)->in(Core\Time\Zone::of($zoneId));
+        string $before = Builder::text($d);
+        // Eight builders, three questions each.
+        $checks = $checks + 24;
+        $held = $held + Builder::holds($before, $d, $d->plus(1, Core\Unit::Month));
+        $held = $held + Builder::holds($before, $d, $d->minus(90, Core\Unit::Day));
+        $held = $held + Builder::holds($before, $d, $d->next(Core\Weekday::Sunday));
+        $held = $held + Builder::holds($before, $d, $d->previous(Core\Weekday::Sunday));
+        // 02:30 is the wall clock Berlin skips on the first of those two
+        // mornings, so these two rows are where question 3 has something to
+        // catch.
+        $held = $held + Builder::holds($before, $d, $d->with({hour: 2, minute: 30}));
+        $held = $held + Builder::holds($before, $d, $d->withTime(Core\Time\TimeOfDay::at(2, 30)));
+        $held = $held + Builder::holds($before, $d, $d->startOf(Core\Unit::Day));
+        $held = $held + Builder::holds($before, $d, $d->endOf(Core\Unit::Day));
+    }
+}
+echo $checks as string, "|", $held as string, "|\n";
+
+var $utc = Core\Time\Zone::UTC;
+var $berlin = Core\Time\Zone::of("Europe/Berlin");
+
+// `dayOfYear` is one-based and counts the calendar year the value is in, so
+// its last value is the one the year's own length decides.
+echo Core\Time::at(2024, 1, 1, $utc)->dayOfYear() as string, "|",
+     Core\Time::at(2024, 12, 31, $utc)->dayOfYear() as string, "|",
+     Core\Time::at(2023, 12, 31, $utc)->dayOfYear() as string, "|\n";
+
+// `date` is the civil date this value reads as **where it is**, which is why
+// one instant is three different days: the same half hour after midnight UTC
+// is already the new year in Auckland and still the old one in New York.
+var $newYear = Core\Time::fromIso("2024-01-01T00:30:00Z");
+echo $newYear->in($utc)->date()->format("yyyy-MM-dd"), "|",
+     $newYear->in(Core\Time\Zone::of("Pacific/Auckland"))->date()->format("yyyy-MM-dd"), "|",
+     $newYear->in(Core\Time\Zone::of("America/New_York"))->date()->format("yyyy-MM-dd"), "|\n";
+echo $newYear->in($utc)->dayOfYear() as string, "|",
+     $newYear->in(Core\Time\Zone::of("America/New_York"))->dayOfYear() as string, "|\n";
+
+// `difference` counts **whole** units, so the last value that answers none
+// and the first that answers one are a nanosecond apart.
+var $a = Core\Time::at(2024, 5, 1, $utc, {hour: 12});
+var $whole = $a->plus(1, Core\Unit::Day);
+echo $a->difference($whole, Core\Unit::Day) as string, "|",
+     $a->difference($whole->minus(1, Core\Unit::Nanosecond), Core\Unit::Day) as string, "|",
+     $a->difference($whole->plus(1, Core\Unit::Nanosecond), Core\Unit::Day) as string, "|\n";
+echo $a->difference($whole, Core\Unit::Hour) as string, "|",
+     $a->difference($whole->minus(1, Core\Unit::Nanosecond), Core\Unit::Hour) as string, "|\n";
+
+// The same pair counted across a spring forward, which is where the calendar
+// and the timeline part company: Berlin's 31st of March is 23 hours long, so
+// one calendar day away is 23 hours away.
+var $eve = Core\Time::at(2024, 3, 30, $berlin, {hour: 12});
+var $morrow = $eve->plus(1, Core\Unit::Day);
+echo $eve->difference($morrow, Core\Unit::Day) as string, "|",
+     $eve->difference($morrow, Core\Unit::Hour) as string, "|",
+     $eve->date()->format("yyyy-MM-dd"), "|", $morrow->date()->format("yyyy-MM-dd"), "|\n";
+--EXPECT--
+576|576|
+1|366|365|
+2024-01-01|2024-01-01|2023-12-31|
+1|365|
+1|0|1|
+24|23|
+1|23|2024-03-30|2024-03-31|
