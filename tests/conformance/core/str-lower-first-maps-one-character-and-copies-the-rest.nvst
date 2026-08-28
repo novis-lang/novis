@@ -1,0 +1,46 @@
+--TEST--
+`Core\Str::lowerFirst` and `upperFirst` are `lower`/`upper` of the first character glued to the rest of the subject unchanged, and only that — spec § 1 *Case*, ADR 0009 § 2
+--FILE--
+<?nvs
+// `map_first`'s doc states the rule as "the first character case-mapped and
+// the rest copied through". That is a claim about a whole table, not about a
+// row: a member that mapped two characters, or that mapped the first and then
+// touched the tail, still prints plausibly on `nvs rocks`. So the rule is
+// asked of every row and *counted*, and the three places where these members
+// part company with `lower`/`upper` are counted too.
+array<string> $rows = ["nvs rocks", "NVS", "élan", "Élan", "ßeta", "Already", "1st", "ǅungla", "e\u{0301}lan", ""];
+int $upAgree = 0;
+int $loAgree = 0;
+int $roundTrip = 0;
+int $grew = 0;
+int $isLower = 0;
+int $isUpper = 0;
+foreach ($rows as string $s) {
+    string $head = Core\Str::slice($s, 0, 1);
+    string $tail = Core\Str::slice($s, 1);
+    string $u = Core\Str::upperFirst($s);
+    string $l = Core\Str::lowerFirst($s);
+    // The rule itself, spelled out of three other members: `upper`/`lower` of
+    // the head, then the tail byte for byte. It holds on all ten, including
+    // `ǅ`, whose upper mapping is a third character (`Ǆ`) rather than itself,
+    // and the decomposed `e` + combining acute, where the first *cluster* and
+    // the first *code point* are not the same thing.
+    if ($u == Core\Str::upper($head) . $tail) { $upAgree = $upAgree + 1; }
+    if ($l == Core\Str::lower($head) . $tail) { $loAgree = $loAgree + 1; }
+    // `upperFirst` is not invertible: `ß` upper-maps to two characters, so
+    // lowering the first of *those* answers `sSeta` where `lowerFirst` of the
+    // original answers `ßeta`. Nine of ten round-trip; that row is the tenth,
+    // and it is the same row that makes the subject longer.
+    if (Core\Str::lowerFirst($u) == $l) { $roundTrip = $roundTrip + 1; }
+    if (Core\Str::length($u) > Core\Str::length($s)) { $grew = $grew + 1; }
+    // And the tail really is copied rather than mapped: these agree with the
+    // whole-string members only where the tail was already in that case, which
+    // is nine rows for `lower` (all but `NVS`) and two for `upper` (`NVS` and
+    // the empty subject). A `lowerFirst` that had quietly become `lower` would
+    // score ten here and still pass every row of the older case.
+    if ($l == Core\Str::lower($s)) { $isLower = $isLower + 1; }
+    if ($u == Core\Str::upper($s)) { $isUpper = $isUpper + 1; }
+}
+echo $upAgree, " ", $loAgree, " ", $roundTrip, " ", $grew, " ", $isLower, " ", $isUpper, " of ", Core\Arr::count($rows), "\n";
+--EXPECT--
+10 10 9 1 9 2 of 10
