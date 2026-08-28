@@ -724,6 +724,19 @@ is why" — is this file.
   `python tools/splice.py --patch`. It works right up until an apostrophe in a doc comment closes
   the quote early. It also used to hide the session that did it: a heredoc is not an `Edit`, so
   session 0053 read as 52 orientation calls and no work at all until `MUTATORS` learned about it.
+- **`holes.py`'s count is not the number of `panic!`s, and a session widening its recognizer will
+  want it to be.** "Match the construct, not the wording" is the right instinct and half the answer:
+  89 panic-family sites sit in `nvs-ir` and `nvs-codegen` and **62 are engine invariants** —
+  "`foreach` lost the `Env` binding `{name}` it walks" — which no program reaches and which will
+  still be there when the last hole closes, so counting them puts the gate's own end state out of
+  reach permanently. Wording cannot separate the two either, in *either* direction: an invariant
+  names the front-end guarantee it trusts, and so do two real holes (both of ADR 0027's `(...)`
+  panics say "has no resolved target recorded in the typed-expression table"). The recognizer that
+  works takes the construct **and** the claim's shape — "only lowers X", "lowers X only through Y",
+  "has no arm for" — and the mechanical fix, whenever a session wants one, is to make the *source*
+  declare which kind it is, as `CodegenError` already does with `Internal` versus `Unsupported`.
+  Budget an audit of all 89 before touching that regex; the classification is the work, not the
+  pattern.
 
 ## Running things
 

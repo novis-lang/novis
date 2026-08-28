@@ -65,8 +65,8 @@ slice**. That is the only thing that keeps this file from growing back.
 
 ## Stage 00's remaining names are cause 3, and deliberately so
 
-`loop-goal.toml`'s Stage 00 blocks name one test that **does not exist yet**, so
-the acceptance test fails at the first check holding it and reaches nothing behind it. That is the same
+`loop-goal.toml`'s Stage 00 blocks named one test that **did not exist yet**, so
+the acceptance test failed at the first check holding it and reached nothing behind it. That is the same
 *symptom* as the fifty-four above and it is not the same *bug*, so do not "reconcile" one of them:
 
 | | the fifty-four | Stage 00's remainder |
@@ -75,13 +75,13 @@ the acceptance test fails at the first check holding it and reaches nothing behi
 | the fix | rewrite the name in `loop-goal.toml` | write the test |
 | renaming it to something green | restores a check that was already true | hides an open hole |
 
-They are:
+**There are none outstanding.** The last was
+`every_spellable_expression_reaches_a_diagnostic_or_an_ir`, item 49's, which landed as the second test in
+[type_atoms.rs](../../crates/nvs-ir/tests/type_atoms.rs) beside the type half it is named after.
 
-- `every_spellable_expression_reaches_a_diagnostic_or_an_ir` — item 49. Its sibling
-  `every_spellable_type_reaches_a_diagnostic_or_an_ir` is Stage 8's, exists, and is green; this is the
-  expression-and-statement half, and the two are not the same check.
-
-Delete a bullet here when its test lands, exactly as the ticked lines below are deleted-in-place.
+A future stage that names a test on purpose before writing it adds a bullet here, one per name, with the
+item that owes it. Delete a bullet when its test lands, exactly as the ticked lines below are
+deleted-in-place.
 
 ## The 54, by check
 

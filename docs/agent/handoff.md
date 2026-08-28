@@ -2,66 +2,54 @@
 
 ## State
 
-**M4, Stage 00, and all six of its shapes are closed.** Item 48 landed this session together with the
-three Stage 00 conformance cases whose names the gate held but the tree did not, so every Stage 00
-check but item 49's is green.
+**M4, Stage 00, is closed entirely.** Item 49 was the last of it and landed as three edits in three
+files this session; `python tools/verify.py` is 7 of 7 green (1782 unit, 878 conformance, 189
+differential).
 
-`crates/nvs-types/src/expr/calls.rs`'s `check_new_target` now holds a `Core` `new` target to
-`nvs_stdlib::registry` rather than to the `Core\` spelling. `QName::is_core` is a *spelling* test —
-anything under `Core\` answers it — so accepting a target on that alone let `new Core\Bogus()` past
-every check the checker has and fail in `nvs-codegen` with "this unit declares no descriptor for it",
-an internal message for an ordinary typo. It is `E0303` now. The two `Core` mistakes stay distinct on
-purpose: a *registered* class with no constructor keeps `infer_new`'s `E0405` naming the member it has
-not got, because `nvs_stdlib::registry::CONSTRUCTORS` is the whole roster of names `new` may be written
-on and "this class is not constructible" is a different fact from "this class does not exist". The
-arity half of the same rule was already right and needed nothing — a scratch probe, not a reading of
-the item, is what settled that.
+`crates/nvs-ir/tests/type_atoms.rs` holds both halves of one gate now — the type atoms it opened with,
+and `every_spellable_expression_reaches_a_diagnostic_or_an_ir`, a roster of source shapes read off
+`nvs_syntax::ast`'s `ExprKind`/`StmtKind` rather than assembled from memory. Six tables, three slots,
+and each row asserts **which** of a diagnostic or an IR it reaches, so a row that stops compiling for a
+reason nobody intended fails instead of passing. The file's own module doc owns the design; do not
+restate it elsewhere.
 
-**`Core` is two rosters and the registry is only the first.** `nvs_hir::errors::TREE`'s one namespaced
-row, `Core\Test\Failure`, is trusted through `is_core` rather than through
-`QName::is_reserved_global_class` — that predicate's own doc says so — so the arm carries
-`errors::is_exception_class` beside the registry lookup, and
-`the_namespaced_exception_tree_row_is_still_a_new_target` pins it. The playbook bullet under *Writing
-Novis itself* owns the trap.
+**`tools/holes.py` read 4 refusal sites where there are 17**, and `refusals.rs`'s `CEILING` is 17 now.
+Nothing was added to the tree — the recognizer was matching three fixed phrasings and is keyed on the
+construct plus the claim's shape instead. All 17 are attributed to open items and 0 are unattributed.
+The playbook bullet under *Tooling* owns why a construct-only match is wrong, and it is worth reading
+before touching that regex again.
 
-**Three conformance cases now pin work that had only unit tests.** Items 45, 46 and 47 landed their
-`nvs-types` tests in earlier sessions but not their corpus, and `loop-goal.toml`'s Stage 00
-`nvs-suite` block named all three files. They are under `tests/conformance/lang/` and each runs the
-narrowed or substituted thing rather than only compiling it. One behaviour they pinned that no doc
-stated: a nested `instanceof` guard replaces the residue rather than intersecting with it — the
-playbook bullet under *Writing a test case* owns it.
-
-`docs/agent/guard-name-debt.md` § *Stage 00's remaining names* is down to one bullet, item 49's, and
-its intro count is rewritten to match.
+`docs/agent/guard-name-debt.md` § *Stage 00's remaining names* is empty: no `loop-goal.toml` name is
+deliberately unwritten today.
 
 ## Next group
 
-**Item 49, which is the last Stage 00 shape and is three edits in three files.** One file set:
-`crates/nvs-ir/tests/type_atoms.rs`, `crates/nvs-ir/tests/refusals.rs`, `tools/holes.py`. Take them in
-this order — the third is a *measurement* the second one records, so it cannot come first.
+**Item 25 — `never`, `iterable` and an intersection reach a representation or a diagnostic.** It is
+the item the type table's whole `KNOWN_ICE` list points at (six rows, three shapes × two positions),
+so closing it empties that ratchet. One file set: `crates/nvs-ir/src/lower/mod.rs`,
+`crates/nvs-ir/tests/type_atoms.rs`, `crates/nvs-ir/tests/refusals.rs`, plus `nvs-types` for the first
+slice's diagnostic.
 
-- [ ] **Widen the atom table to a roster of source shapes** (`loop-goal.md` item 49, ADR 0007 § 3).
-      `crates/nvs-ir/tests/type_atoms.rs:232` is `every_spellable_type_reaches_a_diagnostic_or_an_ir`,
-      which walks every *type* atom through two declaration positions. The sibling this owes is
-      `every_spellable_expression_reaches_a_diagnostic_or_an_ir` — a class-constant read, a `new`, a
-      call through each receiver kind, each statement form, each asserted to reach a diagnostic or an
-      IR. That is the gate name still unwritten, and `guard-name-debt.md` names it.
-- [ ] **Teach `tools/holes.py`'s `REFUSAL` to recognize a panic by shape, not by phrasing.**
-      `tools/holes.py:53` is the recognizer's own comment: it is a three-phrase match over `panic!`,
-      `assert!`'s second argument and `CodegenError::Unsupported`, which is why item 45's panic was
-      invisible to it. Match the construct rather than the wording.
-- [ ] **Re-derive `refusals.rs`'s `CEILING` from the true count, and say so in the commit.**
-      `crates/nvs-ir/tests/refusals.rs` carries **4**, which the plan already records as a floor on
-      the truth rather than the truth — it came from the blind count the recognizer above produced. A
-      ratchet set from a blind count is not a ratchet.
+- [ ] **`never` in a parameter position is a diagnostic** (ADR 0007 § 3 makes `void` and `never`
+      return-only; `void` there is already refused and `never` is not). Next free code is `E0742`
+      (`crates/nvs-diagnostics/src/lib.rs`). The table row that found it is
+      `crates/nvs-ir/tests/type_atoms.rs:114`.
+- [ ] **`iterable` and an intersection get a representation**, both erasing to `Ty::Object` as
+      `Ty::Shape` already does. `crates/nvs-ir/src/lower/mod.rs:2206` (item 25's anchor), with the
+      two catch-alls at `:2705` (`lower_checked_ty`) and `:2792` (a resolved call's types).
+- [ ] **Delete the closed rows and lower the ratchets in the same slice**:
+      `crates/nvs-ir/tests/type_atoms.rs:105` (`KNOWN_ICE`, which fails on a row that has *stopped*
+      panicking) and `crates/nvs-ir/tests/refusals.rs:58` (`CEILING`, 17 minus whatever closes).
+
+**If the driver's acceptance check names a failure, that outranks this** — a check naming a test that
+"did not run" is an open item, anything else is a regression.
 
 ## Backlog
 
-- There is no intersection type, so two `instanceof` guards cannot both hold — decided nowhere yet;
-  if it is ever wanted, it is an ADR, not a checker fix (`nvs_types::locals`' narrowing section).
-- `new Core\Order()` on a `Core` *enum* now answers "`Core\Order` is not declared", which is true of
-  the class position it was written in but says nothing about the enum (`nvs-types/src/expr/calls.rs`
-  `check_new_target`).
-- Stage 8's `refusals.rs` ceiling ratchets down and never up; a new refusal beside an old one in a
-  claimed file is otherwise invisible (`loop-goal.md` § *Standing decisions*).
-- ADR 0028 § 2's abandoned-generator `finally`, still unlanded (`loop-goal.md` § *Standing decisions*).
+- Item 16, ADR 0027's `Class::method(...)`: 4 refusal sites, the only `SHAPE_ICE` row, and the two
+  `expr.rs` panics read as a checker/lowering mismatch (`docs/agent/loop-goal.md` item 16).
+- Make an `nvs-ir` invariant panic spell itself as one, so `holes.py` need not judge by wording — the
+  `CodegenError::Internal`/`Unsupported` split is the precedent (`tools/holes.py`, `CONSTRUCT`).
+- `nvs-codegen`'s `class_desc_const`/`field_offset` raise `Unsupported` for a descriptor above
+  `i64::MAX`; `loop-goal.md` § *Standing decisions* says an unreachable `CodegenError` is `Internal`.
+- Item 20's `foreach (… as inout $v)`, 3 sites, and item 17's spread element, 2 (`holes.py --item N`).

@@ -37,40 +37,32 @@
 > the ADR that owns a topic, and `python tools/adr.py --stats` shapes the whole set. What a crate
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
-> **Open now:** **Stage 00 of [docs/agent/loop-goal.md](agent/loop-goal.md) is the frontier** — six
-> shapes a program reaches for on its first page, of which **all six are now closed**. **ADR 0109's
-> `for` header is done, corpus and all**: the init clause is `nvs_syntax::ast::ForInit`, one typed
-> local declaration or an expression list, with `E0124`/`E0125` on the two shapes § 3 refuses, and
-> 55 loops across 29 files under `tests/` and `examples/` now declare their counter in the header —
-> the exclusion § *Consequences* names (a counter read after its loop, or shared by two loops)
-> leaves the rest declared above, and the ADR's own case keeps both forms on purpose. **Item 50 is
-> closed beside it**: PHP's `case Hearts = 1;` is `E0239`, raised once on the `case` keyword and
-> naming the comma-list spelling ([ADR 0010](adr/0010-enums-are-a-value-type.md) § 1), with the case
-> *kept* — which retires the four-diagnostic `E0220` cascade that shape used to produce. **Item 45
-> is closed as well**: a user-declared class constant carries a declared type and a placed value in
-> `nvs_types::signatures::ConstSig`, so `Limits::MAX` reads at its own annotation through `extends`,
-> `implements` and `self::` alike, and lowers to the constant instruction its literal does. **Items
-> 46 and 47 are closed too**: a member declaring `static` records
-> `nvs_types::signatures::MethodSig::returns_static`, so `Leaf::make()` on a `Base::make(): static`
-> answers a `Leaf` at both the instance-call and static-call sites, and a body that would break that
-> promise (`return new self();`) is refused as `E0741` rather than left as a hole — that refusal is
-> the session's own decision, taken under the priority ordering and recorded at the bit it guards.
-> `instanceof` now narrows to a user-declared interface and to every reserved global name but the
-> two ADR 0053 § 2 iteration interfaces, which take a type argument the test does not supply. **Item
-> 48 is closed last**: a `new` target under `Core\` is held to `nvs_stdlib::registry` rather than to
-> the namespace spelling, so an unregistered name is `E0303` where it used to reach `nvs-codegen`'s
-> "declares no descriptor for it", while a registered class with no `constructor` keeps `E0405`
-> naming the member it has not got. Stage 00's three missing conformance cases are written too — the
-> class constant, `new static()` through two levels, and the `instanceof` interface guard — so the
-> gate's `nvs-syntax`, `nvs-types` and Stage 00 conformance blocks are all green and the frontier is
-> item 49's shape table alone. That file defines what a *hole* is; three tools are the worklist and
-> no session re-derives one — `python tools/holes.py` (`--item N`), `python tools/loop.py --list`,
-> `python tools/gaps.py`. **One of the gate's names is deliberately unwritten** and the acceptance
-> test stops at the first check holding one; [guard-name-debt.md](agent/guard-name-debt.md) § *Stage
-> 00's remaining names* says why renaming it is the wrong fix. Stage 8's
-> [refusals.rs](../crates/nvs-ir/tests/refusals.rs) carries a ceiling of **4**, which item 49
-> re-derives: its recognizer matches by phrasing rather than by shape, so that number is a floor on
-> the truth rather than the truth.
+> **Open now:** **Stage 00 of [docs/agent/loop-goal.md](agent/loop-goal.md) is closed**, item 49 and
+> its guard with it, so the acceptance test reaches past `00 basics` for the first time.
+> [type_atoms.rs](../crates/nvs-ir/tests/type_atoms.rs) now carries both halves of one claim under
+> one harness: `every_spellable_type_reaches_a_diagnostic_or_an_ir` over [ADR
+> 0007](adr/0007-explicit-type-system.md) § 3's atoms, and
+> `every_spellable_expression_reaches_a_diagnostic_or_an_ir` over a roster of **source shapes** read
+> off `nvs_syntax::ast`'s `ExprKind` and `StmtKind` — 76 rows in six tables across three slots (a
+> method body, a generator body, file scope), each asserted to reach a diagnostic *or* an IR **and
+> asserted for which**, so a row that quietly becomes a parse error fails here rather than passing
+> vacuously. Exactly one shape panics: ADR 0027's `Class::method(...)`, which is open item 16's own
+> anchor and is the single `SHAPE_ICE` row. **`tools/holes.py` was counting 4 refusal sites where
+> the tree holds 17.** It matched three fixed phrasings; a site is now read from the **construct**
+> that carries the message — a `panic!`/`todo!`/`unimplemented!`/`assert!`, or a
+> `CodegenError::Unsupported`, whose type is the claim — together with the shape of the claim the
+> message makes. Thirteen sites were always there and unseen, both of ADR 0027's among them, and
+> [refusals.rs](../crates/nvs-ir/tests/refusals.rs)'s `CEILING` is re-derived to **17** with no
+> `nvs-ir` line changing; 0 of the 17 are unattributed, so the gate is green on its merits. Keying
+> on the construct *alone* is what does not work, and `holes.py`'s own comment is that finding's
+> home: 62 of the 89 panic-family sites in the two lowering crates are engine invariants no program
+> reaches, and telling those from holes mechanically needs the *source* to say which kind it is, the
+> way `CodegenError` already separates `Internal` from `Unsupported`. The frontier is now whichever
+> check the driver's next acceptance run names first — Stage `0a inout` and Stage `0 operators` name
+> ten guard tests and all ten are on disk, so the first work behind them is the `1 floor` fixture
+> list. `loop-goal.md` defines what a *hole* is; three tools are the worklist and no session
+> re-derives one — `python tools/holes.py` (`--item N`), `python tools/loop.py --list`, `python
+> tools/gaps.py`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,
