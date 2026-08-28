@@ -2076,6 +2076,43 @@ pub enum Helper {
     /// [`crate::ty::Ty::Tagged`] the callee transferred, and the callee's own
     /// throw travels back as `Fault::Pending`.
     CallClosureArray,
+    /// `$m->method(...)` on a **`mixed`** receiver — ADR 0036 § 4's deferral
+    /// applied to a call, dispatched on the value the way
+    /// [`CallClosure`](Self::CallClosure) dispatches on a closure object.
+    ///
+    /// `args[0]` is the receiver, still tagged — nothing proved it holds an
+    /// object at all, so a tag that is not one is a catchable throw down
+    /// there rather than a refusal up here. `args[1]` is the member name as an
+    /// immortal `string` constant: one address in the unit's data section, no
+    /// allocation per call, exactly what [`InstKind::SlotGet`]'s own name is.
+    /// `args[2]` is **one array** holding every argument in written order,
+    /// built by `crate::lower::Lowering::lower_args_as_array`.
+    ///
+    /// It is a helper rather than an [`InstKind`] for
+    /// [`CallClosureArray`](Self::CallClosureArray)'s reason and its
+    /// arguments are packed for the same one: how many there are is a
+    /// **run-time** fact — a `...` argument's count is its subject's own
+    /// length — and the callee's arity is not known here either, that being
+    /// what the receiver's descriptor answers. `docs/adr/README.md`
+    /// § *Decisions taken at project start* owns the convention: the method
+    /// row on the receiver's own `ClassDesc` carries the callee's arity and
+    /// parameter tags, and `nvs_runtime::closure`'s `check_param_tags` is the
+    /// one implementation this path and `callable`'s share.
+    ///
+    /// Ownership is every helper's: the receiver, the name and the array are
+    /// all **borrowed**, the runtime retaining each value it actually passes
+    /// on so that the compiled callee's own exit sweep has a reference to
+    /// release. The result is a fresh [`crate::ty::Ty::Tagged`] the callee
+    /// transferred — `mixed` being the only answer the checker has for a call
+    /// whose target it cannot name.
+    ///
+    /// Fallible, and it is the row with the most program-reachable throws:
+    /// a receiver that is no object, a class with no such member, a member
+    /// that is not `public`, one the row cannot describe, an argument whose
+    /// tag is not the one the parameter requires, and too few arguments — all
+    /// catchable, all carrying ADR 0002's error edge, plus the callee's own
+    /// throw travelling back as `Fault::Pending`.
+    CallErasedMethod,
 }
 
 /// A binary arithmetic or comparison operator, already resolved to a single

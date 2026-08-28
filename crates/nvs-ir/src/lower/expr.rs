@@ -2385,14 +2385,23 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
+        // ADR 0036 § 4's deferral: a `mixed` receiver resolved to no
+        // signature at all and was recorded as the name alone, so the call is
+        // dispatched on the value rather than on a class this frame could
+        // name. Taken before the resolved arm because it is the *absence* of a
+        // resolution that selects it.
+        if let Some(ExprInfo::ErasedCall { name }) = self.exprs.lookup(expr.span) {
+            let name = name.clone();
+            return self.lower_erased_method_call(object, nullsafe, &name, args, env, cur);
+        }
         let Some(ExprInfo::Call(call)) = self.exprs.lookup(expr.span) else {
             panic!(
                 "nvs-ir: an instance method call at {:?} has no resolved target \
-                 recorded in the typed-expression table — either it wasn't checked \
-                 with the same table, or its receiver was a `mixed`, whose deferral \
-                 to a run-time answer this does not lower yet — every other receiver \
-                 naming no class is refused where it is written (`E0477`); see the \
-                 crate docs' known gaps",
+                 recorded in the typed-expression table — did this program pass \
+                 nvs_types::check_program with the same table? Every receiver naming \
+                 no class is either refused where it is written (`E0477`) or, for the \
+                 `mixed` ADR 0007 § 2 makes the one unchecked position, recorded as \
+                 `ExprInfo::ErasedCall` and lowered above",
                 expr.span
             );
         };

@@ -532,5 +532,6 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::SecretEq => "secret_eq",
         Helper::CallClosure => "call_closure",
         Helper::CallClosureArray => "call_closure_array",
+        Helper::CallErasedMethod => "call_erased_method",
     }
 }

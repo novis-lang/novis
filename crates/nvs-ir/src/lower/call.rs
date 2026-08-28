@@ -7,6 +7,7 @@
 //! a single file.
 
 use super::*;
+use crate::lower::expr::ReceiverProof;
 
 impl<'a> Lowering<'a> {
     /// Lowers a resolved call's/`new`'s argument list against `param_tys` —
@@ -802,6 +803,97 @@ impl<'a> Lowering<'a> {
         );
         self.release_temporaries_since(mark, *cur);
         called
+    }
+    /// `$m->method(...)` on a **`mixed`** receiver —
+    /// [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) § 4's
+    /// deferral applied to a call, which
+    /// [`crate::ir::Helper::CallErasedMethod`] owns the convention for.
+    ///
+    /// One helper, with the receiver at `args[0]` still **tagged** — nothing
+    /// proved it holds an object, so the tag test is the runtime's — the
+    /// member name at `args[1]` as an immortal `string` constant, and every
+    /// argument in written order packed into one array at `args[2]`. It is
+    /// deliberately not an [`InstKind::Call`] nor an [`InstKind::CallVirtual`]:
+    /// there is no resolved target to name, no signature to lower each
+    /// argument against and no arity to check against, and the receiver's own
+    /// class descriptor answers all three when the call runs.
+    ///
+    /// The arguments are packed rather than passed one per slot for
+    /// [`Self::lower_closure_call`]'s `...` reason, and here it holds for
+    /// *every* site: a helper's argument count is a literal `nvs-codegen`
+    /// writes beside the slot, while what this call site wrote is judged
+    /// against a callee chosen when it runs. So one shape carries both the
+    /// spread and the plain list, and the array is the same one a variadic
+    /// tail already is.
+    ///
+    /// Ownership is [`Self::lower_closure_call`]'s throughout — the borrowed
+    /// column for the receiver and for the array, released on both edges by
+    /// this frame — and the name needs no accounting at all, an
+    /// `InstKind::ConstStr` being an immortal address in the unit's data
+    /// section rather than an allocation.
+    ///
+    /// # Panics
+    ///
+    /// Panics for a first-class-callable argument list, which is ADR 0027's
+    /// `$m->method(...)` and names a closure *value* rather than making a call
+    /// — `nvs_types` refuses it where it is written (`E0732`), as it refuses a
+    /// `name:` argument (`E0712`) and an `inout` one (`E0714`), neither of
+    /// which the deferral can express.
+    pub(super) fn lower_erased_method_call(
+        &mut self,
+        object: &Expr,
+        nullsafe: bool,
+        name: &str,
+        args: &CallArgs,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let CallArgs::List(list) = args else {
+            panic!(
+                "nvs-ir only lowers a plain positional argument list for a call through a \
+                 `mixed` receiver — got {args:?}; nvs_types refuses ADR 0027's \
+                 `$m->method(...)` where it is written (`E0732`)"
+            );
+        };
+        assert!(
+            list.iter().all(|arg| arg.name.is_none() && !arg.inout),
+            "nvs-ir: a `name:` or `inout` argument reached a call through a `mixed` receiver — \
+             this crate trusts nvs_types::check_program already reported it as E0712/E0714"
+        );
+        // Before the receiver, not before the argument list: a freshly built
+        // receiver is this frame's temporary too, and an argument that throws
+        // while it is in flight has to drop it.
+        let mark = self.temporaries_mark();
+        // `ReceiverProof::Erased`: no `Untag` is emitted, so the whole tagged
+        // value travels to the helper and the tag test is made there.
+        let (object_v, receiver_ty, guard) =
+            self.open_nullsafe(object, nullsafe, ReceiverProof::Erased, env, cur);
+        let aliasing = self.aliasing_read(object);
+        self.account_for_arg(
+            object_v,
+            receiver_ty,
+            ArgOwnership::Borrowed,
+            aliasing,
+            *cur,
+        );
+        let (member, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(name.to_owned()));
+        let rest: Vec<&nvs_syntax::ast::Arg> = list.iter().collect();
+        let array = self.lower_args_as_array(&rest, None, env, cur);
+        self.account_for_arg(array, Ty::Array, ArgOwnership::Borrowed, false, *cur);
+        // `Ty::Tagged` because `mixed` is the only answer the checker has for
+        // a call whose target it cannot name — `nvs_types::expr::calls`'
+        // `ExprInfo::ErasedCall` arm.
+        let (v, ty) = self.emit_fallible(
+            *cur,
+            Ty::Tagged,
+            InstKind::HelperCall {
+                helper: Helper::CallErasedMethod,
+                args: vec![object_v, member, array],
+            },
+            env,
+        );
+        self.release_temporaries_since(mark, *cur);
+        self.close_nullsafe(guard, v, ty, env, cur)
     }
     /// Records `v` as a reference this frame owns and nothing else can find —
     /// see [`Self::owned_temporaries`], which owns the whole protocol.

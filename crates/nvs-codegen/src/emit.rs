@@ -3401,6 +3401,7 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::SecretEq => "nvs_secret_eq",
         Helper::CallClosure => "nvs_call_closure",
         Helper::CallClosureArray => "nvs_call_closure_array",
+        Helper::CallErasedMethod => "nvs_call_erased_method",
         Helper::BytesTruthy => "nvs_bytes_truthy",
         Helper::ArrayTruthy => "nvs_array_truthy",
         Helper::ValueTruthy => "nvs_value_truthy",

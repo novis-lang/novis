@@ -320,7 +320,14 @@
 //!    over [`ty::Ty::ClassDesc`], which looks the name up in the per-class
 //!    method table [`ir::Class::methods`] carries. A real vtable would index
 //!    that table by slot instead, which is the remaining half — a lookup
-//!    cost, not a correctness gap.
+//!    cost, not a correctness gap. A **`mixed`** receiver names no class for
+//!    either instruction, so ADR 0036 § 4's deferral covers the call too: it
+//!    is one [`ir::Helper::CallErasedMethod`]
+//!    ([`lower::Lowering::lower_erased_method_call`]), the receiver still
+//!    tagged, the member name an immortal constant and every argument packed
+//!    into one array — and what checks the arguments is the callee's own
+//!    method row, through the one `nvs_runtime::closure`'s `check_param_tags`
+//!    implementation item 9's `callable` path already goes through.
 //! 9. **A closure literal lowers, and so does `$f(...)`; what nothing checks
 //!    is the argument *types*.** The call is one [`ir::Helper::CallClosure`]
 //!    — `nvs_runtime::call_closure`, the same entry point native `Core` code
