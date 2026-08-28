@@ -483,6 +483,18 @@ impl ClassDesc {
         self.fields.iter().position(|field| field == name)
     }
 
+    /// The name of the field at slot `index`, or `None` past the last slot.
+    ///
+    /// The inverse of [`Self::field_slot`], and it exists for the one reader
+    /// that walks *every* slot rather than resolving one name: ADR 0092 § 1's
+    /// Object node carries a class's declared properties in slot order, which
+    /// is what `nvs_stdlib::debug` builds. Compiled code still never reaches
+    /// here — a `$obj->prop` on a named class is a fixed offset.
+    #[must_use]
+    pub fn field_name(&self, index: usize) -> Option<&str> {
+        self.fields.get(index).map(String::as_str)
+    }
+
     /// The one [`Tag`] slot `index`'s declared type admits, or `None` where
     /// it admits several or where nothing told this class its field types —
     /// see [`ClassDesc::field_tags`], which owns both readings of `None`.

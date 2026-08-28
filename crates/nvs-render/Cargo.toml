@@ -1,0 +1,21 @@
+[package]
+name = "nvs-render"
+description = "ADR 0092's one diagnostic record model and its renderings: the closed node tree every developer-facing output is built from, and the plaintext view of it"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+# ADR 0092 § 5 routes the bidi transformation through ADR 0087's *one*
+# predicate rather than restating it, and that predicate is `nvs_syntax::bidi`.
+# The edge is upward for now and the crate docs' § *Where this sits* owns what
+# happens when `nvs-runtime` and `nvs-diagnostics` become dependents: the
+# predicate moves down here and `nvs-syntax` reads it from below, which is a
+# move rather than a copy.
+nvs-syntax.workspace = true
+
+[lints]
+workspace = true

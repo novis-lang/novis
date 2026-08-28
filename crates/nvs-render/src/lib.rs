@@ -1,0 +1,431 @@
+//! [ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)'s
+//! one record model, and the renderings of it.
+//!
+//! Every developer-facing output in Novis is a [`Record`]: an [`Envelope`]
+//! plus a tree of [`Node`]s. The model is **closed** — a node is one of a
+//! fixed set of kinds and there is no extension point — and it is **content,
+//! not presentation**: it carries no colour, no indentation, no width and no
+//! ordering-for-display. A rendering supplies all four. That separation is the
+//! whole of ADR 0092, and it is why adding a fourth rendering later costs one
+//! implementation rather than five.
+//!
+//! # What is here, and what is not yet
+//!
+//! M4's half: the model, the plaintext rendering ([`plain`]), and § 5's four
+//! transformations. The JSON and HTML renderings are M7's, and the record's
+//! other four producers — `Core\Log::write`, a `Throwable` and its trace, a
+//! `#[Test]` result and a compiler diagnostic — arrive at their own
+//! milestones. `Core\Debug::dump` is the one producer that exists, and it
+//! lives in `nvs_stdlib::debug` for the reason § *Where this sits* gives.
+//!
+//! # § 5's four transformations, and why they are the model's
+//!
+//! Redaction, control-byte substitution, the bidi rule and elision are
+//! properties of the **record**, applied when it is built and before any
+//! rendering sees it, so every rendering inherits identical answers and none
+//! may weaken one. Three of the four are structural here rather than a
+//! convention a producer is asked to follow:
+//!
+//! * **Control bytes and bidi** are [`Rendered`]'s constructor. That newtype is
+//!   the only text a node carries, and the only way to build one is
+//!   [`Rendered::new`], which applies [`text::substitute`]. There is no
+//!   spelling that puts an un-substituted byte into the model, which is what
+//!   makes "decided once" a property of the type rather than of a review.
+//! * **Elision** is [`Node::Elided`] carrying an [`Elision`], so a cut is a
+//!   node and every rendering renders it as a cut. PHP and Python truncate per
+//!   formatter, so the same value is complete in one output and truncated in
+//!   another and no reader can tell which.
+//! * **A cycle** is [`Node::Cycle`], an identity rather than a `*RECURSION*`
+//!   string, so the HTML rendering can link the repeat and the JSON one can
+//!   emit a reference.
+//!
+//! **Redaction is the one a producer must apply**, because what is `secret` is
+//! a property of a *declared type* and nothing in this crate can see one:
+//! [`Node::Redacted`] stands where the value would have been, and the producer
+//! that walks a runtime value is what decides. `nvs_stdlib::debug` is that
+//! walk today.
+//!
+//! # Where this sits
+//!
+//! ADR 0092 § 1 puts the model in one crate that both the runtime and the
+//! compiler front end depend on, which is why it is not in `nvs-diagnostics`:
+//! `nvs-runtime` depends on no `nvs-*` crate, so the dependency has to run the
+//! other way. Today the crate has exactly one dependent, `nvs-stdlib`, and one
+//! dependency, `nvs-syntax` — [ADR 0087](../../../docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)'s
+//! bidi predicate, which § 5 routes through rather than restating.
+//!
+//! **That edge inverts when the next producer lands.** An uncaught `Throwable`
+//! renders from `nvs-runtime`, and `nvs check` renders from `nvs-diagnostics`;
+//! both would then depend on this crate, and this crate's dependency on
+//! `nvs-syntax` (which depends on `nvs-diagnostics`) closes a cycle. The
+//! answer at that point is to **move** `nvs_syntax::bidi` down into this
+//! crate and have `nvs-syntax` read it from below — a move, not a copy, so
+//! ADR 0087's "one rule, three callers" is unchanged and this crate stays the
+//! leaf ADR 0092 § 1 describes. It is not done now because a module moves
+//! once, and doing it before there is a second dependent would be a churn with
+//! no reader.
+//!
+//! # What it spends
+//!
+//! One `Record` per dump, freed with the statement that built it: a `String`
+//! per text node, a `Vec` per container. [`Caps`] is what bounds it — a
+//! cyclic or merely enormous value cannot make the record larger than the caps
+//! allow, which is the property that lets a dump be reached from a request
+//! path at all.
+
+pub mod plain;
+pub mod text;
+
+/// [ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+/// § 2's five levels, with the fixed syslog mapping that section's table gives.
+///
+/// The mapping is fixed because [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
+/// § 4 names `syslog` as a target and a severity is not optional there.
+///
+/// This is the Rust side. The *Novis* enum `Log\Level` that `Core\Log::write`
+/// takes is `nvs_stdlib::registry`'s and lands with that member at M8; when it
+/// does, its cases are these and its integer backings are
+/// [`Self::syslog_severity`], read from here rather than written again.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Default)]
+pub enum Level {
+    /// `Core\Debug::dump`'s destination — ADR 0092 § 4.
+    #[default]
+    Debug,
+    /// Ordinary progress.
+    Info,
+    /// [ADR 0091](../../../docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)
+    /// § 6's public-bind record.
+    Warn,
+    /// An uncaught `Throwable`.
+    Error,
+    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)'s tier-3
+    /// and tier-4 floor. It exists so the escalation ladder has a level of its
+    /// own rather than a parallel channel.
+    Critical,
+}
+
+impl Level {
+    /// The syslog severity ADR 0092 § 2's table pairs with this level.
+    #[must_use]
+    pub const fn syslog_severity(self) -> u8 {
+        match self {
+            Self::Debug => 7,
+            Self::Info => 6,
+            Self::Warn => 4,
+            Self::Error => 3,
+            Self::Critical => 2,
+        }
+    }
+
+    /// The level's own name, lower case, as every rendering spells it.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Debug => "debug",
+            Self::Info => "info",
+            Self::Warn => "warn",
+            Self::Error => "error",
+            Self::Critical => "critical",
+        }
+    }
+}
+
+/// Text a record carries, with ADR 0092 § 5's control-byte and bidi
+/// transformations already applied.
+///
+/// The only way to build one is [`Rendered::new`], and it is the only text
+/// shape a [`Node`] holds — which is what makes § 5's *"decided once, in the
+/// model"* a property of the type rather than a rule each producer is asked to
+/// remember. A producer that wants the original bytes back does not get them:
+/// the substitution is deliberately one-way, because the record exists to be
+/// looked at.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Rendered(String);
+
+impl Rendered {
+    /// `text` with [`text::substitute`] applied — the one constructor.
+    #[must_use]
+    pub fn new(text: &str) -> Self {
+        Self(text::substitute(text))
+    }
+
+    /// The substituted text.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for Rendered {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+/// One scalar value, tagged with the Novis type it *is* rather than with how
+/// it prints — so `"1"` and `1` are never confusable, which is the one thing
+/// `print_r` cannot do.
+#[derive(Clone, PartialEq, Debug)]
+pub enum Scalar {
+    /// `null`.
+    Null,
+    /// `bool`.
+    Bool(bool),
+    /// `int`.
+    Int(i64),
+    /// `uint` — [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4.
+    Uint(u64),
+    /// `float`.
+    Float(f64),
+    /// `decimal` — [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md),
+    /// carried as the exact text the value renders as rather than as an `f64`,
+    /// which is the whole reason that type exists.
+    Decimal(String),
+    /// `string`, with its length in **bytes** — the length is carried rather
+    /// than taken from the text because § 5's substitution changes it and the
+    /// reader wants the value's own.
+    Str {
+        /// The substituted text.
+        text: Rendered,
+        /// The value's own length in bytes, before substitution changed it.
+        bytes: usize,
+    },
+    /// `bytes` — [ADR 0009](../../../docs/adr/0009-string-and-bytes.md)'s
+    /// binary scalar, held raw. A rendering decides how to show them; the
+    /// model does not, because they are not text and § 5's substitution is
+    /// about text.
+    Bytes(Vec<u8>),
+}
+
+/// What an [`Node::Elided`] node says was cut, and how much of it — ADR 0092
+/// § 5.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum Elision {
+    /// The subtree below [`Caps::depth`] was cut.
+    Depth,
+    /// A container held more entries than [`Caps::entries`]: this node stands
+    /// after the ones that were kept and names how many were not.
+    Entries {
+        /// How many entries the container has in all.
+        total: usize,
+        /// How many of them this record does not carry.
+        cut: usize,
+    },
+    /// A text or `bytes` scalar was longer than [`Caps::text`]: this node
+    /// carries the prefix that was kept and names how many bytes were not.
+    ///
+    /// It replaces the scalar node rather than sitting beside it, because a
+    /// scalar has no children for it to be one of. That is the one asymmetry
+    /// in the roster, and it is what keeps a cut a *node* in every rendering.
+    Text {
+        /// The kept prefix, substituted like any other text.
+        kept: Rendered,
+        /// How many bytes of the original this record does not carry.
+        cut: usize,
+    },
+}
+
+/// One node of a record's tree. The roster is ADR 0092 § 1's, closed.
+#[derive(Clone, PartialEq, Debug)]
+pub enum Node {
+    /// A scalar, tagged with its Novis type.
+    Scalar(Scalar),
+    /// An `array` whose keys are `"0"`, `"1"`, … in order — the list shape.
+    Sequence(Vec<Node>),
+    /// An `array` read by key — the map shape.
+    Map(Vec<(Rendered, Node)>),
+    /// A class instance: the class name and its **declared** properties, per
+    /// [ADR 0028](../../../docs/adr/0028-closing-the-remaining-magic-methods.md)
+    /// § 4. Never a `toString` result, and never a customization hook — ADR
+    /// 0092 § 7.
+    Object {
+        /// The class's rendered name.
+        class: String,
+        /// The instance's identity within this record, numbered from `1` in
+        /// the order the walk first met each object, or `None` for a producer
+        /// that has no identity to give.
+        ///
+        /// It is carried on every object rather than only on a repeated one
+        /// because a single-pass walk cannot know that a node will be revisited
+        /// until it already has, and a second pass to erase the unused ones
+        /// would buy nothing: a [`Node::Cycle`] names an id, so every id has to
+        /// be findable for the reference to resolve.
+        id: Option<usize>,
+        /// Its declared properties, in slot order.
+        properties: Vec<(String, Node)>,
+    },
+    /// An enum case: the enum's name and the case's, never its underlying
+    /// integer ([ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md)).
+    EnumCase {
+        /// The enum's rendered name.
+        enum_name: String,
+        /// The case's own name.
+        case: String,
+    },
+    /// A closure, by the signature it declares — never a body, and never
+    /// captured state ([ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)).
+    Closure {
+        /// How many parameters it declares.
+        parameters: usize,
+    },
+    /// Stands where a `secret`-typed value would have been — ADR 0092 § 5,
+    /// [ADR 0033](../../../docs/adr/0033-secret-qualifier-for-confidential-values.md) § 4.
+    Redacted,
+    /// Stands where content was cut, naming what and how much.
+    Elided(Elision),
+    /// A repeat of a node already in this record, by the identity
+    /// `nvs_runtime::identity` gives it — not a `*RECURSION*` string, so a
+    /// rendering can link or reference it.
+    Cycle {
+        /// The repeated node's identity within this record, numbered from `1`
+        /// in the order the walk first met each object.
+        id: usize,
+    },
+    /// A source range with a label — what a compiler diagnostic is made of
+    /// (M10).
+    Span {
+        /// The file the range is in.
+        file: String,
+        /// Its one-based first line.
+        line: u32,
+        /// What the range is being pointed at for.
+        label: Rendered,
+    },
+}
+
+/// The depth and length bounds ADR 0092 § 5 owes the model, past which content
+/// becomes an [`Elision`].
+///
+/// The numbers are this crate's, taken under AGENTS.md's priority ordering
+/// rather than from the ADR, which names the caps without fixing them. They
+/// are chosen for a **reader**: a dump is looked at by a person, so the bound
+/// that matters is what stays legible rather than what stays cheap.
+///
+/// * `depth` — eight levels. Deeper than that is not read; it is scrolled
+///   past, and an ORM entity graph reaches it in one hop.
+/// * `entries` — a hundred. Several screens, so a container that is merely
+///   large still shows what it holds and one that is unbounded does not run
+///   the terminal off.
+/// * `text` — 1024 bytes. Long enough to recognise a rendered SQL statement or
+///   a JSON body, short enough that a megabyte upload does not become the
+///   whole output.
+///
+/// **They bound the record, not the rendering.** A cut is decided once and
+/// every rendering shows the same cut, which is the property § 5 exists for.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Caps {
+    /// How many levels of container the record carries before the rest
+    /// becomes [`Elision::Depth`].
+    pub depth: usize,
+    /// How many entries of one container it carries before the rest becomes
+    /// [`Elision::Entries`].
+    pub entries: usize,
+    /// How many bytes of one text or `bytes` scalar it carries before the rest
+    /// becomes [`Elision::Text`].
+    pub text: usize,
+}
+
+impl Default for Caps {
+    fn default() -> Self {
+        Self {
+            depth: 8,
+            entries: 100,
+            text: 1024,
+        }
+    }
+}
+
+/// Where a record was produced — ADR 0092 § 1's `source` field.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Source {
+    /// The file's path as the program named it.
+    pub file: String,
+    /// Its one-based line.
+    pub line: u32,
+    /// The enclosing member, `Class::member`, or `None` at file scope.
+    pub member: Option<String>,
+}
+
+/// What is true of a whole record and nothing about how it looks — ADR 0092
+/// § 1's table.
+///
+/// Every field but [`Self::level`] is optional, and an absent one is **omitted**
+/// by a rendering rather than rendered empty — [ADR 0076](../../../docs/adr/0076-observability-export.md)
+/// § 6's rule for `trace_id`/`span_id`, applied to the whole envelope because a
+/// producer that has no request to name should not have to invent one.
+#[derive(Clone, PartialEq, Debug, Default)]
+pub struct Envelope {
+    /// RFC 3339, as [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
+    /// § 6 already fixes.
+    pub ts: Option<String>,
+    /// § 2's level.
+    pub level: Level,
+    /// A plain `string`, never a qualified one — [ADR 0033](../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
+    /// § 4's `Throwable`-message rule, on the same argument.
+    pub message: Option<Rendered>,
+    /// The request this record belongs to.
+    pub request_id: Option<String>,
+    /// Present only when a trace is active, omitted rather than empty.
+    pub trace_id: Option<String>,
+    /// The span within that trace, on the same terms.
+    pub span_id: Option<String>,
+    /// Where the record was produced.
+    pub source: Option<Source>,
+    /// Named fields, each carrying a node — **not** a stringly bag, which is
+    /// what lets the compile-time field schema ADR 0092 § 8 keeps possible
+    /// arrive without changing the model.
+    pub fields: Vec<(String, Node)>,
+}
+
+/// One developer-facing output: ADR 0092 § 1's envelope plus a tree of nodes.
+///
+/// [`Self::nodes`] is what the producer had to say beyond the envelope —
+/// `Core\Debug::dump`'s one node per argument, a `Throwable`'s frames, a
+/// `#[Test]` result's expected and actual. A producer with nothing but fields
+/// leaves it empty.
+#[derive(Clone, PartialEq, Debug, Default)]
+pub struct Record {
+    /// What is true of the whole record.
+    pub envelope: Envelope,
+    /// The record's own nodes, in the order the producer wrote them.
+    pub nodes: Vec<Node>,
+}
+
+impl Record {
+    /// An empty record at `level`.
+    #[must_use]
+    pub fn at(level: Level) -> Self {
+        Self {
+            envelope: Envelope {
+                level,
+                ..Envelope::default()
+            },
+            nodes: Vec::new(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// ADR 0092 § 2's table, which is fixed because ADR 0020 § 4 names
+    /// `syslog` as a target and a severity is not optional there.
+    #[test]
+    fn every_level_carries_its_syslog_severity() {
+        assert_eq!(Level::Debug.syslog_severity(), 7);
+        assert_eq!(Level::Info.syslog_severity(), 6);
+        assert_eq!(Level::Warn.syslog_severity(), 4);
+        assert_eq!(Level::Error.syslog_severity(), 3);
+        assert_eq!(Level::Critical.syslog_severity(), 2);
+    }
+
+    /// The one constructor substitutes, so there is no spelling that puts an
+    /// un-substituted byte into the model — § 5 as a property of the type.
+    #[test]
+    fn text_in_the_model_is_already_substituted() {
+        assert_eq!(Rendered::new("a\u{1B}b").as_str(), "a\u{241B}b");
+        assert_eq!(Rendered::new("a\rb").as_str(), "a\u{240D}b");
+        assert_eq!(Rendered::new("a\nb").as_str(), "a\nb");
+    }
+}

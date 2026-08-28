@@ -33,6 +33,7 @@ nvs-hir = { path = "crates/nvs-hir", version = "0.0.1" }
 nvs-types = { path = "crates/nvs-types", version = "0.0.1" }
 nvs-ir = { path = "crates/nvs-ir", version = "0.0.1" }
 nvs-codegen = { path = "crates/nvs-codegen", version = "0.0.1" }
+nvs-render = { path = "crates/nvs-render", version = "0.0.1" }
 nvs-runtime = { path = "crates/nvs-runtime", version = "0.0.1" }
 nvs-stdlib = { path = "crates/nvs-stdlib", version = "0.0.1" }
 nvs-test = { path = "crates/nvs-test", version = "0.0.1" }

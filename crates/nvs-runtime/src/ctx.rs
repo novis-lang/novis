@@ -186,6 +186,15 @@ pub fn is_carrier(name: &str) -> bool {
 pub enum OutputSink {
     /// The process's standard output — `nvs run`'s destination.
     Stdout,
+    /// The process's standard error — the *diagnostic* channel's destination,
+    /// and never a request's `echo`.
+    ///
+    /// [ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+    /// § 4 sends a CLI `Core\Debug::dump` here rather than to stdout, so
+    /// `prog | jq` and `prog > out.txt` keep working while a program is being
+    /// debugged. `var_dump` writing to stdout is a small thing that makes PHP
+    /// CLI tools unpipeable, and there is no reason to inherit it.
+    Stderr,
     /// An in-memory buffer, read back with [`Ctx::take_buffered_output`].
     ///
     /// This is what a test uses, and the shape an HTTP response body will
@@ -235,6 +244,22 @@ pub struct Ctx {
     pending: Option<Pending>,
     /// Where `echo` writes.
     output: OutputSink,
+    /// Where a **diagnostic** writes — [ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+    /// § 4's destination for a CLI `Core\Debug::dump`, and later for the log
+    /// target's own records.
+    ///
+    /// A second sink rather than a fourth [`OutputSink`] variant, because the
+    /// two channels differ in *where they go* and not in what is written to
+    /// them: a request may capture its output ([`Self::captures`]) without
+    /// capturing its diagnostics, and a dump must reach the developer whether
+    /// or not a `Core\Out::capture` is in force. [`Self::write_diagnostic`] is
+    /// therefore deliberately not routed through the capture stack.
+    ///
+    /// [`OutputSink::Stderr`] for every context by default, including a
+    /// buffered one: a test that wants to *read* a dump asks for
+    /// [`Self::set_diagnostic_sink`] explicitly, so a test that does not is
+    /// never quietly swallowing one.
+    diagnostic: OutputSink,
     /// `Core\Out::capture`'s buffers, innermost last —
     /// [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
     /// § 5.
@@ -547,6 +572,7 @@ impl Ctx {
             pending: None,
             runtime_error_class: None,
             output,
+            diagnostic: OutputSink::Stderr,
             captures: Vec::new(),
             stmt_hits: Vec::new(),
             trace: Vec::new(),
@@ -953,13 +979,39 @@ impl Ctx {
             capture.extend_from_slice(bytes);
             return Ok(());
         }
-        match &mut self.output {
-            OutputSink::Stdout => io::stdout().write_all(bytes),
-            OutputSink::Buffer(buffer) => {
-                buffer.extend_from_slice(bytes);
-                Ok(())
-            }
-            OutputSink::Sink => Ok(()),
+        write_to(&mut self.output, bytes)
+    }
+
+    /// Writes raw bytes to this request's **diagnostic** channel — ADR 0092
+    /// § 4's destination for a CLI `Core\Debug::dump`.
+    ///
+    /// Deliberately **not** routed through [`Self::captures`]: a
+    /// `Core\Out::capture` redirects what a program `echo`s, and a dump is not
+    /// that. Capturing one would make `echo Core\Out::capture(fn () =>
+    /// Core\Debug::dump($x))` swallow the dump it was meant to make visible.
+    ///
+    /// # Errors
+    ///
+    /// Whatever the sink returns. [`OutputSink::Buffer`] and
+    /// [`OutputSink::Sink`] never fail.
+    pub fn write_diagnostic(&mut self, bytes: &[u8]) -> io::Result<()> {
+        write_to(&mut self.diagnostic, bytes)
+    }
+
+    /// Points this context's diagnostic channel somewhere else — what a test
+    /// that wants to read a dump back calls, and the one way to move it off
+    /// [`OutputSink::Stderr`].
+    pub fn set_diagnostic_sink(&mut self, sink: OutputSink) {
+        self.diagnostic = sink;
+    }
+
+    /// Takes everything written to the diagnostic channel so far, if it
+    /// buffers.
+    #[must_use]
+    pub fn take_buffered_diagnostic(&mut self) -> Option<Vec<u8>> {
+        match &mut self.diagnostic {
+            OutputSink::Buffer(buffer) => Some(std::mem::take(buffer)),
+            OutputSink::Stdout | OutputSink::Stderr | OutputSink::Sink => None,
         }
     }
 
@@ -975,6 +1027,7 @@ impl Ctx {
     pub fn flush_output(&mut self) -> io::Result<()> {
         match &mut self.output {
             OutputSink::Stdout => io::stdout().flush(),
+            OutputSink::Stderr => io::stderr().flush(),
             OutputSink::Buffer(_) | OutputSink::Sink => Ok(()),
         }
     }
@@ -992,7 +1045,9 @@ impl Ctx {
     #[must_use]
     pub fn carrier(&self) -> &'static str {
         match &self.output {
-            OutputSink::Stdout | OutputSink::Buffer(_) | OutputSink::Sink => CARRIER_CLI_TEXT,
+            OutputSink::Stdout | OutputSink::Stderr | OutputSink::Buffer(_) | OutputSink::Sink => {
+                CARRIER_CLI_TEXT
+            }
         }
     }
 
@@ -1023,8 +1078,23 @@ impl Ctx {
     pub fn take_buffered_output(&mut self) -> Option<Vec<u8>> {
         match &mut self.output {
             OutputSink::Buffer(buffer) => Some(std::mem::take(buffer)),
-            OutputSink::Stdout | OutputSink::Sink => None,
+            OutputSink::Stdout | OutputSink::Stderr | OutputSink::Sink => None,
         }
+    }
+}
+
+/// Writes `bytes` to one sink — the body [`Ctx::write_output`] and
+/// [`Ctx::write_diagnostic`] share, so a sink variant added later cannot be
+/// handled at one channel and forgotten at the other.
+fn write_to(sink: &mut OutputSink, bytes: &[u8]) -> io::Result<()> {
+    match sink {
+        OutputSink::Stdout => io::stdout().write_all(bytes),
+        OutputSink::Stderr => io::stderr().write_all(bytes),
+        OutputSink::Buffer(buffer) => {
+            buffer.extend_from_slice(bytes);
+            Ok(())
+        }
+        OutputSink::Sink => Ok(()),
     }
 }
 
