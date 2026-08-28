@@ -13,15 +13,20 @@ files = [
 
 [context]
 
+# `nvs-config` is new and is created by this goal's first slice, so orient.py warns that its pattern
+# matches nothing until it exists. That warning is correct; do not answer it by deleting the selector.
+# `src/*.rs` and not `src/**/*.rs` -- fnmatch's `*` crosses a `/` already, so `**` demands a
+# subdirectory and misses every top-level module.
 modules = [
-  "crates/nvs-config/src/**/*.rs",
+  "crates/nvs-config/src/*.rs",
   # The gate goes on a member's row, so item 10 and item 16 both start here.
   "crates/nvs-stdlib/src/registry.rs",
   # Item 12 -- the isolate's deferred half, and the budget it is accounted against.
   "crates/nvs-host/src/isolate.rs",
   "crates/nvs-host/src/budget.rs",
-  # Item 11 -- safepoints have been emitted since the first backend commit; this is their second consumer.
-  "crates/nvs-codegen/src/safepoint.rs",
+  # Item 11 -- safepoints have been emitted since the first backend commit; this is their second
+  # consumer. They live in `emit.rs` rather than a module of their own, which is why this names it.
+  "crates/nvs-codegen/src/emit.rs",
   # Items 14-15, 19 -- the cache is read on the compile path and written on it.
   "crates/nvs-cli/src/main.rs",
   "crates/nvs-cli/src/runner.rs",

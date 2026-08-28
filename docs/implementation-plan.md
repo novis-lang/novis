@@ -43,7 +43,7 @@
 > [docs/agent/goals/](agent/goals/README.md), each with its own `[context]` manifest and acceptance
 > TOML; `python tools/loop.py --chain docs/agent/goals/chain.toml` walks them, carrying each goal's
 > whole acceptance list forward as the next one's floor through `goal-switch.py`. The switch from M4's
-> goal has not been made — that is a deliberate act, and its four steps are in
+> goal has not been made — that is a deliberate act, and its three steps are in
 > [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's own residue is the 1000-case
 > corpus count, which orders 1–4 meet as the suite grows; nothing else about M4 is open. What the
 > program is measured by is `python tools/check-migration.py` at 100% classified, which stood at 31%
@@ -94,7 +94,7 @@ already followed.
 | **9** | [M11](plan/m11.md) | PHP transpiler (~10 weeks) | ~3 |
 | **10** | [M15](plan/m15.md) | Packages, the registry and the supply chain (~8 weeks) | ~3 + a calendar floor |
 | **11** | [M16](plan/m16.md) | `nvs/web`, `nvs new`, and the framework (~12 weeks) | ~4 |
-| ongoing | [M12](plan/m12.md) | Optimising JIT tier | measurement-bound |
+| ongoing | [M12](plan/m12.md) | Optimising JIT tier (ongoing) | measurement-bound |
 
 \* **M4 reached its loop goal on 2026-08-28** — every check in that goal's acceptance list passes, which is
 what closes the language holes. What it has not reached is its own milestone acceptance's **1000 `.nvst`

@@ -61,13 +61,18 @@ DESIGN = PLAN_DIR / "design.md"
 WIDTH = 100  # including the "> " prefix, matching what is already in the file
 FIELD_RE = re.compile(r"^> \*\*([^*:]+):\*\*\s*(.*)$")
 
-#: An index row: `| [M4S](plan/m4s.md) | The `Core` API contract … | ~1.5 |`
-#: The third cell is the loop-day projection (docs/plan/velocity.md owns what it means) and is
-#: optional, so a row that predates it still parses. It is matched separately rather than swept into
-#: the title, because `--check` compares the title against the milestone file's H1 character for
-#: character and would otherwise report every row as drifted.
+#: An index row: `| 1 | [M4S](plan/m4s.md) | The `Core` API contract … | ~1.5 |`
+#: The leading **order** cell is what says what comes next, and a milestone's number is its identity
+#: rather than its position (implementation-plan.md says so where the table is). It is optional here
+#: so a table written before that column, or a row that never gets one, still parses -- and it is
+#: matched rather than skipped so `--check` can report the schedule instead of only the roster.
+#: The last cell is the loop-day projection (docs/plan/velocity.md owns what it means) and is
+#: optional too. Both are matched separately rather than swept into the title, because `--check`
+#: compares the title against the milestone file's H1 character for character and would otherwise
+#: report every row as drifted.
 ROW_RE = re.compile(
-    r"^\|\s*\[(M\d+[A-Z]?)\]\((plan/[^)]+)\)\s*\|\s*([^|]*?)\s*\|(?:\s*([^|]*?)\s*\|)?\s*$"
+    r"^\|(?:\s*([^|\[]*?)\s*\|)?\s*\[(M\d+[A-Z]?)\]\((plan/[^)]+)\)"
+    r"\s*\|\s*([^|]*?)\s*\|(?:\s*([^|]*?)\s*\|)?\s*$"
 )
 
 #: A milestone file's H1: `# M4S — The `Core` API contract and its pure half (~5 weeks)`
@@ -144,11 +149,12 @@ def milestones(lines=None):
         if m:
             found.append(
                 {
-                    "id": m.group(1),
-                    "title": m.group(3),
-                    "loop_days": (m.group(4) or "").strip(),
-                    "path": ROOT / "docs" / m.group(2),
-                    "rel": "docs/" + m.group(2),
+                    "id": m.group(2),
+                    "title": m.group(4),
+                    "order": (m.group(1) or "").strip(),
+                    "loop_days": (m.group(5) or "").strip(),
+                    "path": ROOT / "docs" / m.group(3),
+                    "rel": "docs/" + m.group(3),
                     "line": i + 1,
                 }
             )

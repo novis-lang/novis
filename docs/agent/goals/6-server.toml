@@ -15,13 +15,15 @@ files = [
 
 [context]
 
+# `nvs-server` is new and is created by Stage 2, so orient.py warns that its pattern matches nothing
+# until it exists. `src/*.rs` and not `src/**/*.rs` -- fnmatch's `*` crosses a `/` already.
 modules = [
-  "crates/nvs-server/src/**/*.rs",
+  "crates/nvs-server/src/*.rs",
   # The isolate the request IS -- not a second isolation path -- and the stream hyper reads through.
   "crates/nvs-host/src/isolate.rs",
   "crates/nvs-host/src/stream.rs",
   # The mount table is resolved out of the config tree goal 3 built.
-  "crates/nvs-config/src/**/*.rs",
+  "crates/nvs-config/src/*.rs",
   # Request, Response, Server, Session, Router, Metrics are registered here.
   "crates/nvs-stdlib/src/registry.rs",
   # Item 9's compile error, and item 3's `tainted` returns.

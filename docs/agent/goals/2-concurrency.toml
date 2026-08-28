@@ -17,10 +17,14 @@ files = [
 
 [context]
 
-# `nvs-host` is new and most of this goal is written into it, so its modules are named as they are
-# created rather than up front -- a glob is what keeps that honest without a warning per session.
+# `nvs-host` is new and most of this goal is written into it, so it is globbed rather than listed.
+# ORIENT.PY WILL WARN that the pattern matches no module until the crate exists, and that warning is
+# correct and expected -- creating the crate is item 3. Do not answer it by deleting the selector.
+#
+# The glob is `src/*.rs` and not `src/**/*.rs`: the matcher is `fnmatch`, whose `*` already crosses a
+# `/`, so `**/*.rs` demands a subdirectory and silently misses every top-level module.
 modules = [
-  "crates/nvs-host/src/**/*.rs",
+  "crates/nvs-host/src/*.rs",
   # The containment boundary Stage 0 moves outward, and the ABI it wraps.
   "crates/nvs-runtime/src/abi.rs",
   "crates/nvs-runtime/src/ctx.rs",
@@ -32,10 +36,10 @@ modules = [
   "crates/nvs-ir/src/lower/generator.rs",
   # `Core\Task`, `Core\Serialize` and `Core\Script` are registered here.
   "crates/nvs-stdlib/src/registry.rs",
-  # The proven coroutine shape this goal moves into nvs-host. Named because every session of Stage 2
-  # reads it and re-deriving it from the ADRs costs a session.
-  "benches/abi-probe/src/lib.rs",
 ]
+# NOT in `modules`, and it cannot be: `benches/abi-probe/src/lib.rs` is the proven coroutine shape this
+# goal moves into `nvs-host`, and orient.py's map covers `crates/` and `editors/` only. Every session of
+# Stage 2 should read it anyway -- the handoff names it, which is the one place that survives.
 
 rules = ["0072", "0006", "0023", "0106", "0033", "0012", "0079", "0099", "0004", "0051"]
 

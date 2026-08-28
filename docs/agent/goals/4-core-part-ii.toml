@@ -20,10 +20,14 @@ files = [
 
 [context]
 
-# One glob per subsystem, added as each module is created. `nvs-stdlib` is where almost all of this goal
-# lives, so the glob is deliberate: naming thirty modules by hand is a manifest that goes stale weekly.
+# One glob per subsystem. `nvs-stdlib` is where almost all of this goal lives, so the glob is deliberate:
+# naming thirty modules by hand is a manifest that goes stale weekly.
+#
+# `src/*.rs` and not `src/**/*.rs` -- the matcher is `fnmatch`, whose `*` already crosses a `/`, so `**`
+# demands a subdirectory and silently misses every top-level module. The `nvs-host` and `nvs-config`
+# patterns name files goals 2 and 3 created; if one warns, that goal moved it.
 modules = [
-  "crates/nvs-stdlib/src/**/*.rs",
+  "crates/nvs-stdlib/src/*.rs",
   # The gate goal 3 built. Every member in this goal declares against it.
   "crates/nvs-config/src/capability.rs",
   # The stream every network member is written over, and the pool every blocking call goes to.

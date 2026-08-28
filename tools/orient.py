@@ -584,14 +584,17 @@ def run_rules(m: Manifest) -> None:
     if current:
         bullets.append(current)
 
+    # One bullet may cite several of the goal's ADRs -- ground-rules.md is one sentence per decision
+    # and a decision that amends another names both. It is printed once and credits *every* number it
+    # cites: crediting only the first made the rest look uncited, and the warning then said a rule was
+    # missing from a file that was printing it two lines above.
     hit = set()
     for blk in bullets:
         body = "\n".join(blk)
-        for num in m.rules:
-            if re.search(rf"\b{re.escape(num)}\b", body):
-                emit(body.rstrip())
-                hit.add(num)
-                break
+        cited = [num for num in m.rules if re.search(rf"\b{re.escape(num)}\b", body)]
+        if cited:
+            emit(body.rstrip())
+            hit.update(cited)
     for num in m.rules:
         if num not in hit:
             warn(f"[context] rules names {num}, but no bullet in {rel(GROUND_RULES)} cites it")

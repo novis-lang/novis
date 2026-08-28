@@ -16,8 +16,10 @@ files = [
 
 [context]
 
+# `nvs-db` is new and is created by Stage 2, so orient.py warns that its pattern matches nothing until
+# it exists. `src/*.rs` and not `src/**/*.rs` -- fnmatch's `*` crosses a `/` already.
 modules = [
-  "crates/nvs-db/src/**/*.rs",
+  "crates/nvs-db/src/*.rs",
   # The stream every driver is written over, and the pool a blocking call goes to.
   "crates/nvs-host/src/stream.rs",
   # Stage 0's pass, and the one it copies.
