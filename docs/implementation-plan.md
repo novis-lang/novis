@@ -597,10 +597,34 @@
 > over all six representations that have one, the arithmetic, bitwise and ordering rows, the three
 > unary ones, six of `concat_operand`'s nine and the five shapes `lower_expr` takes above its
 > general `Binary` arm are the rows, so a family that grows a second answer fails here while still
-> looking right on its own line. One shape is deliberately absent and is the next session's first
-> slice: a `match` whose subject is a `mixed` panics `nvs-ir` at `lower/expr.rs:1521`, the label
-> lowering asserting a label's representation equals the subject's rather than widening it. The
-> tagged subscript's four rows gain the byte-for-byte case they were owed alongside:
+> looking right on its own line. **A `match` over a tagged subject is that same equality row now**,
+> which is the one shape the agreement case was missing and the last `BinOp::Eq` in `nvs-ir` emitted
+> without asking whether either side is a tag. `Lowering::lower_match` compares each label through
+> `Helper::Identical` wherever the subject's or the label's representation is `Ty::Tagged`, exactly
+> as `lower_binary` already did for a written `==`, and the label itself is untouched by it: a digit
+> run beside a `mixed` is still a `ConstInt`, `nvs-codegen`'s helper convention storing every
+> argument as a 16-byte tagged `Value` already, so there is no widening to emit. The assert that
+> used to refuse the shape survives as an internal-consistency check with the roster its neighbours
+> carry — `nvs_types` has already made every label comparable with the subject (`E0466`, ADR 0090 §
+> 6) and the tagged arm takes the one pairing whose types name no static row, so an arrival is a
+> `nvs-ir` site that lowered a label against an expectation it then did not honour. The agreement
+> case gains three rows for it — an `int` subject that hits, a `string` one that hits and one that
+> falls off to `default` — and reads `agreed=48/48`. An **enum** subject is the one `match` shape
+> still refused below the checker, and it is refused for the typed spelling rather than the tagged
+> one: `nvs-codegen does not lower a `Eq` over representation Enum(Int)`, which is ADR 0010 § 5's
+> own row and not this item's. **A `foreach` subject that is not iterable was already closed and
+> owed only its case.** ADR 0053 § 3's list is closed, so
+> `nvs_types::expr::iteration::report_not_iterable` refuses every subject naming none of it
+> (`E0443`) — a `void` call among them, one step earlier than the rest for the reason `E0719`
+> exists, and neither the condition's code nor the operand's, a subject being neither — and nothing
+> in `tests/` had ever pinned that code.
+> `tests/conformance/lang/a-foreach-subject-that-is-not-iterable-is-refused-where-it-is-written.nvst`
+> sweeps six shapes in source order with the one deferral, a `mixed` subject, deliberately last.
+> `emit_binop`'s and `emit_unop`'s residue rosters are corrected where they called `Ty::Void` a
+> representation no source expression has: a `void` call is one, and what keeps it out of both
+> functions is that it is refused wherever it is written — as an operand (`E0718`), as a condition
+> (`E0719`) and as an operand of `.` (`E0707`). The tagged subscript's four rows gain the
+> byte-for-byte case they were owed alongside:
 > `tests/conformance/lang/a-subscript-through-a-mixed-base-is-decided-by-its-tag.nvst` pins the
 > element off a list and off a map, the absent key, the two non-array bases, all of it again under
 > `??`, and the agreement between a declared `array<int>` base and the same value read through a

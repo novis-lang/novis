@@ -1175,8 +1175,13 @@ impl Emitter<'_, '_> {
             // and its arithmetic and bitwise rows the eleven-member
             // `Helper::ValueAdd` one, each chosen from the operands' runtime
             // tags in `nvs-ir` rather than from a representation neither side
-            // has. What is left is the three representations no source
-            // expression has (`ClassDesc`, `Ref`, `Void`). The `float` rows do
+            // has. What is left is two representations no source expression
+            // has at all (`ClassDesc`, `Ref`) and one it *can* produce and
+            // never hands to an operator: a `void` call is refused wherever it
+            // is written, as an operand of every binary and unary spelling
+            // (`E0718`), as the value a condition tests (`E0719`) and as an
+            // operand of `.` (`E0707`), so `Ty::Void` reaches no instruction
+            // rather than being absent from the language. The `float` rows do
             // not reach here at all — they are `integral`'s sibling below —
             // and arithmetic over an operand ADR 0007 § 4 tabulates no row
             // for, which used to arrive here as a `Sub` over a `Str` or a
@@ -1875,9 +1880,12 @@ impl Emitter<'_, '_> {
             // negation is `Helper::DecimalNeg`, and a tagged operand's `-` and
             // `~` are the `Helper::ValueNeg` pair, chosen from the operand's
             // runtime tag in `nvs-ir` rather than from a representation it does
-            // not have. What is left is the three representations no source
-            // expression has (`ClassDesc`, `Ref`, `Void`), which is
-            // `Self::emit_binop`'s residue exactly.
+            // not have. What is left is `Self::emit_binop`'s residue exactly,
+            // including why the third of it is not quite like the other two:
+            // `ClassDesc` and `Ref` are representations no source expression
+            // has, while a `void` call *is* one and is refused where it is
+            // written instead — `E0718` covers the three unary prefixes, unary
+            // `+` among them, by the same rule and the same code.
             (op, ty) => {
                 return Err(CodegenError::Unsupported(format!(
                     "the unary operator {op:?} over representation {ty:?}"
