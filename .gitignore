@@ -57,6 +57,10 @@ __pycache__/
 # driver writes at run time lives under one directory, so this is one line.
 /.loop/
 
+# The CA copied out of the database matrix's containers by a test that wants to
+# verify the chain rather than merely encrypt (tests/db/compose.yaml's header).
+/tests/db/ca.crt
+
 # Scratch commit-message file (AGENTS.md: a multi-line message goes through a
 # file, never an inline `-m`); never part of the tree it describes.
 /.agent-tmp/

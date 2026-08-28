@@ -1,0 +1,193 @@
+# The five servers ADR 0067's *Verification* names, as one file.
+#
+# `tools/loop.py` brings these up once per run -- `docker compose -f tests/db/compose.yaml up -d --wait
+# mysql mariadb postgres mssql redis` -- from the `[docker]` block in `docs/agent/goals/5-database.toml`,
+# and goal 6 reuses the same file for `postgres` and `redis` alone. `--wait` is why every service below
+# carries a healthcheck: it makes "up" mean *healthy* rather than *started*, so a driver's first
+# connection is not racing the server's own initialisation.
+#
+# Three standing decisions this file makes, each because rediscovering it costs an afternoon:
+#
+# * **Every image is pinned to a patch version.** A driver matrix that silently moved from MySQL 8.4.11 to
+#   8.5 would report a protocol change as a regression in our own code.
+# * **No data volumes.** A container's own filesystem holds the data, so `down` destroys it and every
+#   `up` starts from a first-boot database. The alternative -- a named volume outliving a credential
+#   change in this file -- is the classic "access denied for a password that is right there" hour.
+# * **Host ports are non-standard and bound to `127.0.0.1`.** MySQL and MariaDB cannot both be 3306, a
+#   developer machine often already runs one of these, and a test server must never answer the LAN.
+#
+# TLS is on for all five, because ADR 0067 verifies it per driver:
+#
+# * MySQL 8.4 and MariaDB 11.4 generate their own self-signed certificate at first boot.
+# * SQL Server generates one too and encrypts the login packet regardless.
+# * PostgreSQL and Redis do not, so the `certs` service below makes one for them in a shared volume.
+#
+# All of them are self-signed, so a client verifies the chain or it does not connect. The CA is one
+# command away when a test wants to verify rather than merely encrypt:
+#
+#     docker compose -f tests/db/compose.yaml cp postgres:/certs/ca.crt tests/db/ca.crt
+#
+# Credentials are fixed and public on purpose -- these servers hold nothing, reach nothing, and listen on
+# loopback. `python tools/db-matrix.py` is what points ADR 0067's per-driver list at them.
+
+name: novis-db
+
+services:
+  # ---------------------------------------------------------------------------------------------------
+  # A self-signed certificate for the two servers that will not make their own. It runs to completion
+  # before either starts, and is a no-op on every run after the first: the volume already has the key.
+  #
+  # `chown 999` is not cosmetic. PostgreSQL refuses to start on a key with group or world access, and
+  # both images run as uid 999, so the key is 0600 and owned by exactly that.
+  # ---------------------------------------------------------------------------------------------------
+  certs:
+    image: alpine/openssl:3.5.7
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >
+        test -f /certs/server.key ||
+        (openssl req -x509 -newkey rsa:2048 -nodes -days 3650
+        -subj "/CN=localhost"
+        -addext "subjectAltName=DNS:localhost,DNS:postgres,DNS:redis,IP:127.0.0.1"
+        -keyout /certs/server.key -out /certs/server.crt
+        && cp /certs/server.crt /certs/ca.crt
+        && chown 999:999 /certs/server.key /certs/server.crt /certs/ca.crt
+        && chmod 600 /certs/server.key
+        && chmod 644 /certs/server.crt /certs/ca.crt)
+    volumes:
+      - certs:/certs
+
+  # ---------------------------------------------------------------------------------------------------
+  # MySQL. `executeMany`'s bulk path and `INSERT … ON DUPLICATE KEY UPDATE` reporting 2 for an updated
+  # row are both verified here and against MariaDB, which is why the two are separate servers rather
+  # than one with a flag -- ADR 0067 § 1.
+  # ---------------------------------------------------------------------------------------------------
+  mysql:
+    image: mysql:8.4.11
+    ports: ["127.0.0.1:13306:3306"]
+    environment:
+      MYSQL_ROOT_PASSWORD: Novis-Root-Pw1
+      MYSQL_DATABASE: novis_test
+      MYSQL_USER: novis
+      MYSQL_PASSWORD: Novis-Test-Pw1
+    healthcheck:
+      test: ["CMD-SHELL", 'mysqladmin ping -h 127.0.0.1 -u root -p"$$MYSQL_ROOT_PASSWORD" --silent']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------------------------------
+  # MariaDB, on the 11.4 LTS line because that is the release that turns TLS on by itself.
+  # `healthcheck.sh` ships in the image; `--innodb_initialized` is the difference between a listening
+  # socket and a server that can serve.
+  # ---------------------------------------------------------------------------------------------------
+  mariadb:
+    image: mariadb:11.4.13
+    ports: ["127.0.0.1:13307:3306"]
+    environment:
+      MARIADB_ROOT_PASSWORD: Novis-Root-Pw1
+      MARIADB_DATABASE: novis_test
+      MARIADB_USER: novis
+      MARIADB_PASSWORD: Novis-Test-Pw1
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------------------------------
+  # PostgreSQL -- the first driver, per goal 5's standing decisions, because its extended protocol pays
+  # nothing extra for a prepare. It also carries the `::` cast and the jsonb `?` operator that the
+  # placeholder rewriter has to leave alone.
+  # ---------------------------------------------------------------------------------------------------
+  postgres:
+    image: postgres:18.6
+    depends_on:
+      certs:
+        condition: service_completed_successfully
+    command:
+      - postgres
+      - -c
+      - ssl=on
+      - -c
+      - ssl_cert_file=/certs/server.crt
+      - -c
+      - ssl_key_file=/certs/server.key
+    ports: ["127.0.0.1:15432:5432"]
+    environment:
+      POSTGRES_USER: novis
+      POSTGRES_PASSWORD: Novis-Test-Pw1
+      POSTGRES_DB: novis_test
+    volumes:
+      - certs:/certs:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U novis -d novis_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------------------------------
+  # SQL Server. The image has no `docker-entrypoint-initdb.d`, and the goal's `[docker]` block names
+  # five services rather than six, so a one-shot init container would never be started by the driver.
+  # The healthcheck creates the database instead: it is idempotent, it runs until it succeeds anyway,
+  # and `--wait` returning means both "the server answers" and "the database is there".
+  # ---------------------------------------------------------------------------------------------------
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-CU20-ubuntu-22.04
+    ports: ["127.0.0.1:11433:1433"]
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: Novis-Test-Pw1
+      MSSQL_PID: Developer
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >
+          /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -C -b
+          -Q "IF DB_ID('novis_test') IS NULL CREATE DATABASE novis_test"
+      interval: 5s
+      timeout: 10s
+      retries: 40
+      start_period: 60s
+
+  # ---------------------------------------------------------------------------------------------------
+  # Redis, here because goal 4's shared cache tier and goal 6's fleet lease both use it and one compose
+  # file is better than two that drift. Both ports are open: 6379 plain and 6380 TLS, so a test can
+  # assert the encrypted path without a second container.
+  # ---------------------------------------------------------------------------------------------------
+  redis:
+    image: redis:8.2.9
+    depends_on:
+      certs:
+        condition: service_completed_successfully
+    command:
+      - redis-server
+      - --port
+      - "6379"
+      - --tls-port
+      - "6380"
+      - --tls-cert-file
+      - /certs/server.crt
+      - --tls-key-file
+      - /certs/server.key
+      - --tls-ca-cert-file
+      - /certs/ca.crt
+      - --tls-auth-clients
+      - "no"
+    ports:
+      - "127.0.0.1:16379:6379"
+      - "127.0.0.1:16380:6380"
+    volumes:
+      - certs:/certs:ro
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -p 6379 ping | grep -q PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+volumes:
+  certs:
