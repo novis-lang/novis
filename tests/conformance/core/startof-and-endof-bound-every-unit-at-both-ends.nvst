@@ -1,0 +1,76 @@
+--TEST--
+Spec § 4: `startOf` and `endOf` name the first and the last instant of every `Core\Unit`, and the last one is not the next one's first
+--FILE--
+<?nvs
+// § 4 gives one member per end of a unit, so the two are pinned together: the
+// bound below each line is the *last* instant the unit contains, and the sweep
+// at the foot asserts that it is exactly one nanosecond short of where the
+// same unit's next repetition starts. A member that answered the next unit's
+// own first instant reads plausibly on its own line and fails the count.
+var $fmt = "yyyy-MM-dd HH:mm:ss.SSSSSSSSS";
+var $utc = Core\Time\Zone::UTC;
+var $d = Core\Time::at(2024, 5, 15, $utc, {hour: 13, minute: 45, second: 30, nanos: 123456789});
+
+// Every one of `Core\Unit`'s eleven cases, smallest first. `Nanosecond` is the
+// unit the clock's own resolution is, so both ends are the reading itself.
+echo $d->startOf(Core\Unit::Nanosecond)->format($fmt), " .. ", $d->endOf(Core\Unit::Nanosecond)->format($fmt), "|\n";
+echo $d->startOf(Core\Unit::Microsecond)->format($fmt), " .. ", $d->endOf(Core\Unit::Microsecond)->format($fmt), "|\n";
+echo $d->startOf(Core\Unit::Millisecond)->format($fmt), " .. ", $d->endOf(Core\Unit::Millisecond)->format($fmt), "|\n";
+echo $d->startOf(Core\Unit::Second)->format($fmt), " .. ", $d->endOf(Core\Unit::Second)->format($fmt), "|\n";
+echo $d->startOf(Core\Unit::Minute)->format($fmt), " .. ", $d->endOf(Core\Unit::Minute)->format($fmt), "|\n";
+echo $d->startOf(Core\Unit::Hour)->format($fmt), " .. ", $d->endOf(Core\Unit::Hour)->format($fmt), "|\n";
+echo $d->startOf(Core\Unit::Day)->format($fmt), " .. ", $d->endOf(Core\Unit::Day)->format($fmt), "|\n";
+// A week starts on Monday, ISO-8601's own order and `Core\Weekday`'s.
+echo $d->startOf(Core\Unit::Week)->format($fmt), " .. ", $d->endOf(Core\Unit::Week)->format($fmt), "|\n";
+echo $d->startOf(Core\Unit::Month)->format($fmt), " .. ", $d->endOf(Core\Unit::Month)->format($fmt), "|\n";
+echo $d->startOf(Core\Unit::Quarter)->format($fmt), " .. ", $d->endOf(Core\Unit::Quarter)->format($fmt), "|\n";
+echo $d->startOf(Core\Unit::Year)->format($fmt), " .. ", $d->endOf(Core\Unit::Year)->format($fmt), "|\n";
+
+// The bound, asserted at both ends over the whole enum: the instant after the
+// last one a unit contains is the instant the *next* repetition of that unit
+// begins at, so `endOf` stopping one entry early or late fails here.
+var $same = fn (string $a, string $b): int => ($a == $b) ? 1 : 0;
+var $ns = Core\Time\Duration::nanoseconds(1);
+var $meets = 0;
+$meets = $meets + ($same($d->startOf(Core\Unit::Nanosecond)->plus(1, Core\Unit::Nanosecond)->format($fmt), $d->endOf(Core\Unit::Nanosecond)->toInstant()->plus($ns)->in($utc)->format($fmt)) as int);
+$meets = $meets + ($same($d->startOf(Core\Unit::Microsecond)->plus(1, Core\Unit::Microsecond)->format($fmt), $d->endOf(Core\Unit::Microsecond)->toInstant()->plus($ns)->in($utc)->format($fmt)) as int);
+$meets = $meets + ($same($d->startOf(Core\Unit::Millisecond)->plus(1, Core\Unit::Millisecond)->format($fmt), $d->endOf(Core\Unit::Millisecond)->toInstant()->plus($ns)->in($utc)->format($fmt)) as int);
+$meets = $meets + ($same($d->startOf(Core\Unit::Second)->plus(1, Core\Unit::Second)->format($fmt), $d->endOf(Core\Unit::Second)->toInstant()->plus($ns)->in($utc)->format($fmt)) as int);
+$meets = $meets + ($same($d->startOf(Core\Unit::Minute)->plus(1, Core\Unit::Minute)->format($fmt), $d->endOf(Core\Unit::Minute)->toInstant()->plus($ns)->in($utc)->format($fmt)) as int);
+$meets = $meets + ($same($d->startOf(Core\Unit::Hour)->plus(1, Core\Unit::Hour)->format($fmt), $d->endOf(Core\Unit::Hour)->toInstant()->plus($ns)->in($utc)->format($fmt)) as int);
+$meets = $meets + ($same($d->startOf(Core\Unit::Day)->plus(1, Core\Unit::Day)->format($fmt), $d->endOf(Core\Unit::Day)->toInstant()->plus($ns)->in($utc)->format($fmt)) as int);
+$meets = $meets + ($same($d->startOf(Core\Unit::Week)->plus(1, Core\Unit::Week)->format($fmt), $d->endOf(Core\Unit::Week)->toInstant()->plus($ns)->in($utc)->format($fmt)) as int);
+$meets = $meets + ($same($d->startOf(Core\Unit::Month)->plus(1, Core\Unit::Month)->format($fmt), $d->endOf(Core\Unit::Month)->toInstant()->plus($ns)->in($utc)->format($fmt)) as int);
+$meets = $meets + ($same($d->startOf(Core\Unit::Quarter)->plus(1, Core\Unit::Quarter)->format($fmt), $d->endOf(Core\Unit::Quarter)->toInstant()->plus($ns)->in($utc)->format($fmt)) as int);
+$meets = $meets + ($same($d->startOf(Core\Unit::Year)->plus(1, Core\Unit::Year)->format($fmt), $d->endOf(Core\Unit::Year)->toInstant()->plus($ns)->in($utc)->format($fmt)) as int);
+echo "meets=", $meets as string, "|\n";
+
+// Both are idempotent, which is the other half of "the first instant of the
+// unit": a value already at the bound is already the answer.
+echo $same($d->startOf(Core\Unit::Month)->startOf(Core\Unit::Month)->format($fmt), $d->startOf(Core\Unit::Month)->format($fmt)) as string, "|\n";
+echo $same($d->endOf(Core\Unit::Month)->endOf(Core\Unit::Month)->format($fmt), $d->endOf(Core\Unit::Month)->format($fmt)) as string, "|\n";
+
+// The bound is the *zone's*, not UTC's: New York's spring-forward day is 23
+// hours long, so its two ends carry two different offsets and neither is
+// midnight-plus-24-hours.
+var $ny = Core\Time\Zone::of("America/New_York");
+var $s = Core\Time::at(2024, 3, 10, $ny, {hour: 15});
+echo $s->startOf(Core\Unit::Day)->format("yyyy-MM-dd HH:mm XXX"), "|\n";
+echo $s->endOf(Core\Unit::Day)->format("yyyy-MM-dd HH:mm:ss.SSS XXX"), "|\n";
+--EXPECT--
+2024-05-15 13:45:30.123456789 .. 2024-05-15 13:45:30.123456789|
+2024-05-15 13:45:30.123456000 .. 2024-05-15 13:45:30.123456999|
+2024-05-15 13:45:30.123000000 .. 2024-05-15 13:45:30.123999999|
+2024-05-15 13:45:30.000000000 .. 2024-05-15 13:45:30.999999999|
+2024-05-15 13:45:00.000000000 .. 2024-05-15 13:45:59.999999999|
+2024-05-15 13:00:00.000000000 .. 2024-05-15 13:59:59.999999999|
+2024-05-15 00:00:00.000000000 .. 2024-05-15 23:59:59.999999999|
+2024-05-13 00:00:00.000000000 .. 2024-05-19 23:59:59.999999999|
+2024-05-01 00:00:00.000000000 .. 2024-05-31 23:59:59.999999999|
+2024-04-01 00:00:00.000000000 .. 2024-06-30 23:59:59.999999999|
+2024-01-01 00:00:00.000000000 .. 2024-12-31 23:59:59.999999999|
+meets=11|
+1|
+1|
+2024-03-10 00:00 -05:00|
+2024-03-10 23:59:59.999 -04:00|
