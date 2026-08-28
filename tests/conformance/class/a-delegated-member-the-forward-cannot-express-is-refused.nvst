@@ -1,0 +1,48 @@
+--TEST--
+A `static`, variadic or `inout` member of a delegated interface is refused where the clause is written, and an own method answers it instead — ADR 0043 § 4
+--FILE--
+<?nvs
+// ADR 0043 § 4's forward is a whole synthesized method whose body passes its
+// parameters straight on, so three member shapes have no forward: a `static`
+// member has no receiver to read the field off, and a variadic or `inout`
+// parameter list is packed and written back at the *call site*, so passing it
+// on would do that twice.
+//
+// Each used to be silent — no forward, no obligation, and a call landing on
+// `nvs_runtime::nvs_abstract_method`, a FATAL naming a compiler bug for a
+// program the front end had accepted. They are `E0721` where the clause is
+// written now, sorted by member name, so a shape that stops refusing shows up
+// as a missing line rather than as a crash a milestone later.
+interface Wide {
+    public static function make(): string;
+    public function join(string ...$parts): string;
+    public function bump(inout int $n): void;
+    public function plain(): string;
+}
+
+// All three refused; `plain` is forwarded and says nothing.
+final class Holder implements Wide by $inner {
+    private Wide $inner;
+    public function constructor(Wide $inner) { $this->inner = $inner; }
+}
+
+// The way out the help names: an own method stands in for a delegated one,
+// which § 4 already allows — so `Written` owes only the two it did not write.
+final class Written implements Wide by $inner {
+    private Wide $inner;
+    public function constructor(Wide $inner) { $this->inner = $inner; }
+    public static function make(): string { return "made"; }
+    public function bump(inout int $n): void { $n = $n + 1; }
+}
+
+echo "unreachable\n";
+--EXPECTF-ERROR--
+error[E0721]: `Wide::bump` cannot be forwarded to `$inner`, so `Holder` has to declare it
+%A
+error[E0721]: `Wide::join` cannot be forwarded to `$inner`, so `Holder` has to declare it
+%A
+error[E0721]: `Wide::make` cannot be forwarded to `$inner`, so `Holder` has to declare it
+%A
+error[E0721]: `Wide::join` cannot be forwarded to `$inner`, so `Written` has to declare it
+%A
+error: aborting due to 4 errors
