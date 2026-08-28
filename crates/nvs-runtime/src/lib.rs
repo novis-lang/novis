@@ -300,7 +300,7 @@ pub use ctx::{
 };
 pub use decimal::Decimal;
 pub use dispatch::{
-    call_erased_method, call_method, call_render, construct_and_call, method_address,
+    Fixtures, call_erased_method, call_method, call_render, construct_and_call, method_address,
 };
 pub use fmt::php_float_to_string;
 pub use helpers::{stringify, symbols, value_to_string, value_truthy};

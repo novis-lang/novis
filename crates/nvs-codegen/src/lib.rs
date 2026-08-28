@@ -351,6 +351,7 @@ impl Unit {
         ctx: &mut nvs_runtime::Ctx,
         class: &str,
         method: &str,
+        args: &[nvs_runtime::Value],
     ) -> Option<Result<(), i32>> {
         let desc = self.classes.desc(self.classes.id_of(class)?);
         #[expect(
@@ -360,7 +361,39 @@ impl Unit {
                       call, `ctx` holding a shared handle on the same table \
                       through `install_in`"
         )]
-        Some(unsafe { nvs_runtime::construct_and_call(ctx, desc, method) })
+        Some(unsafe { nvs_runtime::construct_and_call(ctx, desc, method, args) })
+    }
+
+    /// Builds ADR 0079 § 8's fixture `method` of `class` into `fixtures`,
+    /// calling it with the values `needs` names — the ones the checker
+    /// resolved its own parameters to, and therefore ones an earlier call
+    /// already built.
+    ///
+    /// A fixture is `static` (`nvs_types::code::E_FIXTURE_METHOD_SHAPE`), so
+    /// it is reached as the compiled function `Class::method` rather than
+    /// through a descriptor's method table: there is no receiver, and a call
+    /// through that table would put one in slot 0 and shift every argument
+    /// past it.
+    ///
+    /// `None` when this unit compiled no such function, which is an internal
+    /// inconsistency for a roster that came out of the same compile.
+    ///
+    /// # Errors
+    ///
+    /// [`nvs_runtime::Fixtures::build`]'s status, with its message left on
+    /// `ctx`.
+    pub fn build_fixture(
+        &self,
+        ctx: &mut nvs_runtime::Ctx,
+        fixtures: &mut nvs_runtime::Fixtures,
+        class: &str,
+        method: &str,
+        needs: &[String],
+    ) -> Option<Result<(), i32>> {
+        let target = self.function(&format!("{class}::{method}"))?;
+        let receiver =
+            nvs_runtime::Value::class_desc(self.classes.desc(self.classes.id_of(class)?));
+        Some(fixtures.build(ctx, method, target, receiver, needs))
     }
 
     /// Hands `ctx` this unit's class table. **Every embedder calls this before

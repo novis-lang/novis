@@ -506,6 +506,20 @@ impl Value {
         }
     }
 
+    /// A slot carrying `desc`, for the receiver position of a `static` method:
+    /// the encoding side of [`Self::as_class_desc`], and its whole convention
+    /// — the descriptor rides in the payload half of an otherwise-`null` slot,
+    /// so nothing sweeping a [`Value`] mistakes it for a heap reference.
+    ///
+    /// A `static` method's slot 0 is the **called** class (ADR 0008's late
+    /// static binding, `nvs_ir::lower`'s own docs), so a native caller of one —
+    /// ADR 0079 § 8's fixture runner is the only one — has to fill it exactly
+    /// as a compiled call site does rather than leave it `null`.
+    #[must_use]
+    pub fn class_desc(desc: *const ClassDesc) -> Self {
+        Self::new(Tag::Null, desc as usize as u64)
+    }
+
     /// The [`ClassDesc`] an argument slot carries, if it carries one.
     ///
     /// `nvs_ir::ty::Ty::ClassDesc` is not an Novis value: a descriptor rides in

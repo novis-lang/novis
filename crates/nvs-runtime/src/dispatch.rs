@@ -322,9 +322,137 @@ pub(crate) fn call_unwind(
     })
 }
 
+/// [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md) § 8's
+/// fixtures, built once and owned until the class they belong to is done with.
+///
+/// It exists to put the **ownership** of a built fixture in one place. A
+/// fixture is a value the runner holds across many calls — every test of the
+/// class borrows it, and a compiled callee releases its parameters — so
+/// somebody has to hold exactly one reference per built value and drop it at
+/// the end. That somebody is this type rather than the runner, because
+/// `nvs-cli` forbids `unsafe` outright and a released [`Value`] has no safe
+/// spelling.
+///
+/// The order values are built in is the *checker's*: `nvs_types::testing`
+/// resolved each parameter to the fixture supplying it and refused a cycle
+/// ([`nvs_diagnostics::code::E_FIXTURE_CYCLE`]), so a caller walking
+/// dependencies before dependants always finds what [`Self::build`] asks for
+/// already here.
+///
+/// **Built once and shared, not copied.** § 8's copy into each test isolate is
+/// ADR 0023's graph copy across the `spawn` boundary, and there are no
+/// isolates yet (§ 2, M5) — so every test of a class sees the same instance,
+/// and a test that mutates a fixture is visible to the next one. That is the
+/// same shape class storage already has here for the same reason, and it is
+/// what M5 closes.
+#[derive(Debug, Default)]
+pub struct Fixtures {
+    built: Vec<(String, Value)>,
+}
+
+impl Fixtures {
+    /// An empty set — one class's worth, built as its tests are reached.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Calls the `static` fixture method compiled at `target`, with the
+    /// already-built values `needs` names, and keeps the result under `name`.
+    ///
+    /// `receiver` is the **called class**, which is what a `static` method's
+    /// slot 0 carries (ADR 0008's late static binding, [`Value::class_desc`]) —
+    /// a caller that left it `null` would hand the body a descriptor of zero
+    /// for any `static::` inside it.
+    ///
+    /// Each argument is **retained** on the way in, because a compiled Novis
+    /// function releases its parameters ([`call_at`] reconciles the same way):
+    /// this set keeps its own reference and hands the callee one of its own.
+    /// The receiver slot is not one: a descriptor is not an Novis value and
+    /// carries no reference at all.
+    ///
+    /// # Errors
+    ///
+    /// The status of the call — [`crate::THROWN`] for a fixture whose body
+    /// threw, with its message on `ctx`, or [`crate::EXITED`] for one that
+    /// called `exit`. Nothing is recorded for a call that failed, so a caller
+    /// that reports and carries on is asking for a value that is not here
+    /// rather than one that is half-built.
+    pub fn build(
+        &mut self,
+        ctx: &mut Ctx,
+        name: &str,
+        target: NvsFn,
+        receiver: Value,
+        needs: &[String],
+    ) -> Result<(), i32> {
+        let Some(args) = self.values(needs) else {
+            return Err(crate::abi::record_fault(
+                ctx,
+                Fault::fatal(format!(
+                    "internal error: `{name}` was built before a fixture it declares"
+                )),
+            ));
+        };
+        #[expect(
+            unsafe_code,
+            reason = "every value here is one this set already owns a reference \
+                      to, so each payload is live for the length of this call"
+        )]
+        unsafe {
+            for arg in &args {
+                arg.retain();
+            }
+        }
+        let mut slots = Vec::with_capacity(args.len() + 1);
+        slots.push(receiver);
+        slots.extend_from_slice(&args);
+        let value = crate::abi::call(target, ctx, &slots)?;
+        self.built.push((name.to_owned(), value));
+        Ok(())
+    }
+
+    /// The values `needs` names, in that order — the argument list a test
+    /// method or a fixture is called with — or `None` when one has not been
+    /// built, which is an internal inconsistency for a roster that came out of
+    /// the same compile.
+    ///
+    /// The values are **borrowed**: this set keeps its references, and the
+    /// call the caller makes retains its own.
+    #[must_use]
+    pub fn values(&self, needs: &[String]) -> Option<Vec<Value>> {
+        needs
+            .iter()
+            .map(|name| {
+                self.built
+                    .iter()
+                    .find(|(built, _)| built == name)
+                    .map(|(_, value)| *value)
+            })
+            .collect()
+    }
+}
+
+impl Drop for Fixtures {
+    fn drop(&mut self) {
+        #[expect(
+            unsafe_code,
+            reason = "this set holds exactly one reference per built value, \
+                      handed over by the call that produced it, and nothing \
+                      else reads them after this"
+        )]
+        unsafe {
+            for (_, value) in self.built.drain(..) {
+                value.release();
+            }
+        }
+    }
+}
+
 /// [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md) § 20's
 /// one test: a fresh instance of `class`, its `method` called on that instance
-/// with no arguments and no result, and the instance released.
+/// with `args` — § 8's fixtures, in the order the checker resolved them — and
+/// the instance released.
 ///
 /// **One instance per call** is the whole of what a runner buys from this
 /// entry point — § 2's isolation begins at "no test observes another's
@@ -347,9 +475,10 @@ pub(crate) fn call_unwind(
 ///   test failing — a failed assertion arrives here as ADR 0079 § 5's
 ///   `Core\Test\Failure` like any other throw;
 /// - [`crate::THROWN`] for a constructor that declares parameters, which
-///   §§ 8-9's `#[Fixture]` injection is what will supply and nothing does yet.
-///   A throw rather than a [`crate::FATAL`]: it is a limit of this runner, so
-///   the suite reports that test and carries on;
+///   nothing supplies: § 7 makes the constructor `setUp` and § 8 injects into
+///   the *test method's* parameters, so there is no roster a constructor
+///   argument could come out of. A throw rather than a [`crate::FATAL`]: it is
+///   a limit of this runner, so the suite reports that test and carries on;
 /// - [`crate::FATAL`] when the class declares no such method, which is an
 ///   internal inconsistency for a roster that came out of the same compile;
 /// - [`crate::EXITED`] when the test called `exit`.
@@ -366,16 +495,37 @@ pub unsafe fn construct_and_call(
     ctx: &mut Ctx,
     class: *const ClassDesc,
     method: &str,
+    args: &[Value],
 ) -> Result<(), i32> {
     #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
     let desc = unsafe { &*class };
+    // Checked **before** anything is constructed rather than trusted from the
+    // roster: the checker resolved one fixture per declared parameter, so a
+    // disagreement is an internal inconsistency, and a call made at the wrong
+    // arity reads slots the callee's frame does not own. Ahead of construction
+    // because a bail-out after it would abandon the instance.
+    if let Some(row) = desc.method_row(method)
+        && usize::try_from(row.arity).unwrap_or(usize::MAX) != args.len()
+    {
+        return Err(crate::abi::record_fault(
+            ctx,
+            Fault::fatal(format!(
+                "internal error: `{}`'s `{method}()` declares {} parameter(s) and the test \
+                 runner supplied {}",
+                desc.name(),
+                row.arity,
+                args.len()
+            )),
+        ));
+    }
     let receiver = match desc.method_row(crate::object::CONSTRUCTOR) {
         Some(row) if row.arity > 0 => {
             return Err(crate::abi::record_fault(
                 ctx,
                 Fault::thrown(format!(
                     "`{}`'s constructor declares {} parameter(s), and this runner supplies \
-                     none: ADR 0079 §§ 8-9's `#[Fixture]` injection is not built yet",
+                     none: ADR 0079 § 7 makes the constructor `setUp`, and § 8's fixtures \
+                     fill the test method's own parameters",
                     desc.name(),
                     row.arity
                 )),
@@ -398,7 +548,7 @@ pub unsafe fn construct_and_call(
         }
     };
 
-    let outcome = call_method(ctx, receiver, method, &[], "the test runner");
+    let outcome = call_method(ctx, receiver, method, args, "the test runner");
     #[expect(
         unsafe_code,
         reason = "this frame holds the one reference construction handed it; \

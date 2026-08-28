@@ -9,6 +9,12 @@
 # declare one.
 #
 #   wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh target/mine.nvs examples/report.nvs
+#   wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh --test target/tests.nvs
+#
+# `--test` runs the fixtures through `nvs test` instead of `nvs run`, which is a
+# different program: the entry file's own statements do not run and the
+# `#[Test]` methods and ADR 0079 § 8's fixtures do, so a refcount edge on that
+# path is unreachable from `run` at all.
 #
 # A `wsl.exe -- bash -lc "…"` one-liner mangles under two layers of shell
 # quoting, so this is a file passed by path instead. AGENTS.md says why.
@@ -29,11 +35,17 @@ BIN=/var/tmp/nvs-linux/debug/nvs
 # a definite leak. 97 is a status no Novis program produces.
 VG_ERROR=97
 
+SUB=run
+if [ "${1:-}" = "--test" ]; then
+    SUB=test
+    shift
+fi
+
 fails=0
 for f in "$@"; do
     echo "== $f"
     valgrind --error-exitcode=$VG_ERROR --errors-for-leak-kinds=definite \
-        --leak-check=full "$BIN" run "$f" >/tmp/leak-out 2>/tmp/leak-err
+        --leak-check=full "$BIN" "$SUB" "$f" >/tmp/leak-out 2>/tmp/leak-err
     code=$?
     echo "   exit $code"
     if [ "$code" -eq "$VG_ERROR" ]; then

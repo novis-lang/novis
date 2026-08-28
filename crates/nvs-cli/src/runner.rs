@@ -47,10 +47,13 @@
 //!
 //! § 2's isolate-per-test and parallelism are M5, so this runs every test in
 //! one process on one `Ctx` — which is also what a retry re-enters, class
-//! storage surviving between attempts where an isolate would not; §§ 8-9's
-//! `#[Fixture]` injection is not built, and a constructor that declares
-//! parameters is reported as that test failing rather than pretended past
-//! (`nvs_runtime::construct_and_call`). Class order is the roster's own sorted
+//! storage surviving between attempts where an isolate would not, and which is
+//! also why § 8's fixture is *shared* rather than copied into each test
+//! (`nvs_runtime::Fixtures`). § 9's data rows are not built, and a constructor
+//! that declares parameters is reported as that test failing rather than
+//! pretended past (`nvs_runtime::construct_and_call`): § 7 makes the
+//! constructor `setUp` and § 8 fills the test method's own parameters, which
+//! [`build_fixtures`] builds once per class. Class order is the roster's own sorted
 //! order rather than § 20's declaration order: `ExprTypeTable::tests` is keyed
 //! by class label and records no sequence, so declaration order across a
 //! program's files is a fact only that table can grow. Within a class the
@@ -196,9 +199,25 @@ pub(crate) fn run(checked: &crate::Checked, format: Format) -> ExitCode {
         if format == Format::Human {
             println!("  {class}");
         }
-        for case in checked.exprs.tests(class).unwrap_or_default() {
+        let tests = checked.exprs.tests(class).unwrap_or_default();
+        // § 8's "built once, in the parent" is this call: one set per class,
+        // built before its first test and dropped after its last, so a fixture
+        // is not rebuilt per test and not kept past the class that declared it.
+        let mut fixtures = nvs_runtime::Fixtures::new();
+        let unbuilt = build_fixtures(&unit, &mut ctx, class, checked, tests, &mut fixtures);
+        for case in tests {
             let began = Instant::now();
-            let outcome = run_with_retries(&unit, &mut ctx, class, case);
+            let outcome = match &unbuilt {
+                // A fixture that would not build is reported against every
+                // test that asked for one, rather than against the class: a
+                // test is what a report has a line for, and a suite that lost
+                // a whole class silently is what § 20 is written against.
+                Some(FixtureFailure::Exited(code)) => Outcome::Exited(*code),
+                Some(FixtureFailure::Threw(message)) if !case.fixtures.is_empty() => {
+                    Outcome::Failed(vec![message.clone()])
+                }
+                _ => run_with_retries(&unit, &mut ctx, class, case, &fixtures),
+            };
             let elapsed = began.elapsed();
             match &outcome {
                 Outcome::Passed => passed += 1,
@@ -286,13 +305,14 @@ fn run_with_retries(
     ctx: &mut nvs_runtime::Ctx,
     class: &str,
     case: &nvs_types::testing::TestCase,
+    fixtures: &nvs_runtime::Fixtures,
 ) -> Outcome {
-    let mut failures = match run_case(unit, ctx, class, case) {
+    let mut failures = match run_case(unit, ctx, class, case, fixtures) {
         Outcome::Failed(failures) => failures,
         settled => return settled,
     };
     for retry in 0..retry_allowance(case) {
-        match run_case(unit, ctx, class, case) {
+        match run_case(unit, ctx, class, case, fixtures) {
             Outcome::Passed => {
                 return Outcome::Flaky {
                     attempts: retry + 2,
@@ -304,6 +324,92 @@ fn run_with_retries(
         }
     }
     Outcome::Failed(failures)
+}
+
+/// Why a class's fixtures could not be built — reported against the tests
+/// that asked for one.
+enum FixtureFailure {
+    /// The fixture body threw, carrying its message.
+    Threw(String),
+    /// The fixture body called `exit(n)`, which ends the whole run exactly as
+    /// a test's own `exit` does.
+    Exited(i64),
+}
+
+/// ADR 0079 § 8's fixtures for one class, built **once** and in dependency
+/// order, into `fixtures`.
+///
+/// Only what a test that is going to run actually asks for is built: a fixture
+/// nothing names would be setup nobody wanted, and § 20's `skip:` means the
+/// test never runs, so building its fixture would run code the author asked to
+/// skip.
+///
+/// The order is a post-order walk of the roster's own resolution — each row's
+/// [`nvs_types::testing::Fixture::fixtures`] names what it needs, and
+/// `nvs_types::testing` refused a cycle among them
+/// (`E_FIXTURE_CYCLE`), which is what makes this walk terminate and what makes
+/// every value a call needs already built when it is made.
+fn build_fixtures(
+    unit: &nvs_codegen::Unit,
+    ctx: &mut nvs_runtime::Ctx,
+    class: &str,
+    checked: &crate::Checked,
+    tests: &[nvs_types::testing::TestCase],
+    fixtures: &mut nvs_runtime::Fixtures,
+) -> Option<FixtureFailure> {
+    let roster = checked.exprs.fixtures(class).unwrap_or_default();
+    if roster.is_empty() {
+        return None;
+    }
+    let mut order: Vec<&str> = Vec::new();
+    for case in tests {
+        if skip_reason(case).is_some() {
+            continue;
+        }
+        for needed in &case.fixtures {
+            collect_fixture(needed, roster, &mut order);
+        }
+    }
+    for name in order {
+        let Some(row) = roster.iter().find(|row| row.method == name) else {
+            continue;
+        };
+        match unit.build_fixture(ctx, fixtures, class, &row.method, &row.fixtures) {
+            Some(Ok(())) => {}
+            Some(Err(status)) if status == nvs_runtime::EXITED => {
+                return Some(FixtureFailure::Exited(ctx.exit_code()));
+            }
+            Some(Err(_)) => {
+                return Some(FixtureFailure::Threw(
+                    ctx.take_thrown().message().to_owned(),
+                ));
+            }
+            None => {
+                return Some(FixtureFailure::Threw(format!(
+                    "internal error: the compiled unit declares no `{class}::{name}`"
+                )));
+            }
+        }
+    }
+    None
+}
+
+/// Appends `name` to `order` behind everything it needs, once.
+fn collect_fixture<'a>(
+    name: &'a str,
+    roster: &'a [nvs_types::testing::Fixture],
+    order: &mut Vec<&'a str>,
+) {
+    if order.contains(&name) {
+        return;
+    }
+    let Some(row) = roster.iter().find(|row| row.method == name) else {
+        return;
+    };
+    for needed in &row.fixtures {
+        collect_fixture(needed, roster, order);
+    }
+    order.push(name);
 }
 
 /// The `retries:` option's allowance — how many *further* attempts a failed
@@ -341,11 +447,23 @@ fn run_case(
     ctx: &mut nvs_runtime::Ctx,
     class: &str,
     case: &nvs_types::testing::TestCase,
+    fixtures: &nvs_runtime::Fixtures,
 ) -> Outcome {
     if let Some(reason) = skip_reason(case) {
         return Outcome::Skipped(reason);
     }
-    let Some(outcome) = unit.call_on_new_instance(ctx, class, &case.method) else {
+    // § 8's injection: one value per declared parameter, in the order the
+    // checker resolved them (`nvs_types::testing::TestCase::fixtures`), so
+    // nothing here re-derives which fixture answers which parameter. The
+    // values are borrowed from the set that owns them — the call retains its
+    // own, exactly as any other call on a value this frame holds does.
+    let Some(args) = fixtures.values(&case.fixtures) else {
+        return Outcome::Failed(vec![format!(
+            "internal error: `{class}::{}` asks for a `#[Fixture]` that was not built",
+            case.method
+        )]);
+    };
+    let Some(outcome) = unit.call_on_new_instance(ctx, class, &case.method, &args) else {
         return Outcome::Failed(vec![format!(
             "internal error: the compiled unit declares no class `{class}`"
         )]);
