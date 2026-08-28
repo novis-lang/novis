@@ -185,15 +185,16 @@
 //!   the row above: a missing narrowing is a diagnostic, never a wrong
 //!   program.
 //! - References (`inout $x`) needing both sides to declare the same type.
-//! - A **user-declared** class constant's type *at an expression site*, a
-//!   promoted constructor-parameter property, and a named/spread call
+//! - A promoted constructor-parameter property and a named/spread call
 //!   argument's positional checking — see [`signatures`]/[`expr`]'s own
-//!   known-gaps lists. A `Core` class's constant is not among them: it is
-//!   stated by `nvs_stdlib::registry::CoreConst` and resolved by [`expr`]'s
-//!   `ClassConstAccess` arm. Neither is a user constant in *type* position:
-//!   ADR 0047 § 2 folds one to its own literal type, over [`consts`], which
-//!   holds the constant's **value** rather than its declared type and so does
-//!   not close this gap.
+//!   known-gaps lists. A class constant is not among them, in any of its three
+//!   positions: a `Core` class's is stated by `nvs_stdlib::registry::CoreConst`,
+//!   a user-declared one's declared type and value are
+//!   [`signatures::ConstSig`], both resolved by [`expr`]'s `ClassConstAccess`
+//!   arm, and a use in *type* position folds to ADR 0047 § 2's literal type
+//!   over [`consts`]. What is left is a constant whose value has no constant
+//!   form at all (`const ROWS = [1, 2];`), which types as `mixed` and panics
+//!   `nvs_ir::lower` if a program reads it.
 
 pub(crate) mod attributes;
 pub mod check;

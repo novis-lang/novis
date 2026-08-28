@@ -538,8 +538,8 @@ pub enum ExprInfo {
     /// auto-increment rule that gives an unwritten case its value needs the
     /// whole declaration in view.
     ///
-    /// Never recorded for an ordinary `Class::CONST`, whose value is unmodeled
-    /// (see [`crate::expr`]'s own known gaps).
+    /// Never recorded for an ordinary `Class::CONST`, whose value travels in
+    /// [`ExprInfo::CoreConst`] instead.
     /// The enum and the case are carried beside the value for
     /// [`ExprInfo::InstanceOf`]'s reason a second time: ADR 0047 § 4's guard
     /// row narrows a local to the case's own `Ty::EnumCase`, and *which* case
@@ -564,9 +564,14 @@ pub enum ExprInfo {
     /// it back from, and the [`ConstArg`] here is the same shape a parameter
     /// default already lowers through.
     ///
-    /// Never recorded for a **user-declared** class's constant, whose value is
-    /// unmodeled (see [`crate::expr`]'s own known gaps) — only
-    /// `nvs_stdlib::registry` states a constant's value today.
+    /// A **user-declared** class's constant travels in this variant too, and
+    /// `Foo::class` in the third of the three spellings that reach it: what
+    /// the name means is that the value came from a declaration rather than
+    /// from an enum's auto-increment rule, not that the declaration was
+    /// `Core`'s. `crate::signatures::ConstSig` is where a user constant's
+    /// value is placed in its declared type; the one shape that records
+    /// nothing here is a value with no constant form at all
+    /// (`const ROWS = [1, 2];`).
     CoreConst {
         /// The constant's value, in its declared type.
         value: ConstArg,
@@ -1494,10 +1499,16 @@ mod tests {
     /// the tag-asking read (`nvs_ir::Helper::ValueIndexGet`) over the
     /// statically typed one. Nothing is diagnosed, because there is nothing
     /// the declared type could have answered.
+    ///
+    /// The base is a `mixed` parameter rather than the unannotated class
+    /// constant this fixture used to reach for: a constant with no annotation
+    /// now reads at the type of the value it folded to
+    /// ([`crate::signatures::ConstSig`]), so `T::UNTYPED[0]` over `= 1` is an
+    /// `int` subscript and belongs to the test below instead.
     #[test]
     fn an_array_index_through_a_mixed_base_defers_to_the_tag() {
         let (exprs, span, diags) = check_fixture(
-            "<?nvs\nclass T {\n  function m(): mixed {\n    return T::UNTYPED[0];\n  }\n  const UNTYPED = 1;\n}\n",
+            "<?nvs\nclass T {\n  function m(mixed $m): mixed {\n    return $m[0];\n  }\n}\n",
         );
         assert!(matches!(exprs.lookup(span), Some(ExprInfo::Index { .. })));
         assert_eq!(diags.iter().count(), 0);

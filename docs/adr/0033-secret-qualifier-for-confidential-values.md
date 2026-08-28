@@ -217,9 +217,10 @@ the same trust `Core\Html::escape()`'s author already carries for `tainted`.
   credential is written into the program's own metadata rather than read at run time from behind a
   capability. This is the one sink with **no `Core\Secret::reveal()` way out**, that being a call and a
   payload admitting none; the fix is to keep the secret out of the metadata and let the attribute carry the
-  *name* of where to read it from. It is also the one sink whose qualifier cannot be read off an inferred
-  type — a class constant's declared type is unmodeled at expression sites, so the bit is read off the
-  declaration's own annotation in `nvs_types::consts`, which is the last place it exists.
+  *name* of where to read it from. It is also the one sink whose qualifier is read off a table rather
+  than off an inferred type — a payload is folded over the written expression, before the class name in it
+  is resolved, so the bit is read off the declaration's own annotation in `nvs_types::consts`, which is
+  keyed by the name this walk resolves for itself.
 
 **`Core\Db`'s bound-parameters argument, `Core\Process`'s argv, and `Core\Http`'s outgoing request
 headers/body are deliberately not in this list.** A credential legitimately needs to reach a database driver,

@@ -29,9 +29,9 @@
 //!   from its position onward (an element-type check) rather than being
 //!   modeled as its own `array<T>` — see [`crate::expr`]'s docs for where
 //!   that's used.
-//! - A class constant's value has no recorded type here at all —
-//!   `Class::CONST` stays `mixed` regardless of receiver, same as before
-//!   this module existed.
+//! - A class constant declared with no annotation takes its type from the
+//!   value [`crate::consts`] folded it to, and an ineligible value with no
+//!   annotation is `mixed` — see [`ConstSig`], which owns that rule.
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use nvs_hir::{ClassGraph, QName, SymbolKind};
@@ -413,6 +413,46 @@ pub struct ClassSignature {
     /// instance call only pays for a name lookup where the language
     /// actually admits two answers (`nvs_ir::ir::InstKind::CallVirtual`).
     pub overridden_methods: FxHashSet<String>,
+    /// This declaration's own class constants ([ADR 0011](../../../docs/adr/0011-functions-and-constants-are-class-members.md)),
+    /// by name — the type a *read* of one answers with, and the value that
+    /// read is emitted as. Own declarations only, exactly like every other map
+    /// here; [`resolve_const`] walks the ancestors.
+    pub constants: FxHashMap<String, ConstSig>,
+}
+
+/// One class constant, as a **read** of it sees it: the type
+/// `Class::CONST` answers with, and the value it is emitted as.
+///
+/// Collected here rather than in [`crate::consts`] because both halves need
+/// the interner, and [`crate::consts::build_const_table`] deliberately runs
+/// before the first annotation is interned — ADR 0047 § 2's `Foo::TYPE_A` in
+/// *type* position is folded there, out of the written literal alone, and that
+/// pass has to be complete before this one begins. So the two tables answer
+/// two different questions about the same declaration and neither is a copy of
+/// the other: that one holds what the written value folds to, this one holds
+/// what the declaration's own annotation says a use of it *is*.
+#[derive(Clone, Debug)]
+pub struct ConstSig {
+    /// The constant's declared type.
+    ///
+    /// The written annotation where there is one — a class constant's type is
+    /// optional per PHP 8.3 and [`nvs_syntax`] accepts it absent, so the other
+    /// two rows are not hypothetical. With none written, the type of the value
+    /// [`crate::consts`] folded it to, which is the closest thing to a
+    /// declaration the source contains; and `mixed` where that fold produced
+    /// [`crate::consts::ConstValue::Ineligible`], since an `array` or object
+    /// constant has no type this table could name.
+    pub ty: TypeId,
+    /// The constant's value, already placed in [`Self::ty`] by
+    /// [`crate::defaults::literal_default`] — the same routine, in the same
+    /// pass, that places a property default in its own declared type, so
+    /// `const uint MAX = 3;` yields a [`crate::defaults::ConstArg::Uint`] rather than an
+    /// `Int` for `nvs-ir` to emit at the wrong representation.
+    ///
+    /// `None` for a value with no constant form at all (`const ROWS = [1, 2];`),
+    /// which is what leaves `nvs_ir::lower`'s `ClassConstAccess` arm a panic
+    /// for that one shape rather than for every user-declared constant.
+    pub value: Option<crate::defaults::ConstArg>,
 }
 
 /// Every declaration's own [`ClassSignature`], keyed by its [`QName`].
@@ -857,7 +897,25 @@ fn collect_members(
                     },
                 );
             }
-            ClassMemberKind::Const(_) | ClassMemberKind::Error => {}
+            // ADR 0011's class constant. Evaluated here for the reason a
+            // property default is evaluated here — this is the one pass that
+            // holds the declared type and the written value together — and
+            // typed here because the alternative, `crate::consts`, runs before
+            // there is an interner to intern an annotation with. See
+            // [`ConstSig`].
+            ClassMemberKind::Const(c) => {
+                let name = span_text(env.src, c.name).to_owned();
+                let ty = match &c.ty {
+                    Some(written) => lower_type(written, ctx, env),
+                    None => folded_const_ty(qname, &name, env),
+                };
+                let value = crate::defaults::literal_default(&c.value, ty, env);
+                table
+                    .entry(qname.clone())
+                    .constants
+                    .insert(name, ConstSig { ty, value });
+            }
+            ClassMemberKind::Error => {}
             _ => {}
         }
     }
@@ -1108,6 +1166,65 @@ fn resolve_property_rec(
         .iter()
         .chain(links.implements.iter())
         .find_map(|parent| resolve_property_rec(parent, name, table, graph, seen))
+}
+
+/// The type of a class constant whose declaration writes no annotation: the
+/// type of the value [`crate::consts`] folded it to, and `mixed` where that
+/// fold produced [`crate::consts::ConstValue::Ineligible`] or nothing at all.
+///
+/// [`ConstSig::ty`] owns why this is a fallback rather than a diagnostic — an
+/// unannotated `const` parses, so a read of one still has to answer something,
+/// and the value's own type is the closest thing to a declaration the source
+/// contains. A `string` constant answers `string` rather than ADR 0047 § 1's
+/// literal type: § 2's literal-type fold is what a use in *type* position
+/// gets, and a read is an ordinary expression.
+fn folded_const_ty(qname: &QName, name: &str, env: &mut Env<'_>) -> TypeId {
+    let (consts, graph) = (env.consts, env.graph);
+    match consts.get(qname, name, graph) {
+        Some(crate::consts::ConstValue::Str(_)) => env.interner.string(),
+        Some(crate::consts::ConstValue::Int(_)) => env.interner.int(),
+        Some(crate::consts::ConstValue::Bool(_)) => env.interner.bool_ty(),
+        Some(crate::consts::ConstValue::Float(_)) => env.interner.float(),
+        Some(crate::consts::ConstValue::Ineligible) | None => env.interner.mixed(),
+    }
+}
+
+/// Looks `name` up as a class constant on `qname`, falling back to walking its
+/// `extends`/`implements` ancestors — [`resolve_property`]'s walk, for the
+/// same reason [`crate::consts::ConstTable`]'s own lookup walks both edges: a
+/// constant may be declared on an interface and reached through either link.
+#[must_use]
+pub fn resolve_const<'t>(
+    qname: &QName,
+    name: &str,
+    table: &'t SignatureTable,
+    graph: &ClassGraph,
+) -> Option<&'t ConstSig> {
+    let mut seen = FxHashSet::default();
+    resolve_const_rec(qname, name, table, graph, &mut seen)
+}
+
+fn resolve_const_rec<'t>(
+    qname: &QName,
+    name: &str,
+    table: &'t SignatureTable,
+    graph: &ClassGraph,
+    seen: &mut FxHashSet<QName>,
+) -> Option<&'t ConstSig> {
+    if !seen.insert(qname.clone()) {
+        return None;
+    }
+    if let Some(sig) = table.get(qname)
+        && let Some(found) = sig.constants.get(name)
+    {
+        return Some(found);
+    }
+    let links = graph.get(qname)?;
+    links
+        .extends
+        .iter()
+        .chain(links.implements.iter())
+        .find_map(|parent| resolve_const_rec(parent, name, table, graph, seen))
 }
 
 /// The declared **read** visibility of `owner::$name` — `owner` being the

@@ -65,7 +65,7 @@ slice**. That is the only thing that keeps this file from growing back.
 
 ## Stage 00's remaining names are cause 3, and deliberately so
 
-`loop-goal.toml`'s Stage 00 blocks name six tests and three `.nvst` cases that **do not exist yet**, so
+`loop-goal.toml`'s Stage 00 blocks name four tests and three `.nvst` cases that **do not exist yet**, so
 the acceptance test fails at the first check holding one and reaches nothing behind it. That is the same
 *symptom* as the fifty-four above and it is not the same *bug*, so do not "reconcile" one of them:
 
@@ -77,8 +77,6 @@ the acceptance test fails at the first check holding one and reaches nothing beh
 
 They are:
 
-- `a_user_declared_class_constant_reads_at_its_declared_type`,
-  `a_user_declared_class_constant_lowers_to_its_value` — item 45, both halves.
 - `a_static_return_type_resolves_to_the_called_class` — item 46.
 - `an_instanceof_test_narrows_its_subject_to_an_interface` — item 47. Note the near-twin already in the
   tree: `an_instanceof_test_narrows_its_subject` (`crates/nvs-types/tests/narrowing.rs:145`) is the

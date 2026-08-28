@@ -12,9 +12,11 @@
 //! every declared annotation in the file, and one of them may be a folded
 //! constant.
 //!
-//! A class constant's *declared type* at an expression site is still
-//! unmodeled — see the crate docs' known gaps — and this table deliberately
-//! does not close that: it holds values, and a value is all § 2 asks for.
+//! A class constant's *declared type* at an expression site is
+//! [`crate::signatures::ConstSig`]'s, not this table's, and the split is the
+//! ordering above rather than a preference: interning an annotation needs an
+//! interner, and this pass runs before the first annotation is interned. This
+//! holds values, and a value is all § 2 asks for.
 //!
 //! **A second reader asks for the value and not the type**, which is why the
 //! fold is one row wider than § 2's own literal types. [`crate::defaults`]
@@ -28,12 +30,12 @@
 //! The one exception is a single **bit**, and that gap is why it is here.
 //! [ADR 0033](../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
 //! § 4's attribute-payload sink has to know whether a constant's declared type
-//! carries `secret`, and because the declared type is unmodeled the qualifier
-//! is invisible at every expression site — `Class::TOKEN` infers `mixed`. So
-//! [`ConstEntry::secret`] is read off the annotation *here*, in the walk that
-//! already has every `ConstMember` in hand, and nowhere else. It is a bit
-//! rather than the type, because a bit is all the sink asks for and modelling
-//! the type is the gap above, not this one.
+//! carries `secret`, and that sink runs over the written payload expression,
+//! where the class name has no resolved `QName` to ask
+//! [`crate::signatures::resolve_const`] with. So [`ConstEntry::secret`] is
+//! read off the annotation *here*, in the walk that already has every
+//! `ConstMember` in hand, and nowhere else. It is a bit rather than the type,
+//! because a bit is all the sink asks for.
 //!
 //! **Ineligible is recorded, not dropped.** An `array` or object constant is
 //! a real declaration that simply has no literal type to fold to,
@@ -89,11 +91,12 @@ pub enum ConstValue {
 /// sink needs.
 ///
 /// The bit rides here rather than being asked of the constant's type at the
-/// sink, because at the sink there is no such type to ask: `signatures.rs`'s
-/// own known gap leaves a class constant's declared type unmodeled, so
-/// `Class::TOKEN` infers `mixed` at every expression site and the qualifier —
-/// which is a property of a *declared* type and of nothing else — is gone.
-/// This walk is the last place it exists, so it is the place that reads it.
+/// sink, because at the sink there is no resolved name to ask with: ADR 0046
+/// § 2's payload is folded over the written expression, before any class
+/// expression in it has been resolved, so `crate::signatures::ConstSig`'s
+/// declared type — which is where the qualifier lives everywhere else — is
+/// not reachable from there. This walk is keyed by the same resolved name, so
+/// it is the place that reads it.
 #[derive(Clone, Debug)]
 struct ConstEntry {
     /// What ADR 0047 § 2 folds the declaration's right-hand side to.

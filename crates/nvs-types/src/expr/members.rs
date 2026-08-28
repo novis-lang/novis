@@ -58,17 +58,18 @@ use crate::expr_table::ObserverCalls;
 
 /// `Class::CONST` — [`super::infer`]'s `ExprKind::ClassConstAccess` arm.
 ///
-/// Two shapes are typed precisely, and they split by what the left-hand side
+/// Three shapes are typed precisely, and they split by what the left-hand side
 /// names. `EnumName::CaseName` is ADR 0010 § 4's case, recovered as `Ty::Enum`
 /// — or, where the position names that one case, as ADR 0047 § 3's narrower
 /// `Ty::EnumCase`, the same take-your-type-from-the-position rule
 /// `crate::expr::literals` states in full;
 /// `Core\Math::PI` is ADR 0011's class constant, recovered as the declared type
-/// of the `nvs_stdlib::registry::CoreConst` row. A **user-declared** class's
-/// constant is still unmodeled (`mixed`) — see the crate docs' known gaps —
-/// because nothing collects one into a signature table to look it up in.
+/// of the `nvs_stdlib::registry::CoreConst` row; and `Limits::MAX` on a
+/// user-declared class is the same ADR's constant, recovered as the declared
+/// type `crate::signatures::ConstSig` recorded for it.
 /// `nvs_hir::members` has already checked that every one of the three exists,
-/// so this only recovers the type.
+/// so this only recovers the type — and, for all three, records the *value*,
+/// which is what a constant with no storage behind it leaves `nvs-ir` needing.
 #[expect(
     clippy::too_many_arguments,
     reason = "the five-parameter checking context every expression walker in 
@@ -163,7 +164,33 @@ pub(crate) fn infer_class_const(
                 }
             }
         }
-        _ => env.interner.mixed(),
+        // ADR 0011's class constant on a **user-declared** class, which
+        // `crate::signatures` records the declared type and the placed value
+        // of — see `signatures::ConstSig`. The value is recorded for the two
+        // arms above's reason a third time: a constant is inlined at every use
+        // site, so `nvs-ir` has no storage to read it back from. A constant
+        // whose value has no constant form (`const ROWS = [1, 2];`) records
+        // none and still reads at its type, which is the one shape left
+        // unlowered.
+        Some(qname) => {
+            let constant = span_text(env.src, name).to_owned();
+            let found =
+                crate::signatures::resolve_const(&qname, &constant, env.signatures, env.graph)
+                    .cloned();
+            match found {
+                Some(sig) => {
+                    if let Some(value) = sig.value {
+                        env.exprs.record(expr.span, ExprInfo::CoreConst { value });
+                    }
+                    sig.ty
+                }
+                // A name no declaration in the chain has — already
+                // `nvs_hir::members`' own `E0303`, so this only has to not
+                // invent a type for it.
+                None => env.interner.mixed(),
+            }
+        }
+        None => env.interner.mixed(),
     }
 }
 

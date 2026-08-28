@@ -240,9 +240,9 @@ impl<'a> Lowering<'a> {
             // constant a literal would, with no storage, no descriptor and no
             // allocation. `nvs_types` resolved the value — the enum's
             // auto-increment rule for one, `nvs_stdlib::registry`'s own row
-            // for the other — into `ExprInfo::EnumCase`/`ExprInfo::CoreConst`;
-            // a **user-declared** class's constant records neither and is
-            // still unlowered.
+            // for the other, `nvs_types::signatures::ConstSig` for a
+            // user-declared class's — into
+            // `ExprInfo::EnumCase`/`ExprInfo::CoreConst`.
             ExprKind::ClassConstAccess { .. } => match self.exprs.lookup(expr.span) {
                 Some(ExprInfo::EnumCase { value, .. }) => match value {
                     nvs_types::EnumValue::Int(n) => {
@@ -260,10 +260,10 @@ impl<'a> Lowering<'a> {
                     self.emit_const_arg(&value, env, *cur)
                 }
                 _ => panic!(
-                    "nvs-ir: a `Class::CONST` at {:?} with no resolved enum case or `Core` \
-                     constant recorded in the typed-expression table — a user-declared class \
-                     constant's value is unmodeled in `nvs_types` (see its own known gaps), so \
-                     there is nothing to lower it to",
+                    "nvs-ir: a `Class::CONST` at {:?} with no value recorded in the \
+                     typed-expression table — every declared constant with a constant form \
+                     records one, so this is a value that has none (`const ROWS = [1, 2];`), \
+                     and there is nothing to lower it to",
                     expr.span
                 ),
             },

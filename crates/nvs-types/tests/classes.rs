@@ -380,3 +380,138 @@ class Config {
         "a `secret` constant must not launder into a plain `string` slot: {diags:?}"
     );
 }
+
+/// ADR 0011's class constant on a **user-declared** class: a read of one
+/// answers the type its own declaration wrote, and not the value's, and not
+/// `mixed`.
+///
+/// Both sides of every row, because either half alone reads plausibly. A
+/// checker that answered `mixed` everywhere would fail the accepting half —
+/// `mixed` is not implicitly assignable to a narrower type — and one that
+/// answered the *folded value's* type, ignoring the annotation, would pass it
+/// and fail the refusing half on the two rows where the two disagree
+/// (`uint`, which folds to an `int`, and `secret string`, which folds to a
+/// plain one).
+#[test]
+fn a_user_declared_class_constant_reads_at_its_declared_type() {
+    // `(annotation, written value, a type the annotation is not)`. The
+    // disagreeing type is never `float` for an integer row: ADR 0007 § 2's one
+    // implicit widening would accept it.
+    let rows: &[(&str, &str, &str)] = &[
+        ("int", "3", "string"),
+        ("uint", "5", "int"),
+        ("string", "\"n\"", "int"),
+        ("bool", "true", "int"),
+        ("float", "0.5", "string"),
+        ("secret string", "\"k\"", "string"),
+    ];
+    for (annotation, value, disagreeing) in rows {
+        let accepting = format!(
+            "<?nvs
+class Limits {{
+  public const {annotation} K = {value};
+}}
+             class T {{
+  function m(): void {{
+    {annotation} $x = Limits::K;
+  }}
+}}
+"
+        );
+        let diags = check_src(&accepting);
+        assert!(
+            !diags.has_errors(),
+            "`{annotation}` constant read into a `{annotation}` binding: {diags:?}"
+        );
+
+        let refusing = format!(
+            "<?nvs
+class Limits {{
+  public const {annotation} K = {value};
+}}
+             class T {{
+  function m(): void {{
+    {disagreeing} $x = Limits::K;
+  }}
+}}
+"
+        );
+        let diags = check_src(&refusing);
+        assert!(
+            diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+            "a `{annotation}` constant must not read as `{disagreeing}`: {diags:?}"
+        );
+    }
+}
+
+/// The four spellings a constant is reached by, all answering the one declared
+/// type: the class's own, an ancestor's through `extends`, an interface's
+/// through `implements`, and `self::` from inside the declaring class.
+///
+/// `crate::signatures::resolve_const` walks both edges for the reason
+/// `ConstTable`'s own lookup does, so this asserts the walk rather than the
+/// row — a table that recorded only own declarations would still pass the
+/// first spelling.
+#[test]
+fn a_class_constant_resolves_through_extends_implements_and_self() {
+    let diags = check_src(
+        "<?nvs
+interface HasLimit {
+  public const int CEILING = 9;
+}
+         class Limits implements HasLimit {
+  public const int MAX = 3;
+           function own(): int {
+    return self::MAX;
+  }
+}
+         class Tighter extends Limits {}
+         class T {
+  function m(): void {
+    int $own = Limits::MAX;
+             int $inherited = Tighter::MAX;
+    int $ceiling = Limits::CEILING;
+             int $through = Tighter::CEILING;
+  }
+}
+",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// A constant declared with no annotation, which parses (PHP 8.3's own rule),
+/// takes the type of the value it folded to — the closest thing to a
+/// declaration the source contains, and the rule `signatures::ConstSig` owns.
+#[test]
+fn an_unannotated_class_constant_reads_at_its_values_type() {
+    let diags = check_src(
+        "<?nvs
+class Limits {
+  public const BARE = \"bare\";
+}
+         class T {
+  function m(): void {
+    string $x = Limits::BARE;
+  }
+}
+",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    let diags = check_src(
+        "<?nvs
+class Limits {
+  public const BARE = \"bare\";
+}
+         class T {
+  function m(): void {
+    int $x = Limits::BARE;
+  }
+}
+",
+    );
+    assert!(
+        diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{diags:?}"
+    );
+}

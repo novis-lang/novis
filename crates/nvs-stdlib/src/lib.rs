@@ -155,9 +155,9 @@
 //!    a roster on [`registry::CoreClass`], resolved by `nvs_types::expr`'s
 //!    `ClassConstAccess` arm and lowered as the inlined literal it is, so
 //!    `Core\Math`'s eleven are written and `Core\Path::SEPARATOR` needs only
-//!    its class. A **user-declared** class's constant is still unmodeled —
-//!    `nvs_types`' own known gaps own that half, which nothing in `Core`
-//!    depends on.
+//!    its class. A **user-declared** class's constant is the same shape one
+//!    crate over — `nvs_types::signatures::ConstSig` — and nothing in `Core`
+//!    depends on that half.
 //!
 //!    Everything else the spec writes is expressible: ADR 0063 R2's options
 //!    bag ([`registry::CoreTy::Options`], first used by `Core\Arr::range`), a

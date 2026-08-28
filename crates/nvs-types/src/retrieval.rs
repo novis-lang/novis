@@ -52,13 +52,14 @@
 //!
 //! § 5 replaces the call with the payload, so every value in a *matched*
 //! payload needs a constant form ([`ConstArg`]). Every shape § 2 admits has
-//! one but two: a **user-declared** class constant, whose value
-//! `crate::signatures`' own known gap leaves unmodeled — the same gap that
-//! leaves `Foo::CONST` unlowered wherever else it is written — and an enum
-//! case, which reaches a program through `ExprInfo::EnumCase` rather than
-//! through a constant. Either in a matched payload is `E0731` at the
-//! retrieval, naming the value; neither is refused where it is *attached*,
-//! because § 2 admits it and an attribute nobody retrieves costs nothing.
+//! one but two: a class constant, which `crate::signatures::ConstSig` folds
+//! for a *read* but which this walk cannot ask for, since [`fold_value`] runs
+//! over the written expression and carries none of the namespace context a
+//! class name resolves through; and an enum case, which reaches a program
+//! through `ExprInfo::EnumCase` rather than through a constant. Either in a
+//! matched payload is `E0731` at the retrieval, naming the value; neither is
+//! refused where it is *attached*, because § 2 admits it and an attribute
+//! nobody retrieves costs nothing.
 
 use nvs_diagnostics::{Diagnostic, SourceFile, code};
 use nvs_hir::QName;

@@ -157,10 +157,11 @@ pub fn symbol_of(qname: &QName, method: &str) -> Option<&'static str> {
 /// an enum case is the one it follows — so what a consumer gets back is the
 /// *value*, materialized at the use site, with no storage anywhere.
 ///
-/// Not seeded into [`SignatureTable`] the way a method is, because there is
-/// nothing there to seed it into: the table holds properties and methods, and
-/// a user-declared class constant's own type is unmodeled either way (see
-/// [`crate::expr`]'s known gaps). This is read directly by that module's
+/// Not seeded into [`SignatureTable`] the way a method is, even though a
+/// user-declared constant now takes a [`crate::signatures::ConstSig`] row
+/// there: seeding would mean interning every `Core` class's constants whether
+/// or not a program names one, where this resolves the single row a written
+/// `Core\Math::PI` asks for. This is read directly by `crate::expr::members`'
 /// `ClassConstAccess` arm, which is the one place a constant is resolved at
 /// all.
 #[must_use]

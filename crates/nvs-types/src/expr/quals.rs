@@ -337,12 +337,12 @@ pub(crate) fn reject_secret_debug_argument(
 /// spelling is already refused for being computed, which is why this is one
 /// check over one expression kind rather than a walk of its own.
 ///
-/// It is the one sink whose qualifier cannot be read off an inferred type, and
-/// that is a gap one crate over rather than a choice: `crate::signatures`
-/// leaves a class constant's declared type unmodeled, so `Class::TOKEN` infers
-/// `mixed` at every expression site and [`is_secret`] over that answers
-/// `false` for a value that plainly is one. [`crate::consts::ConstTable`] is
-/// where the annotation was last visible, so the bit is read from there.
+/// It is the one sink whose qualifier is read off a table rather than off the
+/// inferred type, and that is now a question of *when* rather than of whether:
+/// a payload is checked over the written expression, where the class name has
+/// no resolved [`nvs_hir::QName`] for [`crate::signatures::resolve_const`] to
+/// be asked with. [`crate::consts::ConstTable`] is keyed by the same name this
+/// walk resolves for itself, so the bit is read from there.
 ///
 /// Two shapes it does not reach and neither is a gap in this rule: a `Core`
 /// class's constant, which is the registry's own declaration and carries no
