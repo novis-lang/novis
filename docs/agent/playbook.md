@@ -1686,6 +1686,15 @@ is why" — is this file.
   same shape: find the claim no case makes (here, that `Core\Math` splits into an
   `int`-parameter family that reaches both ends of `int` and a `float`-parameter family
   that stops at 2^53), and say in the handoff that the group's premise was stale.
+- **A top-level element of an `array<mixed>` reads fine as a `mixed` argument, which is how a
+  sweep over heterogeneous rows is written.** The neighbouring bullet — a case cannot index
+  into an `array<mixed>`'s *elements* — is about the second level only: `$lefts[$i as string]`
+  handed straight to a `mixed` parameter lowers, so a table whose rows are an `int`, a `float`,
+  an array and an object is three parallel arrays (`array<string> $labels`, `array<mixed>
+  $lefts`, `array<mixed> $rights`) plus a `while` counter and a `public static function` that
+  asks the members about one row. In the same family, and cheap to trip over in a scratch
+  probe: a file-scope `catch (Throwable $e1)` collides with a *later* `array<mixed> $e1 = …`
+  (`E0406`), because the catch binding is the function's — name each catch for what it caught.
 
 ## Splitting a file that got too big
 
