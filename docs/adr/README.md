@@ -484,8 +484,51 @@ That is where the call half parts company with the property one, which splits a 
 `E0495`: a property read through an erased receiver has a name-keyed fetch to defer to and a call has
 nothing. `mixed` is the one receiver deliberately left out — [0007](0007-explicit-type-system.md) § 2 makes
 it the one unchecked position, so it defers rather than refuses, and until that lowering exists it is the
-one shape `nvs-ir`'s own panic at `lower/expr.rs` still names. Refusing is the reversible half of that pair: a later decision can turn this diagnostic into
+one shape `nvs-ir`'s own panic at `lower/expr.rs` still names; the paragraph below owns *how* it is
+answered. Refusing is the reversible half of that pair: a later decision can turn this diagnostic into
 dispatch, while a program that already dispatched could not be taken back.
+
+**A call through a `mixed` receiver is marshalled by the receiver's own descriptor, not by a per-method
+thunk.** [0036](0036-anonymous-object-shapes.md) § 4 grants the deferral and says nothing about the
+convention, so this paragraph is its home. Almost nothing has to be marshalled at all, which is the fact the
+design turns on: [0002](0002-error-propagation.md) makes **one** calling convention normative for every
+call, so `nvs_runtime::abi::NvsFn` is already a context, an array of 16-byte tagged `Value`s and one tagged
+`out` slot, and `nvs-codegen`'s `store_value`/`load_value` already write each argument and each return
+*with* its tag while a typed callee reads only the payload half. A site holding tagged values therefore has
+tagged slots to fill, and the answer comes back tagged for the `mixed` the call's own type is — no
+conversion in either direction, and a narrower binding takes `as T` exactly as one holding a `callable`'s
+result does. What is missing is not the marshalling but the callee's **declared shape**: how many parameters
+it takes and which tag each one requires, without which the callee reinterprets slot *i* at its own
+representation and an `int` handed to a `string` parameter is an arbitrary dereference rather than a fault —
+the identical hole `nvs_runtime::closure`'s own module docs describe for `callable`, arrived at from the
+other side. So the method row on `nvs_runtime::ClassDesc` carries them, the way a closure object already
+carries `FN_ARITY` and `FN_PARAM_TAGS`: the same nibble word, the same `CLOSURE_PARAM_TAG_ANY` for a
+parameter whose representation *is* a tag, and `check_param_tags` as the one implementation both paths
+share, so [0007](0007-explicit-type-system.md) § 2's `int`-into-`float` widening is not written down a
+second time to be got wrong differently. They are resolved once per class in `ClassTable::set_methods`, the
+precedent `ClassDesc::renderer` and `ClassDesc::unwind` set, and cost a word and a byte per method per class
+**once per process** — nothing per instance and nothing per call.
+
+The alternative on the table was a tagged-ABI thunk per method, and it loses on three of the priority
+ordering's five at once: `nvs-codegen` would emit the tag rules a second time, where a safety check wants
+one implementation and not two (rank 1); a thunk is a second frame on the erased path and still needs the
+same name lookup to be found at all, so it buys no dispatch (rank 3); and it spends a whole compiled
+function per method in every unit whether any `mixed` receiver exists or not, against sixteen bytes on a
+descriptor (rank 5). The statically typed path pays nothing either way and keeps its fixed label; the erased
+path pays a tag test on the receiver, one binary search of the flattened method table by name, and a shift,
+a mask and a compare per argument. Every failure a program can reach is a catchable throw on
+[0002](0002-error-propagation.md)'s error edge and never a fault, worded as the diagnostic that names the
+same mistake where a static type shows it — a receiver whose tag is not an object (`E0477`'s reading), a
+class whose table has no such name (`E0405`'s), and a count or a tag the callee does not admit (`E0402`'s
+and `E0401`'s) — so one mistake reads one way whichever end sees it. Three shapes are answered by that
+throw rather than by dispatch, each because the row cannot describe them and not as a rule about erasure: a
+**non-`public`** member, since a `mixed` receiver is outside every class by construction and the row carries
+the visibility bit that says so; a **variadic or `inout`** parameter list, which is packed and written back
+at the *call site*, the limit `E0721` already names for [0043](0043-interface-default-methods-and-delegation-replace-traits.md)
+§ 4's synthesized forward; and a **`Core`**-owned class, whose members are native symbols that *borrow*
+argument 0 where a compiled method owns its parameters — the very difference that made `renderer` its own
+descriptor field rather than a row in the table, and reaching them from here wants a second field per
+member that no case asks for yet.
 
 **A closure parameter naming a class is checked against the argument's own ancestry, at the closure's
 entry.** `nvs_ir::lower::param_tag_nibble` gives every class name — and `object`, and a shape — the same
