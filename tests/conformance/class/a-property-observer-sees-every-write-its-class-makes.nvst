@@ -1,0 +1,152 @@
+--TEST--
+A class implementing `PropertyObserver` is told of every read and write of every property it declares, hooked or not, always after the value has settled — ADR 0014 §§ 2, 3, 4
+--FILE--
+<?nvs
+// ADR 0014 § 2: `PropertyObserver` is a reserved *global* interface, named
+// like `Comparable` and `Stringable` and not under `Core`. `$value` is
+// `mixed` because one observer sees properties of every type.
+class Account implements PropertyObserver {
+    public string $owner;
+    public int $balance;
+    // ADR 0014 § 1: a property's own hook is kept exactly as PHP 8.4 defines
+    // it — and § 3 says a hooked property is *not* exempted from the
+    // observer, so this one reaches both.
+    public int $doubled {
+        get => $this->doubled;
+        set(int $n) {
+            echo "  hook commits ", $n * 2, "\n";
+            $this->doubled = $n * 2;
+        }
+    }
+
+    public function constructor(string $owner) {
+        $this->owner = $owner;
+        $this->balance = 0;
+        $this->doubled = 0;
+    }
+
+    public function onPropertyGet(string $name, mixed $value): void {
+        echo "  get ", $name, " = ", $value, "\n";
+        Tally::$reads = Tally::$reads + 1;
+    }
+
+    public function onPropertySet(string $name, mixed $value): void {
+        echo "  set ", $name, " = ", $value, "\n";
+        Tally::$writes = Tally::$writes + 1;
+    }
+}
+
+// ADR 0008: a static property is class storage, not an instance property, so
+// nothing here re-enters the pipeline the counters are counting.
+final class Tally {
+    public static int $reads = 0;
+    public static int $writes = 0;
+}
+
+// ADR 0014 § 4: whether a class implements the interface is known from its
+// declaration, so a class that never asked for the mechanism reaches nothing.
+final class Plain {
+    public int $n;
+
+    public function constructor() {
+        $this->n = 1;
+    }
+}
+
+// ADR 0014 § 3 again: an observer is inherited like any other method, and the
+// property a subclass adds is observed by it too.
+class Savings extends Account {
+    public int $rate;
+
+    public function constructor(string $owner, int $rate) {
+        parent::constructor($owner);
+        $this->rate = $rate;
+    }
+}
+
+// § 3: "a throwing `onPropertySet` still fails the overall write" — the
+// exception propagates to the caller like any other call (ADR 0002).
+final class Fussy implements PropertyObserver {
+    public int $n;
+
+    public function constructor() {
+        $this->n = 0;
+    }
+
+    public function onPropertyGet(string $name, mixed $value): void {
+    }
+
+    public function onPropertySet(string $name, mixed $value): void {
+        throw new LogicError("refusing " . $name);
+    }
+}
+
+// Every write a constructor makes is a write, so the pipeline runs there too.
+echo "constructor:\n";
+Account $a = new Account("ada");
+
+// § 3, the read: the value is produced by storage, then handed to the
+// observer, and the caller receives what storage produced — never anything
+// `onPropertyGet` answers, its return type being `void`.
+echo "plain write and read:\n";
+$a->balance = 7;
+int $seen = $a->balance;
+echo "  caller sees ", $seen, "\n";
+
+// § 3, the write, on the hooked property: the `set` hook alone decides what
+// is stored, and the observer is told the value it *committed* — 42, not the
+// 21 the caller wrote.
+echo "hooked write and read:\n";
+$a->doubled = 21;
+$seen = $a->doubled;
+echo "  caller sees ", $seen, "\n";
+
+// § 4: not one line from a class that implements nothing.
+echo "a class that implements nothing:\n";
+Plain $p = new Plain();
+$p->n = 99;
+echo "  caller sees ", $p->n, "\n";
+
+echo "an inherited observer:\n";
+Savings $s = new Savings("grace", 3);
+$s->rate = 4;
+
+echo "a throwing observer:\n";
+try {
+    Fussy $f = new Fussy();
+    echo "  unreachable\n";
+} catch (Throwable $e) {
+    echo "  caught ", $e->message, "\n";
+}
+
+// The count is the invariant, not any one line above it: every property write
+// this file made on an observing class reached `onPropertySet` exactly once.
+// Reading it is itself a static access, so it adds nothing to either total.
+echo "reads=", Tally::$reads, " writes=", Tally::$writes, "\n";
+--EXPECT--
+constructor:
+  set owner = ada
+  set balance = 0
+  hook commits 0
+  set doubled = 0
+plain write and read:
+  set balance = 7
+  get balance = 7
+  caller sees 7
+hooked write and read:
+  hook commits 42
+  set doubled = 42
+  get doubled = 42
+  caller sees 42
+a class that implements nothing:
+  caller sees 99
+an inherited observer:
+  set owner = grace
+  set balance = 0
+  hook commits 0
+  set doubled = 0
+  set rate = 3
+  set rate = 4
+a throwing observer:
+  caught refusing n
+reads=2 writes=10

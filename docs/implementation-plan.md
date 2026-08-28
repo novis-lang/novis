@@ -738,11 +738,46 @@
 > twice returning twice through a static the declaration owns, and the same again inside a loop
 > body; valgrind-clean over a fixture that requires a freshly built `string` two hundred times.
 > `an-uncompiled-construct-is-refused-where-it-is-written.nvst` loses its `E0704` half and now pins
-> `E0703` alone, with both `require` forms beside it as the lines no diagnostic names. Three live
-> tools **are** the worklist and no session re-derives one: `python tools/holes.py` reads the
-> refusal sites out of `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item N` for
-> one in full), `python tools/loop.py --list` prints the named `.nvst` cases each stage still owes,
-> and `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> `E0703` alone, with both `require` forms beside it as the lines no diagnostic names. **ADR 0014's
+> `PropertyObserver` exists now, and it was never a `.nvst` this tree already knew how to run.** The
+> named case Stage 8 owed named a "reserved interface" `nvs_hir::interfaces` deliberately did not
+> carry — `implements PropertyObserver` was `E0303` — so the item was the whole of §§ 2, 3 and 4
+> rather than a case over landed work. The interface joins `Comparable` and `Stringable` on the
+> `RESERVED` roster (taking no type parameters, for their reason: it is a contract an ordinary class
+> implements, not a `Core` domain class), and `nvs_types::iter_lib` seeds its two members —
+> `onPropertyGet(string, mixed): void` and its `onPropertySet` twin, `mixed` because one observer
+> sees properties of every type and `void` because § 2 gives it nothing to return. Both being
+> bodiless is what makes `nvs_types::conformance` demand the bodies, and what makes the call below
+> dispatch on the receiver's runtime class. § 3's pipeline is a **second step** at the access, never
+> a fallback: the checker records `ExprInfo::ObserverCalls` on every `ExprInfo::Property` and
+> `ExprInfo::HookedProperty` whose receiver's class implements the interface, and
+> `nvs_ir::lower::expr::Lowering::emit_observer_call` — the one home for the emission — retains the
+> receiver and the settled value, tags the value to `mixed`, and emits one `InstKind::CallVirtual`
+> carrying ADR 0002's error edge, so a throwing observer fails the access it was reporting. The
+> **write** half reads the backing slot back where the property declares a `set` hook, because § 3
+> says the observer is told the value the hook *committed* and not the caller's argument; with no
+> hook the store is the commit and `v` is already it. § 4's zero cost falls out of the recording
+> being compile-time: a class implementing nothing records `None` and lowers to the field load it
+> always did, with no branch to measure. Three boundaries that "every property access" would
+> otherwise decide by accident are now ADR 0014 § *Verification*'s to state — that section did not
+> exist at all, which M4's acceptance has named since it was written. An access **inside the
+> property's own hooks** carries no observer, being § 3's first step for the access already running
+> the second, and observing it would report one write twice; a **`static` property** reaches
+> nothing, ADR 0008 giving class storage no receiver to dispatch from; and an observer touching its
+> own class's property **recurses**, exactly as any self-calling method does, because a re-entry
+> guard is a second rule about which write is real and § 3's word is "unconditionally".
+> Valgrind-clean over a fixture that writes and reads a freshly built `string` property through the
+> observer two hundred times.
+> `tests/conformance/class/a-property-observer-sees-every-write-its-class-makes.nvst` pins the
+> pipeline's order against a `set` hook that echoes what it commits, the committed `42` against the
+> caller's `21`, a constructor's writes, an inherited observer over a subclass's own property, a
+> throwing one caught as an ordinary `Throwable`, not one line from a class that implements nothing,
+> and the count of observed writes over the whole file, so a property shape that stops reaching the
+> pipeline fails on the count rather than on a line. Three live tools **are** the worklist and no
+> session re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and
+> `nvs-codegen` and attributes each to its item (`--item N` for one in full), `python tools/loop.py
+> --list` prints the named `.nvst` cases each stage still owes, and `python
+> tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

@@ -213,6 +213,43 @@ any other call.
   hook transformed it (*3*) — a class that specifically wants the pre-hook raw input has no declared way to
   see it under this ADR.
 
+## Verification
+
+One case, `tests/conformance/class/a-property-observer-sees-every-write-its-class-makes.nvst`, pins every
+rule above that runs, and it is the fixture [M4's acceptance](../plan/m4.md) names for this ADR:
+
+- **The interface resolves as a global name**, spelled `implements PropertyObserver` with no namespace (*2*),
+  and a class that implements it owes both bodies like any other interface's.
+- **Both halves of *3*'s pipeline, in order.** A `set` hook echoes what it commits before the observer is
+  told, and the observer is told **the committed value** — `42` for a hook doubling the caller's `21` —
+  never the caller's own argument. A read produces its value first and hands the caller that value, not
+  anything `onPropertyGet` answers.
+- **A hooked property is not exempt, and neither is a hookless one**: both reach the observer, which is
+  asserted by *counting* the observed writes over the whole file rather than reading any one line, so a
+  property shape that stopped reaching the pipeline fails the count.
+- **Every write is a write** — a constructor's assignments reach it, and so does an inherited observer over
+  the property a subclass adds.
+- **A throwing `onPropertySet` fails the write**, propagated as an ordinary catchable `Throwable`
+  ([ADR 0002](0002-error-propagation.md)).
+- ***4*'s zero cost, from the outside**: a class implementing nothing emits not one observer line. The
+  measurement half of that claim — no measurable overhead — is `nvs_types::expr::members::observer_calls`
+  answering `None` at compile time, so a non-implementing class's access lowers to the same field load it
+  lowered to before this ADR, with no branch to measure.
+
+Three boundaries the pipeline has are settled here rather than left to a reader, because each is a place
+"every property access" would otherwise mean something the sections above do not:
+
+- **An access inside the property's own hooks is the backing slot, and carries no observer.** It *is* *3*'s
+  first step for the access that invoked the hook, which is already running the second; observing it too
+  would report one write twice. `nvs_types::expr::members::check_property_member` is that exemption's home.
+- **A `static` property is not a property here.** *3* is written about a receiver, and the observer is
+  dispatched on the receiving instance's own class ([ADR 0008](0008-static-and-global.md) gives class
+  storage no receiver to dispatch from), so `Class::$p` reaches nothing.
+- **An observer that touches a property of its own class recurses**, exactly as any method calling itself
+  does. *3* says the pipeline runs unconditionally and this ADR keeps that word: there is no re-entry guard,
+  because a guard is a second rule about which write is the real one, and PHP's own `__get` guard exists
+  only to paper over the fallback semantics *5* deletes.
+
 ## Alternatives rejected
 
 - **Ambient name-based `__get`/`__set`**, matching PHP exactly. Rejected: same "behaviour triggered by a name
