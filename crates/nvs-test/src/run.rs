@@ -221,9 +221,9 @@ fn write_aux(workdir: &Path, relative: &str, body: &str) -> io::Result<()> {
 
 /// Writes `source` into `workdir` as `name` and runs `nvs <sub>` on it.
 ///
-/// `sub` is [`Subcommand::as_str`]'s word, so the two things that decide it —
-/// a case's `--RUN--` section and the scaffolding's fixed `run` — cannot spell
-/// a subcommand this binary does not have.
+/// `sub` is [`Subcommand::args`]'s own list, so the two things that decide it
+/// — a case's `--RUN--` section and the scaffolding's fixed `run` — cannot
+/// spell a command line this binary does not have.
 fn run_nvs(
     opts: &Options,
     workdir: &Path,
@@ -232,7 +232,9 @@ fn run_nvs(
     sub: Subcommand,
 ) -> io::Result<Output> {
     fs::write(workdir.join(name), source)?;
-    spawn(&opts.nvs, &[sub.as_str().as_ref(), name.as_ref()], workdir)
+    let mut args: Vec<&OsStr> = sub.args().iter().map(AsRef::as_ref).collect();
+    args.push(name.as_ref());
+    spawn(&opts.nvs, &args, workdir)
 }
 
 /// Writes `source` into `workdir` as `oracle.php` and runs PHP on it.

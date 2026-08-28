@@ -1,0 +1,59 @@
+--TEST--
+`nvs test --format=json` writes one versioned object per run, and the program's own output goes to standard error (ADR 0079 § 22)
+--RUN--
+test --format=json
+--FILE--
+<?nvs
+// § 22: the same run the plaintext report renders a line at a time, written
+// as one document at the end. `--RUN--` above is what selects the format;
+// `a-test-attribute-builds-a-table-the-runner-reports.nvst` is the plaintext
+// twin of this program, and the verdicts are the same because both formats
+// render one `Outcome`.
+use Core\Test;
+
+final class ReportTest {
+    #[Test]
+    public function aPassingTestCarriesOnlyItsVerdict(): void {
+        Test::assertSame(1, 1);
+    }
+
+    // § 20: a skip states a reason, and the reason is a string the document
+    // has to escape — a quote is `\"` in JSON and `&quot;` in the XML twin.
+    #[Test(skip: "a reason with \"quotes\" and a < sign")]
+    public function aSkipCarriesItsReason(): void {
+        Test::assertSame(2, 3);
+    }
+
+    // § 5: every failed assertion the ledger recorded is reported, not the
+    // first — which is why the array is plural and why this test has to catch
+    // its own first failure to reach a second assertion at all.
+    #[Test]
+    public function everyFailedAssertionIsReported(): void {
+        try {
+            Test::assertSame("first", "wrong");
+        } catch (Core\Test\Failure $swallowed) {
+        }
+        Test::assertSame("second", "also wrong");
+    }
+
+    // § 22 redirects the document, so standard output is the document and
+    // nothing else: what a test itself printed is on standard error below.
+    #[Test]
+    public function aTestsOwnOutputIsNotTheDocument(): void {
+        echo "this goes to standard error\n";
+        Test::assertTrue(true);
+    }
+}
+--EXPECTF--
+{
+  "schemaVersion": 1,
+  "summary": {"total": 4, "passed": 2, "failed": 1, "skipped": 1, "durationMs": %f},
+  "tests": [
+    {"class": "ReportTest", "method": "aPassingTestCarriesOnlyItsVerdict", "verdict": "passed", "durationMs": %f},
+    {"class": "ReportTest", "method": "aSkipCarriesItsReason", "verdict": "skipped", "durationMs": %f, "reason": "a reason with \"quotes\" and a < sign"},
+    {"class": "ReportTest", "method": "everyFailedAssertionIsReported", "verdict": "failed", "durationMs": %f, "failures": ["Core\\Test::assertSame failed: `$actual` is \"first\", `$expected` is \"wrong\"", "Core\\Test::assertSame failed: `$actual` is \"second\", `$expected` is \"also wrong\""]},
+    {"class": "ReportTest", "method": "aTestsOwnOutputIsNotTheDocument", "verdict": "passed", "durationMs": %f}
+  ]
+}
+--EXPECTF-ERROR--
+this goes to standard error

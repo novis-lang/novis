@@ -1,0 +1,62 @@
+--TEST--
+`nvs test --format=junit` writes one `testsuite` per class, with the same verdicts the JSON twin carries (ADR 0079 § 22)
+--RUN--
+test --format=junit
+--FILE--
+<?nvs
+// § 22: the same program as
+// `a-test-run-reports-a-versioned-json-document.nvst`, in the shape every CI
+// system already ingests. Both documents render one `Outcome` list, so the
+// two cases pin one run through two renderings — a verdict that moved in one
+// of them and not the other fails here.
+use Core\Test;
+
+final class ReportTest {
+    #[Test]
+    public function aPassingTestCarriesOnlyItsVerdict(): void {
+        Test::assertSame(1, 1);
+    }
+
+    // XML escapes what JSON escapes differently: a quote is `&quot;` and a
+    // `<` is `&lt;`, in an attribute value and in an element body alike.
+    #[Test(skip: "a reason with \"quotes\" and a < sign")]
+    public function aSkipCarriesItsReason(): void {
+        Test::assertSame(2, 3);
+    }
+
+    // § 5: the `message` attribute carries the first failed assertion, the
+    // element body every one of them — JUnit has one attribute and the ledger
+    // has a list.
+    #[Test]
+    public function everyFailedAssertionIsReported(): void {
+        try {
+            Test::assertSame("first", "wrong");
+        } catch (Core\Test\Failure $swallowed) {
+        }
+        Test::assertSame("second", "also wrong");
+    }
+
+    #[Test]
+    public function aTestsOwnOutputIsNotTheDocument(): void {
+        echo "this goes to standard error\n";
+        Test::assertTrue(true);
+    }
+}
+--EXPECTF--
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites tests="4" failures="1" skipped="1" time="%f">
+  <testsuite name="ReportTest" tests="4" failures="1" skipped="1" time="%f">
+    <testcase name="aPassingTestCarriesOnlyItsVerdict" classname="ReportTest" time="%f"/>
+    <testcase name="aSkipCarriesItsReason" classname="ReportTest" time="%f">
+      <skipped message="a reason with &quot;quotes&quot; and a &lt; sign"/>
+    </testcase>
+    <testcase name="everyFailedAssertionIsReported" classname="ReportTest" time="%f">
+      <failure message="Core\Test::assertSame failed: `$actual` is &quot;first&quot;, `$expected` is &quot;wrong&quot;">Core\Test::assertSame failed: `$actual` is &quot;first&quot;, `$expected` is &quot;wrong&quot;
+Core\Test::assertSame failed: `$actual` is &quot;second&quot;, `$expected` is &quot;also wrong&quot;
+</failure>
+    </testcase>
+    <testcase name="aTestsOwnOutputIsNotTheDocument" classname="ReportTest" time="%f"/>
+  </testsuite>
+</testsuites>
+--EXPECTF-ERROR--
+this goes to standard error

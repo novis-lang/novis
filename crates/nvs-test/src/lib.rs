@@ -42,7 +42,7 @@
 //! | `--EXPECT-ERROR--` | expected standard error, compared literally |
 //! | `--EXPECTF-ERROR--` | expected standard error, with `%` escapes |
 //! | `--FILE <relative/path>--` | another file, written beside `--FILE--`; repeatable |
-//! | `--RUN--` | `run` (the default) or `test`: the subcommand `--FILE--` goes through |
+//! | `--RUN--` | `run` (the default), `test`, `test --format=json` or `test --format=junit`: the command line `--FILE--` goes through |
 //!
 //! ## Which subcommand a case is run through
 //!
@@ -51,10 +51,14 @@
 //! runner. `--RUN--\ntest` runs `nvs test case.nvs`, so the program declares
 //! `#[Test]` classes and what the case pins is the *report* of running them —
 //! the only way a `.nvst` can observe the `#[Test]` table at all, since a row
-//! and its order are visible nowhere else. The roster is closed to those two
-//! words, so a misspelling is a parse error rather than a case quietly run
-//! the other way, and the section applies to `--FILE--` alone: `--SKIPIF--`
-//! and `--CLEAN--` are the runner's own scaffolding and are always `nvs run`.
+//! and its order are visible nowhere else. § 22's two machine formats are two
+//! more spellings of the same thing — `test --format=json` and
+//! `test --format=junit` — because a report is observable only by being read,
+//! and a format nothing pins is a format that can drift. The roster is closed
+//! to those four spellings, so a misspelling is a parse error rather than a
+//! case quietly run the other way, and the section applies to `--FILE--`
+//! alone: `--SKIPIF--` and `--CLEAN--` are the runner's own scaffolding and
+//! are always `nvs run`.
 //!
 //! § 22's report carries a per-test duration, so such a case wants
 //! `--EXPECTF--`'s `%f` rather than `--EXPECT--`.

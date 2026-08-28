@@ -43,6 +43,11 @@ pub enum Oracle {
 /// It applies to `--FILE--` alone. `--SKIPIF--` and `--CLEAN--` are the
 /// runner's own scaffolding rather than the thing under test, so both are
 /// always `nvs run`.
+///
+/// The roster is **closed**, and a `--format` spelling is a variant of it
+/// rather than a flag string carried along: § 22's three formats are a closed
+/// list too, so this stays one enum whose every value is a command line this
+/// binary has, and a misspelling is still refused where it is written.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Subcommand {
     /// `nvs run case.nvs` — the program is the case.
@@ -50,15 +55,22 @@ pub enum Subcommand {
     Run,
     /// `nvs test case.nvs` — the program's `#[Test]` methods are the case.
     Test,
+    /// `nvs test --format=json case.nvs` — § 22's JSON document is the case.
+    TestJson,
+    /// `nvs test --format=junit case.nvs` — § 22's JUnit XML is the case.
+    TestJunit,
 }
 
 impl Subcommand {
-    /// The word it is written as, in `--RUN--` and on the command line alike.
+    /// The arguments it is written as, in `--RUN--` and on the command line
+    /// alike — the two being one list is what keeps them from disagreeing.
     #[must_use]
-    pub fn as_str(self) -> &'static str {
+    pub fn args(self) -> &'static [&'static str] {
         match self {
-            Self::Run => "run",
-            Self::Test => "test",
+            Self::Run => &["run"],
+            Self::Test => &["test"],
+            Self::TestJson => &["test", "--format=json"],
+            Self::TestJunit => &["test", "--format=junit"],
         }
     }
 }
@@ -365,9 +377,14 @@ pub fn parse(path: &Path, text: &str) -> Result<Case, ParseError> {
         Some((line, body)) => match body.trim() {
             "run" => Subcommand::Run,
             "test" => Subcommand::Test,
+            "test --format=json" => Subcommand::TestJson,
+            "test --format=junit" => Subcommand::TestJunit,
             other => {
                 return Err(err(
-                    format!("`--RUN--` is `run` or `test`, not `{other}`"),
+                    format!(
+                        "`--RUN--` is `run`, `test`, `test --format=json` or \
+                         `test --format=junit`, not `{other}`"
+                    ),
                     Some(line),
                 ));
             }
@@ -483,14 +500,26 @@ mod tests {
     fn a_run_section_names_the_subcommand_the_program_goes_through() {
         let parsed = case(&format!("--RUN--\ntest\n{MINIMAL}")).expect("it parses");
         assert_eq!(parsed.run, Subcommand::Test);
-        assert_eq!(parsed.run.as_str(), "test");
+        assert_eq!(parsed.run.args(), ["test"]);
+    }
+
+    #[test]
+    fn a_machine_format_is_a_spelling_of_the_test_subcommand() {
+        // ADR 0079 § 22's formats are a closed list, so each is a value of the
+        // roster rather than a flag string carried along — what a `--RUN--`
+        // section names is a whole command line.
+        let parsed = case(&format!("--RUN--\ntest --format=json\n{MINIMAL}")).expect("it parses");
+        assert_eq!(parsed.run, Subcommand::TestJson);
+        assert_eq!(parsed.run.args(), ["test", "--format=json"]);
+        let parsed = case(&format!("--RUN--\ntest --format=junit\n{MINIMAL}")).expect("it parses");
+        assert_eq!(parsed.run.args(), ["test", "--format=junit"]);
     }
 
     #[test]
     fn a_run_section_naming_no_subcommand_is_refused_where_it_is_written() {
         let error = case(&format!("--RUN--\ncheck\n{MINIMAL}")).expect_err("the roster is closed");
         assert_eq!(error.line, Some(1));
-        assert!(error.message.contains("`run` or `test`"), "{error}");
+        assert!(error.message.contains("`test --format=json`"), "{error}");
     }
 
     #[test]

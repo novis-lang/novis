@@ -1709,13 +1709,38 @@
 > threw nothing, both `{message: …}` bags, the verdict that does not leak the reported class, and
 > five agreements between each member and the hand-written `try`/`catch` of the same question,
 > counted rather than read off a line. `nvs_stdlib::test`'s known gap 3 is deleted outright and its
-> gap 2 — "nothing reads the ledger yet" — went with the runner that landed before it. Three live
-> tools **are** the worklist and no session re-derives one: `python tools/holes.py` reads the
-> refusal sites out of `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item N` for
-> one in full), `python tools/loop.py --list` prints the named `.nvst` cases each stage still owes —
-> **none**, Stage 7's `#[Test]` table case having landed with the `--RUN--` section that lets a case
-> reach the runner at all — and `python tools/check-migration.py` scores
-> `docs/spec/02-php-migration.md`.
+> gap 2 — "nothing reads the ledger yet" — went with the runner that landed before it. **§ 22's two
+> machine formats are landed, and one run is reported three ways rather than rendered three times.**
+> `nvs test --format=json` writes the versioned object that section promises and `--format=junit`
+> the XML every CI system ingests, both over the very `Outcome` list the plaintext report renders a
+> line at a time — a verdict is decided once (`nvs_cli::runner::Outcome::verdict`, with the
+> plaintext mark beside it so a variant this enum grows cannot take one without the other), which is
+> what makes "the three cannot disagree" a property of the code rather than of a review. The default
+> stays byte-identical, pinned by the standing plaintext case. Two decisions the ADR left open are
+> made where the formats are: **the program's own output goes to stderr** under a machine format, §
+> 22 writing `> results.json` and a test's `echo` interleaved into the document producing something
+> no parser accepts — and it is not quoted back into the document either, a whole suite's output
+> being a cost every run would pay for the few being debugged; and **`--format` names a `#[Test]`
+> run**, so it is refused beside a § 23 `.nvst` tree rather than silently ignored, those two suites
+> sharing no summary and there being no document for it to be about. The JSON is `schemaVersion`
+> plus a summary and one object per test, and the keys § 22 additionally names — a structured diff,
+> `#[Bench]`'s counters, a shrunk counterexample, per-data-row results, per-test coverage — are
+> absent because nothing produces any of them yet, which is the whole of what the version number
+> buys. JUnit is one `<testsuite>` per class over the run's own grouping, with the ledger's first
+> failure in the `message` attribute and every one of them in the element body, JUnit having one
+> attribute where § 5 has a list. Both escapers are this module's own: `Core\Json` is a *runtime*
+> member over runtime values, and a control character other than tab, newline and carriage return is
+> not representable in XML 1.0 at all, so it is replaced rather than escaped. A report is observable
+> only by being read, so `.nvst`'s `--RUN--` gained the two spellings that read one: the roster is a
+> closed **four** now — `run`, `test`, `test --format=json`, `test --format=junit` — carried as
+> `nvs_test::Subcommand::args`, a whole command line rather than one word, so the two things that
+> decide it still cannot spell a command line this binary does not have. ADR 0079 § 22 gains the
+> paragraph rather than being left to name behaviour nothing states. Three live tools **are** the
+> worklist and no session re-derives one: `python tools/holes.py` reads the refusal sites out of
+> `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item N` for one in full), `python
+> tools/loop.py --list` prints the named `.nvst` cases each stage still owes — **none**, Stage 7's
+> `#[Test]` table case having landed with the `--RUN--` section that lets a case reach the runner at
+> all — and `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,
