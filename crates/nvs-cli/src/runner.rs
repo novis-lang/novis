@@ -46,8 +46,9 @@
 //! # What is owed
 //!
 //! § 2's isolate-per-test and parallelism are M5, so this runs every test in
-//! one process on one `Ctx`; § 20's `retries:`/`FLAKY` section and §§ 8-9's
-//! `#[Fixture]` injection are not built, and a constructor that declares
+//! one process on one `Ctx` — which is also what a retry re-enters, class
+//! storage surviving between attempts where an isolate would not; §§ 8-9's
+//! `#[Fixture]` injection is not built, and a constructor that declares
 //! parameters is reported as that test failing rather than pretended past
 //! (`nvs_runtime::construct_and_call`). Class order is the roster's own sorted
 //! order rather than § 20's declaration order: `ExprTypeTable::tests` is keyed
@@ -85,6 +86,14 @@ enum Outcome {
     /// several, and reporting one of them would hide exactly what § 5's ledger
     /// exists to keep.
     Failed(Vec<String>),
+    /// § 20's `retries:`: the test failed and then passed within its
+    /// allowance, carrying how many attempts it took and what the last failed
+    /// one said. It is neither passed nor failed, which is the whole of that
+    /// bullet — see [`run_with_retries`].
+    Flaky {
+        attempts: usize,
+        failures: Vec<String>,
+    },
     /// The test called `exit(n)`, which ends the whole run.
     Exited(i64),
 }
@@ -101,6 +110,7 @@ impl Outcome {
             Self::Passed => "passed",
             Self::Skipped(_) => "skipped",
             Self::Failed(_) => "failed",
+            Self::Flaky { .. } => "flaky",
             Self::Exited(_) => "exited",
         }
     }
@@ -111,6 +121,10 @@ impl Outcome {
         match self {
             Self::Passed => "\u{2713}",
             Self::Skipped(_) => "-",
+            // Its own mark rather than the passing one: § 20 reports a retried
+            // test as flaky and never as green, and a reader scanning the
+            // marks is the first place that has to be true.
+            Self::Flaky { .. } => "!",
             Self::Failed(_) | Self::Exited(_) => "\u{2717}",
         }
     }
@@ -123,7 +137,10 @@ impl Outcome {
         match self {
             Self::Passed => None,
             Self::Skipped(reason) => Some(reason.clone()),
-            Self::Failed(reasons) => Some(
+            Self::Failed(reasons)
+            | Self::Flaky {
+                failures: reasons, ..
+            } => Some(
                 reasons
                     .first()
                     .cloned()
@@ -171,7 +188,7 @@ pub(crate) fn run(checked: &crate::Checked, format: Format) -> ExitCode {
     };
     unit.install_in(&mut ctx);
 
-    let (mut passed, mut failed, mut skipped) = (0_usize, 0_usize, 0_usize);
+    let (mut passed, mut failed, mut skipped, mut flaky) = (0_usize, 0_usize, 0_usize, 0_usize);
     let mut exited = None;
     let mut cases = Vec::new();
     let started = Instant::now();
@@ -181,11 +198,12 @@ pub(crate) fn run(checked: &crate::Checked, format: Format) -> ExitCode {
         }
         for case in checked.exprs.tests(class).unwrap_or_default() {
             let began = Instant::now();
-            let outcome = run_case(&unit, &mut ctx, class, case);
+            let outcome = run_with_retries(&unit, &mut ctx, class, case);
             let elapsed = began.elapsed();
             match &outcome {
                 Outcome::Passed => passed += 1,
                 Outcome::Skipped(_) => skipped += 1,
+                Outcome::Flaky { .. } => flaky += 1,
                 Outcome::Failed(_) | Outcome::Exited(_) => failed += 1,
             }
             if format == Format::Human {
@@ -219,10 +237,11 @@ pub(crate) fn run(checked: &crate::Checked, format: Format) -> ExitCode {
         passed,
         failed,
         skipped,
+        flaky,
     };
     match format {
         Format::Human => println!(
-            "\n  {failed} failed, {passed} passed, {skipped} skipped in {:.0} ms",
+            "\n  {failed} failed, {passed} passed, {skipped} skipped, {flaky} flaky in {:.0} ms",
             started.elapsed().as_secs_f64() * 1000.0
         ),
         Format::Json => print!("{}", json_document(&cases, counts, started.elapsed())),
@@ -239,6 +258,71 @@ pub(crate) fn run(checked: &crate::Checked, format: Format) -> ExitCode {
     } else {
         ExitCode::FAILURE
     }
+}
+
+/// One `#[Test]` method, run as many times as § 20's `retries:` allows.
+///
+/// **A retry is visible or it is worthless.** That bullet's whole point is
+/// that a suite which retries stays honest about it, so a test that failed and
+/// then passed within its allowance is [`Outcome::Flaky`] — a fifth verdict of
+/// its own — rather than the passing one it would be if the last attempt were
+/// simply the answer. What it carries is the *last failed* attempt's own
+/// failures, because those are the run that says something: the attempt that
+/// passed produced nothing to report.
+///
+/// Only a failure is retried. A skip never ran, and an `exit(n)` ended the
+/// whole program rather than the test (ADR 0020), so neither is an outcome a
+/// second attempt could improve on. Each attempt is a fresh instance with the
+/// ledger and any pending exception taken between them ([`run_case`] takes
+/// both on every path), which is what keeps one attempt's failures from being
+/// reported against the next; what does *not* reset is class storage, an
+/// isolate per test being § 2's and waiting on M5.
+///
+/// **A flaky test does not fail the run.** Its exit code is the passing one,
+/// because retries exist precisely so that a suite can pass in spite of one —
+/// what § 20 takes away is the *silence*, not the green build.
+fn run_with_retries(
+    unit: &nvs_codegen::Unit,
+    ctx: &mut nvs_runtime::Ctx,
+    class: &str,
+    case: &nvs_types::testing::TestCase,
+) -> Outcome {
+    let mut failures = match run_case(unit, ctx, class, case) {
+        Outcome::Failed(failures) => failures,
+        settled => return settled,
+    };
+    for retry in 0..retry_allowance(case) {
+        match run_case(unit, ctx, class, case) {
+            Outcome::Passed => {
+                return Outcome::Flaky {
+                    attempts: retry + 2,
+                    failures,
+                };
+            }
+            Outcome::Failed(again) => failures = again,
+            settled => return settled,
+        }
+    }
+    Outcome::Failed(failures)
+}
+
+/// The `retries:` option's allowance — how many *further* attempts a failed
+/// test is given — or `0` for a test that is run once.
+///
+/// Read back the way [`skip_reason`] reads its own, and for that function's
+/// reason: `nvs_types::testing` has already refused a `retries` that folded to
+/// anything but an `int`, so answering "absent" for one here would be a second
+/// answer to a settled question. A negative allowance is a run of one, `-1`
+/// attempts being nothing this can do.
+fn retry_allowance(case: &nvs_types::testing::TestCase) -> usize {
+    case.options
+        .iter()
+        .find_map(|(name, value)| match value {
+            ConstArg::Int(allowance) if name == "retries" => Some(*allowance),
+            _ => None,
+        })
+        .and_then(|allowance| usize::try_from(allowance).ok())
+        .unwrap_or(0)
 }
 
 /// One `#[Test]` method: skipped for its stated reason, or a fresh instance of
@@ -323,11 +407,14 @@ struct Counts {
     passed: usize,
     failed: usize,
     skipped: usize,
+    /// § 20's own section: a test that passed within its retry allowance is
+    /// counted here and in neither of the two above it.
+    flaky: usize,
 }
 
 impl Counts {
     fn total(self) -> usize {
-        self.passed + self.failed + self.skipped
+        self.passed + self.failed + self.skipped + self.flaky
     }
 }
 
@@ -347,6 +434,12 @@ fn report(method: &str, outcome: &Outcome, elapsed: Duration) {
                 println!("      {reason}");
             }
         }
+        Outcome::Flaky { attempts, failures } => {
+            println!("      flaky: it passed on attempt {attempts}, having failed with:");
+            for reason in failures {
+                println!("      {reason}");
+            }
+        }
         Outcome::Exited(code) => println!("      the test called exit({code})"),
     }
 }
@@ -363,11 +456,12 @@ fn report(method: &str, outcome: &Outcome, elapsed: Duration) {
 fn json_document(cases: &[Case], counts: Counts, total: Duration) -> String {
     let mut out = String::from("{\n  \"schemaVersion\": 1,\n  \"summary\": {");
     out.push_str(&format!(
-        "\"total\": {}, \"passed\": {}, \"failed\": {}, \"skipped\": {}, \"durationMs\": {:.3}}},\n  \"tests\": [",
+        "\"total\": {}, \"passed\": {}, \"failed\": {}, \"skipped\": {}, \"flaky\": {}, \"durationMs\": {:.3}}},\n  \"tests\": [",
         counts.total(),
         counts.passed,
         counts.failed,
         counts.skipped,
+        counts.flaky,
         millis(total)
     ));
     for (at, case) in cases.iter().enumerate() {
@@ -385,7 +479,17 @@ fn json_document(cases: &[Case], counts: Counts, total: Duration) -> String {
                 out.push_str(", \"reason\": ");
                 json_string(reason, &mut out);
             }
-            Outcome::Failed(reasons) => {
+            // A flaky test carries the same `failures` array a failed one
+            // does — the last failed attempt's — plus the count that says it
+            // was retried at all. § 20's "never as green" is the `verdict`
+            // above; this is what a reader does about it.
+            Outcome::Failed(reasons)
+            | Outcome::Flaky {
+                failures: reasons, ..
+            } => {
+                if let Outcome::Flaky { attempts, .. } = &case.outcome {
+                    out.push_str(&format!(", \"attempts\": {attempts}"));
+                }
                 out.push_str(", \"failures\": [");
                 for (nth, reason) in reasons.iter().enumerate() {
                     if nth > 0 {
@@ -460,6 +564,22 @@ fn junit_document(cases: &[Case], counts: Counts, total: Duration) -> String {
                     out.push_str(">\n      <skipped message=\"");
                     xml_text(&case.outcome.message().unwrap_or_default(), &mut out);
                     out.push_str("\"/>\n    </testcase>\n");
+                }
+                // Jenkins' own spelling for exactly this: a `<flakyFailure>`
+                // reports the attempt that failed while leaving the test
+                // itself passing, so the suite's `failures` attribute does not
+                // count it and no CI system reads the run as red. There is no
+                // standard *attribute* for a flaky count, which is why the
+                // element is where this shows up at all.
+                Outcome::Flaky { attempts, failures } => {
+                    out.push_str(">\n      <flakyFailure message=\"");
+                    xml_text(&case.outcome.message().unwrap_or_default(), &mut out);
+                    out.push_str(&format!("\" attempts=\"{attempts}\">"));
+                    for reason in failures {
+                        xml_text(reason, &mut out);
+                        out.push('\n');
+                    }
+                    out.push_str("</flakyFailure>\n    </testcase>\n");
                 }
                 Outcome::Failed(_) | Outcome::Exited(_) => {
                     out.push_str(">\n      <failure message=\"");
