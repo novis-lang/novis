@@ -1206,18 +1206,32 @@
 > member name, and the agreement between a retrieved payload and a hand-written literal of the same
 > shape counted rather than read off a line;
 > `tests/conformance/reject/an-attribute-retrieval-is-refused-where-it-cannot-be-folded.nvst` pins
-> all four codes in one compile with the accepted `all<T>` spelling written first. What is left of
-> item 32 is one spelling and it is a *name-resolution* gap rather than this pass's:
-> `Foo::constructor(...)` on a class that writes no `constructor` is `E0309` from
-> `nvs_hir::members::check_member_ref`, even though ADR 0022 synthesizes one and § 4 leans on
-> exactly that ("this needs no new 'class as a value' token"). Widening `member_declared` outright
-> is the wrong fix — it would also admit a written `Foo::constructor()` call, which `nvs_types`
-> records no target for and `nvs-ir` then panics on — so the exemption has to be threaded from the
-> first-class-callable call site with a `nvs_types` refusal beside it, and both cases above
-> therefore declare a constructor. --- new-end Three live tools **are** the worklist and no session
-> re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen`
-> and attributes each to its item (`--item N` for one in full), `python tools/loop.py --list` prints
-> the named `.nvst` cases each stage still owes, and `python tools/check-migration.py` scores
+> all four codes in one compile with the accepted `all<T>` spelling written first. **Item 32 is
+> closed, and the last spelling was a name-resolution question rather than the retrieval pass's.**
+> ADR 0022 § 2 gives every class a constructor, definitely, so § 4's class target names one whose
+> body writes none — and `nvs_hir::members`' `StaticCall` arm exempts exactly that reference from
+> its undefined-member check. The guard is `CallArgs::FirstClassCallable` at the **call site**
+> rather than a flag threaded into `check_member_ref`, which cannot see an argument list at all; a
+> *written* `Foo::constructor()` on such a class resolves to no signature in `nvs_types` either, so
+> it would reach `nvs-ir` with no target recorded and panic there, and `E0309` is what keeps that a
+> diagnostic about the program. No second refusal is added beside it: a `nvs_types` code would draw
+> two codes for one mistake, and a conditional exemption leaves the one that already fires exactly
+> where it was. Both retrieval cases drop the `public function constructor() {}` they were written
+> around, with their expected output otherwise unchanged, which is the check that the exemption
+> reaches the shape the ADR writes;
+> `tests/conformance/reject/a-synthesized-constructor-is-referenced-and-not-called.nvst` pins the
+> boundary — the retrieval against a bodiless class accepted first, then the written call and the
+> ported `parent::constructor()` refused in source order. **ADR 0046 has the *Verification* section
+> M4's acceptance names for it**, written over the four cases that pin it rather than the one an ADR
+> usually owes: two run and two refuse, because a `.nvst` has one verdict and a compile that reports
+> a diagnostic runs nothing after it. It states the three things no case can assert — that *3*'s
+> repeatability is asserted by a count rather than off a line, that *6*'s explicit `<T>` needs no
+> case because every retrieval is written through it, and that "no runtime lookup exists" is
+> verified by a program running at all, `nvs_stdlib::attributes` registering two symbols whose body
+> aborts. Three live tools **are** the worklist and no session re-derives one: `python
+> tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen` and attributes each to
+> its item (`--item N` for one in full), `python tools/loop.py --list` prints the named `.nvst`
+> cases each stage still owes, and `python tools/check-migration.py` scores
 > `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
