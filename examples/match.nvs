@@ -26,8 +26,7 @@ array<int> $scores = [95, 83, 71, 40];
 int $count = Core\Arr::count($scores) as int;
 
 var $line = "";
-int $i = 0;
-for ($i = 0; $i < $count; $i += 1) {
+for (int $i = 0; $i < $count; $i += 1) {
     $line .= Grade::letter($scores[$i]);
 }
 

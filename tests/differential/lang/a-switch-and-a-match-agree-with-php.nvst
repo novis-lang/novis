@@ -3,8 +3,7 @@ Label order, fallthrough, a mid-list `default` and a `match`'s chosen arm all ma
 --FILE--
 <?nvs
 var $log = "";
-int $i = 0;
-for ($i = 0; $i < 4; $i += 1) {
+for (int $i = 0; $i < 4; $i += 1) {
     switch ($i) {
         case 0:
             $log .= "zero ";
@@ -45,8 +44,7 @@ echo "picked=", $picked, "|\n";
 // — see `nvs_ir::lower::Lowering::lower_switch` for why Novis takes the meaning
 // PHP's own warning points at.
 var $trace = "";
-int $n = 0;
-for ($n = 0; $n < 4; $n += 1) {
+for (int $n = 0; $n < 4; $n += 1) {
     switch ($n) {
         case 2:
             continue;
@@ -58,8 +56,7 @@ for ($n = 0; $n < 4; $n += 1) {
 echo "trace=", $trace, "|\n";
 
 var $labels = "";
-int $m = 0;
-for ($m = 0; $m < 5; $m += 1) {
+for (int $m = 0; $m < 5; $m += 1) {
     $labels .= match ($m) {
         0, 1 => "small ",
         3 => "three ",
