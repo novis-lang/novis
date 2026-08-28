@@ -49,11 +49,11 @@
 //! one process on one `Ctx` — which is also what a retry re-enters, class
 //! storage surviving between attempts where an isolate would not, and which is
 //! also why § 8's fixture is *shared* rather than copied into each test
-//! (`nvs_runtime::Fixtures`). § 9's data rows are not built, and a constructor
-//! that declares parameters is reported as that test failing rather than
-//! pretended past (`nvs_runtime::construct_and_call`): § 7 makes the
-//! constructor `setUp` and § 8 fills the test method's own parameters, which
-//! [`build_fixtures`] builds once per class. Class order is the roster's own sorted
+//! (`nvs_runtime::Fixtures`). A constructor that declares parameters is
+//! reported as that test failing rather than pretended past
+//! (`nvs_runtime::construct_and_call`): § 7 makes the constructor `setUp` and
+//! §§ 8-9 fill the test method's own parameters, which [`build_fixtures`]
+//! builds once per class and [`invocations`] materializes per row. Class order is the roster's own sorted
 //! order rather than § 20's declaration order: `ExprTypeTable::tests` is keyed
 //! by class label and records no sequence, so declaration order across a
 //! program's files is a fact only that table can grow. Within a class the
@@ -205,7 +205,8 @@ pub(crate) fn run(checked: &crate::Checked, format: Format) -> ExitCode {
         // is not rebuilt per test and not kept past the class that declared it.
         let mut fixtures = nvs_runtime::Fixtures::new();
         let unbuilt = build_fixtures(&unit, &mut ctx, class, checked, tests, &mut fixtures);
-        for case in tests {
+        for call in tests.iter().flat_map(invocations) {
+            let (case, label, row) = (call.case, call.label, call.row);
             let began = Instant::now();
             let outcome = match &unbuilt {
                 // A fixture that would not build is reported against every
@@ -216,7 +217,7 @@ pub(crate) fn run(checked: &crate::Checked, format: Format) -> ExitCode {
                 Some(FixtureFailure::Threw(message)) if !fixtures_needed(case).is_empty() => {
                     Outcome::Failed(vec![message.clone()])
                 }
-                _ => run_with_retries(&unit, &mut ctx, class, case, &fixtures),
+                _ => run_with_retries(&unit, &mut ctx, class, case, row, &fixtures),
             };
             let elapsed = began.elapsed();
             match &outcome {
@@ -226,14 +227,14 @@ pub(crate) fn run(checked: &crate::Checked, format: Format) -> ExitCode {
                 Outcome::Failed(_) | Outcome::Exited(_) => failed += 1,
             }
             if format == Format::Human {
-                report(&case.method, &outcome, elapsed);
+                report(&label, &outcome, elapsed);
             }
             if let Outcome::Exited(code) = outcome {
                 exited = Some(code);
             }
             cases.push(Case {
                 class: class.to_owned(),
-                method: case.method.clone(),
+                method: label,
                 outcome,
                 elapsed,
             });
@@ -305,14 +306,15 @@ fn run_with_retries(
     ctx: &mut nvs_runtime::Ctx,
     class: &str,
     case: &nvs_types::testing::TestCase,
+    row: Option<&[Option<ConstArg>]>,
     fixtures: &nvs_runtime::Fixtures,
 ) -> Outcome {
-    let mut failures = match run_case(unit, ctx, class, case, fixtures) {
+    let mut failures = match run_case(unit, ctx, class, case, row, fixtures) {
         Outcome::Failed(failures) => failures,
         settled => return settled,
     };
     for retry in 0..retry_allowance(case) {
-        match run_case(unit, ctx, class, case, fixtures) {
+        match run_case(unit, ctx, class, case, row, fixtures) {
             Outcome::Passed => {
                 return Outcome::Flaky {
                     attempts: retry + 2,
@@ -447,42 +449,55 @@ fn run_case(
     ctx: &mut nvs_runtime::Ctx,
     class: &str,
     case: &nvs_types::testing::TestCase,
+    row: Option<&[Option<ConstArg>]>,
     fixtures: &nvs_runtime::Fixtures,
 ) -> Outcome {
     if let Some(reason) = skip_reason(case) {
         return Outcome::Skipped(reason);
     }
-    // § 9's data rows are resolved and folded by the checker
-    // (`nvs_types::testing::TestCase::rows`) and are not yet materialized into
-    // the call: running one per row is the next slice. Reported loudly rather
-    // than called with a hole in its argument list, which is the one thing
-    // this must not do.
-    if case
-        .params
-        .iter()
-        .any(|source| matches!(source, nvs_types::testing::Injection::Row))
-    {
-        return Outcome::Failed(vec![format!(
-            "`{class}::{}` is filled by a `#[TestWith]` data row: ADR 0079 § 9's rows are \
-             compile-checked but not yet run",
-            case.method
-        )]);
-    }
-    // § 8's injection: one value per declared parameter, in the order the
+    // §§ 8-9's injection: one value per declared parameter, in the order the
     // checker resolved them (`nvs_types::testing::TestCase::params`), so
-    // nothing here re-derives which fixture answers which parameter. The
-    // values are borrowed from the set that owns them — the call retains its
-    // own, exactly as any other call on a value this frame holds does.
+    // nothing here re-derives which fixture answers which parameter or which
+    // field answered which name. A fixture's value is borrowed from the set
+    // that owns it and a row's from the one materialized just below — the call
+    // retains its own either way, exactly as any other call on a value this
+    // frame holds does.
     let needed: Vec<String> = fixtures_needed(case)
         .into_iter()
         .map(str::to_owned)
         .collect();
-    let Some(args) = fixtures.values(&needed) else {
+    let Some(built) = fixtures.values(&needed) else {
         return Outcome::Failed(vec![format!(
             "internal error: `{class}::{}` asks for a `#[Fixture]` that was not built",
             case.method
         )]);
     };
+    // Dropped when this call is over and not before: it holds the one
+    // reference each materialized value carries, and the call only borrows
+    // them (`nvs_runtime::RowValues`).
+    let mut materialized = nvs_runtime::RowValues::new();
+    let mut built = built.into_iter();
+    let mut args = Vec::with_capacity(case.params.len());
+    for (position, source) in case.params.iter().enumerate() {
+        let value = match source {
+            nvs_types::testing::Injection::Fixture(_) => built.next(),
+            nvs_types::testing::Injection::Row => row
+                .and_then(|row| row.get(position))
+                .and_then(Option::as_ref)
+                .and_then(|constant| materialize(&mut materialized, constant)),
+        };
+        let Some(value) = value else {
+            // An internal inconsistency either way: the checker filled every
+            // parameter from one roster or the other and refused the
+            // declaration outright where it could not (`E0736`), so a hole
+            // here is this runner disagreeing with the table it was handed.
+            return Outcome::Failed(vec![format!(
+                "internal error: `{class}::{}` has no value for parameter {position}",
+                case.method
+            )]);
+        };
+        args.push(value);
+    }
     let Some(outcome) = unit.call_on_new_instance(ctx, class, &case.method, &args) else {
         return Outcome::Failed(vec![format!(
             "internal error: the compiled unit declares no class `{class}`"
@@ -524,6 +539,68 @@ fn run_case(
         ]);
     }
     Outcome::Passed
+}
+
+/// The calls one `#[Test]` method makes — ADR 0079 § 9's "each row is its own
+/// reported case".
+///
+/// A method with no `#[TestWith]` row is § 1's single call under its own name.
+/// A method with rows is one call per row, in the source order the checker
+/// recorded them, each labelled `method#N` — a **label** rather than a field
+/// beside the name, so the plaintext mark, the JSON object and the JUnit
+/// element tell two rows apart without any of the three growing a rendering of
+/// its own, exactly as they read one verdict rather than deciding one each.
+///
+/// A `skip:`ped method is expanded too and reports one skipped case per row:
+/// what § 20 skips is a *test*, and each row is one.
+fn invocations(case: &nvs_types::testing::TestCase) -> Vec<Invocation<'_>> {
+    if case.rows.is_empty() {
+        return vec![Invocation {
+            case,
+            label: case.method.clone(),
+            row: None,
+        }];
+    }
+    case.rows
+        .iter()
+        .enumerate()
+        .map(|(index, row)| Invocation {
+            case,
+            label: format!("{}#{index}", case.method),
+            row: Some(row.as_slice()),
+        })
+        .collect()
+}
+
+/// One call [`invocations`] hands back: the method to run, the label it is
+/// reported under, and the row it is filled from — `None` for the § 1 method
+/// that has none.
+struct Invocation<'a> {
+    case: &'a nvs_types::testing::TestCase,
+    label: String,
+    row: Option<&'a [Option<ConstArg>]>,
+}
+
+/// One folded row field as the value the call takes, owned by `row`.
+///
+/// The roster is exactly what `nvs_types::defaults::literal_default` folds a
+/// row field to — the four scalars and a `string` — because § 9 matches a
+/// field against its parameter's *declared* type, and that is the closed list
+/// of literals such a parameter can be declared at. Anything else answers
+/// `None` and is reported as the internal inconsistency it would be, rather
+/// than materialized as something plausible.
+fn materialize(
+    row: &mut nvs_runtime::RowValues,
+    constant: &ConstArg,
+) -> Option<nvs_runtime::Value> {
+    Some(match constant {
+        ConstArg::Bool(value) => row.bool(*value),
+        ConstArg::Int(value) => row.int(*value),
+        ConstArg::Uint(value) => row.uint(*value),
+        ConstArg::Float(value) => row.float(*value),
+        ConstArg::Str(text) => row.str(text),
+        _ => return None,
+    })
 }
 
 /// The `#[Fixture]` methods `case` asks for, in parameter order.

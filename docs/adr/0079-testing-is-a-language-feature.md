@@ -421,6 +421,15 @@ than in the order the fields happen to be written, because that is the order the
 `nvs_types::testing::TestCase::rows` is what that is recorded as, and `Injection` beside it is which of the
 two sources answers each position.
 
+**Each row is its own reported case**, which the runner spells as one call per row under the label
+`method#N`, in the order the rows are written — a label rather than a field beside the name, so § 22's
+three formats tell two rows apart without any of them growing a rendering of its own. A `skip:` is
+therefore stated once per row, a row being a test; and a row that fails is reported alone, which is the
+whole of what "separately reported" buys over one case that stops at the first row. The row's constants
+are materialized where the call is made and released when it returns (`nvs_runtime::RowValues`, a
+per-call owner beside `Fixtures`' per-class one), so no two cases share a value — the *isolation* half of
+this section's sentence is § 2's isolate and waits on M5 exactly as § 8's shared fixture does.
+
 ### 10. A double is a shape of closures, structurally checked against an interface
 
 PHPUnit builds a mock by generating class source and `eval`-ing it. [0052](0052-closed-doors.md) closed

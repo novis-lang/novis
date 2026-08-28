@@ -449,6 +449,89 @@ impl Drop for Fixtures {
     }
 }
 
+/// [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md) § 9's
+/// data row, materialized into the values one call takes.
+///
+/// It sits beside [`Fixtures`] for that type's own reason: a row's `string` is
+/// a fresh allocation somebody has to release, `nvs-cli` forbids `unsafe`
+/// outright, and a released [`Value`] has no safe spelling. So the runner asks
+/// for a constant by the shape the checker folded it to and is handed back a
+/// [`Value`] it may pass but never owns.
+///
+/// Where `Fixtures` is a **per-class** owner, this is a **per-call** one, and
+/// that is § 9's own rule rather than a convenience: each row is its own case,
+/// so its values are built where the call is made and released when it
+/// returns, and no two cases ever share one. A row holds only the constants
+/// `nvs_types::defaults::literal_default` folds — the four scalars and a
+/// `string` — which is why there is one method per shape and no general
+/// [`Value`] way in: the one reference each carries is this type's, and a
+/// caller that could hand one over could hand over a second.
+///
+/// The values are **borrowed** by the call, exactly as a built fixture is:
+/// [`call_at`] retains what it passes, so the callee releases its own
+/// reference and this set still holds the one it made.
+#[derive(Debug, Default)]
+pub struct RowValues {
+    built: Vec<Value>,
+}
+
+impl RowValues {
+    /// An empty row — one call's worth, filled as the argument list is built.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// `nvs_types::ConstArg::Bool`.
+    pub fn bool(&mut self, value: bool) -> Value {
+        self.keep(Value::bool(value))
+    }
+
+    /// `nvs_types::ConstArg::Int`.
+    pub fn int(&mut self, value: i64) -> Value {
+        self.keep(Value::int(value))
+    }
+
+    /// `nvs_types::ConstArg::Uint`.
+    pub fn uint(&mut self, value: u64) -> Value {
+        self.keep(Value::uint(value))
+    }
+
+    /// `nvs_types::ConstArg::Float`.
+    pub fn float(&mut self, value: f64) -> Value {
+        self.keep(Value::float(value))
+    }
+
+    /// `nvs_types::ConstArg::Str`, already cooked by the checker — one fresh
+    /// allocation per call, which is what a written string literal costs at
+    /// its own site too (`nvs-codegen`'s known gap 4).
+    pub fn str(&mut self, text: &str) -> Value {
+        self.keep(Value::str(crate::string::NvsStr::new(text.as_bytes())))
+    }
+
+    /// Records the one reference `value` carries and hands back a borrow of
+    /// it — the single place this set takes ownership, so the count it keeps
+    /// and the count [`Drop`] releases cannot disagree.
+    fn keep(&mut self, value: Value) -> Value {
+        self.built.push(value);
+        value
+    }
+}
+
+impl Drop for RowValues {
+    fn drop(&mut self) {
+        #[expect(
+            unsafe_code,
+            reason = "this row holds exactly one reference per materialized                       value, made here, and the call that borrowed them has                       returned"
+        )]
+        unsafe {
+            for value in self.built.drain(..) {
+                value.release();
+            }
+        }
+    }
+}
+
 /// [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md) § 20's
 /// one test: a fresh instance of `class`, its `method` called on that instance
 /// with `args` — § 8's fixtures, in the order the checker resolved them — and
