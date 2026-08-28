@@ -1309,6 +1309,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvs-render"
+version = "0.0.1"
+dependencies = [
+ "nvs-syntax",
+]
+
+[[package]]
 name = "nvs-runtime"
 version = "0.0.1"
 dependencies = [
@@ -1331,6 +1338,7 @@ dependencies = [
  "hmac",
  "jiff",
  "md-5",
+ "nvs-render",
  "nvs-runtime",
  "nvs-syntax",
  "nvs-test",
