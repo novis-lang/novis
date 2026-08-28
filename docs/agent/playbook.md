@@ -1751,6 +1751,17 @@ is why" — is this file.
   *type*'s ends, `i64::MAX` and `i64::MIN`, where `addressed`'s count-back-from-the-end could
   wrap into range, and that is two echo lines appended to the case that already owns the
   boundary rather than a new file duplicating it.
+- **An enum declares its cases without the `case` keyword, and a map literal uses `=>`.**
+  `enum Level: int { Off = 0, On = 1, }` — writing PHP's `case Off = 0;` is `E0220` plus an
+  `E0101` per case, eight diagnostics for a four-line declaration, and none of them names the
+  spelling that works (`tests/conformance/enum/an-enum-carries-negative-and-zero-cases.nvst` is
+  the shortest example). `["a" => "1"]` is the map literal; `["a": "1"]` is the shape-literal
+  syntax and dies at the colon. Both are two seconds in a scratch file and ten minutes if a
+  written case is where you find out. In the same family, and the one worth knowing on its own:
+  **an enum case behind a `mixed` reads *falsy* in a condition when its backing integer is `0`**,
+  because ADR 0047 § 5 spends no representation on hiding it and the runtime table dispatches on
+  the tag — while the same case behind its declared type is truthy, which is what ADR 0035 § 4
+  actually decided. Do not assert the erased row as if it were the ADR's answer.
 
 ## Splitting a file that got too big
 

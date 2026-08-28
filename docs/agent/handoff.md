@@ -2,56 +2,56 @@
 
 ## State
 
-**M4's Stage 8, depth.** The tree is at **782 conformance plus 189 differential**. `python
-tools/gaps.py --coverage` ranks by the median cases per member; `Core\Bytes` left the frontier
-this session (median 2 → 3, floor 2 → 3 across `at`, `compare` and `contains`). The thinnest
-class is now `Core\Test` (median 2.0, floor 2), then `Core\Regex\Match` (2.5, floor 1).
-Nothing is blocked.
+**M4's Stage 8, depth.** The tree is at **785 conformance plus 189 differential**. `python
+tools/gaps.py --coverage` ranks by the median cases per member; `Core\Test` left the frontier
+this session (median 2.0 → 3.0), and its floor of 2 is now `assertThrows` alone. The thinnest
+class is now `Core\Regex\Match` (median 2.5, floor 1). Nothing is blocked.
 
-- **`Core\Bytes::at`'s bound was already pinned on both sides** when this session opened it —
-  see the playbook bullet added under *Writing a test case*. What it was genuinely missing was
-  the index *type*'s two ends, so `bytes-reads-name-the-octet-they-stop-at.nvst` gained two
-  rows: `i64::MAX` addresses nothing, and `i64::MIN` cannot be added to the length at all
-  (`bytes.rs:386`'s `checked_add`), and both refuse rather than wrapping back into range. The
-  low one is computed as `0 - $most - 1` because a literal past `int` is a different refusal
-  that would hide this one.
-- **`bytes-compare-is-str-compare-over-octets-and-a-total-order.nvst`** asks an eight-entry
-  table, written in ascending byte order, four questions by counting: every pair agrees with
-  `Core\Str::compare` over the same octets (64), every pair answers the sign of its two indices
-  with equality only on the diagonal (64, 8 equal), swapping the arguments negates the answer
-  (64), and `<=` is transitive over every triple (512). The table carries the empty buffer, a
-  proper-prefix chain, and `"ß"` — 0xc3 0x9f, which sorts *after* `"z"` only if the octets are
-  read unsigned. A fifth block orders 0x00 and 0xff, which no `string` can name.
-- **`bytes-contains-agrees-with-index-of-over-every-needle.nvst`** sweeps all 78 substrings of
-  `"abracadabra"` (both degenerate lengths included) and the same 78 with an octet the subject
-  does not hold appended: `contains` and `indexOf` agree about presence on all 156, every
-  substring is located at or before the offset it was cut from (the repeated `"abra"` run is
-  what makes that a question), and a needle longer than the subject is never contained. 0x00
-  is an ordinary needle, where a C-string search would stop at it.
+- **`test-assert-null-refuses-every-value-that-is-not-null.nvst`** separates ADR 0035 § 2's
+  falsy table from "is null" by running both sweeps and counting: nine falsy-but-not-null
+  subjects (both integer zeroes, both float zeroes, `""`, `"0"`, `false`, `[]`, an enum case
+  backed by `0`) all *fail*, six truthy ones fail identically, three spellings of `null` hold,
+  and all eighteen agree with `assertSame($x, null)`. The last block pins what the report cannot
+  say: `int` 0, `uint` 0, `0.0` and the enum case all render as `0`.
+- **`test-assert-count-agrees-with-arr-count-over-every-length.nvst`** asks a five-length by
+  six-expectation grid, so `held` falls on the diagonal and nowhere else — which is the bound
+  asserted on both sides once per length. Duplicates, a string-keyed map and a nested
+  `array<array<string>>` all count entries; an `unset` moves the expectation that holds; and
+  `18446744073709551615` is an ordinary failure with both sides named.
+- **`test-assert-does-not-throw-quotes-the-throw-it-caught.nvst`** quotes four throw shapes (a
+  throw three frames down, an empty message, `/ 0`'s `ArithmeticError`, and a failed assertion's
+  own report), then pins the half a report cannot show: the propagated class is
+  `Core\Test\Failure` and not the body's — the two `catch` clauses are ordered so the body's
+  `RuntimeError` would bind first if it were being passed through — and the next two assertions
+  hold rather than inheriting the pending throw. A six-body table then agrees with a hand-written
+  `try` around the same `callable`.
 
 ## Next group
 
-**`Core\Test`'s floor: `assertNull`, `assertCount` and `assertDoesNotThrow`** — the file set is
-`crates/nvs-stdlib/src/test.rs` plus `tests/conformance/core/`. All three sit at two cases and
-the class is the thinnest on disk. Read the three registry rows together at `test.rs:165`,
-`:172` and `:190` before taking the first: they share the pass/fail reporting path, so one case
-per member can reuse the same rendering helper, and `held`/`failed` at `test.rs:341` and `:523`
-are where the two outcomes are actually produced.
+**`Core\Regex\Match`'s floor: `offset`, `groups` and `group`** — the file set is
+`crates/nvs-stdlib/src/regex.rs` plus `tests/conformance/core/`. The three registry rows are
+together at `regex.rs:310`, `:317` and `:324`, and the class's own slot list is at `:338`, so
+read those five lines once before taking the first slice: all three members read the same two
+slots off the same instance, which is why one file set covers the group.
 
-- [ ] **`assertNull`'s edges, on both sides of "is null"** (`crates/nvs-stdlib/src/test.rs:165`
-      the row, `:339` the implementation) — a `mixed` parameter, so the interesting rows are the
-      values that are *not* null but are falsy or empty (`0`, `""`, `false`, `[]`, an enum case
-      backed by `0` — ADR 0035 § 4), each of which must fail rather than pass, counted.
-- [ ] **`assertCount` agrees with `Core\Arr::count` over a swept table** (`test.rs:172`, `:365`)
-      — every array shape the class can build, asserted by counting agreements rather than read
-      off a line, with the empty array and an off-by-one expectation each way included.
-- [ ] **`assertDoesNotThrow` reports the throw it caught** (`test.rs:190`, `:505`) — a callback
-      that returns, one that throws, and what the failure detail names; `Fault::` at the site
-      decides whether the case can render the outcome inline.
+- [ ] **`offset`'s edges** (`regex.rs:324` the row, `:985` the implementation) — it sits at one
+      case, the fewest of any member on disk. A match at offset 0, a match at the very end of the
+      subject, an empty match, and a multi-byte subject are the boundaries: whether the number is
+      octets or characters is the question a single case never asks.
+- [ ] **`groups` is the whole capture list, counted** (`regex.rs:317`, `:966`) — a pattern with
+      no groups, one with an unmatched optional group, and one with more groups than the subject
+      filled; sweep a table and count rather than reading one line.
+- [ ] **`group` agrees with `groups` over every key** (`regex.rs:310`, `:929`, and `group_key`
+      just above it) — an agreement case: every index and every name `groups` answers, asked of
+      `group`, plus the key that names nothing.
 
 ## Backlog
 
-- `Core\Regex\Match` is the next thinnest at median 2.5 with a floor of 1 (`offset` 1) — `python tools/gaps.py --coverage`.
+- **An enum case erased to `mixed` reads falsy in a condition when it is backed by `0`**, which
+  ADR 0035 § 2's own table row and § 4 say is truthy — the tag is all the runtime helper has, and
+  ADR 0047 § 5 is why. Unpinned either way; ADR 0035's M3 verification bullet names this exact
+  row. Owner: `docs/adr/0035-truthy-boolean-context.md` § 4.
+- `Core\Test::assertThrows` is the class's remaining floor at two cases — `python tools/gaps.py --coverage`.
 - `Core\Uri::buildQuery`, `::compareTo` and `Core\Regex::quote`/`::replaceWith` each sit at one case — same tool.
 - 54 of the 156 guard tests `loop-goal.toml` names still match nothing `cargo test` runs — `docs/agent/guard-name-debt.md`.
 - ADR 0028 § 2's abandoned-generator `finally` is pre-authorized and unlanded — `docs/agent/loop-goal.md`.
