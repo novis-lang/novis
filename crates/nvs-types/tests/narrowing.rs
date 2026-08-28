@@ -1,4 +1,4 @@
-//! Narrowing a nullable local through `!== null` — `nvs_types::locals`'
+//! Narrowing a local through `!= null` or `instanceof` — `nvs_types::locals`'
 //! narrowing section owns the rule, this is what holds it.
 //!
 //! The refusals here are as load-bearing as the acceptances: `nvs-ir` turns a
@@ -136,6 +136,110 @@ fn a_nullable_scalar_and_a_nullable_array_both_narrow() {
          }\n  }\n}\n",
     );
     assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// ADR 0007 § 6's first narrowing form, over the shape every other case here
+/// is written on: the class the test names has no `null` in it, so proving it
+/// removes `E_NULLABLE_RECEIVER` exactly as `!= null` does.
+#[test]
+fn an_instanceof_test_narrows_its_subject() {
+    let diags = check_with_node("if ($n instanceof Node) {\n  echo $n->label();\n}\n");
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// The asymmetry with `null_test`: `$n instanceof Node` being *false* leaves
+/// every other thing the declared type can hold, `null` among them, so the
+/// `else` branch has proved nothing to install.
+#[test]
+fn an_instanceof_proves_nothing_on_its_false_edge() {
+    let diags = check_with_node(
+        "if ($n instanceof Node) {\n  echo \"yes\";\n} else {\n  echo $n->label();\n}\n",
+    );
+    assert!(refuses_nullable_receiver(&diags), "{diags:?}");
+}
+
+/// A `!` inverts which edge proves the class rather than removing it, which is
+/// the guard clause a ported program writes.
+#[test]
+fn an_instanceof_guard_clause_narrows_the_rest_of_the_block() {
+    let diags = check_with_node("if (!($n instanceof Node)) {\n  return;\n}\necho $n->label();\n");
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// A write drops an `instanceof` narrowing exactly as it drops a `!= null`
+/// one — [`LocalScope::overwrite`] does not care which test installed it.
+#[test]
+fn a_write_inside_an_instanceof_block_widens_it_again() {
+    let diags =
+        check_with_node("if ($n instanceof Node) {\n  $n = null;\n  echo $n->label();\n}\n");
+    assert!(refuses_nullable_receiver(&diags), "{diags:?}");
+}
+
+/// The residue is restricted to a class, so an **interface** on the right
+/// narrows nothing — `nvs_types::locals`' `instanceof_residue` owns why, and
+/// this is the refusal that keeps it from being loosened by accident.
+#[test]
+fn an_instanceof_against_an_interface_narrows_nothing() {
+    let diags = check_src(
+        "<?nvs\ninterface Labelled {\n  function label(): string;\n}\n\
+         class Node implements Labelled {\n  function label(): string { return \"n\"; }\n}\n\
+         class T {\n  function m(?Node $n): void {\n    \
+         if ($n instanceof Labelled) {\n      echo $n->label();\n    }\n  }\n}\n",
+    );
+    assert!(refuses_nullable_receiver(&diags), "{diags:?}");
+}
+
+/// Wraps `body` in a method taking a `"read"|"write"`, the shape ADR 0047 § 4's
+/// guard row is about, and declares a `"read"`-typed local it can only be
+/// assigned to where the comparison narrowed it.
+fn check_with_mode(body: &str) -> Diagnostics {
+    check_src(&format!(
+        "<?nvs\nclass T {{\n  function m(\"read\"|\"write\" $mode): void {{\n{body}\n  }}\n}}\n"
+    ))
+}
+
+fn refuses_mismatch(diags: &Diagnostics) -> bool {
+    diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH))
+}
+
+/// ADR 0047 § 4's guard row, and the `!=` spelling of the same edge.
+#[test]
+fn a_comparison_against_a_literal_narrows_its_subject() {
+    let eq = check_with_mode("if ($mode == \"read\") {\n  \"read\" $only = $mode;\n}\n");
+    assert!(!eq.has_errors(), "{eq:?}");
+    let ne = check_with_mode("if ($mode != \"read\") {\n  return;\n}\n\"read\" $only = $mode;\n");
+    assert!(!ne.has_errors(), "{ne:?}");
+}
+
+/// The edge the comparison does *not* prove keeps the declared union — the
+/// asymmetry `!= null` does not have, because a literal names one value out of
+/// several rather than the one value the other edge is.
+#[test]
+fn a_comparison_proves_nothing_on_the_edge_it_does_not_hold() {
+    let diags = check_with_mode(
+        "if ($mode == \"read\") {\n  echo \"r\";\n} else {\n  \"read\" $only = $mode;\n}\n",
+    );
+    assert!(refuses_mismatch(&diags), "{diags:?}");
+}
+
+/// The residue must be a subtype of what the local was declared: this is a
+/// guard reaching one member of a union, never a re-declaration.
+#[test]
+fn a_comparison_the_declared_type_does_not_admit_narrows_nothing() {
+    let diags = check_src(
+        "<?nvs\nclass T {\n  function m(string $s): void {\n    \
+         if ($s == \"read\") {\n      1 $one = $s;\n    }\n  }\n}\n",
+    );
+    assert!(refuses_mismatch(&diags), "{diags:?}");
+}
+
+/// A write drops it, exactly as it drops the other two tests' narrowings.
+#[test]
+fn a_write_inside_a_literal_narrowed_block_widens_it_again() {
+    let diags = check_with_mode(
+        "if ($mode == \"read\") {\n  $mode = \"write\";\n  \"read\" $only = $mode;\n}\n",
+    );
+    assert!(refuses_mismatch(&diags), "{diags:?}");
 }
 
 /// A `foreach` binding is a write like any other, so reusing the narrowed

@@ -417,9 +417,10 @@ pub enum ExprInfo {
     /// Recorded only where the narrowing actually changed the answer, so a
     /// read of an ordinary non-nullable binding carries no entry at all.
     NarrowedRead {
-        /// What the test proved — the declared union with `null` dropped, and
-        /// exactly the type [`crate::locals::LocalScope::declared_ty`]
-        /// answered this read with.
+        /// What the test proved — the declared union with `null` dropped, or
+        /// the class an `instanceof` named, and in either case exactly the
+        /// type [`crate::locals::LocalScope::declared_ty`] answered this read
+        /// with.
         to: TypeId,
     },
     /// `$a ?? $b`, keyed by the whole binary expression's own span.

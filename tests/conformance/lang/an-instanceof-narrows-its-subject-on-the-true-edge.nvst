@@ -1,0 +1,105 @@
+--TEST--
+`instanceof` narrows its subject to the class it names, on the edge where the test holds — ADR 0007 § 6
+--FILE--
+<?nvs
+// ADR 0007 § 6 names `instanceof` as the first of the four narrowing forms,
+// and makes it flow-sensitive and branch-local.
+
+interface Speaks {
+    public function speak(): string;
+}
+
+class Dog implements Speaks {
+    public string $name = "rex";
+    public function speak(): string { return "woof"; }
+}
+
+class Puppy extends Dog {
+    public function speak(): string { return "yip"; }
+}
+
+class Cat {
+    public function speak(): string { return "meow"; }
+}
+
+class Ask {
+    // The guard-clause spelling a ported program writes: a `!` inverts which
+    // edge proves the class rather than removing it.
+    public static function guarded(mixed $v): string {
+        if (!($v instanceof Dog)) {
+            return "none";
+        }
+        return $v->speak();
+    }
+}
+
+// A `mixed` subject is one tagged slot, narrowed to the class the test named.
+mixed $m = new Dog();
+if ($m instanceof Dog) {
+    echo "member=", $m->speak(), " property=", $m->name, "\n";
+}
+
+// The value is a subclass; the narrowed type is the class that was written.
+mixed $p = new Puppy();
+if ($p instanceof Dog) {
+    echo "subclass=", $p->speak(), "\n";
+}
+
+// A `?T` subject: the class it proves has no `null` in it, so the narrowing
+// drops that too.
+?Dog $maybe = new Dog();
+if ($maybe instanceof Dog) {
+    echo "nullable=", $maybe->speak(), "\n";
+}
+
+// The false edge proves nothing at all — a subject that is still `?Dog` there,
+// and still `null`, is the observable half of that.
+?Dog $absent = null;
+if ($absent instanceof Dog) {
+    echo "unreachable\n";
+} else {
+    echo "else=", ($absent == null) ? "still nullable" : "narrowed", "\n";
+}
+
+echo "guard=", Ask::guarded(new Dog()), " ", Ask::guarded(new Cat()), "\n";
+
+// A `while` condition narrows its own body, being re-tested before every entry.
+mixed $w = new Puppy();
+while ($w instanceof Dog) {
+    echo "loop=", $w->speak(), "\n";
+    $w = "stopped";
+}
+echo "after=", $w, "\n";
+
+// A write inside the branch drops the narrowing, so the declared type is what
+// the reads after it answer with.
+?Dog $written = new Dog();
+if ($written instanceof Dog) {
+    echo "before=", $written->speak(), "\n";
+    $written = null;
+    echo "rewritten=", ($written == null) ? "null again" : "still a dog", "\n";
+}
+
+// Agreement rather than another line of the same shape: the narrowed read and
+// `as Dog` over the same value answer the same thing, counted.
+int $agreed = 0;
+mixed $one = new Dog();
+mixed $two = new Puppy();
+if ($one instanceof Dog) {
+    if ($one->speak() == ($one as Dog)->speak()) { $agreed = $agreed + 1; }
+}
+if ($two instanceof Dog) {
+    if ($two->speak() == ($two as Dog)->speak()) { $agreed = $agreed + 1; }
+}
+echo "agreed=", $agreed, "/2\n";
+--EXPECT--
+member=woof property=rex
+subclass=yip
+nullable=woof
+else=still nullable
+guard=woof none
+loop=yip
+after=stopped
+before=woof
+rewritten=null again
+agreed=2/2

@@ -26,14 +26,17 @@
 //! explicitly forbids for a reference and, by the same reasoning, for a
 //! plain local too.
 //!
-//! # Narrowing a nullable local through `!== null`
+//! # Narrowing a local through `!= null`, `instanceof` or a literal
 //!
 //! [`narrow`] is the third piece of state this walk threads, and the only
 //! one that is *not* cloned at a branch point: [`LocalScope::narrowed`] is a
 //! single forward-walked map from a name to the type it provably holds on
-//! the path being checked right now. A `!== null`/`=== null` test over a
-//! plain variable installs one entry for the branch it proves, and the
-//! branch's end restores what was there before — **unless a write already
+//! the path being checked right now. A `!= null`/`== null` test over a
+//! plain variable, an `instanceof` one over the same, or a comparison of one
+//! against a written literal, installs one entry for the branch it proves —
+//! the latter two on the edge where the test holds alone, ADR 0007 § 6's
+//! `instanceof` row and ADR 0047 § 4's guard row — and the branch's end
+//! restores what was there before — **unless a write already
 //! removed it**, in which case the write wins and nothing is put back (see
 //! [`Narrowing`], which records what it installed so it can tell the two
 //! apart).
@@ -60,7 +63,13 @@
 //! [`narrow`] for the restriction that used to sit here, and for what lifted
 //! it: the narrowing is recorded on the variable read's own span
 //! ([`crate::expr_table::ExprInfo::NarrowedRead`]) and `nvs-ir` discharges it
-//! once, where the value is produced, rather than at each consumer.
+//! once, where the value is produced, rather than at each consumer. **An
+//! `instanceof` narrows to the class it names**, which is the same discharge
+//! one type wider — a `mixed` or a union subject is one `Ty::Tagged` slot, and
+//! the proved class is exactly what the `Untag` relabels it to. **A literal
+//! comparison narrows to the literal's own type**, which costs nothing below
+//! the checker at all: ADR 0047 § 5 gives a literal type its base type's
+//! representation exactly, so the read is the same one either way.
 //!
 //! **Known gaps**, beyond the ones `crate` docs already name: a `switch`
 //! case that silently falls through to the next one (no explicit `break`/
@@ -80,12 +89,14 @@
 //! is why `nvs_ir::lower::stmt`'s dispatch does not carry an arm for it.
 
 use nvs_diagnostics::{Diagnostic, Span, code};
+use nvs_hir::SymbolKind;
 use nvs_syntax::ast::{DestructureElement, DestructureTarget, Expr, ExprKind, Stmt, StmtKind};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::expr::{
-    check_array_key_type, check_condition, check_expr, check_expr_stmt, check_return,
-    check_unset_target, is_assignable, report_mismatch, require_stringable,
+    can_hold_an_object, check_array_key_type, check_condition, check_expr, check_expr_stmt,
+    check_return, check_unset_target, int_literal_digits, is_assignable, report_mismatch,
+    require_stringable,
 };
 use crate::expr_table::ExprInfo;
 use crate::lower::{lower_optional_type, lower_type};
@@ -315,9 +326,16 @@ fn null_test(cond: &Expr) -> Option<(Span, bool)> {
 /// Installs the narrowing `cond` proves on the branch where it evaluates to
 /// `when`, and hands back what that branch's end has to restore.
 ///
-/// **The general rule, and nothing narrower: drop `null`, keep the rest.**
-/// That is what ADR 0066's body describes, and every residue takes it — a
-/// class, an `array<T>`, a scalar, or a union of them.
+/// Three tests install one, and they are tried in that order because no two of
+/// them match one condition. **A `!= null` test drops `null` and keeps the
+/// rest** — ADR 0066's body's own rule, and every residue takes it: a class, an
+/// `array<T>`, a scalar, or a union of them. **An `instanceof` test proves the
+/// class it names, on its true edge only** — ADR 0007 § 6's first narrowing
+/// form; see [`instanceof_residue`] for why the false edge proves nothing and
+/// why the residue is a class rather than every name that test accepts. **A
+/// comparison against a written literal proves that literal's own type** —
+/// ADR 0047 § 4's guard row, and [`literal_residue`] owns which spellings
+/// reach it.
 ///
 /// This used to be restricted to a single-class residue, because `nvs-ir`
 /// lowers a `?T` local's slot as [`Ty::Tagged`](nvs_ir::ty::Ty) whatever the
@@ -329,22 +347,197 @@ fn null_test(cond: &Expr) -> Option<(Span, bool)> {
 /// so a subscript base, a `foreach` subject, an array-write root and an
 /// argument all see the narrow representation with no site left to forget.
 fn narrow(cond: &Expr, when: bool, scope: &LocalScope, env: &mut Env<'_>) -> Narrowing {
-    let Some((name_span, non_null_when_true)) = null_test(cond) else {
+    let residue = match null_residue(cond, when, scope, env) {
+        Some(found) => Some(found),
+        None => match instanceof_residue(cond, when, scope, env) {
+            Some(found) => Some(found),
+            None => literal_residue(cond, when, scope, env),
+        },
+    };
+    let Some((name, residue)) = residue else {
         return Narrowing::default();
     };
-    if non_null_when_true != when {
-        return Narrowing::default();
-    }
-    let name = strip_sigil(span_text(env.src, name_span)).to_owned();
-    let Some(current) = scope.declared_ty(&name) else {
-        return Narrowing::default();
-    };
-    let residue = env.interner.without_null(current);
-    if residue == current {
-        return Narrowing::default();
-    }
     let previous = scope.narrowed.borrow_mut().insert(name.clone(), residue);
     Narrowing(vec![(name, residue, previous)])
+}
+
+/// The local a `!= null` test narrows on the branch where it evaluates to
+/// `when`, and what it leaves.
+fn null_residue(
+    cond: &Expr,
+    when: bool,
+    scope: &LocalScope,
+    env: &mut Env<'_>,
+) -> Option<(String, TypeId)> {
+    let (name_span, non_null_when_true) = null_test(cond)?;
+    if non_null_when_true != when {
+        return None;
+    }
+    let name = strip_sigil(span_text(env.src, name_span)).to_owned();
+    let current = scope.declared_ty(&name)?;
+    let residue = env.interner.without_null(current);
+    (residue != current).then_some((name, residue))
+}
+
+/// The local an `instanceof` test narrows on the branch where it evaluates to
+/// `when`, and the class it proves.
+///
+/// **Only the edge where the test holds proves anything**: `$x instanceof Foo`
+/// being *false* leaves the declared type untouched — every other class it
+/// could hold, and `null` besides, is still in it. That is the asymmetry with
+/// [`null_residue`], where both edges name a type. A `!` flips which branch
+/// that is rather than removing it, so the guard clause a ported program
+/// writes — `if (!($x instanceof Foo)) { return; }` — narrows everything after
+/// it, exactly as the `== null` spelling already did.
+///
+/// **The residue is restricted to a class**, and deliberately not widened to
+/// every name `instanceof` accepts. It has to be a type `nvs-ir` can erase to
+/// one pointer, because a narrowed read of a [`Ty::Tagged`](nvs_ir::ty::Ty)
+/// slot is discharged as an unchecked `nvs_ir::ir::InstKind::Untag` — so a
+/// declared class and one of the reserved global exception classes narrow,
+/// while an **interface** does not: ADR 0053 § 2's `Iterable`/`Iterator` take
+/// type arguments this test does not supply, and interning one without them
+/// would name a different type than the annotation does. `$x instanceof
+/// Comparable` therefore proves a `bool` and narrows nothing, which is a limit
+/// of this pass rather than a rule about the language.
+///
+/// The class comes from `crate::expr_table::ExprInfo::InstanceOf`, recorded by
+/// [`crate::expr::members::infer_instanceof`] when the condition was checked a
+/// moment earlier, rather than resolved a second time here: a name is placed
+/// by the namespace and the imports of the site that wrote it, and this walk
+/// carries neither.
+fn instanceof_residue(
+    cond: &Expr,
+    when: bool,
+    scope: &LocalScope,
+    env: &mut Env<'_>,
+) -> Option<(String, TypeId)> {
+    let (name_span, test_span, proved_when) = instanceof_test(cond)?;
+    if proved_when != when {
+        return None;
+    }
+    let name = strip_sigil(span_text(env.src, name_span)).to_owned();
+    let current = scope.declared_ty(&name)?;
+    // A declared type that can hold no object at all has already been reported
+    // (`code::E_INSTANCEOF_SUBJECT_NOT_OBJECT`); narrowing it as well would
+    // hand `nvs-ir` a class where the slot holds a scalar.
+    if !can_hold_an_object(current, env.interner) {
+        return None;
+    }
+    let Some(ExprInfo::InstanceOf { class }) = env.exprs.lookup(test_span) else {
+        return None;
+    };
+    let class = class.clone();
+    let is_class = matches!(env.symbols.get(&class), Some(sym) if sym.kind == SymbolKind::Class)
+        || class.is_reserved_global_class();
+    if !is_class {
+        return None;
+    }
+    let residue = env.interner.class(class);
+    (residue != current).then_some((name, residue))
+}
+
+/// The `$x instanceof Name` test `cond` is, if it is one at all: the tested
+/// variable's name span, the whole test's own span — which is the key
+/// `crate::expr_table::ExprInfo::InstanceOf` was recorded under — and whether
+/// the class is proved when the condition *holds*, which a `!` inverts.
+fn instanceof_test(cond: &Expr) -> Option<(Span, Span, bool)> {
+    match &cond.kind {
+        ExprKind::Paren(inner) => instanceof_test(inner),
+        ExprKind::Unary {
+            op: nvs_syntax::ast::UnaryOp::Not,
+            expr: inner,
+        } => instanceof_test(inner).map(|(name, test, proved)| (name, test, !proved)),
+        ExprKind::InstanceOf { expr, .. } => match &expr.kind {
+            ExprKind::Variable(span) => Some((*span, cond.span, true)),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// The local a comparison against a written literal narrows on the branch
+/// where it evaluates to `when`, and the literal type it proves.
+///
+/// [ADR 0047](../../../docs/adr/0047-literal-and-enum-case-types.md) § 4's own
+/// row: a wider literal union reaches a narrower one through a guard, and `==`
+/// is that guard's simplest spelling. `==` proves the literal where it holds
+/// and `!=` where it does not, which is the same edge written two ways.
+///
+/// The type is built from the literal's **text** rather than from what the
+/// condition inferred a moment ago, because an operand's inferred type is not
+/// recorded anywhere and re-inferring one would report its escape-grammar
+/// diagnostics a second time. That is also the whole of why the roster is
+/// closed at a string and an integer literal: those two cook to a value with
+/// no context at all, while an enum case (`$m == Mode::Read`) needs the
+/// namespace and the imports of the site that wrote it and reaches
+/// `crate::expr_table::ExprInfo::EnumCase`, which carries the case's backing
+/// value rather than its type. That spelling narrows nothing yet, which is a
+/// limit of this pass rather than a rule about the language.
+///
+/// The residue has to be a **subtype of what the local was declared**, so a
+/// comparison the declared type does not admit narrows nothing — it is a guard
+/// reaching one member of a union, never a re-declaration.
+fn literal_residue(
+    cond: &Expr,
+    when: bool,
+    scope: &LocalScope,
+    env: &mut Env<'_>,
+) -> Option<(String, TypeId)> {
+    let (name_span, literal, proved_when) = literal_test(cond)?;
+    if proved_when != when {
+        return None;
+    }
+    let name = strip_sigil(span_text(env.src, name_span)).to_owned();
+    let current = scope.declared_ty(&name)?;
+    let residue = match &literal.kind {
+        ExprKind::Str(span) => {
+            let value = crate::string_lit::cook_string_literal(env.src, *span);
+            env.interner.string_literal(value)
+        }
+        ExprKind::Int(span) => {
+            let (radix, digits) = int_literal_digits(env.src, *span);
+            env.interner
+                .int_literal(i64::from_str_radix(&digits, radix).ok()?)
+        }
+        _ => return None,
+    };
+    if residue == current {
+        return None;
+    }
+    is_assignable(residue, current, env.interner, env.graph, env.signatures)
+        .then_some((name, residue))
+}
+
+/// The `$x == <literal>` test `cond` is, if it is one at all: the tested
+/// variable's name span, the literal operand, and whether the literal is
+/// proved when the condition *holds* — which `!=` inverts, and a `!` inverts
+/// again.
+///
+/// Either operand may be the variable: ADR 0090 § 1 leaves one equality
+/// operator and it is symmetric, so `"read" == $mode` is the same test.
+fn literal_test(cond: &Expr) -> Option<(Span, &Expr, bool)> {
+    match &cond.kind {
+        ExprKind::Paren(inner) => literal_test(inner),
+        ExprKind::Unary {
+            op: nvs_syntax::ast::UnaryOp::Not,
+            expr: inner,
+        } => literal_test(inner).map(|(name, lit, proved)| (name, lit, !proved)),
+        ExprKind::Binary { op, lhs, rhs }
+            if matches!(
+                op,
+                nvs_syntax::ast::BinaryOp::Eq | nvs_syntax::ast::BinaryOp::NotEq
+            ) =>
+        {
+            let proved = *op == nvs_syntax::ast::BinaryOp::Eq;
+            match (&lhs.kind, &rhs.kind) {
+                (ExprKind::Variable(span), _) => Some((*span, rhs, proved)),
+                (_, ExprKind::Variable(span)) => Some((*span, lhs, proved)),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
 }
 
 /// A set of narrowings [`suspend`] moved out of reach for a loop body, to be

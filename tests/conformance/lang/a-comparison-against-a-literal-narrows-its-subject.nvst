@@ -1,0 +1,68 @@
+--TEST--
+A comparison against a written literal narrows its subject to that literal's own type — ADR 0047 § 4
+--FILE--
+<?nvs
+// ADR 0047 § 4's guard row: a wider literal union reaches a narrower one
+// through a guard, and `==` is that guard's simplest spelling. Every `$only`
+// below is declared at the *narrow* type, so it compiles only where the
+// comparison proved it.
+
+class Mode {
+    public static function eq("read"|"write" $mode): string {
+        if ($mode == "read") {
+            "read" $only = $mode;
+            return $only;
+        }
+        return "wide";
+    }
+
+    // `!=` is the same guard written the other way round: it proves the
+    // literal on the edge where the condition does *not* hold.
+    public static function ne("read"|"write" $mode): string {
+        if ($mode != "read") {
+            return "wide";
+        }
+        "read" $only = $mode;
+        return $only;
+    }
+
+    // One equality operator, and it is symmetric (ADR 0090 § 1).
+    public static function symmetric("read"|"write" $mode): string {
+        if ("write" == $mode) {
+            "write" $only = $mode;
+            return $only;
+        }
+        return "wide";
+    }
+
+    // An integer literal union takes the same guard.
+    public static function level(1|2 $n): int {
+        if ($n == 1) {
+            1 $one = $n;
+            return $one;
+        }
+        return 0;
+    }
+
+    // A write drops the narrowing exactly as it drops a `!= null` one, so the
+    // declared union is what the read after it answers with.
+    public static function rewritten("read"|"write" $mode): string {
+        if ($mode == "read") {
+            $mode = "write";
+            return $mode;
+        }
+        return "wide";
+    }
+}
+
+echo "eq=", Mode::eq("read"), " ", Mode::eq("write"), "\n";
+echo "ne=", Mode::ne("read"), " ", Mode::ne("write"), "\n";
+echo "symmetric=", Mode::symmetric("write"), " ", Mode::symmetric("read"), "\n";
+echo "int=", Mode::level(1), " ", Mode::level(2), "\n";
+echo "rewritten=", Mode::rewritten("read"), " ", Mode::rewritten("write"), "\n";
+--EXPECT--
+eq=read wide
+ne=read wide
+symmetric=write wide
+int=1 0
+rewritten=write wide

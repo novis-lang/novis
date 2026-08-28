@@ -281,7 +281,12 @@ pub(super) fn infer_instanceof(
 /// else — `mixed`, `object`, a class, a shape, a `callable`, an `Iterable`, a
 /// type variable, an intersection — keeps the run-time test, so a type this
 /// pass has not thought about is never refused by accident.
-fn can_hold_an_object(ty: TypeId, interner: &TypeInterner) -> bool {
+///
+/// `crate::locals::instanceof_residue` asks it a second time, for the opposite
+/// reason: a subject this answers `false` for has already been reported, and
+/// narrowing it as well would hand `nvs-ir` a class where the slot holds a
+/// scalar.
+pub(crate) fn can_hold_an_object(ty: TypeId, interner: &TypeInterner) -> bool {
     match interner.get(ty) {
         Ty::Null
         | Ty::Bool
