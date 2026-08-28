@@ -11,9 +11,12 @@
 //! * `nvs run` (M3) — all of the above, then compile and execute. Its two
 //!   dump flags stop one stage earlier and print instead of running:
 //!   `--dump-ir` after lowering, `--dump-asm` after code generation.
-//! * `nvs test` (M4) — run a tree of `.nvst` conformance cases. The format,
-//!   and every decision behind it, is [`nvs_test`]'s own module doc; this
-//!   crate contributes only the argument parsing and the exit code.
+//! * `nvs test` (M4) — run a tree of `.nvst` conformance cases, or a program's
+//!   own `#[Test]` methods. ADR 0079 § 23 keeps the two formats apart and puts
+//!   them under one subcommand; which is meant is read off the path. The
+//!   `.nvst` format, and every decision behind it, is [`nvs_test`]'s own
+//!   module doc, and this crate contributes only the argument parsing and the
+//!   exit code; the `#[Test]` half is [`runner`].
 //! * `nvs info` — build, host and third-party licensing facts, PHP's
 //!   `php -i` in shape and in purpose. Also spelled `nvs -i`, since that is
 //!   the spelling anyone arriving from PHP will try first; see [`info`].
@@ -47,6 +50,7 @@ use nvs_diagnostics::{Diagnostics, Renderer, SourceMap};
 use nvs_syntax::{check_declarations, parse_file};
 
 mod info;
+mod runner;
 
 #[derive(ClapParser)]
 #[command(
@@ -107,10 +111,18 @@ enum Command {
         #[arg(long, value_name = "SITE")]
         fault_inject: Option<FaultSiteArg>,
     },
-    /// Run `.nvst` conformance cases.
+    /// Run a program's `#[Test]` methods, or a tree of `.nvst` conformance
+    /// cases.
     ///
-    /// Each path is either one case file or a directory walked for `*.nvst`.
-    /// Exits non-zero if any case failed; a skipped case is not a failure.
+    /// ADR 0079 § 23: one subcommand runs both, because they answer different
+    /// questions about the same tree, and which one is meant is read off the
+    /// path — a `.nvs`/`.php` file is a program whose compiled test table is
+    /// run (§ 1), anything else is a `.nvst` case file or a directory walked
+    /// for `*.nvst`. The two are not mixed in one invocation: they report
+    /// differently and share no summary.
+    ///
+    /// Exits non-zero if any case or any test failed; a skipped one is not a
+    /// failure.
     Test {
         /// The case files and directories to run.
         #[arg(required = true)]
@@ -479,6 +491,20 @@ fn run_run(
 /// why a subprocess rather than an in-process compile — so a debug build
 /// tests itself and a release build tests itself, with nothing to configure.
 fn run_test(paths: &[PathBuf], filter: Option<String>, php: PathBuf) -> ExitCode {
+    // ADR 0079 § 23's "`nvs test` runs both", decided by the path rather than
+    // by a flag: a program is a `.nvs`/`.php` file and a conformance case is
+    // not, so nothing has to be spelled out at the call site.
+    if paths.iter().any(|path| is_program(path)) {
+        let [path] = paths else {
+            eprintln!("error: a program's `#[Test]` methods and `.nvst` cases are run separately");
+            return ExitCode::FAILURE;
+        };
+        return match front_end(path) {
+            Ok(checked) => runner::run(&checked),
+            Err(code) => code,
+        };
+    }
+
     let mut options = match nvs_test::Options::from_current_exe() {
         Ok(options) => options,
         Err(error) => {
@@ -498,6 +524,14 @@ fn run_test(paths: &[PathBuf], filter: Option<String>, php: PathBuf) -> ExitCode
             ExitCode::FAILURE
         }
     }
+}
+
+/// Whether `path` names an Novis **program** rather than a `.nvst` case tree —
+/// the two spellings `nvs run` itself accepts, and no directory, since a
+/// directory of programs has no entry point to check.
+fn is_program(path: &std::path::Path) -> bool {
+    path.extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("nvs") || ext.eq_ignore_ascii_case("php"))
 }
 
 fn render_diagnostics(diags: &mut Diagnostics, map: &SourceMap) {

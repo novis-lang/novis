@@ -327,6 +327,42 @@ impl Unit {
         ))
     }
 
+    /// Constructs the class labelled `class` and calls its `method` on the
+    /// fresh instance — [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
+    /// § 20's one test, run from outside compiled code.
+    ///
+    /// `None` when this unit declares no such class, which is an internal
+    /// inconsistency for a runner whose roster (`nvs_types::ExprTypeTable::tests`)
+    /// came out of the same compile — the label is the same string both tables
+    /// are keyed by. Everything past that is
+    /// [`nvs_runtime::construct_and_call`]'s, including which statuses mean the
+    /// test failed.
+    ///
+    /// This is where the descriptor's liveness is *provable* rather than
+    /// promised, which is why the entry point is here and not in `nvs-cli`:
+    /// the table is owned by `self`, so the pointer is live for the borrow.
+    ///
+    /// # Errors
+    ///
+    /// [`nvs_runtime::construct_and_call`]'s status, with its message left on
+    /// `ctx`.
+    pub fn call_on_new_instance(
+        &self,
+        ctx: &mut nvs_runtime::Ctx,
+        class: &str,
+        method: &str,
+    ) -> Option<Result<(), i32>> {
+        let desc = self.classes.desc(self.classes.id_of(class)?);
+        #[expect(
+            unsafe_code,
+            reason = "the descriptor came out of the table this unit owns, so \
+                      it is live for the whole of this borrow — and for the \
+                      call, `ctx` holding a shared handle on the same table \
+                      through `install_in`"
+        )]
+        Some(unsafe { nvs_runtime::construct_and_call(ctx, desc, method) })
+    }
+
     /// Hands `ctx` this unit's class table. **Every embedder calls this before
     /// running any of the unit's code**, whether or not it cares about `catch`.
     ///

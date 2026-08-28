@@ -322,6 +322,116 @@ pub(crate) fn call_unwind(
     })
 }
 
+/// [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md) § 20's
+/// one test: a fresh instance of `class`, its `method` called on that instance
+/// with no arguments and no result, and the instance released.
+///
+/// **One instance per call** is the whole of what a runner buys from this
+/// entry point — § 2's isolation begins at "no test observes another's
+/// receiver", and an instance shared across two methods would lose that before
+/// the isolates that finish it exist. The constructor is § 7's `setUp` and is
+/// run where the class declares one; a class that declares none carries no
+/// `constructor` row at all (`nvs_ir` lowers such a `new` with no target), so
+/// the allocation and its armed defaults are the whole of construction.
+///
+/// The status is answered rather than a [`Fault`], because there is no helper
+/// frame around this call to translate one: the runner is the outermost caller
+/// and `ctx` is where the detail is left, exactly as [`crate::abi::call`]
+/// leaves it for `nvs run`.
+///
+/// # Errors
+///
+/// The status of whichever call failed, with its message on `ctx`:
+///
+/// - [`crate::THROWN`] when the constructor or the method threw, which is the
+///   test failing — a failed assertion arrives here as ADR 0079 § 5's
+///   `Core\Test\Failure` like any other throw;
+/// - [`crate::THROWN`] for a constructor that declares parameters, which
+///   §§ 8-9's `#[Fixture]` injection is what will supply and nothing does yet.
+///   A throw rather than a [`crate::FATAL`]: it is a limit of this runner, so
+///   the suite reports that test and carries on;
+/// - [`crate::FATAL`] when the class declares no such method, which is an
+///   internal inconsistency for a roster that came out of the same compile;
+/// - [`crate::EXITED`] when the test called `exit`.
+///
+/// # Safety
+///
+/// `class` must refer to a live descriptor whose method table `nvs-codegen`
+/// has already filled.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+pub unsafe fn construct_and_call(
+    ctx: &mut Ctx,
+    class: *const ClassDesc,
+    method: &str,
+) -> Result<(), i32> {
+    #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
+    let desc = unsafe { &*class };
+    let receiver = match desc.method_row(crate::object::CONSTRUCTOR) {
+        Some(row) if row.arity > 0 => {
+            return Err(crate::abi::record_fault(
+                ctx,
+                Fault::thrown(format!(
+                    "`{}`'s constructor declares {} parameter(s), and this runner supplies \
+                     none: ADR 0079 §§ 8-9's `#[Fixture]` injection is not built yet",
+                    desc.name(),
+                    row.arity
+                )),
+            ));
+        }
+        Some(_) => {
+            #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
+            match unsafe { crate::object::construct(ctx, class, &[]) } {
+                Ok(value) => value,
+                Err(fault) => return Err(crate::abi::record_fault(ctx, fault)),
+            }
+        }
+        // No `constructor` row at all: ADR 0022 § 2 gives such a class nothing
+        // to run, so the allocation with its armed defaults *is* the instance.
+        None => {
+            #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
+            let object = unsafe { NvsObj::new(class) };
+            Value::object(object)
+        }
+    };
+
+    let outcome = call_method(ctx, receiver, method, &[], "the test runner");
+    #[expect(
+        unsafe_code,
+        reason = "this frame holds the one reference construction handed it; \
+                  `call_method` retained its own for the callee to release"
+    )]
+    unsafe {
+        receiver.release();
+    }
+    match outcome {
+        // A `#[Test]` method returns `void` (`code::E_TEST_METHOD_SHAPE`), so
+        // the value is `null` — released anyway rather than trusting that
+        // check from here, this being the runtime and not the checker.
+        Ok(Some(value)) => {
+            #[expect(
+                unsafe_code,
+                reason = "a returned value is a fresh reference this frame owns \
+                          and nothing else will read"
+            )]
+            unsafe {
+                value.release();
+            }
+            Ok(())
+        }
+        Ok(None) => Err(crate::abi::record_fault(
+            ctx,
+            Fault::fatal(format!(
+                "internal error: `{}` declares no `{method}()` for the test runner to call",
+                desc.name()
+            )),
+        )),
+        Err(fault) => Err(crate::abi::record_fault(ctx, fault)),
+    }
+}
+
 /// Calls a member on `receiver` at the address [`method_address`] answered,
 /// with `args` past the receiver, returning whatever it produced.
 ///

@@ -257,11 +257,28 @@ where
             }
             OK
         }
-        Ok(Err(Fault::Thrown(class, message))) => {
+        Ok(Err(fault)) => record_fault(ctx, fault),
+        Err(payload) => {
+            ctx.set_pending(panic_message(&*payload));
+            FATAL
+        }
+    }
+}
+
+/// Records `fault` on `ctx` and answers the status it becomes.
+///
+/// [`run_helper`]'s own translation, extracted because a second caller reaches
+/// it from outside the helper ABI: [`crate::dispatch::construct_and_call`],
+/// which runs compiled code with no helper frame around it and still owes the
+/// context the same record. Two copies of this match would be two answers to
+/// "what did a `Fault::Fatal` leave behind".
+pub(crate) fn record_fault(ctx: &mut Ctx, fault: Fault) -> i32 {
+    match fault {
+        Fault::Thrown(class, message) => {
             ctx.set_pending_as(class, message);
             THROWN
         }
-        Ok(Err(Fault::ThrownWithIssues(class, message, issues))) => {
+        Fault::ThrownWithIssues(class, message, issues) => {
             #[expect(
                 unsafe_code,
                 reason = "the helper body transferred this reference, and \
@@ -273,17 +290,13 @@ where
             }
             THROWN
         }
-        Ok(Err(Fault::Fatal(message))) => {
+        Fault::Fatal(message) => {
             ctx.set_pending(message);
             FATAL
         }
         // Nothing to record: the callee that failed already did, and this
         // frame has nothing of its own to add — see `Fault::Pending`.
-        Ok(Err(Fault::Pending(status))) => status,
-        Err(payload) => {
-            ctx.set_pending(panic_message(&*payload));
-            FATAL
-        }
+        Fault::Pending(status) => status,
     }
 }
 
