@@ -1550,13 +1550,57 @@
 > `tests/conformance/core/an-assertion-compares-its-subject-against-its-expectation.nvst` pins the
 > scalar and `array<T>` rows agreeing under two members, the object row parting three ways, the
 > `{message: …}` bag in front of the report, both diff paths, the redaction, and the count of
-> refusals over the whole file rather than a line read off each. Three live tools **are** the
-> worklist and no session re-derives one: `python tools/holes.py` reads the refusal sites out of
-> `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item N` for one in full), `python
-> tools/loop.py --list` prints the named `.nvst` cases each stage still owes — one, now that the
-> retrieval and the dump cases are named for the files that landed, and it is Stage 7's `#[Test]`
-> table case, which item 43 writes and nothing before it can — and `python tools/check-migration.py`
-> scores `docs/spec/02-php-migration.md`.
+> refusals over the whole file rather than a line read off each. **ADR 0079 § 5's failure class
+> exists, and it is a row of the exception tree rather than a registry entry.** `Core\Test\Failure`
+> is `nvs_hir::errors::TREE`'s eighth entry, a direct child of the root — § 5 makes it "an ordinary
+> `Throwable`", and a failed assertion is neither "the world said no" nor one of `RuntimeError`'s
+> narrower readings — which is what buys it, with no case anywhere above that table, the root's four
+> properties, the inherited constructor spec § 10 declares, a slot layout, a `catch` clause that
+> matches it by name, and `new Core\Test\Failure("…")` in the composite-assertion shape § 5's own
+> worked example writes. It is the tree's **one namespaced entry**, and what makes it
+> trusted-to-exist without a source declaration is `QName::is_core` — the reserved `Core` namespace
+> (ADR 0011 § 2) — rather than `is_reserved_global_class`, which stays single-segment because every
+> site already tests the two together; that is why nothing but the table itself changed to admit it.
+> `nvs_runtime::ThrownClass::TestFailure` is the roster half a helper names it by, and
+> `nvs_stdlib::test::failed` — the one throw site the whole assertion surface funnels through —
+> raises `Fault::thrown_as` with it, so one line names the class for all three members. **The ledger
+> § 5 exists to abolish the silently-passing test with is built with it.** It is a field on
+> `nvs_runtime::Ctx`, which is where per-test state a program cannot reach has to live, and there is
+> deliberately **no `Core` member that reads it**: one answering "how many assertions failed" would
+> hand the test back the very eraser this section takes away. Every assertion records an outcome on
+> every edge — `nvs_stdlib::test`'s `held` and `failed` are the two writers — and the failing one
+> records **before** the `Fault` is handed back, which is what leaves no edge on which the throw
+> exists and the record does not. The passing ones are recorded too, and not as bookkeeping: § 20's
+> "a test that asserts nothing fails" is a question about how many entries a test produced, and a
+> ledger of failures alone cannot answer it; an entry costs one `&'static str` and no allocation.
+> `Core\Test::expectFailure(callable)` is § 5's one greppable spelling for "this failure was on
+> purpose" and the only way an entry ever leaves the ledger, and three decisions in it follow from
+> the ledger being the record and the throw being control flow: the question asked is what the
+> **ledger** says rather than what class came back, so a body that caught its own failure has still
+> failed — which is that silently-passing test seen from the other side; a body in which nothing
+> failed is itself a failure, recorded and raised through the same site, so a `catch` around
+> `expectFailure` cannot erase it either; and only the failures in the body's own range are
+> discharged, a passing assertion beside them having really run. The known gap is stated at the
+> member rather than implied: a body that swallowed a failed assertion and *then* raised something
+> else has the second throw consumed here too, telling them apart wanting the pending exception's
+> descriptor rather than the ledger. Nothing reads the ledger yet — the runner is later in Stage 7 —
+> so `expect_failure_discharges_only_the_failures_inside_its_own_body` asserts the discharge's two
+> bounds in `nvs-runtime`, and the two `.nvst` cases assert what a program can see:
+> `a-failed-assertion-is-caught-by-name.nvst` over the name catch, the root catch, all three members
+> landing in one class, `instanceof Throwable`, and § 5's worked composite assertion re-raising a
+> constructed one, and `a-failure-consumed-on-purpose-is-spelled-expect-failure.nvst` over the
+> discharged body, the refused one, the swallowed-and-still-failed one, every member's failure being
+> expectable, a nested pair whose inner call consumes the only failure, and the passing assertion
+> the discharge leaves alone — each counting its agreements rather than reading one off a line. ADR
+> 0079 § 5 gains the enforcement paragraph rather than being left to name passes that do not make
+> this. Valgrind-clean over a fixture that discharges, refuses and catches with a freshly built
+> `string` operand on each edge two hundred times. Three live tools **are** the worklist and no
+> session re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and
+> `nvs-codegen` and attributes each to its item (`--item N` for one in full), `python tools/loop.py
+> --list` prints the named `.nvst` cases each stage still owes — one, now that the retrieval and the
+> dump cases are named for the files that landed, and it is Stage 7's `#[Test]` table case, which
+> item 43 writes and nothing before it can — and `python tools/check-migration.py` scores
+> `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

@@ -2,68 +2,61 @@
 
 ## State
 
-**M4's Stage 7 is under way: ADR 0079 § 1 is closed but for its parameter
-bullet, and § 4's assertion surface is registered and runs.** `#[Test]` is
-recognized, its payload checked, its table built, and four of § 1's five compile
-errors made. `Core\Test` now has a `CoreClass` row (`nvs_stdlib::test`), so
-`Test::assertEquals` resolves in a body — the attribute and the assertion class
-are the same `QName` and one `use Core\Test;` places both.
+**M4's Stage 7 is under way: ADR 0079 §§ 1, 4 and 5 are closed but for § 1's
+parameter bullet, and the runner is what is left.** `#[Test]` is recognized and
+its table built, `Core\Test`'s three equality members run, and a failed
+assertion now throws the named `Core\Test\Failure` *and* records a ledger entry
+`nvs_runtime::Ctx` holds and no `Core` member reads back.
 
-- **Nothing reads the `#[Test]` table yet.** `ExprTypeTable::tests(label)`
-  (`crates/nvs-types/src/expr_table.rs:779`) and `test_classes()` are the
-  accessors and the runner is what will call them, so the rows are asserted in
-  `crates/nvs-types/tests/testing.rs` rather than by a `.nvst`. Stage 8's named
+- **`Core\Test\Failure` is a row of `nvs_hir::errors::TREE`**, the tree's one
+  namespaced entry, so a `catch` by name, `new`, `instanceof Throwable` and the
+  inherited constructor all fell out of the table rather than out of new cases.
+  `QName::is_core` is what makes it trusted-to-exist;
+  `is_reserved_global_class` stays single-segment on purpose.
+- **Nothing reads the ledger yet**, which is `nvs_stdlib::test`'s known gap 2:
+  `Ctx::take_assertions` is the accessor and the runner is what will call it, so
+  § 20's zero-assertion rule is owed rather than broken. Stage 8's named
   `a-test-attribute-builds-a-table-the-runner-reports.nvst` still waits on that
   runner and is the one named case `python tools/loop.py --list` reports missing.
-- **A failed assertion is a throw and nothing more.** ADR 0079 § 5's ledger does
-  not exist, so `try { … } catch (Throwable $t) {}` around an assertion still
-  hides it — the silently-passing test that section exists to abolish. That, the
-  `Core\Test\Failure` class and `Core\Test::expectFailure(callable)` are the next
-  slice; `nvs_stdlib::test`'s known gap 2 is its one home.
-- § 4's roster is the three equality members only. The
+- § 4's roster is still the three equality members only. The
   `assertTrue`/`assertNull`/`assertCount`/`assertThrows` that section's example
-  also writes are the same shape and are owed.
+  also writes are the same shape and are owed —
+  `nvs_stdlib::test`'s known gap 3.
 - § 1's remaining compile error — a `#[Test]` parameter no `#[Fixture]` supplies
   and no data row fills — is not decidable in `nvs_types::testing` at all and
   belongs with §§ 8-9.
-- The conformance corpus is at **728**.
+- The conformance corpus is at **730**.
 
 ## Next group
 
-**ADR 0079 § 5's ledger, then the runner.** New file set, and it is a crate
-further down than § 4's was: `crates/nvs-runtime/src/ctx.rs:210` (`Ctx`, which is
-where per-test state a program cannot reach has to live),
-`crates/nvs-runtime/src/throwable.rs:92` (`ThrownClass`, spec § 10's tree),
-`crates/nvs-types/src/error_lib.rs` (what seeds a catchable class name), and
-`crates/nvs-stdlib/src/test.rs` (`failed`, the one site every failure goes
-through) with `docs/adr/0079-testing-is-a-language-feature.md` §§ 5, 20, 22.
+**The runner, §§ 20 and 22.** It is the reader every landed half is waiting
+for, and its file set is the two this session left in hand plus the CLI:
+`crates/nvs-types/src/expr_table.rs:779` (`ExprTypeTable::tests(label)` and
+`test_classes()`, the rows nothing calls),
+`crates/nvs-runtime/src/ctx.rs` (`Ctx::take_assertions`, the ledger's one
+reader-to-be, beside `record_assertion`), `crates/nvs-stdlib/src/test.rs` and
+`crates/nvs-cli/src/` with ADR 0079 §§ 20, 22.
 
-- [ ] **`Core\Test\Failure` is a named catchable class** (ADR 0079 § 5) — the
-      example catches it by name, so it needs a `ThrownClass` variant
-      (`throwable.rs:92`) and a seeding in `nvs_types::error_lib` beside spec
-      § 10's tree, and `nvs_stdlib::test::failed` (`test.rs`, the one throw site)
-      raises `Fault::thrown_as` with it instead of the bare `Fault::thrown` it
-      raises today.
-- [ ] **The ledger the catch cannot erase** (ADR 0079 § 5) — every assertion
-      records its outcome on `Ctx` (`ctx.rs:210`, beside the pending-exception
-      state at `:779`/`:906`, which is deliberately *not* what the runner reads),
-      plus `Core\Test::expectFailure(callable)` as the one greppable spelling
-      that consumes a failure on purpose and removes its entry. `call_closure` is
-      how a `Core` member runs a `callable`.
-- [ ] **The runner** (ADR 0079 §§ 20, 22) — what reads
-      `ExprTypeTable::tests`/`test_classes` (`expr_table.rs:779`), reports in
-      declaration order, and reads the *ledger* rather than the exception state
-      at the end of each test. This is what unblocks Stage 8's named
-      `a-test-attribute-builds-a-table-the-runner-reports.nvst`.
+- [ ] **The runner constructs each `#[Test]` class and calls its methods**
+      (ADR 0079 § 20) — declaration order, no arguments, no result, one
+      instance per test method; `ExprTypeTable::tests` is the roster and
+      `nvs-cli` is where a subcommand can reach both it and a `Ctx`.
+- [ ] **A test's verdict is read off the ledger, not the exception state**
+      (ADR 0079 § 5) — `Ctx::take_assertions` between tests, so a `catch`
+      around an assertion still reports FAILED, and a test that produced no
+      entry at all fails under § 20's zero-assertion rule.
+- [ ] **`a-test-attribute-builds-a-table-the-runner-reports.nvst`** (ADR 0079
+      §§ 1, 20) — Stage 8's one named case still missing, and the first thing
+      that can observe a `#[Test]` row or its order at all.
 
 ## Backlog
 
-- § 4's other assertions (`assertTrue`, `assertNull`, `assertCount`,
-  `assertThrows`) — `docs/adr/0079-testing-is-a-language-feature.md` § 4.
-- `assertEquals` on a non-`Comparable` object should be refused where it is
-  written — ADR 0079 § 4, and `nvs_stdlib::test`'s known gap 1.
-- A `require` whose path is not a string literal runs nothing, silently, in both
-  forms — `nvs_hir::requires`' own known gap.
-- ADR 0033's container axis: a `secret` inside an `array<T>` or an ADR 0036 shape
-  field carries no bit — `nvs_stdlib::debug`'s known gap 1.
-- `Core\Uuid` has no `bytes` round trip — `nvs_stdlib::uuid`'s known gap 1.
+- `assertTrue`/`assertNull`/`assertCount`/`assertThrows` — `nvs_stdlib::test`
+  known gap 3, ADR 0079 § 4.
+- A non-`Comparable` object under `assertEquals` is a throw where the ADR
+  refuses the program — `nvs_stdlib::test` known gap 1.
+- A `#[Test]` parameter no `#[Fixture]` supplies — ADR 0079 §§ 8-9.
+- A `require` whose path is not a string literal runs nothing, silently —
+  `nvs_hir::requires` known gap.
+- ADR 0092 § 6's `Throwable` record producer — `nvs_stdlib::debug`'s own note.
+- A shape literal's field carries no `secret` bit — `nvs_stdlib::debug` gap 1.
