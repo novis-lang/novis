@@ -93,8 +93,8 @@ python tools/loop.py --leg-only           # the Linux leg alone, when that is al
 **D. If a lexer/parser-adjacent crate moved:**
 
 ```sh
-wsl.exe -- bash -lc "cd /mnt/d/nvs && cargo +nightly fuzz run lex -- -max_total_time=300"
-wsl.exe -- bash -lc "cd /mnt/d/nvs && cargo +nightly fuzz run parse -- -max_total_time=300"
+wsl.exe -- bash -lc "cd /mnt/<drive>/<repo> && cargo +nightly fuzz run lex -- -max_total_time=300"
+wsl.exe -- bash -lc "cd /mnt/<drive>/<repo> && cargo +nightly fuzz run parse -- -max_total_time=300"
 ```
 
 **E. If the JIT backend moved,** refresh the callgrind instruction counts per

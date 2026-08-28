@@ -333,7 +333,7 @@ if C: is what is short). `~/.claude/projects/` keeps one JSONL per session forev
 `cargo-fuzz` (the `fuzz/` crate) needs libFuzzer, and `valgrind`/`callgrind`
 ([ADR 0026](../adr/0026-performance-measurement-methodology.md)) has no native Windows build at all — do
 both in WSL. From a Windows shell, `wsl.exe -- bash -lc "<command>"` runs a command in the default WSL
-distro, which mounts the repo at `/mnt/d/nvs`. What that distro must have installed — and why PHP goes in
+distro, which mounts the repo at `/mnt/<drive>/<repo>`. What that distro must have installed — and why PHP goes in
 it as well, at the same version as the Windows one — is [docs/setup.md](../setup.md).
 
 **Build from `/mnt/d`; do not clone into the distro to "fix" the 9p mount.** Per file operation 9p is
@@ -349,7 +349,7 @@ again on the next call, so a target directory in `/tmp` is gone after any idle g
 pays 32s of cold build instead of 0.31s. Nothing ages `/var/tmp` out — Ubuntu 24.04 ships its
 `q /var/tmp` line commented out.
 
-From `/mnt/d/nvs` (not `fuzz/` itself — cargo-fuzz expects the parent directory):
+From `/mnt/<drive>/<repo>` (not `fuzz/` itself — cargo-fuzz expects the parent directory):
 `cargo +nightly fuzz run lex -- -max_total_time=300` (and `parse` likewise). CI's `fuzz-smoke` job runs both
 for 60s on every push.
 
@@ -357,7 +357,7 @@ For the instruction-count leg: `cargo build --release -p nvs-abi-probe --example
 `valgrind --tool=callgrind --callgrind-out-file=/tmp/cg.out ./target/release/examples/callgrind_spike`.
 
 **A hand-written refcount protocol is where a leak hides, so check one before you commit it.**
-`wsl.exe -- bash /mnt/d/nvs/tools/leak-check.sh <fixture> …` runs `valgrind --leak-check=full` over the
+`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh <fixture> …` runs `valgrind --leak-check=full` over the
 `.nvs` files you name. Run it for **any** new refcount edge, against a fixture that actually exercises it —
 this repository's one real leak went unnoticed until a fixture happened to declare a refcounted local
 inside a loop.

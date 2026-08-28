@@ -53,7 +53,7 @@ The primary development platform, and the only one with real setup:
    acceptance run's second leg, which exists because a JIT is exactly where a calling-convention
    divergence between two targets hides.
 
-One-time setup inside the distro, which mounts the repo at `/mnt/d/nvs`:
+One-time setup inside the distro, which mounts the repo at `/mnt/<drive>/<repo>`:
 
 ```sh
 sudo apt-get update && sudo apt-get install -y build-essential clang valgrind

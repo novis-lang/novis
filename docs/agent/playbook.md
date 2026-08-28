@@ -547,10 +547,10 @@ is why" — is this file.
   `target/debug/nvs.exe` in one call told the whole story, where editing the site the item named
   would have closed nothing. Ask every spelling that reaches the same lowering before you believe
   the item's, and `git log -S` on the code the item quotes says whether its half already landed.
-- **`wsl.exe -- bash /mnt/d/nvs/…` from the Bash tool needs `MSYS_NO_PATHCONV=1` in front of it.**
+- **`wsl.exe -- bash /mnt/<drive>/<repo>/…` from the Bash tool needs `MSYS_NO_PATHCONV=1` in front of it.**
   Git Bash rewrites a `/mnt/…` argument into a Windows path *before* `wsl.exe` sees it, so
   `tools/leak-check.sh`'s own documented invocation fails with
-  `bash: C:/Program Files/Git/mnt/d/nvs/tools/leak-check.sh: No such file or directory`, which reads
+  `bash: C:/Program Files/Git/mnt/<drive>/<repo>/tools/leak-check.sh: No such file or directory`, which reads
   as a missing file rather than as a mangled argument. The prefix is the whole fix; the script and
   the paths it is handed are right.
 - **A `splice.py` anchor copied out of `peek.py`'s output can carry a line break `peek` added.**
@@ -753,9 +753,9 @@ is why" — is this file.
   *does* lower — which reads as "`echo` is unsupported" rather than "this file is all text". The
   `.nvst` harness supplies the tag for you inside `--FILE--`, so the omission only ever bites on a
   scratch run, which is exactly where a session is trying to find out whether a shape lowers.
-- **`wsl.exe -- bash /mnt/d/nvs/tools/leak-check.sh …` fails from the Bash tool and works from
+- **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh …` fails from the Bash tool and works from
   PowerShell.** Git Bash rewrites any argument that looks like a POSIX path before `wsl.exe` ever
-  sees it, so the documented command arrives as `bash: C:/Program Files/Git/mnt/d/nvs/tools/
+  sees it, so the documented command arrives as `bash: C:/Program Files/Git/mnt/<drive>/<repo>/tools/
   leak-check.sh: No such file or directory` — a path no document mentions, which reads as a missing
   script rather than as the MSYS path translation it is. The script's own header shows the
   invocation and cannot show this, because it is the *caller's* shell that mangles it. Run the
@@ -863,15 +863,15 @@ is why" — is this file.
   `crates/nvs-stdlib/tests/allocation_policy.rs`'s `no_member_revalidates_a_string_argument` is the
   source scan that keeps the pair out now.
 - **The WSL valgrind leg has to be launched from PowerShell, not from the Bash tool.** `wsl.exe --
-  bash /mnt/d/nvs/tools/leak-check.sh <case>` under Git Bash dies with *"bash: C:/Program
-  Files/Git/mnt/d/nvs/tools/leak-check.sh: No such file or directory"* — MSYS rewrites any argument
+  bash /mnt/<drive>/<repo>/tools/leak-check.sh <case>` under Git Bash dies with *"bash: C:/Program
+  Files/Git/mnt/<drive>/<repo>/tools/leak-check.sh: No such file or directory"* — MSYS rewrites any argument
   that looks like a POSIX path into a Windows one before `wsl.exe` ever sees it, and the error names
   a path nobody typed. The same command through the PowerShell tool runs unchanged; `MSYS_NO_PATHCONV=1`
   is the other way. This is one call's worth of confusion every time a session adds a refcount edge.
-- **`wsl.exe -- bash /mnt/d/nvs/tools/leak-check.sh …` needs `MSYS_NO_PATHCONV=1` in front of it
+- **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh …` needs `MSYS_NO_PATHCONV=1` in front of it
   when the Bash tool is what runs it.** Git Bash rewrites the `/mnt/...` argument into
   `C:/Program Files/Git/mnt/...` before `wsl.exe` ever sees it, and the failure reads as a missing
-  script rather than as a mangled path — *`bash: C:/Program Files/Git/mnt/d/nvs/tools/leak-check.sh:
+  script rather than as a mangled path — *`bash: C:/Program Files/Git/mnt/<drive>/<repo>/tools/leak-check.sh:
   No such file or directory`*. The file-passed-by-path shape `commands.md` documents is otherwise
   unchanged, and the PowerShell tool needs no prefix.
 - **A roster probe binds its subject; it never `echo`s it, and it gets one panic per run.**
@@ -883,13 +883,13 @@ is why" — is this file.
   enumerates all of the *refused* shapes, while lowering panics on the first shape that gets
   that far, so each panicking shape costs its own edit-and-run. Put the shapes you expect to
   be refused in one file and the ones you expect to lower in another.
-- **`wsl.exe -- bash /mnt/d/nvs/tools/leak-check.sh …` needs `MSYS_NO_PATHCONV=1` in front of it when
-  it goes through the Bash tool**, which is Git Bash: without it the `/mnt/d/nvs/...` argument is
-  rewritten to `C:/Program Files/Git/mnt/d/nvs/...` before `wsl.exe` ever sees it, and the failure reads
+- **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh …` needs `MSYS_NO_PATHCONV=1` in front of it when
+  it goes through the Bash tool**, which is Git Bash: without it the `/mnt/<drive>/<repo>/...` argument is
+  rewritten to `C:/Program Files/Git/mnt/<drive>/<repo>/...` before `wsl.exe` ever sees it, and the failure reads
   as a missing script rather than as a mangled path. PowerShell passes it through unchanged.
 - **`tools/leak-check.sh` has to be run from PowerShell, not from the Bash tool.** `wsl.exe -- bash
-  /mnt/d/nvs/tools/leak-check.sh <fixture>` is the spelling `commands.md` gives, and under Git Bash
-  it fails with `bash: C:/Program Files/Git/mnt/d/nvs/tools/leak-check.sh: No such file or
+  /mnt/<drive>/<repo>/tools/leak-check.sh <fixture>` is the spelling `commands.md` gives, and under Git Bash
+  it fails with `bash: C:/Program Files/Git/mnt/<drive>/<repo>/tools/leak-check.sh: No such file or
   directory` — MSYS rewrites any argument that looks like an absolute POSIX path into a Windows one
   before `wsl.exe` ever sees it. The same command from the PowerShell tool runs unchanged. Prefixing
   `MSYS_NO_PATHCONV=1` also works, but the shorter rule is that anything handing `/mnt/...` to
@@ -1404,7 +1404,7 @@ is why" — is this file.
   read through `1.0 / $x` when it has to be told from `0.0`, as the parity case does.
 - **A float landmark is exact on both legs, and `php` inside WSL says so without a Linux build of
   `nvs`.** PHP calls the same libm Rust's `f64` methods do, so
-  `wsl.exe -- bash -lc "php /mnt/d/nvs/.agent-tmp/rows.php"` answers the "does glibc round this the
+  `wsl.exe -- bash -lc "php /mnt/<drive>/<repo>/.agent-tmp/rows.php"` answers the "does glibc round this the
   same way MSVC does" question in one call, against the two minutes a cross-build costs. Measured
   that way and safe to assert as *equalities*, on both legs: `acos(-1.0) == PI`, `asin(1.0) == PI /
   2.0`, `acos(0.0) == PI / 2.0`, `atan(1.0) == PI / 4.0`, `cos(PI) == -1.0`, `sin(PI / 2.0) == 1.0`,

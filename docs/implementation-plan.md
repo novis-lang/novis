@@ -833,9 +833,44 @@
 > `a-delegated-member-the-forward-cannot-express-is-refused.nvst` the three `E0721` ones beside the
 > own-method way out. ADR 0043 § 4 gains both bullets rather than being left to disagree with the
 > tree, and `ImplementsClause`'s own doc comment is corrected where it named `nvs-hir` as the owner
-> of a check that needs the signature table. What is **not** closed is § 4's
-> promoted-constructor-parameter half: such a parameter is no property in `nvs_types::layout`, so
-> the ADR's own worked example is `E0720` today. Three live tools **are** the worklist and no
+> of a check that needs the signature table. **A promoted constructor parameter is a property now**,
+> which is § 4's own parenthetical and the last thing standing between `check_delegate_field` and
+> the shape the ADR writes. It was not one anywhere: the parser recorded the modifiers and nothing
+> below read them, so `constructor(public int $n)` declared a parameter and `$b->n` was `E0405` on a
+> class that plainly had one. Four tables answer "is this a property" and all four answer it now —
+> `nvs_types::signatures` records the declared type and the visibility keyword, so
+> `resolve_property` finds it and ADR 0094's access check reads its level; `nvs_types::layout` gives
+> it a slot in member order; `nvs_hir::members` admits `$this->n` inside the class; and
+> `nvs_ir::lower::promoted_stores` emits the store the author did not write, into the entry block
+> ahead of the body, so a constructor that reads `$this->n` reads what it was passed.
+> `nvs_syntax::ast::Param::is_promoted` is the one home of *which* parameters those are, because
+> four crates having their own spelling is how they would stop agreeing: a **visibility** keyword
+> promotes and nothing else does, exactly as in PHP, `readonly` alone declaring nothing to be read.
+> Three maps beside `properties` are deliberately left alone and each for its own reason, stated at
+> `record_promoted_properties`: `required_properties` is ADR 0022 § 2's obligation and a promoted
+> parameter discharges it **by construction**, the store being emitted from the binding rather than
+> written in a body — `crate::ctor_init`'s own known gap said the opposite and is corrected;
+> `property_defaults` arms a slot before the constructor runs, while a promoted parameter's `= expr`
+> is the *parameter's* default, applied at the call site that omitted it and stored by the same
+> assignment every other argument is; and `hooked_properties` has no spelling to record, a parameter
+> list having nowhere to write a hook body. Of `lower_reassignment`'s property policy the store
+> keeps the **retain** — a compiled method owns its parameters and releases each at every exit, so
+> the slot needs a reference of its own — and drops the other two: no coercion, one declaration
+> being one type, and no release of the old value, this being the first store the slot ever sees.
+> Valgrind-clean over a fixture that constructs with a borrowed and a freshly built `string` two
+> hundred times. `tests/conformance/class/a-promoted-constructor-parameter-is-a-property.nvst` pins
+> the read from outside and through `$this`, the `private` keyword refused at an outside read, a
+> default omitted and supplied, a subclass reaching what its parent promoted through
+> `parent::constructor`, and § 4's delegation naming a promoted field, with the count of agreements
+> over the file; `two-interfaces-delegating-to-one-field-both-forward-to-it.nvst` is § 4 bullet 3's
+> other half, `implements A by $x, B by $x` synthesizing both member sets onto the one field with an
+> own method still beating either forward. What is **not** closed and is backlogged rather than left
+> implied: a visibility keyword on a *non*-constructor method's parameter declares nothing and is
+> silently ignored where PHP refuses it, and § 4 bullet 2's "calling a delegated method before
+> `$field` is written" cannot throw what it is supposed to throw, because ADR 0022 § 3's
+> never-written storage state does not exist in the tree at all — a `lateinit` property read before
+> its first write hands back a null receiver rather than throwing, and under a delegation clause the
+> forward dispatches on it and overflows the stack. Three live tools **are** the worklist and no
 > session re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and
 > `nvs-codegen` and attributes each to its item (`--item N` for one in full), `python tools/loop.py
 > --list` prints the named `.nvst` cases each stage still owes, and `python
