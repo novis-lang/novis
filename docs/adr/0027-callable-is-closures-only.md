@@ -65,6 +65,16 @@ $fn = 'User::validate';            // "Class::method" string — "use `User::val
 $fn = [$user, 'getName'];          // array-callable — "use `$user->getName(...)`"
 ```
 
+The kept list is a list of **members**, and the two spellings that name none are refused where they are
+written rather than left to a lowering. `new C(...)` is `E0740`: `new` names a class, and the closure this
+syntax builds carries a callee rather than an allocation — PHP refuses the same expression, so `fn (): C =>
+new C(…)` is both the compatible answer and the one that says which arguments the construction takes.
+`$m->method(...)` on a `mixed` receiver is `E0732`: [ADR 0036](0036-anonymous-object-shapes.md) § 4 defers a
+*call* through a `mixed` to the receiver's own descriptor when it runs, but a closure value outlives the
+site, so there is no class present to read a callee off. Every other spelling above resolves a member, and
+the checker records that resolved target under `nvs_types::expr_table::ExprInfo::CallableRef` — the same
+facts an ordinary call records, under a variant that cannot be mistaken for one.
+
 The rule is the same at every position typed `callable` — a parameter, a property, a return type, or a
 stdlib signature like `Core\Arr::map(array<T>, callable): array<U>`: the argument must already be a closure
 by the time it reaches that position, never a string, an array, or an arbitrary object the checker would

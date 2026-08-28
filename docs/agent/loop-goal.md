@@ -129,10 +129,14 @@ ledger distinguishes "the unit guards are green" from "the program runs".
 15. **`$f(...)` calls the closure the variable holds.** A closure literal lowers; the only caller today is
     native `Core` code going through `nvs_runtime::nvs_closure_call`.
     `crates/nvs-ir/src/lower/closure.rs:114`. `nvs-ir` gap 9.
-16. **A named argument and a spread argument type-check and lower.** `nvs_types` does not positionally
-    check either, so there is no resolved per-argument type to lower against — the checker's half lands
-    first. A variadic signature is already done (`lower_variadic_tail`).
-    `crates/nvs-ir/src/lower/call.rs:77`, `:219`. `nvs-ir` gap 8.
+16. **ADR 0027's first-class callable syntax lowers.** The named/spread half this item opened with is
+    landed — `ResolvedCall::arg_slots` carries the mapping, `lower_variadic_tail` the tail — and what the
+    file's refusal sites turned out to hold instead is `(...)`. Two of its four shapes are now diagnostics
+    (`E0740` for `new C(...)`, `E0732` for a `mixed` receiver) and the two ADR 0027 § 1 keeps record
+    `ExprInfo::CallableRef`, so what is left is lowering that record to a closure, plus `$g(...)` on a
+    value already typed `callable`, which is PHP's identity and the one standing site.
+    `crates/nvs-ir/src/lower/call.rs:766`, `crates/nvs-ir/src/lower/expr.rs:2433` and `:2622`.
+    `nvs-ir` gap 8.
 17. **A `...spread` array-literal element lowers.** `crates/nvs-ir/src/lower/expr.rs:3339`. The `&value`
     element is refused by decision instead — see § *Standing decisions*.
 18. **An `inout` argument lowers in any expression position.** The copy-back is emitted at the enclosing

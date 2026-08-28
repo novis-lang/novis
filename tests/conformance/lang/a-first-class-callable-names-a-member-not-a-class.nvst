@@ -1,0 +1,44 @@
+--TEST--
+`new C(...)` is `E0740` and `$m->method(...)` on a `mixed` receiver is `E0732`, never a panic — ADR 0027 § 1 gives the `(...)` spelling to a member, so the two shapes that name no member are refused where they are written
+--FILE--
+<?nvs
+final class Box {
+    public int $n;
+    public function constructor(int $n) { $this->n = $n; }
+    public function get(): int { return $this->n; }
+}
+// ADR 0027 § 1's kept list is a list of *members*, and a constructor is
+// not one: `new` names a class, and the closure this syntax builds
+// carries a callee rather than an allocation. PHP refuses the same
+// expression, so refusing it is the compatible answer as well as the
+// only one with a meaning.
+Box $b = new Box(...);
+// The opposite failure, and why the two take separate codes: this one
+// names a member and has no class to bind it to. ADR 0036 § 4 defers a
+// *call* through a `mixed` to the receiver's runtime class, but a
+// closure value outlives the site and carries its callee with it.
+mixed $m = new Box(1);
+callable $f = $m->get(...);
+// The control: both spellings ADR 0027 § 1 keeps resolve a member, so
+// neither refusal fires on these two and the expectation carries no
+// diagnostic for either line.
+Box $c = new Box(2);
+callable $g = $c->get(...);
+callable $h = Core\Str::length(...);
+echo "unreached\n";
+--EXPECTF-ERROR--
+error[E0740]: `new` has no first-class callable form
+   --> %s:12:10
+   |
+12 | Box $b = new Box(...);
+   |          ^^^^^^^^^^^^ `Box` is constructed here, not called
+   = help: ADR 0027 § 1 gives the `(...)` spelling to a member — `Class::method(...)`, `$obj->method(...)`, `self::method(...)` — and a constructor is not one. Write the closure out: `fn (): T => new T(…)`
+
+error[E0732]: `get(...)` names no closure through a `mixed` receiver
+   --> %s:18:15
+   |
+18 | callable $f = $m->get(...);
+   |               ^^^^^^^^^^^^ a closure value is named here
+   = help: ADR 0036 § 4 defers a *call* through a `mixed` to the receiver's runtime class, but a closure value carries its callee with it and there is no class here to read one off — call the member directly (`$m->get(…)`), or narrow the receiver first with `instanceof` or `as ClassName`
+
+error: aborting due to 2 errors
