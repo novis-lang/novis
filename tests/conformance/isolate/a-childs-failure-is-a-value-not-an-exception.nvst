@@ -1,0 +1,53 @@
+--TEST--
+A child's uncaught throw arrives as data on the parent's result rather than as an exception unwinding into it: `ok` is false, `error` carries the class and the message as copied data, what the child echoed before throwing still crosses, and the parent runs on — ADR 0006 § *Failure is a value, not an exception*
+--FILE thrower.nvs--
+<?nvs
+// Written before the throw, so the parent's `output` carries it: the child's
+// buffer is handed over at the join whichever way the child ended.
+echo "child got this far";
+
+throw new RuntimeError("the child could not finish");
+--FILE returner.nvs--
+<?nvs
+// The other row of the same table: a top-level `return` is `ok = true`, and
+// `error` is null rather than an error of some empty shape.
+return "answered";
+--FILE--
+<?nvs
+// ADR 0006 § *Failure is a value, not an exception*: there is no `try` around
+// either call below and none is needed. Nothing unwinds across the boundary,
+// for the reason nothing unwinds across a JIT frame (ADR 0002) — the status
+// is checked, so a child that fails cannot end the parent that spawned it.
+var $bad = spawn script "thrower.nvs" with(output: "capture");
+var $failed = await $bad;
+
+echo "ok=", $failed->ok ? "true" : "false", "\n";
+
+// "the class name and the message — as copied data, not the exception
+// object". `error` is nullable because it is absent on the success row, so
+// reading it costs a `?->` until the checker can narrow one off the `ok`
+// test; `crates/nvs-types/src/expr/isolate.rs`'s module doc owns why the
+// result is a shape and not a class.
+echo "class=", $failed->error?->class, "\n";
+echo "message=", $failed->error?->message, "\n";
+
+// The throw did not cost the parent what the child had already written.
+echo "output=", $failed->output, "\n";
+
+// The success row, so the failure row is a bound asserted on both sides
+// rather than a line read on its own.
+var $good = spawn script "returner.nvs" with(output: "capture");
+var $done = await $good;
+echo "ok=", $done->ok ? "true" : "false", "\n";
+echo "error=", $done->error == null ? "none" : "some", "\n";
+
+// The line the whole section exists for.
+echo "parent still running", "\n";
+--EXPECT--
+ok=false
+class=RuntimeError
+message=the child could not finish
+output=child got this far
+ok=true
+error=none
+parent still running
