@@ -2369,6 +2369,14 @@ is why" — is this file.
   decodes a default against the *declared* type and has no arm for `Ty::StringLiteral` or `Ty::Union`. A
   `#[Query]` with no default is simply required, and a link is not obliged to supply one, so write the
   parameter without a default until that hole is closed.
+- **A member `gaps.py` calls thin can already have its obvious bound pinned, and the depth number
+  does not say which *shape* is missing.** `Core\Validate::isPrintable` stood at 4 cases with
+  `validate-ascii-and-printable-name-their-own-bounds.nvst` already naming both ends of both `Cc`
+  runs, so a handoff item reading "the range is named on both sides" was asking for a case that
+  existed. `ls tests/conformance/core/ | grep <member>` before designing is the whole check, and it
+  is one call. What was genuinely missing there was the *category* the range is — `U+2028` and a
+  bidi override are printable, `NEL` and `TAB` are not — which is a different case and the one that
+  landed. Read the member's existing case before choosing the shape, not after writing one.
 
 ## Splitting a file that got too big
 
