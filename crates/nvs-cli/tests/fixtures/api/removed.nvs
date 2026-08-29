@@ -1,0 +1,15 @@
+<?nvs
+// [base.nvs](base.nvs) with `Items::show` deleted, which is ADR 0085 § 4's
+// first breaking change: an operation the previous document promised is gone.
+
+class Items
+{
+    #[\Core\Route(path: "/items", method: \Core\Http\Method::Get, name: "Items::index")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function index(): string
+    {
+        return "every item";
+    }
+}
+
+echo "GET /items -> Items::index", "\n";

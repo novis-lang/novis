@@ -1,0 +1,24 @@
+<?nvs
+// [base.nvs](base.nvs) with one `#[Query]` parameter added to `Items::index`,
+// carrying a default — ADR 0102 § 3 makes that the declaration saying the key
+// may be absent, so the document calls it optional and ADR 0085 § 4 calls
+// adding it compatible.
+
+class Items
+{
+    #[\Core\Route(path: "/items", method: \Core\Http\Method::Get, name: "Items::index")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function index(#[\Core\Query] string $sort = "name"): string
+    {
+        return "every item by " . $sort;
+    }
+
+    #[\Core\Route(path: "/items/{id}", method: \Core\Http\Method::Get, name: "Items::show")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function show(uint $id): string
+    {
+        return "item " . $id;
+    }
+}
+
+echo "GET /items -> Items::index", "\n";

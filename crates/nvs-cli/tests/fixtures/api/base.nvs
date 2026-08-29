@@ -1,0 +1,27 @@
+<?nvs
+// The document `nvs api diff` starts from: two operations over two paths, one
+// of them carrying a required `uint` capture.
+//
+// The class is declared here rather than behind an `autoload` root because the
+// route table is collected over the program's declarations wherever they are
+// (ADR 0077 § 5), and one file per fixture is what keeps the three fixtures of
+// this directory readable as a diff of each other.
+
+class Items
+{
+    #[\Core\Route(path: "/items", method: \Core\Http\Method::Get, name: "Items::index")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function index(): string
+    {
+        return "every item";
+    }
+
+    #[\Core\Route(path: "/items/{id}", method: \Core\Http\Method::Get, name: "Items::show")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function show(uint $id): string
+    {
+        return "item " . $id;
+    }
+}
+
+echo "GET /items -> Items::index", "\n";

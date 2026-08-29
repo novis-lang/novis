@@ -1,4 +1,4 @@
-//! `nvs build --openapi`, driven as a user drives it —
+//! `nvs build --openapi` and `nvs api diff`, driven as a user drives them —
 //! [ADR 0085](../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)'s
 //! *Verification* section, for the rows the route table supplies today.
 //!
@@ -103,4 +103,126 @@ fn a_program_with_a_diagnostic_emits_no_document() {
     let (doc, _, ok) = build(missing);
     assert!(!ok, "a file that cannot be read is a failure");
     assert!(doc.is_empty(), "and writes no document: {doc}");
+}
+
+// -------------------------------------------------------------------------
+// § 4 — `nvs api diff`, the gate.
+//
+// Every case below builds both sides with the emitter rather than pasting
+// JSON, which is what makes them a test of the *gate* rather than of a fixture
+// someone hand-edited: the documents are what this binary writes today, so a
+// change to the emitter that alters the shape shows up here instead of leaving
+// two frozen files agreeing with each other.
+// -------------------------------------------------------------------------
+
+/// The three-fixture family under `tests/fixtures/api`, each one file: `base`,
+/// `base` with an operation deleted, and `base` with one optional `#[Query]`
+/// parameter added.
+fn fixture(stem: &str) -> String {
+    format!(
+        "{}/tests/fixtures/api/{stem}.nvs",
+        env!("CARGO_MANIFEST_DIR")
+    )
+}
+
+/// `nvs build --openapi` for a fixture, written to a file under the target
+/// directory cargo gives an integration test for exactly this.
+fn document(stem: &str) -> std::path::PathBuf {
+    let (doc, err, ok) = build(&fixture(stem));
+    assert!(ok, "the `{stem}` fixture compiles: {err}");
+    let path = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("{stem}.json"));
+    std::fs::write(&path, doc).expect("the target directory is writable");
+    path
+}
+
+/// `nvs api diff <old> <new>`, as `(stdout, stderr, success)`.
+fn api_diff(old: &std::path::Path, new: &std::path::Path) -> (String, String, bool) {
+    let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .args(["api", "diff"])
+        .args([old, new])
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+    (
+        String::from_utf8(out.stdout).expect("the report is UTF-8"),
+        String::from_utf8(out.stderr).expect("diagnostics are UTF-8"),
+        out.status.success(),
+    )
+}
+
+/// § 4's first breaking change, and the *Verification* section's "removing an
+/// operation … exits non-zero from `nvs api diff`".
+#[test]
+fn an_api_diff_classifies_a_removed_route_as_breaking() {
+    let (before, after) = (document("base"), document("removed"));
+    let (report, _, ok) = api_diff(&before, &after);
+    assert!(!ok, "a breaking change exits non-zero:\n{report}");
+    assert!(
+        report.contains("breaking: paths./items/{id}"),
+        "and names the operation that went:\n{report}"
+    );
+    assert!(
+        report.contains("1 breaking"),
+        "one breaking change, not a class applied to the whole document:\n{report}"
+    );
+}
+
+/// The other half of the same *Verification* line: "adding an optional field
+/// and a new operation each exit zero". The parameter is `#[Query] $sort` with
+/// a default, which ADR 0102 § 3 makes optional.
+#[test]
+fn an_api_diff_classifies_an_added_optional_parameter_as_compatible() {
+    let (before, after) = (document("base"), document("optional"));
+    let (report, _, ok) = api_diff(&before, &after);
+    assert!(ok, "an additive change exits zero:\n{report}");
+    assert!(
+        report.contains("additive: paths./items.get.query.sort"),
+        "and the parameter is named where it was added:\n{report}"
+    );
+    assert!(
+        report.contains("0 breaking"),
+        "nothing about it is breaking:\n{report}"
+    );
+}
+
+/// The same *Verification* line's new operation, which is the removal read
+/// backwards — the one direction a fixture pair gives for free.
+#[test]
+fn an_api_diff_classifies_an_added_route_as_compatible() {
+    let (before, after) = (document("removed"), document("base"));
+    let (report, _, ok) = api_diff(&before, &after);
+    assert!(ok, "a new operation exits zero:\n{report}");
+    assert!(
+        report.contains("additive: paths./items/{id}"),
+        "and the new path is named:\n{report}"
+    );
+}
+
+/// A document against itself is the gate's resting state, and it has to be
+/// silent: a gate that reports a change on every build is one a team turns off.
+/// This rests on § 3's determinism, which
+/// `an_openapi_document_is_byte_identical_across_two_emissions` pins directly.
+#[test]
+fn an_api_diff_of_a_document_against_itself_reports_no_change() {
+    let same = document("base");
+    let (report, _, ok) = api_diff(&same, &same);
+    assert!(ok, "no change exits zero:\n{report}");
+    assert_eq!(report.trim(), "no change", "and says exactly that");
+}
+
+/// "I could not read it" and "nothing changed" must not share an exit code:
+/// in CI the second is a pass, so a mistyped path that reported one would turn
+/// the gate off silently.
+#[test]
+fn an_api_diff_of_an_unreadable_document_is_a_failure() {
+    let missing = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("no-such-document.json");
+    let (report, err, ok) = api_diff(&document("base"), &missing);
+    assert!(!ok, "an unreadable document is a failure:\n{report}{err}");
+    assert!(
+        err.contains("cannot read") && err.contains("no-such-document.json"),
+        "and says which file:\n{err}"
+    );
+    assert!(
+        !report.contains("no change"),
+        "and never reports the resting state:\n{report}"
+    );
 }

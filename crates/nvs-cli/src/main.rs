@@ -1,6 +1,6 @@
 //! The `nvs` binary.
 //!
-//! Six subcommands so far, one per milestone that needed one:
+//! Seven subcommands so far, one per milestone that needed one:
 //!
 //! * `nvs ast` (M1) — dump what the parser produced.
 //! * `nvs check` (M2) — parse, resolve, type-check, report every diagnostic.
@@ -22,6 +22,10 @@
 //!   generates from the compile-time route table, on standard output. A build
 //!   artifact and never a runtime feature; see [`openapi`] for what the table
 //!   supplies and what it does not yet.
+//! * `nvs api diff <old.json> <new.json>` — the same ADR's § 4 gate over two
+//!   finished documents: breaking, additive or cosmetic per change, non-zero
+//!   exit on a breaking one. It compiles nothing, because the old side of a
+//!   diff is a released artifact rather than a program; see [`api_diff`].
 //! * `nvs info` — build, host and third-party licensing facts, PHP's
 //!   `php -i` in shape and in purpose. Also spelled `nvs -i`, since that is
 //!   the spelling anyone arriving from PHP will try first; see [`info`].
@@ -54,6 +58,7 @@ use clap::{Parser as ClapParser, Subcommand};
 use nvs_diagnostics::{Diagnostics, Renderer, SourceMap};
 use nvs_syntax::{check_declarations, parse_file};
 
+mod api_diff;
 mod info;
 mod openapi;
 mod runner;
@@ -164,6 +169,17 @@ enum Command {
         #[arg(long, required = true)]
         openapi: bool,
     },
+    /// Work with the API document `nvs build --openapi` produces.
+    ///
+    /// A group rather than a flag on `build`, because `diff` reads two finished
+    /// documents and compiles nothing: the old side of a diff is the last
+    /// release's artifact, and there may be no source for it on this machine at
+    /// all ([ADR 0085](../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)
+    /// § 4).
+    Api {
+        #[command(subcommand)]
+        command: ApiCommand,
+    },
     /// Print build, host and third-party licensing information.
     ///
     /// One call answers what this binary is and what is compiled into it,
@@ -174,6 +190,29 @@ enum Command {
         /// Also print every third-party license text in full.
         #[arg(long)]
         licenses: bool,
+    },
+}
+
+/// `nvs api`'s own subcommands.
+///
+/// One so far. It is a subcommand group rather than a bare `nvs diff` because
+/// what is being diffed is the *API*, and a bare verb would own a name the
+/// next artifact would want.
+#[derive(Subcommand)]
+enum ApiCommand {
+    /// Classify every change between two OpenAPI documents, exiting non-zero on
+    /// a breaking one.
+    ///
+    /// The gate of
+    /// [ADR 0085](../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)
+    /// § 4: run it in CI against the document from the last release and a
+    /// breaking change stops the build. See [`api_diff`] for what each class
+    /// covers.
+    Diff {
+        /// The document to compare against — the last release's.
+        old: PathBuf,
+        /// The document this build produced.
+        new: PathBuf,
     },
 }
 
@@ -228,6 +267,9 @@ fn main() -> ExitCode {
             format,
         } => run_test(&paths, filter, php, format),
         Command::Build { file, openapi } => run_build(&file, openapi),
+        Command::Api {
+            command: ApiCommand::Diff { old, new },
+        } => api_diff::run(&old, &new),
         Command::Info { licenses } => info::run(licenses),
     }
 }
