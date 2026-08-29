@@ -1120,6 +1120,25 @@ impl Ctx {
         self.runtime_error_class = Some(class);
     }
 
+    /// The descriptor for the class `name` spells in **this program's** table,
+    /// or `None` for a name it does not declare.
+    ///
+    /// The one route from a `Core` member to a class the *program* wrote, and
+    /// it exists for [`crate::graph::decode`]: ADR 0023 § 3 refuses a payload
+    /// naming a class the receiving side cannot resolve, which is a question
+    /// only the compiled unit's own table can answer. It reads the table
+    /// [`Self::set_runtime_error_class`] installed rather than a second
+    /// registration, for that method's own reason — the six § 10 classes and
+    /// every class the program declares are all rows of one table, and a
+    /// second handle on it would be a second thing to keep in step.
+    ///
+    /// The pointer is live for as long as this context is: the handle shares
+    /// ownership of the table ([`ErrorClass`]).
+    #[must_use]
+    pub fn class_desc(&self, name: &str) -> Option<*const ClassDesc> {
+        Some(self.runtime_error_class.as_ref()?.sibling(name)?.desc())
+    }
+
     /// The descriptor `class` names, or the installed `RuntimeError`'s if the
     /// table holds no such class, or null if none was installed at all.
     ///

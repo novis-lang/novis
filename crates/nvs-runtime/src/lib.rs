@@ -249,6 +249,7 @@ mod ctx;
 pub mod decimal;
 pub mod dispatch;
 mod fmt;
+pub mod graph;
 pub mod graphemes;
 pub mod helpers;
 pub mod host;
@@ -310,6 +311,7 @@ pub use dispatch::{
     method_address,
 };
 pub use fmt::php_float_to_string;
+pub use graph::{GraphError, copy_graph, decode, encode};
 pub use helpers::{stringify, symbols, value_to_string, value_truthy};
 pub use identity::{
     numeric_identical, numeric_ordering, nvs_array_eq, value_hash, value_identical,
