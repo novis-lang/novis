@@ -5,16 +5,21 @@
 //! § 2 is the contract, and this command owns it: every class in
 //! [`nvs_stdlib::registry::CLASSES`], every member — static ones first, then
 //! instance ones — and, for a member whose row carries a
-//! [`MethodDoc`], its reference card under a `doc` key. A consumer ignores
-//! fields it does not know, so a field may be added here without breaking one;
-//! a field may not be renamed or moved.
+//! [`MethodDoc`], its reference card under a `doc` key; every constant of the
+//! class beside its members, with its one-sentence card as its `doc`; and,
+//! top-level beside `classes`, every enum in
+//! [`nvs_stdlib::registry::ENUMS`] with its [`EnumDoc`] — top-level because
+//! that roster is, an enum having no owner class in the registry. A consumer
+//! ignores fields it does not know, so a field may be added here without
+//! breaking one; a field may not be renamed or moved.
 //!
 //! ## What is omitted, and why
 //!
 //! A row with no documentation has **no `doc` key at all**, and a documented
-//! row's `short`/`return` strings and `params`/`shape`/`errors` arrays appear
-//! **only when non-empty**. That is § 3's field-wise precedence made
-//! mechanical: `MethodDoc` spells "not written yet" as the empty value, and a
+//! row's `short`/`return` strings and `params`/`shape`/`errors`/`cases` arrays
+//! appear **only when non-empty** — a class with no constants has no
+//! `constants` key either. That is § 3's field-wise precedence made
+//! mechanical: the registry spells "not written yet" as the empty value, and a
 //! consumer must be able to tell that apart from "written, and empty" without
 //! learning the convention — an absent key is the one spelling that needs no
 //! explanation. The website's `scripts/lib/meta.mjs` is the consumer this was
@@ -26,7 +31,10 @@
 
 use std::process::ExitCode;
 
-use nvs_stdlib::registry::{CLASSES, CoreClass, CoreMethod, ErrorDoc, MethodDoc, ParamDoc};
+use nvs_stdlib::registry::{
+    CLASSES, CoreClass, CoreConst, CoreEnum, CoreMethod, ENUMS, EnumDoc, ErrorDoc, MethodDoc,
+    ParamDoc,
+};
 use serde_json::{Map, Value, json};
 
 /// Prints the registry and returns success.
@@ -43,11 +51,14 @@ pub(crate) fn run() -> ExitCode {
 /// Separate from [`run`] so the tests below can assert on it without
 /// capturing standard output.
 fn document() -> Value {
-    json!({ "classes": CLASSES.iter().map(class_json).collect::<Vec<_>>() })
+    json!({
+        "classes": CLASSES.iter().map(class_json).collect::<Vec<_>>(),
+        "enums": ENUMS.iter().map(enum_json).collect::<Vec<_>>(),
+    })
 }
 
-/// One class: its name and its members, methods before instance members, each
-/// roster in the spec's own order.
+/// One class: its name, its members — methods before instance members, each
+/// roster in the spec's own order — and its constants, when it has any.
 fn class_json(class: &CoreClass) -> Value {
     let members: Vec<Value> = class
         .methods
@@ -55,7 +66,11 @@ fn class_json(class: &CoreClass) -> Value {
         .chain(class.instance)
         .map(member_json)
         .collect();
-    json!({ "name": class.name, "members": members })
+    let mut out = Map::new();
+    out.insert("name".into(), Value::from(class.name));
+    out.insert("members".into(), Value::Array(members));
+    put_list(&mut out, "constants", class.constants, constant_json);
+    Value::Object(out)
 }
 
 /// One member: its name, and its `doc` only when the row carries one.
@@ -97,6 +112,39 @@ fn error_json(error: &ErrorDoc) -> Value {
     json!({ "error": error.error, "desc": error.desc })
 }
 
+/// One constant: its name, and its one-sentence card as `doc` only when
+/// written — a constant's whole card is one string, so there is no object to
+/// leave empty.
+fn constant_json(constant: &CoreConst) -> Value {
+    let mut out = Map::new();
+    out.insert("name".into(), Value::from(constant.name));
+    put_str(&mut out, "doc", constant.desc);
+    Value::Object(out)
+}
+
+/// One enum: its name, and its `doc` only when the row carries one.
+fn enum_json(declared: &CoreEnum) -> Value {
+    let mut out = Map::new();
+    out.insert("name".into(), Value::from(declared.name));
+    if let Some(doc) = declared.doc {
+        out.insert("doc".into(), enum_doc_json(doc));
+    }
+    Value::Object(out)
+}
+
+/// One enum's card, with every empty field left out.
+fn enum_doc_json(doc: &EnumDoc) -> Value {
+    let mut out = Map::new();
+    put_str(&mut out, "short", doc.short);
+    put_list(
+        &mut out,
+        "cases",
+        doc.cases,
+        |case| json!({ "name": case.name, "desc": case.desc }),
+    );
+    Value::Object(out)
+}
+
 /// Inserts `key` only when `value` is written.
 fn put_str(out: &mut Map<String, Value>, key: &str, value: &'static str) {
     if !value.is_empty() {
@@ -113,7 +161,7 @@ fn put_list<T>(out: &mut Map<String, Value>, key: &str, items: &[T], each: impl 
 
 #[cfg(test)]
 mod tests {
-    use nvs_stdlib::registry::ShapeKeyDoc;
+    use nvs_stdlib::registry::{CaseDoc, ShapeKeyDoc};
 
     use super::*;
 
@@ -146,6 +194,21 @@ mod tests {
         errors: &[],
     };
 
+    /// An enum's card with both fields written.
+    const FULL_ENUM: EnumDoc = EnumDoc {
+        short: "Chooses a thing.",
+        cases: &[CaseDoc {
+            name: "One",
+            desc: "The first thing.",
+        }],
+    };
+
+    /// An enum's card with nothing written yet.
+    const EMPTY_ENUM: EnumDoc = EnumDoc {
+        short: "",
+        cases: &[],
+    };
+
     /// § 2's shape, key for key, from a card that fills every field.
     #[test]
     fn a_full_card_emits_every_field_of_the_contract() {
@@ -168,10 +231,51 @@ mod tests {
         assert_eq!(doc_json(&EMPTY), json!({}));
     }
 
-    /// Every class in the registry appears, and every one of its members —
-    /// methods and then instance members, in the rosters' own order.
+    /// § 2's enum shape, key for key.
     #[test]
-    fn the_document_lists_every_class_and_member_in_registry_order() {
+    fn a_full_enum_card_emits_every_field_of_the_contract() {
+        assert_eq!(
+            enum_doc_json(&FULL_ENUM),
+            json!({
+                "short": "Chooses a thing.",
+                "cases": [ { "name": "One", "desc": "The first thing." } ]
+            })
+        );
+    }
+
+    /// The same omission rule, on an enum's card.
+    #[test]
+    fn an_empty_enum_card_emits_an_empty_object() {
+        assert_eq!(enum_doc_json(&EMPTY_ENUM), json!({}));
+    }
+
+    /// A constant with nothing written is its name alone; one with a card
+    /// carries it as `doc`.
+    #[test]
+    fn a_constant_carries_its_doc_only_when_written() {
+        let unwritten = CoreConst {
+            name: "X",
+            ty: nvs_stdlib::registry::CoreTy::Int,
+            value: nvs_stdlib::registry::Const::Int(1),
+            desc: "",
+        };
+        assert_eq!(constant_json(&unwritten), json!({ "name": "X" }));
+        let written = CoreConst {
+            desc: "One.",
+            ..unwritten
+        };
+        assert_eq!(
+            constant_json(&written),
+            json!({ "name": "X", "doc": "One." })
+        );
+    }
+
+    /// Every class in the registry appears, and every one of its members —
+    /// methods and then instance members, in the rosters' own order — and
+    /// every one of its constants, in roster order, under a key that is absent
+    /// for a class with none.
+    #[test]
+    fn the_document_lists_every_class_member_and_constant_in_registry_order() {
         let document = document();
         let classes = document["classes"].as_array().expect("an array");
         assert_eq!(classes.len(), CLASSES.len());
@@ -190,6 +294,31 @@ mod tests {
                 .map(|m| m.name)
                 .collect();
             assert_eq!(names, expected, "{}", class.name);
+
+            let constants: Vec<&str> = emitted["constants"]
+                .as_array()
+                .map(|list| {
+                    list.iter()
+                        .map(|c| c["name"].as_str().expect("a name"))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let expected: Vec<&str> = class.constants.iter().map(|c| c.name).collect();
+            assert_eq!(constants, expected, "{}", class.name);
         }
+    }
+
+    /// Every enum in the registry appears, top-level, in the roster's order.
+    #[test]
+    fn the_document_lists_every_enum_in_roster_order() {
+        let document = document();
+        let names: Vec<&str> = document["enums"]
+            .as_array()
+            .expect("an array")
+            .iter()
+            .map(|e| e["name"].as_str().expect("a name"))
+            .collect();
+        let expected: Vec<&str> = ENUMS.iter().map(|e| e.name).collect();
+        assert_eq!(names, expected);
     }
 }

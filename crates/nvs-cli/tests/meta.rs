@@ -35,6 +35,33 @@ fn member(document: &serde_json::Value, class: &str, member: &str) -> serde_json
         .clone()
 }
 
+/// The parsed document's top-level enum `name` names.
+fn core_enum(document: &serde_json::Value, name: &str) -> serde_json::Value {
+    document["enums"]
+        .as_array()
+        .expect("`enums` is an array")
+        .iter()
+        .find(|e| e["name"] == name)
+        .unwrap_or_else(|| panic!("{name} is in the document"))
+        .clone()
+}
+
+/// The parsed document's constant `class::name` names.
+fn constant(document: &serde_json::Value, class: &str, name: &str) -> serde_json::Value {
+    document["classes"]
+        .as_array()
+        .expect("`classes` is an array")
+        .iter()
+        .find(|c| c["name"] == class)
+        .unwrap_or_else(|| panic!("{class} is in the document"))["constants"]
+        .as_array()
+        .expect("`constants` is an array")
+        .iter()
+        .find(|c| c["name"] == name)
+        .unwrap_or_else(|| panic!("{class}::{name} is in the document"))
+        .clone()
+}
+
 /// § 2's golden: `Core\Str::length`, the simple case — a `short`, one
 /// parameter, a `return`, and no `errors` or `shape` key because neither is
 /// written.
@@ -90,6 +117,62 @@ fn the_options_and_errors_of_the_proof_members_are_emitted() {
     let errors = matched["doc"]["errors"].as_array().expect("errors");
     assert_eq!(errors.len(), 2);
     assert!(errors.iter().all(|e| e["error"] == "RuntimeError"));
+}
+
+/// § 2's enum golden: `Core\Order`, top-level beside `classes`, a `short` and
+/// one `cases` entry per case in declaration order.
+#[test]
+fn the_golden_for_order_matches_the_contract() {
+    let (doc, _) = meta(&["--json"]);
+    let document: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
+    assert_eq!(
+        core_enum(&document, r"Core\Order"),
+        serde_json::json!({
+            "name": r"Core\Order",
+            "doc": {
+                "short": "The direction `Core\\Arr::sort` and `sortByKey` put elements in — spec \
+                          § 2's `{order: …}` option, which is `Asc` when omitted.",
+                "cases": [
+                    { "name": "Asc", "desc": "Smallest first — what an omitted `{order: …}` means." },
+                    { "name": "Desc", "desc": "Largest first — `rsort`, `arsort` and `krsort` as \
+                                               one option rather than three names." }
+                ]
+            }
+        })
+    );
+}
+
+/// § 2's constant golden: `Core\Math::PI`, under its class's `constants`, its
+/// one-sentence card as `doc`.
+#[test]
+fn the_golden_for_math_pi_matches_the_contract() {
+    let (doc, _) = meta(&["--json"]);
+    let document: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
+    assert_eq!(
+        constant(&document, r"Core\Math", "PI"),
+        serde_json::json!({
+            "name": "PI",
+            "doc": "The ratio of a circle's circumference to its diameter, `3.14159…` as the \
+                    nearest `float` — PHP's `M_PI`."
+        })
+    );
+}
+
+/// An enum whose row is not documented has no `doc` key at all, exactly as
+/// an undocumented member has none — and a constant with nothing written is
+/// its name alone.
+#[test]
+fn an_undocumented_enum_or_constant_carries_no_doc_key() {
+    let (doc, _) = meta(&["--json"]);
+    let document: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
+    assert_eq!(
+        core_enum(&document, r"Core\SetOn"),
+        serde_json::json!({ "name": r"Core\SetOn" })
+    );
+    assert_eq!(
+        constant(&document, r"Core\Math", "TAU"),
+        serde_json::json!({ "name": "TAU" })
+    );
 }
 
 /// `--json` is required: a `meta` that prints nothing would be a subcommand
