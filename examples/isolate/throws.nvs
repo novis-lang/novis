@@ -1,0 +1,7 @@
+<?nvs
+// A child isolate of `examples/isolate.nvs` that fails. ADR 0006 §
+// *Failure is a value, not an exception*: this throw does not cross the
+// boundary as a throw. The parent's `await` answers with a `ScriptResult`
+// whose `ok` is false and whose `error` carries the message — which is what
+// keeps a child's failure from being able to end the parent.
+throw new RuntimeError("child could not finish");

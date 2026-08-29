@@ -1,0 +1,54 @@
+<?nvs
+// ADR 0006's isolate, as a program: `spawn script` runs another file
+// in-process with its own arena, sharing compiled code and the parent's
+// budget and nothing else.
+//
+// The five lines this prints are frozen in `docs/agent/loop-goal.toml`
+// (stage 6); the source is not. The three children live in
+// `examples/isolate/` and each exists to be one of those lines.
+//
+// The paths are written from the repository root, which is where the
+// acceptance driver runs this program from. If item 20 resolves a child
+// relative to the *entry file* instead (ADR 0104 makes an application an
+// entry-file path, and says nothing about this), these three lines are the
+// ones to shorten.
+
+// `output: 'inherit'` — the child writes to this program's stdout directly,
+// so its line arrives before anything below it. Awaiting first is what makes
+// that ordering a fact rather than a race: § 4 of ADR 0072 applies to an
+// isolate exactly as it does to a task.
+var $hello = spawn script 'examples/isolate/hello.nvs' with(
+    output: 'inherit',
+);
+var $greeting = await $hello;
+if ($greeting->ok) {
+    echo "ok=true", "\n";
+} else {
+    echo "ok=false", "\n";
+}
+
+// `output: 'capture'` — the same child machinery with the other sink. What
+// comes back is the child's bytes, and the parent decides where they go.
+var $capture = spawn script 'examples/isolate/capture.nvs' with(
+    output: 'capture',
+);
+var $captured = await $capture;
+echo "captured=", $captured->output, "\n";
+
+// Item 22: a child's uncaught throw is a *value* on this side. It does not
+// propagate as a throw — there is no `catch` around this call and none is
+// needed — because a child that fails may not be able to end its parent.
+// The same is true of a limit breach and of a contained panic inside it
+// (ADR 0106 § 2), which is the whole point of the boundary.
+var $bad = spawn script 'examples/isolate/throws.nvs' with(
+    output: 'capture',
+);
+var $failed = await $bad;
+if ($failed->ok) {
+    echo "ok=true", "\n";
+} else {
+    echo "ok=false", "\n";
+}
+
+// And the line the three above are all in service of.
+echo "parent still running", "\n";

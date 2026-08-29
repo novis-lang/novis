@@ -1,0 +1,81 @@
+<?nvs
+// ADR 0023's one graph copy, reached through its externalizing carrier —
+// `Core\Serialize::encode`/`decode`, § 2's second row.
+//
+// The four lines this prints are frozen in `docs/agent/loop-goal.toml`
+// (stage 5); the source is not. Nothing below declares a `__serialize`, a
+// `__sleep` or a `__wakeup`, and not because this fixture omits them: § 2
+// says no hook fires, so the shape that crosses is exactly the class's own
+// declared properties, every time.
+class Slot {
+    public int $n = 0;
+
+    public function constructor(int $n) {
+        $this->n = $n;
+    }
+}
+
+// § 2: a *graph*, not a tree — a cycle terminates instead of recursing
+// forever, which is the case a naive walk hangs on and the reason this class
+// is here at all.
+class Ring {
+    public int $id = 0;
+    public ?Ring $self;
+
+    public function constructor(int $id) {
+        $this->id = $id;
+        $this->self = null;
+    }
+}
+
+// § 2: the copy is built by direct assignment into the new instance's
+// storage and never runs a constructor, so a round trip is an identity on
+// the declared properties and on nothing else.
+var $blob = Core\Serialize::encode(new Slot(7));
+Slot $back = Core\Serialize::decode($blob) as Slot;
+if ($back->n == 7) {
+    echo "round-trip ok", "\n";
+} else {
+    echo "round-trip lost the value", "\n";
+}
+
+// The cycle. `$ring->self` points at `$ring`, so a walk that does not
+// remember what it has already seen never returns; what § 2 guarantees is
+// that the copy is cyclic in the same place rather than unrolled or cut.
+var $ring = new Ring(1);
+$ring->self = $ring;
+Ring $copy = Core\Serialize::decode(Core\Serialize::encode($ring)) as Ring;
+if (($copy->self?->id ?? 0) == 1) {
+    echo "cycle ok", "\n";
+} else {
+    echo "cycle was not preserved", "\n";
+}
+
+// § 3 and goal item 19: the format is Novis's own, closed and versioned, and
+// bytes that are not it are refused *whole*. A partial accept is the type
+// confusion `decode` is a `tainted` sink for (01-core-library.md § 13), so
+// the refusal is the assertion — not what any field of the result holds.
+try {
+    Core\Serialize::decode("not novis bytes" as bytes);
+    echo "garbage was accepted", "\n";
+} catch (ParseError $e) {
+    echo "refused: not our format", "\n";
+}
+
+// Item 19's other half: bytes naming a class whose declared properties no
+// longer match are refused whole as well, and this is the case a
+// version-tolerant decoder gets wrong by filling the gap with a default.
+//
+// One program cannot produce these bytes — a file declares `Slot` once — so
+// the golden below is an encoding of a `Slot` made under a *different*
+// declaration of it. IT IS A PLACEHOLDER: the session that lands § 3's
+// format is the first one that can produce a real one, and replacing this
+// literal with it is that session's last step. Until then this is the line
+// the fixture fails at, which is what it is here to say.
+var $stale = "PLACEHOLDER: an encoded Slot from a build where Slot had two properties" as bytes;
+try {
+    Core\Serialize::decode($stale);
+    echo "a changed shape was accepted", "\n";
+} catch (ParseError $e) {
+    echo "refused: shape changed", "\n";
+}

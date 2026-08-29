@@ -3349,6 +3349,12 @@ sibling in the same namespace unqualified.
   *prepares* rather than folds, `grep` the crate for a sibling symbol before believing the body the row
   points at — or just run it: `target/debug/nvs.exe run` on four lines settled in one call what reading
   three doc comments had got backwards.
+- **A class is not generic at the `new` site.** `new Core\Task\Channel<int>(2)` is `E0441: this target
+  takes no type arguments` — the `<T>` positions the language has are the built-in ones (`array<T>`,
+  `Iterator<T>`, `Core\Program::implementing<T>()`), not a user or `Core` class's constructor. A
+  container's element type is therefore carried by the `foreach` binding (`foreach ($chan as int $v)`)
+  and by the declared type of what goes in, which is enough for the checker and is what
+  `examples/channel.nvs` is written against.
 
 ## Divergences and refusals already pinned
 

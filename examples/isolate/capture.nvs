@@ -1,0 +1,10 @@
+<?nvs
+// A child isolate of `examples/isolate.nvs`, run with `output: 'capture'` —
+// nothing here reaches the parent's stdout directly; the parent reads it off
+// the `ScriptResult` and prints it itself.
+//
+// No newline: the parent supplies the line ending, so what is captured is
+// exactly what this file wrote.
+echo "child stdout";
+
+return ["captured" => true];
