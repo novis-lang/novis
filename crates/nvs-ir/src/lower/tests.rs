@@ -3812,3 +3812,164 @@ fn a_resolved_route_link_releases_its_params_array() {
         print_function(&f, map.file(file))
     );
 }
+
+/// `spawn script` lowers to **one fallible `CoreCall` in the frame that
+/// wrote it** — ADR 0006 § *Decision*, as `Lowering::lower_spawn_script`
+/// records it.
+///
+/// That is what "a task on the current core" is, at this level: the child
+/// is named by a path *value* handed to a native symbol, so no second
+/// frame is lowered for it, nothing here forks a thread or a process, and
+/// the instruction sits in the same block as the statements around it.
+/// The whole of the child's identity is the three arguments, in the fixed
+/// order — the path, the `args:` value, the `output:` spelling — with the
+/// option the program omitted materialized here rather than defaulted in
+/// the helper.
+///
+/// The refcount asymmetry is the transfer, and it is the reason this
+/// asserts over the arguments rather than snapshotting them: the path
+/// literal is borrowed and is released by this frame, while the `args:`
+/// array crosses into the child's ownership root and is released by
+/// nothing on this side.
+#[test]
+fn a_spawn_lowers_to_a_task_on_the_current_core() {
+    let (f, map, file) =
+        lower_script_src("<?nvs\nvar $job = spawn script 'child.nvs' with(args: [1, 2]);\n");
+    let insts = || f.blocks.iter().flat_map(|b| b.insts.iter());
+    let spawns: Vec<&Inst> = insts()
+        .filter(|i| {
+            matches!(&i.kind, InstKind::CoreCall { symbol, .. } if *symbol == nvs_types::CORE_SCRIPT_SPAWN)
+        })
+        .collect();
+    assert_eq!(
+        spawns.len(),
+        1,
+        "one spawn is one call: {}",
+        print_function(&f, map.file(file))
+    );
+    let spawn = spawns[0];
+    assert!(
+        spawn.on_error.is_some(),
+        "a spawn can throw and carries ADR 0002's error edge: {}",
+        print_function(&f, map.file(file))
+    );
+    let InstKind::CoreCall { args, .. } = &spawn.kind else {
+        unreachable!("filtered above")
+    };
+    assert_eq!(
+        args.len(),
+        3,
+        "the path, the `args:` value and the `output:` spelling: {}",
+        print_function(&f, map.file(file))
+    );
+    let (path, payload, output) = (args[0], args[1], args[2]);
+    let const_str = |v: ValueId| {
+        insts().find_map(|i| match &i.kind {
+            InstKind::ConstStr(s) if i.result == Some(v) => Some(s.clone()),
+            _ => None,
+        })
+    };
+    assert_eq!(
+        const_str(path).as_deref(),
+        Some("child.nvs"),
+        "the first argument is the written path: {}",
+        print_function(&f, map.file(file))
+    );
+    // The program wrote no `output:`, so the default is visible in the IR
+    // a reader dumps rather than living in the helper.
+    assert_eq!(
+        const_str(output).as_deref(),
+        Some("capture"),
+        "the third argument is ADR 0006's captured-by-default sink: {}",
+        print_function(&f, map.file(file))
+    );
+    let released_in = |b: &crate::ir::BasicBlock, v: ValueId| {
+        b.insts
+            .iter()
+            .any(|i| matches!(i.kind, InstKind::Release { operand } if operand == v))
+    };
+    let normal = f
+        .blocks
+        .iter()
+        .find(|b| b.insts.iter().any(|i| std::ptr::eq(i, spawn)))
+        .expect("the spawn is in a block");
+    let landing = &f.blocks[spawn.on_error.expect("asserted above").index() as usize];
+    assert!(
+        released_in(normal, path),
+        "the borrowed path literal is this frame's to release: {}",
+        print_function(&f, map.file(file))
+    );
+    assert!(
+        !released_in(normal, payload),
+        "the `args:` value crossed the boundary and may not be released here: {}",
+        print_function(&f, map.file(file))
+    );
+    // The other side of the same bound: a spawn that *threw* never handed
+    // the value over — an argument that cannot cross is the parent's error
+    // at the spawn — so the landing block releases what the normal edge
+    // must not (`Lowering::release_temporaries_since`).
+    assert!(
+        released_in(landing, payload),
+        "a throwing spawn transferred nothing and owes the release: {}",
+        print_function(&f, map.file(file))
+    );
+}
+
+/// `await` lowers to a second fallible `CoreCall`, and what it does
+/// **not** do is the claim: the frame is not split at the await.
+///
+/// A generator's `yield` cuts its frame in two and spills every local
+/// live across the cut (`lower::generator`), because the frame has to be
+/// abandoned and rebuilt. An `await` does none of that — the task
+/// suspends on a stack of its own (`nvs_host`'s coroutines, ADR 0115 § 4)
+/// and resumes with the completion in hand — so the handle is read, the
+/// call is made and the result is used in one straight run of
+/// instructions, with the statements either side of it in the same block.
+///
+/// The handle is borrowed, exactly as a `Core` member's receiver is: what
+/// the helper consumes is the request's entry for the started isolate,
+/// not the object `$job` holds.
+#[test]
+fn an_await_suspends_until_its_task_completes() {
+    let (f, map, file) = lower_script_src(concat!(
+        "<?nvs\n",
+        "var $job = spawn script 'child.nvs';\n",
+        "var $done = await $job;\n",
+    ));
+    let dump = print_function(&f, map.file(file));
+    let insts = || f.blocks.iter().flat_map(|b| b.insts.iter());
+    let named = |symbol: &'static str| {
+        insts().find(|i| matches!(&i.kind, InstKind::CoreCall { symbol: s, .. } if *s == symbol))
+    };
+    let spawn =
+        named(nvs_types::CORE_SCRIPT_SPAWN).unwrap_or_else(|| panic!("the spawn lowered: {dump}"));
+    let await_ =
+        named(nvs_types::CORE_SCRIPT_AWAIT).unwrap_or_else(|| panic!("the await lowered: {dump}"));
+    assert!(await_.on_error.is_some(), "an await can throw: {dump}");
+    let InstKind::CoreCall { args, .. } = &await_.kind else {
+        unreachable!("filtered above")
+    };
+    assert_eq!(
+        args,
+        &vec![spawn.result.expect("a spawn answers a handle")],
+        "the await takes the spawn's own handle and nothing else: {dump}"
+    );
+    // Borrowed: nothing retains the handle for the call.
+    let handle = args[0];
+    assert!(
+        !insts().any(|i| matches!(i.kind, InstKind::Retain { operand } if operand == handle)),
+        "the handle is borrowed, not retained, for the await: {dump}"
+    );
+    // One block for both calls: no state machine, no phi, no spill.
+    let block_of = |i: &Inst| {
+        f.blocks
+            .iter()
+            .position(|b| b.insts.iter().any(|x| std::ptr::eq(x, i)))
+            .expect("every instruction is in a block")
+    };
+    assert_eq!(
+        block_of(spawn),
+        block_of(await_),
+        "an await does not cut its frame the way a `yield` does: {dump}"
+    );
+}
