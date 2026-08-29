@@ -381,6 +381,15 @@ pub mod code {
     /// separate class" help is the wrong answer here, since the case belongs
     /// in the enum and only its spelling is wrong.
     pub const E_PHP_ENUM_CASE_UNSUPPORTED: Code = Code::new("E0239");
+    /// A leading `\` on a name — `\App\Models\User`, `use \App\Models\User;`,
+    /// `namespace \App;`. A name containing a `\` is already read from the
+    /// root, so the prefix has no work left to do, and accepting it would be
+    /// the second spelling
+    /// [ADR 0113](../../../docs/adr/0113-a-qualified-name-is-absolute.md) § 3
+    /// exists to remove. PHP rejects the `namespace` spelling too; the other
+    /// two it accepts, which is what made the token mean three different
+    /// things by position.
+    pub const E_LEADING_BACKSLASH_UNSUPPORTED: Code = Code::new("E0240");
 
     // --- E03xx name resolution ---------------------------------------------
     /// A variable read before anything was assigned to it.
@@ -476,6 +485,16 @@ pub mod code {
     /// handle ([ADR 0011](../../../docs/adr/0011-functions-and-constants-are-class-members.md)
     /// puts every reflective question on `Core\Reflect` instead).
     pub const E_CLASS_NAME_NOT_A_VALUE: Code = Code::new("E0321");
+    /// A qualified name that does not resolve, but which PHP's rule would have
+    /// resolved relative to the enclosing namespace — `Models\User` written
+    /// inside `namespace App;`, meaning `App\Models\User`. This is the one
+    /// construct
+    /// [ADR 0113](../../../docs/adr/0113-a-qualified-name-is-absolute.md) § 1
+    /// changes the meaning of, so it gets a diagnostic naming the absolute
+    /// spelling rather than the generic [`E_UNDEFINED_CLASS`] a reader would
+    /// otherwise have to work backwards from. A qualified name that resolves
+    /// neither way is that generic error, not this one.
+    pub const E_RELATIVE_QUALIFIED_NAME: Code = Code::new("E0322");
 
     // --- E04xx types -------------------------------------------------------
     /// A value whose type cannot be what this position requires.

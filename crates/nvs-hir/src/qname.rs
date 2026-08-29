@@ -23,10 +23,16 @@ pub struct QName {
 }
 
 impl QName {
-    /// Parses raw source text — `\`-qualified or not — into its segments. A
-    /// leading `\` (PHP's fully-qualified-name syntax) is stripped, since this
-    /// type always stores the fully-resolved form with no ambiguity left to
-    /// carry.
+    /// Parses raw source text into its segments.
+    ///
+    /// A leading `\` is stripped rather than rejected, but nothing in a parsed
+    /// program reaches here carrying one: the parser refuses that spelling
+    /// outright
+    /// ([ADR 0113](../../../docs/adr/0113-a-qualified-name-is-absolute.md) § 3,
+    /// `E0240`). The strip stays for the callers that build a `QName` from a
+    /// string this compiler wrote rather than from user source — the stdlib
+    /// registry, and the tests below — so none of them is one stray separator
+    /// away from a different name.
     ///
     /// # Panics
     ///

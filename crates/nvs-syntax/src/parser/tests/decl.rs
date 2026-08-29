@@ -446,6 +446,53 @@ fn a_grouped_use_parses_or_names_the_rule_that_refuses_it() {
     );
 }
 
+/// ADR 0113 § 3: the leading separator is refused in all three positions PHP
+/// gave it three different meanings in — redundant in a `use` path,
+/// load-bearing at a reference, and illegal in a `namespace` declaration. Each
+/// reports once and the statement still parses, so one mistake is one
+/// diagnostic and nothing downstream sees a half-parsed name.
+#[test]
+fn a_leading_separator_is_refused_in_every_position_that_takes_a_name() {
+    for src in [
+        "use \\App\\Models\\User;",
+        "namespace \\App;",
+        "class T extends \\App\\Base {}",
+    ] {
+        let (_, diags) = parse_stmt_with_diags(src);
+        assert_eq!(
+            diags
+                .iter()
+                .filter(|d| d.code == Some(code::E_LEADING_BACKSLASH_UNSUPPORTED))
+                .count(),
+            1,
+            "expected exactly one refusal for `{src}`: {diags:?}"
+        );
+    }
+
+    // The name still parses to the same import it would have without the
+    // separator — the report is a refusal of the spelling, not of the name.
+    let (s, _) = parse_stmt_with_diags("use \\App\\Models\\User;");
+    let StmtKind::UseDecl(u) = s.kind else {
+        panic!("expected a use decl: {s:?}");
+    };
+    assert!(u.alias.is_none());
+
+    // A name with no leading separator is untouched, in the same positions.
+    for src in [
+        "use App\\Models\\User;",
+        "namespace App;",
+        "class T extends App\\Base {}",
+    ] {
+        let (_, diags) = parse_stmt_with_diags(src);
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code == Some(code::E_LEADING_BACKSLASH_UNSUPPORTED)),
+            "`{src}` is the spelling ADR 0113 asks for: {diags:?}"
+        );
+    }
+}
+
 #[test]
 fn type_alias_declaration() {
     let s = parse_stmt_ok("type UserId = uint;");

@@ -522,7 +522,16 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// A possibly-namespace-qualified name: `Foo`, `Core\Bytes`,
-    /// `\Fully\Qualified`.
+    /// `App\Models\User`.
+    ///
+    /// A **leading** separator is refused here rather than folded into the
+    /// span, per
+    /// [ADR 0113](../../../docs/adr/0113-a-qualified-name-is-absolute.md) § 3:
+    /// a name with a separator in it is already read from the root, so the
+    /// prefix has no work left to do. The token is still consumed after the
+    /// report, so the rest of the name parses and one mistake yields one
+    /// diagnostic — the same recovery [`Self::parse_use_decl`] gives a
+    /// rename and a group import.
     ///
     /// A segment may be a reserved word's spelling: a `camelCase` segment
     /// such as `list` lexes as a keyword, and `Foo\list` still has to parse
@@ -538,7 +547,19 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// after `->`/`::` in [`Self::parse_member_name`].
     pub(super) fn parse_name(&mut self) -> Name {
         let start = self.peek().span;
-        self.eat(TokenKind::Backslash);
+        if let Some(slash) = self.eat(TokenKind::Backslash) {
+            self.diags.report(
+                Diagnostic::error(
+                    code::E_LEADING_BACKSLASH_UNSUPPORTED,
+                    "a name is already absolute",
+                )
+                .with_primary(slash, "remove the leading `\\`")
+                .with_help(
+                    "a name with a `\\` in it is read from the root, and one without resolves \
+                     through the imports then the enclosing namespace (ADR 0113 §§ 1, 3)",
+                ),
+            );
+        }
         let mut last = self.expect_name_segment();
         while self.at(TokenKind::Backslash) && Self::is_name_segment(self.peek_at(1).kind) {
             self.bump();

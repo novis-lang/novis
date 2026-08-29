@@ -37,13 +37,15 @@ use nvs_diagnostics::Span;
 // Names
 // ============================================================================
 
-/// A possibly-namespace-qualified name: `Foo`, `Core\Bytes`, `\Fully\Qualified`.
+/// A possibly-namespace-qualified name: `Foo`, `Core\Bytes`, `App\Models\User`.
 ///
 /// The lexer emits no combined token for this — it is an [`Ident`](crate::TokenKind::Ident)
-/// optionally preceded by, and optionally interspersed with,
-/// [`Backslash`](crate::TokenKind::Backslash) — so the parser folds the whole
-/// run into one span. Splitting it into segments and resolving it to a
-/// declaration is name resolution's job (M2), not this stage's.
+/// optionally interspersed with [`Backslash`](crate::TokenKind::Backslash) — so
+/// the parser folds the whole run into one span. A *leading* separator is not
+/// part of the spelling: it is refused where the name is parsed
+/// ([ADR 0113](../../../docs/adr/0113-a-qualified-name-is-absolute.md) § 3), so
+/// a `Name`'s span never opens on one. Splitting it into segments and resolving
+/// it to a declaration is name resolution's job (M2), not this stage's.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Name {
     /// The full qualified spelling, backslashes included.
