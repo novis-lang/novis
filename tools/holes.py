@@ -16,7 +16,9 @@ The list is derived, never copied. Three live sources:
     updating a list. Both halves of the recognizer are load-bearing and the comment on `CONSTRUCT`
     below says why neither alone is.
 
-*   **The goal's item list**, read out of `docs/agent/loop-goal.md`. Every numbered item carries its
+*   **The goal's item list**, read out of `docs/agent/loop-goal.md`, and **the carried ones**, read
+    out of `docs/agent/carried-refusals.md` -- the holes an earlier milestone left, which no current
+    goal can claim and which a goal switch would otherwise orphan. Every numbered item carries its
     `crates/…/file.rs:NN` anchors, so a site is attributed to the item whose anchors sit in the same
     file. A site no item claims is the interesting output -- it is either a hole nobody scheduled or
     a decision nobody wrote down, and both are worth a session's attention before the code is.
@@ -46,6 +48,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 GOAL_MD = ROOT / "docs" / "agent" / "loop-goal.md"
 GOAL_TOML = ROOT / "docs" / "agent" / "loop-goal.toml"
+
+# The second source of items, and the only one a goal switch cannot drop. `goal-switch.py` carries
+# the outgoing goal's checks forward and its unclosed items not at all, so a hole an earlier
+# milestone left arrives claimed by nobody the moment the chain advances -- twice so far, both times
+# on the same seventeen sites. That inventory lives here instead of being inherited by hand.
+CARRIED_MD = ROOT / "docs" / "agent" / "carried-refusals.md"
+
+# Carried items number from here, in the file itself rather than by an offset applied on read, so
+# that `--item N` takes the number the document shows. Enforced below: a goal's own items start at 1
+# and never reach this, so the two numberings cannot collide silently.
+CARRIED_BASE = 900
 
 # Where a refusal can live. Both crates lower; nothing else does.
 SOURCES = ["crates/nvs-ir/src", "crates/nvs-codegen/src"]
@@ -193,10 +206,23 @@ def enclosing_fn(lines: list[str], line: int) -> str:
 
 
 def items() -> list[dict]:
-    """The goal's numbered items, with the anchors each one names."""
-    if not GOAL_MD.exists():
+    """The goal's numbered items and the carried ones, with the anchors each names."""
+    goal = items_in(GOAL_MD)
+    carried = items_in(CARRIED_MD)
+    for item in carried:
+        if item["n"] < CARRIED_BASE:
+            raise SystemExit(
+                f"{rel(CARRIED_MD)}: item {item['n']} must be numbered from {CARRIED_BASE} "
+                f"so it cannot collide with a goal's own item {item['n']}"
+            )
+    return goal + carried
+
+
+def items_in(path: Path) -> list[dict]:
+    """One item list, read out of `path`."""
+    if not path.exists():
         return []
-    text = GOAL_MD.read_text(encoding="utf-8", errors="replace")
+    text = path.read_text(encoding="utf-8", errors="replace")
     marks = list(ITEM.finditer(text))
     out = []
     for n, match in enumerate(marks):

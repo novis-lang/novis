@@ -20,7 +20,12 @@
 //!
 //! Two things, and the difference between them is who owns the site:
 //!
-//! *   **An open numbered item in `docs/agent/loop-goal.md` claims it.** That
+//! *   **An open numbered item claims it** — one in
+//!     `docs/agent/loop-goal.md`, or one in `docs/agent/carried-refusals.md`,
+//!     which is where a hole an earlier milestone left is owned once no current
+//!     goal can be judged on it (a goal switch carries a check forward and the
+//!     items that made it green not at all, so that inventory has to live
+//!     somewhere the switch does not rewrite). That
 //!     is a hole with a schedule: the item names the file and the function,
 //!     and closing the item removes the site. `holes.py`'s own attribution
 //!     decides this, so a site in a file no item anchors is *unattributed* and
@@ -179,10 +184,10 @@ fn every_refusal_is_a_diagnostic_or_decided() {
     assert!(
         standing.is_empty(),
         "{} refusal(s) belong to nobody — each is a shape that type-checks and then \
-         refuses, with no open item in docs/agent/loop-goal.md claiming it and no entry \
-         on this test's allowlist. Give it a diagnostic, close it, or take the decision \
-         in loop-goal.md § Standing decisions — do NOT add it to the allowlist to make \
-         this pass.\n{}",
+         refuses, with no open item in docs/agent/loop-goal.md or \
+         docs/agent/carried-refusals.md claiming it and no entry on this test's \
+         allowlist. Give it a diagnostic, close it, or take the decision in loop-goal.md \
+         § Standing decisions — do NOT add it to the allowlist to make this pass.\n{}",
         standing.len(),
         standing.join("\n")
     );
