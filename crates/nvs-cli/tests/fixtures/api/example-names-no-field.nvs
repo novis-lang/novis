@@ -1,0 +1,23 @@
+<?nvs
+// ADR 0085 § 2's third contradiction: an `example` that the codec the return
+// type generates would reject, and the first thing that decode asks is whether
+// the key names a property at all.
+
+class Item
+{
+    public string $name = "";
+    public uint $count = 0;
+}
+
+class Items
+{
+    #[\Core\Route(path: "/items/{id}", method: \Core\Http\Method::Get, name: "Items::show")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[\Core\Api(example: {name: "a thing", quantity: 3})]
+    public function show(uint $id): Item
+    {
+        return new Item();
+    }
+}
+
+echo "GET /items/{id} -> Items::show", "\n";

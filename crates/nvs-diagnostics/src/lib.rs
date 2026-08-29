@@ -2150,6 +2150,17 @@ pub mod code {
     /// PHP's `printf` argument-mismatch bug family into a compile error.
     pub const E_FORMAT_TEMPLATE_MISMATCH: Code = Code::new("E0770");
 
+    /// An `#[Api]` that contradicts the code it annotates — ADR 0085 § 2's
+    /// four, under one code.
+    ///
+    /// One code rather than four because § 2 states them as one rule: the
+    /// annotation *may add, and may not contradict*. Each of the four is a
+    /// different way for the same sentence to be false, so what distinguishes
+    /// them is the message and the two spans it names, not a number an author
+    /// would ever look up separately. The fix is the same in every case —
+    /// correct the attribute, or correct the code it disagrees with.
+    pub const E_API_CONTRADICTS_THE_CODE: Code = Code::new("E0771");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

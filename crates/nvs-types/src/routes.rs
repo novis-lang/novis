@@ -74,6 +74,19 @@
 //! as the one `tainted string` § 3 says it does, so it binds a `string` and
 //! nothing else.
 //!
+//! And it reads
+//! [ADR 0085](../../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)
+//! § 2's `#[Api]`, which is here for the same reason again and is the one
+//! attribute on this list that changes nothing a program does: it supplies
+//! what the route table and the signature cannot say, and § 2's whole rule is
+//! that it **may add and may not contradict**. Its payload's two roster
+//! questions are [`API_OPTIONS`], and its four contradictions are
+//! [`check_api`] — three of them, each a comparison against the declaration —
+//! plus [`check_stray_api`] for the fourth, which is [`check_stray_query`]'s
+//! question about a marker away from the thing that reads it. One `#[Api]`
+//! describes the operation however many `#[Route]`s the method carries, so it
+//! is asked once per method beside `#[Access]` rather than once per row.
+//!
 //! A `#[Query]` written where no `#[Route]` reads it is [`check_stray_query`],
 //! and it is the one thing here the per-class walk cannot ask: that walk selects
 //! the methods a `#[Route]` marks, so a stray marker is invisible to it by
@@ -101,6 +114,14 @@ const NAME: &str = "name";
 
 const ALLOW: &str = "allow";
 const CSRF: &str = "csrf";
+
+const TAGS: &str = "tags";
+const ERRORS: &str = "errors";
+const SECURITY: &str = "security";
+const EXAMPLE: &str = "example";
+
+const STATUS: &str = "status";
+const TYPE: &str = "type";
 
 /// The four verbs ADR 0096 § 4 turns CSRF on for, named once: [`CSRF`] is an
 /// opt-out from *these*, and [`check_csrf_opt_out`] is the only reader.
@@ -456,6 +477,14 @@ pub(crate) fn check_class_routes(
         if let Some(access) = access {
             check_csrf_opt_out(access, m, ctx, env);
         }
+        // ADR 0085 § 2's annotation is a fact about the *method* — one
+        // `#[Api]` describes the operation however many verbs it serves — so
+        // it is asked once here beside `#[Access]`, and not per row.
+        if let Some(api) =
+            crate::testing::attribute_named(&m.attributes, crate::derive::API, ctx, env)
+        {
+            check_api(api, m, class, ctx, env);
+        }
         for attr in routes {
             collect_route(attr, m, class, handler.clone(), access, ctx, env);
         }
@@ -563,6 +592,373 @@ fn check_csrf_opt_out(access: &Attribute, m: &MethodMember, ctx: &Ctx<'_>, env: 
             "ADR 0096 § 4 turns CSRF on for `Post`, `Put`, `Patch` and `Delete` and for no other \
              verb — delete the field, or write it on the route that is actually unsafe",
         ),
+    );
+}
+
+/// `#[Api(tags?: string[], errors?: {status: int, type: Class::class}[],
+/// security?: string[], example?: {…})]` — ADR 0085 § 2's own spelling, in the
+/// order that section writes it.
+///
+/// Every row is [`OptionTy::Mixed`], and that is not this roster giving up. Of
+/// the five types [`OptionTy`] can place a value at, none is an array or a
+/// shape, and adding two rows for one attribute would put the *structure* of
+/// `#[Api]`'s payload in a table shared by four other attributes that have no
+/// use for it — while leaving every question worth asking here unanswered
+/// anyway, because § 2's rule is not "this field is an array of strings" but
+/// "this field does not contradict the code". So the roster keeps the two
+/// questions a roster is for — a name no row declares, and a name given twice
+/// — and [`check_api`] reads the values, having the declaration in hand.
+pub(crate) const API_OPTIONS: &[(&str, OptionTy)] = &[
+    (TAGS, OptionTy::Mixed),
+    (ERRORS, OptionTy::Mixed),
+    (SECURITY, OptionTy::Mixed),
+    (EXAMPLE, OptionTy::Mixed),
+];
+
+/// ADR 0085 § 2's fourth contradiction: an `#[Api]` on a method carrying no
+/// `#[Route]`.
+///
+/// [`check_stray_query`]'s question about the other marker that means nothing
+/// on its own, asked from the same walk for the same reason — the pass that
+/// would refuse it selects methods by their `#[Route]`, so a method with no
+/// `#[Route]` is exactly the one it never visits.
+///
+/// It is § 2's cheapest contradiction and its most literal: an annotation
+/// describing an operation, on something that is not one. Nothing reads it,
+/// no document carries it, and the author's mistake is either a missing
+/// `#[Route]` or an attribute on the wrong method — so the help names both
+/// rather than guessing.
+pub(crate) fn check_stray_api(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    if m.attributes
+        .iter()
+        .flat_map(|group| &group.attributes)
+        .any(|attr| crate::derive::attribute_is(attr, crate::derive::ROUTE, ctx, env))
+    {
+        return;
+    }
+    let Some(attr) = crate::testing::attribute_named(&m.attributes, crate::derive::API, ctx, env)
+    else {
+        return;
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_API_CONTRADICTS_THE_CODE,
+            "this `#[Api]` annotates no operation",
+        )
+        .with_primary(attr.span, "the method carries no `#[Route]`")
+        .with_help(
+            "ADR 0085 § 2's `#[Api]` supplies what a route's own types cannot say, so away from a \
+             `#[Route]` there is nothing for it to say it about — add the `#[Route]`, or move the \
+             `#[Api]` to the method that has one",
+        ),
+    );
+}
+
+/// ADR 0085 § 2's first three contradictions, asked of one method's `#[Api]`.
+///
+/// § 2's whole rule is that the annotation **may add and may not contradict**,
+/// and that is checkable only where both halves are in hand — the payload and
+/// the declaration it describes. That is this walk and not
+/// [`crate::attributes`]', for [`check_class_routes`]' own reason.
+///
+/// The three asked here:
+///
+/// - an **`errors`** entry whose `type` is not a class a handler could
+///   produce. § 2's own wording, read as the widest question that is both
+///   sound and *not already asked*: the type is instantiable —
+///   [`nvs_hir::ClassLinks::concrete`], so not an interface, not `abstract`,
+///   and not an enum. A name resolving to nothing is deliberately **not** this
+///   error: it is `E_UNDEFINED_CLASS` from the expression walk that already
+///   read the `::class`, and a second diagnostic would name the author's one
+///   mistake twice. The narrower question § 2's phrase could also mean — does
+///   *this* handler reach *that* class — is asked by nothing, and cannot be:
+///   Novis has no `throws` clause, and
+///   [ADR 0077](../../../../docs/adr/0077-compile-time-routing.md) § 4 keeps
+///   this compiler out of the handler's body on purpose. The roster is
+///   [`crate::signatures::SignatureTable`], which [`crate::error_lib::seed`]
+///   has already filled with spec § 10's tree, so `Core\NotFound` answers
+///   exactly as an application's own class does.
+/// - an **`example`** naming a field the return type does not declare. § 2
+///   asks for the example to decode "with the same decoder ADR 0071 already
+///   built", and the decoder's first question is this one: a key naming no
+///   property is a bad field, and a bad field is the whole of what a derived
+///   decode reports. Asked only where the return type is a class this program
+///   declares — against a scalar, an array or an absent annotation there is no
+///   field roster to disagree with, and inventing one would refuse an example
+///   that is correct.
+/// - a **`tags`** or **`security`** entry that is not a string, which is the
+///   structural half the roster cannot state.
+///
+/// **§ 2's `security` scheme check is written down to the point the tree can
+/// reach and no further, deliberately.** "A scheme name that no configured
+/// scheme defines" needs a configured scheme, and nothing in this compiler
+/// declares one yet — there is no configuration surface for a security scheme
+/// anywhere, which `crates/nvs-cli/src/openapi.rs`'s own gap list already
+/// records. Refusing every name against an empty roster would refuse ADR 0085
+/// § 2's own example, so what stands here today is the shape and the name is
+/// carried uninterpreted, exactly as ADR 0102 § 8 carries an access decision.
+/// The comparison lands in this function, unchanged, on the day a scheme has a
+/// home.
+fn check_api(api: &Attribute, m: &MethodMember, class: &QName, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    for option in [TAGS, SECURITY] {
+        check_string_list(api, option, env);
+    }
+    check_api_errors(api, ctx, env);
+    check_api_example(api, m, class, env);
+}
+
+/// One `#[Api]` option written as an array of `string`s — [`TAGS`] and
+/// [`SECURITY`], which have the same shape and differ only in what a later
+/// pass will do with the strings.
+fn check_string_list(api: &Attribute, option: &str, env: &mut Env<'_>) {
+    let Some(field) = written(api, option, env) else {
+        return;
+    };
+    let (value, span) = (field.value.clone(), field.span);
+    let ExprKind::ArrayLiteral(items) = &value.kind else {
+        report_api(
+            format!("`{option}` is not a list"),
+            span,
+            "written as a single value",
+            format!(
+                "ADR 0085 § 2 writes `{option}` as an array, because an operation may carry more \
+                 than one — write `{option}: [...]` even for a list of one"
+            ),
+            env,
+        );
+        return;
+    };
+    let declared = env.interner.intern(crate::ty::Ty::String);
+    for item in items {
+        let entry = item.value.clone();
+        let entry_span = entry.span;
+        if !matches!(
+            crate::defaults::literal_default(&entry, declared, env),
+            Some(crate::defaults::ConstArg::Str(_))
+        ) {
+            report_api(
+                format!("this `{option}` entry is not a string"),
+                entry_span,
+                "not a string",
+                format!("every entry of `{option}` is a name, and a name is written as a string"),
+                env,
+            );
+        }
+    }
+}
+
+/// § 2's `errors`: each entry a `{status, type}` whose `type` names a class
+/// this program declares.
+fn check_api_errors(api: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    let Some(field) = written(api, ERRORS, env) else {
+        return;
+    };
+    let (value, span) = (field.value.clone(), field.span);
+    let ExprKind::ArrayLiteral(items) = &value.kind else {
+        report_api(
+            "`errors` is not a list".to_owned(),
+            span,
+            "written as a single value",
+            "ADR 0085 § 2 writes `errors` as an array of `{status: …, type: …}` entries — write \
+             `errors: [{...}]` even for one",
+            env,
+        );
+        return;
+    };
+    let int_ty = env.interner.intern(crate::ty::Ty::Int);
+    for item in items {
+        let entry = item.value.clone();
+        let ExprKind::ObjectLiteral(fields) = &entry.kind else {
+            report_api(
+                "this `errors` entry is not a `{status, type}`".to_owned(),
+                entry.span,
+                "not a shape literal",
+                "§ 2 writes each entry as `{status: 404, type: Api\\NotFound::class}` — the two \
+                 halves of one error response",
+                env,
+            );
+            continue;
+        };
+        let mut status = None;
+        let mut ty = None;
+        for entry_field in fields {
+            match span_text(env.src, entry_field.name) {
+                STATUS => status = Some(entry_field.clone()),
+                TYPE => ty = Some(entry_field.clone()),
+                other => {
+                    let (other, other_span) = (other.to_owned(), entry_field.span);
+                    report_api(
+                        format!("`{other}` is not part of an `errors` entry"),
+                        other_span,
+                        "no such field",
+                        "§ 2's entry carries a `status` and a `type` and nothing else",
+                        env,
+                    );
+                }
+            }
+        }
+        match &status {
+            Some(field) => {
+                let written = field.value.clone();
+                if !matches!(
+                    crate::defaults::literal_default(&written, int_ty, env),
+                    Some(crate::defaults::ConstArg::Int(100..=599))
+                ) {
+                    report_api(
+                        "this `status` is not an HTTP status code".to_owned(),
+                        field.span,
+                        "not in 100-599",
+                        "an `errors` entry's `status` is the response's own code, so it is one \
+                         HTTP defines",
+                        env,
+                    );
+                }
+            }
+            None => report_api(
+                "this `errors` entry declares no `status`".to_owned(),
+                entry.span,
+                "no `status`",
+                "§ 2's entry pairs a status with the type returned at it — an entry naming only \
+                 one of the two describes no response",
+                env,
+            ),
+        }
+        let Some(ty) = ty else {
+            report_api(
+                "this `errors` entry declares no `type`".to_owned(),
+                entry.span,
+                "no `type`",
+                "§ 2's entry pairs a status with the type returned at it — an entry naming only \
+                 one of the two describes no response",
+                env,
+            );
+            continue;
+        };
+        check_error_type(&ty, ctx, env);
+    }
+}
+
+/// One `errors` entry's `type`, held to § 2's "a class the handler could
+/// produce" as far as [`check_api`]'s docs say that is askable: it names a
+/// class this program has.
+fn check_error_type(field: &nvs_syntax::ast::ObjectLiteralField, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    let (value, span) = (field.value.clone(), field.span);
+    let ExprKind::ClassNameConst { class } = &value.kind else {
+        report_api(
+            "this `type` does not name a class".to_owned(),
+            span,
+            "not a `::class`",
+            "§ 2's `type` is the class the error response carries, written `Api\\NotFound::class` \
+             — a name resolves through ADR 0061's autoload map, which a string would not",
+            env,
+        );
+        return;
+    };
+    let Some(qname) = crate::expr::members::resolve_class_expr(class, ctx, env) else {
+        // A dynamic class side is already `E_CLASS_NAME_CONST_NOT_STATIC` from
+        // the expression walk, and naming it again here would report one
+        // mistake twice.
+        return;
+    };
+    // Declared at all — asked of both tables, because neither holds every
+    // kind: an enum has no [`nvs_hir::ClassGraph`] entry by construction, and
+    // an interface declaring no member reaches no
+    // [`crate::signatures::SignatureTable`] row. A name in neither is
+    // `E_UNDEFINED_CLASS`, already reported by the walk that checked this
+    // expression — § 2's question is the one that survives *after* the name
+    // resolves, and asking it again here would name the author's one mistake
+    // twice.
+    if env.graph.get(&qname).is_none() && env.signatures.get(&qname).is_none() {
+        return;
+    }
+    if env.graph.get(&qname).is_some_and(|links| links.concrete) {
+        return;
+    }
+    report_api(
+        format!("`{qname}` is not a class a handler could produce"),
+        span,
+        "abstract, an interface, or an enum",
+        "§ 2's `errors` may add a response the types cannot state, but not one whose type nothing \
+         could ever be — write the concrete class the handler answers this status with",
+        env,
+    );
+}
+
+/// § 2's `example`, against the field roster ADR 0071's decoder reads: every
+/// key names a property of the return type.
+fn check_api_example(api: &Attribute, m: &MethodMember, class: &QName, env: &mut Env<'_>) {
+    let Some(field) = written(api, EXAMPLE, env) else {
+        return;
+    };
+    let (value, span) = (field.value.clone(), field.span);
+    let ExprKind::ObjectLiteral(fields) = &value.kind else {
+        report_api(
+            "`example` is not a shape literal".to_owned(),
+            span,
+            "not a shape literal",
+            "§ 2's `example` is one instance of what the operation answers with, written \
+             `{field: value, …}`",
+            env,
+        );
+        return;
+    };
+    // The return type as the signature table holds it, which is the same
+    // annotation ADR 0071's derive reads. Anything that is not a declared
+    // class has no field roster to disagree with — see this module's
+    // [`check_api`] docs for why that is silence rather than a refusal.
+    let method = span_text(env.src, m.name);
+    let Some(returns) = env
+        .signatures
+        .get(class)
+        .and_then(|sig| sig.methods.get(method))
+        .map(|sig| sig.return_ty)
+    else {
+        return;
+    };
+    let crate::ty::Ty::Class(returns, _) = env.interner.get(returns).clone() else {
+        return;
+    };
+    let Some(properties) = env
+        .signatures
+        .get(&returns)
+        .map(|sig| sig.properties.keys().cloned().collect::<Vec<_>>())
+    else {
+        return;
+    };
+    for field in fields {
+        let name = span_text(env.src, field.name).to_owned();
+        if properties.iter().any(|declared| declared == &name) {
+            continue;
+        }
+        let field_span = field.span;
+        report_api(
+            format!("`{returns}` declares no `{name}`"),
+            field_span,
+            "no such field",
+            "§ 2's example is decoded by the codec the return type generates, so a key naming no \
+             property is a field that decode would reject",
+            env,
+        );
+    }
+}
+
+/// One ADR 0085 § 2 contradiction, reported.
+///
+/// Every one of them is [`code::E_API_CONTRADICTS_THE_CODE`] with its own
+/// message, which is that code's own reasoning: § 2 states four ways for one
+/// sentence to be false, and what tells them apart is what the message says
+/// rather than a number.
+fn report_api(
+    message: String,
+    span: Span,
+    label: &'static str,
+    help: impl Into<String>,
+    env: &mut Env<'_>,
+) {
+    env.diags.report(
+        Diagnostic::error(code::E_API_CONTRADICTS_THE_CODE, message)
+            .with_primary(span, label)
+            .with_help(help.into()),
     );
 }
 

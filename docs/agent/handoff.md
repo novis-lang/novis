@@ -2,65 +2,68 @@
 
 ## State
 
-**Stage 4 is on disk except `#[Api]`.** `nvs build --openapi <file>` emits ADR 0085 § 3's document and
-`nvs api diff <old.json> <new.json>` is § 4's gate. The acceptance check the driver reported failing after
-session 0003 (`nvs build --openapi emits 3.1`) **passes at this commit** — run by hand against
-`target/debug/nvs.exe`, all three `want` fragments present, exit 0. Nothing was changed to make it pass, so
-the driver's failure was against a binary built before session 0003's commit landed.
+**Stage 4 is on disk, `#[Api]` included.** `nvs build --openapi <file>` emits ADR 0085 § 3's document,
+`nvs api diff` is § 4's gate, and `#[Api]` is § 2's annotation with all four contradictions refused.
+`crates/nvs-cli/tests/openapi.rs` is 10 tests, all green, which is every test both stage-4 checks name.
 
-**`crates/nvs-cli/src/api_diff.rs` is the gate.** Three classes over two `serde_json::Value`s, one report
-line per change worst-first, `ExitCode::FAILURE` on any breaking one. Its module doc owns the
-classification and the two places it deliberately errs towards breaking (a removed parameter whatever its
-optionality, a changed `format`), which is ADR 0085's own "occasionally wrong at the margins, and no
-suppression mechanism". The walk covers members no Novis document carries yet — `responses`,
-`requestBody`, `components.schemas` — because the *old* side of a diff is whatever a team's last release
-wrote, and a gate that skipped an unrecognised member would report "no change" over a document that
-removed every response in it.
+**The stage-4 acceptance check was failing on a driver bug, not on the tree** — `tools/loop.py`'s
+command-check branch inverted `ordered_in`, so no `kind = "command"` check has passed since `058c1f0`
+introduced the kind. Fixed; the playbook bullet above owns the shape of that mistake. Four sessions
+reported it as a stale binary, so a `## State` claim that an acceptance failure is the driver's is worth
+one look at the branch that produced it.
 
-**Fixtures are one file each**, `crates/nvs-cli/tests/fixtures/api/{base,removed,optional}.nvs`: `base`
-has two operations, `removed` deletes one, `optional` adds a `#[Query] $sort` with a default. Both
-documents in every diff case are built with the emitter, never pasted JSON, so a change to the emitter's
-shape fails here rather than leaving two frozen files agreeing with each other.
+**`#[Api]` is `crates/nvs-types/src/routes.rs`.** `API_OPTIONS` is four `OptionTy::Mixed` rows — that
+module's own doc says why a roster shared with four other attributes is the wrong home for one
+attribute's array-and-shape structure — and `check_api` reads the values with the declaration in hand.
+Its doc comment owns the two readings this session had to settle:
 
-**`crates/nvs-cli/tests/openapi.rs` is 9 tests, all green**, including three of the four the stage-4
-`cargo-named` check names. That check now fails on exactly one missing test —
-`an_api_attribute_contradicting_its_own_signature_is_a_diagnostic` — which is the next slice, not a
-regression.
+- § 2's "not a class the handler could produce" is `ClassLinks::concrete`, **not** "declared". A name
+  resolving to nothing is already `E0303` from the expression walk, so refusing it here named one
+  mistake twice; what survives is the question `E0303` cannot ask — an interface, an `abstract` class or
+  an enum is nothing a handler answers with. Declaredness is asked of `graph` **and** `signatures`
+  because neither holds every kind: an enum has no graph entry, a member-less interface no signature row.
+- § 2's `security` scheme check is written to the shape and no further. "A name no configured scheme
+  defines" needs a configured scheme, and nothing in the tree declares one — `crates/nvs-cli/src/openapi.rs`'s
+  gap list already records it. Refusing every name against an empty roster would refuse ADR 0085 § 2's
+  own example.
 
-**Orientation gap, seventh session running:** `[context] adrs` still does not carry `0085 §§ 1-4`, and
-this session sliced §§ 3-4 and *Verification* by hand for two calls.
+**`Foo::class` is now an ADR 0046 § 2 constant** (`nvs_types::attributes::is_constant`), because § 2's
+`errors` entry writes its `type` as a name and the only other spelling is a magic string, which ADR 0061
+exists to refuse. It was already folded to the resolved name by `expr::members::check_class_name_const`,
+so this admits a value the checker already had, not a new kind.
+
+**Fixtures are one file per contradiction**, `crates/nvs-cli/tests/fixtures/api/`: each must be the only
+refusal in its own build, plus `api-that-agrees.nvs` carrying all four fields correctly — four refusing
+fixtures alone pass just as well against an `#[Api]` that refuses everything.
+
+**Orientation gap, eighth session running:** `[context] adrs` still does not carry `0085 §§ 1-4`, and
+this session sliced § 2 by hand.
 
 ## Next group
 
-**`#[Api]`, then what it and the return type let the document say. Shared file set:**
-`crates/nvs-types/src/derive.rs`, `crates/nvs-types/src/routes.rs`, `crates/nvs-cli/src/openapi.rs`,
-`crates/nvs-cli/tests/openapi.rs`.
+**What the return type and the doc comment let the document say. Shared file set:**
+`crates/nvs-cli/src/openapi.rs`, `crates/nvs-types/src/routes.rs`, `crates/nvs-cli/tests/openapi.rs`.
 
-- [ ] **`#[Api]` and its four contradictions, ADR 0085 § 2.** The name joins
-      `nvs_types::derive::ATTRIBUTES` (`crates/nvs-types/src/derive.rs:82`) beside the `Core\Query`
-      constant at `:151`, which is the shape to copy — matched nominally after `resolve_ref`, never
-      structurally. The payload is read where the route row is built (`routes.rs:577`
-      `collect_route`) and checked where the table is (`routes.rs:1086` `check_table`), which is already
-      the pass that reports a duplicate route. § 2's four contradictions — an `errors` entry naming an
-      unreachable type, an unknown `security` scheme, an `example` that fails the real decoder, an
-      `#[Api]` with no `#[Route]` — are one new diagnostic each or one code with four messages; next free
-      in the types band is **E0771**. The test the acceptance check names is
-      `an_api_attribute_contradicting_its_own_signature_is_a_diagnostic`, in
-      `crates/nvs-cli/tests/openapi.rs`.
-- [ ] **Response schemas, § 1** — gap 1 in `crates/nvs-cli/src/openapi.rs`'s module doc. The handler's
-      declared return type is not on the row: `struct Route` is `routes.rs:292` and is filled at
-      `routes.rs:577`, and rendering a class as a schema is ADR 0071's codec, which is why this slice is
-      the one that decides whether `openapi.rs` gains a `components.schemas` section — `api_diff.rs`
-      already walks one.
-- [ ] **Summary and description, § 1** — gap 3, and the cheapest of the six: doc comments are parsed
-      already, so this is a field on the row and two lines in `operation` (`openapi.rs`, `fn operation`).
+- [ ] **Summary and description, § 1** — gap 3 in `crates/nvs-cli/src/openapi.rs`'s module doc, and the
+      cheapest of the six: a handler's doc comment is already parsed, so this is carrying it to the row
+      and splitting first-line-from-rest at the emitter. The row is `Route` at
+      `crates/nvs-types/src/routes.rs:302`, built in `collect_route` at `:684`; the operation object is
+      written in `crates/nvs-cli/src/openapi.rs`. One test in `crates/nvs-cli/tests/openapi.rs`.
+- [ ] **Response schemas, § 1** — gap 1 in the same module doc. The handler's declared return type
+      becomes the `200` response's schema, which `check_api_example` (`routes.rs:@check_api_example`)
+      already resolves through `signatures.get(class).methods[name].return_ty` — read it the same way
+      rather than a second walk, and reuse the property roster for the object schema.
+- [ ] **`#[Api]`'s four fields reach the document, § 2.** Nothing emits `tags`, `errors`, `security` or
+      `example` yet: they are checked and dropped. The row has no field for them, so this is one
+      `ApiAnnotation` on `Route` filled in `check_api` and read in `openapi.rs`.
 
 ## Backlog
 
-- Gaps 2 and 4-6 of `crates/nvs-cli/src/openapi.rs`'s module doc — request bodies, `info.version`, a type
-  outside `schema`'s list.
-- `info.version` needs a key `nvs.toml` does not have; M6's reader owns it (`main.rs`'s `origin` doc).
-- `nvs api diff` has no suppression mechanism and must not grow one in v1 — ADR 0085 *Consequences*.
-- ADR 0085 *Verification*'s qualifier row: a `secret` property in a response class is a compile error at
-  the handler, and nothing asserts it yet.
-- `[context] adrs` in `docs/agent/loop-goal.toml` wants `0085 §§ 1-4`.
+- A `.nvst` case for `#[Api]`'s refusals — `--EXPECTF-ERROR--`, as `#[Query]`/`#[Access]` got; the Rust
+  tests cover all four today. `docs/agent/conventions.md` § *A `.nvst` test case*.
+- A configured security-scheme roster, which § 2's second contradiction needs before it can be asked in
+  full — `crates/nvs-cli/src/openapi.rs`'s gap list.
+- `[context] adrs` in `docs/agent/loop-goal.toml` wants `0085 §§ 1-4`; eight sessions have now sliced it
+  by hand.
+- The remaining three gaps in `crates/nvs-cli/src/openapi.rs`'s module doc.
+- `Core\Router` splits and `::match`, out of scope by the goal's own standing decisions.

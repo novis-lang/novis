@@ -1,0 +1,27 @@
+<?nvs
+// ADR 0085 § 2's first contradiction: an `errors` entry whose `type` is not a
+// class a handler could produce. The name resolves — a name that does not is
+// `E0303` from the expression walk, and pinning that here would pin the wrong
+// pass — so what is wrong with it is that an interface is nothing a handler
+// ever answers with.
+//
+// One file per contradiction, because each has to be the *only* refusal in its
+// own build: a fixture carrying two of them would still pass an assertion that
+// only ever saw the first.
+
+interface ItemFault
+{
+}
+
+class Items
+{
+    #[\Core\Route(path: "/items", method: \Core\Http\Method::Get, name: "Items::index")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[\Core\Api(errors: [{status: 404, type: ItemFault::class}])]
+    public function index(): string
+    {
+        return "every item";
+    }
+}
+
+echo "GET /items -> Items::index", "\n";

@@ -80,7 +80,7 @@ use crate::{Ctx, Env, span_text, strip_sigil};
 /// [`crate::commands`]', `#[Route]`/`#[Query]`/`#[Access]` are
 /// [`crate::routes`]'.
 pub const ATTRIBUTES: &[&str] = [
-    DERIVE, FIELD, TEST, FIXTURE, TEST_WITH, COMMAND, OPTION, ROUTE, QUERY, ACCESS,
+    DERIVE, FIELD, TEST, FIXTURE, TEST_WITH, COMMAND, OPTION, ROUTE, QUERY, ACCESS, API,
 ]
 .as_slice();
 
@@ -159,6 +159,18 @@ pub const QUERY: &str = r"Core\Query";
 /// [`crate::routes`] owns the payload, including the two rules of § 1a that a
 /// roster cannot state.
 pub const ACCESS: &str = r"Core\Access";
+
+/// `#[Api(tags?, errors?, security?, example?)]` — ADR 0085 § 2's annotation,
+/// on a `#[Route]` method, and the only name here that is *purely* additive:
+/// every field supplies something the route table and the signature cannot
+/// say, and none of them changes what the program does. That is why § 2's rule
+/// is stated as "it may add, and it may not contradict" rather than as a shape
+/// — a field that agreed with the code would be a copy, and one that disagrees
+/// is [`nvs_diagnostics::code::E_API_CONTRADICTS_THE_CODE`]. Like [`ROUTE`] it
+/// names no member of anything, so a file that spells it bare places it with
+/// `use Core\Api;`. [`crate::routes`] owns the payload and the four
+/// contradictions.
+pub const API: &str = r"Core\Api";
 
 /// One derived class's JSON field list, in declaration order — ADR 0071 § 2's
 /// "declaration order fixes encode order, so output is byte-deterministic".

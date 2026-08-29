@@ -1,0 +1,19 @@
+<?nvs
+// ADR 0085 § 2's second contradiction, as far as the tree can ask it: a
+// `security` entry that is not a scheme *name* at all. Which names a
+// configured scheme is the half with no home yet — `crates/nvs-types/src/routes.rs`'s
+// `check_api` records why, and this pins the shape that will still hold when
+// the roster arrives.
+
+class Items
+{
+    #[\Core\Route(path: "/items", method: \Core\Http\Method::Get, name: "Items::index")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[\Core\Api(security: [7])]
+    public function index(): string
+    {
+        return "every item";
+    }
+}
+
+echo "GET /items -> Items::index", "\n";

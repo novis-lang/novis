@@ -73,6 +73,7 @@ pub(crate) fn check_declaration(
                 // stray marker is invisible to the pass that would refuse it,
                 // and this is the walk that visits every method.
                 crate::routes::check_stray_query(m, ctx, env);
+                crate::routes::check_stray_api(m, ctx, env);
                 crate::commands::check_stray_options(m, ctx, env);
                 check_params(&m.params, ctx, env);
             }
@@ -162,6 +163,13 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                     env,
                 );
                 crate::routes::check_access(attr, env);
+            } else if recognized(crate::derive::API) {
+                // Only the roster here. ADR 0085 § 2's four contradictions are
+                // every one of them a comparison against the *declaration* —
+                // its `#[Route]`, its return type, the classes the program
+                // declares — so they are asked by the per-class walk that
+                // holds those, exactly as `#[Route]`'s own path checks are.
+                check_roster("Api", crate::routes::API_OPTIONS, &attr.fields, ctx, env);
             }
         }
         return;
@@ -403,6 +411,15 @@ pub(crate) fn is_constant(expr: &Expr) -> bool {
         // `Class::CONST` — a class constant, and ADR 0010's enum case with it,
         // which is the one spelling § 2 names beside a literal.
         | ExprKind::ClassConstAccess { .. }
+        // `Class::class`, which § 2's list already covers: it *is* a class
+        // constant, and the only one whose value the compiler resolves rather
+        // than reads — `crate::expr::members::check_class_name_const` folds it
+        // to the fully qualified name with no runtime step at all. Admitted
+        // because ADR 0085 § 2 writes an `errors` entry's `type` as a name,
+        // and a name is either this spelling or a magic string; ADR 0061's
+        // whole premise is that a name resolves, so the string form would be
+        // the one thing § 2 exists to refuse.
+        | ExprKind::ClassNameConst { .. }
         | ExprKind::ArrayLiteral(_)
         | ExprKind::ObjectLiteral(_) => true,
         // An interpolated string reads a variable by definition, whatever it

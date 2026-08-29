@@ -787,6 +787,16 @@ is why" — is this file.
   clauses — house style already allows it — or `git commit` slice 1 by hand once its own crate's
   tests are green, and let the wrap commit the rest. What does not work is writing two
   `## commit:` sections over the same path and hoping git splits them.
+- **A `loop-goal.toml` acceptance check can fail on the *driver*, not on the tree — and a check whose
+  failure detail is a bare `True` is that.** Stage 4's `nvs build --openapi emits 3.1` was reported
+  failing after four sessions in a row while passing by hand at every one of those commits, and two
+  handoffs in a row wrote it off as "the driver built the binary before the commit landed". It was not:
+  `tools/loop.py`'s `cargo_check` read `ordered_in`'s **boolean** as a description of what was missing
+  (`missing = ordered_in(...); if missing: return f"{label}: {missing}"`), so a `kind = "command"` check
+  failed exactly when it passed and printed the word `True` as its reason. No command check had ever
+  passed since the kind was introduced in `058c1f0`. When an acceptance failure's detail is not a
+  sentence about your code — `True`, an empty string, a bare number — read the branch in `loop.py` that
+  produced it before touching the tree, and check the other call sites of whatever helper it names.
 
 ## Running things
 

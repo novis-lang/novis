@@ -1,0 +1,32 @@
+<?nvs
+// The other side of ADR 0085 § 2's bound: one `#[Api]` carrying all four
+// fields, every one of them agreeing with the code beside it. Without this the
+// four refusing fixtures would still pass if `#[Api]` refused *everything*.
+//
+// `RuntimeError` is one of spec § 10's own tree, which `nvs_types::error_lib`
+// seeds — so the `errors` roster answers for a compiler-declared class exactly
+// as it does for an application's own.
+
+class Item
+{
+    public string $name = "";
+    public uint $count = 0;
+}
+
+class Items
+{
+    #[\Core\Route(path: "/items/{id}", method: \Core\Http\Method::Get, name: "Items::show")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[\Core\Api(
+        tags: ["Items"],
+        errors: [{status: 500, type: RuntimeError::class}],
+        security: ["bearer"],
+        example: {name: "a thing", count: 3},
+    )]
+    public function show(uint $id): Item
+    {
+        return new Item();
+    }
+}
+
+echo "GET /items/{id} -> Items::show", "\n";

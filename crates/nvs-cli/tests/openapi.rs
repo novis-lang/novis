@@ -226,3 +226,50 @@ fn an_api_diff_of_an_unreadable_document_is_a_failure() {
         "and never reports the resting state:\n{report}"
     );
 }
+
+// -------------------------------------------------------------------------
+// § 2 -- `#[Api]` may add and may not contradict.
+//
+// One fixture per contradiction plus one that agrees, and the bound is
+// asserted on both sides on purpose: four refusing fixtures alone would pass
+// just as well against an `#[Api]` that refused everything it was handed, and
+// the accepting one alone would pass against an `#[Api]` nothing checked at
+// all. `crates/nvs-types/src/routes.rs`'s `check_api` owns which half of § 2's
+// `security` rule is askable today and why the other half is not.
+// -------------------------------------------------------------------------
+
+/// § 2's four contradictions, each named by the message that tells it from the
+/// other three -- they share `E0771`, because § 2 states one rule that four
+/// different writings can break.
+#[test]
+fn an_api_attribute_contradicting_its_own_signature_is_a_diagnostic() {
+    let contradictions = [
+        (
+            "errors-names-no-class",
+            "is not a class a handler could produce",
+        ),
+        ("example-names-no-field", "declares no `quantity`"),
+        ("security-is-not-a-name", "entry is not a string"),
+        ("api-without-route", "annotates no operation"),
+    ];
+    for (stem, message) in contradictions {
+        let (doc, err, ok) = build(&fixture(stem));
+        assert!(!ok, "`{stem}` contradicts the code, so it does not build");
+        assert!(
+            err.contains("E0771") && err.contains(message),
+            "`{stem}` is refused as `E0771: … {message} …`:\n{err}"
+        );
+        assert!(
+            doc.trim().is_empty(),
+            "and no document is written for a program that does not compile:\n{doc}"
+        );
+    }
+
+    // The other side of the bound: the same four fields, agreeing.
+    let (doc, err, ok) = build(&fixture("api-that-agrees"));
+    assert!(ok, "an `#[Api]` that agrees with its code builds: {err}");
+    assert!(
+        doc.contains("\"operationId\": \"Items::show\""),
+        "and the operation it annotates is in the document:\n{doc}"
+    );
+}
