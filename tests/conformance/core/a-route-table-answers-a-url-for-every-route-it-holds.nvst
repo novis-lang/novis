@@ -1,0 +1,139 @@
+--TEST--
+every `#[Route]` the program declares has a row in the compile-time table, and `Core\Router::url` answers each of them its own link — ADR 0077 §§ 1-3 and 5, ADR 0102 § 6
+--FILE--
+<?nvs
+// The sibling cases each ask one question of one route. This asks the whole
+// table one question, and it asks it twice over:
+//
+//   * **Completeness is the compilation.** An unknown literal name is a
+//     compile error (ADR 0077 § 4), so a route whose row the table never grew
+//     does not reach the runtime at all — this file failing to compile is the
+//     failure, and there is no line below that could report it. Eight routes
+//     are declared and eight are linked to.
+//   * **Correctness is counted, not read off a line.** A table that answered
+//     plausibly for one name still fails the sweep: every link is rooted, no
+//     link still carries a `{`, and no two links are the same text, which is
+//     what a lookup collapsing two rows onto one row would print.
+//
+// The labelled lines are the third failure mode the counters cannot see — a
+// *permutation*, where every row answers and one name is answered by another
+// name's row. Distinct, rooted and substituted are all still true of it.
+//
+// Between them the eight paths spell every form of § 2's grammar: a literal
+// path with no capture at all, one required capture, an optional one, two
+// required captures in one path, and a `{path...}` whose own `/`s are
+// structure. `Core\Http\Method::Delete` is here so that the table is not read
+// as a `Get`-only index.
+class Posts {
+    // ADR 0096 § 1: the decision is a required sibling of every `#[Route]`, and
+    // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
+    #[\Core\Route(path: "/", method: \Core\Http\Method::Get, name: "Posts::home")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function home(): string { return "home"; }
+
+    #[\Core\Route(path: "/posts/{id}", method: \Core\Http\Method::Get, name: "Posts::show")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function show(uint $id): string { return "post " . $id; }
+
+    #[\Core\Route(path: "/posts/{page?}", method: \Core\Http\Method::Get, name: "Posts::list")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function list(uint $page = 1): string { return "page " . $page; }
+
+    #[\Core\Route(path: "/posts/{id}/comments/{comment}", method: \Core\Http\Method::Get, name: "Posts::comment")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function comment(uint $id, uint $comment): string { return "comment"; }
+}
+
+// A second class, because ADR 0077 § 5 builds the table out of Stage 0's
+// whole-program enumeration rather than out of one declaration site.
+class Admin {
+    #[\Core\Route(path: "/admin/users", method: \Core\Http\Method::Get, name: "Admin::users")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function users(): string { return "users"; }
+
+    #[\Core\Route(path: "/admin/users/{id}", method: \Core\Http\Method::Get, name: "Admin::edit")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function edit(uint $id): string { return "edit"; }
+
+    #[\Core\Route(path: "/admin/users/{id}/delete", method: \Core\Http\Method::Delete, name: "Admin::delete")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function delete(uint $id): string { return "delete"; }
+}
+
+array<string> $names = [
+    "Posts::home",
+    "Posts::show",
+    "Posts::list",
+    "Posts::comment",
+    "Files::download",
+    "Admin::users",
+    "Admin::edit",
+    "Admin::delete",
+];
+
+array<string> $links = [
+    Core\Router::url("Posts::home", []),
+    Core\Router::url("Posts::show", ["id" => 7]),
+    Core\Router::url("Posts::list", ["page" => 3]),
+    Core\Router::url("Posts::comment", ["id" => 7, "comment" => 2]),
+    Core\Router::url("Files::download", ["path" => "a/b/c.txt"]),
+    Core\Router::url("Admin::users", []),
+    Core\Router::url("Admin::edit", ["id" => 9]),
+    Core\Router::url("Admin::delete", ["id" => 9]),
+];
+
+int $rooted = 0;
+int $substituted = 0;
+int $unique = 0;
+foreach ($links as string $one) {
+    // A link is a path from the root: the mount prefix and the origin are the
+    // two things in front of it (ADR 0097 § 3, ADR 0102 § 6) and neither is
+    // configured here, so every answer begins at `/`.
+    if (Core\Str::startsWith($one, "/")) { $rooted = $rooted + 1; }
+    // Nothing of § 2's grammar survives into the answer. A row that copied its
+    // declared path out instead of substituting it prints `{id}` and is caught
+    // here rather than by whichever line happens to read it.
+    if (Core\Str::contains($one, "{") == false) { $substituted = $substituted + 1; }
+    int $same = 0;
+    foreach ($links as string $other) {
+        if ($one == $other) { $same = $same + 1; }
+    }
+    if ($same == 1) { $unique = $unique + 1; }
+}
+
+echo "routes=", Core\Arr::count($links), "\n";
+echo "rooted=", $rooted, "\n";
+echo "substituted=", $substituted, "\n";
+echo "unique=", $unique, "\n";
+
+int $n = Core\Arr::count($links) as int;
+int $i = 0;
+for (; $i < $n; ) {
+    echo $names[$i], "=", $links[$i], "\n";
+    $i = $i + 1;
+}
+
+// Declared *after* every statement that links to it, which is the whole point
+// of the table being built from the program enumeration (ADR 0061 § 3's scan,
+// ADR 0077 § 5): a row exists because the class is in the program, not because
+// it was declared before the call. `{path...}` binds a `string` and nothing
+// else — every remaining segment as one value, its own `/`s left alone while
+// each segment between them is still encoded.
+class Files {
+    #[\Core\Route(path: "/files/{path...}", method: \Core\Http\Method::Get, name: "Files::download")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function download(string $path): string { return "file " . $path; }
+}
+--EXPECT--
+routes=8
+rooted=8
+substituted=8
+unique=8
+Posts::home=/
+Posts::show=/posts/7
+Posts::list=/posts/3
+Posts::comment=/posts/7/comments/2
+Files::download=/files/a/b/c.txt
+Admin::users=/admin/users
+Admin::edit=/admin/users/9
+Admin::delete=/admin/users/9/delete
