@@ -1,0 +1,102 @@
+--TEST--
+`Core\Router::urlAbsolute`'s origin is the unit's `[app] origin` and nothing else in the file, let alone anything a request could carry — ADR 0102 § 6
+--FILE--
+<?nvs
+// ADR 0102 § 6 states the rule as a prohibition — an absolute link's origin is
+// configured per mount and is *never* derived from `Host` or
+// `X-Forwarded-Host` — and a prohibition is the hard half to assert: a program
+// run off the command line receives no request, so there is no header here to
+// fail to be read. What is assertable is the rule's positive half, and it is
+// the same sentence: the origin has exactly one source, so a link's authority
+// is decided before the program starts and no value the program computes, nor
+// any other key in the file it computed it from, can move it.
+//
+// So this case surrounds the one key that counts with four that look like it.
+// The `nvs.toml` at the foot holds an `origin` before any table, one under
+// `[server]`, one commented out inside `[app]` itself, and one under
+// `[app.dev]` — every near miss `configured_origin` in
+// `crates/nvs-cli/src/main.rs` walks past — and the answer below has to be the
+// fifth. A reader that took the first `origin` line, or the last, or any
+// `origin` under any table, passes the existing origin cases and fails here.
+class Docs {
+    // ADR 0096 § 1: the decision is a required sibling of every `#[Route]`, and
+    // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
+    #[\Core\Route(path: "/docs/{page}", method: \Core\Http\Method::Get, name: "Docs::show")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function show(string $page, #[\Core\Query] string $q = ""): string { return $page; }
+
+    #[\Core\Route(path: "/", method: \Core\Http\Method::Get, name: "Docs::home")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function home(): string { return "home"; }
+}
+
+// The four spellings the file also holds. They are values in an array rather
+// than four `if`s so the assertion below is a count over a set, which stays
+// true when a fifth near miss is added to the file and the list beside it.
+array<string> $decoys = [
+    "https://before-any-table.test",
+    "https://server-table.test",
+    "https://commented-out.test",
+    "https://app-dev-table.test",
+];
+
+array<string> $built = [
+    Core\Router::urlAbsolute("Docs::show", ["page" => "intro"]),
+    Core\Router::urlAbsolute("Docs::show", ["page" => "intro", "q" => "a b"]),
+    Core\Router::urlAbsolute("Docs::home", []),
+];
+
+// Every link carries the configured origin, and not one carries any of the
+// four the file also spells. The second count is what makes the first mean
+// something: a reader that concatenated *every* `origin` it found would still
+// satisfy the first.
+var $rows = 0;
+var $configured = 0;
+var $leaked = 0;
+foreach ($built as string $link) {
+    $rows = $rows + 1;
+    if (Core\Str::startsWith($link, "http://app-table.test:8080")) {
+        $configured = $configured + 1;
+    }
+    foreach ($decoys as string $decoy) {
+        if (Core\Str::contains($link, $decoy)) {
+            $leaked = $leaked + 1;
+        }
+    }
+}
+echo "configured=", $configured, "/", $rows, "\n";
+echo "leaked=", $leaked, "\n";
+
+// And the origin is carried across verbatim — scheme and explicit port
+// included. `http` rather than `https`, and a port rather than the scheme's
+// default, because § 6 makes the origin a configured *string* and not a host
+// the runtime completes: a member that rebuilt the authority out of its parts
+// would have a default to choose here and would choose wrong.
+echo "link=", $built["0"], "\n";
+echo "root=", $built["2"], "\n";
+--FILE nvs.toml--
+# `configured_origin` in `crates/nvs-cli/src/main.rs` reads `[app] origin` and
+# that key alone; ADR 0102 § 6 is why it may not grow a second source, and this
+# file is four near misses around the one it takes.
+
+# Before any table, so no table is open and this is not `[app]`'s.
+origin = "https://before-any-table.test"
+
+[server]
+# Another table's key of the same name.
+origin = "https://server-table.test"
+
+[app]
+# Commented out, and a comment runs to the end of the line.
+# origin = "https://commented-out.test"
+name = "conformance"
+origin = "http://app-table.test:8080"
+
+[app.dev]
+# A different table whose name merely starts with `app`.
+origin = "https://app-dev-table.test"
+--EXPECT--
+configured=3/3
+leaked=0
+link=http://app-table.test:8080/docs/intro
+root=http://app-table.test:8080/
