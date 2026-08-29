@@ -402,7 +402,7 @@ becoming a `float` ([ADR 0007](../adr/0007-explicit-type-system.md)).
 | `isFinite` | `isFinite(float $n): bool` | `is_finite`, `is_infinite` | neutral |
 | `toBase` | `toBase(int $n, uint $base): string` | `decbin`, `dechex`, `decoct`, `base_convert` | neutral |
 | `fromBase` | `fromBase(string $s, uint $base): int` | `bindec`, `hexdec`, `octdec`, `base_convert` | neutral |
-| `format` | `format(int\|float\|decimal $n, {decimals?: uint, decimalSeparator?: string, groupSeparator?: string}): string` | `number_format` | neutral |
+| `format` | `format(int\|float\|decimal $n, {decimals?: uint, decimalSeparator?: string, groupSeparator?: string}): string` | `number_format` | |
 
 Constants: `PI`, `TAU`, `E`, `EPSILON`, `INT_MAX`, `INT_MIN`, `UINT_MAX`, `FLOAT_MAX`, `FLOAT_MIN`, `NAN`,
 `INFINITY` — replacing `M_PI`, `M_E`, `PHP_INT_MAX`, `PHP_FLOAT_EPSILON` and the rest of PHP's global

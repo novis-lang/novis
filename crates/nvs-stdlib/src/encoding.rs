@@ -157,7 +157,7 @@ use data_encoding::{BASE32, BASE32_NOPAD};
 use encoding_rs::{DecoderResult, Encoding};
 use nvs_runtime::{Fault, NvsStr, Value};
 
-use crate::registry::{CoreClass, CoreEnum, CoreMethod, CoreTy};
+use crate::registry::{CoreClass, CoreEnum, CoreMethod, CoreTy, Qual};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -319,77 +319,77 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "encodeText",
-            params: &[CoreTy::Str, CoreTy::Enum(CHARSET_NAME)],
+            params: &[CoreTy::Text(Qual::Contagious), CoreTy::Enum(CHARSET_NAME)],
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_encoding_encode_text",
         },
         CoreMethod {
             name: "decodeText",
-            params: &[CoreTy::Bytes, CoreTy::Enum(CHARSET_NAME)],
+            params: &[CoreTy::Blob(Qual::Contagious), CoreTy::Enum(CHARSET_NAME)],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_encoding_decode_text",
         },
         CoreMethod {
             name: "isValidText",
-            params: &[CoreTy::Bytes, CoreTy::Enum(CHARSET_NAME)],
+            params: &[CoreTy::Blob(Qual::Neutral), CoreTy::Enum(CHARSET_NAME)],
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_encoding_is_valid_text",
         },
         CoreMethod {
             name: "toBase64",
-            params: &[CoreTy::Bytes],
+            params: &[CoreTy::Blob(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_encoding_to_base64",
         },
         CoreMethod {
             name: "fromBase64",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_encoding_from_base64",
         },
         CoreMethod {
             name: "toBase64Url",
-            params: &[CoreTy::Bytes],
+            params: &[CoreTy::Blob(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_encoding_to_base64_url",
         },
         CoreMethod {
             name: "fromBase64Url",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_encoding_from_base64_url",
         },
         CoreMethod {
             name: "toBase32",
-            params: &[CoreTy::Bytes],
+            params: &[CoreTy::Blob(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_encoding_to_base32",
         },
         CoreMethod {
             name: "fromBase32",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_encoding_from_base32",
         },
         CoreMethod {
             name: "toHex",
-            params: &[CoreTy::Bytes],
+            params: &[CoreTy::Blob(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_encoding_to_hex",
         },
         CoreMethod {
             name: "fromHex",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_encoding_from_hex",

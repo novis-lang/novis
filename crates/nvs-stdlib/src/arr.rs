@@ -76,7 +76,7 @@
 use nvs_runtime::{Decimal, Fault, NvsArray, NvsStr, SlotKey, Tag, Value};
 
 use crate::ordering::compare_values;
-use crate::registry::{Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy};
+use crate::registry::{Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, Qual};
 
 // ============================================================================
 // Registration — this class's rows, its enum, and where its symbols live
@@ -174,7 +174,10 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "hasKey",
-            params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Union(ARRAY_KEY)],
+            params: &[
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::Union(ARRAY_KEY_NEUTRAL),
+            ],
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_arr_has_key",
@@ -368,7 +371,7 @@ pub const CLASS: CoreClass = CoreClass {
             name: "column",
             params: &[
                 CoreTy::Array(&CoreTy::Array(&CoreTy::Var("T"))),
-                CoreTy::Union(ARRAY_KEY),
+                CoreTy::Union(ARRAY_KEY_CONTAGIOUS),
                 CoreTy::Options(COLUMN_OPTIONS),
             ],
             defaults: &[],
@@ -588,7 +591,31 @@ pub const SET_ON: CoreEnum = CoreEnum {
 
 /// `int|string` — ADR 0007 § 5's two array-key types, which the spec's § 2
 /// writes at every member taking or producing a key.
+///
+/// **Element positions only**, which is why its `string` arm stays the
+/// unclassified [`CoreTy::Str`]: ADR 0088 § 2 classifies a *parameter*, and
+/// `every_member_parameter_carries_a_qualifier_classification` walks a row's
+/// `params` and its options bag but not through a [`CoreTy::Array`]. A key
+/// written at a parameter position takes [`ARRAY_KEY_NEUTRAL`] or
+/// [`ARRAY_KEY_CONTAGIOUS`] instead — one union per classification, because the
+/// mark belongs to the member and a shared const can only hold one answer.
 const ARRAY_KEY: &[CoreTy] = &[CoreTy::Int, CoreTy::Str];
+
+/// [`ARRAY_KEY`] at a parameter position whose member answers a `bool`.
+///
+/// [`Qual::Neutral`] by the first bullet of [`Qual`]'s own rule, which is where
+/// that rule is written: `hasKey`'s answer carries no byte of either argument.
+const ARRAY_KEY_NEUTRAL: &[CoreTy] = &[CoreTy::Int, CoreTy::Text(Qual::Neutral)];
+
+/// [`ARRAY_KEY`] at a parameter position whose member answers part of its
+/// subject.
+///
+/// [`Qual::Contagious`] by that rule's second bullet: `column`'s key names the
+/// cell to lift out of each row and its `indexBy` names the cell to key the
+/// result by, so neither one's own bytes reach the answer — and that is
+/// precisely the case the bullet calls laundering by influence and refuses to
+/// let a member do silently.
+const ARRAY_KEY_CONTAGIOUS: &[CoreTy] = &[CoreTy::Int, CoreTy::Text(Qual::Contagious)];
 
 /// `T|U` — the element type ADR 0069's four combination members answer, and
 /// the spelling this module's own docs record as the one the registry can
@@ -679,7 +706,7 @@ const SET_OPTIONS: &[CoreOption] = &[
 /// rule rather than the rule itself.
 const COLUMN_OPTIONS: &[CoreOption] = &[CoreOption {
     name: "indexBy",
-    ty: CoreTy::Union(ARRAY_KEY),
+    ty: CoreTy::Union(ARRAY_KEY_CONTAGIOUS),
     default: Const::Null,
 }];
 

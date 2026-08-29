@@ -112,7 +112,7 @@ use nvs_runtime::{CodecTy, Fault, NvsArray, NvsObj, NvsStr, Tag, ThrownClass, Va
 use serde::de::{DeserializeSeed, Deserializer, MapAccess, SeqAccess, Visitor};
 use serde::ser::{Error as _, Serialize, SerializeMap, SerializeSeq, Serializer};
 
-use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy};
+use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy, Qual};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -136,21 +136,27 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "decode",
-            params: &[CoreTy::Str, CoreTy::Options(DECODE_OPTIONS)],
+            params: &[
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Options(DECODE_OPTIONS),
+            ],
             defaults: &[],
             return_ty: CoreTy::Mixed,
             symbol: "nvs_core_json_decode",
         },
         CoreMethod {
             name: "decodeAs",
-            params: &[CoreTy::Str, CoreTy::Options(DECODE_OPTIONS)],
+            params: &[
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Options(DECODE_OPTIONS),
+            ],
             defaults: &[],
             return_ty: CoreTy::Written("T"),
             symbol: "nvs_core_json_decode_as",
         },
         CoreMethod {
             name: "isValid",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_json_is_valid",

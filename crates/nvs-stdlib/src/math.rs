@@ -37,7 +37,9 @@
 use nvs_runtime::{Decimal, Fault, NvsStr, Tag, Value};
 
 use crate::ordering::compare_values;
-use crate::registry::{Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy};
+use crate::registry::{
+    Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy, Qual,
+};
 
 // ============================================================================
 // Registration — this class's rows, its enum, and where its symbols live
@@ -304,7 +306,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "fromBase",
-            params: &[CoreTy::Str, CoreTy::Uint],
+            params: &[CoreTy::Text(Qual::Neutral), CoreTy::Uint],
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_math_from_base",
@@ -452,6 +454,16 @@ const LOG_OPTIONS: &[CoreOption] = &[CoreOption {
 /// The group separator defaults to **empty**, unlike `number_format`'s `,`:
 /// Novis has no ambient locale (spec § 3), so grouping is a thing the caller
 /// asks for rather than a thing it has to switch off.
+///
+/// **Both separators are [`Qual::Contagious`]**, and the spec's Q column said
+/// *neutral* until this row was classified. It is the one cell in this class
+/// that a member-wide mark could not render: `fromBase` and the rest of
+/// `Core\Math` answer numbers, so nothing an argument holds reaches the answer
+/// and *neutral* is right for the class — but `format` answers a `string` that
+/// contains these two options **verbatim**, which is the first bullet of
+/// [`Qual`]'s rule failing on its own terms. The registry is the home of the
+/// classification (ADR 0088 § 2) and the spec renders it, so the cell was
+/// corrected rather than the mark.
 const FORMAT_OPTIONS: &[CoreOption] = &[
     CoreOption {
         name: "decimals",
@@ -460,12 +472,12 @@ const FORMAT_OPTIONS: &[CoreOption] = &[
     },
     CoreOption {
         name: "decimalSeparator",
-        ty: CoreTy::Str,
+        ty: CoreTy::Text(Qual::Contagious),
         default: Const::Str("."),
     },
     CoreOption {
         name: "groupSeparator",
-        ty: CoreTy::Str,
+        ty: CoreTy::Text(Qual::Contagious),
         default: Const::Str(""),
     },
 ];

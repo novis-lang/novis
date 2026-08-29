@@ -28,7 +28,7 @@
 //! casing rule needs at least one character — and so is the one value that can
 //! mean "the target itself" without shadowing a real name.
 
-use crate::registry::{Const, CoreClass, CoreMethod, CoreTy};
+use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, Qual};
 
 /// This class's fully-qualified name, in one place so the registry row and
 /// every consumer that matches on it cannot drift apart.
@@ -39,20 +39,31 @@ pub(crate) const NAME: &str = "Core\\Attributes";
 /// has to be supplied there, which is ADR 0046 § 6's whole subject.
 const T: CoreTy = CoreTy::Written("T");
 
+/// `$member` — the optional declaration name both members take, carrying
+/// [ADR 0088](../../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+/// § 2's classification.
+///
+/// [`Qual::Neutral`] by the first bullet of [`Qual`]'s own rule, which is where
+/// that rule is written: neither member's answer can carry a byte of either
+/// argument. What comes back is a payload literal read out of a *declaration*
+/// — § 5 folds the call to that constant before anything runs — so the name
+/// selects which declaration is read rather than flowing into what is read.
+const MEMBER: CoreTy = CoreTy::Text(Qual::Neutral);
+
 /// The registry row. See [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[
         CoreMethod {
             name: "get",
-            params: &[CoreTy::Callable, CoreTy::Str],
+            params: &[CoreTy::Callable, MEMBER],
             defaults: &[Const::Str("")],
             return_ty: CoreTy::Nullable(&T),
             symbol: "nvs_core_attributes_get",
         },
         CoreMethod {
             name: "all",
-            params: &[CoreTy::Callable, CoreTy::Str],
+            params: &[CoreTy::Callable, MEMBER],
             defaults: &[Const::Str("")],
             return_ty: CoreTy::Array(&T),
             symbol: "nvs_core_attributes_all",
