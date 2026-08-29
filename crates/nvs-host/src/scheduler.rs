@@ -47,6 +47,7 @@
 //! by [`crate::reactor::run_until_idle`] and by nothing else, so a run queue
 //! stays testable with no I/O in it at all.
 
+use std::cell::Cell;
 use std::collections::{HashMap, VecDeque};
 use std::marker::PhantomData;
 
@@ -254,12 +255,18 @@ impl Scheduler {
             // into a reference is not, and `suspend` below owns that `unsafe`.
             // It is erased to `*const ()` so that `nvs-runtime` — the crate
             // every compiled unit links — needs no coroutine dependency.
-            ctx.set_yielder(std::ptr::from_ref(yielder).cast::<()>());
+            let raw = std::ptr::from_ref(yielder).cast::<()>();
+            ctx.set_yielder(raw);
+            // The same pointer, published a second time for code that was handed
+            // no `Ctx` at all — a `std::io::Read` on a socket. `RUNNING`'s docs
+            // own why the task maintains this rather than the scheduler.
+            RUNNING.set(Some(Running { id, yielder: raw }));
             let outcome = nvs_runtime::run_task(root, || body(&mut ctx));
             // Cleared on both paths, the contained-panic one included, so no
             // pointer to a stack that is about to go away can escape in the
             // context.
             ctx.set_yielder(std::ptr::null());
+            RUNNING.set(None);
             Finished { id, ctx, outcome }
         });
 
@@ -363,27 +370,100 @@ pub fn suspend(ctx: &Ctx, waiting: Waiting) -> bool {
     if raw.is_null() {
         return false;
     }
-    // SAFETY: a non-null yielder in a `Ctx` is written in exactly one place —
-    // `Scheduler::spawn`'s coroutine body, from `&Yielder` — and cleared there
-    // before the context leaves the coroutine. Reaching this line therefore
-    // means the yielder is alive on the stack of the coroutine that is running
-    // right now, which is the same coroutine `ctx` belongs to, and a `&Yielder`
-    // is all `suspend` needs. `Ctx` is `!Send`, so no other thread can hold the
-    // context and observe the pointer against a different stack.
+    yield_on(raw, waiting);
+    true
+}
+
+thread_local! {
+    /// The task running on this thread right now, and `None` between tasks.
+    ///
+    /// **Maintained by the tasks themselves, never by [`Scheduler::run`].** The
+    /// coroutine body publishes on entry and clears on exit, and [`yield_on`]
+    /// takes the entry off the thread on the way out of a switch and puts it
+    /// back when control returns to that stack. The scheduler could not do it:
+    /// the yielder half lives on the task's own stack, and the only code that
+    /// can reach it is the code standing on that stack.
+    ///
+    /// Clearing rather than leaving the last runner in place is deliberate. A
+    /// read from outside a task then answers "there is no task here", which is
+    /// a refusal the caller already has to handle, instead of a stranger's
+    /// [`TaskId`] that would register one task's interest against another's.
+    static RUNNING: Cell<Option<Running>> = const { Cell::new(None) };
+}
+
+/// What a running task publishes for code that was handed no [`Ctx`].
+#[derive(Clone, Copy)]
+struct Running {
+    id: TaskId,
+    /// The same erased `&TaskYielder` [`Ctx::yielder`] carries, written from the
+    /// same place in the same statement, so there is one source and two readers
+    /// rather than two sources.
+    yielder: *const (),
+}
+
+/// The task running on this core right now, if there is one.
+///
+/// This is the id a registration is keyed by, so it is what
+/// [`crate::reactor::Reactor::register`]'s caller needs and cannot otherwise
+/// obtain: a `std::io::Read` is handed a buffer and nothing else.
+///
+/// `None` means there is no task beneath this call — a `Core` member reached
+/// from `nvs run`, or a unit test — and is the same refusal [`suspend`] answers
+/// with `false`. `crate::reactor`'s module docs own the whole route.
+#[must_use]
+pub fn current_task() -> Option<TaskId> {
+    RUNNING.get().map(|running| running.id)
+}
+
+/// Suspends the running task without a [`Ctx`] to reach the yielder through,
+/// reporting whether there was one.
+///
+/// [`suspend`] is the seam for a helper that *has* a context, and it stays the
+/// one every `Core` member uses. This is for the code that has no argument to
+/// carry one in — the parking `Read` and `Write` of a socket, whose signatures
+/// are `std::io`'s and not ours.
+///
+/// `false` means the same thing it means there, and obliges the caller the same
+/// way: nothing suspended, so block or fail rather than run on.
+pub fn suspend_current(waiting: Waiting) -> bool {
+    match RUNNING.get() {
+        Some(running) => {
+            yield_on(running.yielder, waiting);
+            true
+        }
+        None => false,
+    }
+}
+
+/// Hands the core back through an erased `&TaskYielder`, and restores this
+/// task's identity when control comes back to this stack.
+fn yield_on(raw: *const (), waiting: Waiting) {
+    // SAFETY: a non-null erased yielder is written in exactly one place —
+    // `Scheduler::spawn`'s coroutine body, from `&Yielder` — into the task's
+    // `Ctx` and into `RUNNING` in the same statement, and cleared from both
+    // before the body returns. Reaching this line therefore means the yielder is
+    // alive on the stack of the coroutine that is running right now, which is
+    // the coroutine this call is standing on, and a `&Yielder` is all a suspend
+    // needs. `Ctx` and `RUNNING` are both per-thread, so no other thread can
+    // observe the pointer against a different stack.
     #[allow(
         unsafe_code,
-        reason = "the one deref of Ctx's opaque yielder; the crate exists to own it"
+        reason = "the one deref of the opaque yielder; the crate exists to own it"
     )]
     let yielder: &TaskYielder = unsafe { &*raw.cast::<TaskYielder>() };
+    // Off the thread before the switch and back on after it. An unwind through
+    // the switch — a suspended coroutine dropped during teardown — therefore
+    // leaves `RUNNING` empty rather than naming a task whose stack is gone.
+    let running = RUNNING.replace(None);
     yielder.suspend(waiting);
-    true
+    RUNNING.set(running);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use nvs_runtime::OutputSink;
-    use std::cell::Cell;
+    use std::cell::{Cell, RefCell};
     use std::rc::Rc;
 
     fn ctx() -> Ctx {
@@ -589,5 +669,44 @@ mod tests {
             unwound.get(),
             "the parked task's stack was abandoned rather than unwound"
         );
+    }
+
+    #[test]
+    fn there_is_no_current_task_off_a_scheduler() {
+        assert!(current_task().is_none());
+        assert!(
+            !suspend_current(Waiting::Parked),
+            "a suspend with no task beneath it claimed to have parked"
+        );
+    }
+
+    /// Two tasks taking turns: each has to see its **own** id every time it
+    /// runs, which is what `RUNNING` being saved on the suspending task's own
+    /// stack buys. A single publish at body entry would leave the second task's
+    /// id standing when the first one resumed.
+    #[test]
+    fn a_task_sees_its_own_id_after_another_one_has_run() {
+        let mut sched = Scheduler::new();
+
+        let seen = Rc::new(RefCell::new(Vec::new()));
+        let mut ids = Vec::new();
+        for _ in 0..2 {
+            let log = Rc::clone(&seen);
+            ids.push(sched.spawn(ctx(), TaskRoot::Worker, move |ctx| {
+                for _ in 0..3 {
+                    log.borrow_mut()
+                        .push(current_task().expect("a running task had no id"));
+                    suspend(ctx, Waiting::Yielded);
+                }
+            }));
+        }
+
+        sched.run();
+        assert!(current_task().is_none(), "an id outlived its task's turn");
+
+        // The queue is FIFO, so the two alternate and no entry may name the
+        // task that ran before it.
+        let expected: Vec<_> = (0..3).flat_map(|_| ids.iter().copied()).collect();
+        assert_eq!(*seen.borrow(), expected);
     }
 }

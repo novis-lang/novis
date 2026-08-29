@@ -45,6 +45,45 @@
 //! entry per task with a live registration. Both are O(cores) and O(in-flight);
 //! neither grows with requests served.
 //!
+//! # How a task reaches this reactor
+//!
+//! **Through a thread-local, and that is the only route.** `NvsTcp::read` is a
+//! plain [`std::io::Read`]: it is handed a buffer and nothing else, so the core
+//! it belongs to has to be reachable from inside a free function.
+//! [`install`] puts a reactor on the running thread for as long as its guard
+//! lives — a worker does that once, around everything it runs — and
+//! [`with_current`] is how a task borrows it. [`run_until_idle`] reaches it the
+//! same way rather than taking one by reference, and that is not tidiness: a
+//! `&mut Reactor` held across [`Scheduler::run`] is exactly the borrow no task
+//! running *inside* that call could ever get through, so one route or the other
+//! had to go.
+//!
+//! The alternative considered was a second opaque pointer in `Ctx`, beside the
+//! yielder. Two reasons it lost, neither of them style. A `std::io::Read` has no
+//! `Ctx` either, so the stream would have had to store one — a raw pointer into
+//! its request kept valid by convention, which is a new invariant for every
+//! future contributor rather than a borrow the compiler checks. And a reactor is
+//! per *core* while a `Ctx` is per *request*: putting it there is one copy of
+//! the core's identity per in-flight request, written on every spawn, to say
+//! something that is true of the whole thread. The yielder is in `Ctx` because
+//! it genuinely is per-task; this is not.
+//!
+//! *Which* task is asking is the other half of the route and it lives in
+//! [`crate::scheduler`]: [`current_task`](crate::scheduler::current_task) is the
+//! running task's [`TaskId`] and
+//! [`suspend_current`](crate::scheduler::suspend_current) parks it with no `Ctx`
+//! to travel in. Both are maintained by the task's own stack across a switch,
+//! never by bookkeeping in [`Scheduler::run`]. A stream's park is therefore
+//! three ordinary calls — [`with_current`] to register, `suspend_current` to
+//! park, and rule 2's retry — with nothing threaded through `std::io`.
+//!
+//! **A borrow of the installed reactor never spans a suspend point.** That is
+//! rule 1's ordering read as a borrow rule: register, drop the borrow, *then*
+//! yield. A borrow left outstanding across a stack switch would still be held
+//! while the scheduler polled, and [`with_current`] answers that with a panic
+//! rather than with silent aliasing. Nothing in this crate holds one across
+//! anything but a single call.
+//!
 //! # One reactor per worker
 //!
 //! Rule 5, and it is the same rule [`Scheduler`] holds: a [`Reactor`] is
@@ -52,6 +91,7 @@
 //! woken by, that request's own core. Nothing crosses, which is what keeps the
 //! refcounts in `nvs-runtime` non-atomic.
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io;
 use std::marker::PhantomData;
@@ -284,7 +324,89 @@ impl Reactor {
     }
 }
 
-/// Runs `sched` under `reactor` until neither has anything left to do.
+thread_local! {
+    /// This thread's reactor, for as long as an [`Installed`] guard holds it.
+    ///
+    /// A `RefCell` and not a `Cell<*mut _>`: the borrow is what makes the "never
+    /// across a suspend point" rule in this module's docs an enforced one rather
+    /// than a remembered one, and it costs a flag check against a call that is
+    /// about to make a syscall.
+    static INSTALLED: RefCell<Option<Reactor>> = const { RefCell::new(None) };
+}
+
+/// Installs `reactor` as this thread's reactor until the returned guard is
+/// dropped.
+///
+/// A worker calls this once, around everything it runs, so that every task on
+/// the core reaches the same reactor from a free function — see this module's
+/// docs for why that is the route and not a pointer in `Ctx`. A test that wants
+/// a core of its own calls it too; the thread-local is per thread, so tests
+/// running in parallel do not see each other's.
+///
+/// # Panics
+///
+/// If this thread already has one installed. Two reactors on one core is not a
+/// configuration with a sensible meaning — half the tasks would register with a
+/// poll nothing polls — so it is refused loudly at the point of the mistake
+/// rather than diagnosed later as a task that never wakes.
+#[must_use = "the reactor is uninstalled when the guard is dropped"]
+pub fn install(reactor: Reactor) -> Installed {
+    INSTALLED.with_borrow_mut(|slot| {
+        assert!(
+            slot.is_none(),
+            "this thread already has a reactor installed"
+        );
+        *slot = Some(reactor);
+    });
+    Installed(PhantomData)
+}
+
+/// Holds this thread's reactor installed; uninstalls it when dropped.
+///
+/// `!Send` like everything else on a core, which is rule 5 expressed in the
+/// type: a guard cannot be moved to a thread whose reactor it does not name.
+pub struct Installed(PhantomData<*const ()>);
+
+impl std::fmt::Debug for Installed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Installed")
+    }
+}
+
+impl Drop for Installed {
+    fn drop(&mut self) {
+        // Dropping the reactor closes the poll and with it every kernel-side
+        // registration still under it, which is the same freeing a closed
+        // descriptor does — the table half goes with the map.
+        INSTALLED.with_borrow_mut(|slot| *slot = None);
+    }
+}
+
+/// Runs `f` against this thread's reactor, or answers `None` if there is none.
+///
+/// `None` is the same refusal [`crate::suspend`] answers with `false`: there is
+/// no core beneath this call — a `Core` member reached from `nvs run`, or a unit
+/// test — and **the caller must then do something else**, block or fail, rather
+/// than treat a missing reactor as a registration that happened.
+///
+/// # Panics
+///
+/// If a borrow is already outstanding on this thread, which means one was held
+/// across a suspend point or `f` re-entered. Both are bugs in this crate rather
+/// than anything a request can drive, and this module's docs state the rule they
+/// break.
+pub fn with_current<T>(f: impl FnOnce(&mut Reactor) -> T) -> Option<T> {
+    INSTALLED.with_borrow_mut(|slot| slot.as_mut().map(f))
+}
+
+/// Whether this thread has a reactor installed.
+#[must_use]
+pub fn is_installed() -> bool {
+    INSTALLED.with_borrow(Option::is_some)
+}
+
+/// Runs `sched` under this thread's reactor until neither has anything left to
+/// do.
 ///
 /// The loop is the whole of this crate's I/O story in five lines:
 /// [`Scheduler::run`] returns when the run queue empties, every task it
@@ -292,6 +414,11 @@ impl Reactor {
 /// the "block in the reactor now" test. This is what a worker's body is, and
 /// `Worker::spawn` hands the scheduler to a closure precisely so that closure
 /// can be this.
+///
+/// The reactor is not a parameter: it is borrowed out of the thread-local
+/// [`install`] put it in, once per turn and never across [`Scheduler::run`],
+/// because a task suspending inside that call takes the same borrow for its own
+/// registration. This module's docs own that reasoning.
 ///
 /// It returns with `RunReport::parked` non-zero in exactly one case: a blocking
 /// poll came back having woken nothing, which means the readiness it collected
@@ -302,24 +429,35 @@ impl Reactor {
 ///
 /// As [`Reactor::poll`]. A failed poll leaves `sched` untouched and its tasks
 /// parked; the counts already accumulated are lost with the error, which is the
-/// right trade for a call that cannot continue.
-pub fn run_until_idle(sched: &mut Scheduler, reactor: &mut Reactor) -> io::Result<RunReport> {
+/// right trade for a call that cannot continue. Plus one of its own: no reactor
+/// is installed on this thread, which is a worker that never called
+/// [`install`] and would otherwise park its first task forever.
+pub fn run_until_idle(sched: &mut Scheduler) -> io::Result<RunReport> {
     let mut total = RunReport::default();
     loop {
         let turn = sched.run();
         total.resumes += turn.resumes;
         total.finished += turn.finished;
-        // Rule 3, on every turn rather than at the end: a task that finished
-        // is one whose registrations must not outlive it, and the finished
-        // list is only drained when its owner asks for it.
-        for finished in sched.finished() {
-            reactor.retire(finished.id);
-        }
-        if sched.parked_count() == 0 {
-            break;
-        }
-        if reactor.turn(sched)? == 0 && sched.ready_count() == 0 {
-            break;
+        // The borrow opens here and closes here. It deliberately does not span
+        // the `sched.run()` above, because a task suspending inside that call
+        // takes the same borrow to register what it is waiting for.
+        let woken = with_current(|reactor| {
+            // Rule 3, on every turn rather than at the end: a task that
+            // finished is one whose registrations must not outlive it, and the
+            // finished list is only drained when its owner asks for it.
+            for finished in sched.finished() {
+                reactor.retire(finished.id);
+            }
+            if sched.parked_count() == 0 {
+                return Ok(None);
+            }
+            reactor.turn(sched).map(Some)
+        })
+        .ok_or_else(|| io::Error::other("no reactor is installed on this thread"))??;
+        match woken {
+            None => break,
+            Some(0) if sched.ready_count() == 0 => break,
+            Some(_) => {}
         }
     }
     total.parked = sched.parked_count();
@@ -342,7 +480,7 @@ fn token_of(id: TaskId) -> io::Result<Token> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::scheduler::{Waiting, suspend};
+    use crate::scheduler::{Waiting, current_task, suspend, suspend_current};
     use nvs_runtime::{Ctx, OutputSink, TaskRoot};
     use std::cell::Cell;
     use std::io::Write;
@@ -418,7 +556,7 @@ mod tests {
     fn a_task_that_parks_on_a_socket_runs_to_completion_under_the_loop() {
         let (mut server, mut client) = connected_pair();
         let mut sched = Scheduler::new();
-        let mut reactor = Reactor::new().expect("the OS refused a poll");
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
 
         let resumes = Rc::new(Cell::new(0_usize));
         let counter = Rc::clone(&resumes);
@@ -427,20 +565,22 @@ mod tests {
             assert!(suspend(ctx, Waiting::Parked), "there was no scheduler");
             counter.set(counter.get() + 1);
         });
-        reactor
-            .register(&mut server, id, Interest::READABLE)
+        with_current(|reactor| reactor.register(&mut server, id, Interest::READABLE))
+            .expect("no reactor was installed")
             .expect("the OS refused a registration");
         // Readiness is arranged before the loop is entered, so the blocking
         // poll inside it has something waiting for it already.
         client.write_all(b"hi").expect("the write failed");
 
-        let report = run_until_idle(&mut sched, &mut reactor).expect("the loop failed");
+        let report = run_until_idle(&mut sched).expect("the loop failed");
         assert_eq!(resumes.get(), 2, "the task did not resume after its park");
         assert_eq!(report.finished, 1);
         assert_eq!(report.parked, 0);
         // Rule 3: the loop retired the registration when the task ended.
-        assert_eq!(reactor.registrations(), 0);
-        assert!(!reactor.is_registered(id));
+        let live = with_current(|reactor| (reactor.registrations(), reactor.is_registered(id)))
+            .expect("no reactor was installed");
+        assert_eq!(live.0, 0);
+        assert!(!live.1);
     }
 
     #[test]
@@ -541,14 +681,75 @@ mod tests {
     #[test]
     fn a_park_with_nothing_registered_returns_rather_than_waiting_forever() {
         let mut sched = Scheduler::new();
-        let mut reactor = Reactor::new().expect("the OS refused a poll");
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
 
         sched.spawn(ctx(), TaskRoot::Worker, |ctx| {
             suspend(ctx, Waiting::Parked);
         });
 
-        let report = run_until_idle(&mut sched, &mut reactor).expect("the loop failed");
+        let report = run_until_idle(&mut sched).expect("the loop failed");
         assert_eq!(report.parked, 1, "the stuck task should be reported");
         assert_eq!(report.finished, 0);
+    }
+
+    #[test]
+    fn a_loop_with_no_reactor_installed_is_refused_rather_than_parking_forever() {
+        let mut sched = Scheduler::new();
+        sched.spawn(ctx(), TaskRoot::Worker, |ctx| {
+            suspend(ctx, Waiting::Parked);
+        });
+
+        let err = run_until_idle(&mut sched).expect_err("a loop with no reactor answered");
+        assert!(
+            err.to_string().contains("no reactor is installed"),
+            "the refusal did not name what was missing: {err}"
+        );
+    }
+
+    #[test]
+    fn a_thread_without_an_install_has_no_reactor_to_borrow() {
+        assert!(!is_installed());
+        assert!(with_current(|reactor| reactor.registrations()).is_none());
+
+        let installed = install(Reactor::new().expect("the OS refused a poll"));
+        assert!(is_installed());
+        assert_eq!(with_current(|reactor| reactor.registrations()), Some(0));
+
+        drop(installed);
+        assert!(!is_installed(), "the guard did not uninstall the reactor");
+    }
+
+    /// The decision this module's docs record, exercised the way `NvsTcp` will:
+    /// the task is handed no reactor and no `Ctx`, and reaches both from free
+    /// functions the way a `std::io::Read` will have to.
+    #[test]
+    fn a_task_registers_and_parks_with_neither_a_reactor_nor_a_ctx_in_hand() {
+        let (mut server, mut client) = connected_pair();
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+
+        let seen = Rc::new(Cell::new(None));
+        let reported = Rc::clone(&seen);
+        let id = sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            // Rule 1's ordering, and the borrow rule that is the same rule: the
+            // borrow is taken for the registration and dropped before the yield.
+            let me = current_task().expect("a running task had no id");
+            reported.set(Some(me));
+            with_current(|reactor| reactor.register(&mut server, me, Interest::READABLE))
+                .expect("no reactor was installed")
+                .expect("the OS refused a registration");
+            assert!(suspend_current(Waiting::Parked), "there was no scheduler");
+            assert_eq!(
+                current_task(),
+                Some(me),
+                "the task lost its identity across the switch"
+            );
+        });
+        client.write_all(b"hi").expect("the write failed");
+
+        let report = run_until_idle(&mut sched).expect("the loop failed");
+        assert_eq!(seen.get(), Some(id), "the task read a stranger's id");
+        assert_eq!(report.finished, 1);
+        assert_eq!(report.parked, 0);
     }
 }
