@@ -53,7 +53,7 @@ adrs = [
   "0051 §3",
 ]
 
-shapes = ["A `Core` member — the four edits", "A `.nvst` test case", "A diagnostic", "A commit message"]
+shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A diagnostic", "A commit message"]
 
 playbook = [
   'Writing Novis itself > core is',

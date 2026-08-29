@@ -102,7 +102,7 @@ adrs = [
 ]
 
 # Headings of docs/agent/conventions.md naming shapes this goal will write.
-shapes = ["A `Core` member — the four edits", "A `.nvst` test case", "A diagnostic", "A commit message"]
+shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A diagnostic", "A commit message"]
 
 # Produced by `python tools/playbook.py --manifest <the modules above> --min 4`, then the process block by
 # hand. Re-run that after the file set changes; `--match <paths>` narrows it to one session's own group.

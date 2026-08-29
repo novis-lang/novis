@@ -85,7 +85,7 @@ adrs = [
   "0023 §2",
 ]
 
-shapes = ["A `Core` member — the four edits", "A `.nvst` test case", "An ADR", "A commit message"]
+shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "An ADR", "A commit message"]
 
 # `python tools/playbook.py --manifest crates/nvs-host nvs-runtime nvs-ir corosensei coroutine --min 4`,
 # then the process block by hand. Re-run it once `nvs-host` has modules to name.

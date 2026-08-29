@@ -118,9 +118,9 @@ name    property  string
   the node the cursor resolved to — `nvs lsp-test --coverage` prints the matrix and
   `every_request_answers_every_construct` fails naming each empty cell.
 
-## A `Core` member — the four edits
+## A `Core` member — the five edits
 
-All four in the module that owns the class; `python tools/brief.py`'s *anchors* block resolves each
+All five in the module that owns the class; `python tools/brief.py`'s *anchors* block resolves each
 spelling to a file and line. Worked example: `crates/nvs-stdlib/src/json.rs`, which is small enough to
 read whole.
 
@@ -129,14 +129,50 @@ read whole.
 ```rust
 CoreMethod {
     name: "isValid",
-    params: &[CoreTy::Str],
+    names: &["json"],
+    params: &[CoreTy::Text(Qual::Neutral)],
     defaults: &[],
     return_ty: CoreTy::Bool,
     symbol: "nvs_core_json_is_valid",
+    doc: Some(&IS_VALID_DOC),
 },
 ```
 
-**2. The body**, via the macro:
+`names` is the spec's signature column, one per positional slot and never the `$` (ADR 0063 R2);
+`every_registry_rows_names_are_the_specs_signature_column` holds the two together.
+
+**2. The card** — ADR 0117's reference documentation, a `const` in the block of cards directly after the
+class, in row order. `every_registry_row_carries_a_reference_card` fails `cargo test -p nvs-stdlib`
+without it, and so does an enum without its `EnumDoc` or a constant with an empty `desc`:
+
+```rust
+/// `Core\Json::isValid`'s reference card — ADR 0117.
+const IS_VALID_DOC: MethodDoc = MethodDoc {
+    short: "Reports whether `$json` is a well-formed JSON document, as `json_validate` does, \
+            without building the value.",
+    params: &[ParamDoc {
+        name: "json",
+        desc: "The text to check.",
+        shape: &[],
+    }],
+    ret: "`true` for a document `decode` would accept, `false` otherwise.",
+    errors: &[],
+};
+```
+
+The field docs on `MethodDoc`, `EnumDoc` and `CoreConst::desc` in `registry.rs` are the rule; the
+three things they do not say are these. `params` is the row's `names` in order, then one entry per
+option of a trailing options bag under the option's own name
+(`a_documented_rows_param_docs_agree_with_its_names`), and `shape` is filled only for a fixed-key
+shape parameter. `errors` is **what the body throws** — every `Fault::thrown_as(ThrownClass::…)` the
+helper reaches, by the class's `catch` name from the spec's § 10 tree (`LogicError`, `ParseError`), one
+entry per class with its conditions in the `desc`, and never an error the body does not raise. Two
+readings that cost the backfill time: a bare `Fault::thrown(…)` is `RuntimeError` (`abi.rs` says so),
+and a `Fault::fatal` is not a throw at all — no `catch` sees it, so it is never an entry, though `ret`
+may say so where a caller would otherwise expect one. And the card is a condensed reference: one or two sentences a
+field, no examples, no tips — an essay belongs in the website's page, which renders the card above it.
+
+**3. The body**, via the macro:
 
 ```rust
 nvs_runtime::nvs_helper! {
@@ -150,7 +186,7 @@ nvs_runtime::nvs_helper! {
 }
 ```
 
-**3. The `address()` arm** — the one that bites, because a miss is a *runtime* panic naming the symbol
+**4. The `address()` arm** — the one that bites, because a miss is a *runtime* panic naming the symbol
 rather than a link error:
 
 ```rust
@@ -162,7 +198,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 }
 ```
 
-**4. A `.nvst` case that calls it.** `crates/nvs-stdlib/tests/conformance_coverage.rs` fails
+**5. A `.nvst` case that calls it.** `crates/nvs-stdlib/tests/conformance_coverage.rs` fails
 `cargo test -p nvs-stdlib` without one. An instance member needs a case writing `->name(`.
 
 `args: [N]` must equal the row's arity, where an options bag flattens to one argument per option and an

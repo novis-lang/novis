@@ -108,7 +108,7 @@ tainted argument**, and *contagious* becomes a thing an author writes rather tha
 forgetting.
 
 - **The classification lives once, in `nvs-stdlib`'s member registry** — beside `params`, `defaults` and
-  `return_ty` in the `CoreMethod` row, which the four edits in
+  `return_ty` in the `CoreMethod` row, which the five edits in
   [docs/agent/conventions.md](../agent/conventions.md) already make the one place a member is declared.
   The [spec's](../spec/01-core-library.md) Q column is that table rendered for a reader, not a second home
   for the fact.

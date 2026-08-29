@@ -325,9 +325,10 @@ spellings rejected, and the reasoning.
   is a candidate, the migration table is the answer, and an item inserts only a member the `Core` registry
   already holds — so a dropped, undecided or not-yet-built destination appears and types nothing**
   ([0111](0111-a-php-builtin-completes-to-its-novis-destination.md)).
-- **An implemented `Core` member's reference documentation lives in its registry declaration and
-  `nvs meta --json` prints it; the spec stays authoritative for the surface, and a doc field the registry
-  carries wins over the spec, field by field**
+- **An implemented `Core` member's reference documentation lives in its registry declaration — every row,
+  enum and constant carries its card, and the crate's tests refuse one without — and `nvs meta --json`
+  prints it; the spec stays authoritative for the surface, and a doc field the registry carries wins over
+  the spec, field by field**
   ([0117](0117-an-implemented-core-member-documents-itself-in-the-registry.md)).
 - **An `array<mixed>` annotation narrows to the type of the literal under it through one editor action —
   element types widened to their base and joined, offered only where that literal is right there, never

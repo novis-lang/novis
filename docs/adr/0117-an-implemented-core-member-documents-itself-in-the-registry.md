@@ -45,14 +45,23 @@ data the runtime dispatches on.
 
 ### 1. The doc fields
 
-A registry member declaration may carry, all optional and all inline markdown: a **short description**
-(one or two sentences), per-parameter **name and description** — and for a shape-typed parameter, each
-key's **type and description** — a **return description**, and a list of **thrown errors, each with a
-description**. The two rosters a member's card points at carry a card of their own, so every value a
-parameter may take is documented where it is declared: an **enum's short description and one description
-per case**, and a **constant's description** — one sentence, since a constant has a value and no
-signature. Extended prose is deliberately excluded: long-form text in Rust string literals is the worst
-editing surface available, so anything beyond the reference card stays in the website's pages.
+A registry member declaration carries, all inline markdown: a **short description** (one or two
+sentences), per-parameter **name and description** — and for a shape-typed parameter, each key's **type
+and description** — a **return description**, and a list of **thrown errors, each with a description**.
+The two rosters a member's card points at carry a card of their own, so every value a parameter may take
+is documented where it is declared: an **enum's short description and one description per case**, and a
+**constant's description** — one sentence, since a constant has a value and no signature. Extended prose
+is deliberately excluded: long-form text in Rust string literals is the worst reading surface available,
+so anything beyond the reference card stays in the website's pages.
+
+**Every row carries its card.** The fields were optional while the registry was documented member by
+member — § 3's field-wise precedence is what let that happen with no flag day — and since the backfill
+of 2026-08-30 the guard `every_registry_row_carries_a_reference_card` in `nvs-stdlib` fails the crate's
+tests on a `CoreMethod` without a `MethodDoc`, a `CoreEnum` without an `EnumDoc` or a `CoreConst` with
+an empty description, so a member lands documented or does not land. The types keep their `Option`
+and empty-string spellings for the consumer's sake: `nvs meta --json` still omits what is not written,
+and a card's `errors` is legitimately empty for a member that throws nothing. The card is the second of
+[conventions.md](../agent/conventions.md)'s five edits.
 
 ### 2. `nvs meta --json`
 
@@ -87,8 +96,9 @@ docs yet", never an error.
 For an implemented member, a doc field the registry carries is authoritative; a field it lacks falls back
 to the spec-derived default. For a member not yet implemented, the spec is all there is. A consumer that
 finds the two disagreeing on something both state — a parameter the registry documents that the spec does
-not declare, a signature drift — warns rather than silently choosing. This rule is what makes landing
-incremental: the seam can ship empty, and every member documented afterwards upgrades on its own.
+not declare, a signature drift — warns rather than silently choosing. This rule is what made landing
+incremental — the seam shipped empty and every member documented afterwards upgraded on its own — and
+it is what keeps a consumer correct against a toolchain older than the backfill.
 
 ## Consequences
 
