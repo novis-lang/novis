@@ -39,6 +39,17 @@
 //!   message, beside an uncaught throw and a limit breach, and the parent keeps
 //!   running.
 //!
+//! A **cancellation** reaches that same `ok = false` by two different routes,
+//! and which one a child takes is a fact about its stack rather than about the
+//! boundary. A child that is parked, or running with nothing of `nvs-stdlib` on
+//! its stack, is force-unwound by the scheduler and never reaches [`finish`]:
+//! its slot is unfiled and [`cancelled_completion`] is what the join answers
+//! with. A child standing on a [`nvs_runtime::HelperFrame`] may not be unwound
+//! there, so it is *told*, answers with [`Ctx::cancel`] and returns — [`finish`]
+//! sees [`Ctx::cancelled`] and classifies it, which is the route that keeps
+//! what the child echoed before the safepoint. Both are ADR 0072 § 5, and
+//! neither runs a line of the child's own code on the way out.
+//!
 //! § 2's *unresolvable class* is asked of the answer and not of the argument,
 //! and the asymmetry is a known gap rather than a decision. The rule needs the
 //! receiving side's class table: at the join the parent's is in hand
@@ -454,7 +465,7 @@ fn release(value: Value) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::scheduler::Scheduler;
+    use crate::scheduler::{Scheduler, current_task};
     use nvs_runtime::{ClassTable, FieldDefault, MethodRow, NvsObj};
 
     /// A parent that looks like a request: armed statics, a buffer of its own,
@@ -823,6 +834,222 @@ mod tests {
         assert_eq!(
             ctx.take_buffered_output().unwrap_or_default(),
             b"parent still running"
+        );
+    }
+
+    /// ADR 0072 §§ 4 and 5 from the *parent's* side: the task parked in
+    /// [`Started::join`] is cancelled, and the boundary owes three things
+    /// afterwards — the child's task is out of the tree, the join did not
+    /// return while the child was still running, and what the child was holding
+    /// is released rather than outliving the request charged for it.
+    ///
+    /// The parent stands on a [`nvs_runtime::HelperFrame`] because a real one
+    /// does — `await` lowers to a `CoreCall` — so its stack is one no forced
+    /// unwind may cross and the cancellation arrives as the notice
+    /// [`Started::join`]'s loop reads rather than as a teardown of the parent.
+    /// That is what makes this a test of the loop and not only of the
+    /// scheduler's own sweep.
+    #[test]
+    fn a_cancelled_parent_leaves_no_orphan_and_no_leaked_arena() {
+        /// What the child holds, and the flag it sets when it lets go. An `Rc`
+        /// stands in for the arena because it is the one holder a test can
+        /// count — the same stand-in `scheduler`'s own
+        /// `a_cancelled_tasks_arena_is_released` uses.
+        struct Held {
+            released: Rc<Cell<bool>>,
+            _arena: Rc<Vec<u8>>,
+        }
+        impl Drop for Held {
+            fn drop(&mut self) {
+                self.released.set(true);
+            }
+        }
+
+        let arena = Rc::new(vec![0_u8; 64]);
+        let held = Rc::clone(&arena);
+        let released = Rc::new(Cell::new(false));
+        let in_child = Rc::clone(&released);
+        let at_join = Rc::clone(&released);
+        let answer: Rc<RefCell<Option<Completion>>> = Rc::new(RefCell::new(None));
+        let filed = Rc::clone(&answer);
+        let over_at_join = Rc::new(Cell::new(false));
+        let observed = Rc::clone(&over_at_join);
+
+        let mut sched = Scheduler::new();
+        let parent_id = sched.spawn(parent(), TaskRoot::Request, move |parent_ctx| {
+            let program: Program = Box::new(move |_child: &mut Ctx, _args| {
+                let _holding = Held {
+                    released: in_child,
+                    _arena: held,
+                };
+                // Parked on something that never arrives: the child is alive
+                // and owes nothing, which is the state a cancellation has to
+                // reach through the parent rather than through the child.
+                suspend_current(Waiting::Parked);
+                Value::null()
+            });
+            let _frame = nvs_runtime::HelperFrame::enter();
+            let done = Isolate::new(program, Value::null(), Output::Capture)
+                .run(parent_ctx)
+                .expect("a null argument crosses");
+            // Read at the join and nowhere else: § 4's "control does not leave
+            // the call with work still running", holding through a
+            // cancellation rather than only through a return.
+            observed.set(at_join.get());
+            *filed.borrow_mut() = Some(done);
+        });
+
+        sched.run();
+        assert_eq!(
+            sched.tracked_tasks(),
+            2,
+            "the isolate is a child of the awaiting task"
+        );
+        assert_eq!(sched.parked_count(), 2, "both are waiting on the other");
+        assert_eq!(
+            Rc::strong_count(&arena),
+            2,
+            "the child is not holding what it allocated"
+        );
+
+        assert_eq!(
+            sched.cancel(parent_id),
+            2,
+            "the mark stopped at the awaiting task"
+        );
+        let report = sched.run();
+
+        assert!(
+            over_at_join.get(),
+            "the join returned while the child was still running"
+        );
+        assert_eq!(report.cancelled, 1, "the child was not torn down");
+        assert_eq!(
+            sched.tracked_tasks(),
+            0,
+            "an orphan outlived the task that spawned it"
+        );
+        assert_eq!(sched.parked_count(), 0, "an orphan is still parked");
+        assert_eq!(
+            Rc::strong_count(&arena),
+            1,
+            "the cancelled isolate's memory outlived it"
+        );
+
+        let finished = sched.take_finished();
+        assert_eq!(
+            finished.len(),
+            1,
+            "the child's `Ctx` was filed instead of going down with its stack"
+        );
+        assert_eq!(
+            finished[0].id, parent_id,
+            "the parent did not reach its end"
+        );
+
+        let done = answer
+            .borrow_mut()
+            .take()
+            .expect("the awaiting task ran to its end");
+        assert!(!done.ok, "a cancelled isolate answered as if it had run");
+        assert!(done.error.is_some(), "the failure is a value");
+    }
+
+    /// ADR 0072 § 5 from the *child's* side. A child that is running rather
+    /// than parked is not unwound out of anybody's frame: it is told, and it
+    /// dies at the next safepoint it reaches, having run nothing of its own on
+    /// the way out. `scheduler`'s module doc § *The task tree, and what
+    /// cancelling one costs* is the mechanism; what this pins at the boundary
+    /// is the three consequences — the child stops at the safepoint and takes
+    /// no further step, [`Ctx::cancelled`] is what its own body reads to know
+    /// it must stop, and [`finish`] therefore classifies it as cancelled rather
+    /// than as an answer, so the awaiting parent gets ADR 0006's failure value.
+    ///
+    /// The cancellation comes from a **sibling** task, because that is the only
+    /// place it can come from while the child is still runnable: the parent is
+    /// parked on the join, and a caller outside the scheduler can only act once
+    /// the whole core has gone idle.
+    #[test]
+    fn a_child_is_cancelled_at_its_next_safepoint() {
+        let steps = Rc::new(Cell::new(0_u32));
+        let counted = Rc::clone(&steps);
+        let watched = Rc::clone(&steps);
+        let read_back = Rc::new(Cell::new(false));
+        let noticed = Rc::clone(&read_back);
+        let child_id: Rc<Cell<Option<TaskId>>> = Rc::new(Cell::new(None));
+        let published = Rc::clone(&child_id);
+        let at_cancel = Rc::new(Cell::new(0_u32));
+        let stopped_at = Rc::clone(&at_cancel);
+        let answer: Rc<RefCell<Option<Completion>>> = Rc::new(RefCell::new(None));
+        let filed = Rc::clone(&answer);
+
+        let mut sched = Scheduler::new();
+        sched.spawn(parent(), TaskRoot::Request, move |parent_ctx| {
+            let program: Program = Box::new(move |child_ctx: &mut Ctx, _args| {
+                published.set(current_task());
+                child_ctx.write_output(b"as far as here").expect("a buffer");
+                // A `Core` member's stack is one no forced unwind may cross, so
+                // a cancellation reaches this child as the notice its next
+                // suspension answers rather than as a teardown — and answering
+                // it is `Ctx::cancel`, ADR 0002's return status, with no
+                // cleanup of the child's own running on the way out.
+                let _frame = nvs_runtime::HelperFrame::enter();
+                loop {
+                    if suspend_current(Waiting::Yielded).cancelled() {
+                        let _status = child_ctx.cancel();
+                        break;
+                    }
+                    counted.set(counted.get() + 1);
+                }
+                noticed.set(child_ctx.cancelled());
+                Value::null()
+            });
+            let _frame = nvs_runtime::HelperFrame::enter();
+            let done = Isolate::new(program, Value::null(), Output::Capture)
+                .run(parent_ctx)
+                .expect("a null argument crosses");
+            *filed.borrow_mut() = Some(done);
+        });
+        // The sibling: it lets the child get going, cancels it while it is on
+        // the run queue, and records how far it had got — which is the count
+        // the child may not move past.
+        sched.spawn(parent(), TaskRoot::Request, move |_| {
+            loop {
+                if watched.get() > 0 {
+                    let id = child_id.get().expect("the child never published an id");
+                    assert_eq!(cancel_task(id), 1, "the child was already marked");
+                    stopped_at.set(watched.get());
+                    return;
+                }
+                suspend_current(Waiting::Yielded);
+            }
+        });
+
+        sched.run();
+
+        assert!(at_cancel.get() > 0, "the child never ran at all");
+        assert_eq!(
+            steps.get(),
+            at_cancel.get(),
+            "the child took a step past the safepoint it was cancelled at"
+        );
+        assert!(
+            read_back.get(),
+            "the child's own body could not tell it had been cancelled"
+        );
+        assert_eq!(sched.tracked_tasks(), 0, "the tree kept a dead task");
+        assert_eq!(sched.parked_count(), 0, "the awaiting task was left parked");
+
+        let done = answer
+            .borrow_mut()
+            .take()
+            .expect("the awaiting task ran to its end");
+        assert!(!done.ok, "a cancelled child answered as if it had finished");
+        let failure = done.error.expect("the failure is a value");
+        assert!(failure.message.contains("cancelled"), "{failure:?}");
+        assert_eq!(
+            done.output, b"as far as here",
+            "what it echoed before the safepoint, it did echo"
         );
     }
 }
