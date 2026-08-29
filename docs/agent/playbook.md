@@ -2175,6 +2175,12 @@ is why" — is this file.
   handle `matches` then takes. Check such a line against the `INTRINSICS` table
   (`crates/nvs-types/src/intrinsics.rs:107`) rather than against the argument's shape, and prove it the cheap
   way: the same text with a deliberate error is an `E0769` from `nvs check`, or the row is not being read.
+- **A fixture that needs a route table does not need an `autoload` root.** The table is collected over
+  every declaration the program checks, so a class declared in the entry file itself lands in it —
+  `crates/nvs-cli/tests/fixtures/api/base.nvs` is one file with a class and an `echo`, and
+  `nvs build --openapi` emits both its operations. `examples/routes.nvs` splits across a root because it
+  is demonstrating ADR 0061 § 5's scan, not because an emitter fixture has to. Three near-identical
+  fixtures are then three files rather than six, and they read as a diff of each other.
 
 ## Splitting a file that got too big
 
