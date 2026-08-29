@@ -1,0 +1,31 @@
+--TEST--
+A `#[Query]` on a method that declares no route is refused rather than ignored — ADR 0102 § 3
+--FILE--
+<?nvs
+// § 3 gives the marker its whole meaning on a `#[Route]` method's parameter:
+// the key it binds by is the parameter's own name, so away from a route there
+// is nothing for it to arrive from. It is refused rather than passed over for
+// the reason the compiler's roster of recognized attributes is closed at all —
+// a name the compiler knows, written where the compiler never looks, reads to
+// its author as a declaration that binds something.
+class Users {
+    public function index(#[\Core\Query] string $sort): string { return $sort; }
+}
+
+// The same parameter under the route it serves is § 3's ordinary case, which
+// is what makes the refusal above a fact about the missing sibling and not
+// about the marker. ADR 0096 § 1 supplies the other required sibling.
+class Search {
+    #[\Core\Route(path: "/search", method: \Core\Http\Method::Get)]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function index(#[\Core\Query] string $sort): string { return $sort; }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0765]: `#[Query] $sort` is on a method that declares no route
+  --> case.nvs:9:29
+%A
+error: aborting due to 1 error

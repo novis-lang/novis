@@ -1,0 +1,28 @@
+--TEST--
+An `#[Option]` on a method that declares no command is refused rather than ignored — ADR 0086 § 6
+--FILE--
+<?nvs
+// § 6 gives the marker its meaning on a `#[Command]` method's parameter, where
+// it is the spelling an argument arrives by. Away from a command there is no
+// command line to arrive from, and the refusal is the same one ADR 0102 § 3's
+// `#[Query]` gets one file over: both names are on the compiler's closed
+// roster, so neither is ignored where nothing reads it.
+class Deploy {
+    public static function deploy(#[\Core\Option] string $target): void {}
+}
+
+// The sibling is what the marker is stray of, and one declaration answers the
+// question — the command *table* is not consulted and does not have to exist.
+class Release {
+    #[\Core\Command(name: "release", about: "ship it")]
+    public static function release(#[\Core\Option] string $target): void {}
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0766]: `#[Option] $target` is on a method that declares no command
+  --> case.nvs:8:37
+%A
+error: aborting due to 1 error
