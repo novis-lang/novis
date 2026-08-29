@@ -38,7 +38,7 @@ use nvs_runtime::{Decimal, Fault, NvsStr, Tag, Value};
 
 use crate::ordering::compare_values;
 use crate::registry::{
-    Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy, Qual,
+    CaseDoc, Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc, Qual,
 };
 
 // ============================================================================
@@ -382,7 +382,8 @@ const CONSTANTS: &[CoreConst] = &[
         name: "PI",
         ty: CoreTy::Float,
         value: Const::Float(std::f64::consts::PI),
-        desc: "",
+        desc: "The ratio of a circle's circumference to its diameter, `3.14159…` as the nearest \
+               `float` — PHP's `M_PI`.",
     },
     CoreConst {
         name: "TAU",
@@ -400,7 +401,9 @@ const CONSTANTS: &[CoreConst] = &[
         name: "EPSILON",
         ty: CoreTy::Float,
         value: Const::Float(f64::EPSILON),
-        desc: "",
+        desc: "The smallest `float` that added to `1.0` gives a value other than `1.0`, \
+               `2.220446049250313e-16` — PHP's `PHP_FLOAT_EPSILON`, and the tolerance to compare \
+               two floats with in place of `==`.",
     },
     CoreConst {
         name: "INT_MAX",
@@ -463,7 +466,44 @@ pub const ROUND_MODE: CoreEnum = CoreEnum {
         ("Up", 4),
         ("Down", 5),
     ],
-    doc: None,
+    doc: Some(&ROUND_MODE_DOC),
+};
+
+/// [`ROUND_MODE`]'s reference card — ADR 0117 § 1, one line per case, and
+/// the semantics are [`RoundMode`]'s, which `round_with` implements.
+const ROUND_MODE_DOC: EnumDoc = EnumDoc {
+    short: "How `Core\\Math::round` settles a value between two neighbours — PHP's four \
+            `PHP_ROUND_HALF_*` constants plus the two whole-direction rules `ceil` and `floor` \
+            only cover at a precision of zero.",
+    cases: &[
+        CaseDoc {
+            name: "HalfUp",
+            desc: "A tie goes away from zero — `PHP_ROUND_HALF_UP`, and `round`'s default \
+                   there and here.",
+        },
+        CaseDoc {
+            name: "HalfDown",
+            desc: "A tie goes toward zero — `PHP_ROUND_HALF_DOWN`.",
+        },
+        CaseDoc {
+            name: "HalfEven",
+            desc: "A tie goes to the even neighbour — banker's rounding, `PHP_ROUND_HALF_EVEN`, \
+                   the rule that does not accumulate a bias over many values.",
+        },
+        CaseDoc {
+            name: "HalfOdd",
+            desc: "A tie goes to the odd neighbour — `PHP_ROUND_HALF_ODD`.",
+        },
+        CaseDoc {
+            name: "Up",
+            desc: "Every value goes away from zero, tie or not — `ceil` for a positive number \
+                   and `floor` for a negative one, at any precision.",
+        },
+        CaseDoc {
+            name: "Down",
+            desc: "Every value goes toward zero, tie or not — truncation, at any precision.",
+        },
+    ],
 };
 
 /// `int|float|decimal` — spec § 3's own union, at the three members here that

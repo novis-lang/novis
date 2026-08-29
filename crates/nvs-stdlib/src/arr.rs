@@ -76,7 +76,9 @@
 use nvs_runtime::{Decimal, Fault, NvsArray, NvsStr, SlotKey, Tag, Value};
 
 use crate::ordering::compare_values;
-use crate::registry::{Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, Qual};
+use crate::registry::{
+    CaseDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc, Qual,
+};
 
 // ============================================================================
 // Registration — this class's rows, its enum, and where its symbols live
@@ -629,7 +631,24 @@ const QUOTIENT: &[CoreTy] = &[CoreTy::Float, CoreTy::Decimal];
 pub const ORDER: CoreEnum = CoreEnum {
     name: r"Core\Order",
     cases: &[("Asc", 0), ("Desc", 1)],
-    doc: None,
+    doc: Some(&ORDER_DOC),
+};
+
+/// [`ORDER`]'s reference card — ADR 0117 § 1, on the first enum documented.
+const ORDER_DOC: EnumDoc = EnumDoc {
+    short: "The direction `Core\\Arr::sort` and `sortByKey` put elements in — spec § 2's \
+            `{order: …}` option, which is `Asc` when omitted.",
+    cases: &[
+        CaseDoc {
+            name: "Asc",
+            desc: "Smallest first — what an omitted `{order: …}` means.",
+        },
+        CaseDoc {
+            name: "Desc",
+            desc: "Largest first — `rsort`, `arsort` and `krsort` as one option rather than \
+                   three names.",
+        },
+    ],
 };
 
 /// `Core\SetOn` — the enum [`nvs_core_arr_diff`] and [`nvs_core_arr_intersect`]
