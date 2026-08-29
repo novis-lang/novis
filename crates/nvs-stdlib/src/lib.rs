@@ -129,21 +129,21 @@
 //!    `Arr::prepend` and `Path::join` need only writing.
 //!
 //!    A **named** or `...spread` argument at such a call is no longer a gap
-//!    either: both lower, and a name is refused only where a signature carries
-//!    none. Every parameter's name is now on the row —
-//!    [`registry::CoreMethod::names`], one per positional slot, the trailing
-//!    bag under [`registry::OPTIONS_NAME`] — taken from the signature column
-//!    of `docs/spec/01-core-library.md` and held there by
+//!    either: both lower, and ADR 0063 R2's "every parameter is callable by
+//!    the spec's `$name`" holds end to end. Every parameter's name is on the
+//!    row — [`registry::CoreMethod::names`], one per positional slot, the
+//!    trailing bag under [`registry::OPTIONS_NAME`] — taken from the signature
+//!    column of `docs/spec/01-core-library.md` and held there by
 //!    `every_registry_rows_names_are_the_specs_signature_column`, which is
-//!    ADR 0063 R2's "a parameter's name is compatibility surface, versioned
+//!    that rule's "a parameter's name is compatibility surface, versioned
 //!    where its type is". [`registry::ParamDoc::name`] is a *key* into that
 //!    list rather than a second copy of it.
 //!
-//!    What is left of the gap is the **resolution**: `nvs_types::core_lib`
-//!    still seeds `param_names` empty, so a name at a `Core` call site is
-//!    refused where it is written and a call is positional or spread.
-//!    `docs/agent/loop-goal.md` Stage 0b item 29 is that half, and it changes
-//!    no member's shape.
+//!    `nvs_types::core_lib` reads them into `MethodSig::param_names`, so a
+//!    `name:` at a `Core` call site resolves through the machinery a
+//!    user-declared method's does — the same slot mapping, the same skipped
+//!    default, and the same refusal for a name that reaches no parameter or
+//!    reaches a variadic tail. No member's shape changed to get there.
 //!
 //!    A **`Core`-owned instance** is no longer one: [`instance`] is the value
 //!    behind [`registry::CoreTy::Instance`], and that module's own docs own

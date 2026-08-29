@@ -191,10 +191,15 @@ fn constructor(interner: &mut TypeInterner) -> FxHashMap<String, MethodSig> {
             // A constructor declares no return type at all, so there is
             // no `static` to bind — see `MethodSig::returns_static`.
             returns_static: false,
-            // Synthesized rather than written, so there is no source
-            // name to call either slot by — see `MethodSig::param_names`.
-            // The second is ADR 0063 R2's bag, which is already by-name.
-            param_names: None,
+            // ADR 0063 R2 reaches a synthesized member too: spec § 10 writes
+            // `$message`, and the bag is every other trailing bag's
+            // `options` — read from `nvs_stdlib::registry` rather than
+            // spelled again here, so `new LogicError(message: "…")` and a
+            // `Core` member's `options:` are one rule and not two.
+            param_names: vec![
+                "message".to_owned(),
+                nvs_stdlib::registry::OPTIONS_NAME.to_owned(),
+            ],
             inout: vec![false, false],
             variadic: false,
             defaults: vec![

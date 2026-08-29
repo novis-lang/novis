@@ -62,9 +62,9 @@ fn constant(document: &serde_json::Value, class: &str, name: &str) -> serde_json
         .clone()
 }
 
-/// § 2's golden: `Core\Str::length`, the simple case — a `short`, one
-/// parameter, a `return`, and no `errors` or `shape` key because neither is
-/// written.
+/// § 2's golden: `Core\Str::length`, the simple case — the `$name` its one
+/// parameter is callable by, a `short`, one documented parameter, a `return`,
+/// and no `errors` or `shape` key because neither is written.
 #[test]
 fn the_golden_for_str_length_matches_the_contract() {
     let (doc, ok) = meta(&["--json"]);
@@ -74,6 +74,7 @@ fn the_golden_for_str_length_matches_the_contract() {
         member(&document, r"Core\Str", "length"),
         serde_json::json!({
             "name": "length",
+            "names": ["s"],
             "doc": {
                 "short": "Counts the graphemes in `$s` — user-perceived characters, ADR 0009's \
                           default unit — so a combining sequence counts once and this is never \
@@ -86,13 +87,18 @@ fn the_golden_for_str_length_matches_the_contract() {
 }
 
 /// A member whose row is not documented has no `doc` key at all — § 3's "a
-/// field it lacks falls back to the spec" starts with the whole card.
+/// field it lacks falls back to the spec" starts with the whole card. It still
+/// carries `names`, because ADR 0063 R2's by-name surface is signature and not
+/// documentation: a consumer building a call needs it where a card is optional.
 #[test]
 fn an_undocumented_member_carries_no_doc_key() {
     let (doc, _) = meta(&["--json"]);
     let document: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
     let at = member(&document, r"Core\Str", "at");
-    assert_eq!(at, serde_json::json!({ "name": "at" }));
+    assert_eq!(
+        at,
+        serde_json::json!({ "name": "at", "names": ["s", "index"] })
+    );
 }
 
 /// The two other members documented as proof: an options bag is one `params`

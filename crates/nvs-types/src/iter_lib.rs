@@ -72,16 +72,20 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
     table.seed_class(
         QName::parse(COMPARABLE),
         FxHashMap::default(),
-        [("compareTo".to_owned(), bodiless(vec![comparable], int_ty))]
-            .into_iter()
-            .collect(),
+        [(
+            "compareTo".to_owned(),
+            // ADR 0013 writes `compareTo(self $other): int`.
+            bodiless(&["other"], vec![comparable], int_ty),
+        )]
+        .into_iter()
+        .collect(),
     );
 
     let string_ty = interner.string();
     table.seed_class(
         QName::parse(STRINGABLE),
         FxHashMap::default(),
-        [("toString".to_owned(), bodiless(Vec::new(), string_ty))]
+        [("toString".to_owned(), bodiless(&[], Vec::new(), string_ty))]
             .into_iter()
             .collect(),
     );
@@ -98,11 +102,11 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
         [
             (
                 "onPropertyGet".to_owned(),
-                bodiless(vec![string_ty, mixed_ty], void_ty),
+                bodiless(&["name", "value"], vec![string_ty, mixed_ty], void_ty),
             ),
             (
                 "onPropertySet".to_owned(),
-                bodiless(vec![string_ty, mixed_ty], void_ty),
+                bodiless(&["name", "value"], vec![string_ty, mixed_ty], void_ty),
             ),
         ]
         .into_iter()
@@ -115,8 +119,11 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
         QName::parse(ITERATOR),
         FxHashMap::default(),
         [
-            ("advance".to_owned(), bodiless(Vec::new(), bool_ty)),
-            ("current".to_owned(), bodiless(Vec::new(), iterator_elem)),
+            ("advance".to_owned(), bodiless(&[], Vec::new(), bool_ty)),
+            (
+                "current".to_owned(),
+                bodiless(&[], Vec::new(), iterator_elem),
+            ),
         ]
         .into_iter()
         .collect(),
@@ -127,7 +134,7 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
     table.seed_class(
         QName::parse(ITERABLE),
         FxHashMap::default(),
-        [("iterate".to_owned(), bodiless(Vec::new(), cursor))]
+        [("iterate".to_owned(), bodiless(&[], Vec::new(), cursor))]
             .into_iter()
             .collect(),
     );
@@ -149,13 +156,21 @@ fn elem_var(interface: &str, interner: &mut TypeInterner) -> TypeId {
 
 /// One interface method declared without a default — see this module's docs
 /// for why every member here is one.
-fn bodiless(params: Vec<TypeId>, return_ty: TypeId) -> MethodSig {
+///
+/// `names` is the parameter list the interface's own ADR writes, one per
+/// entry of `params`: being callable by name is ADR 0063 R2's rule for
+/// `Core` but the *language's* rule for everything (ADR 0007 § 5), so a
+/// reserved interface is not the one surface a `name:` cannot reach.
+fn bodiless(names: &[&str], params: Vec<TypeId>, return_ty: TypeId) -> MethodSig {
+    debug_assert_eq!(
+        names.len(),
+        params.len(),
+        "a reserved interface member names one parameter per slot"
+    );
     MethodSig {
         inout: vec![false; params.len()],
         defaults: vec![None; params.len()],
-        // Installed from this crate's roster rather than parsed, so no
-        // slot has a source name — see `MethodSig::param_names`.
-        param_names: None,
+        param_names: names.iter().map(|name| (*name).to_owned()).collect(),
         params,
         variadic: false,
         type_params: Vec::new(),

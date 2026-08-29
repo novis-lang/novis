@@ -288,7 +288,9 @@ member added without one is an incomplete member.
   collides with an instance method on a type its own class constructs (R18).
 - **M5 catch-up** (`docs/agent/loop-goal.md` Stage 0b): a `cargo test -p nvs-stdlib` check asserts every
   registry row names one parameter per positional slot and that those names are the spec's signature
-  column, so a rename on either side fails the build rather than drifting.
+  column, so a rename on either side fails the build rather than drifting. R2's other half — that the
+  name is *callable* — is a `cargo test -p nvs-types` check over a reordered call, a skipped defaulted
+  positional, a name at the one variadic tail in the roster, and the trailing bag written `options:`.
 - **M8:** the capability-bearing half of the roster is added under the same rules and the same checks;
   nothing about them is M4S-specific.
 - **Now, in CI:** `tools/check-migration.py` asserts that

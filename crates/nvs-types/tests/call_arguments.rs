@@ -116,18 +116,84 @@ fn a_variadic_tail_cannot_be_filled_by_name() {
 }
 
 #[test]
-fn a_core_member_has_no_parameter_names_to_call_by() {
-    // ADR 0063 R2's options bag is `Core`'s by-name surface, and the registry
-    // records a row's parameter *types* and nothing else.
-    let diags = check_src(
-        "<?nvs\nclass T {\n  static function go(): void {\n    Core\\Str::repeat(subject: \"x\", times: 2);\n  }\n}\n",
+fn a_core_member_is_called_by_the_names_the_spec_writes() {
+    // ADR 0063 R2: `Core\Str::repeat(string $s, uint $times)`, written out of
+    // order by name. The names are `nvs_stdlib::registry::CoreMethod::names`
+    // and what versions them is `docs/spec/01-core-library.md`'s signature
+    // column, so this fixture reads as that column does.
+    let diags = check_in_method("string $s = Core\\Str::repeat(times: 2, s: \"x\");\necho $s;\n");
+    assert!(!diags.has_errors(), "{diags:?}");
+    // And the trailing bag by the one name R2 gives every one of them, which
+    // is `nvs_stdlib::registry::OPTIONS_NAME` rather than a per-row spelling.
+    let diags = check_in_method(
+        "array<int> $a = Core\\Arr::range(1, 5, options: {step: 2});\necho Core\\Arr::count($a);\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn a_misspelled_name_at_a_core_member_is_unknown() {
+    // The refusal a `Core` member now takes: `$s` is the spec's name for
+    // `repeat`'s subject, so `subject:` reaches no parameter. Before Stage 0b
+    // this was the retired E0485 — "no names at all" — which said nothing
+    // about which spelling was wrong.
+    let diags = check_in_method("echo Core\\Str::repeat(subject: \"x\", times: 2);\n");
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_UNKNOWN_ARG_NAME)),
+        "{diags:?}"
+    );
+}
+
+#[test]
+fn a_skipped_defaulted_core_parameter_takes_the_rows_default() {
+    // `Core\Str::padStart(string $s, uint $length, string $padding = " ")`.
+    // Named, `$padding` is *skipped* rather than trailing-omitted, so what
+    // fills it is `core_lib::defaults_of`'s end-aligned entry; the checker's
+    // half of that is that the call is not short an argument.
+    let diags =
+        check_in_method("string $p = Core\\Str::padStart(length: 4, s: \"x\");\necho $p;\n");
+    assert!(!diags.has_errors(), "{diags:?}");
+    // The same bound from the other side: a *required* parameter no name
+    // reached is named, which is what says the default was the reason above.
+    let diags = check_in_method("string $p = Core\\Str::padStart(s: \"x\");\necho $p;\n");
+    assert!(
+        diags.iter().any(|d| d.code == Some(code::E_ARITY_MISMATCH)),
+        "{diags:?}"
+    );
+}
+
+#[test]
+fn a_name_at_a_core_variadic_tail_is_unknown() {
+    // `Core\Str::format(string $template, mixed ...$arguments)` is the one
+    // registry row with a variadic tail. Its entry in `CoreMethod::names`
+    // documents the tail; ADR 0063 R2 says a name never reaches one, and
+    // `MethodSig::param_index` is where that holds for a `Core` row exactly as
+    // for a user-declared method.
+    let diags = check_in_method(
+        "string $s = Core\\Str::format(template: \"%s\", arguments: \"x\");\necho $s;\n",
     );
     assert!(
         diags
             .iter()
-            .any(|d| d.code == Some(code::E_NAMED_ARG_NO_PARAM_NAMES)),
+            .any(|d| d.code == Some(code::E_UNKNOWN_ARG_NAME)),
         "{diags:?}"
     );
+}
+
+#[test]
+fn a_throwable_is_constructed_by_message() {
+    // The synthesized constructor is spec § 10's `constructor(string $message,
+    // {previous?: Throwable|null})`, and R2 reaches a synthesized member too —
+    // `crates/nvs-types/src/error_lib.rs` is where those two names are.
+    let diags = check_in_method("throw new LogicError(message: \"x\");");
+    assert!(!diags.has_errors(), "{diags:?}");
+    let diags = check_in_method(
+        "LogicError $e = new LogicError(\"first\");\n\
+         throw new LogicError(message: \"second\", options: {previous: $e});",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
 }
 
 #[test]

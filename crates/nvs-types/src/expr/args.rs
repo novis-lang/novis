@@ -199,21 +199,20 @@ fn declared_for(slot: ArgSlot, sig: &MethodSig, interner: &mut TypeInterner) -> 
 /// Which parameter each argument of a call that writes a `name:` or a `...`
 /// fills — and every refusal working that out can produce.
 ///
-/// Five rules, and PHP refuses on four of the five for its own reasons:
+/// Four rules, and PHP refuses on three of the four for its own reasons:
 ///
 /// 1. A positional argument may not follow a `name:` or `...` one, because
 ///    which parameter it fills *is* its position and neither of those leaves
 ///    one defined (`E_POSITIONAL_AFTER_NAMED`).
-/// 2. A `name:` needs a signature that has names —
-///    [`MethodSig::param_names`] owns why a `Core` member has none
-///    (`E_NAMED_ARG_NO_PARAM_NAMES`).
-/// 3. The name must reach a parameter a call can fill by name, which excludes
+/// 2. The name must reach a parameter a call can fill by name, which excludes
 ///    a `...$rest` tail: Novis builds that array at the call site out of the
 ///    arguments written into it, so a name has nowhere to be recorded
 ///    (`E_UNKNOWN_ARG_NAME`). This is the one rule PHP does not share — it
-///    collects an unmatched name into the variadic as a string key.
-/// 4. No parameter may be filled twice (`E_DUPLICATE_ARG`).
-/// 5. A `...` must land wholly in a variadic tail, every fixed parameter
+///    collects an unmatched name into the variadic as a string key. Every
+///    signature has names ([`MethodSig::param_names`]), so this is the only
+///    thing a `name:` at a resolved target can be refused for.
+/// 3. No parameter may be filled twice (`E_DUPLICATE_ARG`).
+/// 4. A `...` must land wholly in a variadic tail, every fixed parameter
 ///    already filled (`E_SPREAD_ARG_NOT_VARIADIC`). How many entries an array
 ///    holds is a run-time fact, so a spread that could fill fixed parameters
 ///    would leave the call's arity uncheckable — which is the one thing this
@@ -309,27 +308,13 @@ pub(crate) fn report_positional_after_named(arg: &Arg, first: Span, env: &mut En
     );
 }
 
-/// Rules 2 and 3 of [`map_arguments`]: the parameter a `name:` argument fills.
+/// Rule 2 of [`map_arguments`]: the parameter a `name:` argument fills.
 fn named_slot(name_span: Span, sig: &MethodSig, env: &mut Env<'_>) -> ArgSlot {
     let name = span_text(env.src, name_span).to_owned();
-    let Some(names) = sig.param_names.as_ref() else {
-        env.diags.report(
-            Diagnostic::error(
-                code::E_NAMED_ARG_NO_PARAM_NAMES,
-                "this call's target does not name its parameters",
-            )
-            .with_primary(name_span, format!("`{name}:` has nothing to match"))
-            .with_help(
-                "a `Core` member's parameters are types and nothing else — its by-name surface \
-                 is ADR 0063 R2's trailing options bag, written `{name: value}` at the call site",
-            ),
-        );
-        return ArgSlot::Unresolved;
-    };
     if let Some(index) = sig.param_index(&name) {
         return ArgSlot::Param(index);
     }
-    let is_variadic_tail = sig.variadic && names.last().is_some_and(|last| *last == name);
+    let is_variadic_tail = sig.variadic && sig.param_names.last().is_some_and(|last| *last == name);
     let help = if is_variadic_tail {
         format!(
             "`...${name}` is one array built out of the arguments written into it, so there is \
@@ -349,7 +334,7 @@ fn named_slot(name_span: Span, sig: &MethodSig, env: &mut Env<'_>) -> ArgSlot {
     ArgSlot::Unresolved
 }
 
-/// Rule 5 of [`map_arguments`]: the variadic tail a `...` argument lands in.
+/// Rule 4 of [`map_arguments`]: the variadic tail a `...` argument lands in.
 fn spread_slot(
     arg: &Arg,
     sig: &MethodSig,
@@ -385,9 +370,9 @@ fn spread_slot(
     ArgSlot::Unresolved
 }
 
-/// Rule 4 of [`map_arguments`].
+/// Rule 3 of [`map_arguments`].
 fn report_duplicate_arg(arg: &Arg, index: usize, sig: &MethodSig, env: &mut Env<'_>) {
-    let parameter = match sig.param_names.as_ref().and_then(|names| names.get(index)) {
+    let parameter = match sig.param_names.get(index) {
         Some(name) => format!("`${name}`"),
         None => format!("at position {}", index + 1),
     };
@@ -405,12 +390,10 @@ fn report_duplicate_arg(arg: &Arg, index: usize, sig: &MethodSig, env: &mut Env<
 fn report_unfilled(filled: &[bool], sig: &MethodSig, call_span: Span, env: &mut Env<'_>) {
     let missing: Vec<String> = (0..sig.required())
         .filter(|index| !filled.get(*index).copied().unwrap_or(true))
-        .map(
-            |index| match sig.param_names.as_ref().and_then(|n| n.get(index)) {
-                Some(name) => format!("`${name}`"),
-                None => format!("position {}", index + 1),
-            },
-        )
+        .map(|index| match sig.param_names.get(index) {
+            Some(name) => format!("`${name}`"),
+            None => format!("position {}", index + 1),
+        })
         .collect();
     if missing.is_empty() {
         return;
@@ -425,16 +408,15 @@ fn report_unfilled(filled: &[bool], sig: &MethodSig, call_span: Span, env: &mut 
 }
 
 /// A signature's parameter names as a call site would write them, for a
-/// diagnostic's help line. Never reached for a signature with no names — rule
-/// 2 of [`map_arguments`] has already stopped there.
+/// diagnostic's help line.
 fn parameter_names(sig: &MethodSig) -> String {
     let fixed = match sig.variadic {
         true => sig.params.len().saturating_sub(1),
         false => sig.params.len(),
     };
-    match sig.param_names.as_ref().map(|names| &names[..fixed]) {
-        Some([]) | None => "none — this member takes no named argument".to_owned(),
-        Some(names) => names
+    match sig.param_names.get(..fixed).unwrap_or(&sig.param_names) {
+        [] => "none — this member takes no named argument".to_owned(),
+        names => names
             .iter()
             .map(|name| format!("`{name}:`"))
             .collect::<Vec<_>>()

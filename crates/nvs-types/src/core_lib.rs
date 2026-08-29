@@ -25,7 +25,7 @@
 
 use nvs_hir::QName;
 use nvs_hir::interfaces::{ITERABLE, ITERATOR};
-use nvs_stdlib::registry::{CLASSES, Const, CoreTy};
+use nvs_stdlib::registry::{CLASSES, Const, CoreTy, OPTIONS_NAME};
 use rustc_hash::FxHashMap;
 
 use crate::defaults::ConstArg;
@@ -96,14 +96,11 @@ fn method_sig(
         // spelling for it, and a `Core` class is never extended —
         // see `MethodSig::returns_static`.
         returns_static: false,
-        // The names are on the row now — `CoreMethod::names`, one per
-        // positional slot, and `registry::OPTIONS_NAME` for a trailing
-        // bag — but nothing reads them here yet, so `None` still means
-        // "no `Core` member is callable by name" and `E0485` still
-        // refuses one where it is written. ADR 0063 R2 says every one
-        // is callable; `docs/agent/loop-goal.md` Stage 0b item 29 is
-        // this line, and it changes no member's shape.
-        param_names: None,
+        // ADR 0063 R2: every `Core` parameter is callable by the spec's
+        // `$name`. The row carries one name per positional slot and none
+        // for a trailing bag, so `param_names` re-aligns them to `params`
+        // — see its own docs for why the bag's entry is made there.
+        param_names: param_names(method),
         // ADR 0063 R7: nothing in `Core` mutates its subject, so
         // no `Core` parameter is ever by-reference. Not a gap in
         // the registry — a property of the convention.
@@ -225,6 +222,42 @@ fn defaults_of(method: &nvs_stdlib::registry::CoreMethod) -> Vec<Option<ConstArg
                 .map(|offset| lower_const(&method.defaults[offset]))
         })
         .collect()
+}
+
+/// A registry row's `CoreMethod::names` as the per-parameter
+/// [`MethodSig::param_names`] every consumer indexes — one entry per
+/// [`MethodSig::params`] entry, so an index into either names the same slot.
+///
+/// The two spellings differ for one reason, and it is the shape
+/// [`defaults_of`] already has: `names` is aligned to
+/// `CoreMethod::positional`, because a trailing options bag has no per-row
+/// name to record — its one name is [`OPTIONS_NAME`] for every member that
+/// has one, which is a property of *being* a bag rather than a per-row
+/// choice. This is the one place that entry is materialized.
+///
+/// A variadic tail keeps its entry, so the alignment holds for every row.
+/// ADR 0063 R2 says a name never reaches one, and
+/// [`MethodSig::param_index`](crate::signatures::MethodSig::param_index) is
+/// where that is enforced — for a `Core` row on exactly the terms a
+/// user-declared method gets.
+fn param_names(method: &nvs_stdlib::registry::CoreMethod) -> Vec<String> {
+    // `every_registry_row_names_one_parameter_per_positional_slot` holds this
+    // over the whole registry; asserted again here because a name resolves to
+    // a slot by *index*, so two lists of different lengths would bind an
+    // argument to the wrong parameter rather than refuse it.
+    debug_assert_eq!(
+        method.names.len(),
+        method.positional().len(),
+        "`{}` names {} of its {} positional parameter(s)",
+        method.name,
+        method.names.len(),
+        method.positional().len(),
+    );
+    let mut names: Vec<String> = method.names.iter().map(|name| (*name).to_owned()).collect();
+    if method.options().is_some() {
+        names.push(OPTIONS_NAME.to_owned());
+    }
+    names
 }
 
 /// One registry default into the checker's own [`ConstArg`] — the same

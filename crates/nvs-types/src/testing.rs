@@ -552,19 +552,12 @@ fn resolve_parameters(
     };
     let params = sig.params.clone();
     let names = sig.param_names.clone();
-    let position_of = |want: &str| {
-        names
-            .as_ref()
-            .and_then(|declared| declared.iter().position(|name| name == want))
-    };
+    let position_of = |want: &str| names.iter().position(|name| name == want);
     let describe = |position: usize| {
-        names
-            .as_ref()
-            .and_then(|declared| declared.get(position))
-            .map_or_else(
-                || format!("parameter {}", position + 1),
-                |name| format!("${name}"),
-            )
+        names.get(position).map_or_else(
+            || format!("parameter {}", position + 1),
+            |name| format!("${name}"),
+        )
     };
 
     // § 9's rows, field by field: each names a parameter, and its value is a

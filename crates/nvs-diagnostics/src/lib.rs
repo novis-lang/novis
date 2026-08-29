@@ -1016,15 +1016,13 @@ pub mod code {
     /// only what a position naming no `array<T>` at all is left with, a
     /// `mixed` binding or parameter being the reachable one.
     pub const E_SPREAD_SUBJECT_NOT_AN_ARRAY: Code = Code::new("E0484");
-    /// `name: value` at a call whose target names none of its parameters.
-    ///
-    /// A `Core` member's parameters are types in `nvs_stdlib::registry` and,
-    /// until `docs/agent/loop-goal.md` Stage 0b lands, nothing else — so there
-    /// is no name to call one by yet. ADR 0063 R2 makes every `Core` parameter
-    /// callable by the spec's `$name`, and once the registry carries them no
-    /// signature is nameless (the synthesized `Throwable` constructor gains
-    /// `message` in the same slice), so this code is retired with that work.
-    pub const E_NAMED_ARG_NO_PARAM_NAMES: Code = Code::new("E0485");
+    // `E0485` is retired and is never reused: it refused a `name:` argument at
+    // a target whose signature carried no parameter names, and ADR 0063 R2
+    // left no such signature — a `Core` row's names are
+    // `nvs_stdlib::registry::CoreMethod::names`, the synthesized `Throwable`
+    // constructor's are `message` and `options`, and a reserved interface's
+    // are the ones its own ADR writes. A name reaching no parameter is
+    // [`E_UNKNOWN_ARG_NAME`] everywhere now.
     /// `name: value` naming no parameter a call can fill by name — either the
     /// callee declares no parameter of that name at all, or the name reaches
     /// its `...$rest` tail.
@@ -1386,9 +1384,10 @@ pub mod code {
     /// carries its declaration.
     ///
     /// The same rule as [`E_CLOSURE_INOUT_PARAM`], read from the call site's
-    /// end rather than the literal's, and the sibling of
-    /// [`E_NAMED_ARG_NO_PARAM_NAMES`], which refuses the same spelling at a
-    /// resolved target whose signature happens to carry no names. A `...`
+    /// end rather than the literal's. It has no sibling at a *resolved*
+    /// target: every signature the checker builds names its parameters (ADR
+    /// 0063 R2), so a `name:` there is a spelling question and never an
+    /// absence — [`E_UNKNOWN_ARG_NAME`] is the whole of it. A `...`
     /// argument is not refused here: how many arguments it hands over is its
     /// own run-time length, which needs no parameter list to be meaningful.
     ///

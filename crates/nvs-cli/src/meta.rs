@@ -4,7 +4,9 @@
 //! [ADR 0117](../../../docs/adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md)
 //! § 2 is the contract, and this command owns it: every class in
 //! [`nvs_stdlib::registry::CLASSES`], every member — static ones first, then
-//! instance ones — and, for a member whose row carries a
+//! instance ones — with the `$name` each of its positional parameters is
+//! callable by under `names` ([ADR 0063](../../../docs/adr/0063-core-api-conventions.md)
+//! R2) and, for a member whose row carries a
 //! [`MethodDoc`], its reference card under a `doc` key; every constant of the
 //! class beside its members, with its one-sentence card as its `doc`; and,
 //! top-level beside `classes`, every enum in
@@ -73,10 +75,21 @@ fn class_json(class: &CoreClass) -> Value {
     Value::Object(out)
 }
 
-/// One member: its name, and its `doc` only when the row carries one.
+/// One member: its name, the `$name` each positional parameter is callable by
+/// ([ADR 0063](../../../docs/adr/0063-core-api-conventions.md) R2), and its
+/// `doc` only when the row carries one.
+///
+/// `names` is the row's own `CoreMethod::names`, so a member with no
+/// positional parameter has no `names` key — and a trailing options bag has no
+/// entry there either, its one name being
+/// `nvs_stdlib::registry::OPTIONS_NAME` for every member that has one. It is
+/// emitted for **every** row, documented or not, because it is signature and
+/// not documentation: a consumer building a call needs it where a reference
+/// card is optional.
 fn member_json(member: &CoreMethod) -> Value {
     let mut out = Map::new();
     out.insert("name".into(), Value::from(member.name));
+    put_list(&mut out, "names", member.names, |name| Value::from(*name));
     if let Some(doc) = member.doc {
         out.insert("doc".into(), doc_json(doc));
     }
