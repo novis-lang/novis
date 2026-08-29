@@ -17,10 +17,13 @@
 //!
 //! ## What is omitted, and why
 //!
-//! A row with no documentation has **no `doc` key at all**, and a documented
-//! row's `short`/`return` strings and `params`/`shape`/`errors`/`cases` arrays
-//! appear **only when non-empty** — a class with no constants has no
-//! `constants` key either. That is § 3's field-wise precedence made
+//! A row with no documentation has **no `doc` key at all** — a shape the
+//! registry's own `every_registry_row_carries_a_reference_card` no longer lets
+//! a shipped row take, but that a consumer reading an older toolchain still
+//! meets — and a documented row's `short`/`return` strings and
+//! `params`/`shape`/`errors`/`cases` arrays appear **only when non-empty** — a
+//! class with no constants has no `constants` key either, and a member that
+//! throws nothing has no `errors`. That is § 3's field-wise precedence made
 //! mechanical: the registry spells "not written yet" as the empty value, and a
 //! consumer must be able to tell that apart from "written, and empty" without
 //! learning the convention — an absent key is the one spelling that needs no

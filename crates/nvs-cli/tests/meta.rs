@@ -86,18 +86,35 @@ fn the_golden_for_str_length_matches_the_contract() {
     );
 }
 
-/// A member whose row is not documented has no `doc` key at all — § 3's "a
-/// field it lacks falls back to the spec" starts with the whole card. It still
-/// carries `names`, because ADR 0063 R2's by-name surface is signature and not
-/// documentation: a consumer building a call needs it where a card is optional.
+/// Every member the document lists carries a `doc` with a `short` — the
+/// registry's own guard `every_registry_row_carries_a_reference_card` seen
+/// from the consumer's side, so a card the emitter dropped on the way out
+/// would show here. `names` is beside it on every row, because ADR 0063 R2's
+/// by-name surface is signature and not documentation. The omission rule
+/// itself — no key for a field with nothing written — is proven over
+/// synthetic cards in `meta.rs`'s own tests, since no shipped row is
+/// undocumented any more.
 #[test]
-fn an_undocumented_member_carries_no_doc_key() {
+fn every_member_carries_a_doc_key() {
     let (doc, _) = meta(&["--json"]);
     let document: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
-    let at = member(&document, r"Core\Str", "at");
-    assert_eq!(
-        at,
-        serde_json::json!({ "name": "at", "names": ["s", "index"] })
+    let mut undocumented = Vec::new();
+    for class in document["classes"]
+        .as_array()
+        .expect("`classes` is an array")
+    {
+        for m in class["members"].as_array().expect("`members` is an array") {
+            // `names` is absent, not empty, on a member with no parameter —
+            // the omission rule again — so it is not a thing to require here.
+            let written = m["doc"]["short"].as_str().is_some_and(|s| !s.is_empty());
+            if !written {
+                undocumented.push(format!("{}::{}", class["name"], m["name"]));
+            }
+        }
+    }
+    assert!(
+        undocumented.is_empty(),
+        "members without a card: {undocumented:?}"
     );
 }
 
@@ -121,8 +138,12 @@ fn the_options_and_errors_of_the_proof_members_are_emitted() {
 
     let matched = member(&document, r"Core\Regex", "match");
     let errors = matched["doc"]["errors"].as_array().expect("errors");
-    assert_eq!(errors.len(), 2);
-    assert!(errors.iter().all(|e| e["error"] == "RuntimeError"));
+    assert_eq!(
+        errors.len(),
+        1,
+        "one entry per class thrown, its conditions in the desc"
+    );
+    assert_eq!(errors[0]["error"], "RuntimeError");
 }
 
 /// § 2's enum golden: `Core\Order`, top-level beside `classes`, a `short` and
@@ -164,20 +185,39 @@ fn the_golden_for_math_pi_matches_the_contract() {
     );
 }
 
-/// An enum whose row is not documented has no `doc` key at all, exactly as
-/// an undocumented member has none — and a constant with nothing written is
-/// its name alone.
+/// Every enum and every constant carries its card too — the same guard, on
+/// the two rosters a member's card points at. `Core\SetOn` and `Core\Math::TAU`
+/// were the last two undocumented entries when this was a test that they
+/// carried *no* key, which is why they are the ones named.
 #[test]
-fn an_undocumented_enum_or_constant_carries_no_doc_key() {
+fn every_enum_and_constant_carries_a_doc_key() {
     let (doc, _) = meta(&["--json"]);
     let document: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
-    assert_eq!(
-        core_enum(&document, r"Core\SetOn"),
-        serde_json::json!({ "name": r"Core\SetOn" })
-    );
-    assert_eq!(
-        constant(&document, r"Core\Math", "TAU"),
-        serde_json::json!({ "name": "TAU" })
+    assert!(core_enum(&document, r"Core\SetOn")["doc"]["short"].is_string());
+    assert!(constant(&document, r"Core\Math", "TAU")["doc"].is_string());
+    let mut undocumented = Vec::new();
+    for declared in document["enums"].as_array().expect("`enums` is an array") {
+        if !declared["doc"]["short"].is_string() {
+            undocumented.push(declared["name"].to_string());
+        }
+    }
+    for class in document["classes"]
+        .as_array()
+        .expect("`classes` is an array")
+    {
+        // A class with no constants has no `constants` key at all.
+        let Some(constants) = class["constants"].as_array() else {
+            continue;
+        };
+        for c in constants {
+            if !c["doc"].is_string() {
+                undocumented.push(format!("{}::{}", class["name"], c["name"]));
+            }
+        }
+    }
+    assert!(
+        undocumented.is_empty(),
+        "enums and constants without a card: {undocumented:?}"
     );
 }
 

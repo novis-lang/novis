@@ -1623,6 +1623,31 @@ mod tests {
     /// re-derived by a reader.
     #[test]
     fn a_written_type_parameter_is_ordered_and_deduplicated() {
+        /// The fixture's reference card — ADR 0117, so that no row anywhere in
+        /// the crate is left undocumented.
+        const SAMPLE_DOC: MethodDoc = MethodDoc {
+            short: "A fixture rather than a member: the row this test reads its `<K, V, R>` \
+                    order from.",
+            params: &[
+                ParamDoc {
+                    name: "a",
+                    desc: "An array whose element type is the written `K`.",
+                    shape: &[],
+                },
+                ParamDoc {
+                    name: "key",
+                    desc: "One `K`, written at the call site.",
+                    shape: &[],
+                },
+                ParamDoc {
+                    name: "spare",
+                    desc: "An optional `?V`, `null` by default.",
+                    shape: &[],
+                },
+            ],
+            ret: "The written `R`.",
+            errors: &[],
+        };
         const METHOD: CoreMethod = CoreMethod {
             name: "sample",
             names: &["a", "key"],
@@ -1638,7 +1663,7 @@ mod tests {
             defaults: &[],
             return_ty: CoreTy::Written("R"),
             symbol: "nvs_core_sample",
-            doc: None,
+            doc: Some(&SAMPLE_DOC),
         };
         assert_eq!(METHOD.written(), vec!["K", "V", "R"]);
     }
@@ -2105,6 +2130,96 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// Every row, enum and constant carries its ADR 0117 card — the second of
+    /// conventions.md's five edits, and the one nothing at a call site would
+    /// miss. The types keep their `Option` and empty-string spellings for the
+    /// emitter's sake ([`MethodDoc`] owns why), so *this* is where "not
+    /// written yet" stops being a state a member can ship in.
+    ///
+    /// A card's own fields are held to the same floor where a floor makes
+    /// sense: a `short`, a `ret` and every `desc` are written, and
+    /// [`MethodDoc::errors`] is the one field legitimately empty, since a
+    /// member that throws nothing has nothing to list.
+    #[test]
+    fn every_registry_row_carries_a_reference_card() {
+        let mut missing = Vec::new();
+        for class in CLASSES {
+            for method in class.members() {
+                let Some(doc) = method.doc else {
+                    missing.push(format!("{}::{} has no card", class.name, method.name));
+                    continue;
+                };
+                if doc.short.trim().is_empty() {
+                    missing.push(format!(
+                        "{}::{}'s card has no `short`",
+                        class.name, method.name
+                    ));
+                }
+                if doc.ret.trim().is_empty() {
+                    missing.push(format!(
+                        "{}::{}'s card has no `ret`",
+                        class.name, method.name
+                    ));
+                }
+                for param in doc.params {
+                    if param.desc.trim().is_empty() {
+                        missing.push(format!(
+                            "{}::{}'s card says nothing of `${}`",
+                            class.name, method.name, param.name
+                        ));
+                    }
+                    for key in param.shape {
+                        if key.desc.trim().is_empty() {
+                            missing.push(format!(
+                                "{}::{}'s card says nothing of `{}.{}`",
+                                class.name, method.name, param.name, key.key
+                            ));
+                        }
+                    }
+                }
+                for error in doc.errors {
+                    if error.desc.trim().is_empty() {
+                        missing.push(format!(
+                            "{}::{}'s card says nothing of when `{}` is thrown",
+                            class.name, method.name, error.error
+                        ));
+                    }
+                }
+            }
+            for constant in class.constants {
+                if constant.desc.trim().is_empty() {
+                    missing.push(format!(
+                        "{}::{} has no description",
+                        class.name, constant.name
+                    ));
+                }
+            }
+        }
+        for declared in ENUMS {
+            let Some(doc) = declared.doc else {
+                missing.push(format!("{} has no card", declared.name));
+                continue;
+            };
+            if doc.short.trim().is_empty() {
+                missing.push(format!("{}'s card has no `short`", declared.name));
+            }
+            for case in doc.cases {
+                if case.desc.trim().is_empty() {
+                    missing.push(format!(
+                        "{}'s card says nothing of `{}`",
+                        declared.name, case.name
+                    ));
+                }
+            }
+        }
+        assert!(
+            missing.is_empty(),
+            "{} registry entries ship undocumented — ADR 0117 § 1, conventions.md's second edit:\n  {}",
+            missing.len(),
+            missing.join("\n  ")
+        );
     }
 
     /// ADR 0117's card keys itself by ADR 0063 R2's names, so the two cannot
