@@ -2261,6 +2261,18 @@ is why" — is this file.
   the pass that should have refused it, so the fix is a `nvs-types` diagnostic beside the
   float/bool/null one. Worth knowing when a probe asks "can this key be invalid UTF-8": the
   answer is no, but the reason is an ICE rather than a refusal.
+- **The `unreachable from source` phrase must be within 8 lines of the `Fault::` line *and* the
+  gate counts from the line the `Fault::` sits on, not from the statement it belongs to.** Two
+  declarations written this session were refused after they were written: a seven-line comment above
+  `uri.rs`'s `scalar_text` guard put the phrase on the line one *outside*
+  `DECLARATION_WINDOW`, and a five-line one above `hash.rs`'s `finish` chunk guard was pushed out by
+  the four-line `.as_bytes().or_else(…).ok_or_else(|| {` chain between the comment and the
+  `Fault::fatal`. The gate's own message says "within the 8 lines above the site" and is exactly
+  right; what is easy to miss is that a *multi-line* comment only counts through the line the phrase
+  is on. Put the phrase on the comment's **last** couple of lines when the guard is a builder chain,
+  or keep the whole comment to five lines — and re-run
+  `cargo test -p nvs-stdlib --test conformance_coverage every_error_path` after writing a batch,
+  which is where both were caught.
 
 ## Splitting a file that got too big
 
