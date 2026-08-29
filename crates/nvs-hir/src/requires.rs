@@ -340,7 +340,8 @@ pub fn resolve_program(
             break;
         }
 
-        // § 3's scan: for a program that called `implementing<T>()`, every
+        // § 3's scan: for a program that asked for it — `implementing<T>()`
+        // or an ADR 0077 § 5 router link — every
         // name the roots declare becomes a file to load, whether or not
         // anything mentions it — the one place resolution is not lazy. It
         // runs once, after the `require` chain has drained, because that is
@@ -541,8 +542,9 @@ struct Harvest {
     /// not compile. `Core`'s own names are dropped, since nothing on disk
     /// declares them.
     names: Vec<(QName, Span)>,
-    /// Every `Core\Program::implementing<T>()` call site written in this
-    /// file. ADR 0061 § 3's opt-in lives here rather than in the checker
+    /// Every call site written in this file that asks for § 3's scan — see
+    /// [`is_program_scan`] for which those are. ADR 0061 § 3's opt-in lives
+    /// here rather than in the checker
     /// because the scan has to happen while the walk can still load files —
     /// by the time `nvs-types` reaches the call, the graph it expands
     /// against is already closed.
@@ -570,13 +572,30 @@ fn record_name(name: &Name, src: &SourceFile, out: &mut Harvest) {
     out.names.push((qname, name.span));
 }
 
-/// ADR 0061 § 3's enumeration, spelled out: the one class and member whose
-/// appearance anywhere in the program turns every autoload root's whole tree
-/// into files to load.
+/// ADR 0061 § 3's enumeration, spelled out: the calls whose appearance
+/// anywhere in the program turn every autoload root's whole tree into files
+/// to load.
+///
+/// Two classes ask for the same scan. `Core\Program::implementing<T>()` is
+/// § 3's own query; `Core\Router`'s link half needs the compile-time route
+/// table, which [ADR 0077](../../../docs/adr/0077-compile-time-routing.md)
+/// § 5 builds by filtering *this* enumeration by a `#[Core\Route]` attribute
+/// rather than by an implemented interface. That is why the second is a
+/// member list here and not a second walk: a program calling either pays
+/// § 5's directory-listing dependency once, and a program calling neither
+/// still performs no scan at all.
 const PROGRAM_CLASS: &str = r"Core\Program";
 const IMPLEMENTING_MEMBER: &str = "implementing";
+const ROUTER_CLASS: &str = r"Core\Router";
+/// The `Core\Router` members that read the route table, and so need the scan
+/// that builds it. ADR 0077 § 5 names `::match` alongside `::url`; it is
+/// absent here because it is absent from the registry, so listing it would
+/// describe a call no program can currently write. It joins this list with
+/// the member, not before it.
+const ROUTER_SCAN_MEMBERS: &[&str] = &["url", "urlAbsolute"];
 
-/// Whether this static call is `Core\Program::implementing<T>()`.
+/// Whether this static call is one of the two that opt a program into the
+/// scan — `Core\Program::implementing<T>()`, or a `Core\Router` link.
 ///
 /// Matched nominally against the *resolved* class name, so a `use Core;` plus
 /// `Program::implementing<Module>()` is the same call as the fully written
@@ -595,9 +614,11 @@ fn is_program_scan(class: &Expr, method: &MemberName, src: &SourceFile, out: &Ha
     else {
         return false;
     };
-    member_text == IMPLEMENTING_MEMBER
-        && crate::hierarchy::resolve_ref(class_text, &out.namespace, &out.imports)
-            == QName::parse(PROGRAM_CLASS)
+    let class_name = crate::hierarchy::resolve_ref(class_text, &out.namespace, &out.imports);
+    if class_name == QName::parse(PROGRAM_CLASS) {
+        return member_text == IMPLEMENTING_MEMBER;
+    }
+    class_name == QName::parse(ROUTER_CLASS) && ROUTER_SCAN_MEMBERS.contains(&member_text)
 }
 
 /// Records every name a type expression mentions. A shape type's fields, a
@@ -2050,6 +2071,52 @@ require './Lib/Helper.nvs';
         assert!(scanned.symbols.contains(&mailer));
 
         let (quiet, diags) = resolve_entry(&dir, "quiet.nvs");
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert!(!quiet.symbols.contains(&mailer));
+    }
+
+    /// ADR 0077 § 5's opt-in is 0061 § 3's, reused: a router link needs the
+    /// route table, and the table is built from this same enumeration. Both
+    /// link members are asserted, because the list they are matched against
+    /// is the kind that ships with one entry filled in. The negative is
+    /// another `Core` static call rather than no call at all — the pair above
+    /// already pins that half, and what could go wrong *here* is a rule that
+    /// scans for any `Core::` call it walks past.
+    #[test]
+    fn a_router_link_asks_for_the_same_enumeration() {
+        let dir = TempDir::new("autoload-scan-router");
+        fs::create_dir_all(dir.path.join("src")).expect("create root");
+        dir.write(
+            "Bootstrap.nvs",
+            "<?nvs\nautoload 'Framework' from './src';\n",
+        );
+        dir.write(
+            "src/Mailer.nvs",
+            "<?nvs\nnamespace Framework;\nclass Mailer {}\n",
+        );
+        for (file, call) in [
+            ("url.nvs", r"Core\Router::url('Users::show', [])"),
+            (
+                "absolute.nvs",
+                r"Core\Router::urlAbsolute('Users::show', [])",
+            ),
+            ("other.nvs", r"Core\Str::length('Users::show')"),
+        ] {
+            dir.write(
+                file,
+                &format!("<?nvs\nrequire './Bootstrap.nvs';\nvar $x = {call};\n"),
+            );
+        }
+
+        let mailer = QName::parse(r"Framework\Mailer");
+
+        for file in ["url.nvs", "absolute.nvs"] {
+            let (module, diags) = resolve_entry(&dir, file);
+            assert!(!diags.has_errors(), "{file}: {diags:?}");
+            assert!(module.symbols.contains(&mailer), "{file} did not scan");
+        }
+
+        let (quiet, diags) = resolve_entry(&dir, "other.nvs");
         assert!(!diags.has_errors(), "{diags:?}");
         assert!(!quiet.symbols.contains(&mailer));
     }
