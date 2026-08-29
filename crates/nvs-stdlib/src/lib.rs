@@ -224,6 +224,7 @@ pub mod random;
 pub mod regex;
 pub mod registry;
 pub mod router;
+pub mod script;
 mod serialize;
 pub mod str;
 mod task;

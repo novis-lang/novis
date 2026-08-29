@@ -878,6 +878,11 @@ pub const CLASSES: &[CoreClass] = &[
     // module doc is the one home for the surface and for why the queue lives
     // in the instance's own slots rather than in the host.
     crate::channel::CLASS,
+    // ADR 0006's isolate handle, and no spec § of its own either — the
+    // concurrency *language* surface belongs to `docs/spec/00-overview.md` § 2,
+    // which is where `spawn script`'s grammar already is. The one class here
+    // with no members at all; [`crate::script`] owns why that is the point.
+    crate::script::HANDLE,
     // § 13, and the second row after `Core\Attributes` whose members never
     // run: ADR 0061 § 3 expands `implementing<T>()` while checking, so
     // [`crate::program`] registers a signature and an aborting body.
