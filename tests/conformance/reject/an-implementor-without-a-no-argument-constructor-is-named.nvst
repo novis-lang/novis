@@ -1,0 +1,66 @@
+--TEST--
+`Core\Program::implementing<T>()` refuses an implementor whose constructor takes a required argument, and names the class rather than the call — ADR 0061 § 3
+--FILE--
+<?nvs
+// § 3: "each such class needs a no-argument constructor; a diagnostic names any
+// that does not, and dependencies arrive through the interface's own methods
+// instead". The expansion is an array literal of `new` expressions, so a class
+// the call site would have to write `new App\Needy(8080)` for is not one it can
+// enumerate at all.
+autoload 'App' from './modules';
+
+// Both sides of the bound in one file, which is what makes this more than a
+// restatement of the error. The refused test is `required() > 0`, not "declares
+// a constructor" and not "takes a parameter": `App\Ambient` declares one whose
+// only parameter is *defaulted*, sorts before `App\Needy` in § 3's
+// name-ordered walk, and is therefore examined and accepted before the refusal
+// below is reached. A rule reading the parameter count instead would name both
+// classes and still look right on the second half alone.
+var $found = Core\Program::implementing<App\Module>();
+
+echo "unreachable ", Core\Arr::count($found), "\n";
+--FILE modules/Module.nvs--
+<?nvs
+namespace App;
+
+interface Module
+{
+    public function tag(): string;
+}
+--FILE modules/Ambient.nvs--
+<?nvs
+namespace App;
+
+// Accepted: a defaulted parameter is not a required one, so the enumeration can
+// still write `new App\Ambient()`.
+class Ambient implements Module
+{
+    public function constructor(int $port = 8080) {}
+
+    public function tag(): string
+    {
+        return "ambient";
+    }
+}
+--FILE modules/Needy.nvs--
+<?nvs
+namespace App;
+
+// Refused: the enumeration has no argument to supply, and § 3's answer is that
+// the dependency arrives through `Module`'s own methods instead.
+class Needy implements Module
+{
+    public function constructor(int $port) {}
+
+    public function tag(): string
+    {
+        return "needy";
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0744]: `App\Needy` implements `App\Module` and its constructor takes 1 required argument(s)
+   --> case.nvs:16:14
+%A
+error: aborting due to 1 error
