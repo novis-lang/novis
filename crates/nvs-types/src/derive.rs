@@ -73,8 +73,10 @@ use crate::{Ctx, Env, span_text, strip_sigil};
 /// A name on this roster names no shape, so [`crate::attributes`]'s ADR 0046
 /// § 1 rule does not apply to it and what its payload may hold is the
 /// recognizing pass's own question: `#[Json\Derive]`/`#[Json\Field]` are this
-/// module's, `#[Test]` is [`crate::testing`]'s.
-pub const ATTRIBUTES: &[&str] = [DERIVE, FIELD, TEST, FIXTURE, TEST_WITH].as_slice();
+/// module's, `#[Test]` is [`crate::testing`]'s, `#[Command]`/`#[Option]` are
+/// [`crate::commands`]'.
+pub const ATTRIBUTES: &[&str] =
+    [DERIVE, FIELD, TEST, FIXTURE, TEST_WITH, COMMAND, OPTION].as_slice();
 
 /// `#[Json\Derive]` — ADR 0071 § 1's opt-in, on a class.
 pub const DERIVE: &str = r"Core\Json\Derive";
@@ -110,6 +112,19 @@ pub const FIXTURE: &str = r"Core\Test\Fixture";
 /// [`crate::testing::check_class_tests`] holds. That module owns what a row
 /// may carry.
 pub const TEST_WITH: &str = r"Core\Test\TestWith";
+
+/// `#[Command(name: string, about?: string)]` — ADR 0086 § 6's marker, on a
+/// `static` method. It is the same class the entry point `Core\Command::run`
+/// is a member of, so the `use Core\Command;` that lets a program spell the
+/// attribute bare is the one that reaches the runner too;
+/// [`crate::commands`] owns the payload.
+pub const COMMAND: &str = r"Core\Command";
+
+/// `#[Option(short?: string, long?: string, about?: string)]` — ADR 0086 § 6's
+/// per-parameter marker, and the one sentence that decides what a parameter is:
+/// a parameter is a positional argument unless it carries this, with no
+/// inference from defaults or types. [`crate::commands`] owns the payload.
+pub const OPTION: &str = r"Core\Option";
 
 /// One derived class's JSON field list, in declaration order — ADR 0071 § 2's
 /// "declaration order fixes encode order, so output is byte-deterministic".

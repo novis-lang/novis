@@ -198,6 +198,7 @@
 
 pub(crate) mod attributes;
 pub mod check;
+pub(crate) mod commands;
 pub(crate) mod conformance;
 pub mod consts;
 pub mod core_lib;

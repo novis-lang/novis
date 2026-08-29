@@ -112,8 +112,30 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         .iter()
         .any(|want| qname == nvs_hir::QName::parse(want))
     {
-        if constant && qname == nvs_hir::QName::parse(crate::derive::TEST) {
-            crate::testing::check_payload(&attr.fields, ctx, env);
+        if constant {
+            // Only the rosters that have a payload to check appear here; a
+            // recognized name whose payload is empty by construction
+            // (`#[Fixture]`) has nothing to say and says nothing.
+            let recognized = |want: &str| qname == nvs_hir::QName::parse(want);
+            if recognized(crate::derive::TEST) {
+                crate::testing::check_payload(&attr.fields, ctx, env);
+            } else if recognized(crate::derive::COMMAND) {
+                crate::commands::check_payload(
+                    "Command",
+                    crate::commands::COMMAND_OPTIONS,
+                    &attr.fields,
+                    ctx,
+                    env,
+                );
+            } else if recognized(crate::derive::OPTION) {
+                crate::commands::check_payload(
+                    "Option",
+                    crate::commands::OPTION_OPTIONS,
+                    &attr.fields,
+                    ctx,
+                    env,
+                );
+            }
         }
         return;
     }
