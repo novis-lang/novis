@@ -485,9 +485,11 @@
 > behind it, and no session re-derives one. **ADR 0117's seam is in the core toolchain**: a registry
 > row carries an optional reference card (`nvs_stdlib::registry::MethodDoc`, `CoreMethod::doc`),
 > `nvs meta --json` prints the whole registry in that ADR's § 2 shape, and three members —
-> `Str::length`, `Json::encode`, `Regex::match` — carry theirs; the other 342 rows say `doc: None`
-> and are documented member by member, each upgrading the website's reference on its next `npm run
-> sync:core`, whose report line counts how many carry one.
+> `Str::length`, `Json::encode`, `Regex::match` — carry theirs, as do two enums — `Core\Order` and
+> `Core\RoundMode`, a line per case — and two constants, `Core\Math::PI` and `EPSILON`, through the
+> same seam's `EnumDoc` and `CoreConst::desc`; the other 342 rows, eight enums and eleven constants
+> say nothing yet and are documented one by one, each upgrading the website's reference on its next
+> `npm run sync:core`, whose report line counts how many carry one.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
