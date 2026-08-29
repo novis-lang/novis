@@ -1,0 +1,156 @@
+--TEST--
+`Core\Arr::product` is `Core\Arr::sum`'s fold with the other operator: each agrees with the same fold written out, splits at every point, is inert under its own identity and refuses the same two subjects — spec § 2, ADR 0063 R5
+--FILE--
+<?nvs
+// `crates/nvs-stdlib/src/arr.rs:4186`'s doc states the relation in words —
+// `product` is "`nvs_core_arr_sum`'s structure with the other operation", one
+// `fold_numbers` reached with `Total::times` instead of `Total::plus` and a
+// seed of `1` instead of `0`. `arr-sum-product-and-average-over-numbers` reads
+// one answer per member off a line. What is left is that relation asserted:
+// each member is a left-to-right fold, over its own operator, from its own
+// identity — so a `product` that grew a rule of its own (skipping a zero,
+// answering `0` for the empty array, folding right to left) fails here while
+// every line it prints alone still reads correctly.
+
+// Eight rows where the two folds' answers pull apart: the sum's identity `0` is
+// the product's annihilator, the product's identity `1` is not the sum's, and
+// the last two rows answer `0` from one member and something else from the
+// other, in both directions.
+array<array<int>> $rows = [
+    [3, 1, 4, 1, 5],
+    [],
+    [7],
+    [0, 5],
+    [-2, 3, -4],
+    [1, 1, 1],
+    [2, 2, 2, 2],
+    [10, -10],
+];
+
+array<string> $answers = [];
+int $asked = 0;
+int $sumAgrees = 0;
+int $productAgrees = 0;
+int $splits = 0;
+int $splitSum = 0;
+int $splitProduct = 0;
+int $identityHolds = 0;
+int $otherIdentityMoves = 0;
+int $reversedAgrees = 0;
+foreach ($rows as array<int> $row) {
+    $asked = $asked + 1;
+
+    // The fold itself, written out: same order, same seed, same operator.
+    int $sum = 0;
+    int $product = 1;
+    foreach ($row as int $x) {
+        $sum = $sum + $x;
+        $product = $product * $x;
+    }
+    if (Core\Arr::sum($row) == $sum) {
+        $sumAgrees = $sumAgrees + 1;
+    }
+    if (Core\Arr::product($row) == $product) {
+        $productAgrees = $productAgrees + 1;
+    }
+
+    // A fold splits at every point: the whole answer is the two halves'
+    // answers combined by the same operator, at every k from before the first
+    // entry to after the last. This is the half that a member answering the
+    // right total by the wrong route fails — and the empty half of each split
+    // is where the seed has to be the operator's identity for the law to hold
+    // at all, which is why `1` and `0` are not interchangeable seeds.
+    uint $k = 0;
+    while ($k <= Core\Arr::count($row)) {
+        $splits = $splits + 1;
+        array<int> $head = Core\Arr::slice($row, 0, $k as int);
+        array<int> $tail = Core\Arr::slice($row, $k as int);
+        if (Core\Arr::sum($head) + Core\Arr::sum($tail) == Core\Arr::sum($row)) {
+            $splitSum = $splitSum + 1;
+        }
+        if (Core\Arr::product($head) * Core\Arr::product($tail) == Core\Arr::product($row)) {
+            $splitProduct = $splitProduct + 1;
+        }
+        $k = $k + 1;
+    }
+
+    // Each seed is that member's identity and only that member's: appending a
+    // `1` leaves the product alone and moves the sum by one, appending a `0`
+    // leaves the sum alone and takes the product to zero.
+    if (Core\Arr::product(Core\Arr::append($row, 1)) == Core\Arr::product($row) &&
+        Core\Arr::sum(Core\Arr::append($row, 0)) == Core\Arr::sum($row)) {
+        $identityHolds = $identityHolds + 1;
+    }
+    if (Core\Arr::sum(Core\Arr::append($row, 1)) == Core\Arr::sum($row) + 1 &&
+        Core\Arr::product(Core\Arr::append($row, 0)) == 0) {
+        $otherIdentityMoves = $otherIdentityMoves + 1;
+    }
+
+    // Both operators are associative and commutative over `int`, so the
+    // left-to-right fold answers what the right-to-left one does. This is the
+    // one law that says nothing about the order of the walk, and it is here so
+    // the split law above is not read as if it did.
+    if (Core\Arr::sum(Core\Arr::reverse($row)) == Core\Arr::sum($row) &&
+        Core\Arr::product(Core\Arr::reverse($row)) == Core\Arr::product($row)) {
+        $reversedAgrees = $reversedAgrees + 1;
+    }
+
+    // Both answers on every row, so the agreements above are agreements on a
+    // value rather than on emptiness.
+    $answers[] = Core\Arr::sum($row) . "/" . Core\Arr::product($row);
+}
+echo Core\Str::join($answers, " "), "\n";
+echo $asked as string, " ", $sumAgrees as string, " ", $productAgrees as string, " ",
+     $identityHolds as string, " ", $otherIdentityMoves as string, " ",
+     $reversedAgrees as string, "\n";
+echo $splits as string, " ", $splitSum as string, " ", $splitProduct as string, "\n";
+
+// The empty array is each operation's identity and nothing else — the row above
+// counted it, this names the two values, since they are the seeds every law
+// above rests on.
+array<int> $none = [];
+echo Core\Arr::sum($none), " ", Core\Arr::product($none), "\n";
+
+// One promotion rule, not two: the widest type present wins in both folds, and
+// an exact subject stays exact in both. `2 * 1.5` is a `float` `3`, which is
+// why the product prints beside a sum that is plainly not an `int`.
+array<int|float> $mixed = [2, 1.5];
+array<decimal> $money = [1.10, 2.00];
+echo Core\Arr::sum($mixed), " ", Core\Arr::product($mixed), " ",
+     Core\Arr::sum($money), " ", Core\Arr::product($money), "\n";
+
+// And one refusal rule. Both members throw for both subjects the fold has no
+// answer for — a running total that leaves its type's range, and a `float`
+// meeting a `decimal` — each naming itself and not the other. The message is
+// one sentence shared by the two members, which is the same claim as every
+// agreement above, made where the fold stops instead of where it answers.
+array<int> $overflow = [4611686018427387904, 4];
+array<float|decimal> $clash = [1.5, 2.00 as decimal];
+int $refusals = 0;
+int $namesItself = 0;
+try { echo Core\Arr::product($overflow), "\n"; } catch (Throwable $e1) {
+    $refusals = $refusals + 1;
+    if (Core\Str::contains($e1->message, "product") && !Core\Str::contains($e1->message, "sum")) {
+        $namesItself = $namesItself + 1;
+    }
+}
+try { echo Core\Arr::sum($clash), "\n"; } catch (Throwable $e2) {
+    $refusals = $refusals + 1;
+    if (Core\Str::contains($e2->message, "sum") && !Core\Str::contains($e2->message, "product")) {
+        $namesItself = $namesItself + 1;
+    }
+}
+try { echo Core\Arr::product($clash), "\n"; } catch (Throwable $e3) {
+    $refusals = $refusals + 1;
+}
+// The one subject the pair does *not* agree on, and it is the fold that says
+// why: `sum` stays inside `int` where `product` leaves it, so an overflow is a
+// property of the operator rather than of the member.
+echo Core\Arr::sum($overflow), " ", $refusals as string, " ", $namesItself as string, "\n";
+--EXPECT--
+14/60 0/1 7/7 5/0 -3/24 3/1 8/16 0/-100
+8 8 8 8 8 8
+28 28 28
+0 1
+3.5 3 3.10 2.2000
+4611686018427387908 3 2
