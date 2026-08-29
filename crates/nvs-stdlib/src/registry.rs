@@ -87,6 +87,24 @@
 /// is why [`Self::Contagious`] is a thing an author writes rather than a thing
 /// an author gets by forgetting. `every_member_parameter_carries_a_qualifier_classification`
 /// is what stops a member shipping unclassified at all.
+///
+/// # The rule a class is classified by
+///
+/// Written down once here rather than re-derived per class, because the
+/// judgement is the same one every time and what it costs to get wrong is a
+/// member that launders by accident:
+///
+/// * A member whose answer carries no byte of any argument — a `bool`, a
+///   count, an ordering — is [`Self::Neutral`] in **every** parameter.
+/// * Otherwise every `string`/`bytes` parameter is [`Self::Contagious`],
+///   including one whose own bytes never appear in the answer:
+///   `Core\Str::before`'s separator decides *which* slice comes back, and
+///   laundering by influence is not something a member may do silently.
+/// * ADR 0063 R11's four grammars — a regex pattern, a `printf` template, a
+///   CLDR date pattern and a `Core\Bytes::pack` format — are [`Self::Sink`]
+///   wherever they are declared, by ADR 0088 § 1's own corollary.
+/// * [`Self::Launder`] is the default of nothing. A member claims it, and its
+///   doc comment names the sink it launders for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Qual {
     /// A qualified argument yields a qualified result — the overwhelming
@@ -1497,7 +1515,6 @@ mod tests {
         }
     }
 
-    /// A [`CoreTy::Nullable`] wraps something a `null` can actually widen a
     /// The members that still owe ADR 0088 § 2 a classification, frozen at the
     /// size the gate below landed at.
     ///
@@ -1507,43 +1524,6 @@ mod tests {
     /// member that is here *and* classified, so an entry cannot go stale and a
     /// new member cannot be added to it.
     const UNCLASSIFIED: &[(&str, &str)] = &[
-        ("Core\\Str", "length"),
-        ("Core\\Str", "at"),
-        ("Core\\Str", "isEmpty"),
-        ("Core\\Str", "contains"),
-        ("Core\\Str", "startsWith"),
-        ("Core\\Str", "endsWith"),
-        ("Core\\Str", "slice"),
-        ("Core\\Str", "indexOf"),
-        ("Core\\Str", "lastIndexOf"),
-        ("Core\\Str", "countOf"),
-        ("Core\\Str", "compare"),
-        ("Core\\Str", "before"),
-        ("Core\\Str", "after"),
-        ("Core\\Str", "join"),
-        ("Core\\Str", "split"),
-        ("Core\\Str", "chunk"),
-        ("Core\\Str", "lines"),
-        ("Core\\Str", "graphemes"),
-        ("Core\\Str", "codePoints"),
-        ("Core\\Str", "replace"),
-        ("Core\\Str", "replaceAll"),
-        ("Core\\Str", "replaceRange"),
-        ("Core\\Str", "padStart"),
-        ("Core\\Str", "padEnd"),
-        ("Core\\Str", "trim"),
-        ("Core\\Str", "trimStart"),
-        ("Core\\Str", "trimEnd"),
-        ("Core\\Str", "repeat"),
-        ("Core\\Str", "reverse"),
-        ("Core\\Str", "wrap"),
-        ("Core\\Str", "lower"),
-        ("Core\\Str", "upper"),
-        ("Core\\Str", "upperFirst"),
-        ("Core\\Str", "lowerFirst"),
-        ("Core\\Str", "fold"),
-        ("Core\\Str", "normalize"),
-        ("Core\\Str", "format"),
         ("Core\\Arr", "hasKey"),
         ("Core\\Arr", "column"),
         ("Core\\Attributes", "get"),
@@ -1699,6 +1679,7 @@ mod tests {
         }
     }
 
+    /// A [`CoreTy::Nullable`] wraps something a `null` can actually widen a
     /// type of: never a second nullable, which the interner would collapse
     /// into the first, and never `void`, which is a return-position marker
     /// rather than a type a value can have.

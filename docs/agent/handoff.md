@@ -2,69 +2,64 @@
 
 ## State
 
-**Item 11 is closed.** `OWED_A_CASE` in `crates/nvs-stdlib/tests/conformance_coverage.rs:583` is
-empty and the const's doc says why it stays: an empty allowance is what makes
-`every_error_path_is_asserted_or_declared_unreachable` a ratchet rather than a roster. Every
-`Fault::` site in `nvs-stdlib` with a findable stem is now either caught by a case or carries a
-`unreachable from source` comment naming what refuses the call first.
-
 **The driver's failing acceptance check is closed.**
-`tests/conformance/reject/a-route-table-refuses-its-seven-contradictions.nvst` is written and
-passes. One program carries all seven — `E0748`, `E0751`, `E0750`, `E0753`, `E0752`, `E0754`,
-`E0759` — and the assertion is that the compilation reports *all* of them rather than stopping at
-the first, which is the one thing the seven unit tests in `crates/nvs-types/tests/routes.rs`
-cannot see from one error each.
+`tests/conformance/core/a-command-table-answers-its-own-help.nvst` is written and passes. It does not
+call `Core\Command::help` on purpose: that member, `::run` and `::completions` are goal 4's
+(`docs/agent/goals/1-core-depth.md` item 6 — "the table only"), and no `Core\Command` row exists in
+`nvs_stdlib::registry`. What it asserts instead is the claim § 6's promise rests on — *nobody writes
+usage text* — by generating the help out of the declarations themselves through ADR 0046 §§ 4-5's
+retrieval: four rows over three methods, every one described, no two named alike, and one `{about:
+string}` shape asked of a `#[Command]` and an `#[Option]` alike. It also took `Core\Attributes::all` off
+`BELOW_THE_FLOOR` in `crates/nvs-stdlib/tests/conformance_coverage.rs:264` — one line of item 10, paid
+for by a case written for something else.
 
-**This session's five judgements.** `validate.rs`'s two `isIp` `version` guards and `math.rs`'s
-`round_mode` are declarations: `IP_VERSION`'s `4|6` and `ROUND_OPTIONS`' `Core\RoundMode` refuse
-every other value at `E0401`, literal and binding alike, and the enum's six cases are the whole
-roster the match arms cover. `debug.rs:191` and `path.rs:612` are `next_slot`/`value_at`'s shared
-post-condition. `debug.rs:147` is the odd one: no *diagnostic* refuses it — the only diagnostic
-sink that can fail is `OutputSink::Stderr`, and nothing in the language moves the channel, so it
-is the host's failure and no case can spell it.
+**Item 12 has started: `Core\Str` is off the `UNCLASSIFIED` roster.** All 37 rows carry ADR 0088 § 2's
+classification, and the rule they were classified by is written down once, in `Qual`'s own doc comment
+(`crates/nvs-stdlib/src/registry.rs:74`), for the classes still owing one. It lands three ways: neutral
+wherever the answer carries no byte of an argument, contagious everywhere else — including a needle
+that never appears in the answer — and sink on `format`'s template, which is one of ADR 0063 R11's four
+grammars. **The cross-check that made this cheap**: `docs/spec/01-core-library.md`'s Q column already
+renders every one of these marks, and it agreed with the independent judgement member for member. Read
+it first for the next class.
 
-**Found, not as the handoff predicted:** `test.rs:677` (`compareTo` answering a non-`int`) is
-**reachable** from source, not a post-condition — nothing requires a compared class to implement
-`Comparable`, so a `compareTo(): string` reaches the fatal. It got a case, not a declaration.
+**The classification is declaration-only today.** `nvs_types::core_lib.rs:286` lowers `CoreTy::Text(_)`
+to a plain interned `string`, so nothing a program can do changed and the playbook bullet about no
+`Core` member accepting a `tainted` argument is still true — including for `Core\Str`. Enforcement is a
+separate item and this session did not touch it.
 
-**Untouched:** item 12's classification (`UNCLASSIFIED`, `crates/nvs-stdlib/src/registry.rs`).
-Also still carried: `crates/nvs-stdlib/src/router.rs:39`'s *Known gaps* 1 and 2 are stale, a
-`bytes` array key ICEs in `nvs-ir`, and `catch (Core\Error $e)` panics — the last two have
-playbook bullets under *Writing a test case*.
+**Untouched:** `crates/nvs-stdlib/src/router.rs:39`'s *Known gaps* 1 and 2 are stale (the route table
+is built now), a `bytes` array key ICEs in `nvs-ir`, and `catch (Core\Error $e)` panics — the last two
+have playbook bullets under *Writing a test case*.
 
-**Orientation gaps.** `[context] adrs` still owes `0085 §§ 1-4` and `0071 §§ 2, 7`; the pack
-printed no ADR 0077/0102 section for the route grammar this session's first slice needed, which
-cost nothing only because `crates/nvs-types/tests/routes.rs` holds the seven shapes verbatim.
-Carried: the playbook is filtered to the paths the *item* names, so an item-11 slice naming only
-its `src/<class>.rs` never sees the three declaration-window bullets (`playbook.md:835`, `:2264`,
-`:3013`); naming `crates/nvs-stdlib/tests/conformance_coverage.rs` in each slice's anchors pulls
-them in.
+**Orientation gaps.** `[context] adrs` printed no section for either ADR this session needed: 0086 § 6
+(the command table's own spelling) and 0088 §§ 1-2 (§ 1's sink predicate, whose R11 corollary is what
+makes `Core\Str::format` a sink). Both were sliced by hand for one call each. Still owed from before:
+`0085 §§ 1-4` and `0071 §§ 2, 7`.
 
 ## Next group
 
-**Item 12, the qualifier classification — ADR 0088 § 2. Shared file set:**
-`crates/nvs-stdlib/src/registry.rs` (the `UNCLASSIFIED` roster and what a row may say, `:490`)
-plus one `crates/nvs-stdlib/src/<class>.rs` per slice. The judgement per parameter is which of the
-four marks it is — *contagious* for the overwhelming majority, *sink* where the content becomes an
-instruction, *launder* where the member is the boundary that clears it, *neutral* where the bytes
-are never read as anything.
+**Item 12 continued, the qualifier classification — ADR 0088 § 2. Shared file set:**
+`crates/nvs-stdlib/src/registry.rs` (the `UNCLASSIFIED` roster at `:1526`, which now opens at
+`Core\Arr`) plus one `crates/nvs-stdlib/src/<class>.rs` per slice. `Qual`'s doc at `registry.rs:74` is
+the rule; the spec's Q column is the second opinion, and a disagreement between the two is the finding.
 
-- [ ] **The first class off the `UNCLASSIFIED` roster.** Run the gate
-      (`every_member_parameter_carries_a_qualifier_classification`) to get the roster in the order
-      it reports; take the class it names first. Anchors:
-      `crates/nvs-stdlib/src/registry.rs:490`, `crates/nvs-stdlib/tests/conformance_coverage.rs`.
-- [ ] **The next two classes on the same roster**, same file set, provided the first slice left
-      you well short of the ceiling — the marks are one judgement per parameter and a class is
-      cheap once `registry.rs`'s row shape is loaded.
-- [ ] **Item 10's floor, as the fallback** if item 12 turns out to want a design call: `python
-      tools/gaps.py` names the three thinnest members of the thinnest class, with anchors.
+- [ ] **`Core\Arr` and `Core\Attributes`, the four rows the roster opens with.** `hasKey` and `column`
+      take a `string` key beside an `array<T>`; `get`/`all` take the optional member name, which names a
+      declaration rather than flowing anywhere. Anchors: `crates/nvs-stdlib/src/arr.rs:176`, `:368`,
+      `crates/nvs-stdlib/src/attributes.rs:47`, `:54`, `crates/nvs-stdlib/src/registry.rs:1526`.
+- [ ] **`Core\Math::fromBase`/`format` and `Core\Json::decode`/`decodeAs`/`isValid`.** ADR 0088 § 1's
+      table names `Core\Json::decode`'s input outright — data, tainted-friendly, result tainted — so
+      that row is decided and the other four follow `Qual`'s rule. Anchors:
+      `crates/nvs-stdlib/src/math.rs`, `crates/nvs-stdlib/src/json.rs`.
+- [ ] **`Core\Encoding`'s five rows**, same file set plus `crates/nvs-stdlib/src/encoding.rs`. Base64
+      and text transcoding are contagious in both directions; the question worth a minute is whether
+      `isValidText` is neutral, which it is by the answer-carries-no-byte half of the rule.
 
 ## Backlog
 
-- `router.rs:39`'s *Known gaps* 1 and 2 are stale — the table is built and both members fold
-  (`crates/nvs-stdlib/src/router.rs`).
-- A `bytes` array key ICEs in `nvs-ir`; `catch (Core\Error $e)` panics rather than diagnosing
-  (`docs/agent/playbook.md`, *Writing a test case*).
-- ADR 0013's `compareTo` is not enforced at the declaration, so `test.rs:677`'s fatal is a live
-  backstop — `crates/nvs-stdlib/src/test.rs:656`'s *known gap 1*.
-- `[context] adrs` owes `0085 §§ 1-4` and `0071 §§ 2, 7` (`docs/agent/loop-goal.toml`).
+- `Core\Command::run`/`::help`/`::completions` — goal 4, not this goal (`1-core-depth.md` item 6).
+- The rest of `UNCLASSIFIED` after the three slices above — `registry.rs:1526` is the worklist.
+- Enforcing the classification rather than declaring it: `nvs_types::core_lib.rs:286` erases it.
+- `crates/nvs-stdlib/src/router.rs:39`'s *Known gaps* 1 and 2 no longer describe the tree.
+- Item 10's per-class conformance floor — `python tools/gaps.py` is the worklist.
+- A `bytes` array key ICEs in `nvs-ir`; `catch (Core\Error $e)` panics — both have playbook bullets.

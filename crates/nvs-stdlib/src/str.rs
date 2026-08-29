@@ -87,7 +87,7 @@ use std::cmp::Ordering;
 use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, StrWriter, Tag, Value};
 use unicode_normalization::UnicodeNormalization;
 
-use crate::registry::{Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy};
+use crate::registry::{Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, Qual};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -119,61 +119,87 @@ pub(crate) const NORMAL_FORM: CoreEnum = CoreEnum {
 /// adding a member touches this file and nothing else. [`crate::registry`]'s
 /// `CLASSES` lists this const; that list grows one line per *class*, never one
 /// per member.
+///
+/// # ADR 0088 § 2's classification, over this class
+///
+/// [`Qual`]'s own docs hold the rule every class is classified by. Applied
+/// here it lands three ways, and the third is the only one that is not
+/// mechanical:
+///
+/// * **Neutral** wherever the answer is a `bool`, a count or an ordering —
+///   `length`, `isEmpty`, `contains`, `startsWith`, `endsWith`, `indexOf`,
+///   `lastIndexOf`, `countOf`, `compare`, and `codePoints`, whose
+///   `array<uint>` carries no byte of the subject that a sink could read.
+/// * **Contagious** everywhere else, including the needle of a member that
+///   answers a slice: `before`'s separator never appears in the answer, but
+///   *which* slice is answered is the needle's doing, and laundering by
+///   influence is not something this class is allowed to do.
+/// * **Sink** on `format`'s template, which is one of ADR 0063 R11's four
+///   grammars — § 1's corollary makes every one of the four a sink, and the
+///   variadic arguments it renders stay data.
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Str",
     methods: &[
         CoreMethod {
             name: "length",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Uint,
             symbol: "nvs_core_str_length",
         },
         CoreMethod {
             name: "at",
-            params: &[CoreTy::Str, CoreTy::Int],
+            params: &[CoreTy::Text(Qual::Contagious), CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_at",
         },
         CoreMethod {
             name: "isEmpty",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_str_is_empty",
         },
         CoreMethod {
             name: "contains",
-            params: &[CoreTy::Str, CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Neutral), CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_str_contains",
         },
         CoreMethod {
             name: "startsWith",
-            params: &[CoreTy::Str, CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Neutral), CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_str_starts_with",
         },
         CoreMethod {
             name: "endsWith",
-            params: &[CoreTy::Str, CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Neutral), CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_str_ends_with",
         },
         CoreMethod {
             name: "slice",
-            params: &[CoreTy::Str, CoreTy::Int, CoreTy::Nullable(&CoreTy::Int)],
+            params: &[
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Int,
+                CoreTy::Nullable(&CoreTy::Int),
+            ],
             defaults: &[Const::Null],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_slice",
         },
         CoreMethod {
             name: "indexOf",
-            params: &[CoreTy::Str, CoreTy::Str, CoreTy::Options(INDEX_OF_OPTIONS)],
+            params: &[
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Options(INDEX_OF_OPTIONS),
+            ],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Uint),
             symbol: "nvs_core_str_index_of",
@@ -181,8 +207,8 @@ pub const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "lastIndexOf",
             params: &[
-                CoreTy::Str,
-                CoreTy::Str,
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Text(Qual::Neutral),
                 CoreTy::Options(LAST_INDEX_OF_OPTIONS),
             ],
             defaults: &[],
@@ -191,70 +217,86 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "countOf",
-            params: &[CoreTy::Str, CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Neutral), CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Uint,
             symbol: "nvs_core_str_count_of",
         },
         CoreMethod {
             name: "compare",
-            params: &[CoreTy::Str, CoreTy::Str, CoreTy::Options(COMPARE_OPTIONS)],
+            params: &[
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Options(COMPARE_OPTIONS),
+            ],
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_str_compare",
         },
         CoreMethod {
             name: "before",
-            params: &[CoreTy::Str, CoreTy::Str, CoreTy::Options(AROUND_OPTIONS)],
+            params: &[
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Options(AROUND_OPTIONS),
+            ],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_str_before",
         },
         CoreMethod {
             name: "after",
-            params: &[CoreTy::Str, CoreTy::Str, CoreTy::Options(AROUND_OPTIONS)],
+            params: &[
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Options(AROUND_OPTIONS),
+            ],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_str_after",
         },
         CoreMethod {
             name: "join",
-            params: &[CoreTy::Array(&CoreTy::Str), CoreTy::Str],
+            params: &[CoreTy::Array(&CoreTy::Str), CoreTy::Text(Qual::Contagious)],
             defaults: &[Const::Str("")],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_join",
         },
         CoreMethod {
             name: "split",
-            params: &[CoreTy::Str, CoreTy::Str, CoreTy::Options(SPLIT_OPTIONS)],
+            params: &[
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Options(SPLIT_OPTIONS),
+            ],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
             symbol: "nvs_core_str_split",
         },
         CoreMethod {
             name: "chunk",
-            params: &[CoreTy::Str, CoreTy::Uint],
+            params: &[CoreTy::Text(Qual::Contagious), CoreTy::Uint],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
             symbol: "nvs_core_str_chunk",
         },
         CoreMethod {
             name: "lines",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
             symbol: "nvs_core_str_lines",
         },
         CoreMethod {
             name: "graphemes",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
             symbol: "nvs_core_str_graphemes",
         },
         CoreMethod {
             name: "codePoints",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Uint),
             symbol: "nvs_core_str_code_points",
@@ -262,9 +304,9 @@ pub const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "replace",
             params: &[
-                CoreTy::Str,
-                CoreTy::Str,
-                CoreTy::Str,
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Text(Qual::Contagious),
                 CoreTy::Options(REPLACE_OPTIONS),
             ],
             defaults: &[],
@@ -274,7 +316,7 @@ pub const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "replaceAll",
             params: &[
-                CoreTy::Str,
+                CoreTy::Text(Qual::Contagious),
                 CoreTy::Array(&CoreTy::Str),
                 CoreTy::Options(REPLACE_ALL_OPTIONS),
             ],
@@ -285,10 +327,10 @@ pub const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "replaceRange",
             params: &[
-                CoreTy::Str,
+                CoreTy::Text(Qual::Contagious),
                 CoreTy::Int,
                 CoreTy::Nullable(&CoreTy::Int),
-                CoreTy::Str,
+                CoreTy::Text(Qual::Contagious),
             ],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -296,98 +338,122 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "padStart",
-            params: &[CoreTy::Str, CoreTy::Uint, CoreTy::Str],
+            params: &[
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Uint,
+                CoreTy::Text(Qual::Contagious),
+            ],
             defaults: &[Const::Str(" ")],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_pad_start",
         },
         CoreMethod {
             name: "padEnd",
-            params: &[CoreTy::Str, CoreTy::Uint, CoreTy::Str],
+            params: &[
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Uint,
+                CoreTy::Text(Qual::Contagious),
+            ],
             defaults: &[Const::Str(" ")],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_pad_end",
         },
         CoreMethod {
             name: "trim",
-            params: &[CoreTy::Str, CoreTy::Options(TRIM_OPTIONS)],
+            params: &[
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Options(TRIM_OPTIONS),
+            ],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_trim",
         },
         CoreMethod {
             name: "trimStart",
-            params: &[CoreTy::Str, CoreTy::Options(TRIM_OPTIONS)],
+            params: &[
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Options(TRIM_OPTIONS),
+            ],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_trim_start",
         },
         CoreMethod {
             name: "trimEnd",
-            params: &[CoreTy::Str, CoreTy::Options(TRIM_OPTIONS)],
+            params: &[
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Options(TRIM_OPTIONS),
+            ],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_trim_end",
         },
         CoreMethod {
             name: "repeat",
-            params: &[CoreTy::Str, CoreTy::Uint],
+            params: &[CoreTy::Text(Qual::Contagious), CoreTy::Uint],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_repeat",
         },
         CoreMethod {
             name: "reverse",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_reverse",
         },
         CoreMethod {
             name: "wrap",
-            params: &[CoreTy::Str, CoreTy::Uint, CoreTy::Options(WRAP_OPTIONS)],
+            params: &[
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Uint,
+                CoreTy::Options(WRAP_OPTIONS),
+            ],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_wrap",
         },
         CoreMethod {
             name: "lower",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_lower",
         },
         CoreMethod {
             name: "upper",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_upper",
         },
         CoreMethod {
             name: "upperFirst",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_upper_first",
         },
         CoreMethod {
             name: "lowerFirst",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_lower_first",
         },
         CoreMethod {
             name: "fold",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_fold",
         },
         CoreMethod {
             name: "normalize",
-            params: &[CoreTy::Str, CoreTy::Enum(NORMAL_FORM_NAME)],
+            params: &[
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Enum(NORMAL_FORM_NAME),
+            ],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_normalize",
@@ -408,7 +474,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "format",
-            params: &[CoreTy::Str, CoreTy::Variadic(&CoreTy::Mixed)],
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Variadic(&CoreTy::Mixed)],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_format",
@@ -436,7 +502,7 @@ const SPLIT_OPTIONS: &[CoreOption] = &[CoreOption {
 /// diverges from PHP's.
 const TRIM_OPTIONS: &[CoreOption] = &[CoreOption {
     name: "characters",
-    ty: CoreTy::Str,
+    ty: CoreTy::Text(Qual::Contagious),
     default: Const::Str(" \t\n\r\0\u{0b}"),
 }];
 
@@ -549,7 +615,7 @@ const AROUND_OPTIONS: &[CoreOption] = &[CoreOption {
 const WRAP_OPTIONS: &[CoreOption] = &[
     CoreOption {
         name: "breakWith",
-        ty: CoreTy::Str,
+        ty: CoreTy::Text(Qual::Contagious),
         default: Const::Str("\n"),
     },
     CoreOption {

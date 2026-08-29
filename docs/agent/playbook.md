@@ -2290,6 +2290,25 @@ is why" — is this file.
   An `--EXPECT--` line is plain text and carries it; a `"Core\\Test::…"` written in the program
   would land as two backslashes and match nothing. Echo the message (or `Core\Str::slice` of its
   opening, when the message carries a 64-segment path) and let the expectation hold the stem.
+- **`Core\Attributes` retrieval reads a *recognized* attribute's payload, so `#[Core\Command]` and
+  `#[Core\Option]` are readable from a program even though the table itself is nominal.** ADR 0046
+  §§ 4-5's retrieval is structural and does not care that a name is on `nvs_types::derive::ATTRIBUTES`:
+  `Core\Attributes::get<{name: string, about: string}>(Deploy::deploy(...))` answers a `#[Core\Command]`'s
+  payload, and `get<{about: string}>(Deploy::deploy(...), "dryRun")` answers that parameter's
+  `#[Core\Option]`. Two limits come with it, found the same way. `get<T>` answers only the **first** of
+  two `#[Command]`s on one method, so an alias is read with `all<T>` and indexed (`$rows[1]->name`
+  works). And a payload-*less* `#[Option]` is indistinguishable from a parameter carrying no attribute
+  at all — there is nothing for a shape to match — which is exactly why ADR 0086 § 6's table is built
+  off the nominal roster rather than out of this pass.
+  `tests/conformance/core/a-command-table-answers-its-own-help.nvst` is the worked example.
+
+- **A new case can fail a test in a file you never opened, and the message is the fix.** Asking a member
+  a second question can take it to item 10's floor of three, and
+  `every_core_class_has_a_conformance_floor_of_three` refuses a `BELOW_THE_FLOOR` line that has been
+  reached — "delete these lines" naming the member. It cost a whole `verify.py` cycle to learn, and the
+  cheap habit is to check the case's members against `crates/nvs-stdlib/tests/conformance_coverage.rs`'s
+  two rosters *before* the run rather than after it. The ratchet is working when this happens, not
+  broken.
 
 ## Splitting a file that got too big
 
