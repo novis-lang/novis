@@ -2214,9 +2214,9 @@ is why" — is this file.
   *answers*, not the objects: `$built[] = $u->toString();` and assert over the text. Two
   other spellings cost time in the same session and are worth having together: a `for`
   header cannot declare a typed local (`for (uint $i = 0; …)` is `E0102` at the type name,
-  so declare it above and use a `while`), and a `Core` member's by-name surface is an
-  options bag, so it is `$u->with({scheme: "ftp"})` and never `$u->with(scheme: "ftp")`,
-  which is `E0485`.
+  so declare it above and use a `while`), and `Core\Uri::with` takes one options bag, so
+  it is `$u->with({scheme: "ftp"})` — `$u->with(scheme: "ftp")` names no parameter of it
+  and is `E0486`, the bag itself being callable only as `options:` (ADR 0063 R2).
 - **A `--EXPECT--` block cannot tell a composed `é` from a decomposed one, and the failure
   prints as two identical-looking blocks.** A case over `Core\Str` that echoes a subject built
   with `\u{301}` (or any combining mark) will fail against an expectation typed as the composed

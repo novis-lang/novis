@@ -506,10 +506,33 @@
 > half for the rows §§ 1-12 do not write, since a name resolves to a slot by index and two lists of
 > different lengths would bind an argument to the wrong parameter rather than reject it; and
 > `a_documented_rows_param_docs_agree_with_its_names` makes ADR 0117's `ParamDoc::name` a *key* into
-> the row rather than a second home for the same string. **No member's shape changed** — no
-> parameter added, removed, reordered or renamed. What is left is the resolution:
-> `nvs_types::core_lib` still seeds `param_names: None`, so a name at a `Core` call site is still
-> `E0485` where it is written, and that one line is item 29.
+> the row rather than a second home for the same string. **Stage 0b is closed, and a `Core` member
+> is now callable by the spec's `$name` end to end.** `nvs_types::core_lib` reads the row's
+> `CoreMethod::names` into `MethodSig::param_names` and appends `registry::OPTIONS_NAME` where the
+> last parameter is a bag, which is the one place the row's positional alignment is turned into the
+> per-parameter one every consumer indexes — the same shape `defaults_of` already had, and for the
+> same reason. `error_lib`'s synthesized `Throwable` constructor becomes `["message", "options"]`
+> and `iter_lib`'s reserved-interface members take the names their own ADRs write (`$other` from
+> 0013, `$name`/`$value` from 0014 § 2), which leaves **no producer writing `None`**:
+> `MethodSig::param_names` is a `Vec`, `named_slot`'s no-names arm is gone, and `E0485` is retired
+> and never reused. That retirement is the point rather than a tidy-up — it said "this target has no
+> names at all", which was never a spelling a program could correct, where every `name:` reaching no
+> parameter is now `E0486` naming the one that was written. Nothing about resolution is
+> `Core`-specific any more: a reordered call, a defaulted positional skipped in the middle, the bag
+> written `options:`, and a name at `Core\Str::format`'s variadic tail all go through the machinery
+> a user-declared method's call goes through, confirmed at a helper call and not only in the
+> checker. `nvs meta --json` emits a member's `names` for every row, documented or not, because it
+> is signature and not documentation. Three conformance cases hold the surface — a `core` case
+> pairing a static and an instance member out of order with written-order evaluation shown by a
+> side-effecting argument, an `error` case building a `Throwable` by `message:` and by `options:
+> {previous: …}`, and a `reject` case where a misspelling and a name at a variadic tail are the same
+> refusal. **No member's shape changed** — no parameter added, removed, reordered or renamed — and
+> the stage's four modules and `0063 §1` are out of the goal's `[context]` manifest now that its
+> three checks are green. One hole in R2 is left and it is the *parser's*: seven rows name a
+> parameter `fn` (`Core\Arr::map` and its siblings), and `fn:` in argument position is read as the
+> closure keyword, so `crates/nvs-syntax/src/parser/expr.rs:904` admitting a keyword token before a
+> `:` is what closes it — a rename would be a breaking change to the spec under R2 and is not the
+> fix.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
