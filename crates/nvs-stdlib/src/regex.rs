@@ -87,7 +87,7 @@ use std::rc::Rc;
 use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 
 use crate::granularity::DEFAULT;
-use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy};
+use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy, Qual};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -102,14 +102,17 @@ pub const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "compile",
-            params: &[CoreTy::Str, CoreTy::Options(COMPILE_OPTIONS)],
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Options(COMPILE_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Instance(PATTERN_NAME),
             symbol: "nvs_core_regex_compile",
         },
         CoreMethod {
             name: "matches",
-            params: &[CoreTy::Str, CoreTy::Union(PATTERN_OR_STRING)],
+            params: &[
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Union(PATTERN_OR_STRING),
+            ],
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_regex_matches",
@@ -117,7 +120,7 @@ pub const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "match",
             params: &[
-                CoreTy::Str,
+                CoreTy::Text(Qual::Contagious),
                 CoreTy::Union(PATTERN_OR_STRING),
                 CoreTy::Options(MATCH_OPTIONS),
             ],
@@ -127,7 +130,10 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "matchAll",
-            params: &[CoreTy::Str, CoreTy::Union(PATTERN_OR_STRING)],
+            params: &[
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Union(PATTERN_OR_STRING),
+            ],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Instance(MATCH_NAME)),
             symbol: "nvs_core_regex_match_all",
@@ -135,9 +141,9 @@ pub const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "replace",
             params: &[
-                CoreTy::Str,
+                CoreTy::Text(Qual::Contagious),
                 CoreTy::Union(PATTERN_OR_STRING),
-                CoreTy::Str,
+                CoreTy::Text(Qual::Contagious),
                 CoreTy::Options(REPLACE_OPTIONS),
             ],
             defaults: &[],
@@ -147,7 +153,7 @@ pub const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "replaceWith",
             params: &[
-                CoreTy::Str,
+                CoreTy::Text(Qual::Contagious),
                 CoreTy::Union(PATTERN_OR_STRING),
                 CoreTy::Callable,
                 CoreTy::Options(REPLACE_OPTIONS),
@@ -159,7 +165,7 @@ pub const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "split",
             params: &[
-                CoreTy::Str,
+                CoreTy::Text(Qual::Contagious),
                 CoreTy::Union(PATTERN_OR_STRING),
                 CoreTy::Options(SPLIT_OPTIONS),
             ],
@@ -169,7 +175,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "quote",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Launder)],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_regex_quote",
@@ -228,7 +234,11 @@ const PATTERN_FLAGS_SLOT: usize = 1;
 /// `Regex::compile` exists for the call that wants flags or wants the
 /// pattern's validity checked at one place. [`pattern_of`] is where the two
 /// meet again.
-const PATTERN_OR_STRING: &[CoreTy] = &[CoreTy::Instance(PATTERN_NAME), CoreTy::Str];
+/// Its `string` half is ADR 0088 § 2's **sink**: a pattern is one of ADR 0063
+/// R11's four grammars, so its content becomes an instruction the engine
+/// executes and a `tainted` one is refused at the call. `Core\Regex::quote` is
+/// the [`Qual::Launder`] that answers for it.
+const PATTERN_OR_STRING: &[CoreTy] = &[CoreTy::Instance(PATTERN_NAME), CoreTy::Text(Qual::Sink)];
 
 /// `Core\Regex::compile`'s four flags, all defaulting to off.
 ///
@@ -308,7 +318,7 @@ pub const MATCH: CoreClass = CoreClass {
     instance: &[
         CoreMethod {
             name: "group",
-            params: &[CoreTy::Union(&[CoreTy::Int, CoreTy::Str])],
+            params: &[CoreTy::Union(&[CoreTy::Int, CoreTy::Text(Qual::Neutral)])],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_regex_match_group",

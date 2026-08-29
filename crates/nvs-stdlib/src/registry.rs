@@ -72,6 +72,37 @@
 //!   That is exactly the set of programs that can run today, since
 //!   `ExprKind::ObjectLiteral` has no lowering of its own at all.
 
+/// [ADR 0088](../../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+/// § 2's qualifier classification, declared **per parameter** on the
+/// `string`/`bytes` parameter it describes.
+///
+/// Not to be confused with the qualifier a *value* carries: `tainted` and
+/// `secret` live on `nvs_types::ty::Ty` and describe an argument. This
+/// describes what a member does with one, and there are exactly four answers
+/// ([the spec's *How to read an entry*](../../../../docs/spec/01-core-library.md)
+/// renders them as the Q column).
+///
+/// **There is no default.** A parameter with no classification is spelled
+/// [`CoreTy::Str`]/[`CoreTy::Bytes`] and *refuses* a qualified argument, which
+/// is why [`Self::Contagious`] is a thing an author writes rather than a thing
+/// an author gets by forgetting. `every_member_parameter_carries_a_qualifier_classification`
+/// is what stops a member shipping unclassified at all.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Qual {
+    /// A qualified argument yields a qualified result — the overwhelming
+    /// majority, and the blank cell in the spec's Q column.
+    Contagious,
+    /// This parameter's content becomes an instruction something executes, so
+    /// it **refuses** a qualified argument. ADR 0088 § 1 is the predicate.
+    Sink,
+    /// The result never carries this argument's qualifier: a `bool`, a count,
+    /// a hash of a secret.
+    Neutral,
+    /// This member removes the qualifier, and its doc comment names the sink
+    /// it launders for — `Core\Regex::quote` launders for the pattern sink.
+    Launder,
+}
+
 /// One type in a `Core` member's signature.
 ///
 /// Deliberately smaller than `nvs_types::ty::Ty`: this describes what the
@@ -103,10 +134,25 @@ pub enum CoreTy {
     /// `Value::decimal` — it is a whole `Value` carrying `Tag::Decimal`, so
     /// nothing about the ABI changes for it (`nvs_runtime::decimal`).
     Decimal,
-    /// `string`
+    /// `string`, **unclassified** — which in parameter position is not a
+    /// default but a state: ADR 0088 § 2 makes it refuse a `tainted` argument.
+    /// A classified `string` parameter is [`Self::Text`]. In return position
+    /// this is the only spelling, because a classification describes what a
+    /// member does with an argument.
     Str,
-    /// `bytes` — ADR 0009.
+    /// `bytes` — ADR 0009. Unclassified, exactly as [`Self::Str`] is;
+    /// [`Self::Blob`] is the classified spelling.
     Bytes,
+    /// A `string` parameter carrying [`Qual`], ADR 0088 § 2's classification.
+    ///
+    /// A leaf variant rather than a wrapper around [`Self::Str`] on purpose:
+    /// every walk over a [`CoreTy`] in this crate ends its `match` with a
+    /// wildcard arm documented as "a variant that carries no nested type
+    /// carries no variable either", and a wrapper would have quietly falsified
+    /// that in seven places at once.
+    Text(Qual),
+    /// A `bytes` parameter carrying its classification — [`Self::Text`]'s twin.
+    Blob(Qual),
     /// `void`, return position only.
     Void,
     /// `mixed` — ADR 0007 § 3's one unchecked position.
@@ -517,6 +563,31 @@ pub struct CoreMethod {
     /// member is never mistakable for a `nvs_runtime` primitive in a
     /// disassembly.
     pub symbol: &'static str,
+}
+
+impl CoreTy {
+    /// This type's ADR 0088 § 2 classification, or `None` for a type that
+    /// carries none — every type that is not a `string`/`bytes` *parameter*,
+    /// and the unclassified [`Self::Str`]/[`Self::Bytes`] spellings, whose
+    /// `None` is the refusal rather than an omission.
+    #[must_use]
+    pub const fn classification(&self) -> Option<Qual> {
+        match self {
+            Self::Text(qual) | Self::Blob(qual) => Some(*qual),
+            _ => None,
+        }
+    }
+
+    /// Whether this type is a `string` or `bytes`, classified or not — the one
+    /// place a consumer asks the question without caring which spelling it is
+    /// looking at.
+    #[must_use]
+    pub const fn is_text_like(&self) -> bool {
+        matches!(
+            self,
+            Self::Str | Self::Bytes | Self::Text(_) | Self::Blob(_)
+        )
+    }
 }
 
 impl CoreMethod {
@@ -1068,7 +1139,7 @@ mod tests {
             let (parse, try_parse) = (member("parse"), member("tryParse"));
             for (method, what) in [(parse, "parse"), (try_parse, "tryParse")] {
                 assert!(
-                    matches!(method.params, [CoreTy::Str]),
+                    matches!(method.params, [one] if one.is_text_like()),
                     "{name}::{what} takes something other than one `string`"
                 );
             }
@@ -1427,6 +1498,207 @@ mod tests {
     }
 
     /// A [`CoreTy::Nullable`] wraps something a `null` can actually widen a
+    /// The members that still owe ADR 0088 § 2 a classification, frozen at the
+    /// size the gate below landed at.
+    ///
+    /// **Only deletions.** A member reaches this list once, when the gate is
+    /// written, and leaves it when its parameters are classified;
+    /// `every_member_parameter_carries_a_qualifier_classification` fails on a
+    /// member that is here *and* classified, so an entry cannot go stale and a
+    /// new member cannot be added to it.
+    const UNCLASSIFIED: &[(&str, &str)] = &[
+        ("Core\\Str", "length"),
+        ("Core\\Str", "at"),
+        ("Core\\Str", "isEmpty"),
+        ("Core\\Str", "contains"),
+        ("Core\\Str", "startsWith"),
+        ("Core\\Str", "endsWith"),
+        ("Core\\Str", "slice"),
+        ("Core\\Str", "indexOf"),
+        ("Core\\Str", "lastIndexOf"),
+        ("Core\\Str", "countOf"),
+        ("Core\\Str", "compare"),
+        ("Core\\Str", "before"),
+        ("Core\\Str", "after"),
+        ("Core\\Str", "join"),
+        ("Core\\Str", "split"),
+        ("Core\\Str", "chunk"),
+        ("Core\\Str", "lines"),
+        ("Core\\Str", "graphemes"),
+        ("Core\\Str", "codePoints"),
+        ("Core\\Str", "replace"),
+        ("Core\\Str", "replaceAll"),
+        ("Core\\Str", "replaceRange"),
+        ("Core\\Str", "padStart"),
+        ("Core\\Str", "padEnd"),
+        ("Core\\Str", "trim"),
+        ("Core\\Str", "trimStart"),
+        ("Core\\Str", "trimEnd"),
+        ("Core\\Str", "repeat"),
+        ("Core\\Str", "reverse"),
+        ("Core\\Str", "wrap"),
+        ("Core\\Str", "lower"),
+        ("Core\\Str", "upper"),
+        ("Core\\Str", "upperFirst"),
+        ("Core\\Str", "lowerFirst"),
+        ("Core\\Str", "fold"),
+        ("Core\\Str", "normalize"),
+        ("Core\\Str", "format"),
+        ("Core\\Arr", "hasKey"),
+        ("Core\\Arr", "column"),
+        ("Core\\Attributes", "get"),
+        ("Core\\Attributes", "all"),
+        ("Core\\Math", "fromBase"),
+        ("Core\\Math", "format"),
+        ("Core\\Json", "decode"),
+        ("Core\\Json", "decodeAs"),
+        ("Core\\Json", "isValid"),
+        ("Core\\Encoding", "encodeText"),
+        ("Core\\Encoding", "decodeText"),
+        ("Core\\Encoding", "isValidText"),
+        ("Core\\Encoding", "toBase64"),
+        ("Core\\Encoding", "fromBase64"),
+        ("Core\\Encoding", "toBase64Url"),
+        ("Core\\Encoding", "fromBase64Url"),
+        ("Core\\Encoding", "toBase32"),
+        ("Core\\Encoding", "fromBase32"),
+        ("Core\\Encoding", "toHex"),
+        ("Core\\Encoding", "fromHex"),
+        ("Core\\Bytes", "length"),
+        ("Core\\Bytes", "at"),
+        ("Core\\Bytes", "slice"),
+        ("Core\\Bytes", "indexOf"),
+        ("Core\\Bytes", "compare"),
+        ("Core\\Bytes", "contains"),
+        ("Core\\Bytes", "startsWith"),
+        ("Core\\Bytes", "endsWith"),
+        ("Core\\Bytes", "repeat"),
+        ("Core\\Bytes", "join"),
+        ("Core\\Bytes", "pack"),
+        ("Core\\Bytes", "unpack"),
+        ("Core\\Path", "basename"),
+        ("Core\\Path", "dirname"),
+        ("Core\\Path", "extension"),
+        ("Core\\Path", "withExtension"),
+        ("Core\\Path", "join"),
+        ("Core\\Path", "split"),
+        ("Core\\Path", "normalize"),
+        ("Core\\Path", "isAbsolute"),
+        ("Core\\Path", "relativeTo"),
+        ("Core\\Time", "fromIso"),
+        ("Core\\Time", "parse"),
+        ("Core\\Time\\DateTime", "format"),
+        ("Core\\Time\\Date", "format"),
+        ("Core\\Time\\TimeOfDay", "format"),
+        ("Core\\Time\\Duration", "parse"),
+        ("Core\\Time\\Zone", "of"),
+        ("Core\\Uuid", "parse"),
+        ("Core\\Uuid", "tryParse"),
+        ("Core\\Hash", "of"),
+        ("Core\\Hash", "hmac"),
+        ("Core\\Hash", "equals"),
+        ("Core\\Hash\\Stream", "update"),
+        ("Core\\Uri", "parse"),
+        ("Core\\Uri", "tryParse"),
+        ("Core\\Uri", "encodeComponent"),
+        ("Core\\Uri", "decodeComponent"),
+        ("Core\\Uri", "encodeFormValue"),
+        ("Core\\Uri", "decodeFormValue"),
+        ("Core\\Uri", "parseQuery"),
+        ("Core\\Uri", "with"),
+        ("Core\\Uri", "resolve"),
+        ("Core\\Router", "url"),
+        ("Core\\Router", "urlAbsolute"),
+        ("Core\\Csv", "parse"),
+        ("Core\\Csv", "format"),
+        ("Core\\Validate", "isEmail"),
+        ("Core\\Validate", "isDomain"),
+        ("Core\\Validate", "isIp"),
+        ("Core\\Validate", "isMac"),
+        ("Core\\Validate", "isAscii"),
+        ("Core\\Validate", "isPrintable"),
+        ("Core\\Test", "assertSame"),
+        ("Core\\Test", "assertEquals"),
+        ("Core\\Test", "assertEqualsDeep"),
+        ("Core\\Test", "assertTrue"),
+        ("Core\\Test", "assertNull"),
+        ("Core\\Test", "assertCount"),
+        ("Core\\Test", "assertThrows"),
+        ("Core\\Test", "assertDoesNotThrow"),
+    ];
+
+    /// ADR 0088 § 2: every `string`/`bytes` parameter of a `Core` member
+    /// carries a qualifier classification, and a member that ships without one
+    /// fails this crate's own suite rather than merely a review. The default an
+    /// unclassified parameter gets is *refusal*, so a forgotten mark costs a
+    /// program a call it should have been able to make — never a security
+    /// event, which is the whole of that section.
+    ///
+    /// **A ratchet, in both directions**, exactly as
+    /// `every_core_class_has_a_conformance_floor_of_three` is: an unclassified
+    /// member missing from [`UNCLASSIFIED`] fails, and a classified member
+    /// still named in it fails too. The list only shrinks.
+    ///
+    /// **What counts as a `string`/`bytes` parameter**: the parameter's own
+    /// type, and the same type under [`CoreTy::Nullable`],
+    /// [`CoreTy::Variadic`], [`CoreTy::Union`], or as one option of a
+    /// [`CoreTy::Options`] bag — every position where the *argument* the call
+    /// writes is itself a string. Under [`CoreTy::Array`] or
+    /// [`CoreTy::Iterated`] the argument is a container and the string is its
+    /// element type; ADR 0088 § 2 is written about the parameter, and
+    /// classifying an element type would be a claim about flow through a
+    /// container that no member makes yet.
+    #[test]
+    fn every_member_parameter_carries_a_qualifier_classification() {
+        fn unclassified(ty: &CoreTy) -> bool {
+            match ty {
+                CoreTy::Str | CoreTy::Bytes => true,
+                CoreTy::Nullable(inner) | CoreTy::Variadic(inner) => unclassified(inner),
+                CoreTy::Union(members) => members.iter().any(unclassified),
+                CoreTy::Options(options) => options.iter().any(|option| unclassified(&option.ty)),
+                _ => false,
+            }
+        }
+
+        let mut owing = Vec::new();
+        for class in CLASSES {
+            for method in class.members() {
+                if method.params.iter().any(unclassified) {
+                    owing.push((class.name, method.name));
+                }
+            }
+        }
+
+        let listed = |class: &str, member: &str| {
+            UNCLASSIFIED
+                .iter()
+                .any(|(one, other)| *one == class && *other == member)
+        };
+        let missing = owing
+            .iter()
+            .filter(|(class, member)| !listed(class, member))
+            .map(|(class, member)| format!("        ({class:?}, {member:?}),"))
+            .collect::<Vec<_>>();
+        assert!(
+            missing.is_empty(),
+            "{} member(s) have an unclassified `string`/`bytes` parameter and are not named in \
+             UNCLASSIFIED. Classify them -- `CoreTy::Text(Qual::…)` / `CoreTy::Blob(Qual::…)` in \
+             the row -- or, if this gate is being re-frozen, these are the lines:\n{}",
+            missing.len(),
+            missing.join("\n")
+        );
+
+        for (class, member) in UNCLASSIFIED {
+            assert!(
+                owing
+                    .iter()
+                    .any(|(one, other)| one == class && other == member),
+                "{class}::{member} carries its classification and is still named in \
+                 UNCLASSIFIED; delete that line, because the list only shrinks"
+            );
+        }
+    }
+
     /// type of: never a second nullable, which the interner would collapse
     /// into the first, and never `void`, which is a return-position marker
     /// rather than a type a value can have.

@@ -279,8 +279,12 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         CoreTy::Uint => interner.uint(),
         CoreTy::Float => interner.float(),
         CoreTy::Decimal => interner.decimal(),
-        CoreTy::Str => interner.string(),
-        CoreTy::Bytes => interner.bytes(),
+        // A classification describes what the member does with the argument,
+        // never what the argument is: `nvs_stdlib::registry::Qual` and the
+        // interner's own `tainted`/`secret` are different questions, and these
+        // two lower to exactly what their unclassified spellings lower to.
+        CoreTy::Str | CoreTy::Text(_) => interner.string(),
+        CoreTy::Bytes | CoreTy::Blob(_) => interner.bytes(),
         CoreTy::Void => interner.void(),
         CoreTy::Array(elem) => {
             let elem = lower(elem, interner);
