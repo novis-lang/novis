@@ -205,6 +205,47 @@ not an example to read for inspiration.
     **Nothing here is guessed to make a number move.** A name with no home is a finding, not a `dropped`
     row: three of them turned out to be real gaps last time somebody looked.
 
+## Stage 8 — the digest roster
+
+16. **`Core\Digest` carries the algorithms a program written now actually names.** Six cases ship —
+    `Crc32`, `Md5`, `Sha1`, `Sha256`, `Sha384`, `Sha512` — against PHP's roughly sixty, and the gap that
+    matters is not the long tail. [01-core-library.md](../../spec/01-core-library.md) § 11's table is the
+    roster's home and lands first; [hash.rs:143](../../../crates/nvs-stdlib/src/hash.rs) is the enum and
+    `digest_of` at `:386` the dispatch. Numbered sixteenth for item 15's reason: the fifteen below keep
+    the numbers this goal's TOML comments and `python tools/holes.py --item N` already use.
+
+    **Three cost no crate at all.** `Sha224`, `Sha512_224` and `Sha512_256` are already in the pinned
+    `sha2 0.10.9` — one `DIGEST` case, one `DigestKind` variant, one `kind_of` arm and one `digest_of`
+    arm each. **`Sha512/256` is the one worth arguing for**: faster than SHA-256 on 64-bit hardware,
+    structurally immune to length-extension, published by NIST, and today unspellable.
+
+    **`Blake3` is already decided and is not yet free.** [Cargo.toml:62](../../../Cargo.toml) declares it
+    and [ADR 0042](../../adr/0042-on-disk-artifact-cache-format.md) commits the artifact cache to it, but
+    nothing consumes it, so it is absent from `Cargo.lock` and this is the slice that resolves it. It does
+    not implement `digest 0.10`'s traits without `traits-preview`, so it takes its own `digest_of` arm and
+    does **not** ride the `mac!` macro; and HMAC-BLAKE3 is a construction nobody uses, because BLAKE3's
+    keyed mode is native — so it stays outside `STRONG` until a keyed member is designed rather than
+    being bent into `hmac`. It is also the one algorithm PHP cannot compute at all.
+
+    **`sha3` and `crc32c` are the two that earn a crate.** All four SHA-3 cases ride the same `digest`
+    trait set into `digest_of` *and* `hmac_of` with no hand-fitting, and `crc32c` is the checksum S3 and
+    GCS stamp objects with, so it is interop this runtime will meet. **The rest stays out.** `xxh*`,
+    `murmur3*`, `fnv1*`, `adler32` and `joaat` are table hashes, and putting one in the enum that holds
+    `Sha512` is the confusion `StrongDigest` exists to prevent; `md2`, `md4`, `ripemd*`, `whirlpool`,
+    `tiger*`, `snefru*`, `gost*` and `haval*` are dead everywhere but a compatibility matrix.
+
+    **The ordinals are ABI** — `kind_of` at `:318` reads them back out of a stream's slot — so a case is
+    appended at 6 and up and the list is never reordered. Widening `STRONG` is backward compatible and
+    narrowing it is not, which is the only direction this roster grows. `DIGEST`'s doc comment currently
+    claims its cases are "ordered weakest first so that `STRONG` is a contiguous tail"; that stops being
+    true here, and correcting it is part of the same edit rather than a follow-up.
+
+    **What it spends:** nothing per request — a digest state is stack-held and released before the member
+    returns — and binary size for each algorithm's own tables. That is priority 5 for priority 2, the
+    trade AGENTS.md's ordering already authorizes. A new crate owes the three things the standing decision
+    below names, and nothing here needs a capability, a handle or a reactor, which is why it is goal 1's
+    and not goal 4's.
+
 ## Acceptance
 
 **The checks live in [`1-core-depth.toml`](1-core-depth.toml), and only there.** Read it, or

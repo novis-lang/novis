@@ -155,8 +155,29 @@ milestones = ["M4S:verify"]
 # Every fixture again under `valgrind --leak-check=full`. These two exit non-zero by design.
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
 
+# ---------------------------------------------------------------------------------------------------
+# Stage 8 -- the digest roster. Item 16 in loop-goal.md.
+#
+# The check is a conformance case per new `Core\Digest` case against that algorithm's own published
+# vector, and it is a `.nvst` rather than a `-p nvs-stdlib` test for one reason: the Rust test at
+# hash.rs:652 already covers the six that ship, so extending it proves the dispatch arm exists but not
+# that a program can name the case. A registered enum case with nothing wired behind it passes every
+# other check in this file.
+# ---------------------------------------------------------------------------------------------------
+
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
+
+[[check]]
+kind = "nvs-suite"
+stage = "8 digest roster"
+name = "conformance (the digest roster)"
+args = ["test", "tests/conformance/core/"]
+cases = [
+  "tests/conformance/core/hash-of-reproduces-the-modern-digests-published-vectors.nvst",
+  "tests/conformance/core/hash-hmac-authenticates-with-every-strong-digest.nvst",
+  "tests/conformance/core/hash-blake3-is-outside-the-strong-subset.nvst",
+]
 
 
 # ---------------------------------------------------------------------------------------------------
