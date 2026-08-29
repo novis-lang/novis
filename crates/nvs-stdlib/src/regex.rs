@@ -87,7 +87,9 @@ use std::rc::Rc;
 use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 
 use crate::granularity::DEFAULT;
-use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy, Qual};
+use crate::registry::{
+    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -129,7 +131,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Instance(MATCH_NAME)),
             symbol: "nvs_core_regex_match",
-            doc: None,
+            doc: Some(&MATCH_DOC),
         },
         CoreMethod {
             name: "matchAll",
@@ -385,6 +387,46 @@ const OFFSET_SLOT: usize = 1;
 /// "search from" entry points give, and the only one under which
 /// `Regex::match($s, $p, {from: $m->offset() + 1})` finds the second match
 /// rather than a different pattern's.
+/// `Core\Regex::match`'s reference card (ADR 0117) — the member that proves
+/// [`ErrorDoc`], because it throws: both of its errors are the `RuntimeError`
+/// [`compiled`] and [`budget_exhausted`] raise, and they are two entries
+/// rather than one because a reader wants to know *when*.
+const MATCH_DOC: MethodDoc = MethodDoc {
+    short: "Finds the first match of `$pattern` in `$subject` at or after `from`, as a `Match` \
+            carrying its groups and offset — `preg_match` with `$matches` and \
+            `PREG_OFFSET_CAPTURE` folded into the return.",
+    params: &[
+        ParamDoc {
+            name: "subject",
+            desc: "The text to search.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "pattern",
+            desc: "A `Pattern` from `Core\\Regex::compile`, or a pattern string compiled with no \
+                   flags; the pattern is a sink (ADR 0056).",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "from",
+            desc: "The grapheme index the search starts at; negative counts from the end, and an \
+                   index past the end starts at the end.",
+            shape: &[],
+        },
+    ],
+    ret: "The first `Match`, or `null` when the pattern matches nowhere at or after `from`.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "`$pattern` does not compile under either of ADR 0056's two engines.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The backtracking engine exhausted its step budget against this subject.",
+        },
+    ],
+};
+
 const MATCH_OPTIONS: &[CoreOption] = &[CoreOption {
     name: "from",
     ty: CoreTy::Int,

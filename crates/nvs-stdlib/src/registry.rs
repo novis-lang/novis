@@ -594,9 +594,12 @@ pub enum Const {
 pub struct MethodDoc {
     /// What the member does, in one or two sentences.
     pub short: &'static str,
-    /// One entry per parameter, positional, in [`CoreMethod::params`]'s
-    /// order — the trailing options bag included, documented as one
-    /// parameter whose [`ParamDoc::shape`] lists its options.
+    /// One entry per positional parameter, in [`CoreMethod::params`]'s
+    /// order, and then **one per option** of a trailing bag under the
+    /// option's own name — a consumer looks a description up by the name the
+    /// spec's signature gives the row, and a bag has no name of its own.
+    /// [`ParamDoc::shape`] is for a shape-typed parameter with fixed keys,
+    /// which an options bag is not ([`CoreTy::Options`] owns why).
     pub params: &'static [ParamDoc],
     /// What the member answers with, beyond the type the row already states.
     pub ret: &'static str,

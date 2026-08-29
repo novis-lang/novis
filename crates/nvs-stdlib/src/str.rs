@@ -87,7 +87,9 @@ use std::cmp::Ordering;
 use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, StrWriter, Tag, Value};
 use unicode_normalization::UnicodeNormalization;
 
-use crate::registry::{Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, Qual};
+use crate::registry::{
+    Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, MethodDoc, ParamDoc, Qual,
+};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -97,6 +99,21 @@ use crate::registry::{Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy
 /// [`NORMAL_FORM`], for the registry row that takes one, and for the message
 /// quoting it.
 pub(crate) const NORMAL_FORM_NAME: &str = r"Core\NormalForm";
+
+/// `Core\Str::length`'s reference card (ADR 0117) — the first member
+/// documented in the registry, and the simplest: one parameter, no options,
+/// nothing thrown.
+const LENGTH_DOC: MethodDoc = MethodDoc {
+    short: "Counts the graphemes in `$s` — user-perceived characters, ADR 0009's default unit — \
+            so a combining sequence counts once and this is never a byte count.",
+    params: &[ParamDoc {
+        name: "s",
+        desc: "The string to measure.",
+        shape: &[],
+    }],
+    ret: "The grapheme count; `0` for the empty string.",
+    errors: &[],
+};
 
 /// Spec § 1's `NormalForm` — UAX #15's four normal forms, and the only
 /// argument [`nvs_core_str_normalize`] takes beside its subject.
@@ -146,7 +163,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Uint,
             symbol: "nvs_core_str_length",
-            doc: None,
+            doc: Some(&LENGTH_DOC),
         },
         CoreMethod {
             name: "at",

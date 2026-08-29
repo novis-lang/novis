@@ -112,7 +112,9 @@ use nvs_runtime::{CodecTy, Fault, NvsArray, NvsObj, NvsStr, Tag, ThrownClass, Va
 use serde::de::{DeserializeSeed, Deserializer, MapAccess, SeqAccess, Visitor};
 use serde::ser::{Error as _, Serialize, SerializeMap, SerializeSeq, Serializer};
 
-use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy, Qual};
+use crate::registry::{
+    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -133,7 +135,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_json_encode",
-            doc: None,
+            doc: Some(&ENCODE_DOC),
         },
         CoreMethod {
             name: "decode",
@@ -178,6 +180,43 @@ pub const CLASS: CoreClass = CoreClass {
 /// the compact document, and UTF-8 written through. The other thirteen flags
 /// are gone rather than moved here — ADR 0063 R20 leaves no room for a second
 /// spelling of an escaping rule that is already the crate's.
+/// `Core\Json::encode`'s reference card (ADR 0117): each option is its own
+/// [`ParamDoc`] under the option's name, which is how [`MethodDoc::params`]
+/// says a bag is documented. What is stated here is what
+/// [`nvs_core_json_encode`] and [`Encodable`] do, and nothing the spec's § 6
+/// promises beyond them.
+const ENCODE_DOC: MethodDoc = MethodDoc {
+    short: "Serializes `$value` as JSON text — scalars, arrays and instances of classes carrying \
+            `#[Json\\Derive]` — on one line unless `pretty` is set.",
+    params: &[
+        ParamDoc {
+            name: "value",
+            desc: "The value to encode: `null`, `bool`, `int`, `uint`, `float`, `decimal`, \
+                   `string`, an array, or an instance of a class carrying `#[Json\\Derive]`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "pretty",
+            desc: "Indent the output across lines, as `JSON_PRETTY_PRINT` does; the default is \
+                   one line.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "escapeUnicode",
+            desc: "Write every non-ASCII character as a `\\uXXXX` escape, as `json_encode` does \
+                   by default; the default here keeps UTF-8 as it is.",
+            shape: &[],
+        },
+    ],
+    ret: "The JSON text.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "`$value` holds something JSON cannot spell: a `NaN` or infinite `float`, a value \
+               of a type with no JSON encoding, an instance of a class without \
+               `#[Json\\Derive]`, or nesting past 1024 levels.",
+    }],
+};
+
 const ENCODE_OPTIONS: &[CoreOption] = &[
     CoreOption {
         name: "pretty",
