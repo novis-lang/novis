@@ -1,0 +1,92 @@
+--TEST--
+Spec § 4: `Core\Time\TimeOfDay::at` bounds each of its four fields, and every bound is named on both sides — hour 23 against 24, minute 59 against 60, second 59 against 60 and nanoseconds 999,999,999 against 1,000,000,000 — with the refusal naming the whole reading it was handed rather than the field that spoiled it
+--FILE--
+<?nvs
+// § 4: `at` is the only way to write a `TimeOfDay`'s four fields, so the four
+// bounds it enforces are the whole of what a reading can be. Each is asserted
+// on both sides here: a member that stopped one entry early would print
+// plausibly against either half alone, and a member that clamped instead of
+// refusing would print plausibly against the accepted half.
+class Clock {
+    public static function render(Core\Time\TimeOfDay $t): string {
+        return $t->format("HH:mm:ss.SSSSSSSSS");
+    }
+}
+
+// The accepted side, one field at a time. Each row puts a single field at its
+// ceiling and the other three at their floor, so a bound read off the wrong
+// field shows up as a rendering rather than as a missing refusal.
+echo "hour=", Clock::render(Core\Time\TimeOfDay::at(23, 0)), "|\n";
+echo "minute=", Clock::render(Core\Time\TimeOfDay::at(0, 59)), "|\n";
+echo "second=", Clock::render(Core\Time\TimeOfDay::at(0, 0, {second: 59})), "|\n";
+echo "nanos=", Clock::render(Core\Time\TimeOfDay::at(0, 0, {nanos: 999999999})), "|\n";
+// All four at once is the dial's last reading, which is where the four bounds
+// are simultaneously reachable — so they are not four separate claims about
+// four separate readings.
+echo "all-four=", Clock::render(
+    Core\Time\TimeOfDay::at(23, 59, {second: 59, nanos: 999999999}),
+), "|\n";
+
+// The refused side: one past each ceiling, in the same shape. The floors need
+// no refusal here and never reach the member — `at`'s parameters and its two
+// options are `uint`, so `at(-1, 0)` is `E0401: expected `uint`, found `int``
+// in the checker. Where the low end is enforced is the point; a case that must
+// fail to compile is a different file.
+try {
+    Core\Time\TimeOfDay::at(24, 0);
+} catch (RuntimeError $hour) {
+    echo "hour-24=", $hour->message, "|\n";
+}
+try {
+    Core\Time\TimeOfDay::at(0, 60);
+} catch (RuntimeError $minute) {
+    echo "minute-60=", $minute->message, "|\n";
+}
+try {
+    Core\Time\TimeOfDay::at(0, 0, {second: 60});
+} catch (RuntimeError $second) {
+    echo "second-60=", $second->message, "|\n";
+}
+try {
+    Core\Time\TimeOfDay::at(0, 0, {nanos: 1000000000});
+} catch (RuntimeError $nanos) {
+    echo "nanos-1e9=", $nanos->message, "|\n";
+}
+
+// What a refusal says. The four fields arrive together and are refused
+// together: the sentence names the whole reading, so a call with two fields
+// past their ceilings is one message naming both rather than a report on
+// whichever field was checked first. That is why the message reads as a
+// reading and not as a parameter — the sibling `with` bounds each option on
+// its own and says so, which is a different sentence for a different member.
+try {
+    Core\Time\TimeOfDay::at(24, 60, {second: 60, nanos: 1000000000});
+} catch (RuntimeError $all) {
+    echo "all-four-past=", $all->message, "|\n";
+}
+// A field far past its ceiling is refused by the same sentence rather than
+// taken modulo anything: 25 o'clock is not 1am here, which is the difference
+// between a constructor and the step `plus` takes.
+try {
+    Core\Time\TimeOfDay::at(25, 0);
+} catch (RuntimeError $far) {
+    echo "hour-25=", $far->message, "|\n";
+}
+try {
+    Core\Time\TimeOfDay::at(0, 1440);
+} catch (RuntimeError $day) {
+    echo "minute-1440=", $day->message, "|\n";
+}
+--EXPECT--
+hour=23:00:00.000000000|
+minute=00:59:00.000000000|
+second=00:00:59.000000000|
+nanos=00:00:00.999999999|
+all-four=23:59:59.999999999|
+hour-24=Core\Time\TimeOfDay::at(): `24:0:0.0` is not a time of day|
+minute-60=Core\Time\TimeOfDay::at(): `0:60:0.0` is not a time of day|
+second-60=Core\Time\TimeOfDay::at(): `0:0:60.0` is not a time of day|
+nanos-1e9=Core\Time\TimeOfDay::at(): `0:0:0.1000000000` is not a time of day|
+all-four-past=Core\Time\TimeOfDay::at(): `24:60:60.1000000000` is not a time of day|
+hour-25=Core\Time\TimeOfDay::at(): `25:0:0.0` is not a time of day|
+minute-1440=Core\Time\TimeOfDay::at(): `0:1440:0.0` is not a time of day|
