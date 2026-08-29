@@ -3089,6 +3089,19 @@ sibling in the same namespace unqualified.
   declaration per guard rather than one at the top of the function — `time.rs`'s `instant_of`
   reads three slots and each needed its own line, two of them a single sentence pointing at
   the first.
+- **A grapheme count does not decompose into one correction per seam, and regional indicators
+  are the whole of why.** Caching `Core\Str::length` in the string header makes a concatenation
+  want `left + right - (a cluster spans the join)`, and that is right for every UAX #29 rule but
+  GB12/GB13: those group a run of `Regional_Indicator`s into *pairs*, so a prefix ending in an odd
+  number of them re-groups the entire run after the join. `"🇩" . "🇩🇪"` is **two** clusters where
+  each side alone is one, and the seam is *not* a boundary — so the obvious arithmetic answers 1
+  and a corpus test catches it two edits later. The parity that would fix it for two pieces is
+  wrong for three (`"🇩" . "🇩" . "🇩"` is 2, and the per-seam parities say 3), because the parity is
+  a property of the finished run rather than of any adjacency. `nvs_runtime::graphemes::seam_joins`
+  refuses the seam outright when a regional indicator sits on both sides, and the caller leaves the
+  count uncached; that is one range check each side and it costs flags a scan rather than an
+  answer. The general shape: a cached aggregate over Unicode text may only be corrected locally for
+  the rules that *are* local, and there is exactly one that is not.
 
 ## Divergences and refusals already pinned
 

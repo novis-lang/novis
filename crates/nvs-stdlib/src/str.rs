@@ -843,8 +843,12 @@ nvs_runtime::nvs_helper! {
     /// rather than a number worth improving: reading the argument is a tag
     /// check ([`Value::as_text`]), and `granularity`'s fast-path test fuses
     /// what used to be an `is_ascii` scan and a separate search for `\r`. An
-    /// ASCII subject's count is then `len`, in O(1). `granularity`'s own known
-    /// gap owns the cached-count fix ADR 0009 names.
+    /// ASCII subject's count is then `len`, in O(1).
+    ///
+    /// **And one pass per string, not per call**: the answer is kept in the
+    /// string's own header, so a `length` inside a loop over the same subject
+    /// pays the scan once — ADR 0009's *Consequences* asked for exactly that,
+    /// and `granularity::Unit::length_of` is the seam it arrives through.
     fn nvs_core_str_length(_ctx, args: [1]) {
         let subject = text(&args[0], "length", "the subject")?;
         // `try_from` rather than `as`: `usize` is no wider than `u64` on any
@@ -855,7 +859,7 @@ nvs_runtime::nvs_helper! {
         // conversion is total on every target this builds for, so the arm is
         // the price of not writing `as` rather than a boundary a program
         // reaches by holding a long enough string.
-        let length = u64::try_from(crate::granularity::DEFAULT.length(subject))
+        let length = u64::try_from(crate::granularity::DEFAULT.length_of(&args[0], subject))
             .map_err(|_| Fault::fatal("Core\\Str::length counted past `uint`"))?;
         Ok(Value::uint(length))
     }

@@ -28,13 +28,16 @@
 //! and `the_embedded_unicode_version_is_recorded` prints it, so a bump that
 //! changes it is visible in a test run rather than in a user's diff.
 //!
-//! # Known gap
+//! # Where the count comes from
 //!
-//! A grapheme count is recomputed on every call. ADR 0009's *Consequences*
-//! names the fix — cache the count in the string's header, computed lazily on
-//! first use — and that is a `nvs_runtime::NvsStr` change, not this module's;
-//! `docs/implementation-plan.md`'s M4S paragraph carries it. Nothing here
-//! changes when it lands: the seam is already the only caller.
+//! A `string` carries its own grapheme count once anything has asked for one —
+//! `nvs_runtime::StrHeader`'s fourth word, filled lazily and corrected at a
+//! concatenation's seam, which is ADR 0009's *Consequences* paid. Reaching it
+//! needs the *value*, not the payload, so [`Unit::length_of`] is what a member
+//! calls and [`Unit::length`] is what answers when there is no allocation to
+//! ask (a `&str` this crate built, a `bytes` read as text). The UAX #29
+//! primitives both go through live in `nvs_runtime::graphemes`, beside the
+//! header that caches them.
 
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -73,49 +76,49 @@ pub enum Unit {
 /// test and its § 2 records the outcome.
 pub const DEFAULT: Unit = Unit::Grapheme;
 
-/// Whether one byte is one grapheme cluster throughout `subject`.
+/// ADR 0009 § 2's two primitives, whose home is the runtime.
 ///
-/// True for ASCII with no carriage return, and this is exact rather than a
-/// heuristic. Inside U+0000..U+007F, UAX #29 assigns every code point the
-/// `Control`, `CR`, `LF` or `Other` property — there is no `Extend`,
-/// `Prepend`, `SpacingMark`, `ZWJ` or `Regional_Indicator` in ASCII — and the
-/// only rule that joins two of them is GB3, `CR × LF`. Exclude `CR` and every
-/// remaining rule breaks between every pair, so the cluster count is the byte
-/// count and the k-th cluster is the k-th byte.
-///
-/// This is what makes ADR 0009 § 2's decision affordable rather than merely
-/// correct: the two disqualifiers are folded into **one** branchless pass, so
-/// the overwhelmingly common case — a request path full of ASCII — pays a
-/// single vectorizable scan rather than a segmentation one.
-/// `a_grapheme_index_costs_more_than_a_code_point_index` measures both halves
-/// of that claim.
-///
-/// The obvious spelling, `subject.is_ascii() && !bytes.contains(&b'\r')`, is
-/// two vectorized passes over the same buffer where one does. Each byte
-/// contributes its high bit — set exactly when it is non-ASCII — or the high
-/// bit of `(x - 1) & !x` for `x = b ^ b'\r'`, which is the classic zero-byte
-/// test and is set exactly when `b` is `CR`. The fold has no early exit, which
-/// is what lets it vectorize; the only subject an early exit would have saved
-/// work on is one that then goes down the segmentation path, which costs
-/// strictly more than the bytes this skips.
-fn one_byte_per_cluster(subject: &str) -> bool {
-    subject.as_bytes().iter().fold(0_u8, |flags, &byte| {
-        let cr = byte ^ b'\r';
-        flags | byte | (cr.wrapping_sub(1) & !cr)
-    }) & 0x80
-        == 0
-}
+/// The count is cached in a string's own header and corrected at a
+/// concatenation's seam, which only the crate owning that header can do — so
+/// `nvs_runtime::graphemes` is where the UAX #29 kernel lives and this module
+/// is where the *choice* of unit is stated. See that module's docs; a fold
+/// this subtle in two crates is one of them being wrong later.
+use nvs_runtime::Value;
+use nvs_runtime::graphemes::{count, one_byte_per_cluster};
 
 impl Unit {
     /// How many of this unit `subject` holds.
     ///
-    /// O(n) in both units and allocation-free in both.
+    /// O(n) in both units and allocation-free in both. [`Unit::length_of`] is
+    /// the same question asked of a *value*, which is the one that can be
+    /// answered from a header rather than counted.
     #[must_use]
     pub fn length(self, subject: &str) -> usize {
         match self {
             Self::CodePoint => subject.chars().count(),
-            Self::Grapheme if one_byte_per_cluster(subject) => subject.len(),
-            Self::Grapheme => subject.graphemes(true).count(),
+            Self::Grapheme => count(subject),
+        }
+    }
+
+    /// How many of this unit `value` holds, given its payload as `subject` —
+    /// [`Unit::length`] with the string's own cached grapheme count in front
+    /// of it.
+    ///
+    /// This is the seam ADR 0009's *Consequences* asks for: a `string`'s
+    /// length is O(n) where PHP's `strlen` is O(1), and a program asking twice
+    /// pays once. The word lives in `nvs_runtime::StrHeader` — that module's
+    /// § *The cached grapheme count* owns when it is filled, why a
+    /// concatenation corrects it rather than summing, and what it spends.
+    ///
+    /// Every member with a unit goes through here rather than through
+    /// [`Unit::length`] on a `&str` it has already unwrapped: the payload
+    /// alone cannot say which allocation it came from, so the cache is only
+    /// reachable while the [`Value`] is still in hand.
+    #[must_use]
+    pub fn length_of(self, value: &Value, subject: &str) -> usize {
+        match self {
+            Self::Grapheme => value.grapheme_count().unwrap_or_else(|| count(subject)),
+            Self::CodePoint => self.length(subject),
         }
     }
 
