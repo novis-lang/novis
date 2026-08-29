@@ -338,8 +338,8 @@
 > `Ctx::isolate`, the other half of the pair `Ctx::child` opens and the one place the two part: a
 > task aliases the request's static-property base, an isolate gets its own, and that single word is
 > the whole of "a child cannot read or write a parent static". It is safe where `Ctx::child` is
-> `unsafe`, because nothing in the returned context points into the parent. Four of Stage 6's eight
-> `cargo-named` names are green on it, plus two the module's own asymmetry needs; 116 tests in the
+> `unsafe`, because nothing in the returned context points into the parent. Six of Stage 6's eight
+> `cargo-named` names are green on it, plus two the module's own asymmetry needs; 118 tests in the
 > crate against 110. The other half of the pair — where the code an isolate runs *comes from* — is
 > now on disk as well. `crates/nvs-runtime/src/script.rs` is the second seam this crate inverts,
 > beside `host.rs`'s: a `Resolver` trait declared where both sides already depend on it, published
@@ -430,7 +430,31 @@
 > retired in the same commits as the arms that replace them, and `E0777` is new: `limits:`,
 > `grants:` and `on:` are refused where they are written rather than accepted and ignored, because a
 > `grants:` narrowing that were silently dropped would hand the child the parent's authority —
-> enforcement is goal 3's and it is what removes the code. The steps the chain took are in
+> enforcement is goal 3's and it is what removes the code. Item 20's acceptance is closed at the IR
+> as well: `a_spawn_lowers_to_a_task_on_the_current_core` and
+> `an_await_suspends_until_its_task_completes` are `nvs-ir` lowering tests over the two `CoreCall`s,
+> and what they pin is the shape rather than a snapshot of it — three arguments in the fixed order
+> with the omitted `output:` materialized to `"capture"` where a reader can see it, the `args:`
+> value released by the landing block and by nothing on the normal edge, which is the transfer
+> stated on both of its sides, and both calls in one block, because an `await` does not cut its
+> frame the way a `yield` does. The boundary now asks ADR 0023 § 2's third question too:
+> `nvs_runtime::graph::copy_graph_into` takes the receiving side's class table and `Live::admit` is
+> that rule's one home — **the same class, by descriptor identity, not a class of the same name**. A
+> copy keeps the descriptor it was built with, which is what makes an adopted allocation a pointer
+> handoff, so admitting a same-named class from another compiled unit would hand the receiving side
+> the sender's field layout and the sender's compiled methods, and priority 1 is not traded for
+> priority 4. What it costs is worth stating: `nvs-cli` compiles one unit per written path, so a
+> class declared in both files is two descriptors today and an instance of it does not cross, and
+> making it cross is a question about sharing a class table between units rather than about the
+> walk. The question is asked of the answer and not of the argument, and that asymmetry is a known
+> gap rather than a decision — the parent's table is in hand at the join (`Ctx::class_table`, taken
+> at the spawn, because by then the parent's context is borrowed by the frame parked on it) while
+> the child's does not exist until its program's prologue installs it, so closing it means the
+> `nvs_runtime::script` seam answering with a unit's table beside its entry point. A contained panic
+> inside a child is pinned as well, and it arrives as the cancelled-shaped `ok = false` an unfiled
+> slot produces: `Ended`'s `Drop` is what tells the awaiting side the child is over, half-way
+> through the unwind, and the panic's own message stays the scheduler's rather than reaching a
+> `Failure` a program can read. The steps the chain took are in
 > [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's own residue is the 1000-case
 > corpus count, which orders 1–4 meet as the suite grows; nothing else about M4 is open. What the
 > program is measured by is `python tools/check-migration.py` at 100% classified, which stood at 25%
