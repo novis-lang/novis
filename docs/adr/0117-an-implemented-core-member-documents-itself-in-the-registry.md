@@ -14,8 +14,8 @@
 
 > **In short:** an implemented `Core` member's reference documentation — short description, parameter
 > names and descriptions, shape-key docs, return description, thrown errors — lives in its registry
-> declaration in `nvs-stdlib`, next to the code it documents, and `nvs meta --json` prints the whole
-> registry as JSON. [docs/spec/01-core-library.md](../spec/01-core-library.md) remains authoritative for
+> declaration in `nvs-stdlib`, next to the code it documents; so does an enum's card, one line per case,
+> and a constant's one sentence; and `nvs meta --json` prints the whole registry as JSON. [docs/spec/01-core-library.md](../spec/01-core-library.md) remains authoritative for
 > the *surface* — every member, implemented or not, and its signature as designed. Where both speak about
 > an implemented member, precedence is **field-wise**: a doc field the registry carries wins, a field it
 > lacks falls back to the spec — so documentation migrates member by member, with no flag day and no
@@ -48,22 +48,35 @@ data the runtime dispatches on.
 A registry member declaration may carry, all optional and all inline markdown: a **short description**
 (one or two sentences), per-parameter **name and description** — and for a shape-typed parameter, each
 key's **type and description** — a **return description**, and a list of **thrown errors, each with a
-description**. Extended prose is deliberately excluded: long-form text in Rust string literals is the
-worst editing surface available, so anything beyond the reference card stays in the website's pages.
+description**. The two rosters a member's card points at carry a card of their own, so every value a
+parameter may take is documented where it is declared: an **enum's short description and one description
+per case**, and a **constant's description** — one sentence, since a constant has a value and no
+signature. Extended prose is deliberately excluded: long-form text in Rust string literals is the worst
+editing surface available, so anything beyond the reference card stays in the website's pages.
 
 ### 2. `nvs meta --json`
 
-The `nvs` binary prints its registry as JSON on `nvs meta --json`: classes, members, and each member's
-doc fields under a `doc` key —
+The `nvs` binary prints its registry as JSON on `nvs meta --json`: classes, each with its members and its
+constants, and the enums beside them — every doc field under a `doc` key —
 
 ```json
-{ "classes": [ { "name": "Core\\Str", "members": [ { "name": "length",
-    "doc": { "short": "…",
-             "params": [ { "name": "s", "desc": "…",
-                           "shape": [ { "key": "pretty", "type": "bool", "desc": "…" } ] } ],
-             "return": "…",
-             "errors": [ { "error": "Core\\Error\\…", "desc": "…" } ] } } ] } ] }
+{ "classes": [ { "name": "Core\\Str",
+                 "members": [ { "name": "length",
+                                "doc": { "short": "…",
+                                         "params": [ { "name": "s", "desc": "…",
+                                                       "shape": [ { "key": "pretty", "type": "bool", "desc": "…" } ] } ],
+                                         "return": "…",
+                                         "errors": [ { "error": "Core\\Error\\…", "desc": "…" } ] } } ],
+                 "constants": [ { "name": "PI", "doc": "…" } ] } ],
+  "enums": [ { "name": "Core\\Order",
+               "doc": { "short": "…", "cases": [ { "name": "Asc", "desc": "…" } ] } } ] }
 ```
+
+`enums` is top-level because the registry's roster is: an enum is not a class and has no owner there
+([0011](0011-functions-and-constants-are-class-members.md)). The spec's `Enums:` lines and the website's
+`enumOwners` override are what attach one to a class page, and that stays theirs. The omission rule is the
+same at every level: a member, enum or constant with nothing written has no `doc` key, a written card
+carries only its non-empty fields, and no array is ever emitted empty.
 
 The command owns the contract; consumers ignore fields they do not know. The website's consumer is
 `website/scripts/lib/meta.mjs`, and it fails soft: a toolchain without the subcommand means "no registry
@@ -82,7 +95,8 @@ incremental: the seam can ship empty, and every member documented afterwards upg
 - A contributor documents a member where they implement it, and the reference follows on the next site
   sync — no second file to remember.
 - The binary spends memory: static doc strings, per-process not per-request, on the order of a few
-  hundred bytes per documented member — low hundreds of KB with all 297 members documented. Under
+  hundred bytes per documented member — low hundreds of KB with all 297 members documented — and a few
+  tens of bytes per enum case or constant, a few KB more for the ten enums and thirteen constants. Under
   [0004](0004-memory-for-simplicity.md)'s ordering that is the cheap side of the trade; a `docs` cargo
   feature can strip it later if a deployment ever cares.
 - The spec's entries for implemented members stop being the place doc wording is edited; the spec keeps
@@ -104,5 +118,7 @@ incremental: the seam can ship empty, and every member documented afterwards upg
 
 ## Verification
 
-When `nvs meta` lands, `nvs-cli` gets a golden test holding the JSON shape of § 2, and the website's
-`npm run sync` warns on every § 3 disagreement — those warnings are the drift detector.
+When `nvs meta` lands, `nvs-cli` gets a golden test holding the JSON shape of § 2 — one for a member, one
+for an enum and one for a constant, each beside a golden that an undocumented row carries no `doc` key —
+and the website's `npm run sync` warns on every § 3 disagreement, a documented parameter, case or
+constant the spec does not declare included; those warnings are the drift detector.
