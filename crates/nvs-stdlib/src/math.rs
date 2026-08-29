@@ -1299,6 +1299,12 @@ fn round_mode(args: &[Value], index: usize) -> Result<RoundMode, Fault> {
         Some(3) => Ok(RoundMode::HalfOdd),
         Some(4) => Ok(RoundMode::Up),
         Some(5) => Ok(RoundMode::Down),
+        // Unreachable from source: `ROUND_OPTIONS` declares `mode` as
+        // `CoreTy::Enum(r"Core\RoundMode")`, so anything else is
+        // `E0401: expected `Core\RoundMode`, found `int`` at the option's value,
+        // and the enum has exactly the six cases matched above — the arms are
+        // its whole roster, not a prefix of it, so a case cannot arrive here
+        // either.
         _ => Err(Fault::fatal(format!(
             "Core\\Math::round expected a `Core\\RoundMode` case for `mode`, got tag {} value {}",
             args[index].tag_byte(),

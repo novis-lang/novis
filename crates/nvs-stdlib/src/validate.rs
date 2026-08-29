@@ -272,11 +272,20 @@ fn family(value: &Value) -> Result<Option<u8>, Fault> {
         Some(Tag::Int) => match value.as_int() {
             Some(4) => Ok(Some(4)),
             Some(6) => Ok(Some(6)),
+            // Unreachable from source: `IP_VERSION` declares the option as ADR
+            // 0047 § 1's literal union `4|6`, so any other integer is
+            // `E0401: expected `4|6`, found `int`` at the option's own value —
+            // a literal and a binding alike, since the union is checked at the
+            // argument rather than folded.
             other => Err(Fault::fatal(format!(
                 "Core\\Validate::isIp received {other:?} for `version`, which its declared `4|6` \
                  cannot be"
             ))),
         },
+        // The same declaration refuses every other tag one step earlier:
+        // `{version: "4"}` is `E0401: expected `4|6`, found `string``, so this
+        // arm is unreachable from source and covers only the `Tag::Null` an
+        // omitting call site does not take.
         _ => Err(Fault::fatal(format!(
             "Core\\Validate::isIp expected `4`, `6` or nothing for `version`, got tag {}",
             value.tag_byte()
