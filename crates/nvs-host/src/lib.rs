@@ -31,17 +31,22 @@
 //! that thread, and hands it to a closure. Nothing `!Send` crosses the thread
 //! boundary, because the run queue is created on the far side of it.
 //!
-//! **There is no reactor yet.** A task that parks waits for
-//! [`Scheduler::wake`], and what calls that — on epoll, kqueue or IOCP, with
-//! what parking contract and what a `WouldBlock` costs — is ADR 0115's, along
-//! with `NvsTcp` and the blocking pool ADR 0106 § 6 sends filesystem calls,
-//! name resolution and child processes to. This crate is deliberately the half
-//! of the design that can be tested with no I/O in it at all.
+//! [`Reactor`] is what calls [`Scheduler::wake`]: readiness on epoll, kqueue or
+//! a poll of `\Device\Afd`, keyed by [`TaskId`], with ADR 0115 § 2's five-rule
+//! parking contract in its module doc. [`run_until_idle`] joins the two, and is
+//! what a worker's body is. The scheduler itself still knows nothing about I/O,
+//! so a run queue remains testable with none in it at all.
+//!
+//! **Still outstanding:** `NvsTcp` — the stream whose `Read`/`Write` look
+//! blocking and park instead (ADR 0115 § 3) — and the blocking pool ADR 0106
+//! § 6 sends filesystem calls, name resolution and child processes to.
 
 pub mod affinity;
+pub mod reactor;
 pub mod scheduler;
 
 pub use affinity::{CpuId, cpus, pin_current_thread};
+pub use reactor::{Interest, Reactor, run_until_idle};
 pub use scheduler::{Finished, RunReport, Scheduler, TaskId, Waiting, suspend};
 
 /// One OS thread, pinned to one CPU, running one [`Scheduler`].

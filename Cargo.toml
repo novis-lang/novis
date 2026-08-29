@@ -62,6 +62,21 @@ corosensei = "0.2"
 # to fail at.
 core_affinity = "0.8"
 
+# --- readiness (ADR 0115: the reactor reports readiness, and a stream parks) ---
+# epoll, kqueue and a poll of `\Device\Afd` through IOCP are three mechanisms
+# with one contract, and writing that contract three times is the alternative.
+# `mio` is the readiness layer and *not* an async runtime — no executor, no task
+# type, no `Future`, no `tokio` anywhere in its graph — which is why reaching
+# for it is not the `BLOCKED` the goal reserves for "this needs async";
+# docs/adr/0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md
+# § 1 is the home of that reasoning. ADR 0051 § 4's first question is "no":
+# a registration carries a descriptor and an interest set, so nothing
+# attacker-controlled reaches it. Pure Rust with no build script and no C — it
+# declares its own bindings against `libc` and `windows-sys`, both already in
+# this tree's lock file. `crates/nvs-host/src/reactor.rs` owns the parking
+# contract above it.
+mio = { version = "1", features = ["os-poll", "net"] }
+
 # --- extension sandbox (M9). Built on the same cranelift version above;
 # --- spike #4 confirmed wasmtime 48 and cranelift 0.135 coexist.
 # --- See docs/adr/0003-extension-system.md.

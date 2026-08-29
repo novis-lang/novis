@@ -37,14 +37,15 @@
 //! stack is, and whether it is pooled, is ADR 0115's to decide along with the
 //! reactor; until then a task takes `corosensei`'s default.
 //!
-//! # What this module deliberately does not have yet
+//! # What this module deliberately does not know
 //!
-//! There is no reactor. [`Waiting::Parked`] hands the core back and the task
-//! sits in the parked set until someone calls [`Scheduler::wake`] with its
-//! [`TaskId`] — and *who* calls it, on what readiness mechanism, is the whole
-//! of ADR 0115. [`Scheduler::run`] returning with tasks still parked is exactly
-//! the state in which that reactor waits, and this module names it rather than
-//! guessing at it.
+//! Nothing about I/O. [`Waiting::Parked`] hands the core back and the task sits
+//! in the parked set until someone calls [`Scheduler::wake`] with its
+//! [`TaskId`]; *who* calls it, on what readiness mechanism, is
+//! [`crate::reactor`]'s, and [`Scheduler::run`] returning with tasks still
+//! parked is exactly the state in which that reactor blocks. The two are joined
+//! by [`crate::reactor::run_until_idle`] and by nothing else, so a run queue
+//! stays testable with no I/O in it at all.
 
 use std::collections::{HashMap, VecDeque};
 use std::marker::PhantomData;
@@ -96,6 +97,17 @@ impl TaskId {
     #[must_use]
     pub const fn raw(self) -> u64 {
         self.0
+    }
+
+    /// Rebuilds an id from the number [`TaskId::raw`] handed out.
+    ///
+    /// Crate-private on purpose: [`crate::reactor`] needs it because a `mio`
+    /// token *is* the raw id — that is what saves the reactor a second table —
+    /// and nothing outside this crate has any business forging one. An id that
+    /// names no live task wakes nothing, which is the reactor's rule 2, so
+    /// this is not a hole even inside the crate.
+    pub(crate) const fn from_raw(raw: u64) -> Self {
+        Self(raw)
     }
 }
 
@@ -175,6 +187,34 @@ impl Default for Scheduler {
     }
 }
 
+impl Drop for Scheduler {
+    /// Tears down every task this scheduler still holds, suspended ones
+    /// included.
+    ///
+    /// A worker that retires with a request still parked is the ordinary
+    /// shutdown, not an exceptional one, and dropping a suspended coroutine
+    /// unwinds its stack. That unwind has to pass through
+    /// [`nvs_runtime::run_task`]'s containment boundary, which would otherwise
+    /// swallow it and leave `corosensei` unable to tell a torn-down stack from
+    /// a corrupted one — it aborts the process at that point.
+    /// [`nvs_runtime::Teardown`] is the narrow window that lets it through, and
+    /// its doc owns the reasoning.
+    ///
+    /// No script code runs here, which is
+    /// [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md)
+    /// § 5's rule: what the unwind runs is native `Drop`, so an arena is
+    /// released and a handle is closed, and no `catch` or `finally` is
+    /// consulted.
+    fn drop(&mut self) {
+        if self.ready.is_empty() && self.parked.is_empty() {
+            return;
+        }
+        let _teardown = nvs_runtime::Teardown::enter();
+        self.ready.clear();
+        self.parked.clear();
+    }
+}
+
 impl Scheduler {
     /// An empty run queue.
     #[must_use]
@@ -246,10 +286,10 @@ impl Scheduler {
     /// Runs until the run queue is empty, then returns.
     ///
     /// Empty does not mean done: [`RunReport::parked`] is how many tasks are
-    /// waiting for a wake that has to come from outside. A caller with no
-    /// reactor yet — every caller today — treats a non-zero count as "there is
-    /// nothing more I can do", which is precisely the point at which ADR 0115's
-    /// reactor will block on readiness instead.
+    /// waiting for a wake that has to come from outside. A non-zero count is
+    /// precisely the point at which [`crate::reactor::run_until_idle`] blocks
+    /// on readiness instead; a caller running without a reactor treats it as
+    /// "there is nothing more I can do".
     pub fn run(&mut self) -> RunReport {
         let mut report = RunReport::default();
         while let Some(mut task) = self.ready.pop_front() {
@@ -272,6 +312,18 @@ impl Scheduler {
     /// Takes the tasks that have ended since this was last called.
     pub fn take_finished(&mut self) -> Vec<Finished> {
         std::mem::take(&mut self.finished)
+    }
+
+    /// The tasks that have ended and have not been taken yet.
+    ///
+    /// Reading without draining, because two consumers want different things
+    /// from the same list: whoever owns the request boundary takes it, and
+    /// [`crate::reactor::run_until_idle`] only needs the ids in order to drop
+    /// their reactor registrations (ADR 0115 § 2 rule 3) and must not consume
+    /// what it did not ask for.
+    #[must_use]
+    pub fn finished(&self) -> &[Finished] {
+        &self.finished
     }
 
     /// How many tasks are parked waiting for a wake.
@@ -331,6 +383,8 @@ pub fn suspend(ctx: &Ctx, waiting: Waiting) -> bool {
 mod tests {
     use super::*;
     use nvs_runtime::OutputSink;
+    use std::cell::Cell;
+    use std::rc::Rc;
 
     fn ctx() -> Ctx {
         Ctx::new(OutputSink::Sink)
@@ -501,6 +555,39 @@ mod tests {
         assert!(
             finished[0].ctx.yielder().is_null(),
             "a context must not carry a pointer into a stack that is gone"
+        );
+    }
+
+    #[test]
+    fn a_scheduler_dropped_with_a_parked_task_tears_it_down_instead_of_aborting() {
+        // A worker retiring with a request still parked. Before
+        // `nvs_runtime::Teardown` existed this killed the whole process, so
+        // the strongest half of this test is that it returns at all; the
+        // assertion below is the other half — the stack really unwound, rather
+        // than being leaked to dodge the abort.
+        struct Marker(Rc<Cell<bool>>);
+        impl Drop for Marker {
+            fn drop(&mut self) {
+                self.0.set(true);
+            }
+        }
+
+        let unwound = Rc::new(Cell::new(false));
+        let marker = Marker(Rc::clone(&unwound));
+
+        let mut sched = Scheduler::new();
+        sched.spawn(ctx(), TaskRoot::Request, move |ctx| {
+            suspend(ctx, Waiting::Parked);
+            // Keeps the marker alive across the park, so it is dropped by the
+            // unwind rather than before it.
+            drop(marker);
+        });
+        assert_eq!(sched.run().parked, 1);
+
+        drop(sched);
+        assert!(
+            unwound.get(),
+            "the parked task's stack was abandoned rather than unwound"
         );
     }
 }

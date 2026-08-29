@@ -3374,6 +3374,18 @@ sibling in the same namespace unqualified.
   container's element type is therefore carried by the `foreach` binding (`foreach ($chan as int $v)`)
   and by the declared type of what goes in, which is enough for the checker and is what
   `examples/channel.nvs` is written against.
+- **Dropping a suspended `corosensei` coroutine unwinds its stack, and a `catch_unwind` in the way
+  aborts the process.** `Coroutine::drop` raises a private `ForcedUnwind` marker down the coroutine's
+  stack and expects to see it come back out; `nvs_runtime::run_task` — which sits under every task
+  root — swallowed it, so corosensei's own `panic!("the ForcedUnwind panic was caught and not
+  rethrown")` fired inside a `Drop` and double-panicked to `STATUS_STACK_BUFFER_OVERRUN`
+  (`0xc0000409`, and on Linux a plain abort). The recognition test is that the crash names
+  `corosensei-0.2.2/src/coroutine.rs` twice, the second time with *"cannot propagte coroutine panic
+  with #![no_std]"* — that second message is the double-panic, not the cause. It is reached by an
+  ordinary worker shutdown with one request still parked, which is why the fix is
+  `nvs_runtime::Teardown` (a thread-local depth counter that makes `run_task` re-raise instead of
+  contain) held across `Drop for Scheduler`, and not "drain the parked set first". Anything else that
+  gains a `catch_unwind` between a coroutine's root and its suspension points owes the same guard.
 
 ## Divergences and refusals already pinned
 

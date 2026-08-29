@@ -2,69 +2,70 @@
 
 ## State
 
-**Goal 2, Stage 2. `crates/nvs-host` exists and one core runs one scheduler.** A `Worker` is one OS
-thread pinned to one CPU; a `Scheduler` is its run queue; a task is a `corosensei` stackful coroutine
-that suspends by reaching its yielder through `Ctx`. 12 tests, all green. The crate's own module docs
-own the reasoning — `lib.rs` for the layering, `scheduler.rs` for why a task never migrates,
-`affinity.rs` for why a refused pin is never fatal.
+**Goal 2, Stage 2. The reactor is on disk and a parked task is woken by real readiness.**
+`crates/nvs-host/src/reactor.rs` is ADR 0115 §§ 1–2: `mio` (`os-poll` + `net`) keyed by `TaskId` —
+the token *is* the raw id, so there is no second table — `register` before `suspend`, a wake that is
+a hint, `retire` on `Finished`, and `run_until_idle` (`reactor.rs:306`) polling with a zero timeout
+while the run queue has work and blocking only when something parked can still be woken. 21 tests in
+the crate, all green. The module doc owns the reasoning, including the half of a registration the
+kernel owns versus the half `retire` frees.
 
-**The yielder travels in the real `Ctx` as an opaque `*const ()`** (`ctx.rs`: the `yielder` field,
-`Ctx::yielder`/`set_yielder`, cold, below the hot line). Opaque so `nvs-runtime` — the crate every
-compiled unit links — needs no coroutine dependency; `nvs-host` owns the single `unsafe` that turns
-it back into a `&Yielder`, which is why that crate declares `unsafe_code = "deny"` rather than
-inheriting the workspace's `forbid`. `scheduler::suspend(&Ctx, Waiting)` is the seam, and it returns
-`false` rather than pretending when there is no scheduler beneath.
+**A latent path to `abort()` was closed on the way, and it was not the reactor's.** Dropping a
+suspended `corosensei` coroutine unwinds its stack, and `nvs_runtime::run_task`'s containment
+boundary swallowed the unwind marker, which corosensei answers by aborting the process. That is an
+ordinary worker shutdown with a request still parked, so it is ADR 0106's "no path reaches
+`abort()`". `nvs_runtime::Teardown` (`abi.rs`, below `run_task`) is a thread-local window in which
+`run_task` re-raises rather than contains; `Drop for Scheduler` holds it across the drop of the
+ready and parked sets. No script code runs in the window — what unwinds is native `Drop`, which
+ADR 0072 § 5 already requires — and the playbook bullet has the recognition test.
 
-**ADR 0115 is written and indexed** — readiness on all three platforms via `mio` (not `tokio`, and
-§ 1 says why that is not the standing decisions' `BLOCKED`), the five-rule parking contract, try-the-
-syscall-then-park with the cost table that decides the order, and a 1 MiB reserved / resident-narrow /
-pooled-per-worker stack. Its § 4 also names what closes `ctx.rs`'s recorded known gap: a task on a
-host-allocated stack can arm its recursion limit from real bounds.
+**`mio` is a new dependency** (+`windows-sys` on Windows, both MIT/Apache-2.0); the workspace
+`Cargo.toml` comment above it answers ADR 0051 § 4's two questions and points at ADR 0115 § 1 for
+why a poller is not the `tokio` the standing decisions forbid. `THIRD-PARTY-LICENSES.txt` still
+needs no regeneration — `nvs-host` is not in `nvs-cli`'s graph yet, so the session that wires it in
+runs `gen-attribution.py`.
 
-**No reactor yet, so nothing parks for a real reason.** `Waiting::Parked` + `Scheduler::wake(TaskId)`
-is the whole seam and it is tested by hand-waking. That is the next group.
-
-**The acceptance check on `examples/tasks.nvs` (`Core\Task` has no member named `all`) is still not a
-regression** — loop-goal.md § *Stage 2* writes no `Core\Task` member until that stage is green, and
-`Task::all` is Stage 4's. Unchanged by this session.
-
-**`core_affinity` is a new dependency** (+`num_cpus`, +`hermit-abi`, all MIT/Apache-2.0); the
-workspace `Cargo.toml` comment above it answers ADR 0051 § 4's two questions.
-`THIRD-PARTY-LICENSES.txt` regenerated to no diff — `nvs-host` is not yet in `nvs-cli`'s graph, so
-add a `gen-attribution.py` run to the session that wires it in.
+**The acceptance check on `examples/tasks.nvs` (`Core\Task` has no member named `all`) is still not
+a regression** — loop-goal.md § *Stage 2* writes no `Core\Task` member until that stage is green,
+and `Task::all` is Stage 4's.
 
 ## Next group
 
-**The reactor, now that ADR 0115 specifies it.** One file set: `crates/nvs-host/src/` (a new
-`reactor.rs` and `net.rs`, plus `lib.rs:41` where the modules are declared and `lib.rs:44` where they
-are re-exported), and `crates/nvs-host/Cargo.toml:12` for `mio`.
+**The stream, and the design question in front of it.** One file set: `crates/nvs-host/src/` (a new
+`net.rs`, plus `lib.rs:45` where the modules are declared and `lib.rs:49` where they are
+re-exported), and `crates/nvs-runtime/src/ctx.rs:829` for the third slice only.
 
-- [ ] **`reactor.rs` — `mio`-backed readiness, keyed by `TaskId`.** ADR 0115 §§ 1–2: register-then-
-      suspend, a wake is a hint, deregister on `Finished`, and poll with a zero timeout while the run
-      queue is non-empty. It hangs off `Scheduler::run`'s exit condition —
-      `scheduler.rs:245` (`pub fn run`) returns when `ready` is empty, and `scheduler.rs:288`
-      (`parked_count`) is the "block in the reactor now" test. Add `mio` to the workspace
-      `Cargo.toml` beside `core_affinity` with the same two-questions comment.
-- [ ] **`net.rs` — `NvsTcp: std::io::Read + Write` over the reactor.** ADR 0115 § 3, in that order:
-      syscall first, register-and-park only on `WouldBlock`, keep the registration while the stream
-      is held. It calls `scheduler::suspend` at `scheduler.rs:299`; the test that matters asserts
-      through `std::io::Read` alone, with no scheduler-aware call in the body.
+- [ ] **Decide how a task reaches its core's reactor, and record it.** `NvsTcp::read` is a plain
+      `std::io::Read` with no `Ctx` and no reactor argument, so the stream has to reach both from
+      inside its own `&mut self`. The yielder already travels in `Ctx` as an opaque `*const ()`
+      (`ctx.rs:@yielder`, `scheduler.rs:361`) and the reactor is `!Send` and one-per-worker, so the
+      two candidates are a second opaque pointer in `Ctx` set by `Scheduler::run`, or a thread-local
+      installed by `Worker::spawn`. Whichever wins, `run_until_idle` (`reactor.rs:306`) currently
+      takes `&mut Reactor` across `sched.run()`, which no task can borrow through — that signature
+      changes with this decision. Pre-authorized under the goal's standing decisions: decide it and
+      record it in `reactor.rs`'s module doc, do not open an ADR.
+- [ ] **`net.rs` — `NvsTcp: std::io::Read + std::io::Write` over the reactor.** ADR 0115 § 3, in
+      that order: issue the syscall, return on success, and only on `WouldBlock` register
+      (`reactor.rs:133`), `suspend(ctx, Waiting::Parked)` (`scheduler.rs:361`) and loop. The
+      registration is kept while the task holds the stream, so a repeat park pays `reregister`
+      (`reactor.rs:153`) and not `register`. The cost table in § 3 is why the order is that way
+      round; a test that a first read finding buffered bytes never touches the reactor is the one
+      that pins it.
 - [ ] **Arm the recursion limit from the task's own stack.** ADR 0115 § 4's last bullet closes the
-      known gap recorded in `crates/nvs-runtime/src/ctx.rs:62` — `Scheduler::spawn`
-      (`scheduler.rs:196`) calls `Ctx::arm_stack_limit` with the bounds `corosensei` handed it,
-      instead of leaving `Ctx::new`'s `STACK_CEILING` guess in place. Edit that module doc in the
-      same commit; it currently says "at M6".
+      known gap recorded in `ctx.rs`: a task on a host-allocated stack knows its real bounds, so
+      `Ctx::arm_stack_limit` (`ctx.rs:829`) can be called with them instead of an estimate. Needs
+      the stack decision (1 MiB reserved, resident-narrow, pooled per worker) to land first, which
+      is why it is last.
 
 ## Backlog
 
-- Stage 2 item 4's blocking pool — filesystem, name resolution, waiting on a child; ADR 0106 § 6 owns
-  the bound (twice the core count) and this crate is where it goes.
-- A stack pool per worker, ADR 0115 § 4 — `Scheduler` allocates a fresh `corosensei` default stack per
-  task today.
-- `nvs-host` is in no binary's dependency graph yet; wiring it into `nvs-cli` is what makes
-  `gen-attribution.py` see `core_affinity`.
-- `Waiting` is `#[non_exhaustive]` with two unit variants; ADR 0115's I/O registration is what gives
-  it a third, per `scheduler.rs:63`.
-- M4's residue, the 1000-case corpus count — `docs/plan/m4.md`.
-- `benches/abi-probe`'s `Ctx` and the real one have now diverged in purpose; the probe's doc still
-  says "deliberately shaped like the real `Ctx` will be" (`benches/abi-probe/src/lib.rs:100`).
+- The blocking pool for filesystem calls, name resolution and child processes — ADR 0106 § 6,
+  bounded at twice the core count.
+- Stack policy: 1 MiB reserved, resident-narrow, pooled per worker — ADR 0115 § 4. Today a task
+  takes `corosensei`'s default, as `scheduler.rs`'s module doc says.
+- `THIRD-PARTY-LICENSES.txt` regeneration, owed by whichever session first puts `nvs-host` in
+  `nvs-cli`'s dependency graph.
+- `Core\Task::all` / `::map` — Stage 4, and the standing acceptance failure until then
+  (`docs/agent/loop-goal.md` § *Stage 2*).
+- ADR 0072 § 5 cancellation as a *mechanism*: `Waiting::Parked` plus `Scheduler::wake` is the seam,
+  and nothing cancels yet.

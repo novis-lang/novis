@@ -16,6 +16,10 @@ nvs-runtime.workspace = true
 # is in `docs/plan/design.md` § *Thread-per-core, shared-nothing runtime*.
 corosensei.workspace = true
 core_affinity.workspace = true
+# Readiness, one contract over epoll/kqueue/AFD. Not an async runtime — the
+# workspace `Cargo.toml`'s comment above this dependency answers ADR 0051 § 4's
+# two questions, and ADR 0115 § 1 says why a poller is not a `tokio`.
+mio.workspace = true
 
 # ---------------------------------------------------------------------------
 # This crate cannot inherit the workspace lint policy: a coroutine yielder
