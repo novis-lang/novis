@@ -1,0 +1,125 @@
+--TEST--
+`Core\Test::assertThrows` holds at exactly the pairs where the thrown class descends from the named one, over all 81 pairs of the exception tree -- ADR 0079 § 4
+--FILE--
+<?nvs
+// `test-assert-throws-is-bounded-on-both-sides-of-the-class-it-names.nvst`
+// names the bound at one thrown class and its nearest neighbours. This is the
+// same rule asked of every pair the tree can form: nine classes thrown, each
+// asked against all nine names, with the expected answer *derived from the
+// tree* rather than restated as a list of 81 verdicts. A member that compared
+// class names for equality, or that accepted any ancestry in either direction,
+// or that stopped one level short of the root, disagrees on a different subset
+// each time -- and none of those subsets is empty, so one count catches all of
+// them.
+//
+// The nine are `nvs_hir::errors::TREE` in full (docs/spec/01-core-library.md
+// § 10's drawing), including the two roots a program rarely writes by hand:
+// `Throwable` itself, and `Core\Test\Failure`, which is a tree row rather than
+// a `Core` class and is thrown here as an ordinary exception -- nothing about
+// a hand-made one reaches the assertion ledger, which only records an
+// assertion that actually failed.
+//
+// `$parent` is the tree, keyed and valued by `::class` so the names the case
+// asks with are the names the compiler resolves rather than string literals
+// that could drift from it. `""` is the root's absent parent.
+
+final class Ask {
+    public static function throws(callable $body, string $class): bool {
+        try {
+            Core\Test::assertThrows($body, $class);
+            return true;
+        } catch (Core\Test\Failure $refused) {
+            return false;
+        }
+    }
+}
+
+final class Tree {
+    // Walk from the thrown class to the root, which is the reading
+    // `catch (RuntimeError $e)` already has: a class conforms to itself and to
+    // every ancestor above it, and to nothing else.
+    public static function conforms(array<string> $parent, string $thrown, string $named): bool {
+        string $at = $thrown;
+        while ($at != "") {
+            if ($at == $named) {
+                return true;
+            }
+            $at = $parent[$at];
+        }
+        return false;
+    }
+}
+
+array<string> $parent = [
+    Throwable::class => "",
+    LogicError::class => Throwable::class,
+    RuntimeError::class => Throwable::class,
+    IOError::class => RuntimeError::class,
+    ParseError::class => RuntimeError::class,
+    TimeoutError::class => RuntimeError::class,
+    RecursionError::class => RuntimeError::class,
+    ArithmeticError::class => Throwable::class,
+    Core\Test\Failure::class => Throwable::class,
+];
+
+array<callable> $bodies = [
+    Throwable::class => fn (): void => { throw new Throwable("the root itself"); },
+    LogicError::class => fn (): void => { throw new LogicError("the caller had it backwards"); },
+    RuntimeError::class => fn (): void => { throw new RuntimeError("the world said no"); },
+    IOError::class => fn (): void => { throw new IOError("the disk is full"); },
+    ParseError::class => fn (): void => { throw new ParseError("the input is not JSON"); },
+    TimeoutError::class => fn (): void => { throw new TimeoutError("after 6 steps"); },
+    RecursionError::class => fn (): void => { throw new RecursionError("too deep"); },
+    ArithmeticError::class => fn (): void => { throw new ArithmeticError("the divisor is zero"); },
+    Core\Test\Failure::class => fn (): void => { throw new Core\Test\Failure("hand made"); },
+];
+
+// The per-row count is the number of names each thrown class conforms to --
+// its own depth in the tree, plus itself. Printed one line per row so a
+// disagreement names the class it is about; `agreed` is the invariant.
+int $agreed = 0;
+int $held = 0;
+foreach ($bodies as string $thrown => callable $body) {
+    int $row = 0;
+    foreach ($parent as string $named => string $up) {
+        bool $expected = Tree::conforms($parent, $thrown, $named);
+        bool $actual = Ask::throws($body, $named);
+        if ($expected == $actual) {
+            $agreed = $agreed + 1;
+        }
+        if ($actual) {
+            $held = $held + 1;
+            $row = $row + 1;
+        }
+    }
+    echo $thrown, " matched ", $row, "\n";
+}
+
+echo "agreed=", $agreed, "/81\n";
+echo "held=", $held, "/81\n";
+
+// The argument is a *name*, and the member answers off the tree rather than
+// off anything the name looks like. A name the tree does not carry bounds
+// nothing, so every one of the nine throws is refused against it -- the same
+// answer as a sibling class, which is what stops an unknown name from reading
+// as a wildcard.
+int $outside = 0;
+foreach ($bodies as string $unknown => callable $body2) {
+    if (Ask::throws($body2, "NotInTheTree") == false) {
+        $outside = $outside + 1;
+    }
+}
+echo "outside=", $outside, "/9\n";
+--EXPECT--
+Throwable matched 1
+LogicError matched 2
+RuntimeError matched 2
+IOError matched 3
+ParseError matched 3
+TimeoutError matched 3
+RecursionError matched 3
+ArithmeticError matched 2
+Core\Test\Failure matched 2
+agreed=81/81
+held=21/81
+outside=9/9
