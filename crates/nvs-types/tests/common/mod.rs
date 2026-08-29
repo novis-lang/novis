@@ -175,3 +175,74 @@ pub(crate) fn check_src(src: &str) -> Diagnostics {
     );
     diags
 }
+
+/// A whole *program* checked, rather than one source: the files are written to
+/// a temporary directory and walked by [`nvs_hir::resolve_program`], so the
+/// table every whole-program pass builds is filled from the same
+/// `require`/`autoload` graph the compiler fills it from.
+///
+/// `files` is `(name, source)` with the **entry first**, which is the order
+/// `resolve_program` hands its loaded files back in and therefore the order
+/// every collected table is in.
+///
+/// The single-source [`check_src_table`] cannot stand in for this: one
+/// `resolve_file` resolves one file's declarations, so a class declared in a
+/// second file would not be found however the sources were concatenated into
+/// the `ProgramFile` slice.
+pub(crate) fn check_program_table(files: &[(&str, &str)]) -> (Diagnostics, ExprTypeTable) {
+    let dir = TempDir::new(files[0].0);
+    for (name, src) in files {
+        dir.write(name, src);
+    }
+    let mut map = SourceMap::new();
+    let entry = map
+        .load(dir.path.join(files[0].0))
+        .expect("load the entry fixture");
+    let mut diags = Diagnostics::new();
+    let stmts = nvs_syntax::parse_file(map.file(entry), &mut diags);
+    assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
+    let (module, loaded, _autoload) = nvs_hir::resolve_program(entry, stmts, &mut map, &mut diags);
+    assert!(!diags.has_errors(), "fixture failed to resolve: {diags:?}");
+    let program: Vec<nvs_types::ProgramFile<'_>> = loaded
+        .iter()
+        .map(|file| nvs_types::ProgramFile {
+            src: map.file(file.id),
+            stmts: &file.stmts,
+        })
+        .collect();
+    let mut interner = TypeInterner::new();
+    let mut exprs = ExprTypeTable::new();
+    check_program(&program, &module, &mut interner, &mut exprs, &mut diags);
+    (diags, exprs)
+}
+
+/// A directory of fixture files that removes itself, the shape
+/// `nvs_hir::requires`' own tests use — copied rather than shared because that
+/// one lives inside a `#[cfg(test)]` module of another crate.
+struct TempDir {
+    path: std::path::PathBuf,
+}
+
+impl TempDir {
+    fn new(name: &str) -> Self {
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "nvs-types-program-test-{}-{}",
+            name.replace('.', "-"),
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&path);
+        std::fs::create_dir_all(&path).expect("create temp dir");
+        Self { path }
+    }
+
+    fn write(&self, name: &str, contents: &str) {
+        std::fs::write(self.path.join(name), contents).expect("write fixture");
+    }
+}
+
+impl Drop for TempDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.path);
+    }
+}

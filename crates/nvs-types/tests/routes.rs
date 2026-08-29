@@ -5,13 +5,16 @@
 //! The table now has rows, and the two errors that are questions about the
 //! whole enumeration — a route declared twice and a `name` claimed twice — are
 //! asserted here too, alongside § 2's path grammar and § 3's three questions
-//! about the method an attribute is attached to. What it still owes is
-//! `nvs_types::routes`' own gap list: nothing reverses the table, and a method's
-//! second `#[Route]` is not a second row.
+//! about the method an attribute is attached to. Those enumeration questions
+//! are asked over **two files** through `common::check_program_table`, which is
+//! the only shape that can tell "the program's table" apart from "this file's".
+//! What it still owes is ADR 0102 § 6's `$params` key that is neither a capture
+//! nor a `#[Query]` parameter, which waits on the attribute — see
+//! `nvs_types::links`' gap 1.
 
 mod common;
 
-use common::{check_src, check_src_table};
+use common::{check_program_table, check_src, check_src_table};
 use nvs_diagnostics::{Code, Diagnostics, code};
 
 /// Whether `diags` reported `want`. Asserted by code rather than by
@@ -392,6 +395,246 @@ fn a_route_name_names_one_route() {
         "  #[Route(path: \"/users\", method: \\Core\\Http\\Method::Get)]\n  \
          public function index(): string { return \"\"; }\n  \
          #[Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get)]\n  \
+         public function show(uint $id): string { return \"\"; }\n",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// How many diagnostics reported `want` — the count, where "at all" is
+/// satisfied by a pass that reports the same collision once per row it walks
+/// afterwards.
+fn count(diags: &Diagnostics, want: Code) -> usize {
+    diags.iter().filter(|d| d.code == Some(want)).count()
+}
+
+#[test]
+fn a_route_table_is_built_from_the_program_enumeration() {
+    // § 5: the table is the *program*'s, filled by the walk over every file
+    // the entry reaches, so a link written in one file resolves against a row
+    // declared in another. Asserted over two files rather than one, because a
+    // single source cannot tell "the table is the program's" apart from "the
+    // table is this file's".
+    let (diags, exprs) = check_program_table(&[
+        (
+            "table-main.nvs",
+            "<?nvs\nrequire 'table-users.nvs';\nclass Health {\n  \
+             #[\\Core\\Route(path: \"/health\", method: \\Core\\Http\\Method::Get, \
+             name: \"Health::show\")]\n  \
+             public function show(): string { return \"\"; }\n}\n\
+             echo Core\\Router::url(\"Users::show\", [\"id\" => 1]), \"\\n\";\n",
+        ),
+        (
+            "table-users.nvs",
+            "<?nvs\nclass Users {\n  \
+             #[\\Core\\Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get, \
+             name: \"Users::show\")]\n  \
+             public function show(uint $id): string { return \"\"; }\n}\n",
+        ),
+    ]);
+    // The link in the entry file names a route declared in the file it
+    // requires: no `E0754`, which is the whole-program half of § 4 asserted
+    // from the side that would fail if the walk stopped at the entry.
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    let table = exprs.routes();
+    // Entry first, then each required file — `nvs_hir::resolve_program`'s load
+    // order, which is what makes a duplicate report at a deterministic row.
+    let paths: Vec<&str> = table.rows().iter().map(|row| row.path.as_str()).collect();
+    assert_eq!(paths, ["/health", "/users/{id}"]);
+    let show = table
+        .named("Users::show")
+        .expect("the required file's route");
+    assert_eq!(show.handler, "Users::show");
+}
+
+#[test]
+fn a_route_parameter_takes_its_type_from_the_method_that_declares_it() {
+    // § 3: a capture is typed by the parameter it names, so the roster of
+    // types a segment converts to is asked of the *declaration* rather than of
+    // the path — the four spellings below are one path checked four ways.
+    for ty in ["uint", "int", "string", "bool"] {
+        let diags = check_src(&route_src(&format!(
+            "  #[Route(path: \"/users/{{id}}\", method: \\Core\\Http\\Method::Get)]\n  \
+             public function show({ty} $id): string {{ return \"\"; }}\n"
+        )));
+        assert!(!diags.has_errors(), "{ty}: {diags:?}");
+    }
+
+    // And it is the method's own parameter, not the capture's name pooled
+    // across the program: two routes capturing `{id}` are two questions, and
+    // only the one whose own parameter is outside the roster is refused.
+    let diags = check_src(
+        "<?nvs\nuse Core\\Route;\nclass Users {\n  \
+         #[Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get)]\n  \
+         public function show(uint $id): string { return \"\"; }\n}\n\
+         class Orders {\n  \
+         #[Route(path: \"/orders/{id}\", method: \\Core\\Http\\Method::Get)]\n  \
+         public function show(float $id): string { return \"\"; }\n}\n",
+    );
+    assert_eq!(
+        count(&diags, code::E_ROUTE_CAPTURE_TYPE_HAS_NO_CONVERSION),
+        1,
+        "{diags:?}"
+    );
+}
+
+#[test]
+fn a_duplicate_route_is_a_diagnostic() {
+    // § 3's duplicate is a question about the whole enumeration, so two
+    // classes in two *files* collide exactly as two methods of one class do —
+    // the case one written in a single source cannot make.
+    let (diags, _) = check_program_table(&[
+        (
+            "dup-main.nvs",
+            "<?nvs\nrequire 'dup-other.nvs';\nclass Users {\n  \
+             #[\\Core\\Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get, \
+             name: \"a\")]\n  \
+             public function show(uint $id): string { return \"\"; }\n}\n",
+        ),
+        (
+            "dup-other.nvs",
+            "<?nvs\nclass Admin {\n  \
+             #[\\Core\\Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get, \
+             name: \"b\")]\n  \
+             public function show(uint $id): string { return \"\"; }\n}\n",
+        ),
+    ]);
+    // Once, not once per row walked afterwards: the collision is one fact,
+    // reported against the row that arrived second.
+    assert_eq!(count(&diags, code::E_DUPLICATE_ROUTE), 1, "{diags:?}");
+}
+
+#[test]
+fn a_path_capture_with_no_matching_method_parameter_is_a_diagnostic() {
+    // § 3: every capture has somewhere to arrive, so a method declaring no
+    // parameters at all is the shortest way to have nowhere.
+    let diags = check_src(&route_src(
+        "  #[Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get)]\n  \
+         public function show(): string { return \"\"; }\n",
+    ));
+    assert!(reported(&diags, code::E_ROUTE_CAPTURE_UNBOUND), "{diags:?}");
+
+    // Each capture is asked on its own rather than the path being asked once:
+    // a method binding the first of two is still missing the second.
+    let diags = check_src(&route_src(
+        "  #[Route(path: \"/orders/{orderId}/lines/{lineId}\", \
+         method: \\Core\\Http\\Method::Get)]\n  \
+         public function line(uint $orderId): string { return \"\"; }\n",
+    ));
+    assert_eq!(count(&diags, code::E_ROUTE_CAPTURE_UNBOUND), 1, "{diags:?}");
+
+    let diags = check_src(&route_src(
+        "  #[Route(path: \"/orders/{orderId}/lines/{lineId}\", \
+         method: \\Core\\Http\\Method::Get)]\n  \
+         public function line(uint $orderId, uint $lineId): string { return \"\"; }\n",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn an_unknown_literal_url_name_is_a_diagnostic() {
+    // § 4's first refusal, asked here rather than only in the reject case,
+    // because it is the one link error that fires with no `$params` question
+    // in front of it.
+    let src = |name: &str| {
+        format!(
+            "<?nvs\nclass Users {{\n  \
+             #[\\Core\\Route(path: \"/users/{{id}}\", method: \\Core\\Http\\Method::Get, \
+             name: \"Users::show\")]\n  \
+             public function show(uint $id): string {{ return \"\"; }}\n}}\n\
+             echo Core\\Router::url({name}, [\"id\" => 1]), \"\\n\";\n"
+        )
+    };
+    let diags = check_src(&src("\"Users::missing\""));
+    assert!(reported(&diags, code::E_UNKNOWN_ROUTE_NAME), "{diags:?}");
+
+    // The name the table does claim resolves, and is the fold rather than a
+    // call left standing.
+    let diags = check_src(&src("\"Users::show\""));
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    // A *computed* name is not this error: nothing is read, so nothing is
+    // checked and the member's own body throws at run time. The pair is what
+    // keeps § 4's literal/computed split from being a claim about one half.
+    let diags = check_src(&format!(
+        "<?nvs\nstring $name = \"Users::missing\";\n{}",
+        src("$name").trim_start_matches("<?nvs\n")
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn an_optional_capture_outside_the_last_position_is_a_diagnostic() {
+    // ADR 0102 § 4: `{name?}` matches a segment or none, and "or none" only
+    // has an answer where nothing follows it — a literal segment after one is
+    // as unreachable as another capture.
+    for path in ["/posts/{page?}/comments", "/posts/{page?}/{id}"] {
+        let diags = check_src(&route_src(&format!(
+            "  #[Route(path: \"{path}\", method: \\Core\\Http\\Method::Get)]\n  \
+             public function show(uint $page = 1, uint $id = 0): string {{ return \"\"; }}\n"
+        )));
+        assert!(
+            reported(&diags, code::E_ROUTE_PATH_GRAMMAR),
+            "{path}: {diags:?}"
+        );
+    }
+
+    // The other side of the same bound: the identical capture, last, is the
+    // form § 4 admits.
+    let diags = check_src(&route_src(
+        "  #[Route(path: \"/posts/comments/{page?}\", method: \\Core\\Http\\Method::Get)]\n  \
+         public function show(uint $page = 1): string { return \"\"; }\n",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn an_optional_capture_bound_to_a_parameter_with_no_default_is_a_diagnostic() {
+    // ADR 0102 § 4: what makes the absent segment well-typed is the parameter's
+    // *default*, so the refusal is about the default and not about the type —
+    // both spellings below convert from a segment and both are still refused.
+    for ty in ["uint", "string"] {
+        let diags = check_src(&route_src(&format!(
+            "  #[Route(path: \"/posts/{{page?}}\", method: \\Core\\Http\\Method::Get)]\n  \
+             public function page({ty} $page): string {{ return \"\"; }}\n"
+        )));
+        assert!(
+            reported(&diags, code::E_OPTIONAL_CAPTURE_NEEDS_DEFAULT),
+            "{ty}: {diags:?}"
+        );
+    }
+
+    let diags = check_src(&route_src(
+        "  #[Route(path: \"/posts/{page?}\", method: \\Core\\Http\\Method::Get)]\n  \
+         public function page(string $page = \"1\"): string { return \"\"; }\n",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn a_capture_or_query_parameter_outside_the_type_list_is_a_diagnostic() {
+    // ADR 0102 § 3 is a closed list, so the refusal is written from the first
+    // type *outside* it rather than from an implausible one: a `float`
+    // converts from a segment in every language that guesses, and § 3 does not
+    // guess (ADR 0095). A nullable is the other near miss — `?uint` is not
+    // `uint`, and an absent segment is § 4's question rather than this one.
+    //
+    // The `#[Query]` half of this rule is item 4's and joins this test when
+    // the attribute exists; `crates/nvs-types/src/links.rs`' gap 1 is why the
+    // parameter it would name cannot be declared yet.
+    for ty in ["float", "?uint", "array<int>"] {
+        let diags = check_src(&route_src(&format!(
+            "  #[Route(path: \"/users/{{id}}\", method: \\Core\\Http\\Method::Get)]\n  \
+             public function show({ty} $id): string {{ return \"\"; }}\n"
+        )));
+        assert!(
+            reported(&diags, code::E_ROUTE_CAPTURE_TYPE_HAS_NO_CONVERSION),
+            "{ty}: {diags:?}"
+        );
+    }
+
+    let diags = check_src(&route_src(
+        "  #[Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get)]\n  \
          public function show(uint $id): string { return \"\"; }\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
