@@ -68,11 +68,11 @@ try {
 //
 // One program cannot produce these bytes — a file declares `Slot` once — so
 // the golden below is an encoding of a `Slot` made under a *different*
-// declaration of it. IT IS A PLACEHOLDER: the session that lands § 3's
-// format is the first one that can produce a real one, and replacing this
-// literal with it is that session's last step. Until then this is the line
-// the fixture fails at, which is what it is here to say.
-var $stale = "PLACEHOLDER: an encoded Slot from a build where Slot had two properties" as bytes;
+// declaration of it: the same class name, with a second `int $extra` beside
+// `$n`. It is the format `crates/nvs-runtime/src/graph.rs` writes, byte for
+// byte, which is why it is a literal here rather than something this program
+// could produce. A version bump there rewrites this line.
+var $stale = "NVS\x1b\x01\x09\x04Slot\x02\x01n\x05extra\x02\x07\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00" as bytes;
 try {
     Core\Serialize::decode($stale);
     echo "a changed shape was accepted", "\n";

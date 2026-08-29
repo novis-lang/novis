@@ -855,6 +855,9 @@ pub const CLASSES: &[CoreClass] = &[
     // owns why, and owns the enum that section's `method` parameter takes.
     crate::router::CLASS,
     crate::csv::CLASS,
+    // ADR 0023 § 2's externalizing carrier, and no spec § of its own: the walk
+    // it reaches is `nvs_runtime::graph`'s, shared with the `spawn` boundary.
+    crate::serialize::CLASS,
     crate::validate::CLASS,
     crate::out::CLASS,
     // § 16. [ADR 0092](../../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)

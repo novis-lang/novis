@@ -922,6 +922,15 @@ is why" — is this file.
   provider put twenty crates in the lock file across `Apache-2.0 AND ISC`, `ISC` and
   `MIT OR Apache-2.0`, every one of them already allowed; `ring` also builds clean on
   windows-msvc from the pregenerated assembly it ships, with no nasm and no perl on `PATH`.
+- **A `python - <<'PY'` heredoc eats a backslash, so a patch script cannot carry Rust or
+  Novis escapes.** `<<'PY'` is quoted and the *shell* expands nothing, but something between
+  it and Python still collapses `\\x` to `\x` and `\\n` to a newline — a `sed`-style Python
+  patch containing either silently matches nothing (no `assert`, no error) or dies with
+  `SyntaxError: truncated \xXX escape`. This is AGENTS.md rule 1 with a second face: it is
+  not only `>` and `sed -i` that mangle content, it is any content at all crossing the shell.
+  Write the new text with Write to a file under `.agent-tmp/`, then have the shell only
+  *name* both files — `python -c "open(dst,'a').write(open(src).read())"` — or use Edit,
+  which never goes near a shell.
 
 ## Running things
 

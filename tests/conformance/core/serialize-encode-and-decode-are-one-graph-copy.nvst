@@ -1,0 +1,58 @@
+--TEST--
+`Core\Serialize::encode`/`decode` round-trip a graph, keep its shared substructure shared, run no constructor and refuse foreign bytes — ADR 0023 §§ 2 and 3
+--FILE--
+<?nvs
+class Counter {
+    public int $n = 0;
+    public function constructor(int $n) {
+        // § 2: the copy is built by direct assignment into the new instance's
+        // storage, so this line runs exactly once no matter how often the
+        // value crosses.
+        echo "constructed\n";
+        $this->n = $n;
+    }
+}
+
+class Pair {
+    public ?Counter $left;
+    public ?Counter $right;
+    public function constructor(?Counter $left, ?Counter $right) {
+        $this->left = $left;
+        $this->right = $right;
+    }
+}
+
+// § 2: the declared properties, and nothing else, are what crosses.
+var $one = Core\Serialize::decode(Core\Serialize::encode(new Counter(41))) as Counter;
+echo "n=", $one->n, "\n";
+
+// § 2: shared substructure inside the source stays shared inside the copy —
+// two properties pointing at the same nested object still point at the same
+// *new* shared object, which a write through one and a read through the other
+// is the only way to observe.
+var $shared = new Counter(1);
+var $pair = Core\Serialize::decode(Core\Serialize::encode(new Pair($shared, $shared))) as Pair;
+Counter $left = $pair->left as Counter;
+$left->n = 9;
+echo "shared=", $pair->right?->n ?? 0, "\n";
+
+// § 2 again, from the other side: an array's keys and order survive, and the
+// values inside it are copies rather than the originals.
+var $back = Core\Serialize::decode(Core\Serialize::encode(["a" => 1, "b" => 2]));
+echo "keys=", Core\Arr::count($back as array<int>), "\n";
+
+// § 3: the accepted format is Novis's own, and a payload that does not carry
+// its marker is refused outright rather than best-effort parsed.
+try {
+    Core\Serialize::decode("a:1:{i:0;i:1;}" as bytes);
+    echo "accepted\n";
+} catch (ParseError $e) {
+    echo "refused\n";
+}
+--EXPECT--
+constructed
+n=41
+constructed
+shared=9
+keys=2
+refused

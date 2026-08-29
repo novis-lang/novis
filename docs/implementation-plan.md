@@ -267,14 +267,42 @@
 > the call: `Outcome::Cancelled` is what a group whose *caller* was cancelled returns, and both
 > `Core\Task` members turn it into the same `Ctx::cancel`. `nvs_host::group::Child::run` asks
 > `Ctx::cancelled()` before it reads a pending message, because a child that stopped by status
-> leaves one behind and it is not a throw. Stage 4's acceptance is closed. The steps the chain took
-> are in [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's own residue is the
-> 1000-case corpus count, which orders 1–4 meet as the suite grows; nothing else about M4 is open.
-> What the program is measured by is `python tools/check-migration.py` at 100% classified, which
-> stood at 25% the day the program was scheduled and reads 34% now that goal 1's own five domains —
-> dates and times, regular expressions, JSON, URLs and paths — carry a row per name. `python
-> tools/gaps.py`, `python tools/holes.py` and `python tools/check-migration.py --report` are the
-> three worklists behind it, and no session re-derives one.
+> leaves one behind and it is not a throw. Stage 4's acceptance is closed. Stage 5 is on disk from
+> the walk outwards. `crates/nvs-runtime/src/graph.rs` is ADR 0023 § 2's graph copy written
+> **once**, with a private `Carrier` trait over it and two implementors — `Live`, which builds
+> values into the destination, and `Encode`, which appends § 3's closed format — so a rule added to
+> the walk reaches both carriers or neither and there is no third place to forget. Three decisions
+> are its module doc's, and each is the answer to a question the ADR states behaviourally.
+> **Identity is object identity and nothing else**: a string is immutable and an array is
+> copy-on-write, so sharing is unobservable in both and a cycle cannot be built through either,
+> which leaves the one heap shape with reference semantics as the one that needs an entry in the
+> identity map and a back-reference in the format. **A move at refcount 1 is decided per node, not
+> at the root**, because a uniquely-owned root can hold a child something else still holds, and
+> adopting that child would hand the other side mutable state its source can still see; the walk
+> therefore consumes one reference to every value and asks the carrier whether it may adopt the
+> allocation. And **an object's declared property names are written before any of their values**,
+> which is what lets a decode make § 3's whole mismatch check before it builds anything at all — the
+> refusal is `Slot` declares one property where the payload records two, not a half-filled instance.
+> `Core\Serialize` is the member surface over it (`crates/nvs-stdlib/src/serialize.rs`):
+> `encode(mixed): bytes` and `decode(bytes): mixed`, the second parameter carrying `Qual::Sink` so
+> ADR 0023 § 3's tainted-sink rule is a compile-time refusal with no launderer. The two members
+> classify one `GraphError` differently on purpose — a payload that is not this format is a
+> `ParseError`, and a value the program built that cannot cross is a `LogicError`. Reaching a
+> program's own class from a `Core` member needed one new seam, `Ctx::class_desc`, which reads the
+> table `set_runtime_error_class` already installed rather than registering a second one.
+> `examples/serialize.nvs` prints all four of its frozen lines, and its stale-shape golden is a real
+> payload now rather than the placeholder that stood there: the same class name with a second `int
+> $extra` beside `$n`, written in the format `graph.rs` emits. What is left of Stage 5 is items
+> 17-18's two `nvs-types` names — `serialize_decode_refuses_a_tainted_operand` and
+> `a_secret_value_is_refused_at_the_boundary_unless_revealed` — and joining the live carrier to the
+> `spawn` boundary, which has no boundary to join to until Stage 6. The steps the chain took are in
+> [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's own residue is the 1000-case
+> corpus count, which orders 1–4 meet as the suite grows; nothing else about M4 is open. What the
+> program is measured by is `python tools/check-migration.py` at 100% classified, which stood at 25%
+> the day the program was scheduled and reads 34% now that goal 1's own five domains — dates and
+> times, regular expressions, JSON, URLs and paths — carry a row per name. `python tools/gaps.py`,
+> `python tools/holes.py` and `python tools/check-migration.py --report` are the three worklists
+> behind it, and no session re-derives one.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

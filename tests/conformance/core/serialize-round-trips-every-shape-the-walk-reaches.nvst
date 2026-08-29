@@ -1,0 +1,62 @@
+--TEST--
+`Core\Serialize` round-trips every shape its walk reaches, asserted by counting the whole table rather than reading one row off a line — ADR 0023 § 2
+--FILE--
+<?nvs
+class Leaf {
+    public int $n = 0;
+    public function constructor(int $n) {
+        $this->n = $n;
+    }
+}
+
+// § 2: the graph copy is one operation over every shape a value can be, so the
+// property to assert is that the *whole* table survives — a member answering
+// plausibly for an `int` and losing a `bytes` still fails here.
+var $agree = 0;
+
+if ((Core\Serialize::decode(Core\Serialize::encode(null)) ?? "gone") == "gone") {
+    $agree = $agree + 1;
+}
+if ((Core\Serialize::decode(Core\Serialize::encode(true)) as bool) == true) {
+    $agree = $agree + 1;
+}
+if ((Core\Serialize::decode(Core\Serialize::encode(-7)) as int) == -7) {
+    $agree = $agree + 1;
+}
+uint $count = 9;
+if ((Core\Serialize::decode(Core\Serialize::encode($count)) as uint) == 9) {
+    $agree = $agree + 1;
+}
+if ((Core\Serialize::decode(Core\Serialize::encode(1.5)) as float) == 1.5) {
+    $agree = $agree + 1;
+}
+if ((Core\Serialize::decode(Core\Serialize::encode("héllo")) as string) == "héllo") {
+    $agree = $agree + 1;
+}
+// ADR 0009's binary scalar: a `bytes` must come back a `bytes`, which is what a
+// carrier that folded the two tags into one heap shape would lose.
+bytes $raw = Core\Encoding::fromHex("00ff01");
+if (Core\Bytes::length(Core\Serialize::decode(Core\Serialize::encode($raw)) as bytes) == 3) {
+    $agree = $agree + 1;
+}
+// A list keeps its integer keys, and a hashed array keeps its string ones —
+// two different `SlotKey` shapes over one node in the format.
+var $list = Core\Serialize::decode(Core\Serialize::encode([10, 20, 30])) as array<int>;
+if (Core\Arr::count($list) == 3) {
+    $agree = $agree + 1;
+}
+var $hash = Core\Serialize::decode(Core\Serialize::encode(["x" => 1, "y" => 2])) as array<int>;
+if (Core\Arr::count(Core\Arr::keys($hash)) == 2) {
+    $agree = $agree + 1;
+}
+// An object nested inside an array, which is where the walk's recursion and its
+// identity map meet.
+var $nested = Core\Serialize::decode(Core\Serialize::encode([new Leaf(4)])) as array<mixed>;
+Leaf $leaf = Core\Arr::first($nested) as Leaf;
+if ($leaf->n == 4) {
+    $agree = $agree + 1;
+}
+
+echo "agree=", $agree, "/10\n";
+--EXPECT--
+agree=10/10
