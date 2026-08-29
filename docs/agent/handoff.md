@@ -2,67 +2,72 @@
 
 ## State
 
-**A decision was reversed interactively on 2026-08-29, and it is this goal's next group.** ADR 0063 R2 now
-says every `Core` parameter is callable by the `$name` `docs/spec/01-core-library.md` writes, and the
-trailing options bag by `options` — the same rules a user-declared method already has. The ADR's body,
-ADR 0117's scope and gap-3 paragraph, `docs/adr/ground-rules.md`, the spec's *How to read an entry*, and
-the comments at every site that used to call the missing names "a decision, not a gap"
-(`crates/nvs-types/src/core_lib.rs`, `signatures.rs`, `crates/nvs-diagnostics` E0485,
-`crates/nvs-stdlib/src/lib.rs` § 3, `registry.rs`'s `ParamDoc::name`) are rewritten and say "Stage 0b lands
-it". **Nothing about any member's shape changes** — no parameter is added, removed, reordered or renamed —
-and the standing decision in `loop-goal.md` says what to do when a row's arity and the spec disagree.
-`loop-goal.md` has the stage as items 28–30, `loop-goal.toml` has its three checks in the catch-up class
-right after Stage 0's, and `[context]` carries four extra modules and `0063 §1` **that must be removed
-when the three checks are green** — the comments there say so.
+**Stage 0b item 28 is on disk: every `Core` parameter's name is on its registry row.** `CoreMethod::names`
+is one entry per `positional()` slot; the trailing bag is not on the row, because its one name is
+`registry::OPTIONS_NAME` beside `CoreTy::Options`. All 345 rows carry theirs. Three guards hold it and
+they are exactly the three names `loop-goal.toml` stage `0b named arguments` asks of `nvs-stdlib`.
+`crates/nvs-stdlib/src/registry.rs`'s `CoreMethod::names` doc is the rule's home; the plan's `Open now`
+holds where the three sources came from. **Nothing about any member's shape changed.**
 
-**Stage 8's two isolate corpus cases are on disk and green**, so `tests/conformance/isolate/` now holds four: the two that were already there, plus a child that shares neither a class static nor an output buffer with its parent (ADR 0006 § *Decision*, ADR 0116 § 4) and a child whose uncaught throw is data on the parent's result rather than an exception unwinding into it (§ *Failure is a value, not an exception*, with the success row named beside the failure one).
+**Items 29 and 30 are untouched and are the next group.** `crates/nvs-types/src/core_lib.rs:104` still
+seeds `param_names: None` and its comment now says so, so a name at a `Core` call site is still `E0485`
+where it is written.
 
-**The acceptance check the driver reports failing is Stage 7's, and it is an item still open rather than a regression.** `crates/nvs-test` is the `.nvst` runner (`case.rs`, `expect.rs`, `run.rs`) and has no `tests/` directory at all, so none of the four names that check asks for — starting with `each_test_runs_in_its_own_isolate_sharing_only_compiled_code` — can exist yet: ADR 0079's `#[Test]` surface is unbuilt. That is a stage of work, not a slice.
+**Two things the spec is authoritative for and does not write well**, both recorded here rather than
+fixed, because the standing decision forbids a shape change and neither is one:
 
-**ADR 0117's seam is on disk, and it now covers all three rosters**: `crates/nvs-stdlib/src/registry.rs` has `MethodDoc`/`ParamDoc`/`ShapeKeyDoc`/`ErrorDoc` and `CoreMethod::doc`, and beside them `EnumDoc`/`CaseDoc` on `CoreEnum::doc` and a plain `CoreConst::desc`; every row says nothing except `Str::length`, `Json::encode`, `Regex::match`, the enums `Core\Order` and `Core\RoundMode` (a line per case, `Charset` left as a table on purpose) and `Core\Math::PI`/`EPSILON`. `crates/nvs-cli/src/meta.rs` is `nvs meta --json` — `enums` top-level beside `classes`, `constants` on each class, no `doc` key where nothing is written — with goldens for a member, an enum and a constant in `crates/nvs-cli/tests/meta.rs`. An options bag is documented as one `ParamDoc` per option under the option's name. `cd website && npm run sync:core` reports `3 member(s), 2 enum(s), 2 constant(s) carry registry docs` with 0 warnings and `ClassOverview` renders cases and constants with their description or *not documented yet*; publishing stays a user-fired step, and the regenerated pages under `website/src/content` are not committed.
+- `Core\Arr::map`, `filter`'s siblings and four others take a parameter the spec names `$fn`, which is
+  the closure keyword. Item 29 has to decide whether `map(fn: $f)` parses; if it cannot, the fix is a
+  spec rename (a breaking change under R2), not a registry one.
+- § 4's prose writes `Date::at(int $y, uint $m, uint $d)` — one-letter names, taken verbatim, and the
+  only row in the registry whose names read worse than the member does. `DateTime::at`'s own table row
+  writes `year`/`month`/`day`. Nothing compares the two, because the guard reads table rows and this is
+  prose.
 
-**Known gap, unchanged:** the argument going *in* is not asked ADR 0023 § 2's unresolvable-class question, because the child's class table does not exist until its program's prologue installs it. `crates/nvs-host/src/isolate.rs`'s module doc names the `nvs_runtime::script` seam change that closes it.
+**The acceptance check the driver reports failing is Stage 7's, unchanged and still an item rather than a
+regression.** `crates/nvs-test` has no `tests/` directory at all, so none of the four names it asks for —
+`each_test_runs_in_its_own_isolate_sharing_only_compiled_code` first — can exist until ADR 0079's
+`#[Test]` surface is built. That is a stage of work.
 
-**Orientation gaps:** `[context] adrs` prints neither ADR 0006 § *Decision* nor § *Failure is a value, not an exception* nor ADR 0116 § 4. `[context] shapes` prints the `.nvst` shape without the `--FILE <path>--` auxiliary section. `[context] modules` still has no pattern for `nvs-runtime/src/graph.rs`.
+**Orientation gaps, unchanged from the last session:** `[context] adrs` prints neither ADR 0006
+§ *Decision* nor § *Failure is a value, not an exception* nor ADR 0116 § 4; `[context] shapes` prints the
+`.nvst` shape without the `--FILE <path>--` auxiliary section; `[context] modules` still has no pattern
+for `nvs-runtime/src/graph.rs`. New this session: `[context] modules` has no pattern for
+`nvs-types/src/expr/args.rs` either, which items 29's file set needs.
 
 ## Next group
 
-**Stage 0b — every `Core` member callable by name, items 28–30 of `docs/agent/loop-goal.md`.** One file
-set: `crates/nvs-stdlib/src/registry.rs` and the `params: &[` tables in `crates/nvs-stdlib/src/*.rs`,
-`crates/nvs-types/src/{core_lib,error_lib,iter_lib,signatures}.rs` and `expr/args.rs`,
-`crates/nvs-diagnostics/src/lib.rs`, `crates/nvs-cli/src/meta.rs`. Read ADR 0063 § 1's R2 row and its
-*Alternatives rejected* first bullet — that is the whole rule — and the `lang` case the `core` case is
-modelled on. The three checks are `loop-goal.toml` stage `0b named arguments`; every test and case they
-name is still to be written.
+**Stage 0b items 29 and 30 — the resolution and its cases.** One file set:
+`crates/nvs-types/src/{core_lib,signatures}.rs` and `expr/args.rs`, then `tests/conformance/`.
 
-- [ ] **Item 28 — the names, on the row.** `CoreMethod::names`, one per positional slot; the bag is
-      `options` once, on `CoreTy::Options`. Source is the spec's signature column, filled by a scratch
-      script emitting one `splice.py --patch`, reviewed by the guard test that parses the same column
-      (`every_registry_rows_names_are_the_specs_signature_column`). Where the script finds a row whose
-      arity is not the spec's, the standing decision applies: the spec's names, the row's `params`, and a
-      Backlog line here. Extend the doc-consistency test so a documented row's `ParamDoc::name`s equal its
-      `names`.
-- [ ] **Item 29 — the resolution.** `core_lib.rs` ~L97 reads `names` (+ `"options"` for a trailing bag)
-      into `param_names`; `error_lib.rs` ~L195 becomes `["message", "options"]`; `iter_lib.rs` ~L157
-      takes the spec's. Then no producer writes `None`: drop the `Option`, the `else` arm in
-      `named_slot` (`expr/args.rs` ~L315), and retire E0485 the way `nvs-diagnostics` retires a code —
-      grep `E0485` first. Prove with a scratch run, not by reading, that a reordered name, a skipped
-      defaulted positional and a name at `Str::format`'s tail behave at a helper call; `meta.rs` emits
-      `names` for every row. Rewrite the "Stage 0b lands it" comments at each site to the present tense.
-- [ ] **Item 30 — the three cases** the `conformance (Core by name)` check names, in `core/`, `error/`
-      and `reject/`. Then remove the four Stage 0b modules and `0063 §1` from `[context]` in
-      `loop-goal.toml` *and* `docs/agent/goals/2-concurrency.toml`, which mirror each other.
+- [ ] **Item 29 — read the names.** `crates/nvs-types/src/core_lib.rs:104` builds `param_names: None`;
+      make it `Some(names + OPTIONS_NAME where a bag is last)`. The reader already exists —
+      `crates/nvs-types/src/signatures.rs:237` is `MethodSig::index_of_name`, and `signatures.rs:910` is
+      how a *user* method fills the same field, which is the shape to copy. Every R2 rule
+      (`docs/adr/0063-core-api-conventions.md` § 1, row R2) is already enforced against
+      `param_names` for a user method, so this is a seeding change and not a checker change. The four
+      tests are `loop-goal.toml` stage `0b named arguments`, `nvs-types` check — start with
+      `a_core_member_is_called_by_the_names_the_spec_writes`. Watch the variadic tail: R2 says a name
+      never reaches one, `Core\Str::format` is the only row with one, and
+      `a_name_at_a_core_variadic_tail_is_unknown` is that assertion.
+- [ ] **Item 30 — the three cases**, named by the `conformance (Core by name)` check:
+      `tests/conformance/core/a-core-member-is-called-by-the-names-the-spec-writes.nvst`,
+      `tests/conformance/error/a-throwable-is-constructed-by-name.nvst`,
+      `tests/conformance/reject/a-misspelled-name-at-a-core-member-is-unknown.nvst`. The third needs
+      `E0486`-or-whatever `index_of_name` returning `None` reports today; `crates/nvs-diagnostics/src/lib.rs:1027`
+      is `E0485`, which is the *no names at all* refusal and stops applying the moment item 29 lands.
+- [ ] **When all three Stage 0b checks are green**, delete the four Stage 0b modules and the `0063 §1`
+      entry from `[context]` in `docs/agent/loop-goal.toml`, and copy that file over
+      `docs/agent/goals/<goal>.toml` — the two are byte-identical by construction. Its own comments at
+      lines 71, 92 and 161 say so.
 
 ## Backlog
 
-- **The three `tests/conformance/reject/` cases the Stage 8 corpus check names** — the group this one
-  displaced; they share `--EXPECTF-ERROR--` and the refusal sites in `crates/nvs-types`: `E0773`/`E0774`
-  at `expr/args.rs` (`bind_callable_shape`), `E0775` at `expr/quals.rs` (`reject_secret_boundary_argument`),
-  and `Core\Serialize::decode`'s `Qual::Sink` refusal by ordinary assignability.
-- The five `tests/conformance/task/` cases Stage 8's check names, all still missing — `docs/agent/loop-goal.toml` stage 8.
-- `tests/conformance/core/a-graph-copy-round-trips-a-cyclic-value.nvst` — ADR 0023 § 2, over `Core\Serialize`.
-- Stage 7 in full: ADR 0079's `#[Test]` surface and the four `nvs-test` names — `docs/plan/m5.md`.
-- The corpus floors: conformance 970 against 1000, differential 200 against 205 — `docs/agent/loop-goal.toml` stage 8.
-- Item 22: `Core\Script::args()` and `Core\Script::valueOrThrow($result)` — `crates/nvs-types/src/expr/isolate.rs`'s module doc.
-- `benches/isolation.rs` and its guard test — M5's *Verify* paragraph.
-- The 342 registry rows still at `doc: None`, the eight enums and the eleven constants still undocumented — ADR 0117, one `MethodDoc`/`EnumDoc`/`desc` beside each row, in the shape `crates/nvs-stdlib/src/str.rs`'s `LENGTH_DOC`, `arr.rs`'s `ORDER_DOC` and `math.rs`'s `PI` have; after Stage 0b a documented row's `ParamDoc` names must equal its `names`.
+- `$fn` as a callable-by-name parameter, and `Date::at`'s `$y`/`$m`/`$d` — both above, both
+  `docs/spec/01-core-library.md`'s to settle, neither a registry change.
+- Stage 7 is unbuilt: ADR 0079's `#[Test]` table, and `crates/nvs-test/tests/` does not exist.
+- ADR 0023 § 2's unresolvable-class question is asked of the answer and not the argument;
+  `crates/nvs-host/src/isolate.rs`'s module doc names the `nvs_runtime::script` seam change that closes it.
+- `Core\Secret::reveal()` is still absent from the registry, so ADR 0033's escape hatch is open at both
+  ends — the plan's `Open now` owns why.
+- M4's 1000-case conformance floor, which orders 1–4 meet as the suite grows.

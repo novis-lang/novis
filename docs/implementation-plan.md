@@ -489,7 +489,27 @@
 > `Core\RoundMode`, a line per case — and two constants, `Core\Math::PI` and `EPSILON`, through the
 > same seam's `EnumDoc` and `CoreConst::desc`; the other 342 rows, eight enums and eleven constants
 > say nothing yet and are documented one by one, each upgrading the website's reference on its next
-> `npm run sync:core`, whose report line counts how many carry one.
+> `npm run sync:core`, whose report line counts how many carry one. **Stage 0b's first half is on
+> disk: every `Core` parameter now has its name on the row.**
+> `nvs_stdlib::registry::CoreMethod::names` is one `&'static str` per positional slot, aligned to
+> `positional()`, and a trailing options bag is not on the row at all — its one name is
+> `registry::OPTIONS_NAME`, which lives beside `CoreTy::Options` because being callable as `options`
+> is a property of being a bag rather than a per-row choice. All 345 rows carry theirs, filled by a
+> scratch script from three sources in order: 255 from the signature column of
+> `docs/spec/01-core-library.md`, 71 from the `nvs_helper!` doc comment that writes the same
+> signature, and 19 by hand where neither does — the four constructors, `Core\Attributes`'s two (ADR
+> 0046 § 4), `Core\Test::assertTrue`, and `Core\Time\Duration`'s macro-generated accessors. Three
+> tests hold it, and they are the three names Stage 0b's `nvs-stdlib` check asks for:
+> `every_registry_rows_names_are_the_specs_signature_column` re-parses the spec's own column and
+> compares 234 rows against the registry live, so the names cannot drift from the file that versions
+> them (ADR 0063 R2); `every_registry_row_names_one_parameter_per_positional_slot` is the structural
+> half for the rows §§ 1-12 do not write, since a name resolves to a slot by index and two lists of
+> different lengths would bind an argument to the wrong parameter rather than reject it; and
+> `a_documented_rows_param_docs_agree_with_its_names` makes ADR 0117's `ParamDoc::name` a *key* into
+> the row rather than a second home for the same string. **No member's shape changed** — no
+> parameter added, removed, reordered or renamed. What is left is the resolution:
+> `nvs_types::core_lib` still seeds `param_names: None`, so a name at a `Core` call site is still
+> `E0485` where it is written, and that one line is item 29.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

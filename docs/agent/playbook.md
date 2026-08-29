@@ -941,6 +941,17 @@ is why" — is this file.
   simply that `--start` marks the end of editing, not the start of the tail.
 - **`Path.write_text` turns every `\n` into `\r\n` on Windows, and a test that reads the tree sees it.** A one-off script that rewrites `.rs` files must open them with `newline=""` (or write bytes): `.gitattributes` says `eol=lf`, git normalizes on commit so `git diff` looks fine, but `tests/conformance_coverage.rs` scans the working copy and reports every multi-line message as "neither asserted nor declared unreachable" with `\r\n` inside the quoted text. That is the signature; the fix is a byte-level `\r\n` → `\n` pass over the files the script touched, and it cost one full `verify.py` run.
 - **Two sessions in one tree: a file both edit is committed by whichever stages it first, with the other's hunks inside.** ADR 0117's enum-and-constant amendment first landed inside a commit about ADR 0063, because the other session staged the whole file while this one still held it dirty — that session then redid its commit without the foreign hunks, which is the right repair but cost both sessions a turn. `git status --short` a file before editing it; if it is already dirty and the hunks are not yours, either wait for that session's commit or stage your own hunks alone — `git show HEAD:<path>` plus your change through `git hash-object -w --stdin` and `git update-index --cacheinfo 100644,<blob>,<path>` stages a version the working tree never holds, which is also how two slices that touch one file get one commit each.
+- **`splice.py` writes LF, so splicing a CRLF working copy leaves the file mixed — and a gate that
+  reads source *bytes* then fails somewhere you did not touch.** Putting a `names:` line on
+  `crates/nvs-stdlib/src/str.rs`'s registry rows (line ~160) made
+  `every_error_path_is_asserted_or_declared_unreachable` fail on `Core\Str::wrap`'s message at line
+  2136, 2,000 lines away: `conformance_coverage.rs`'s `fault_sites` reads the message stem out of the
+  source, a `\`-continued string literal then carried a `\r` the `.nvst` corpus does not have, and the
+  stem stopped matching. The recognition test is that the reported stem contains a literal `\r\n`.
+  `python -c "b=open(p,'rb').read(); print(b.count(b'\r\n'), b.count(b'\n')-b.count(b'\r\n'))"` says
+  whether a file is mixed; the repository stores LF, so normalizing the whole file is the fix and not a
+  reversion. Do **not** reach for `git stash` to bisect this — the loop driver may hold the tree, and a
+  stash sweeps its in-flight work into yours.
 
 ## Running things
 
