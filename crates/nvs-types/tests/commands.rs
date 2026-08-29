@@ -2,19 +2,20 @@
 //! userland spelling out of the command table, and the payload check that is
 //! the pass behind both roster entries.
 //!
-//! The table itself has no rows yet — `nvs_types::commands`' gap 1 owns what §
-//! 6 still cannot report — so what is asserted here is exactly what the two
-//! names *are* today: recognized after `nvs_hir::resolve_ref`, checked against
-//! a roster of options rather than against a shape, and held to the two of § 6's
-//! three compile errors one parameter list answers on its own.
+//! What is asserted here is what the two names *are*: recognized after
+//! `nvs_hir::resolve_ref`, checked against a roster of options rather than
+//! against a shape, held to the two of § 6's three compile errors one parameter
+//! list answers on its own — and collected into the table the third is reported
+//! over, which is `ExprTypeTable::commands` and is the channel § 6's dispatch,
+//! usage text and completions all read.
 //!
 //! The marker's own placement is asserted here too: an `#[Option]` is refused
 //! where no `#[Command]` on the same method reads it, which is a question about
-//! the declaration and needs none of the table gap 1 still owes.
+//! the declaration and needs no table at all.
 
 mod common;
 
-use common::check_src;
+use common::{check_src, check_src_table};
 use nvs_diagnostics::code;
 
 /// § 6's own example, reduced to the two attributes and the one class member
@@ -232,4 +233,181 @@ fn an_option_marker_outside_a_command_method_is_refused() {
             .any(|d| d.code == Some(code::E_OPTION_WITHOUT_COMMAND)),
         "{diags:?}"
     );
+}
+
+/// § 6's own example, whole, plus a second command that shares nothing with it
+/// — enough for the table to be a table rather than a row.
+const PROGRAM: &str = "<?nvs\nuse Core\\Command;\nuse Core\\Option;\nclass Deploy {\n  \
+                       #[Command(name: \"deploy\", about: \"Push the current build\")]\n  \
+                       public static function deploy(\n    string $target,\n    \
+                       #[Option(short: \"n\", about: \"Print what would happen\")] bool $dryRun,\n    \
+                       #[Option] uint $retries = 3,\n  ): uint { return 0; }\n\n  \
+                       #[Command(name: \"status\")]\n  \
+                       public static function status(): void {}\n}\n";
+
+#[test]
+fn a_command_table_is_built_from_the_program_enumeration() {
+    // § 6 is ADR 0077's table with the route swapped for a command, over the
+    // same ADR 0061 § 3 enumeration, so what is asserted is what the route
+    // table's own case asserts: the rows exist, they are in load order, and
+    // they are reachable through `ExprTypeTable` — the channel every
+    // whole-program fact crosses to `nvs-ir` by. Nothing reads them back yet;
+    // `Core\Command::run` is a later goal's.
+    let (diags, exprs) = check_src_table(PROGRAM);
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    let table = exprs.commands();
+    assert_eq!(table.rows().len(), 2);
+    // Declaration order within a file, which is the order a duplicate is
+    // reported in, so a consumer walking the rows sees the program the
+    // diagnostics described.
+    let names: Vec<&str> = table.rows().iter().map(|row| row.name.as_str()).collect();
+    assert_eq!(names, ["deploy", "status"]);
+
+    // The name is the one lookup a command is found by — § 6's dispatch reads
+    // exactly this — and `about` is carried because `::help` is generated from
+    // the table rather than written by hand.
+    let deploy = table.named("deploy").expect("the named command");
+    assert_eq!(deploy.handler, "Deploy::deploy");
+    assert_eq!(deploy.about.as_deref(), Some("Push the current build"));
+    assert!(
+        table
+            .named("status")
+            .expect("the named command")
+            .about
+            .is_none()
+    );
+    assert!(table.named("migrate").is_none());
+
+    // "A parameter is a positional argument unless it carries `#[Option]`",
+    // and an option that writes no `long:` claims its parameter's own name —
+    // so a positional is exactly the argument claiming no spelling, and the
+    // declaration order is the positional order.
+    let args: Vec<(&str, Vec<&str>)> = deploy
+        .args
+        .iter()
+        .map(|arg| {
+            (
+                arg.param.as_str(),
+                arg.spellings.iter().map(String::as_str).collect(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        args,
+        [
+            ("target", vec![]),
+            ("dryRun", vec!["-n", "--dryRun"]),
+            ("retries", vec!["--retries"]),
+        ]
+    );
+    assert_eq!(
+        deploy.args[1].about.as_deref(),
+        Some("Print what would happen")
+    );
+
+    // ADR 0046 § 3's repetition: two `#[Command]`s on one method are two names
+    // for one implementation, which is what an alias is — the reading
+    // `#[Route]` already gets, and the only one that does not silently ignore
+    // an attribute the compiler recognizes.
+    let (diags, exprs) = check_src_table(&command_src(
+        "  #[Command(name: \"deploy\")]\n  #[Command(name: \"ship\")]\n  \
+         public static function deploy(): void {}\n",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+    let table = exprs.commands();
+    assert_eq!(table.rows().len(), 2);
+    assert_eq!(
+        table.named("ship").expect("the alias").handler,
+        "Deploy::deploy"
+    );
+
+    // Nominal, like every other name on the closed roster: a userland alias
+    // spelled `Command` contributes nothing, which is the whole reason § 6's
+    // two names sit on `nvs_types::derive::ATTRIBUTES`.
+    let (diags, exprs) = check_src_table(
+        "<?nvs\ntype Command = {name: string};\nclass Deploy {\n  \
+         #[Command(name: \"deploy\")]\n  public static function deploy(): void {}\n}\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+    assert!(exprs.commands().rows().is_empty());
+
+    // "A program with no `#[Command]` builds no table" — read back as empty
+    // rather than as absent.
+    let (_, exprs) = check_src_table("<?nvs\necho \"\";\n");
+    assert!(exprs.commands().rows().is_empty());
+}
+
+#[test]
+fn a_duplicate_command_name_is_a_diagnostic() {
+    // The first of § 6's three compile errors, and the one no declaration can
+    // answer on its own: a command line names one command and expects one
+    // answer, so which of two methods ran would otherwise depend on the order
+    // the files were walked in.
+    let diags = check_src(
+        "<?nvs\nuse Core\\Command;\nclass Deploy {\n  #[Command(name: \"deploy\")]\n  \
+         public static function deploy(): void {}\n}\nclass Ship {\n  \
+         #[Command(name: \"deploy\")]\n  public static function ship(): void {}\n}\n",
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_DUPLICATE_COMMAND)),
+        "{diags:?}"
+    );
+    assert_eq!(diags.error_count(), 1, "{diags:?}");
+
+    // Two `#[Command]`s on one method are two rows, so the same collision is
+    // reachable without a second method at all.
+    let diags = check_src(&command_src(
+        "  #[Command(name: \"deploy\")]\n  #[Command(name: \"deploy\")]\n  \
+         public static function deploy(): void {}\n",
+    ));
+    assert_eq!(diags.error_count(), 1, "{diags:?}");
+
+    // Two commands are only a collision when they claim one name; sharing a
+    // class, a parameter list or an option spelling is not it.
+    let diags = check_src(&command_src(
+        "  #[Command(name: \"deploy\")]\n  \
+         public static function deploy(#[Option] string $target): void {}\n  \
+         #[Command(name: \"ship\")]\n  \
+         public static function ship(#[Option] string $target): void {}\n",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn a_command_that_names_nothing_is_a_diagnostic() {
+    // § 6 leaves it unwritten and the table pass is what decides it: `name` is
+    // the word a command line selects a command by, so a row without one is
+    // reachable by nothing — `nvs_types::commands`' module docs own the
+    // reasoning, and ADR 0077 § 1's optional `name` is a different question
+    // because a route is reached by its path.
+    for attributes in [
+        "  #[Command]\n  public static function deploy(): void {}\n",
+        "  #[Command(about: \"Push it\")]\n  public static function deploy(): void {}\n",
+    ] {
+        let diags = check_src(&command_src(attributes));
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_COMMAND_WITHOUT_NAME)),
+            "{diags:?}"
+        );
+        assert_eq!(diags.error_count(), 1, "{diags:?}");
+    }
+
+    // A `name` written at the wrong type is the roster's report and only the
+    // roster's: naming it a second time as a missing field would put the
+    // author's second problem before their first.
+    let diags = check_src(&command_src(
+        "  #[Command(name: 1)]\n  public static function deploy(): void {}\n",
+    ));
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code == Some(code::E_COMMAND_WITHOUT_NAME)),
+        "{diags:?}"
+    );
+    assert_eq!(diags.error_count(), 1, "{diags:?}");
 }
