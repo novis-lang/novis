@@ -37,6 +37,12 @@
 //! what a worker's body is. The scheduler itself still knows nothing about I/O,
 //! so a run queue remains testable with none in it at all.
 //!
+//! A wake does not have to come from the kernel. [`RemoteWake`] is a one-shot,
+//! `Send` permission to wake one task from another thread, which is how a call
+//! with no readiness to wait on gets off the core at all; `reactor`'s docs
+//! § *A wake that comes from another thread* own the mechanism and the counter
+//! that stops the core giving up on a task while one is outstanding.
+//!
 //! A task reaches that reactor through a thread-local, not through an argument:
 //! [`reactor::install`] holds one on the worker's thread and
 //! [`reactor::with_current`] borrows it, because a socket's `Read` is handed a
@@ -58,10 +64,18 @@
 //! recursion limit's bounds come from — a task's limit is armed from the stack
 //! this crate handed it, not asserted from a ceiling.
 //!
-//! **Still outstanding:** the blocking pool ADR 0106 § 6 sends filesystem
-//! calls, name resolution and child processes to.
+//! [`blocking`] is the other half of that: the pool ADR 0106 § 6 sends a
+//! filesystem call, a name resolution or a wait on a child process to, bounded
+//! at twice the core count and started only when work arrives.
+//! [`blocking::run`] is the whole handoff — off the core, back through a
+//! [`RemoteWake`] — and it is the only way a call with no readiness to wait on
+//! reaches a thread here.
+//!
+//! **Still outstanding:** the watchdog that notices a core which has stopped
+//! turning at all.
 
 pub mod affinity;
+pub mod blocking;
 pub mod net;
 pub mod reactor;
 pub mod scheduler;
@@ -69,10 +83,11 @@ pub mod stack;
 pub mod timer;
 
 pub use affinity::{CpuId, cpus, pin_current_thread};
+pub use blocking::BlockingPool;
 #[cfg(unix)]
 pub use net::NvsUnix;
 pub use net::{NvsStream, NvsTcp};
-pub use reactor::{Installed, Interest, Reactor, run_until_idle};
+pub use reactor::{Installed, Interest, Reactor, RemoteWake, run_until_idle};
 pub use scheduler::{
     Finished, RunReport, Scheduler, TaskId, Waiting, current_task, suspend, suspend_current,
 };
