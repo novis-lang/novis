@@ -1,0 +1,154 @@
+--TEST--
+Core\Arr::firstKey and ::lastKey name the ends of the order foreach walks after every step of a script of writes and removals — a write over a held key moving it nowhere, and a removal then a write moving it to the end — ADR 0007 § 5 and spec § 2
+--FILE--
+<?nvs
+// `arr-key-answering-members-agree-on-one-spelling` asks the six key-answering
+// members to agree about a table of *finished* arrays, and
+// `arr-first-and-last-answer-null-over-an-empty-array` asks about the one array
+// that has no ends. Neither one ever writes: `crates/nvs-stdlib/src/arr.rs:3422`
+// and `:3437` find their answers by walking `next_slot`, so what is untested is
+// the order that walk sees once an array has had keys added over, removed and
+// added back. This case asks the same agreement after every step of such a
+// script — the two members against `keys`, against what `foreach` binds, and
+// against the two value-answering members — so a member reading a stale end,
+// or a slot a removal freed, fails while the array still prints plausibly.
+final class Ends {
+    /// 1 when every way of naming this array's two ends agrees, 0 otherwise.
+    public static function agrees(array<string> $a): int {
+        array<string> $keys = Core\Arr::keys($a);
+        if (Core\Arr::firstKey($a) != Core\Arr::first($keys)) {
+            return 0;
+        }
+        if (Core\Arr::lastKey($a) != Core\Arr::last($keys)) {
+            return 0;
+        }
+
+        // What `foreach` binds is the definition the other members are being
+        // held to: ADR 0007 § 5's insertion order, walked afresh each step.
+        string $walkedFirst = "";
+        string $walkedLast = "";
+        uint $n = 0;
+        foreach ($a as string $k => string $v) {
+            if ($n == 0) {
+                $walkedFirst = $k;
+            }
+            $walkedLast = $k;
+            $n = $n + 1;
+        }
+        if ($n != Core\Arr::count($a)) {
+            return 0;
+        }
+        // No entries: both members answered `null` above, against `first` and
+        // `last` over an empty `keys`, and there is no walk to compare to.
+        if ($n == 0) {
+            return 1;
+        }
+        if (Core\Arr::firstKey($a) != $walkedFirst) {
+            return 0;
+        }
+        if (Core\Arr::lastKey($a) != $walkedLast) {
+            return 0;
+        }
+        // And the keys they name are the keys of the entries the two
+        // value-answering members hand back, which is what makes them a pair
+        // rather than two members that happen to walk the same way.
+        if ($a[$walkedFirst] != Core\Arr::first($a)) {
+            return 0;
+        }
+        if ($a[$walkedLast] != Core\Arr::last($a)) {
+            return 0;
+        }
+        return 1;
+    }
+
+    /// The order and its two ends, `-` for an end an empty array does not have.
+    public static function ends(array<string> $a): string {
+        ?string $f = Core\Arr::firstKey($a);
+        ?string $l = Core\Arr::lastKey($a);
+        string $fs = "-";
+        string $ls = "-";
+        if ($f != null) {
+            $fs = $f;
+        }
+        if ($l != null) {
+            $ls = $l;
+        }
+        return "[" . Core\Str::join(Core\Arr::keys($a), ",") . "] " . $fs . ".." . $ls;
+    }
+}
+
+array<string> $a = ["x" => "1", "y" => "2", "z" => "3"];
+int $steps = 0;
+int $agreed = 0;
+string $trace = "";
+
+// Step 1 — the literal's own order.
+$steps = $steps + 1;
+$agreed = $agreed + Ends::agrees($a);
+$trace = $trace . Ends::ends($a) . "\n";
+
+// Step 2 — a write over a key the array already holds overwrites in place and
+// moves it nowhere, so neither end changes even though the middle did.
+$a["y"] = "9";
+$steps = $steps + 1;
+$agreed = $agreed + Ends::agrees($a);
+$trace = $trace . Ends::ends($a) . "\n";
+
+// Step 3 — the same key removed and written again is a *new* entry, so it
+// moves to the end and `lastKey` follows it. This is the pair of steps that
+// makes the order an insertion order rather than a first-seen one.
+unset($a["y"]);
+$a["y"] = "8";
+$steps = $steps + 1;
+$agreed = $agreed + Ends::agrees($a);
+$trace = $trace . Ends::ends($a) . "\n";
+
+// Step 4 — a key the array never held lands at the end like any other.
+$a["w"] = "4";
+$steps = $steps + 1;
+$agreed = $agreed + Ends::agrees($a);
+$trace = $trace . Ends::ends($a) . "\n";
+
+// Step 5 — removing the first entry moves `firstKey` on, and the freed slot is
+// not what the next walk finds.
+unset($a["x"]);
+$steps = $steps + 1;
+$agreed = $agreed + Ends::agrees($a);
+$trace = $trace . Ends::ends($a) . "\n";
+
+// Step 6 — removing the last entry moves `lastKey` back, and `Core\Arr::append`
+// then puts an integer key after the string ones, since it is the next free
+// integer and not a position.
+unset($a["w"]);
+$a = Core\Arr::append($a, "5");
+$steps = $steps + 1;
+$agreed = $agreed + Ends::agrees($a);
+$trace = $trace . Ends::ends($a) . "\n";
+
+// Step 7 — an array emptied by removals has no ends at all, exactly as one
+// that never had an entry.
+unset($a["z"]);
+unset($a["y"]);
+unset($a["0"]);
+$steps = $steps + 1;
+$agreed = $agreed + Ends::agrees($a);
+$trace = $trace . Ends::ends($a) . "\n";
+
+// Step 8 — and one entry is both ends of itself.
+$a["back"] = "6";
+$steps = $steps + 1;
+$agreed = $agreed + Ends::agrees($a);
+$trace = $trace . Ends::ends($a) . "\n";
+
+echo $steps as string, " ", $agreed as string, "\n";
+echo $trace;
+--EXPECT--
+8 8
+[x,y,z] x..z
+[x,y,z] x..z
+[x,z,y] x..y
+[x,z,y,w] x..w
+[z,y,w] z..w
+[z,y,0] z..0
+[] -..-
+[back] back..back
