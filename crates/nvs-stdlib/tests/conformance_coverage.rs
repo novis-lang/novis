@@ -261,10 +261,7 @@ impl Attribution {
 /// `python tools/gaps.py --coverage` ranks these by class and names each one's
 /// anchor; a case that asks one of them a *second question* — not the same
 /// question again — is what removes a line.
-const BELOW_THE_FLOOR: &[&str] = &[
-    r"Core\Router::urlAbsolute",
-    r"Core\Time\TimeOfDay::compareTo",
-];
+const BELOW_THE_FLOOR: &[&str] = &[r"Core\Router::urlAbsolute"];
 
 /// Stage 5's item 10: no `Core` member is asked by fewer than three cases.
 ///
