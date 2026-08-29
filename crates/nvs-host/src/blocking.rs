@@ -487,6 +487,57 @@ mod tests {
         );
     }
 
+    /// Item 6's two halves in one place: the call reaches the *pool* rather
+    /// than the core, and the pool it reaches is ADR 0106 § 6's — bounded at
+    /// twice the core count, per worker, however many calls are in flight. The
+    /// jobs overlap on purpose (each holds its thread while the rest are
+    /// submitted), so a pool that grew with the fan-out would be caught here
+    /// rather than merely being under its bound by luck.
+    #[test]
+    fn a_blocking_call_goes_to_a_pool_bounded_at_twice_the_core_count() {
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+        assert_eq!(
+            pool_size(),
+            (0, bound()),
+            "this thread's pool had already started threads"
+        );
+
+        // Two more calls than the pool may have threads, so the last two have
+        // to wait for a thread rather than make one.
+        let calls = bound() + 2;
+        let elsewhere = Rc::new(Cell::new(0_usize));
+        let here = std::thread::current().id();
+        for _ in 0..calls {
+            let counted = Rc::clone(&elsewhere);
+            sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+                let ran_on = run(|| {
+                    // Long enough that every task has submitted before any job
+                    // ends, which is what makes the calls concurrent.
+                    std::thread::sleep(Duration::from_millis(40));
+                    std::thread::current().id()
+                });
+                assert_ne!(ran_on, here, "the blocking call ran on the core");
+                counted.set(counted.get() + 1);
+            });
+        }
+
+        let report = run_until_idle(&mut sched).expect("the loop failed");
+        assert_eq!(report.finished, calls, "a blocking call never came back");
+        assert_eq!(elsewhere.get(), calls);
+
+        let (threads, limit) = pool_size();
+        assert_eq!(limit, cpus().len().max(1) * 2, "ADR 0106 § 6's number");
+        assert!(
+            threads <= limit,
+            "{calls} concurrent calls started {threads} threads against a bound of {limit}"
+        );
+        assert_eq!(
+            threads, limit,
+            "the calls did not overlap, so the bound was never the thing being tested"
+        );
+    }
+
     #[test]
     fn a_blocking_call_off_a_core_runs_on_this_thread() {
         let ran = Rc::new(Cell::new(false));

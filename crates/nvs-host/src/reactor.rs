@@ -620,19 +620,30 @@ impl Reactor {
                     woken += 1;
                 }
             }
-            if woken > 0 || timeout == Some(Duration::ZERO) || self.timers.is_empty() {
+            let can_still_wake = !self.timers.is_empty() || self.remote_waits() > 0;
+            if woken > 0 || timeout == Some(Duration::ZERO) || !can_still_wake {
                 return Ok(woken);
             }
-            // A bounded wait that came back with nothing to show for it, and a
-            // deadline still filed. That is ordinary rather than exceptional —
-            // a platform rounds a wait to its own timer granularity and can
-            // return a fraction of a millisecond early — and returning `0` here
-            // would tell the caller that nothing can wake these tasks any more,
-            // which is exactly the task-abandoned bug. So the wait is retried
-            // until it has genuinely reached the earliest deadline. The retry
-            // is not free if readiness is also arriving for a task that no
-            // longer parks; it is bounded by that deadline, and abandoning a
-            // parked task is the worse of the two.
+            // A wait that came back with nothing to show for it, and something
+            // that can still end it. Returning `0` here would tell the caller
+            // that nothing can wake these tasks any more, which is exactly the
+            // task-abandoned bug, so the wait is retried instead. The retry
+            // test is deliberately the *same* one the blocking state above is
+            // entered on: a turn that would block for a reason may not then
+            // report that reason gone.
+            //
+            // Both halves are ordinary rather than exceptional. A platform
+            // rounds a wait to its own timer granularity and can return a
+            // fraction of a millisecond before the earliest deadline. And a
+            // poke outlives the drain it belongs to: one drain takes the ids of
+            // several pokes at once (the paragraph above `WAKE_TOKEN`'s
+            // handling in `poll`), so the surplus pokes come back ready over an
+            // empty queue — with the pool saturated, that is the common case
+            // and not a rare one.
+            //
+            // The retry is not free if readiness is also arriving for a task
+            // that no longer parks; it is bounded by the earliest deadline, and
+            // abandoning a parked task is much the worse of the two.
         }
     }
 }
