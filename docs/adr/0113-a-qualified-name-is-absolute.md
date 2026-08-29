@@ -12,15 +12,21 @@
 - **Depends on:** [0011](0011-functions-and-constants-are-class-members.md) — removing free functions
   and constants is what leaves classes as the only kind of name to resolve, and so what makes PHP's
   fallback-to-global rule removable rather than load-bearing.
+- **Amends:** [0071](0071-derived-codecs.md) — § 1's worked example and its M4 verification line reached
+  the derive attributes through `use Core\Json;` and `#[Json\Derive]`, a namespace-prefix import § 1 here
+  no longer resolves; both now import the attribute itself (`use Core\Json\Field;`) or write it in full.
+  The nominal-matching rule they illustrate is unchanged — only the spelling that reaches it.
 
 > **In short:** a name containing a `\` is **absolute**, read from the root, everywhere it can be
 > written. A name containing no `\` is a **short name**, resolved through the file's imports and then
 > its own namespace, and nowhere else. A **leading `\` does not parse** — `\App\Models\User`,
 > `use \App\Models\User;` and `namespace \App;` are each a diagnostic naming the spelling without it.
-> This removes PHP's rule that a qualified name is relative to the current namespace, which is the
-> only construct that changes meaning: inside `namespace App;`, `Models\User` named `App\Models\User`
-> in PHP and is refused here, in favour of writing `App\Models\User` or importing it. One rule decides
-> every name, in one function, with no position where the same two spellings mean different things.
+> This removes the two PHP constructs that read a qualified name against something other than the root:
+> a name **relative to the current namespace** (inside `namespace App;`, `Models\User` named
+> `App\Models\User`), and a name whose first segment is a **namespace-prefix import** (`use Core\Json;`
+> then `Json\Derive`). Both are refused in favour of the absolute spelling, or of importing the name
+> itself — an import binds one whole short name and is never a prefix. One rule decides every name, in
+> one function, with no position where the same two spellings mean different things.
 
 ## Context
 
@@ -42,11 +48,14 @@
   namespace enclosing the code that asks. That turns "which namespace does this name sit in" from a
   readability question into an authority question, so a resolution rule with two branches is a grant
   lookup with two branches. The rule has to be settled underneath 0112, not beside it.
-- The cost of deciding it now is measurably near zero and grows monotonically. At the time of writing,
-  25 of 1188 fixtures declare a namespace, all of them flat (`namespace App;`, `namespace App\Sub;`);
-  **none uses a relative qualified name and none writes a leading `\` anywhere**. The parity program's
-  six goals — the framework, five drivers, the package system — are what will produce namespaced code
-  in volume, and every line of it is written against whichever rule is in place when it is written.
+- The cost of deciding it now is measurably small and grows monotonically. At the time of writing, 24
+  of 1188 fixtures declare a namespace, all of them flat (`namespace App;`, `namespace App\Sub;`), and
+  **not one uses a relative qualified name** — so nothing in the corpus changed meaning under § 1. The
+  leading `\` was written in 405 places across 34 files, every one of them a `Core\`-prefixed attribute
+  or enum name (`#[\Core\Route(...)]`, `\Core\Http\Method::Get`) whose meaning is identical either way,
+  and all of them were rewritten mechanically. The parity program's six goals — the framework, five
+  drivers, the package system — are what will produce namespaced code in volume, and every line of it
+  is written against whichever rule is in place when it is written.
 - PHP's fallback-to-global for an unqualified name exists because a function or constant call had to
   find a built-in from inside a namespace. [ADR 0011](0011-functions-and-constants-are-class-members.md)
   removed free functions and constants entirely, so nothing is left that the fallback was for.
@@ -61,23 +70,32 @@ then the enclosing namespace. A leading `\` is refused rather than accepted-and-
 Given a name as written, and the namespace and import set active where it was written:
 
 - **Contains a `\`** → it is the fully-qualified name, read from the root. The enclosing namespace and
-  the import set are not consulted at all.
+  the import set are not consulted at all — **not even for its first segment**, which is what makes a
+  namespace-prefix import (`use Core\Json;` then `Json\Derive`) name nothing.
 - **Contains no `\`** → look it up in the import set; failing that, in the enclosing namespace. If
   neither has it, the name does not resolve, and there is no third place to look.
+
+A `use` therefore does exactly one thing: it binds **one declaration** under its own short name. That is
+already all [ADR 0015](0015-no-name-aliasing.md) § 2 says an import is, and importing a *namespace* —
+a second, prefix-shaped meaning for the same statement — stops being a concept here rather than being a
+feature that quietly coexists with it.
 
 ```php
 namespace App;
 
+use App\Models;           // binds the name `Models`, and nothing under it
 use App\Models\User;      // unchanged — a `use` path was always absolute
 use Throwable;            // how a root-level name is reached (§ 2)
 
 new User();               // short: found in the imports
 new App\Models\User();    // absolute — the same name from any namespace
-new Models\User();        // refused (§ 5) — write App\Models\User, or import it
+new Models\User();        // refused (§ 5) — the import above does not reach in
 ```
 
-The last line is the only construct whose meaning changes. In PHP it named `App\Models\User`; here it
-names `Models\User`, which does not exist, and the diagnostic says so in those terms.
+The last line is where both changed constructs land, and they are the same mistake seen twice: PHP would
+have read `Models\User` as relative to `namespace App;` *or* as reaching through the `use App\Models;`
+above it, and both answers were `App\Models\User`. Here it names `Models\User`, which does not exist,
+and the diagnostic says so in those terms.
 
 ### 2. There is no fallback to the root namespace
 
@@ -94,7 +112,9 @@ try { ... } catch (Throwable $e) { ... }
 ```
 
 A single-segment `use` is not a special form; it is the ordinary absolute path to a name whose path
-happens to be one segment long. The reserved tree gets no auto-import, for the same reason
+happens to be one segment long — and an import naming a reserved global is trusted at the import the
+same way one naming a `Core` class is, since neither has a user declaration to check against. The
+reserved tree gets no auto-import, for the same reason
 [ADR 0011](0011-functions-and-constants-are-class-members.md) § 2 gives `Core` none: a name that
 resolves without appearing anywhere in the file is a name a reader cannot trace, and one closed
 roster's worth of exception would be a second resolution rule to hold alongside § 1's.
@@ -178,6 +198,10 @@ that decides what a name means is the state this ADR exists to leave.
 - Reaching into a sub-namespace is more typing: `App\Models\User` or a `use`, where PHP allowed
   `Models\User`. This is the same trade [0015](0015-no-name-aliasing.md) *Consequences* made for import
   renaming — strictly more to type, strictly less to keep track of.
+- **A namespace-prefix import no longer reaches anything**, so a file wanting several names from one
+  namespace writes one `use` per name rather than one for the prefix. [0071](0071-derived-codecs.md)
+  § 1's own example was written this way and is amended here. The compensation is that `use` acquires a
+  single meaning, which is the half of this that a reader pays for once and benefits from thereafter.
 
 Unlike most divergences, this one is **mechanically lossless for `nvs convert`**: the converter holds
 the enclosing namespace and the import set at every name, which is exactly what resolving the PHP form
@@ -197,6 +221,12 @@ program resolves every name to the class PHP resolved it to.
 - **Keep relative qualified names, and only ban the leading `\`.** The smaller change, and the worse
   one: it leaves the confusing half (a name that means different things in different namespaces) and
   removes the half that let a reader escape it. Strictly worse than either endpoint.
+- **Resolve a qualified name's *first segment* through the imports, and take the rest as absolute.**
+  This would have kept the namespace-prefix import — `use Core\Json;` then `Json\Derive` — at the cost
+  of `App\Models\User` meaning one thing in a file that imports `App` and another in a file that does
+  not. Rejected on the ground the whole ADR rests on: that is a second reading of one spelling, decided
+  by a line elsewhere in the file, which is the shape of the original complaint rather than a
+  concession within it. Writing `use Core\Json\Derive;` costs one line and reads as what it is.
 - **Keep the leading `\` as the *only* way to write an absolute name, banning the bare qualified form.**
   The mirror-image rule, and internally consistent. Rejected because it makes every `use` path and
   every `Core\Str` reference in the corpus and in every ADR's examples wrong, to reach a state no more
@@ -226,7 +256,8 @@ program resolves every name to the class PHP resolved it to.
   the spelling without the `\`; the `Backslash` arm is gone from `parse_namespace_decl`'s name predicate
   and from `parse_name`'s leading `eat`.
 - **M2:** `resolve_ref` consults the namespace and imports for a single-segment name only, and returns a
-  multi-segment name unchanged; `Models\User` inside `namespace App;` reports `E0322` naming
+  multi-segment name unchanged — including one whose first segment is an imported name, so a
+  namespace-prefix import resolves to nothing; `Models\User` inside `namespace App;` reports `E0322` naming
   `App\Models\User`; a short name found in neither the imports nor the enclosing namespace reports the
   ordinary unresolved-name error with no root-namespace attempt; a fixture catching `Throwable` from
   inside a namespace resolves it through an explicit `use` and fails without one.

@@ -3942,3 +3942,17 @@ every session. Nothing below was reworded on the way.
   `D` is a one-based day of year against a zero-based `z`, and `K`/`k` are hour cycles PHP has no
   letter for at all. `tests/differential/lang/a-date-format-string-renders-as-phps-does.nvst` is where
   all four are written out.
+
+- **`grep -r --include=<glob> .` through the Bash tool walks this tree and silently finds nothing**,
+  returning exit 0 with no output, so it reads as a clean answer rather than a broken search. It found
+  0 hits for a pattern that ripgrep found 172 of, across files it had just been pointed at by name.
+  Use the **Grep tool** for any repo-wide question whose answer you are about to write down — a shell
+  `grep -n` on *one named file* is still fine, and is how the discrepancy surfaced. This cost an ADR a
+  wrong corpus count, stated as a measured fact and committed before the tests disagreed with it.
+- **A name-spelling change has three corpora, not one, and the third only fails at the very end.**
+  `.nvs`/`.nvst` fixtures hold the spelling literally; Rust test fixtures hold it **escaped**
+  (`"#[\\Core\\Route]"`, two bytes per separator); and a handful hold it in a **raw string**
+  (`r#"#[\Core\Route]"#`, one byte). A regex written for either of the first two matches nothing in the
+  third, so the sweep looks complete, the workspace builds, and one test in one crate fails on a
+  fixture nothing else touches. Sweep for the single-byte form *after* the escaped one and check the
+  hits are only doc comments before believing you are done.

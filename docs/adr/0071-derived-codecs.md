@@ -23,7 +23,7 @@
   `ParseError`'s `issues` and the `Core\Issue` shape, § 18 gains the `Db` half.
   [docs/implementation-plan.md](../implementation-plan.md) — M4S gains the derive pass and its conformance
   cases.
-- **Amended by:** 0077, 0085, 0086, 0096, 0102
+- **Amended by:** 0077, 0085, 0086, 0096, 0102, 0113
 
 > **In short:** [ADR 0063](0063-core-api-conventions.md) § 4 rejected *structural* encoding of public
 > properties, because it makes a class's public shape an implicit wire contract that a refactor breaks
@@ -82,14 +82,15 @@ type Core\Db\Field    = {name?: string, skip?: bool};
 ```
 
 ```php
-use Core\Json;
+use Core\Json\Derive;
+use Core\Json\Field;
 
-#[Json\Derive]
+#[Derive]
 class User {
     public function constructor(
         public uint $id,
         public tainted string $name,
-        #[Json\Field(name: "email_address")] public tainted string $email,
+        #[Field(name: "email_address")] public tainted string $email,
         public ?Instant $lastSeenAt,
         public Role $role,
     ) {}
@@ -102,6 +103,10 @@ echo Json::encode($u);              // {"id":7,"name":"…","email_address":"…
 **A compiler-recognized attribute is matched nominally.** The compiler acts on an attribute only when its
 `Name` **resolves** — through the ordinary namespace and `use` rules, case-sensitively per
 [ADR 0062](0062-case-sensitivity-is-a-compiler-property.md) — to one of a **closed, `Core`-owned list**.
+So `#[Core\Json\Derive]` and a `use`d `#[Derive]` are one attribute, reached two ways. An import binds the
+whole short name and is never a namespace prefix, so `use Core\Json;` followed by `#[Json\Derive]` is not
+one of those two ways: a qualified name is absolute
+([ADR 0113](0113-a-qualified-name-is-absolute.md) § 1), and `Json\Derive` names nothing.
 
 **This table is that list's one home.** An ADR adding an entry says its attribute "joins the closed list"
 and states no running total; a count restated in each amending ADR is a count that goes stale, and by the
@@ -364,8 +369,8 @@ be generic over the format rather than one interface per format.
 ## Verification
 
 - **M4** (checker, alongside the `#[...]` grammar): the nominal-match rule — a userland `type Derive = {};`
-  attached to a class generates nothing, `#[Core\Json\Derive]` and a `use`d `#[Json\Derive]` are the same
-  attribute, `#[JSON\Derive]` is a casing diagnostic naming
+  attached to a class generates nothing, `#[Core\Json\Derive]` and a `use Core\Json\Derive;`-ed
+  `#[Derive]` are the same attribute, `#[JSON\Derive]` is a casing diagnostic naming
   [ADR 0062](0062-case-sensitivity-is-a-compiler-property.md), and a bare `#[{}]` triggers no derive.
 - **M4S:** the derive's compile errors, one fixture each — a property that is not a constructor parameter, a
   parameter whose type differs from its property's, a `lateinit` field, a `secret` field, a field of a type
