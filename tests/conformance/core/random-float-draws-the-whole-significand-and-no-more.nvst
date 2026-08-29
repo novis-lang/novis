@@ -1,0 +1,70 @@
+--TEST--
+Core\Random::float draws 53 bits and exactly 53 — every draw is an exact multiple of 2^-53, the last of those bits varies, and no draw sits on the 2^-32 grid a narrower generator would leave it on — spec § 11, ADR 0063 R5
+
+--FILE--
+<?nvs
+// The sibling bound case pins the *interval* — nothing below `0.0`, `1.0`
+// never produced. That leaves the other half of the member's contract, which
+// its doc comment states and no case asked about: "53 random bits, the whole
+// significand of an `f64`". A generator drawing 32 bits and dividing satisfies
+// every interval assertion ever written about `[0, 1)` and is a different
+// member, because a caller scaling into a range wider than 2^32 gets a comb
+// rather than a distribution.
+//
+// The width is asked as a grid question, which is the one an `f64` answers
+// exactly: a value built from `k` random bits is a multiple of `2^-k`, so
+// multiplying by `2^k` lands on a whole number. `Core\Math::floor` compares
+// equal to its argument exactly when that argument is already integral, and no
+// `as int` is needed — the scaled value reaches 2^53, which is the first place
+// an `int` cast would start rounding rather than reporting.
+int $drawn = 0;
+int $integral = 0;
+int $coarse = 0;
+int $odd = 0;
+int $even = 0;
+
+for (int $i = 0; $i < 200; $i = $i + 1) {
+    float $f = Core\Random::float();
+    $drawn = $drawn + 1;
+
+    // The ceiling on the width: every draw is a multiple of 2^-53, so scaling
+    // by 2^53 is integral for all 200 of them. A generator handing back more
+    // than 53 bits of entropy cannot — the significand has nowhere to put
+    // them — so this counts what the member promises and what the type allows
+    // at once.
+    float $units = $f * 9007199254740992.0;
+    $integral = $integral + ((Core\Math::floor($units) == $units) ? 1 : 0);
+
+    // The floor on the width, and the half that catches a narrower generator:
+    // a 32-bit draw is a multiple of 2^-32 *every* time. One draw off that
+    // grid is enough to refuse the claim, and the probability of a genuine
+    // 53-bit draw landing on it is 2^-21 per draw — so "not all of them" is
+    // asserted rather than "none of them", which is the only form of this that
+    // is not a coin flip frozen into a file.
+    float $coarseUnits = $f * 4294967296.0;
+    $coarse = $coarse + ((Core\Math::floor($coarseUnits) == $coarseUnits) ? 1 : 0);
+
+    // The *last* of the 53 bits, asked on its own: an odd multiple of 2^-53
+    // exists only if bit 53 is drawn rather than fixed. Both parities appearing
+    // over 200 draws is what "the whole significand" means at the far end,
+    // where a generator that filled 52 bits and shifted would answer even every
+    // time and pass both counts above.
+    float $half = $units / 2.0;
+    if (Core\Math::floor($half) == $half) { $even = $even + 1; } else { $odd = $odd + 1; }
+}
+
+echo "integral ", $integral, " of ", $drawn, "\n";
+echo "coarse ", ($coarse < $drawn) ? "no" : "yes", "\n";
+echo "parities ", (($odd > 0) && ($even > 0)) ? "both" : "one", "\n";
+
+// The two ends of the grid named together on one line, which is the shape this
+// case is: 2^-53 is the step the member draws on, and 2^-32 is the coarsest
+// step it must not be confined to. Between them sit the 21 bits a narrower
+// generator silently drops.
+echo "grid ", (($integral == $drawn) && ($coarse < $drawn)) ? "53 bits" : "narrower", "\n";
+
+--EXPECT--
+integral 200 of 200
+coarse no
+parities both
+grid 53 bits
