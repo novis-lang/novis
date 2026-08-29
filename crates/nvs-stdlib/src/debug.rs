@@ -143,6 +143,13 @@ nvs_runtime::nvs_helper! {
             return Ok(Value::null());
         }
         let rendered = nvs_render::plain::render_nodes(&record.nodes);
+        // Unreachable from source, and by a different route than the checker
+        // refusals elsewhere in this file: the only diagnostic sink that can
+        // fail is `OutputSink::Stderr` — `Buffer` and `Sink` never do, which
+        // `Ctx::write_diagnostic`'s own `# Errors` states — and nothing in the
+        // language moves the channel or closes the descriptor. A program that
+        // dumps cannot make this happen; only the host can, by handing the
+        // process a stderr it then breaks, and there is no case that spells it.
         ctx.write_diagnostic(rendered.as_bytes())
             .map_err(|e| Fault::fatal(format!("Core\\Debug::dump could not write: {e}")))?;
         Ok(Value::null())
@@ -187,6 +194,12 @@ fn record_of(tail: &Value) -> Result<Record, Fault> {
     let values = crate::arr::borrowed(array);
     let mut from = 0usize;
     while let Some(slot) = values.next_slot(from) {
+        // Unreachable from source: this is `next_slot`/`value_at`'s shared
+        // post-condition rather than a boundary. Both answer off the same
+        // predicate in both shapes — `slot < values.len()` packed, `hashed.at`
+        // hashed — and nothing runs between the two calls that could shorten
+        // the array, so a slot the first answered is one the second has. The
+        // same pair, and the same judgement, in `crate::path`'s `join`.
         let value = values.value_at(slot).ok_or_else(|| {
             Fault::fatal("Core\\Debug::dump read an empty slot the array reported as live")
         })?;

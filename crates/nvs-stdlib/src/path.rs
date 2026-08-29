@@ -608,6 +608,11 @@ nvs_runtime::nvs_helper! {
         let mut values = Vec::new();
         let mut from = 0usize;
         while let Some(slot) = segments.next_slot(from) {
+            // Unreachable from source, and not for the reason the tag guard
+            // above is: this is `next_slot`/`value_at`'s shared post-condition.
+            // Both read the same predicate in both shapes, and the loop body
+            // between them only pushes, so a slot the first answered is one the
+            // second has.
             values.push(segments.value_at(slot).ok_or_else(|| {
                 Fault::fatal("Core\\Path::join read an empty slot the array reported as live")
             })?);
