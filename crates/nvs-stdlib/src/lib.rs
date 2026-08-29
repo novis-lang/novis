@@ -135,9 +135,10 @@
 //!    spread and never by name. Parameter **names** now exist in the registry
 //!    for the first time, as [`registry::ParamDoc::name`] on a row's
 //!    [`registry::MethodDoc`] (ADR 0117) — documentation that `nvs meta
-//!    --json` prints and that `nvs_types::core_lib` does not yet read into
-//!    `param_names`, so a `Core` call is still positional; closing that is
-//!    the named-argument decision ADR 0117's scope leaves open.
+//!    --json` prints and that `nvs_types::core_lib` never reads into
+//!    `param_names`: ADR 0063 rejected named arguments at a `Core` member in
+//!    favour of R2's options bag, so a positional `Core` call is a decision,
+//!    not a gap.
 //!
 //!    A **`Core`-owned instance** is no longer one: [`instance`] is the value
 //!    behind [`registry::CoreTy::Instance`], and that module's own docs own
