@@ -2,27 +2,30 @@
 
 ## State
 
-**Goal 2 of the parity program. The acceptance check's `0 containment` stage passes**: all three
-tests it names are on disk in `benches/abi-probe/tests/invariants.rs`. The § 2 one existed under
-another name and was renamed to the one the check asks for (playbook, *Tooling*); § 3's
-teardown-under-unwind and § 4's engine-depth-on-a-coroutine-stack are new.
+**Goal 2 of the parity program. ADR 0106 § 5 is complete — all three halves.** The deadline flag
+lives in `Ctx`'s hot line (`DEADLINE_OFFSET`, `Ctx::deadline_expired`/`expire_deadline`); the poll
+is supplied by `nvs_runtime::bounded_loop`, which owns the batch (`DEADLINE_POLL_BATCH`, 256) and
+what a fired poll returns; and `Core\Arr::map` is the first real O(input) member to walk through it.
+A fired poll is `Fault::Fatal` — a deadline is a cancellation, and ADR 0072 § 5 makes cancellation
+uncatchable, the same standing `nvs_safepoint` already gives `SafepointFlags::CANCEL`.
 
-**ADR 0106 § 5's first half has landed.** `Ctx`'s hot line now carries a deadline flag at offset 16
-with `DEADLINE_OFFSET` beside its neighbours, read by `Ctx::deadline_expired` and set through a
-*shared* borrow by `Ctx::expire_deadline`. Why it is an `AtomicU64` of its own rather than another
-`SafepointFlags` bit — the writer is a timer that by construction is not the thread inside the
-helper — is `crates/nvs-runtime/src/ctx.rs`'s module doc § *The request's deadline*, which is that
-decision's only home. **Nothing polls it yet**: the combinator and the cost bound are the next two
-slices.
+**The ADR's one number is measured, not asserted.**
+`benches/abi-probe/tests/perf_guards.rs`'s `an_amortised_deadline_poll_costs_less_than_the_check_it_rides_beside`
+measures both sides in the same run — 0.044 ns amortised per iteration against a 0.237 ns hot-line
+check on this box, 5.4x headroom — so no ceiling constant can go stale on another machine.
 
-The outer containment boundary is unchanged: `nvs_runtime::run_task`, one `catch_unwind` per task,
-with `TaskRoot::{Request, Worker}` carrying § 2's split. Teardown stays iterative and infallible —
-`crates/nvs-runtime/src/release.rs`'s module doc is that rule's home.
+**Stage 0 is closed.** §§ 1–3's containment boundary and its three named invariants are on disk;
+§ 4's engine-side depth bound already exists in both places it names (`nvs-stdlib`'s
+`json::DEFAULT_MAX_DEPTH` at PHP's 512, `nvs-syntax`'s `parser::MAX_RECURSION_DEPTH`); § 5 is above.
+The next group is Stage 2, which the goal says everything else waits on.
 
-**`crates/nvs-host` still does not exist**, so `orient.py` warns that the `[context] modules`
-pattern `crates/nvs-host/src/*.rs` matches nothing. Expected until stage 2, not a manifest bug.
-The four goal fixtures (`examples/tasks.nvs`, `channel.nvs`, `serialize.nvs`, `isolate.nvs`) are
-untouched this session and still stop at their own item's first missing member.
+**`crates/nvs-host` still does not exist**, so `orient.py` warns that the `[context] modules` pattern
+`crates/nvs-host/src/*.rs` matches nothing. Expected until the group below lands it, not a manifest bug.
+
+**The acceptance check on `examples/tasks.nvs` (`Core\Task` has no member named `all`) is not a
+regression and cannot be closed yet** — loop-goal.md § *Stage 2* says no `Core\Task` member is
+written until that stage is green, and `Task::all` is Stage 4's. The four goal fixtures each stop at
+their own item's first missing member; that is this goal's ordinary state.
 
 **The one rule every session of this goal holds:** the runtime is ours and it is not `async`, and
 `nvs-host`'s socket implements plain `std::io::Read`/`Write` while parking its coroutine.
@@ -30,32 +33,30 @@ untouched this session and still stop at their own item's first missing member.
 
 ## Next group
 
-**ADR 0106 § 5's other two halves.** The flag exists; nothing supplies the poll and nothing prices
-it. One file set: `crates/nvs-runtime/src/ctx.rs`, `crates/nvs-runtime/src/abi.rs`,
-`benches/abi-probe/tests/perf_guards.rs`, plus the one `Core` member that adopts it first.
+**Stage 2's keystone — the crate everything above is a consumer of.** One new file set:
+`crates/nvs-host/src/*.rs`, the workspace `Cargo.toml` members list, and `docs/adr/0115-*.md`.
+Re-check the next free ADR number before creating the file.
 
-- [ ] **A bounded-loop combinator supplies the poll**, rather than every helper remembering to.
-      ADR 0106 § 5, first constraint — same reasoning as `nvs_helper!`, so the shape carries the
-      obligation. `crates/nvs-runtime/src/ctx.rs:840` (`deadline_expired`), `:850`
-      (`expire_deadline`), `crates/nvs-runtime/src/abi.rs:348` (`nvs_helper!`, the precedent), and
-      `abi.rs`'s `Fault` for what a fired poll returns.
-- [ ] **The cost bound the ADR owns**: the amortised poll stays under the stack check's own
-      per-call cost. ADR 0106 § 5. `benches/abi-probe/tests/perf_guards.rs:181`
-      (`an_all_bits_off_debug_probe_stays_in_the_safepoint_cost_class`) is the shape to copy —
-      `#[cfg_attr(debug_assertions, ignore)]`, a `MAX_NS` const, and a threshold stated against
-      `a_checked_return_frame_stays_cheap` rather than against a bare number.
-- [ ] **One real O(input) `Core` member adopts the combinator**, with a case that the poll fires at
-      a point where abandoning leaves the value consistent (§ 5's second constraint). Pick from
-      `crates/nvs-stdlib/src/` — a scan or an encode, not a sort, for exactly that reason.
+- [ ] **`crates/nvs-host` exists, and one core runs one scheduler.** loop-goal.md § *Stage 2* item 3:
+      a per-core thread pinned to a CPU, a run queue of coroutines, and a `Ctx` carrying the yielder.
+      The shape is already modelled — `benches/abi-probe/src/lib.rs:105` (`pub struct Ctx`, the one
+      its own doc calls "deliberately shaped like the real `Ctx` will be"), `:90` (`enum Waiting`),
+      `:686` (`in_coroutine`, the `corosensei` driver). Refcounts stay non-atomic; that is
+      `design.md`'s decisive structural choice and what this crate must not break.
+- [ ] **ADR 0115 — the reactor and the parking stream.** loop-goal.md § *Standing decisions* names
+      this as one of exactly two pre-authorized ADR slots and says it is the **first** slice of item
+      4, not a follow-up: what readiness mechanism each platform uses, what the parking contract is,
+      what a `WouldBlock` costs, and how a coroutine's stack is accounted. Shape and the six rules
+      `python tools/adr.py` enforces are in conventions.md § *An ADR*.
+- [ ] **`NvsTcp` implements `std::io::Read`/`Write` over the reactor**, parking the coroutine rather
+      than blocking the core — ADR 0106 § 6's second paragraph, which is why a synchronous-looking
+      read is safe here at all.
 
 ## Backlog
 
-- The deadline flag's **writer** belongs to stage 2's reactor-and-parking ADR — goal standing
-  decisions, ADR slot 1.
-- `crates/nvs-host` does not exist; the `[context] modules` pattern matches nothing until stage 2
-  (`docs/agent/loop-goal.toml`).
-- The four goal fixtures stop at their own item's first missing member; each is rewritten by the
-  session that lands that item (`docs/agent/goals/`).
-- `Core\Task::all`/`::map`'s surface and its cancellation rules — ADR 0072 §§ 1-5.
-- The isolate heap boundary ADR — goal standing decisions, ADR slot 2 (stage 6, item 20).
-- M4 residue: the 1000-case conformance corpus count (`docs/implementation-plan.md`).
+- Timers on the same reactor, and they are what will call `Ctx::expire_deadline` — loop-goal.md § *Stage 2* item 5.
+- The blocking pool, bounded at twice the core count — ADR 0106 § 6.
+- The watchdog reading the in-flight deadline each worker already maintains — ADR 0106 § 7.
+- More O(input) `Core` members adopt `bounded_loop` (`Arr::filter`, `Arr::reduce`, `Arr::mapKeys`) — ADR 0106 § 5.
+- `Core\Task::all`/`::map` and the roster — loop-goal.md § *Stage 4*; the `examples/tasks.nvs` check stays red until then.
+- M4's residual 1000-case conformance corpus count — docs/implementation-plan.md.
