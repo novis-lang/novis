@@ -2395,6 +2395,18 @@ is why" — is this file.
   union in `nvs-stdlib`, `grep -rn "<the union's first case>" tests/conformance/` and expect
   to update every hit; the `.nvst` suite is the only leg that catches it, and it catches it
   as a diff of two very long lines.
+- **`Core\Test::assertSame`'s two parameters are one `CoreTy::Var("T")` bound to argument 1, so the
+  symmetric spelling `assertSame(null, $x)` does not exist.** Writing the literal first binds `T` to
+  `null` and the subject is then `E0401: expected 'null', found 'mixed'` at the *second* argument, which
+  reads as "this member refuses a null comparison" and is only the signature. `mixed $nothing = null;`
+  then `assertSame($nothing, $subject)` is the other direction, and it is the only way to ask identity's
+  symmetry through this member at all. Same cause as the `Core\Math::min` bullet above, different
+  consequence: there the pair is unreachable, here the *argument order* is.
+- **An inline array literal in a `foreach` is `array<mixed>`, so a typed value binding refuses.**
+  `foreach ([1, 2, 3] as string $k => int $n)` is `E0401: expected 'int', found 'mixed'` pointing at the
+  binding rather than at the literal, because element types are not inferred into the literal's own type;
+  `array<int> $steps = [1, 2, 3];` and then looping over `$steps` compiles unchanged. The key binding is a
+  separate and well-diagnosed question — always `string`, `E0723` with ADR 0007 § 5 in the help line.
 
 ## Splitting a file that got too big
 

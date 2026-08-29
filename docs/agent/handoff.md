@@ -2,75 +2,72 @@
 
 ## State
 
-**Spec § 11's `Core\Digest` roster is fifteen cases, up from six, and `StrongDigest` is ten,
-up from three.** That is goal 1 item 16, and it closes the Stage 8 acceptance check that had
-been failing since the goal started. The roster's home is
-`docs/spec/01-core-library.md` § 11's new case table — octets, `StrongDigest` membership and
-one note per case — and `crates/nvs-stdlib/src/hash.rs` is the four places it is spelled in
-Rust (`DIGEST`, `DigestKind`, `kind_of`, `digest_of`/`hmac_of`), which
-`the_strong_subset_and_its_dispatch_agree` already ties together.
+**`Core\Test`'s conformance floor is closed.** Three depth cases landed over
+`crates/nvs-stdlib/src/test.rs`'s assertion members; `python tools/gaps.py` now puts the
+class at depth **5.0**, floor **4** (it was 4.0 / 3, and was the ranked-first gap). The
+corpus is at **921**, all passing.
 
-**Added:** `Sha224`, `Sha512_224`, `Sha512_256` (free — `sha2` was already pinned), all four
-of FIPS 202's SHA-3 through the new `sha3` crate, `Crc32c` through `crc32c`, and `Blake3`,
-which was declared in `Cargo.toml` for ADR 0042's artifact cache and had no consumer until
-now. `blake3` is `default-features = false, features = ["std", "pure"]` so it stays pure Rust
-rather than building its assembly through `cc`. Ordinals are appended at 6..14 and are ABI —
-`Hash::stream` reads one back out of a slot — so the list is append-only and `STRONG` is a
-list, never a range.
+**The Stage 8 acceptance check still fails at 921 of 950 wanted.** That is a growth floor,
+not a regression — no case fails and no check names a test that disappeared. It closes as
+the suite grows; the fastest route is the floor-2 classes in `## Backlog`.
 
-**Outside `STRONG` and staying there:** `Blake3` (HMAC-BLAKE3 is a construction nobody uses;
-BLAKE3 is keyed natively, so it waits for a keyed member) and `Crc32c` (a checksum, for
-`Crc32`'s reason). Both are argued in `hash.rs`'s `STRONG` doc comment and in § 11.
+**What the three cases pin**, all in `tests/conformance/core/`:
 
-**Dependencies.** Three new workspace entries — `sha3 = "0.10"`, `crc32c = "0.6"` and the
-rewritten `blake3` — each with the comment ADR 0051 § 4 owes. `python tools/gen-attribution.py`
-has been run. `cargo deny check` could **not** be: the subcommand is not installed here (new
-playbook bullet). The six crates it would have judged — `sha3`, `keccak`, `crc32c`, `blake3`,
-`arrayvec`, `constant_time_eq` — all resolve to a license on `deny.toml`'s `allow` list,
-checked by hand against the regenerated `THIRD-PARTY-LICENSES.txt`.
+- `...-partition-a-table-of-bodies.nvst` — `assertThrows` at `Throwable::class` and
+  `assertDoesNotThrow` are one predicate and its negation over ten bodies (five throwing,
+  five returning, including a throw crossing a closure frame and a body that catches its
+  own). Its last count is the other half: named a class *inside* the tree, the two are no
+  longer complements, because only one of them has a bound.
+- `...-agrees-with-the-exception-tree-at-every-pair.nvst` — all 81 pairs of
+  `nvs_hir::errors::TREE`'s nine classes, with the expected verdict *derived* from a parent
+  map keyed by `::class` rather than restated. 21 of 81 hold. A name the tree does not carry
+  bounds nothing, so it refuses all nine.
+- `...-are-one-predicate-over-every-value-kind.nvst` — `assertNull`, `assertSame` against
+  `null` in both orders and `assertEquals` against `null` agree over an object, a closure,
+  `bytes`, a container of containers, a shape, a `Core\Time\Duration`, an enum case and a
+  `?T` holding a value, plus the three spellings of `null`. `assertSame($x, $x)` is the
+  control that stops the counts being satisfied by a member that refuses everything.
 
-**The corpus is at 918.** Three cases landed and one was amended: widening the union changed
-the `E0401` text `hash-hmac-refuses-a-weak-digest.nvst` had frozen.
+**Untouched:** item 12's roster (10 `UNCLASSIFIED` members at
+`crates/nvs-stdlib/src/registry.rs:1526`), a `bytes` array key ICE in `nvs-ir`, and
+`catch (Core\Error $e)` panicking — the last two have playbook bullets under
+*Writing a test case*.
 
-**Untouched:** item 12's roster (10 `UNCLASSIFIED` members at `crates/nvs-stdlib/src/registry.rs:1526`),
-a `bytes` array key ICE in `nvs-ir`, and `catch (Core\Error $e)` panicking — the last two have
-playbook bullets under *Writing a test case*.
-
-**Orientation gaps.** `[context] modules` owes `crates/nvs-stdlib/src/hash.rs` and
-`src/test.rs`; neither this session's file set nor the next one's was in the map, and both
-were found by hand. `[context] docs` owes `docs/spec/01-core-library.md`, which is the roster's
-home and was read blind. Still owed from before: `crates/nvs-types/src/links.rs`,
-`src/routes.rs`, `crates/nvs-stdlib/src/validate.rs`, `src/str.rs`,
+**Orientation gaps.** `[context] modules` owes `crates/nvs-stdlib/src/math.rs` (the next
+group's file, absent from the map) and still owes `crates/nvs-stdlib/src/hash.rs` and
+`src/test.rs`. Still owed from before: `crates/nvs-types/src/links.rs`, `src/routes.rs`,
+`crates/nvs-stdlib/src/validate.rs`, `src/str.rs`, `docs/spec/01-core-library.md`,
 `docs/spec/02-php-migration.md`, `tools/check-migration.py`, the stage-7 comment header's
 per-goal floor table, a selector printing the *failing* check's own `cases` block, and a
 `[context] anchors` entry for `registry.rs`'s `UNCLASSIFIED`.
 
 ## Next group
 
-**Shared file set:** `crates/nvs-stdlib/src/test.rs` and `tests/conformance/core/`. This is
-the group the previous handoff named and item 16 pre-empted; `gaps.py` ranks `Core\Test`
-first — depth **4.0**, floor **3**. All three members below already have a case naming their
-bound, so the shape that is missing is *agreement*: they share one ledger and one failure
-renderer. `assertCount`'s two `Fault::fatal` sites are owed no case — the playbook says why.
+**Shared file set:** `crates/nvs-stdlib/src/math.rs` and `tests/conformance/core/`.
+`gaps.py` ranks `Core\Math` first among the floor-2 classes — depth **5.0**, floor **2**,
+44 cases over 38 members — and its three thinnest are one file and one domain. The
+differential gap is empty for all three, so these are conformance-depth cases, never
+`--ORACLE--` ones (conventions.md).
 
-- [ ] **`assertThrows` and `assertDoesNotThrow` are one predicate over a body**
-      (`crates/nvs-stdlib/src/test.rs:467`, `test.rs:546`) — a table of bodies, each asked
-      both ways, counting that exactly one of the pair passes for every row.
-      `test-assert-throws-is-bounded-on-both-sides-of-the-class-it-names.nvst` is that bound
-      named at one pair; this is the invariant over it, and it is the floor member.
-- [ ] **`assertThrows`'s class argument over the whole exception tree**
-      (`crates/nvs-stdlib/src/test.rs:467`) — the same table against each root of
-      `nvs_hir::errors::TREE`, counting that a throw is caught by its own class and by every
-      ancestor and by nothing else.
-- [ ] **`assertNull` and `assertSame($x, null)` agree over every value a case can build**
-      (`crates/nvs-stdlib/src/test.rs:370`, `test.rs:265`) — one question of two members that
-      share a rule, counted rather than read off a line.
+- [ ] **`Core\Math::atan2` is one angle recovered over all four quadrants**
+      (`crates/nvs-stdlib/src/math.rs:999`) — a table of angles, each turned into
+      `(sin, cos)` and handed back, counting the rows that come out where they went in, plus
+      the four signed-zero axes where the sign of the argument is the whole answer.
+- [ ] **`ceil`, `floor` and `round` agree on an ordering and part only at the half**
+      (`math.rs:649`, `math.rs:655`, `math.rs:901`) — one table of floats asked all three
+      ways, counting `floor <= round <= ceil` and that the three coincide exactly on the
+      integers. `round`'s third argument is its precision and is the bound to name.
+- [ ] **`toBase` and `fromBase` round-trip over every base the pair accepts**
+      (`math.rs:1072`, `math.rs:1105`) — bases 2..36 by a table, counting the values that
+      survive the round trip, with the first refused base on each side named together.
 
 ## Backlog
 
-- Item 12's 10 `UNCLASSIFIED` registry members — `docs/agent/loop-goal.md` § 12.
-- A `bytes` array key ICEs in `nvs-ir` — playbook, *Writing a test case*.
-- `Core\Hash::stream` over the nine new cases has no `.nvst` of its own; the existing stream
-  cases walk the original six — `docs/spec/01-core-library.md` § 11.
-- A keyed `Blake3` member, which is what `STRONG` is waiting for — `hash.rs`'s `STRONG` doc.
-- `cargo deny check` unavailable locally — see the new Tooling bullet.
+- The 950-case Stage 8 floor: the floor-2 classes are `Core\Regex` (`quote` 2),
+  `Core\Debug` (`dump` 3, `render` 7), `Core\Csv`, `Core\Hash\Stream` and
+  `Core\Time\TimeOfDay` (`compareTo` 2) — `python tools/gaps.py`.
+- Item 12's 10 `UNCLASSIFIED` members — `crates/nvs-stdlib/src/registry.rs:1526`, ADR 0088 § 2.
+- `catch (Core\Error $e)` is an ICE rather than a diagnostic — playbook, *Writing a test case*.
+- A `bytes` array key ICE in `nvs-ir` — playbook, *Writing a test case*.
+- `gaps.py`'s 65 unasserted `Fault::fatal` sites, most unreachable from source — judge before writing.
+- `docs/spec/01-core-library.md` § 11's roster is fifteen `Core\Digest` cases — landed, nothing owed.
