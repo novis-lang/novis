@@ -616,7 +616,7 @@ mod tests {
     use crate::reactor::{install, run_until_idle, with_current};
     use crate::scheduler::Scheduler;
     use nvs_runtime::{Ctx, OutputSink, TaskRoot};
-    use std::cell::Cell;
+    use std::cell::{Cell, RefCell};
     use std::rc::Rc;
 
     fn ctx() -> Ctx {
@@ -1031,6 +1031,185 @@ mod tests {
             !server.is_parked_on(),
             "a blocking wait left a reactor registration behind"
         );
+    }
+
+    /// ADR 0115 § 3's first half, asserted from the core's side rather than the
+    /// caller's: the read is driven with `Scheduler::run` alone and no reactor
+    /// poll after it, so what the assertions describe is a core that came back.
+    /// A blocking read would never have returned from that call at all.
+    #[test]
+    fn a_socket_read_that_would_block_parks_its_coroutine() {
+        let (mut server, mut client) = connected_pair();
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+
+        let returned = Rc::new(Cell::new(false));
+        let flagged = Rc::clone(&returned);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            let mut buf = [0_u8; 8];
+            let read = server.read(&mut buf).expect("the read failed");
+            assert_eq!(&buf[..read], b"late");
+            flagged.set(true);
+        });
+
+        let report = sched.run();
+        assert_eq!(
+            report.finished, 0,
+            "a read with nothing to read returned instead of waiting"
+        );
+        assert_eq!(report.parked, 1, "the read did not park its coroutine");
+        assert!(
+            !returned.get(),
+            "the task ran past its read without any bytes to read"
+        );
+        assert_eq!(
+            with_current(|reactor| reactor.registrations()),
+            Some(1),
+            "the park filed nothing for the reactor to wake it on"
+        );
+
+        // Left running rather than abandoned parked: a test that ends here
+        // would assert the park and never that the park is survivable.
+        client.write_all(b"late").expect("the write failed");
+        run_until_idle(&mut sched).expect("the loop failed");
+        assert!(returned.get(), "the parked read never came back");
+    }
+
+    /// The other half of the pair, with the wake pinned to its cause: the task
+    /// is parked, nothing is ready, and one `Reactor::turn` after the peer
+    /// writes is what puts it back on the run queue.
+    #[test]
+    fn a_parked_coroutine_resumes_when_its_descriptor_is_ready() {
+        let (mut server, mut client) = connected_pair();
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+
+        let got = Rc::new(RefCell::new(Vec::new()));
+        let collected = Rc::clone(&got);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            let mut buf = [0_u8; 8];
+            let read = server.read(&mut buf).expect("the read failed");
+            collected.borrow_mut().extend_from_slice(&buf[..read]);
+        });
+
+        assert_eq!(sched.run().parked, 1, "the read did not park");
+        assert_eq!(sched.ready_count(), 0, "a parked task was still runnable");
+
+        client.write_all(b"ready").expect("the write failed");
+        let woken = with_current(|reactor| reactor.turn(&mut sched))
+            .expect("no reactor is installed")
+            .expect("the poll failed");
+        assert_eq!(woken, 1, "readiness on the descriptor woke no task");
+        assert_eq!(
+            sched.ready_count(),
+            1,
+            "the woken task was not put back on the run queue"
+        );
+
+        assert_eq!(sched.run().finished, 1, "the resumed task did not finish");
+        assert_eq!(
+            &*got.borrow(),
+            b"ready",
+            "the resumed read got the wrong bytes"
+        );
+    }
+
+    /// Tier B, from ADR 0106 § 6: what a park hands back is the *core*, so a
+    /// task that never touched a socket runs to completion while its neighbour
+    /// is still waiting on one. The order is recorded rather than inferred —
+    /// the neighbour finishes between the parked task's two lines.
+    #[test]
+    fn a_core_serves_another_task_while_one_is_parked() {
+        let (mut server, mut client) = connected_pair();
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+
+        let order = Rc::new(RefCell::new(Vec::new()));
+        let by_reader = Rc::clone(&order);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            by_reader.borrow_mut().push("the read began");
+            let mut buf = [0_u8; 8];
+            let read = server.read(&mut buf).expect("the read failed");
+            assert_eq!(&buf[..read], b"hi");
+            by_reader.borrow_mut().push("the read returned");
+        });
+        let by_neighbour = Rc::clone(&order);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            by_neighbour.borrow_mut().push("the neighbour ran");
+        });
+
+        let first = sched.run();
+        assert_eq!(
+            first.finished, 1,
+            "the neighbour did not run while the reader was parked"
+        );
+        assert_eq!(first.parked, 1, "the reader did not park");
+        assert_eq!(
+            &*order.borrow(),
+            &["the read began", "the neighbour ran"],
+            "the core stalled inside the read instead of taking the next task"
+        );
+
+        client.write_all(b"hi").expect("the write failed");
+        run_until_idle(&mut sched).expect("the loop failed");
+        assert_eq!(
+            &*order.borrow(),
+            &["the read began", "the neighbour ran", "the read returned"],
+            "the parked reader never finished"
+        );
+    }
+
+    /// Byte-oriented code that has never heard of a core drives this stream:
+    /// the body below is generic over `Read + Write` and reaches for
+    /// `BufReader`, which is the whole reason goal 5's drivers and a `rustls`
+    /// session compose over it. The peer answers late on purpose, so the park
+    /// happens *inside* the generic code rather than beside it.
+    #[test]
+    fn a_stream_satisfies_std_io_read_and_write() {
+        /// Nothing in here names this crate. `S` is the only thing it knows.
+        fn ask_and_answer<S: Read + Write>(stream: &mut S) -> io::Result<String> {
+            use std::io::BufRead;
+            stream.write_all(b"ping\n")?;
+            stream.flush()?;
+            let mut line = String::new();
+            std::io::BufReader::new(stream).read_line(&mut line)?;
+            Ok(line)
+        }
+
+        let (mut server, mut client) = connected_pair();
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+
+        let peer = std::thread::spawn(move || {
+            let mut heard = [0_u8; 5];
+            client
+                .read_exact(&mut heard)
+                .expect("the peer's read failed");
+            assert_eq!(&heard, b"ping\n");
+            std::thread::sleep(Duration::from_millis(20));
+            client
+                .write_all(b"pong\n")
+                .expect("the peer's write failed");
+        });
+
+        let answer = Rc::new(RefCell::new(String::new()));
+        let recorded = Rc::clone(&answer);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            // Object-safe as well as generic: a `dyn` pair is what a driver
+            // holding a boxed transport has.
+            let _: &mut dyn Read = &mut server;
+            let _: &mut dyn Write = &mut server;
+            *recorded.borrow_mut() = ask_and_answer(&mut server).expect("the exchange failed");
+        });
+
+        let report = run_until_idle(&mut sched).expect("the loop failed");
+        peer.join().expect("the peer thread panicked");
+        assert_eq!(&*answer.borrow(), "pong\n");
+        assert!(
+            report.resumes > 1,
+            "the exchange never parked, so std::io was not driven across a park"
+        );
+        assert_eq!(report.finished, 1);
     }
 
     /// A path under the system temporary directory that nothing else in this
