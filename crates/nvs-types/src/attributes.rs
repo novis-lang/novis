@@ -30,11 +30,11 @@
 use nvs_diagnostics::{Diagnostic, code};
 use nvs_syntax::ast::{
     ArrayItem, Attribute, AttributeGroup, ClassMember, ClassMemberKind, EnumCase, Expr, ExprKind,
-    Name, Param, UnaryOp,
+    Name, ObjectLiteralField, Param, UnaryOp,
 };
 use rustc_hash::FxHashSet;
 
-use crate::expr::{check_object_literal, is_assignable, report_mismatch};
+use crate::expr::{check_expr, check_object_literal, is_assignable, report_mismatch};
 use crate::locals::LocalScope;
 use crate::ty::{Ty, TypeId};
 use crate::{Ctx, Env, span_text};
@@ -120,7 +120,7 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
             if recognized(crate::derive::TEST) {
                 crate::testing::check_payload(&attr.fields, ctx, env);
             } else if recognized(crate::derive::COMMAND) {
-                crate::commands::check_payload(
+                check_roster(
                     "Command",
                     crate::commands::COMMAND_OPTIONS,
                     &attr.fields,
@@ -128,13 +128,15 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                     env,
                 );
             } else if recognized(crate::derive::OPTION) {
-                crate::commands::check_payload(
+                check_roster(
                     "Option",
                     crate::commands::OPTION_OPTIONS,
                     &attr.fields,
                     ctx,
                     env,
                 );
+            } else if recognized(crate::derive::ROUTE) {
+                check_roster("Route", crate::routes::OPTIONS, &attr.fields, ctx, env);
             }
         }
         return;
@@ -159,6 +161,77 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     if !is_assignable(actual, shape, env.interner, env.graph, env.signatures) {
         report_mismatch(attr.payload, shape, actual, env);
     }
+}
+
+/// One recognized attribute's payload, checked against its roster of options.
+///
+/// The walk every ADR 0071 § 1 name that carries a payload shares, because a
+/// recognized name is matched *nominally* and so has no shape to be checked
+/// against: what it may hold is a roster its own module declares — ADR 0079
+/// § 1's is [`crate::testing`]'s, ADR 0086 § 6's two are [`crate::commands`]',
+/// ADR 0077 § 1's is [`crate::routes`]'. Three answers per field and they are
+/// deliberately three: a name no row declares, a value at the wrong type, and
+/// a name given twice.
+///
+/// Called only for a payload [`check_attribute`] has already proved constant,
+/// for this module's own reason: the author is told about a value they wrote
+/// before they are told what it failed to satisfy. A rule *between* two
+/// options — ADR 0079 § 20's `retries` requiring `because` — is one this walk
+/// cannot state, and stays with the roster that declares it.
+///
+/// `attribute` is the name as a diagnostic writes it, without its `#[]`.
+pub(crate) fn check_roster(
+    attribute: &str,
+    options: &[(&str, crate::testing::OptionTy)],
+    fields: &[ObjectLiteralField],
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    // The scope is empty and stays empty: § 2 has just proved this payload
+    // reads no variable, so there is no binding to mark live and none to
+    // capture.
+    let mut live = FxHashSet::default();
+    let scope = LocalScope::new();
+    let mut seen: Vec<String> = Vec::with_capacity(fields.len());
+    for field in fields {
+        let name = span_text(env.src, field.name).to_owned();
+        let declared = options
+            .iter()
+            .find(|(option, _)| *option == name)
+            .map(|(_, ty)| *ty);
+        let expected = declared.and_then(|ty| ty.intern(env));
+        check_expr(&field.value, expected, &mut live, &scope, ctx, env);
+        if declared.is_none() {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_UNKNOWN_OPTION,
+                    format!("`{name}` is not an option of `#[{attribute}]`"),
+                )
+                .with_primary(field.span, "no such option")
+                .with_help(format!("the options are: {}", roster_names(options))),
+            );
+        } else if seen.iter().any(|already| already == &name) {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_DUPLICATE_DECLARATION,
+                    format!("the option `{name}` is given twice"),
+                )
+                .with_primary(field.span, "already set above"),
+            );
+        }
+        seen.push(name);
+    }
+}
+
+/// A roster rendered for a help text — `skip: string, at: string, …` — so a
+/// typo is answered with the options themselves rather than with a type
+/// spelling nobody wrote.
+fn roster_names(options: &[(&str, crate::testing::OptionTy)]) -> String {
+    options
+        .iter()
+        .map(|(option, ty)| format!("{option}: {}", ty.describe()))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// ADR 0046 § 1's named form: `Name` resolves, in the namespace/`use` scope

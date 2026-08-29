@@ -1860,6 +1860,37 @@ pub mod code {
     /// through § 3's scan. The class is named in the message and in the help.
     pub const E_PROGRAM_IMPLEMENTOR_NEEDS_NO_ARGUMENT_CONSTRUCTOR: Code = Code::new("E0744");
 
+    /// Two `#[Option]`s of one `#[Command]` claim the same short or long
+    /// spelling.
+    ///
+    /// ADR 0086 § 6's second compile error, and one of the two that need no
+    /// table: a command line is matched by the spellings one method's
+    /// parameter list declares, so two parameters answering to `-n` is
+    /// decidable from that list alone. An argument parser that discovers this
+    /// at run time either takes the first match or the last, and both are a
+    /// silent wrong answer to `-n`.
+    ///
+    /// The spelling compared is the *effective* one: a parameter's own name is
+    /// its long spelling unless `long:` gives another, which is why
+    /// `#[Option(long: "dryRun")] bool $force` collides with a plain
+    /// `#[Option] bool $dryRun` beside it.
+    pub const E_OPTION_SPELLING_TAKEN: Code = Code::new("E0745");
+
+    /// An `#[Option]` is attached to a parameter whose declared type has no
+    /// conversion from `string`.
+    ///
+    /// ADR 0086 § 6's third compile error. A matched value's type comes from
+    /// the parameter and the argument arrives as text, so a parameter no text
+    /// can be converted into is an option that could never be given — and § 6
+    /// takes ADR 0077 § 3's conversion roster unchanged, which is why an
+    /// `array<int>`, a shape or a class other than `Core\Uuid` is refused here
+    /// while an enum, a literal union and `bool` are not.
+    ///
+    /// The primary span is the parameter rather than the attribute: the
+    /// attribute is written correctly and it is the declared type that cannot
+    /// answer it.
+    pub const E_OPTION_TYPE_HAS_NO_CONVERSION: Code = Code::new("E0746");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

@@ -146,38 +146,63 @@ use nvs_syntax::ast::{
     Attribute, AttributeGroup, ClassDecl, ClassMemberKind, MethodMember, ObjectLiteralField,
     Visibility,
 };
-use rustc_hash::FxHashSet;
 
 use crate::defaults::ConstArg;
-use crate::expr::check_expr;
-use crate::locals::LocalScope;
 use crate::ty::{Ty, TypeId};
 use crate::{Ctx, Env, span_text};
 
-/// What one [`OPTIONS`] entry declares. Three rows, because § 1's shape names
-/// three types; a fourth is a decision about what a test may be annotated
-/// with and belongs in that section before it belongs here.
+/// What one roster entry declares — [`OPTIONS`] here, and
+/// [`crate::commands`]' and [`crate::routes`]' rosters through the same type,
+/// because a second copy of three variants is how two attributes come to
+/// disagree about what `int` means.
+///
+/// Three scalar rows, because § 1's shape names three types, and one that is
+/// not a scalar at all: ADR 0046 § 2 admits an enum case in a payload, and
+/// ADR 0077 § 1's `method` is one. A fifth row is a decision about what some
+/// attribute may carry and belongs in the section that decides it before it
+/// belongs here.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum OptionTy {
+pub(crate) enum OptionTy {
     Str,
     Int,
     Bool,
+    /// One enum, by fully-qualified name — the type of an option whose value
+    /// is a case of it.
+    Enum(&'static str),
 }
 
 impl OptionTy {
-    fn intern(self, env: &mut Env<'_>) -> TypeId {
-        env.interner.intern(match self {
+    /// The type a value at this option is placed at, or `None` for a row
+    /// naming an enum this program declares nowhere.
+    ///
+    /// `None` rather than a diagnostic, because a roster is a *static* table
+    /// and the enum it names may be one the tree does not have yet —
+    /// `Core\Http\Method` is [`crate::routes`]' own gap 1. The value is then
+    /// checked as the compile-time constant ADR 0046 § 2 already requires,
+    /// and placed at nothing.
+    pub(crate) fn intern(self, env: &mut Env<'_>) -> Option<TypeId> {
+        let scalar = match self {
             Self::Str => Ty::String,
             Self::Int => Ty::Int,
             Self::Bool => Ty::Bool,
-        })
+            Self::Enum(name) => {
+                let qname = QName::parse(name);
+                let backing = env.enums.get(&qname)?.backing;
+                return Some(env.interner.enum_(qname, backing));
+            }
+        };
+        Some(env.interner.intern(scalar))
     }
 
-    fn describe(self) -> &'static str {
+    /// The spelling a help text names this option's type by — the enum's own
+    /// qualified name for [`Self::Enum`], which is what an author has to
+    /// write a case of.
+    pub(crate) fn describe(self) -> &'static str {
         match self {
             Self::Str => "string",
             Self::Int => "int",
             Self::Bool => "bool",
+            Self::Enum(name) => name,
         }
     }
 }
@@ -812,7 +837,7 @@ fn first_cycle(deps: &[Vec<usize>]) -> Option<Vec<usize>> {
 /// The recognized attribute `want` attached to one member, or `None`. The
 /// nominal match is [`crate::derive::attribute_is`]', so one roster answers
 /// "is this that attribute" for every recognized name.
-fn attribute_named<'a>(
+pub(crate) fn attribute_named<'a>(
     groups: &'a [AttributeGroup],
     want: &str,
     ctx: &Ctx<'_>,
@@ -1031,7 +1056,9 @@ fn fold_options(fields: &[ObjectLiteralField], env: &mut Env<'_>) -> Vec<(String
         let Some((_, ty)) = OPTIONS.iter().find(|(option, _)| *option == name) else {
             continue;
         };
-        let declared = ty.intern(env);
+        let Some(declared) = ty.intern(env) else {
+            continue;
+        };
         if let Some(value) = crate::defaults::literal_default(&field.value, declared, env) {
             folded.push((name, value));
         }
@@ -1045,40 +1072,7 @@ fn fold_options(fields: &[ObjectLiteralField], env: &mut Env<'_>) -> Vec<(String
 /// constant, for that module's own reason: the author is told about a value
 /// they wrote before they are told what it failed to satisfy.
 pub(crate) fn check_payload(fields: &[ObjectLiteralField], ctx: &Ctx<'_>, env: &mut Env<'_>) {
-    // The scope is empty and stays empty: § 2 has just proved this payload
-    // reads no variable, so there is no binding to mark live and none to
-    // capture.
-    let mut live = FxHashSet::default();
-    let scope = LocalScope::new();
-    let mut seen: Vec<String> = Vec::with_capacity(fields.len());
-    for field in fields {
-        let name = span_text(env.src, field.name).to_owned();
-        let declared = OPTIONS
-            .iter()
-            .find(|(option, _)| *option == name)
-            .map(|(_, ty)| *ty);
-        let expected = declared.map(|ty| ty.intern(env));
-        check_expr(&field.value, expected, &mut live, &scope, ctx, env);
-        if declared.is_none() {
-            env.diags.report(
-                Diagnostic::error(
-                    code::E_UNKNOWN_OPTION,
-                    format!("`{name}` is not an option of `#[Test]`"),
-                )
-                .with_primary(field.span, "no such option")
-                .with_help(format!("the options are: {}", option_names())),
-            );
-        } else if seen.iter().any(|already| already == &name) {
-            env.diags.report(
-                Diagnostic::error(
-                    code::E_DUPLICATE_DECLARATION,
-                    format!("the option `{name}` is given twice"),
-                )
-                .with_primary(field.span, "already set above"),
-            );
-        }
-        seen.push(name);
-    }
+    crate::attributes::check_roster("Test", OPTIONS, fields, ctx, env);
     check_retries_state_a_reason(fields, env);
 }
 
@@ -1112,15 +1106,4 @@ fn check_retries_state_a_reason(fields: &[ObjectLiteralField], env: &mut Env<'_>
              written reason for it: `#[Test(retries: 2, because: \"real DNS\")]`",
         ),
     );
-}
-
-/// The roster rendered for a help text — `skip: string, at: string, …` — so a
-/// typo is answered with the options themselves rather than with a type
-/// spelling nobody wrote.
-fn option_names() -> String {
-    OPTIONS
-        .iter()
-        .map(|(option, ty)| format!("{option}: {}", ty.describe()))
-        .collect::<Vec<_>>()
-        .join(", ")
 }

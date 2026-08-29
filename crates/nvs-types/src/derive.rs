@@ -66,17 +66,18 @@ use crate::{Ctx, Env, span_text, strip_sigil};
 /// A `Name` written at an attribute site is resolved with
 /// [`nvs_hir::resolve_ref`] and compared against these — so `#[Core\Json\Derive]`
 /// and a `use Core\Json;`d `#[Json\Derive]` are the same attribute, and no
-/// spelling of a userland name is any of them. Extended, never widened: ADR
-/// 0077's `Core\Route` is the next entry, and each one owes its own argued ADR
-/// section.
+/// spelling of a userland name is any of them. Extended, never widened, and
+/// each entry owes its own argued ADR section.
 ///
 /// A name on this roster names no shape, so [`crate::attributes`]'s ADR 0046
 /// § 1 rule does not apply to it and what its payload may hold is the
 /// recognizing pass's own question: `#[Json\Derive]`/`#[Json\Field]` are this
 /// module's, `#[Test]` is [`crate::testing`]'s, `#[Command]`/`#[Option]` are
-/// [`crate::commands`]'.
-pub const ATTRIBUTES: &[&str] =
-    [DERIVE, FIELD, TEST, FIXTURE, TEST_WITH, COMMAND, OPTION].as_slice();
+/// [`crate::commands`]', `#[Route]` is [`crate::routes`]'.
+pub const ATTRIBUTES: &[&str] = [
+    DERIVE, FIELD, TEST, FIXTURE, TEST_WITH, COMMAND, OPTION, ROUTE,
+]
+.as_slice();
 
 /// `#[Json\Derive]` — ADR 0071 § 1's opt-in, on a class.
 pub const DERIVE: &str = r"Core\Json\Derive";
@@ -125,6 +126,14 @@ pub const COMMAND: &str = r"Core\Command";
 /// a parameter is a positional argument unless it carries this, with no
 /// inference from defaults or types. [`crate::commands`] owns the payload.
 pub const OPTION: &str = r"Core\Option";
+
+/// `#[Route(path: string, method: Core\Http\Method, name?: string)]` — ADR 0077
+/// § 1's route declaration, on a method, and repeatable (ADR 0046 § 3) so one
+/// method serves two verbs. It names no member of anything — the table is read
+/// back through the separate `Core\Router` class — so a file that spells it
+/// bare places it with `use Core\Route;`, and importing the router instead
+/// imports a different name. [`crate::routes`] owns the payload.
+pub const ROUTE: &str = r"Core\Route";
 
 /// One derived class's JSON field list, in declaration order — ADR 0071 § 2's
 /// "declaration order fixes encode order, so output is byte-deterministic".

@@ -218,6 +218,7 @@ pub mod lower;
 pub(crate) mod program;
 pub(crate) mod retrieval;
 pub(crate) mod returns;
+pub(crate) mod routes;
 pub mod signatures;
 pub mod string_lit;
 pub mod testing;
