@@ -242,7 +242,7 @@ fn many_coroutines_can_be_created_and_driven() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn a_panic_with_no_helper_beneath_it_is_contained_at_the_task_root() {
+fn a_panic_in_a_worker_task_is_contained_at_the_task() {
     // The helper wrapper contains what a *helper* raises. This is the fault it
     // cannot see: the task's own code, running on a coroutine stack with the
     // JIT frames already returned. Containment has to survive the stack switch,
@@ -299,4 +299,120 @@ fn a_request_owned_panic_leaves_the_worker_running() {
         !fault.retires_worker(),
         "the request owns the fault, so the worker keeps its other requests"
     );
+}
+
+#[test]
+fn a_teardown_path_that_panics_does_not_recurse() {
+    // ADR 0106 § 3's two bullets, which only bite together: a value graph is
+    // released *while a panic is unwinding*, which is the one place where a
+    // recursive teardown or a fallible one stops being containable. A stack
+    // overflow or a second panic there aborts the process before any
+    // `catch_unwind` — this test's own included — is ever consulted, so what
+    // it pins is that `run_task` still gets to answer.
+    //
+    // `nvs-runtime`'s `array::tests::a_deeply_nested_array_releases_without_recursing`
+    // owns the depth; this is the same depth reached down the unwinding path
+    // rather than the ordinary one.
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    let fault = run_task(TaskRoot::Request, || {
+        let mut nest = nvs_runtime::NvsArray::new();
+        for _ in 0..200_000 {
+            let mut outer = nvs_runtime::NvsArray::new();
+            outer.append(nvs_runtime::Value::array(nest));
+            nest = outer;
+        }
+        // Live across the panic, so its `Drop` runs as the frame unwinds and
+        // the worklist in `nvs_runtime::release` drains from there.
+        assert_eq!(nest.count(), 1);
+        panic!("the request faulted with a deep graph still live");
+    })
+    .expect_err("the panic must be contained at the task root");
+    std::panic::set_hook(previous);
+
+    assert_eq!(
+        fault.message(),
+        "the request faulted with a deep graph still live"
+    );
+    assert!(
+        !fault.retires_worker(),
+        "a request-owned fault does not retire the worker, however deep the \
+         graph it was holding"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Depth on the engine's own stack — ADR 0106 § 4
+// ---------------------------------------------------------------------------
+
+#[test]
+fn engine_recursion_is_bounded_before_the_stack_is() {
+    // ADR 0020 § 1 bounds recursion through Novis frames. A decoder's descent
+    // over request data has no Novis frames in it, so its own counter is the
+    // only bound — and the stack that bound has to stay under is not this
+    // thread's. Every request runs on a coroutine stack, which is where the
+    // margin is smallest, so both halves are asked for there: the deepest
+    // document the default `maxDepth` accepts still decodes, and one four
+    // orders of magnitude past it comes back as an ordinary catchable failure
+    // rather than as a fault or as an overflow.
+    //
+    // Counted PHP's way, so a scalar is depth 1 and `[1]` is depth 2: 511
+    // brackets is the last document a `maxDepth` of 512 accepts, and
+    // `nvs-stdlib`'s `json` tests own that arithmetic.
+    let accepted = format!("{}1{}", "[".repeat(511), "]".repeat(511));
+    let refused = format!("{}1{}", "[".repeat(100_000), "]".repeat(100_000));
+
+    let run = in_coroutine(Ctx::new(), move |_| {
+        (
+            decode_on_this_stack(&accepted),
+            decode_on_this_stack(&refused),
+        )
+    });
+
+    let (accepted, refused) = run.value;
+    assert_eq!(
+        accepted,
+        Ok(()),
+        "the deepest document the limit admits still fits the coroutine stack \
+         it is decoded on — a bound above the stack is not a bound"
+    );
+    assert_eq!(
+        refused,
+        Err(nvs_runtime::THROWN),
+        "and one past the limit is refused by the counter, not by the stack"
+    );
+}
+
+/// Decodes `document` at the default `maxDepth`, keeping only the status.
+///
+/// The message is not read back: `Ctx::take_pending` renders a throw through
+/// its exception object, and no exception class is installed in a context this
+/// bare — what is being asked here is which of ADR 0002's three statuses the
+/// decoder chose, which is the half that distinguishes a refusal from a fault.
+fn decode_on_this_stack(document: &str) -> Result<(), i32> {
+    let mut ctx = nvs_runtime::Ctx::buffered();
+    let text = nvs_runtime::Value::str(nvs_runtime::NvsStr::new(document.as_bytes()));
+    let answer = nvs_runtime::call(
+        nvs_stdlib::json::nvs_core_json_decode,
+        &mut ctx,
+        // The default `maxDepth`; a compiled call site that names no option
+        // passes the bag's constant, which is this same number.
+        &[
+            text,
+            nvs_runtime::Value::uint(nvs_stdlib::json::DEFAULT_MAX_DEPTH),
+        ],
+    );
+    #[expect(
+        unsafe_code,
+        reason = "the caller owns both references: a helper borrows its \
+                  parameters and releases none of them, and a decoded document \
+                  is handed back with its reference transferred"
+    )]
+    unsafe {
+        text.release();
+        if let Ok(value) = answer {
+            value.release();
+        }
+    }
+    answer.map(|_| ())
 }
