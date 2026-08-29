@@ -18,9 +18,9 @@
 > backend) whole, **M4 (language completeness) to its loop goal's acceptance list** — its own 1000-case
 > corpus figure is the one thing left and it is met through orders 1–4. M4S Part I registered —
 > `crates/nvs-stdlib/tests/spec-members-outstanding.txt` holds no keys, which is this project's
-> definition of *registered*. M1's own section lists the one grammar addition still owed (`autoload`,
-> ADR 0061), and it is order 1's first item. Each milestone file under [docs/plan/](plan/) states its
-> own acceptance.
+> definition of *registered*. M1's own section lists the one grammar addition still owed — the pipeline
+> operator, ADR 0098 — which blocks nothing and is scheduled after the current loop goal. Each milestone
+> file under [docs/plan/](plan/) states its own acceptance.
 >
 > **On disk:** the workspace and its CI (three platforms, with miri, asan and fuzz legs), and the
 > nine crates — `nvs-diagnostics`, `nvs-syntax`, `nvs-hir`, `nvs-types`, `nvs-ir`, `nvs-runtime`,
