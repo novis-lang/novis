@@ -210,6 +210,7 @@ pub mod error_lib;
 pub mod expr;
 pub mod expr_table;
 pub(crate) mod generics;
+pub(crate) mod intrinsics;
 pub mod iter_lib;
 pub mod lateinit;
 pub mod layout;

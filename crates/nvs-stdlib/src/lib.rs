@@ -94,7 +94,7 @@
 //!    section's rows are left: `compare`, `chunk`, `lines`, `graphemes`,
 //!    `codePoints`, `replaceAll`, `replaceRange`, `fold`, `normalize` and the
 //!    two `fromCodePoint` members. `format` is written, over the printf
-//!    grammar [`format`] owns and the first variadic parameter in `Core`.
+//!    grammar [`mod@format`] owns and the first variadic parameter in `Core`.
 //!    Section 3 is whole: every one of [`math::CLASS`]'s thirty-eight rows
 //!    runs, and `abs`/`sign`/`format` take the `int|float|decimal` the spec
 //!    writes (see [`math`]'s own gap note for the four rounding rows that do
@@ -204,7 +204,7 @@ mod csv;
 mod cursor;
 mod debug;
 mod encoding;
-mod format;
+pub mod format;
 pub mod granularity;
 mod hash;
 mod heap;

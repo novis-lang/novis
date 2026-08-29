@@ -2129,6 +2129,27 @@ pub mod code {
     /// were walked in.
     pub const E_DUPLICATE_COMMAND: Code = Code::new("E0768");
 
+    /// A literal argument to an ADR 0057 § 1 intrinsic that its own grammar
+    /// refuses.
+    ///
+    /// The whole point of that ADR, as one code: the compiler read the
+    /// constant with the parser the runtime would have used, so this is the
+    /// throw the first request to reach the call would have taken, moved to
+    /// `nvs check`. One code across the grammars rather than one per member —
+    /// the message carries the parser's own words, and a reader searching for
+    /// "malformed pattern" should not have to know which of five members made
+    /// the refusal.
+    pub const E_INTRINSIC_LITERAL_MALFORMED: Code = Code::new("E0769");
+
+    /// A literal `Core\Str::format` template that does not fit the arguments
+    /// written beside it.
+    ///
+    /// Separate from [`E_INTRINSIC_LITERAL_MALFORMED`] because the literal is
+    /// *fine*: the mistake is in the pairing, which is ADR 0057 § 1's own
+    /// reason for naming this member's placeholder check separately — it turns
+    /// PHP's `printf` argument-mismatch bug family into a compile error.
+    pub const E_FORMAT_TEMPLATE_MISMATCH: Code = Code::new("E0770");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

@@ -108,7 +108,14 @@ pub(crate) fn infer_method_call(
         .map(|(owner, name, _)| format!("{owner}::{name}"));
     let (sig, _written) =
         check_written_type_args(type_args, sig, label.as_deref(), expr.span, ctx, env);
-    let (_, slots, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
+    let (arg_types, slots, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
+    // ADR 0057 § 1's closed list, at the one point in an instance call where
+    // the target is resolved and the arguments are typed — `$when->format("y")`
+    // is the shape that reaches it here. See [`crate::intrinsics`], which
+    // reports and replaces nothing.
+    if let Some((owner, name, _)) = &resolved {
+        crate::intrinsics::check_call(owner, name, args, &arg_types, env);
+    }
     // ADR 0036 § 4's deferral, and the one receiver the refusal above
     // deliberately leaves alone: `mixed` is ADR 0007 § 2's one unchecked
     // position, so which class is behind the handle — and whether there is one
@@ -236,6 +243,10 @@ pub(crate) fn infer_static_call(
     // point can tell. See [`reject_secret_debug_argument`].
     if let Some((owner, name, _)) = &resolved {
         reject_secret_debug_argument(owner, name, args, &arg_types, env);
+        // ADR 0057 § 1's closed list — [`infer_method_call`]'s arm of the same
+        // hook, for the `Core\Str::format(…)` / `Core\Regex::compile(…)` half
+        // of the roster. See [`crate::intrinsics`].
+        crate::intrinsics::check_call(owner, name, args, &arg_types, env);
     }
     // See [`infer_method_call`]: first-class callable syntax names a `Closure`,
     // not the resolved method's return type, and records `CallableRef` rather

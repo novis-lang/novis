@@ -40,16 +40,21 @@
 //!   non-integral `decimal` for `%x`. The `decimal` row is ADR 0054 § 4's,
 //!   which makes rounding something the program says out loud.
 //!
-//! # Still owed
+//! # One parse, two entry points
 //!
 //! The spec makes `format` an
 //! [ADR 0057](../../../../docs/adr/0057-intrinsic-literal-folding.md)
-//! intrinsic: a *literal* template should have its placeholder count and types
-//! checked while compiling. That machinery does not exist yet (the same one
-//! ADR 0056 § 3's compile-time regex tiering waits on), so today every one of
-//! the refusals above is a throw at the call rather than a diagnostic before
-//! it. Nothing about this module changes when it lands — the checker gains a
-//! pass that answers earlier.
+//! intrinsic: a **literal** template has its placeholder count and types
+//! checked while compiling. That ADR's § 4 is why the checker does not get a
+//! parser of its own — [`Pieces`] is the one walk over the grammar, [`format`]
+//! drives it to render and [`placeholders`] drives it to describe, so a
+//! template the compiler accepts is exactly one the runtime accepts and a
+//! diagnostic quotes the message the throw would have carried.
+//!
+//! What the two do *not* share is the argument reading: [`format`] has values
+//! and reads them, while the checker has only static types and refuses a
+//! placeholder no value of that type could ever satisfy
+//! (`nvs_types::intrinsics`). Anything narrower than that stays a throw.
 //!
 //! # Width and precision count what `Core\Str::length` counts
 //!
@@ -75,44 +80,150 @@ pub(crate) fn format(template: &str, arguments: &[Value]) -> Result<String, Faul
     let mut out = String::with_capacity(template.len());
     let mut used = vec![false; arguments.len()];
     let mut next = 0usize;
-    let mut rest = template;
-    while let Some(at) = rest.find('%') {
-        out.push_str(&rest[..at]);
-        let after = &rest[at + 1..];
-        if let Some(tail) = after.strip_prefix('%') {
-            out.push('%');
-            rest = tail;
-            continue;
-        }
-        let (spec, tail) = Spec::parse(after)?;
-        let index = match spec.argnum {
-            Some(argnum) => argnum - 1,
-            None => {
-                let index = next;
-                next += 1;
-                index
+    for piece in Pieces::new(template) {
+        match piece.map_err(Fault::thrown)? {
+            Piece::Text(text) => out.push_str(text),
+            Piece::Spec(spec) => {
+                let index = spec.index(&mut next);
+                let argument = arguments
+                    .get(index)
+                    .ok_or_else(|| Fault::thrown(reads_missing(index, arguments.len())))?;
+                used[index] = true;
+                let body = spec.convert(argument)?;
+                spec.pad_into(&body, &mut out);
             }
-        };
-        let argument = arguments.get(index).ok_or_else(|| {
-            Fault::thrown(format!(
-                "Core\\Str::format(): the template reads argument {} of {}",
-                index + 1,
-                arguments.len()
-            ))
-        })?;
-        used[index] = true;
-        let body = spec.convert(argument)?;
-        spec.pad_into(&body, &mut out);
-        rest = tail;
+        }
     }
-    out.push_str(rest);
     if let Some(unused) = used.iter().position(|seen| !seen) {
-        return Err(Fault::thrown(format!(
-            "Core\\Str::format(): argument {} is never read by the template",
-            unused + 1
-        )));
+        return Err(Fault::thrown(never_read(unused)));
     }
     Ok(out)
+}
+
+/// One placeholder as the *checker* sees it: which argument it reads and what
+/// conversion it applies, with everything only a rendering needs — the flags,
+/// the width, the precision — left behind.
+///
+/// ADR 0057 § 1's `Core\Str::format` row is checked against exactly this, so
+/// [`crate::format`]'s grammar stays the one thing that says what a
+/// placeholder is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Placeholder {
+    /// The **0-based** argument this placeholder reads, `%1$s`'s own numbering
+    /// already resolved against the running position.
+    pub index: usize,
+    /// The conversion character, already one of the closed list.
+    pub conversion: char,
+}
+
+/// Every placeholder in `template`, in written order, or the message the
+/// runtime would have thrown — [ADR 0057](../../../../docs/adr/0057-intrinsic-literal-folding.md)
+/// § 1's validation half of this module.
+///
+/// The count and the argument types are *not* checked here: this answers what
+/// the template asks for, and `nvs_types::intrinsics` is what holds the call's
+/// argument list beside it. A `Vec` rather than the iterator itself because
+/// the checker asks the whole template two questions at once — the highest
+/// index it reads, and whether every argument is read — and neither is
+/// answerable one placeholder at a time.
+///
+/// # Errors
+///
+/// The text of the `Fault::thrown` [`format`] would have raised on the same
+/// template, so a diagnostic quotes the runtime's own words rather than a
+/// second wording of the same refusal.
+pub fn placeholders(template: &str) -> Result<Vec<Placeholder>, String> {
+    let mut found = Vec::new();
+    let mut next = 0usize;
+    for piece in Pieces::new(template) {
+        if let Piece::Spec(spec) = piece? {
+            found.push(Placeholder {
+                index: spec.index(&mut next),
+                conversion: spec.conversion,
+            });
+        }
+    }
+    Ok(found)
+}
+
+/// What a template the caller has too few arguments for throws — written once
+/// because [`placeholders`]' caller reports the same fact while checking.
+#[must_use]
+pub fn reads_missing(index: usize, given: usize) -> String {
+    format!(
+        "Core\\Str::format(): the template reads argument {} of {given}",
+        index + 1
+    )
+}
+
+/// What an argument no placeholder consumed throws — [`reads_missing`]'s
+/// sibling, shared for its reason.
+#[must_use]
+pub fn never_read(index: usize) -> String {
+    format!(
+        "Core\\Str::format(): argument {} is never read by the template",
+        index + 1
+    )
+}
+
+/// One run of a template: literal text, or a placeholder.
+///
+/// A `%%` arrives as [`Self::Text`] carrying the single `%` it stands for, so
+/// nothing downstream has to know the escape exists.
+enum Piece<'a> {
+    Text(&'a str),
+    Spec(Spec),
+}
+
+/// The template grammar's one walk, borrowing the template and allocating
+/// nothing — [`format`] renders each piece, [`placeholders`] describes them.
+///
+/// An error ends the iteration: the parser cannot know where the next
+/// placeholder starts once one is malformed, and the runtime threw on the
+/// first refusal anyway.
+struct Pieces<'a> {
+    rest: &'a str,
+}
+
+impl<'a> Pieces<'a> {
+    const fn new(template: &'a str) -> Self {
+        Self { rest: template }
+    }
+}
+
+impl<'a> Iterator for Pieces<'a> {
+    type Item = Result<Piece<'a>, String>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.rest.is_empty() {
+            return None;
+        }
+        let Some(at) = self.rest.find('%') else {
+            return Some(Ok(Piece::Text(std::mem::take(&mut self.rest))));
+        };
+        if at > 0 {
+            let (text, rest) = self.rest.split_at(at);
+            self.rest = rest;
+            return Some(Ok(Piece::Text(text)));
+        }
+        let after = &self.rest[1..];
+        if let Some(tail) = after.strip_prefix('%') {
+            self.rest = tail;
+            // The `%` this escape stands for, sliced out of the template so the
+            // piece borrows rather than owning.
+            return Some(Ok(Piece::Text(&after[..1])));
+        }
+        match Spec::parse(after) {
+            Ok((spec, tail)) => {
+                self.rest = tail;
+                Some(Ok(Piece::Spec(spec)))
+            }
+            Err(message) => {
+                self.rest = "";
+                Some(Err(message))
+            }
+        }
+    }
 }
 
 /// One parsed placeholder: `%[argnum$][flags][width][.precision]conversion`.
@@ -140,7 +251,11 @@ impl Spec {
     /// Parses one placeholder off the front of `after` — the text following
     /// the `%`, with `%%` already handled by the caller — and returns it with
     /// whatever follows it.
-    fn parse(after: &str) -> Result<(Self, &str), Fault> {
+    ///
+    /// Refuses with a message rather than a [`Fault`]: this is the half of the
+    /// module both entry points share, and only [`format`] is in a position to
+    /// throw. See the module docs' *One parse, two entry points*.
+    fn parse(after: &str) -> Result<(Self, &str), String> {
         let bytes = after.as_bytes();
         let mut at = 0usize;
 
@@ -217,10 +332,10 @@ impl Spec {
             conversion,
             's' | 'd' | 'u' | 'f' | 'e' | 'g' | 'x' | 'X' | 'o' | 'b'
         ) {
-            return Err(Fault::thrown(format!(
+            return Err(format!(
                 "Core\\Str::format(): `%{conversion}` is not one of the conversions the template \
                  grammar allows (`%s %d %u %f %e %g %x %X %o %b %%`)"
-            )));
+            ));
         }
         Ok((
             Self {
@@ -234,6 +349,24 @@ impl Spec {
             },
             &after[at..],
         ))
+    }
+
+    /// Which argument this placeholder reads, 0-based, advancing `next` when
+    /// it is an unnumbered one.
+    ///
+    /// The one place `%1$s`'s numbering is resolved, because the running
+    /// position it interacts with is state a single placeholder cannot see:
+    /// a numbered placeholder does not consume a position, so `%2$s %s` reads
+    /// arguments 2 and 1 in that order.
+    fn index(&self, next: &mut usize) -> usize {
+        match self.argnum {
+            Some(argnum) => argnum - 1,
+            None => {
+                let index = *next;
+                *next += 1;
+                index
+            }
+        }
     }
 
     /// This placeholder's argument rendered, before any padding.
@@ -503,11 +636,9 @@ fn nonfinite(value: f64) -> String {
 }
 
 /// A placeholder this grammar cannot read at all.
-fn malformed(after: &str) -> Fault {
+fn malformed(after: &str) -> String {
     let shown: String = after.chars().take(8).collect();
-    Fault::thrown(format!(
-        "Core\\Str::format(): `%{shown}` is not a placeholder this template grammar allows"
-    ))
+    format!("Core\\Str::format(): `%{shown}` is not a placeholder this template grammar allows")
 }
 
 /// A value with no reading for the conversion it reached.
@@ -674,6 +805,41 @@ mod tests {
                 answer.is_err(),
                 "`{template}` produced {:?} rather than throwing",
                 answer.ok()
+            );
+        }
+    }
+
+    /// ADR 0057 § 4, asserted rather than described: the checker's entry point
+    /// and the runtime's are one implementation, so neither can drift into
+    /// accepting a template the other refuses.
+    ///
+    /// Asserted by **agreement**, not by two expectation lists — a second list
+    /// of what [`placeholders`] answers would pass while both halves drifted
+    /// together. The malformed half compares the refusal's own words, and the
+    /// well-formed half hands the runtime exactly the argument count the
+    /// checker derived and asserts the boundary on both sides of it: that many
+    /// renders, one fewer throws.
+    #[test]
+    fn a_prepared_literal_and_its_runtime_twin_share_one_implementation() {
+        for template in ["%q", "%1$", "%", "%'", "%.2z"] {
+            let checked = super::placeholders(template).expect_err("a refusal");
+            let thrown = format(template, &[]).expect_err("a refusal");
+            let nvs_runtime::Fault::Thrown(_, message) = thrown else {
+                panic!("`{template}` refused as something other than a throw");
+            };
+            assert_eq!(checked, message, "for `{template}`");
+        }
+        for template in ["%s", "%s %d", "%2$s %1$s %2$s", "100%% of %s", "%08.3f"] {
+            let read = super::placeholders(template).expect("a template");
+            let wanted = read.iter().map(|p| p.index).max().map_or(0, |i| i + 1);
+            let arguments: Vec<Value> = (0..wanted).map(|_| Value::int(1)).collect();
+            assert!(
+                format(template, &arguments).is_ok(),
+                "`{template}` refused the {wanted} argument(s) the checker derived"
+            );
+            assert!(
+                format(template, &arguments[..wanted - 1]).is_err(),
+                "`{template}` accepted one argument fewer than the checker derived"
             );
         }
     }
