@@ -190,20 +190,43 @@
 > property of the *sequence*, and a seam handing out task ids makes keeping it the caller's
 > diligence again, which is the exact failure `spawn_child` already refuses on the parent link.
 > `Outcome` has three variants and not five: § 4's last row is not a return at all, since a
-> cancelled caller is unwound *through* the call rather than out of it. What is still missing is at
-> both ends of the seam. Nothing implements the trait, and nothing installs one — `nvs-cli` does not
-> depend on `nvs-host` at all, so `nvs run` has no scheduler under it and the acceptance check's own
-> program has nowhere to put children even once the bodies exist. Those are the next things Stage 4
-> owes, in that order. `examples/tasks.nvs` now compiles *whole* — all four of the blocks its
-> acceptance check freezes type-check, `Core\Time::sleep`, `Core\Arr::range`, the static-property
-> gauge and the `TimeoutError` catch included — and reaches that placeholder rather than a
-> diagnostic, so the scheduler seam is the only thing left between the tree and that check. The
-> steps the chain took are in [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's
-> own residue is the 1000-case corpus count, which orders 1–4 meet as the suite grows; nothing else
-> about M4 is open. What the program is measured by is `python tools/check-migration.py` at 100%
-> classified, which stood at 25% the day the program was scheduled and reads 34% now that goal 1's
-> own five domains — dates and times, regular expressions, JSON, URLs and paths — carry a row per
-> name. `python tools/gaps.py`, `python tools/holes.py` and `python tools/check-migration.py
+> cancelled caller is unwound *through* the call rather than out of it. The host end of that seam is
+> now filled in. `crates/nvs-host/src/group.rs` is the one implementor: `SchedulerHost` is a unit
+> struct — every scrap of a scheduler's state is already a thread-local of that crate, so a host
+> carrying a pointer to any of it would be a second, staler route — and `Scheduler::run` installs it
+> beside the task tree's own guard, so a `Core` member can reach a host exactly when it can reach a
+> tree to put children in. Its module doc holds the two decisions only an implementor can make. The
+> first is **what a child gets for a `Ctx`**, which `spawn_child` forces to be an owned one while §
+> 1's children share the request: `Ctx::child` builds a fresh context that **aliases the request's
+> static-property base** and owns everything else, because compiled code loads a static inline
+> through that word and a child with a store of its own would give one request two copies of every
+> static — which is exactly what the acceptance program's `limit` block measures a peak through. The
+> origin, the debug flags, the error class and the deadline word are copied; the output buffer and
+> the assertion ledger are the child's own and are spliced back **in job order** when the group
+> ends, so a child's `echo` cannot make a `Task::map`'s output depend on which child finished first.
+> The alias obliges the parent to outlive the child, and that is discharged twice: the call does not
+> return while a child is still running, and a parent torn down first cancels its children, which
+> the scheduler unwinds without resuming. The second decision is the **sequence**, which is the
+> whole of § 4: start what the `limit` allows, park, cancel every sibling on the first throw or on
+> the deadline, and **keep parking until the count reaches zero** — a per-child guard whose `Drop`
+> counts it out and wakes the parent, rather than a line at the end of a body a cancelled child
+> never reaches. `Outcome::Threw` carries a `Thrown` rather than a `Value` now, since that is what
+> `Ctx::take_thrown` produces and what `Ctx::raise` takes, and a `Job` may be dropped without ever
+> being called — the doc on that type is the one home of the release obligation that puts on whoever
+> builds one. Eight tests pin it, 101 in the crate against 93. What is still missing is the *other*
+> end. `nvs-cli` does not depend on `nvs-host` at all, so `nvs run` has no scheduler under it and
+> the acceptance check's own program has nowhere to put children even once the bodies exist, and
+> `crates/nvs-stdlib/src/task.rs` still registers both rows against one placeholder. Those are the
+> next things Stage 4 owes, in that order. `examples/tasks.nvs` now compiles *whole* — all four of
+> the blocks its acceptance check freezes type-check, `Core\Time::sleep`, `Core\Arr::range`, the
+> static-property gauge and the `TimeoutError` catch included — and reaches that placeholder rather
+> than a diagnostic, so the scheduler seam is the only thing left between the tree and that check.
+> The steps the chain took are in [goals/README.md](agent/goals/README.md) § *Starting the chain*.
+> M4's own residue is the 1000-case corpus count, which orders 1–4 meet as the suite grows; nothing
+> else about M4 is open. What the program is measured by is `python tools/check-migration.py` at
+> 100% classified, which stood at 25% the day the program was scheduled and reads 34% now that goal
+> 1's own five domains — dates and times, regular expressions, JSON, URLs and paths — carry a row
+> per name. `python tools/gaps.py`, `python tools/holes.py` and `python tools/check-migration.py
 > --report` are the three worklists behind it, and no session re-derives one.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in

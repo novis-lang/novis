@@ -105,7 +105,12 @@
 //! O(in-flight) and not O(tasks ever spawned), plus one queued id per wake in
 //! flight, which every turn drains.
 //!
-//! **A `Core` member reaches none of this directly.** `nvs-stdlib` does not
+//! **A `Core` member reaches none of this directly**, and what it reaches
+//! instead is [`crate::group`] — the implementor of `nvs-runtime`'s host seam,
+//! installed by [`Scheduler::run`] beside the tree and holding the two
+//! decisions this module does not: what a child gets for a [`Ctx`], and the
+//! order of steps that makes ADR 0072 § 4's "nothing still running" a property
+//! of the call. `nvs-stdlib` does not
 //! depend on this crate and may not start to — the signature registry lives
 //! there, so `nvs-types` and `nvs-codegen` would link a reactor to answer a
 //! question about a signature. `Core\Task::all` therefore arrives through
@@ -634,6 +639,11 @@ impl Scheduler {
         // and `cancel_task` reach, and outside a turn there is nothing running
         // for either of them to be a child of or to cancel from.
         let _installed = install_tree(&self.tree);
+        // Beside the tree and for the same length, so a `Core` member can reach
+        // a host exactly when it can reach a tree to put children in.
+        // [`crate::group`] is the implementor and the home of what a child gets
+        // for a `Ctx`.
+        let _host = crate::group::install();
         loop {
             // Before the run queue is read rather than only after a resume: a
             // wake issued between turns, by an end of a channel held outside

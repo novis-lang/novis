@@ -3500,6 +3500,18 @@ sibling in the same namespace unqualified.
   `Fault::`, because `every_error_path_is_asserted_or_declared_unreachable` then wants either
   a case freezing that message or a declaration naming the diagnostic that refuses the call
   first, and a not-implemented-yet body has neither.
+- **A bare-message failure with no runtime error class installed loses its message at
+  `Ctx::take_thrown`, and answers a *null* `Thrown`.** `set_pending` files a
+  `Pending::Message`, and the promotion into an object needs a class descriptor —
+  `Thrown::new_as` returns `Thrown::none()` for a null one, whose `message()` is `""`. Every
+  embedder installs one (`Unit::install_in`), so this only bites a Rust-side test that built a
+  `Ctx::new(...)` by hand and then asserted on a thrown message: the assertion reads
+  `left: ""` against the message you just set, and nothing points at the missing class.
+  `crates/nvs-host/src/group.rs`'s `ctx_with_error_class` is the four-line fixture — a
+  `ClassTable` with one `Throwable` carrying the four slots, handed over with
+  `Ctx::set_runtime_error_class`. Worth knowing before writing the test, not after: the same
+  promotion is what a compiled `catch` runs, so this is the existing semantics rather than a
+  gap, and a test asserting on `matches!(.., Threw(_))` instead is a weaker test for no reason.
 
 ## Divergences and refusals already pinned
 
