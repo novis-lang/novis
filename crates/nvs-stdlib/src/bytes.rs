@@ -1105,6 +1105,10 @@ nvs_runtime::nvs_helper! {
     /// a qualifier classification yet, so half of one here would be a lie
     /// about what is enforced.
     fn nvs_core_bytes_pack(_ctx, args: [2]) {
+        // Unreachable from source: parameter 0 is `CoreTy::Str` in `CLASS`
+        // above, so a non-string format is `E0401: expected 'string', found
+        // 'mixed'` at the checker. A string that is no *format* is the
+        // grammar's own throw, which `packed` owns.
         let format = args[0].as_text().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Bytes::pack expected {:?} for the format, got tag {}",
@@ -1112,6 +1116,12 @@ nvs_runtime::nvs_helper! {
                 args[0].tag_byte()
             ))
         })?;
+        // Unreachable for the stronger reason `Core\Path::join` states in
+        // full, and so unreachable from source with no diagnostic to name:
+        // parameter 1 is `CoreTy::Variadic`, and `nvs_ir::lower::
+        // lower_call_args` *builds* the array this slot holds out of every
+        // argument from that position on, so no source expression reaches the
+        // slot at all.
         let values = args[1].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Bytes::pack expected {:?} for the value list, got tag {}",
@@ -1332,6 +1342,10 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_core_bytes_pack`]'s is, and both classifications are owed there.
     fn nvs_core_bytes_unpack(_ctx, args: [2]) {
         let subject = raw(&args[0], "unpack", "the subject")?;
+        // Unreachable from source on `nvs_core_bytes_pack`'s judgement: this
+        // parameter is `CoreTy::Str` too, so a non-string format is `E0401:
+        // expected 'string', found 'mixed'` at the checker, and a string that
+        // is no format is `unpacked`'s throw below.
         let format = args[1].as_text().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Bytes::unpack expected {:?} for the format, got tag {}",

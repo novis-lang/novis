@@ -469,6 +469,11 @@ nvs_runtime::nvs_helper! {
         let data = data_of(args, 0, "hmac")?;
         let key = bytes_of(args, 1, "hmac")?;
         let kind = digest_kind(args, 2, "hmac")?;
+        // Unreachable from source: parameter 2 is `CoreTy::Union(STRONG)`, so a
+        // weak case is `E0401: expected 'Core\Digest::Sha256|Core\Digest::
+        // Sha384|Core\Digest::Sha512', found 'Core\Digest'` — probed with
+        // `Core\Digest::Md5` and with a `mixed` binding. `hmac_of`'s own docs
+        // own why the subset is then enforced a second time here.
         let mac = hmac_of(kind, key, data).ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Hash::hmac reached with `Core\\Digest::{kind:?}`, which is not a \
@@ -609,6 +614,11 @@ nvs_runtime::nvs_helper! {
                 let held = chunks
                     .value_at(slot)
                     .expect("next_slot only names live entries");
+                // `update` is the only writer of `CHUNKS_SLOT` and its one
+                // parameter is `CoreTy::Union(DATA)` — `bytes|string` — so the
+                // guard below is unreachable from source with no diagnostic to
+                // name: a chunk carries `Tag::Bytes` or `Tag::Str`, the pair
+                // answers for both, and no spelling puts a third tag here.
                 let octets = held
                     .as_bytes()
                     .or_else(|| held.as_str_bytes())

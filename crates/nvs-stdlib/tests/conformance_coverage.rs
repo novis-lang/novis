@@ -601,24 +601,6 @@ fn fault_sites() -> Vec<Site> {
 /// and the stem because a line number moves under an unrelated edit and a stem
 /// does not. One line covers every site in its file writing that stem.
 const OWED_A_CASE: &[(&str, &str)] = &[
-    ("arr.rs", "Core\\Arr::chunk expected"),    // arr.rs:1733
-    ("arr.rs", "Core\\Arr::fill expected"),     // arr.rs:2317
-    ("arr.rs", "Core\\Arr::fillKeys expected"), // arr.rs:2341
-    (
-        "arr.rs",
-        "Core\\Arr::sort expected a `Core\\Order` case for `order`, got tag",
-    ), // arr.rs:2810
-    ("arr.rs", "Core\\Arr::sort expected"),     // arr.rs:2820
-    (
-        "arr.rs",
-        "Core\\Arr::sortByKey expected a `Core\\Order` case for `order`, got tag",
-    ), // arr.rs:2974
-    (
-        "arr.rs",
-        "Core\\Arr::average was given more entries than a `uint` counts",
-    ), // arr.rs:4126
-    ("bytes.rs", "Core\\Bytes::pack expected"), // bytes.rs:1105, bytes.rs:1112
-    ("bytes.rs", "Core\\Bytes::unpack expected"), // bytes.rs:1332
     ("debug.rs", "Core\\Debug::dump could not write:"), // debug.rs:147
     (
         "debug.rs",
@@ -628,8 +610,6 @@ const OWED_A_CASE: &[(&str, &str)] = &[
         "format.rs",
         "`value_to_string` answered something that is not a string",
     ), // format.rs:475
-    ("hash.rs", "Core\\Hash::hmac reached with `Core\\Digest::"), // hash.rs:473
-    ("hash.rs", "Core\\Hash\\Stream::finish found tag"), // hash.rs:616
     (
         "json.rs",
         "Core\\Json::decode(): a checked `maxDepth` always fits a `u32`",
@@ -638,7 +618,7 @@ const OWED_A_CASE: &[(&str, &str)] = &[
         "json.rs",
         "internal error: `Core\\Json::decodeAs` was called with no class in argument 0",
     ), // json.rs:714
-    ("json.rs", "internal error: `"),           // json.rs:823
+    ("json.rs", "internal error: `"),                   // json.rs:823
     (
         "math.rs",
         "Core\\Math::round expected a `Core\\RoundMode` case for `mode`, got tag",
@@ -665,23 +645,7 @@ const OWED_A_CASE: &[(&str, &str)] = &[
         "Core\\Test::assertEquals expected an `int` from `compareTo`, got tag",
     ), // test.rs:663
     ("test.rs", "Core\\Test::assertEqualsDeep walked"), // test.rs:692
-    ("uri.rs", "Core\\Uri::with expected a `string` for its `"), // uri.rs:934
-    (
-        "uri.rs",
-        "`value_to_string` answered something that is not a string",
-    ), // uri.rs:1364
-    (
-        "uri.rs",
-        "Core\\Uri::with expected an `int` for its `port` option, got tag",
-    ), // uri.rs:1642
-    ("uri.rs", "Core\\Uri::resolve found a null `text` slot"), // uri.rs:1692
-    ("uri.rs", "Core\\Uri::resolve expected"),  // uri.rs:1702
-    (
-        "uri.rs",
-        "Core\\Uri::resolve produced text `fluent-uri` will not read back",
-    ), // uri.rs:1726
-    ("uri.rs", "Core\\Uri::buildQuery expected"), // uri.rs:1912
-    ("validate.rs", "Core\\Validate::isIp received"), // validate.rs:275
+    ("validate.rs", "Core\\Validate::isIp received"),   // validate.rs:275
     (
         "validate.rs",
         "Core\\Validate::isIp expected `4`, `6` or nothing for `version`, got tag",

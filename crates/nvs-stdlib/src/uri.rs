@@ -930,6 +930,10 @@ fn written<'a>(value: &'a Value, option: &str) -> Result<Option<&'a str>, Fault>
     if matches!(value.tag(), Some(Tag::Null)) {
         return Ok(None);
     }
+    // Unreachable from source: every option this reads is `CoreTy::Str` with a
+    // `Const::Null` default in `CLASS`'s `with` row above, so the slot holds
+    // either that null — taken by the branch above — or a string, and anything
+    // else is `E0401: expected 'string', found 'mixed'` at the checker.
     value.as_text().map(Some).ok_or_else(|| {
         Fault::fatal(format!(
             "Core\\Uri::with expected a `string` for its `{option}` option, got tag {}",
@@ -1359,6 +1363,11 @@ fn scalar_text(value: Value, owner: &str, member: &str) -> Result<Vec<u8>, Fault
              so there is no text a query string could write it as"
         ))
     })?;
+    // A post-condition of the call above rather than a boundary, and so
+    // unreachable from source with no diagnostic to name: every `Ok` arm of
+    // `value_to_string` builds a `Value::str` — including ADR 0088 § 5's
+    // carrier arm, which hands back the carrier's own checked text slot — so
+    // this is a `Tag::Str` or it is the `Err` the `?` above already took.
     let bytes = text
         .as_str_bytes()
         .ok_or_else(|| Fault::fatal("`value_to_string` answered something that is not a string"))?
@@ -1638,6 +1647,12 @@ nvs_runtime::nvs_helper! {
         let port = if matches!(args[3].tag(), Some(Tag::Null)) {
             slots[PORT_SLOT].as_int()
         } else {
+            // Unreachable from source, on `written`'s judgement with the one
+            // difference the comment above names: `port` is `CoreTy::Int` with
+            // a `Const::Null` default, the null is the branch above, and
+            // anything else is `E0401: expected 'int', found 'mixed'` at the
+            // checker. The range, which a program *can* get wrong, is
+            // `port_out_of_range` below.
             Some(args[3].as_int().ok_or_else(|| {
                 Fault::fatal(format!(
                     "Core\\Uri::with expected an `int` for its `port` option, got tag {}",
@@ -1688,6 +1703,12 @@ nvs_runtime::nvs_helper! {
         let receiver = crate::instance::receiver(args[0], &CLASS, "resolve")?;
         let slots: [Value; 8] =
             std::array::from_fn(|index| crate::instance::slot(receiver, index));
+        // Unreachable from source: `Core\Uri` declares no `constructor` — the
+        // spelling is `E0405: Core\Uri has no member named constructor` — so
+        // every instance a program holds came from `built`, whose slot 0 is an
+        // unconditional `Value::str` of the whole reference. Slot 0 is the one
+        // of the eight that is never null, which is why this is the only
+        // `held` call site that unwraps.
         let base_text = held(&slots, TEXT_SLOT, "resolve")?
             .ok_or_else(|| Fault::fatal("Core\\Uri::resolve found a null `text` slot"))?;
         let base = Uri::parse(base_text).map_err(|_| {
@@ -1698,6 +1719,11 @@ nvs_runtime::nvs_helper! {
                     .to_owned(),
             )
         })?;
+        // Unreachable from source: parameter 0 is `CoreTy::Str` in `CLASS`'s
+        // `resolve` row above, so a non-string reference is `E0401: expected
+        // 'string', found 'mixed'` at the checker. What a program can still
+        // write is a *string* that is no reference, and that is `read`'s throw
+        // on the next line.
         let text = args[1].as_text().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Uri::resolve expected {:?}, got tag {}",
@@ -1722,6 +1748,13 @@ nvs_runtime::nvs_helper! {
                 Fault::thrown(format!("Core\\Uri::resolve(): {refused}"))
             })?;
 
+        // Unreachable from source, and a post-condition rather than a
+        // boundary: the text handed to `parse` here is what `fluent-uri`'s own
+        // `resolve_against` just produced out of two references it had already
+        // parsed, so a failure would be that crate disagreeing with itself
+        // rather than anything a call site wrote. `with` earns its
+        // recomposition check because it concatenates components a caller
+        // chose; this one does not concatenate anything.
         built(&UriRef::parse(resolved.as_str()).map_err(|_| {
             Fault::fatal("Core\\Uri::resolve produced text `fluent-uri` will not read back")
         })?, "resolve")
@@ -1908,6 +1941,11 @@ nvs_runtime::nvs_helper! {
     /// [`scalar_text`]'s throw, for a value that is neither a scalar nor a
     /// nested array.
     fn nvs_core_uri_build_query(_ctx, args: [1]) {
+        // Unreachable from source: parameter 0 is `CoreTy::Array(CoreTy::Mixed)`
+        // in `CLASS` above, so a non-container argument is `E0401: expected
+        // 'array<mixed>', found 'mixed'` at the checker. This is
+        // `Core\Arr::count`'s judgement, stated in full at
+        // `nvs_core_arr_count`.
         let parameters = args[0].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Uri::buildQuery expected {:?}, got tag {}",

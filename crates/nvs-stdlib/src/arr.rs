@@ -1743,6 +1743,13 @@ nvs_runtime::nvs_helper! {
     /// same way, which is why the two share [`carry_entry`].
     fn nvs_core_arr_chunk(_ctx, args: [3]) {
         let base = subject(args, "chunk")?;
+        // Unreachable from source: parameter 1 is `CoreTy::Uint` in `CLASS`
+        // above, so anything else is `E0401: expected 'uint', found …` at the
+        // checker — probed with a `mixed` binding and with the literal `-1`,
+        // which is the near miss worth checking here because a size a caller
+        // computed wrong is how a negative one would arrive, and it is
+        // `expected 'uint', found 'int'` rather than the `size == 0` throw
+        // below. `nvs_core_arr_count` states the general form.
         let size = args[1].as_uint().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Arr::chunk expected {:?} for `size`, got tag {}",
@@ -2339,6 +2346,11 @@ nvs_runtime::nvs_helper! {
     /// PHP's own answer and the one that lets a computed count through
     /// unguarded.
     fn nvs_core_arr_fill(_ctx, args: [2]) {
+        // Unreachable from source for `nvs_core_arr_chunk`'s `size` reason and
+        // on the same two probes: parameter 0 is `CoreTy::Uint` in `CLASS`
+        // above, so both a `mixed` binding and the literal `-1` are `E0401`
+        // before any of this runs. The zero the doc comment above admits is a
+        // `uint` and reaches the body; nothing else does.
         let count = args[0].as_uint().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Arr::fill expected {:?} for `count`, got tag {}",
@@ -2363,6 +2375,11 @@ nvs_runtime::nvs_helper! {
     /// same value, so which of two duplicates "wins" is not observable; what is
     /// observable is the count, and it counts distinct keys the way PHP's does.
     fn nvs_core_arr_fill_keys(_ctx, args: [2]) {
+        // Unreachable from source: parameter 0 is
+        // `CoreTy::Array(CoreTy::Union(ARRAY_KEY))` in `CLASS` above, so a
+        // non-container argument is `E0401: expected 'array<string|int>',
+        // found 'mixed'` at the checker. This is `nvs_core_arr_count`'s
+        // judgement, which states it in full.
         let keys = args[0].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Arr::fillKeys expected {:?} for the keys, got tag {}",
@@ -2833,6 +2850,14 @@ nvs_runtime::nvs_helper! {
             Some(0) => false,
             Some(1) => true,
             _ => {
+                // Unreachable from source: `order` is
+                // `CoreTy::Enum(r"Core\Order")` in `SORT_OPTIONS`, so a value
+                // that is no case is `E0401: expected 'Core\Order', found …`
+                // at the checker — probed with a `mixed` binding and with the
+                // bare `int` literal `1`, which is the near miss worth
+                // checking because the discriminant compiled code writes for a
+                // case is exactly an integer. `Core\Str::normalize`'s
+                // `normal_form_of` is the same judgement, stated in full.
                 return Err(Fault::fatal(format!(
                     "Core\\Arr::sort expected a `Core\\Order` case for `order`, got tag {} \
                      value {}",
@@ -2842,6 +2867,9 @@ nvs_runtime::nvs_helper! {
             }
         };
         let comparator = optional_callback(&args[3], "sort", "comparator")?;
+        // Unreachable from source: `preserveKeys` is `CoreTy::Bool` in
+        // `SORT_OPTIONS`, so `E0401: expected 'bool', found 'mixed'` refuses
+        // the call before the option list compiled code writes is built.
         let preserve_keys = args[4].as_bool().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Arr::sort expected {:?} for `preserveKeys`, got tag {}",
@@ -2997,6 +3025,11 @@ nvs_runtime::nvs_helper! {
             Some(0) => false,
             Some(1) => true,
             _ => {
+                // Unreachable from source for the reason `nvs_core_arr_sort`'s
+                // own `order` arm states, on the same two probes: this
+                // option is `CoreTy::Enum(r"Core\Order")` in
+                // `SORT_BY_KEY_OPTIONS`, and both a `mixed` binding and the
+                // bare `int` literal `1` are `E0401` at the checker.
                 return Err(Fault::fatal(format!(
                     "Core\\Arr::sortByKey expected a `Core\\Order` case for `order`, got tag {} \
                      value {}",
@@ -4148,6 +4181,11 @@ nvs_runtime::nvs_helper! {
         if count == 0 {
             return Ok(Value::null());
         }
+        // Unreachable from source, and for a reason no diagnostic states:
+        // `count` is a `usize` and `usize` is no wider than `u64` on any target
+        // `deny.toml` builds for, so this conversion is total and the `Err` arm
+        // is the price of not writing `as` rather than a boundary a long enough
+        // array reaches. `Core\Str::length` states it in full.
         let divisor = u64::try_from(count).map_err(|_| {
             Fault::fatal("Core\\Arr::average was given more entries than a `uint` counts")
         })?;
