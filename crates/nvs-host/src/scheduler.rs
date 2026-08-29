@@ -32,10 +32,12 @@
 //!
 //! What it spends, as [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md)
 //! requires: **one stack per in-flight task**, held for as long as that task is
-//! suspended and freed when it completes. That is O(in-flight) and not
-//! O(requests served), which is the test that section applies. How large a
-//! stack is, and whether it is pooled, is ADR 0115's to decide along with the
-//! reactor; until then a task takes `corosensei`'s default.
+//! suspended and handed back to the worker's pool when it completes. That is
+//! O(in-flight) and not O(requests served), which is the test that section
+//! applies. How wide that stack is reserved, how little of it is ever resident,
+//! and what the pool itself costs is ADR 0115 § 4 — spelled in
+//! [`crate::stack`], which is that policy's only home. This module takes a
+//! stack, arms the task's recursion limit from it, and gives it back.
 //!
 //! # What this module deliberately does not know
 //!
@@ -53,6 +55,8 @@ use std::marker::PhantomData;
 
 use corosensei::{Coroutine, CoroutineResult, Yielder};
 use nvs_runtime::{Ctx, TaskPanic, TaskRoot};
+
+use crate::stack::StackPool;
 
 /// What a suspended task is waiting for.
 ///
@@ -166,6 +170,12 @@ pub struct Scheduler {
     ready: VecDeque<Task>,
     parked: HashMap<TaskId, Task>,
     finished: Vec<Finished>,
+    /// This worker's supply of task stacks — ADR 0115 § 4, and
+    /// [`crate::stack`]'s module doc for the whole policy. It lives here rather
+    /// than in [`crate::Worker`] because this is the type that knows when a
+    /// task starts and when it ends, which is the only pair of moments a pool
+    /// cares about.
+    stacks: StackPool,
     /// Makes this type `!Send` and `!Sync`, which is the module doc's whole
     /// first section. A raw pointer is the standard spelling and costs no
     /// bytes.
@@ -178,6 +188,7 @@ impl std::fmt::Debug for Scheduler {
             .field("ready", &self.ready.len())
             .field("parked", &self.parked.len())
             .field("finished", &self.finished.len())
+            .field("stacks", &self.stacks)
             .finish()
     }
 }
@@ -225,6 +236,7 @@ impl Scheduler {
             ready: VecDeque::new(),
             parked: HashMap::new(),
             finished: Vec::new(),
+            stacks: StackPool::new(),
             _pinned_to_one_thread: PhantomData,
         }
     }
@@ -241,6 +253,22 @@ impl Scheduler {
     /// a [`TaskRoot::Request`] as one request and retires the worker for a
     /// [`TaskRoot::Worker`].
     ///
+    /// The stack comes from this worker's pool ([`crate::stack`]) and the
+    /// task's recursion limit is armed **from that stack** before the context
+    /// moves onto it. `nvs-runtime`'s `Ctx` module doc records the gap this
+    /// closes: [`Ctx::new`] can only assert a ceiling from the stack pointer it
+    /// happens to be constructed on, which for a task is the *worker's* stack
+    /// and therefore describes memory the task will never run on. This crate
+    /// allocated the stack and knows its base and its width exactly, which is
+    /// what that doc means by "an embedder that knows its bounds" — ADR 0115
+    /// § 4's last bullet.
+    ///
+    /// # Panics
+    ///
+    /// If the OS refuses a stack reservation and the pool is empty;
+    /// [`crate::stack::StackPool::take`] owns why nothing softer is available
+    /// or wanted here.
+    ///
     /// Nothing runs until [`Scheduler::run`] is called.
     pub fn spawn<F>(&mut self, ctx: Ctx, root: TaskRoot, body: F) -> TaskId
     where
@@ -249,8 +277,11 @@ impl Scheduler {
         let id = TaskId(self.next_id);
         self.next_id += 1;
 
+        let stack = self.stacks.take();
         let mut ctx = ctx;
-        let coro = Coroutine::new(move |yielder: &TaskYielder, ()| {
+        let (base, ceiling) = crate::stack::bounds(&stack);
+        ctx.arm_stack_limit(base, ceiling);
+        let coro = Coroutine::with_stack(stack, move |yielder: &TaskYielder, ()| {
             // Taking a pointer to the yielder is safe; only turning it back
             // into a reference is not, and `suspend` below owns that `unsafe`.
             // It is erased to `*const ()` so that `nvs-runtime` — the crate
@@ -309,6 +340,11 @@ impl Scheduler {
                 CoroutineResult::Return(finished) => {
                     report.finished += 1;
                     self.finished.push(finished);
+                    // The coroutine is done, so its stack holds nothing and
+                    // `into_stack` can take it — this is the one moment a stack
+                    // is recyclable, and letting `task` drop here instead would
+                    // hand every request's mapping back to the OS.
+                    self.stacks.give(task.coro.into_stack());
                 }
             }
         }
@@ -343,6 +379,16 @@ impl Scheduler {
     #[must_use]
     pub fn ready_count(&self) -> usize {
         self.ready.len()
+    }
+
+    /// How many task stacks this worker is holding idle for the next spawn.
+    ///
+    /// Bounded by [`crate::stack::MAX_POOLED_STACKS`] and, below that, by the
+    /// number of tasks this scheduler has ever had in flight at once — which is
+    /// the O(in-flight) property ADR 0004 asks of anything the runtime keeps.
+    #[must_use]
+    pub fn pooled_stacks(&self) -> usize {
+        self.stacks.pooled()
     }
 }
 
@@ -462,12 +508,89 @@ fn yield_on(raw: *const (), waiting: Waiting) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::stack::TASK_STACK_SIZE;
     use nvs_runtime::OutputSink;
     use std::cell::{Cell, RefCell};
     use std::rc::Rc;
 
     fn ctx() -> Ctx {
         Ctx::new(OutputSink::Sink)
+    }
+
+    #[test]
+    fn a_finished_task_hands_its_stack_back_for_the_next_one() {
+        // ADR 0115 § 4's pool, from the only side that can observe it: a stack
+        // is recycled at the end of a task and not at the end of the worker, so
+        // a run of N sequential requests costs one reservation and not N.
+        let mut sched = Scheduler::new();
+        assert_eq!(sched.pooled_stacks(), 0, "a fresh pool holds nothing");
+
+        sched.spawn(ctx(), TaskRoot::Request, |_| {});
+        assert_eq!(sched.pooled_stacks(), 0, "a stack in use is not idle");
+        sched.run();
+        assert_eq!(sched.pooled_stacks(), 1, "a finished task's stack is kept");
+
+        sched.spawn(ctx(), TaskRoot::Request, |_| {});
+        assert_eq!(
+            sched.pooled_stacks(),
+            0,
+            "the next spawn must take the idle stack rather than reserve another"
+        );
+        sched.run();
+        assert_eq!(sched.pooled_stacks(), 1);
+    }
+
+    #[test]
+    fn the_pool_never_holds_more_than_the_tasks_that_were_in_flight() {
+        // The O(in-flight) claim, asserted as the bound rather than as a
+        // number: two tasks alive at once leave two stacks, and running two
+        // more afterwards leaves two still.
+        let mut sched = Scheduler::new();
+        for _ in 0..2 {
+            sched.spawn(ctx(), TaskRoot::Request, |ctx| {
+                suspend(ctx, Waiting::Yielded);
+            });
+        }
+        sched.run();
+        assert_eq!(sched.pooled_stacks(), 2);
+
+        for _ in 0..2 {
+            sched.spawn(ctx(), TaskRoot::Request, |_| {});
+            sched.run();
+        }
+        assert_eq!(sched.pooled_stacks(), 2, "sequential tasks reuse, not grow");
+    }
+
+    #[test]
+    fn a_task_s_recursion_limit_is_armed_from_its_own_stack() {
+        // ADR 0115 § 4's last bullet. `Ctx::new` armed from the *worker's*
+        // stack pointer and an asserted ceiling, which describes memory this
+        // task never runs on; what the task must see is the pair computed from
+        // the stack this crate handed it. Read on the task's own stack and
+        // asserted outside it, so a failure is a failed test rather than a
+        // contained panic.
+        let seen: Rc<Cell<(usize, usize, usize)>> = Rc::new(Cell::new((0, 0, 0)));
+        let report_to = Rc::clone(&seen);
+
+        let mut sched = Scheduler::new();
+        sched.spawn(ctx(), TaskRoot::Request, move |ctx| {
+            let frame = 0_u8;
+            let (soft, hard) = ctx.stack_bounds();
+            report_to.set((std::ptr::from_ref(&frame) as usize, soft, hard));
+        });
+        let report = sched.run();
+        assert_eq!(report.finished, 1);
+
+        let (frame, soft, hard) = seen.get();
+        assert!(hard < soft, "the hard floor is below the soft limit");
+        assert!(
+            frame > soft,
+            "the task's first frame must sit above its own soft limit"
+        );
+        assert!(
+            frame - hard <= TASK_STACK_SIZE,
+            "the floor must be on the task's stack, not on the worker's"
+        );
     }
 
     #[test]

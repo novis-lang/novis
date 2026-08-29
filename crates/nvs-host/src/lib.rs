@@ -48,6 +48,13 @@
 //! are `std::io`'s own and which parks instead of blocking, ADR 0115 § 3. Its
 //! module doc owns the try-then-park order and what a repeat park costs.
 //!
+//! What a task *costs* is [`stack`]: [`TASK_STACK_SIZE`] of reserved address
+//! space per task, resident only in the pages its handler touched, pooled per
+//! worker and recycled by the [`Scheduler`] that ended the task. That module's
+//! doc is ADR 0115 § 4's only home in this tree, and it is also where the
+//! recursion limit's bounds come from — a task's limit is armed from the stack
+//! this crate handed it, not asserted from a ceiling.
+//!
 //! **Still outstanding:** a parking `connect`, which lands with the accept loop
 //! that needs it, and the blocking pool ADR 0106 § 6 sends filesystem calls,
 //! name resolution and child processes to.
@@ -56,6 +63,7 @@ pub mod affinity;
 pub mod net;
 pub mod reactor;
 pub mod scheduler;
+pub mod stack;
 
 pub use affinity::{CpuId, cpus, pin_current_thread};
 pub use net::NvsTcp;
@@ -63,6 +71,7 @@ pub use reactor::{Installed, Interest, Reactor, run_until_idle};
 pub use scheduler::{
     Finished, RunReport, Scheduler, TaskId, Waiting, current_task, suspend, suspend_current,
 };
+pub use stack::{MAX_POOLED_STACKS, TASK_STACK_SIZE};
 
 /// One OS thread, pinned to one CPU, running one [`Scheduler`].
 ///
