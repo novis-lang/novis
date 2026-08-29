@@ -101,10 +101,13 @@
 //! that, maintained by people who track what each compiler version does with
 //! it.
 //!
-//! **What this spends:** one digest state on the stack per call — 200-odd
-//! bytes at the largest, released before the member returns — plus one
-//! `bytes` allocation of the digest's own width (4 to 64 octets), charged to
-//! the request that asked for it. Nothing is held between calls.
+//! **What this spends:** one digest state on the stack per call — a couple of
+//! kilobytes at the largest, which is BLAKE3's chunk stack; every other
+//! algorithm here is 200-odd bytes — released before the member returns, plus
+//! one `bytes` allocation of the digest's own width (4 to 64 octets), charged
+//! to the request that asked for it. Nothing is held between calls. Binary
+//! size is the other side of the roster: each algorithm carries its own round
+//! constants and tables, which is AGENTS.md's priority 5 spent on priority 2.
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, ObjHeader, Value};
 use sha2::Digest as _;
@@ -124,8 +127,14 @@ pub(crate) const NAME: &str = r"Core\Hash";
 /// [`STRONG`] is built out of.
 pub(crate) const DIGEST_NAME: &str = r"Core\Digest";
 
-/// Spec § 11's `Digest` — **every** algorithm, the two broken ones included,
-/// ordered weakest first so that [`STRONG`] is a contiguous tail.
+/// Spec § 11's `Digest` — **every** algorithm, the two broken ones included.
+///
+/// The first six were ordered weakest first, which made [`STRONG`] a
+/// contiguous tail. That stopped being true when the roster grew: the
+/// ordinals below are ABI (see the paragraph after next), so a case is
+/// *appended* and never inserted, and `Crc32c` and `Blake3` sit at the end
+/// outside [`STRONG`] with ten strong cases in front of them. **The subset
+/// is the list in [`STRONG`], never a range**, and nothing may read it as one.
 ///
 /// `Crc32`, `Md5` and `Sha1` are here because interop genuinely needs them: a
 /// legacy database column, an ETag, a package manifest and a third party's
@@ -148,6 +157,15 @@ pub(crate) const DIGEST: CoreEnum = CoreEnum {
         ("Sha256", 3),
         ("Sha384", 4),
         ("Sha512", 5),
+        ("Sha224", 6),
+        ("Sha512_224", 7),
+        ("Sha512_256", 8),
+        ("Sha3_224", 9),
+        ("Sha3_256", 10),
+        ("Sha3_384", 11),
+        ("Sha3_512", 12),
+        ("Crc32c", 13),
+        ("Blake3", 14),
     ],
 };
 
@@ -171,10 +189,25 @@ pub(crate) const DIGEST: CoreEnum = CoreEnum {
 /// priority 1 is not traded for reach. If a real integration needs it, the fix
 /// is to add the case here: **widening a union is backward compatible**, so
 /// this is the direction that can be undone, and the other one is not.
+///
+/// **`Blake3` is outside it too, and for a different reason than `Sha1`.**
+/// HMAC-BLAKE3 is a construction nobody uses: BLAKE3 is keyed natively, so
+/// wrapping it in RFC 2104's two padded blocks is slower than the primitive's
+/// own keyed mode and interoperates with nothing. Admitting it here would be
+/// offering a spelling whose only property is that it type-checks, so it waits
+/// for a keyed member designed as one rather than being bent into `hmac`.
+/// `Crc32c` is outside for `Crc32`'s reason: it is a checksum.
 const STRONG: &[CoreTy] = &[
+    CoreTy::EnumCase(DIGEST_NAME, "Sha224"),
     CoreTy::EnumCase(DIGEST_NAME, "Sha256"),
     CoreTy::EnumCase(DIGEST_NAME, "Sha384"),
     CoreTy::EnumCase(DIGEST_NAME, "Sha512"),
+    CoreTy::EnumCase(DIGEST_NAME, "Sha512_224"),
+    CoreTy::EnumCase(DIGEST_NAME, "Sha512_256"),
+    CoreTy::EnumCase(DIGEST_NAME, "Sha3_224"),
+    CoreTy::EnumCase(DIGEST_NAME, "Sha3_256"),
+    CoreTy::EnumCase(DIGEST_NAME, "Sha3_384"),
+    CoreTy::EnumCase(DIGEST_NAME, "Sha3_512"),
 ];
 
 /// `bytes|string` — what both hashing members take, and the reason neither has
@@ -307,6 +340,30 @@ enum DigestKind {
     Sha384,
     /// SHA-512, faster than SHA-256 on 64-bit hardware.
     Sha512,
+    /// SHA-224 — SHA-256 truncated, with different initial state.
+    Sha224,
+    /// SHA-512/224 — SHA-512 truncated, with its own IV per FIPS 180-4 § 5.3.6.
+    Sha512_224,
+    /// SHA-512/256 — the same, at 256 bits. Faster than SHA-256 on 64-bit
+    /// hardware and structurally immune to length extension, which is why it
+    /// is the one addition here worth reaching for on purpose.
+    Sha512_256,
+    /// SHA3-224 — FIPS 202's Keccak sponge, an independent construction from
+    /// SHA-2 rather than a wider one.
+    Sha3_224,
+    /// SHA3-256.
+    Sha3_256,
+    /// SHA3-384.
+    Sha3_384,
+    /// SHA3-512.
+    Sha3_512,
+    /// CRC-32C, the Castagnoli polynomial — what S3 and GCS stamp objects
+    /// with. A checksum, like [`DigestKind::Crc32`], and not a hash.
+    Crc32c,
+    /// BLAKE3 — the fastest of these by a wide margin, and the one algorithm
+    /// on this roster PHP cannot compute at all. Extendable-output; the 32
+    /// octets [`digest_of`] answers are its default length.
+    Blake3,
 }
 
 /// The [`DIGEST`] case an integer names, or `None` for anything that is no
@@ -323,6 +380,15 @@ fn kind_of(ordinal: Option<i64>) -> Option<DigestKind> {
         3 => DigestKind::Sha256,
         4 => DigestKind::Sha384,
         5 => DigestKind::Sha512,
+        6 => DigestKind::Sha224,
+        7 => DigestKind::Sha512_224,
+        8 => DigestKind::Sha512_256,
+        9 => DigestKind::Sha3_224,
+        10 => DigestKind::Sha3_256,
+        11 => DigestKind::Sha3_384,
+        12 => DigestKind::Sha3_512,
+        13 => DigestKind::Crc32c,
+        14 => DigestKind::Blake3,
         _ => return None,
     })
 }
@@ -381,8 +447,8 @@ fn bytes_of<'a>(args: &'a [Value], index: usize, member: &str) -> Result<&'a [u8
 
 /// `data` under `kind`, as the digest's own octets.
 ///
-/// Total: there is no input any of these six refuses, and none of them has a
-/// size limit short of the address space.
+/// Total: there is no input any of these fifteen refuses, and none of them has
+/// a size limit short of the address space.
 fn digest_of(kind: DigestKind, data: &[u8]) -> Vec<u8> {
     match kind {
         // Big-endian, so that `toHex` of the result reads the way PHP's
@@ -397,6 +463,22 @@ fn digest_of(kind: DigestKind, data: &[u8]) -> Vec<u8> {
         DigestKind::Sha256 => sha2::Sha256::digest(data).to_vec(),
         DigestKind::Sha384 => sha2::Sha384::digest(data).to_vec(),
         DigestKind::Sha512 => sha2::Sha512::digest(data).to_vec(),
+        DigestKind::Sha224 => sha2::Sha224::digest(data).to_vec(),
+        DigestKind::Sha512_224 => sha2::Sha512_224::digest(data).to_vec(),
+        DigestKind::Sha512_256 => sha2::Sha512_256::digest(data).to_vec(),
+        DigestKind::Sha3_224 => sha3::Sha3_224::digest(data).to_vec(),
+        DigestKind::Sha3_256 => sha3::Sha3_256::digest(data).to_vec(),
+        DigestKind::Sha3_384 => sha3::Sha3_384::digest(data).to_vec(),
+        DigestKind::Sha3_512 => sha3::Sha3_512::digest(data).to_vec(),
+        // Big-endian for `Crc32`'s reason, and the same four octets wide, so
+        // the two checksums differ in polynomial and in nothing else a program
+        // can see.
+        DigestKind::Crc32c => crc32c::crc32c(data).to_be_bytes().to_vec(),
+        // Not through `digest 0.10`: BLAKE3 implements those traits only under
+        // its `traits-preview` feature, and the free function is the whole API
+        // this needs. Its extendable output is taken at the default 32 octets,
+        // which is what every other implementation calls "the" BLAKE3 hash.
+        DigestKind::Blake3 => blake3::hash(data).as_bytes().to_vec(),
     }
 }
 
@@ -414,8 +496,10 @@ fn hmac_of(kind: DigestKind, key: &[u8], data: &[u8]) -> Option<Vec<u8>> {
     /// One algorithm's HMAC, written once. A macro rather than a generic
     /// function because `hmac::Hmac<D>`'s bound set is a dozen `typenum`
     /// obligations about block sizes, none of which says anything a reader of
-    /// this module needs to know — and all three instantiations are named on
-    /// the next three lines anyway, so the generality bought nothing.
+    /// this module needs to know — and every instantiation is named in the
+    /// `match` below anyway, so the generality bought nothing. It takes both
+    /// families unchanged: `sha3` is the same RustCrypto `digest 0.10` trait
+    /// set `sha2` is, which is the whole reason FIPS 202 cost no hand-fitting.
     ///
     /// `new_from_slice` is infallible for HMAC, whose key may be any length at
     /// all: RFC 2104 § 2 hashes a long one down and zero-pads a short one.
@@ -429,10 +513,21 @@ fn hmac_of(kind: DigestKind, key: &[u8], data: &[u8]) -> Option<Vec<u8>> {
     }
 
     Some(match kind {
+        DigestKind::Sha224 => mac!(sha2::Sha224),
         DigestKind::Sha256 => mac!(sha2::Sha256),
         DigestKind::Sha384 => mac!(sha2::Sha384),
         DigestKind::Sha512 => mac!(sha2::Sha512),
-        DigestKind::Crc32 | DigestKind::Md5 | DigestKind::Sha1 => return None,
+        DigestKind::Sha512_224 => mac!(sha2::Sha512_224),
+        DigestKind::Sha512_256 => mac!(sha2::Sha512_256),
+        DigestKind::Sha3_224 => mac!(sha3::Sha3_224),
+        DigestKind::Sha3_256 => mac!(sha3::Sha3_256),
+        DigestKind::Sha3_384 => mac!(sha3::Sha3_384),
+        DigestKind::Sha3_512 => mac!(sha3::Sha3_512),
+        DigestKind::Crc32
+        | DigestKind::Md5
+        | DigestKind::Sha1
+        | DigestKind::Crc32c
+        | DigestKind::Blake3 => return None,
     })
 }
 
@@ -444,7 +539,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Hash::of(bytes|string $data, Digest $digest): bytes` — replacing
     /// `hash`, `md5`, `sha1`, `crc32` and `openssl_digest` at once.
     ///
-    /// Total. Every one of [`DIGEST`]'s six accepts every input, so there is
+    /// Total. Every one of [`DIGEST`]'s fifteen accepts every input, so there is
     /// nothing here to throw: PHP's `hash()` returning `false` for an
     /// unknown algorithm name has no analogue, because the algorithm is a
     /// closed enum rather than a string the caller might misspell — which is
@@ -647,7 +742,7 @@ mod tests {
 
     /// Each algorithm against a published vector for it, in hex — the check
     /// that dispatch reaches what its case names, which no `.nvst` case can
-    /// make for all six without pinning the same constants twice.
+    /// make for all fifteen without pinning the same constants twice.
     #[test]
     fn every_digest_matches_its_published_vector() {
         fn hex(octets: &[u8]) -> String {
@@ -679,10 +774,66 @@ mod tests {
             "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a\
              2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"
         );
+        assert_eq!(
+            hex(&digest_of(DigestKind::Sha224, abc)),
+            "23097d223405d8228642a477bda255b32aadbce4bda0b3f7e36c9da7"
+        );
+        assert_eq!(
+            hex(&digest_of(DigestKind::Sha512_224, abc)),
+            "4634270f707b6a54daae7530460842e20e37ed265ceee9a43e8924aa"
+        );
+        assert_eq!(
+            hex(&digest_of(DigestKind::Sha512_256, abc)),
+            "53048e2681941ef99b2e29b76b4c7dabe4c2d0c634fc6d46e0e2f13107e7af23"
+        );
+        assert_eq!(
+            hex(&digest_of(DigestKind::Sha3_224, abc)),
+            "e642824c3f8cf24ad09234ee7d3c766fc9a3a5168d0c94ad73b46fdf"
+        );
+        assert_eq!(
+            hex(&digest_of(DigestKind::Sha3_256, abc)),
+            "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532"
+        );
+        assert_eq!(
+            hex(&digest_of(DigestKind::Sha3_384, abc)),
+            "ec01498288516fc926459f58e2c6ad8df9b473cb0fc08c2596da7cf0e49be4b2\
+             98d88cea927ac7f539f1edf228376d25"
+        );
+        assert_eq!(
+            hex(&digest_of(DigestKind::Sha3_512, abc)),
+            "b751850b1a57168a5693cd924b6b096e08f621827444f70d884f5d0240d2712e\
+             10e116e9192af3c91a7ec57647e3934057340b4cf408d5a56592f8274eec53f0"
+        );
+        assert_eq!(hex(&digest_of(DigestKind::Crc32c, abc)), "364b3fb7");
+        assert_eq!(
+            hex(&digest_of(DigestKind::Blake3, abc)),
+            "6437b3ac38465133ffb63b75273a8db548c558465d79db03fd359c6cd5bd9d85"
+        );
+    }
+
+    /// The two checksums differ in polynomial and in nothing else observable —
+    /// four octets each, big-endian, and never equal for a subject either one
+    /// would be reached for.
+    #[test]
+    fn the_two_checksums_are_the_same_shape_and_different_answers() {
+        for subject in [&b""[..], &b"abc"[..], &b"123456789"[..]] {
+            let (iso, castagnoli) = (
+                digest_of(DigestKind::Crc32, subject),
+                digest_of(DigestKind::Crc32c, subject),
+            );
+            assert_eq!(iso.len(), 4);
+            assert_eq!(castagnoli.len(), 4);
+            assert_eq!(iso == castagnoli, subject.is_empty());
+        }
     }
 
     /// RFC 4231's test case 2 — the one with an ASCII key short enough to read
-    /// — for each of [`STRONG`]'s three, and `None` for everything else.
+    /// — for each of [`STRONG`]'s ten, and `None` for everything else.
+    ///
+    /// That RFC publishes SHA-224, SHA-256, SHA-384 and SHA-512 only; the
+    /// other six are the same message and key through PHP 8.5's `hash_hmac`,
+    /// which reproduces all four of the RFC's own on this machine and is
+    /// therefore an oracle for the six it extends to.
     #[test]
     fn hmac_matches_rfc_4231_and_refuses_a_weak_digest() {
         let (key, data) = (&b"Jefe"[..], &b"what do ya want for nothing?"[..]);
@@ -704,12 +855,49 @@ mod tests {
              9758bf75c05a994a6d034f65f8f0e6fdcaeab1a34d4a6b4b636e070a38bce737"
         );
 
-        for weak in [DigestKind::Crc32, DigestKind::Md5, DigestKind::Sha1] {
+        assert_eq!(
+            hex(hmac_of(DigestKind::Sha224, key, data).unwrap()),
+            "a30e01098bc6dbbf45690f3a7e9e6d0f8bbea2a39e6148008fd05e44"
+        );
+        assert_eq!(
+            hex(hmac_of(DigestKind::Sha512_224, key, data).unwrap()),
+            "4a530b31a79ebcce36916546317c45f247d83241dfb818fd37254bde"
+        );
+        assert_eq!(
+            hex(hmac_of(DigestKind::Sha512_256, key, data).unwrap()),
+            "6df7b24630d5ccb2ee335407081a87188c221489768fa2020513b2d593359456"
+        );
+        assert_eq!(
+            hex(hmac_of(DigestKind::Sha3_224, key, data).unwrap()),
+            "7fdb8dd88bd2f60d1b798634ad386811c2cfc85bfaf5d52bbace5e66"
+        );
+        assert_eq!(
+            hex(hmac_of(DigestKind::Sha3_256, key, data).unwrap()),
+            "c7d4072e788877ae3596bbb0da73b887c9171f93095b294ae857fbe2645e1ba5"
+        );
+        assert_eq!(
+            hex(hmac_of(DigestKind::Sha3_384, key, data).unwrap()),
+            "f1101f8cbf9766fd6764d2ed61903f21ca9b18f57cf3e1a23ca13508a93243ce\
+             48c045dc007f26a21b3f5e0e9df4c20a"
+        );
+        assert_eq!(
+            hex(hmac_of(DigestKind::Sha3_512, key, data).unwrap()),
+            "5a4bfeab6166427c7a3647b747292b8384537cdb89afb3bf5665e4c5e709350b\
+             287baec921fd7ca0ee7a0c31d022a95e1fc92ba9d77df883960275beb4e62024"
+        );
+
+        for weak in [
+            DigestKind::Crc32,
+            DigestKind::Md5,
+            DigestKind::Sha1,
+            DigestKind::Crc32c,
+            DigestKind::Blake3,
+        ] {
             assert!(hmac_of(weak, key, data).is_none(), "{weak:?} is not strong");
         }
     }
 
-    /// [`STRONG`] and [`hmac_of`] name the same three cases, which is the pair
+    /// [`STRONG`] and [`hmac_of`] name the same cases, which is the pair
     /// that would otherwise drift: the union is what a program is refused by
     /// and the `match` is what the runtime is refused by, and a case added to
     /// one alone is either surface with no implementation or an implementation

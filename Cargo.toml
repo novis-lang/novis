@@ -59,7 +59,14 @@ bitflags = "2"
 smallvec = { version = "1", features = ["union", "const_generics"] }
 indexmap = "2"
 rustc-hash = "2"
-blake3 = "1"
+# Two consumers, one crate: ADR 0042's on-disk artifact cache keys on it, and
+# spec § 11's `Core\Digest::Blake3` computes it — the second is what finally put
+# it in `Cargo.lock`. `pure` and no default features on purpose: blake3 ships
+# hand-written assembly built through `cc` by default, and ground-rules.md
+# § *Pure-Rust dependencies by default* is not spent on a hash that is already
+# faster than SHA-256 in its portable form. `std` is added back because
+# `default-features = false` is what turns the assembly off.
+blake3 = { version = "1", default-features = false, features = ["std", "pure"] }
 
 # --- Unicode text segmentation (ADR 0009 § 2's grapheme granularity) ---
 # UAX #29 extended grapheme cluster boundaries, which `string`'s default
@@ -187,11 +194,22 @@ uuid = { version = "1", default-features = false, features = ["std"] }
 # instead of eleven and keeps one `digest` trait version rather than two.
 # `crates/nvs-stdlib/src/hash.rs` owns why this set and what `Core\Digest`
 # carries.
+#
+# `sha3` and `crc32c` are the two additions the roster earned, and each is
+# § 4's two questions answered separately. `sha3` is FIPS 202 — a published
+# specification with NIST's own vectors, from the same RustCrypto family and
+# the same `digest 0.10` trait set, so all four Keccak cases reach `digest_of`
+# *and* `hmac_of` with no hand-fitting. `crc32c` is the Castagnoli checksum S3
+# and GCS stamp objects with, so it is interop this runtime meets rather than
+# a table hash; it is pure Rust with a run-time SSE4.2 check, exactly the shape
+# `crc32fast` already has.
 sha2 = "0.10"
 sha1 = "0.10"
+sha3 = "0.10"
 md-5 = "0.10"
 hmac = "0.12"
 crc32fast = "1"
+crc32c = "0.6"
 subtle = "2"
 
 # --- base64 (spec § 7's `Core\Encoding` base64 pair and its URL-safe variant) ---

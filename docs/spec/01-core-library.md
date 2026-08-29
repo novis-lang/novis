@@ -796,6 +796,36 @@ needs them. `StrongDigest` is the closed subset ([ADR 0047](../adr/0047-literal-
 that the HMAC and signature members declare, so `Hash::hmac($m, $k, Digest::Md5)` is a compile error naming
 the reason. Password hashing takes no algorithm argument at all and is in § 16.
 
+**This table is `Digest`'s roster and its only home.** The **S** column is membership of `StrongDigest`.
+
+| Case | Octets | S | Notes |
+|---|---|---|---|
+| `Digest::Crc32` | 4 | | CRC-32/ISO-HDLC, PHP's `crc32b`. A checksum: accidental corruption only |
+| `Digest::Crc32c` | 4 | | CRC-32C/Castagnoli — the checksum S3 and GCS stamp objects with |
+| `Digest::Md5` | 16 | | Collision-broken since 2004. Interop only |
+| `Digest::Sha1` | 20 | | Collision-broken since 2017. Interop only |
+| `Digest::Sha224` | 28 | ✓ | |
+| `Digest::Sha256` | 32 | ✓ | The default to reach for |
+| `Digest::Sha384` | 48 | ✓ | |
+| `Digest::Sha512` | 64 | ✓ | Faster than SHA-256 on 64-bit hardware |
+| `Digest::Sha512_224` | 28 | ✓ | SHA-512 truncated, own IV (FIPS 180-4 § 5.3.6) |
+| `Digest::Sha512_256` | 32 | ✓ | SHA-512's speed at SHA-256's width, and length-extension-proof |
+| `Digest::Sha3_224` | 28 | ✓ | FIPS 202's Keccak sponge — an independent construction, not a wider SHA-2 |
+| `Digest::Sha3_256` | 32 | ✓ | |
+| `Digest::Sha3_384` | 48 | ✓ | |
+| `Digest::Sha3_512` | 64 | ✓ | |
+| `Digest::Blake3` | 32 | | The fastest here, and the one algorithm PHP cannot compute |
+
+`Blake3` is outside `StrongDigest` for a different reason than `Sha1` is: HMAC-BLAKE3 is a construction
+nobody uses, because BLAKE3 is keyed natively, so it waits for a keyed member designed as one rather than
+being bent into `hmac`. The underscore spellings are PHP's `sha512/256` and `sha3-256` written as
+identifiers; the digit after it is the output width in bits, and `Sha512_256` is not `Sha512` truncated by
+the caller — it is a different IV and a different function.
+
+**A case's integer is ABI and this list is append-only.** `Hash::stream` stores the chosen case in a slot
+and reads it back, so reordering these is a behaviour change rather than a cosmetic one; widening
+`StrongDigest` is backward compatible and narrowing it is not.
+
 A `Hash\Stream` is **consumed by its own `finish`**: the digest is final, so a second `finish`, or any
 `update` after one, throws rather than continuing from where the first left off. PHP's `HashContext` says
 the same thing by making `hash_final` invalidate the context, and a program that wants two digests of one
