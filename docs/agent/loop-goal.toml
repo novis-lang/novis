@@ -1619,8 +1619,12 @@ want = ["child said hello", "ok=true", "captured=child stdout", "ok=false", "par
 [[check]]
 kind = "cargo-named"
 stage = "7 test isolates"
-name = "nvs-test (one isolate per test)"
-args = ["test", "-p", "nvs-test"]
+# The `#[Test]` runner is `crates/nvs-cli/src/runner.rs`, which is the only crate that depends on
+# both `nvs-host` (the `Isolate`) and the front end that builds a test's program. `crates/nvs-test`
+# is the `.nvst` case runner and depends on neither, so it cannot ask whether a `#[Test]` method got
+# an isolate of its own -- ADR 0079 § 23's "two runners, never unified" from the tooling side.
+name = "nvs-cli (one isolate per test)"
+args = ["test", "-p", "nvs-cli"]
 tests = [
   "each_test_runs_in_its_own_isolate_sharing_only_compiled_code",
   "the_runner_owns_the_tests_task_tree",
