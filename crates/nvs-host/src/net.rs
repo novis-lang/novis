@@ -46,14 +46,37 @@
 //! connect that only waited would hand back a stream that is dead and looks
 //! fine. The two questions that answer that soundly on both platforms — and
 //! why `peer_addr`, which is the obvious one, is not among them — are the
-//! private `finish_connecting`'s doc. It carries no deadline; bounding it is
-//! the reactor's timer wait, which does not exist yet.
+//! private `finish_connecting`'s doc. What bounds it is the next section, and
+//! [`NvsTcp::connect_timeout`] is its spelling.
+//!
+//! # Every wait is bounded by a clock, not by a wake
+//!
+//! A stream carries an optional deadline ([`NvsTcp::set_deadline`]) and every
+//! wait in this module is bounded by it: parking files it with the core's
+//! [`Timers`](crate::timer::Timers) beside the reactor registration, and the
+//! blocking path off a core hands it to its own poll as a timeout. Coming back
+//! out, **the clock decides and never the wake** — ADR 0115 § 2 rule 2 means a
+//! resume may be some other descriptor this task holds, and a poll that
+//! returned because its timeout expired is the same `Ok(())` as one that
+//! returned with an event. Past the deadline a caller gets
+//! `io::ErrorKind::TimedOut` through the ordinary `Read`/`Write` return, which
+//! is the only error channel those traits have and is why this needs no type
+//! of its own.
+//!
+//! A *deadline* and not a per-call duration, deliberately:
+//! [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md) § 5
+//! bounds an operation, and a duration re-read on each wait would push the
+//! bound out again every time the peer sent one more byte — an unbounded wait
+//! wearing a timeout's spelling. What it spends is nothing per stream that has
+//! no deadline and one `Instant` for one that does; the reactor-side entry is
+//! `timer.rs`'s, O(tasks currently waiting on one).
 //!
 //! **Still outstanding:** a Unix-domain sibling of this type, for the same
 //! parking contract over a local socket.
 
 use std::io::{self, Read, Write};
 use std::net::SocketAddr;
+use std::time::{Duration, Instant};
 
 use mio::{Events, Poll, Token};
 
@@ -76,6 +99,13 @@ pub struct NvsTcp {
     /// what that buys — and the interest is stored with it so that a repeat park
     /// on the same one can tell that it has nothing to do.
     registered: Option<(TaskId, Interest)>,
+    /// The instant every wait on this stream is bounded by, or `None` for a
+    /// stream nothing is waiting on the clock for.
+    ///
+    /// On the stream rather than on each call because `Read` and `Write` have
+    /// nowhere to pass one, which is the same reason the parking is under them
+    /// rather than beside them.
+    deadline: Option<Instant>,
 }
 
 impl NvsTcp {
@@ -85,7 +115,22 @@ impl NvsTcp {
         Self {
             inner,
             registered: None,
+            deadline: None,
         }
+    }
+
+    /// Bounds every wait on this stream by `at`, or lifts the bound.
+    ///
+    /// Takes effect from the next wait: a park already in flight belongs to a
+    /// task that is not running, so there is no call here to change its mind.
+    pub fn set_deadline(&mut self, at: Option<Instant>) {
+        self.deadline = at;
+    }
+
+    /// The instant every wait on this stream is bounded by, if any.
+    #[must_use]
+    pub fn deadline(&self) -> Option<Instant> {
+        self.deadline
     }
 
     /// Takes over a `std` socket, switching it to non-blocking first.
@@ -112,9 +157,10 @@ impl NvsTcp {
     /// `NvsTcp::finish_connecting` owns which two questions do that and why
     /// the obvious ones do not.
     ///
-    /// This takes no deadline. A connect to a black hole waits as long as the
-    /// platform's own connect timeout, which is minutes; bounding it is the
-    /// reactor's timer wait, and until that exists no caller can ask for less.
+    /// This takes no deadline, so a connect to a black hole waits as long as
+    /// the platform's own connect timeout, which is minutes.
+    /// [`NvsTcp::connect_timeout`] is the bounded spelling and is what a
+    /// caller that did not choose the address should reach for.
     ///
     /// # Errors
     ///
@@ -123,6 +169,33 @@ impl NvsTcp {
     pub fn connect(addr: SocketAddr) -> io::Result<Self> {
         let mut stream = Self::new(mio::net::TcpStream::connect(addr)?);
         stream.finish_connecting()?;
+        Ok(stream)
+    }
+
+    /// [`NvsTcp::connect`], giving up with `TimedOut` if the handshake is not
+    /// up within `after`.
+    ///
+    /// ADR 0074 § 5's `connect_timeout`, at the level that can actually
+    /// enforce it. The bound is on the **handshake** and is lifted before the
+    /// stream is handed back, so a later read takes whatever deadline its
+    /// caller sets and not the leftover of getting here — the two are separate
+    /// budgets in that section and they are separate here.
+    ///
+    /// The clock starts at the `connect` syscall rather than at the first
+    /// park, because a platform that spends the whole budget inside its own
+    /// resolution of the address has spent the caller's budget either way.
+    ///
+    /// # Errors
+    ///
+    /// Everything [`NvsTcp::connect`] reports, plus `TimedOut` when the
+    /// handshake was still in flight at `after`.
+    pub fn connect_timeout(addr: SocketAddr, after: Duration) -> io::Result<Self> {
+        let at = Instant::now() + after;
+        let mut stream = Self::new(mio::net::TcpStream::connect(addr)?);
+        stream.set_deadline(Some(at));
+        let connected = stream.finish_connecting();
+        stream.set_deadline(None);
+        connected?;
         Ok(stream)
     }
 
@@ -192,28 +265,56 @@ impl NvsTcp {
         self.registered.is_some()
     }
 
-    /// Waits until `interest` is satisfiable, giving the core back if there is
-    /// one to give back.
+    /// Waits until `interest` is satisfiable or this stream's deadline has
+    /// passed, giving the core back if there is one to give back.
+    ///
+    /// The deadline is filed with the core's timers *beside* the reactor
+    /// registration and taken back out again when the wait ends, however it
+    /// ended: `timer.rs` holds one entry per task that is currently waiting on
+    /// one, and a task woken by readiness is no longer that task.
     fn wait_until_ready(&mut self, interest: Interest) -> io::Result<()> {
+        let deadline = self.deadline;
+        if deadline.is_some_and(|at| Instant::now() >= at) {
+            // Nothing to wait for: the budget was already spent by an earlier
+            // wait on the same stream, or by the caller before it got here.
+            return Err(timed_out());
+        }
         let parked = match current_task() {
             None => false,
-            Some(me) => match reactor::with_current(|reactor| self.arm(reactor, me, interest)) {
+            Some(me) => match reactor::with_current(|reactor| {
+                let armed = self.arm(reactor, me, interest);
+                if armed.is_ok()
+                    && let Some(at) = deadline
+                {
+                    reactor.timers().arm(me, at);
+                }
+                armed
+            }) {
                 None => false,
                 Some(armed) => {
                     // Rule 1: registered, and the borrow above is already
                     // dropped, *then* the yield. Never the other way round.
                     armed?;
-                    suspend_current(Waiting::Parked)
+                    let parked = suspend_current(Waiting::Parked);
+                    if deadline.is_some() {
+                        reactor::with_current(|reactor| reactor.timers().disarm(me));
+                    }
+                    parked
                 }
             },
         };
         if parked {
-            // Rule 2: a wake is a hint. Returning here sends the caller back
-            // round its own retry loop rather than promising the syscall will
-            // now succeed.
-            return Ok(());
+            // Rule 2: a wake is a hint, so what ends this wait is the clock and
+            // not the resume — the reactor's tokens are task ids, and any other
+            // descriptor this task holds wakes it here too. Short of the
+            // deadline the caller goes back round its own retry loop rather
+            // than being promised the syscall will now succeed.
+            return match deadline {
+                Some(at) if Instant::now() >= at => Err(timed_out()),
+                _ => Ok(()),
+            };
         }
-        self.block_until_ready(interest)
+        self.block_until_ready(interest, deadline)
     }
 
     /// Files this stream's interest with `reactor` under the running task.
@@ -256,7 +357,13 @@ impl NvsTcp {
     /// to hand back.
     ///
     /// This module's docs say why blocking is right here and not a bent rule.
-    fn block_until_ready(&mut self, interest: Interest) -> io::Result<()> {
+    /// The deadline is this poll's own timeout, which is the same mechanism the
+    /// parking path gets from the reactor and is why both answer on the clock.
+    fn block_until_ready(
+        &mut self,
+        interest: Interest,
+        deadline: Option<Instant>,
+    ) -> io::Result<()> {
         // A descriptor in two pollers at once is refused on some platforms, so
         // a stream that was registered on a core and is now being used off one
         // gives that registration up first.
@@ -266,18 +373,38 @@ impl NvsTcp {
         poll.registry()
             .register(&mut self.inner, Token(0), interest)?;
         let mut events = Events::with_capacity(1);
-        let outcome = poll.poll(&mut events, None);
+        let timeout = deadline.map(|at| at.saturating_duration_since(Instant::now()));
+        let outcome = poll.poll(&mut events, timeout);
         // Best-effort, and the drop of `poll` below is what actually guarantees
         // the descriptor is left in no poller.
         let _ = poll.registry().deregister(&mut self.inner);
         match outcome {
             // A signal reports "nothing yet", exactly as `Reactor::poll` treats
             // it: the caller's retry loop asks the socket again.
-            Ok(()) => Ok(()),
-            Err(err) if err.kind() == io::ErrorKind::Interrupted => Ok(()),
-            Err(err) => Err(err),
+            Ok(()) => {}
+            Err(err) if err.kind() == io::ErrorKind::Interrupted => {}
+            Err(err) => return Err(err),
         }
+        // A poll that ran out of time and one that came back with an event are
+        // the same `Ok(())`, so the clock is asked here exactly as it is on the
+        // parking path.
+        if deadline.is_some_and(|at| Instant::now() >= at) {
+            return Err(timed_out());
+        }
+        Ok(())
     }
+}
+
+/// The one error a wait past its deadline reports.
+///
+/// `io::ErrorKind::TimedOut` and not a type of this crate's own, because what
+/// holds an [`NvsTcp`] is ordinary `Read`/`Write` code — `rustls` among it —
+/// and `io::Error` is the only thing it can be handed.
+fn timed_out() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::TimedOut,
+        "the deadline passed before the socket was ready",
+    )
 }
 
 impl Drop for NvsTcp {
@@ -337,7 +464,6 @@ mod tests {
     use nvs_runtime::{Ctx, OutputSink, TaskRoot};
     use std::cell::Cell;
     use std::rc::Rc;
-    use std::time::Duration;
 
     fn ctx() -> Ctx {
         Ctx::new(OutputSink::Sink)
@@ -577,6 +703,158 @@ mod tests {
             "a blocking wait left a reactor registration behind"
         );
         drop(listener);
+    }
+
+    /// A wait with a deadline behind it ends when the clock says so, and says
+    /// so through the only channel `Read` has.
+    #[test]
+    fn a_read_past_its_deadline_reports_a_timeout() {
+        // Held to the end of the test: a closed peer makes the socket readable
+        // at EOF, which is a `read` that answers rather than one that waits.
+        let (mut server, client) = connected_pair();
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+
+        server.set_deadline(Some(Instant::now() + Duration::from_millis(20)));
+        let outcome = Rc::new(Cell::new(None));
+        let reported = Rc::clone(&outcome);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            let mut buf = [0_u8; 8];
+            let start = Instant::now();
+            let kind = server.read(&mut buf).map(|_| ()).map_err(|err| err.kind());
+            reported.set(Some((kind, start.elapsed() >= Duration::from_millis(20))));
+        });
+
+        let report = run_until_idle(&mut sched).expect("the loop failed");
+        assert_eq!(report.finished, 1);
+        assert_eq!(
+            outcome.get(),
+            Some((Err(io::ErrorKind::TimedOut), true)),
+            "a read past its deadline did not report it, or reported it early"
+        );
+        // The table `timer.rs` keeps exact: the wait is over, so nothing it
+        // filed is still filed.
+        assert_eq!(with_current(|reactor| reactor.timers().len()), Some(0));
+        assert_eq!(with_current(|reactor| reactor.registrations()), Some(0));
+        drop(client);
+    }
+
+    /// The other half of "the clock decides": a wait that parked and was woken
+    /// inside its deadline gets its bytes, and leaves no deadline filed.
+    #[test]
+    fn a_read_woken_inside_its_deadline_still_gets_its_bytes() {
+        let (mut server, mut client) = connected_pair();
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+
+        let writer = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(20));
+            client.write_all(b"hi").expect("the write failed");
+        });
+
+        server.set_deadline(Some(Instant::now() + Duration::from_secs(30)));
+        let arrived = Rc::new(Cell::new(false));
+        let reported = Rc::clone(&arrived);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            let mut buf = [0_u8; 8];
+            let read = server
+                .read(&mut buf)
+                .expect("a read inside its deadline failed");
+            reported.set(&buf[..read] == b"hi");
+        });
+
+        let report = run_until_idle(&mut sched).expect("the loop failed");
+        writer.join().expect("the writing thread panicked");
+        assert!(arrived.get(), "the bytes did not come back");
+        assert!(
+            report.resumes > 1,
+            "the read never parked, so no deadline was ever armed"
+        );
+        assert_eq!(
+            with_current(|reactor| reactor.timers().len()),
+            Some(0),
+            "a wait that ended on readiness left its deadline filed"
+        );
+    }
+
+    /// Off a core the bound is the poll's own timeout, so the blocking path
+    /// answers with the same error rather than waiting for a peer that is
+    /// never going to say anything.
+    #[test]
+    fn a_read_off_a_core_is_bounded_by_the_same_deadline() {
+        let (mut server, client) = connected_pair();
+        assert!(current_task().is_none(), "this test must run off a core");
+
+        server.set_deadline(Some(Instant::now() + Duration::from_millis(20)));
+        let start = Instant::now();
+        let mut buf = [0_u8; 8];
+        let err = server
+            .read(&mut buf)
+            .expect_err("a read with no bytes and a deadline behind it succeeded");
+
+        assert_eq!(err.kind(), io::ErrorKind::TimedOut);
+        assert!(
+            start.elapsed() >= Duration::from_millis(20),
+            "the blocking wait gave up before its deadline"
+        );
+        assert!(
+            !server.is_parked_on(),
+            "a blocking wait left a reactor registration behind"
+        );
+        drop(client);
+    }
+
+    /// The bound is on the handshake: a connect that comes up hands back a
+    /// stream with nothing still bounding its reads.
+    #[test]
+    fn a_connect_under_a_timeout_lifts_the_bound_once_it_is_up() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let stream =
+            NvsTcp::connect_timeout(addr, Duration::from_secs(5)).expect("the connect failed");
+
+        assert_eq!(stream.peer_addr().expect("no peer address"), addr);
+        assert_eq!(
+            stream.deadline(),
+            None,
+            "the handshake's bound outlived the handshake"
+        );
+        drop(listener);
+    }
+
+    /// A connect to an address that answers nothing is bounded by its own
+    /// argument rather than by the platform's, which is minutes.
+    ///
+    /// The assertion is deliberately about the *clock* and not the error kind:
+    /// 192.0.2.1 is documentation address space, so a host with a default route
+    /// sends the SYN and hears nothing — the case the bound exists for — while
+    /// a host without a route to it is refused before there is anything to wait
+    /// on. Both are fast, and fast is the whole claim; the one thing neither
+    /// may do is fire the bound early, which the second half checks.
+    #[test]
+    fn a_connect_that_hears_nothing_gives_up_at_its_bound() {
+        let black_hole: SocketAddr = "192.0.2.1:80"
+            .parse()
+            .expect("a literal address did not parse");
+
+        let start = Instant::now();
+        let err = NvsTcp::connect_timeout(black_hole, Duration::from_millis(50))
+            .expect_err("a connect to documentation address space succeeded");
+        let elapsed = start.elapsed();
+
+        assert!(
+            elapsed < Duration::from_secs(5),
+            "the connect was not bounded by its argument, and failed with {err}"
+        );
+        if err.kind() == io::ErrorKind::TimedOut {
+            assert!(
+                elapsed >= Duration::from_millis(50),
+                "the bound fired before it was due"
+            );
+        }
     }
 
     /// Off a core there is nothing to hand back, so the read waits on its own
