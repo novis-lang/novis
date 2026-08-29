@@ -139,11 +139,12 @@ class StatusLine:
         detail   the current item       `wsl fixtures/closures.nvs`, `Edit tools/loop.py`
         elapsed  how long this phase has been going
 
-    Above them, on its own row, the **goal** the run is working toward -- the title of
-    `docs/agent/loop-goal.md`, with `goal 2/6` in front of it when a chain is driving. It changes
-    only when a chain advances, which is exactly why it gets a row rather than a field: a run of
-    three hundred sessions crosses several goals, and the session counter alone does not say
-    which one this is.
+    Above them, on its own row, the **goal of the running session** -- the checklist item
+    `orient.py` handed it, `item 1/3 · Item 29 — read the names.` It is the one thing about a
+    session the scrolling output never says: the tool calls name files, the pack scrolled off
+    minutes ago, and the item's own title is the only line that says what all of it is *for*.
+    Set from the pack the moment it is built (`session_goal`), and left standing through the
+    acceptance check that judges the session, since that is still the same item.
 
     A count is shown only when the total is known ahead of time -- the acceptance sweep knows how
     many checks it is about to run, a session does not know how many tool calls it will make, so the
@@ -292,12 +293,12 @@ class StatusLine:
         return C.paint(self.bar * max(18, self.width() - 1), C.GRAY)
 
     def goal_row(self):
-        """The row between the rule and the status line: which goal the run is working toward.
+        """The row between the rule and the status line: what the running session is for.
 
         Grey and indented like the key row, so the one white line in the block is still the
         status. Truncated the same way `compose()` truncates, for the same reason: a row that
         wraps is a row the next erase only half removes."""
-        body = (self.goal or "(no goal loaded)").replace("\n", " ")
+        body = (self.goal or "(no session has been oriented yet)").replace("\n", " ")
         room = max(18, self.width() - 3)
         if len(body) > room:
             body = body[: room - len(self.cut)] + self.cut
@@ -1802,23 +1803,30 @@ def load_goal():
     return Goal(tomllib.loads(GOAL_TOML.read_text(encoding="utf-8")))
 
 
-def goal_title(chain=None):
-    """What the status line's goal row says: the H1 of `docs/agent/loop-goal.md`, behind
-    `goal 2/6` when a chain is driving. Read from disk each time, for the reason `load_goal()`
-    is: a chain switch rewrites the file, and the row has to follow it. A file that cannot be
-    read, or has no heading, leaves the row saying so rather than ending the run."""
-    title = ""
-    try:
-        for line in GOAL_MD.read_text(encoding="utf-8").splitlines():
-            if line.startswith("# "):
-                title = line[2:].strip()
-                break
-    except OSError:
-        pass
-    title = title or f"{rel_to_root(GOAL_MD)} has no heading"
-    if chain is not None and chain.current is not None:
-        return f"goal {chain.index + 1}/{len(chain.goals)}{TICKER.sep}{title}"
-    return title
+def session_goal(pack):
+    """What the status line's goal row says for the session about to run: the checklist item
+    `orient.py` picked for it, read back out of the pack rather than out of the handoff.
+
+    The pack is the one place the pick is authoritative -- `--item`, a ticked-out group and a
+    handoff with no group at all are all decided in there -- so parsing the handoff again here
+    would be a second implementation of `orient.py`'s rule that drifts the first time that rule
+    moves. The marker is `-- YOUR ITEM (n of m), in full:` and the item's first line follows it;
+    the row keeps the bold title when the line has one, the line itself when it does not.
+    An empty pack means orient.py failed and the session picks for itself, and the row says so."""
+    if not pack:
+        return "orient.py failed -- the session picks its own item"
+    lines = pack.splitlines()
+    for i, line in enumerate(lines):
+        m = re.match(r"^-- YOUR ITEM \((\d+) of (\d+)\), in full:\s*$", line)
+        if not m:
+            continue
+        first = next((ln.strip() for ln in lines[i + 1:] if ln.strip()), "")
+        first = re.sub(r"^- \[[ xX]\]\s*", "", first)
+        bold = re.match(r"^\*\*(.+?)\*\*", first)
+        return f"item {m.group(1)}/{m.group(2)}{TICKER.sep}{bold.group(1) if bold else first}"
+    if "Every item in the group is ticked" in pack:
+        return "every item in the group is ticked -- the session picks from the handoff"
+    return "the pack names no item -- see the handoff's `## Next group`"
 
 
 # --------------------------------------------------------------------------------- chain
@@ -2386,6 +2394,7 @@ def run_session(run_id, index, prompt_text, opts, renderer):
     else:
         step(f"orientation pack: orient.py failed after {spent} -- "
              "the session will run it itself", C.YELLOW)
+    TICKER.set(goal=session_goal(pack))
     session_id = ""
     limit = None  # the last `rate_limit_event` this session reported; see `RateLimit`
     said_limit = False  # the text fallback, read only off a non-zero exit's `result` event
@@ -2724,7 +2733,6 @@ def run_cli():
 
     if opts.status:
         TICKER.start()
-    TICKER.set(goal=goal_title())
 
     if opts.goal_only or opts.leg_only:
         # By hand is exactly when the full output is wanted: `--goal-only` is what you run to
@@ -2812,10 +2820,7 @@ def run_cli():
             say(fail, C.RED)
             return 2
 
-    # Set again here rather than only above: a chain that just installed its first goal rewrote
-    # `loop-goal.md` after the first read, and this is the first moment the row can name it.
-    TICKER.set(goal=goal_title(chain),
-               phase="making room", detail="pruning earlier runs' logs and scratch")
+    TICKER.set(phase="making room", detail="pruning earlier runs' logs and scratch")
     if not make_room(opts):
         return 2
     if not claim_run(opts):
@@ -3034,7 +3039,6 @@ def drive(opts, goal, chain=None):
                 reason = f"chain: {rel_to_root(GOAL_TOML)} did not load after the switch -- {e}"
                 kind = "chain-error"
                 break
-            TICKER.set(goal=goal_title(chain))
             continue
         ledger(f"       goal check: {fail}")
 
