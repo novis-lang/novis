@@ -784,7 +784,11 @@ nvs_runtime::nvs_helper! {
         // `try_from` rather than `as`: `usize` is no wider than `u64` on any
         // target `deny.toml` builds for, so this cannot lose a digit, and
         // spelling it this way keeps the cast lints this crate denies from
-        // needing a silence.
+        // needing a silence. That is also why the `Err` arm below is
+        // unreachable from source, and for a reason no diagnostic states: the
+        // conversion is total on every target this builds for, so the arm is
+        // the price of not writing `as` rather than a boundary a program
+        // reaches by holding a long enough string.
         let length = u64::try_from(crate::granularity::DEFAULT.length(subject))
             .map_err(|_| Fault::fatal("Core\\Str::length counted past `uint`"))?;
         Ok(Value::uint(length))
@@ -1344,6 +1348,15 @@ nvs_runtime::nvs_helper! {
             };
             from = slot + 1;
 
+            // An array key is `int|string` and neither form can be invalid
+            // UTF-8: `nvs_runtime`'s `key_at` renders a packed slot's key as
+            // its own decimal digits, a hashed entry's key is the `string` it
+            // was written with, and a `string` is guaranteed well-formed UTF-8
+            // (ADR 0009 § 1). Probed with `array<string> $pairs = [1 => "z"];`,
+            // which arrives here as the needle `"1"`; a `bytes` key reaches no
+            // call at all, refused while lowering (ADR 0007 § 5 owns which
+            // pass should say so). Nothing a program writes reaches this arm —
+            // unreachable from source.
             let needle = std::str::from_utf8(key.as_bytes()).map_err(|_| {
                 Fault::fatal(
                     "Core\\Str::replaceAll found a key that is not valid UTF-8".to_owned(),
@@ -1525,6 +1538,10 @@ fn after_match(haystack: &str, at: usize, matched: usize) -> usize {
 /// [`crate::granularity::DEFAULT`]'s unit, which is what ADR 0009 § 2 makes
 /// every `string` position Novis hands out.
 fn position(subject: &str, byte: usize) -> HelperResult {
+    // Unreachable from source for `nvs_core_str_length`'s reason, which states
+    // it in full: `usize` is no wider than `u64` on any target `deny.toml`
+    // builds for, so the conversion is total and the `Err` arm is what writing
+    // `try_from` rather than `as` costs.
     let index = u64::try_from(crate::granularity::DEFAULT.index_of_byte(subject, byte))
         .map_err(|_| Fault::fatal("Core\\Str counted a position past `uint`"))?;
     Ok(Value::uint(index))
@@ -2298,6 +2315,12 @@ fn normal_form_of(value: &Value) -> Result<NormalForm, Fault> {
         Some(1) => Ok(NormalForm::Nfd),
         Some(2) => Ok(NormalForm::Nfkc),
         Some(3) => Ok(NormalForm::Nfkd),
+        // Unreachable from source: `normalize`'s parameter 1 is
+        // `CoreTy::Enum(NORMAL_FORM_NAME)` in `CLASS` above, so a value that
+        // is no case is `E0401: expected Core\NormalForm, found …` at the
+        // checker — probed with a `mixed` binding and with the bare `int`
+        // literal `1`, which is the near miss worth checking since the
+        // discriminant compiled code writes for a case is exactly an integer.
         _ => Err(Fault::fatal(format!(
             "Core\\Str::normalize expected a `{NORMAL_FORM_NAME}` case, got tag {} value {:?}",
             value.tag_byte(),
@@ -2387,6 +2410,11 @@ nvs_runtime::nvs_helper! {
     /// prefix that was valid: a half-built string is the failure mode that
     /// gets written to a socket before anyone checks.
     fn nvs_core_str_from_code_points(_ctx, args: [1]) {
+        // Unreachable from source: parameter 0 is `array<uint>` in `CLASS`
+        // above, so a non-container argument is `E0401: expected array<uint>,
+        // found mixed` at the checker. Same judgement as
+        // [`nvs_core_str_join`], and as `crate::arr`'s `nvs_core_arr_count`
+        // which states it in full.
         let points = args[0].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Str::fromCodePoints expected {:?} for the code points, got tag {}",
@@ -2441,6 +2469,13 @@ nvs_runtime::nvs_helper! {
     /// [`crate::format`]'s, which is the whole of this member.
     fn nvs_core_str_format(_ctx, args: [2]) {
         let template = text(&args[0], "format", "the template")?;
+        // Parameter 1 is `CoreTy::Variadic`, and
+        // `nvs_ir::lower::lower_call_args` *builds* the array this slot holds
+        // out of every argument from that position on, so no source
+        // expression reaches the slot and no call — well-typed or not — could
+        // put another tag here: unreachable from source for a stronger reason
+        // than the `E0401` that refuses the template above. Same judgement as
+        // `crate::path`'s `join`, which states it in full.
         let arguments = args[1].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Str::format expected {:?} for the argument list, got tag {}",
