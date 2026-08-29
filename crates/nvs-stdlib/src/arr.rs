@@ -77,7 +77,8 @@ use nvs_runtime::{Decimal, Fault, NvsArray, NvsStr, SlotKey, Tag, Value};
 
 use crate::ordering::compare_values;
 use crate::registry::{
-    CaseDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc, Qual,
+    CaseDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc, ErrorDoc,
+    MethodDoc, ParamDoc, Qual,
 };
 
 // ============================================================================
@@ -100,7 +101,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Uint,
             symbol: "nvs_core_arr_count",
-            doc: None,
+            doc: Some(&COUNT_DOC),
         },
         CoreMethod {
             name: "filter",
@@ -109,7 +110,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_filter",
-            doc: None,
+            doc: Some(&FILTER_DOC),
         },
         CoreMethod {
             name: "map",
@@ -118,7 +119,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("U")),
             symbol: "nvs_core_arr_map",
-            doc: None,
+            doc: Some(&MAP_DOC),
         },
         CoreMethod {
             name: "mapKeys",
@@ -127,7 +128,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_map_keys",
-            doc: None,
+            doc: Some(&MAP_KEYS_DOC),
         },
         CoreMethod {
             name: "groupBy",
@@ -136,7 +137,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Array(&CoreTy::Var("T"))),
             symbol: "nvs_core_arr_group_by",
-            doc: None,
+            doc: Some(&GROUP_BY_DOC),
         },
         CoreMethod {
             name: "reduce",
@@ -149,7 +150,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Var("U"),
             symbol: "nvs_core_arr_reduce",
-            doc: None,
+            doc: Some(&REDUCE_DOC),
         },
         CoreMethod {
             name: "find",
@@ -158,7 +159,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_find",
-            doc: None,
+            doc: Some(&FIND_DOC),
         },
         CoreMethod {
             name: "findKey",
@@ -167,7 +168,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_arr_find_key",
-            doc: None,
+            doc: Some(&FIND_KEY_DOC),
         },
         CoreMethod {
             name: "any",
@@ -176,7 +177,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_arr_any",
-            doc: None,
+            doc: Some(&ANY_DOC),
         },
         CoreMethod {
             name: "all",
@@ -185,7 +186,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_arr_all",
-            doc: None,
+            doc: Some(&ALL_DOC),
         },
         CoreMethod {
             name: "isEmpty",
@@ -194,7 +195,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_arr_is_empty",
-            doc: None,
+            doc: Some(&IS_EMPTY_DOC),
         },
         CoreMethod {
             name: "hasKey",
@@ -206,7 +207,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_arr_has_key",
-            doc: None,
+            doc: Some(&HAS_KEY_DOC),
         },
         CoreMethod {
             name: "contains",
@@ -215,7 +216,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_arr_contains",
-            doc: None,
+            doc: Some(&CONTAINS_DOC),
         },
         CoreMethod {
             name: "keyOf",
@@ -224,7 +225,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_arr_key_of",
-            doc: None,
+            doc: Some(&KEY_OF_DOC),
         },
         CoreMethod {
             name: "isList",
@@ -233,7 +234,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_arr_is_list",
-            doc: None,
+            doc: Some(&IS_LIST_DOC),
         },
         CoreMethod {
             name: "keys",
@@ -242,7 +243,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
             symbol: "nvs_core_arr_keys",
-            doc: None,
+            doc: Some(&KEYS_DOC),
         },
         CoreMethod {
             name: "values",
@@ -251,7 +252,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_values",
-            doc: None,
+            doc: Some(&VALUES_DOC),
         },
         CoreMethod {
             name: "first",
@@ -260,7 +261,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_first",
-            doc: None,
+            doc: Some(&FIRST_DOC),
         },
         CoreMethod {
             name: "last",
@@ -269,7 +270,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_last",
-            doc: None,
+            doc: Some(&LAST_DOC),
         },
         CoreMethod {
             name: "firstKey",
@@ -278,7 +279,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_arr_first_key",
-            doc: None,
+            doc: Some(&FIRST_KEY_DOC),
         },
         CoreMethod {
             name: "lastKey",
@@ -287,7 +288,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_arr_last_key",
-            doc: None,
+            doc: Some(&LAST_KEY_DOC),
         },
         CoreMethod {
             name: "slice",
@@ -301,7 +302,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[Const::Null],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_slice",
-            doc: None,
+            doc: Some(&SLICE_DOC),
         },
         CoreMethod {
             name: "replaceRange",
@@ -315,7 +316,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[Const::EmptyArray],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_replace_range",
-            doc: None,
+            doc: Some(&REPLACE_RANGE_DOC),
         },
         CoreMethod {
             name: "chunk",
@@ -328,7 +329,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Array(&CoreTy::Var("T"))),
             symbol: "nvs_core_arr_chunk",
-            doc: None,
+            doc: Some(&CHUNK_DOC),
         },
         CoreMethod {
             name: "append",
@@ -340,7 +341,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_append",
-            doc: None,
+            doc: Some(&APPEND_DOC),
         },
         CoreMethod {
             name: "prepend",
@@ -352,7 +353,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_prepend",
-            doc: None,
+            doc: Some(&PREPEND_DOC),
         },
         CoreMethod {
             name: "withoutFirst",
@@ -361,7 +362,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_without_first",
-            doc: None,
+            doc: Some(&WITHOUT_FIRST_DOC),
         },
         CoreMethod {
             name: "withoutLast",
@@ -370,7 +371,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_without_last",
-            doc: None,
+            doc: Some(&WITHOUT_LAST_DOC),
         },
         CoreMethod {
             name: "padStart",
@@ -383,7 +384,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_pad_start",
-            doc: None,
+            doc: Some(&PAD_START_DOC),
         },
         CoreMethod {
             name: "padEnd",
@@ -396,7 +397,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_pad_end",
-            doc: None,
+            doc: Some(&PAD_END_DOC),
         },
         CoreMethod {
             name: "reverse",
@@ -408,7 +409,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_reverse",
-            doc: None,
+            doc: Some(&REVERSE_DOC),
         },
         CoreMethod {
             name: "flip",
@@ -417,7 +418,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
             symbol: "nvs_core_arr_flip",
-            doc: None,
+            doc: Some(&FLIP_DOC),
         },
         CoreMethod {
             name: "flatten",
@@ -426,7 +427,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_flatten",
-            doc: None,
+            doc: Some(&FLATTEN_DOC),
         },
         CoreMethod {
             name: "flattenDeep",
@@ -435,7 +436,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Mixed),
             symbol: "nvs_core_arr_flatten_deep",
-            doc: None,
+            doc: Some(&FLATTEN_DEEP_DOC),
         },
         CoreMethod {
             name: "column",
@@ -448,7 +449,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_column",
-            doc: None,
+            doc: Some(&COLUMN_DOC),
         },
         CoreMethod {
             name: "sort",
@@ -460,7 +461,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_sort",
-            doc: None,
+            doc: Some(&SORT_DOC),
         },
         CoreMethod {
             name: "sortByKey",
@@ -472,7 +473,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_sort_by_key",
-            doc: None,
+            doc: Some(&SORT_BY_KEY_DOC),
         },
         CoreMethod {
             name: "fill",
@@ -481,7 +482,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_fill",
-            doc: None,
+            doc: Some(&FILL_DOC),
         },
         CoreMethod {
             name: "fillKeys",
@@ -490,7 +491,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_fill_keys",
-            doc: None,
+            doc: Some(&FILL_KEYS_DOC),
         },
         CoreMethod {
             name: "range",
@@ -499,7 +500,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Int),
             symbol: "nvs_core_arr_range",
-            doc: None,
+            doc: Some(&RANGE_DOC),
         },
         CoreMethod {
             name: "fromKeysAndValues",
@@ -511,7 +512,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_from_keys_and_values",
-            doc: None,
+            doc: Some(&FROM_KEYS_AND_VALUES_DOC),
         },
         CoreMethod {
             name: "from",
@@ -523,7 +524,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_from",
-            doc: None,
+            doc: Some(&FROM_DOC),
         },
         CoreMethod {
             name: "overlay",
@@ -535,7 +536,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Union(COMBINED)),
             symbol: "nvs_core_arr_overlay",
-            doc: None,
+            doc: Some(&OVERLAY_DOC),
         },
         CoreMethod {
             name: "overlayDeep",
@@ -547,7 +548,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Union(COMBINED)),
             symbol: "nvs_core_arr_overlay_deep",
-            doc: None,
+            doc: Some(&OVERLAY_DEEP_DOC),
         },
         CoreMethod {
             name: "underlay",
@@ -559,7 +560,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Union(COMBINED)),
             symbol: "nvs_core_arr_underlay",
-            doc: None,
+            doc: Some(&UNDERLAY_DOC),
         },
         CoreMethod {
             name: "appendAll",
@@ -571,7 +572,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Union(COMBINED)),
             symbol: "nvs_core_arr_append_all",
-            doc: None,
+            doc: Some(&APPEND_ALL_DOC),
         },
         CoreMethod {
             name: "diff",
@@ -584,7 +585,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_diff",
-            doc: None,
+            doc: Some(&DIFF_DOC),
         },
         CoreMethod {
             name: "intersect",
@@ -597,7 +598,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_intersect",
-            doc: None,
+            doc: Some(&INTERSECT_DOC),
         },
         CoreMethod {
             name: "countBy",
@@ -606,7 +607,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Uint),
             symbol: "nvs_core_arr_count_by",
-            doc: None,
+            doc: Some(&COUNT_BY_DOC),
         },
         CoreMethod {
             name: "unique",
@@ -615,7 +616,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_unique",
-            doc: None,
+            doc: Some(&UNIQUE_DOC),
         },
         CoreMethod {
             name: "min",
@@ -624,7 +625,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_min",
-            doc: None,
+            doc: Some(&MIN_DOC),
         },
         CoreMethod {
             name: "max",
@@ -633,7 +634,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_max",
-            doc: None,
+            doc: Some(&MAX_DOC),
         },
         CoreMethod {
             name: "sum",
@@ -642,7 +643,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Union(crate::math::NUMBER),
             symbol: "nvs_core_arr_sum",
-            doc: None,
+            doc: Some(&SUM_DOC),
         },
         CoreMethod {
             name: "product",
@@ -651,7 +652,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Union(crate::math::NUMBER),
             symbol: "nvs_core_arr_product",
-            doc: None,
+            doc: Some(&PRODUCT_DOC),
         },
         CoreMethod {
             name: "average",
@@ -660,12 +661,1199 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Union(QUOTIENT)),
             symbol: "nvs_core_arr_average",
-            doc: None,
+            doc: Some(&AVERAGE_DOC),
         },
     ],
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\Arr::count`'s reference card — ADR 0117.
+const COUNT_DOC: MethodDoc = MethodDoc {
+    short: "Counts the entries in `$a`, as `count` and `sizeof` do.",
+    params: &[ParamDoc {
+        name: "a",
+        desc: "The array to count.",
+        shape: &[],
+    }],
+    ret: "The number of entries; `0` for the empty array.",
+    errors: &[],
+};
+
+/// `Core\Arr::filter`'s reference card — ADR 0117.
+const FILTER_DOC: MethodDoc = MethodDoc {
+    short: "Keeps the entries `$predicate` answers truthily for, as `array_filter` does — with \
+            both of its flags folded in, since the callback receives `($value, $key)` and may \
+            declare fewer parameters.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The array to filter.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "predicate",
+            desc: "Called as `($value, $key)` per entry; a truthy answer, on ADR 0035's table, \
+                   keeps the entry.",
+            shape: &[],
+        },
+    ],
+    ret: "The kept entries under their own keys, never renumbered; an empty array when nothing \
+          passes.",
+    errors: &[],
+};
+
+/// `Core\Arr::map`'s reference card — ADR 0117.
+const MAP_DOC: MethodDoc = MethodDoc {
+    short: "Replaces every value with what `$fn` answers for it, as `array_map` does over one \
+            array; keys are preserved.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The array to map.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "fn",
+            desc: "Called as `($value, $key)` per entry, and may declare fewer parameters; its \
+                   return type is the result's `U`.",
+            shape: &[],
+        },
+    ],
+    ret: "One entry per entry of `$a`, under the same key, holding the callback's answer.",
+    errors: &[],
+};
+
+/// `Core\Arr::mapKeys`'s reference card — ADR 0117.
+const MAP_KEYS_DOC: MethodDoc = MethodDoc {
+    short: "Stores every value under the key `$fn` answers for it — the `keyBy` idiom, and \
+            `array_combine(array_map(…), …)` as one member.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The array to re-key.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "fn",
+            desc: "Called as `($value, $key)` per entry, and may declare fewer parameters; it \
+                   answers the entry's new key, an `int` or a `string`.",
+            shape: &[],
+        },
+    ],
+    ret: "The values under their new keys, in first-occurrence order; two entries given one key \
+          collapse to the last, and `1` and `\"1\"` are one key.",
+    errors: &[],
+};
+
+/// `Core\Arr::groupBy`'s reference card — ADR 0117.
+const GROUP_BY_DOC: MethodDoc = MethodDoc {
+    short: "Partitions the entries into buckets named by what `$key` answers for each — the \
+            group-by loop PHP has no function for.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The array to partition.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "key",
+            desc: "Called as `($value, $key)` per entry, and may declare fewer parameters; it \
+                   answers the bucket's name, an `int` or a `string`.",
+            shape: &[],
+        },
+    ],
+    ret: "One inner array per distinct answer, in first-occurrence order, each keeping its entries \
+          under their own keys; `1` and `\"1\"` name one bucket.",
+    errors: &[],
+};
+
+/// `Core\Arr::reduce`'s reference card — ADR 0117.
+const REDUCE_DOC: MethodDoc = MethodDoc {
+    short: "Folds the entries into one value from `$initial`, as `array_reduce` does; the \
+            callback receives `($carry, $value, $key)` and may declare fewer parameters.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The array to fold.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "fn",
+            desc: "Called as `($carry, $value, $key)` per entry, answering the next carry.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "initial",
+            desc: "The seed, whose type is the fold's `U` and therefore the result's.",
+            shape: &[],
+        },
+    ],
+    ret: "The last carry; `$initial` itself over an empty array, with no call made.",
+    errors: &[],
+};
+
+/// `Core\Arr::find`'s reference card — ADR 0117.
+const FIND_DOC: MethodDoc = MethodDoc {
+    short: "The first value `$predicate` answers truthily for, as `array_find` does; the walk \
+            stops at the match.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The array to search.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "predicate",
+            desc: "Called as `($value, $key)` per entry, and may declare fewer parameters.",
+            shape: &[],
+        },
+    ],
+    ret: "The matching value, or `null` when nothing matches — which a stored `null` in an \
+          `array<?T>` cannot be told from.",
+    errors: &[],
+};
+
+/// `Core\Arr::findKey`'s reference card — ADR 0117.
+const FIND_KEY_DOC: MethodDoc = MethodDoc {
+    short: "The key of the first entry `$predicate` answers truthily for, as `array_find_key` \
+            does; the walk stops at the match.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The array to search.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "predicate",
+            desc: "Called as `($value, $key)` per entry, and may declare fewer parameters.",
+            shape: &[],
+        },
+    ],
+    ret: "The key as a `string`, whatever it was written as; `null` when nothing matches.",
+    errors: &[],
+};
+
+/// `Core\Arr::any`'s reference card — ADR 0117.
+const ANY_DOC: MethodDoc = MethodDoc {
+    short: "Whether at least one entry satisfies `$predicate`, as `array_any` does; the walk \
+            stops at the first match.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The array to test.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "predicate",
+            desc: "Called as `($value, $key)` per entry, and may declare fewer parameters.",
+            shape: &[],
+        },
+    ],
+    ret: "`true` at the first truthy answer; `false` over the empty array.",
+    errors: &[],
+};
+
+/// `Core\Arr::all`'s reference card — ADR 0117.
+const ALL_DOC: MethodDoc = MethodDoc {
+    short: "Whether every entry satisfies `$predicate`, as `array_all` does; the walk stops at \
+            the first failure.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The array to test.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "predicate",
+            desc: "Called as `($value, $key)` per entry, and may declare fewer parameters.",
+            shape: &[],
+        },
+    ],
+    ret: "`false` at the first falsy answer; `true` over the empty array.",
+    errors: &[],
+};
+
+/// `Core\Arr::isEmpty`'s reference card — ADR 0117.
+const IS_EMPTY_DOC: MethodDoc = MethodDoc {
+    short: "Whether `$a` holds no entries — `empty($a)` and `count($a) === 0` as one member.",
+    params: &[ParamDoc {
+        name: "a",
+        desc: "The array to test.",
+        shape: &[],
+    }],
+    ret: "`true` for the empty array, `false` otherwise.",
+    errors: &[],
+};
+
+/// `Core\Arr::hasKey`'s reference card — ADR 0117.
+const HAS_KEY_DOC: MethodDoc = MethodDoc {
+    short: "Whether `$a` holds an entry under `$key`, as `array_key_exists` does — and as \
+            `isset($a[$k])` does, since a stored `null` still counts.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The array to look in.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "key",
+            desc: "The key, an `int` or a `string`; `1` and `\"1\"` name one entry.",
+            shape: &[],
+        },
+    ],
+    ret: "`true` when the key is present, whatever value it holds.",
+    errors: &[],
+};
+
+/// `Core\Arr::contains`'s reference card — ADR 0117.
+const CONTAINS_DOC: MethodDoc = MethodDoc {
+    short: "Whether some entry is `$needle` under strict identity, as `in_array` with `strict: \
+            true` does — there is no loose form.",
+    params: &[
+        ParamDoc {
+            name: "haystack",
+            desc: "The array to search.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "needle",
+            desc: "The value to look for, compared by identity; `int`, `uint`, `float` and \
+                   `decimal` are one numeric domain, so `1` finds `1.0`.",
+            shape: &[],
+        },
+    ],
+    ret: "`true` at the first identical entry; `false` over the empty array.",
+    errors: &[],
+};
+
+/// `Core\Arr::keyOf`'s reference card — ADR 0117.
+const KEY_OF_DOC: MethodDoc = MethodDoc {
+    short: "The key of the first entry that is `$needle` under strict identity, as `array_search` \
+            with `strict: true` does.",
+    params: &[
+        ParamDoc {
+            name: "haystack",
+            desc: "The array to search.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "needle",
+            desc: "The value to look for, compared as `contains` compares.",
+            shape: &[],
+        },
+    ],
+    ret: "The key as a `string`, or `null` when no entry is identical — never `false`.",
+    errors: &[],
+};
+
+/// `Core\Arr::isList`'s reference card — ADR 0117.
+const IS_LIST_DOC: MethodDoc = MethodDoc {
+    short: "Whether the keys are exactly `\"0\", \"1\", …` in that order, as `array_is_list` \
+            does.",
+    params: &[ParamDoc {
+        name: "a",
+        desc: "The array to test.",
+        shape: &[],
+    }],
+    ret: "`true` for a list and for the empty array; `false` once any key is out of sequence or \
+          is not its index's exact decimal spelling.",
+    errors: &[],
+};
+
+/// `Core\Arr::keys`'s reference card — ADR 0117.
+const KEYS_DOC: MethodDoc = MethodDoc {
+    short: "Every key in insertion order, as `array_keys` does without its search argument.",
+    params: &[ParamDoc {
+        name: "a",
+        desc: "The array whose keys are wanted.",
+        shape: &[],
+    }],
+    ret: "A list of the keys as `string`s — `\"10\"` stays `\"10\"`, never an `int`; the empty \
+          array for an empty subject.",
+    errors: &[],
+};
+
+/// `Core\Arr::values`'s reference card — ADR 0117.
+const VALUES_DOC: MethodDoc = MethodDoc {
+    short: "Every value in insertion order under fresh keys, as `array_values` does.",
+    params: &[ParamDoc {
+        name: "a",
+        desc: "The array whose values are wanted.",
+        shape: &[],
+    }],
+    ret: "A list renumbered from `\"0\"`.",
+    errors: &[],
+};
+
+/// `Core\Arr::first`'s reference card — ADR 0117.
+const FIRST_DOC: MethodDoc = MethodDoc {
+    short: "The first entry's value, as `reset`, `current` and `$a[array_key_first($a)]` answer \
+            it — with no internal pointer to move.",
+    params: &[ParamDoc {
+        name: "a",
+        desc: "The array to read.",
+        shape: &[],
+    }],
+    ret: "The value, or `null` for the empty array — which a stored `null` in an `array<?T>` \
+          cannot be told from.",
+    errors: &[],
+};
+
+/// `Core\Arr::last`'s reference card — ADR 0117.
+const LAST_DOC: MethodDoc = MethodDoc {
+    short: "The last entry's value, as `end` and `$a[array_key_last($a)]` answer it.",
+    params: &[ParamDoc {
+        name: "a",
+        desc: "The array to read.",
+        shape: &[],
+    }],
+    ret: "The value, or `null` for the empty array — which a stored `null` in an `array<?T>` \
+          cannot be told from.",
+    errors: &[],
+};
+
+/// `Core\Arr::firstKey`'s reference card — ADR 0117.
+const FIRST_KEY_DOC: MethodDoc = MethodDoc {
+    short: "The first entry's key, as `array_key_first` and `key` answer it.",
+    params: &[ParamDoc {
+        name: "a",
+        desc: "The array to read.",
+        shape: &[],
+    }],
+    ret: "The key as a `string`, or `null` for the empty array.",
+    errors: &[],
+};
+
+/// `Core\Arr::lastKey`'s reference card — ADR 0117.
+const LAST_KEY_DOC: MethodDoc = MethodDoc {
+    short: "The last entry's key, as `array_key_last` answers it.",
+    params: &[ParamDoc {
+        name: "a",
+        desc: "The array to read.",
+        shape: &[],
+    }],
+    ret: "The key as a `string`, or `null` for the empty array.",
+    errors: &[],
+};
+
+/// `Core\Arr::slice`'s reference card — ADR 0117.
+const SLICE_DOC: MethodDoc = MethodDoc {
+    short: "The entries in one window of positions, as `array_slice` does; a position is \
+            ordinal, whatever the keys are.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The array to take from.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "offset",
+            desc: "Where the window opens; a negative offset counts back from the last entry, \
+                   and one reaching past the first clamps to it.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "length",
+            desc: "How many entries the window holds; a negative length stops that many short \
+                   of the end, and `null` runs to the end.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "preserveKeys",
+            desc: "Keep every entry's own key; the default discards every key, string keys \
+                   included, and renumbers from `\"0\"`.",
+            shape: &[],
+        },
+    ],
+    ret: "The window's entries; the empty array when the window closes before it opens.",
+    errors: &[],
+};
+
+/// `Core\Arr::replaceRange`'s reference card — ADR 0117.
+const REPLACE_RANGE_DOC: MethodDoc = MethodDoc {
+    short: "The array with one window of positions replaced by `$replacement`'s values — what \
+            `array_splice` returns, never what it does by reference.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The array to edit.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "offset",
+            desc: "Where the window opens, on `slice`'s sign rule; an offset at the end \
+                   appends.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "length",
+            desc: "How many entries the window holds, on `slice`'s sign rule; `0` inserts at \
+                   the position and `null` reaches the end.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "replacement",
+            desc: "The values to put in the window's place; omitted, the window is simply \
+                   removed.",
+            shape: &[],
+        },
+    ],
+    ret: "A list renumbered from `\"0\"`, kept entries and replacement alike.",
+    errors: &[],
+};
+
+/// `Core\Arr::chunk`'s reference card — ADR 0117.
+const CHUNK_DOC: MethodDoc = MethodDoc {
+    short: "The entries in consecutive runs of `$size`, as `array_chunk` does; the last run is \
+            short when the count does not divide.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The array to split.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "size",
+            desc: "How many entries each run holds; at least `1`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "preserveKeys",
+            desc: "Keep each entry's own key inside its run; the default renumbers every run \
+                   from `\"0\"`.",
+            shape: &[],
+        },
+    ],
+    ret: "A list of runs; no runs at all for the empty array.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$size` is `0`.",
+    }],
+};
+
+/// `Core\Arr::append`'s reference card — ADR 0117.
+const APPEND_DOC: MethodDoc = MethodDoc {
+    short: "The array with every trailing value added after its last entry, as `array_push` does \
+            — `$a[] = $v` in expression position.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The array to extend.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "values",
+            desc: "The values to add, in written order.",
+            shape: &[],
+        },
+    ],
+    ret: "The subject's entries under their own keys, then each value under the next free \
+          integer key — one past the largest present; the subject itself when no values are \
+          given.",
+    errors: &[],
+};
+
+/// `Core\Arr::prepend`'s reference card — ADR 0117.
+const PREPEND_DOC: MethodDoc = MethodDoc {
+    short: "The trailing values, then the array's values, as `array_unshift` does.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The array to put them in front of.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "values",
+            desc: "The values to put in front, in written order.",
+            shape: &[],
+        },
+    ],
+    ret: "A list renumbered from `\"0\"` — every key is discarded, since a value put in front \
+          has no key of its own to take.",
+    errors: &[],
+};
+
+/// `Core\Arr::withoutFirst`'s reference card — ADR 0117.
+const WITHOUT_FIRST_DOC: MethodDoc = MethodDoc {
+    short: "Every entry but the first — what `array_shift` leaves behind, with `first` answering \
+            the element it removes.",
+    params: &[ParamDoc {
+        name: "a",
+        desc: "The array to shorten.",
+        shape: &[],
+    }],
+    ret: "The remaining entries under their own keys, never renumbered; the empty array for a \
+          subject of one entry or none.",
+    errors: &[],
+};
+
+/// `Core\Arr::withoutLast`'s reference card — ADR 0117.
+const WITHOUT_LAST_DOC: MethodDoc = MethodDoc {
+    short: "Every entry but the last — what `array_pop` leaves behind, with `last` answering the \
+            element it removes.",
+    params: &[ParamDoc {
+        name: "a",
+        desc: "The array to shorten.",
+        shape: &[],
+    }],
+    ret: "The remaining entries under their own keys, never renumbered; the empty array for a \
+          subject of one entry or none.",
+    errors: &[],
+};
+
+/// `Core\Arr::padStart`'s reference card — ADR 0117.
+const PAD_START_DOC: MethodDoc = MethodDoc {
+    short: "Copies of `$value` in front until the array holds `$size` entries, as `array_pad` \
+            with a negative length does.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The array to pad.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "size",
+            desc: "The length to reach; a subject already that long is not padded.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "value",
+            desc: "The value every added entry holds.",
+            shape: &[],
+        },
+    ],
+    ret: "A list renumbered from `\"0\"` — every key is discarded, padded or not.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The padded result is larger than any array this process could hold.",
+    }],
+};
+
+/// `Core\Arr::padEnd`'s reference card — ADR 0117.
+const PAD_END_DOC: MethodDoc = MethodDoc {
+    short: "Copies of `$value` after the last entry until the array holds `$size` entries, as \
+            `array_pad` with a positive length does.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The array to pad.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "size",
+            desc: "The length to reach; a subject already that long is not padded.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "value",
+            desc: "The value every added entry holds.",
+            shape: &[],
+        },
+    ],
+    ret: "A list renumbered from `\"0\"` — every key is discarded, padded or not.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The padded result is larger than any array this process could hold.",
+    }],
+};
+
+/// `Core\Arr::reverse`'s reference card — ADR 0117.
+const REVERSE_DOC: MethodDoc = MethodDoc {
+    short: "The entries in the opposite order, as `array_reverse` does.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The array to reverse.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "preserveKeys",
+            desc: "Keep every entry's own key; the default discards every key, string keys \
+                   included, and renumbers from `\"0\"`.",
+            shape: &[],
+        },
+    ],
+    ret: "The same entries, last first.",
+    errors: &[],
+};
+
+/// `Core\Arr::flip`'s reference card — ADR 0117.
+const FLIP_DOC: MethodDoc = MethodDoc {
+    short: "Every value made a key and every key made its value, as `array_flip` does.",
+    params: &[ParamDoc {
+        name: "a",
+        desc: "The array to flip; every value is an `int` or a `string`, and `1` and `\"1\"` \
+               flip to one key.",
+        shape: &[],
+    }],
+    ret: "The old keys as `string` values under the old values as keys, in first-occurrence \
+          order; a repeated value keeps its first position and takes its last key.",
+    errors: &[],
+};
+
+/// `Core\Arr::flatten`'s reference card — ADR 0117.
+const FLATTEN_DOC: MethodDoc = MethodDoc {
+    short: "One level of nesting removed — every inner array's values in order, as a hand-written \
+            walk does.",
+    params: &[ParamDoc {
+        name: "a",
+        desc: "An array of arrays.",
+        shape: &[],
+    }],
+    ret: "A list renumbered from `\"0\"`; the inner keys are discarded, since two inner arrays \
+          can share one.",
+    errors: &[],
+};
+
+/// `Core\Arr::flattenDeep`'s reference card — ADR 0117.
+const FLATTEN_DEEP_DOC: MethodDoc = MethodDoc {
+    short: "Every level of nesting removed, as a recursive walk or `iterator_to_array` over a \
+            `RecursiveIteratorIterator` does; there is no depth count, since `flatten` is the \
+            other real case.",
+    params: &[ParamDoc {
+        name: "a",
+        desc: "An array nested to any depth.",
+        shape: &[],
+    }],
+    ret: "A list of every non-array leaf in walk order, renumbered from `\"0\"`; `mixed` \
+          because the depth is the caller's data, not the type's.",
+    errors: &[],
+};
+
+/// `Core\Arr::column`'s reference card — ADR 0117.
+const COLUMN_DOC: MethodDoc = MethodDoc {
+    short: "One named cell out of every row, as `array_column` does.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The rows, each an array.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "column",
+            desc: "The key of the cell to take; `0` and `\"0\"` name one cell, as `$row[0]` \
+                   and `$row[\"0\"]` do.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "indexBy",
+            desc: "The key of the cell to key the result by; the default gives the result fresh \
+                   integer keys.",
+            shape: &[],
+        },
+    ],
+    ret: "The cells in row order: a row without the column is skipped, a row without the \
+          `indexBy` cell lands under the next free integer key, and two rows with one `indexBy` \
+          value collapse to the last.",
+    errors: &[],
+};
+
+/// `Core\Arr::sort`'s reference card — ADR 0117.
+const SORT_DOC: MethodDoc = MethodDoc {
+    short: "The entries in order, stably — `sort`, `rsort`, `asort`, `arsort`, `usort`, \
+            `uasort`, `natsort`, `natcasesort` and `array_multisort` as one member and four \
+            options.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The array to sort.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "by",
+            desc: "Called once per entry as `($value, $key)`, and may declare fewer parameters; \
+                   what it answers is compared in the entry's place.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "order",
+            desc: "`Order::Asc` (the default) or `Order::Desc`, which reverses the comparison \
+                   rather than the result, so equal entries keep their relative order either \
+                   way.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "comparator",
+            desc: "Called as `($a, $b)` on two values — or on two `by` answers — and answering a \
+                   negative, zero or positive number, as `usort`'s callback does; it replaces \
+                   the natural order.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "preserveKeys",
+            desc: "Keep each entry's own key, as `asort` does; the default renumbers from \
+                   `\"0\"`, as `sort` does.",
+            shape: &[],
+        },
+    ],
+    ret: "The sorted entries. The natural order is between two numbers, two strings bytewise, \
+          two bools or two nulls — `\"10\"` sorts before `\"9\"` — and nothing else.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "Two entries have no natural order between them — an `int` against a `string`, \
+               or any object — and no `comparator` was given; or the comparator answered \
+               `NaN`.",
+    }],
+};
+
+/// `Core\Arr::sortByKey`'s reference card — ADR 0117.
+const SORT_BY_KEY_DOC: MethodDoc = MethodDoc {
+    short: "The entries in key order, stably, every key kept — `ksort`, `krsort` and `uksort` as \
+            one member.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The array to sort.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "order",
+            desc: "`Order::Asc` (the default) or `Order::Desc`, which reverses the comparison \
+                   rather than the result, so equal keys keep their insertion order either way.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "comparator",
+            desc: "Called as `($a, $b)` on two keys, both `string`s, and answering a negative, \
+                   zero or positive number, as `uksort`'s callback does; it replaces the \
+                   natural order.",
+            shape: &[],
+        },
+    ],
+    ret: "The same entries under the same keys, ordered by key; the natural order is bytewise, \
+          so `\"10\"` precedes `\"9\"`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The comparator answered `NaN`.",
+    }],
+};
+
+/// `Core\Arr::fill`'s reference card — ADR 0117.
+const FILL_DOC: MethodDoc = MethodDoc {
+    short: "`$count` copies of `$value` under `\"0\", \"1\", …`, as `array_fill` does from index \
+            zero; there is no start index, since `fillKeys` takes the keys a caller wants.",
+    params: &[
+        ParamDoc {
+            name: "count",
+            desc: "How many entries; `0` yields the empty array.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "value",
+            desc: "The value every entry holds.",
+            shape: &[],
+        },
+    ],
+    ret: "A list of `$count` entries.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$count` names a result larger than any array this process could hold.",
+    }],
+};
+
+/// `Core\Arr::fillKeys`'s reference card — ADR 0117.
+const FILL_KEYS_DOC: MethodDoc = MethodDoc {
+    short: "`$value` stored under every key in `$keys`, as `array_fill_keys` does.",
+    params: &[
+        ParamDoc {
+            name: "keys",
+            desc: "The keys to store under, as the array's *values* — each an `int` or a \
+                   `string`; its own keys are ignored.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "value",
+            desc: "The value every entry holds.",
+            shape: &[],
+        },
+    ],
+    ret: "One entry per distinct key, in first-occurrence order; `1` and `\"1\"` are one key.",
+    errors: &[],
+};
+
+/// `Core\Arr::range`'s reference card — ADR 0117.
+const RANGE_DOC: MethodDoc = MethodDoc {
+    short: "The integers from `$start` to `$end` inclusive, as `range` does; the direction is \
+            the bounds', so `$start > $end` counts down.",
+    params: &[
+        ParamDoc {
+            name: "start",
+            desc: "The first value.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "end",
+            desc: "The last value that may appear; a step that overshoots stops at the last \
+                   in-range value.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "step",
+            desc: "The distance between neighbours, `1` by default; always positive, since the \
+                   direction comes from the bounds.",
+            shape: &[],
+        },
+    ],
+    ret: "A list from `$start` towards `$end`; one entry when the two are equal.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`step` is `0` or negative.",
+    }],
+};
+
+/// `Core\Arr::fromKeysAndValues`'s reference card — ADR 0117.
+const FROM_KEYS_AND_VALUES_DOC: MethodDoc = MethodDoc {
+    short: "`$values`' entries stored under `$keys`' entries, paired in order, as \
+            `array_combine` does.",
+    params: &[
+        ParamDoc {
+            name: "keys",
+            desc: "The keys, as the array's *values* — each an `int` or a `string`; its own \
+                   keys are ignored.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "values",
+            desc: "The values, in the same order; its own keys are ignored.",
+            shape: &[],
+        },
+    ],
+    ret: "One entry per pair, in `$keys`' order; a repeated key keeps its first position and \
+          takes its last value, and `1` and `\"1\"` are one key.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The two arrays hold different numbers of entries.",
+    }],
+};
+
+/// `Core\Arr::from`'s reference card — ADR 0117.
+const FROM_DOC: MethodDoc = MethodDoc {
+    short: "A sequence materialised as an array, as `iterator_to_array` does with \
+            `preserve_keys: false` — an `Iterable<T>`, an `Iterator<T>` or an array, whatever \
+            `foreach` would take.",
+    params: &[
+        ParamDoc {
+            name: "items",
+            desc: "The sequence to drain, once.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "limit",
+            desc: "Stop the drive after this many elements — the only guard against an unbounded \
+                   generator; the default takes everything, and `0` takes nothing.",
+            shape: &[],
+        },
+    ],
+    ret: "A list renumbered from `\"0\"` — a cursor has no keys, and an array's are discarded.",
+    errors: &[],
+};
+
+/// `Core\Arr::overlay`'s reference card — ADR 0117.
+const OVERLAY_DOC: MethodDoc = MethodDoc {
+    short: "`$base` with every layer's entries written over it, the right-hand value winning, as \
+            `array_replace` does — and as `array_merge` over maps does, with every key treated \
+            alike.",
+    params: &[
+        ParamDoc {
+            name: "base",
+            desc: "The array underneath.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "layers",
+            desc: "The arrays laid over it, in order; a later layer wins over an earlier one.",
+            shape: &[],
+        },
+    ],
+    ret: "Every key of every argument: an existing key keeps its position and takes the last \
+          value written under it, a new one is appended.",
+    errors: &[],
+};
+
+/// `Core\Arr::overlayDeep`'s reference card — ADR 0117.
+const OVERLAY_DEEP_DOC: MethodDoc = MethodDoc {
+    short: "`overlay` recursing wherever both sides of a key hold an array and neither is a \
+            list, as `array_replace_recursive` does; a list is replaced wholesale.",
+    params: &[
+        ParamDoc {
+            name: "base",
+            desc: "The array underneath.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "layers",
+            desc: "The arrays laid over it, in order; a later layer wins over an earlier one.",
+            shape: &[],
+        },
+    ],
+    ret: "Every key of every argument, as `overlay` answers it, with two maps under one key \
+          combined the same way rather than the right one winning.",
+    errors: &[],
+};
+
+/// `Core\Arr::underlay`'s reference card — ADR 0117.
+const UNDERLAY_DOC: MethodDoc = MethodDoc {
+    short: "`$base` with every layer's entries written underneath it, the left-hand value \
+            winning — PHP's `array + array`, which does not compile here.",
+    params: &[
+        ParamDoc {
+            name: "base",
+            desc: "The array on top.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "layers",
+            desc: "The arrays laid under it, in order; an earlier one wins over a later one.",
+            shape: &[],
+        },
+    ],
+    ret: "`$base`'s entries in their own positions, then each layer's keys not yet present, \
+          appended in order.",
+    errors: &[],
+};
+
+/// `Core\Arr::appendAll`'s reference card — ADR 0117.
+const APPEND_ALL_DOC: MethodDoc = MethodDoc {
+    short: "Every value of `$a`, then of each of `$others`, under fresh keys — `array_merge` \
+            over lists, and the `array_merge(...$arrays)` idiom.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The first array.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "others",
+            desc: "The arrays whose values follow, in order.",
+            shape: &[],
+        },
+    ],
+    ret: "A list renumbered from `\"0\"`; every key is discarded.",
+    errors: &[],
+};
+
+/// `Core\Arr::diff`'s reference card — ADR 0117.
+const DIFF_DOC: MethodDoc = MethodDoc {
+    short: "The entries of `$a` that `$b` does not have, under strict identity — `array_diff`, \
+            `array_diff_key`, `array_diff_assoc` and their three `u` variants as one member.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The array whose entries are kept.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "b",
+            desc: "The array whose entries exclude.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "on",
+            desc: "Which part of an entry is compared: `SetOn::Values` (the default), \
+                   `SetOn::Keys` or `SetOn::Both`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "by",
+            desc: "Called once per entry as `($value, $key)`, and may declare fewer parameters; \
+                   what it answers stands in for the part `on` selected — the key, under \
+                   `SetOn::Keys`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "comparator",
+            desc: "Called as `($a, $b)` on two selected parts and answering a negative, zero or \
+                   positive number, as `array_udiff`'s callback does; it replaces identity, and \
+                   makes the walk pairwise.",
+            shape: &[],
+        },
+    ],
+    ret: "The kept entries of `$a` under their own keys, in `$a`'s order.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The comparator answered `NaN`.",
+    }],
+};
+
+/// `Core\Arr::intersect`'s reference card — ADR 0117.
+const INTERSECT_DOC: MethodDoc = MethodDoc {
+    short: "The entries of `$a` that `$b` also has, under strict identity — `array_intersect` \
+            and its five variants as one member.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The array whose entries are kept.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "b",
+            desc: "The array an entry must also be in.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "on",
+            desc: "Which part of an entry is compared: `SetOn::Values` (the default), \
+                   `SetOn::Keys` or `SetOn::Both`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "by",
+            desc: "Called once per entry as `($value, $key)`, and may declare fewer parameters; \
+                   what it answers stands in for the part `on` selected — the key, under \
+                   `SetOn::Keys`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "comparator",
+            desc: "Called as `($a, $b)` on two selected parts and answering a negative, zero or \
+                   positive number, as `array_uintersect`'s callback does; it replaces \
+                   identity, and makes the walk pairwise.",
+            shape: &[],
+        },
+    ],
+    ret: "The kept entries of `$a` under their own keys, in `$a`'s order.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The comparator answered `NaN`.",
+    }],
+};
+
+/// `Core\Arr::countBy`'s reference card — ADR 0117.
+const COUNT_BY_DOC: MethodDoc = MethodDoc {
+    short: "How many entries fall under each distinct value, as `array_count_values` does — or \
+            under each answer of `by`, the group-and-count loop PHP has no function for.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The array to count over.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "by",
+            desc: "Called once per entry as `($value, $key)`, and may declare fewer parameters; \
+                   it answers the bucket's name, an `int` or a `string`. Without it the value \
+                   itself is the bucket.",
+            shape: &[],
+        },
+    ],
+    ret: "One `uint` per distinct bucket, keyed by it in first-occurrence order; `1` and `\"1\"` \
+          are one bucket.",
+    errors: &[],
+};
+
+/// `Core\Arr::unique`'s reference card — ADR 0117.
+const UNIQUE_DOC: MethodDoc = MethodDoc {
+    short: "The entries whose value has not been seen before, as `array_unique` does — by strict \
+            identity, so `1` and `\"1\"` are two entries, never `SORT_STRING`'s cast.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The array to deduplicate.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "by",
+            desc: "Called once per entry as `($value, $key)`, and may declare fewer parameters; \
+                   identity is asked of what it answers, while the entry kept is still the \
+                   entry.",
+            shape: &[],
+        },
+    ],
+    ret: "The first occurrence of each value, under its own key and in its own position.",
+    errors: &[],
+};
+
+/// `Core\Arr::min`'s reference card — ADR 0117.
+const MIN_DOC: MethodDoc = MethodDoc {
+    short: "The smallest entry under the natural order, as `min` with an array argument does — \
+            the order `sort` uses without a comparator, never PHP's loose comparison.",
+    params: &[ParamDoc {
+        name: "a",
+        desc: "The array to search.",
+        shape: &[],
+    }],
+    ret: "The smallest value, the first of equals; `null` for the empty array. Two strings \
+          compare bytewise, so `min([\"1e2\", \"50\"])` is `\"1e2\"`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "Two entries have no natural order between them — an `int` against a `string`, \
+               or any object.",
+    }],
+};
+
+/// `Core\Arr::max`'s reference card — ADR 0117.
+const MAX_DOC: MethodDoc = MethodDoc {
+    short: "The largest entry under the natural order, as `max` with an array argument does — \
+            the order `sort` uses without a comparator, never PHP's loose comparison.",
+    params: &[ParamDoc {
+        name: "a",
+        desc: "The array to search.",
+        shape: &[],
+    }],
+    ret: "The largest value, the first of equals; `null` for the empty array. Two strings \
+          compare bytewise, so `max([\"1e2\", \"50\"])` is `\"50\"`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "Two entries have no natural order between them — an `int` against a `string`, \
+               or any object.",
+    }],
+};
+
+/// `Core\Arr::sum`'s reference card — ADR 0117.
+const SUM_DOC: MethodDoc = MethodDoc {
+    short: "The entries added up, as `array_sum` does, promoting entry by entry: `int` with `int` \
+            stays `int`, a `float` anywhere makes the total `float`, a `decimal` anywhere makes \
+            it `decimal`.",
+    params: &[ParamDoc {
+        name: "a",
+        desc: "The numbers to add.",
+        shape: &[],
+    }],
+    ret: "The total, of the widest type met; `0` as an `int` for the empty array.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The running `int` or `decimal` total leaves its type's range — there is no \
+               silent promotion to `float` — or a `float` and a `decimal` meet in one array, \
+               which have no common type.",
+    }],
+};
+
+/// `Core\Arr::product`'s reference card — ADR 0117.
+const PRODUCT_DOC: MethodDoc = MethodDoc {
+    short: "The entries multiplied together, as `array_product` does, promoting entry by entry \
+            exactly as `sum` does.",
+    params: &[ParamDoc {
+        name: "a",
+        desc: "The numbers to multiply.",
+        shape: &[],
+    }],
+    ret: "The product, of the widest type met; `1` as an `int` for the empty array.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The running `int` or `decimal` product leaves its type's range — there is no \
+               silent promotion to `float` — or a `float` and a `decimal` meet in one array, \
+               which have no common type.",
+    }],
+};
+
+/// `Core\Arr::average`'s reference card — ADR 0117.
+const AVERAGE_DOC: MethodDoc = MethodDoc {
+    short: "The entries' mean — `array_sum($a) / count($a)` with the empty case answered.",
+    params: &[ParamDoc {
+        name: "a",
+        desc: "The numbers to average.",
+        shape: &[],
+    }],
+    ret: "A `decimal` when the total is one — exact, rounded half to even at the widest scale \
+          the quotient admits — and a `float` otherwise; `null` for the empty array.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The running total leaves its type's range or meets a `float` and a `decimal` in \
+               one array, as `sum` throws; or a `decimal` quotient falls outside ADR 0054 § 1's \
+               range.",
+    }],
 };
 
 /// `float|decimal` — what dividing spec § 2's `int|float|decimal` by a count
@@ -717,7 +1905,30 @@ const ORDER_DOC: EnumDoc = EnumDoc {
 pub const SET_ON: CoreEnum = CoreEnum {
     name: r"Core\SetOn",
     cases: &[("Values", 0), ("Keys", 1), ("Both", 2)],
-    doc: None,
+    doc: Some(&SET_ON_DOC),
+};
+
+/// [`SET_ON`]'s reference card — ADR 0117.
+const SET_ON_DOC: EnumDoc = EnumDoc {
+    short: "Which part of an entry `Core\\Arr::diff` and `intersect` compare — spec § 2's \
+            `{on: …}` option, which is `Values` when omitted; `by` and `comparator` apply to \
+            the part it selects.",
+    cases: &[
+        CaseDoc {
+            name: "Values",
+            desc: "The value alone — `array_diff`, `array_intersect` and their `u` forms.",
+        },
+        CaseDoc {
+            name: "Keys",
+            desc: "The key alone — `array_diff_key`, `array_intersect_key` and their `u` \
+                   forms; a `by` here maps the key.",
+        },
+        CaseDoc {
+            name: "Both",
+            desc: "The key and the value together — `array_diff_assoc`, \
+                   `array_intersect_assoc` and their `u` forms.",
+        },
+    ],
 };
 
 /// `int|string` — ADR 0007 § 5's two array-key types, which the spec's § 2
