@@ -1014,7 +1014,7 @@ object (R14).
 No stream wrappers, no `php://`, no `phar://`, no user-registered protocols
 ([ADR 0052](../adr/0052-closed-doors.md)).
 
-## 15. Request-facing: `Core\Server`, `Core\Request`, `Core\Response`, `Core\Session`, `Core\Env`, `Core\Cli`
+## 15. Request-facing: `Core\Server`, `Core\Request`, `Core\Response`, `Core\Session`, `Core\Env`, `Core\Cap`, `Core\Cli`
 
 These replace PHP's superglobals ([ADR 0012](../adr/0012-no-superglobals.md)); every value they return that
 originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md)).
@@ -1059,6 +1059,13 @@ originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracki
   `putenv` has no equivalent, because a process-global mutation is unsound across cores. `mode` reads the
   run mode ([ADR 0091](../adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)); it is set
   through `Core\Config`, like every other directive, and no environment variable is consulted for it.
+- `Core\Cap`: `has(string $capability): bool`, and nothing else. Reports whether the **calling namespace**
+  holds a capability at this point in the request — the grant table narrowed by anything the request or an
+  enclosing isolate already dropped. It is how a package that declared a capability *optional* degrades
+  instead of failing a build, so the argument is a roster name and an unknown one is a compile error
+  ([ADR 0112](../adr/0112-authority-is-keyed-on-the-enclosing-namespace.md) §§ 6, 8). It grants nothing and
+  needs no capability of its own; there is no `Core\Cap::drop`, because dropping a capability is
+  `Core\Config::set` and stays there.
 - `Core\Cli`: the terminal surface, owned by [ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md) —
   `arguments(): array<tainted string>`, `write`, `escape`, `isTty(Cli\Stream)`, `width`, `height`,
   `colorDepth`, `displayWidth`; the prompts `ask`, `confirm`, `select<T>`, `multiSelect<T>` and

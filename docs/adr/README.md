@@ -171,7 +171,8 @@ so you never have to open this file to route a topic.
 | A decision with no ADR — thread-per-core, value layout, safepoints, shared-nothing requests, SIMD | § *Decisions taken at project start* below for **why**; the plan's § *Architecture* for the **mechanics** |
 | Any measured number, or checking whether an architecture assumption still holds | the guard tests in [benches/abi-probe/](../../benches/abi-probe/) — authoritative; docs quote them and can lag |
 | Who Novis is for, what it claims about itself, whether "PHP compatible" may be written anywhere, why this does not end where Hack ended, or which of two slices to build first | [0080](0080-the-audience-nvs-is-built-for.md) |
-| Third-party libraries — the registry, a git dependency, `package.toml`/`package.lock`, `nvs add`/`fetch`/`update`/`vendor`/`audit`/`publish`, version resolution, dependency hell, supply-chain attacks, install scripts, what authority a dependency has | [0081](0081-packages-are-digests-resolution-is-a-maximum.md) |
+| Third-party libraries — the registry, a git dependency, `package.toml`/`package.lock`, `nvs add`/`fetch`/`update`/`vendor`/`audit`/`publish`, version resolution, dependency hell, supply-chain attacks, install scripts | [0081](0081-packages-are-digests-resolution-is-a-maximum.md) |
+| What authority a dependency, a hand-vendored directory or an overriding file holds; `[grants]` and how one is looked up; a capability a package declares *optional*, and `Core\Cap::has`; whether top-level code is exempt; the roster of capability names | [0112](0112-authority-is-keyed-on-the-enclosing-namespace.md) |
 | The framework — `nvs new`, controllers, middleware, auth flows, mail, i18n, storage, pagination, `Web\*`, where the ORM is, where the service container is, why there is no template engine | [0082](0082-the-first-party-framework.md) |
 | WebSocket, SSE, a long-lived connection, push, broadcast, `Core\Topic`, presence, or what happens to an isolate when a socket outlives its request | [0083](0083-persistent-connections-are-isolates.md) |
 | Background jobs, `Core\Queue`, retries, dead-letter, workers, `nvs work`, transactional enqueue, or why there is no Redis backend | [0084](0084-durable-background-jobs.md) |
@@ -320,6 +321,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0109](0109-a-for-header-declares-its-own-counter.md) | A `for` header may declare its own counter, and an init clause is a declaration or an expression list, never both | Accepted |
 | [0110](0110-one-methods-repeated-routes-share-a-name-when-they-share-a-path.md) | One method's repeated routes share a name when they share a path | Accepted |
 | [0111](0111-a-php-builtin-completes-to-its-novis-destination.md) | A PHP built-in completes to its Novis destination, and a completion item may only insert what the registry holds | Accepted |
+| [0112](0112-authority-is-keyed-on-the-enclosing-namespace.md) | Authority is keyed on the enclosing namespace, and an optional capability degrades where a required one refuses | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

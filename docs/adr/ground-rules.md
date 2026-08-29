@@ -217,6 +217,11 @@ spellings rejected, and the reasoning.
 - **A dependency is a content-addressed archive resolved by minimal version selection, no package code runs
   before your program does, and a package's capabilities are granted one line at a time rather than
   inherited** ([0081](0081-packages-are-digests-resolution-is-a-maximum.md)).
+- **Authority is keyed on the namespace enclosing the code — longest prefix wins, a subtree is spelled
+  `"Vendor\*"`, and the rule reaches an overriding file and a hand-vendored tree as readily as a fetched
+  package. A required capability that is not granted fails the build; one a package declares *optional*
+  compiles and throws only if reached, so a library degrades through `Core\Cap::has` instead of refusing to
+  install** ([0112](0112-authority-is-keyed-on-the-enclosing-namespace.md)).
 - **Novis ships its own framework, split by ADR 0051's six tests** — privileged halves in `Core`, the
   opinionated layer as the `nvs/web` package, no ORM and no runtime container
   ([0082](0082-the-first-party-framework.md)).

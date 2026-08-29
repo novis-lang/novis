@@ -7,7 +7,7 @@
   Redis backend's own configuration, both of which M8 designs.
 - **Amends:** [0004](0004-memory-for-simplicity.md) — § 3 records a second, deliberate exception to
   "memory is attributable to a request": cache memory is charged to a **core**, with its own cap.
-- **Amended by:** 0075, 0083, 0084
+- **Amended by:** 0075, 0083, 0084, 0112
 
 > **In short:** APCu's cross-process shared segment is closed by [ADR 0052](0052-closed-doors.md) § 3, and
 > what replaces it is a **per-core in-process cache** — one copy per core, no coherence between them. That
@@ -39,7 +39,9 @@
 - **`Core\Cache::local()`** — per-core, in process. One instance per core, no coherence between cores. Its
   contract states that any entry may be absent at any time, for any reason, and that a write on one core is
   not visible on another. A program that would be incorrect if a `get` returned nothing is using the wrong
-  tier.
+  tier. **Which capability gates this tier is not settled here**, and
+  [0112 § 8](0112-authority-is-keyed-on-the-enclosing-namespace.md)'s roster lists it as the one
+  capability-bearing member with no grant named for it — naming it is this ADR's to do.
 - **`Core\Cache::shared()`** — a real store over the network (Redis by default), coherent across cores and
   across machines, gated by `net.connect` under [ADR 0058](0058-outbound-request-policy.md)'s policy.
 

@@ -6,7 +6,7 @@
   `script.spawn` capability, per-tree limit accounting
 - **Validated by:** `benches/abi-probe/src/process.rs` + `tests/perf_guards.rs`
   (`an_os_process_costs_orders_of_magnitude_more_than_a_task`)
-- **Amended by:** 0012, 0021, 0023, 0064, 0072, 0073, 0083, 0088
+- **Amended by:** 0012, 0021, 0023, 0064, 0072, 0073, 0083, 0088, 0112
 
 > **In short:** `spawn script 'file.nvs'` runs another file in-process as a child isolate —
 > fresh arena, fresh globals and statics, its own config overlay, sharing nothing but immutable
@@ -169,7 +169,7 @@ work for a queue worker — but it can only ever land inside a root the operator
 
 The child's grants are the parent's effective grants, optionally narrowed at the spawn site. Nothing widens:
 capability grants are `RuntimeTighten` already ([0005](0005-config-changeability.md)), and an isolate is a
-new place that rule applies, not an exception to it. A parent that has dropped `net.out` cannot regain it by
+new place that rule applies, not an exception to it. A parent that has dropped `net.connect` cannot regain it by
 spawning.
 
 ### Failure is a value, not an exception

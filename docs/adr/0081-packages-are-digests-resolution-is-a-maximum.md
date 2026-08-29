@@ -22,7 +22,7 @@
   discipline for Novis packages, which is what makes § 3's major-version rule affordable.
   [docs/plan/design.md](../plan/design.md) — the *Tooling* row's "package manager" gains a
   milestone.
-- **Amended by:** none.
+- **Amended by:** 0112
 
 > **In short:** a package's **identity is its BLAKE3 digest**; a name is only a way to find one. Two kinds
 > of source produce that digest — the **registry** (a name, `acme/http`) and a **git URL** — and the second
@@ -155,34 +155,40 @@ Every dependency names the **minimum version** it needs. The version selected fo
 
 This is the section that matters most, and it inverts the assumption every mainstream package system makes.
 
-- **A package declares what it requests.** Its manifest lists capability *names* from
-  [ADR 0005](0005-config-changeability.md)'s roster — `net.connect`, `fs.read`, `db.connect`,
-  `script.spawn`, and so on. The declaration is documentation and an upper bound on itself; it grants
-  nothing.
-- **The application grants, per package, explicitly.**
+- **A package declares what it requests**, split into `required` and `optional`
+  ([0112 § 6](0112-authority-is-keyed-on-the-enclosing-namespace.md)). Its manifest lists capability *names*
+  from [0112 § 8](0112-authority-is-keyed-on-the-enclosing-namespace.md)'s roster — `net.connect`,
+  `fs.read`, `db.connect`, `script.spawn`, and so on. The declaration is documentation and an upper bound on
+  itself; it grants nothing.
+- **The application grants explicitly, one line at a time**, in a `[grants]` table keyed on the
+  **namespace** the granted code declares.
+  [0112](0112-authority-is-keyed-on-the-enclosing-namespace.md) owns that key, its longest-prefix lookup and
+  the `\*` subtree spelling.
 
   ```toml
   [grants]
-  "acme/http"       = ["net.connect"]
-  "acme/csv"        = []                 # written by `nvs add`, and it stays empty
+  "Acme\Http\*"     = ["net.connect"]
+  "Acme\Csv\*"      = []                 # written by `nvs fetch`, and it stays empty
   ```
 
-  **A package with no grant line gets nothing** — deny-by-default, the same posture
+  **A namespace granted nothing holds nothing** — deny-by-default, the same posture
   [ADR 0005](0005-config-changeability.md) takes for the process as a whole. `nvs add` prints every
   capability requested by the package *and its whole transitive subgraph*, and writes the grant lines, so
   the authority a new dependency brings is visible in one diff at the moment it is introduced rather than
   discoverable by audit later.
 - **The operator's `nvs.toml` still caps everything.** The effective set at any call site is the
-  intersection of the operator's grant, the application's per-package grant, the package's own declaration,
+  intersection of the operator's grant, the application's per-namespace grant, the package's own declaration,
   and any narrowing the enclosing isolate applied ([0006](0006-isolated-script-execution.md)). Every one of
   those may only ever *tighten* — [ADR 0055](0055-extension-qualifier-declarations.md)'s rule for extension
   manifests, now the rule for every package.
-- **Enforcement is at compile time and costs nothing at run time.** Each source file belongs to exactly one
-  package (§ 7's layout makes the mapping total), so a `Core` call requiring a capability that call site's
-  package does not hold is a compile error naming the package, the capability and the grant line that would
-  fix it. There is no runtime check to pay for and no dynamic path to escape through — a closure written in
-  the application and *called* from a package still executes the application's code under the application's
-  authority, which is both correct and what a reader expects.
+- **Enforcement is at compile time and costs nothing at run time.** Every declaration carries its enclosing
+  namespace, so a `Core` call requiring a capability that call site's namespace does not hold is a compile
+  error naming the namespace, the capability and the grant line that would fix it
+  ([0112 §§ 1-3](0112-authority-is-keyed-on-the-enclosing-namespace.md); § 6 there is the one capability
+  class that degrades at run time instead of refusing to build). There is no runtime check to pay for on the
+  request path and no dynamic path to escape through — a closure written in the application and *called*
+  from a package still executes the application's code under the application's authority, which is both
+  correct and what a reader expects.
 - **What this buys, stated plainly:** a fully malicious package that reaches the compiler cannot open a
   socket, read a file, spawn a process, reach a database or spawn a script unless a human wrote its name in
   a grant line. The compromise of a transitive dependency — the incident class the incumbents keep having —
@@ -250,11 +256,15 @@ up from the entry file", and [0064](0064-configuration-file-format.md) § 4 conf
 source-tree state. Both stand, because the distinction they draw is about *who reads the file*:
 
 - **Neither the runtime nor name resolution ever reads `package.toml`.** Program semantics do not depend on
-  it, no compiled unit's cache key includes it, and a program whose `vendor/` is already populated compiles
-  identically whether the file is present, absent or malformed.
+  it, no compiled unit's cache key includes it, and a program whose `vendor/` is already populated **resolves
+  every name** identically whether the file is present, absent or malformed. That is a statement about name
+  resolution, which is what 0061 rejected a manifest for driving; it is not a statement about the build as a
+  whole, because the manifest's `required`/`optional` split and its declared prefix are compiler inputs
+  ([0112 §§ 5-6](0112-authority-is-keyed-on-the-enclosing-namespace.md)), so a malformed one fails a build.
 - It is read by the **`nvs` CLI** — `add`, `fetch`, `update`, `vendor`, `audit`, `publish` — which may find
   it by walking up from the working directory the way `git` finds `.git`, because a tool locating its own
-  project is a different question from a language locating a declaration.
+  project is a different question from a language locating a declaration. The compiler reads only the two
+  fields named above, and reaches them through the fetched layout rather than by walking up.
 - It is TOML, `deny_unknown_fields`, for [0064](0064-configuration-file-format.md)'s reasons; the
   dependency is already in the tree.
 
@@ -289,9 +299,11 @@ that policy is an operational document, not an ADR.
   [0051](0051-standard-library-tiers.md) test 2 keeps launderers in Core. So a package can compute over a
   `tainted` value and hand it back still `tainted`, and no third-party code can ever be the thing that
   declares data safe. This is a significant constraint on what a package can be, and it is correct.
-- **Per-package capability checking needs the file → package map to be total**, which § 7's layout provides
-  for fetched code. A file that belongs to no package — the application's own sources — is the application,
-  and the application's grants are its own `[grants]` block plus the operator's ceiling.
+- **Capability checking needs every call site to have a namespace**, which every declaration has by
+  construction — so it reaches hand-vendored code and a file that overrides one class of a package alike.
+  A file whose namespace no grant line matches — the application's own sources — is the application, and
+  holds its own `[grants]` plus the operator's ceiling
+  ([0112 § 4](0112-authority-is-keyed-on-the-enclosing-namespace.md)).
 - **First-party packages are subject to all of it.** `nvs/web` ([0082](0082-the-first-party-framework.md))
   resolves, locks, logs and is granted exactly like anyone else's package. That is deliberate: a registry
   whose maintainers do not depend on it does not stay good.

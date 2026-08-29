@@ -1,0 +1,365 @@
+# ADR 0112 — Authority is keyed on the enclosing namespace, and an optional capability degrades where a required one refuses
+
+- **Status:** Accepted
+- **Date:** 2026-08-29
+- **Scope:** what a capability grant is keyed on and how one is looked up; which code a grant covers, at
+  every nesting depth and however that code reached the program; what an unmatched namespace holds; how a
+  package is stopped from asserting an identity that is not its own; the split between a capability a
+  package *requires* and one it declares *optional*, and what each does when it is not granted; where the
+  two enforcement points are and which of them may grant; and the roster of capability names itself. Not in
+  scope: what any individual capability permits, which stays with the ADR that argues it (§ 8's table names
+  each); the changeability-class model, which is [0005](0005-config-changeability.md); how packages are
+  named, fetched, pinned and verified, which stays [0081](0081-packages-are-digests-resolution-is-a-maximum.md)
+  §§ 1-3 and 6-9; and name resolution itself, which is
+  [0061](0061-compile-time-autoload-and-program-discovery.md) and gains nothing here.
+- **Depends on:** [0081](0081-packages-are-digests-resolution-is-a-maximum.md) — its § 4 established that a
+  dependency's authority is not ambient. This ADR keeps that decision and replaces the key it is stored
+  under.
+- **Amends:** [0081](0081-packages-are-digests-resolution-is-a-maximum.md) § 4 — a grant is keyed on a
+  **namespace**, not on a package, and § 4's file → package map is no longer what enforcement reads; its
+  fifth bullet gains the required/optional split. § 8's "a program whose `vendor/` is already populated
+  compiles identically whether the file is present, absent or malformed" was false the moment § 4 made
+  grants a compile-time input, and now reads correctly because `[grants]` is not in `package.toml`.
+  § 4's citation of a roster held elsewhere is corrected: the roster is § 8 below.
+  [0006](0006-isolated-script-execution.md) — one stale capability name, `net.out`, becomes `net.connect`.
+  [0059](0059-cross-request-state-is-explicit.md) § 1 — `Core\Cache::local()` is named in § 8's table as
+  the one member whose grant that ADR leaves unstated, so the gap is visible rather than latent.
+  [docs/spec/01-core-library.md](../spec/01-core-library.md) Part II — gains `Core\Cap`, one member.
+  [docs/plan/m15.md](../plan/m15.md) — the compiler half is this ADR's, not § 4's.
+- **Amended by:** none.
+
+> **In short:** [0081](0081-packages-are-digests-resolution-is-a-maximum.md) § 4 keyed a grant on a
+> *package*, which meant keying it on a **path** — and a path is the one thing about third-party code that
+> a developer is invited to change. Overriding a single class by putting a file in an earlier autoload root
+> is a blessed pattern ([0061](0061-compile-time-autoload-and-program-discovery.md) § 1, "the Composer
+> rule"), and under path-keying that override silently promoted the file to the application's authority.
+> Worse, code the package manager never fetched — a git submodule, an `autoload discover` glob, a pasted
+> file — had no package and so held everything. This ADR keys a grant on the **enclosing namespace**
+> instead, looked up by longest prefix the way the autoload map already is, with a subtree spelled
+> `"Vendor\*"`. A namespace is the one attribute an override *cannot* change, because changing it is what
+> would stop it being an override; and it exists for hand-vendored code too. Enforcement stays where § 4 put
+> it — **compile time, at every `Core` call site, free at run time** — and the granularity is *reachability,
+> not execution*: a class nobody names is never parsed, but a branch that never runs inside a class you do
+> use is still checked. Because that would otherwise fail a build over a feature nobody called, a package
+> may declare a capability **optional**: ungranted, it compiles, and the call throws if it is ever reached,
+> so a library asks `Core\Cap::has()` and degrades instead of refusing to build.
+
+## Context
+
+- **[0081](0081-packages-are-digests-resolution-is-a-maximum.md) § 4 is right about everything except its
+  key.** Deny-by-default, per-dependency, granted one line at a time, intersected with the operator's
+  ceiling, checked at compile time so it costs nothing on the request path — all of that is kept here
+  unchanged. The single claim that does not hold is that "each source file belongs to exactly one package
+  (§ 7's layout makes the mapping total)".
+- **The layout is not a boundary, because a developer is invited to cross it.**
+  [0061 § 1](0061-compile-time-autoload-and-program-discovery.md) gives one prefix several roots, "probed in
+  declaration order and the first hit wins (the Composer rule, which is what makes a vendor override work)".
+  Overriding one class of a dependency is therefore a supported, documented pattern — and under path-keying
+  the overriding file sits outside `vendor/`, belongs to no package, and so runs with the application's full
+  authority while the rest of the package stays confined. Nothing diagnoses it. Two accepted ADRs, neither
+  citing the other, produced a hole by agreeing.
+- **Most untrusted code never passes through the package manager at all.**
+  [0080](0080-the-audience-nvs-is-built-for.md) names the audience, and for that audience "I am using a
+  third-party library" routinely means a git submodule, a vendored directory, or a file copied from a
+  gist. `autoload discover './packages/*/src'` brings a whole tree in on one line. Path-keying protects none
+  of it, because unfetched code has no package path to key on — so the mechanism that exists to answer the
+  supply-chain question was answering it only for people already on the safe path.
+- **`vendor/` is excluded from a discovery glob by an accident.**
+  [0061 § 1](0061-compile-time-autoload-and-program-discovery.md) skips a matched directory whose name is
+  not legal `PascalCase`, and names `vendor` as an example of what such a glob inevitably sweeps. That a
+  security-relevant directory is passed over by a casing convention adopted for an unrelated reason is not
+  a property to build on.
+- **A namespace is the attribute that cannot move.** An override file must declare the namespace it
+  overrides, or it does not resolve as the override. A hand-vendored library keeps the namespace its own
+  source declares. A discovery glob derives the prefix from the directory it matched. In every one of the
+  cases above, the namespace is stable exactly where the path is not.
+- **Compile-time enforcement has one cost nobody had priced.** A capability check that refuses at build time
+  refuses over code that is present, not code that runs. A library shipping an in-memory cache with an
+  optional disk-persistence method fails the build of every application that never persists anything. Under
+  § 4 as written the author's only remedy is to split the feature into a second package, which fragments an
+  ecosystem over a capability question. § 6 is the answer, and it is the only place this ADR spends a
+  runtime branch.
+
+## Decision
+
+### 1. A grant is keyed on a namespace
+
+The application's grant table is keyed on namespace prefixes, and lives in the application's own
+configuration rather than in `package.toml`:
+
+```toml
+[grants]
+"VendorA\*"       = ["db.connect"]
+"VendorB\*"       = []
+"VendorB\ModuleB" = ["db.connect"]     # one module of an otherwise powerless vendor
+```
+
+A capability named in a grant line must appear in § 8's roster; an unknown name is `E0606` at boot, for
+[0064 § 3](0064-configuration-file-format.md)'s reason — a directive that silently means nothing is worse
+than one that refuses.
+
+Everything [0081 § 4](0081-packages-are-digests-resolution-is-a-maximum.md) decided about *what* a grant is
+survives: a package still declares what it requests and that declaration still grants nothing; the
+application still grants explicitly, one line at a time; `nvs add` still prints the requests of a package
+and its whole transitive subgraph before a human writes anything; and the effective set at a call site is
+still the intersection of the operator's `nvs.toml`, the application's grant, the package's own declaration
+and any narrowing an enclosing isolate applied ([0006](0006-isolated-script-execution.md)), every one of
+which may only tighten.
+
+### 2. Longest prefix wins, and a subtree is spelled `\*`
+
+Lookup is [0061 § 1](0061-compile-time-autoload-and-program-discovery.md)'s rule, reused rather than
+reinvented, so a developer learns it once:
+
+- `"VendorB"` grants **that namespace's own declarations only**.
+- `"VendorB\*"` grants **the subtree**, every depth below it.
+- The **longest matching key wins**. At equal length an exact key beats a subtree key.
+- Two keys that would match identically is `E0607` at boot, naming both.
+
+**The subtree form is spelled out because it is the dangerous one.** A subtree grant reaches code that does
+not exist yet: granting `"VendorA\*"` means `VendorA\ModuleC`, introduced by an upgrade eight months from
+now, holds the database. That is the opposite of the posture
+[0081 § 4](0081-packages-are-digests-resolution-is-a-maximum.md) takes everywhere else, so it is never the
+default reading of a bare prefix — a reader who writes `"VendorA"` gets the narrow thing, and the broad
+thing costs two extra characters and is visible in review as its own token.
+
+### 3. The enclosing namespace decides, at every depth including none
+
+**Authority is the namespace enclosing the code, not the nesting depth of the statement and not the name
+being called.**
+
+- A top-level statement in a file declaring `namespace VendorB;` runs under `VendorB`'s grants, exactly as a
+  method body in that file would. **File-scope code is not exempt**, and it must not be: an exemption would
+  be a one-line bypass of the whole system, and
+  [0081](0081-packages-are-digests-resolution-is-a-maximum.md)'s *Verification* already contemplates a
+  package containing top-level statements, so this is a live path rather than a hypothetical one.
+- A file with no `namespace` declaration is in the global namespace, which is the application. An entry
+  point is therefore unrestricted up to the operator's ceiling — the same thing
+  [0081](0081-packages-are-digests-resolution-is-a-maximum.md) already says about a file belonging to no
+  package, restated for the new key.
+- A closure carries the namespace it was **declared** in, not the one that calls it. This is
+  [0081 § 4](0081-packages-are-digests-resolution-is-a-maximum.md)'s closure rule unchanged: a closure
+  written in the application and invoked from a package runs under the application's authority, which is
+  both correct and what a reader expects.
+- A `use` import transfers nothing. Authority is a property of where code **is**, never of what it names.
+
+### 4. An unmatched namespace holds the application's authority, and `nvs fetch` leaves nothing unmatched
+
+A namespace matching no grant line holds what the application holds — the operator's ceiling. The
+alternative, denying by default, would refuse to compile every program written before this ADR and force
+every application to grant itself, which is ceremony charged to the common case.
+
+That default is only safe because **nothing a package manager fetched is ever unmatched**: `nvs fetch`
+writes a grant line for every package in the resolved graph, direct and transitive, **including an empty
+one**, exactly as [0081 § 4](0081-packages-are-digests-resolution-is-a-maximum.md) already writes
+`"acme/csv" = []`. A package's line is keyed on the namespace prefix its manifest declares. The permissive
+default therefore applies only to code a human wrote or pasted, which is the case where it is the right
+answer.
+
+Hand-vendored code is the residue, and it is reported rather than closed: **`nvs audit` warns on a namespace
+whose autoload root lies under a directory the grant table never mentions** — the common shapes being
+`vendor/`, `lib/`, and any root a `discover` glob produced. A warning is the correct strength here, because
+the same shape describes a legitimate second source tree of the application's own.
+
+### 5. A package cannot assert a namespace that is not its own
+
+Keying on a self-declared attribute would be worthless if a package could declare any attribute it liked.
+Two checks close that, and the first already exists:
+
+- **A package declares its namespace prefix in its manifest, and two packages claiming one prefix is an
+  error at fetch time naming both** — [0081 § 7](0081-packages-are-digests-resolution-is-a-maximum.md),
+  unchanged.
+- **Every file in a fetched package must declare a namespace under that package's declared prefix.** This is
+  a compile-time check needing no new information: the file's package is known from the fetched layout, the
+  prefix is known from the manifest, and the declaration is in the file. A package whose file declares
+  `namespace App;` in order to reach the application's grants is `E0605`, naming the file, the namespace it
+  declared and the prefix it was required to stay inside.
+
+Note what the second check is and is not. It is **not** how authority is *looked up* — § 1 is, and it reads
+the namespace alone. It is a separate integrity check that the fetched layout and the declared namespaces
+agree, so that the attribute § 1 trusts is one the package was not free to choose. Hand-vendored code has no
+manifest and so has no such check; what it has instead is that a human wrote the `autoload` line naming its
+prefix, and § 4's audit warning if they did not think about it.
+
+### 6. A capability is required or optional, and only a required one refuses to build
+
+A package's manifest splits what it asks for:
+
+```toml
+[capabilities]
+required = ["net.connect"]
+optional = ["fs.write"]        # a disk cache, if the application wants one
+```
+
+| Declared | Granted | Not granted |
+|---|---|---|
+| `required` | compiles, no check emitted | **compile error** `E0604`, naming the namespace, the capability and the grant line that would fix it |
+| `optional` | compiles, no check emitted | **compiles**, and each such call site carries a guard that throws if it is reached |
+
+A package branches on the one new member, `Core\Cap::has(string $capability): bool`, and degrades:
+
+```php
+if (Core\Cap::has('fs.write')) { $this->persist($key, $value); }
+```
+
+**The throw is an ordinary catchable throwable, not a `FATAL`.** A package that declared a capability
+optional has said it can proceed without it, so the failure is an expected condition on a path the author
+chose to leave reachable — [0020](0020-error-escalation-ladder.md)'s ladder puts a recoverable, contained
+condition at that rung.
+
+**What this is not:** a runtime *grant*. Nothing widens. `Core\Cap::has` reports what the call site already
+holds and the guard refuses when it does not, which is § 7's runtime layer doing its existing job at a site
+the compiler could not settle. The branch is paid only at call sites in packages that explicitly opted in,
+so the cost is bounded and never falls on the request path of a program that uses no optional capability.
+
+**The granularity of the compile-time check is reachability, not execution.**
+[0061](0061-compile-time-autoload-and-program-discovery.md) makes type checking and lowering lazy — "a
+discovered class nobody calls is never checked past its declaration and never reaches codegen" — and
+autoload resolution is lazy too, so a class no name reaches is never parsed. Therefore:
+
+- A module of a package that your program never names is **not part of your program**, and its capability
+  requirements are never consulted. A dependency may ship a database layer you never touch with no
+  database grant anywhere.
+- Inside a class your program **does** name, every call site is checked, including a branch that never runs.
+  `if ($never) { Core\File::write(…); }` refuses to build.
+
+That second line is precisely why § 6 exists. Without the optional split, the rule "present, not executed"
+would make the reachability of a *class* the unit of capability granularity, which is far too coarse for a
+class that legitimately has two halves.
+
+### 7. Two enforcement points, and only the static one grants
+
+| | Reads | When | Cost | Answers |
+|---|---|---|---|---|
+| **Static** | § 1's table ∩ operator's `nvs.toml` ∩ the package's declaration | compile | none | may this *code* ever do this? |
+| **Runtime** | the request's effective config | every syscall-touching stdlib entry point, and § 6's optional guards | one branch | may this *request, right now*? |
+
+The runtime layer is not new — it is the enforcement M6 already specifies, and it exists because narrowing
+exists: `Core\Config::set` on a capability is `RuntimeTighten` ([0005](0005-config-changeability.md)) and an
+isolate may drop grants at the spawn site ([0006](0006-isolated-script-execution.md)).
+
+**It may only ever drop.** There is no runtime grant, and adding one would spend the property this whole
+design is built on: a check at every `Core` call site on the request path (priority 3), bought in exchange
+for reintroducing the dynamic escape the language closed elsewhere by having no `eval`
+([0052](0052-closed-doors.md)), no string or array callables ([0031](0031-callable-is-the-only-closure-type.md))
+and reflection that hands back an inert tree with no path into execution
+([0019 § 3](0019-reflection-and-ast-parsing-are-core-features.md)). Static attribution is total in Novis only
+because those four doors are shut; a runtime widen would be a fifth one opened.
+
+### 8. The roster
+
+**This section is the roster's home.** Every capability name that exists is listed here, and the ADR that
+argues what it permits is named beside it. A name not in this table is not a capability, which is what makes
+§ 1's `E0606` checkable.
+
+| Capability | Permits | Argued in |
+|---|---|---|
+| `fs.read` | reading a path | [0006](0006-isolated-script-execution.md); the members are the spec's Part II |
+| `fs.write` | writing a path | [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md); the members are the spec's Part II |
+| `net.connect` | an outbound connection, under an address policy | [0058](0058-outbound-request-policy.md) |
+| `db.connect` | opening a connection named by a `[db.<name>]` block | [0067 § 3](0067-core-db.md) |
+| `db.open` | opening a connection to a program-supplied host | [0067 § 3](0067-core-db.md) |
+| `process.exec` | executing a program, argv only, no shell | [0044](0044-core-process-argv-only-no-shell.md) |
+| `script.spawn` | executing Novis source as an isolate, from named roots | [0006](0006-isolated-script-execution.md) |
+| `debug.trace` | writing a trace to named roots | [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) |
+| `debug.profile` | profiling | [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) |
+
+`Core\Cache::shared()` needs `net.connect` and is not a separate entry
+([0059 § 1](0059-cross-request-state-is-explicit.md)). **`Core\Cache::local()` is the one capability-bearing
+member with no grant named for it**: 0059 gates the tier without naming what gates it, and closing that is
+0059's to do, not this ADR's. It is listed here so the gap is visible in the roster rather than latent in a
+cross-reference.
+
+`Core` itself is never a grantee. [0011 § 2](0011-functions-and-constants-are-class-members.md) reserves
+`Core` and everything nested under it, so no user code can be declared there and no grant line can name a
+namespace that would inherit the standard library's own authority.
+
+## Diagnostics
+
+| Code | Band | Reported by | Says |
+|---|---|---|---|
+| `E0604` | configuration and capabilities | `nvs-hir` | this call needs `<capability>`, which `<namespace>` was not granted — add it to that namespace's `[grants]` line |
+| `E0605` | configuration and capabilities | `nvs-hir` | a file of package `<name>` declares `<namespace>`, outside the prefix `<prefix>` its manifest claims |
+| `E0606` | configuration and capabilities | boot | `[grants]` names `<capability>`, which is not a capability |
+| `E0607` | configuration and capabilities | boot | two `[grants]` keys match identically |
+
+`E0604` is reported by `nvs-hir` rather than by the checker because it needs only a resolved name and the
+grant table, both of which exist before type checking — which is what keeps the check independent of
+[0061](0061-compile-time-autoload-and-program-discovery.md)'s lazy type checking, and what makes § 6's
+reachability rule the clean line it is rather than an artifact of pass ordering.
+
+## Consequences
+
+The trade, stated as [0004](0004-memory-for-simplicity.md) requires:
+
+- **Security (priority 1), bought.** The override hole closes: a file overriding one class of a dependency
+  keeps that dependency's authority, because it must keep its namespace to be an override at all. And the
+  protection extends for the first time to code the package manager never touched — a submodule, a
+  `discover` glob, a pasted file — which is the majority of how untrusted code actually arrives.
+- **Latency (priority 3), unchanged for every program that uses no optional capability.** The static check
+  emits nothing. § 6's guard is one predictable branch, at call sites a package opted into, and never on a
+  path a program that declares no optional capability executes.
+- **Memory (priority 5), unchanged at run time.** The grant table is compile-time input; nothing is retained
+  per request.
+- **Simplicity (priority 4), mixed, and this is the cost.** The language surface gains nothing — no grammar
+  change, and `autoload` is untouched, which is a strict improvement over keying authority on the import
+  site. But the *model* gains two dials a reader must hold: the `\*` subtree spelling, and the
+  required/optional split. Both are load-bearing — § 2 argues the first, § 6 the second — and neither has a
+  cheaper spelling that keeps what it buys.
+- **Usability, improved where it was worst.** A library with an optional feature no longer fails an
+  application's build over a capability it never wanted, so a package author is not pushed into splitting a
+  coherent library to stay installable.
+
+What is genuinely given up: **the grant table and the package graph stop being the same thing.** One package
+may declare several prefixes and hand-vendored code has a prefix and no package, so `nvs add` can still
+print what a package requests but can no longer promise that the line it writes covers exactly that
+package's code and nothing else. That is the price of covering code no package manager fetched, and it is
+worth paying, because the code a package manager did not fetch is the code that held everything.
+
+## Alternatives rejected
+
+- **Keeping the package key and diagnosing the override.** Refusing or warning when a file outside a package
+  resolves a name inside its prefix would close the specific hole and none of the general one — hand-vendored
+  code, which never had a package, stays unprotected. It also makes an override, a supported pattern, into a
+  thing that argues with you.
+- **A `grants` clause on the `autoload` declaration.** Considered first, and rejected for a specific reason:
+  a `require`d file may declare `namespace VendorA;` with no `autoload` involved, so grants riding on the
+  import site protect only code that arrived by that route — reintroducing the exact "protected if it came
+  the blessed way" gap this ADR exists to close. Three lesser reasons agree: for fetched packages the clause
+  would live in generated `vendor/packages.nvs`, marked *do not edit*, which is the wrong home for a human
+  decision; a fact stated both there and in `[grants]` is two homes for one fact; and `autoload discover`
+  covers many prefixes with one declaration, so the clause has no single namespace to attach to.
+- **Deny-by-default for unmatched namespaces.** Safe, and it refuses to compile every program that exists.
+  § 4's mitigation — `nvs fetch` writing a line for every package, empty ones included — gets the same
+  protection where it matters without charging the common case.
+- **A bare prefix meaning the subtree.** One fewer dial, and it makes the dangerous reading the default one:
+  a grant would silently extend to modules that did not exist when it was written. The two characters are
+  the point.
+- **Making every ungranted capability degrade at run time** rather than splitting required from optional.
+  This is PHP's posture and it is the wrong one: it moves every capability failure from the build to
+  production, and it puts a branch on every `Core` call site on the request path. The split keeps refusal as
+  the default and makes degradation something an author asks for, per capability, in writing.
+- **A runtime grant, symmetrical with the runtime narrow.** Rejected in § 7: it would cost the compile-time
+  property outright, and the guarantee that nothing widens is what lets the static check be trusted as
+  total.
+
+## Verification
+
+- **Namespace keying:** a package granted `db.connect` compiles; the same call in a sibling namespace under
+  the same vendor prefix, with no line of its own, fails to compile with `E0604`. A file **outside**
+  `vendor/` that declares the granted package's namespace and overrides one of its classes **keeps** the
+  package's grants — the case path-keying got wrong, pinned as a `.nvst` case.
+- **Longest prefix:** with `"VendorB\*" = []` and `"VendorB\ModuleB" = ["db.connect"]`, a `Core\Db` call in
+  `VendorB\ModuleB` compiles and the same call in `VendorB\ModuleA` is `E0604`. `"VendorB"` alone does not
+  reach `VendorB\ModuleB` at all.
+- **Depth:** a top-level statement in a file declaring a restricted namespace is refused exactly as a method
+  body is. An un-namespaced entry point holds the operator's ceiling. A closure declared in the application
+  and invoked from a restricted package performs the application's `Core` call successfully.
+- **Forged identity:** a fetched package with a file declaring `namespace App;` is `E0605`.
+- **Optional:** a package declaring `fs.write` optional compiles with no `fs.write` grant; `Core\Cap::has`
+  returns `false` there and `true` where it is granted; the guarded call throws a catchable throwable when
+  reached ungranted, and the same call as a `required` capability fails the build instead.
+- **Reachability:** a package module no name in the program reaches, containing an ungranted required
+  capability, does not fail the build. Naming one class in it makes the same program fail with `E0604`.
+- **Roster:** a `[grants]` line naming a capability outside § 8's table is `E0606` at boot; two identically
+  matching keys are `E0607`.
