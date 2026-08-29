@@ -580,10 +580,74 @@ pub fn run_task<T, F>(root: TaskRoot, body: F) -> Result<T, TaskPanic>
 where
     F: FnOnce() -> T,
 {
-    panic::catch_unwind(AssertUnwindSafe(body)).map_err(|payload| TaskPanic {
-        message: panic_message(&*payload),
-        root,
+    panic::catch_unwind(AssertUnwindSafe(body)).map_err(|payload| {
+        if Teardown::in_progress() {
+            // Not a fault: the host is tearing this task's stack down and the
+            // unwind belongs to it. See `Teardown`.
+            panic::resume_unwind(payload);
+        }
+        TaskPanic {
+            message: panic_message(&*payload),
+            root,
+        }
     })
+}
+
+thread_local! {
+    /// How many [`Teardown`] guards this thread is inside. A counter rather
+    /// than a flag because tearing down one task's stack can drop a value that
+    /// tears down another's.
+    static TEARDOWN_DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+/// Marks the calling thread as tearing a task's stack down, so that
+/// [`run_task`] lets an unwind through instead of containing it.
+///
+/// **This is the one hole in the outer containment boundary, and it is not
+/// optional.** A stackful coroutine that is dropped while suspended is torn
+/// down by unwinding its stack, and the mechanism that does it raises a panic
+/// carrying a private marker which it expects to see come back out. A
+/// `catch_unwind` in the way — [`run_task`]'s, which sits under every task root
+/// — swallows that marker, and the coroutine implementation then aborts the
+/// process because it cannot tell a swallowed teardown from a corrupted stack.
+/// That is a path to `abort()` reached by an ordinary worker shutdown with a
+/// request still parked, which
+/// [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+/// does not allow.
+///
+/// It is *narrow* on purpose: the guard is held only across the drop of a
+/// suspended task, by the host that is doing the dropping, on the thread doing
+/// it. Nothing script-level runs inside the window —
+/// [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md) § 5's
+/// "cancellation runs no user code" is untouched, because what unwinds is
+/// native `Drop` code, which that section already permits and requires.
+///
+/// A genuine panic raised inside the window is propagated rather than
+/// contained. That is the correct answer: it is a panic in teardown, which
+/// [`crate::release`]'s module doc rules out by construction, and containing
+/// one would hide the very thing that rule exists to prevent.
+#[derive(Debug)]
+pub struct Teardown(());
+
+impl Teardown {
+    /// Enters the window. It ends when the returned guard is dropped.
+    #[must_use]
+    pub fn enter() -> Self {
+        TEARDOWN_DEPTH.with(|depth| depth.set(depth.get() + 1));
+        Self(())
+    }
+
+    /// Whether this thread is inside one.
+    #[must_use]
+    pub fn in_progress() -> bool {
+        TEARDOWN_DEPTH.with(std::cell::Cell::get) > 0
+    }
+}
+
+impl Drop for Teardown {
+    fn drop(&mut self) {
+        TEARDOWN_DEPTH.with(|depth| depth.set(depth.get().saturating_sub(1)));
+    }
 }
 
 #[cfg(test)]

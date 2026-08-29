@@ -283,7 +283,7 @@ static POOLED_ALLOCATOR: alloc::Pooled = alloc::Pooled;
 
 pub use abi::{
     DEADLINE_POLL_BATCH, EXITED, FATAL, Fault, HelperFn, HelperResult, NvsFn, OK, THROWN,
-    TaskPanic, TaskRoot, affordable, bounded_loop, call, run_helper, run_task,
+    TaskPanic, TaskRoot, Teardown, affordable, bounded_loop, call, run_helper, run_task,
 };
 pub use arith::nvs_float_pow;
 pub use array::{
