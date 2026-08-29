@@ -202,9 +202,12 @@ guarantee it drops.
 - **A job is a file, which makes it a compiled unit** — cached, hot-reloadable, traceable and coverable with
   no special case. The same payoff [0083](0083-persistent-connections-are-isolates.md) gets from the same
   choice.
-- **Three constructs now share one shape** — `spawn script`, a connection upgrade and a job all name a file
-  and take `with`-style options. That consistency is worth more than any of the three individually, and a
-  fourth thing that runs code should take the same shape or explain why not.
+- **Three constructs now share one shape** — `spawn script`, a connection upgrade and a job all name an
+  entry and take `with`-style options. The first two also accept a callable that captures nothing
+  ([0006](0006-isolated-script-execution.md)); a job does not, and the reason is the row: its target is
+  stored as data and claimed by any host in the fleet, possibly after a redeploy, and a string in a table
+  can hold a path but not a callable. That consistency is worth more than any of the three individually,
+  and a fourth thing that runs code should take the same shape or explain why not.
 
 ## Alternatives rejected
 

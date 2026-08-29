@@ -66,7 +66,7 @@ collapses PHP's four same-frame inclusion keywords to this one: `include`, `incl
 |---|---|---|---|
 | `require 'path.nvs';` | **none** — same frame's globals, same statics, same output, same heap | statically resolved where the path is a literal (M2); a dynamic path falls back to a runtime resolve | kept, PHP semantics — throws on a missing/unparseable file, and runs every time control reaches it |
 | `eval($source)` | n/a — there is no such construct | n/a | **rejected**, no diagnostic-with-replacement needed beyond *there is no `eval`*: a string has no stable identity, no cache key, and no path a `script.spawn` grant could name. [ADR 0052](../adr/0052-closed-doors.md) § 4 holds the full rejection and the four analyses `eval` would make unsound at once; see also [ADR 0006](../adr/0006-isolated-script-execution.md), *Alternatives rejected* |
-| `spawn script 'path.nvs' with(…)` | **full** — fresh arena, fresh globals/statics, own config overlay, sharing only immutable compiled code | the path is an arbitrary `string` expression, canonicalised and prefix-checked against `script.spawn`'s granted roots at run time (M6) | new construct, grammar fixed below |
+| `spawn script 'path.nvs' with(…)` | **full** — fresh arena, fresh globals/statics, own config overlay, sharing only immutable compiled code | the path is an arbitrary `string` expression, canonicalised and prefix-checked against `script.spawn`'s granted roots at run time (M6); the operand may instead be a callable that captures nothing — `Class::method(...)`, or an `fn` literal reading no outer variable — decided at the spawn site ([ADR 0006](../adr/0006-isolated-script-execution.md)) | new construct, grammar fixed below |
 
 The rule of thumb the diagnostics should teach: **`require` runs code in this frame; `spawn script` runs a
 file as if it were its own request.** A "why can't the required/spawned code see my variable" question
@@ -118,8 +118,12 @@ await-expr          := 'await' unary-expr
 ```
 
 `spawn-script-expr` is an expression, not a statement, so it can appear anywhere an expression can (assigned,
-passed, awaited inline). The path `expr` must have static type `string`; it is evaluated once, at the spawn
-site, before the child isolate is created. `with(…)` reuses PHP's existing named-argument grammar verbatim —
+passed, awaited inline). The operand `expr` is one of two things. A path has static type `string` and is
+evaluated once, at the spawn site, before the child isolate is created. A callable that captures nothing —
+a `Class::method(...)` reference, or an `fn` literal whose body reads no outer variable — names a function
+in an already-compiled unit as the entry instead; the choice is made syntactically at the spawn site, a
+literal that captures is a compile error naming the variable, and a `callable`-typed variable is refused
+there, all per [ADR 0006](../adr/0006-isolated-script-execution.md). `with(…)` reuses PHP's existing named-argument grammar verbatim —
 no new call-argument syntax was needed for it. Every key in *spawn-option* is optional; `spawn script
 'jobs/report.nvs';` with no `with(…)` clause at all is legal and spawns with inherited grants, no argument,
 and the parent's remaining budget.

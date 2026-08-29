@@ -40,9 +40,9 @@
 
 ## Decision
 
-**Novis gets a first-class construct for executing another `.nvs` file as an isolated unit of work inside the
-same process — an *isolate*. It shares nothing with its parent except immutable compiled code and its
-parent's resource budget.**
+**Novis gets a first-class construct for executing another `.nvs` file — or a callable that captures
+nothing — as an isolated unit of work inside the same process — an *isolate*. It shares nothing with its
+parent except immutable compiled code and its parent's resource budget.**
 
 The provisional surface, spelled out here so the semantics have something to hang on. The *semantics* below
 are what this ADR fixes; the exact spelling is pinned down in `docs/spec/` during M5, and is the part to
@@ -80,6 +80,22 @@ mixed $month = Script::args()['month'];
 return ['rows' => Reports::build($month)];
 ```
 
+**The operand names the entry, and it is one of two things: a path, or a callable that captures nothing.**
+`spawn script Reports::monthly(...) with(args: {month: $m})` runs that static method in a fresh isolate
+exactly as the path form runs a file, and it still reads its input through `Core\Script::args()`, so the copy
+the boundary performs stays visible at the call site rather than hidden in a parameter list. The operand is
+decided syntactically, at the spawn site: an `fn` literal whose capture set is empty
+([ADR 0031](0031-callable-is-the-only-closure-type.md) § 2 makes that set implicit, minimal and therefore
+knowable) or a `Class::method(...)` reference, which captures nothing by construction. A literal that reads
+an outer variable is a compile error naming the variable and pointing at `args:`; a variable of type
+`callable` is refused outright, because whether *it* captures is not known statically and the rule is not
+worth a qualifier on the type. What crosses in either form is the one thing an isolate always shares —
+compiled code — so the budget, grant and copy rules below do not distinguish the two. The same operand rule
+is `Core\Socket::upgrade`'s and `Core\Sse::upgrade`'s ([0083](0083-persistent-connections-are-isolates.md)
+§ 2); a `[[schedule]]` entry ([0073](0073-scheduled-work-is-config.md)) and a `Core\Queue` job
+([0084](0084-durable-background-jobs.md)) stay paths, because a string in a config file or a database row
+can hold a path and cannot hold a callable.
+
 `spawn script` joins `spawn` (a task on this core, same heap) and `spawn worker` (a task on another core,
 values deep-copied) rather than introducing a parallel concurrency vocabulary: it is awaited like them, it
 dies with its parent like them, and `on: 'worker'` composes the two axes instead of multiplying the syntax.
@@ -115,7 +131,8 @@ bullets below are that ADR's rules, restated here because this is the boundary a
 - **Closures, `inout` bindings and objects holding a host handle cannot cross.** A closure captures a heap
   and a scope, an `inout` binding is an alias, and an open file or child process is a handle owned by this
   process;
-  none of the three has a meaning in another heap. **The idiom for a script that needs a live handle inside
+  none of the three has a meaning in another heap. (A callable that captures *nothing* may be the entry,
+  above, for the same reason: it carries code and no heap.) **The idiom for a script that needs a live handle inside
   the child is to pass what identifies it, not the handle itself** — a DSN, a path, a credential reference —
   as an ordinary `args:` value, and have the child open its own. This is not a workaround; it is the isolation model's actual point (no
   ambient authority, no shared handle), the same reason a spawned isolate cannot see the parent's
