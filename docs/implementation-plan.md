@@ -150,14 +150,32 @@
 > that can never be resumed — which is what makes waking one waiter rather than all of them correct.
 > `channel.rs`'s module doc is that design's only home, as no ADR slot was free. What is left of
 > item 11 is its language surface: no `Core\Task\Channel` row exists in `nvs_stdlib::registry` yet.
-> 93 tests in the crate on Windows, up from 83. The steps the chain took are in
-> [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's own residue is the 1000-case
-> corpus count, which orders 1–4 meet as the suite grows; nothing else about M4 is open. What the
-> program is measured by is `python tools/check-migration.py` at 100% classified, which stood at 25%
-> the day the program was scheduled and reads 34% now that goal 1's own five domains — dates and
-> times, regular expressions, JSON, URLs and paths — carry a row per name. `python tools/gaps.py`,
-> `python tools/holes.py` and `python tools/check-migration.py --report` are the three worklists
-> behind it, and no session re-derives one.
+> 93 tests in the crate on Windows, up from 83. Stage 4 has now begun from the other end, in the
+> compiler rather than the host: `Core\Task` is a registered class and `Core\Task::all` type-checks,
+> which is ADR 0072 § 1's heterogeneous typing and the three `nvs-types` names the stage's
+> `cargo-named` check asks for. It needed a **second binding site** beside `CoreTy::CallableTo`, and
+> that is the whole design: `CoreTy::CallableShapeTo("S")` says "this parameter is a shape literal
+> whose every field is a written `fn` literal, and the shape of *their* results binds `S`", because
+> the argument's own type is a shape of opaque `callable`s and can therefore say nothing about what
+> any of them returns — which is exactly the `array<mixed>`-plus-a-cast that § 1 exists to avoid.
+> `nvs_types::expr::args`' `bind_callable_shape` is the one place a field is read and the one place
+> `E0773` (the argument is not written out) and `E0774` (a field is not an `fn` literal) are
+> reported; `Ty::CallableShapeTo` then substitutes to `mixed` rather than to a type, because that
+> position is checked in full there and a second assignability pass could only repeat the same
+> mistake. § 3's `{limit?: uint, deadline?: Duration}` is the row's options bag, both options
+> defaulting to `Const::Null` because neither type has an "unbounded" value in it, and there is no
+> `timeout` member and no `race`. What Stage 4 does **not** have is the body:
+> `crates/nvs-stdlib/src/task.rs` registers a signature and a placeholder that stops rather than
+> answering plausibly, because running the closures as children of the calling task needs the
+> `nvs-host` scheduler reachable from a `Core` helper and no helper can reach it yet. So
+> `examples/tasks.nvs` still fails its acceptance check, and closing that is what the next group is.
+> The steps the chain took are in [goals/README.md](agent/goals/README.md) § *Starting the chain*.
+> M4's own residue is the 1000-case corpus count, which orders 1–4 meet as the suite grows; nothing
+> else about M4 is open. What the program is measured by is `python tools/check-migration.py` at
+> 100% classified, which stood at 25% the day the program was scheduled and reads 34% now that goal
+> 1's own five domains — dates and times, regular expressions, JSON, URLs and paths — carry a row
+> per name. `python tools/gaps.py`, `python tools/holes.py` and `python tools/check-migration.py
+> --report` are the three worklists behind it, and no session re-derives one.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

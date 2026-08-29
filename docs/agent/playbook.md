@@ -3477,6 +3477,21 @@ sibling in the same namespace unqualified.
   thread, which is a shape most of this crate's tests take. And the drain has to run **at the top of
   `run` as well as after every resume**, or a wake issued between turns lands in the queue and nothing
   ever delivers it, leaving the parked task asleep with no error anywhere.
+- **One new row in `nvs_stdlib::registry::CLASSES` owes four gates, three of them outside the
+  crate you are editing.** `every_registered_member_has_an_implementation_address`
+  (`crates/nvs-stdlib/src/lib.rs`) wants a symbol with a real address;
+  `every_part_one_member_has_a_conformance_case` wants a `.nvst` under `tests/conformance/`
+  whose `--FILE--` writes `Core\X::y(`; `every_core_class_has_a_conformance_floor_of_three`
+  wants three of them; and `BELOW_THE_FLOOR` only ever shrinks, so there is no exemption to
+  add. That reads like a bar on registering a member whose *runtime* is a later slice, and it
+  is not: the coverage gate greps the `--FILE--` section and never runs anything, so an
+  `--EXPECTF-ERROR--` case discharges it, and three of them discharge the floor —
+  `Core\Task::all` landed exactly that way, with its three cases pinning § 1's typing instead
+  of its behaviour. The address gate takes `crate::attributes`' shape: a body that says at its
+  own site why it was reached and stops. What you must *not* reach for is a placeholder
+  `Fault::`, because `every_error_path_is_asserted_or_declared_unreachable` then wants either
+  a case freezing that message or a declaration naming the diagnostic that refuses the call
+  first, and a not-implemented-yet body has neither.
 
 ## Divergences and refusals already pinned
 
