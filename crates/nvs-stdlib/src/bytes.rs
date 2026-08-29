@@ -51,6 +51,16 @@
 //!   one-element buffer allocation and a second call to read the number out of
 //!   it. An out-of-range index throws, which is `Core\Str::at`'s answer and
 //!   ADR 0063 R4/R5's: absence would have to be spelled `?uint` in the type.
+//!   **That `uint` answer is why `at` is the one member here classified
+//!   against the shape of its return type.** ADR 0088 § 2's rule — written out
+//!   on [`crate::registry::Qual`] — makes a member `Neutral` when its answer
+//!   carries no byte of any argument, and every other `uint`-returning member
+//!   in this class and in `Core\Str` is one: a length, a position, an
+//!   ordering. `at`'s answer *is* a byte of the subject, only spelled as a
+//!   number, and `fill` plus `join` reassemble a buffer from those numbers —
+//!   so it is `Contagious`, and whoever implements propagation owes the
+//!   question of what a qualified `uint` is rather than inheriting a silent
+//!   launderer.
 //! - **`indexOf` takes `{from?: int}` and no `caseInsensitive`.**
 //!   `Core\Str::indexOf`'s second option is a Unicode case folding, and there
 //!   is no case in a byte string — a `bytes` carries no charset, which is the
@@ -144,7 +154,7 @@
 
 use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 
-use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy};
+use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy, Qual};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -163,21 +173,25 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "length",
-            params: &[CoreTy::Bytes],
+            params: &[CoreTy::Blob(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Uint,
             symbol: "nvs_core_bytes_length",
         },
         CoreMethod {
             name: "at",
-            params: &[CoreTy::Bytes, CoreTy::Int],
+            params: &[CoreTy::Blob(Qual::Contagious), CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Uint,
             symbol: "nvs_core_bytes_at",
         },
         CoreMethod {
             name: "slice",
-            params: &[CoreTy::Bytes, CoreTy::Int, CoreTy::Nullable(&CoreTy::Int)],
+            params: &[
+                CoreTy::Blob(Qual::Contagious),
+                CoreTy::Int,
+                CoreTy::Nullable(&CoreTy::Int),
+            ],
             defaults: &[Const::Null],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_bytes_slice",
@@ -185,8 +199,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "indexOf",
             params: &[
-                CoreTy::Bytes,
-                CoreTy::Bytes,
+                CoreTy::Blob(Qual::Neutral),
+                CoreTy::Blob(Qual::Neutral),
                 CoreTy::Options(INDEX_OF_OPTIONS),
             ],
             defaults: &[],
@@ -195,28 +209,28 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "compare",
-            params: &[CoreTy::Bytes, CoreTy::Bytes],
+            params: &[CoreTy::Blob(Qual::Neutral), CoreTy::Blob(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_bytes_compare",
         },
         CoreMethod {
             name: "contains",
-            params: &[CoreTy::Bytes, CoreTy::Bytes],
+            params: &[CoreTy::Blob(Qual::Neutral), CoreTy::Blob(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_bytes_contains",
         },
         CoreMethod {
             name: "startsWith",
-            params: &[CoreTy::Bytes, CoreTy::Bytes],
+            params: &[CoreTy::Blob(Qual::Neutral), CoreTy::Blob(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_bytes_starts_with",
         },
         CoreMethod {
             name: "endsWith",
-            params: &[CoreTy::Bytes, CoreTy::Bytes],
+            params: &[CoreTy::Blob(Qual::Neutral), CoreTy::Blob(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_bytes_ends_with",
@@ -230,28 +244,31 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "repeat",
-            params: &[CoreTy::Bytes, CoreTy::Uint],
+            params: &[CoreTy::Blob(Qual::Contagious), CoreTy::Uint],
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_bytes_repeat",
         },
         CoreMethod {
             name: "join",
-            params: &[CoreTy::Array(&CoreTy::Bytes), CoreTy::Bytes],
+            params: &[
+                CoreTy::Array(&CoreTy::Bytes),
+                CoreTy::Blob(Qual::Contagious),
+            ],
             defaults: &[Const::Bytes(b"")],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_bytes_join",
         },
         CoreMethod {
             name: "pack",
-            params: &[CoreTy::Str, CoreTy::Variadic(&CoreTy::Mixed)],
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Variadic(&CoreTy::Mixed)],
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_bytes_pack",
         },
         CoreMethod {
             name: "unpack",
-            params: &[CoreTy::Bytes, CoreTy::Str],
+            params: &[CoreTy::Blob(Qual::Contagious), CoreTy::Text(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Mixed),
             symbol: "nvs_core_bytes_unpack",

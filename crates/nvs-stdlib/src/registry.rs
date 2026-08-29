@@ -1524,18 +1524,6 @@ mod tests {
     /// member that is here *and* classified, so an entry cannot go stale and a
     /// new member cannot be added to it.
     const UNCLASSIFIED: &[(&str, &str)] = &[
-        ("Core\\Bytes", "length"),
-        ("Core\\Bytes", "at"),
-        ("Core\\Bytes", "slice"),
-        ("Core\\Bytes", "indexOf"),
-        ("Core\\Bytes", "compare"),
-        ("Core\\Bytes", "contains"),
-        ("Core\\Bytes", "startsWith"),
-        ("Core\\Bytes", "endsWith"),
-        ("Core\\Bytes", "repeat"),
-        ("Core\\Bytes", "join"),
-        ("Core\\Bytes", "pack"),
-        ("Core\\Bytes", "unpack"),
         ("Core\\Path", "basename"),
         ("Core\\Path", "dirname"),
         ("Core\\Path", "extension"),
