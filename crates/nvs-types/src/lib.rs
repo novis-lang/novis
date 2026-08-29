@@ -242,7 +242,7 @@ pub use nvs_stdlib::router::link::{
 };
 pub use nvs_stdlib::time::FROM_NANOS_SYMBOL as CORE_DURATION_FROM_NANOS;
 pub use nvs_stdlib::{CodecField, CodecTy, FieldDefault};
-pub use routes::{Route, RouteTable};
+pub use routes::{ParamIn, Route, RouteParam, RouteTable};
 pub use ty::{Ty, TypeId, TypeInterner};
 
 use nvs_diagnostics::{SourceFile, Span};

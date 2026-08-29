@@ -1258,6 +1258,7 @@ dependencies = [
  "nvs-syntax",
  "nvs-test",
  "nvs-types",
+ "serde_json",
 ]
 
 [[package]]

@@ -22,6 +22,9 @@ nvs-codegen.workspace = true
 nvs-runtime.workspace = true
 nvs-test.workspace = true
 clap.workspace = true
+# ADR 0085's document, built and written as JSON rather than as text — the
+# workspace manifest owns why this crate and not another.
+serde_json.workspace = true
 
 [lints]
 workspace = true

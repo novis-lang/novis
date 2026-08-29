@@ -305,19 +305,22 @@ pub struct Route {
     /// `Class::method` the attribute is attached to, rendered as
     /// [`crate::expr_table::ExprTypeTable::method_label`] renders one.
     pub handler: String,
-    /// ADR 0102 § 3's `#[Query]` parameters, by the key each binds — see
-    /// [`query_params`], which is where the marker is read.
+    /// Every parameter this route declares: § 2's path captures in path order
+    /// first, then ADR 0102 § 3's `#[Query]` parameters in declaration order.
     ///
-    /// On the row rather than left in the declaration because the one question
-    /// asked about them is § 6's, and it is asked from [`crate::links`] after
-    /// every file has been walked: by then the method that declared them is in
-    /// a file the walk has moved past.
-    pub query: Vec<String>,
+    /// On the row rather than left in the declaration because both readers are
+    /// past the walk that built it. [`crate::links`] asks § 6's question after
+    /// every file has been walked, by which time the method that declared these
+    /// is in a file the walk has moved past; and
+    /// [ADR 0085](../../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)
+    /// § 1 reads the same rows out of the finished table, where the declaration
+    /// is not in reach at all.
+    pub params: Vec<RouteParam>,
     /// ADR 0096 § 1's access decision, as the name it resolves to —
     /// `Core\Audience::Public`, `App\Role::Admin` — because
     /// [ADR 0102](../../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
     /// § 8 leaves enforcement to whoever dispatches. The decision has to cross
-    /// into `nvs-ir` on the row for that reason, exactly as [`Self::query`]
+    /// into `nvs-ir` on the row for that reason, exactly as [`Self::params`]
     /// does, and it is resolved here rather than left as written because a name
     /// depends on the file's imports and the row outlives the walk over that
     /// file.
@@ -331,6 +334,44 @@ pub struct Route {
     pub access: Option<String>,
     /// The whole attribute.
     pub span: Span,
+}
+
+/// Where one of a route's parameters arrives from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ParamIn {
+    /// § 2's capture: a segment of the matched path.
+    Path,
+    /// ADR 0102 § 3's `#[Query]` marker: a key of the query string.
+    Query,
+}
+
+/// One parameter of a route, as the two readers past the walk need it.
+///
+/// Deliberately *not* a second copy of the declaration: it holds the name the
+/// value binds by, where it arrives from, whether it may be absent, and the
+/// declared type rendered by [`crate::TypeInterner::describe`] — the four
+/// things [ADR 0085](../../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)
+/// § 1's document is built out of, and nothing else. A rendered type rather
+/// than a `TypeId` because the interner that would answer it is dropped with
+/// the checking pass, and because the emitter's whole use of a type is to
+/// choose a JSON Schema for it.
+#[derive(Debug)]
+pub struct RouteParam {
+    /// The parameter's own name, sigil-less — the capture's name (§ 3) or the
+    /// query key, which are the same spelling for the same reason: the
+    /// attribute carries nothing that could give either another one.
+    pub name: String,
+    /// Path or query.
+    pub source: ParamIn,
+    /// `false` for a `{name?}` capture and for a `#[Query]` parameter with a
+    /// default, both of which are the declaration saying the value may be
+    /// absent; `true` for everything else, including `{name...}`.
+    pub required: bool,
+    /// The declared type as [`crate::TypeInterner::describe`] renders it, or
+    /// `None` where the signature gave none — which only happens in a program
+    /// that has already been refused, since a capture naming no parameter is
+    /// [`code::E_ROUTE_CAPTURE_UNBOUND`].
+    pub ty: Option<String>,
 }
 
 /// Every route the program declares, in the order they were walked — file by
@@ -587,8 +628,8 @@ fn collect_route(
             return;
         }
     };
-    check_captures(&captures, path_span, m, class, &handler, env);
-    let query = query_params(m, class, ctx, env);
+    let mut params = check_captures(&captures, path_span, m, class, &handler, env);
+    params.extend(query_params(m, class, ctx, env));
     let name = folded_str(attr, NAME, env);
     let access = access.and_then(|access| access_name(access, ctx, env));
     env.routes.rows.push(Route {
@@ -596,7 +637,7 @@ fn collect_route(
         path,
         name,
         handler,
-        query,
+        params,
         access,
         span: attr.span,
     });
@@ -781,7 +822,7 @@ fn check_captures(
     class: &QName,
     handler: &str,
     env: &mut Env<'_>,
-) {
+) -> Vec<RouteParam> {
     // Copied out of `env` rather than read through it, so both stay readable
     // while a diagnostic is reported into the same `env`.
     let (src, signatures) = (env.src, env.signatures);
@@ -789,8 +830,20 @@ fn check_captures(
     let sig = signatures
         .get(class)
         .and_then(|class_sig| class_sig.methods.get(&method));
+    let mut params = Vec::new();
     for capture in captures {
         let name = capture.name();
+        // Pushed before anything is checked, so the row set describes the
+        // *path* rather than the subset of it that type-checked: a capture the
+        // declaration does not answer for is a refused program, and a path
+        // template with no parameter beside it is not a shape any reader of
+        // this row should have to handle.
+        params.push(RouteParam {
+            name: name.to_owned(),
+            source: ParamIn::Path,
+            required: !matches!(capture, Capture::Optional(_)),
+            ty: None,
+        });
         let Some((index, param)) = m
             .params
             .iter()
@@ -834,6 +887,10 @@ fn check_captures(
         let Some(ty) = sig.and_then(|sig| sig.params.get(index).copied()) else {
             continue;
         };
+        let described = env.interner.describe(ty);
+        if let Some(row) = params.last_mut() {
+            row.ty = Some(described.clone());
+        }
         let admitted = match capture {
             // The one row the shared roster does not answer for: nothing about
             // a catch-all is checked, so there is no conversion to choose and
@@ -847,7 +904,6 @@ fn check_captures(
         if admitted {
             continue;
         }
-        let described = env.interner.describe(ty);
         let written = capture.written();
         env.diags.report(
             Diagnostic::error(
@@ -869,6 +925,7 @@ fn check_captures(
             }),
         );
     }
+    params
 }
 
 /// ADR 0102 § 3's `#[Query]` parameters of the method the attribute is attached
@@ -885,7 +942,12 @@ fn check_captures(
 /// **A failed conversion is still a compile error here**, not § 3's `400`: the
 /// `400` is what a bad *value* gets at run time, and this is the declaration
 /// saying it would have nothing to arrive at whatever the value was.
-fn query_params(m: &MethodMember, class: &QName, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Vec<String> {
+fn query_params(
+    m: &MethodMember,
+    class: &QName,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Vec<RouteParam> {
     // Copied out of `env` for [`check_captures`]' reason exactly.
     let (src, signatures) = (env.src, env.signatures);
     let method = span_text(src, m.name).to_owned();
@@ -900,7 +962,8 @@ fn query_params(m: &MethodMember, class: &QName, ctx: &Ctx<'_>, env: &mut Env<'_
             continue;
         }
         let name = crate::strip_sigil(span_text(env.src, param.name)).to_owned();
-        if let Some(ty) = sig.and_then(|sig| sig.params.get(index).copied())
+        let declared = sig.and_then(|sig| sig.params.get(index).copied());
+        if let Some(ty) = declared
             && !crate::commands::converts_from_string(ty, env)
         {
             let described = env.interner.describe(ty);
@@ -918,7 +981,15 @@ fn query_params(m: &MethodMember, class: &QName, ctx: &Ctx<'_>, env: &mut Env<'_
                 ),
             );
         }
-        keys.push(name);
+        keys.push(RouteParam {
+            name,
+            source: ParamIn::Query,
+            // § 3: a default is the declaration saying the key may be absent,
+            // and it is the only thing that says so — the marker itself carries
+            // no optionality.
+            required: param.default.is_none(),
+            ty: declared.map(|ty| env.interner.describe(ty)),
+        });
     }
     keys
 }

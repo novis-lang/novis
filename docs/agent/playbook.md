@@ -2893,6 +2893,12 @@ sibling in the same namespace unqualified.
   never for one that was already told what is wrong. General shape: before adding a diagnostic
   whose condition is *the absence of a result*, grep the reject tree for a case that already makes
   that result absent.
+- **Renaming a `pub` field breaks intra-doc links written in its *neighbours*, and the only step that
+  says so is `verify.py`'s last one.** `Route::query` became `Route::params`; the sibling `access` field's
+  doc comment said "exactly as [`Self::query`] does", which builds, tests, clippies and formats cleanly and
+  then fails `cargo doc` with `-D rustdoc::broken_intra_doc_links` — a whole verify run spent on a
+  four-character edit. Before renaming a `pub` item, `grep -n "Self::<oldname>\|\[\`<oldname>\`\]"` over the
+  crate: an intra-doc link is invisible to every other tool in the gate.
 
 ## Divergences and refusals already pinned
 

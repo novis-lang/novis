@@ -231,18 +231,20 @@ fn declared(
     row: &crate::routes::Route,
     diags: &mut Diagnostics,
 ) -> bool {
-    let unknown: Vec<&str> = keys
-        .iter()
-        .map(String::as_str)
-        .filter(|key| {
-            !pieces.iter().any(|piece| match piece {
-                UrlPiece::Required(name) | UrlPiece::Optional(name) | UrlPiece::Rest(name) => {
-                    name == key
-                }
-                UrlPiece::Literal(_) => false,
-            }) && !row.query.iter().any(|param| param == key)
-        })
-        .collect();
+    let unknown: Vec<&str> =
+        keys.iter()
+            .map(String::as_str)
+            .filter(|key| {
+                !pieces.iter().any(|piece| match piece {
+                    UrlPiece::Required(name) | UrlPiece::Optional(name) | UrlPiece::Rest(name) => {
+                        name == key
+                    }
+                    UrlPiece::Literal(_) => false,
+                }) && !row.params.iter().any(|param| {
+                    param.source == crate::routes::ParamIn::Query && param.name == *key
+                })
+            })
+            .collect();
     if unknown.is_empty() {
         return true;
     }

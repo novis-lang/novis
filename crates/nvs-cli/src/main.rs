@@ -1,6 +1,6 @@
 //! The `nvs` binary.
 //!
-//! Five subcommands so far, one per milestone that needed one:
+//! Six subcommands so far, one per milestone that needed one:
 //!
 //! * `nvs ast` (M1) — dump what the parser produced.
 //! * `nvs check` (M2) — parse, resolve, type-check, report every diagnostic.
@@ -17,6 +17,11 @@
 //!   `.nvst` format, and every decision behind it, is [`nvs_test`]'s own
 //!   module doc, and this crate contributes only the argument parsing and the
 //!   exit code; the `#[Test]` half is [`runner`].
+//! * `nvs build --openapi` — the OpenAPI 3.1 document
+//!   [ADR 0085](../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)
+//!   generates from the compile-time route table, on standard output. A build
+//!   artifact and never a runtime feature; see [`openapi`] for what the table
+//!   supplies and what it does not yet.
 //! * `nvs info` — build, host and third-party licensing facts, PHP's
 //!   `php -i` in shape and in purpose. Also spelled `nvs -i`, since that is
 //!   the spelling anyone arriving from PHP will try first; see [`info`].
@@ -50,6 +55,7 @@ use nvs_diagnostics::{Diagnostics, Renderer, SourceMap};
 use nvs_syntax::{check_declarations, parse_file};
 
 mod info;
+mod openapi;
 mod runner;
 
 #[derive(ClapParser)]
@@ -143,6 +149,21 @@ enum Command {
         #[arg(long, value_name = "FORMAT", default_value = "human")]
         format: runner::Format,
     },
+    /// Produce a build artifact from a checked program.
+    ///
+    /// One artifact so far, and `--openapi` is required rather than defaulted:
+    /// `nvs build` with nothing named would be a subcommand that succeeds
+    /// having done nothing, and the flag is how the next artifact joins without
+    /// changing what this invocation means
+    /// ([ADR 0085](../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)
+    /// § 3 spells the whole command).
+    Build {
+        /// The entry point of the program to build.
+        file: PathBuf,
+        /// Write ADR 0085's OpenAPI 3.1 document to standard output.
+        #[arg(long, required = true)]
+        openapi: bool,
+    },
     /// Print build, host and third-party licensing information.
     ///
     /// One call answers what this binary is and what is compiled into it,
@@ -206,6 +227,7 @@ fn main() -> ExitCode {
             php,
             format,
         } => run_test(&paths, filter, php, format),
+        Command::Build { file, openapi } => run_build(&file, openapi),
         Command::Info { licenses } => info::run(licenses),
     }
 }
@@ -382,6 +404,49 @@ fn run_check(path: &std::path::Path, autoload_map: bool) -> ExitCode {
         }
         Err(code) => code,
     }
+}
+
+/// `nvs build --openapi` — [ADR 0085](../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)
+/// § 3's emission, on standard output.
+///
+/// The program goes through the same front end `check` does, and the document
+/// is rendered from the route table that front end produced — so a program with
+/// a diagnostic emits nothing at all rather than a partial document. That is
+/// the ADR's whole promise in one line: the document cannot say something the
+/// compiler did not agree to.
+///
+/// **A program declaring no route emits nothing**, which is § 1's "generates
+/// nothing and runs no pass", and it says so on standard error rather than
+/// writing a document with an empty `paths`: fed to § 4's diff, an empty
+/// document is the claim that every operation was removed.
+fn run_build(path: &std::path::Path, openapi: bool) -> ExitCode {
+    debug_assert!(openapi, "`--openapi` is `required` at the flag");
+    let checked = match front_end(path) {
+        Ok(checked) => checked,
+        Err(code) => return code,
+    };
+    let routes = checked.exprs.routes();
+    if routes.rows().is_empty() {
+        eprintln!("no `#[Route]` in this program: nothing to emit");
+        return ExitCode::SUCCESS;
+    }
+    // The file stem is the only name the compiler has for a program: nothing in
+    // the language declares one, and `info.title` is required by 3.1.
+    let title = path.file_stem().map_or_else(
+        || path.display().to_string(),
+        |stem| stem.to_string_lossy().into_owned(),
+    );
+    let document = openapi::document(routes, &title);
+    // Pretty rather than compact, because the artifact is read by people and
+    // diffed by `git` as often as it is by § 4's own gate. It cannot fail: the
+    // document is strings, bools and integers, and `serde_json` only errors on
+    // a map key that is not a string or a float that is not finite.
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&document)
+            .expect("the document holds no unserializable value")
+    );
+    ExitCode::SUCCESS
 }
 
 /// The label the script frame is compiled and looked up under.
