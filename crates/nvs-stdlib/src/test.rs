@@ -95,10 +95,33 @@
 //!    none until `Ctx::set_runtime_error_class` has installed one — which a
 //!    compiled unit always has, so this is reachable only from a host embedding
 //!    the runtime without one.
+//!
+//! # What these members do with a qualifier
+//!
+//! ADR 0088 § 2's classification, and this class is the flat case: **every
+//! member answers `void`, so every one of them is [`Qual::Neutral`] in every
+//! parameter** — the `Qual` enum's own first bullet, with a return type that
+//! carries even less than the `bool` that bullet is written about. Two of them
+//! are worth saying out loud, because both look like they might be more.
+//!
+//! * **[`MESSAGE`]'s `message` is not a sink.** It really does reach a
+//!   terminal — [`failed`] renders it into the line the runner prints — and a
+//!   reader who knows [ADR 0086](../../../../docs/adr/0086-core-cli-terminal-is-a-sink.md)
+//!   may expect the refusal there. The refusal is the *terminal's*, made once
+//!   where the bytes are written and where control bytes are substituted
+//!   visibly, not made a second time at every member whose text might one day
+//!   arrive. A mark here would be a claim about a sink this module does not
+//!   own.
+//! * **`assertThrows`'s `$expected` is not [`Qual::Sink`] either.** It is a
+//!   class name matched by [`nvs_runtime::Ctx::pending_conforms_to`], and
+//!   [`Qual::Sink`] is only ever ADR 0063 R11's four grammars; a name matched
+//!   against a roster compiles nothing and executes nothing. The spelling a
+//!   call uses is `Core\Test\Failure::class`, which folds to a constant, so a
+//!   qualified argument does not arise in practice either.
 
 use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, Value, identity};
 
-use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy};
+use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy, Qual};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -122,7 +145,7 @@ const T: CoreTy = CoreTy::Var("T");
 /// site may write.
 const MESSAGE: &[CoreOption] = &[CoreOption {
     name: "message",
-    ty: CoreTy::Str,
+    ty: CoreTy::Text(Qual::Neutral),
     default: Const::Null,
 }];
 
@@ -181,7 +204,11 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "assertThrows",
-            params: &[CoreTy::Callable, CoreTy::Str, CoreTy::Options(MESSAGE)],
+            params: &[
+                CoreTy::Callable,
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Options(MESSAGE),
+            ],
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_test_assert_throws",
@@ -1037,7 +1064,7 @@ mod tests {
             };
             assert_eq!(bag.len(), 1);
             assert_eq!(bag[0].name, "message");
-            assert!(matches!(bag[0].ty, CoreTy::Str));
+            assert!(matches!(bag[0].ty, CoreTy::Text(Qual::Neutral)));
             assert!(matches!(bag[0].default, Const::Null));
         }
     }
