@@ -469,7 +469,15 @@ mod tests {
         let margin = Duration::from_secs(5);
         let dog = watchdog_of(margin, tx);
         let mut timers = Timers::default();
-        let start = Instant::now();
+        // Strictly after the instant `timers` fixed as its publishing base, and
+        // that is load-bearing rather than tidy: `Timers::publish` keeps a
+        // deadline out of `NOTHING`'s way by publishing it at least one
+        // nanosecond after that base, so a deadline armed at the base itself
+        // reads back a nanosecond late and a sweep at exactly `start + margin`
+        // finds it one nanosecond short of overdue. Two adjacent
+        // `Instant::now()` calls can return the same value, so taking the
+        // second one for `start` made this test fail under a loaded machine.
+        let start = Instant::now() + Duration::from_millis(1);
         let _watched = dog.register(a_cpu(), timers.view());
 
         timers.arm(TaskId::from_raw(1), start);
