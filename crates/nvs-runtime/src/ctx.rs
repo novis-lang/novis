@@ -26,13 +26,17 @@
 //!   emit site the safepoint poll uses. It sits in this line rather than
 //!   anywhere colder precisely so the compare costs a load that is already
 //!   paid for.
+//! * [`DEADLINE_OFFSET`] — [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+//!   § 5's deadline flag, polled from *inside* a helper whose runtime scales
+//!   with its input. See *The request's deadline* below.
 //! * [`STATICS_OFFSET`] — the base of this request's static-property storage,
 //!   loaded inline by every `Class::$prop` read and write. See *Static
 //!   properties are request-scoped* below.
 //!
-//! All three are exposed as `offset_of!` constants rather than restated
+//! All of them are exposed as `offset_of!` constants rather than restated
 //! numbers, so adding a field can never silently desynchronise codegen from
-//! this struct.
+//! this struct. They fit one [`HOT_LINE_BYTES`] line together, and
+//! `ctx::tests::the_hot_words_come_first_and_are_a_word_apart` is what says so.
 //!
 //! # The call-stack limit
 //!
@@ -64,6 +68,33 @@
 //! true bounds needs a platform call this crate has no dependency for; the
 //! request's stack becomes Novis's own to size at M6, and until then an embedder
 //! that knows its bounds calls [`Ctx::arm_stack_limit`] with them.
+//!
+//! # The request's deadline
+//!
+//! The safepoint word above bounds Novis code because compiled code polls it
+//! between calls. A helper is *one* call, so a helper whose runtime is O(its
+//! input) — a sort, a scan, an encode, a hash over a large value — runs
+//! entirely inside the gap that poll leaves.
+//! [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+//! § 5's answer is [`Ctx::deadline_expired`]: a flag, in the line the stack
+//! check has already loaded, polled from inside the loop and amortised over a
+//! batch of iterations. Reading a flag rather than a clock is the whole of why
+//! it is affordable — a clock read amortised over the same batch would cost
+//! more than the iteration it protects.
+//!
+//! **It is a separate word from `safepoint` rather than another bit in it**,
+//! and that is the one decision worth stating here. The safepoint word is
+//! written through `&mut self` by the request's own thread; this flag's writer
+//! is a timer that by construction is *not* that thread, because a helper that
+//! has not returned cannot have run one. So it is an
+//! [`std::sync::atomic::AtomicU64`], written through `&self`, and folding it
+//! into `safepoint` would have made every safepoint write atomic to serve the
+//! one word that needs it.
+//!
+//! `Relaxed` on both sides: no data is published behind the flag, and a poll
+//! that observes it one batch late is inside the amortisation window the batch
+//! already grants. What a poll *does* when it fires, and the combinator that
+//! supplies it, are ADR 0106 § 5's other two halves and are not here yet.
 //!
 //! # Static properties are request-scoped
 //!
@@ -212,6 +243,17 @@ pub struct Ctx {
     safepoint: SafepointFlags,
     /// Hot. Read inline by every ADR 0018 probe site; see the module docs.
     debug: DebugFlags,
+    /// Hot. Polled from inside a helper whose runtime scales with its input —
+    /// see the module docs' *The request's deadline* section. Zero while the
+    /// request may keep running; any other value means its deadline has
+    /// passed.
+    ///
+    /// Atomic because it is the one word in this struct whose writer is not
+    /// the thread reading it: a helper that has not returned cannot have run
+    /// the timer that expires it. `Relaxed` on both sides, because nothing is
+    /// published behind the flag and a poll that observes it one batch late is
+    /// already inside the amortisation window.
+    deadline: std::sync::atomic::AtomicU64,
     /// Hot. Read inline by every non-leaf function entry; see the module docs'
     /// call-stack-limit section. The **soft** address: below it, a
     /// [`ThrownClass::Recursion`] throws.
@@ -582,6 +624,17 @@ pub const DEBUG_FLAGS_OFFSET: usize = std::mem::offset_of!(Ctx, debug);
 /// docs.
 pub const STACK_LIMIT_OFFSET: usize = std::mem::offset_of!(Ctx, stack_limit);
 
+/// Byte offset of the deadline flag within [`Ctx`] — see the module docs'
+/// *The request's deadline* section.
+pub const DEADLINE_OFFSET: usize = std::mem::offset_of!(Ctx, deadline);
+
+/// The bytes an x86-64 or AArch64 cache line holds, which is what
+/// [`DEADLINE_OFFSET`] and its neighbours have to fit inside together.
+///
+/// Not a portability claim: a target with a wider line still holds them, and
+/// one with a narrower line would cost a second load rather than be wrong.
+pub const HOT_LINE_BYTES: usize = 64;
+
 /// Byte offset of the static-property base pointer within [`Ctx`] — see the
 /// module docs' *Static properties are request-scoped* section.
 pub const STATICS_OFFSET: usize = std::mem::offset_of!(Ctx, statics);
@@ -621,6 +674,7 @@ impl Ctx {
         let mut ctx = Self {
             safepoint: SafepointFlags::empty(),
             debug: DebugFlags::empty(),
+            deadline: std::sync::atomic::AtomicU64::new(0),
             stack_limit: 0,
             stack_floor: 0,
             statics: std::ptr::null_mut(),
@@ -773,6 +827,28 @@ impl Ctx {
     #[must_use]
     pub fn safepoint_flags(&self) -> SafepointFlags {
         self.safepoint
+    }
+
+    /// Whether this request's deadline has passed —
+    /// [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+    /// § 5's poll, and the module docs' *The request's deadline* section owns
+    /// what it costs and who may call it.
+    ///
+    /// One relaxed load from a line the stack check has already brought in,
+    /// which is the whole reason a bounded loop can afford to ask.
+    #[must_use]
+    pub fn deadline_expired(&self) -> bool {
+        self.deadline.load(std::sync::atomic::Ordering::Relaxed) != 0
+    }
+
+    /// Marks this request's deadline as passed, so the next poll inside a
+    /// long-running helper observes it.
+    ///
+    /// Takes `&self` rather than `&mut self` deliberately: the caller is the
+    /// timer, and the thread running the request holds the `&mut` already —
+    /// which is exactly the case a `&mut` writer could not serve.
+    pub fn expire_deadline(&self) {
+        self.deadline.store(1, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// Asks the next safepoint poll to act.
@@ -1667,8 +1743,24 @@ mod tests {
     fn the_hot_words_come_first_and_are_a_word_apart() {
         assert_eq!(SAFEPOINT_OFFSET, 0);
         assert_eq!(DEBUG_FLAGS_OFFSET, 8);
-        assert_eq!(STACK_LIMIT_OFFSET, 16);
-        assert_eq!(STATICS_OFFSET, 32);
+        assert_eq!(DEADLINE_OFFSET, 16);
+        assert_eq!(STACK_LIMIT_OFFSET, 24);
+        assert_eq!(STATICS_OFFSET, 40);
+        // The offsets above are the arrangement; this is the property ADR 0106
+        // § 5 actually buys with it, and it is what fails first when a field
+        // is added rather than appended.
+        for (name, offset) in [
+            ("safepoint", SAFEPOINT_OFFSET),
+            ("debug", DEBUG_FLAGS_OFFSET),
+            ("deadline", DEADLINE_OFFSET),
+            ("stack_limit", STACK_LIMIT_OFFSET),
+            ("statics", STATICS_OFFSET),
+        ] {
+            assert!(
+                offset + size_of::<u64>() <= HOT_LINE_BYTES,
+                "`{name}` at {offset} has left the hot line"
+            );
+        }
     }
 
     #[test]
@@ -1693,10 +1785,23 @@ mod tests {
     }
 
     #[test]
+    fn the_deadline_flag_starts_clear_and_is_set_through_a_shared_borrow() {
+        // The `&self` writer is the point: the thread running the request
+        // holds the `&mut`, so a timer that needed one could never fire.
+        let ctx = Ctx::buffered();
+        assert!(!ctx.deadline_expired());
+
+        let timer: &Ctx = &ctx;
+        timer.expire_deadline();
+        assert!(ctx.deadline_expired());
+    }
+
+    #[test]
     fn a_fresh_context_has_nothing_set() {
         let ctx = Ctx::buffered();
         assert!(ctx.safepoint_flags().is_empty());
         assert!(ctx.debug_flags().is_empty());
+        assert!(!ctx.deadline_expired());
         assert!(ctx.pending().is_none());
     }
 
