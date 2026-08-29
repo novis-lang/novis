@@ -363,13 +363,26 @@
 > program is handed and has nowhere else to put. The route is proved end to end without any of the
 > language surface — `examples/isolate/hello.nvs` resolves, runs inside a real `Isolate` and hands
 > back `child said hello`, and `throws.nvs` arrives as `ok = false` carrying `RuntimeError` rather
-> than as an `Err`. What is left of item 20 is the language surface, and it is **three** constructs
-> rather than the one the acceptance check names: `spawn script` still reports `E0703` from
-> `nvs-types`, there is no `ScriptResult`, and `await` is not a keyword at all — `nvs check
-> examples/isolate.nvs` reports it as `E0319`, a bare constant that does not exist, followed by
-> `E0101`. The steps the chain took are in goals/README.md § *Starting the chain*. The steps the
-> chain took are in [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's own
-> residue is the 1000-case corpus count, which orders 1–4 meet as the suite grows; nothing else
+> than as an `Err`. What is left of item 20 is the language surface, and the first of its three
+> constructs has landed: `await` is a prefix expression. `ExprKind::Await` is in the AST,
+> `crates/nvs-syntax/src/parser/expr.rs:2055` builds it, every walker that matches `ExprKind`
+> carries the arm, and `nvs-types` refuses it under a new `E0776` beside `spawn script`'s `E0703` —
+> two codes and not one because the two constructs arrive separately and a program writing only one
+> should hear about the one it wrote. It is **contextual**, for `crates/nvs-syntax/src/token.rs`'s
+> own reason, and disambiguated the way `spawn` is: by what follows it rather than by reserving the
+> spelling, so a program using `await` as a constant, a function or a method name still parses. The
+> one reading it claims from such a program is `await($x)`, which is the operator over a
+> parenthesised operand rather than a call to a function of that name — the trade being that
+> excluding `(` would make `await ($handle)` an unknown-function error at the one place a developer
+> is most likely to reach for parentheses. `docs/spec/00-overview.md` § 2 carries the production and
+> that rule. `examples/isolate.nvs` now parses whole and reports only `E0703` and `E0776`, where it
+> used to stop at `E0319` on the `await` line. The two constructs left are `ScriptResult` and the
+> lowering, and what `ScriptResult` should *be* is a narrower question than it was: a `Core`
+> instance has no property a program can reach (`crates/nvs-stdlib/src/registry.rs:775`), while
+> `->ok` and `->output` are what the example writes — so the shape `Core\Task::all` already answers
+> with, read with `->` and lowering today, is the candidate rather than a registered class. The
+> steps the chain took are in [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's
+> own residue is the 1000-case corpus count, which orders 1–4 meet as the suite grows; nothing else
 > about M4 is open. What the program is measured by is `python tools/check-migration.py` at 100%
 > classified, which stood at 25% the day the program was scheduled and reads 34% now that goal 1's
 > own five domains — dates and times, regular expressions, JSON, URLs and paths — carry a row per
