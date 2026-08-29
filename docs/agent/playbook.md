@@ -939,6 +939,7 @@ is why" — is this file.
   text: a red verdict describing a tree that no longer existed. There is nothing to debug and
   nothing to fix — `--start` again once the tree is final, and only then write prose. The rule is
   simply that `--start` marks the end of editing, not the start of the tail.
+- **`Path.write_text` turns every `\n` into `\r\n` on Windows, and a test that reads the tree sees it.** A one-off script that rewrites `.rs` files must open them with `newline=""` (or write bytes): `.gitattributes` says `eol=lf`, git normalizes on commit so `git diff` looks fine, but `tests/conformance_coverage.rs` scans the working copy and reports every multi-line message as "neither asserted nor declared unreachable" with `\r\n` inside the quoted text. That is the signature; the fix is a byte-level `\r\n` → `\n` pass over the files the script touched, and it cost one full `verify.py` run.
 
 ## Running things
 

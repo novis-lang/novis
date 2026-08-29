@@ -482,7 +482,12 @@
 > the day the program was scheduled and reads 34% now that goal 1's own five domains — dates and
 > times, regular expressions, JSON, URLs and paths — carry a row per name. `python tools/gaps.py`,
 > `python tools/holes.py` and `python tools/check-migration.py --report` are the three worklists
-> behind it, and no session re-derives one.
+> behind it, and no session re-derives one. **ADR 0117's seam is in the core toolchain**: a registry
+> row carries an optional reference card (`nvs_stdlib::registry::MethodDoc`, `CoreMethod::doc`),
+> `nvs meta --json` prints the whole registry in that ADR's § 2 shape, and three members —
+> `Str::length`, `Json::encode`, `Regex::match` — carry theirs; the other 342 rows say `doc: None`
+> and are documented member by member, each upgrading the website's reference on its next `npm run
+> sync:core`, whose report line counts how many carry one.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

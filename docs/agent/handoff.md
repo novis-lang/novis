@@ -8,6 +8,8 @@
 
 **The acceptance check the driver reports failing is Stage 7's, and it is an item still open rather than a regression.** `crates/nvs-test` is the `.nvst` runner (`case.rs`, `expect.rs`, `run.rs`) and has no `tests/` directory at all, so none of the four names that check asks for — starting with `each_test_runs_in_its_own_isolate_sharing_only_compiled_code` — can exist yet: ADR 0079's `#[Test]` surface is unbuilt. That is a stage of work, not a slice, and it is why this session took the handoff's group instead.
 
+**ADR 0117's seam landed outside the loop, in an interactive session**: `crates/nvs-stdlib/src/registry.rs` has `MethodDoc`/`ParamDoc`/`ShapeKeyDoc`/`ErrorDoc` and `CoreMethod::doc`, every row says `doc: None` except `Str::length`, `Json::encode` and `Regex::match`, and `crates/nvs-cli/src/meta.rs` is `nvs meta --json` with its golden in `crates/nvs-cli/tests/meta.rs`. An options bag is documented as one `ParamDoc` per option under the option's name — the website's `ParamDocs` component looks a row up that way — and `ShapeKeyDoc` is proven by the emitter's unit test because no implemented member declares a keyed shape parameter. `cd website && npm run sync:core` reports `registry docs: nvs meta — 3 member(s) carry registry docs` with 0 warnings; publishing the site stays a user-fired step.
+
 **Known gap, unchanged:** the argument going *in* is not asked ADR 0023 § 2's unresolvable-class question, because the child's class table does not exist until its program's prologue installs it. `crates/nvs-host/src/isolate.rs`'s module doc names the `nvs_runtime::script` seam change that closes it.
 
 **Orientation gaps:** `[context] adrs` prints neither ADR 0006 § *Decision* nor § *Failure is a value, not an exception* nor ADR 0116 § 4 — all three had to be sliced by hand, and every remaining isolate case wants them. `[context] shapes` prints the `.nvst` shape without the `--FILE <path>--` auxiliary section, which is the whole answer to the child-file question above. `[context] modules` still has no pattern for `nvs-runtime/src/graph.rs`.
@@ -28,3 +30,4 @@
 - The corpus floors: conformance 970 against 1000, differential 200 against 205 — `docs/agent/loop-goal.toml` stage 8.
 - Item 22: `Core\Script::args()` and `Core\Script::valueOrThrow($result)` — `crates/nvs-types/src/expr/isolate.rs`'s module doc.
 - `benches/isolation.rs` and its guard test — M5's *Verify* paragraph.
+- The 342 registry rows still at `doc: None` — ADR 0117, one `MethodDoc` beside each row, in the shape `crates/nvs-stdlib/src/str.rs`'s `LENGTH_DOC` has; a documented member's `ParamDoc` names must match the spec's or `npm run sync:core` warns.
