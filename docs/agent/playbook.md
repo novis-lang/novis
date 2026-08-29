@@ -3465,6 +3465,18 @@ sibling in the same namespace unqualified.
   (`scheduler.rs:211` and `:782`), which is the shape `crate::reactor` already uses. The second
   half of the same trap: never call `Coroutine::force_unwind` from a task's own stack. Teardown
   belongs on the scheduler's stack, which is why cancellation *marks* and the next turn unwinds.
+- **A running task cannot wake a peer, and `Scheduler::wake` is not the route.** It takes
+  `&mut Scheduler`, which is the frame currently resuming the task, so anything that unblocks
+  *another* task — `nvs-host`'s channel, and every synchronisation primitive written after it — goes
+  through `nvs_host::Wake` instead: a handle taken while the waiting task is running, which queues a
+  `TaskId` on the task tree and is drained into the run queue by `Scheduler::run`. Two things about it
+  are load-bearing and neither is the obvious implementation. It **holds the tree** rather than reading
+  the `TREE` thread-local when it fires, because whoever wakes it is often outside any turn — a test
+  driving `sched.run()` by hand, an accept loop's end of a channel — and because a `TaskId` is unique
+  only within its own tree, so a thread-local read would cross wakes between two schedulers on one
+  thread, which is a shape most of this crate's tests take. And the drain has to run **at the top of
+  `run` as well as after every resume**, or a wake issued between turns lands in the queue and nothing
+  ever delivers it, leaving the parked task asleep with no error anywhere.
 
 ## Divergences and refusals already pinned
 

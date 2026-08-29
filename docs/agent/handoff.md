@@ -2,61 +2,63 @@
 
 ## State
 
-**Goal 2, Stage 3's task tree is on disk** — the first item of Stage 3, and four of the five
-`nvs-host` names its `cargo-named` check asks for are green over it (`loop-goal.toml:1465`). 83
-tests in the crate on Windows, up from 77.
+**Stage 3 is complete: all five `nvs-host` names its `cargo-named` check asks for are green**
+(`loop-goal.toml:1465`). 93 tests in the crate on Windows, up from 83.
 
-Every task now has a parent and a list of children, and the parent is taken from the spawning task
-rather than passed in. The design and every decision inside it is recorded in `scheduler.rs`'s
-module doc § *The task tree, and what cancelling one costs*, which is its only home — no ADR slot
-was free, per the goal's standing decisions. The three things worth knowing before touching it: a
-running task reaches the tree through a thread-local `Rc<RefCell<TaskTree>>` and not through the
-scheduler (see the new playbook bullet for why); cancellation *marks* a subtree and the scheduler
-unwinds it on its own stack at the marked task's next safepoint, or at once if it is already
-parked; and a task's death cancels what it left running, which is where ADR 0072 § 4's "nothing
-still running" actually lives.
+Item 11's bounded channel is `crates/nvs-host/src/channel.rs` — a `!Send`, per-core queue whose
+`send` suspends at the bound rather than growing and whose `recv` suspends on empty. Its module
+doc is that design's only home (no ADR slot was free, per the goal's standing decisions), and the
+three things to know before touching it are there: the bound is backpressure and not a tuning
+knob; a wake goes to exactly one waiter because one `send` frees exactly one slot; and a waiter
+registration is an RAII guard on the waiting task's own stack, so a cancelled task deregisters
+itself under the forced unwind rather than leaving a wake that can never be delivered.
 
-**A cancelled task hands back no `Finished`.** Its `Ctx` is dropped on its own stack by the forced
-unwind, so its output and exit code are not readable afterwards — `Scheduler::take_cancelled` gives
-the ids, and `run_until_idle` uses the same list to drop reactor registrations that would otherwise
-outlive their task.
+**The scheduler grew one public type for it: `nvs_host::Wake`** — the route by which a running task
+wakes a peer, since it cannot reach the `&mut Scheduler` that is resuming it. It queues a `TaskId`
+on the task tree and `Scheduler::run` drains it, at the top of a turn as well as after each resume.
+`scheduler.rs`'s module doc § *The task tree* owns it; the new playbook bullet owns the two halves
+of it that are easy to get wrong.
 
-**Stage 3's remaining name is `a_bounded_channel_send_suspends_rather_than_growing`**, which is
-item 11 and needs a channel module that does not exist. That is the next group, and it is why this
-session stopped here: it shares nothing with the file this one had open.
+**What is left of item 11 is its language surface.** `Core\Task\Channel` has no row in
+`nvs_stdlib::registry` — nothing under `crates/nvs-stdlib` or `crates/nvs-types` mentions `Task` at
+all yet — so the whole `Core\Task` class is Stage 4's, starting with item 12 below.
 
 **The acceptance failure on `examples/tasks.nvs` (`Core\Task` has no member named `all`) is still
-not a regression** — `Task::all` is Stage 4's item 12, and no `Core\Task` member exists yet.
+not a regression**, and the next group is what closes it.
 
-**The orientation pack was missing nothing this item needed**, and the gap the previous handoff
-predicted was real: `[context] adrs` carries ADR 0072 §§ 4 and 5 only, and §§ 1 and 6 both decided
-something here (§ 1 that the parent comes from the caller, § 6 that `afterResponse` is a child of
-the request tree rather than of the registering task). Add both to that field.
+**The orientation pack was missing nothing this item needed.** The gap the last handoff named is
+still open: `[context] adrs` carries ADR 0072 §§ 4 and 5 only, and §§ 1 and 2 are what item 12 and
+item 13 are specified by — add both.
 
 ## Next group
 
-**Item 11's bounded channel, in `nvs-host`.** File set: a new `crates/nvs-host/src/channel.rs`,
-`crates/nvs-host/src/lib.rs`, and `crates/nvs-host/src/scheduler.rs` for the park/wake pair it is
-built on. Anchors, all in `scheduler.rs`: `wake:527`, `run:544`, `spawn_child:782`,
-`cancel_task:810`, `suspend_current:899`, `TaskTree:211`.
+**Stage 4 item 12's `Core\Task::all`, the compile-time half first.** File set:
+`crates/nvs-stdlib/src/registry.rs` (`CLASSES:798`, `CoreTy:136`), a new
+`crates/nvs-stdlib/src/task.rs` for the class, `crates/nvs-types/src/core_lib.rs:28` (the one place
+that reads the registry into the type table, `install:35`), and
+`crates/nvs-types/tests/core_members.rs`. Nothing named `Task` exists in either crate, so the first
+slice is a new class and not an added row.
 
-- [ ] **The channel itself** — a bounded queue whose `send` suspends when it is full and whose
-      `recv` suspends when it is empty, waking the other side by `TaskId` through
-      `Scheduler::wake` (`scheduler.rs:527`). It is `!Send` and per-core like everything else here.
-      Decide-and-record in the new module's doc; loop-goal.md item 11, ADR 0072's roster.
-- [ ] **`a_bounded_channel_send_suspends_rather_than_growing`** (`loop-goal.toml:1470`) — the
-      backpressure claim asserted as a bound on both sides: the last send that is accepted without
-      suspending, and the first one that suspends.
-- [ ] **A cancelled task blocked on a channel is torn down like any other** — it is parked, so the
-      sweep at `run:544` already reaches it; what needs asserting is that the peer's queue does not
-      keep its entry alive.
+- [ ] **`a_task_all_binds_each_fields_own_type`** (`loop-goal.toml:1477`) — `Core\Task::all` over a
+      shape literal of `fn` literals, each field keeping its own type rather than collapsing to
+      `mixed`. ADR 0072 § 1. Needs the `Core\Task` class to exist first
+      (`crates/nvs-stdlib/src/registry.rs:798`).
+- [ ] **`a_task_all_field_holding_a_callable_variable_is_a_compile_error`**
+      (`loop-goal.toml:1476`) — the refusal that makes the heterogeneous typing possible at all, and
+      the item's own note says it is the easiest thing to leave out. It is a `nvs-types` checking
+      diagnostic, so it needs a code from the `E07xx` band (next free `E0773`).
+- [ ] **`a_limit_and_deadline_options_shape_is_the_only_spelling`** (`loop-goal.toml:1480`) — ADR
+      0072 § 3, and the standing decisions already settle what it must *not* accept: there is no
+      `race` and no `timeout` wrapper.
 
 ## Backlog
 
-- Stage 3's `nvs-ir` half: `a_spawn_lowers_to_a_task_on_the_current_core` and
-  `an_await_suspends_until_its_task_completes` (`loop-goal.toml:1456`) — a different crate and a
-  different file set from everything above.
-- Stage 4's `Core\Task` roster, which is what the standing acceptance failure on
-  `examples/tasks.nvs` is waiting for — loop-goal.md items 12-16.
-- `[context] adrs` in `docs/agent/loop-goal.toml` needs ADR 0072 §§ 1 and 6 (see § State).
-- M4's residue: the 1000-case conformance corpus count, docs/plan/m4.md.
+- `Core\Task\Channel`, the language surface over `crates/nvs-host/src/channel.rs` — loop-goal.md
+  item 11's remaining half.
+- `Core\Task::map`, subject-first — loop-goal.md item 13, ADR 0072 § 2.
+- `Core\Task::afterResponse` and the re-parenting onto the request tree — loop-goal.md item 15, ADR
+  0072 § 6; `scheduler.rs`'s module doc names it as the one shape that outlives its spawning call.
+- `[context] adrs` in `docs/agent/loop-goal.toml` needs ADR 0072 §§ 1 and 2 added.
+- The `nvs-ir` half of Stage 3, `a_spawn_lowers_to_a_task_on_the_current_core` and
+  `an_await_suspends_until_its_task_completes` — `loop-goal.toml:1456`.
+- M4's 1000-case corpus count, met as the conformance suite grows — docs/implementation-plan.md.

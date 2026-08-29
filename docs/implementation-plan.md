@@ -135,18 +135,29 @@
 > running, so § 4's "control does not leave the call with work still running" holds one level below
 > the member that will promise it, and a cancelled task hands back its id rather than a `Finished` —
 > its `Ctx` went down with its stack. `scheduler.rs`'s module doc § *The task tree, and what
-> cancelling one costs* is that design's only home; no ADR slot was free for it. Four of the five
-> names Stage 3's `cargo-named` check asks of `nvs-host` are green over it, plus
-> `a_cancelled_tasks_arena_is_released`; the fifth,
-> `a_bounded_channel_send_suspends_rather_than_growing`, needs item 11's channel, which does not
-> exist yet. The steps the chain took are in [goals/README.md](agent/goals/README.md) § *Starting
-> the chain*. M4's own residue is the 1000-case corpus count, which orders 1–4 meet as the suite
-> grows; nothing else about M4 is open. What the program is measured by is `python
-> tools/check-migration.py` at 100% classified, which stood at 25% the day the program was scheduled
-> and reads 34% now that goal 1's own five domains — dates and times, regular expressions, JSON,
-> URLs and paths — carry a row per name. `python tools/gaps.py`, `python tools/holes.py` and `python
-> tools/check-migration.py --report` are the three worklists behind it, and no session re-derives
-> one.
+> cancelling one costs* is that design's only home; no ADR slot was free for it. All five names
+> Stage 3's `cargo-named` check asks of `nvs-host` are green, because item 11's channel is on disk:
+> `crates/nvs-host/src/channel.rs` is a bounded queue between two tasks on one core, whose `send`
+> suspends at the bound instead of growing the queue and whose `recv` suspends on empty. What it
+> needed from the scheduler was a wake a *running* task can issue, and `nvs_host::Wake` is that — a
+> handle taken while the waiting task is running, which queues a `TaskId` on the task tree and is
+> drained into the run queue by `Scheduler::run`, after the resume that filled it or at the start of
+> the next turn. It holds the tree rather than reading the thread-local when it fires, which is what
+> lets an end of a channel held outside any task wake the task waiting on it and what stops two
+> schedulers on one thread crossing wakes, since a `TaskId` is unique only inside its own tree. A
+> registration is an RAII guard on the waiting task's own stack, so a cancelled task takes itself
+> off the waiter queue under the forced unwind and a `send`'s single wake is never spent on a task
+> that can never be resumed — which is what makes waking one waiter rather than all of them correct.
+> `channel.rs`'s module doc is that design's only home, as no ADR slot was free. What is left of
+> item 11 is its language surface: no `Core\Task\Channel` row exists in `nvs_stdlib::registry` yet.
+> 93 tests in the crate on Windows, up from 83. The steps the chain took are in
+> [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's own residue is the 1000-case
+> corpus count, which orders 1–4 meet as the suite grows; nothing else about M4 is open. What the
+> program is measured by is `python tools/check-migration.py` at 100% classified, which stood at 25%
+> the day the program was scheduled and reads 34% now that goal 1's own five domains — dates and
+> times, regular expressions, JSON, URLs and paths — carry a row per name. `python tools/gaps.py`,
+> `python tools/holes.py` and `python tools/check-migration.py --report` are the three worklists
+> behind it, and no session re-derives one.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
