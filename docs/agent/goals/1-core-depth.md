@@ -210,9 +210,11 @@ not an example to read for inspiration.
 16. **`Core\Digest` carries the algorithms a program written now actually names.** Six cases ship —
     `Crc32`, `Md5`, `Sha1`, `Sha256`, `Sha384`, `Sha512` — against PHP's roughly sixty, and the gap that
     matters is not the long tail. [01-core-library.md](../../spec/01-core-library.md) § 11's table is the
-    roster's home and lands first; [hash.rs:143](../../../crates/nvs-stdlib/src/hash.rs) is the enum and
-    `digest_of` at `:386` the dispatch. Numbered sixteenth for item 15's reason: the fifteen below keep
-    the numbers this goal's TOML comments and `python tools/holes.py --item N` already use.
+    roster's home and lands first. `crates/nvs-stdlib/src/hash.rs:142` is the enum,
+    `crates/nvs-stdlib/src/hash.rs:386` its dispatch, and `crates/nvs-stdlib/src/hash.rs:318` the ordinal
+    read every stream's slot goes through — bare rather than linked so `python tools/holes.py --item 16`
+    lists them. Numbered sixteenth for item 15's reason: the fifteen below keep the numbers this goal's
+    TOML comments and that tool already use.
 
     **Three cost no crate at all.** `Sha224`, `Sha512_224` and `Sha512_256` are already in the pinned
     `sha2 0.10.9` — one `DIGEST` case, one `DigestKind` variant, one `kind_of` arm and one `digest_of`
