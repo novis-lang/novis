@@ -27,11 +27,14 @@
 > **In short:** an upgraded connection is **its own root isolate** — the same `Isolate` a request and a
 > `spawn script` child already are, with its own memory, CPU and time budget, sharing nothing but compiled
 > code. It is opened the way a script is spawned: `Core\Socket::upgrade('sockets/chat.nvs', with(args: …))`
-> **names a file**, not a closure, so [ADR 0006](0006-isolated-script-execution.md)'s existing rules for
-> grants, limits, arguments and path checking are reused whole and nothing crosses the boundary except
-> values copied by [0023](0023-clone-serialize-and-cross-boundary-copy.md)'s graph copy. Inside, code is
-> **an ordinary loop** — `while (var $msg = $conn->receive()) { … }` — because suspension has no colour, so
-> there is no callback shape and no second execution model to learn. Connections talk to each other through
+> takes **`spawn script`'s operand — a file, or a callable that captures nothing** — never a capturing
+> closure, so [ADR 0006](0006-isolated-script-execution.md)'s existing rules for the entry, grants, limits,
+> arguments and path checking are reused whole and nothing crosses the boundary except values copied by
+> [0023](0023-clone-serialize-and-cross-boundary-copy.md)'s graph copy. Inside, code is **an ordinary
+> loop** — `while (var $msg = $conn->receive()) { … }` — because suspension has no colour, so there is no
+> callback shape and no second execution model to learn; and `receive()` is **the one wait**, answering the
+> next thing to arrive from the peer *or* from a topic the connection subscribed to, so the loop never needs
+> a second task to listen with. Connections talk to each other through
 > **`Core\Topic`**, a runtime-owned publish/subscribe bus that reaches every core of the process, with a
 > **bounded per-subscriber queue that closes a slow subscriber rather than blocking the publisher** — a
 > fan-out must never become a denial of service. **SSE is the same thing with no `receive`**; a stream that
@@ -100,11 +103,14 @@ public static function chat(string $room): Http\Response {
 }
 ```
 
-- **The target is a file path**, resolved and root-checked exactly as
-  [ADR 0006](0006-isolated-script-execution.md) resolves `spawn script`'s. It is not a closure: a closure
-  would have to carry captured state across a boundary that exists to prevent exactly that, and
-  [0031](0031-callable-is-the-only-closure-type.md) removed the `use` clause that would have made the
-  capture visible.
+- **The target is `spawn script`'s operand**, under the rule [ADR 0006](0006-isolated-script-execution.md)
+  fixes: a file path, resolved and root-checked exactly as `spawn script`'s is, or a callable that captures
+  nothing — `Chat::run(...)`, or an `fn` literal whose body reads no outer variable — decided syntactically
+  at the call site. It is never a capturing closure: a capture would carry state across a boundary that
+  exists to prevent exactly that, and [0031](0031-callable-is-the-only-closure-type.md) removed the `use`
+  clause that would have made the capture visible, so a literal that reads `$room` is a compile error naming
+  `$room` and pointing at `args:`. The callable form still reads its input through `Core\Script::args()`, so
+  the copy stays visible at the call site in both forms.
 - **`with(...)` is 0006's clause**, unchanged — `args`, `limits`, `grants`, `on`. `args` crosses by
   [0023](0023-clone-serialize-and-cross-boundary-copy.md)'s graph copy, so it is a value and never a shared
   reference.
@@ -125,13 +131,22 @@ var $room = Core\Script::args()->room as string;
 Core\Topic::subscribe("room:" . $room);
 
 while (var $msg = $conn->receive()) {                 // suspends; no colour, no callback
+    if ($msg->topic != null) {                         // a delivery from the bus: forward it
+        $conn->send(Core\Json::encode($msg->value));
+        continue;
+    }
     Core\Topic::publish("room:" . $room, Core\Validate::text($msg->text, {max: 2000}));
 }
 ```
 
-- **`receive()` suspends the coroutine** and returns `?Socket\Message` — `null` when the peer closed. There
-  is no handler interface, no event registration and no second control-flow style, because Novis's stackful
-  coroutines make the straight-line loop the *simple* implementation rather than a nicer-looking one.
+- **`receive()` suspends the coroutine until the next thing arrives from either side** — a frame from the
+  peer, or a value published to a topic this connection subscribed to (§ 4) — and returns `?Socket\Message`,
+  `null` when the peer closed. A peer frame carries its payload; a delivery carries the copied value and the
+  topic's name, which is how the loop tells them apart. There is no handler interface, no event registration
+  and no second control-flow style, because Novis's stackful coroutines make the straight-line loop the
+  *simple* implementation rather than a nicer-looking one — and a connection is the one place a program
+  must wait on two sources at once, so the select lives inside the one member every script already calls
+  rather than in a construct every script would have to spell.
 - **`send()` suspends until the frame is buffered**, and throws on the send timeout rather than waiting
   forever ([0074](0074-http-defaults-safe-and-finite.md)).
 - **A received frame's payload is `tainted`** — it is untrusted input arriving over a network, exactly like
@@ -153,7 +168,8 @@ Core\Topic::unsubscribe(string $topic): void
   a bounded message hand-off rather than shared state.
 - **A published value is copied** by [0023](0023-clone-serialize-and-cross-boundary-copy.md)'s graph copy,
   so subscribers share nothing with the publisher or with each other.
-- **A slow subscriber is closed, never tolerated.** Each subscriber has a bounded queue; when it overflows,
+- **A slow subscriber is closed, never tolerated.** Each subscriber has a bounded queue, drained by its
+  connection's own `receive()` (§ 3) and by nothing else; when it overflows,
   **that subscriber's connection is closed** with a defined code and a metric increments. The publisher is
   never blocked and no queue grows without bound — a fan-out to ten thousand clients must not become a way
   for one of them to stall the other nine thousand nine hundred and ninety-nine, and this is priority 1
@@ -222,9 +238,10 @@ place two spellings could appear for one job:
   a thread with a socket.
 - **A closed slow subscriber is a visible behaviour**, not a silent drop. Applications must handle
   reconnection, which they must anyway.
-- **The upgrade is a file, so it participates in every existing mechanism** — the artifact cache, hot
-  reload, grants, limits, coverage and tracing probes — with no special case in any of them. This is the
-  main payoff of the `spawn script` shape and the reason it was chosen over a closure.
+- **The upgrade names compiled code — a file, or a function in the route's own unit — so it participates
+  in every existing mechanism** — the artifact cache, hot reload, grants, limits, coverage and tracing
+  probes — with no special case in any of them. This is the main payoff of the `spawn script` shape and the
+  reason it was chosen over a capturing closure.
 
 ## Alternatives rejected
 
@@ -247,9 +264,15 @@ place two spellings could appear for one job:
 - **Building `Core\Topic` on `Core\Cache`.** One mechanism instead of two. Rejected: a lossy store cannot
   carry a message somebody is waiting for, and blurring the two contracts would make both harder to reason
   about ([0059](0059-cross-request-state-is-explicit.md)).
-- **A closure as the upgrade target.** Reads better at the call site. Rejected because it would either
-  capture the request's heap — destroying the isolation this ADR is about — or need a rule for what a
-  closure may capture across an isolate boundary, which is a new language question asked to save a file.
+- **A capturing closure as the upgrade target.** Reads best at the call site. Rejected because it would
+  either capture the request's heap — destroying the isolation this ADR is about — or copy the captures
+  silently at the boundary, hiding behind an ordinary-looking closure the very copy § 2 keeps visible in
+  `args`, and turning a captured handle into a runtime refusal instead of a compile error. The callable
+  that captures nothing is allowed *because* it is not this: it carries code and nothing else.
+- **A second wait beside `receive()`** — a `Core\Topic::receive()` drained by a sibling task under
+  `Core\Task::all`. Works with nothing new, and every connection script would write the same two-task
+  scaffold to get one loop's worth of behaviour. Rejected for § 3's select inside `receive()`: the
+  subscriber queue is the connection's, so there is nothing for a second member to drain.
 
 ## Revisiting
 
@@ -275,6 +298,13 @@ place two spellings could appear for one job:
 - **Fan-out:** a publish reaches subscribers on other cores; a subscriber that never reads is closed once
   its queue is full and the publisher's latency is unaffected, asserted with one deliberately stalled
   subscriber among many.
+- **One wait, two sources:** a frame from the peer and a publish to a subscribed topic, both arriving while
+  the connection is parked in a single `receive()`, are answered by that call in arrival order, the
+  delivery naming its topic.
+- **Entry by callable:** an upgrade whose target is `Chat::run(...)` runs in an isolate the state-bleed
+  suite cannot tell from the file form; a target literal that reads an outer variable fails to compile
+  naming it — the fixture [0006](0006-isolated-script-execution.md) holds for `spawn script`, run at this
+  second site.
 - **Qualifiers:** a received frame is `tainted` and fails to compile at a sink without laundering; a
   `tainted` topic name fails to compile; a `secret` passed through `args` or `publish` fails to compile.
   Each is a fixture that would not compile if the qualifier were wrong.
