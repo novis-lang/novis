@@ -86,6 +86,35 @@
 //! rather than with silent aliasing. Nothing in this crate holds one across
 //! anything but a single call.
 //!
+//! # A wake that comes from another thread
+//!
+//! Everything above is readiness, and readiness is something the kernel already
+//! knows about. A call with no readiness to wait on — a filesystem call, a name
+//! resolution, a wait on a child process — goes to the blocking pool
+//! [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+//! § 6 requires, and the thread that finishes it has to be able to say so to a
+//! core that is asleep inside `Poll::poll`. [`Reactor::remote_wake`] is that:
+//! it hands out a [`RemoteWake`], the one `Send` thing in this crate, and the
+//! far side wakes it when the answer is ready — or drops it, which wakes the
+//! task just the same, because a pool thread that panicked must not leave a
+//! task parked on an answer that is not coming.
+//!
+//! **The wake is a queue plus one poke, not a token per waiter.** `mio` allows
+//! exactly one [`Waker`] per `Poll`, so [`WAKE_TOKEN`] is the single token here
+//! that is not a [`TaskId`], and the ids themselves travel in a mutex-guarded
+//! `Vec` the core drains when that token comes back ready. One poke can stand
+//! for several ids and several pokes for one; both are fine, because the queue
+//! is the record and the poke only ends the wait.
+//!
+//! The part worth reading twice is rule 4's third state. A task waiting on the
+//! pool has **no registration and possibly no deadline**, so the "nothing here
+//! can wake anything, return rather than block forever" test would have
+//! abandoned it. [`Reactor::remote_waits`] is the third thing that test asks
+//! about, and it is a count both of whose ends are on the core — up when a
+//! handle is issued, down when its ids are drained — so it can never read zero
+//! with a wake in flight. That ordering is the whole correctness argument;
+//! [`Remote::outstanding`] holds it in full.
+//!
 //! # One reactor per worker
 //!
 //! Rule 5, and it is the same rule [`Scheduler`] holds: a [`Reactor`] is
@@ -97,9 +126,11 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io;
 use std::marker::PhantomData;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
-use mio::{Events, Poll, Token};
+use mio::{Events, Poll, Token, Waker};
 
 use crate::scheduler::{RunReport, Scheduler, TaskId};
 use crate::timer::Timers;
@@ -115,6 +146,132 @@ pub use mio::event::Source;
 /// poll, so the only cost of a small number is an extra syscall under a burst,
 /// and the alternative is a buffer that grows with concurrency.
 pub const EVENT_CAPACITY: usize = 256;
+
+/// The one token in this reactor that is not a [`TaskId`].
+///
+/// A cross-thread wake arrives through `mio`'s own waker, which needs a token
+/// of its own; every other token here *is* the raw id of the task it belongs
+/// to, which is what saves the reactor a second table. `usize::MAX` is that
+/// token because ids are issued from zero upwards by one scheduler, so reaching
+/// it needs `usize::MAX` tasks on one core — and [`Reactor::poll`] already
+/// treats an id that large as naming nothing rather than naming a stranger.
+const WAKE_TOKEN: Token = Token(usize::MAX);
+
+/// The cross-thread half of one reactor: what a thread that is *not* this core
+/// touches when it has finished work a task here is parked on.
+///
+/// Behind an `Arc` because a [`RemoteWake`] outlives the call that issued it by
+/// definition — it is handed to another thread — and may outlive the reactor
+/// itself. A wake delivered after the reactor is gone pushes an id onto a queue
+/// nobody drains and pokes a waker nobody polls, which is inert rather than
+/// unsound: the same lateness rule 2 already allows for readiness.
+#[derive(Debug)]
+struct Remote {
+    /// `mio`'s cross-thread poke. Waking it makes the very poll
+    /// [`Reactor::turn`] is blocked in return with [`WAKE_TOKEN`] ready.
+    waker: Waker,
+    /// The ids waiting to be woken: pushed off the core, drained on it.
+    ///
+    /// A `Mutex<Vec<_>>` rather than a channel. This is the only shared mutable
+    /// state in the crate, the lock is held for a push or a `Vec::append` and
+    /// never across a syscall, and a channel would be a second mechanism saying
+    /// the same thing with a second allocation per wake. Contention is bounded
+    /// by the size of the pool, which ADR 0106 § 6 bounds at twice the core
+    /// count.
+    pending: Mutex<Vec<TaskId>>,
+    /// How many [`RemoteWake`] handles this core has issued and not yet
+    /// collected.
+    ///
+    /// **Both ends of this count are on the core**: it goes up when a handle is
+    /// made and down when the ids it queued are drained, so it never reads zero
+    /// while a wake is still in flight. That is what makes it safe for
+    /// [`Reactor::turn`] to read as *something off this core can still wake a
+    /// task*. A count the waking thread decremented would have a window between
+    /// its decrement and its push in which the core concluded the opposite and
+    /// abandoned the task — which is the bug this field exists to make
+    /// impossible, not a race to be tuned away with an ordering.
+    ///
+    /// It is an atomic because `Remote` has to be `Sync` to cross a thread
+    /// boundary at all, not because two threads write it; `Relaxed` is enough
+    /// for the same reason.
+    outstanding: AtomicUsize,
+}
+
+/// A one-shot permission to wake one task from another thread.
+///
+/// Issued on the core by [`Reactor::remote_wake`] **before** the task parks —
+/// rule 1's ordering, and for rule 1's reason: a wake arriving in the gap
+/// between a park and its arrangement would have nothing to be recorded
+/// against. Then it is moved to whatever thread is doing the work, which is the
+/// blocking pool [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+/// § 6 sends a filesystem call, a name resolution or a wait on a child process
+/// to. This is the only thing in this crate that is `Send`, and it carries no
+/// reference to the scheduler, the reactor or the task's stack — just the id
+/// and the poke.
+///
+/// **Dropping it wakes the task too.** A handle dropped without
+/// [`RemoteWake::wake`] means the far side gave up, panicked, or was torn down,
+/// and in every one of those cases the task it names is parked on an answer
+/// that is never coming. Waking it turns that into a retry that observes the
+/// failure, which is tier B containment rather than a wedged core. The delivery
+/// is idempotent: `wake` and the drop that follows it deliver once between them.
+#[derive(Debug)]
+pub struct RemoteWake {
+    remote: Arc<Remote>,
+    id: TaskId,
+    delivered: bool,
+}
+
+impl RemoteWake {
+    /// Which task this wakes.
+    #[must_use]
+    pub fn task(&self) -> TaskId {
+        self.id
+    }
+
+    /// Wakes the task, ending the poll its core is blocked in.
+    ///
+    /// Like every other wake here this is a **hint** — the task re-tries
+    /// whatever it parked on and parks again if the answer is still not there.
+    ///
+    /// # Errors
+    ///
+    /// Whatever the platform reported for the poke itself: the write to an
+    /// `eventfd`, the `EVFILT_USER` trigger, or the post to the completion
+    /// port. The id is queued before the poke is attempted, so a failure here
+    /// loses the wake's *promptness*, not the wake: the next poke from any
+    /// handle on this core collects it.
+    pub fn wake(mut self) -> io::Result<()> {
+        self.deliver()
+    }
+
+    /// The delivery both [`RemoteWake::wake`] and the drop go through.
+    fn deliver(&mut self) -> io::Result<()> {
+        if std::mem::replace(&mut self.delivered, true) {
+            return Ok(());
+        }
+        // The id goes into the queue before the poke, never after. A poke that
+        // arrived first would end the core's poll, find an empty queue, and
+        // leave the task parked until something else happened to wake it.
+        self.remote
+            .pending
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(self.id);
+        self.remote.waker.wake()
+    }
+}
+
+impl Drop for RemoteWake {
+    fn drop(&mut self) {
+        // A failed poke is not reportable from a drop and must not panic out of
+        // one: the thread dropping this handle is quite possibly already
+        // unwinding, and a panic there is the abort ADR 0106 § 2 spent a
+        // containment boundary to avoid. The task stays parked until its
+        // deadline, which is the bound `crate::timer` puts under every wait.
+        let _ = self.deliver();
+    }
+}
 
 /// The readiness source of one core.
 ///
@@ -135,6 +292,10 @@ pub struct Reactor {
     /// scheduler because a deadline is enforced as a poll timeout, which is
     /// this type's call to make; [`crate::timer`] owns the rest of the reason.
     timers: Timers,
+    /// The cross-thread wake queue and the waker that announces it. Shared with
+    /// every [`RemoteWake`] this reactor has issued, which is the only reason
+    /// any of it is behind an `Arc`.
+    remote: Arc<Remote>,
     _pinned_to_one_thread: PhantomData<*const ()>,
 }
 
@@ -146,6 +307,7 @@ impl std::fmt::Debug for Reactor {
             .field("registrations", &self.registrations.len())
             .field("ready", &self.ready.len())
             .field("timers", &self.timers.len())
+            .field("remote_waits", &self.remote_waits())
             .finish()
     }
 }
@@ -156,14 +318,27 @@ impl Reactor {
     /// # Errors
     ///
     /// Whatever the platform reported for `epoll_create`, `kqueue` or the
-    /// completion port — the process is out of descriptors or handles.
+    /// completion port — the process is out of descriptors or handles. Or the
+    /// same for the waker beneath it, which is one more descriptor on Linux and
+    /// none at all on the platforms that have a user event filter.
     pub fn new() -> io::Result<Self> {
+        let poll = Poll::new()?;
+        // The waker is created with the reactor and not on first use: it is one
+        // descriptor per core, it cannot be added to a `Poll` that is already
+        // being polled by a parked worker, and a fallible `remote_wake` would
+        // put an error path on the handoff that nothing sensible could do with.
+        let waker = Waker::new(poll.registry(), WAKE_TOKEN)?;
         Ok(Self {
-            poll: Poll::new()?,
+            poll,
             events: Events::with_capacity(EVENT_CAPACITY),
             registrations: HashMap::new(),
             ready: Vec::new(),
             timers: Timers::default(),
+            remote: Arc::new(Remote {
+                waker,
+                pending: Mutex::new(Vec::new()),
+                outstanding: AtomicUsize::new(0),
+            }),
             _pinned_to_one_thread: PhantomData,
         })
     }
@@ -273,6 +448,55 @@ impl Reactor {
         self.registrations.contains_key(&id)
     }
 
+    /// Issues a one-shot handle that wakes `id` from another thread.
+    ///
+    /// Take it **before** parking the task, exactly as a registration is taken
+    /// before a park, and for the same reason — see [`RemoteWake`], which owns
+    /// the rest of the contract including what a dropped handle does.
+    ///
+    /// While a handle is outstanding this core has something that can wake a
+    /// task even with no descriptor registered and no deadline filed, which is
+    /// precisely the state a task waiting on the blocking pool is in.
+    /// [`Reactor::turn`] reads [`Reactor::remote_waits`] for that and blocks
+    /// rather than reporting there is nothing left to wait for.
+    pub fn remote_wake(&self, id: TaskId) -> RemoteWake {
+        self.remote.outstanding.fetch_add(1, Ordering::Relaxed);
+        RemoteWake {
+            remote: Arc::clone(&self.remote),
+            id,
+            delivered: false,
+        }
+    }
+
+    /// How many cross-thread wakes this core has issued and not yet collected.
+    #[must_use]
+    pub fn remote_waits(&self) -> usize {
+        self.remote.outstanding.load(Ordering::Relaxed)
+    }
+
+    /// Moves whatever another thread has queued into this poll's ready list.
+    ///
+    /// Called for [`WAKE_TOKEN`] and nothing else. The count comes down by
+    /// exactly what was taken, here on the core, which is the invariant
+    /// [`Remote::outstanding`] documents; a `saturating_sub` over a plain
+    /// load and store rather than a `fetch_sub` because nothing else writes it
+    /// and an underflow would be a wrap to `usize::MAX`, which reads as *a wake
+    /// is coming forever*.
+    fn drain_remote(&mut self) {
+        let mut pending = self
+            .remote
+            .pending
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let taken = pending.len();
+        self.ready.append(&mut pending);
+        drop(pending);
+        let outstanding = self.remote.outstanding.load(Ordering::Relaxed);
+        self.remote
+            .outstanding
+            .store(outstanding.saturating_sub(taken), Ordering::Relaxed);
+    }
+
     /// Waits for readiness and reports the tasks it names.
     ///
     /// `None` blocks until something is ready; `Some(Duration::ZERO)` collects
@@ -294,12 +518,27 @@ impl Reactor {
             Err(err) if err.kind() == io::ErrorKind::Interrupted => return Ok(&self.ready),
             Err(err) => return Err(err),
         }
+        let mut remote = false;
         for event in self.events.iter() {
+            if event.token() == WAKE_TOKEN {
+                // A cross-thread wake. The token says only "the queue moved" —
+                // one poke can stand for several ids and several pokes for one,
+                // so what was woken is read out of the queue below rather than
+                // off the event.
+                remote = true;
+                continue;
+            }
             // A `usize` wider than a `u64` exists on no target this builds
             // for; `u64::MAX` is never an issued id, so a hypothetical one
             // would wake nothing rather than wake a stranger.
             let raw = u64::try_from(event.token().0).unwrap_or(u64::MAX);
             self.ready.push(TaskId::from_raw(raw));
+        }
+        if remote {
+            // Outside the loop because it borrows `self` whole, and before the
+            // dedup below because a remote wake for a task that readiness also
+            // named is one wake and not two.
+            self.drain_remote();
         }
         // One task waiting on two descriptors is reported twice, and a second
         // `wake` for the same id is a no-op that would still be counted as
@@ -318,9 +557,9 @@ impl Reactor {
     /// zero timeout while `sched` has work ready, blocks when nothing is ready
     /// and something parked can still be woken, and returns `0` without a
     /// syscall when there is nothing to wait for — including the case where
-    /// tasks are parked but this reactor holds neither a registration nor a
-    /// deadline that could ever wake one, which is a bug in the caller rather
-    /// than a reason to block forever.
+    /// tasks are parked but this reactor holds no registration, no deadline and
+    /// no outstanding cross-thread wake that could ever wake one, which is a
+    /// bug in the caller rather than a reason to block forever.
     ///
     /// The blocking state is bounded by the earliest deadline filed, and every
     /// timer due when the poll comes back is woken alongside the readiness it
@@ -334,11 +573,17 @@ impl Reactor {
             let timeout = if sched.ready_count() > 0 {
                 Some(Duration::ZERO)
             } else if sched.parked_count() > 0
-                && !(self.registrations.is_empty() && self.timers.is_empty())
+                && !(self.registrations.is_empty()
+                    && self.timers.is_empty()
+                    && self.remote_waits() == 0)
             {
                 // A filed deadline bounds the wait; with none, only readiness
-                // can end it. Either way this is the blocking state rule 4
-                // names, and the deadline only says how long it lasts.
+                // or a cross-thread wake can end it. Either way this is the
+                // blocking state rule 4 names, and the deadline only says how
+                // long it lasts. An outstanding `RemoteWake` counts as
+                // something that can end the wait even though this core holds
+                // no descriptor for it — that is the whole state a task waiting
+                // on the blocking pool is in.
                 self.timers
                     .next_due()
                     .map(|at| at.saturating_duration_since(Instant::now()))
@@ -807,5 +1052,103 @@ mod tests {
         assert_eq!(seen.get(), Some(id), "the task read a stranger's id");
         assert_eq!(report.finished, 1);
         assert_eq!(report.parked, 0);
+    }
+
+    /// The whole cross-thread path, in the shape a blocking-pool handoff has
+    /// (ADR 0106 § 6): a task with **no** registration and no deadline parks,
+    /// another thread finishes its work and wakes it, and the core comes back
+    /// out of a poll it could otherwise only have left by giving up on the
+    /// task.
+    #[test]
+    fn a_wake_from_another_thread_resumes_a_task_with_nothing_registered() {
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+
+        let resumes = Rc::new(Cell::new(0_usize));
+        let counter = Rc::clone(&resumes);
+        let id = sched.spawn(ctx(), TaskRoot::Worker, move |ctx| {
+            counter.set(counter.get() + 1);
+            assert!(suspend(ctx, Waiting::Parked), "there was no scheduler");
+            counter.set(counter.get() + 1);
+        });
+        // Rule 1's ordering, for a handoff rather than a registration: the
+        // handle exists before the task has run, let alone parked.
+        let wake =
+            with_current(|reactor| reactor.remote_wake(id)).expect("no reactor was installed");
+        assert_eq!(with_current(|reactor| reactor.remote_waits()), Some(1));
+
+        let far_side = std::thread::spawn(move || {
+            // Long enough that the core is inside the poll rather than racing
+            // it, short enough that a broken mechanism fails the test rather
+            // than slowing the suite.
+            std::thread::sleep(Duration::from_millis(20));
+            wake.wake().expect("the poke failed");
+        });
+
+        let report = run_until_idle(&mut sched).expect("the loop failed");
+        far_side.join().expect("the far side panicked");
+        assert_eq!(resumes.get(), 2, "the task did not resume after its park");
+        assert_eq!(report.finished, 1);
+        assert_eq!(
+            report.parked, 0,
+            "the core gave up on a task it was told to expect"
+        );
+        assert_eq!(
+            with_current(|reactor| reactor.remote_waits()),
+            Some(0),
+            "the wake was delivered but never collected"
+        );
+    }
+
+    #[test]
+    fn a_remote_wake_dropped_without_firing_still_wakes_the_task() {
+        let mut sched = Scheduler::new();
+        let mut reactor = Reactor::new().expect("the OS refused a poll");
+
+        let id = sched.spawn(ctx(), TaskRoot::Worker, |ctx| {
+            suspend(ctx, Waiting::Parked);
+        });
+        let wake = reactor.remote_wake(id);
+        assert_eq!(wake.task(), id);
+        sched.run();
+        assert_eq!(sched.parked_count(), 1);
+        assert_eq!(reactor.remote_waits(), 1);
+
+        // The far side gave up, panicked, or was torn down with the work
+        // undone. Either way the task is parked on an answer that is not
+        // coming, so the drop delivers rather than the core waiting forever.
+        drop(wake);
+        assert_eq!(
+            reactor.turn(&mut sched).expect("a turn failed"),
+            1,
+            "a dropped handle abandoned its task"
+        );
+        assert_eq!(reactor.remote_waits(), 0);
+        assert_eq!(sched.run().finished, 1);
+    }
+
+    #[test]
+    fn a_remote_wake_for_a_task_that_already_finished_wakes_nothing() {
+        let mut sched = Scheduler::new();
+        let mut reactor = Reactor::new().expect("the OS refused a poll");
+
+        let id = sched.spawn(ctx(), TaskRoot::Worker, |_| {});
+        let wake = reactor.remote_wake(id);
+        assert_eq!(sched.run().finished, 1);
+
+        wake.wake().expect("the poke failed");
+        // Rule 2 is not a rule about sockets: a wake racing the task that ended
+        // is ordinary here too. What must not happen is the count staying up,
+        // which would keep every later turn blocking for a wake already spent.
+        let ready = reactor
+            .poll(Some(Duration::from_secs(5)))
+            .expect("the poll failed");
+        assert_eq!(ready, [id], "the queue named the wrong task");
+        assert!(!sched.wake(id));
+        assert_eq!(
+            reactor.remote_waits(),
+            0,
+            "a collected wake stayed outstanding"
+        );
     }
 }
