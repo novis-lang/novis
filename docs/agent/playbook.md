@@ -840,6 +840,15 @@ is why" — is this file.
   put it in the body, immediately above the `let`, and keep it to seven lines. The failure names the
   right site and reads like the phrase is missing, which is the misleading part: it was present and
   one line too high.
+- **A `<<'PY'` heredoc is not literal enough to carry a Rust string escape, and it fails as a
+  mismatch rather than as a corruption.** AGENTS.md rule 1 already says a shell never carries file
+  content into the tree; the reason worth knowing is that the *quoted* heredoc — the construct you
+  reach for precisely because it is supposed to pass bytes through — still halved every backslash
+  run on the way to Python, so a script matching `("Core\\Encoding", "encodeText")` was really
+  matching a one-backslash string and found zero of twenty-two rows. It costs three calls to
+  rediscover because the script asserts and changes nothing, which reads like the file having moved
+  under you. Anything holding a `\\`, a backtick or an apostrophe goes through Write/Edit or
+  `python tools/splice.py --patch`.
 
 ## Running things
 

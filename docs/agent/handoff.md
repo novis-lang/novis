@@ -3,63 +3,73 @@
 ## State
 
 **The driver's failing acceptance check is closed.**
-`tests/conformance/core/a-command-table-answers-its-own-help.nvst` is written and passes. It does not
-call `Core\Command::help` on purpose: that member, `::run` and `::completions` are goal 4's
-(`docs/agent/goals/1-core-depth.md` item 6 — "the table only"), and no `Core\Command` row exists in
-`nvs_stdlib::registry`. What it asserts instead is the claim § 6's promise rests on — *nobody writes
-usage text* — by generating the help out of the declarations themselves through ADR 0046 §§ 4-5's
-retrieval: four rows over three methods, every one described, no two named alike, and one `{about:
-string}` shape asked of a `#[Command]` and an `#[Option]` alike. It also took `Core\Attributes::all` off
-`BELOW_THE_FLOOR` in `crates/nvs-stdlib/tests/conformance_coverage.rs:264` — one line of item 10, paid
-for by a case written for something else.
+`tests/conformance/core/a-repeated-grapheme-count-agrees-with-the-first.nvst` is written and passes
+against the tree as it stands, before goal 1 item 13's header cache exists — which is the point of
+the shape it takes. It pins the invariant a cache must not break rather than the cache: every one of
+nine subjects is asked its length three times, the third answer is checked against a fresh
+`Core\Str::graphemes` partition, and the joined subject's count is compared to the sum of its two
+halves. Five of the nine seams merge, so the corrected total is 22 against an additive 27 — the line
+that fails if `length` ever becomes additive across `.`.
 
-**Item 12 has started: `Core\Str` is off the `UNCLASSIFIED` roster.** All 37 rows carry ADR 0088 § 2's
-classification, and the rule they were classified by is written down once, in `Qual`'s own doc comment
-(`crates/nvs-stdlib/src/registry.rs:74`), for the classes still owing one. It lands three ways: neutral
-wherever the answer carries no byte of an argument, contagious everywhere else — including a needle
-that never appears in the answer — and sink on `format`'s template, which is one of ADR 0063 R11's four
-grammars. **The cross-check that made this cheap**: `docs/spec/01-core-library.md`'s Q column already
-renders every one of these marks, and it agreed with the independent judgement member for member. Read
-it first for the next class.
+**Item 12's roster is down to `Core\Bytes`.** Twenty-two rows across five classes carry ADR 0088
+§ 2's classification now — `Core\Arr`'s two key parameters, `Core\Attributes`' member name,
+`Core\Math`'s `fromBase` and `format`, `Core\Json`'s three, and all eleven of `Core\Encoding`.
+`Qual`'s doc at `crates/nvs-stdlib/src/registry.rs:74` stayed the only home of the rule; every
+judgement here is one of its first two bullets.
 
-**The classification is declaration-only today.** `nvs_types::core_lib.rs:286` lowers `CoreTy::Text(_)`
-to a plain interned `string`, so nothing a program can do changed and the playbook bullet about no
-`Core` member accepting a `tainted` argument is still true — including for `Core\Str`. Enforcement is a
-separate item and this session did not touch it.
+**Two things the pass turned up, both recorded at their sites.** `Core\Arr`'s `int|string` key union
+could not carry the mark, because `ARRAY_KEY` is shared between parameter positions that need
+opposite answers and element positions the gate does not walk at all — so it split into
+`ARRAY_KEY_NEUTRAL` and `ARRAY_KEY_CONTAGIOUS` beside the original, whose doc now says why the
+original keeps an unclassified `Str` arm. And **the spec's Q column was wrong once**:
+`Core\Math::format` was marked *neutral*, which is right for every other member of that class and
+false for the one that renders its two separator options into the answer verbatim. The registry is
+the home (ADR 0088 § 2) and the spec renders it, so the cell was corrected;
+`FORMAT_OPTIONS`' doc in `math.rs` records the reasoning.
 
-**Untouched:** `crates/nvs-stdlib/src/router.rs:39`'s *Known gaps* 1 and 2 are stale (the route table
-is built now), a `bytes` array key ICEs in `nvs-ir`, and `catch (Core\Error $e)` panics — the last two
-have playbook bullets under *Writing a test case*.
+**The classification is still declaration-only.** `nvs_types::core_lib.rs:286` lowers
+`CoreTy::Text(_)`/`Blob(_)` to a plain interned `string`/`bytes`, so nothing a program can do
+changed and the playbook bullet about no `Core` member accepting a `tainted` argument holds for all
+twenty-two. Enforcement is a separate item and no session has touched it.
 
-**Orientation gaps.** `[context] adrs` printed no section for either ADR this session needed: 0086 § 6
-(the command table's own spelling) and 0088 §§ 1-2 (§ 1's sink predicate, whose R11 corollary is what
-makes `Core\Str::format` a sink). Both were sliced by hand for one call each. Still owed from before:
-`0085 §§ 1-4` and `0071 §§ 2, 7`.
+**Untouched:** `crates/nvs-stdlib/src/router.rs:39`'s *Known gaps* 1 and 2 are stale (the route
+table is built now), a `bytes` array key ICEs in `nvs-ir`, and `catch (Core\Error $e)` panics — the
+last two have playbook bullets under *Writing a test case*.
+
+**Orientation gaps.** `[context] adrs` printed no section for ADR 0088 § 1, whose table decides
+`Core\Json::decode` outright; the handoff had carried the verdict forward, so it cost nothing this
+time, but the field still owes it. `0063`'s *In short* printed but not R11, which is where the four
+sink grammars are named and is exactly what the next slice needs for `Core\Bytes::pack`. Still owed
+from before: `0085 §§ 1-4` and `0071 §§ 2, 7`.
 
 ## Next group
 
-**Item 12 continued, the qualifier classification — ADR 0088 § 2. Shared file set:**
-`crates/nvs-stdlib/src/registry.rs` (the `UNCLASSIFIED` roster at `:1526`, which now opens at
-`Core\Arr`) plus one `crates/nvs-stdlib/src/<class>.rs` per slice. `Qual`'s doc at `registry.rs:74` is
-the rule; the spec's Q column is the second opinion, and a disagreement between the two is the finding.
+**Item 12 continued — ADR 0088 § 2. Shared file set:** `crates/nvs-stdlib/src/registry.rs` (the
+`UNCLASSIFIED` roster at `:1526`, which now opens at `Core\Bytes`) plus one
+`crates/nvs-stdlib/src/<class>.rs` per slice. `Qual`'s doc at `registry.rs:74` is the rule and the
+spec's Q column is the second opinion. **Land the whole group as one commit**: a member that is
+classified *and* still on the roster fails the gate, so a per-slice commit leaves a red tree behind
+it.
 
-- [ ] **`Core\Arr` and `Core\Attributes`, the four rows the roster opens with.** `hasKey` and `column`
-      take a `string` key beside an `array<T>`; `get`/`all` take the optional member name, which names a
-      declaration rather than flowing anywhere. Anchors: `crates/nvs-stdlib/src/arr.rs:176`, `:368`,
-      `crates/nvs-stdlib/src/attributes.rs:47`, `:54`, `crates/nvs-stdlib/src/registry.rs:1526`.
-- [ ] **`Core\Math::fromBase`/`format` and `Core\Json::decode`/`decodeAs`/`isValid`.** ADR 0088 § 1's
-      table names `Core\Json::decode`'s input outright — data, tainted-friendly, result tainted — so
-      that row is decided and the other four follow `Qual`'s rule. Anchors:
-      `crates/nvs-stdlib/src/math.rs`, `crates/nvs-stdlib/src/json.rs`.
-- [ ] **`Core\Encoding`'s five rows**, same file set plus `crates/nvs-stdlib/src/encoding.rs`. Base64
-      and text transcoding are contagious in both directions; the question worth a minute is whether
-      `isValidText` is neutral, which it is by the answer-carries-no-byte half of the rule.
+- [ ] **`Core\Bytes`' twelve rows** — `crates/nvs-stdlib/src/bytes.rs:161`. Ten follow the two
+      ordinary bullets (`length`, `compare`, `contains`, `startsWith`, `endsWith`, `indexOf` answer
+      no byte of an argument; `at`, `slice`, `repeat`, `join` do). **`pack` at `:246` and `unpack`
+      at `:253` are the interesting pair**: their format string is the fourth of ADR 0063 R11's
+      grammars, which `Qual`'s third bullet makes `Sink` — the first non-`Core\Str::format` sink in
+      the registry, so read R11 rather than assuming.
+- [ ] **`Core\Path`'s nine rows** — `crates/nvs-stdlib/src/path.rs:72`. Eight answer a path built
+      out of their arguments and are contagious; `isAbsolute` at `:125` is the class's one `bool`
+      and is neutral.
+- [ ] **`Core\Validate`'s six rows** — `crates/nvs-stdlib/src/validate.rs:159`. Every one answers a
+      `bool`, so all six are neutral by the first bullet with nothing to weigh. Cheapest slice on
+      the roster; take it as the third if the first two left room.
 
 ## Backlog
 
-- `Core\Command::run`/`::help`/`::completions` — goal 4, not this goal (`1-core-depth.md` item 6).
-- The rest of `UNCLASSIFIED` after the three slices above — `registry.rs:1526` is the worklist.
-- Enforcing the classification rather than declaring it: `nvs_types::core_lib.rs:286` erases it.
-- `crates/nvs-stdlib/src/router.rs:39`'s *Known gaps* 1 and 2 no longer describe the tree.
-- Item 10's per-class conformance floor — `python tools/gaps.py` is the worklist.
-- A `bytes` array key ICEs in `nvs-ir`; `catch (Core\Error $e)` panics — both have playbook bullets.
+- The conformance suite's `min_passing = 950` floor is unmet at 904 — `docs/agent/goals/1-core-depth.toml`.
+- Item 13's own half is unwritten: the cached count in `NvsStr`'s header and its three
+  `nvs-runtime` tests — `docs/agent/goals/1-core-depth.md` § *Stage 6*.
+- `Core\Attributes` has no per-member Q column in `docs/spec/01-core-library.md` § 7 — only a class
+  summary at `:916`, so its two marks live in `attributes.rs` alone.
+- `router.rs:39`'s *Known gaps* 1 and 2 are stale and should be rewritten.
+- Item 10's floor: `python tools/gaps.py` ranks the classes still under three cases.
