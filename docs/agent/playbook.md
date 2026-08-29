@@ -2156,6 +2156,17 @@ is why" — is this file.
   division rather than deleting the case: read the template out of a `string $t` variable and
   the runtime path is back, unchanged. Expect one such case per grammar as the remaining rows
   land — `grep` the throw's own message text in `tests/conformance/` before writing the arm.
+- **Putting a member on ADR 0057 § 1's list breaks every conformance case that made it throw from a
+  *literal*.** Landing the `Grammar::DateFormat`, `Regex` and `Uri` arms turned six green cases red at the
+  full verify — `time-three-format-members-share-one-pattern-compiler`, `time-cldr-patterns-render-and-read`,
+  `time-parse-refuses-a-pattern-and-a-text-in-different-classes`, both `regex-compile-*` and
+  `error/a-core-member-throws-a-named-class` — each of which wrote its malformed pattern inline and caught
+  the throw. They are not wrong; they are on the other side of § 2's division, so the repair is one line
+  per site: bind the pattern to a `string $name = "…";` and pass that. Grep for the member's spelling in
+  `tests/conformance/` **before** adding the arm and the whole set is visible in one call — the checker
+  reports at most one file at a time, so discovering them from the failure log costs a verify run each.
+  The same reasoning applies in reverse to a case that must *stay* literal: `Core\Time\Date::format` is not
+  on the list, so its inline malformed pattern still throws, and a case can assert both halves side by side.
 
 ## Splitting a file that got too big
 

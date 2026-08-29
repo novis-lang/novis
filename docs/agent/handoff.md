@@ -2,59 +2,67 @@
 
 ## State
 
-**ADR 0057's intrinsic folding is half built.** `crates/nvs-types/src/intrinsics.rs` holds § 1's table
-verbatim — six rows, matched nominally against the *declaring* class — and `check_call` is consulted from
-both call sites in `crates/nvs-types/src/expr/calls.rs` (`infer_method_call:111`, `infer_static_call:243`)
-once the target is resolved and the arguments are typed. Only `Grammar::Template` reads its literal so
-far; the other four arms are the next group and are a one-line change each behind their parser.
+**ADR 0057's fold now reads four of § 1's five grammars.** `Grammar::Template`, `DateFormat`, `Regex` and
+`Uri` each have their arm in `crates/nvs-types/src/intrinsics.rs:195-223`; `Duration` is the one row left
+and is a one-line change behind its parser. Every arm reaches the **runtime's own** parser through a thin
+`pub fn validate(&str) -> Result<(), String>` beside it — `nvs_stdlib::cldr:306`, `regex:581`, `uri:819` —
+rather than through the parser itself, because a caller that discards the parse should not make `Piece`,
+`Field` or `Compiled` public API. That is the standing decision's "one implementation, never a second
+copy", and each entry point's own `# Errors` says what it shares with the throw it replaces.
 
-**`Core\Str::format` is the worked example of § 4's soundness rule.** `nvs_stdlib::format::Pieces` is now
-the one walk over the `printf` grammar: `format` drives it to render, `placeholders` drives it to describe,
-so a template the checker refuses is exactly one the runtime would have thrown on — asserted by agreement
-in `crates/nvs-stdlib/src/format.rs`'s `a_prepared_literal_and_its_runtime_twin_share_one_implementation`.
-Two codes: `E0769` for a literal the grammar refuses, `E0770` for a template its argument list does not fit.
-Next free is `E0771`.
+**`nvs_stdlib::regex` gained a split, not a copy.** `compiled` was cache + build + `Fault`; the build half
+is now `build(pattern, flags) -> Result<Compiled, String>` (`regex.rs:557`) and both the runtime path and
+`validate` drive it. `uri::validate` runs **both** of `parse`'s throwing steps — `read` and `port_of` — for
+the reason `tryParse`'s doc comment gives: folding only the grammar half is exactly the parser/validator
+divergence that member exists to prevent.
 
-**One conformance case moved to the runtime path.**
-`tests/conformance/core/str-format-refuses-every-mismatch.nvst` now reads each template out of a variable,
-which is ADR 0057 § 2's division and keeps both halves of § 4's one implementation under test — the literal
-forms of its four mismatches are compile errors and can no longer reach a `catch`.
+**Four known gaps, and gap 3 is new and deliberate:** a *member's* restriction on a well-formed pattern is
+left to run time. `Core\Time::parse` refuses a zonal field (`cldr::civil_fields_only`) because its zone is
+argument 3; that is a rule about the member, not about the pattern language, and `Grammar` carries one
+variant per language. Refusing it here needs a column § 1's table does not have. The other three gaps are
+unchanged (whole-literal span, nothing prepared, no named/spread argument read).
 
-**Nothing is prepared, only validated** — § 3's second effect needs a channel to `nvs-ir` and is gap 2 in
-that module's docs, beside the two other gaps (the diagnostic underlines the whole literal, and a named or
-spread argument is skipped).
+**Six conformance cases moved to the runtime path**, the same repair
+`str-format-refuses-every-mismatch.nvst` had last session: a malformed pattern written inline is now the
+compile error, so each case binds it to a `string` first and keeps pinning the throw. The playbook bullet
+under *Writing a test case* names all six and the cheap way to find the next set.
 
-**Orientation gap, third session running:** the pack still does not print ADR 0057, which is this whole
-goal stage. `[context] adrs` needs `0057 §§ 1, 3, 4`; reading the ADR by hand cost ~2.5k of context that a
-selector would have made free.
+**`examples/intrinsics.nvs` already prints the stage's four lines** — `2026-08-28`, `matched`, `total: 42`,
+`host=example.test` — and did before this session; the failing acceptance check was the missing test name,
+not the example.
+
+**Orientation gap, fourth session running:** the pack still does not print ADR 0057, which is this whole
+goal stage. `[context] adrs` needs `0057 §§ 1, 3, 4`. This session did not re-read the ADR and worked from
+the module docs' restatement of it instead, which is why gap 3 above is recorded there rather than argued
+against § 1's own text.
 
 ## Next group
 
-**The three remaining grammars, all in one file set:** `crates/nvs-types/src/intrinsics.rs:181` (the
-`Grammar::Regex | Uri | DateFormat | Duration` arm of `check_call`), plus one `pub` entry point per parser
-and one case each in `crates/nvs-types/tests/intrinsics.rs`. Each is the shape `check_template` already
-has — fold, hand the text to the runtime's own parser, report `E0769` with its message.
+**The stage's two `.nvst` cases and the last grammar. Shared file set:**
+`crates/nvs-types/src/intrinsics.rs`, `crates/nvs-types/tests/intrinsics.rs`, `crates/nvs-stdlib/src/time.rs`,
+`tests/conformance/`.
 
-- [ ] **The date pattern.** ADR 0057 § 1, rows 3 and 4. `nvs_stdlib::cldr::compile`
-      (`crates/nvs-stdlib/src/cldr.rs:218`) already answers `Result<Vec<Piece>, String>` and is
-      `pub(crate)`: make it `pub`, make `mod cldr` public in `crates/nvs-stdlib/src/lib.rs:201`, and add
-      the `Grammar::DateFormat` arm. `Core\Time::parse`'s pattern is argument **1** and the row already
-      says so. Test: `a_literal_date_format_is_validated_while_checking`.
-- [ ] **`Core\Regex`'s pattern.** § 1 row 1 over `crates/nvs-stdlib/src/regex.rs:516`'s `compiled`, which
-      takes flags and a member name and answers a `Fault` — it needs a pattern-only entry point beside it
-      rather than a second call shape, and ADR 0056 § 3's *tier* is what it should answer with eventually
-      (gap 1 in that module's docs). Test: `a_literal_regex_pattern_is_prepared_while_checking`.
-- [ ] **The URI.** § 1 row 2 over `crates/nvs-stdlib/src/uri.rs:1439`'s `nvs_core_uri_parse`, whose
-      well-formedness check is inside the helper body and has to come out into a `pub fn` first. Test:
-      `a_literal_uri_is_validated_while_checking`.
-- [ ] **`examples/intrinsics.nvs`.** The stage's last check wants `2026-08-28`, `matched`, `total: 42`,
-      `host=example.test` — one program over all four grammars, written after they land.
+- [ ] **`tests/conformance/core/a-literal-intrinsic-is-validated-while-checking.nvst`.** The half that
+      *runs*: each folded member reached twice, literal and through a variable, printing the shared answer
+      — `examples/intrinsics.nvs` is that program already, so this case is it with `--EXPECT--` around the
+      four lines. Named by `docs/agent/loop-goal.toml:1333`.
+- [ ] **`tests/conformance/reject/a-malformed-literal-intrinsic-is-a-compile-error.nvst`.** The other half:
+      one malformed literal per grammar, `--EXPECTF-ERROR--`, whose indentation widens with the line number
+      (conventions § *A `.nvst` test case*). `target/debug/nvs.exe check <scratch>` prints the exact text to
+      freeze. Named by `docs/agent/loop-goal.toml:1334`.
+- [ ] **The duration grammar.** ADR 0057 § 1 row 5, `Core\Time\Duration::parse`, argument 0. The arm is
+      `crates/nvs-types/src/intrinsics.rs:223` and the runtime parser is behind
+      `crates/nvs-stdlib/src/time.rs:476`'s `nvs_core_time_duration_parse` — give it the same `validate`
+      entry point the other three got. No acceptance check names a test for it, so add one beside
+      `crates/nvs-types/tests/intrinsics.rs:194`.
 
 ## Backlog
 
-- `Core\Time\Duration::parse`'s row is on the list and unread; ADR 0070's grammar is `nvs_syntax::duration`.
-- Preparation itself (§ 3's second effect) — the artifact-cache channel to `nvs-ir`, `intrinsics.rs` gap 2.
-- The exact offset inside a literal, which needs a position-recording decoder in `crate::string_lit`.
-- A named argument to an intrinsic folds nothing — `intrinsics.rs` gap 3, `links.rs` gap 1's twin.
-- M4 item 15's seventeen `nvs-ir` lowering refusals stand; ratchet at `crates/nvs-ir/tests/refusals.rs:66`.
-- The 1000-case conformance corpus is M4's residue, met as orders 1-4 grow the suite.
+- Gap 2 — nothing is *prepared*; § 3's second effect needs a channel to `nvs-ir`
+  (`crates/nvs-types/src/intrinsics.rs`'s module docs).
+- Gap 1 — the diagnostic underlines the whole literal, not the offset inside it (same docs).
+- ADR 0056 § 3's `[regex] backtracking = "deny"` — the tier a literal pattern landed in is decided while
+  checking and still not reported (`crates/nvs-stdlib/src/regex.rs`'s module docs, gap 1).
+- `Core\Time\Date::format` reads CLDR patterns and is deliberately not an intrinsic — § 1's asymmetry, one
+  row per member whenever someone decides it has earned one.
+- `[context] adrs` in `docs/agent/loop-goal.toml` needs `0057 §§ 1, 3, 4`.
