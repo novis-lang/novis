@@ -2441,6 +2441,16 @@ is why" — is this file.
   a working case: `$left <=> $right` over two still-in-scope `TimeOfDay` values is
   `E0411: does not implement Comparable`, which reads as a fact about the class rather than as the
   name collision it is.
+- **A `Core\Time\TimeOfDay`'s four slots are not readable as properties, and the bottom of every one
+  of its fields is a *checker* refusal rather than a runtime one.** `$t->hour` is
+  `E0405: `Core\Time\TimeOfDay` has no property named `hour`` even though `slots` lists all four
+  (`crates/nvs-stdlib/src/time.rs:1462`), so a case that wants a field as a number reads it back out
+  of `format` — `$t->format("HH") as int`, and `format("SSSSSSSSS")` for the nanosecond one, which
+  `crates/nvs-stdlib/src/cldr.rs`'s `Field::Fraction` pads to nine digits. The same shape decides how
+  much of a "refuses one past either end" case can exist at all: `at`'s two parameters and both its
+  options are `uint`, so `at(-1, 0)` is `E0401: expected `uint`, found `int`` and never reaches the
+  member. A bound named on both sides has a runtime half at the top only, and the floor is worth one
+  sentence of comment saying where it is enforced instead.
 
 ## Splitting a file that got too big
 

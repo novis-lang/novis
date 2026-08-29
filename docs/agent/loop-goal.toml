@@ -76,6 +76,11 @@ modules = [
   "crates/nvs-stdlib/src/format.rs",
   "crates/nvs-stdlib/src/time.rs",
   "crates/nvs-stdlib/src/regex.rs",
+  # The two `time.rs` reaches for and no depth slice over it can avoid: `cldr.rs` owns the pattern
+  # letters every `format` case renders with, and `ordering.rs` is the one order every `compareTo`
+  # case has to show `Core\Arr::sort` agreeing with.
+  "crates/nvs-stdlib/src/cldr.rs",
+  "crates/nvs-stdlib/src/ordering.rs",
   # Stage 6.
   "crates/nvs-runtime/src/string.rs",
   "crates/nvs-stdlib/src/granularity.rs",
