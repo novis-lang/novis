@@ -1,0 +1,168 @@
+---
+/**
+ * The tool-owned technical block on a method page: the declaration, the
+ * parameter/options tables, the return type, qualifier classification and
+ * PHP equivalents — all rendered from src/data/core.json, so it stays
+ * current without touching the page's human prose.
+ */
+import { findMember } from '~/lib/core'
+
+interface Props {
+  id: string
+}
+
+const { id } = Astro.props
+const found = findMember(id)
+if (!found) throw new Error(`MethodSignature: unknown member id "${id}" — run \`npm run sync:core\`?`)
+const { cls, member } = found
+
+const escape = (s: string) =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+/** Inline-code markdown (`x`) to HTML. */
+const ticks = (s: string) => escape(s).replace(/`([^`]+)`/g, '<code>$1</code>')
+
+/** Colored declaration HTML. */
+function declarationHtml(): string {
+  const parts: string[] = []
+  if (member.static) {
+    parts.push(`<span class="sig-class">${escape(cls.name)}</span><span class="sig-punct">::</span>`)
+  } else {
+    parts.push(`<span class="sig-var">$${escape(member.receiver ?? 'instance')}</span><span class="sig-punct">-&gt;</span>`)
+  }
+  parts.push(`<span class="sig-name">${escape(member.name)}</span>`)
+  if (member.generics) parts.push(`<span class="sig-generics">${escape(member.generics)}</span>`)
+  parts.push('<span class="sig-punct">(</span>')
+  const paramBits: string[] = []
+  for (const p of member.params) {
+    let bit = `<span class="sig-type">${escape(p.type || 'mixed')}</span> `
+    bit += `<span class="sig-var">${p.variadic ? '...' : ''}$${escape(p.name)}</span>`
+    if (p.default !== null) bit += `<span class="sig-punct"> = </span><span class="sig-default">${escape(p.default)}</span>`
+    paramBits.push(bit)
+  }
+  if (member.options.length > 0) {
+    const opts = member.options
+      .map((o) => `${escape(o.name)}?${o.type ? `: ${escape(o.type)}` : ''}`)
+      .join(', ')
+    paramBits.push(`<span class="sig-options">{${opts}}</span>`)
+  }
+  parts.push(paramBits.join('<span class="sig-punct">, </span>'))
+  parts.push('<span class="sig-punct">): </span>')
+  parts.push(`<span class="sig-type">${escape(member.returnType)}</span>`)
+  return parts.join('')
+}
+
+const qualifier = member.qualifier.trim()
+const qualifierKind = qualifier.startsWith('sink')
+  ? 'sink'
+  : qualifier.startsWith('launder')
+    ? 'launder'
+    : qualifier === 'neutral'
+      ? 'neutral'
+      : 'contagious'
+
+const detail = /\(([^)]*)\)/.exec(qualifier)?.[1]
+const qualifierText: Record<string, string> = {
+  sink: `Taint sink${detail ? ` (${detail})` : ''}: refuses a tainted argument in the named position.`,
+  launder: `Launderer${detail ? ` (${detail})` : ''}: removes the taint qualifier from its result.`,
+  neutral: 'Qualifier-neutral: the result never carries a qualifier from the arguments.',
+  contagious: 'Qualifier-contagious: a tainted or secret argument yields a tainted or secret result.',
+}
+
+const replaces = member.replaces && !/^nothing\b/i.test(member.replaces.trim()) ? member.replaces : ''
+---
+
+<div class="method-signature not-content">
+  <div class="method-signature-decl-row">
+    <code class="method-signature-decl" set:html={declarationHtml()} />
+    <span
+      class:list={['method-badge', member.implemented ? 'method-badge-available' : 'method-badge-planned']}
+      title={member.implemented ? 'This member is implemented in the current toolchain.' : 'This member is specified but not implemented yet.'}
+    >
+      {member.implemented ? 'Available' : 'Not yet implemented'}
+    </span>
+  </div>
+
+  {
+    member.params.length > 0 && (
+      <table class="method-signature-table">
+        <caption>Parameters</caption>
+        <thead>
+          <tr>
+            <th scope="col">Name</th>
+            <th scope="col">Type</th>
+            <th scope="col">Default</th>
+          </tr>
+        </thead>
+        <tbody>
+          {member.params.map((p) => (
+            <tr>
+              <td>
+                <code>
+                  {p.variadic ? '...' : ''}${p.name}
+                </code>
+              </td>
+              <td>
+                <code class="sig-type-cell">{p.type || 'mixed'}</code>
+              </td>
+              <td>{p.default !== null ? <code>{p.default}</code> : p.variadic ? <em>variadic</em> : <span class="method-required">required</span>}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )
+  }
+
+  {
+    member.options.length > 0 && (
+      <table class="method-signature-table">
+        <caption>
+          Options <span class="method-signature-caption-hint">— a trailing shape literal, every entry optional</span>
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Option</th>
+            <th scope="col">Type</th>
+          </tr>
+        </thead>
+        <tbody>
+          {member.options.map((o) => (
+            <tr>
+              <td>
+                <code>{o.name}</code>
+              </td>
+              <td>{o.type ? <code class="sig-type-cell">{o.type}</code> : <em>—</em>}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )
+  }
+
+  <dl class="method-signature-facts">
+    <div>
+      <dt>Returns</dt>
+      <dd><code class="sig-type-cell">{member.returnType}</code></dd>
+    </div>
+    <div>
+      <dt>Taint &amp; secret</dt>
+      <dd class:list={['method-qualifier', `method-qualifier-${qualifierKind}`]}>{qualifierText[qualifierKind]}</dd>
+    </div>
+    {
+      replaces && (
+        <div>
+          <dt>Replaces in PHP</dt>
+          <dd set:html={ticks(replaces)} />
+        </div>
+      )
+    }
+    {
+      member.notes && (
+        <div>
+          <dt>Spec note</dt>
+          <dd set:html={ticks(member.notes)} />
+        </div>
+      )
+    }
+  </dl>
+</div>

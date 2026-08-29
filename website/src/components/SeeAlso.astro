@@ -1,0 +1,43 @@
+---
+/**
+ * "See also" block: related Core members, by id (e.g. "Str.isEmpty").
+ * Managed by hand in each method page's `<SeeAlso ids={[…]} />` line; renders
+ * nothing while the list is empty. Unknown ids fail the build loudly, so a
+ * renamed member cannot leave a dead reference behind.
+ */
+import { findMember } from '~/lib/core'
+
+interface Props {
+  ids: string[]
+}
+
+const { ids = [] } = Astro.props
+const entries = ids.map((id) => {
+  const found = findMember(id)
+  if (!found) throw new Error(`SeeAlso: unknown member id "${id}"`)
+  return {
+    id,
+    url: found.member.url,
+    label: `${found.cls.name}::${found.member.name}`,
+    hint: found.member.replaces && !/^nothing\b/i.test(found.member.replaces) ? found.member.replaces.replace(/`/g, '') : '',
+  }
+})
+---
+
+{
+  entries.length > 0 && (
+    <section class="method-see-also">
+      <h2 id="see-also">See also</h2>
+      <ul>
+        {entries.map((e) => (
+          <li>
+            <a href={e.url}>
+              <code>{e.label}</code>
+            </a>
+            {e.hint && <span class="method-see-also-hint"> — replaces {e.hint}</span>}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}

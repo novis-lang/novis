@@ -1,0 +1,60 @@
+---
+/**
+ * The ADR listing: every decision with number, title, status and summary,
+ * with a client-side filter box. Rendered from src/data/adrs.json.
+ */
+import adrs from '../data/adrs.json'
+---
+
+<div class="adr-index not-content" data-nv-no-adr-tooltip>
+  <label class="adr-index-filter">
+    <span class="sr-only">Filter decisions</span>
+    <input type="search" id="adr-index-filter" placeholder={`Filter ${adrs.length} decisions…`} autocomplete="off" />
+  </label>
+  <p class="sr-only" role="status" aria-live="polite" id="adr-index-status"></p>
+
+  <ol class="adr-index-list" id="adr-index-list">
+    {
+      adrs.map((adr) => (
+        <li data-search={`${adr.number} ${adr.title} ${adr.inShort}`.toLowerCase()}>
+          <a href={adr.url} class="adr-index-row">
+            <span class="adr-index-head">
+              <span class="adr-index-number">{adr.number}</span>
+              <span class="adr-index-title">{adr.title}</span>
+              <span class="adr-index-status" data-status={adr.status.toLowerCase()}>
+                {adr.status}
+              </span>
+            </span>
+            {adr.inShort && <span class="adr-index-summary">{adr.inShort}</span>}
+          </a>
+        </li>
+      ))
+    }
+  </ol>
+</div>
+
+<script>
+  const input = document.getElementById('adr-index-filter') as HTMLInputElement | null
+  const list = document.getElementById('adr-index-list')
+  const status = document.getElementById('adr-index-status')
+  if (input && list) {
+    const items = [...list.querySelectorAll('li')]
+    const apply = () => {
+      const query = input.value.trim().toLowerCase()
+      let shown = 0
+      for (const li of items) {
+        const match = query === '' || (li.dataset.search ?? '').includes(query)
+        li.hidden = !match
+        if (match) shown++
+      }
+      if (status) status.textContent = query === '' ? '' : `${shown} decision${shown === 1 ? '' : 's'} match`
+    }
+    input.addEventListener('input', apply)
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        input.value = ''
+        apply()
+      }
+    })
+  }
+</script>

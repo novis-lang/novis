@@ -1,0 +1,56 @@
+---
+/**
+ * Runnable examples for one member, from website/examples/core/<Class>/<method>/.
+ *
+ * Each `NN-some-title.nvs` file becomes one example, ordered by filename; a
+ * sibling `NN-some-title.out` file, when present, is shown as the expected
+ * output and checked by `npm run examples:check`. Renders nothing when the
+ * member has no examples yet.
+ */
+import { Code } from '@astrojs/starlight/components'
+import { findMember } from '~/lib/core'
+
+interface Props {
+  id: string
+}
+
+const { id } = Astro.props
+const found = findMember(id)
+if (!found) throw new Error(`MethodExamples: unknown member id "${id}"`)
+
+// `Str.length` -> examples/core/Str/length/
+const [clsId, ...rest] = id.split('.')
+const memberName = rest.pop() as string
+const dir = `/examples/core/${[clsId, ...rest].join('/')}/${memberName}/`.replace(/\/+/g, '/')
+
+const sources = import.meta.glob('/examples/core/**/*.nvs', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const outputs = import.meta.glob('/examples/core/**/*.out', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+
+const examples = Object.keys(sources)
+  .filter((p) => p.startsWith(dir))
+  .sort()
+  .map((p) => {
+    const base = p.replace(/\.nvs$/, '')
+    const name = base.slice(dir.length)
+    const title = name
+      .replace(/^\d+-/, '')
+      .replace(/-/g, ' ')
+      .replace(/^./, (c) => c.toUpperCase())
+    return { title, code: sources[p].trim(), output: outputs[`${base}.out`]?.trimEnd() }
+  })
+---
+
+{
+  examples.length > 0 && (
+    <section class="method-examples">
+      <h2 id="examples">Examples</h2>
+      {examples.map((ex) => (
+        <div class="method-example">
+          <h3>{ex.title}</h3>
+          <Code code={ex.code} lang="novis" />
+          {ex.output !== undefined && <Code code={ex.output} lang="txt" title="Output" />}
+        </div>
+      ))}
+    </section>
+  )
+}

@@ -1,0 +1,28 @@
+---
+/**
+ * MobileMenuFooter override: the site navigation (hidden from the header on
+ * small screens) followed by the default social icons and theme switcher.
+ */
+import Default from '@astrojs/starlight/components/MobileMenuFooter.astro'
+---
+
+<nav class="nv-mobile-nav" aria-label="Site">
+  <a href="/">Novis</a>
+  <a href="/docs/">Docs</a>
+  <a href="/why-novis/">Why Novis?</a>
+</nav>
+<Default><slot /></Default>
+
+<style>
+  .nv-mobile-nav {
+    display: flex;
+    gap: 1.25rem;
+    padding: 0.75rem var(--sl-sidebar-pad-x, 1rem);
+    border-top: 1px solid var(--sl-color-hairline);
+  }
+  .nv-mobile-nav a {
+    color: var(--sl-color-white);
+    font-weight: 600;
+    text-decoration: none;
+  }
+</style>

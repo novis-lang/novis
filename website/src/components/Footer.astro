@@ -1,0 +1,132 @@
+---
+/**
+ * Footer override: keeps Starlight's per-page meta (edit link, last updated,
+ * prev/next) and adds the site-wide three-column footer below it.
+ */
+import EditLink from 'virtual:starlight/components/EditLink'
+import LastUpdated from 'virtual:starlight/components/LastUpdated'
+import Pagination from 'virtual:starlight/components/Pagination'
+import { GITHUB_URL, DISCORD_URL } from '@config/site.mjs'
+
+const year = new Date().getFullYear()
+
+const columns = [
+  {
+    title: 'Documentation',
+    links: [
+      { label: 'Getting started', href: '/docs/' },
+      { label: 'Core reference', href: '/docs/core/' },
+      { label: 'Architecture decisions', href: '/docs/adr/' },
+      { label: 'Release notes', href: '/docs/release-notes/' },
+    ],
+  },
+  {
+    title: 'Project',
+    links: [
+      { label: 'Why Novis?', href: '/why-novis/' },
+      { label: 'GitHub', href: GITHUB_URL },
+      { label: 'Discord', href: DISCORD_URL },
+      { label: 'Site index', href: '/site-index/' },
+    ],
+  },
+  {
+    title: 'Legal',
+    links: [
+      { label: 'Impressum', href: '/impressum/' },
+      { label: 'Datenschutzerklärung', href: '/datenschutz/' },
+      { label: 'License', href: `${GITHUB_URL}/blob/main/LICENSE` },
+    ],
+  },
+]
+---
+
+<footer class="sl-flex">
+  <div class="meta sl-flex">
+    <EditLink />
+    <LastUpdated />
+  </div>
+  <Pagination />
+
+  <div class="site-footer">
+    <div class="site-footer-grid">
+      {
+        columns.map((col) => (
+          <div class="site-footer-col">
+            <h2>{col.title}</h2>
+            <ul>
+              {col.links.map((link) => (
+                <li>
+                  <a href={link.href}>{link.label}</a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))
+      }
+    </div>
+    <p class="site-footer-note">© {year} The Novis project. Novis is open source.</p>
+  </div>
+</footer>
+
+<style>
+  footer {
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  .meta {
+    gap: 0.75rem 3rem;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    margin-top: 3rem;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+  }
+  .meta > :global(p:only-child) {
+    margin-inline-start: auto;
+  }
+
+  .site-footer {
+    margin-top: 2rem;
+    border-top: 1px solid var(--sl-color-hairline);
+    padding-top: 2rem;
+  }
+  .site-footer-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 2rem;
+  }
+  @media (max-width: 40rem) {
+    .site-footer-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  .site-footer-col h2 {
+    font-size: var(--sl-text-sm);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--sl-color-gray-3);
+    margin: 0 0 0.75rem;
+  }
+  .site-footer-col ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .site-footer-col a {
+    color: var(--sl-color-gray-2);
+    text-decoration: none;
+    font-size: var(--sl-text-sm);
+  }
+  .site-footer-col a:hover {
+    color: var(--sl-color-text-accent);
+  }
+  .site-footer-note {
+    margin-top: 2rem;
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-4);
+  }
+</style>

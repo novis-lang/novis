@@ -1,0 +1,11 @@
+<?nvs
+var $s = "The quick brown fox";
+
+var $at = Core\Str::indexOf($s, "quick");
+if ($at != null) {
+    echo "found at ", $at, "\n";
+}
+
+if (Core\Str::indexOf($s, "wolf") == null) {
+    echo "no wolf here\n";
+}

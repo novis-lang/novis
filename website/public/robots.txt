@@ -1,0 +1,7 @@
+# Novis website. Everything is public and indexable.
+User-agent: *
+Allow: /
+
+# Machine-readable inventories:
+Sitemap: https://novis-lang.org/sitemap-index.xml
+# Agent/LLM index: https://novis-lang.org/llms.txt

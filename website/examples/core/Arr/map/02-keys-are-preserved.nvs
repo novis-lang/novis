@@ -1,0 +1,11 @@
+<?nvs
+// map keeps every key; the callback may also take the key as its second
+// parameter — no ARRAY_FILTER_USE_BOTH flags anywhere.
+array<int> $prices = ["coffee" => 350, "cake" => 420];
+
+var $labels = Core\Arr::map($prices, fn(int $cents, string $item): string
+    => $item . ": " . Core\Str::format("%.2f", $cents / 100.0));
+
+foreach ($labels as string $line) {
+    echo $line, "\n";
+}

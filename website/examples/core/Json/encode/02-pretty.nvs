@@ -1,0 +1,2 @@
+<?nvs
+echo Core\Json::encode(["tags" => ["fast", "safe"]], {pretty: true}), "\n";

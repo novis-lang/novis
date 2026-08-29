@@ -1,0 +1,3 @@
+{
+  "//": "Per-member changelog. Key: member id (e.g. \"Str.length\"). Value: array of {version, change}. Empty until the first release that changes a member."
+}

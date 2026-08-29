@@ -1,2 +1,546 @@
-/* Deliberately empty. Every rule the site grows starts here, on purpose, rather
-   than being inherited from a theme nobody chose. */
+/**
+ * The Novis site theme.
+ *
+ * ONE knob: --nv-base. Every accent shade, badge, gradient and highlight is
+ * derived from it with color-mix(), so re-tinting the whole site (the
+ * Playwright-style "swap the green for blue") is a one-line change.
+ */
+
+:root {
+  /* The base color. Change this line to re-tint the site. */
+  --nv-base: #2563eb;
+
+  /* Derived accent scale (dark theme is the :root default in Starlight). */
+  --sl-color-accent-low: color-mix(in oklab, var(--nv-base) 32%, black);
+  --sl-color-accent: var(--nv-base);
+  --sl-color-accent-high: color-mix(in oklab, var(--nv-base) 55%, white);
+
+  --nv-accent-soft: color-mix(in oklab, var(--nv-base) 16%, transparent);
+  --nv-accent-softer: color-mix(in oklab, var(--nv-base) 9%, transparent);
+  --nv-gradient: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--nv-base) 80%, white) 0%,
+    var(--nv-base) 55%,
+    color-mix(in oklab, var(--nv-base) 60%, black) 100%
+  );
+
+  --nv-ok: #2f9e63;
+  --nv-warn: #b7791f;
+}
+
+:root[data-theme='light'] {
+  --sl-color-accent-low: color-mix(in oklab, var(--nv-base) 22%, white);
+  --sl-color-accent: color-mix(in oklab, var(--nv-base) 92%, black);
+  --sl-color-accent-high: color-mix(in oklab, var(--nv-base) 65%, black);
+}
+
+/* Utility used by components. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ------------------------------------------------------------------ badges */
+
+.method-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0.3em 0.55em;
+  border-radius: 999px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.method-badge-available {
+  color: var(--nv-ok);
+  background-color: color-mix(in oklab, var(--nv-ok) 14%, transparent);
+  border: 1px solid color-mix(in oklab, var(--nv-ok) 35%, transparent);
+}
+.method-badge-planned {
+  color: var(--sl-color-gray-2);
+  background-color: color-mix(in oklab, var(--sl-color-gray-4) 18%, transparent);
+  border: 1px solid var(--sl-color-hairline);
+}
+.nv-badge-planned {
+  font-size: 0.62rem;
+}
+
+/* --------------------------------------------------------- method signature */
+
+.method-signature {
+  border: 1px solid var(--sl-color-hairline);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  margin-top: 1.5rem;
+  background-color: var(--sl-color-bg-nav);
+}
+.method-signature-decl-row {
+  display: flex;
+  gap: 0.75rem 1rem;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding: 0.9rem 1rem;
+  background-color: var(--nv-accent-softer);
+  border-bottom: 1px solid var(--sl-color-hairline);
+}
+.method-signature-decl {
+  font-size: var(--sl-text-sm);
+  line-height: 1.6;
+  overflow-x: auto;
+  background: none;
+  padding: 0;
+}
+.method-signature-decl .sig-class {
+  color: var(--sl-color-text-accent);
+  font-weight: 600;
+}
+.method-signature-decl .sig-name {
+  color: var(--sl-color-white);
+  font-weight: 700;
+}
+.method-signature-decl .sig-type,
+.method-signature-decl .sig-generics {
+  color: var(--sl-color-text-accent);
+}
+.method-signature-decl .sig-var {
+  color: var(--sl-color-text);
+}
+.method-signature-decl .sig-punct {
+  color: var(--sl-color-gray-3);
+}
+.method-signature-decl .sig-default,
+.method-signature-decl .sig-options {
+  color: var(--sl-color-gray-2);
+}
+
+.method-signature-table {
+  width: 100%;
+  margin: 0;
+  border-collapse: collapse;
+  font-size: var(--sl-text-sm);
+}
+.method-signature-table caption {
+  text-align: start;
+  font-weight: 600;
+  padding: 0.75rem 1rem 0.25rem;
+  color: var(--sl-color-white);
+}
+.method-signature-caption-hint {
+  font-weight: 400;
+  color: var(--sl-color-gray-3);
+  font-size: var(--sl-text-xs);
+}
+.method-signature-table th {
+  text-align: start;
+  font-size: var(--sl-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--sl-color-gray-3);
+  padding: 0.35rem 1rem;
+  border-bottom: 1px solid var(--sl-color-hairline);
+}
+.method-signature-table td {
+  padding: 0.45rem 1rem;
+  border-bottom: 1px solid color-mix(in oklab, var(--sl-color-hairline) 55%, transparent);
+  vertical-align: top;
+}
+.method-signature-table tr:last-child td {
+  border-bottom: 1px solid var(--sl-color-hairline);
+}
+.method-required {
+  font-size: var(--sl-text-xs);
+  color: var(--sl-color-gray-3);
+}
+.sig-type-cell {
+  color: var(--sl-color-text-accent);
+}
+
+.method-signature-facts {
+  margin: 0;
+  padding: 0.5rem 0;
+}
+.method-signature-facts > div {
+  display: grid;
+  grid-template-columns: 9.5rem 1fr;
+  gap: 1rem;
+  padding: 0.4rem 1rem;
+  font-size: var(--sl-text-sm);
+}
+.method-signature-facts dt {
+  font-weight: 600;
+  color: var(--sl-color-gray-2);
+}
+.method-signature-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 40rem) {
+  .method-signature-facts > div {
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+  }
+}
+.method-qualifier-sink {
+  color: color-mix(in oklab, var(--sl-color-red, #f87171) 85%, var(--sl-color-text));
+}
+.method-qualifier-launder {
+  color: var(--nv-ok);
+}
+
+.method-see-also-hint {
+  color: var(--sl-color-gray-3);
+  font-size: var(--sl-text-sm);
+}
+
+/* ------------------------------------------------------------- class pages */
+
+.class-planned-note {
+  border: 1px solid var(--sl-color-hairline);
+  border-inline-start: 4px solid var(--sl-color-accent);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  margin-top: 1.5rem;
+  background-color: var(--nv-accent-softer);
+  font-size: var(--sl-text-sm);
+}
+.class-member-count {
+  color: var(--sl-color-gray-3);
+  font-size: var(--sl-text-sm);
+}
+.class-member-table-wrapper {
+  overflow-x: auto;
+}
+.class-member-sig {
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- ADR meta */
+
+.adr-meta {
+  border: 1px solid var(--sl-color-hairline);
+  border-radius: 0.75rem;
+  padding: 0.4rem 0;
+  margin-top: 1.5rem;
+  background-color: var(--sl-color-bg-nav);
+  font-size: var(--sl-text-sm);
+}
+.adr-meta-row {
+  display: grid;
+  grid-template-columns: 8rem 1fr;
+  gap: 1rem;
+  padding: 0.4rem 1rem;
+}
+@media (max-width: 40rem) {
+  .adr-meta-row {
+    grid-template-columns: 1fr;
+    gap: 0.1rem;
+  }
+}
+.adr-meta-field {
+  font-weight: 600;
+  color: var(--sl-color-gray-2);
+}
+.adr-meta-value {
+  overflow-wrap: anywhere;
+}
+.adr-ref-title {
+  color: var(--sl-color-gray-3);
+}
+.adr-amended-note {
+  margin-top: 1rem;
+  border: 1px solid color-mix(in oklab, var(--sl-color-accent) 40%, transparent);
+  border-radius: 0.5rem;
+  background-color: var(--nv-accent-softer);
+  padding: 0.6rem 1rem;
+  font-size: var(--sl-text-sm);
+}
+.adr-inshort {
+  margin-top: 1rem;
+  border-inline-start: 4px solid var(--sl-color-accent);
+  padding: 0.5rem 1rem;
+  background-color: var(--nv-accent-softer);
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+.adr-inshort-label {
+  display: block;
+  font-size: var(--sl-text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--sl-color-text-accent);
+  margin-bottom: 0.25rem;
+}
+.adr-inshort p {
+  margin: 0;
+}
+.adr-source-link {
+  display: inline-block;
+  margin-top: 0.75rem;
+  font-size: var(--sl-text-sm);
+}
+
+/* --------------------------------------------------------------- ADR index */
+
+.adr-index-filter input {
+  width: 100%;
+  padding: 0.55rem 0.9rem;
+  font-size: var(--sl-text-base);
+  color: var(--sl-color-white);
+  background-color: var(--sl-color-bg-nav);
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 0.5rem;
+  margin-block: 1rem 1.25rem;
+}
+.adr-index-filter input:focus {
+  outline: 2px solid var(--sl-color-accent);
+  outline-offset: -1px;
+}
+.adr-index-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.adr-index-row {
+  display: block;
+  border: 1px solid var(--sl-color-hairline);
+  border-radius: 0.6rem;
+  padding: 0.7rem 1rem;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+.adr-index-row:hover {
+  border-color: var(--sl-color-accent);
+  background-color: var(--nv-accent-softer);
+}
+.adr-index-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.adr-index-number {
+  font-family: var(--__sl-font-mono, monospace);
+  font-size: var(--sl-text-sm);
+  color: var(--sl-color-text-accent);
+  font-weight: 700;
+}
+.adr-index-title {
+  font-weight: 600;
+  color: var(--sl-color-white);
+}
+.adr-index-status,
+.nv-adr-tooltip-status {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.15em 0.5em;
+  border-radius: 999px;
+  border: 1px solid var(--sl-color-hairline);
+  color: var(--sl-color-gray-3);
+}
+.adr-index-status[data-status='accepted'],
+.nv-adr-tooltip-status[data-status='accepted'] {
+  color: var(--nv-ok);
+  border-color: color-mix(in oklab, var(--nv-ok) 40%, transparent);
+}
+.adr-index-summary {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: var(--sl-text-sm);
+  color: var(--sl-color-gray-3);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------------ ADR tooltip */
+
+#nv-adr-tooltip {
+  position: absolute;
+  z-index: 100;
+  border: 1px solid var(--sl-color-hairline);
+  border-radius: 0.6rem;
+  background-color: var(--sl-color-bg-nav);
+  box-shadow: var(--sl-shadow-md);
+  padding: 0.75rem 0.9rem;
+  pointer-events: none;
+}
+.nv-adr-tooltip-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.nv-adr-tooltip-number {
+  font-family: var(--__sl-font-mono, monospace);
+  font-weight: 700;
+  font-size: var(--sl-text-sm);
+  color: var(--sl-color-text-accent);
+}
+#nv-adr-tooltip .nv-adr-tooltip-title {
+  margin: 0.25rem 0 0;
+  font-weight: 600;
+  font-size: var(--sl-text-sm);
+  color: var(--sl-color-white);
+  line-height: 1.4;
+}
+#nv-adr-tooltip .nv-adr-tooltip-summary {
+  margin: 0.4rem 0 0;
+  font-size: var(--sl-text-xs);
+  color: var(--sl-color-gray-2);
+  line-height: 1.5;
+}
+
+/* ------------------------------------------------------------ draft notice */
+
+.nv-draft-note {
+  border: 1px dashed var(--sl-color-hairline);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.9rem;
+  margin-top: 1rem;
+  font-size: var(--sl-text-xs);
+  color: var(--sl-color-gray-3);
+}
+
+/* ------------------------------------------------------------ landing page */
+
+.nv-hero-code {
+  text-align: start;
+  margin-inline: auto;
+  max-width: 38rem;
+}
+
+.nv-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1rem;
+  margin-top: 2rem;
+}
+.nv-feature {
+  border: 1px solid var(--sl-color-hairline);
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  background-color: var(--sl-color-bg-nav);
+}
+.nv-feature h3 {
+  margin: 0 0 0.5rem;
+  font-size: var(--sl-text-lg);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.nv-feature p {
+  margin: 0;
+  color: var(--sl-color-gray-2);
+  font-size: var(--sl-text-sm);
+  line-height: 1.6;
+}
+.nv-feature-icon {
+  display: inline-flex;
+  width: 2rem;
+  height: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  background: var(--nv-accent-soft);
+  color: var(--sl-color-text-accent);
+  flex-shrink: 0;
+}
+
+/* --------------------------------------------------------------- why page */
+
+.nv-claims {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+.nv-claim {
+  border: 1px solid var(--sl-color-hairline);
+  border-radius: 0.75rem;
+  padding: 1.1rem 1.25rem;
+  background-color: var(--sl-color-bg-nav);
+}
+.nv-claim > h3 {
+  margin: 0;
+  font-size: var(--sl-text-lg);
+  line-height: 1.45;
+}
+.nv-claim-meta {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.6rem;
+}
+.nv-claim-chip {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.2em 0.6em;
+  border-radius: 999px;
+  border: 1px solid var(--sl-color-hairline);
+  color: var(--sl-color-gray-3);
+}
+.nv-claim-chip-draft {
+  color: var(--nv-warn);
+  border-color: color-mix(in oklab, var(--nv-warn) 45%, transparent);
+}
+.nv-claim-body {
+  margin-top: 0.75rem;
+  font-size: var(--sl-text-sm);
+  line-height: 1.65;
+}
+.nv-claim-body > :first-child {
+  margin-top: 0;
+}
+.nv-claim-proof,
+.nv-claim-tradeoff {
+  margin-top: 0.75rem;
+  font-size: var(--sl-text-sm);
+  padding: 0.5rem 0.9rem;
+  border-radius: 0.5rem;
+}
+.nv-claim-proof {
+  background-color: color-mix(in oklab, var(--nv-ok) 8%, transparent);
+  border-inline-start: 3px solid var(--nv-ok);
+}
+.nv-claim-tradeoff {
+  background-color: color-mix(in oklab, var(--nv-warn) 8%, transparent);
+  border-inline-start: 3px solid var(--nv-warn);
+}
+.nv-claim-proof strong,
+.nv-claim-tradeoff strong {
+  font-size: var(--sl-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* --------------------------------------------------------------- site index */
+
+.nv-siteindex h2 {
+  margin-top: 2rem;
+}
+.nv-siteindex ul {
+  columns: 2;
+  column-gap: 2.5rem;
+  padding-inline-start: 1.2rem;
+}
+@media (max-width: 50rem) {
+  .nv-siteindex ul {
+    columns: 1;
+  }
+}

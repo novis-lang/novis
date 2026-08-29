@@ -1,0 +1,43 @@
+---
+/**
+ * Per-member changelog block. Data lives in src/data/core-changelog.json
+ * (keyed by member id); a member with no entries renders nothing, so pages
+ * carry the block from day one and it appears when the first release
+ * changes something.
+ */
+import changelog from '../data/core-changelog.json'
+
+interface Props {
+  id: string
+}
+
+const { id } = Astro.props
+const entries = (changelog as Record<string, { version: string; change: string }[] | unknown>)[id]
+const list = Array.isArray(entries) ? (entries as { version: string; change: string }[]) : []
+---
+
+{
+  list.length > 0 && (
+    <section class="method-changelog">
+      <h2 id="changelog">Changelog</h2>
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Version</th>
+            <th scope="col">Change</th>
+          </tr>
+        </thead>
+        <tbody>
+          {list.map((e) => (
+            <tr>
+              <td>
+                <code>{e.version}</code>
+              </td>
+              <td>{e.change}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  )
+}

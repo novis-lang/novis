@@ -1,0 +1,4 @@
+<?nvs
+echo Core\Str::format("%s has %d items\n", "the cart", 3);
+echo Core\Str::format("%.2f\n", 3.14159);
+echo Core\Str::format("%x\n", 255);

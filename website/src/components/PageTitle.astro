@@ -1,0 +1,20 @@
+---
+/**
+ * PageTitle override: the default title, plus a discreet draft notice on
+ * generated Core pages a human has not reviewed yet (frontmatter
+ * `novis.draft: true` — remove the flag after reviewing the prose).
+ */
+import Default from '@astrojs/starlight/components/PageTitle.astro'
+
+const novis = (Astro.locals.starlightRoute.entry.data as { novis?: { draft?: boolean; kind?: string } }).novis
+---
+
+<Default><slot /></Default>
+{
+  novis?.draft && (
+    <p class="nv-draft-note">
+      <strong>Draft.</strong> The prose on this page was generated from the specification and has not
+      been reviewed by a human yet. The signature block and status badge are exact either way.
+    </p>
+  )
+}

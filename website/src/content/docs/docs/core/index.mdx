@@ -1,0 +1,20 @@
+---
+title: Core reference
+description: Every class of the Novis Core library — the complete standard library surface, with implementation status per member.
+---
+
+import CoreIndex from '@components/CoreIndex.astro'
+
+Everything in Novis's standard library is a member of a `Core\…` class — there are no
+global functions. This reference is generated from the language's own specification and
+registry, so it always matches the toolchain: every member page states its exact
+signature, and a badge says whether it is already available or still on its way.
+
+Three status values appear below:
+
+- **Available** — implemented in the current toolchain.
+- **Specified** — the exact signatures are final, implementation is in progress.
+- **Planned** — the class is decided (its ADR is linked on its page), signatures are not
+  final yet.
+
+<CoreIndex />

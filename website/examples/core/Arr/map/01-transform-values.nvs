@@ -1,0 +1,5 @@
+<?nvs
+var $squares = Core\Arr::map([1, 2, 3, 4], fn(int $n): int => $n * $n);
+foreach ($squares as int $v) {
+    echo $v, "\n";
+}

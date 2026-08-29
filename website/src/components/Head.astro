@@ -1,0 +1,10 @@
+---
+/**
+ * Head override: the default Starlight head plus the site-wide client script
+ * for ADR hover tooltips.
+ */
+import Default from '@astrojs/starlight/components/Head.astro'
+---
+
+<Default><slot /></Default>
+<script src="../scripts/adr-tooltips.ts"></script>

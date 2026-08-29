@@ -1,0 +1,8 @@
+<?nvs
+var $s = "one, two, one, two";
+
+// Start the search later in the string…
+echo Core\Str::indexOf($s, "one", {from: 5}) ?? 0, "\n";
+
+// …or ignore case entirely.
+echo Core\Str::indexOf($s, "TWO", {caseInsensitive: true}) ?? 0, "\n";

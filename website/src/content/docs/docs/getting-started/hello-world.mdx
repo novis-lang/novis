@@ -1,0 +1,49 @@
+---
+title: Hello, World!
+description: Your first Novis program — one file, one open tag, one echo.
+---
+
+A Novis program is a text file with the extension `.nvs`. It starts with the single open
+tag `<?nvs`, and there is no closing tag — the whole file is code.
+
+Create a file called `hello.nvs`:
+
+```novis
+<?nvs
+echo "Hello, World!";
+```
+
+Run it:
+
+```sh
+nvs run hello.nvs
+```
+
+```txt
+Hello, World!
+```
+
+That's the whole program. A few things worth noticing even at this size:
+
+- **`<?nvs` appears exactly once, at the top.** Novis is not a template language that
+  drops in and out of HTML — a file is code from the first line to the last.
+- **`echo` is a statement**, and in a web handler its output goes through an HTML-escaping
+  sink automatically. In a CLI program like this one it writes to the terminal, where
+  control characters are made visible instead of being interpreted.
+- **Strings are real UTF-8 text.** `"Hello, World!"` is a `string`; raw bytes are a
+  separate type with separate functions.
+
+## A slightly bigger program
+
+```novis
+<?nvs
+var $arguments = Core\Cli::arguments();
+var $who = Core\Arr::first($arguments) ?? "World";
+echo Core\Str::format("Hello, %s!\n", $who);
+```
+
+`var` declares a variable with its type inferred; `Core\Cli::arguments()` replaces PHP's
+`$argv`; and `Core\Str::format` is the checked replacement for `sprintf` — a literal
+template has its placeholders verified at compile time. Every standard-library function
+lives as a member of a `Core\…` class: browse them all in the
+[Core reference](/docs/core/).

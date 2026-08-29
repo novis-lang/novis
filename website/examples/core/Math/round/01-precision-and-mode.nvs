@@ -1,0 +1,5 @@
+<?nvs
+echo Core\Math::round(3.14159, {precision: 2}), "\n";
+echo Core\Math::round(2.5), "\n";
+echo Core\Math::round(2.5, {mode: Core\RoundMode::HalfEven}), "\n";
+echo Core\Math::round(-2.5), "\n";

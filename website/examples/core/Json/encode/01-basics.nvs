@@ -1,0 +1,3 @@
+<?nvs
+echo Core\Json::encode([1, 2, 3]), "\n";
+echo Core\Json::encode(["name" => "Ada", "age" => 36]), "\n";

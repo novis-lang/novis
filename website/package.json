@@ -11,7 +11,11 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "sync": "node scripts/sync-adrs.mjs && node scripts/sync-core.mjs",
+    "sync:adrs": "node scripts/sync-adrs.mjs",
+    "sync:core": "node scripts/sync-core.mjs",
+    "examples:check": "node scripts/check-examples.mjs"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.41.9",

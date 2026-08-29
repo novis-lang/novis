@@ -1,0 +1,140 @@
+---
+/**
+ * The tool-owned body of a Core class page: what the spec says about the
+ * class, the complete member table with implementation status, enums and
+ * constants. Renders from src/data/core.json.
+ */
+import { findClass } from '~/lib/core'
+
+interface Props {
+  id: string
+}
+
+const { id } = Astro.props
+const cls = findClass(id)
+if (!cls) throw new Error(`ClassOverview: unknown class id "${id}" — run \`npm run sync:core\`?`)
+
+const implementedCount = cls.members.filter((m) => m.implemented).length
+const surfaceOnly = cls.members.length === 0
+const clsExtra = cls as typeof cls & { summaryHtml?: string; surfaceHtml?: string }
+---
+
+<div class="class-overview">
+  {
+    surfaceOnly && (
+      <div class="class-planned-note not-content">
+        <strong>Planned.</strong> This class is specified but its member signatures are not finalized in
+        the specification yet. The summary below states what it will own
+        {cls.adrs.length > 0 && (
+          <>
+            {' '}
+            — the governing decision{cls.adrs.length > 1 ? 's are' : ' is'}{' '}
+            {cls.adrs.map((a, i) => (
+              <>
+                {i > 0 && ', '}
+                <a href={`/docs/adr/${a}/`} data-adr={a}>
+                  ADR {a}
+                </a>
+              </>
+            ))}
+          </>
+        )}
+        .
+      </div>
+    )
+  }
+
+  {clsExtra.summaryHtml && <div class="class-summary" set:html={clsExtra.summaryHtml} />}
+  {!clsExtra.summaryHtml && clsExtra.surfaceHtml && <p class="class-summary" set:html={clsExtra.surfaceHtml} />}
+
+  {
+    cls.members.length > 0 && (
+      <>
+        <h2 id="members">Members</h2>
+        <p class="class-member-count">
+          {cls.members.length} member{cls.members.length === 1 ? '' : 's'}, {implementedCount} implemented in the
+          current toolchain.
+        </p>
+        <div class="class-member-table-wrapper">
+          <table class="class-member-table">
+            <thead>
+              <tr>
+                <th scope="col">Member</th>
+                <th scope="col">Signature</th>
+                <th scope="col">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cls.members.map((m) => (
+                <tr>
+                  <td>
+                    <a href={m.url}>
+                      <code>{m.name}</code>
+                    </a>
+                  </td>
+                  <td>
+                    <code class="class-member-sig">{m.signature}</code>
+                  </td>
+                  <td>
+                    <span
+                      class:list={['method-badge', m.implemented ? 'method-badge-available' : 'method-badge-planned']}
+                    >
+                      {m.implemented ? 'Available' : 'Planned'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </>
+    )
+  }
+
+  {
+    cls.enums.length > 0 && (
+      <>
+        <h2 id="enums">Enums</h2>
+        <ul>
+          {cls.enums.map((e) => (
+            <li>
+              <code>{e.raw}</code>
+            </li>
+          ))}
+        </ul>
+      </>
+    )
+  }
+
+  {
+    cls.constants.length > 0 && (
+      <>
+        <h2 id="constants">Constants</h2>
+        <ul>
+          {cls.constants.map((c) => (
+            <li>
+              <code>
+                {cls.name}::{c}
+              </code>
+            </li>
+          ))}
+        </ul>
+      </>
+    )
+  }
+
+  {
+    cls.unparsed.length > 0 && (
+      <>
+        <h2 id="further-members">Stated in the spec, not yet extracted</h2>
+        <ul>
+          {cls.unparsed.map((u) => (
+            <li>
+              <code>{u.memberCell}</code> — {u.signatureCell}
+            </li>
+          ))}
+        </ul>
+      </>
+    )
+  }
+</div>

@@ -1,0 +1,53 @@
+---
+/**
+ * The Core reference landing table: every class, its member count and status.
+ */
+import { classes } from '~/lib/core'
+
+const rows = classes.map((cls) => ({
+  label: cls.id.replace(/\./g, '\\'),
+  url: cls.url,
+  members: cls.members.length,
+  implemented: cls.members.filter((m) => m.implemented).length,
+  planned: cls.members.length === 0,
+}))
+---
+
+<div class="class-member-table-wrapper">
+  <table class="class-member-table">
+    <thead>
+      <tr>
+        <th scope="col">Class</th>
+        <th scope="col">Members</th>
+        <th scope="col">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        rows.map((row) => (
+          <tr>
+            <td>
+              <a href={row.url}>
+                <code>Core\{row.label}</code>
+              </a>
+            </td>
+            <td>{row.planned ? '—' : row.members}</td>
+            <td>
+              {row.planned ? (
+                <span class="method-badge method-badge-planned">Planned</span>
+              ) : row.implemented === row.members ? (
+                <span class="method-badge method-badge-available">Available</span>
+              ) : row.implemented > 0 ? (
+                <span class="method-badge method-badge-available">
+                  {row.implemented}/{row.members} available
+                </span>
+              ) : (
+                <span class="method-badge method-badge-planned">Specified</span>
+              )}
+            </td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+</div>

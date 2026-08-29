@@ -1,0 +1,6 @@
+<?nvs
+var $s = "Hello, World!";
+
+echo Core\Str::slice($s, 7), "\n";      // from offset 7 to the end
+echo Core\Str::slice($s, 0, 5), "\n";   // the first five graphemes
+echo Core\Str::slice($s, -6, 5), "\n";  // negative offset counts from the end

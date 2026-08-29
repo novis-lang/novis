@@ -1,0 +1,138 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Novis",
+  "scopeName": "source.novis",
+  "fileTypes": ["nvs"],
+  "patterns": [
+    { "include": "#open-tag" },
+    { "include": "#comments" },
+    { "include": "#attributes" },
+    { "include": "#strings" },
+    { "include": "#durations" },
+    { "include": "#numbers" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#constants" },
+    { "include": "#core-path" },
+    { "include": "#variables" },
+    { "include": "#member-access" },
+    { "include": "#function-call" },
+    { "include": "#operators" }
+  ],
+  "repository": {
+    "open-tag": {
+      "match": "<\\?nvs\\b",
+      "name": "punctuation.section.embedded.begin.novis"
+    },
+    "comments": {
+      "patterns": [
+        { "match": "//.*$", "name": "comment.line.double-slash.novis" },
+        { "begin": "/\\*", "end": "\\*/", "name": "comment.block.novis" }
+      ]
+    },
+    "attributes": {
+      "begin": "#\\[",
+      "end": "\\]",
+      "name": "meta.attribute.novis",
+      "beginCaptures": { "0": { "name": "punctuation.definition.attribute.novis" } },
+      "endCaptures": { "0": { "name": "punctuation.definition.attribute.novis" } },
+      "patterns": [
+        { "match": "[A-Za-z_][A-Za-z0-9_\\\\]*", "name": "entity.other.attribute-name.novis" },
+        { "include": "#strings" },
+        { "include": "#numbers" }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "begin": "\"",
+          "end": "\"",
+          "name": "string.quoted.double.novis",
+          "patterns": [
+            { "match": "\\\\[nrtv0\\\\\"$]", "name": "constant.character.escape.novis" },
+            { "match": "\\\\u\\{[0-9A-Fa-f]+\\}", "name": "constant.character.escape.unicode.novis" }
+          ]
+        },
+        {
+          "begin": "'",
+          "end": "'",
+          "name": "string.quoted.single.novis",
+          "patterns": [{ "match": "\\\\[\\\\']", "name": "constant.character.escape.novis" }]
+        }
+      ]
+    },
+    "durations": {
+      "match": "\\b\\d+(?:\\.\\d+)?(?:ns|us|ms|s|m|h|d|w)\\b",
+      "name": "constant.numeric.duration.novis"
+    },
+    "numbers": {
+      "patterns": [
+        { "match": "\\b0x[0-9A-Fa-f_]+\\b", "name": "constant.numeric.hex.novis" },
+        { "match": "\\b0b[01_]+\\b", "name": "constant.numeric.binary.novis" },
+        { "match": "\\b\\d[\\d_]*\\.\\d[\\d_]*(?:[eE][+-]?\\d+)?\\b", "name": "constant.numeric.float.novis" },
+        { "match": "\\b\\d[\\d_]*\\b", "name": "constant.numeric.integer.novis" }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "match": "\\b(if|else|match|foreach|for|while|do|break|continue|return|try|catch|finally|throw|exit|echo|unset|spawn|await|yield)\\b",
+          "name": "keyword.control.novis"
+        },
+        {
+          "match": "\\b(var|fn|function|class|interface|enum|type|new|clone|static|public|private|protected|readonly|lateinit|const|extends|implements|by|namespace|use|as|instanceof|include|global|secret|tainted)\\b",
+          "name": "keyword.other.novis"
+        }
+      ]
+    },
+    "types": {
+      "match": "\\b(int|uint|float|decimal|bool|string|bytes|array|mixed|void|callable|null|self|static|parent|Iterable|Iterator)\\b",
+      "name": "support.type.novis"
+    },
+    "constants": {
+      "match": "\\b(true|false|null)\\b",
+      "name": "constant.language.novis"
+    },
+    "core-path": {
+      "match": "\\b(?:[A-Z][A-Za-z0-9_]*\\\\)+[A-Z][A-Za-z0-9_]*\\b",
+      "name": "entity.name.class.novis"
+    },
+    "variables": {
+      "match": "\\$[A-Za-z_][A-Za-z0-9_]*",
+      "name": "variable.other.novis"
+    },
+    "member-access": {
+      "patterns": [
+        {
+          "match": "(::)([A-Za-z_][A-Za-z0-9_]*)(?=\\s*\\()",
+          "captures": {
+            "1": { "name": "punctuation.separator.novis" },
+            "2": { "name": "entity.name.function.novis" }
+          }
+        },
+        {
+          "match": "(::)([A-Z][A-Za-z0-9_]*)\\b",
+          "captures": {
+            "1": { "name": "punctuation.separator.novis" },
+            "2": { "name": "constant.other.enum.novis" }
+          }
+        },
+        {
+          "match": "(->)([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "punctuation.separator.novis" },
+            "2": { "name": "entity.name.function.member.novis" }
+          }
+        }
+      ]
+    },
+    "function-call": {
+      "match": "\\b([a-z_][A-Za-z0-9_]*)(?=\\s*\\()",
+      "name": "entity.name.function.novis"
+    },
+    "operators": {
+      "match": "=>|\\?\\?|\\?->|<=>|===|!==|==|!=|<=|>=|&&|\\|\\||\\+\\+|--|\\*\\*|\\.=|[-+*/%.!<>=?:|&~^]",
+      "name": "keyword.operator.novis"
+    }
+  }
+}

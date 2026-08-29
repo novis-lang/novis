@@ -1,0 +1,179 @@
+---
+/**
+ * Sidebar override: the default sidebar plus a filter box at the top.
+ *
+ * Typing filters the tree live: matching entries stay visible and highlighted,
+ * their groups expand, everything else is hidden. Escape (or clearing the box)
+ * restores the default view, including each group's original open state.
+ * This filters the *navigation tree* only — full-text search is the search
+ * button in the header.
+ */
+import MobileMenuFooter from 'virtual:starlight/components/MobileMenuFooter'
+import SidebarPersister from '@astrojs/starlight/components/SidebarPersister.astro'
+import SidebarSublist from '@astrojs/starlight/components/SidebarSublist.astro'
+
+const { sidebar } = Astro.locals.starlightRoute
+---
+
+<div class="nv-sidebar-filter print:hidden">
+  <label>
+    <span class="sr-only">Filter navigation</span>
+    <input
+      type="search"
+      id="nv-sidebar-filter-input"
+      placeholder="Filter navigation…"
+      autocomplete="off"
+      spellcheck="false"
+      aria-controls="nv-sidebar-tree"
+    />
+  </label>
+  <p class="sr-only" role="status" aria-live="polite" id="nv-sidebar-filter-status"></p>
+</div>
+
+<div id="nv-sidebar-tree">
+  <SidebarPersister>
+    <SidebarSublist sublist={sidebar} />
+  </SidebarPersister>
+</div>
+
+<div class="md:sl-hidden">
+  <MobileMenuFooter />
+</div>
+
+<style>
+  .nv-sidebar-filter {
+    padding-block: 0.25rem 0.75rem;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background-color: var(--sl-color-bg-sidebar);
+  }
+  .nv-sidebar-filter input {
+    width: 100%;
+    padding: 0.45rem 0.75rem;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-white);
+    background-color: var(--sl-color-black);
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.5rem;
+  }
+  .nv-sidebar-filter input:focus {
+    outline: 2px solid var(--sl-color-accent);
+    outline-offset: -1px;
+  }
+  #nv-sidebar-tree :global(li[data-nv-hidden]) {
+    display: none;
+  }
+  #nv-sidebar-tree :global(mark.nv-filter-match) {
+    background-color: var(--sl-color-accent-low);
+    color: inherit;
+    border-radius: 0.15rem;
+    padding-inline: 0.05em;
+  }
+</style>
+
+<script>
+  function setUp() {
+    const input = document.getElementById('nv-sidebar-filter-input') as HTMLInputElement | null
+    const tree = document.getElementById('nv-sidebar-tree')
+    const status = document.getElementById('nv-sidebar-filter-status')
+    if (!input || !tree) return
+
+    /** Original `open` state of each group, captured before the first filter. */
+    let savedOpen: Map<HTMLDetailsElement, boolean> | null = null
+
+    const labelSpan = (li: Element): HTMLElement | null =>
+      li.querySelector(':scope > a > span, :scope > details > summary .group-label span')
+
+    function clearHighlight(root: Element) {
+      for (const mark of root.querySelectorAll('mark.nv-filter-match')) {
+        const parent = mark.parentNode as Node
+        parent.replaceChild(document.createTextNode(mark.textContent ?? ''), mark)
+        parent.normalize()
+      }
+    }
+
+    function highlight(span: HTMLElement, query: string) {
+      const text = span.textContent ?? ''
+      const at = text.toLowerCase().indexOf(query)
+      if (at === -1) return
+      span.textContent = ''
+      span.append(
+        document.createTextNode(text.slice(0, at)),
+        Object.assign(document.createElement('mark'), {
+          className: 'nv-filter-match',
+          textContent: text.slice(at, at + query.length),
+        }),
+        document.createTextNode(text.slice(at + query.length))
+      )
+    }
+
+    /** @returns whether this <li> (or a descendant) matches. */
+    function filterItem(li: Element, query: string): boolean {
+      const span = labelSpan(li)
+      const ownMatch = (span?.textContent ?? '').toLowerCase().includes(query)
+      const details = li.querySelector(':scope > details')
+      let childMatch = false
+      if (details) {
+        for (const childLi of details.querySelectorAll(':scope > ul > li')) {
+          if (filterItem(childLi, query)) childMatch = true
+        }
+        // A matching group shows its whole subtree.
+        if (ownMatch && !childMatch) {
+          for (const childLi of details.querySelectorAll('li')) childLi.removeAttribute('data-nv-hidden')
+        }
+        if (ownMatch || childMatch) (details as HTMLDetailsElement).open = true
+      }
+      const visible = ownMatch || childMatch
+      if (visible) {
+        li.removeAttribute('data-nv-hidden')
+        if (ownMatch && span) highlight(span, query)
+      } else {
+        li.setAttribute('data-nv-hidden', '')
+      }
+      return visible
+    }
+
+    function reset() {
+      clearHighlight(tree!)
+      for (const li of tree!.querySelectorAll('li[data-nv-hidden]')) li.removeAttribute('data-nv-hidden')
+      if (savedOpen) {
+        for (const [details, open] of savedOpen) details.open = open
+        savedOpen = null
+      }
+      if (status) status.textContent = ''
+    }
+
+    function apply() {
+      const query = input!.value.trim().toLowerCase()
+      if (query === '') {
+        reset()
+        return
+      }
+      if (!savedOpen) {
+        savedOpen = new Map()
+        for (const details of tree!.querySelectorAll('details')) savedOpen.set(details, details.open)
+      }
+      clearHighlight(tree!)
+      let count = 0
+      for (const li of tree!.querySelectorAll(':scope > sl-sidebar-state-persist > ul > li, :scope > ul > li')) {
+        if (filterItem(li, query)) count++
+      }
+      // Count actual visible links for the announcement.
+      const visibleLinks = tree!.querySelectorAll('li:not([data-nv-hidden]) > a').length
+      if (status) status.textContent = `${visibleLinks} item${visibleLinks === 1 ? '' : 's'} match`
+      void count
+    }
+
+    input.addEventListener('input', apply)
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        input.value = ''
+        reset()
+      }
+    })
+  }
+
+  setUp()
+</script>
