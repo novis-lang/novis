@@ -1,0 +1,148 @@
+--TEST--
+`Core\Test::assertNull`, `assertSame` against `null` in either order and `assertEquals` against `null` are one predicate over every kind of value a program can build -- ADR 0079 § 4, ADR 0013 § 1
+--FILE--
+<?nvs
+// `test-assert-null-refuses-every-value-that-is-not-null.nvst` asks two of
+// these spellings over eighteen *scalars* and the empty array. The kinds it
+// cannot reach with a literal are the ones where the three members might
+// plausibly part: a value behind a reference, a `Core` instance, a closure,
+// binary data, a container of containers, and a shape. All of those are one
+// `Tag::Object`-or-container answer to `assertNull`'s `matches!` and one call
+// into `identity::value_identical` for the other two, so the claim is that
+// none of them is a special case in either.
+//
+// `assertEquals` is the member with the most room to disagree here: ADR 0013
+// § 1 sends *two objects* to `Comparable::compareTo`, and an object beside
+// `null` is not two objects -- so it must fall back to the identical answer
+// rather than ask the class anything. The object row is what makes that a
+// claim rather than a restatement.
+//
+// The symmetric spelling is `assertSame($nothing, $subject)` with `$nothing` a
+// `mixed` binding, not the literal `null` first. `assertSame`'s two parameters
+// are one `T` bound to argument 1, so `assertSame(null, $subject)` binds `T`
+// to `null` and is `E0401: expected 'null', found 'mixed'` at the second
+// argument -- the member's argument order is fixed by its signature, and a
+// `mixed` binding is the only way to ask identity's other direction at all.
+
+enum Suit {
+    Clubs,
+}
+
+final class Card {
+    public int $rank = 3;
+}
+
+final class Ask {
+    public static function nullish(mixed $subject): bool {
+        try {
+            Core\Test::assertNull($subject);
+            return true;
+        } catch (Core\Test\Failure $fromNull) {
+            return false;
+        }
+    }
+
+    public static function sameAsNull(mixed $subject): bool {
+        try {
+            Core\Test::assertSame($subject, null);
+            return true;
+        } catch (Core\Test\Failure $fromSame) {
+            return false;
+        }
+    }
+
+    public static function nullIsSame(mixed $subject): bool {
+        try {
+            mixed $nothing = null;
+            Core\Test::assertSame($nothing, $subject);
+            return true;
+        } catch (Core\Test\Failure $fromReversed) {
+            return false;
+        }
+    }
+
+    public static function equalsNull(mixed $subject): bool {
+        try {
+            Core\Test::assertEquals($subject, null);
+            return true;
+        } catch (Core\Test\Failure $fromEquals) {
+            return false;
+        }
+    }
+
+    // The control: identity is reflexive, so every row below holds here. It is
+    // what stops the counts from being satisfied by a member that refuses
+    // everything it is handed.
+    public static function reflexive(mixed $subject): bool {
+        try {
+            Core\Test::assertSame($subject, $subject);
+            return true;
+        } catch (Core\Test\Failure $fromReflexive) {
+            return false;
+        }
+    }
+}
+
+Card $card = new Card();
+callable $closure = fn (): int => { return 1; };
+bytes $binary = "ab" as bytes;
+array<array<int>> $nested = [[1], [2]];
+object $shape = {a: 1};
+Core\Time\Duration $duration = 30s;
+?Card $present = $card;
+?Card $missing = null;
+array<string> $empty = [];
+?string $noFirst = Core\Arr::first($empty);
+
+// Eight kinds, none of them `null`: a user object, a closure, `bytes`, a
+// container of containers, an anonymous shape, a `Core` instance built from
+// ADR 0070's duration literal, an enum case, and a `?T` binding that is
+// holding one. Every one must be refused by all four spellings.
+array<mixed> $values = [
+    $card, $closure, $binary, $nested, $shape, $duration, Suit::Clubs, $present,
+];
+
+int $agreed = 0;
+int $held = 0;
+int $reflexive = 0;
+foreach ($values as string $kind => mixed $value) {
+    bool $isNull = Ask::nullish($value);
+    bool $same = Ask::sameAsNull($value);
+    bool $reversed = Ask::nullIsSame($value);
+    bool $equal = Ask::equalsNull($value);
+    if ($isNull == $same && $same == $reversed && $reversed == $equal) {
+        $agreed = $agreed + 1;
+    }
+    if ($isNull) {
+        $held = $held + 1;
+    }
+    if (Ask::reflexive($value)) {
+        $reflexive = $reflexive + 1;
+    }
+}
+echo "non-null: agreed=", $agreed, "/8 held=", $held, "/8 reflexive=", $reflexive, "/8\n";
+
+// The same four spellings over the three ways a `null` arrives: the literal, a
+// `?T` binding initialised to it, and a `?T` no literal wrote -- `Core\Arr::first`
+// over an empty array answers one from inside a member. All four hold on all
+// three, so the agreement above is not the four of them refusing in unison.
+array<mixed> $nulls = [null, $missing, $noFirst];
+
+int $nullAgreed = 0;
+int $nullHeld = 0;
+foreach ($nulls as string $spelling => mixed $nothing) {
+    bool $isNull2 = Ask::nullish($nothing);
+    bool $same2 = Ask::sameAsNull($nothing);
+    bool $reversed2 = Ask::nullIsSame($nothing);
+    bool $equal2 = Ask::equalsNull($nothing);
+    if ($isNull2 == $same2 && $same2 == $reversed2 && $reversed2 == $equal2) {
+        $nullAgreed = $nullAgreed + 1;
+    }
+    if ($isNull2) {
+        $nullHeld = $nullHeld + 1;
+    }
+}
+echo "null: agreed=", $nullAgreed, "/3 held=", $nullHeld, "/3\n";
+--EXPECT--
+non-null: agreed=8/8 held=0/8 reflexive=8/8
+null: agreed=3/3 held=3/3
