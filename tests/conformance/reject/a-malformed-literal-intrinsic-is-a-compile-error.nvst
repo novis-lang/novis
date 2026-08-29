@@ -1,0 +1,67 @@
+--TEST--
+a malformed literal argument to an intrinsic is refused while checking, and the same text behind a variable is not (ADR 0057 §§ 1, 2, 4)
+--FILE--
+<?nvs
+// The other half of `core/a-literal-intrinsic-is-validated-while-checking.nvst`.
+// There the two paths agree on an answer; here the literal path reports, at its
+// own span, the error the first call would have thrown.
+//
+// Every row of § 1's table whose grammar has a reader is written twice — once
+// with the malformed text as a literal, once with the identical text behind a
+// `string` binding. Only the literal spellings are reported, and the count in
+// the final line is what asserts it: § 2 refuses nothing for being dynamic, so
+// the variable-borne twins add no diagnostic and are left to run time.
+
+var $utc = Core\Time\Zone::UTC;
+var $when = Core\Time::at(2026, 8, 28, $utc);
+
+// `Core\Time\DateTime::format`, argument 0 — a CLDR pattern letter no library
+// carries.
+var $badDate = "yyyy-QQQQQQ";
+var $foldedDate = $when->format("yyyy-QQQQQQ");
+var $runtimeDate = $when->format($badDate);
+
+// `Core\Time::parse`, argument *1* — the subject is the text being read, so the
+// pattern is not at position 0 (ADR 0063 R1).
+var $badParse = "yyyy-QQQQQQ";
+var $foldedParsed = Core\Time::parse("2026-08-28", "yyyy-QQQQQQ", $utc);
+var $runtimeParsed = Core\Time::parse("2026-08-28", $badParse, $utc);
+
+// `Core\Regex::compile`, argument 0 — a group neither engine can close.
+var $badPattern = "^order-(\\d+$";
+var $foldedPattern = Core\Regex::compile("^order-(\\d+$");
+var $runtimePattern = Core\Regex::compile($badPattern);
+
+// `Core\Str::format`, argument 0 — a conversion the template grammar does not
+// have. This is the row checked against the *call*, not just the literal.
+var $badTemplate = "total: %q";
+var $foldedText = Core\Str::format("total: %q", 42);
+var $runtimeText = Core\Str::format($badTemplate, 42);
+
+// `Core\Time\Duration::parse`, argument 0 — units that do not descend. The
+// parser is ADR 0070 § 5's one implementation, shared with the lexer, so this
+// is the same sentence the literal `30m1h` gets.
+var $badDuration = "30m1h";
+var $foldedDuration = Core\Time\Duration::parse("30m1h");
+var $runtimeDuration = Core\Time\Duration::parse($badDuration);
+
+// `Core\Uri::parse`, argument 0 — a byte the URI grammar does not admit.
+var $badUri = "https://exa mple.test/x";
+var $foldedUri = Core\Uri::parse("https://exa mple.test/x");
+var $runtimeUri = Core\Uri::parse($badUri);
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0769]: this literal is not one this member can read: `Q` is not a pattern letter this library carries; quote it as `'Q'` to emit it literally
+%A
+error[E0769]: this literal is not one this member can read: `Q` is not a pattern letter this library carries; quote it as `'Q'` to emit it literally
+%A
+error[E0769]: this literal is not one this member can read: `^order-(\d+$` is not a pattern either engine can compile:%A
+error[E0769]: this literal is not one this member can read: `%%q` is not one of the conversions the template grammar allows (`%%s %%d %%u %%f %%e %%g %%x %%X %%o %%b %%%%`)
+%A
+error[E0769]: this literal is not one this member can read: duration units strictly descend and may not repeat, so `h` may not follow `m`
+%A
+error[E0769]: this literal is not one this member can read: this text is not a URI reference (RFC 3986 § 4.1)%A
+error: aborting due to 6 errors

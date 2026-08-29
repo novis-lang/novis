@@ -2167,6 +2167,14 @@ is why" — is this file.
   reports at most one file at a time, so discovering them from the failure log costs a verify run each.
   The same reasoning applies in reverse to a case that must *stay* literal: `Core\Time\Date::format` is not
   on the list, so its inline malformed pattern still throws, and a case can assert both halves side by side.
+- **A case can *look* like it exercises ADR 0057's fold and exercise nothing, because § 1's list names the
+  member that reads the pattern and not its siblings.** `examples/intrinsics.nvs` demonstrated the regex row
+  with `Core\Regex::matches("order-4711", "^order-\\d+$")` under a comment naming `Core\Regex::compile`;
+  `matches` takes a `Pattern|string` and is *not* on the list, so the literal was never read and the line
+  asserted only that two runtime calls agree. The spelling that folds is `Core\Regex::compile("…")`, whose
+  handle `matches` then takes. Check such a line against the `INTRINSICS` table
+  (`crates/nvs-types/src/intrinsics.rs:107`) rather than against the argument's shape, and prove it the cheap
+  way: the same text with a deliberate error is an `E0769` from `nvs check`, or the row is not being read.
 
 ## Splitting a file that got too big
 
