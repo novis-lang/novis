@@ -805,6 +805,24 @@ is why" — is this file.
   the `## run started` boundary, so a failure repaired at the end of a run is what the next run's first
   session reads. Two calls settle it: `git log --format=%ad --date=iso <the fixing commit>` against the
   `started:` line the pack prints, and running the check's own `argv` by hand.
+- **`python tools/gaps.py --coverage` does not list every registered class, and the classes it drops
+  are the ones a floor gate then finds.** Its table printed 30 classes; `nvs_stdlib::registry::CLASSES`
+  holds more, and `Core\Attributes` and `Core\Program` were in neither the ranking nor the "thinnest
+  members" column while both had a member below three cases. The cause is that `gaps.py` reads class
+  names out of the Rust source with `CLASS_RE`/`NAME_CONST_RE` rather than out of the registry, so a
+  class whose `name:` const it cannot resolve vanishes silently — its members are not ranked, not
+  counted and not reported as uncovered. The same read explains smaller drifts in the numbers: it put
+  `Core\Test::assertEquals` at 3 where the registry-driven count says 2. Treat the tool as a *ranking*
+  over most of the tree, not as the roster; anything that has to be true of **every** member reads
+  `registry::CLASSES` directly.
+
+- **The `regex` crate supports no look-around, and this tree carries `fancy-regex` for exactly that.**
+  A pattern with `(?!...)` — the obvious way to write an identifier boundary — compiles fine and then
+  panics at run time with `error: look-around ... is not supported`, naming the caret position and not
+  the crate. Both crates are `nvs-stdlib` dependencies, so the import that fails and the import that
+  works differ by one word. For a right-hand boundary specifically, neither is needed: a
+  `match_indices` walk plus one `chars().next()` check is what `conformance_coverage.rs`'s `mentions`
+  already does.
 
 ## Running things
 
@@ -3491,3 +3509,14 @@ every session. Nothing below was reworded on the way.
   scratch file settle it in one call rather than in a case that will not compile. Worth knowing
   because the assertion members read as if a bad subject were a runtime question; it is a
   signature question.
+- **`Core\Arr::withoutFirst` keeps the keys it did not remove, so dropping entry `0` of a list leaves a
+  map at key `1`.** PHP's `array_shift` reindexes; this does not, because ADR 0063 R3 makes the member
+  answer a copy rather than mutate, and a copy that silently renumbers its own keys is the surprise the
+  rule exists to avoid. `Core\Arr::values` is the reindexing left explicit. Pinned by
+  `tests/conformance/core/arr-the-empty-array-is-what-every-reshaping-member-answers-it-with.nvst`.
+
+- **An `Instant`'s epoch readings truncate toward zero, not toward minus infinity.** 1.5 seconds before
+  the epoch reads as `-1` second, `-1500` millis, `-1500000` micros — so the coarse reading stays the
+  fine one divided on both sides of the epoch, at the cost of the second reading not being the second
+  the instant falls inside. Unix `time_t` convention would floor to `-2`. Pinned by
+  `tests/conformance/core/time-reading-an-instant-in-a-zone-does-not-disturb-the-instant.nvst`.
