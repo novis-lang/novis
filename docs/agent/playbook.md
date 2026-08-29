@@ -871,6 +871,13 @@ is why" — is this file.
   the shape exists. Do it before writing a line, and again before believing a case is new — the
   overlap the second pass found here was a two-line one inside a case whose own title did not
   mention it.
+- **`cargo deny check` is not installed on this machine**, so the standing decision a new
+  Rust dependency owes cannot be run locally — `cargo` answers *no such command: `deny`*
+  and installing it is a multi-minute build. The substance of the check is doable by hand
+  in one call: `python tools/gen-attribution.py` rewrites `THIRD-PARTY-LICENSES.txt` with a
+  resolved-license column per crate, so `grep -n -E "(crate|names)" THIRD-PARTY-LICENSES.txt`
+  against `deny.toml`'s `[licenses] allow` list settles the license half, and the advisory
+  half is CI's. Say in the handoff which crates were cleared that way.
 
 ## Running things
 
@@ -2377,6 +2384,17 @@ is why" — is this file.
   is one call. What was genuinely missing there was the *category* the range is — `U+2028` and a
   bidi override are printable, `NEL` and `TAB` are not — which is a different case and the one that
   landed. Read the member's existing case before choosing the shape, not after writing one.
+- **Widening a union of enum-case types rewrites every `E0401` that names it, and a
+  `--EXPECTF-ERROR--` case has the whole list frozen in it.** `Core\StrongDigest` went from
+  three cases to ten and `tests/conformance/core/hash-hmac-refuses-a-weak-digest.nvst`
+  went red, because its expected first line is
+  `expected \`Core\Digest::Sha256|Core\Digest::Sha384|Core\Digest::Sha512\`, found
+  \`Core\Digest\`` — the accepted set is generated from the parameter's own type, so the
+  refusal case is a *roster* case as much as the roster table is. `%A` covers the span and
+  the caret line but never the message itself. Before adding a case to a `CoreTy::EnumCase`
+  union in `nvs-stdlib`, `grep -rn "<the union's first case>" tests/conformance/` and expect
+  to update every hit; the `.nvst` suite is the only leg that catches it, and it catches it
+  as a diff of two very long lines.
 
 ## Splitting a file that got too big
 

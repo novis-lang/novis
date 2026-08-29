@@ -1,0 +1,31 @@
+--TEST--
+`Core\Digest::Blake3` hashes but does not authenticate: `Core\Hash::hmac` refuses it, and the diagnostic's accepted set is exactly spec § 11's ten `StrongDigest` cases — spec § 11, ADR 0047 § 3
+--FILE--
+<?nvs
+// Every other case outside `StrongDigest` is outside it because it is broken
+// or because it is a checksum. `Blake3` is neither: it is the strongest and
+// fastest algorithm on § 11's roster, and it is refused here anyway.
+//
+// The reason is that HMAC-BLAKE3 is a construction nobody uses. BLAKE3 is
+// keyed natively, so wrapping it in RFC 2104's two padded blocks is slower
+// than the primitive's own keyed mode and interoperates with nothing —
+// admitting it would offer a spelling whose only property is that it type
+// checks. It waits for a keyed member designed as one. Because widening a
+// union of enum-case types is backward compatible and narrowing it is not,
+// this is the direction that can be undone later and the other one cannot.
+//
+// The accepted set below is generated from the parameter's own type, so this
+// line is also what pins that widening `StrongDigest` to ten cases did not
+// sweep `Blake3` in: it names every case that authenticates, and this one is
+// absent from it. That `Blake3` *hashes* is
+// `hash-of-reproduces-the-modern-digests-published-vectors.nvst`, which is the
+// half a compile-error case cannot also assert.
+bytes $key = Core\Encoding::fromHex("4a656665");
+bytes $mac = Core\Hash::hmac("message", $key, Core\Digest::Blake3);
+echo Core\Encoding::toHex($mac), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `Core\Digest::Sha224|Core\Digest::Sha256|Core\Digest::Sha384|Core\Digest::Sha512|Core\Digest::Sha512_224|Core\Digest::Sha512_256|Core\Digest::Sha3_224|Core\Digest::Sha3_256|Core\Digest::Sha3_384|Core\Digest::Sha3_512`, found `Core\Digest`
+%A
+error: aborting due to 1 error

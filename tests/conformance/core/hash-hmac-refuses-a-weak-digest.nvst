@@ -1,5 +1,5 @@
 --TEST--
-`Core\Hash::hmac` takes spec § 11's `StrongDigest`, so a legacy `Core\Digest` case does not compile and the diagnostic names the three that do — spec § 11, ADR 0047 § 3
+`Core\Hash::hmac` takes spec § 11's `StrongDigest`, so a legacy `Core\Digest` case does not compile and the diagnostic names every case that does — spec § 11, ADR 0047 § 3
 --FILE--
 <?nvs
 // `StrongDigest` is not a second enum — it is the closed subset of `Digest`,
@@ -13,6 +13,6 @@ echo Core\Encoding::toHex($mac), "\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0401]: expected `Core\Digest::Sha256|Core\Digest::Sha384|Core\Digest::Sha512`, found `Core\Digest`
+error[E0401]: expected `Core\Digest::Sha224|Core\Digest::Sha256|Core\Digest::Sha384|Core\Digest::Sha512|Core\Digest::Sha512_224|Core\Digest::Sha512_256|Core\Digest::Sha3_224|Core\Digest::Sha3_256|Core\Digest::Sha3_384|Core\Digest::Sha3_512`, found `Core\Digest`
 %A
 error: aborting due to 1 error

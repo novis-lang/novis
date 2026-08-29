@@ -1,0 +1,133 @@
+--TEST--
+`Core\Hash::hmac` accepts every one of spec § 11's ten `StrongDigest` cases and keys each of them — RFC 2104, RFC 4231 test case 2, spec § 11's roster table
+--FILE--
+<?nvs
+// `StrongDigest` grew from three cases to ten, and a union of enum-case types
+// is exactly the surface that can widen without anything failing: a case added
+// to it type-checks at every call site immediately, whether or not the runtime
+// grew an arm for it. So this case asks the *same* question of all ten and
+// counts the answers, rather than reading one line per algorithm — a member
+// that answered plausibly for nine and repeated an arm for the tenth passes
+// every per-line reading and fails the counts below.
+//
+// RFC 4231 § 4.3's test case 2 throughout, the one with a key short enough to
+// read. That RFC publishes the four SHA-2 widths it was written for; the six
+// after them are the same message and key under FIPS 180-4 § 5.3.6's two
+// truncated SHA-512s and FIPS 202's four SHA-3s, which PHP 8.5's `hash_hmac`
+// answers identically.
+bytes $key = "Jefe" as bytes;
+string $message = "what do ya want for nothing?";
+
+array<bytes> $macs = [
+    Core\Hash::hmac($message, $key, Core\Digest::Sha224),
+    Core\Hash::hmac($message, $key, Core\Digest::Sha256),
+    Core\Hash::hmac($message, $key, Core\Digest::Sha384),
+    Core\Hash::hmac($message, $key, Core\Digest::Sha512),
+    Core\Hash::hmac($message, $key, Core\Digest::Sha512_224),
+    Core\Hash::hmac($message, $key, Core\Digest::Sha512_256),
+    Core\Hash::hmac($message, $key, Core\Digest::Sha3_224),
+    Core\Hash::hmac($message, $key, Core\Digest::Sha3_256),
+    Core\Hash::hmac($message, $key, Core\Digest::Sha3_384),
+    Core\Hash::hmac($message, $key, Core\Digest::Sha3_512),
+];
+
+array<string> $published = [
+    "a30e01098bc6dbbf45690f3a7e9e6d0f8bbea2a39e6148008fd05e44",
+    "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843",
+    "af45d2e376484031617f78d2b58a6b1b9c7ef464f5a01b47e42ec3736322445e8e2240ca5e69e2c78b3239ecfab21649",
+    "164b7a7bfcf819e2e395fbe73b56e0a387bd64222e831fd610270cd7ea2505549758bf75c05a994a6d034f65f8f0e6fdcaeab1a34d4a6b4b636e070a38bce737",
+    "4a530b31a79ebcce36916546317c45f247d83241dfb818fd37254bde",
+    "6df7b24630d5ccb2ee335407081a87188c221489768fa2020513b2d593359456",
+    "7fdb8dd88bd2f60d1b798634ad386811c2cfc85bfaf5d52bbace5e66",
+    "c7d4072e788877ae3596bbb0da73b887c9171f93095b294ae857fbe2645e1ba5",
+    "f1101f8cbf9766fd6764d2ed61903f21ca9b18f57cf3e1a23ca13508a93243ce48c045dc007f26a21b3f5e0e9df4c20a",
+    "5a4bfeab6166427c7a3647b747292b8384537cdb89afb3bf5665e4c5e709350b287baec921fd7ca0ee7a0c31d022a95e1fc92ba9d77df883960275beb4e62024",
+];
+
+// The same ten cases through `of` instead of `hmac`. Both members take one
+// `Core\Digest`, so this is the pair that pins that the *subset* is a
+// narrowing of the roster and not a second roster: a value written once is
+// passed to both.
+array<bytes> $plain = [
+    Core\Hash::of($message, Core\Digest::Sha224),
+    Core\Hash::of($message, Core\Digest::Sha256),
+    Core\Hash::of($message, Core\Digest::Sha384),
+    Core\Hash::of($message, Core\Digest::Sha512),
+    Core\Hash::of($message, Core\Digest::Sha512_224),
+    Core\Hash::of($message, Core\Digest::Sha512_256),
+    Core\Hash::of($message, Core\Digest::Sha3_224),
+    Core\Hash::of($message, Core\Digest::Sha3_256),
+    Core\Hash::of($message, Core\Digest::Sha3_384),
+    Core\Hash::of($message, Core\Digest::Sha3_512),
+];
+
+// One octet of the key changed, and nothing else.
+bytes $other = "Kefe" as bytes;
+array<bytes> $rekeyed = [
+    Core\Hash::hmac($message, $other, Core\Digest::Sha224),
+    Core\Hash::hmac($message, $other, Core\Digest::Sha256),
+    Core\Hash::hmac($message, $other, Core\Digest::Sha384),
+    Core\Hash::hmac($message, $other, Core\Digest::Sha512),
+    Core\Hash::hmac($message, $other, Core\Digest::Sha512_224),
+    Core\Hash::hmac($message, $other, Core\Digest::Sha512_256),
+    Core\Hash::hmac($message, $other, Core\Digest::Sha3_224),
+    Core\Hash::hmac($message, $other, Core\Digest::Sha3_256),
+    Core\Hash::hmac($message, $other, Core\Digest::Sha3_384),
+    Core\Hash::hmac($message, $other, Core\Digest::Sha3_512),
+];
+
+echo "cases ", Core\Arr::count($macs), "\n";
+
+// Four properties, each counted over the whole subset rather than read off a
+// line: the published vector is reproduced, the MAC is as wide as the digest
+// it names, keying it is not the same as hashing the message, and changing one
+// octet of the key changes the answer. `Core\Hash::equals` is the comparison
+// throughout, since that is the member a program would use.
+int $publishedOk = 0;
+int $widthOk = 0;
+int $keyed = 0;
+int $rekeyingChanged = 0;
+for (int $i = 0; $i < 10; $i = $i + 1) {
+    if (Core\Encoding::toHex($macs[$i]) == $published[$i]) {
+        $publishedOk = $publishedOk + 1;
+    }
+    if (Core\Bytes::length($macs[$i]) == Core\Bytes::length($plain[$i])) {
+        $widthOk = $widthOk + 1;
+    }
+    if (!Core\Hash::equals($macs[$i], $plain[$i])) {
+        $keyed = $keyed + 1;
+    }
+    if (!Core\Hash::equals($macs[$i], $rekeyed[$i])) {
+        $rekeyingChanged = $rekeyingChanged + 1;
+    }
+}
+echo "published ", $publishedOk, "\n";
+echo "width ", $widthOk, "\n";
+echo "keyed ", $keyed, "\n";
+echo "rekeyed ", $rekeyingChanged, "\n";
+
+// And the ten differ from each other. This is the count that fails when a
+// dispatch arm is copied: three of these are 28 octets wide and two more are
+// 32, so a duplicated arm produces a same-width collision that every property
+// above still accepts.
+int $distinctPairs = 0;
+for (int $a = 0; $a < 10; $a = $a + 1) {
+    for (int $b = $a + 1; $b < 10; $b = $b + 1) {
+        if (!Core\Hash::equals($macs[$a], $macs[$b])) {
+            $distinctPairs = $distinctPairs + 1;
+        }
+    }
+}
+echo "distinct ", $distinctPairs, "\n";
+
+// The one line read rather than counted, so a reader of this file can see what
+// the subject actually is: RFC 4231's own published HMAC-SHA-256.
+echo Core\Encoding::toHex($macs[1]), "\n";
+--EXPECT--
+cases 10
+published 10
+width 10
+keyed 10
+rekeyed 10
+distinct 45
+5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843
