@@ -39,6 +39,17 @@
 //!   message, beside an uncaught throw and a limit breach, and the parent keeps
 //!   running.
 //!
+//! § 2's *unresolvable class* is asked of the answer and not of the argument,
+//! and the asymmetry is a known gap rather than a decision. The rule needs the
+//! receiving side's class table: at the join the parent's is in hand
+//! ([`Ctx::class_table`], taken at the spawn because by then the parent's
+//! context is borrowed by the frame parked on the join), while at the spawn
+//! the child's does not exist yet — its program's prologue installs it. Closing
+//! it means the [`nvs_runtime::script`] seam answering with a unit's table
+//! beside its entry point, which is a change to that seam and not to this walk.
+//! What the rule *is* — the same class, by descriptor identity, not a class of
+//! the same name — is `nvs_runtime::graph`'s `Live::admit`, its one home.
+//!
 //! # What it spends
 //!
 //! ADR 0116 § 3 is the one home of the accounting. Per **in-flight** isolate:
@@ -49,8 +60,8 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use nvs_runtime::graph::{GraphError, copy_graph};
-use nvs_runtime::{Ctx, OutputSink, TaskRoot, Value};
+use nvs_runtime::graph::{GraphError, copy_graph, copy_graph_into};
+use nvs_runtime::{Ctx, ErrorClass, OutputSink, TaskRoot, Value};
 
 use crate::scheduler::{TaskId, Waiting, Wake, cancel_task, spawn_child, suspend_current};
 
@@ -135,15 +146,28 @@ impl Isolate {
             output,
         } = self;
         // In, at the spawn — before anything is built, so a refusal costs
-        // nothing and leaves no half-made isolate behind.
+        // nothing and leaves no half-made isolate behind. No receiving table
+        // is named on this side: the child's own is installed by its program's
+        // prologue and does not exist yet, which is the module doc's known gap.
         let crossed = copy_graph(args)?;
+        // Taken here rather than at the join, because the answer crosses on the
+        // child's own stack and this context is borrowed by then
+        // (`Ctx::class_table`).
+        let receiving = ctx.class_table();
 
         // The isolate's own root. Buffered under both options; § 4's fresh
         // statics base is `Ctx::isolate`'s whole reason for existing.
         let isolate_ctx = ctx.isolate(OutputSink::Buffer(Vec::new()));
 
         Ok(match Wake::current() {
-            Some(wake) => start_as_task(isolate_ctx, program, crossed, Rc::new(wake), output),
+            Some(wake) => start_as_task(
+                isolate_ctx,
+                program,
+                crossed,
+                Rc::new(wake),
+                output,
+                receiving,
+            ),
             // No task beneath the call, which takes a host installed by
             // something other than a running scheduler — `run_group`'s own
             // case. The program still has to run and the answer still has to be
@@ -152,7 +176,7 @@ impl Isolate {
             // it for. Nothing about the boundary weakens — it is the context,
             // not the stack.
             None => Box::new(Collected {
-                completion: Some(run_here(isolate_ctx, program, crossed)),
+                completion: Some(run_here(isolate_ctx, program, crossed, receiving)),
                 output,
             }),
         })
@@ -271,6 +295,7 @@ fn start_as_task(
     args: Value,
     wake: Rc<Wake>,
     output: Output,
+    receiving: Option<ErrorClass>,
 ) -> Box<dyn Running> {
     let slot: Rc<RefCell<Option<Completion>>> = Rc::new(RefCell::new(None));
     let done = Rc::new(Cell::new(false));
@@ -285,7 +310,7 @@ fn start_as_task(
         // body is torn down half-way through by a forced unwind.
         let ended = ended;
         let answer = program(child, args);
-        *filed.borrow_mut() = Some(finish(child, answer));
+        *filed.borrow_mut() = Some(finish(child, answer, receiving.as_ref()));
         drop(ended);
     });
 
@@ -307,9 +332,14 @@ fn start_as_task(
 }
 
 /// The child on the caller's own stack, for a host with no scheduler under it.
-fn run_here(mut isolate_ctx: Ctx, program: Program, args: Value) -> Completion {
+fn run_here(
+    mut isolate_ctx: Ctx,
+    program: Program,
+    args: Value,
+    receiving: Option<ErrorClass>,
+) -> Completion {
     let answer = program(&mut isolate_ctx, args);
-    finish(&mut isolate_ctx, answer)
+    finish(&mut isolate_ctx, answer, receiving.as_ref())
     // `isolate_ctx` is dropped here: ADR 0116 § 2's wholesale release.
 }
 
@@ -319,7 +349,7 @@ fn run_here(mut isolate_ctx: Ctx, program: Program, args: Value) -> Completion {
 /// Called on the child's own stack, while its context is still alive, which is
 /// the ordering ADR 0116 § 5 requires: the copy reads the child's graph, and the
 /// caller's root owns what comes back.
-fn finish(isolate_ctx: &mut Ctx, answer: Value) -> Completion {
+fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) -> Completion {
     let cancelled = isolate_ctx.cancelled();
     let failed = !cancelled && isolate_ctx.pending().is_some();
     let thrown = failed.then(|| isolate_ctx.take_thrown());
@@ -349,8 +379,13 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value) -> Completion {
         return completion;
     }
     // Out, at the await. A refusal here is the child's, so it is a failure
-    // value rather than an `Err` — the module doc owns the asymmetry.
-    match copy_graph(answer) {
+    // value rather than an `Err` — the module doc owns the asymmetry. The
+    // parent's table is named, so ADR 0023 § 2's third bullet is asked here
+    // and not only of the payload carrier.
+    let resolve = |name: &str| -> Option<*const nvs_runtime::ClassDesc> {
+        Some(receiving?.sibling(name)?.desc())
+    };
+    match copy_graph_into(answer, Some(&resolve)) {
         Ok(value) => Completion {
             ok: true,
             value,
@@ -612,6 +647,125 @@ mod tests {
             !ran.get(),
             "the refusal lands before the child exists, so nothing was started"
         );
+    }
+
+    /// An instance of `name`, from a class table of its own. Leaked, for
+    /// `closure_value`'s reason: a descriptor's address is its identity, and
+    /// this fixture exists to have an address the parent's table never
+    /// hands out.
+    fn instance_of(name: &str) -> Value {
+        let mut table = ClassTable::new();
+        let id = table.define(name, &["x"], &[]);
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        #[expect(unsafe_code, reason = "the leaked table outlives the object")]
+        // SAFETY: the table is leaked, so the descriptor outlives every value.
+        unsafe {
+            Value::object(NvsObj::new(table.desc(id)))
+        }
+    }
+
+    /// ADR 0023 § 2's third bullet, at this boundary: an object whose class the
+    /// receiving side does not have is refused naming the class, and never
+    /// arrives as a stub.
+    ///
+    /// Three legs, because the rule `Live::admit` records is *identity* and not
+    /// the name: a class the parent never declared is refused, a class of a
+    /// name the parent does declare but from another table is refused too —
+    /// the copy keeps the descriptor it was built with, so admitting it would
+    /// hand the parent the child's layout and the child's compiled methods —
+    /// and the parent's own class crosses, which is what keeps the first two
+    /// from passing for the wrong reason.
+    #[test]
+    fn an_unresolvable_class_is_refused_at_the_boundary() {
+        let mut ctx = parent();
+
+        let program: Program = Box::new(|_: &mut Ctx, _args| instance_of("Point"));
+        let done = run(
+            Isolate::new(program, Value::null(), Output::Capture),
+            &mut ctx,
+        )
+        .expect("the argument crossed; only the answer did not");
+        assert!(!done.ok, "a class the parent cannot name may not cross");
+        let failure = done.error.expect("a failure is a value, not an `Err`");
+        assert!(
+            failure.message.contains("Point"),
+            "the refusal names the class: {failure:?}"
+        );
+        assert!(ctx.pending().is_none(), "the parent is not failing");
+
+        let program: Program = Box::new(|_: &mut Ctx, _args| instance_of("Throwable"));
+        let done = run(
+            Isolate::new(program, Value::null(), Output::Capture),
+            &mut ctx,
+        )
+        .expect("the argument crossed; only the answer did not");
+        assert!(!done.ok, "the same name is not the same class");
+        let failure = done.error.expect("a failure is a value, not an `Err`");
+        assert!(
+            failure.message.contains("Throwable"),
+            "the refusal names the class: {failure:?}"
+        );
+
+        let desc = ctx
+            .class_desc("Throwable")
+            .expect("the parent's own table declares it");
+        let program: Program = Box::new(move |_: &mut Ctx, _args| {
+            #[expect(unsafe_code, reason = "the parent's table outlives this isolate")]
+            // SAFETY: the descriptor came out of the parent's own live table.
+            unsafe {
+                Value::object(NvsObj::new(desc))
+            }
+        });
+        let done = run(
+            Isolate::new(program, Value::null(), Output::Capture),
+            &mut ctx,
+        )
+        .expect("the argument crossed");
+        assert!(done.ok, "the parent's own class crosses: {:?}", done.error);
+        release(done.value);
+    }
+
+    /// ADR 0106 § 2's third fault, at this boundary: a **panic** inside the
+    /// child is contained by the child's own task, so it arrives as one more
+    /// `ok = false` beside an uncaught throw and a refused answer, and the
+    /// parent is still running and still usable afterwards.
+    ///
+    /// Nothing here catches anything: the child's task is the containment
+    /// boundary (`scheduler::run_task`), and what tells the awaiting side that
+    /// the child is over is `Ended`'s `Drop` — which fires *because* it is a
+    /// drop, half-way through the unwind, where a line at the end of the body
+    /// would never be reached. The join then finds an unfiled slot, which is
+    /// the same state a cancelled child leaves and is reported as such: the
+    /// panic's own message is the scheduler's to carry, and does not reach a
+    /// `Failure` a program can read.
+    #[test]
+    fn a_contained_panic_in_a_child_leaves_the_parent_running() {
+        let mut ctx = parent();
+        let program: Program = Box::new(|_: &mut Ctx, _args| panic!("the child gave up loudly"));
+
+        let done = run(
+            Isolate::new(program, Value::null(), Output::Capture),
+            &mut ctx,
+        )
+        .expect("a panic is not an argument that could not cross");
+
+        assert!(!done.ok, "a panicking child did not answer");
+        assert!(done.error.is_some(), "the failure is a value");
+        assert!(ctx.pending().is_none(), "the parent is not failing");
+
+        // Still usable: the parent runs a second isolate to the end on the
+        // same context, which is the whole of "leaves the parent running".
+        let program: Program = Box::new(|child: &mut Ctx, _args| {
+            child.write_output(b"still here").expect("a buffer");
+            Value::null()
+        });
+        let done = run(
+            Isolate::new(program, Value::null(), Output::Capture),
+            &mut ctx,
+        )
+        .expect("the argument crossed");
+        assert!(done.ok, "{:?}", done.error);
+        assert_eq!(done.output, b"still here");
     }
 
     /// A child that answers with a value that cannot cross is the *other* half
