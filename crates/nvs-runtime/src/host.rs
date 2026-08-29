@@ -1,6 +1,9 @@
 //! The seam a `Core` member reaches its host through — one thread-local, one
 //! trait, and one operation shaped like the promise it has to keep.
 //!
+//! Plus [`Host::sleep`], which is the one thing a member can want from a core
+//! that is not a group; § 3 below owns why it is the exception.
+//!
 //! [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md) § 1's
 //! `Core\Task::all` runs its fields as children of the calling task, and that
 //! task lives on `nvs-host`'s scheduler. A `Core` member is a `nvs-stdlib`
@@ -47,9 +50,9 @@
 //!
 //! # 3. What crosses is a group, not a task API
 //!
-//! [`Host`] has one method and it is [`Host::run_group`]. It is deliberately
-//! **not** `spawn` / `wait` / `cancel` for `nvs-stdlib` to sequence, and that is
-//! the decision worth the most here.
+//! [`Host`]'s first method is [`Host::run_group`], and it takes a whole group.
+//! It is deliberately **not** `spawn` / `wait` / `cancel` for `nvs-stdlib` to
+//! sequence, and that is the decision worth the most here.
 //!
 //! ADR 0072 § 4's guarantee — "control does not leave the call with work still
 //! running" — is a property of the *sequence*, not of any one call in it. A
@@ -64,6 +67,13 @@
 //! It is also what lets both members share it: `Task::all` and `Task::map`
 //! differ in how their jobs are *built* — a shape literal's fields against one
 //! callback over an array — and in nothing about how they run.
+//!
+//! The second method, [`Host::sleep`], is the exception that proves the shape
+//! rather than a crack in it: it is not a piece of a group's sequence, it is a
+//! member that has to *wait* and would otherwise stall the core for every
+//! neighbour on it. Its own doc owns why it is here, and a third method is a
+//! decision to make on the same terms — what does this member wait for that a
+//! group cannot express — rather than a slot to fill.
 //!
 //! [`Outcome`] is § 4's table, minus its last row. "The calling task is
 //! cancelled" is not a variant because it is not a return: `nvs-host` tears a
@@ -171,6 +181,38 @@ pub trait Host: std::fmt::Debug {
     /// waits for are all the implementor's, and `nvs-host`'s scheduler module
     /// is their home.
     fn run_group(&self, ctx: &mut Ctx, jobs: Vec<Job>, bounds: Bounds) -> Outcome;
+
+    /// Gives the core back for `duration`, resuming the calling task no earlier
+    /// than the end of it.
+    ///
+    /// The second method, and the smallest one that could be here: a member
+    /// that waits for the *clock* has no readiness to register and no group to
+    /// hand over, so it cannot reach a host through
+    /// [`Host::run_group`] and would otherwise call
+    /// [`std::thread::sleep`] — which stalls every task pinned to the same
+    /// core, [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+    /// § 6's tier-B failure, where the requests that lose are the neighbours.
+    /// It is also what a `Core\Task::all` under a `limit` needs in order to be
+    /// a shaper at all: with a blocking sleep no two children ever overlap, so
+    /// the limit is unobservable and so is the concurrency it bounds.
+    ///
+    /// No `Ctx`, because a park is the task's own business and the yielder is
+    /// reached from the thread rather than from the context — `nvs-host`'s
+    /// `reactor` module owns that route. A host with no task beneath the call
+    /// still owes the wait, and blocking is the right answer there.
+    ///
+    /// **Its one intended caller does not call it yet**, and the reason is not
+    /// this method: `Core\Time::sleep` is an `extern "C"` helper frame, and
+    /// `nvs_host::Scheduler` tears a *parked* cancelled task down with a forced
+    /// unwind, which aborts the process rather than crossing one. So a member
+    /// may not park until a cancelled task carrying script frames dies by
+    /// [ADR 0002](../../../docs/adr/0002-error-propagation.md)'s return status
+    /// at its next safepoint instead — the route `nvs_safepoint` already takes
+    /// for `SafepointFlags::CANCEL`. `nvs_stdlib::time`'s gap 3 is that slice's
+    /// other end. The method stays because the decision it records is the one
+    /// that survives: a member that waits on the clock reaches its host, and it
+    /// does not reach `nvs-host`.
+    fn sleep(&self, duration: Duration);
 }
 
 thread_local! {
@@ -227,7 +269,9 @@ pub fn is_installed() -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{Bounds, Host, Installed, Job, Outcome, install, is_installed, with_current};
+    use super::{
+        Bounds, Duration, Host, Installed, Job, Outcome, install, is_installed, with_current,
+    };
     use crate::ctx::{Ctx, OutputSink};
 
     /// A host that answers every group with an empty completion and counts the
@@ -250,6 +294,12 @@ mod tests {
             assert!(bounds.limit != Some(0), "a limit of zero is a real bound");
             drop(jobs);
             Outcome::Completed(Vec::new())
+        }
+
+        fn sleep(&self, _duration: Duration) {
+            // Counted with the groups: what the route has to prove is that the
+            // call arrives, and a test that really waited would only be slow.
+            self.0.set(self.0.get() + 1);
         }
     }
 

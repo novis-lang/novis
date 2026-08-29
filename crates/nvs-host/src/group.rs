@@ -88,7 +88,7 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use nvs_runtime::host::{Bounds, Host, Job, Outcome};
 use nvs_runtime::{AssertionOutcome, Ctx, TaskRoot, Thrown, Value};
@@ -121,6 +121,14 @@ pub(crate) fn install() -> nvs_runtime::host::Installed {
 }
 
 impl Host for SchedulerHost {
+    fn sleep(&self, duration: Duration) {
+        // The whole implementation, because the mechanism is already the one a
+        // deadline uses: `crate::timer` arms this task's own deadline on the
+        // reactor the core is about to poll, and falls back to blocking when
+        // there is no task to park — see that module's docs.
+        crate::timer::sleep(duration);
+    }
+
     fn run_group(&self, ctx: &mut Ctx, jobs: Vec<Job>, bounds: Bounds) -> Outcome {
         if jobs.is_empty() {
             return Outcome::Completed(Vec::new());

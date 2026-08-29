@@ -346,6 +346,19 @@ where
         }
         Ok(Err(fault)) => record_fault(ctx, fault),
         Err(payload) => {
+            if Teardown::in_progress() {
+                // Not a helper bug: this thread is tearing a task's stack down
+                // and the unwind belongs to it. A helper is on that stack
+                // whenever a member *parks* — `Core\Time::sleep` through
+                // [`crate::host::Host::sleep`] is the first — and a cancelled
+                // task is resumed into a forced unwind rather than into its
+                // body, so the unwind passes through this frame on its way out.
+                // Containing it here would leave the coroutine's own runtime
+                // with an unwind it started and never got back, which is a
+                // process abort. See [`Teardown`], and `run_task` below, which
+                // makes the same test for the same reason.
+                panic::resume_unwind(payload);
+            }
             ctx.set_pending(panic_message(&*payload));
             FATAL
         }
