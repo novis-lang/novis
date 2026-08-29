@@ -3112,6 +3112,20 @@ sibling in the same namespace unqualified.
   count uncached; that is one range check each side and it costs flags a scan rather than an
   answer. The general shape: a cached aggregate over Unicode text may only be corrected locally for
   the rules that *are* local, and there is exactly one that is not.
+- **A `Core` call that builds its argument vector by hand must call `account_for_arg` itself, and
+  nothing but a valgrind run will tell you it did not.** `nvs_ir::lower::lower_route_link` is the
+  only site that does not go through `lower_call_args`, and it lowered `$params` without staging
+  it on `owned_temporaries` — so `release_temporaries_since` had nothing to release and every
+  `Core\Router::url("…", ["id" => 7])` leaked one array header per call. It compiled, it ran, it
+  printed the right link, and every test passed: a leak is invisible to the program that causes
+  it, so the only leg that saw it was the driver's `examples/` valgrind sweep, three stages after
+  the code landed. `wsl.exe -- bash tools/leak-check.sh <fixture>` is the one-fixture form — and
+  from the Bash tool it needs `MSYS_NO_PATHCONV=1` in front, or Git Bash rewrites `/mnt/d/...`
+  into `C:/Program Files/Git/mnt/d/...` and the script is simply not found. The general shape:
+  wherever lowering hand-rolls what a shared helper normally does, the accounting is the half that
+  gets dropped, and `crates/nvs-ir/src/lower/tests.rs`'s
+  `a_resolved_route_link_releases_its_params_array` is the assertion shape that pins one — find
+  the call's own argument `ValueId` and require a `Release` of *it*, never a count of releases.
 
 ## Divergences and refusals already pinned
 

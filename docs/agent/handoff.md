@@ -2,69 +2,70 @@
 
 ## State
 
-**Goal 1's stage-7 acceptance check is closed.** `python tools/check-migration.py --min 33` reports
-34% covered over 393 rows, up from 25%/291. The five domains goal 1 owned are written out in
-[docs/spec/02-php-migration.md](../spec/02-php-migration.md): dates and times (73 rows), regular
-expressions (11), JSON (5), URLs and query strings (7), paths (6). No goal-1 family name is still
-unclassified — of the 758 open, 46 are `stream_*` and the rest belong to goals 2-6 by the prefix
-attribution in `loop-goal.toml`'s stage 7 comment header, which is that attribution's only home.
+**The driver's failing acceptance check is closed.** `valgrind examples/routes.nvs` leaked 292
+bytes in two blocks — one array header per `Core\Router::url` call — because
+`nvs_ir::lower::lower_route_link` builds its two arguments by hand instead of through
+`lower_call_args` and never called `account_for_arg` on either. Both are staged now, and
+`a_resolved_route_link_releases_its_params_array` in `crates/nvs-ir/src/lower/tests.rs` pins it
+over the call's own argument `ValueId`. The playbook bullet under *Writing Novis itself* owns the
+trap. This was not a new-work regression: the sweep is only *reached* now that stage 7 passes.
 
-**Item 12's roster: `Core\Bytes` is done, 50 members across nine classes remain.** The twelve rows at
-`crates/nvs-stdlib/src/bytes.rs:171` carry `CoreTy::Blob(Qual::…)`/`Text(Qual::…)` and are off
-`UNCLASSIFIED` at `crates/nvs-stdlib/src/registry.rs:1526`. Ten were mechanical — the rule at
-`registry.rs:74`, cross-checked against the already-classified `Core\Str` twin of the same name — and
-`pack`/`unpack`'s format string is R11's fourth grammar, so `Sink`. One is a judgement and is recorded
-where it belongs: **`Core\Bytes::at` is `Contagious` although it answers a `uint`**, because that
-`uint` is a byte of the subject and `fill` plus `join` reassemble a buffer from those numbers;
-`bytes.rs`'s module doc bullet on `at` owns the reasoning. Remaining: `Path` 9, `Time` 6, `Uri` 9,
-`Test` 8, `Validate` 6, `Hash` 4, `Uuid` 2, `Router` 2, `Csv` 2.
+**Item 12's roster: 34 members across seven classes remain.** `Core\Bytes`, `Core\Path` and
+`Core\Time` are off `UNCLASSIFIED` at `crates/nvs-stdlib/src/registry.rs:1526`. `Core\Path`'s nine
+were the two ordinary bullets of the rule at `registry.rs:74` — `isAbsolute` answers a `bool` and
+is `Neutral`, the other eight are `Contagious` — with `normalize`'s **non**-laundering recorded in
+`path.rs`'s module doc, because it is the member most likely to be mistaken for one.
+
+**`Core\Time`'s seven rows are the roster's first class with no `Contagious` parameter at all**,
+and that judgement is the one to read before classifying `Core\Uri`: every pattern is `Sink`
+(R11's third grammar, at the three `format` members and `Core\Time::parse`'s *second* argument),
+and every parsed text is `Neutral` because an instant, a magnitude and an IANA roster entry are
+**closed spaces** no byte of the argument survives into — ADR 0024 § 2's checked conversion
+reached at a member. `time.rs`'s module doc § *What these members do with a qualifier* owns it,
+including the line it draws against `Core\Bytes::at` and the warning that `Core\Uri::parse` is on
+the *other* side: a `Uri` keeps the host and the path as text.
 
 **Nothing consumes `Qual` yet** — it is declarative in `nvs-stdlib` and no `nvs-types` code reads
-`classification()`, so a classification pass cannot change what a program does today. The playbook
-bullet saying no `Core` member accepts a qualified argument is still true for that reason.
+`classification()`, so a classification pass cannot change what a program does today.
 
-**Untouched:** `crates/nvs-stdlib/src/router.rs:39`'s *Known gaps* 1 and 2 are stale, a `bytes` array
-key ICEs in `nvs-ir`, and `catch (Core\Error $e)` panics — the last two have playbook bullets under
-*Writing a test case*.
+**Untouched:** `crates/nvs-stdlib/src/router.rs:39`'s *Known gaps* 1 and 2 are stale, a `bytes`
+array key ICEs in `nvs-ir`, and `catch (Core\Error $e)` panics — the last two have playbook
+bullets under *Writing a test case*.
 
-**Orientation gaps.** The pack named neither `docs/spec/02-php-migration.md` nor
-`tools/check-migration.py`, though stage 7's check is the goal's own measure and the failing check
-routed this whole session at them: add both to `[context] docs`, and add the stage-7 comment header's
-per-goal floor table, which had to be read out of `loop-goal.toml` by hand. Still owed from before: a
-selector that prints the *failing* check's own `cases` block, `[context] modules` naming an
-`nvs-stdlib` class module, a `[context] anchors` entry for `registry.rs`'s `UNCLASSIFIED`, and ADR
-0088 § 1, 0063 R11, `0085 §§ 1-4`, `0071 §§ 2, 7`.
+**Orientation gaps.** Still owed from before, none of them added yet: `docs/spec/02-php-migration.md`
+and `tools/check-migration.py` in `[context] docs`, the stage-7 comment header's per-goal floor
+table, a selector that prints the *failing* check's own `cases` block, `[context] modules` naming
+an `nvs-stdlib` class module, a `[context] anchors` entry for `registry.rs`'s `UNCLASSIFIED`, and
+ADR 0088 § 1, 0063 R11, `0085 §§ 1-4`, `0071 §§ 2, 7`. New this session: `[context] modules` needs
+`nvs-ir/src/lower/*` — the failing check routed a whole session into lowering and the pack named
+none of it.
 
 ## Next group
 
-**Shared file set:** `crates/nvs-stdlib/src/registry.rs` — every slice deletes its class's lines from
-`UNCLASSIFIED` at `registry.rs:1526` and reads the rule at `registry.rs:74` — plus one class module
-each. Item 12 continues in roster order. Each class's `Core\Str` twin, where one exists, is the
-cross-check; `Sink` is only ever R11's four grammars.
+**Shared file set:** `crates/nvs-stdlib/src/registry.rs` — every slice deletes its class's lines
+from `UNCLASSIFIED` at `registry.rs:1526` and reads the rule at `registry.rs:74` — plus one class
+module each. Item 12 continues in roster order. `Sink` is only ever R11's four grammars, and
+`time.rs`'s new § *What these members do with a qualifier* is the precedent for a parsed value.
 
-- [ ] **`Core\Path`'s nine rows** (ADR 0088 § 2) — `crates/nvs-stdlib/src/path.rs:72`. No member
-      touches the disk and none is a grammar, so every row is the two ordinary bullets: `isAbsolute`
-      answers a `bool` and is `Neutral`; the other eight answer text built from the path and are
-      `Contagious`. `normalize` is explicitly **not** a launderer ([01 § 8](../spec/01-core-library.md)).
-- [ ] **`Core\Time`'s six rows** (ADR 0088 § 2) — `Core\Time::fromIso` at
-      `crates/nvs-stdlib/src/time.rs:1130`, `Core\Time::parse` at `time.rs:1137`,
-      `Core\Time\DateTime::format` at `time.rs:914`, `Core\Time\Date::format` at `time.rs:1259`,
-      `Core\Time\TimeOfDay::format` at `time.rs:1392`, `Core\Time\Duration::parse` at `time.rs:190`,
-      `Core\Time\Zone::of` at `time.rs:622`. Every `format`/`parse` **pattern** is a CLDR pattern and
-      so `Sink`; the `$text` being parsed stays `Contagious`. `Duration::parse` is the one member in
-      the class whose doc already claims it **launders** a tainted config value.
-- [ ] **`Core\Uri`'s nine rows** (ADR 0088 § 2) — `crates/nvs-stdlib/src/uri.rs:343`. The component
-      accessors answer parts of the argument, so `Contagious`; watch `encodeComponent` /
-      `encodeFormValue`, which look like launderers and are not — a percent-encoding launders for no
-      sink this tree declares, and `Launder` is claimed by a doc comment naming the sink or not at all.
+- [ ] **`Core\Uri`'s nine rows** (ADR 0088 § 2) — `crates/nvs-stdlib/src/uri.rs:343`. The
+      component encoders are the class's whole point: `encodeComponent`/`encodeFormValue` are
+      **`Launder`** and their doc comments name the sink (the URL path, the form body), while
+      `decodeComponent`/`decodeFormValue` are `Contagious` — decoding gives content back. `parse`
+      and `tryParse` are `Contagious`, not `Neutral`: unlike `Core\Time`'s parses a `Uri` keeps
+      the host and the path as text, which `time.rs`'s module doc says out loud.
+- [ ] **`Core\Test`'s eight rows** (ADR 0088 § 2) — `crates/nvs-stdlib/src/test.rs:365` is
+      `assertCount`'s body; the rows are in that module's `CLASS`. Every assertion answers `void`
+      or throws, so no argument's bytes reach an answer and all eight are `Neutral` — the
+      roster's most mechanical class.
+- [ ] **`Core\Validate`'s six rows** (ADR 0088 § 2) — `crates/nvs-stdlib/src/validate.rs`. Each
+      answers a `bool` about its subject, so `Neutral` throughout by the rule's first bullet; the
+      one to look at twice is any member answering the *value* rather than a verdict.
 
 ## Backlog
 
-- 02-php-migration.md's prose cells carry no ADR 0089 § 6 rule id, though its own *How to read a row*
-  says they must; no pre-existing row does either, so either the requirement or ~200 rows are wrong.
-- Goals 2-6 own the 758 names still open; `check-migration.py --report` and stage 7's comment header
-  are the worklist (docs/agent/loop-goal.toml).
-- `crates/nvs-stdlib/src/router.rs:39`'s *Known gaps* 1 and 2 are stale — the route table is built.
-- A `bytes` array key ICEs in `nvs-ir` (docs/agent/playbook.md, *Writing a test case*).
-- `catch (Core\Error $e)` panics rather than diagnosing (docs/agent/playbook.md, same section).
-- M4's residue is the 1000-case corpus count (docs/implementation-plan.md, *Open now*).
+- `Core\Hash` 4, `Core\Uuid` 2, `Core\Router` 2, `Core\Csv` 2 — the rest of item 12's roster.
+- `crates/nvs-stdlib/src/router.rs:39`'s *Known gaps* 1 and 2 are stale now that the table lands.
+- A `bytes` array key ICEs in `nvs-ir` (playbook, *Writing a test case*).
+- `catch (Core\Error $e)` panics rather than diagnosing (playbook, *Writing a test case*).
+- `docs/agent/loop-goal.toml`'s `[context]` gaps, listed under *Orientation gaps* above.
+- `python tools/check-migration.py` stands at 34%; goals 2-6 own the remaining families.

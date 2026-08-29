@@ -1524,22 +1524,6 @@ mod tests {
     /// member that is here *and* classified, so an entry cannot go stale and a
     /// new member cannot be added to it.
     const UNCLASSIFIED: &[(&str, &str)] = &[
-        ("Core\\Path", "basename"),
-        ("Core\\Path", "dirname"),
-        ("Core\\Path", "extension"),
-        ("Core\\Path", "withExtension"),
-        ("Core\\Path", "join"),
-        ("Core\\Path", "split"),
-        ("Core\\Path", "normalize"),
-        ("Core\\Path", "isAbsolute"),
-        ("Core\\Path", "relativeTo"),
-        ("Core\\Time", "fromIso"),
-        ("Core\\Time", "parse"),
-        ("Core\\Time\\DateTime", "format"),
-        ("Core\\Time\\Date", "format"),
-        ("Core\\Time\\TimeOfDay", "format"),
-        ("Core\\Time\\Duration", "parse"),
-        ("Core\\Time\\Zone", "of"),
         ("Core\\Uuid", "parse"),
         ("Core\\Uuid", "tryParse"),
         ("Core\\Hash", "of"),
