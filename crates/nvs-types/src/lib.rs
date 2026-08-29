@@ -218,7 +218,7 @@ pub mod lower;
 pub(crate) mod program;
 pub(crate) mod retrieval;
 pub(crate) mod returns;
-pub(crate) mod routes;
+pub mod routes;
 pub mod signatures;
 pub mod string_lit;
 pub mod testing;
@@ -235,6 +235,7 @@ pub use nvs_stdlib::registry::constructor_symbol as core_constructor_symbol;
 pub use nvs_stdlib::registry::takes_written_class as core_takes_written_class;
 pub use nvs_stdlib::time::FROM_NANOS_SYMBOL as CORE_DURATION_FROM_NANOS;
 pub use nvs_stdlib::{CodecField, CodecTy, FieldDefault};
+pub use routes::{Route, RouteTable};
 pub use ty::{Ty, TypeId, TypeInterner};
 
 use nvs_diagnostics::{SourceFile, Span};

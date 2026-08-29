@@ -139,6 +139,9 @@ pub fn check_program(
         closure_seq = env.closure_seq;
     }
     crate::routes::check_table(&routes, diags);
+    // § 5's table crosses to `nvs-ir` here rather than being dropped: § 4's
+    // `url` is a fold over it, and the fold runs in lowering.
+    exprs.record_routes(routes);
     record_property_types(&signatures, exprs);
     enums
 }

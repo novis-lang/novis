@@ -675,6 +675,7 @@ pub struct ExprTypeTable {
     to_string: FxHashMap<Span, ResolvedCall>,
     require_targets: FxHashMap<Span, nvs_diagnostics::SourceId>,
     delegations: Vec<Delegation>,
+    routes: crate::routes::RouteTable,
 }
 
 /// One synthesized `implements I by $field;` forward —
@@ -867,6 +868,31 @@ impl ExprTypeTable {
     #[must_use]
     pub fn fixtures(&self, label: &str) -> Option<&[crate::testing::Fixture]> {
         self.fixtures.get(label).map(Vec::as_slice)
+    }
+
+    /// Records ADR 0077 § 5's finished route table — every `#[Route]` in the
+    /// program, collected across its files and already held to §§ 1-3's
+    /// compile errors by [`crate::routes::check_table`].
+    ///
+    /// Written once, at the end of [`crate::check::check_program`], rather than
+    /// row by row as the walk reaches each class: the two errors that are
+    /// questions about the whole enumeration are reported over the collected
+    /// rows, and a table that could be read back half-built would let a
+    /// consumer see a program state no program is ever in.
+    pub(crate) fn record_routes(&mut self, routes: crate::routes::RouteTable) {
+        self.routes = routes;
+    }
+
+    /// ADR 0077 § 5's route table, empty for a program declaring no `#[Route]`.
+    ///
+    /// This is the channel the table crosses to `nvs-ir` by, rather than a
+    /// second return value on [`crate::check::check_program`], for the reason
+    /// every other whole-program fact here crosses the same way: which member a
+    /// name resolves to is a question about this crate's tables, and what rides
+    /// across is the answer.
+    #[must_use]
+    pub fn routes(&self) -> &crate::routes::RouteTable {
+        &self.routes
     }
 
     /// Every class that declares at least one `#[Test]`, sorted, so that a
