@@ -365,6 +365,16 @@ pub(crate) struct Env<'a> {
     /// filling that table is this one. See [`crate::links`] for why the lookup
     /// cannot be made where the call is written.
     pub links: &'a mut Vec<crate::links::LinkSite>,
+    /// ADR 0071 § 2's codec-reachable question, one entry per field the derive
+    /// pass keeps, asked after the walk rather than where the property is
+    /// declared.
+    ///
+    /// [`Self::links`]'s reason exactly: "another class that itself has a
+    /// codec" is a question about the whole program, and a class whose field
+    /// names a deriving class declared in a later file must not answer
+    /// differently from one that names an earlier one. See
+    /// [`crate::derive::resolve_field_types`].
+    pub codec_sites: &'a mut Vec<crate::derive::CodecFieldSite>,
     pub diags: &'a mut nvs_diagnostics::Diagnostics,
     /// How many ADR 0031 `fn` closure literals this run has checked so far —
     /// the suffix that makes each one's synthesized environment class label

@@ -605,6 +605,9 @@ pub fn build_signatures(
     // `crate::check`'s per-class walk, which is a later pass than this one.
     let mut placeholder_routes = crate::routes::RouteTable::default();
     let mut placeholder_links = Vec::new();
+    // And again: this pass reaches no `#[Json\Derive]` class body, so the
+    // sites it would collect are none and the vector is never read.
+    let mut placeholder_codec_sites = Vec::new();
     // Same again: ADR 0046 § 4's retrieval is an expression, and this pass
     // checks none, so the table it reads is empty here rather than built twice.
     let empty_attributes = crate::retrieval::AttributeTable::default();
@@ -622,6 +625,7 @@ pub fn build_signatures(
             exprs: &mut placeholder_exprs,
             routes: &mut placeholder_routes,
             links: &mut placeholder_links,
+            codec_sites: &mut placeholder_codec_sites,
             diags: &mut *diags,
             closure_seq: 0,
             exit_targets: Vec::new(),

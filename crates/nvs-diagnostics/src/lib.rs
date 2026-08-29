@@ -1993,6 +1993,34 @@ pub mod code {
     /// nothing of a computed one.
     pub const E_ROUTE_LINK_MISSING_PARAM: Code = Code::new("E0755");
 
+    /// A `#[Json\Derive]` field's declared type has no wire form at all.
+    ///
+    /// ADR 0071 § 2's codec-reachable set, refused at the *declaration* that
+    /// wrote it rather than at the `decodeAs<T>` that later runs. It is the
+    /// genuinely unreachable types this names — a `callable`, an `object`, a
+    /// `bytes`, a non-`null` union, a class that declares no codec — and not
+    /// the reachable ones `nvs_stdlib::json` still owes a decoder; the two
+    /// are told apart in `nvs_types::derive`, which owns that split.
+    pub const E_DERIVE_FIELD_NOT_CODEC_REACHABLE: Code = Code::new("E0756");
+
+    /// A class carrying `#[Json\Derive]` hand-writes both codec halves.
+    ///
+    /// ADR 0071 § 7: the derive generates only what the class does not
+    /// declare itself, so a class writing both `toJson` and `fromJson` gets
+    /// nothing from the attribute — and an attribute with no effect is a
+    /// mistake rather than a no-op. Reported at the attribute, which is the
+    /// thing to delete.
+    pub const E_DERIVE_BOTH_HALVES: Code = Code::new("E0757");
+
+    /// A class carrying `#[Json\Derive]` contributes no field to the codec.
+    ///
+    /// ADR 0071 § 2's field list is the declared property list, so a class
+    /// that declares no instance property — or skips every one it declares —
+    /// derives an empty wire contract. § 7's rule about an attribute with no
+    /// effect applies unchanged, and the fix is either a property or no
+    /// attribute.
+    pub const E_DERIVE_NO_FIELDS: Code = Code::new("E0758");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");
