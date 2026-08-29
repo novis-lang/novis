@@ -27,36 +27,36 @@ every `#[Route]` the program declares has a row in the compile-time table, and `
 class Posts {
     // ADR 0096 § 1: the decision is a required sibling of every `#[Route]`, and
     // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
-    #[\Core\Route(path: "/", method: \Core\Http\Method::Get, name: "Posts::home")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Posts::home")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function home(): string { return "home"; }
 
-    #[\Core\Route(path: "/posts/{id}", method: \Core\Http\Method::Get, name: "Posts::show")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Get, name: "Posts::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): string { return "post " . $id; }
 
-    #[\Core\Route(path: "/posts/{page?}", method: \Core\Http\Method::Get, name: "Posts::list")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path: "/posts/{page?}", method: Core\Http\Method::Get, name: "Posts::list")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function list(uint $page = 1): string { return "page " . $page; }
 
-    #[\Core\Route(path: "/posts/{id}/comments/{comment}", method: \Core\Http\Method::Get, name: "Posts::comment")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path: "/posts/{id}/comments/{comment}", method: Core\Http\Method::Get, name: "Posts::comment")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function comment(uint $id, uint $comment): string { return "comment"; }
 }
 
 // A second class, because ADR 0077 § 5 builds the table out of Stage 0's
 // whole-program enumeration rather than out of one declaration site.
 class Admin {
-    #[\Core\Route(path: "/admin/users", method: \Core\Http\Method::Get, name: "Admin::users")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path: "/admin/users", method: Core\Http\Method::Get, name: "Admin::users")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function users(): string { return "users"; }
 
-    #[\Core\Route(path: "/admin/users/{id}", method: \Core\Http\Method::Get, name: "Admin::edit")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path: "/admin/users/{id}", method: Core\Http\Method::Get, name: "Admin::edit")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function edit(uint $id): string { return "edit"; }
 
-    #[\Core\Route(path: "/admin/users/{id}/delete", method: \Core\Http\Method::Delete, name: "Admin::delete")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path: "/admin/users/{id}/delete", method: Core\Http\Method::Delete, name: "Admin::delete")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function delete(uint $id): string { return "delete"; }
 }
 
@@ -120,8 +120,8 @@ for (; $i < $n; ) {
 // else — every remaining segment as one value, its own `/`s left alone while
 // each segment between them is still encoded.
 class Files {
-    #[\Core\Route(path: "/files/{path...}", method: \Core\Http\Method::Get, name: "Files::download")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path: "/files/{path...}", method: Core\Http\Method::Get, name: "Files::download")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function download(string $path): string { return "file " . $path; }
 }
 --EXPECT--

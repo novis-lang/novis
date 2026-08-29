@@ -14,19 +14,19 @@ a `Core\Router::url` `$params` key that names no capture becomes a percent-encod
 class Posts {
     // ADR 0096 § 1: the decision is a required sibling of every `#[Route]`, and
     // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
-    #[\Core\Route(path: "/posts/{id}", method: \Core\Http\Method::Get, name: "Posts::show")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Get, name: "Posts::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function show(
         uint $id,
-        #[\Core\Query] string $sort = "",
-        #[\Core\Query] string $q = "",
-        #[\Core\Query] string $note = "",
-        #[\Core\Query] string $tag = "",
+        #[Core\Query] string $sort = "",
+        #[Core\Query] string $q = "",
+        #[Core\Query] string $note = "",
+        #[Core\Query] string $tag = "",
     ): string { return "post " . $id; }
 
-    #[\Core\Route(path: "/posts/{page?}", method: \Core\Http\Method::Get, name: "Posts::list")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
-    public function list(uint $page = 1, #[\Core\Query] string $sort = ""): string { return "page " . $page; }
+    #[Core\Route(path: "/posts/{page?}", method: Core\Http\Method::Get, name: "Posts::list")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function list(uint $page = 1, #[Core\Query] string $sort = ""): string { return "page " . $page; }
 }
 
 // The complement, asserted on both sides of one call: `id` is the capture and

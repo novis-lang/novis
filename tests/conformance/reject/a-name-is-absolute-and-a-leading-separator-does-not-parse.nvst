@@ -1,0 +1,49 @@
+--TEST--
+A leading `\` is refused wherever a name is written, and a qualified name is read from the root rather than through the enclosing namespace or an import — ADR 0113 §§ 1, 3, 5
+--FILE--
+<?nvs
+namespace App\Models;
+
+interface Module {}
+
+class Base {}
+
+namespace App;
+
+// § 3: the leading separator is refused in each of the three positions PHP
+// gave it three different meanings in — redundant in a `use` path, absolute at
+// a reference, and a parse error in a `namespace` declaration. One report
+// each, and the name still parses, so the errors below are reached.
+use \App\Models\Module;
+
+// § 1: a qualified name is read from the root. PHP resolved this one relative
+// to `namespace App;` and reached `App\Models\Module`, so § 5 names that
+// spelling rather than leaving a bare "not declared" to work backwards from.
+class Relative implements Models\Module {}
+
+// § 1: an import binds one whole short name and is never a namespace prefix,
+// so reaching through the `use` above names nothing. The same construct as
+// above arrived at the other way — and nothing is declared under either
+// reading here, so this one is the ordinary `E0303` rather than § 5's report.
+class ThroughAnImport implements Module\Missing {}
+
+// § 3 again, at a reference rather than in a `use`.
+class LeadingSeparator extends \App\Models\Base {}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0240]: a name is already absolute
+   --> case.nvs:14:5
+%A
+error[E0322]: `Models\Module` is not declared
+   --> case.nvs:19:27
+%A
+error[E0303]: `Module\Missing` is not declared
+   --> case.nvs:25:34
+%A
+error[E0240]: a name is already absolute
+   --> case.nvs:28:32
+%A
+error: aborting due to 4 errors

@@ -9,16 +9,16 @@
 
 class Docs
 {
-    #[\Core\Route(path: "/{lang}/docs/{page}", method: \Core\Http\Method::Get, name: "Docs::show")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
-    public function show("en"|"de"|"fr" $lang, string $page, #[\Core\Query] 1|2|3 $depth): string
+    #[Core\Route(path: "/{lang}/docs/{page}", method: Core\Http\Method::Get, name: "Docs::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show("en"|"de"|"fr" $lang, string $page, #[Core\Query] 1|2|3 $depth): string
     {
         return $lang . "/" . $page;
     }
 
-    #[\Core\Route(path: "/docs/{id}", method: \Core\Http\Method::Get, name: "Docs::byId")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
-    public function byId(\Core\Uuid $id): string
+    #[Core\Route(path: "/docs/{id}", method: Core\Http\Method::Get, name: "Docs::byId")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function byId(Core\Uuid $id): string
     {
         return "one doc";
     }

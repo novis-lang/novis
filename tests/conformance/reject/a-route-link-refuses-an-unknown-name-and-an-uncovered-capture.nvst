@@ -8,8 +8,8 @@
 class Users {
     // ADR 0096 § 1: without the sibling decision this route is `E0762` and the
     // two link errors below are never reached.
-    #[\Core\Route(path: "/users/{id}", method: \Core\Http\Method::Get, name: "Users::show")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get, name: "Users::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): string { return "user " . $id; }
 }
 

@@ -3775,9 +3775,9 @@ fn a_subscript_through_a_tagged_base_lowers() {
 fn a_resolved_route_link_releases_its_params_array() {
     let (f, map, file) = lower_script_src(concat!(
         "<?nvs\nclass T {\n",
-        r#"  #[\Core\Route(path:"/users/{id}", method: \Core\Http\Method::Get, "#,
+        r#"  #[Core\Route(path:"/users/{id}", method: Core\Http\Method::Get, "#,
         "name: \"Users::show\")]\n",
-        r#"  #[\Core\Access(allow: \Core\Audience::Public)]"#,
+        r#"  #[Core\Access(allow: Core\Audience::Public)]"#,
         "\n",
         "  public function show(uint $id): string { return \"u\"; }\n",
         "}\n",

@@ -62,7 +62,7 @@ fn route_src(attributes: &str) -> String {
 fn with_access(members: &str) -> String {
     members.replace(
         "public function",
-        "#[\\Core\\Access(allow: \\Core\\Audience::Public)]\n  public function",
+        "#[Core\\Access(allow: Core\\Audience::Public)]\n  public function",
     )
 }
 
@@ -74,7 +74,7 @@ fn a_route_is_matched_nominally_rather_than_as_a_shape() {
     // from it and a userland alias must not contribute a route.
     let diags = check_src(&with_access(
         "<?nvs\nclass Users {\n  \
-         #[\\Core\\Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get, \
+         #[Core\\Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get, \
          name: \"Users::show\")]\n  \
          public function show(uint $id): string { return \"\"; }\n}\n",
     ));
@@ -85,12 +85,12 @@ fn a_route_is_matched_nominally_rather_than_as_a_shape() {
     // is the ordinary undeclared-name refusal rather than a silently ignored
     // attribute.
     let diags = check_src(&route_src(
-        "  #[Route(path: \"/health\", method: \\Core\\Http\\Method::Get)]\n  \
+        "  #[Route(path: \"/health\", method: Core\\Http\\Method::Get)]\n  \
          public function health(): string { return \"\"; }\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
     let diags = check_src(
-        "<?nvs\nclass Users {\n  #[Route(path: \"/health\", method: \\Core\\Http\\Method::Get)]\n  \
+        "<?nvs\nclass Users {\n  #[Route(path: \"/health\", method: Core\\Http\\Method::Get)]\n  \
          public function health(): string { return \"\"; }\n}\n",
     );
     assert!(diags.has_errors());
@@ -104,8 +104,8 @@ fn the_attribute_repeats_so_one_method_serves_two_verbs() {
     // Two *verbs*, because the rows are what § 3's duplicate-route error is
     // over and one path served twice by the same verb is that error.
     let diags = check_src(&route_src(
-        "  #[Route(path: \"/health\", method: \\Core\\Http\\Method::Get, name: \"health.get\")]\n  \
-         #[Route(path: \"/health\", method: \\Core\\Http\\Method::Head, name: \"health.head\")]\n  \
+        "  #[Route(path: \"/health\", method: Core\\Http\\Method::Get, name: \"health.get\")]\n  \
+         #[Route(path: \"/health\", method: Core\\Http\\Method::Head, name: \"health.head\")]\n  \
          public function health(): string { return \"\"; }\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
@@ -162,7 +162,7 @@ fn a_method_case_is_admitted_at_the_enum_the_roster_names() {
     // and the case is placed at it rather than at nothing.
     let diags = check_src(&with_access(
         "<?nvs\nclass Users {\n  \
-         #[\\Core\\Route(path: \"/users\", method: \\Core\\Http\\Method::Get, name: \"Users::index\")]\n  \
+         #[Core\\Route(path: \"/users\", method: Core\\Http\\Method::Get, name: \"Users::index\")]\n  \
          public function index(): string { return \"\"; }\n}\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
@@ -176,7 +176,7 @@ fn a_case_of_another_enum_is_refused_at_the_method_option() {
     // enum, so this is that same walk with the type restored.
     let diags = check_src(
         "<?nvs\nclass Users {\n  \
-         #[\\Core\\Route(path: \"/users\", method: \\Core\\Digest::Md5)]\n  \
+         #[Core\\Route(path: \"/users\", method: Core\\Digest::Md5)]\n  \
          public function index(): string { return \"\"; }\n}\n",
     );
     assert!(diags.has_errors());
@@ -204,7 +204,7 @@ fn a_row_needs_a_path_and_a_verb_and_says_which_is_missing() {
     // field is there, and naming it missing would report the author's second
     // problem ahead of their first.
     let diags = check_src(&route_src(
-        "  #[Route(path: 1, method: \\Core\\Http\\Method::Get)]\n  \
+        "  #[Route(path: 1, method: Core\\Http\\Method::Get)]\n  \
          public function health(): string { return \"\"; }\n",
     ));
     assert!(diags.has_errors());
@@ -216,9 +216,9 @@ fn one_route_shape_is_served_once_per_verb() {
     // § 2 matches by shape, so two captures differing only in name are the one
     // route both would match — the pair the written text would call different.
     let diags = check_src(&route_src(
-        "  #[Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get, name: \"a\")]\n  \
+        "  #[Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get, name: \"a\")]\n  \
          public function show(uint $id): string { return \"\"; }\n  \
-         #[Route(path: \"/users/{userId}\", method: \\Core\\Http\\Method::Get, name: \"b\")]\n  \
+         #[Route(path: \"/users/{userId}\", method: Core\\Http\\Method::Get, name: \"b\")]\n  \
          public function other(uint $userId): string { return \"\"; }\n",
     ));
     assert!(reported(&diags, code::E_DUPLICATE_ROUTE), "{diags:?}");
@@ -227,11 +227,11 @@ fn one_route_shape_is_served_once_per_verb() {
     // different literal segment is a different shape — the two halves that
     // stop this from being a rule about the path alone.
     let diags = check_src(&route_src(
-        "  #[Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get, name: \"a\")]\n  \
+        "  #[Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get, name: \"a\")]\n  \
          public function show(uint $id): string { return \"\"; }\n  \
-         #[Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Delete, name: \"b\")]\n  \
+         #[Route(path: \"/users/{id}\", method: Core\\Http\\Method::Delete, name: \"b\")]\n  \
          public function drop(uint $id): string { return \"\"; }\n  \
-         #[Route(path: \"/users/new\", method: \\Core\\Http\\Method::Get, name: \"c\")]\n  \
+         #[Route(path: \"/users/new\", method: Core\\Http\\Method::Get, name: \"c\")]\n  \
          public function fresh(): string { return \"\"; }\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
@@ -244,11 +244,11 @@ fn the_collected_table_crosses_on_the_expression_table() {
     // other whole-program fact crosses by. Asserted through the table rather
     // than through a `url` call, because nothing reverses it yet.
     let (diags, exprs) = check_src_table(&route_src(
-        "  #[Route(path: \"/users\", method: \\Core\\Http\\Method::Get, name: \"Users::index\")]\n  \
+        "  #[Route(path: \"/users\", method: Core\\Http\\Method::Get, name: \"Users::index\")]\n  \
          public function index(): string { return \"\"; }\n  \
-         #[Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get, name: \"Users::show\")]\n  \
+         #[Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get, name: \"Users::show\")]\n  \
          public function show(uint $id): string { return \"\"; }\n  \
-         #[Route(path: \"/health\", method: \\Core\\Http\\Method::Get)]\n  \
+         #[Route(path: \"/health\", method: Core\\Http\\Method::Get)]\n  \
          public function health(): string { return \"\"; }\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
@@ -284,9 +284,9 @@ fn every_route_on_one_method_becomes_a_row_and_they_may_share_a_name() {
     // and `url()` therefore has one answer to give.
     let webhook = |name: &str| {
         format!(
-            "  #[Route(path: \"/webhook\", method: \\Core\\Http\\Method::Post, name: \"{name}\")]\n  \
-             #[Route(path: \"/webhook\", method: \\Core\\Http\\Method::Put, name: \"{name}\")]\n  \
-             #[Route(path: \"/webhook\", method: \\Core\\Http\\Method::Delete, name: \"{name}\")]\n  \
+            "  #[Route(path: \"/webhook\", method: Core\\Http\\Method::Post, name: \"{name}\")]\n  \
+             #[Route(path: \"/webhook\", method: Core\\Http\\Method::Put, name: \"{name}\")]\n  \
+             #[Route(path: \"/webhook\", method: Core\\Http\\Method::Delete, name: \"{name}\")]\n  \
              public function receive(): string {{ return \"\"; }}\n"
         )
     };
@@ -308,7 +308,7 @@ fn every_route_on_one_method_becomes_a_row_and_they_may_share_a_name() {
     // § 1's exception has two halves and needs both. The same name on two
     // *methods* is the copy-paste the original rule was written for.
     let (diags, _) = check_src_table(&route_src(&format!(
-        "{}  #[Route(path: \"/other\", method: \\Core\\Http\\Method::Get, name: \"webhook\")]\n  \
+        "{}  #[Route(path: \"/other\", method: Core\\Http\\Method::Get, name: \"webhook\")]\n  \
          public function other(): string {{ return \"\"; }}\n",
         webhook("webhook")
     )));
@@ -317,8 +317,8 @@ fn every_route_on_one_method_becomes_a_row_and_they_may_share_a_name() {
     // And one method whose repetitions carry different paths is the ambiguity
     // itself: `url()` would have two answers and no ground to prefer one.
     let (diags, _) = check_src_table(&route_src(
-        "  #[Route(path: \"/webhook\", method: \\Core\\Http\\Method::Post, name: \"webhook\")]\n  \
-         #[Route(path: \"/hook\", method: \\Core\\Http\\Method::Post, name: \"webhook\")]\n  \
+        "  #[Route(path: \"/webhook\", method: Core\\Http\\Method::Post, name: \"webhook\")]\n  \
+         #[Route(path: \"/hook\", method: Core\\Http\\Method::Post, name: \"webhook\")]\n  \
          public function receive(): string { return \"\"; }\n",
     ));
     assert!(reported(&diags, code::E_DUPLICATE_ROUTE_NAME), "{diags:?}");
@@ -327,8 +327,8 @@ fn every_route_on_one_method_becomes_a_row_and_they_may_share_a_name() {
     // attributes sharing both `path` and `method` are one route however they
     // are grouped, so nothing enters through the door a shared name opens.
     let (diags, _) = check_src_table(&route_src(
-        "  #[Route(path: \"/webhook\", method: \\Core\\Http\\Method::Post)]\n  \
-         #[Route(path: \"/webhook\", method: \\Core\\Http\\Method::Post)]\n  \
+        "  #[Route(path: \"/webhook\", method: Core\\Http\\Method::Post)]\n  \
+         #[Route(path: \"/webhook\", method: Core\\Http\\Method::Post)]\n  \
          public function receive(): string { return \"\"; }\n",
     ));
     assert!(reported(&diags, code::E_DUPLICATE_ROUTE), "{diags:?}");
@@ -348,7 +348,7 @@ fn a_path_begins_at_the_root_and_a_capture_is_a_whole_segment() {
         "/users/{id",
     ] {
         let diags = check_src(&route_src(&format!(
-            "  #[Route(path: \"{path}\", method: \\Core\\Http\\Method::Get)]\n  \
+            "  #[Route(path: \"{path}\", method: Core\\Http\\Method::Get)]\n  \
              public function show(uint $id): string {{ return \"\"; }}\n"
         )));
         assert!(
@@ -370,7 +370,7 @@ fn a_capture_that_may_absorb_the_end_of_a_path_is_written_last() {
         "/files/{a...}/{rest...}",
     ] {
         let diags = check_src(&route_src(&format!(
-            "  #[Route(path: \"{path}\", method: \\Core\\Http\\Method::Get)]\n  \
+            "  #[Route(path: \"{path}\", method: Core\\Http\\Method::Get)]\n  \
              public function show(string $a = \"\", string $page = \"\", string $rest = \"\"): \
              string {{ return \"\"; }}\n"
         )));
@@ -386,7 +386,7 @@ fn a_capture_arrives_as_the_parameter_it_is_named_after() {
     // § 3: the comparison is exact, per ADR 0029, so `{userId}` and `$userid`
     // are two names and the capture has nowhere to arrive.
     let diags = check_src(&route_src(
-        "  #[Route(path: \"/users/{userId}\", method: \\Core\\Http\\Method::Get)]\n  \
+        "  #[Route(path: \"/users/{userId}\", method: Core\\Http\\Method::Get)]\n  \
          public function show(uint $userid): string { return \"\"; }\n",
     ));
     assert!(reported(&diags, code::E_ROUTE_CAPTURE_UNBOUND), "{diags:?}");
@@ -394,7 +394,7 @@ fn a_capture_arrives_as_the_parameter_it_is_named_after() {
     // The reverse is deliberately fine: a parameter the path does not name is
     // simply not the router's.
     let diags = check_src(&route_src(
-        "  #[Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get)]\n  \
+        "  #[Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get)]\n  \
          public function show(uint $id, string $note = \"\"): string { return \"\"; }\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
@@ -406,7 +406,7 @@ fn a_captures_type_is_one_a_segment_converts_to() {
     // no second copy of it here, so an `array<int>` is refused at a capture for
     // the reason it is refused at an `#[Option]`.
     let diags = check_src(&route_src(
-        "  #[Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get)]\n  \
+        "  #[Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get)]\n  \
          public function show(array<int> $id): string { return \"\"; }\n",
     ));
     assert!(
@@ -418,7 +418,7 @@ fn a_captures_type_is_one_a_segment_converts_to() {
     // about it was checked, so § 3 hands it over as one `tainted string` and a
     // `uint` is not a type it can arrive at, however well `uint` converts.
     let diags = check_src(&route_src(
-        "  #[Route(path: \"/files/{rest...}\", method: \\Core\\Http\\Method::Get)]\n  \
+        "  #[Route(path: \"/files/{rest...}\", method: Core\\Http\\Method::Get)]\n  \
          public function raw(uint $rest): string { return \"\"; }\n",
     ));
     assert!(
@@ -427,7 +427,7 @@ fn a_captures_type_is_one_a_segment_converts_to() {
     );
 
     let diags = check_src(&route_src(
-        "  #[Route(path: \"/files/{rest...}\", method: \\Core\\Http\\Method::Get)]\n  \
+        "  #[Route(path: \"/files/{rest...}\", method: Core\\Http\\Method::Get)]\n  \
          public function raw(string $rest): string { return \"\"; }\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
@@ -438,7 +438,7 @@ fn an_optional_capture_needs_a_default_to_be_absent_at() {
     // § 2: `{page?}` matches one whole segment or none, and the default is what
     // makes the absent case well-typed rather than nullable by accident.
     let diags = check_src(&route_src(
-        "  #[Route(path: \"/posts/{page?}\", method: \\Core\\Http\\Method::Get)]\n  \
+        "  #[Route(path: \"/posts/{page?}\", method: Core\\Http\\Method::Get)]\n  \
          public function page(uint $page): string { return \"\"; }\n",
     ));
     assert!(
@@ -447,7 +447,7 @@ fn an_optional_capture_needs_a_default_to_be_absent_at() {
     );
 
     let diags = check_src(&route_src(
-        "  #[Route(path: \"/posts/{page?}\", method: \\Core\\Http\\Method::Get)]\n  \
+        "  #[Route(path: \"/posts/{page?}\", method: Core\\Http\\Method::Get)]\n  \
          public function page(uint $page = 1): string { return \"\"; }\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
@@ -460,9 +460,9 @@ fn a_shape_keeps_the_capture_form_it_erases_the_name_of() {
     // depend on declaration order. A shape erasing the form would report them
     // as the duplicate they are not.
     let diags = check_src(&route_src(
-        "  #[Route(path: \"/posts/{page}\", method: \\Core\\Http\\Method::Get, name: \"a\")]\n  \
+        "  #[Route(path: \"/posts/{page}\", method: Core\\Http\\Method::Get, name: \"a\")]\n  \
          public function one(uint $page): string { return \"\"; }\n  \
-         #[Route(path: \"/posts/{page?}\", method: \\Core\\Http\\Method::Get, name: \"b\")]\n  \
+         #[Route(path: \"/posts/{page?}\", method: Core\\Http\\Method::Get, name: \"b\")]\n  \
          public function two(uint $page = 1): string { return \"\"; }\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
@@ -474,9 +474,9 @@ fn a_route_name_names_one_route() {
     // a link with no answer — a question about the enumeration, which is why
     // it is asked once every file has been walked rather than per declaration.
     let diags = check_src(&route_src(
-        "  #[Route(path: \"/users\", method: \\Core\\Http\\Method::Get, name: \"Users::show\")]\n  \
+        "  #[Route(path: \"/users\", method: Core\\Http\\Method::Get, name: \"Users::show\")]\n  \
          public function index(): string { return \"\"; }\n  \
-         #[Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get, name: \"Users::show\")]\n  \
+         #[Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get, name: \"Users::show\")]\n  \
          public function show(uint $id): string { return \"\"; }\n",
     ));
     assert!(reported(&diags, code::E_DUPLICATE_ROUTE_NAME), "{diags:?}");
@@ -484,9 +484,9 @@ fn a_route_name_names_one_route() {
     // Two rows with no `name` at all collide over nothing: § 1 leaves it
     // optional, and an absent name is not a name two routes share.
     let diags = check_src(&route_src(
-        "  #[Route(path: \"/users\", method: \\Core\\Http\\Method::Get)]\n  \
+        "  #[Route(path: \"/users\", method: Core\\Http\\Method::Get)]\n  \
          public function index(): string { return \"\"; }\n  \
-         #[Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get)]\n  \
+         #[Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get)]\n  \
          public function show(uint $id): string { return \"\"; }\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
@@ -510,18 +510,18 @@ fn a_route_table_is_built_from_the_program_enumeration() {
         (
             "table-main.nvs",
             "<?nvs\nrequire 'table-users.nvs';\nclass Health {\n  \
-             #[\\Core\\Route(path: \"/health\", method: \\Core\\Http\\Method::Get, \
+             #[Core\\Route(path: \"/health\", method: Core\\Http\\Method::Get, \
              name: \"Health::show\")]\n  \
-             #[\\Core\\Access(allow: \\Core\\Audience::Public)]\n  \
+             #[Core\\Access(allow: Core\\Audience::Public)]\n  \
              public function show(): string { return \"\"; }\n}\n\
              echo Core\\Router::url(\"Users::show\", [\"id\" => 1]), \"\\n\";\n",
         ),
         (
             "table-users.nvs",
             "<?nvs\nclass Users {\n  \
-             #[\\Core\\Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get, \
+             #[Core\\Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get, \
              name: \"Users::show\")]\n  \
-             #[\\Core\\Access(allow: \\Core\\Audience::Public)]\n  \
+             #[Core\\Access(allow: Core\\Audience::Public)]\n  \
              public function show(uint $id): string { return \"\"; }\n}\n",
         ),
     ]);
@@ -548,7 +548,7 @@ fn a_route_parameter_takes_its_type_from_the_method_that_declares_it() {
     // the path — the four spellings below are one path checked four ways.
     for ty in ["uint", "int", "string", "bool"] {
         let diags = check_src(&route_src(&format!(
-            "  #[Route(path: \"/users/{{id}}\", method: \\Core\\Http\\Method::Get)]\n  \
+            "  #[Route(path: \"/users/{{id}}\", method: Core\\Http\\Method::Get)]\n  \
              public function show({ty} $id): string {{ return \"\"; }}\n"
         )));
         assert!(!diags.has_errors(), "{ty}: {diags:?}");
@@ -559,10 +559,10 @@ fn a_route_parameter_takes_its_type_from_the_method_that_declares_it() {
     // only the one whose own parameter is outside the roster is refused.
     let diags = check_src(&with_access(
         "<?nvs\nuse Core\\Route;\nclass Users {\n  \
-         #[Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get)]\n  \
+         #[Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get)]\n  \
          public function show(uint $id): string { return \"\"; }\n}\n\
          class Orders {\n  \
-         #[Route(path: \"/orders/{id}\", method: \\Core\\Http\\Method::Get)]\n  \
+         #[Route(path: \"/orders/{id}\", method: Core\\Http\\Method::Get)]\n  \
          public function show(float $id): string { return \"\"; }\n}\n",
     ));
     assert_eq!(
@@ -581,17 +581,17 @@ fn a_duplicate_route_is_a_diagnostic() {
         (
             "dup-main.nvs",
             "<?nvs\nrequire 'dup-other.nvs';\nclass Users {\n  \
-             #[\\Core\\Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get, \
+             #[Core\\Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get, \
              name: \"a\")]\n  \
-             #[\\Core\\Access(allow: \\Core\\Audience::Public)]\n  \
+             #[Core\\Access(allow: Core\\Audience::Public)]\n  \
              public function show(uint $id): string { return \"\"; }\n}\n",
         ),
         (
             "dup-other.nvs",
             "<?nvs\nclass Admin {\n  \
-             #[\\Core\\Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get, \
+             #[Core\\Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get, \
              name: \"b\")]\n  \
-             #[\\Core\\Access(allow: \\Core\\Audience::Public)]\n  \
+             #[Core\\Access(allow: Core\\Audience::Public)]\n  \
              public function show(uint $id): string { return \"\"; }\n}\n",
         ),
     ]);
@@ -605,7 +605,7 @@ fn a_path_capture_with_no_matching_method_parameter_is_a_diagnostic() {
     // § 3: every capture has somewhere to arrive, so a method declaring no
     // parameters at all is the shortest way to have nowhere.
     let diags = check_src(&route_src(
-        "  #[Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get)]\n  \
+        "  #[Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get)]\n  \
          public function show(): string { return \"\"; }\n",
     ));
     assert!(reported(&diags, code::E_ROUTE_CAPTURE_UNBOUND), "{diags:?}");
@@ -614,14 +614,14 @@ fn a_path_capture_with_no_matching_method_parameter_is_a_diagnostic() {
     // a method binding the first of two is still missing the second.
     let diags = check_src(&route_src(
         "  #[Route(path: \"/orders/{orderId}/lines/{lineId}\", \
-         method: \\Core\\Http\\Method::Get)]\n  \
+         method: Core\\Http\\Method::Get)]\n  \
          public function line(uint $orderId): string { return \"\"; }\n",
     ));
     assert_eq!(count(&diags, code::E_ROUTE_CAPTURE_UNBOUND), 1, "{diags:?}");
 
     let diags = check_src(&route_src(
         "  #[Route(path: \"/orders/{orderId}/lines/{lineId}\", \
-         method: \\Core\\Http\\Method::Get)]\n  \
+         method: Core\\Http\\Method::Get)]\n  \
          public function line(uint $orderId, uint $lineId): string { return \"\"; }\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
@@ -635,7 +635,7 @@ fn an_unknown_literal_url_name_is_a_diagnostic() {
     let src = |name: &str| {
         with_access(&format!(
             "<?nvs\nclass Users {{\n  \
-             #[\\Core\\Route(path: \"/users/{{id}}\", method: \\Core\\Http\\Method::Get, \
+             #[Core\\Route(path: \"/users/{{id}}\", method: Core\\Http\\Method::Get, \
              name: \"Users::show\")]\n  \
              public function show(uint $id): string {{ return \"\"; }}\n}}\n\
              echo Core\\Router::url({name}, [\"id\" => 1]), \"\\n\";\n"
@@ -666,7 +666,7 @@ fn an_optional_capture_outside_the_last_position_is_a_diagnostic() {
     // as unreachable as another capture.
     for path in ["/posts/{page?}/comments", "/posts/{page?}/{id}"] {
         let diags = check_src(&route_src(&format!(
-            "  #[Route(path: \"{path}\", method: \\Core\\Http\\Method::Get)]\n  \
+            "  #[Route(path: \"{path}\", method: Core\\Http\\Method::Get)]\n  \
              public function show(uint $page = 1, uint $id = 0): string {{ return \"\"; }}\n"
         )));
         assert!(
@@ -678,7 +678,7 @@ fn an_optional_capture_outside_the_last_position_is_a_diagnostic() {
     // The other side of the same bound: the identical capture, last, is the
     // form § 4 admits.
     let diags = check_src(&route_src(
-        "  #[Route(path: \"/posts/comments/{page?}\", method: \\Core\\Http\\Method::Get)]\n  \
+        "  #[Route(path: \"/posts/comments/{page?}\", method: Core\\Http\\Method::Get)]\n  \
          public function show(uint $page = 1): string { return \"\"; }\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
@@ -691,7 +691,7 @@ fn an_optional_capture_bound_to_a_parameter_with_no_default_is_a_diagnostic() {
     // both spellings below convert from a segment and both are still refused.
     for ty in ["uint", "string"] {
         let diags = check_src(&route_src(&format!(
-            "  #[Route(path: \"/posts/{{page?}}\", method: \\Core\\Http\\Method::Get)]\n  \
+            "  #[Route(path: \"/posts/{{page?}}\", method: Core\\Http\\Method::Get)]\n  \
              public function page({ty} $page): string {{ return \"\"; }}\n"
         )));
         assert!(
@@ -701,7 +701,7 @@ fn an_optional_capture_bound_to_a_parameter_with_no_default_is_a_diagnostic() {
     }
 
     let diags = check_src(&route_src(
-        "  #[Route(path: \"/posts/{page?}\", method: \\Core\\Http\\Method::Get)]\n  \
+        "  #[Route(path: \"/posts/{page?}\", method: Core\\Http\\Method::Get)]\n  \
          public function page(string $page = \"1\"): string { return \"\"; }\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
@@ -717,7 +717,7 @@ fn a_capture_or_query_parameter_outside_the_type_list_is_a_diagnostic() {
     //
     for ty in ["float", "?uint", "array<int>"] {
         let diags = check_src(&route_src(&format!(
-            "  #[Route(path: \"/users/{{id}}\", method: \\Core\\Http\\Method::Get)]\n  \
+            "  #[Route(path: \"/users/{{id}}\", method: Core\\Http\\Method::Get)]\n  \
              public function show({ty} $id): string {{ return \"\"; }}\n"
         )));
         assert!(
@@ -727,7 +727,7 @@ fn a_capture_or_query_parameter_outside_the_type_list_is_a_diagnostic() {
     }
 
     let diags = check_src(&route_src(
-        "  #[Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get)]\n  \
+        "  #[Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get)]\n  \
          public function show(uint $id): string { return \"\"; }\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
@@ -739,8 +739,8 @@ fn a_capture_or_query_parameter_outside_the_type_list_is_a_diagnostic() {
     // path's.
     for ty in ["float", "?uint", "array<int>"] {
         let diags = check_src(&route_src(&format!(
-            "  #[Route(path: \"/users\", method: \\Core\\Http\\Method::Get)]\n  \
-             public function index(#[\\Core\\Query] {ty} $page): string {{ return \"\"; }}\n"
+            "  #[Route(path: \"/users\", method: Core\\Http\\Method::Get)]\n  \
+             public function index(#[Core\\Query] {ty} $page): string {{ return \"\"; }}\n"
         )));
         assert!(
             reported(&diags, code::E_ROUTE_CAPTURE_TYPE_HAS_NO_CONVERSION),
@@ -753,7 +753,7 @@ fn a_capture_or_query_parameter_outside_the_type_list_is_a_diagnostic() {
     // types are on the list.
     let diags = check_src(&with_access(
         "<?nvs\nuse Core\\Route;\nuse Core\\Query;\nclass Orders {\n  \
-         #[Route(path: \"/orders\", method: \\Core\\Http\\Method::Get)]\n  \
+         #[Route(path: \"/orders\", method: Core\\Http\\Method::Get)]\n  \
          public function index(#[Query] uint $page = 1, #[Query] string $sort = \"asc\"): \
          string { return \"\"; }\n}\n",
     ));
@@ -771,7 +771,7 @@ fn a_url_key_that_is_neither_a_capture_nor_a_query_parameter_is_a_diagnostic() {
     let src = |params: &str| {
         with_access(&format!(
             "<?nvs\nuse Core\\Query;\nclass Orders {{\n  \
-             #[\\Core\\Route(path: \"/orders/{{id}}\", method: \\Core\\Http\\Method::Get, \
+             #[Core\\Route(path: \"/orders/{{id}}\", method: Core\\Http\\Method::Get, \
              name: \"orders.show\")]\n  \
              public function show(uint $id, #[Query] uint $page = 1, string $sort = \"asc\"): \
              string {{ return \"\"; }}\n\
@@ -824,8 +824,8 @@ fn access_src(payload: &str) -> String {
     format!(
         "<?nvs\nenum Role {{ Admin, Owner }}\nclass Policy {{\n  \
          public const string ADMIN = \"admin\";\n}}\nclass Users {{\n  \
-         #[\\Core\\Route(path: \"/admin\", method: \\Core\\Http\\Method::Post)]\n  \
-         #[\\Core\\Access({payload})]\n  \
+         #[Core\\Route(path: \"/admin\", method: Core\\Http\\Method::Post)]\n  \
+         #[Core\\Access({payload})]\n  \
          public function admin(): string {{ return \"\"; }}\n}}\n"
     )
 }
@@ -868,8 +868,8 @@ fn csrf_false_on_a_route_whose_every_verb_is_safe_does_not_compile() {
     // beside a `Get` the opt-out turns nothing off and is refused rather than
     // ignored.
     let safe = "<?nvs\nclass Users {\n  \
-                #[\\Core\\Route(path: \"/users\", method: \\Core\\Http\\Method::Get)]\n  \
-                #[\\Core\\Access(allow: \\Core\\Audience::Public, csrf: false)]\n  \
+                #[Core\\Route(path: \"/users\", method: Core\\Http\\Method::Get)]\n  \
+                #[Core\\Access(allow: Core\\Audience::Public, csrf: false)]\n  \
                 public function index(): string { return \"\"; }\n}\n";
     let diags = check_src(safe);
     assert!(
@@ -897,9 +897,9 @@ fn csrf_false_on_a_route_whose_every_verb_is_safe_does_not_compile() {
     // per row either.
     let diags = check_src(
         "<?nvs\nclass Users {\n  \
-         #[\\Core\\Route(path: \"/users\", method: \\Core\\Http\\Method::Get)]\n  \
-         #[\\Core\\Route(path: \"/users\", method: \\Core\\Http\\Method::Post)]\n  \
-         #[\\Core\\Access(allow: \\Core\\Audience::Public, csrf: false)]\n  \
+         #[Core\\Route(path: \"/users\", method: Core\\Http\\Method::Get)]\n  \
+         #[Core\\Route(path: \"/users\", method: Core\\Http\\Method::Post)]\n  \
+         #[Core\\Access(allow: Core\\Audience::Public, csrf: false)]\n  \
          public function index(): string { return \"\"; }\n}\n",
     );
     assert!(!diags.has_errors(), "{diags:?}");
@@ -913,9 +913,9 @@ fn a_second_access_on_one_method_is_refused_naming_both() {
     let two = |members: &str| {
         format!("<?nvs\nenum Role {{ Admin, Owner }}\nclass Users {{\n{members}}}\n")
     };
-    let route = "  #[\\Core\\Route(path: \"/admin\", method: \\Core\\Http\\Method::Get)]\n  \
-                 #[\\Core\\Access(allow: Role::Admin)]\n  \
-                 #[\\Core\\Access(allow: Role::Owner)]\n  \
+    let route = "  #[Core\\Route(path: \"/admin\", method: Core\\Http\\Method::Get)]\n  \
+                 #[Core\\Access(allow: Role::Admin)]\n  \
+                 #[Core\\Access(allow: Role::Owner)]\n  \
                  public function admin(): string { return \"\"; }\n";
     let diags = check_src(&two(route));
     assert!(reported(&diags, code::E_ACCESS_REPEATED), "{diags:?}");
@@ -925,8 +925,8 @@ fn a_second_access_on_one_method_is_refused_naming_both() {
     // pair of brackets, so the rule is read off the flattened list rather than
     // off the groups.
     let diags = check_src(&two(
-        "  #[\\Core\\Route(path: \"/admin\", method: \\Core\\Http\\Method::Get)]\n  \
-         #[\\Core\\Access(allow: Role::Admin), \\Core\\Access(allow: Role::Owner)]\n  \
+        "  #[Core\\Route(path: \"/admin\", method: Core\\Http\\Method::Get)]\n  \
+         #[Core\\Access(allow: Role::Admin), Core\\Access(allow: Role::Owner)]\n  \
          public function admin(): string { return \"\"; }\n",
     ));
     assert!(reported(&diags, code::E_ACCESS_REPEATED), "{diags:?}");
@@ -934,10 +934,10 @@ fn a_second_access_on_one_method_is_refused_naming_both() {
     // A third is reported too, each against the first, so an author deleting
     // the extras is told about all of them in one build.
     let diags = check_src(&two(
-        "  #[\\Core\\Route(path: \"/admin\", method: \\Core\\Http\\Method::Get)]\n  \
-         #[\\Core\\Access(allow: Role::Admin)]\n  \
-         #[\\Core\\Access(allow: Role::Owner)]\n  \
-         #[\\Core\\Access(allow: Role::Admin)]\n  \
+        "  #[Core\\Route(path: \"/admin\", method: Core\\Http\\Method::Get)]\n  \
+         #[Core\\Access(allow: Role::Admin)]\n  \
+         #[Core\\Access(allow: Role::Owner)]\n  \
+         #[Core\\Access(allow: Role::Admin)]\n  \
          public function admin(): string { return \"\"; }\n",
     ));
     assert_eq!(diags.error_count(), 2, "{diags:?}");
@@ -946,11 +946,11 @@ fn a_second_access_on_one_method_is_refused_naming_both() {
     // decision is the ordinary program § 1 asks for.
     let diags = check_src(&two(&format!(
         "{route_one}{route_two}",
-        route_one = "  #[\\Core\\Route(path: \"/admin\", method: \\Core\\Http\\Method::Get)]\n  \
-                     #[\\Core\\Access(allow: Role::Admin)]\n  \
+        route_one = "  #[Core\\Route(path: \"/admin\", method: Core\\Http\\Method::Get)]\n  \
+                     #[Core\\Access(allow: Role::Admin)]\n  \
                      public function admin(): string { return \"\"; }\n",
-        route_two = "  #[\\Core\\Route(path: \"/owner\", method: \\Core\\Http\\Method::Get)]\n  \
-                     #[\\Core\\Access(allow: Role::Owner)]\n  \
+        route_two = "  #[Core\\Route(path: \"/owner\", method: Core\\Http\\Method::Get)]\n  \
+                     #[Core\\Access(allow: Role::Owner)]\n  \
                      public function owner(): string { return \"\"; }\n",
     )));
     assert!(!diags.has_errors(), "{diags:?}");
@@ -958,8 +958,8 @@ fn a_second_access_on_one_method_is_refused_naming_both() {
     // And it is asked of every method rather than only of a route's: an
     // `#[Access]` on a method with no `#[Route]` is still a decision something
     // will read, so two of them there are the same two readings.
-    let diags = check_src(&two("  #[\\Core\\Access(allow: Role::Admin)]\n  \
-         #[\\Core\\Access(allow: Role::Owner)]\n  \
+    let diags = check_src(&two("  #[Core\\Access(allow: Role::Admin)]\n  \
+         #[Core\\Access(allow: Role::Owner)]\n  \
          public function plain(): string { return \"\"; }\n"));
     assert!(reported(&diags, code::E_ACCESS_REPEATED), "{diags:?}");
 }
@@ -991,8 +991,8 @@ fn the_access_decision_rides_on_the_row_as_the_name_it_resolves_to() {
     // each of them was written under.
     let (diags, exprs) = check_src_table(
         "<?nvs\nuse Core\\Audience;\nclass Home {\n  \
-         #[\\Core\\Route(path: \"/\", method: \\Core\\Http\\Method::Get)]\n  \
-         #[\\Core\\Access(allow: Audience::Public)]\n  \
+         #[Core\\Route(path: \"/\", method: Core\\Http\\Method::Get)]\n  \
+         #[Core\\Access(allow: Audience::Public)]\n  \
          public function home(): string { return \"\"; }\n}\n",
     );
     assert!(!diags.has_errors(), "{diags:?}");
@@ -1019,7 +1019,7 @@ fn an_empty_decision_is_refused_wherever_the_attribute_is_written() {
     // halves of § 1 are separable that way round: this is the attribute failing
     // on its own terms, not a route missing its sibling.
     let diags = check_src(
-        "<?nvs\nclass Users {\n  #[\\Core\\Access]\n  \
+        "<?nvs\nclass Users {\n  #[Core\\Access]\n  \
          public function admin(): string { return \"\"; }\n}\n",
     );
     assert!(reported(&diags, code::E_ACCESS_INCOMPLETE), "{diags:?}");
@@ -1053,7 +1053,7 @@ fn a_route_without_a_sibling_access_does_not_compile() {
     // fixture is every other test in this file with the decision taken away —
     // `route_src` supplies it, and this is what happens where nothing does.
     let bare = "<?nvs\nclass Users {\n  \
-                #[\\Core\\Route(path: \"/users\", method: \\Core\\Http\\Method::Get)]\n  \
+                #[Core\\Route(path: \"/users\", method: Core\\Http\\Method::Get)]\n  \
                 public function index(): string { return \"\"; }\n}\n";
     let diags = check_src(bare);
     assert!(reported(&diags, code::E_ROUTE_WITHOUT_ACCESS), "{diags:?}");
@@ -1077,7 +1077,7 @@ fn a_route_without_a_sibling_access_does_not_compile() {
     // fully-qualified fixtures write.
     let diags = check_src(
         "<?nvs\nuse Core\\Access;\nuse Core\\Audience;\nclass Users {\n  \
-         #[\\Core\\Route(path: \"/users\", method: \\Core\\Http\\Method::Get)]\n  \
+         #[Core\\Route(path: \"/users\", method: Core\\Http\\Method::Get)]\n  \
          #[Access(allow: Audience::Public)]\n  \
          public function index(): string { return \"\"; }\n}\n",
     );
@@ -1092,7 +1092,7 @@ fn a_query_marker_outside_a_route_method_is_refused() {
     // can see it: the route pass by construction visits only the methods a
     // `#[Route]` marks.
     let stray = "<?nvs\nclass Users {\n  \
-                 public function index(#[\\Core\\Query] string $sort): string { return $sort; }\n}\n";
+                 public function index(#[Core\\Query] string $sort): string { return $sort; }\n}\n";
     let diags = check_src(stray);
     assert!(reported(&diags, code::E_QUERY_WITHOUT_ROUTE), "{diags:?}");
     assert_eq!(diags.error_count(), 1, "{diags:?}");
@@ -1101,8 +1101,8 @@ fn a_query_marker_outside_a_route_method_is_refused() {
     // makes the refusal above about the *sibling* and not about the marker.
     let diags = check_src(&with_access(
         "<?nvs\nclass Users {\n  \
-         #[\\Core\\Route(path: \"/users\", method: \\Core\\Http\\Method::Get)]\n  \
-         public function index(#[\\Core\\Query] string $sort): string { return $sort; }\n}\n",
+         #[Core\\Route(path: \"/users\", method: Core\\Http\\Method::Get)]\n  \
+         public function index(#[Core\\Query] string $sort): string { return $sort; }\n}\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
 
@@ -1110,7 +1110,7 @@ fn a_query_marker_outside_a_route_method_is_refused() {
     // mistake with its own span, so an author who wrote two is told about both.
     let diags = check_src(
         "<?nvs\nclass Users {\n  \
-         public function index(#[\\Core\\Query] string $sort, #[\\Core\\Query] uint $page): string \
+         public function index(#[Core\\Query] string $sort, #[Core\\Query] uint $page): string \
          { return $sort; }\n}\n",
     );
     assert_eq!(count(&diags, code::E_QUERY_WITHOUT_ROUTE), 2, "{diags:?}");

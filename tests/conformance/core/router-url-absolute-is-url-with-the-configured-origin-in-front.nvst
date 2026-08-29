@@ -22,36 +22,36 @@
 class Docs {
     // ADR 0096 § 1: the decision is a required sibling of every `#[Route]`, and
     // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
-    #[\Core\Route(path: "/{lang}/docs/{page}", method: \Core\Http\Method::Get, name: "docs.show")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path: "/{lang}/docs/{page}", method: Core\Http\Method::Get, name: "docs.show")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function show("en"|"de"|"fr" $lang, string $page): string { return $lang . "/" . $page; }
 
     // ADR 0077 § 2's `{rest...}`, whose value keeps its own `/`s — the one
     // capture form the encoder treats differently, and so the row most likely
     // to part between two passes.
-    #[\Core\Route(path: "/files/{rest...}", method: \Core\Http\Method::Get, name: "Docs::file")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path: "/files/{rest...}", method: Core\Http\Method::Get, name: "Docs::file")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function file(string $rest): string { return $rest; }
 
     // The root, whose whole relative form is `/`. It is here because it is
     // where a join that trimmed one slash too many or too few shows up as a
     // different URL rather than as a cosmetic difference.
-    #[\Core\Route(path: "/", method: \Core\Http\Method::Get, name: "Docs::home")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Docs::home")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function home(): string { return "home"; }
 }
 
 class Posts {
-    #[\Core\Route(path: "/posts/{page?}", method: \Core\Http\Method::Get, name: "Posts::list")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path: "/posts/{page?}", method: Core\Http\Method::Get, name: "Posts::list")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function list(uint $page = 1): string { return "page " . $page; }
 
-    #[\Core\Route(path: "/posts/{id}", method: \Core\Http\Method::Get, name: "Posts::show")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Get, name: "Posts::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function show(
         uint $id,
-        #[\Core\Query] string $sort = "",
-        #[\Core\Query] string $tag = "",
+        #[Core\Query] string $sort = "",
+        #[Core\Query] string $tag = "",
     ): string { return "post " . $id; }
 }
 

@@ -35,9 +35,9 @@ fn a_command_and_an_option_are_matched_nominally_rather_than_as_shapes() {
     // because § 6 builds a table from it and a userland alias must not
     // contribute a command.
     let diags = check_src(
-        "<?nvs\nclass Deploy {\n  #[\\Core\\Command(name: \"deploy\", about: \"Push it\")]\n  \
+        "<?nvs\nclass Deploy {\n  #[Core\\Command(name: \"deploy\", about: \"Push it\")]\n  \
          public static function deploy(\n    string $target,\n    \
-         #[\\Core\\Option(short: \"n\", about: \"Print what would happen\")] bool $dryRun,\n  \
+         #[Core\\Option(short: \"n\", about: \"Print what would happen\")] bool $dryRun,\n  \
          ): void {}\n}\n",
     );
     assert!(!diags.has_errors(), "{diags:?}");

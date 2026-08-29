@@ -9,16 +9,16 @@ A `#[Query]` on a method that declares no route is refused rather than ignored �
 // a name the compiler knows, written where the compiler never looks, reads to
 // its author as a declaration that binds something.
 class Users {
-    public function index(#[\Core\Query] string $sort): string { return $sort; }
+    public function index(#[Core\Query] string $sort): string { return $sort; }
 }
 
 // The same parameter under the route it serves is § 3's ordinary case, which
 // is what makes the refusal above a fact about the missing sibling and not
 // about the marker. ADR 0096 § 1 supplies the other required sibling.
 class Search {
-    #[\Core\Route(path: "/search", method: \Core\Http\Method::Get)]
-    #[\Core\Access(allow: \Core\Audience::Public)]
-    public function index(#[\Core\Query] string $sort): string { return $sort; }
+    #[Core\Route(path: "/search", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function index(#[Core\Query] string $sort): string { return $sort; }
 }
 
 echo "unreachable\n";

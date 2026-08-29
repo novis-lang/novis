@@ -13,12 +13,12 @@ class Posts {
     // than nullable by accident.
     // ADR 0096 § 1: the decision is a required sibling of every `#[Route]`, and
     // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
-    #[\Core\Route(path: "/posts/{page?}", method: \Core\Http\Method::Get, name: "Posts::list")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path: "/posts/{page?}", method: Core\Http\Method::Get, name: "Posts::list")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function list(uint $page = 1): string { return "page " . $page; }
 
-    #[\Core\Route(path: "/posts/{id}/edit", method: \Core\Http\Method::Get, name: "Posts::edit")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path: "/posts/{id}/edit", method: Core\Http\Method::Get, name: "Posts::edit")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function edit(uint $id): string { return "edit " . $id; }
 }
 

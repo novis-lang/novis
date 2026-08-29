@@ -11,53 +11,53 @@ The route table's seven contradictions, refused in one compilation — ADR 0077 
 // 1. ADR 0077 § 2: a path is matched by shape, so two rows claiming one path
 // and one verb are one route declared twice, whatever their names.
 class Dup {
-    #[\Core\Route(path: "/dup", method: \Core\Http\Method::Get, name: "dup.first")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path: "/dup", method: Core\Http\Method::Get, name: "dup.first")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function first(): string { return ""; }
 
-    #[\Core\Route(path: "/dup", method: \Core\Http\Method::Get, name: "dup.second")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path: "/dup", method: Core\Http\Method::Get, name: "dup.second")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function second(): string { return ""; }
 }
 
 // 2. ADR 0077 § 3: every capture has somewhere to arrive, and the method that
 // declares no parameter at all is the shortest way to have nowhere.
 class Unbound {
-    #[\Core\Route(path: "/users/{id}", method: \Core\Http\Method::Get, name: "unbound.show")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get, name: "unbound.show")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function show(): string { return ""; }
 }
 
 // 3. ADR 0102 § 4: `{name?}` matches one segment or none, and "or none" only
 // has an answer where nothing follows it.
 class Middle {
-    #[\Core\Route(path: "/posts/{page?}/comments", method: \Core\Http\Method::Get, name: "middle.show")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path: "/posts/{page?}/comments", method: Core\Http\Method::Get, name: "middle.show")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $page = 1): string { return ""; }
 }
 
 // 4. ADR 0102 § 4 again, and the refusal is about the *default* rather than the
 // type: the default is what makes the absent segment well-typed.
 class NoDefault {
-    #[\Core\Route(path: "/drafts/{page?}", method: \Core\Http\Method::Get, name: "nodefault.page")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path: "/drafts/{page?}", method: Core\Http\Method::Get, name: "nodefault.page")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function page(uint $page): string { return ""; }
 }
 
 // 5. ADR 0102 § 3 is a closed list, and `float` is the first type outside it a
 // language that guesses would have converted.
 class BadType {
-    #[\Core\Route(path: "/items/{id}", method: \Core\Http\Method::Get, name: "badtype.show")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path: "/items/{id}", method: Core\Http\Method::Get, name: "badtype.show")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function show(float $id): string { return ""; }
 }
 
 // The one well-formed row. The two link errors below are asked against it, so
 // that neither of them is really a complaint about the route.
 class Orders {
-    #[\Core\Route(path: "/orders/{id}", method: \Core\Http\Method::Get, name: "orders.show")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
-    public function show(uint $id, #[\Core\Query] uint $page = 1): string { return ""; }
+    #[Core\Route(path: "/orders/{id}", method: Core\Http\Method::Get, name: "orders.show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id, #[Core\Query] uint $page = 1): string { return ""; }
 }
 
 // 6. ADR 0077 § 4: a *literal* name is checked against the compiled table. A
@@ -77,16 +77,16 @@ error[E0748]: `Get /dup` is already served by `Dup::first`
    --> case.nvs:15:7
 %A
 error[E0751]: `Unbound::show` has no parameter `$id` for `{id}` to arrive as
-   --> case.nvs:23:19
+   --> case.nvs:23:18
 %A
 error[E0750]: `Middle::show`'s path writes `{page?}` somewhere other than the last position
-   --> case.nvs:31:19
+   --> case.nvs:31:18
 %A
 error[E0753]: `$page` has no default, so `{page?}` has nothing to be when it is absent
-   --> case.nvs:39:19
+   --> case.nvs:39:18
 %A
 error[E0752]: `float` is not a type `{id}` can arrive at
-   --> case.nvs:47:19
+   --> case.nvs:47:18
 %A
 error[E0754]: `Core\Router::url` names the route `orders.missing`, and no `#[Route]` claims it
    --> case.nvs:62:23

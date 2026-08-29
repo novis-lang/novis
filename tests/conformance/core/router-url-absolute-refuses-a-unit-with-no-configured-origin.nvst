@@ -17,8 +17,8 @@ class Posts {
     // ADR 0096 § 1: `#[Access]` is a required sibling, and
     // `Core\Audience::Public` is § 1a's case for a route that is genuinely
     // open.
-    #[\Core\Route(path: "/posts/{id}", method: \Core\Http\Method::Get, name: "Posts::show")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Get, name: "Posts::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): string { return "post " . $id; }
 }
 

@@ -4,8 +4,8 @@
 
 class Items
 {
-    #[\Core\Route(path: "/items", method: \Core\Http\Method::Get, name: "Items::index")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path: "/items", method: Core\Http\Method::Get, name: "Items::index")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function index(): string
     {
         return "every item";

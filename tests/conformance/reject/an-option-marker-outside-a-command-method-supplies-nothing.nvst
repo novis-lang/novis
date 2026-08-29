@@ -8,14 +8,14 @@ An `#[Option]` on a method that declares no command is refused rather than ignor
 // `#[Query]` gets one file over: both names are on the compiler's closed
 // roster, so neither is ignored where nothing reads it.
 class Deploy {
-    public static function deploy(#[\Core\Option] string $target): void {}
+    public static function deploy(#[Core\Option] string $target): void {}
 }
 
 // The sibling is what the marker is stray of, and one declaration answers the
 // question — the command *table* is not consulted and does not have to exist.
 class Release {
-    #[\Core\Command(name: "release", about: "ship it")]
-    public static function release(#[\Core\Option] string $target): void {}
+    #[Core\Command(name: "release", about: "ship it")]
+    public static function release(#[Core\Option] string $target): void {}
 }
 
 echo "unreachable\n";

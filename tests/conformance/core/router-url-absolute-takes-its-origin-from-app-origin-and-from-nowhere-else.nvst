@@ -21,12 +21,12 @@
 class Docs {
     // ADR 0096 § 1: the decision is a required sibling of every `#[Route]`, and
     // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
-    #[\Core\Route(path: "/docs/{page}", method: \Core\Http\Method::Get, name: "Docs::show")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
-    public function show(string $page, #[\Core\Query] string $q = ""): string { return $page; }
+    #[Core\Route(path: "/docs/{page}", method: Core\Http\Method::Get, name: "Docs::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(string $page, #[Core\Query] string $q = ""): string { return $page; }
 
-    #[\Core\Route(path: "/", method: \Core\Http\Method::Get, name: "Docs::home")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Docs::home")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function home(): string { return "home"; }
 }
 

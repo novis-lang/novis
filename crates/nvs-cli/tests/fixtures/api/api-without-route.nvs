@@ -4,7 +4,7 @@
 
 class Items
 {
-    #[\Core\Api(tags: ["Items"])]
+    #[Core\Api(tags: ["Items"])]
     public function helper(): string
     {
         return "not an operation";

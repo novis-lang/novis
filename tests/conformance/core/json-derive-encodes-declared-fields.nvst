@@ -1,12 +1,18 @@
 --TEST--
-#[Json\Derive] makes a class encodable from its declared properties, in declaration order, with per-field renaming and skipping — ADR 0071 §§ 1-3
+#[Core\Json\Derive] makes a class encodable from its declared properties, in declaration order, with per-field renaming and skipping — ADR 0071 §§ 1-3
 --FILE--
 <?nvs
 use Core\Json;
+use Core\Json\Field;
 
 // ADR 0071 § 1: the attribute is matched *nominally*, so the `use`d short
-// spelling and the fully-qualified one are the same attribute.
-#[Json\Derive]
+// spelling (`#[Field]` below) and the fully-qualified one (`#[Core\Json\Derive]`)
+// are the same attribute. Each import binds one whole short name — ADR 0113 § 1
+// makes a qualified name absolute, so `use Core\Json;` reaches the *class*
+// `Json::encode` is called on and never lets `Json\Derive` name the attribute.
+// `Derive` itself is deliberately left unimported: the impostor at the foot of
+// this case needs the short name free to shadow.
+#[Core\Json\Derive]
 class Address {
     public string $city;
     public function constructor(string $city) {
@@ -19,11 +25,11 @@ class User {
     public string $name;
     public int $age;
     // § 3: `name` renames one field's key; there is no whole-class policy.
-    #[Json\Field(name: "is_admin")]
+    #[Field(name: "is_admin")]
     public bool $isAdmin;
     // § 3: `skip` removes the field entirely, and exempts it from § 2's
     // constructor-parameter requirement.
-    #[Json\Field(skip: true)]
+    #[Field(skip: true)]
     public int $cachedHash;
     // § 2: another class with a codec is a codec-reachable field type, and a
     // `?T` one always emits, `null` included (§ 4's "no omit-when-null").

@@ -26,8 +26,8 @@ class Users
     // § 3 gives an omission no default, which is why all three methods below
     // say `Core\Audience::Public` — this fixture is genuinely open, and saying
     // so is the difference between that and forgetting.
-    #[\Core\Route(path:"/users/{id}", method: \Core\Http\Method::Get, name: "Users::show")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path:"/users/{id}", method: Core\Http\Method::Get, name: "Users::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): string
     {
         return "user " . $id;
@@ -37,8 +37,8 @@ class Users
     // segment beats a `{name}` capture — so `/users` and `/users/{id}` coexist
     // with no ordering rule to remember, and moving either declaration between
     // files cannot change which one wins.
-    #[\Core\Route(path:"/users", method: \Core\Http\Method::Get, name: "Users::index")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path:"/users", method: Core\Http\Method::Get, name: "Users::index")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function index(): string
     {
         return "every user";
@@ -47,8 +47,8 @@ class Users
     // The same path under a different verb is a different route, not a
     // duplicate: § 3's duplicate-route error is over the `method` and the path
     // *shape* together.
-    #[\Core\Route(path:"/users", method: \Core\Http\Method::Post, name: "Users::create")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path:"/users", method: Core\Http\Method::Post, name: "Users::create")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function create(): string
     {
         return "created";

@@ -33,11 +33,11 @@ every `#[Command]` and `#[Option]` the program declares is readable back out of 
 // positional argument unless it carries `#[Option]`, with no inference from
 // defaults or types, and `uint $retries` is converted during matching.
 class Deploy {
-    #[\Core\Command(name: "deploy", about: "Push the current build")]
+    #[Core\Command(name: "deploy", about: "Push the current build")]
     public static function deploy(
         tainted string $target,
-        #[\Core\Option(short: "n", long: "dry-run", about: "Print what would happen")] bool $dryRun,
-        #[\Core\Option] uint $retries = 3,
+        #[Core\Option(short: "n", long: "dry-run", about: "Print what would happen")] bool $dryRun,
+        #[Core\Option] uint $retries = 3,
     ): uint {
         echo $target, $dryRun ? "!" : "", $retries, "\n";
         return 0;
@@ -49,9 +49,9 @@ class Deploy {
 // second option carrying an `about` and no `short`, which is the other side of
 // the bound the counters below name.
 class Migrate {
-    #[\Core\Command(name: "migrate", about: "Apply pending migrations")]
+    #[Core\Command(name: "migrate", about: "Apply pending migrations")]
     public static function migrate(
-        #[\Core\Option(about: "Say what would happen and stop")] bool $pretend,
+        #[Core\Option(about: "Say what would happen and stop")] bool $pretend,
     ): void {
     }
 }
@@ -61,8 +61,8 @@ class Migrate {
 // what an alias is. Both become rows, so the roster below is four long over
 // three methods.
 class Seed {
-    #[\Core\Command(name: "seed", about: "Load the fixtures")]
-    #[\Core\Command(name: "fixtures", about: "Load the fixtures")]
+    #[Core\Command(name: "seed", about: "Load the fixtures")]
+    #[Core\Command(name: "fixtures", about: "Load the fixtures")]
     public static function seed(): void {
     }
 }

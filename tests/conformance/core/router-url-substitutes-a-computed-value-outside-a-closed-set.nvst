@@ -11,8 +11,8 @@
 // does not match, so what a bad link produces is a `404` and not an error.
 class Docs {
     // ADR 0096 § 1: the decision is a required sibling of every `#[Route]`.
-    #[\Core\Route(path: "/{lang}/docs/{page}", method: \Core\Http\Method::Get, name: "docs.show")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path: "/{lang}/docs/{page}", method: Core\Http\Method::Get, name: "docs.show")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function show("en"|"de"|"fr" $lang, string $page): string { return $lang . "/" . $page; }
 }
 

@@ -15,9 +15,9 @@ class Item
 
 class Items
 {
-    #[\Core\Route(path: "/items/{id}", method: \Core\Http\Method::Get, name: "Items::show")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
-    #[\Core\Api(
+    #[Core\Route(path: "/items/{id}", method: Core\Http\Method::Get, name: "Items::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(
         tags: ["Items"],
         errors: [{status: 500, type: RuntimeError::class}],
         security: ["bearer"],

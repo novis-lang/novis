@@ -13,14 +13,14 @@
 class Docs {
     // ADR 0096 § 1: `#[Access]` is a required sibling, and
     // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
-    #[\Core\Route(path: "/docs/{slug}", method: \Core\Http\Method::Get, name: "Docs::show")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
-    public function show(string $slug, #[\Core\Query] string $q = ""): string { return $slug; }
+    #[Core\Route(path: "/docs/{slug}", method: Core\Http\Method::Get, name: "Docs::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(string $slug, #[Core\Query] string $q = ""): string { return $slug; }
 
     // ADR 0077 § 2's third capture form, kept here rather than in its own case
     // because its whole definition is the exception to the rule above.
-    #[\Core\Route(path: "/files/{rest...}", method: \Core\Http\Method::Get, name: "Docs::file")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
+    #[Core\Route(path: "/files/{rest...}", method: Core\Http\Method::Get, name: "Docs::file")]
+    #[Core\Access(allow: Core\Audience::Public)]
     public function file(string $rest): string { return $rest; }
 }
 

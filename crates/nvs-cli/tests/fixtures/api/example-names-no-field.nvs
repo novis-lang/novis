@@ -11,9 +11,9 @@ class Item
 
 class Items
 {
-    #[\Core\Route(path: "/items/{id}", method: \Core\Http\Method::Get, name: "Items::show")]
-    #[\Core\Access(allow: \Core\Audience::Public)]
-    #[\Core\Api(example: {name: "a thing", quantity: 3})]
+    #[Core\Route(path: "/items/{id}", method: Core\Http\Method::Get, name: "Items::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(example: {name: "a thing", quantity: 3})]
     public function show(uint $id): Item
     {
         return new Item();

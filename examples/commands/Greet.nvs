@@ -7,10 +7,10 @@ class Greet implements Command
     // `#[Option]` — one sentence, with no inference from defaults or types —
     // so `$name` is positional and arrives `tainted string`, nothing about a
     // raw argument having been checked. A `bool` `#[Option]` is a flag.
-    #[\Core\Command(name: "greet", about: "Say hello")]
+    #[Core\Command(name: "greet", about: "Say hello")]
     public static function greet(
         tainted string $name,
-        #[\Core\Option(short: "l", about: "Shout it")] bool $loud,
+        #[Core\Option(short: "l", about: "Shout it")] bool $loud,
     ): void {
         // ADR 0088 § 2: `Core\Str::upper`'s parameter carries no
         // classification, so it *refuses* a tainted argument — the default is

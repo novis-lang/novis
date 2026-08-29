@@ -15,7 +15,7 @@ fn every_lowered_method_is_compiled_under_its_class_qualified_name() {
     // `nvs_types::expr_table::ExprTypeTable::method_label`. A namespace is
     // where the two would drift apart if they were spelled twice.
     let unit = compile(
-        "<?nvs\nnamespace App;\nclass Math {\n    public static function id(int $n): int {\n        return $n;\n    }\n}\necho \\App\\Math::id(7);\n",
+        "<?nvs\nnamespace App;\nclass Math {\n    public static function id(int $n): int {\n        return $n;\n    }\n}\necho App\\Math::id(7);\n",
     )
     .expect("the fixture compiles");
     assert!(unit.function("App\\Math::id").is_some(), "{unit:?}");
