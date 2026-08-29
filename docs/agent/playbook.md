@@ -859,6 +859,18 @@ is why" — is this file.
   per name `--report` still lists. The checker catches a member spelling 01 does not have, so a wrong
   *name* fails immediately — but a right name against the wrong PHP function passes silently, and that
   is exactly what `--seed` produces.
+- **`gaps.py`'s per-member numbers are cases already written, not cases owed — and a handoff can
+  turn them into an item that is already on disk.** The *Next group* this session opened with named
+  "`Core\Random::float`'s bounds (`random.rs:285`, 3 cases)" and "`::int`'s inclusive pair
+  (`random.rs:263`, 4 cases)", both reading as work to do; the `3` and the `4` are that member's
+  current case count in `gaps.py`'s *thinnest members* column, and both shapes had landed long
+  before — `random-float-s-unit-interval-is-bounded-at-both-ends.nvst` (c299254) and
+  `random-int-s-closed-bound-reaches-the-ends-of-int-itself.nvst` (3b89685), 217 and 331 commits
+  back. The check is one call and it is not `gaps.py`: `for f in tests/conformance/core/<class>-*.nvst;
+  do sed -n '2p' $f; done` prints every sibling case's one-line claim, which is what says whether
+  the shape exists. Do it before writing a line, and again before believing a case is new — the
+  overlap the second pass found here was a two-line one inside a case whose own title did not
+  mention it.
 
 ## Running things
 
