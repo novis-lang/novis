@@ -508,8 +508,9 @@ fn yield_on(raw: *const (), waiting: Waiting) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::stack::TASK_STACK_SIZE;
-    use nvs_runtime::OutputSink;
+    use crate::stack::{MAX_POOLED_STACKS, TASK_STACK_SIZE};
+    use crate::{Worker, cpus};
+    use nvs_runtime::{NvsStr, OutputSink};
     use std::cell::{Cell, RefCell};
     use std::rc::Rc;
 
@@ -831,5 +832,165 @@ mod tests {
         // task that ran before it.
         let expected: Vec<_> = (0..3).flat_map(|_| ids.iter().copied()).collect();
         assert_eq!(*seen.borrow(), expected);
+    }
+
+    /// This crate's headline invariant, from the only two sides that can
+    /// observe it: each worker builds and runs a queue of its *own*, and a task
+    /// that suspends twice comes back on the thread it left. No I/O is
+    /// involved — a scheduler with no reactor under it is still the thing that
+    /// must not move a task, which is why the assertion lives here and not in
+    /// `net`.
+    #[test]
+    fn one_core_runs_one_scheduler_and_a_task_never_migrates() {
+        let listed = cpus();
+        let Some(&first) = listed.first() else {
+            // A platform that lists no CPU is supported; see `affinity`.
+            return;
+        };
+        // One core is a legitimate machine: the two workers are still two
+        // threads, which is what the migration half is asserted against.
+        let second = listed.get(1).copied().unwrap_or(first);
+
+        let start = |cpu| {
+            Worker::spawn(cpu, move |sched| {
+                let seen = Rc::new(RefCell::new(Vec::new()));
+                for _ in 0..4 {
+                    let log = Rc::clone(&seen);
+                    sched.spawn(ctx(), TaskRoot::Request, move |ctx| {
+                        for _ in 0..3 {
+                            log.borrow_mut().push(std::thread::current().id());
+                            suspend(ctx, Waiting::Yielded);
+                        }
+                    });
+                }
+                let report = sched.run();
+                // Cloned out rather than unwrapped: what crosses the join is
+                // `Send`, and an `Rc` deliberately is not.
+                let ran_on: Vec<_> = seen.borrow().clone();
+                (std::thread::current().id(), report.finished, ran_on)
+            })
+            .expect("the OS refused a thread")
+        };
+
+        // Both started before either is joined, so the two schedulers are alive
+        // at the same time rather than in sequence.
+        let one = start(first);
+        let two = start(second);
+        let (one_thread, one_finished, one_seen) = one.join().expect("a worker panicked");
+        let (two_thread, two_finished, two_seen) = two.join().expect("a worker panicked");
+
+        assert_ne!(one_thread, two_thread, "two workers shared one thread");
+        assert_ne!(
+            one_thread,
+            std::thread::current().id(),
+            "a worker's scheduler ran on the thread that spawned it"
+        );
+        assert_eq!(one_finished, 4);
+        assert_eq!(two_finished, 4);
+        assert_eq!(
+            one_seen.len(),
+            12,
+            "a task did not run every one of its turns"
+        );
+        assert_eq!(two_seen.len(), 12);
+        assert!(
+            one_seen.iter().all(|&id| id == one_thread),
+            "a task resumed on a thread that is not its core's"
+        );
+        assert!(
+            two_seen.iter().all(|&id| id == two_thread),
+            "a task resumed on a thread that is not its core's"
+        );
+    }
+
+    /// What the rule above *buys*, asserted where it is spent. An `NvsStr`'s
+    /// count is a plain `Cell` in its header (`nvs_runtime::StrHeader`), and it
+    /// is sound only because the value never leaves the core that made it — the
+    /// type holds a raw pointer, so the compiler refuses to move one to another
+    /// thread at all. What is left to check is that coroutines did not break it
+    /// from *inside* a core: two tasks hold the same allocation, take and give
+    /// back references either side of a suspension, and the count must be exact
+    /// at every step and back to one at the end.
+    #[test]
+    fn a_refcount_is_still_non_atomic_under_the_scheduler() {
+        let mut sched = Scheduler::new();
+        let text = NvsStr::new(b"shared");
+        assert_eq!(text.refcount(), 1);
+
+        let counts = Rc::new(RefCell::new(Vec::new()));
+        for _ in 0..2 {
+            // One reference per task, taken here and given back when the task's
+            // closure is dropped with it.
+            let mine = text.clone();
+            let log = Rc::clone(&counts);
+            sched.spawn(ctx(), TaskRoot::Request, move |ctx| {
+                for _ in 0..3 {
+                    let held = mine.clone();
+                    log.borrow_mut().push(mine.refcount());
+                    suspend(ctx, Waiting::Yielded);
+                    log.borrow_mut().push(held.refcount());
+                    drop(held);
+                    suspend(ctx, Waiting::Yielded);
+                }
+            });
+        }
+        assert_eq!(text.refcount(), 3, "each task took one reference");
+
+        sched.run();
+        assert_eq!(
+            text.refcount(),
+            1,
+            "a finished task's own reference outlived it"
+        );
+
+        // The queue is FIFO, so the two tasks alternate and the sequence is a
+        // fact rather than a race: the first task clones (4), the second clones
+        // (5), then each reads 5 and 4 as they give theirs back.
+        let expected: Vec<usize> = (0..3).flat_map(|_| [4, 5, 5, 4]).collect();
+        assert_eq!(
+            *counts.borrow(),
+            expected,
+            "the count read differently than a single-threaded sequence gives"
+        );
+    }
+
+    /// The run queue at the width a request load has, rather than at the width
+    /// the tests above need: a thousand tasks created up front, each suspending
+    /// twice, all driven to completion by one core. A stack is a *reservation*
+    /// (`stack`'s module doc), so what this costs is address space and the
+    /// pages the bodies touched.
+    #[test]
+    fn many_tasks_can_be_created_and_driven() {
+        const TASKS: usize = 1_000;
+
+        let mut sched = Scheduler::new();
+        let ran = Rc::new(Cell::new(0_usize));
+        for _ in 0..TASKS {
+            let counted = Rc::clone(&ran);
+            sched.spawn(ctx(), TaskRoot::Request, move |ctx| {
+                suspend(ctx, Waiting::Yielded);
+                counted.set(counted.get() + 1);
+                suspend(ctx, Waiting::Yielded);
+            });
+        }
+
+        let report = sched.run();
+        assert_eq!(report.finished, TASKS, "a task never reached its end");
+        assert_eq!(report.parked, 0, "a yielding task was filed as parked");
+        assert_eq!(
+            report.resumes,
+            TASKS * 3,
+            "a task cost more or fewer stack switches than its two suspensions"
+        );
+        assert_eq!(
+            ran.get(),
+            TASKS,
+            "a task's body did not run past its first turn"
+        );
+        assert_eq!(
+            sched.pooled_stacks(),
+            TASKS.min(MAX_POOLED_STACKS),
+            "the pool kept a different number of stacks than the tasks in flight"
+        );
     }
 }
