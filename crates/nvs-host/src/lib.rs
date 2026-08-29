@@ -71,6 +71,13 @@
 //! [`RemoteWake`] — and it is the only way a call with no readiness to wait on
 //! reaches a thread here.
 //!
+//! [`mod@channel`] is the first thing built *on* the scheduler rather than beside
+//! it: a bounded queue between two tasks on one core, whose `send` suspends
+//! when it is full instead of growing and whose `recv` suspends when it is
+//! empty. Its module doc owns why the bound is the point and what route a wake
+//! takes — [`Wake`], through the task tree, because a running task cannot reach
+//! the scheduler that is resuming it.
+//!
 //! [`watchdog`] is ADR 0106 § 7: one thread for the process, reading the
 //! earliest deadline each core publishes through [`timer::DeadlineView`] and
 //! reporting a core that has been behind its own clock by a margin. It reads
@@ -80,6 +87,7 @@
 
 pub mod affinity;
 pub mod blocking;
+pub mod channel;
 pub mod net;
 pub mod reactor;
 pub mod scheduler;
@@ -89,12 +97,13 @@ pub mod watchdog;
 
 pub use affinity::{CpuId, cpus, pin_current_thread};
 pub use blocking::BlockingPool;
+pub use channel::{Receiver, RecvError, SendError, Sender, TryRecvError, TrySendError, channel};
 #[cfg(unix)]
 pub use net::NvsUnix;
 pub use net::{NvsStream, NvsTcp};
 pub use reactor::{Installed, Interest, Reactor, RemoteWake, run_until_idle};
 pub use scheduler::{
-    Finished, RunReport, Scheduler, TaskId, Waiting, cancel_task, current_task, spawn_child,
+    Finished, RunReport, Scheduler, TaskId, Waiting, Wake, cancel_task, current_task, spawn_child,
     suspend, suspend_current,
 };
 pub use stack::{MAX_POOLED_STACKS, TASK_STACK_SIZE};

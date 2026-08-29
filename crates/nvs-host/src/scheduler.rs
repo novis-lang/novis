@@ -92,9 +92,18 @@
 //! a child of the request tree rather than of the task that registered it, and
 //! Stage 4 is where the re-parenting is written.
 //!
+//! **A task wakes a peer through that same tree.** [`Wake`] is a permission to
+//! wake one task, taken while that task is running and fired from anywhere; the
+//! ids it queues are drained into the run queue by [`Scheduler::run`], after the
+//! resume that filled the queue or at the start of the next turn. A bounded
+//! channel between two tasks on one core is the first consumer
+//! ([`mod@crate::channel`]), and what the route avoids is handing every such
+//! primitive a `&mut Scheduler` that a running task provably cannot have.
+//!
 //! What the tree spends, as ADR 0004 requires: one node per live task — a parent
 //! id, a child vector and a flag — removed when that task ends, so it is
-//! O(in-flight) and not O(tasks ever spawned).
+//! O(in-flight) and not O(tasks ever spawned), plus one queued id per wake in
+//! flight, which every turn drains.
 //!
 //! # What this module deliberately does not know
 //!
@@ -212,6 +221,10 @@ struct TaskTree {
     next_id: u64,
     nodes: HashMap<TaskId, TaskNode>,
     pending: Vec<Pending>,
+    /// Tasks something has asked to wake, drained into the run queue by
+    /// [`Scheduler::run`]. A running task cannot reach the parked set either,
+    /// so this is the queue a [`Wake`] pushes onto — that type's docs own why.
+    wakes: Vec<TaskId>,
 }
 
 impl TaskTree {
@@ -303,6 +316,69 @@ fn install_tree(tree: &Rc<RefCell<TaskTree>>) -> TreeGuard {
 
 fn current_tree() -> Option<Rc<RefCell<TaskTree>>> {
     TREE.with(|slot| slot.borrow().clone())
+}
+
+/// A permission to wake one task on this core, taken while that task is
+/// running.
+///
+/// A running task cannot reach the `&mut Scheduler` that is resuming it, so a
+/// primitive wanting to wake a *peer* — a channel whose queue has just stopped
+/// being empty — cannot call [`Scheduler::wake`] either. This is the route it
+/// takes instead: the id is queued on the task tree, which is the half of a
+/// scheduler a task can reach, and [`Scheduler::run`] moves that task from
+/// parked to ready.
+///
+/// It holds the tree rather than reading the thread-local when it fires, and
+/// that is not an optimization. It is what lets a handle taken inside a turn
+/// fire outside one — an end of a channel held by an accept loop, or by a test
+/// driving a scheduler by hand — and it is what keeps two schedulers on one
+/// thread from crossing wakes, since a [`TaskId`] is unique only within its own
+/// tree.
+///
+/// [`crate::RemoteWake`] is the sibling for a thread that is not this core:
+/// same purpose, a poke of `mio`'s waker rather than a push, and `Send` where
+/// this is deliberately not.
+pub struct Wake {
+    tree: Rc<RefCell<TaskTree>>,
+    id: TaskId,
+}
+
+impl Wake {
+    /// Takes a wake for the task running right now.
+    ///
+    /// `None` outside a turn, which is the same refusal [`current_task`] and
+    /// [`spawn_child`] answer with and means the same thing: there is no task
+    /// here to be woken later.
+    #[must_use]
+    pub fn current() -> Option<Self> {
+        let id = current_task()?;
+        let tree = current_tree()?;
+        Some(Self { tree, id })
+    }
+
+    /// Which task this wakes.
+    #[must_use]
+    pub const fn id(&self) -> TaskId {
+        self.id
+    }
+
+    /// Queues the wake, to be delivered by the scheduler that owns the task.
+    ///
+    /// Immediately after the current resume when this is called from a task,
+    /// and at the start of the next [`Scheduler::run`] when it is called from
+    /// outside one. Waking a task that is not parked does nothing, exactly as
+    /// [`Scheduler::wake`] does nothing for one: a wake is a hint that may have
+    /// raced with the task ending, and being late is not an error.
+    pub fn wake(&self) {
+        self.tree.borrow_mut().wakes.push(self.id);
+    }
+}
+
+impl std::fmt::Debug for Wake {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Hand-written: deriving would print the whole tree behind the `Rc`.
+        f.debug_struct("Wake").field("id", &self.id).finish()
+    }
 }
 
 /// A task that reached its end, handed back with the context it ran under.
@@ -548,6 +624,11 @@ impl Scheduler {
         // for either of them to be a child of or to cancel from.
         let _installed = install_tree(&self.tree);
         loop {
+            // Before the run queue is read rather than only after a resume: a
+            // wake issued between turns, by an end of a channel held outside
+            // the scheduler, is as real as one issued from a task and this is
+            // the only place it can land.
+            self.drain_wakes();
             while let Some(mut task) = self.ready.pop_front() {
                 // Before the resume, not after: a task marked while it was on
                 // the queue must not get another instruction.
@@ -574,6 +655,7 @@ impl Scheduler {
                     }
                 }
                 self.drain_pending();
+                self.drain_wakes();
             }
             // A parked task has no next safepoint to reach — it is already
             // standing on one — so this is where a cancellation catches it.
@@ -585,7 +667,11 @@ impl Scheduler {
                 .copied()
                 .filter(|id| self.tree.borrow().is_cancelled(*id))
                 .collect();
-            if doomed.is_empty() {
+            // A teardown drops the handles the dead task was holding, and
+            // dropping the last sender of a channel wakes everyone still
+            // reading it — so the sweep below can refill the run queue even
+            // when it finds nothing else to do.
+            if doomed.is_empty() && self.tree.borrow().wakes.is_empty() {
                 break;
             }
             for id in doomed {
@@ -650,6 +736,20 @@ impl Scheduler {
         } in pending
         {
             self.start(id, ctx, root, body);
+        }
+    }
+
+    /// Delivers the wakes queued since the last drain.
+    ///
+    /// Beside [`Scheduler::drain_pending`] and for the same reason: a wake a
+    /// task issued during its slice takes effect before the next task runs, so
+    /// a peer it unblocked is on the run queue rather than waiting for the core
+    /// to go idle first. A wake naming a task that is not parked — one already
+    /// runnable, or one that has been torn down — does nothing.
+    fn drain_wakes(&mut self) {
+        let wakes = std::mem::take(&mut self.tree.borrow_mut().wakes);
+        for id in wakes {
+            self.wake(id);
         }
     }
 
