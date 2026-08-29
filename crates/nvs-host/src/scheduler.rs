@@ -39,6 +39,63 @@
 //! [`crate::stack`], which is that policy's only home. This module takes a
 //! stack, arms the task's recursion limit from it, and gives it back.
 //!
+//! # The task tree, and what cancelling one costs
+//!
+//! Every task has a parent and a list of children, and the parent is **taken
+//! from the task that spawned it** rather than passed in: [`spawn_child`] reads
+//! [`current_task`], so
+//! [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md) § 1's
+//! "each is a child of the calling task" is a property of the call rather than
+//! of a caller's diligence. A task spawned from the worker itself
+//! ([`Scheduler::spawn`], with nothing running) is a root. No ADR slot is free
+//! for the rest of it, so the decisions below are recorded here, which is the
+//! module they are held or lost in.
+//!
+//! **A running task cannot reach the `&mut Scheduler` that is resuming it**, so
+//! [`spawn_child`] issues the child's [`TaskId`], links it into the tree, and
+//! leaves the coroutine itself unbuilt until the scheduler's own turn. The tree
+//! is therefore the half of a scheduler a task can reach — an `Rc<RefCell<..>>`
+//! published in a thread-local for the length of [`Scheduler::run`], the shape
+//! [`crate::reactor`] already uses for the reactor — while the run queue and the
+//! stack pool stay behind `&mut self`. The parent still has the child's id the
+//! moment it asks for one, which is what a `Task::all` needs in order to wait on
+//! what it spawned.
+//!
+//! **Cancellation marks; the scheduler tears down.** [`Scheduler::cancel`] and
+//! [`cancel_task`] set a flag on a task and every descendant of it, and do
+//! nothing else. The teardown is a forced unwind of the coroutine's stack and it
+//! runs on the *scheduler's* stack — before a marked task is resumed, or over
+//! the parked set once the run queue drains — because unwinding a coroutine from
+//! a frame standing on that same coroutine's stack is not something to be clever
+//! about. A marked task therefore dies at its next safepoint ([`suspend`],
+//! [`suspend_current`]) when it is running and immediately when it is already
+//! suspended, which is ADR 0072 § 5's "torn down by the runtime at its next
+//! safepoint" from both directions. Only one task can be marked and still be
+//! mid-instruction — the one that cancelled itself or an ancestor — because a
+//! core runs one task at a time.
+//!
+//! What that unwind runs is native `Drop` and nothing else: no `catch`, no
+//! cleanup block, no user handler, which is § 5's rule and the same mechanism
+//! `Drop for Scheduler` already relies on for a worker retiring with requests
+//! still parked. A cancelled task hands back **no** [`Finished`] — its `Ctx` is
+//! dropped on its own stack rather than returned, so the output and exit code of
+//! a cancelled task are not readable afterwards. [`Scheduler::take_cancelled`]
+//! hands back the ids instead, and whoever owns the request boundary decides
+//! what that means.
+//!
+//! **A task's death cancels whatever it left running**, whether it died by
+//! returning, by cancellation or by teardown. That is ADR 0072 § 4's "control
+//! does not leave the call with work still running", enforced one level below
+//! the member that promises it: a parent that forgets to wait leaves no orphan,
+//! it only loses the child's result. The one shape that outlives its spawning
+//! *call* is § 6's `afterResponse`, and it is not an exception — that closure is
+//! a child of the request tree rather than of the task that registered it, and
+//! Stage 4 is where the re-parenting is written.
+//!
+//! What the tree spends, as ADR 0004 requires: one node per live task — a parent
+//! id, a child vector and a flag — removed when that task ends, so it is
+//! O(in-flight) and not O(tasks ever spawned).
+//!
 //! # What this module deliberately does not know
 //!
 //! Nothing about I/O. [`Waiting::Parked`] hands the core back and the task sits
@@ -49,9 +106,10 @@
 //! by [`crate::reactor::run_until_idle`] and by nothing else, so a run queue
 //! stays testable with no I/O in it at all.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::marker::PhantomData;
+use std::rc::Rc;
 
 use corosensei::{Coroutine, CoroutineResult, Yielder};
 use nvs_runtime::{Ctx, TaskPanic, TaskRoot};
@@ -116,6 +174,137 @@ impl TaskId {
     }
 }
 
+/// One task's place in the tree: who spawned it, what it spawned, and whether
+/// it is under a cancellation.
+///
+/// Held for exactly as long as the task is, which is the module doc's
+/// O(in-flight) claim.
+#[derive(Debug)]
+struct TaskNode {
+    parent: Option<TaskId>,
+    children: Vec<TaskId>,
+    cancelled: bool,
+}
+
+/// A child a running task asked for, waiting for the scheduler's own turn to
+/// become a coroutine.
+///
+/// The body is boxed because this is the one place a task's body is stored
+/// rather than immediately consumed; the id in it was issued at the call, so the
+/// parent is not waiting on this to name its child.
+struct Pending {
+    id: TaskId,
+    ctx: Ctx,
+    root: TaskRoot,
+    body: Box<dyn FnOnce(&mut Ctx)>,
+}
+
+impl std::fmt::Debug for Pending {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Pending").field("id", &self.id).finish()
+    }
+}
+
+/// The half of a scheduler a running task can reach — the module doc's
+/// *The task tree* section owns why the split is here and not elsewhere.
+#[derive(Debug, Default)]
+struct TaskTree {
+    next_id: u64,
+    nodes: HashMap<TaskId, TaskNode>,
+    pending: Vec<Pending>,
+}
+
+impl TaskTree {
+    /// Issues the next id and puts it in the tree under `parent`.
+    ///
+    /// A child of a task that is already cancelled is born cancelled: the
+    /// window between marking a running task and reaching its next safepoint is
+    /// wide enough for it to spawn, and a child born into it would otherwise be
+    /// the one thing the sweep never looks at.
+    fn issue(&mut self, parent: Option<TaskId>) -> TaskId {
+        let id = TaskId(self.next_id);
+        self.next_id += 1;
+        let cancelled = parent.is_some_and(|parent| self.is_cancelled(parent));
+        self.nodes.insert(
+            id,
+            TaskNode {
+                parent,
+                children: Vec::new(),
+                cancelled,
+            },
+        );
+        if let Some(node) = parent.and_then(|parent| self.nodes.get_mut(&parent)) {
+            node.children.push(id);
+        }
+        id
+    }
+
+    fn is_cancelled(&self, id: TaskId) -> bool {
+        self.nodes.get(&id).is_some_and(|node| node.cancelled)
+    }
+
+    /// Marks `id` and everything beneath it, answering how many were newly
+    /// marked. An id naming no live task marks nothing, exactly as a wake for
+    /// one wakes nothing.
+    fn cancel(&mut self, id: TaskId) -> usize {
+        let mut stack = vec![id];
+        let mut marked = 0;
+        while let Some(id) = stack.pop() {
+            let Some(node) = self.nodes.get_mut(&id) else {
+                continue;
+            };
+            stack.extend_from_slice(&node.children);
+            if !node.cancelled {
+                node.cancelled = true;
+                marked += 1;
+            }
+        }
+        marked
+    }
+
+    /// Takes a task that has ended out of the tree, answering with the children
+    /// it left behind for the caller to cancel.
+    fn retire(&mut self, id: TaskId) -> Vec<TaskId> {
+        let Some(node) = self.nodes.remove(&id) else {
+            return Vec::new();
+        };
+        if let Some(parent) = node.parent.and_then(|parent| self.nodes.get_mut(&parent)) {
+            parent.children.retain(|child| *child != id);
+        }
+        node.children
+    }
+}
+
+thread_local! {
+    /// The tree of the scheduler turning on this thread right now.
+    ///
+    /// Installed for the length of [`Scheduler::run`] and restored to whatever
+    /// was there before, so a scheduler driven from inside another one's task —
+    /// which the tests do — nests rather than clobbers. `None` between turns is
+    /// the refusal [`spawn_child`] and [`cancel_task`] answer with.
+    static TREE: RefCell<Option<Rc<RefCell<TaskTree>>>> = const { RefCell::new(None) };
+}
+
+/// Restores the previously installed tree when dropped.
+struct TreeGuard {
+    previous: Option<Rc<RefCell<TaskTree>>>,
+}
+
+impl Drop for TreeGuard {
+    fn drop(&mut self) {
+        TREE.with(|slot| *slot.borrow_mut() = self.previous.take());
+    }
+}
+
+fn install_tree(tree: &Rc<RefCell<TaskTree>>) -> TreeGuard {
+    let previous = TREE.with(|slot| slot.borrow_mut().replace(Rc::clone(tree)));
+    TreeGuard { previous }
+}
+
+fn current_tree() -> Option<Rc<RefCell<TaskTree>>> {
+    TREE.with(|slot| slot.borrow().clone())
+}
+
 /// A task that reached its end, handed back with the context it ran under.
 #[derive(Debug)]
 pub struct Finished {
@@ -144,6 +333,10 @@ pub struct RunReport {
     /// How many tasks are parked now that the run queue is empty. Non-zero is
     /// the state ADR 0115's reactor waits in.
     pub parked: usize,
+    /// How many tasks were torn down for a cancellation during this call. Their
+    /// ids are in [`Scheduler::take_cancelled`]; they are not in
+    /// [`RunReport::finished`], because a cancelled task never returns one.
+    pub cancelled: usize,
 }
 
 struct Task {
@@ -166,10 +359,15 @@ impl std::fmt::Debug for Task {
 /// moved off it, which the `!Send` bound in this type makes structural rather
 /// than advisory.
 pub struct Scheduler {
-    next_id: u64,
+    /// The parent links, the child lists, the cancel flags and the id counter —
+    /// shared with the running task rather than owned outright, because a task
+    /// cannot reach the `&mut Scheduler` resuming it. The module doc's
+    /// *The task tree* section is that decision's home.
+    tree: Rc<RefCell<TaskTree>>,
     ready: VecDeque<Task>,
     parked: HashMap<TaskId, Task>,
     finished: Vec<Finished>,
+    cancelled: Vec<TaskId>,
     /// This worker's supply of task stacks — ADR 0115 § 4, and
     /// [`crate::stack`]'s module doc for the whole policy. It lives here rather
     /// than in [`crate::Worker`] because this is the type that knows when a
@@ -188,6 +386,7 @@ impl std::fmt::Debug for Scheduler {
             .field("ready", &self.ready.len())
             .field("parked", &self.parked.len())
             .field("finished", &self.finished.len())
+            .field("tracked", &self.tree.borrow().nodes.len())
             .field("stacks", &self.stacks)
             .finish()
     }
@@ -232,10 +431,11 @@ impl Scheduler {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            next_id: 0,
+            tree: Rc::new(RefCell::new(TaskTree::default())),
             ready: VecDeque::new(),
             parked: HashMap::new(),
             finished: Vec::new(),
+            cancelled: Vec::new(),
             stacks: StackPool::new(),
             _pinned_to_one_thread: PhantomData,
         }
@@ -274,9 +474,23 @@ impl Scheduler {
     where
         F: FnOnce(&mut Ctx) + 'static,
     {
-        let id = TaskId(self.next_id);
-        self.next_id += 1;
+        // Never passed in: the tree is a fact about who called, and a parameter
+        // would be a fact about who remembered. Reaching this with a task
+        // running takes a scheduler driven from inside another one's task, so
+        // it is almost always `None` — the root case.
+        let parent = current_task();
+        let id = self.tree.borrow_mut().issue(parent);
+        self.start(id, ctx, root, Box::new(body));
+        id
+    }
 
+    /// Builds the coroutine for an id the tree has already issued and puts it on
+    /// the run queue.
+    ///
+    /// The two callers are [`Scheduler::spawn`] and the drain of
+    /// [`spawn_child`]'s pending list; both have to arm the stack limit the same
+    /// way, and the way it is armed is the whole reason this is not two copies.
+    fn start(&mut self, id: TaskId, ctx: Ctx, root: TaskRoot, body: Box<dyn FnOnce(&mut Ctx)>) {
         let stack = self.stacks.take();
         let mut ctx = ctx;
         let (base, ceiling) = crate::stack::bounds(&stack);
@@ -302,7 +516,6 @@ impl Scheduler {
         });
 
         self.ready.push_back(Task { id, coro });
-        id
     }
 
     /// Moves a parked task back to the run queue, reporting whether there was
@@ -330,26 +543,114 @@ impl Scheduler {
     /// "there is nothing more I can do".
     pub fn run(&mut self) -> RunReport {
         let mut report = RunReport::default();
-        while let Some(mut task) = self.ready.pop_front() {
-            report.resumes += 1;
-            match task.coro.resume(()) {
-                CoroutineResult::Yield(Waiting::Yielded) => self.ready.push_back(task),
-                CoroutineResult::Yield(Waiting::Parked) => {
-                    self.parked.insert(task.id, task);
+        // For the length of the turn and no longer: this is what `spawn_child`
+        // and `cancel_task` reach, and outside a turn there is nothing running
+        // for either of them to be a child of or to cancel from.
+        let _installed = install_tree(&self.tree);
+        loop {
+            while let Some(mut task) = self.ready.pop_front() {
+                // Before the resume, not after: a task marked while it was on
+                // the queue must not get another instruction.
+                if self.tree.borrow().is_cancelled(task.id) {
+                    self.tear_down(task, &mut report);
+                    continue;
                 }
-                CoroutineResult::Return(finished) => {
-                    report.finished += 1;
-                    self.finished.push(finished);
-                    // The coroutine is done, so its stack holds nothing and
-                    // `into_stack` can take it — this is the one moment a stack
-                    // is recyclable, and letting `task` drop here instead would
-                    // hand every request's mapping back to the OS.
-                    self.stacks.give(task.coro.into_stack());
+                report.resumes += 1;
+                match task.coro.resume(()) {
+                    CoroutineResult::Yield(Waiting::Yielded) => self.ready.push_back(task),
+                    CoroutineResult::Yield(Waiting::Parked) => {
+                        self.parked.insert(task.id, task);
+                    }
+                    CoroutineResult::Return(finished) => {
+                        report.finished += 1;
+                        self.orphan(finished.id);
+                        self.finished.push(finished);
+                        // The coroutine is done, so its stack holds nothing and
+                        // `into_stack` can take it — this is the one moment a
+                        // stack is recyclable, and letting `task` drop here
+                        // instead would hand every request's mapping back to the
+                        // OS.
+                        self.stacks.give(task.coro.into_stack());
+                    }
+                }
+                self.drain_pending();
+            }
+            // A parked task has no next safepoint to reach — it is already
+            // standing on one — so this is where a cancellation catches it.
+            // Tearing one down can cancel its children, which is why this is a
+            // loop and not a tail.
+            let doomed: Vec<TaskId> = self
+                .parked
+                .keys()
+                .copied()
+                .filter(|id| self.tree.borrow().is_cancelled(*id))
+                .collect();
+            if doomed.is_empty() {
+                break;
+            }
+            for id in doomed {
+                if let Some(task) = self.parked.remove(&id) {
+                    self.tear_down(task, &mut report);
                 }
             }
         }
         report.parked = self.parked.len();
         report
+    }
+
+    /// Turns the children a task left behind into cancellations, and takes the
+    /// task itself out of the tree.
+    ///
+    /// The module doc's *task tree* section owns why a death cancels downward
+    /// rather than re-parenting: the alternative is an orphan whose budget is
+    /// charged to a request that is over.
+    fn orphan(&mut self, id: TaskId) {
+        let mut tree = self.tree.borrow_mut();
+        let children = tree.retire(id);
+        for child in children {
+            tree.cancel(child);
+        }
+    }
+
+    /// Unwinds a cancelled task's stack and recycles it.
+    ///
+    /// Called only from [`Scheduler::run`], which is to say only from the
+    /// scheduler's own stack: `force_unwind` is a `longjmp` into the coroutine
+    /// and back out again, and issuing one from a frame standing on the stack
+    /// being unwound is not a thing to arrange. The unwind runs native `Drop`
+    /// and no script code (ADR 0072 § 5), and it has to pass through
+    /// [`nvs_runtime::run_task`]'s containment boundary, which is what
+    /// [`nvs_runtime::Teardown`] is for — the same window `Drop for Scheduler`
+    /// opens for the same reason.
+    fn tear_down(&mut self, mut task: Task, report: &mut RunReport) {
+        {
+            let _teardown = nvs_runtime::Teardown::enter();
+            task.coro.force_unwind();
+        }
+        // Unwound is finished as far as the stack is concerned, so the mapping
+        // is recyclable here exactly as it is for a task that returned.
+        self.stacks.give(task.coro.into_stack());
+        self.orphan(task.id);
+        self.cancelled.push(task.id);
+        report.cancelled += 1;
+    }
+
+    /// Turns the children asked for during the last resume into real tasks.
+    ///
+    /// After every resume rather than once per turn, so a child is on the run
+    /// queue before its parent's next slice: a parent that spawns and then
+    /// parks is waiting on work that is already runnable.
+    fn drain_pending(&mut self) {
+        let pending = std::mem::take(&mut self.tree.borrow_mut().pending);
+        for Pending {
+            id,
+            ctx,
+            root,
+            body,
+        } in pending
+        {
+            self.start(id, ctx, root, body);
+        }
     }
 
     /// Takes the tasks that have ended since this was last called.
@@ -367,6 +668,75 @@ impl Scheduler {
     #[must_use]
     pub fn finished(&self) -> &[Finished] {
         &self.finished
+    }
+
+    /// Marks a task and everything beneath it for teardown, answering how many
+    /// were newly marked.
+    ///
+    /// Nothing is unwound here — the module doc's *task tree* section owns why
+    /// the teardown waits for the scheduler's own turn. A task already marked,
+    /// and an id naming no live task, both mark nothing; `0` is therefore not an
+    /// error, in the same way a late [`Scheduler::wake`] is not one.
+    pub fn cancel(&mut self, id: TaskId) -> usize {
+        self.tree.borrow_mut().cancel(id)
+    }
+
+    /// Whether this task is marked for teardown but has not reached it yet.
+    #[must_use]
+    pub fn is_cancelled(&self, id: TaskId) -> bool {
+        self.tree.borrow().is_cancelled(id)
+    }
+
+    /// The task that spawned this one, or `None` for a root and for an id that
+    /// names no live task.
+    #[must_use]
+    pub fn parent_of(&self, id: TaskId) -> Option<TaskId> {
+        self.tree
+            .borrow()
+            .nodes
+            .get(&id)
+            .and_then(|node| node.parent)
+    }
+
+    /// The live children of a task, in the order they were spawned.
+    ///
+    /// A copy rather than a borrow, because the tree is shared with whatever is
+    /// running and a borrow across a resume would be a borrow across arbitrary
+    /// script code.
+    #[must_use]
+    pub fn children_of(&self, id: TaskId) -> Vec<TaskId> {
+        self.tree
+            .borrow()
+            .nodes
+            .get(&id)
+            .map_or_else(Vec::new, |node| node.children.clone())
+    }
+
+    /// How many tasks the tree is holding a node for — every task that has been
+    /// spawned and has not yet ended, and no others.
+    ///
+    /// The O(in-flight) property ADR 0004 asks of anything the runtime keeps,
+    /// made checkable rather than asserted.
+    #[must_use]
+    pub fn tracked_tasks(&self) -> usize {
+        self.tree.borrow().nodes.len()
+    }
+
+    /// The tasks torn down for a cancellation and not taken yet.
+    ///
+    /// Ids and nothing else: a cancelled task's `Ctx` went down with its stack,
+    /// which the module doc's *task tree* section explains. Read without
+    /// draining for the same reason [`Scheduler::finished`] is —
+    /// [`crate::reactor::run_until_idle`] has to drop their registrations
+    /// without consuming a list it does not own.
+    #[must_use]
+    pub fn cancelled(&self) -> &[TaskId] {
+        &self.cancelled
+    }
+
+    /// Takes the tasks torn down for a cancellation since this was last called.
+    pub fn take_cancelled(&mut self) -> Vec<TaskId> {
+        std::mem::take(&mut self.cancelled)
     }
 
     /// How many tasks are parked waiting for a wake.
@@ -392,6 +762,55 @@ impl Scheduler {
     }
 }
 
+/// Spawns a child of the task that is running, answering with its id.
+///
+/// **This is how a task gets a child at all**, and the parent is the caller
+/// rather than an argument — ADR 0072 § 1's "each is a child of the calling
+/// task". The child's id is issued here, so a parent can wait on what it
+/// spawned before the scheduler has built anything; the coroutine itself is
+/// built on the scheduler's next turn, which the module doc's *task tree*
+/// section explains.
+///
+/// `None` means there is no task running on this thread, or no scheduler
+/// turning — the same refusal [`suspend`] answers with `false`, and it obliges
+/// the caller the same way: use [`Scheduler::spawn`] and be a root, or fail.
+/// Nothing is spawned in that case.
+///
+/// A child spawned by a task that is already cancelled is born cancelled and
+/// never runs a single instruction, which is the only ordering in which ADR 0072
+/// § 4's "nothing still running" survives a parent racing its own teardown.
+pub fn spawn_child<F>(ctx: Ctx, root: TaskRoot, body: F) -> Option<TaskId>
+where
+    F: FnOnce(&mut Ctx) + 'static,
+{
+    let parent = current_task()?;
+    let tree = current_tree()?;
+    let mut tree = tree.borrow_mut();
+    let id = tree.issue(Some(parent));
+    tree.pending.push(Pending {
+        id,
+        ctx,
+        root,
+        body: Box::new(body),
+    });
+    Some(id)
+}
+
+/// Marks a task and everything beneath it for teardown from inside a task,
+/// answering how many were newly marked.
+///
+/// [`Scheduler::cancel`] is the same operation for a caller holding the
+/// scheduler; this is the one a `Core\Task::all` will reach when a sibling
+/// throws, since that code is running on a task's own stack. It marks and
+/// returns — no unwinding happens on this stack, including when the id is the
+/// caller's own, which then dies at its next safepoint.
+///
+/// `0` for an id that names no live task, for one already marked, and for a call
+/// with no scheduler turning beneath it.
+pub fn cancel_task(id: TaskId) -> usize {
+    current_tree().map_or(0, |tree| tree.borrow_mut().cancel(id))
+}
+
 /// Suspends the task `ctx` is running inside, reporting whether there was one.
 ///
 /// **This is the seam that removes async colouring.** The caller is an
@@ -404,6 +823,12 @@ impl Scheduler {
 /// something else**: block, or fail. It must not treat a refusal as a
 /// successful wait, because nothing suspended and control is about to run on
 /// as if it had.
+///
+/// **A cancelled task's suspend does not return.** This is the safepoint the
+/// module doc's *task tree* section names: the scheduler unwinds the stack
+/// instead of resuming it, so every frame between here and the task's root is
+/// dropped and none of them runs script code. A caller cannot detect that and
+/// has nothing to do about it.
 ///
 /// # Panics
 ///
@@ -991,6 +1416,275 @@ mod tests {
             sched.pooled_stacks(),
             TASKS.min(MAX_POOLED_STACKS),
             "the pool kept a different number of stacks than the tasks in flight"
+        );
+    }
+
+    /// Sets its flag when it is dropped — a stand-in for the native teardown a
+    /// cancelled task still owes: an arena released, a transaction rolled back,
+    /// a file closed. ADR 0072 § 5 is the list.
+    struct NativeDrop(Rc<Cell<bool>>);
+
+    impl Drop for NativeDrop {
+        fn drop(&mut self) {
+            self.0.set(true);
+        }
+    }
+
+    /// Yields until `probe` reads true, or gives up after a bounded number of
+    /// turns so a broken scheduler fails the test rather than hanging it.
+    fn yield_until(task_ctx: &Ctx, probe: &Rc<Cell<bool>>) {
+        for _ in 0..8 {
+            if probe.get() {
+                return;
+            }
+            suspend(task_ctx, Waiting::Yielded);
+        }
+    }
+
+    #[test]
+    fn a_child_takes_its_parent_from_the_task_that_spawned_it() {
+        // ADR 0072 § 1's "each is a child of the calling task", asserted as a
+        // property of the *call*: nothing here passes a parent in, and the only
+        // way `spawn_child` could get this wrong is by reading the wrong task.
+        let seen: Rc<Cell<Option<TaskId>>> = Rc::new(Cell::new(None));
+        let report_to = Rc::clone(&seen);
+
+        let mut sched = Scheduler::new();
+        let parent = sched.spawn(ctx(), TaskRoot::Request, move |task_ctx| {
+            let child = spawn_child(ctx(), TaskRoot::Request, |child_ctx| {
+                suspend(child_ctx, Waiting::Parked);
+            })
+            .expect("a task running under a scheduler can spawn a child");
+            report_to.set(Some(child));
+            // Parked rather than returned, so both are still live to look at.
+            suspend(task_ctx, Waiting::Parked);
+        });
+        sched.run();
+
+        let child = seen.get().expect("the parent never published a child id");
+        assert_eq!(
+            sched.parent_of(child),
+            Some(parent),
+            "the child's parent is not the task that spawned it"
+        );
+        assert_eq!(
+            sched.children_of(parent),
+            vec![child],
+            "the parent does not list the child it spawned"
+        );
+        assert_eq!(
+            sched.parent_of(parent),
+            None,
+            "a task spawned from the worker itself is a root"
+        );
+        assert_eq!(sched.tracked_tasks(), 2);
+    }
+
+    #[test]
+    fn the_tree_holds_a_node_for_every_live_task_and_no_others() {
+        // ADR 0004's O(in-flight) test applied to the tree itself: a node is
+        // held for a task that has not ended, and a run of sequential requests
+        // costs one node rather than one per request served.
+        let mut sched = Scheduler::new();
+        assert_eq!(sched.tracked_tasks(), 0, "a fresh scheduler tracks nothing");
+
+        sched.spawn(ctx(), TaskRoot::Request, |task_ctx| {
+            suspend(task_ctx, Waiting::Parked);
+        });
+        assert_eq!(
+            sched.tracked_tasks(),
+            1,
+            "a spawned task is in the tree before it is ever resumed"
+        );
+
+        for _ in 0..4 {
+            sched.spawn(ctx(), TaskRoot::Request, |_| {});
+            sched.run();
+        }
+        assert_eq!(sched.take_finished().len(), 4);
+        assert_eq!(
+            sched.tracked_tasks(),
+            1,
+            "the tree grew with tasks served rather than with tasks in flight"
+        );
+    }
+
+    #[test]
+    fn no_call_returns_with_a_child_still_running() {
+        // ADR 0072 § 4's whole promise. The member that makes it is Stage 4's;
+        // what the scheduler owes underneath it is that a parent returning with
+        // a child parked mid-work leaves nothing that can run another
+        // instruction — the child holding a row lock in that section's example.
+        let parked = Rc::new(Cell::new(false));
+        let child_parked = Rc::clone(&parked);
+        let watched_by_parent = Rc::clone(&parked);
+        let past_safepoint = Rc::new(Cell::new(false));
+        let child_past_safepoint = Rc::clone(&past_safepoint);
+        let seen: Rc<Cell<Option<TaskId>>> = Rc::new(Cell::new(None));
+        let report_to = Rc::clone(&seen);
+
+        let mut sched = Scheduler::new();
+        sched.spawn(ctx(), TaskRoot::Request, move |task_ctx| {
+            let child = spawn_child(ctx(), TaskRoot::Request, move |child_ctx| {
+                child_parked.set(true);
+                suspend(child_ctx, Waiting::Parked);
+                child_past_safepoint.set(true);
+            })
+            .expect("a task running under a scheduler can spawn a child");
+            report_to.set(Some(child));
+            yield_until(task_ctx, &watched_by_parent);
+            // And returns without waiting for it, which is the case the
+            // guarantee has to survive.
+        });
+
+        let report = sched.run();
+        let child = seen.get().expect("the parent never published a child id");
+        assert!(parked.get(), "the child never reached its safepoint");
+        assert_eq!(report.finished, 1, "only the parent reached its own end");
+        assert_eq!(report.cancelled, 1, "the child was left running");
+        assert_eq!(sched.ready_count(), 0);
+        assert_eq!(sched.parked_count(), 0);
+        assert_eq!(sched.take_cancelled(), vec![child]);
+        assert!(
+            !past_safepoint.get(),
+            "the child ran an instruction past the safepoint it was torn down at"
+        );
+        assert_eq!(sched.tracked_tasks(), 0, "the tree kept a dead task");
+    }
+
+    #[test]
+    fn a_task_tree_dies_with_its_parent_and_leaves_no_orphan() {
+        // Three generations, all parked on something that never arrives, and one
+        // cancellation at the root. The grandchild is the one that matters: a
+        // sweep that only walks the cancelled task's own children leaves it
+        // alive, holding a stack and a budget charged to a request that is over.
+        let torn: Rc<RefCell<Vec<TaskId>>> = Rc::new(RefCell::new(Vec::new()));
+        let ids: Rc<RefCell<Vec<TaskId>>> = Rc::new(RefCell::new(Vec::new()));
+
+        let mut sched = Scheduler::new();
+        let root = {
+            let ids = Rc::clone(&ids);
+            let torn = Rc::clone(&torn);
+            sched.spawn(ctx(), TaskRoot::Request, move |task_ctx| {
+                let grandchild_ids = Rc::clone(&ids);
+                let grandchild_torn = Rc::clone(&torn);
+                let child = spawn_child(ctx(), TaskRoot::Request, move |child_ctx| {
+                    let grandchild = spawn_child(ctx(), TaskRoot::Request, move |g_ctx| {
+                        let id = current_task().expect("a running task has an id");
+                        let _teardown = NativeDrop(Rc::new(Cell::new(false)));
+                        grandchild_torn.borrow_mut().push(id);
+                        suspend(g_ctx, Waiting::Parked);
+                    })
+                    .expect("a child can spawn a child");
+                    grandchild_ids.borrow_mut().push(grandchild);
+                    suspend(child_ctx, Waiting::Parked);
+                })
+                .expect("a task running under a scheduler can spawn a child");
+                ids.borrow_mut().push(child);
+                suspend(task_ctx, Waiting::Parked);
+            })
+        };
+        sched.run();
+        assert_eq!(sched.tracked_tasks(), 3, "three generations are live");
+        assert_eq!(sched.parked_count(), 3);
+        assert_eq!(torn.borrow().len(), 1, "the grandchild never ran");
+
+        assert_eq!(
+            sched.cancel(root),
+            3,
+            "the mark did not reach the grandchild"
+        );
+        let report = sched.run();
+
+        assert_eq!(report.cancelled, 3, "a generation survived its ancestor");
+        assert_eq!(sched.parked_count(), 0, "an orphan is still parked");
+        assert_eq!(sched.ready_count(), 0);
+        assert_eq!(
+            sched.tracked_tasks(),
+            0,
+            "the tree outlived every task in it"
+        );
+        let mut cancelled = sched.take_cancelled();
+        cancelled.sort_unstable();
+        let mut expected = ids.borrow().clone();
+        expected.push(root);
+        expected.sort_unstable();
+        assert_eq!(cancelled, expected);
+        assert_eq!(
+            sched.pooled_stacks(),
+            3,
+            "a torn-down task's stack was handed back to the OS instead of the pool"
+        );
+    }
+
+    #[test]
+    fn a_cancelled_task_runs_no_catch_and_no_cleanup_block() {
+        // ADR 0072 § 5, and the intuitive implementation is the wrong one: what
+        // a cancelled task still owes is *native* teardown, and everything a
+        // program wrote for its own way out — a catch clause, a cleanup block, a
+        // registered handler — does not run. Here the native half is a `Drop`
+        // and the script half is every statement past the safepoint.
+        let dropped = Rc::new(Cell::new(false));
+        let native = Rc::clone(&dropped);
+        let caught = Rc::new(Cell::new(false));
+        let ran_catch = Rc::clone(&caught);
+        let cleaned = Rc::new(Cell::new(false));
+        let ran_cleanup = Rc::clone(&cleaned);
+
+        let mut sched = Scheduler::new();
+        let id = sched.spawn(ctx(), TaskRoot::Request, move |task_ctx| {
+            let _native = NativeDrop(native);
+            suspend(task_ctx, Waiting::Parked);
+            ran_catch.set(true);
+            ran_cleanup.set(true);
+        });
+        sched.run();
+        assert!(
+            !dropped.get(),
+            "the task was torn down before it was cancelled"
+        );
+
+        sched.cancel(id);
+        let report = sched.run();
+
+        assert_eq!(report.cancelled, 1);
+        assert!(dropped.get(), "native teardown did not run");
+        assert!(!caught.get(), "a catch clause ran on the way out");
+        assert!(!cleaned.get(), "a cleanup block ran on the way out");
+        assert!(
+            sched.take_finished().is_empty(),
+            "a cancelled task handed back a Finished, so the unwind was caught \
+             by the containment boundary instead of passing through it"
+        );
+    }
+
+    #[test]
+    fn a_cancelled_tasks_arena_is_released() {
+        // The same teardown seen from the memory side, which is the half ADR
+        // 0004 cares about: what a cancelled task was holding is released at the
+        // moment it dies, not at the end of the worker. An `Rc` stands in for
+        // the arena because it is the one holder a test can count.
+        let arena = Rc::new(vec![0_u8; 64]);
+        let held = Rc::clone(&arena);
+
+        let mut sched = Scheduler::new();
+        let id = sched.spawn(ctx(), TaskRoot::Request, move |task_ctx| {
+            let _arena = held;
+            suspend(task_ctx, Waiting::Parked);
+        });
+        sched.run();
+        assert_eq!(
+            Rc::strong_count(&arena),
+            2,
+            "a parked task is not holding what it allocated"
+        );
+
+        sched.cancel(id);
+        sched.run();
+        assert_eq!(
+            Rc::strong_count(&arena),
+            1,
+            "the cancelled task's memory outlived the task"
         );
     }
 }

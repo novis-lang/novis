@@ -94,7 +94,8 @@ pub use net::NvsUnix;
 pub use net::{NvsStream, NvsTcp};
 pub use reactor::{Installed, Interest, Reactor, RemoteWake, run_until_idle};
 pub use scheduler::{
-    Finished, RunReport, Scheduler, TaskId, Waiting, current_task, suspend, suspend_current,
+    Finished, RunReport, Scheduler, TaskId, Waiting, cancel_task, current_task, spawn_child,
+    suspend, suspend_current,
 };
 pub use stack::{MAX_POOLED_STACKS, TASK_STACK_SIZE};
 pub use timer::{DeadlineView, Timers, park_until, sleep};

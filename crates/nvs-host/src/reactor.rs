@@ -762,6 +762,7 @@ pub fn run_until_idle(sched: &mut Scheduler) -> io::Result<RunReport> {
         let turn = sched.run();
         total.resumes += turn.resumes;
         total.finished += turn.finished;
+        total.cancelled += turn.cancelled;
         // The borrow opens here and closes here. It deliberately does not span
         // the `sched.run()` above, because a task suspending inside that call
         // takes the same borrow to register what it is waiting for.
@@ -771,6 +772,12 @@ pub fn run_until_idle(sched: &mut Scheduler) -> io::Result<RunReport> {
             // finished list is only drained when its owner asks for it.
             for finished in sched.finished() {
                 reactor.retire(finished.id);
+            }
+            // A task torn down for a cancellation owes the same, and owes it
+            // more urgently: it was parked on a registration when it died, so
+            // this is the only place that registration is ever dropped.
+            for id in sched.cancelled() {
+                reactor.retire(*id);
             }
             if sched.parked_count() == 0 {
                 return Ok(None);
