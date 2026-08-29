@@ -66,9 +66,14 @@
 > the wait is the clock and not the wake — `io::ErrorKind::TimedOut` through the ordinary
 > `Read`/`Write` return, since that is the only error channel those traits have.
 > `NvsTcp::connect_timeout` is ADR 0074 § 5's `connect_timeout` over it, bounding the handshake and
-> lifting the bound before the stream is handed back. Closing it turned up a latent path to
-> `abort()` — a suspended coroutine dropped under `run_task`'s containment boundary — which
-> `nvs_runtime::Teardown` now closes. What a task *costs* is settled too:
+> lifting the bound before the stream is handed back. Item 4 is closed with the Unix-domain sibling,
+> and it is the *same* type rather than a second one: the stream is `NvsStream<S>` generic over
+> whatever the reactor can register, `NvsTcp` and `NvsUnix` are type aliases over it, and what stays
+> per family turned out to be only the address. `net.rs`'s module doc § *One type over the source,
+> not one type per socket family* is that decision's one home. Windows compiles none of the
+> `#[cfg(unix)]` half, so the crate is 53 tests under WSL against 49 here. Closing it turned up a
+> latent path to `abort()` — a suspended coroutine dropped under `run_task`'s containment boundary —
+> which `nvs_runtime::Teardown` now closes. What a task *costs* is settled too:
 > `crates/nvs-host/src/stack.rs` is ADR 0115 § 4 — 1 MiB of reserved address space per task,
 > resident only in the pages its handler touched, pooled per worker and recycled the moment the task
 > ends, with the recursion limit armed from that stack instead of asserted from a ceiling on the

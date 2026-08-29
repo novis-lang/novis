@@ -1188,6 +1188,15 @@ is why" — is this file.
   `Fault::fatal` from `nvs-stdlib` — `Core\Arr::countBy` over an `array<float>` is one
   (`FATAL: Core\Arr::countBy expected an `int|string` key, got tag 4`). Reach for that when a test
   needs a fatal to happen at a chosen point in a program rather than at its first instruction.
+- **Windows compiles none of a crate's `#[cfg(unix)]` half, so `verify.py` on this host is silent
+  about it** — a Unix-only type can be green here and not compile at all. The check is one call,
+  `wsl.exe -- bash -lc 'cd /mnt/<drive>/<repo> && CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl cargo test -p
+  <crate>'`, about two seconds warm on that target directory, and it is worth a second one for
+  `cargo clippy -p <crate> --all-targets` because the lints are just as unrun. What it caught while
+  `NvsUnix` was being written: `mio::net::UnixStream::peer_addr` returns
+  `std::os::unix::net::SocketAddr` and **`mio::net` re-exports no address type at all**, so the
+  symmetric-looking `mio::net::SocketAddr` is `E0425` — invisible to every Windows leg, including
+  the acceptance check.
 
 ## Writing a test case
 
