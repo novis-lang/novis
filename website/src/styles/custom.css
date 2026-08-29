@@ -126,12 +126,13 @@
   width: 100%;
   margin: 0;
   border-collapse: collapse;
+  table-layout: fixed;
   font-size: var(--sl-text-sm);
 }
 .method-signature-table caption {
   text-align: start;
   font-weight: 600;
-  padding: 0.75rem 1rem 0.25rem;
+  padding: 0.85rem 1rem 0.6rem;
   color: var(--sl-color-white);
 }
 .method-signature-caption-hint {
@@ -144,21 +145,39 @@
   font-size: var(--sl-text-xs);
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--sl-color-gray-3);
-  padding: 0.35rem 1rem;
+  color: var(--sl-color-gray-2);
+  background-color: color-mix(in oklab, var(--sl-color-gray-6) 60%, transparent);
+  padding: 0.5rem 1rem;
+  border-top: 1px solid var(--sl-color-hairline);
   border-bottom: 1px solid var(--sl-color-hairline);
+}
+.method-signature-table th:first-child {
+  width: 30%;
+}
+.method-signature-table th + th,
+.method-signature-table td + td {
+  border-inline-start: 1px solid color-mix(in oklab, var(--sl-color-hairline) 60%, transparent);
 }
 .method-signature-table td {
-  padding: 0.45rem 1rem;
-  border-bottom: 1px solid color-mix(in oklab, var(--sl-color-hairline) 55%, transparent);
-  vertical-align: top;
-}
-.method-signature-table tr:last-child td {
+  padding: 0.55rem 1rem;
   border-bottom: 1px solid var(--sl-color-hairline);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.method-signature-table td:first-child code {
+  font-weight: 600;
+  color: var(--sl-color-white);
 }
 .method-required {
+  display: inline-block;
   font-size: var(--sl-text-xs);
-  color: var(--sl-color-gray-3);
+  font-weight: 600;
+  line-height: 1;
+  padding: 0.25em 0.5em;
+  border-radius: 999px;
+  color: var(--sl-color-gray-2);
+  background-color: color-mix(in oklab, var(--sl-color-gray-4) 12%, transparent);
+  border: 1px solid var(--sl-color-hairline);
 }
 .sig-type-cell {
   color: var(--sl-color-text-accent);
@@ -166,18 +185,22 @@
 
 .method-signature-facts {
   margin: 0;
-  padding: 0.5rem 0;
+  padding: 0;
 }
 .method-signature-facts > div {
   display: grid;
-  grid-template-columns: 9.5rem 1fr;
+  /* The label column lines up with the tables' 30% name column above it. */
+  grid-template-columns: calc(30% - 1rem) 1fr;
   gap: 1rem;
-  padding: 0.4rem 1rem;
+  padding: 0.6rem 1rem;
   font-size: var(--sl-text-sm);
+}
+.method-signature-facts > div + div {
+  border-top: 1px solid color-mix(in oklab, var(--sl-color-hairline) 60%, transparent);
 }
 .method-signature-facts dt {
   font-weight: 600;
-  color: var(--sl-color-gray-2);
+  color: var(--sl-color-white);
 }
 .method-signature-facts dd {
   margin: 0;
