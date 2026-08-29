@@ -1,0 +1,52 @@
+--TEST--
+`Core\Router::urlAbsolute` throws on a route it resolved when the unit has no configured origin, where `Core\Router::url` answers — ADR 0102 § 6
+--FILE--
+<?nvs
+// The pair asserted on both sides: the *same* name, resolved by the same
+// § 4 lookup, answered by one member and refused by the other. What separates
+// them is only ADR 0102 § 6's origin, and a CLI run has none — § 6 puts the
+// origin on the mount and there is no mount off the command line to expand,
+// which is the one place this refusal can be provoked without a server.
+//
+// The refusal matters because the alternative is not an error: `urlAbsolute`
+// could answer `//posts/1` with an empty authority, or read `Host` off the
+// request. § 6 forbids the second outright — an absolute link's origin is
+// configured per mount and never derived from a header — so the member has to
+// throw rather than answer something a caller would paste into an email.
+class Posts {
+    // ADR 0096 § 1: `#[Access]` is a required sibling, and
+    // `Core\Audience::Public` is § 1a's case for a route that is genuinely
+    // open.
+    #[\Core\Route(path: "/posts/{id}", method: \Core\Http\Method::Get, name: "Posts::show")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function show(uint $id): string { return "post " . $id; }
+}
+
+// The side that answers. Nothing about the route is unusual, which is what
+// makes the other side about the origin and not about the lookup.
+echo "relative=", Core\Router::url("Posts::show", ["id" => 1]), "\n";
+
+// The side that refuses. The message is frozen whole rather than counted: it
+// is the one place a program is told *where* to configure the origin, and a
+// refusal that stopped naming `nvs.toml` would still pass a case asserting
+// only that something threw.
+// Bound to a variable first rather than echoed inline: `echo` writes each
+// argument as it reaches it, so an inline call would have printed the label
+// before the throw and this case would be pinning the order of two writes.
+try {
+    var $absolute = Core\Router::urlAbsolute("Posts::show", ["id" => 1]);
+    echo "absolute=", $absolute, "\n";
+} catch (RuntimeError $e) {
+    echo "threw: ", $e->message, "\n";
+}
+
+// And the refusal is the origin's, not the name's: the same unknown name is
+// refused by both members (which
+// `router-url-and-url-absolute-refuse-the-same-unknown-names.nvst` pins), so
+// a `urlAbsolute` that had simply stopped resolving would print the same
+// first word here. The path inside the message above is the one `url`
+// answered, which is what says the lookup succeeded and the origin is what
+// was missing.
+--EXPECT--
+relative=/posts/1
+threw: Core\Router::urlAbsolute(): no origin is configured for this unit, so `/posts/1` has no absolute form. ADR 0102 § 6 refuses to derive one from a request header, so give `nvs.toml` an `[app] origin`
