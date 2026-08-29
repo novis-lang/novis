@@ -1,0 +1,209 @@
+--TEST--
+Spec § 4: `Core\Time\TimeOfDay`'s `plus` and `minus` are one step taken in opposite directions — 480 counts undone in each direction over a table of times and every unit that moves a clock, one hour reached six ways down the unit ladder, and the pair's two boundaries named on both sides: the largest unit that moves against the smallest that refuses, and the largest count a span holds against the first that does not
+--FILE--
+<?nvs
+// § 4: a time of day has no date under it, so the step wraps and is total —
+// which makes `plus` and `minus` exact inverses everywhere rather than only
+// away from midnight. The sibling case
+// `time-of-day-wraps-at-midnight-and-orders-by-the-same-clock` pins the wrap
+// itself, in minutes, against arithmetic computed in the case; this one asks
+// the other question, over every unit: whichever way the dial turns, turning
+// it back lands on the reading it left.
+array<Core\Time\TimeOfDay> $dial = [
+    Core\Time\TimeOfDay::at(0, 0),
+    Core\Time\TimeOfDay::at(0, 0, {second: 0, nanos: 1}),
+    Core\Time\TimeOfDay::at(9, 5, {second: 7, nanos: 8}),
+    Core\Time\TimeOfDay::at(12, 0, {second: 0, nanos: 500000000}),
+    Core\Time\TimeOfDay::at(23, 59, {second: 59, nanos: 999999999}),
+    Core\Time\TimeOfDay::at(23, 59, {second: 59}),
+    Core\Time\TimeOfDay::at(6, 30),
+    Core\Time\TimeOfDay::at(1, 2, {second: 3, nanos: 4}),
+];
+
+// The six units that move a clock, smallest first — the whole accepted half of
+// `Core\Unit` for this member, so the sweep below is total in its second
+// dimension rather than a sample of it.
+array<Core\Unit> $units = [
+    Core\Unit::Nanosecond,
+    Core\Unit::Microsecond,
+    Core\Unit::Millisecond,
+    Core\Unit::Second,
+    Core\Unit::Minute,
+    Core\Unit::Hour,
+];
+
+// Counts on both sides of zero, each chosen to cross midnight in at least one
+// unit, and every one of them inside the tightest per-unit bound the third
+// section below names — so nothing here is testing the boundary by accident.
+array<int> $counts = [-86400001, -1440, -60, -13, -1, 0, 1, 7, 3600, 86399];
+
+int $row = 0;
+int $undone = 0;
+int $reundone = 0;
+for (; $row < 8; $row = $row + 1) {
+    int $unit = 0;
+    for (; $unit < 6; $unit = $unit + 1) {
+        int $count = 0;
+        for (; $count < 10; $count = $count + 1) {
+            var $start = $dial[$row as string];
+            var $step = $counts[$count as string];
+            var $of = $units[$unit as string];
+            // Forward then back, and back then forward: a member that wrapped
+            // in one direction and clamped in the other passes the first of
+            // these on every row and fails the second on the rows near an end.
+            if ($start->plus($step, $of)->minus($step, $of)->compareTo($start) == 0) {
+                $undone = $undone + 1;
+            }
+            if ($start->minus($step, $of)->plus($step, $of)->compareTo($start) == 0) {
+                $reundone = $reundone + 1;
+            }
+        }
+    }
+}
+echo "plus-then-minus=", $undone as string,
+    " minus-then-plus=", $reundone as string, "|\n";
+
+// The unit ladder: one hour is 60 minutes is 3,600 seconds is 3.6 million
+// milliseconds is 3.6 billion microseconds is 3.6 trillion nanoseconds, and
+// the member has to agree with all five conversions to land in one place. Each
+// row contributes five agreements against its own `Hour` landing, in each
+// direction — a unit whose scale is off by any factor lands somewhere else on
+// the dial and subtracts from both totals.
+int $rung = 0;
+int $ladderUp = 0;
+int $ladderDown = 0;
+for (; $rung < 8; $rung = $rung + 1) {
+    var $from = $dial[$rung as string];
+    var $anHourOn = $from->plus(1, Core\Unit::Hour);
+    var $anHourBack = $from->minus(1, Core\Unit::Hour);
+    if ($from->plus(60, Core\Unit::Minute)->compareTo($anHourOn) == 0) {
+        $ladderUp = $ladderUp + 1;
+    }
+    if ($from->plus(3600, Core\Unit::Second)->compareTo($anHourOn) == 0) {
+        $ladderUp = $ladderUp + 1;
+    }
+    if ($from->plus(3600000, Core\Unit::Millisecond)->compareTo($anHourOn) == 0) {
+        $ladderUp = $ladderUp + 1;
+    }
+    if ($from->plus(3600000000, Core\Unit::Microsecond)->compareTo($anHourOn) == 0) {
+        $ladderUp = $ladderUp + 1;
+    }
+    if ($from->plus(3600000000000, Core\Unit::Nanosecond)->compareTo($anHourOn) == 0) {
+        $ladderUp = $ladderUp + 1;
+    }
+    if ($from->minus(60, Core\Unit::Minute)->compareTo($anHourBack) == 0) {
+        $ladderDown = $ladderDown + 1;
+    }
+    if ($from->minus(3600, Core\Unit::Second)->compareTo($anHourBack) == 0) {
+        $ladderDown = $ladderDown + 1;
+    }
+    if ($from->minus(3600000, Core\Unit::Millisecond)->compareTo($anHourBack) == 0) {
+        $ladderDown = $ladderDown + 1;
+    }
+    if ($from->minus(3600000000, Core\Unit::Microsecond)->compareTo($anHourBack) == 0) {
+        $ladderDown = $ladderDown + 1;
+    }
+    if ($from->minus(3600000000000, Core\Unit::Nanosecond)->compareTo($anHourBack) == 0) {
+        $ladderDown = $ladderDown + 1;
+    }
+}
+echo "ladder-up=", $ladderUp as string, " ladder-down=", $ladderDown as string, "|\n";
+
+// The first boundary, named on both sides: `Unit::Hour` is the largest unit
+// that moves a clock and `Unit::Day` the smallest that refuses, because a day
+// is the thing there is no room for here — a `TimeOfDay` has no date under it
+// for the carry to land in, which is the same reason the step wraps at all.
+// The five refusing cases are `Day`, `Week`, `Month`, `Quarter` and `Year`,
+// and `minus` refuses each of them in exactly the way `plus` does.
+var $noon = Core\Time\TimeOfDay::at(12, 0);
+echo "hour-moves=", $noon->plus(1, Core\Unit::Hour)->format("HH:mm"),
+    " day-refuses=";
+int $refusals = 0;
+try {
+    $noon->plus(1, Core\Unit::Day);
+} catch (LogicError $day) {
+    $refusals = $refusals + 1;
+    echo $day->message;
+}
+echo "|\n";
+try {
+    $noon->plus(1, Core\Unit::Week);
+} catch (LogicError $week) {
+    $refusals = $refusals + 1;
+}
+try {
+    $noon->plus(1, Core\Unit::Month);
+} catch (LogicError $month) {
+    $refusals = $refusals + 1;
+}
+try {
+    $noon->plus(1, Core\Unit::Quarter);
+} catch (LogicError $quarter) {
+    $refusals = $refusals + 1;
+}
+try {
+    $noon->plus(1, Core\Unit::Year);
+} catch (LogicError $year) {
+    $refusals = $refusals + 1;
+}
+// `Quarter` is worth its line: it is the one case that is not its own unit
+// underneath — three months — and a refusal written over the underlying unit
+// rather than over the case still has to catch it.
+try {
+    $noon->minus(1, Core\Unit::Day);
+} catch (LogicError $backDay) {
+    $refusals = $refusals + 1;
+}
+try {
+    $noon->minus(1, Core\Unit::Week);
+} catch (LogicError $backWeek) {
+    $refusals = $refusals + 1;
+}
+try {
+    $noon->minus(1, Core\Unit::Month);
+} catch (LogicError $backMonth) {
+    $refusals = $refusals + 1;
+}
+try {
+    $noon->minus(1, Core\Unit::Quarter);
+} catch (LogicError $backQuarter) {
+    $refusals = $refusals + 1;
+}
+try {
+    $noon->minus(1, Core\Unit::Year);
+} catch (LogicError $backYear) {
+    $refusals = $refusals + 1;
+}
+echo "refusals=", $refusals as string, "|\n";
+
+// The second boundary is where the count runs out, and only its outer rung is
+// a refusal: a count is carried as a span, and a span bounds its hours at
+// 175,307,616 either way, so 175,307,617 is a diagnostic naming the range
+// rather than one more answer. The dial's own arithmetic is asserted well
+// inside that bound — 100,000 whole days forward, the same back, and one hour
+// short of it — because somewhere between the two rungs the step stops being
+// the modular one § 4 promises: `plus(24000000, Unit::Hour)` is a whole number
+// of days and does not answer noon. That is a defect rather than a boundary,
+// so it is in the handoff's backlog and not frozen here, where a pinned value
+// would make it permanent.
+echo "whole-days=", $noon->plus(2400000, Core\Unit::Hour)->format("HH:mm:ss"),
+    " back=", $noon->minus(2400000, Core\Unit::Hour)->format("HH:mm:ss"),
+    " one-short=", $noon->plus(2399999, Core\Unit::Hour)->format("HH:mm:ss"), "|\n";
+try {
+    $noon->plus(175307617, Core\Unit::Hour);
+} catch (RuntimeError $past) {
+    echo "past-the-span=", $past->message, "|\n";
+}
+try {
+    $noon->minus(175307617, Core\Unit::Hour);
+} catch (RuntimeError $backPast) {
+    echo "minus-agrees=", $backPast->message, "|\n";
+}
+--EXPECT--
+plus-then-minus=480 minus-then-plus=480|
+ladder-up=40 ladder-down=40|
+hour-moves=13:00 day-refuses=Core\Time\TimeOfDay::plus(): a unit of `Unit::Day` or larger does not move a time of day|
+refusals=10|
+whole-days=12:00:00 back=12:00:00 one-short=11:00:00|
+past-the-span=Core\Time\TimeOfDay::plus(): parameter 'hours' is not in the required range of -175307616..=175307616|
+minus-agrees=Core\Time\TimeOfDay::minus(): parameter 'hours' is not in the required range of -175307616..=175307616|

@@ -2432,6 +2432,15 @@ is why" — is this file.
   by four spaces, so the paste is de-indented by hand; and a value that can be empty or end in a space
   needs a delimiter around it in the `echo` (`"[", $x, "]"`), because a trailing space is invisible in
   the report and exact in the comparison.
+- **A `.nvst` case's bindings are script-scoped, and that includes a `catch`'s.** A case is top-level
+  statements, so `int $left = 12;` inside the second sweep collides with the `var $left` the first
+  sweep declared — `E0406: '$left' is already declared`, pointing at a line eighty above — and two
+  `try`/`catch` blocks both binding `$e` fail the same way even though neither binding outlives its
+  block. There is no block scope to hide behind: give every binding in the file its own name. The
+  second failure mode is worse than the first, because a shadowed name that *does* typecheck reads as
+  a working case: `$left <=> $right` over two still-in-scope `TimeOfDay` values is
+  `E0411: does not implement Comparable`, which reads as a fact about the class rather than as the
+  name collision it is.
 
 ## Splitting a file that got too big
 
