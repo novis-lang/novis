@@ -2892,6 +2892,10 @@ fn clock_from_parts(hour: i64, minute: i64, second: i64, nanos: i64) -> Option<c
 /// `plus` a member whose safety depends on the value it is called on, which is
 /// the landmine a total operation avoids. `$d->plus(…)` on a `DateTime` is
 /// where a step that carries a day belongs.
+///
+/// **The wrap is exact at every count the span bound accepts**, which is what
+/// [`clock_cycle`] is for; the count is reduced to one turn of the dial before
+/// `jiff` ever sees it.
 fn clock_stepped(args: &[Value], member: &str, sign: i64) -> Result<Value, Fault> {
     let label = format!(r"Core\Time\TimeOfDay::{member}");
     let at = clock_of(args, 0, member)?;
@@ -2913,8 +2917,40 @@ fn clock_stepped(args: &[Value], member: &str, sign: i64) -> Result<Value, Fault
         .checked_mul(scale)
         .and_then(|steps| steps.checked_mul(sign))
         .ok_or_else(|| out_of_range(&label, "that many units is past what a span can hold"))?;
-    let span = span_of(unit, steps).map_err(|err| out_of_range(&label, &err.to_string()))?;
+    // Built from the whole count first, and thrown away: a span's per-unit
+    // bound is what refuses a count no span can carry, and its message names
+    // the range. It is deliberately not what moves the dial. `jiff` totals a
+    // span in `i64` nanoseconds, so a count past roughly 2,562,047 hours wraps
+    // *there* — silently, and onto a reading that is not the modular one this
+    // member promises. Reducing to one turn of the dial first makes the answer
+    // exact at every count the bound accepts, which is the whole accepted
+    // range rather than the first thousandth of it.
+    span_of(unit, steps).map_err(|err| out_of_range(&label, &err.to_string()))?;
+    let span = span_of(unit, steps % clock_cycle(unit))
+        .map_err(|err| out_of_range(&label, &err.to_string()))?;
     Ok(clock_built(at.wrapping_add(span)))
+}
+
+/// How many steps of `unit` are one whole turn of the dial — a day, written in
+/// that unit.
+///
+/// Every unit that reaches here divides a day exactly, so a count reduced by
+/// this lands on the reading the whole count would have landed on if the
+/// arithmetic underneath were unbounded. [`clock_stepped`] has already refused
+/// every unit of a day or larger, which leaves nanoseconds as the only case the
+/// arm below does not name.
+fn clock_cycle(unit: jiff::Unit) -> i64 {
+    /// One turn of the dial, in nanoseconds.
+    const NANOS_PER_DAY: i64 = 86_400_000_000_000;
+    NANOS_PER_DAY
+        / match unit {
+            jiff::Unit::Hour => 3_600_000_000_000,
+            jiff::Unit::Minute => 60_000_000_000,
+            jiff::Unit::Second => 1_000_000_000,
+            jiff::Unit::Millisecond => 1_000_000,
+            jiff::Unit::Microsecond => 1_000,
+            _ => 1,
+        }
 }
 
 nvs_runtime::nvs_helper! {

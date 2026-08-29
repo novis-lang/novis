@@ -179,16 +179,28 @@ echo "refusals=", $refusals as string, "|\n";
 // The second boundary is where the count runs out, and only its outer rung is
 // a refusal: a count is carried as a span, and a span bounds its hours at
 // 175,307,616 either way, so 175,307,617 is a diagnostic naming the range
-// rather than one more answer. The dial's own arithmetic is asserted well
-// inside that bound — 100,000 whole days forward, the same back, and one hour
-// short of it — because somewhere between the two rungs the step stops being
-// the modular one § 4 promises: `plus(24000000, Unit::Hour)` is a whole number
-// of days and does not answer noon. That is a defect rather than a boundary,
-// so it is in the handoff's backlog and not frozen here, where a pinned value
-// would make it permanent.
+// rather than one more answer. The accepted side is asserted at the bound
+// itself and not merely well inside it: 175,307,616 hours is a whole number of
+// days, so it answers the reading it started from, and one hour short of it
+// answers one hour short. The step is modular across the entire accepted
+// range, which it was not until `clock_stepped` began reducing a count to one
+// turn of the dial before handing it to `jiff` — a span is totalled in `i64`
+// nanoseconds, so every count past roughly 2,562,047 hours used to wrap there
+// instead and answer something plausible. The rung below that old break is
+// kept beside the bound because it is what a member reducing modulo the wrong
+// number still gets right.
+echo "at-the-bound=", $noon->plus(175307616, Core\Unit::Hour)->format("HH:mm:ss"),
+    " back=", $noon->minus(175307616, Core\Unit::Hour)->format("HH:mm:ss"),
+    " one-short=", $noon->plus(175307615, Core\Unit::Hour)->format("HH:mm:ss"), "|\n";
 echo "whole-days=", $noon->plus(2400000, Core\Unit::Hour)->format("HH:mm:ss"),
     " back=", $noon->minus(2400000, Core\Unit::Hour)->format("HH:mm:ss"),
     " one-short=", $noon->plus(2399999, Core\Unit::Hour)->format("HH:mm:ss"), "|\n";
+// The smallest unit at its own largest count: `i64::MAX` nanoseconds is not a
+// whole number of days, so this is the one rung here that names a reading
+// arrived at rather than returned to — 9,223,372,036,854,775,807 nanoseconds
+// is 106,751 whole days and 85,636.854775807 seconds.
+echo "biggest-nanos=", $noon->plus(9223372036854775807, Core\Unit::Nanosecond)
+    ->format("HH:mm:ss.SSSSSSSSS"), "|\n";
 try {
     $noon->plus(175307617, Core\Unit::Hour);
 } catch (RuntimeError $past) {
@@ -204,6 +216,8 @@ plus-then-minus=480 minus-then-plus=480|
 ladder-up=40 ladder-down=40|
 hour-moves=13:00 day-refuses=Core\Time\TimeOfDay::plus(): a unit of `Unit::Day` or larger does not move a time of day|
 refusals=10|
+at-the-bound=12:00:00 back=12:00:00 one-short=11:00:00|
 whole-days=12:00:00 back=12:00:00 one-short=11:00:00|
+biggest-nanos=11:47:16.854775807|
 past-the-span=Core\Time\TimeOfDay::plus(): parameter 'hours' is not in the required range of -175307616..=175307616|
 minus-agrees=Core\Time\TimeOfDay::minus(): parameter 'hours' is not in the required range of -175307616..=175307616|
