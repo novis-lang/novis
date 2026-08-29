@@ -64,7 +64,7 @@ use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, ObjHeader, Tag, Value};
 
 use crate::identity_store as store;
 use crate::ordering::{comparator_sign, compare_values};
-use crate::registry::{Const, CoreClass, CoreMethod, CoreTy};
+use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc};
 
 /// The class's fully-qualified name, as [`CoreTy::Instance`] spells it.
 pub(crate) const NAME: &str = r"Core\Heap";
@@ -98,7 +98,7 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
     defaults: &[Const::Null],
     return_ty: CoreTy::Instance(NAME),
     symbol: NEW_SYMBOL,
-    doc: None,
+    doc: Some(&CONSTRUCTOR_DOC),
 };
 
 /// `Core\Heap<T>` — docs/spec/01-core-library.md § 9's third row.
@@ -117,7 +117,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_heap_push",
-            doc: None,
+            doc: Some(&PUSH_DOC),
         },
         CoreMethod {
             name: "peek",
@@ -126,7 +126,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Var("T"),
             symbol: "nvs_core_heap_peek",
-            doc: None,
+            doc: Some(&PEEK_DOC),
         },
         CoreMethod {
             name: "pop",
@@ -135,7 +135,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Var("T"),
             symbol: "nvs_core_heap_pop",
-            doc: None,
+            doc: Some(&POP_DOC),
         },
         CoreMethod {
             name: "count",
@@ -144,7 +144,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Uint,
             symbol: "nvs_core_heap_count",
-            doc: None,
+            doc: Some(&COUNT_DOC),
         },
         CoreMethod {
             name: "isEmpty",
@@ -153,11 +153,89 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_heap_is_empty",
-            doc: None,
+            doc: Some(&IS_EMPTY_DOC),
         },
     ],
     slots: &["entries", "comparator"],
     constants: &[],
+};
+
+/// `new Core\Heap`'s reference card — ADR 0117.
+const CONSTRUCTOR_DOC: MethodDoc = MethodDoc {
+    short: "Builds an empty `Core\\Heap<T>` — a priority queue that replaces `SplPriorityQueue`, \
+            `SplMinHeap` and `SplMaxHeap` — ordered by `$comparator` when one is given, \
+            otherwise by `Comparable::compareTo`, and otherwise by the natural order of scalars.",
+    params: &[ParamDoc {
+        name: "comparator",
+        desc: "An optional `fn ($a, $b)` answering a negative number, zero or a positive number \
+               as `Core\\Arr::sort`'s comparator does; `null` for `compareTo` or the natural \
+               order.",
+        shape: &[],
+    }],
+    ret: "A fresh heap holding nothing; `peek` and `pop` answer the *smallest* element under the \
+          ordering in force, so a max-heap is one comparator away — \
+          `fn ($a, $b) => $b->compareTo($a)`.",
+    errors: &[],
+};
+
+/// `Core\Heap::push`'s reference card — ADR 0117.
+const PUSH_DOC: MethodDoc = MethodDoc {
+    short: "Adds `$value`, keeping the heap ordered in O(log n); a duplicate is held rather than \
+            folded away, because this is a priority queue and not a set.",
+    params: &[ParamDoc {
+        name: "value",
+        desc: "The element to add.",
+        shape: &[],
+    }],
+    ret: "Nothing; a comparator's own throw propagates unchanged.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "When the ordering in force cannot place `$value`: no comparator or `compareTo` \
+               applies and the pair has no natural order (two numbers, two strings, two bools or \
+               two nulls have one), or a comparator answers `NaN`.",
+    }],
+};
+
+/// `Core\Heap::peek`'s reference card — ADR 0117.
+const PEEK_DOC: MethodDoc = MethodDoc {
+    short: "Answers the element `pop` would answer with — the smallest under the ordering in \
+            force — and leaves it where it is.",
+    params: &[],
+    ret: "The first element; the heap is unchanged.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "When the heap is empty; `isEmpty` is the question to ask first.",
+    }],
+};
+
+/// `Core\Heap::pop`'s reference card — ADR 0117.
+const POP_DOC: MethodDoc = MethodDoc {
+    short: "Removes and answers the smallest element under the ordering in force, in O(log n).",
+    params: &[],
+    ret: "The element that was first; the next one takes its place, and a comparator's own throw \
+          propagates unchanged.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "When the heap is empty, or when re-ordering what remains meets a pair with no \
+               natural order or a comparator answering `NaN`.",
+    }],
+};
+
+/// `Core\Heap::count`'s reference card — ADR 0117.
+const COUNT_DOC: MethodDoc = MethodDoc {
+    short: "Counts the elements the heap holds, duplicates included.",
+    params: &[],
+    ret: "The element count; `0` for an empty heap.",
+    errors: &[],
+};
+
+/// `Core\Heap::isEmpty`'s reference card — ADR 0117.
+const IS_EMPTY_DOC: MethodDoc = MethodDoc {
+    short: "Whether the heap holds nothing — the question to ask before `peek` or `pop`, which \
+            throw on an empty heap.",
+    params: &[],
+    ret: "`true` for an empty heap, `false` otherwise.",
+    errors: &[],
 };
 
 /// [`CLASS`]'s slots, by index.

@@ -30,7 +30,7 @@
 use nvs_runtime::{Fault, NvsArray, NvsStr, ObjHeader, Value};
 
 use crate::identity_store as store;
-use crate::registry::{CoreClass, CoreMethod, CoreTy};
+use crate::registry::{CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc};
 
 /// The class's fully-qualified name, as [`CoreTy::Instance`] spells it.
 pub(crate) const NAME: &str = r"Core\ObjectMap";
@@ -55,7 +55,7 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
     defaults: &[],
     return_ty: CoreTy::Instance(NAME),
     symbol: NEW_SYMBOL,
-    doc: None,
+    doc: Some(&CONSTRUCTOR_DOC),
 };
 
 /// `Core\ObjectMap<K, V>` — docs/spec/01-core-library.md § 9's first row.
@@ -82,7 +82,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_object_map_set",
-            doc: None,
+            doc: Some(&SET_DOC),
         },
         CoreMethod {
             name: "get",
@@ -91,7 +91,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Var("V")),
             symbol: "nvs_core_object_map_get",
-            doc: None,
+            doc: Some(&GET_DOC),
         },
         CoreMethod {
             name: "has",
@@ -100,7 +100,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_object_map_has",
-            doc: None,
+            doc: Some(&HAS_DOC),
         },
         CoreMethod {
             name: "remove",
@@ -109,7 +109,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_object_map_remove",
-            doc: None,
+            doc: Some(&REMOVE_DOC),
         },
         CoreMethod {
             name: "count",
@@ -118,7 +118,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Uint,
             symbol: "nvs_core_object_map_count",
-            doc: None,
+            doc: Some(&COUNT_DOC),
         },
         CoreMethod {
             name: "isEmpty",
@@ -127,7 +127,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_object_map_is_empty",
-            doc: None,
+            doc: Some(&IS_EMPTY_DOC),
         },
         CoreMethod {
             name: "keys",
@@ -136,7 +136,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("K")),
             symbol: "nvs_core_object_map_keys",
-            doc: None,
+            doc: Some(&KEYS_DOC),
         },
         CoreMethod {
             name: "values",
@@ -145,7 +145,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("V")),
             symbol: "nvs_core_object_map_values",
-            doc: None,
+            doc: Some(&VALUES_DOC),
         },
         CoreMethod {
             name: "clear",
@@ -154,11 +154,120 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_object_map_clear",
-            doc: None,
+            doc: Some(&CLEAR_DOC),
         },
     ],
     slots: &["keys", "values"],
     constants: &[],
+};
+
+/// `new Core\ObjectMap`'s reference card — ADR 0117.
+const CONSTRUCTOR_DOC: MethodDoc = MethodDoc {
+    short: "Builds an empty `Core\\ObjectMap<K, V>` — a map keyed by identity, which replaces \
+            `SplObjectStorage` used as a map and every `spl_object_id` side table.",
+    params: &[],
+    ret: "A fresh map holding nothing, whose iteration order is insertion order.",
+    errors: &[],
+};
+
+/// `Core\ObjectMap::set`'s reference card — ADR 0117.
+const SET_DOC: MethodDoc = MethodDoc {
+    short: "Associates `$value` with `$key`, replacing whatever `$key` held; a key is matched by \
+            identity, never by equality.",
+    params: &[
+        ParamDoc {
+            name: "key",
+            desc: "The key, matched by identity against the keys the map holds.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "value",
+            desc: "The value to store under `$key`.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing; a key set again keeps its place in the insertion order.",
+    errors: &[],
+};
+
+/// `Core\ObjectMap::get`'s reference card — ADR 0117.
+const GET_DOC: MethodDoc = MethodDoc {
+    short: "Answers what `$key` holds — `?V` rather than a throwing read, because these types \
+            have no subscript and so no `$a[$k] ?? $d` to offer instead.",
+    params: &[ParamDoc {
+        name: "key",
+        desc: "The key to look up, matched by identity.",
+        shape: &[],
+    }],
+    ret: "The value stored under `$key`, or `null` where the map holds no key identical to it — \
+          which a stored `null` is indistinguishable from, so `has` is the question that tells \
+          the two apart.",
+    errors: &[],
+};
+
+/// `Core\ObjectMap::has`'s reference card — ADR 0117.
+const HAS_DOC: MethodDoc = MethodDoc {
+    short: "Whether the map holds a key identical to `$key`.",
+    params: &[ParamDoc {
+        name: "key",
+        desc: "The key to look for, matched by identity.",
+        shape: &[],
+    }],
+    ret: "`true` when the key is present — even where it holds `null` — and `false` otherwise.",
+    errors: &[],
+};
+
+/// `Core\ObjectMap::remove`'s reference card — ADR 0117.
+const REMOVE_DOC: MethodDoc = MethodDoc {
+    short: "Drops `$key` and the value it held.",
+    params: &[ParamDoc {
+        name: "key",
+        desc: "The key to drop, matched by identity.",
+        shape: &[],
+    }],
+    ret: "Nothing; a key the map does not hold is left alone rather than reported.",
+    errors: &[],
+};
+
+/// `Core\ObjectMap::count`'s reference card — ADR 0117.
+const COUNT_DOC: MethodDoc = MethodDoc {
+    short: "Counts the pairs the map holds.",
+    params: &[],
+    ret: "The number of keys; `0` for an empty map.",
+    errors: &[],
+};
+
+/// `Core\ObjectMap::isEmpty`'s reference card — ADR 0117.
+const IS_EMPTY_DOC: MethodDoc = MethodDoc {
+    short: "Whether the map holds no pairs.",
+    params: &[],
+    ret: "`true` for a map with no keys, `false` otherwise.",
+    errors: &[],
+};
+
+/// `Core\ObjectMap::keys`'s reference card — ADR 0117.
+const KEYS_DOC: MethodDoc = MethodDoc {
+    short: "Every key, as a list in insertion order — the same order a `foreach` over the map \
+            yields.",
+    params: &[],
+    ret: "A fresh `array<K>` list, empty for an empty map, whose positions pair with `values()`.",
+    errors: &[],
+};
+
+/// `Core\ObjectMap::values`'s reference card — ADR 0117.
+const VALUES_DOC: MethodDoc = MethodDoc {
+    short: "Every value, as a list in the order `keys()` answers its keys.",
+    params: &[],
+    ret: "A fresh `array<V>` list, empty for an empty map, whose positions pair with `keys()`.",
+    errors: &[],
+};
+
+/// `Core\ObjectMap::clear`'s reference card — ADR 0117.
+const CLEAR_DOC: MethodDoc = MethodDoc {
+    short: "Drops every pair, leaving the map empty.",
+    params: &[],
+    ret: "Nothing; the map itself is kept and can be filled again.",
+    errors: &[],
 };
 
 /// [`CLASS`]'s slots, by index — the two stores this module's docs describe.

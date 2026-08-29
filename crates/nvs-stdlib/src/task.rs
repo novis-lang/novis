@@ -75,7 +75,9 @@ use std::time::Duration;
 use nvs_runtime::host::{Bounds, Job, Outcome};
 use nvs_runtime::{Ctx, Fault, NvsArray, NvsObj, ThrownClass, Value};
 
-use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy};
+use crate::registry::{
+    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
+};
 use crate::time::DURATION_NAME;
 
 /// This class's fully-qualified name, in one place so the registry row and
@@ -113,7 +115,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Var("S"),
             symbol: "nvs_core_task_all",
-            doc: None,
+            doc: Some(&ALL_DOC),
         },
         CoreMethod {
             name: "map",
@@ -126,12 +128,90 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("U")),
             symbol: "nvs_core_task_map",
-            doc: None,
+            doc: Some(&MAP_DOC),
         },
     ],
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// § 3's two options, documented once — both members carry the same two.
+const LIMIT_DOC: ParamDoc = ParamDoc {
+    name: "limit",
+    desc: "The most children running at once; omitted, every child runs at once, and a child \
+           past the limit is scheduled rather than refused.",
+    shape: &[],
+};
+
+/// See [`LIMIT_DOC`].
+const DEADLINE_DOC: ParamDoc = ParamDoc {
+    name: "deadline",
+    desc: "A wall-clock bound on the whole call, not per child; omitted, the request tree's own \
+           `wall_time` is the bound.",
+    shape: &[],
+};
+
+/// ADR 0072 § 4's table, as the two rows a card names — the same on both
+/// members, because [`run_group`] is.
+const GROUP_ERRORS: &[ErrorDoc] = &[
+    ErrorDoc {
+        error: "LogicError",
+        desc: "When `limit` is `0`, which admits no child and so is a group that could never \
+               finish.",
+    },
+    ErrorDoc {
+        error: "TimeoutError",
+        desc: "When `deadline` expires before every child has returned; every child is \
+               cancelled first, and the call waits for those cancellations.",
+    },
+];
+
+/// `Core\Task::all`'s reference card — ADR 0117.
+const ALL_DOC: MethodDoc = MethodDoc {
+    short: "Runs every closure of the `$tasks` shape literal as a concurrent child task and \
+            answers a shape with the same field names, each carrying that closure's own declared \
+            return type — ADR 0072's fixed, heterogeneous set.",
+    params: &[
+        ParamDoc {
+            name: "tasks",
+            desc: "A shape literal whose every field is a written zero-argument `fn` literal; a \
+                   `callable`-typed variable is a compile error naming the field.",
+            shape: &[],
+        },
+        LIMIT_DOC,
+        DEADLINE_DOC,
+    ],
+    ret: "A shape whose fields hold what each closure returned; control never leaves the call \
+          with a child still running, and the first child to throw cancels every sibling and \
+          propagates as itself once they are gone.",
+    errors: GROUP_ERRORS,
+};
+
+/// `Core\Task::map`'s reference card — ADR 0117.
+const MAP_DOC: MethodDoc = MethodDoc {
+    short: "Calls `$fn` once per element of `$items`, each call a concurrent child task, and \
+            answers the results under the subject's own keys and in its order regardless of \
+            completion order — what `curl_multi_*` was for.",
+    params: &[
+        ParamDoc {
+            name: "items",
+            desc: "The array whose elements are handed to `$fn`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "fn",
+            desc: "The callback, receiving `($value, $key)` and free to declare fewer \
+                   parameters; its declared return type is `U`.",
+            shape: &[],
+        },
+        LIMIT_DOC,
+        DEADLINE_DOC,
+    ],
+    ret: "An `array<U>` under `$items`'s keys in `$items`'s order, empty for an empty subject; \
+          control never leaves the call with a child still running, and the first child to throw \
+          cancels every sibling and propagates as itself once they are gone.",
+    errors: GROUP_ERRORS,
 };
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that

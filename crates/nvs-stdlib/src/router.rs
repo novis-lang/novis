@@ -67,7 +67,9 @@
 
 use nvs_runtime::{Fault, HelperResult, NvsStr, Tag, Value};
 
-use crate::registry::{CoreClass, CoreEnum, CoreMethod, CoreTy};
+use crate::registry::{
+    CaseDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc, ParamDoc,
+};
 use crate::uri::{Form, encode};
 
 /// `Core\Http\Method`'s fully-qualified name, written once so the registry row
@@ -97,7 +99,48 @@ pub(crate) const METHOD: CoreEnum = CoreEnum {
         ("Patch", 6),
         ("Delete", 7),
     ],
-    doc: None,
+    doc: Some(&METHOD_DOC),
+};
+
+/// [`METHOD`]'s reference card — ADR 0117.
+const METHOD_DOC: EnumDoc = EnumDoc {
+    short: "The closed set of HTTP verbs a `#[Route]` may be declared under and a request may \
+            carry — ADR 0074's eight, safe ones first so that the four ADR 0096 § 4's CSRF check \
+            covers are the contiguous tail from `Post` on; `CONNECT` is deliberately absent.",
+    cases: &[
+        CaseDoc {
+            name: "Get",
+            desc: "Reads a resource; safe, so no CSRF check applies.",
+        },
+        CaseDoc {
+            name: "Head",
+            desc: "`Get` without a response body; safe.",
+        },
+        CaseDoc {
+            name: "Options",
+            desc: "Asks what a resource supports; safe.",
+        },
+        CaseDoc {
+            name: "Trace",
+            desc: "Echoes the request back; safe.",
+        },
+        CaseDoc {
+            name: "Post",
+            desc: "Submits data and may change state; the first of the CSRF-covered tail.",
+        },
+        CaseDoc {
+            name: "Put",
+            desc: "Replaces a resource; CSRF-covered.",
+        },
+        CaseDoc {
+            name: "Patch",
+            desc: "Changes a resource in place; CSRF-covered.",
+        },
+        CaseDoc {
+            name: "Delete",
+            desc: "Removes a resource; CSRF-covered.",
+        },
+    ],
 };
 
 /// `Core\Audience`'s fully-qualified name, written once for
@@ -115,7 +158,20 @@ pub(crate) const AUDIENCE_NAME: &str = r"Core\Audience";
 pub(crate) const AUDIENCE: CoreEnum = CoreEnum {
     name: AUDIENCE_NAME,
     cases: &[("Public", 0)],
-    doc: None,
+    doc: Some(&AUDIENCE_DOC),
+};
+
+/// [`AUDIENCE`]'s reference card — ADR 0117.
+const AUDIENCE_DOC: EnumDoc = EnumDoc {
+    short: "The one access decision `Core` names for `#[Access(allow: …)]`: a route open to \
+            everyone is a name that resolves rather than a magic string, and the enum will not \
+            grow a second case, because a roster of access levels is the interpretation ADR 0096 \
+            refuses to hold.",
+    cases: &[CaseDoc {
+        name: "Public",
+        desc: "The route is open to every caller; every other decision is the application's own \
+               enum case or class constant.",
+    }],
 };
 
 /// `Core\Router`'s fully-qualified name, in one place so the registry row and
@@ -149,7 +205,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_router_url",
-            doc: None,
+            doc: Some(&URL_DOC),
         },
         CoreMethod {
             name: "urlAbsolute",
@@ -158,12 +214,58 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_router_url_absolute",
-            doc: None,
+            doc: Some(&URL_ABSOLUTE_DOC),
         },
     ],
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `$name` and `$params`, documented once — both members take the same two.
+const NAME_DOC: ParamDoc = ParamDoc {
+    name: "name",
+    desc: "The route's name as its `#[Route]` declared it; a literal is resolved against the \
+           route table while compiling, and an unknown literal is a compile error.",
+    shape: &[],
+};
+
+/// See [`NAME_DOC`].
+const PARAMS_DOC: ParamDoc = ParamDoc {
+    name: "params",
+    desc: "The path's captures by name, plus any query parameters; a literal key that is neither \
+           a capture nor a declared `#[Query]` parameter is a compile error.",
+    shape: &[],
+};
+
+/// `Core\Router::url`'s reference card — ADR 0117.
+const URL_DOC: MethodDoc = MethodDoc {
+    short: "Builds the URL path of the route named `$name`, substituting `$params` into its \
+            `{captures}` and writing what is left over as a query string — ADR 0077 § 4's \
+            launderer for the URL-path sink, every value percent-encoded into its own segment.",
+    params: &[NAME_DOC, PARAMS_DOC],
+    ret: "The path, `/users/42?page=2`, with an optional `{name?}` capture dropped when `$params` \
+          omits it and a `{name...}` capture's own `/`s kept as structure.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "When `$name` is not a literal the compiler could resolve — a computed name, or one \
+               given as a named argument; when `$params` lacks a capture the path requires; or \
+               when a value has no text form a segment or query parameter could be built from.",
+    }],
+};
+
+/// `Core\Router::urlAbsolute`'s reference card — ADR 0117.
+const URL_ABSOLUTE_DOC: MethodDoc = MethodDoc {
+    short: "`url` with the mount's configured origin in front — ADR 0102 § 6's `[app] origin`, \
+            resolved before the request ran and never derived from a `Host` or \
+            `X-Forwarded-Host` header.",
+    params: &[NAME_DOC, PARAMS_DOC],
+    ret: "The absolute URL, `https://example.test/users/42?page=2`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "For everything `url` throws for, and when no origin is configured for the unit, \
+               since ADR 0102 § 6 refuses to derive one from a request header.",
+    }],
 };
 
 /// The two symbols ADR 0077 § 4's **folded** link is lowered to, and the wire

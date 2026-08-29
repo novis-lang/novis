@@ -28,7 +28,7 @@
 //! casing rule needs at least one character — and so is the one value that can
 //! mean "the target itself" without shadowing a real name.
 
-use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, Qual};
+use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual};
 
 /// This class's fully-qualified name, in one place so the registry row and
 /// every consumer that matches on it cannot drift apart.
@@ -61,7 +61,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[Const::Str("")],
             return_ty: CoreTy::Nullable(&T),
             symbol: "nvs_core_attributes_get",
-            doc: None,
+            doc: Some(&GET_DOC),
         },
         CoreMethod {
             name: "all",
@@ -70,12 +70,49 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[Const::Str("")],
             return_ty: CoreTy::Array(&T),
             symbol: "nvs_core_attributes_all",
-            doc: None,
+            doc: Some(&ALL_DOC),
         },
     ],
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `$target`, documented once — both members take the same one.
+const TARGET_DOC: ParamDoc = ParamDoc {
+    name: "target",
+    desc: "The declaration whose attributes are read — a class or function reference.",
+    shape: &[],
+};
+
+/// See [`TARGET_DOC`].
+const MEMBER_DOC: ParamDoc = ParamDoc {
+    name: "member",
+    desc: "The name of a member of `$target` to read instead of `$target` itself; the empty \
+           string, which is the default, means the target.",
+    shape: &[],
+};
+
+/// `Core\Attributes::get`'s reference card — ADR 0117.
+const GET_DOC: MethodDoc = MethodDoc {
+    short: "Answers the one attribute attached to `$target` — or to its member `$member` — whose \
+            literal structurally satisfies the shape `T` written at the call site, resolved in \
+            `nvs check` so that the call is replaced by its answer and nothing runs.",
+    params: &[TARGET_DOC, MEMBER_DOC],
+    ret: "The matching attribute's payload literal as `T`, or `null` when none satisfies `T`; \
+          more than one is a compile error naming `all<T>` as the fix.",
+    errors: &[],
+};
+
+/// `Core\Attributes::all`'s reference card — ADR 0117.
+const ALL_DOC: MethodDoc = MethodDoc {
+    short: "Answers every attribute attached to `$target` — or to its member `$member` — whose \
+            literal structurally satisfies the shape `T` written at the call site, resolved in \
+            `nvs check` so that the call is replaced by its answer and nothing runs.",
+    params: &[TARGET_DOC, MEMBER_DOC],
+    ret: "An `array<T>` of the matching payload literals in declaration order, empty when none \
+          satisfies `T`.",
+    errors: &[],
 };
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that

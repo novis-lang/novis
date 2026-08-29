@@ -71,7 +71,7 @@ use nvs_runtime::host::{Waker, Woken};
 use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, ObjHeader, Value};
 
 use crate::identity_store as store;
-use crate::registry::{CoreClass, CoreMethod, CoreTy};
+use crate::registry::{CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc};
 
 /// The class's fully-qualified name, as [`CoreTy::Instance`] spells it.
 pub(crate) const NAME: &str = r"Core\Task\Channel";
@@ -104,7 +104,7 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
     defaults: &[],
     return_ty: CoreTy::Instance(NAME),
     symbol: NEW_SYMBOL,
-    doc: None,
+    doc: Some(&CONSTRUCTOR_DOC),
 };
 
 /// `Core\Task\Channel<T>` — two members, because everything else a program
@@ -125,7 +125,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_channel_send",
-            doc: None,
+            doc: Some(&SEND_DOC),
         },
         CoreMethod {
             name: "close",
@@ -134,11 +134,51 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_channel_close",
-            doc: None,
+            doc: Some(&CLOSE_DOC),
         },
     ],
     slots: &["items", "capacity", "closed", "next", "current"],
     constants: &[],
+};
+
+/// `new Core\Task\Channel`'s reference card — ADR 0117.
+const CONSTRUCTOR_DOC: MethodDoc = MethodDoc {
+    short: "Builds a `Core\\Task\\Channel<T>` — a bounded queue between two tasks, whose `send` \
+            suspends at the bound instead of growing.",
+    params: &[ParamDoc {
+        name: "capacity",
+        desc: "How many values the channel holds before a `send` suspends; at least `1`, since \
+               a `0` is refused as a fatal error rather than raised to one.",
+        shape: &[],
+    }],
+    ret: "A fresh open, empty channel, which is its own iterator: a `foreach` over it takes each \
+          value out, suspending while the channel is empty and open, and ends once it is empty \
+          and closed.",
+    errors: &[],
+};
+
+/// `Core\Task\Channel::send`'s reference card — ADR 0117.
+const SEND_DOC: MethodDoc = MethodDoc {
+    short: "Queues `$value` for the consuming task, suspending the calling task for as long as \
+            the channel is full.",
+    params: &[ParamDoc {
+        name: "value",
+        desc: "The value to hand across.",
+        shape: &[],
+    }],
+    ret: "Nothing, once the value is queued; a `send` on a closed channel is a fatal error, \
+          which no `catch` sees.",
+    errors: &[],
+};
+
+/// `Core\Task\Channel::close`'s reference card — ADR 0117.
+const CLOSE_DOC: MethodDoc = MethodDoc {
+    short: "Ends the stream, so that a consumer's `foreach` finishes once the queued values are \
+            drained.",
+    params: &[],
+    ret: "Nothing; values sent before the close are still delivered, and closing twice changes \
+          nothing.",
+    errors: &[],
 };
 
 /// [`CLASS`]'s slots, by index: the queue itself, oldest entry first …

@@ -9,7 +9,7 @@
 use nvs_runtime::{Fault, NvsStr, ObjHeader, Value};
 
 use crate::identity_store as store;
-use crate::registry::{CoreClass, CoreMethod, CoreTy};
+use crate::registry::{CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc};
 
 /// The class's fully-qualified name, as [`CoreTy::Instance`] spells it.
 pub(crate) const NAME: &str = r"Core\ObjectSet";
@@ -33,7 +33,7 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
     defaults: &[],
     return_ty: CoreTy::Instance(NAME),
     symbol: NEW_SYMBOL,
-    doc: None,
+    doc: Some(&CONSTRUCTOR_DOC),
 };
 
 /// `Core\ObjectSet<T>` — docs/spec/01-core-library.md § 9's second row.
@@ -56,7 +56,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_object_set_add",
-            doc: None,
+            doc: Some(&ADD_DOC),
         },
         CoreMethod {
             name: "has",
@@ -65,7 +65,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_object_set_has",
-            doc: None,
+            doc: Some(&HAS_DOC),
         },
         CoreMethod {
             name: "remove",
@@ -74,7 +74,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_object_set_remove",
-            doc: None,
+            doc: Some(&REMOVE_DOC),
         },
         CoreMethod {
             name: "count",
@@ -83,7 +83,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Uint,
             symbol: "nvs_core_object_set_count",
-            doc: None,
+            doc: Some(&COUNT_DOC),
         },
         CoreMethod {
             name: "isEmpty",
@@ -92,7 +92,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_object_set_is_empty",
-            doc: None,
+            doc: Some(&IS_EMPTY_DOC),
         },
         CoreMethod {
             name: "union",
@@ -101,7 +101,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             symbol: "nvs_core_object_set_union",
-            doc: None,
+            doc: Some(&UNION_DOC),
         },
         CoreMethod {
             name: "intersect",
@@ -110,7 +110,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             symbol: "nvs_core_object_set_intersect",
-            doc: None,
+            doc: Some(&INTERSECT_DOC),
         },
         CoreMethod {
             name: "diff",
@@ -119,7 +119,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             symbol: "nvs_core_object_set_diff",
-            doc: None,
+            doc: Some(&DIFF_DOC),
         },
         CoreMethod {
             name: "clear",
@@ -128,11 +128,121 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_object_set_clear",
-            doc: None,
+            doc: Some(&CLEAR_DOC),
         },
     ],
     slots: &["entries"],
     constants: &[],
+};
+
+/// `new Core\ObjectSet`'s reference card — ADR 0117.
+const CONSTRUCTOR_DOC: MethodDoc = MethodDoc {
+    short: "Builds an empty `Core\\ObjectSet<T>` — a set keyed by identity, which replaces \
+            `SplObjectStorage` used as a set.",
+    params: &[],
+    ret: "A fresh set holding nothing, whose iteration order is insertion order.",
+    errors: &[],
+};
+
+/// `Core\ObjectSet::add`'s reference card — ADR 0117.
+const ADD_DOC: MethodDoc = MethodDoc {
+    short: "Adds `$value` unless the set already holds something identical to it.",
+    params: &[ParamDoc {
+        name: "value",
+        desc: "The value to add, matched by identity.",
+        shape: &[],
+    }],
+    ret: "Nothing; adding a value the set already holds changes nothing, and `has` is the \
+          spelling for whether it was there.",
+    errors: &[],
+};
+
+/// `Core\ObjectSet::has`'s reference card — ADR 0117.
+const HAS_DOC: MethodDoc = MethodDoc {
+    short: "Whether the set holds something identical to `$value`.",
+    params: &[ParamDoc {
+        name: "value",
+        desc: "The value to look for, matched by identity.",
+        shape: &[],
+    }],
+    ret: "`true` when the value is a member, `false` otherwise.",
+    errors: &[],
+};
+
+/// `Core\ObjectSet::remove`'s reference card — ADR 0117.
+const REMOVE_DOC: MethodDoc = MethodDoc {
+    short: "Drops `$value` from the set.",
+    params: &[ParamDoc {
+        name: "value",
+        desc: "The value to drop, matched by identity.",
+        shape: &[],
+    }],
+    ret: "Nothing; a value the set does not hold is left alone rather than reported.",
+    errors: &[],
+};
+
+/// `Core\ObjectSet::count`'s reference card — ADR 0117.
+const COUNT_DOC: MethodDoc = MethodDoc {
+    short: "Counts the distinct values the set holds.",
+    params: &[],
+    ret: "The number of members; `0` for an empty set.",
+    errors: &[],
+};
+
+/// `Core\ObjectSet::isEmpty`'s reference card — ADR 0117.
+const IS_EMPTY_DOC: MethodDoc = MethodDoc {
+    short: "Whether the set holds nothing.",
+    params: &[],
+    ret: "`true` for a set with no members, `false` otherwise.",
+    errors: &[],
+};
+
+/// `Core\ObjectSet::union`'s reference card — ADR 0117.
+const UNION_DOC: MethodDoc = MethodDoc {
+    short: "Builds a new set holding every value this set or `$other` holds.",
+    params: &[ParamDoc {
+        name: "other",
+        desc: "The set to combine with.",
+        shape: &[],
+    }],
+    ret: "A fresh `Core\\ObjectSet<T>` — this set's members first, in their order, then \
+          `$other`'s newcomers; neither operand is changed.",
+    errors: &[],
+};
+
+/// `Core\ObjectSet::intersect`'s reference card — ADR 0117.
+const INTERSECT_DOC: MethodDoc = MethodDoc {
+    short: "Builds a new set holding the values both this set and `$other` hold.",
+    params: &[ParamDoc {
+        name: "other",
+        desc: "The set to intersect with.",
+        shape: &[],
+    }],
+    ret: "A fresh `Core\\ObjectSet<T>` in this set's order, empty when the two share nothing; \
+          neither operand is changed.",
+    errors: &[],
+};
+
+/// `Core\ObjectSet::diff`'s reference card — ADR 0117.
+const DIFF_DOC: MethodDoc = MethodDoc {
+    short: "Builds a new set holding the values this set holds and `$other` does not — spelled \
+            `diff` as `Core\\Arr::diff` is, because one operation gets one name.",
+    params: &[ParamDoc {
+        name: "other",
+        desc: "The set whose members are left out.",
+        shape: &[],
+    }],
+    ret: "A fresh `Core\\ObjectSet<T>` in this set's order, empty when `$other` holds everything \
+          this set does; neither operand is changed.",
+    errors: &[],
+};
+
+/// `Core\ObjectSet::clear`'s reference card — ADR 0117.
+const CLEAR_DOC: MethodDoc = MethodDoc {
+    short: "Drops every member, leaving the set empty.",
+    params: &[],
+    ret: "Nothing; the set itself is kept and can be filled again.",
+    errors: &[],
 };
 
 /// [`CLASS`]'s one slot, by index.
