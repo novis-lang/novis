@@ -2,79 +2,77 @@
 
 ## State
 
-**`Core\Time\Date` is finished to depth.** Three cases landed this session and `python tools/gaps.py
---coverage` now reads the class at depth 6.0 / floor 5 (`compareTo 5, minus 6, plus 6`), so it is no
-longer the thinnest § 4 class — `Core\Time\DateTime` is (floor 3). No `nvs-stdlib` source changed:
-every member the three cases reach already answered correctly, which is what the sweeps say.
+**`Core\Time\DateTime` is finished to depth and is no longer the thinnest § 4 class.** Three cases
+landed against it and `python tools/gaps.py --coverage` now reads it at depth 6.0 / floor 4
+(`weekday 4, isLeapYear 5, next 5`); a fourth case took `Core\Time::fromEpoch` and
+`Core\Time\Instant`'s three epoch readings in the same file. **No `nvs-stdlib` source changed** —
+every member the four cases reach already answered correctly, which is what the sweeps say.
 
-**The corpus is at 934**, all passing. The Stage 8 acceptance check wants 950 and still fails — a
-growth floor, not a regression: no case fails and no check names a test that disappeared.
+**The corpus is at 938**, all passing. The Stage 8 acceptance check wants 950 and still fails — a
+growth floor, not a regression: no case fails and no check names a test that disappeared. It has
+moved 934 → 938 this session and needs roughly three more sessions of the same shape.
 
-**Two facts about `Date::at` the cases pin and nothing else records.** Its fields have *two* bounds
-apiece, one entry apart, with a different sentence each: the calendar's (`parameter 'month' is not in
-the required range of 1..=12`) and `parts`'s narrowing to `i16`/`i8` before `civil::Date::new` sees
-anything (`a year is within -9999..=9999, and a month and a day are numbers a calendar writes`) —
-the join is at 32,767/32,768 for the year and 127/128 for the month and the day. And where
-`TimeOfDay::at` refuses its four fields in one sentence naming the whole reading, `Date::at` names
-the *outermost* field that is wrong, year before month before day: two constructors, two message
-shapes, both now frozen. `date_stepped` has the same two-sentence split on its count, at
-7,304,484/7,304,485 days.
+**Three facts the new cases pin and nothing else records.** (1) A leap year has three independent
+readings — the `isLeapYear` flag, whether `Core\Time\Date::at($y, 2, 29)` is accepted, and whether the
+ordinal count shifts — and they agree on all fourteen rows of a table carrying both halves of the
+century rule in **both signs** (year 0 and -400 are leap where -100 is not). (2) The interval a `Date`
+spans is wider at both ends than a `DateTime`'s, which now has a playbook bullet. (3) The three epoch
+readings are one number at three resolutions and every one of them truncates **toward zero**, so below
+the epoch the coarser reading is the *later* point and the seconds scale covers two whole seconds
+around 0 — `Core\Time::fromEpoch(-1, {nanos: 500000000})->toEpochSeconds()` is `0`.
 
-**What the three new cases pin**, all in `tests/conformance/core/`:
+**What the four new cases pin**, all in `tests/conformance/core/`:
 
-- `time-date-compare-to-is-one-total-order-and-arr-sort-agrees-with-it.nvst` — the `TimeOfDay` twin's
-  sweep over a 12-row table (144 pairs, 1,728 triples), plus the two halves a calendar has and a
-  clock does not: the order is year-then-month-then-day, parting from a day-first cascade on 44 of
-  the 144 pairs, and it is *not* the order its own rendering sorts under — 4 pairs disagree, all
-  across the minus sign two BCE rows put in the text.
-- `time-date-at-bounds-each-field-on-both-sides.nvst` — each field's ends named with their refused
-  neighbours, the day's ceiling read from the other two fields over six (year, month) rows including
-  both halves of the century rule (2000 leap, 1900 not), and the second bound above.
-- `time-date-ends-refuse-where-the-clock-wraps.nvst` — the calendar is an interval and the dial is
-  closed: a step off either end refuses in all five units a date takes and one step inside is
-  answered, against twelve moves off the dial's two ends that all wrap and none refuse; and the step
-  is modular for the clock and not for the calendar, counted both ways.
+- `time-datetime-leap-year-is-februarys-last-day-and-the-years-length.nvst` — the three-way agreement
+  above, counted, with the leap/common split beside it so an all-`false` agreement is not vacuous, plus
+  both ends of the two ranges and the flag read on eight days of two years.
+- `time-datetime-day-of-year-is-one-increasing-run-per-year.nvst` — four years walked a day at a time
+  (366/365/366/365 steps each): the ordinal gains exactly one per step, is its own position in the
+  walk, agrees with the `D` pattern letter and with `date()->format("D")` on every day, and restarts at
+  1 on the next January. Plus the month table, where two months share an ordinal and ten are one apart.
+- `time-datetime-date-and-time-of-day-are-the-two-halves-that-reassemble.nvst` — over eight moments in
+  four zones the two halves partition the rendering, each is invariant under every change to the other,
+  and both reassembly spellings (through `Core\Time::parse`, and through
+  `startOf(Day)->withTime(...)`) answer the moment they came from; one instant in two zones has two
+  pairs of halves.
+- `time-epoch-is-one-number-at-three-resolutions-truncated-toward-zero.nvst` — the three scales checked
+  against each other rather than against written figures, the half-second walk across the epoch, and
+  `fromEpoch`'s two bounds on both sides (`nanos` below 1e9, seconds within the representable range).
 
 **Untouched:** item 12's roster (10 `UNCLASSIFIED` members at `crates/nvs-stdlib/src/registry.rs:1526`),
 a `bytes` array key ICE in `nvs-ir`, and `catch (Core\Error $e)` panicking — the last two have
 playbook bullets under *Writing a test case*.
 
 **Orientation.** The pack was complete for this group; nothing outside it was read. The manifest list
-the last two sessions asked for is still owed — `hash.rs`, `test.rs`, `nvs-types/src/links.rs`,
+the last three sessions asked for is still owed — `hash.rs`, `test.rs`, `nvs-types/src/links.rs`,
 `routes.rs`, `validate.rs`, `docs/spec/01-core-library.md`, `docs/spec/02-php-migration.md`,
 `tools/check-migration.py`, the stage-7 comment header's per-goal floor table, a selector printing
 the failing check's own `cases` block, and a `[context] anchors` entry for `registry.rs`'s
-`UNCLASSIFIED`.
+`UNCLASSIFIED`. Add `crates/nvs-stdlib/src/math.rs` to `[context] modules` for the next group.
 
 ## Next group
 
-**Shared file set:** `crates/nvs-stdlib/src/time.rs` and `tests/conformance/core/`. `Core\Time\DateTime`
-is now the thinnest § 4 class — `gaps.py --coverage` reads floor 3 over 17 members, `isLeapYear 3,
-dayOfYear 4, timeOfDay 4` — and its three thinnest members are all *agreement* shaped, which is the
-shape with the most room left and the one the three `Date` cases just worked.
+**Shared file set:** `crates/nvs-stdlib/src/math.rs` and `tests/conformance/core/`. `Core\Math` is now
+one of the thinnest classes `gaps.py --coverage` names (depth 5.0 / floor 3 over 38 members,
+`atan2 3, hypot 3, lcm 3`), and its three thinnest members are all *agreement* or *bound* shaped.
 
-- [ ] **`isLeapYear` is February's last day and the year's length, said three ways**
-      (`nvs_core_time_datetime_is_leap_year` at `crates/nvs-stdlib/src/time.rs:2470`, `date_of` at
-      `:2619`) — counted over a table of years spanning both halves of the century rule and both ends
-      of the range, asserting the three agree rather than what each answered: the flag, whether
-      `Core\Time\Date::at($y, 2, 29)` is accepted, and whether `dayOfYear` reaches 366.
-- [ ] **`dayOfYear` is one increasing run with no gap and no repeat**
-      (`nvs_core_time_datetime_day_of_year` at `crates/nvs-stdlib/src/time.rs:2460`) — over a whole
-      year stepped a day at a time, the count is `1..=365`/`366` each exactly once and the step of one
-      day is the step of one in the count; plus the two ends, 12-31 and 01-01 either side of a
-      new year.
-- [ ] **`date()` and `timeOfDay()` are the two halves that reassemble the value**
-      (`nvs_core_time_datetime_date` at `crates/nvs-stdlib/src/time.rs:2419`,
-      `nvs_core_time_datetime_time_of_day` at `:2429`) — over a table, the two components rendered
-      together are the whole value's own rendering, and each half compares to its sibling's the way
-      the wholes do.
+- [ ] **`lcm` and `gcd` are one pair, and the pair is a law rather than a table**
+      (`nvs_core_math_lcm` at `crates/nvs-stdlib/src/math.rs:972`, `nvs_core_math_gcd` at `:957`) —
+      over a table of pairs, `gcd(a,b) * lcm(a,b) == |a*b|`, both divide/are divided as they claim, the
+      sign convention is asserted on negatives in both slots, and the zero row is named on both sides.
+- [ ] **`hypot` is the distance no intermediate square overflows**
+      (`nvs_core_math_hypot` at `crates/nvs-stdlib/src/math.rs:988`) — agreement with
+      `Core\Math::sqrt(a*a + b*b)` where both spellings are representable, and the magnitudes where
+      only `hypot` still answers, which is the whole reason the member exists.
+- [ ] **`atan2` names the quadrant that `atan` cannot**
+      (`nvs_core_math_atan2` at `crates/nvs-stdlib/src/math.rs:999`) — the four quadrants and the four
+      axes counted as one sweep, agreement with `atan` where the quotient is defined, and both signed
+      zeros.
 
 ## Backlog
 
-- Item 12's 10 `UNCLASSIFIED` members — `crates/nvs-stdlib/src/registry.rs:1526`, ADR 0088 § 2.
-- A `bytes` array key ICEs in `nvs-ir` — playbook, *Writing a test case*.
-- `catch (Core\Error $e)` panics rather than diagnosing — playbook, *Writing a test case*.
-- `Date::at` and `TimeOfDay::at` refuse in two different message shapes; both are pinned, neither is
-  argued anywhere. ADR 0063 R4 fixes that failure throws, not what the sentence names.
-- The `[context]` manifest gaps listed under *Orientation* above — `docs/agent/loop-goal.toml`.
-- The Stage 8 conformance floor is 950 against 934 on disk — `docs/agent/loop-goal.toml`.
+- The corpus growth floor: 938 of the 950 the Stage 8 acceptance check wants — `docs/agent/loop-goal.toml`.
+- `Core\Arr`'s floor-3 members (`column`, `fillKeys`, `firstKey`) — `python tools/gaps.py --coverage`.
+- Item 12's 10 `UNCLASSIFIED` members at `crates/nvs-stdlib/src/registry.rs:1526` — ADR 0088 § 2.
+- A `bytes` array key ICE in `nvs-ir`, and `catch (Core\Error $e)` panicking — `docs/agent/playbook.md`.
+- The `[context]` manifest additions listed in § State — `docs/agent/loop-goal.toml`.

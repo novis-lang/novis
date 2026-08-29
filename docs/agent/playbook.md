@@ -2451,6 +2451,24 @@ is why" — is this file.
   options are `uint`, so `at(-1, 0)` is `E0401: expected `uint`, found `int`` and never reaches the
   member. A bound named on both sides has a runtime half at the top only, and the floor is worth one
   sentence of comment saying where it is enforced instead.
+- **A `.nvst` case's locals are function-scoped, not block-scoped, so a second `for` loop cannot reuse
+  the first one's names.** `string $index = $row as string;` in one sweep and the same spelling in the
+  next is `E0406: '$index' is already declared`, pointing at both lines — which is a good diagnostic and
+  still costs a run, because a case that sweeps two tables is the ordinary shape here and every sweep
+  wants to call its cursor the same thing. Name the second sweep's locals for what that sweep is
+  counting (`$slot`, `$point`, `$whole`), or hoist the body into a `public static function` that owns
+  the names, which is what the four-way sweeps in `time-datetime-*` do.
+
+- **The calendar interval a `Core\Time\Date` spans is wider at both ends than the one a `DateTime`
+  reaches, so a case sweeping the range ends must build the two halves differently.**
+  `Core\Time\Date::at(9999, 12, 31)` and `at(-9999, 1, 1)` are both accepted, while
+  `Core\Time::at(9999, 12, 31, $utc)` and `at(-9999, 1, 2, $utc)` both throw — a `DateTime` must be
+  convertible to the instant its zone puts it at, and jiff's timestamp range stops inside the
+  calendar's last day and its first two (`-377705023201..=253402207200` seconds). The refusal names
+  `Core\Time::at()` and says the conversion overflowed, which reads like a bound on the *year* and is
+  not one. Pinned by
+  `tests/conformance/core/time-datetime-leap-year-is-februarys-last-day-and-the-years-length.nvst`,
+  which is why that case reads the year's length from March rather than from December.
 
 ## Splitting a file that got too big
 

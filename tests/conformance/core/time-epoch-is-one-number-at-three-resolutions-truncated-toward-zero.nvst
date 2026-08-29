@@ -1,0 +1,128 @@
+--TEST--
+Spec § 4: `Core\Time\Instant`'s three epoch readings are one number at three resolutions, each truncated toward zero rather than floored — so below the epoch the coarser reading is the later one, and the seconds scale covers a two-second interval around zero — and `Core\Time::fromEpoch` bounds its seconds against the representable range and its `nanos` below one second, both sides of both bounds named
+--FILE--
+<?nvs
+// § 4 gives an `Instant` three readings of the same point: seconds, millis and
+// micros since the epoch. What a case can assert about three members returning
+// three different numbers is that they are the *same* number at three
+// resolutions — so each is checked against the other two rather than against a
+// figure written down here, and a member that floored where its neighbours
+// truncated fails the relation while its own line still reads plausibly.
+class Scale {
+    // The relation between two resolutions: the finer reading minus the
+    // coarser one scaled up is the part the coarser one dropped, so it is
+    // smaller than one step of the coarser scale and it points the same way
+    // the instant does. That second half is the whole of "toward zero": a
+    // floored reading would drop a *negative* remainder below the epoch and
+    // leave this difference positive there.
+    public static function drops(int $dropped, int $step, int $sign): bool {
+        if ($dropped >= $step || $dropped <= 0 - $step) {
+            return false;
+        }
+        if ($sign < 0) {
+            return $dropped <= 0;
+        }
+        return $dropped >= 0;
+    }
+}
+
+// Ten instants: the epoch itself, its immediate neighbours on both sides with
+// and without a subsecond part, a recent moment with all nine digits, one far
+// below the epoch, and both ends of the representable range.
+array<int> $secondsIn = [
+    0, 1, -1, -1, 1700000000, -1000000000, 0, 253402207200, -377705023201, -1,
+];
+array<int> $nanosIn = [
+    0, 500000000, 0, 500000000, 123456789, 999999999, 999999999, 0, 0, 999999999,
+];
+int $row = 0;
+int $millisAgree = 0;
+int $microsAgree = 0;
+int $wholeAgree = 0;
+for (; $row < 10; $row = $row + 1) {
+    string $index = $row as string;
+    var $instant = Core\Time::fromEpoch($secondsIn[$index], {nanos: $nanosIn[$index] as uint});
+    int $seconds = $instant->toEpochSeconds();
+    int $millis = $instant->toEpochMillis();
+    int $micros = $instant->toEpochMicros();
+    int $sign = $micros;
+    if (Scale::drops($millis - $seconds * 1000, 1000, $sign)) {
+        $millisAgree = $millisAgree + 1;
+    }
+    if (Scale::drops($micros - $millis * 1000, 1000, $sign)) {
+        $microsAgree = $microsAgree + 1;
+    }
+    if (Scale::drops($micros - $seconds * 1000000, 1000000, $sign)) {
+        $wholeAgree = $wholeAgree + 1;
+    }
+}
+echo "rows=", $row as string, " millis=", $millisAgree as string,
+    " micros=", $microsAgree as string, " whole=", $wholeAgree as string, "|\n";
+
+// What truncation toward zero looks like where it is visible: seven instants a
+// half-second apart across the epoch. Every other seconds reading covers one
+// second and is sampled twice; 0 covers two — everything from -0.5 up to +0.5
+// — and is sampled three times, which is the whole of the difference between
+// truncating and flooring, and is why the coarser reading of a negative instant
+// is the *later* point rather than the earlier one.
+array<int> $walkSeconds = [-2, -2, -1, -1, 0, 0, 1];
+array<int> $walkNanos = [0, 500000000, 0, 500000000, 0, 500000000, 0];
+int $step = 0;
+string $reading = "";
+int $zeros = 0;
+for (; $step < 7; $step = $step + 1) {
+    string $slot = $step as string;
+    var $point = Core\Time::fromEpoch($walkSeconds[$slot], {nanos: $walkNanos[$slot] as uint});
+    int $whole = $point->toEpochSeconds();
+    string $label = $whole as string;
+    $reading = $reading . $label . " ";
+    if ($whole == 0) {
+        $zeros = $zeros + 1;
+    }
+}
+echo "walk=", $reading, "|\n";
+echo "zeros=", $zeros as string, "|\n";
+// And the ISO rendering, which does not truncate, tells the two apart.
+echo "iso=", Core\Time::fromEpoch(-1, {nanos: 500000000})->toIso(),
+    " ", Core\Time::fromEpoch(0, {nanos: 500000000})->toIso(), "|\n";
+
+// Both bounds, on both sides. `nanos` is a subsecond count, so the last value
+// it takes is one below a second; a negative one never reaches the member at
+// all, because the option is `uint` and that is `E0401` in the checker.
+echo "nanos-last=", Core\Time::fromEpoch(0, {nanos: 999999999})->toIso(), "|\n";
+try {
+    Core\Time::fromEpoch(0, {nanos: 1000000000});
+    echo "nanos-past-accepted|\n";
+} catch (RuntimeError $refused) {
+    echo "nanos-past=", $refused->message, "|\n";
+}
+// The seconds bound is the representable range itself, and it is not symmetric
+// about the epoch: it is the calendar's own ends, less the widest zone offset
+// each way, which is why the top is not a round number of days.
+echo "seconds-top=", Core\Time::fromEpoch(253402207200)->toIso(),
+    " seconds-bottom=", Core\Time::fromEpoch(-377705023201)->toIso(), "|\n";
+int $refusals = 0;
+try {
+    Core\Time::fromEpoch(253402207201);
+} catch (RuntimeError $refused) {
+    if (Core\Str::contains($refused->message, "Core\\Time::fromEpoch()")) {
+        $refusals = $refusals + 1;
+    }
+}
+try {
+    Core\Time::fromEpoch(-377705023202);
+} catch (RuntimeError $refused) {
+    if (Core\Str::contains($refused->message, "Core\\Time::fromEpoch()")) {
+        $refusals = $refusals + 1;
+    }
+}
+echo "seconds-past=", $refusals as string, "|\n";
+--EXPECT--
+rows=10 millis=10 micros=10 whole=10|
+walk=-2 -1 -1 0 0 0 1 |
+zeros=3|
+iso=1969-12-31T23:59:59.5Z 1970-01-01T00:00:00.5Z|
+nanos-last=1970-01-01T00:00:00.999999999Z|
+nanos-past=Core\Time::fromEpoch(): `nanos` is a subsecond count, so it is below 1000000000|
+seconds-top=9999-12-30T22:00:00Z seconds-bottom=-009999-01-02T01:59:59Z|
+seconds-past=2|
