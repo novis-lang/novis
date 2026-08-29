@@ -852,7 +852,9 @@ pub struct CoreEnum {
 /// pass nowhere is surface with no meaning behind it. That is the test every
 /// row below has passed, and it is the one [`crate::router::METHOD`] passes
 /// through an *attribute* rather than through a member: ADR 0077 § 1's
-/// `#[Route(method: …)]` is where a program writes a case of it.
+/// `#[Route(method: …)]` is where a program writes a case of it, and
+/// [`crate::router::AUDIENCE`] passes it the same way, through ADR 0096
+/// § 1a's `#[Access(allow: …)]`.
 ///
 /// One line per enum, declared beside the member that takes it — the same
 /// rule [`CLASSES`] follows, for the same reason.
@@ -866,6 +868,7 @@ pub const ENUMS: &[CoreEnum] = &[
     crate::time::WEEKDAY,
     crate::hash::DIGEST,
     crate::router::METHOD,
+    crate::router::AUDIENCE,
 ];
 
 /// Looks a class up by its fully-qualified name.

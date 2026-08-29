@@ -2033,6 +2033,40 @@ pub mod code {
     /// usually both.
     pub const E_ROUTE_LINK_UNKNOWN_PARAM: Code = Code::new("E0759");
 
+    /// An `#[Access]` gives no `allow`.
+    ///
+    /// ADR 0096 § 1a marks only `csrf` optional: the attribute exists to carry
+    /// a decision, so one carrying none is exactly the omission § 3 refuses,
+    /// written out instead of left out. Reported by the payload walk rather
+    /// than by the roster check, for [`E_ROUTE_INCOMPLETE`]'s reason — a
+    /// roster says what a field may hold, and *required* is not a fact a
+    /// roster can state.
+    pub const E_ACCESS_INCOMPLETE: Code = Code::new("E0760");
+
+    /// An `#[Access]`'s `allow` value is not an enum case or a class constant.
+    ///
+    /// ADR 0096 § 1a: the field's declared type is `mixed` because § 2 is a
+    /// promise *not* to know what the decision means, so a narrower type would
+    /// be a claim the compiler does not make. What stands in place of the type
+    /// is that the value **names** something — a bare literal names nothing,
+    /// so `allow: "admin"` is the magic string the attribute exists to
+    /// replace, and § 2's whole guarantee is that the name resolves.
+    pub const E_ACCESS_ALLOW_NOT_A_NAME: Code = Code::new("E0761");
+
+    /// A `#[Route]` method carries no `#[Access]`.
+    ///
+    /// ADR 0096 §§ 1 and 3, and the whole of why that ADR exists: there is no
+    /// implicit `Public` and no configuration that supplies one, so a route
+    /// that is open because its author decided so and one that is open because
+    /// its author forgot are not the same text. Reported at the `#[Route]`
+    /// rather than at the method, because the attribute is what makes the
+    /// declaration owe a decision — a method with neither attribute owes
+    /// nothing.
+    ///
+    /// The mirror of [`E_ACCESS_INCOMPLETE`]: that one is a decision that
+    /// declares nothing, this one a route that declares no decision.
+    pub const E_ROUTE_WITHOUT_ACCESS: Code = Code::new("E0762");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

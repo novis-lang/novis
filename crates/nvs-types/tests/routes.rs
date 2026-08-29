@@ -12,6 +12,12 @@
 //! ADR 0102 § 3's `#[Query]` is here too, and it is asserted from both ends: the
 //! type list it shares with a capture, and § 6's `$params` key that names
 //! neither one nor the other — the refusal the marker exists to make writable.
+//!
+//! ADR 0096 § 1a's `#[Access]` is the newest arrival and is asserted here as a
+//! payload only: the decision is required, and it is a name rather than a
+//! value, wherever the attribute is attached. § 1's *presence* rule — a
+//! `#[Route]` without a sibling `#[Access]` — is not landed yet, which is why
+//! every fixture above declares a route and no decision at all.
 
 mod common;
 
@@ -30,7 +36,26 @@ fn reported(diags: &Diagnostics, want: Code) -> bool {
 /// per *name* — `use Core\Route;` aliases `Route`, and it is not the
 /// `use Core\Router;` that reaches the member reversing the table.
 fn route_src(attributes: &str) -> String {
-    format!("<?nvs\nuse Core\\Route;\nclass Users {{\n{attributes}\n}}\n")
+    format!(
+        "<?nvs\nuse Core\\Route;\nclass Users {{\n{}\n}}\n",
+        with_access(attributes)
+    )
+}
+
+/// ADR 0096 § 1's decision, supplied for every fixture here that is about
+/// something else.
+///
+/// § 1 makes `#[Access]` a required sibling of `#[Route]`, so without this each
+/// fixture below would carry one line it does not vary and one error it is not
+/// asking about. `Core\Audience::Public` is the case § 1a names for a route
+/// that is genuinely open. The presence rule itself is asserted by
+/// `a_route_without_a_sibling_access_does_not_compile`, which is the one test
+/// here that does not go through this.
+fn with_access(members: &str) -> String {
+    members.replace(
+        "public function",
+        "#[\\Core\\Access(allow: \\Core\\Audience::Public)]\n  public function",
+    )
 }
 
 #[test]
@@ -39,12 +64,12 @@ fn a_route_is_matched_nominally_rather_than_as_a_shape() {
     // `nvs_types::derive::ATTRIBUTES` this was `E0726` — `Core\Route` is not a
     // `type` alias and was never going to be one, because § 1 builds a table
     // from it and a userland alias must not contribute a route.
-    let diags = check_src(
+    let diags = check_src(&with_access(
         "<?nvs\nclass Users {\n  \
          #[\\Core\\Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get, \
          name: \"Users::show\")]\n  \
          public function show(uint $id): string { return \"\"; }\n}\n",
-    );
+    ));
     assert!(!diags.has_errors(), "{diags:?}");
 
     // The `use`d bare spelling is the same attribute, and the bare one with
@@ -127,11 +152,11 @@ fn a_method_case_is_admitted_at_the_enum_the_roster_names() {
     // `Core\Http\Method` is `nvs_stdlib::router::METHOD`, seeded into the enum
     // table like any other `Core` enum, so the roster row interns to that type
     // and the case is placed at it rather than at nothing.
-    let diags = check_src(
+    let diags = check_src(&with_access(
         "<?nvs\nclass Users {\n  \
          #[\\Core\\Route(path: \"/users\", method: \\Core\\Http\\Method::Get, name: \"Users::index\")]\n  \
          public function index(): string { return \"\"; }\n}\n",
-    );
+    ));
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
@@ -421,6 +446,7 @@ fn a_route_table_is_built_from_the_program_enumeration() {
             "<?nvs\nrequire 'table-users.nvs';\nclass Health {\n  \
              #[\\Core\\Route(path: \"/health\", method: \\Core\\Http\\Method::Get, \
              name: \"Health::show\")]\n  \
+             #[\\Core\\Access(allow: \\Core\\Audience::Public)]\n  \
              public function show(): string { return \"\"; }\n}\n\
              echo Core\\Router::url(\"Users::show\", [\"id\" => 1]), \"\\n\";\n",
         ),
@@ -429,6 +455,7 @@ fn a_route_table_is_built_from_the_program_enumeration() {
             "<?nvs\nclass Users {\n  \
              #[\\Core\\Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get, \
              name: \"Users::show\")]\n  \
+             #[\\Core\\Access(allow: \\Core\\Audience::Public)]\n  \
              public function show(uint $id): string { return \"\"; }\n}\n",
         ),
     ]);
@@ -464,14 +491,14 @@ fn a_route_parameter_takes_its_type_from_the_method_that_declares_it() {
     // And it is the method's own parameter, not the capture's name pooled
     // across the program: two routes capturing `{id}` are two questions, and
     // only the one whose own parameter is outside the roster is refused.
-    let diags = check_src(
+    let diags = check_src(&with_access(
         "<?nvs\nuse Core\\Route;\nclass Users {\n  \
          #[Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get)]\n  \
          public function show(uint $id): string { return \"\"; }\n}\n\
          class Orders {\n  \
          #[Route(path: \"/orders/{id}\", method: \\Core\\Http\\Method::Get)]\n  \
          public function show(float $id): string { return \"\"; }\n}\n",
-    );
+    ));
     assert_eq!(
         count(&diags, code::E_ROUTE_CAPTURE_TYPE_HAS_NO_CONVERSION),
         1,
@@ -490,6 +517,7 @@ fn a_duplicate_route_is_a_diagnostic() {
             "<?nvs\nrequire 'dup-other.nvs';\nclass Users {\n  \
              #[\\Core\\Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get, \
              name: \"a\")]\n  \
+             #[\\Core\\Access(allow: \\Core\\Audience::Public)]\n  \
              public function show(uint $id): string { return \"\"; }\n}\n",
         ),
         (
@@ -497,6 +525,7 @@ fn a_duplicate_route_is_a_diagnostic() {
             "<?nvs\nclass Admin {\n  \
              #[\\Core\\Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get, \
              name: \"b\")]\n  \
+             #[\\Core\\Access(allow: \\Core\\Audience::Public)]\n  \
              public function show(uint $id): string { return \"\"; }\n}\n",
         ),
     ]);
@@ -538,13 +567,13 @@ fn an_unknown_literal_url_name_is_a_diagnostic() {
     // because it is the one link error that fires with no `$params` question
     // in front of it.
     let src = |name: &str| {
-        format!(
+        with_access(&format!(
             "<?nvs\nclass Users {{\n  \
              #[\\Core\\Route(path: \"/users/{{id}}\", method: \\Core\\Http\\Method::Get, \
              name: \"Users::show\")]\n  \
              public function show(uint $id): string {{ return \"\"; }}\n}}\n\
              echo Core\\Router::url({name}, [\"id\" => 1]), \"\\n\";\n"
-        )
+        ))
     };
     let diags = check_src(&src("\"Users::missing\""));
     assert!(reported(&diags, code::E_UNKNOWN_ROUTE_NAME), "{diags:?}");
@@ -656,12 +685,12 @@ fn a_capture_or_query_parameter_outside_the_type_list_is_a_diagnostic() {
     // § 3's own example, spelled bare: the name is matched nominally after the
     // `use` that places it, exactly as `#[Route]` is, and both of its declared
     // types are on the list.
-    let diags = check_src(
+    let diags = check_src(&with_access(
         "<?nvs\nuse Core\\Route;\nuse Core\\Query;\nclass Orders {\n  \
          #[Route(path: \"/orders\", method: \\Core\\Http\\Method::Get)]\n  \
          public function index(#[Query] uint $page = 1, #[Query] string $sort = \"asc\"): \
          string { return \"\"; }\n}\n",
-    );
+    ));
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
@@ -674,14 +703,14 @@ fn a_url_key_that_is_neither_a_capture_nor_a_query_parameter_is_a_diagnostic() {
     // every non-capture key would refuse the query strings the same sentence
     // requires.
     let src = |params: &str| {
-        format!(
+        with_access(&format!(
             "<?nvs\nuse Core\\Query;\nclass Orders {{\n  \
              #[\\Core\\Route(path: \"/orders/{{id}}\", method: \\Core\\Http\\Method::Get, \
              name: \"orders.show\")]\n  \
              public function show(uint $id, #[Query] uint $page = 1, string $sort = \"asc\"): \
              string {{ return \"\"; }}\n\
              }}\necho Core\\Router::url(\"orders.show\", {params}), \"\\n\";\n"
-        )
+        ))
     };
     let diags = check_src(&src("[\"id\" => 1, \"pge\" => 2]"));
     assert!(
@@ -715,4 +744,125 @@ fn a_url_key_that_is_neither_a_capture_nor_a_query_parameter_is_a_diagnostic() {
         !reported(&diags, code::E_ROUTE_LINK_UNKNOWN_PARAM),
         "{diags:?}"
     );
+}
+
+/// ADR 0096 § 1's own pairing with a payload left to vary: the attribute on the
+/// same method as the `#[Route]` it is the sibling of, over an unsafe verb so
+/// that § 4's `csrf` opt-out has something to opt out of.
+///
+/// The decisions are a userland enum and a userland class constant, which is
+/// what § 1a says every application writes — `Core\Audience`, the one decision
+/// `Core` names, is not on `nvs_stdlib::registry::ENUMS` yet.
+fn access_src(payload: &str) -> String {
+    format!(
+        "<?nvs\nenum Role {{ Admin, Owner }}\nclass Policy {{\n  \
+         public const string ADMIN = \"admin\";\n}}\nclass Users {{\n  \
+         #[\\Core\\Route(path: \"/admin\", method: \\Core\\Http\\Method::Post)]\n  \
+         #[\\Core\\Access({payload})]\n  \
+         public function admin(): string {{ return \"\"; }}\n}}\n"
+    )
+}
+
+#[test]
+fn an_access_decision_is_required_and_is_a_name() {
+    // § 1a marks only `csrf` optional. An enum case is what the section's own
+    // examples write, and a class constant is the other half of its narrowing —
+    // one syntactic form, so the check asks one question rather than two.
+    let diags = check_src(&access_src("allow: Role::Admin"));
+    assert!(!diags.has_errors(), "{diags:?}");
+    let diags = check_src(&access_src("allow: Policy::ADMIN"));
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    // A payload carrying only the opt-out declares nothing to opt out of: the
+    // attribute is there and the decision is not, which is § 3's omission one
+    // step along rather than a different mistake.
+    let diags = check_src(&access_src("csrf: false"));
+    assert!(reported(&diags, code::E_ACCESS_INCOMPLETE), "{diags:?}");
+    assert_eq!(diags.error_count(), 1, "{diags:?}");
+
+    // The literal is the whole point of the rule: `mixed` gives the value no
+    // type to fail against, so a string that reads exactly like a role would
+    // otherwise be a decision nothing resolves.
+    let diags = check_src(&access_src("allow: \"admin\""));
+    assert!(
+        reported(&diags, code::E_ACCESS_ALLOW_NOT_A_NAME),
+        "{diags:?}"
+    );
+    let diags = check_src(&access_src("allow: 1"));
+    assert!(
+        reported(&diags, code::E_ACCESS_ALLOW_NOT_A_NAME),
+        "{diags:?}"
+    );
+}
+
+#[test]
+fn an_empty_decision_is_refused_wherever_the_attribute_is_written() {
+    // The payload walk is ADR 0046 § 1's per-attach-site one, so an `#[Access]`
+    // declaring nothing is refused with no `#[Route]` in front of it. The two
+    // halves of § 1 are separable that way round: this is the attribute failing
+    // on its own terms, not a route missing its sibling.
+    let diags = check_src(
+        "<?nvs\nclass Users {\n  #[\\Core\\Access]\n  \
+         public function admin(): string { return \"\"; }\n}\n",
+    );
+    assert!(reported(&diags, code::E_ACCESS_INCOMPLETE), "{diags:?}");
+}
+
+#[test]
+fn only_the_two_options_section_1a_names_are_admitted() {
+    // `role` is the field a reader writes when they read the attribute as
+    // naming who is allowed rather than what the decision is. § 2 refuses to
+    // grow a roster of those, so a plausible field is still a typo.
+    let diags = check_src(&access_src("allow: Role::Admin, role: Role::Owner"));
+    assert!(reported(&diags, code::E_UNKNOWN_OPTION), "{diags:?}");
+
+    // `csrf` is § 4's opt-out and the roster does place it at a type — the
+    // half `allow` gives up by being `mixed`, kept here because a `bool` says
+    // everything a per-route opt-out means.
+    let diags = check_src(&access_src("allow: Role::Admin, csrf: false"));
+    assert!(!diags.has_errors(), "{diags:?}");
+    let diags = check_src(&access_src("allow: Role::Admin, csrf: \"no\""));
+    assert!(diags.has_errors(), "{diags:?}");
+
+    // Given twice is the third answer every roster gives, and being required
+    // does not exempt `allow` from it.
+    let diags = check_src(&access_src("allow: Role::Admin, allow: Role::Owner"));
+    assert!(reported(&diags, code::E_DUPLICATE_DECLARATION), "{diags:?}");
+}
+
+#[test]
+fn a_route_without_a_sibling_access_does_not_compile() {
+    // § 1: two attributes rather than one field is the whole mechanism, so the
+    // fixture is every other test in this file with the decision taken away —
+    // `route_src` supplies it, and this is what happens where nothing does.
+    let bare = "<?nvs\nclass Users {\n  \
+                #[\\Core\\Route(path: \"/users\", method: \\Core\\Http\\Method::Get)]\n  \
+                public function index(): string { return \"\"; }\n}\n";
+    let diags = check_src(bare);
+    assert!(reported(&diags, code::E_ROUTE_WITHOUT_ACCESS), "{diags:?}");
+    assert_eq!(diags.error_count(), 1, "{diags:?}");
+
+    // § 3: what closes it is the decision *written*. `Core\Audience::Public` is
+    // the case § 1a puts in `Core` for exactly this, so the fix for the error
+    // is a name that already resolves rather than one an application has to
+    // invent before it can compile a public route.
+    let diags = check_src(&with_access(bare));
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    // A method carrying neither attribute owes nothing: the `#[Route]` is what
+    // makes a decision required, which is why the diagnostic points at it.
+    let diags =
+        check_src("<?nvs\nclass Users {\n  public function index(): string { return \"\"; }\n}\n");
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    // The sibling is found by name resolution and not by text, so § 1a's own
+    // spelling — both names placed by a `use` — is the same attribute the
+    // fully-qualified fixtures write.
+    let diags = check_src(
+        "<?nvs\nuse Core\\Access;\nuse Core\\Audience;\nclass Users {\n  \
+         #[\\Core\\Route(path: \"/users\", method: \\Core\\Http\\Method::Get)]\n  \
+         #[Access(allow: Audience::Public)]\n  \
+         public function index(): string { return \"\"; }\n}\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
 }

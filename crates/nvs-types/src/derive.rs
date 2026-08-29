@@ -77,9 +77,10 @@ use crate::{Ctx, Env, span_text, strip_sigil};
 /// § 1 rule does not apply to it and what its payload may hold is the
 /// recognizing pass's own question: `#[Json\Derive]`/`#[Json\Field]` are this
 /// module's, `#[Test]` is [`crate::testing`]'s, `#[Command]`/`#[Option]` are
-/// [`crate::commands`]', `#[Route]` is [`crate::routes`]'.
+/// [`crate::commands`]', `#[Route]`/`#[Query]`/`#[Access]` are
+/// [`crate::routes`]'.
 pub const ATTRIBUTES: &[&str] = [
-    DERIVE, FIELD, TEST, FIXTURE, TEST_WITH, COMMAND, OPTION, ROUTE, QUERY,
+    DERIVE, FIELD, TEST, FIXTURE, TEST_WITH, COMMAND, OPTION, ROUTE, QUERY, ACCESS,
 ]
 .as_slice();
 
@@ -148,6 +149,16 @@ pub const ROUTE: &str = r"Core\Route";
 /// no member of anything, so a file that spells it bare places it with
 /// `use Core\Query;`. [`crate::routes`] owns what it means.
 pub const QUERY: &str = r"Core\Query";
+
+/// `#[Access(allow: mixed, csrf?: bool)]` — ADR 0096 § 1's required sibling of
+/// `#[Route]`, on the same method, and the only name here whose point is to
+/// make an omission visible: § 3 gives it no implicit default, so a route that
+/// is public because its author decided so and one that is public because its
+/// author forgot are not the same text. Like [`ROUTE`] it names no member of
+/// anything, so a file that spells it bare places it with `use Core\Access;`.
+/// [`crate::routes`] owns the payload, including the two rules of § 1a that a
+/// roster cannot state.
+pub const ACCESS: &str = r"Core\Access";
 
 /// One derived class's JSON field list, in declaration order — ADR 0071 § 2's
 /// "declaration order fixes encode order, so output is byte-deterministic".

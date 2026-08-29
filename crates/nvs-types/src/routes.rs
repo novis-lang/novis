@@ -50,6 +50,16 @@
 //! the row, because the only question asked about them is § 6's and it is asked
 //! from [`crate::links`] once the whole table exists.
 //!
+//! And it reads
+//! [ADR 0096](../../../../docs/adr/0096-a-route-without-a-declared-access-decision-does-not-compile.md)
+//! § 1's `#[Access]`, which is here for `#[Query]`'s reason — it is a
+//! `#[Route]`'s sibling and means nothing away from one. Only its *payload* is
+//! answered so far ([`ACCESS_OPTIONS`] and [`check_access`], from the
+//! per-attribute walk) and § 1's presence rule, which is a question about the
+//! method's attribute list and so is asked by the same walk that finds the
+//! `#[Route]` ([`check_access_declared`]). § 4's `csrf` opt-out is a question
+//! about a row's verbs and is not asked yet.
+//!
 //! The conversion roster is [`crate::commands::converts_from_string`], read and
 //! never copied — ADR 0086 § 6 takes § 3's list unchanged and ADR 0102 § 3 takes
 //! it unchanged again for a query parameter, so all three passes ask one
@@ -91,6 +101,9 @@ const PATH: &str = "path";
 const METHOD: &str = "method";
 const NAME: &str = "name";
 
+const ALLOW: &str = "allow";
+const CSRF: &str = "csrf";
+
 /// `#[Route(path: string, method: Core\Http\Method, name?: string)]` — ADR 0077
 /// § 1's own spelling, in the order that section writes it.
 ///
@@ -107,6 +120,72 @@ pub(crate) const OPTIONS: &[(&str, OptionTy)] = &[
     (METHOD, OptionTy::Enum(METHOD_ENUM)),
     (NAME, OptionTy::Str),
 ];
+
+/// `#[Access(allow: mixed, csrf?: bool)]` — ADR 0096 § 1a's own spelling, and
+/// the one roster here whose required field the roster itself cannot mark.
+///
+/// `allow` is [`OptionTy::Mixed`] because § 1a declares it `mixed` and says
+/// why: § 2 is a promise not to know what the decision means, so placing the
+/// value at a type would be a claim this compiler does not make. What stands
+/// in place of that type is [`check_access`]. `csrf` is § 4's per-route
+/// opt-out and is an ordinary `bool` — the verbs it applies to are the route's
+/// own, so there is no field here naming them.
+pub(crate) const ACCESS_OPTIONS: &[(&str, OptionTy)] =
+    &[(ALLOW, OptionTy::Mixed), (CSRF, OptionTy::Bool)];
+
+/// One `#[Access]` payload, held to the two of ADR 0096 § 1a's rules that are
+/// questions about this payload alone.
+///
+/// **`allow` is required**, which [`crate::attributes::check_roster`] cannot
+/// say for [`collect_route`]'s reason: a roster says what a field may hold,
+/// and *required* is a fact about the thing being declared. An `#[Access]`
+/// carrying none declares nothing, so it is refused wherever it is attached —
+/// § 3's omission is the mistake whether or not a row was going to be built
+/// out of a sibling `#[Route]`.
+///
+/// **Its value names something.** § 1a narrows ADR 0046 § 2's compile-time
+/// constant to an enum case or a class constant, and those are one syntactic
+/// form ([`ExprKind::ClassConstAccess`]): `Role::Admin` and `Policy::ADMIN`
+/// differ only in what they resolve to, which § 2 promises not to ask. What is
+/// refused is the bare literal — `allow: "admin"` is the magic string the
+/// attribute exists to replace, and § 2's guarantee is precisely that the name
+/// resolves.
+///
+/// § 1a's other two rules are not here, because neither is about one payload:
+/// "exactly one `#[Access]` per method" is a question about an attribute list,
+/// and `csrf: false` on a route whose every verb is safe is a question about
+/// that route's verbs.
+pub(crate) fn check_access(attr: &Attribute, env: &mut Env<'_>) {
+    let Some(field) = written(attr, ALLOW, env) else {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_ACCESS_INCOMPLETE,
+                "this `#[Access]` declares no decision",
+            )
+            .with_primary(attr.span, "no `allow`")
+            .with_help(
+                "the decision is the attribute's one required field — write \
+                 `#[Access(allow: Audience::Public)]` for a route that is genuinely open",
+            ),
+        );
+        return;
+    };
+    let value = field.value.unparenthesized();
+    if !matches!(value.kind, ExprKind::ClassConstAccess { .. }) {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_ACCESS_ALLOW_NOT_A_NAME,
+                "an access decision is a name rather than a value",
+            )
+            .with_primary(value.span, "this names nothing that could resolve")
+            .with_help(
+                "ADR 0096 § 2 never asks what a decision means, so what it asks instead is that \
+                 the name resolves: an enum case or a class constant, as `Role::Admin` or \
+                 `Audience::Public`",
+            ),
+        );
+    }
+}
 
 /// One row of ADR 0077 § 5's table: a `#[Route]` that named both of the fields
 /// a row cannot exist without, resolved to the strings the table is keyed by.
@@ -212,8 +291,47 @@ pub(crate) fn check_class_routes(
         };
         let attr = attr.clone();
         let handler = format!("{class}::{}", span_text(env.src, m.name));
+        check_access_declared(&attr, m, &handler, ctx, env);
         collect_route(&attr, m, class, handler, ctx, env);
     }
+}
+
+/// ADR 0096 § 1's presence rule: a `#[Route]` whose method carries no
+/// `#[Access]`.
+///
+/// Asked here rather than in the per-attribute walk because it is a question
+/// about a *method* — the walk that checks one payload cannot see the sibling
+/// it is missing — and asked of every `#[Route]`, including one this pass then
+/// refuses to build a row out of: a route with a broken path still declares a
+/// route, and § 3's reasoning does not wait for the path to parse.
+///
+/// The diagnostic points at the `#[Route]` and not at the method, because the
+/// attribute is what makes the declaration owe a decision. Suggesting
+/// `Audience::Public` in the help is § 1's own wording, and the case it names
+/// is [`nvs_stdlib::router::AUDIENCE`] — the point of naming it in `Core` is
+/// that the fix for this error is a name that already resolves.
+fn check_access_declared(
+    attr: &Attribute,
+    m: &MethodMember,
+    handler: &str,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    if crate::testing::attribute_named(&m.attributes, crate::derive::ACCESS, ctx, env).is_some() {
+        return;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ROUTE_WITHOUT_ACCESS,
+            format!("the route `{handler}` declares no access decision"),
+        )
+        .with_primary(attr.span, "this route has no sibling `#[Access]`")
+        .with_help(
+            "§ 3 gives an omission no default, because a route that is open by decision and one \
+             that is open by oversight would otherwise read alike — write \
+             `#[Access(allow: Core\\Audience::Public)]` on the method if it is genuinely open",
+        ),
+    );
 }
 
 /// One `#[Route]` payload as a row, or the refusal that it is not one.

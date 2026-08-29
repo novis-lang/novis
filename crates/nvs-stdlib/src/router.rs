@@ -94,6 +94,23 @@ pub(crate) const METHOD: CoreEnum = CoreEnum {
     ],
 };
 
+/// `Core\Audience`'s fully-qualified name, written once for
+/// [`AUDIENCE`]'s row and for every message quoting it.
+pub(crate) const AUDIENCE_NAME: &str = r"Core\Audience";
+
+/// ADR 0096 § 1a's `Core\Audience` — the one access decision `Core` names.
+///
+/// `Public` exists so that *this route is open* is a name that resolves rather
+/// than a magic string or an absent attribute, which is the whole of § 3. It
+/// **will not grow a second case**: a roster of access levels is exactly the
+/// interpretation § 2 refuses to hold, so every other decision is the
+/// application's own enum case or class constant and the compiler never asks
+/// what it means.
+pub(crate) const AUDIENCE: CoreEnum = CoreEnum {
+    name: AUDIENCE_NAME,
+    cases: &[("Public", 0)],
+};
+
 /// `Core\Router`'s fully-qualified name, in one place so the registry row and
 /// every message quoting it cannot drift apart.
 pub(crate) const NAME: &str = r"Core\Router";

@@ -156,9 +156,10 @@ use crate::{Ctx, Env, span_text};
 /// because a second copy of three variants is how two attributes come to
 /// disagree about what `int` means.
 ///
-/// Three scalar rows, because § 1's shape names three types, and one that is
-/// not a scalar at all: ADR 0046 § 2 admits an enum case in a payload, and
-/// ADR 0077 § 1's `method` is one. A fifth row is a decision about what some
+/// Three scalar rows, because § 1's shape names three types, and two that are
+/// not scalars at all: ADR 0046 § 2 admits an enum case in a payload and
+/// ADR 0077 § 1's `method` is one, and ADR 0096 § 1a declares a field whose
+/// type is `mixed` on purpose. A sixth row is a decision about what some
 /// attribute may carry and belongs in the section that decides it before it
 /// belongs here.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -169,13 +170,24 @@ pub(crate) enum OptionTy {
     /// One enum, by fully-qualified name — the type of an option whose value
     /// is a case of it.
     Enum(&'static str),
+    /// No declared type at all — [ADR 0007](../../../../docs/adr/0007-explicit-type-system.md)'s
+    /// one unchecked position, and ADR 0096 § 1a's `allow`.
+    ///
+    /// The value is still ADR 0046 § 2's compile-time constant, which
+    /// [`crate::attributes::check_attribute`] has asked before any roster is
+    /// read. The narrower rule that it *names* something belongs to the module
+    /// declaring the roster, because it is a rule about one option rather than
+    /// about a type — [`crate::routes::check_access`] is where it lives.
+    Mixed,
 }
 
 impl OptionTy {
-    /// The type a value at this option is placed at, or `None` for a row
-    /// naming an enum this program declares nowhere.
+    /// The type a value at this option is placed at, or `None` where there is
+    /// no type to place it at: [`Self::Mixed`], which is that by declaration,
+    /// and a row naming an enum this program declares nowhere.
     ///
-    /// `None` rather than a diagnostic, because a roster is a *static* table
+    /// The second is `None` rather than a diagnostic, because a roster is a
+    /// *static* table
     /// and the enum it names may be one the tree does not have yet. **No row
     /// is in that state today** — `Core\Http\Method` was, and landed as
     /// `nvs_stdlib::router::METHOD` — so this arm is what a row added ahead of
@@ -188,6 +200,9 @@ impl OptionTy {
             Self::Str => Ty::String,
             Self::Int => Ty::Int,
             Self::Bool => Ty::Bool,
+            // ADR 0096 § 1a's `mixed`: the value is checked as a constant and
+            // then placed at nothing, which is the whole of what `mixed` asks.
+            Self::Mixed => return None,
             Self::Enum(name) => {
                 let qname = QName::parse(name);
                 let backing = env.enums.get(&qname)?.backing;
@@ -205,6 +220,7 @@ impl OptionTy {
             Self::Str => "string",
             Self::Int => "int",
             Self::Bool => "bool",
+            Self::Mixed => "mixed",
             Self::Enum(name) => name,
         }
     }

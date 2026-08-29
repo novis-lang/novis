@@ -6,7 +6,10 @@
 // in the same file, which is all the table needs: `url` asks the whole
 // program's table, and where the row was declared is not part of the question.
 class Users {
+    // ADR 0096 § 1: without the sibling decision this route is `E0762` and the
+    // two link errors below are never reached.
     #[\Core\Route(path: "/users/{id}", method: \Core\Http\Method::Get, name: "Users::show")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
     public function show(uint $id): string { return "user " . $id; }
 }
 
@@ -27,9 +30,9 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0754]: `Core\Router::url` names the route `Users::missing`, and no `#[Route]` claims it
-   --> case.nvs:15:23
+   --> case.nvs:18:23
 %A
 error[E0755]: `Users::show`'s path `/users/{id}` captures `id`, and this `$params` supplies no keys at all
-   --> case.nvs:20:6
+   --> case.nvs:23:6
 %A
 error: aborting due to 2 errors

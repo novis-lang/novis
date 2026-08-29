@@ -137,6 +137,19 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                 );
             } else if recognized(crate::derive::ROUTE) {
                 check_roster("Route", crate::routes::OPTIONS, &attr.fields, ctx, env);
+            } else if recognized(crate::derive::ACCESS) {
+                // Two calls, because ADR 0096 § 1a states two kinds of rule:
+                // the roster answers the three questions asked of every
+                // payload, and the pass that owns the attribute answers the
+                // two that are about `#[Access]` alone.
+                check_roster(
+                    "Access",
+                    crate::routes::ACCESS_OPTIONS,
+                    &attr.fields,
+                    ctx,
+                    env,
+                );
+                crate::routes::check_access(attr, env);
             }
         }
         return;
