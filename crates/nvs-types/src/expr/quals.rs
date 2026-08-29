@@ -20,7 +20,8 @@
 //! safe over-approximation of "may be tainted"/"may be secret," the same
 //! direction `mixed` never gets — but never narrows through assignment.
 //!
-//! The M2-reachable sinks are three. [`reject_non_literal_markup_conversion`]
+//! The sinks reachable here are six, and the three below are the ones a
+//! conversion reaches. [`reject_non_literal_markup_conversion`]
 //! is ADR 0024 § 5's one M2-scoped rule: `as Core\Html\Markup` accepts only a
 //! literal string token, `tainted` or not — the rest of § 5 (auto-escaping,
 //! `Markup + Markup`) waits on `Core\Html` actually existing.
@@ -32,6 +33,13 @@
 //! constructor message argument — see [`is_throwable_shaped`] for how that is
 //! decided without a declared `Throwable`/`Exception`/`Error` stdlib to check
 //! against.
+//!
+//! The other three are read off a written argument rather than off a
+//! conversion, because the member they reach declares `mixed` and the call
+//! site is the last place the qualifier is visible:
+//! [`reject_secret_debug_argument`], [`reject_secret_attribute_constant`], and
+//! [`reject_secret_boundary_argument`] — ADR 0033 § 4's `serialize()`-and-
+//! `spawn` bullet, which is one check for both of ADR 0023 § 2's carriers.
 //!
 //! Part of [`super`]'s one expression checker, split across this directory so
 //! a session editing one rule does not carry the rest in context. Every item
@@ -321,6 +329,67 @@ pub(crate) fn reject_secret_debug_argument(
                 "reveal it explicitly first with `Core\\Secret::reveal(..., \"reason\")`; a \
                  `secret`-typed *property* of a dumped object needs nothing — the record \
                  redacts it",
+            ),
+        );
+    }
+}
+
+/// ADR 0033 § 4's cross-boundary sink: a `secret`-qualified value handed to
+/// [ADR 0023](../../../../docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
+/// § 2's graph copy.
+///
+/// **One check for both carriers**, which is how § 4 states the rule: the
+/// bullet refuses the value "at the one recursive graph-copy operation ADR
+/// 0023 already defines, for both its callers alike, rather than drawing a new
+/// distinction between crossing to a live isolate and externalizing to bytes."
+/// `Core\Serialize::encode` is the caller that compiles today; when
+/// `spawn`/`spawn worker`/`spawn script` lower, their argument list comes
+/// through here rather than growing a rule of its own, and that is the whole
+/// reason this takes the arguments and their types instead of reading the
+/// member's signature.
+///
+/// A call-site rule rather than a parameter type, exactly as
+/// [`reject_secret_debug_argument`] is: `encode` declares `mixed`, which a
+/// `secret string` satisfies, so the written argument is the last place the
+/// qualifier is still visible.
+///
+/// **What this does not reach, and why that is not a gap.** A `secret`-typed
+/// *property* of an object being copied is invisible from a call site — the
+/// argument's static type is the class, not its storage — so the walk itself
+/// refuses that one at run time (`nvs_runtime::graph`'s `field_is_secret`).
+/// The two halves are the same rule read off the two things that can carry the
+/// qualifier, which is why they share [`code::E_SECRET_CROSSES_A_BOUNDARY`]'s
+/// reasoning without sharing a mechanism.
+pub(crate) fn reject_secret_boundary_argument(
+    qname: &QName,
+    member: &str,
+    args: &CallArgs,
+    arg_types: &[TypeId],
+    env: &mut Env<'_>,
+) {
+    if qname.to_string() != r"Core\Serialize" || member != "encode" {
+        return;
+    }
+    let CallArgs::List(list) = args else {
+        return;
+    };
+    for (arg, &ty) in list.iter().zip(arg_types) {
+        if !is_secret(ty, env.interner) {
+            continue;
+        }
+        env.diags.report(
+            Diagnostic::error(
+                code::E_SECRET_CROSSES_A_BOUNDARY,
+                "a `secret`-qualified value cannot cross a copy boundary; \
+                 `Core\\Serialize::encode` writes it into bytes that outlive the \
+                 request, where nothing carries the qualifier that was protecting it",
+            )
+            .with_primary(arg.value.span, "secret value copied out here")
+            .with_help(
+                "reveal it explicitly first with `Core\\Secret::reveal(..., \"reason\")`, at \
+                 the one call site where handing the secret over is the point; a \
+                 `secret`-typed *property* of a copied object needs nothing here — the walk \
+                 refuses that one itself",
             ),
         );
     }

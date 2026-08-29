@@ -2219,6 +2219,35 @@ pub mod code {
     /// where the case is counted.
     pub const E_CALLABLE_SHAPE_FIELD_NOT_A_LITERAL: Code = Code::new("E0774");
 
+    /// A `secret`-qualified value reaches
+    /// [ADR 0023](../../docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
+    /// § 2's graph copy — [ADR
+    /// 0033](../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
+    /// § 4's `serialize()`-and-`spawn` sink, which that bullet deliberately
+    /// states once for *both* carriers rather than distinguishing "crossing to
+    /// a live isolate" from "externalizing to bytes".
+    ///
+    /// It is one code for both because the disclosure is one disclosure: the
+    /// walk that puts a credential into bytes on disk is the walk that puts it
+    /// into another arena, and a developer who learns the rule at one carrier
+    /// has learned it at the other. `Core\Serialize::encode` is the call site
+    /// that exists today; `spawn`/`spawn worker`/`spawn script` report the
+    /// same code from the same check once they compile.
+    ///
+    /// A call-site rule rather than a parameter type, for the same reason
+    /// [`E_SECRET_DEBUG_ARGUMENT`] is one: `encode` declares `mixed`, which a
+    /// `secret string` satisfies, so the argument expression is the last place
+    /// the qualifier is visible. A separate code from that one because the
+    /// destination is not a channel a person reads — nothing is disclosed
+    /// until the bytes are, which is exactly why the refusal has to be at the
+    /// copy rather than at some later read nobody can see from here.
+    ///
+    /// The qualifier one storage kind along is *not* this code: a `secret`
+    /// **property** of an object being copied is refused by the walk itself at
+    /// run time (`nvs_runtime::graph`), because the object's static type is
+    /// what a call site sees and its properties are not.
+    pub const E_SECRET_CROSSES_A_BOUNDARY: Code = Code::new("E0775");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

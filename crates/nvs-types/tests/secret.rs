@@ -139,6 +139,53 @@ fn a_secret_value_passed_to_a_subclass_of_throwable_is_diagnosed() {
 }
 
 #[test]
+fn a_secret_value_is_refused_at_the_boundary_unless_revealed() {
+    // ADR 0033 § 4's `serialize()`-and-`spawn` bullet, at the carrier that
+    // compiles today. `Core\Serialize::encode` declares `mixed`, which a
+    // `secret string` satisfies, so this is a call-site rule and the written
+    // argument is where it is reported.
+    let refused = check_in_method(
+        "secret string $token = \"literal\";\n\
+         bytes $b = Core\\Serialize::encode($token);\n",
+    );
+    assert!(
+        refused
+            .iter()
+            .any(|d| d.code == Some(code::E_SECRET_CROSSES_A_BOUNDARY)),
+        "{refused:?}"
+    );
+
+    // The "unless" half: the refusal is on the qualifier, not on the copy, so
+    // a plain value crosses with nothing written at the call site. That plain
+    // type is what `Core\Secret::reveal(..., "reason")` — which the diagnostic's
+    // help names and the registry does not carry yet — produces, so this pins
+    // the shape the escape hatch has to land in rather than the call.
+    let allowed = check_in_method(
+        "string $revealed = \"literal\";\n\
+         bytes $b = Core\\Serialize::encode($revealed);\n",
+    );
+    assert!(!allowed.has_errors(), "{allowed:?}");
+}
+
+#[test]
+fn a_secret_value_reaching_the_boundary_inside_a_concatenation_is_refused() {
+    // The qualifier poisons through concatenation on its own axis, so a
+    // secret that reaches the copy composed rather than named is the same
+    // refusal — which is the point of reading the argument's inferred type
+    // rather than looking for a `secret`-typed variable.
+    let diags = check_in_method(
+        "secret string $token = \"literal\";\n\
+         bytes $b = Core\\Serialize::encode(\"bearer \" . $token);\n",
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_SECRET_CROSSES_A_BOUNDARY)),
+        "{diags:?}"
+    );
+}
+
+#[test]
 fn a_plain_value_passed_to_a_throwable_is_fine() {
     let diags = check_in_method(r#"throw new LogicError("plain message");"#);
     assert!(!diags.has_errors(), "{diags:?}");
