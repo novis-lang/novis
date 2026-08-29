@@ -2334,6 +2334,14 @@ is why" — is this file.
   all reported at once. `array<int> $against = [4, 2];` on the line above fixes each. The subject
   argument never has this problem because it comes from a declared variable, which is why the shape
   only bites on the members taking *two* arrays.
+- **A `foreach` binding is a declaration in the enclosing scope, so one `.nvst` case cannot sweep two
+  differently-typed corpora under the same variable name.** `foreach ($reals as float $n)` followed
+  later by `foreach ($whole as int $n)` is `E0406: '$n' is already declared`, pointing at the first
+  loop's header — which reads like the loop leaked its binding and is instead the ordinary
+  one-declaration-per-name rule applied to a header. Repeating `foreach ($reals as float $n)` with the
+  *same* type is fine, so a roster case that sweeps floats and ints alike wants one name per type
+  (`$n` for the float rows, `$i` for the integer ones) rather than one per loop. The same bites twice
+  in one file when two blocks both destructure a pair into `$a`/`$b`.
 
 ## Splitting a file that got too big
 
@@ -3660,3 +3668,11 @@ every session. Nothing below was reworded on the way.
   fine one divided on both sides of the epoch, at the cost of the second reading not being the second
   the instant falls inside. Unix `time_t` convention would floor to `-2`. Pinned by
   `tests/conformance/core/time-reading-an-instant-in-a-zone-does-not-disturb-the-instant.nvst`.
+- **CLDR's single-count `X` and `x` omit an offset's minutes when they are zero, and no PHP `date()`
+  letter does.** `$dt->format("x")` at a zero offset is `+00` where `O` is `+0000`; the two-count and
+  three-count forms (`xx` against `O`, `xxx` against `P`) agree outright, and `X` at a zero offset is
+  `Z`, which is PHP's `p`. So the one-letter forms are the only rows of the pattern grammar whose twin
+  has to be computed (`substr($m->format("O"), 0, 3)`), and they sit beside the other three that do:
+  `D` is a one-based day of year against a zero-based `z`, and `K`/`k` are hour cycles PHP has no
+  letter for at all. `tests/differential/lang/a-date-format-string-renders-as-phps-does.nvst` is where
+  all four are written out.
