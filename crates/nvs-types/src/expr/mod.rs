@@ -22,6 +22,7 @@
 //! | [`args`] | a call's arguments, its options bag, its type arguments |
 //! | [`assign`] | ADR 0007 § 6's assignability, and the positions applying it |
 //! | [`calls`] | which member a call resolves to; ADR 0027's `callable` |
+//! | [`isolate`] | ADR 0006's `spawn script` and `await`, and what each types as |
 //! | [`iteration`] | ADR 0053's `foreach` sources and `yield` forms |
 //! | [`literals`] | how a literal takes its type from its position |
 //! | [`members`] | a property, class constant or enum case, and who diagnoses it |
@@ -62,6 +63,7 @@ use crate::{Ctx, Env, span_text, strip_sigil};
 pub(crate) mod args;
 pub(crate) mod assign;
 pub(crate) mod calls;
+pub(crate) mod isolate;
 pub(crate) mod iteration;
 pub(crate) mod literals;
 pub(crate) mod members;
@@ -734,48 +736,13 @@ pub(crate) fn infer(
             }
             env.interner.never()
         }
-        // ADR 0006's isolate spawn. Its operands are still checked — a typo in
-        // the path expression is worth reporting alongside — and then the
-        // construct itself is refused, because nothing below this crate
-        // compiles it yet (`docs/plan/m5.md`). Refusing it where it is written
-        // is the only reading that cannot silently do nothing.
+        // ADR 0006's two constructs, both of which carry a rule of their own:
+        // what each is typed as, and why the handle and the result are
+        // answered by opposite mechanisms. [`isolate`] owns it.
         ExprKind::SpawnScript { path, options } => {
-            check_expr(path, None, live, scope, ctx, env);
-            for opt in options {
-                check_expr(&opt.value, None, live, scope, ctx, env);
-            }
-            env.diags.report(
-                Diagnostic::error(
-                    code::E_SPAWN_SCRIPT_UNLOWERED,
-                    "`spawn script` is not compiled yet",
-                )
-                .with_primary(expr.span, "no isolate is created here")
-                .with_help(
-                    "ADR 0006's isolates arrive with `docs/plan/m5.md`, together with the \
-                     value-crossing copy a spawn boundary needs. There is no same-frame \
-                     spelling of this to fall back on",
-                ),
-            );
-            env.interner.mixed()
+            isolate::check_spawn_script(expr, path, options, live, scope, ctx, env)
         }
-        // The prefix half of the same surface, refused for the same reason and
-        // in the same shape. Its operand is checked first — `await $handel` is
-        // an undefined variable whether or not the construct compiles — and
-        // the answer is `mixed` because the type it will have is
-        // `ScriptResult`, which no registry row declares yet.
-        ExprKind::Await(inner) => {
-            check_expr(inner, None, live, scope, ctx, env);
-            env.diags.report(
-                Diagnostic::error(code::E_AWAIT_UNLOWERED, "`await` is not compiled yet")
-                    .with_primary(expr.span, "nothing is awaited here")
-                    .with_help(
-                        "ADR 0006's isolates arrive with `docs/plan/m5.md`, and `await` is what \
-                         turns the handle `spawn script` hands back into a `ScriptResult`. There \
-                         is no synchronous spelling of this to fall back on",
-                    ),
-            );
-            env.interner.mixed()
-        }
+        ExprKind::Await(inner) => isolate::check_await(expr, inner, live, scope, ctx, env),
         // ADR 0021 § 3's **value** form. The statement form never reaches here
         // — `crate::locals::check_stmt` checks only the path for one, matching
         // `nvs_ir::lower::Lowering::lower_expr_stmt` — so arriving at all is
