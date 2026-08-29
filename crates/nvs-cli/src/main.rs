@@ -1,6 +1,6 @@
 //! The `nvs` binary.
 //!
-//! Seven subcommands so far, one per milestone that needed one:
+//! Eight subcommands so far, one per milestone that needed one:
 //!
 //! * `nvs ast` (M1) — dump what the parser produced.
 //! * `nvs check` (M2) — parse, resolve, type-check, report every diagnostic.
@@ -29,6 +29,11 @@
 //! * `nvs info` — build, host and third-party licensing facts, PHP's
 //!   `php -i` in shape and in purpose. Also spelled `nvs -i`, since that is
 //!   the spelling anyone arriving from PHP will try first; see [`info`].
+//! * `nvs meta --json` — the `Core` registry as JSON: every class, every
+//!   member, and each documented member's reference card, which is
+//!   [ADR 0117](../../../docs/adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md)
+//!   § 2's contract. A build-time consumer's input, never a runtime feature;
+//!   see [`meta`].
 //!
 //! `run` **checks first**: on any diagnostic it reports and exits non-zero
 //! exactly as `check` does, rather than running a program the front end
@@ -71,6 +76,7 @@ use nvs_syntax::{check_declarations, parse_file};
 
 mod api_diff;
 mod info;
+mod meta;
 mod openapi;
 mod runner;
 mod script;
@@ -203,6 +209,18 @@ enum Command {
         #[arg(long)]
         licenses: bool,
     },
+    /// Print the `Core` registry — every class and member, with each
+    /// documented member's reference card.
+    ///
+    /// `--json` is required for the reason `build --openapi` is: a `meta`
+    /// with nothing named would succeed having printed nothing, and the flag
+    /// is how a second format joins without changing what this one means.
+    /// The shape is ADR 0117 § 2's, and this command owns it; see [`meta`].
+    Meta {
+        /// Write the registry as JSON to standard output.
+        #[arg(long, required = true)]
+        json: bool,
+    },
 }
 
 /// `nvs api`'s own subcommands.
@@ -283,6 +301,7 @@ fn main() -> ExitCode {
             command: ApiCommand::Diff { old, new },
         } => api_diff::run(&old, &new),
         Command::Info { licenses } => info::run(licenses),
+        Command::Meta { json: _ } => meta::run(),
     }
 }
 

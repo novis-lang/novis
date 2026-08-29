@@ -1464,6 +1464,7 @@ dependencies = [
  "nvs-host",
  "nvs-ir",
  "nvs-runtime",
+ "nvs-stdlib",
  "nvs-syntax",
  "nvs-test",
  "nvs-types",

@@ -25,6 +25,9 @@ nvs-runtime.workspace = true
 # there has to be one. `main.rs`'s § *What `run` executes* owns the rest.
 nvs-host.workspace = true
 nvs-test.workspace = true
+# `nvs meta --json` prints the `Core` registry, which is `nvs-stdlib`'s data
+# read directly — ADR 0117 § 2 makes this binary the owner of that contract.
+nvs-stdlib.workspace = true
 clap.workspace = true
 # ADR 0085's document, built and written as JSON rather than as text — the
 # workspace manifest owns why this crate and not another.
