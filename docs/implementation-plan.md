@@ -49,9 +49,14 @@
 > a run queue of stackful coroutines, and a `Ctx` that carries the yielder as an opaque pointer so
 > no signature in the chain is coloured. ADR 0115 specifies the reactor above it, and
 > `crates/nvs-host/src/reactor.rs` is now that reactor: `mio` readiness keyed by `TaskId`, § 2's
-> five-rule parking contract, and `run_until_idle` joining it to the run queue. Closing it turned up
-> a latent path to `abort()` — a suspended coroutine dropped under `run_task`'s containment boundary
-> — which `nvs_runtime::Teardown` now closes. The steps the chain took are in
+> five-rule parking contract, and `run_until_idle` joining it to the run queue. How a task reaches
+> that reactor is now decided and recorded in `reactor.rs`'s module doc — a thread-local, not a
+> second opaque pointer in `Ctx` — and `crates/nvs-host/src/net.rs` is ADR 0115 § 3's stream over
+> it: `NvsTcp` is a plain `std::io::Read`/`Write` that issues the syscall first and registers, parks
+> and loops only on `WouldBlock`, keeps its registration across parks, and waits on a poll of its
+> own when there is no core to hand back. Closing it turned up a latent path to `abort()` — a
+> suspended coroutine dropped under `run_task`'s containment boundary — which
+> `nvs_runtime::Teardown` now closes. The steps the chain took are in
 > [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's own residue is the 1000-case
 > corpus count, which orders 1–4 meet as the suite grows; nothing else about M4 is open. What the
 > program is measured by is `python tools/check-migration.py` at 100% classified, which stood at 25%
