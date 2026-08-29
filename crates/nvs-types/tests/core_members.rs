@@ -270,3 +270,112 @@ fn an_unregistered_core_reference_is_still_trusted() {
     let diags = check_in_method("Core\\Str::upper(\"x\");\n");
     assert!(!diags.has_errors(), "{diags:?}");
 }
+
+/// ADR 0072 § 1, and the whole reason `Core\Task::all` is worth having: the
+/// answer is a shape with the argument's own field names, each field typed as
+/// *that field's* closure returns.
+///
+/// The positive half is what a uniform result could not pass — `array<mixed>`
+/// is not assignable to `array<int>` and neither is `mixed`, so a collapsed
+/// answer fails the two declarations below rather than merely reading
+/// differently. The negative half is the other direction: one field does not
+/// acquire another's type.
+#[test]
+fn a_task_all_binds_each_fields_own_type() {
+    let diags = check_in_method(
+        "var $page = Core\\Task::all({\n\
+         rows:  fn(): array<int> => [1, 2, 3],\n\
+         label: fn(): string     => \"all\",\n\
+         });\n\
+         array<int> $rows = $page->rows;\n\
+         string $label = $page->label;\n\
+         echo $label, Core\\Arr::count($rows);\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    let crossed = check_in_method(
+        "var $page = Core\\Task::all({rows: fn(): array<int> => [1, 2, 3]});\n\
+         string $rows = $page->rows;\n",
+    );
+    assert!(
+        crossed
+            .iter()
+            .any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{crossed:?}"
+    );
+}
+
+/// ADR 0072 § 1's restriction, and the half of the member that no program can
+/// print: a field's type binds from a *written* `fn` literal, so a field
+/// holding a `callable`-typed variable is a compile error naming the field.
+///
+/// ADR 0031 leaves `callable` without a signature, so there is genuinely
+/// nothing to bind from — the diagnostic says which field rather than refusing
+/// the call as a whole, because every other field still binds.
+#[test]
+fn a_task_all_field_holding_a_callable_variable_is_a_compile_error() {
+    let diags = check_in_method(
+        "callable $loader = fn(): int => 1;\n\
+         var $page = Core\\Task::all({user: $loader, rows: fn(): array<int> => [1]});\n\
+         echo Core\\Arr::count($page->rows);\n",
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_CALLABLE_SHAPE_FIELD_NOT_A_LITERAL)),
+        "{diags:?}"
+    );
+    assert!(
+        diags.iter().any(|d| d.message.contains("`user`")),
+        "the diagnostic names the offending field: {diags:?}"
+    );
+
+    // The same reasoning one level up: a variable holding the whole shape has
+    // no literal at any field, so the argument itself has to be written out.
+    let whole = check_in_method(
+        "var $set = {user: fn(): int => 1};\n\
+         var $page = Core\\Task::all($set);\n",
+    );
+    assert!(
+        whole
+            .iter()
+            .any(|d| d.code == Some(code::E_CALLABLE_SHAPE_NOT_A_LITERAL)),
+        "{whole:?}"
+    );
+}
+
+/// ADR 0072 § 3: one trailing options shape carries both bounds, and there is
+/// no wrapper member to reach for instead.
+///
+/// `timeout` is the spelling a developer arrives with, so it is asked twice —
+/// as an option name, which is not one, and as a member, which does not exist.
+/// `race` is asked because § 3 defers it under a *different* future spelling,
+/// and a `race` that quietly existed would be the thing that decision rejected.
+#[test]
+fn a_limit_and_deadline_options_shape_is_the_only_spelling() {
+    let written = check_in_method(
+        "var $page = Core\\Task::all({rows: fn(): array<int> => [1]}, {limit: 2, deadline: 5s});\n\
+         echo Core\\Arr::count($page->rows);\n",
+    );
+    assert!(!written.has_errors(), "{written:?}");
+
+    let wrapped = check_in_method(
+        "var $page = Core\\Task::all({rows: fn(): array<int> => [1]}, {timeout: 5s});\n",
+    );
+    assert!(
+        wrapped
+            .iter()
+            .any(|d| d.code == Some(code::E_UNKNOWN_OPTION)),
+        "{wrapped:?}"
+    );
+
+    for absent in ["timeout", "race"] {
+        let diags = check_in_method(&format!(
+            "Core\\Task::{absent}({{rows: fn(): array<int> => [1]}});\n"
+        ));
+        assert!(
+            diags.has_errors(),
+            "`Core\\Task::{absent}` resolved: {diags:?}"
+        );
+    }
+}
