@@ -1,0 +1,41 @@
+--TEST--
+every year `Core\Time\Date::at` accepts renders through `format`, and the first year on each side that it refuses is named — spec § 4
+--FILE--
+<?nvs
+// One number, both sides. `Core\Time\Date::at` states its own range in its
+// refusal, and the two years at the ends of that range are exactly the two a
+// rendering that placed the date on the timeline first could not answer for:
+// the instants a runtime can name run out one day inside the civil range at
+// each end, so midnight UTC on the first and last accepted date does not
+// exist. `crate::cldr::render_utc`'s doc comment owns why the date is now
+// rendered without one. Before that, both lines below aborted the request
+// with an uncatchable `FATAL` rather than printing anything.
+var $lo = Core\Time\Date::at(-9999, 1, 1);
+echo $lo->format("yyyy-MM-dd EEEE D"), "\n";
+
+var $hi = Core\Time\Date::at(9999, 12, 31);
+echo $hi->format("yyyy-MM-dd EEEE D"), "\n";
+
+// The refused side, one step past each accepted end. A member that had been
+// narrowed to make the two lines above work would print an acceptance here.
+array<int> $past = [-10000, 10000];
+foreach ($past as int $year) {
+    try {
+        var $made = Core\Time\Date::at($year, 1, 1);
+        echo "accepted ", $made->format("yyyy"), "\n";
+    } catch (RuntimeError $e) {
+        echo "refused ", $year, "\n";
+    }
+}
+
+// The sibling that shares the rendering, at both ends of the clock: it never
+// depended on an instant either, and says so in the same place.
+var $first = Core\Time\TimeOfDay::at(0, 0, {second: 0});
+var $last = Core\Time\TimeOfDay::at(23, 59, {second: 59});
+echo $first->format("HH:mm:ss"), " ", $last->format("HH:mm:ss"), "\n";
+--EXPECT--
+-9999-01-01 Monday 1
+9999-12-31 Friday 365
+refused -10000
+refused 10000
+00:00:00 23:59:59

@@ -1473,6 +1473,11 @@ fn instant_built(at: Timestamp) -> Value {
 /// A [`Fault::fatal`] naming the member, for the reason [`count`] gives.
 fn instant_of(args: &[Value], at: usize, member: &str) -> Result<Timestamp, Fault> {
     let object = crate::instance::receiver(args[at], &INSTANT, member)?;
+    // The three guards below are unreachable from source: `Core\Time\Instant`
+    // is a `Core`-owned class, so `new Core\Time\Instant()` is `E0405: has no
+    // member named constructor` at the checker and nothing but
+    // [`instant_built`] ever writes these slots — an `int` second, and a
+    // nanosecond a live `Timestamp` already bounded to 0..1_000_000_000.
     let seconds = crate::instance::slot(object, INSTANT_SECONDS_SLOT)
         .as_int()
         .ok_or_else(|| {
@@ -1480,6 +1485,7 @@ fn instant_of(args: &[Value], at: usize, member: &str) -> Result<Timestamp, Faul
                 "Core\\Time\\Instant::{member} found a non-`int` `seconds` slot"
             ))
         })?;
+    // Unreachable from source for the reason above.
     let nanos = crate::instance::slot(object, INSTANT_NANOS_SLOT)
         .as_int()
         .and_then(|held| i32::try_from(held).ok())
@@ -1488,6 +1494,8 @@ fn instant_of(args: &[Value], at: usize, member: &str) -> Result<Timestamp, Faul
                 "Core\\Time\\Instant::{member} found an out-of-range `nanos` slot"
             ))
         })?;
+    // Unreachable from source for the reason above: the pair being recombined
+    // here is the pair a live `Timestamp` was taken apart into.
     Timestamp::new(seconds, nanos).map_err(|err| {
         Fault::fatal(format!(
             "Core\\Time\\Instant::{member} found an unrepresentable instant: {err}"
@@ -1682,6 +1690,10 @@ nvs_runtime::nvs_helper! {
     /// `-1`, not one before it.
     fn nvs_core_time_from_epoch(_ctx, args: [2]) {
         let seconds = count(args, 0, "fromEpoch")?;
+        // Unreachable from source: `nanos` is a `CoreTy::Uint` option in
+        // `CLASS` above, so anything else is `E0401: expected uint, found
+        // mixed` — reported inside the `{nanos: …}` shape literal at the call,
+        // which is where an option is written and where it was probed.
         let nanos = args[1].as_uint().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Time::fromEpoch expected a `uint` for `nanos`, got tag {}",
@@ -2516,6 +2528,9 @@ nvs_runtime::nvs_helper! {
             (5, "minute"),
             (6, "second"),
         ]) {
+            // Unreachable from source: every slot this loop reads is a
+            // `CoreTy::Uint` parameter or option in `CLASS` above, so anything
+            // else is `E0401: expected uint, found mixed` at the checker.
             let held = args[index].as_uint().ok_or_else(|| {
                 Fault::fatal(format!(
                     "Core\\Time::at expected a `uint` for `{name}`, got tag {}",
@@ -2694,20 +2709,21 @@ nvs_runtime::nvs_helper! {
     ///
     /// A pattern naming an hour or a zone is refused rather than filled in;
     /// [`crate::cldr::date_fields_only`] owns why. What that leaves is a
-    /// rendering that cannot depend on the zone the value is placed in, which
-    /// is what makes UTC below an implementation detail rather than a default.
+    /// rendering that reads nothing but the three civil fields the value
+    /// holds, which is what makes rendering it without an instant possible at
+    /// all.
     fn nvs_core_time_date_format(_ctx, args: [2]) {
         let at = date_of(args, 0, "format")?;
         let pattern = text_of(args, 1, r"Core\Time\Date::format")?;
         let pieces = crate::cldr::compile(pattern)
             .and_then(|pieces| crate::cldr::date_fields_only(&pieces).map(|()| pieces))
             .map_err(|why| Fault::thrown(format!("Core\\Time\\Date::format(): {why}")))?;
-        // UTC has no transition, so midnight there exists on every date.
-        let placed = at.to_zoned(TimeZone::UTC).map_err(|err| {
-            Fault::fatal(format!("Core\\Time\\Date::format could not place `{at}`: {err}"))
-        })?;
+        // Rendered from the civil date rather than from a placement on the
+        // timeline, because that placement is not total at either end of the
+        // year range `Date::at` accepts — [`crate::cldr::render_utc`] owns the
+        // reasoning and the two dates that used to abort the request here.
         Ok(Value::str(NvsStr::new(
-            crate::cldr::render(&pieces, &placed).as_bytes(),
+            crate::cldr::render_utc(&pieces, at.to_datetime(civil::Time::midnight())).as_bytes(),
         )))
     }
 }
@@ -2898,16 +2914,13 @@ nvs_runtime::nvs_helper! {
             .and_then(|pieces| crate::cldr::time_fields_only(&pieces).map(|()| pieces))
             .map_err(|why| Fault::thrown(format!("Core\\Time\\TimeOfDay::format(): {why}")))?;
         // The date below is arbitrary and unobservable: no piece that survived
-        // `time_fields_only` can read a calendar field or a zone, and UTC has
-        // no transition that could move the clock reading.
-        let placed = civil::Date::constant(1970, 1, 1)
-            .to_datetime(at)
-            .to_zoned(TimeZone::UTC)
-            .map_err(|err| {
-                Fault::fatal(format!("Core\\Time\\TimeOfDay::format could not place `{at}`: {err}"))
-            })?;
+        // `time_fields_only` reads a calendar field or a zone. Rendered civil
+        // rather than placed on the timeline for [`crate::cldr::render_utc`]'s
+        // reason, which is the sibling `Core\Time\Date::format`'s and applies
+        // here for symmetry.
         Ok(Value::str(NvsStr::new(
-            crate::cldr::render(&pieces, &placed).as_bytes(),
+            crate::cldr::render_utc(&pieces, civil::Date::constant(1970, 1, 1).to_datetime(at))
+                .as_bytes(),
         )))
     }
 }

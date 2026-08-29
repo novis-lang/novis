@@ -2,71 +2,73 @@
 
 ## State
 
-**The failing acceptance check is closed.** `tests/conformance/core/program-implementing-enumerates-every-implementor.nvst`
-is written and passes; it pins ADR 0061 § 3's *membership* — the four routes a class takes to the
-interface (direct, through a class, through an abstract intermediate, through an interface that
-extends it) — where the companion case pins the order and the expansion.
+**The failing acceptance check is closed.**
+`tests/conformance/reject/an-implementor-without-a-no-argument-constructor-is-named.nvst` is
+written and passes. It pins ADR 0061 § 3's second refusal with both sides of the bound in one
+refusing file: `App\Ambient`, whose constructor parameter is *defaulted*, sorts before
+`App\Needy` in the name-ordered walk and is accepted silently, so the case fails a rule that
+counted parameters rather than required ones. That third case also took
+`Core\Program::implementing` off `BELOW_THE_FLOOR`.
 
-**Item 11's argument type-guard family is finished outside `arr.rs`.** Eleven guards now carry a
-`unreachable from source` declaration and their twelve `OWED_A_CASE` lines are gone: `bytes.rs`,
-`json.rs` (×2), `path.rs`, `debug.rs`, `str.rs` (×2), `test.rs` (×4) and `csv.rs`. Each was probed
-with `nvs check`/`nvs run` before the comment was written, never assumed from the row.
+**Item 11's `str.rs` and `time.rs` families are finished.** Eleven sites left `OWED_A_CASE`.
+Nine are declarations, each probed with `nvs check`/`nvs run` before the comment was written:
+`str.rs`'s `fromCodePoints` (`E0401` on `array<uint>`), `normalize` (`E0401` on
+`Core\NormalForm`, probed with `mixed` and with the bare `int` literal), `format`'s argument
+list (the `CoreTy::Variadic` judgement `Core\Path::join` states in full), the two
+`usize`→`u64` counters, `replaceAll`'s key guard (an array key is `int|string` and a packed
+key renders as its own digits, so ADR 0009 § 1 makes it valid UTF-8), `time.rs`'s three
+`instant_of` slot guards, and `fromEpoch`/`Time::at`'s `uint` options.
 
-**Two of those declarations are a different judgement from the eight `E0401` ones, and say so:**
-`Core\Path::join`'s and `Core\Debug::dump`'s tails are `CoreTy::Variadic`, and
-`nvs_ir::lower::lower_call_args` *builds* the array that fills the slot — no source expression
-reaches it at all, well-typed or not. Reach for that wording for `Core\Str::format`'s argument-list
-guard, which is the same shape and still on the ratchet.
+**Two of the eleven were reachable, and were a bug rather than a boundary.**
+`Core\Time\Date::format` and `Core\Time\TimeOfDay::format` placed their value on the timeline
+before rendering, and `jiff`'s instant range is one day narrower than its civil range at each
+end — so `Core\Time\Date::at(-9999, 1, 1)` and `::at(9999, 12, 31)`, both inside the year range
+that member's own refusal names, aborted the request with an uncatchable `FATAL`.
+`cldr::render` now splits into `render_placed` over a `civil::DateTime` plus an offset and a
+zone name, with `render_utc` for a value that names no instant; both filters already refuse a
+zonal field, so no pattern's bytes moved. Pinned by
+`tests/conformance/core/a-date-at-either-end-of-its-year-range-still-formats.nvst`, which
+asserts both accepted ends and the first refused year on each side.
 
-**`csv.rs:521` did not owe a case after all** — the previous handoff predicted one. Both callers of
-`write_record` are `array<string>`-typed, and the one route from untyped data
-(`Core\Json::decode(…) as array<string>`) refuses per *element* at the conversion, at one level and
-at two. The member's own `# Errors` doc claimed "`array<mixed>` reaches this member through `mixed`";
-that sentence was stale and is now corrected.
-
-**`Core\Router::urlAbsolute` gained its second case** —
-`router-url-absolute-refuses-a-unit-with-no-configured-origin.nvst`, the pair asserted on both sides
-over one name. It stays in `BELOW_THE_FLOOR` (`conformance_coverage.rs:264`): the floor is three and
-it is at two.
-
-**Untouched:** item 12's classification (`UNCLASSIFIED`, `crates/nvs-stdlib/src/registry.rs:1509`,
+**Untouched:** item 12's classification (`UNCLASSIFIED`, `crates/nvs-stdlib/src/registry.rs`,
 still 118).
 
-**Found, not fixed:** `catch (Core\Error $e)` panics in `nvs-ir` instead of diagnosing — the
-playbook bullet under *Writing a test case* has the reproducer.
+**Found, not fixed:** a `bytes` array key ICEs in `nvs-ir` rather than being diagnosed — the
+playbook bullet under *Writing a test case* has the reproducer and names the pass that owes the
+refusal. `catch (Core\Error $e)`'s panic, from an earlier session, is still open beside it.
 
-**Orientation gap, thirteenth session running:** `[context] adrs` still does not carry `0085 §§ 1-4`,
-and nothing in the pack names the stage-5 `[[check]]` blocks' `cases`/`tests` lists — so an
-acceptance failure naming a `.nvst` still has to be triaged by `grep`ping `loop-goal.toml`, which is
-that list's only home.
+**Orientation gap, fourteenth session running:** `[context] adrs` still does not carry
+`0085 §§ 1-4`, and nothing in the pack names the stage-5 `[[check]]` blocks' `cases`/`tests`
+lists — an acceptance failure naming a `.nvst` still has to be triaged by `grep`ping
+`loop-goal.toml`, which is that list's only home.
 
 ## Next group
 
-**Item 11's two biggest remaining modules, then item 12's next class. Shared file set:**
-`crates/nvs-stdlib/tests/conformance_coverage.rs:604` — `OWED_A_CASE` is the worklist and a slice is
-done when its lines are gone — plus one `crates/nvs-stdlib/src/<class>.rs` per slice.
+**Item 11's last big module, then item 12's next class. Shared file set:**
+`crates/nvs-stdlib/tests/conformance_coverage.rs:604` — `OWED_A_CASE` is the worklist and a
+slice is done when its lines are gone — plus one `crates/nvs-stdlib/src/<class>.rs` per slice.
 
-- [ ] **`str.rs`'s six remaining stems, goal § item 11.** Two families in one module, and the row
-      decides which: `fromCodePoints` (`str.rs:2392`) is the `E0401` shape, `format`
-      (`str.rs:2446`) is the `CoreTy::Variadic` shape above, `normalize` (`str.rs:2302`) is an enum
-      case and needs its row checked. The other three are internal invariants that may owe a case:
-      `str.rs:789`, `:1349`, `:1529`.
-- [ ] **`time.rs`'s five stems, goal § item 11.** `time.rs:1480`, `:1488` and `:1493` are one
-      `Core\Time\Instant` slot family and share a declaration; `:1687` and `:2521` are `uint`
-      parameters and are the `E0401` shape; `:2707` and `:2907` are `could not place` formatter
-      invariants, which are the ones most likely to owe a case.
-- [ ] **`Core\Validate` (6) and `Core\Uuid` (2), all `Qual::Neutral`, goal § item 12.** The rows are
-      `crates/nvs-stdlib/src/validate.rs:159` and `crates/nvs-stdlib/src/uuid.rs:117`; delete the
-      eight lines they own from `UNCLASSIFIED` (`registry.rs:1509`), which the gate at `:1652`
-      requires in the same commit.
+- [ ] **`arr.rs`'s seven remaining stems, goal § item 11.** All argument or option guards, so
+      the `E0401` shape `arr.rs:829`'s landed declaration states in full — but probe each,
+      because the two `Core\Order` ones are the enum shape `str.rs`'s `normalize` turned out to
+      be and the `average` one is a counter, not a guard. Sites: `arr.rs:1747` (`chunk`),
+      `:2343` (`fill`), `:2367` (`fillKeys`), `:2836` and `:2846` (`sort`), `:3000`
+      (`sortByKey`), `:4152` (`average`).
+- [ ] **`uri.rs`, `hash.rs` and `bytes.rs`'s stems, goal § item 11.** `uri.rs:934`,
+      `hash.rs:473`, `hash.rs:616`, `bytes.rs:1109`, `bytes.rs:1116`, `bytes.rs:1336` — four
+      guards and two that need judging, `hash.rs:473` naming a `Core\Digest` case.
+- [ ] **`Core\Validate` (6) and `Core\Uuid` (2), all `Qual::Neutral`, goal § item 12.** The
+      rows are in `crates/nvs-stdlib/src/registry.rs`; ADR 0088 § 2 is the rule and the
+      unclassified default is what refuses `tainted`.
 
 ## Backlog
 
-- `catch (Core\Error $e)` ICEs in `nvs_ir::lower::expr` — a registry class in a `catch` clause needs
-  a diagnostic. Owner: `crates/nvs-hir/src/errors.rs`' module doc names the rule it violates.
-- `Core\Router::urlAbsolute` is one case short of the floor of three
-  (`conformance_coverage.rs:264`).
-- `Core\Math::atan2`, `Core\Regex::quote`, `Core\Attributes::all`, `Core\Program::implementing` and
-  `Core\Time\TimeOfDay::compareTo` are the rest of `BELOW_THE_FLOOR`.
-- `python tools/gaps.py --coverage` ranks item 10's remaining thin classes; `Core\Router` is
-  thinnest.
+- A `bytes` array key ICEs in `nvs-ir` (`lower/expr.rs:1972`) — owed a `nvs-types` diagnostic
+  beside ADR 0007 § 5's float/bool/null refusal.
+- `catch (Core\Error $e)` panics in `nvs-ir` instead of diagnosing — playbook, *Writing a test
+  case*.
+- `Core\Router::urlAbsolute` is at two cases against a floor of three
+  (`conformance_coverage.rs`'s `BELOW_THE_FLOOR`).
+- Item 12's 118 `UNCLASSIFIED` rows — `crates/nvs-stdlib/src/registry.rs`, ADR 0088 § 2.
+- `[context] adrs` needs `0085 §§ 1-4`, and the pack needs the stage-5 `cases`/`tests` lists —
+  `docs/agent/loop-goal.toml`.

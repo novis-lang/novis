@@ -2254,6 +2254,13 @@ is why" — is this file.
   `E0405` with a help line naming all four (`message`, `previous`, `backtrace`, `location`). Two
   wrong guesses in a row cost two runs; the diagnostic for the second one is excellent and there is
   none at all for the first.
+- **An `array` key that is `bytes` panics in `nvs-ir` instead of being diagnosed**, the same
+  shape as the `catch (Core\Error $e)` bullet above: `bytes $k = "a" as bytes; $pairs[$k] = "z";`
+  reaches `lower/expr.rs:1972`'s *"an array key lowered to Bytes — nvs_types::check_program is
+  trusted to have already rejected a float/bool/null key (ADR 0007 § 5)"*. The assertion names
+  the pass that should have refused it, so the fix is a `nvs-types` diagnostic beside the
+  float/bool/null one. Worth knowing when a probe asks "can this key be invalid UTF-8": the
+  answer is no, but the reason is an ICE rather than a refusal.
 
 ## Splitting a file that got too big
 
@@ -2991,6 +2998,16 @@ sibling in the same namespace unqualified.
   landing the enforcement**: `lower` maps `Text(_)` to the same interned `string` as `Str`, so the
   bullet above about no `Core` member accepting a `tainted` argument is still true for every one of
   them, classified or not.
+- **`OWED_A_CASE`'s declaration window is eight lines measured from the `Fault::` line, so a
+  long comment with the phrase at the top is invisible to the gate.**
+  `conformance_coverage.rs`'s scan walks *upward* from the site and stops at the first line
+  containing `Fault::`, so a nine-line paragraph whose first line reads "Unreachable from
+  source: …" declares nothing, and the failure re-prints the same worklist line with no hint
+  that the comment exists. Put the phrase in the comment's **last** sentence when the
+  reasoning needs more than four lines, and note that a helper with several guards needs one
+  declaration per guard rather than one at the top of the function — `time.rs`'s `instant_of`
+  reads three slots and each needed its own line, two of them a single sentence pointing at
+  the first.
 
 ## Divergences and refusals already pinned
 

@@ -264,7 +264,6 @@ impl Attribution {
 const BELOW_THE_FLOOR: &[&str] = &[
     r"Core\Attributes::all",
     r"Core\Math::atan2",
-    r"Core\Program::implementing",
     r"Core\Regex::quote",
     r"Core\Router::urlAbsolute",
     r"Core\Time\TimeOfDay::compareTo",
@@ -661,28 +660,11 @@ const OWED_A_CASE: &[(&str, &str)] = &[
         "a prepared route link's piece is a tag byte and its text",
     ), // router.rs:282
     ("router.rs", "a prepared route link is built out of `str`"), // router.rs:285
-    ("str.rs", "Core\\Str::length counted past `uint`"), // str.rs:789
-    (
-        "str.rs",
-        "Core\\Str::replaceAll found a key that is not valid UTF-8",
-    ), // str.rs:1339
-    ("str.rs", "Core\\Str counted a position past `uint`"), // str.rs:1520
-    ("str.rs", "Core\\Str::normalize expected a `"), // str.rs:2292
-    ("str.rs", "Core\\Str::fromCodePoints expected"), // str.rs:2382
-    ("str.rs", "Core\\Str::format expected"),   // str.rs:2436
     (
         "test.rs",
         "Core\\Test::assertEquals expected an `int` from `compareTo`, got tag",
     ), // test.rs:663
     ("test.rs", "Core\\Test::assertEqualsDeep walked"), // test.rs:692
-    ("time.rs", "Core\\Time\\Instant::"),       // time.rs:1479, time.rs:1487, time.rs:1492
-    (
-        "time.rs",
-        "Core\\Time::fromEpoch expected a `uint` for `nanos`, got tag",
-    ), // time.rs:1686
-    ("time.rs", "Core\\Time::at expected a `uint` for `"), // time.rs:2520
-    ("time.rs", "Core\\Time\\Date::format could not place `"), // time.rs:2707
-    ("time.rs", "Core\\Time\\TimeOfDay::format could not place `"), // time.rs:2907
     ("uri.rs", "Core\\Uri::with expected a `string` for its `"), // uri.rs:934
     (
         "uri.rs",

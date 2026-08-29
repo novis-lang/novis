@@ -67,7 +67,7 @@
 
 use jiff::Zoned;
 use jiff::civil;
-use jiff::tz::TimeZone;
+use jiff::tz::{Offset, TimeZone};
 
 /// One field a pattern letter names, already resolved from the letter so
 /// nothing downstream matches on a `u8` a second time.
@@ -424,24 +424,64 @@ pub(crate) fn civil_fields_only(pieces: &[Piece]) -> Result<(), String> {
 /// Total: every field reads a component the value already has, so there is
 /// nothing here that can fail once [`compile`] accepted the pattern.
 pub(crate) fn render(pieces: &[Piece], at: &Zoned) -> String {
+    render_placed(
+        pieces,
+        at.datetime(),
+        at.offset(),
+        at.time_zone().iana_name().unwrap_or("UTC"),
+    )
+}
+
+/// [`render`] for a value that names no instant — a `Core\Time\Date` or a
+/// `Core\Time\TimeOfDay`, each of which carries one civil half and nothing
+/// else.
+///
+/// It exists because placing such a value on the timeline first is **not
+/// total**: `jiff`'s instant range is narrower than its civil one at both
+/// ends, so `Core\Time\Date::at(-9999, 1, 1)` and `::at(9999, 12, 31)` — both
+/// inside the year range that member accepts — have no midnight UTC to be
+/// converted to, and rendering either one used to abort the request with a
+/// `FATAL` that no program could catch.
+///
+/// The offset and the zone name are never read through this entry point —
+/// both callers run their pattern through [`date_fields_only`] or
+/// [`time_fields_only`] first, and each of those refuses a zonal field — so
+/// UTC is passed for them because UTC is the placement both members already
+/// used, and every pattern that rendered before renders the same bytes now.
+pub(crate) fn render_utc(pieces: &[Piece], at: civil::DateTime) -> String {
+    render_placed(pieces, at, Offset::UTC, "UTC")
+}
+
+/// [`render`] and [`render_utc`] over the three things a field can read: the
+/// civil datetime, the offset, and the zone's name.
+fn render_placed(pieces: &[Piece], at: civil::DateTime, offset: Offset, zone: &str) -> String {
     let mut out = String::new();
     for piece in pieces {
         match piece {
             Piece::Literal(text) => out.push_str(text),
-            Piece::Field(field, count) => render_field(&mut out, *field, *count, at),
+            Piece::Field(field, count) => {
+                render_field(&mut out, *field, *count, at, offset, zone);
+            }
         }
     }
     out
 }
 
-/// One field of [`render`].
+/// One field of [`render_placed`].
 #[expect(
     clippy::cast_sign_loss,
     reason = "every component read here is non-negative by construction but \
               typed `i8`/`i16` by `jiff`; the year is the one that can be \
               negative, and it takes its absolute value first"
 )]
-fn render_field(out: &mut String, field: Field, count: usize, at: &Zoned) {
+fn render_field(
+    out: &mut String,
+    field: Field,
+    count: usize,
+    at: civil::DateTime,
+    offset: Offset,
+    zone: &str,
+) {
     match field {
         Field::Year => {
             let year = at.year();
@@ -462,9 +502,9 @@ fn render_field(out: &mut String, field: Field, count: usize, at: &Zoned) {
             _ => pad(out, at.month() as u64, count),
         },
         Field::Day => pad(out, at.day() as u64, count),
-        Field::DayOfYear => pad(out, at.day_of_year() as u64, count),
+        Field::DayOfYear => pad(out, at.date().day_of_year() as u64, count),
         Field::Weekday => {
-            let names = WEEKDAYS[at.weekday().to_monday_zero_offset() as usize];
+            let names = WEEKDAYS[at.date().weekday().to_monday_zero_offset() as usize];
             out.push_str(match count {
                 4 => names.0,
                 5 => names.2,
@@ -495,7 +535,7 @@ fn render_field(out: &mut String, field: Field, count: usize, at: &Zoned) {
             }
         }
         Field::OffsetZ | Field::Offset => {
-            let seconds = at.offset().seconds();
+            let seconds = offset.seconds();
             if seconds == 0 && field == Field::OffsetZ {
                 out.push('Z');
                 return;
@@ -513,7 +553,7 @@ fn render_field(out: &mut String, field: Field, count: usize, at: &Zoned) {
                 _ => pad(out, minutes, 2),
             }
         }
-        Field::ZoneId => out.push_str(at.time_zone().iana_name().unwrap_or("UTC")),
+        Field::ZoneId => out.push_str(zone),
     }
 }
 
