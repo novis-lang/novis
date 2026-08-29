@@ -1,0 +1,278 @@
+--TEST--
+Spec § 4, ADR 0013: `Core\Time\Date::compareTo` is a total order, asserted by counting the laws over a table rather than reading a row — trichotomy, antisymmetry over 144 pairs and transitivity over 1,728 triples — that the order is year before month before day and not any other precedence, that it is not the order its own rendering sorts under, and that `Core\Arr::sort` reaches it from a comparator that never asks it
+--FILE--
+<?nvs
+// ADR 0013 makes `compareTo` the one order a value has, and § 4 gives a civil
+// date exactly one. A row-by-row case cannot tell a total order from a member
+// that answers plausibly: the laws are statements about *triples* and about
+// the whole table at once, so every count below is over a sweep and the
+// expectation is the sweep's size.
+class Cal {
+    // A date as one integer, read out of `format` — the independent view of
+    // the same value, so nothing below checks `compareTo` against itself.
+    // The year dominates because a month and a day together never reach
+    // 10,000, and the sum stays ordered on the BCE side for the same reason:
+    // a later month is a *less* negative key.
+    public static function key(Core\Time\Date $d): int {
+        return ($d->format("yyyy") as int) * 10000
+            + ($d->format("MM") as int) * 100
+            + ($d->format("dd") as int);
+    }
+
+    public static function render(Core\Time\Date $d): string {
+        return $d->format("yyyy-MM-dd");
+    }
+
+    // The same three fields in the wrong precedence — day, then month, then
+    // year. Every wrong cascade is antisymmetric and answers a sign for every
+    // pair, which is why the sweep below counts where this one *parts* from
+    // the member rather than asserting the member alone.
+    public static function dayFirst(Core\Time\Date $l, Core\Time\Date $r): int {
+        if (($l->format("dd") as int) != ($r->format("dd") as int)) {
+            return ($l->format("dd") as int) <=> ($r->format("dd") as int);
+        }
+        if (($l->format("MM") as int) != ($r->format("MM") as int)) {
+            return ($l->format("MM") as int) <=> ($r->format("MM") as int);
+        }
+        return ($l->format("yyyy") as int) <=> ($r->format("yyyy") as int);
+    }
+}
+
+// Written out of calendar order on purpose, so the sort below has something
+// to do. Rows 3 and 7 are two distinct instances of one date — the pair that
+// makes `0` reachable off the diagonal — and three pairs differ in exactly
+// one field: rows 1 and 3 in the year, rows 1 and 10 in the day, rows 1 and
+// 12 in the month. Two rows are BCE, which is where § 4's range and its
+// rendering stop agreeing (below).
+array<Core\Time\Date> $calendar = [
+    Core\Time\Date::at(2024, 3, 1),
+    Core\Time\Date::at(-9999, 1, 1),
+    Core\Time\Date::at(2023, 3, 1),
+    Core\Time\Date::at(9999, 12, 31),
+    Core\Time\Date::at(2024, 2, 29),
+    Core\Time\Date::at(-9999, 1, 2),
+    Core\Time\Date::at(2023, 3, 1),
+    Core\Time\Date::at(1970, 1, 1),
+    Core\Time\Date::at(-44, 3, 15),
+    Core\Time\Date::at(2024, 3, 2),
+    Core\Time\Date::at(1, 2, 3),
+    Core\Time\Date::at(2024, 12, 1),
+];
+
+// Trichotomy and antisymmetry, over all 144 ordered pairs.
+//
+// `trichotomy` counts the answers that are one of the three signs at all — an
+// `int` return leaves room for the `$a - $b` shape, which this member does
+// not take, and which would overflow nothing here only because the years are
+// small. `zero-iff-same` is the load-bearing one: `0` exactly where the two
+// dates render alike, which is 14 pairs (the 12 diagonal ones plus rows 3 and
+// 7 either way round) and no others. A member comparing two of the three
+// fields would answer `0` on one of the single-field pairs too.
+int $a = 0;
+int $trichotomy = 0;
+int $zeros = 0;
+int $agreesWithSameness = 0;
+int $antisymmetric = 0;
+int $strict = 0;
+for (; $a < 12; $a = $a + 1) {
+    int $b = 0;
+    for (; $b < 12; $b = $b + 1) {
+        var $left = $calendar[$a as string];
+        var $right = $calendar[$b as string];
+        int $sign = $left->compareTo($right);
+        if ($sign == -1 || $sign == 0 || $sign == 1) {
+            $trichotomy = $trichotomy + 1;
+        }
+        if ($sign == 0) {
+            $zeros = $zeros + 1;
+        }
+        if (($sign == 0) == (Cal::render($left) == Cal::render($right))) {
+            $agreesWithSameness = $agreesWithSameness + 1;
+        }
+        if ($sign + $right->compareTo($left) == 0) {
+            $antisymmetric = $antisymmetric + 1;
+        }
+        if ($sign != 0) {
+            $strict = $strict + 1;
+        }
+    }
+}
+echo "trichotomy=", $trichotomy as string,
+    " zero=", $zeros as string,
+    " zero-iff-same=", $agreesWithSameness as string,
+    " antisym=", $antisymmetric as string,
+    " strict=", $strict as string, "|\n";
+
+// Transitivity, over all 1,728 ordered triples. This is the law no pairwise
+// sweep can see and the one a member with a hand-rolled field cascade breaks
+// first — a cascade that compares the wrong field second is antisymmetric and
+// still ranks `x < y < z < x`.
+//
+// The implication is counted, and so are its antecedents, because a member
+// answering `0` everywhere satisfies every implication vacuously: `weak` is
+// the chains under `<=` and `strictChains` the ones under `<`, and both being
+// large is what makes the 1,728 mean something.
+int $i = 0;
+int $transitive = 0;
+int $weak = 0;
+int $strictChains = 0;
+for (; $i < 12; $i = $i + 1) {
+    int $j = 0;
+    for (; $j < 12; $j = $j + 1) {
+        int $k = 0;
+        for (; $k < 12; $k = $k + 1) {
+            var $x = $calendar[$i as string];
+            var $y = $calendar[$j as string];
+            var $z = $calendar[$k as string];
+            int $xy = $x->compareTo($y);
+            int $yz = $y->compareTo($z);
+            int $xz = $x->compareTo($z);
+            bool $chained = $xy <= 0 && $yz <= 0;
+            if ($chained) {
+                $weak = $weak + 1;
+            }
+            if ($xy < 0 && $yz < 0) {
+                $strictChains = $strictChains + 1;
+            }
+            // The implication itself, counted over every triple including the
+            // ones whose antecedent is false — so the total is the sweep's own
+            // size and a triple that breaks the order subtracts from it.
+            if (!$chained || $xz <= 0) {
+                $transitive = $transitive + 1;
+            }
+        }
+    }
+}
+echo "transitive=", $transitive as string,
+    " weak-chains=", $weak as string,
+    " strict-chains=", $strictChains as string, "|\n";
+
+// The precedence itself, which is the one thing a clock reading has no
+// analogue for: a date's three fields are ordered year, then month, then day,
+// and `key` above is that precedence written as arithmetic. `precedence`
+// counts the pairs where the member agrees with it — all 144 — and
+// `day-first-parts` counts where a cascade reading the same three fields in
+// the wrong order would have answered differently, so the agreement is not
+// the vacuous kind that any cascade satisfies.
+//
+// `lexical` is the second half of the same point, and it is the reason this
+// case carries two BCE rows: a date's own rendering does *not* sort into its
+// order. `-0044-03-15` precedes `-9999-01-01` as text, because the minus sign
+// makes a bigger year read as a smaller string, and the calendar says the
+// reverse — 4 of the 144 pairs, all of them across that sign.
+int $p = 0;
+int $precedence = 0;
+int $dayFirstParts = 0;
+int $lexical = 0;
+for (; $p < 12; $p = $p + 1) {
+    int $q = 0;
+    for (; $q < 12; $q = $q + 1) {
+        var $one = $calendar[$p as string];
+        var $two = $calendar[$q as string];
+        int $order = $one->compareTo($two);
+        if ($order == (Cal::key($one) <=> Cal::key($two))) {
+            $precedence = $precedence + 1;
+        }
+        if ($order != Cal::dayFirst($one, $two)) {
+            $dayFirstParts = $dayFirstParts + 1;
+        }
+        if ($order == Core\Str::compare(Cal::render($one), Cal::render($two))) {
+            $lexical = $lexical + 1;
+        }
+    }
+}
+echo "precedence=", $precedence as string,
+    " day-first-parts=", $dayFirstParts as string,
+    " lexical=", $lexical as string, "|\n";
+
+// `Core\Arr::sort` has no natural order for an object (ADR 0013 leaves that
+// to `Comparable`), so it takes the comparator — and the one it is given here
+// reads `Cal::key`, never `compareTo`. The sequence it lands on is therefore
+// an ordering of this table derived from the rendering alone.
+array<Core\Time\Date> $byKey = Core\Arr::sort($calendar, {
+    comparator: fn (Core\Time\Date $l, Core\Time\Date $r): int
+        => Cal::key($l) <=> Cal::key($r),
+});
+string $sequence = "";
+int $s = 0;
+for (; $s < 12; $s = $s + 1) {
+    $sequence = $sequence . Cal::render($byKey[$s as string]) . " ";
+}
+echo $sequence, "|\n";
+
+// Agreement, the whole point: over the same 144 pairs, `compareTo`'s sign is
+// the sign of the two values' positions in that sequence. A position is the
+// first index rendering alike, so the two equal rows share one — which is the
+// only way a total order with a tie can be read off an array of distinct
+// slots, and it is what makes the `0` answers agree here rather than be
+// excused.
+int $u = 0;
+int $positionSign = 0;
+for (; $u < 12; $u = $u + 1) {
+    int $v = 0;
+    for (; $v < 12; $v = $v + 1) {
+        int $leftAt = 12;
+        int $rightAt = 12;
+        int $at = 11;
+        for (; $at >= 0; $at = $at - 1) {
+            if (Cal::render($byKey[$at as string]) == Cal::render($calendar[$u as string])) {
+                $leftAt = $at;
+            }
+            if (Cal::render($byKey[$at as string]) == Cal::render($calendar[$v as string])) {
+                $rightAt = $at;
+            }
+        }
+        if ($calendar[$u as string]->compareTo($calendar[$v as string]) == ($leftAt <=> $rightAt)) {
+            $positionSign = $positionSign + 1;
+        }
+    }
+}
+
+// And the other direction: sorting by `compareTo` reproduces that sequence
+// exactly, from the table as written and from its reverse alike. A comparison
+// that is not a total order sorts a permutation to somewhere else.
+array<Core\Time\Date> $reversed = [
+    Core\Time\Date::at(2024, 12, 1),
+    Core\Time\Date::at(1, 2, 3),
+    Core\Time\Date::at(2024, 3, 2),
+    Core\Time\Date::at(-44, 3, 15),
+    Core\Time\Date::at(1970, 1, 1),
+    Core\Time\Date::at(2023, 3, 1),
+    Core\Time\Date::at(-9999, 1, 2),
+    Core\Time\Date::at(2024, 2, 29),
+    Core\Time\Date::at(9999, 12, 31),
+    Core\Time\Date::at(2023, 3, 1),
+    Core\Time\Date::at(-9999, 1, 1),
+    Core\Time\Date::at(2024, 3, 1),
+];
+array<Core\Time\Date> $byMember = Core\Arr::sort($calendar, {
+    comparator: fn (Core\Time\Date $l, Core\Time\Date $r): int => $l->compareTo($r),
+});
+array<Core\Time\Date> $fromReverse = Core\Arr::sort($reversed, {
+    comparator: fn (Core\Time\Date $l, Core\Time\Date $r): int => $l->compareTo($r),
+});
+string $byMemberSequence = "";
+string $fromReverseSequence = "";
+int $m = 0;
+int $nonDecreasing = 0;
+for (; $m < 12; $m = $m + 1) {
+    $byMemberSequence = $byMemberSequence . Cal::render($byMember[$m as string]) . " ";
+    $fromReverseSequence = $fromReverseSequence . Cal::render($fromReverse[$m as string]) . " ";
+    // Non-decreasing under the member itself, on the sequence the *key*
+    // comparator produced: 11 adjacent pairs, none of them out of order.
+    if ($m < 11) {
+        if ($byKey[$m as string]->compareTo($byKey[($m + 1) as string]) <= 0) {
+            $nonDecreasing = $nonDecreasing + 1;
+        }
+    }
+}
+echo "position-sign=", $positionSign as string,
+    " non-decreasing=", $nonDecreasing as string,
+    " same-sequence=", ($byMemberSequence == $sequence) as string,
+    " permutation-invariant=", ($fromReverseSequence == $sequence) as string, "|\n";
+--EXPECT--
+trichotomy=144 zero=14 zero-iff-same=144 antisym=144 strict=130|
+transitive=1728 weak-chains=378 strict-chains=210|
+precedence=144 day-first-parts=44 lexical=140|
+-9999-01-01 -9999-01-02 -0044-03-15 0001-02-03 1970-01-01 2023-03-01 2023-03-01 2024-02-29 2024-03-01 2024-03-02 2024-12-01 9999-12-31 |
+position-sign=144 non-decreasing=11 same-sequence=1 permutation-invariant=1|
