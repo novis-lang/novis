@@ -38,7 +38,8 @@ use nvs_runtime::{Decimal, Fault, NvsStr, Tag, Value};
 
 use crate::ordering::compare_values;
 use crate::registry::{
-    CaseDoc, Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc, Qual,
+    CaseDoc, Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc,
+    ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 // ============================================================================
@@ -59,7 +60,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Union(NUMBER),
             symbol: "nvs_core_math_abs",
-            doc: None,
+            doc: Some(&ABS_DOC),
         },
         CoreMethod {
             name: "sign",
@@ -68,7 +69,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_math_sign",
-            doc: None,
+            doc: Some(&SIGN_DOC),
         },
         CoreMethod {
             name: "min",
@@ -77,7 +78,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Var("T"),
             symbol: "nvs_core_math_min",
-            doc: None,
+            doc: Some(&MIN_DOC),
         },
         CoreMethod {
             name: "max",
@@ -86,7 +87,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Var("T"),
             symbol: "nvs_core_math_max",
-            doc: None,
+            doc: Some(&MAX_DOC),
         },
         CoreMethod {
             name: "clamp",
@@ -95,7 +96,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Var("T"),
             symbol: "nvs_core_math_clamp",
-            doc: None,
+            doc: Some(&CLAMP_DOC),
         },
         CoreMethod {
             name: "ceil",
@@ -104,7 +105,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_ceil",
-            doc: None,
+            doc: Some(&CEIL_DOC),
         },
         CoreMethod {
             name: "floor",
@@ -113,7 +114,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_floor",
-            doc: None,
+            doc: Some(&FLOOR_DOC),
         },
         CoreMethod {
             name: "truncate",
@@ -122,7 +123,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_truncate",
-            doc: None,
+            doc: Some(&TRUNCATE_DOC),
         },
         CoreMethod {
             name: "round",
@@ -131,7 +132,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_round",
-            doc: None,
+            doc: Some(&ROUND_DOC),
         },
         CoreMethod {
             name: "intDiv",
@@ -140,7 +141,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_math_int_div",
-            doc: None,
+            doc: Some(&INT_DIV_DOC),
         },
         CoreMethod {
             name: "mod",
@@ -149,7 +150,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_mod",
-            doc: None,
+            doc: Some(&MOD_DOC),
         },
         CoreMethod {
             name: "gcd",
@@ -158,7 +159,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_math_gcd",
-            doc: None,
+            doc: Some(&GCD_DOC),
         },
         CoreMethod {
             name: "lcm",
@@ -167,7 +168,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_math_lcm",
-            doc: None,
+            doc: Some(&LCM_DOC),
         },
         CoreMethod {
             name: "sqrt",
@@ -176,7 +177,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_sqrt",
-            doc: None,
+            doc: Some(&SQRT_DOC),
         },
         CoreMethod {
             name: "cbrt",
@@ -185,7 +186,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_cbrt",
-            doc: None,
+            doc: Some(&CBRT_DOC),
         },
         CoreMethod {
             name: "hypot",
@@ -194,7 +195,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_hypot",
-            doc: None,
+            doc: Some(&HYPOT_DOC),
         },
         CoreMethod {
             name: "exp",
@@ -203,7 +204,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_exp",
-            doc: None,
+            doc: Some(&EXP_DOC),
         },
         CoreMethod {
             name: "log",
@@ -212,7 +213,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_log",
-            doc: None,
+            doc: Some(&LOG_DOC),
         },
         CoreMethod {
             name: "sin",
@@ -221,7 +222,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_sin",
-            doc: None,
+            doc: Some(&SIN_DOC),
         },
         CoreMethod {
             name: "cos",
@@ -230,7 +231,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_cos",
-            doc: None,
+            doc: Some(&COS_DOC),
         },
         CoreMethod {
             name: "tan",
@@ -239,7 +240,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_tan",
-            doc: None,
+            doc: Some(&TAN_DOC),
         },
         CoreMethod {
             name: "asin",
@@ -248,7 +249,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_asin",
-            doc: None,
+            doc: Some(&ASIN_DOC),
         },
         CoreMethod {
             name: "acos",
@@ -257,7 +258,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_acos",
-            doc: None,
+            doc: Some(&ACOS_DOC),
         },
         CoreMethod {
             name: "atan",
@@ -266,7 +267,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_atan",
-            doc: None,
+            doc: Some(&ATAN_DOC),
         },
         CoreMethod {
             name: "atan2",
@@ -275,7 +276,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_atan2",
-            doc: None,
+            doc: Some(&ATAN2_DOC),
         },
         CoreMethod {
             name: "sinh",
@@ -284,7 +285,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_sinh",
-            doc: None,
+            doc: Some(&SINH_DOC),
         },
         CoreMethod {
             name: "cosh",
@@ -293,7 +294,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_cosh",
-            doc: None,
+            doc: Some(&COSH_DOC),
         },
         CoreMethod {
             name: "tanh",
@@ -302,7 +303,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_tanh",
-            doc: None,
+            doc: Some(&TANH_DOC),
         },
         CoreMethod {
             name: "asinh",
@@ -311,7 +312,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_asinh",
-            doc: None,
+            doc: Some(&ASINH_DOC),
         },
         CoreMethod {
             name: "acosh",
@@ -320,7 +321,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_acosh",
-            doc: None,
+            doc: Some(&ACOSH_DOC),
         },
         CoreMethod {
             name: "atanh",
@@ -329,7 +330,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_atanh",
-            doc: None,
+            doc: Some(&ATANH_DOC),
         },
         CoreMethod {
             name: "toRadians",
@@ -338,7 +339,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_to_radians",
-            doc: None,
+            doc: Some(&TO_RADIANS_DOC),
         },
         CoreMethod {
             name: "toDegrees",
@@ -347,7 +348,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_to_degrees",
-            doc: None,
+            doc: Some(&TO_DEGREES_DOC),
         },
         CoreMethod {
             name: "isNan",
@@ -356,7 +357,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_math_is_nan",
-            doc: None,
+            doc: Some(&IS_NAN_DOC),
         },
         CoreMethod {
             name: "isFinite",
@@ -365,7 +366,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_math_is_finite",
-            doc: None,
+            doc: Some(&IS_FINITE_DOC),
         },
         CoreMethod {
             name: "toBase",
@@ -374,7 +375,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_math_to_base",
-            doc: None,
+            doc: Some(&TO_BASE_DOC),
         },
         CoreMethod {
             name: "fromBase",
@@ -383,7 +384,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_math_from_base",
-            doc: None,
+            doc: Some(&FROM_BASE_DOC),
         },
         CoreMethod {
             name: "format",
@@ -392,12 +393,681 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_math_format",
-            doc: None,
+            doc: Some(&FORMAT_DOC),
         },
     ],
     instance: &[],
     slots: &[],
     constants: CONSTANTS,
+};
+
+/// `Core\Math::abs`'s reference card — ADR 0117.
+const ABS_DOC: MethodDoc = MethodDoc {
+    short: "The magnitude of `$n`, in `$n`'s own type, as `abs` does — the one member here whose \
+            result type is the argument's.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The number to take the magnitude of: an `int`, a `float` or a `decimal`.",
+        shape: &[],
+    }],
+    ret: "`$n` with its sign dropped, in the type it came in; `-0.0` becomes `0.0`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "When `$n` is `INT_MIN`, whose magnitude is one past `INT_MAX`, or a `uint` past \
+               `INT_MAX`.",
+    }],
+};
+
+/// `Core\Math::sign`'s reference card — ADR 0117.
+const SIGN_DOC: MethodDoc = MethodDoc {
+    short: "Which side of zero `$n` is on — `-1`, `0` or `1` — as PHP's `$n <=> 0` does.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The number to classify: an `int`, a `float` or a `decimal`.",
+        shape: &[],
+    }],
+    ret: "`-1` below zero, `1` above it and `0` for zero, `-0.0` included.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "When `$n` is `NaN`, which is on neither side of zero, or a `uint` past `INT_MAX`.",
+    }],
+};
+
+/// `Core\Math::min`'s reference card — ADR 0117.
+const MIN_DOC: MethodDoc = MethodDoc {
+    short: "The smaller of two values under their natural order, as `min` does with two scalar \
+            arguments; the array form is `Core\\Arr::min`.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "One value, of a type with a natural order: a number, a string, a `bool` or \
+                   `null`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "b",
+            desc: "The other value, of the same type as `$a`.",
+            shape: &[],
+        },
+    ],
+    ret: "Whichever compares smaller; `$a` on a tie, where PHP's `min` answers `$b`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "When the pair has no natural order — an object, an array, or two values of \
+               different kinds.",
+    }],
+};
+
+/// `Core\Math::max`'s reference card — ADR 0117.
+const MAX_DOC: MethodDoc = MethodDoc {
+    short: "The larger of two values under their natural order, as `max` does with two scalar \
+            arguments; the array form is `Core\\Arr::max`.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "One value, of a type with a natural order: a number, a string, a `bool` or \
+                   `null`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "b",
+            desc: "The other value, of the same type as `$a`.",
+            shape: &[],
+        },
+    ],
+    ret: "Whichever compares larger; `$a` on a tie, as PHP's `max` answers too.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "When the pair has no natural order — an object, an array, or two values of \
+               different kinds.",
+    }],
+};
+
+/// `Core\Math::clamp`'s reference card — ADR 0117.
+const CLAMP_DOC: MethodDoc = MethodDoc {
+    short: "`$n` brought inside `[$low, $high]`, replacing PHP's `min(max($n, $low), $high)` \
+            idiom.",
+    params: &[
+        ParamDoc {
+            name: "n",
+            desc: "The value to clamp, of a type with a natural order: a number, a string, a \
+                   `bool` or `null`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "low",
+            desc: "The smallest value the answer may be.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "high",
+            desc: "The largest value the answer may be, at or above `$low`.",
+            shape: &[],
+        },
+    ],
+    ret: "`$low` when `$n` is below it, `$high` when `$n` is above it, and `$n` itself \
+          otherwise.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "When `$low` is above `$high`, which is an empty range, or when any pair has no \
+               natural order — an object, an array, or two values of different kinds.",
+    }],
+};
+
+/// `Core\Math::ceil`'s reference card — ADR 0117.
+const CEIL_DOC: MethodDoc = MethodDoc {
+    short: "The smallest integral value at or above `$n`, as `ceil` does.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The value to round up.",
+        shape: &[],
+    }],
+    ret: "An integral `float`; `NaN` and the infinities pass through unchanged.",
+    errors: &[],
+};
+
+/// `Core\Math::floor`'s reference card — ADR 0117.
+const FLOOR_DOC: MethodDoc = MethodDoc {
+    short: "The largest integral value at or below `$n`, as `floor` does.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The value to round down.",
+        shape: &[],
+    }],
+    ret: "An integral `float`; `NaN` and the infinities pass through unchanged.",
+    errors: &[],
+};
+
+/// `Core\Math::truncate`'s reference card — ADR 0117.
+const TRUNCATE_DOC: MethodDoc = MethodDoc {
+    short: "`$n` with its fractional part dropped — toward zero, so `floor` for a positive `$n` \
+            and `ceil` for a negative one — as PHP's `(int)` cast does without the type change.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The value to truncate.",
+        shape: &[],
+    }],
+    ret: "An integral `float`, still a `float`; `NaN` and the infinities pass through unchanged.",
+    errors: &[],
+};
+
+/// `Core\Math::round`'s reference card — ADR 0117.
+const ROUND_DOC: MethodDoc = MethodDoc {
+    short: "`$n` rounded to `precision` decimal places, with the tie rule named as a \
+            `Core\\RoundMode` case, as `round` and its four `PHP_ROUND_*` constants do.",
+    params: &[
+        ParamDoc {
+            name: "n",
+            desc: "The value to round.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "precision",
+            desc: "Decimal places to keep; zero rounds to an integer and a negative count rounds \
+                   to tens, hundreds and up, PHP's `round($n, -2)`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "mode",
+            desc: "Which neighbour a value between two goes to, `RoundMode::HalfUp` — half away \
+                   from zero — unless said otherwise.",
+            shape: &[],
+        },
+    ],
+    ret: "The nearest `float` to the rounded value; `$n` unchanged when it is `NaN` or an \
+          infinity, when `precision` is past `±22`, or when `$n` is already past `2 ** 53` at that \
+          precision and has no fraction left to decide.",
+    errors: &[],
+};
+
+/// `Core\Math::intDiv`'s reference card — ADR 0117.
+const INT_DIV_DOC: MethodDoc = MethodDoc {
+    short: "The integer quotient of `$a / $b`, truncated toward zero, as `intdiv` does.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The dividend.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "b",
+            desc: "The divisor, which may not be zero.",
+            shape: &[],
+        },
+    ],
+    ret: "The quotient with any remainder dropped, so `intDiv(-7, 2)` is `-3`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "When `$b` is zero, or when `$a` is `INT_MIN` and `$b` is `-1`, whose exact \
+               answer is one past `INT_MAX`.",
+    }],
+};
+
+/// `Core\Math::mod`'s reference card — ADR 0117.
+const MOD_DOC: MethodDoc = MethodDoc {
+    short: "The remainder of `$a / $b` over floats, with the sign of `$a`, as `fmod` does; \
+            integer modulo is the `%` operator, so this member is the `float` case only.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The dividend.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "b",
+            desc: "The divisor, which may not be zero.",
+            shape: &[],
+        },
+    ],
+    ret: "`$a - $b * truncate($a / $b)`, carrying `$a`'s sign; `NaN` when `$a` is an infinity, and \
+          `$a` unchanged when `$b` is one.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "When `$b` is zero — a division by zero, which throws here rather than answering \
+               `NaN` as `fmod` does.",
+    }],
+};
+
+/// `Core\Math::gcd`'s reference card — ADR 0117.
+const GCD_DOC: MethodDoc = MethodDoc {
+    short: "The greatest common divisor of two integers, never negative, as `gmp_gcd` does \
+            without the GMP objects.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "One integer; its sign is ignored.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "b",
+            desc: "The other integer; its sign is ignored.",
+            shape: &[],
+        },
+    ],
+    ret: "The largest integer dividing both, at least `0`; `gcd(0, 0)` is `0` and \
+          `gcd($a, 0)` is `abs($a)`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "When the answer does not fit an `int`, which only `gcd(INT_MIN, 0)` and \
+               `gcd(INT_MIN, INT_MIN)` reach.",
+    }],
+};
+
+/// `Core\Math::lcm`'s reference card — ADR 0117.
+const LCM_DOC: MethodDoc = MethodDoc {
+    short: "The least common multiple of two integers, never negative, as `gmp_lcm` does \
+            without the GMP objects.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "One integer; its sign is ignored.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "b",
+            desc: "The other integer; its sign is ignored.",
+            shape: &[],
+        },
+    ],
+    ret: "The smallest positive integer both divide, or `0` when either argument is `0`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "When the answer is past `INT_MAX`, the usual case for two large coprime \
+               arguments.",
+    }],
+};
+
+/// `Core\Math::sqrt`'s reference card — ADR 0117.
+const SQRT_DOC: MethodDoc = MethodDoc {
+    short: "The square root of `$n`, as `sqrt` does.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The value to take the root of.",
+        shape: &[],
+    }],
+    ret: "The non-negative root; `NaN` for a negative `$n`, and `-0.0` for `-0.0`.",
+    errors: &[],
+};
+
+/// `Core\Math::cbrt`'s reference card — ADR 0117.
+const CBRT_DOC: MethodDoc = MethodDoc {
+    short: "The cube root of `$n`, replacing PHP's `pow($n, 1/3)` — and defined for a negative \
+            `$n`, where that idiom answers `NaN`.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The value to take the root of.",
+        shape: &[],
+    }],
+    ret: "The real cube root, carrying `$n`'s sign; `cbrt(-8.0)` is `-2.0`.",
+    errors: &[],
+};
+
+/// `Core\Math::hypot`'s reference card — ADR 0117.
+const HYPOT_DOC: MethodDoc = MethodDoc {
+    short: "The length of the hypotenuse of a right triangle with legs `$a` and `$b`, as `hypot` \
+            does, without the intermediate overflow `sqrt($a ** 2 + $b ** 2)` has.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "One leg.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "b",
+            desc: "The other leg.",
+            shape: &[],
+        },
+    ],
+    ret: "`sqrt($a * $a + $b * $b)`, never negative, and an infinity when either leg is one.",
+    errors: &[],
+};
+
+/// `Core\Math::exp`'s reference card — ADR 0117.
+const EXP_DOC: MethodDoc = MethodDoc {
+    short: "`E` raised to the power `$n`, as `exp` does.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The exponent.",
+        shape: &[],
+    }],
+    ret: "`E ** $n`, always positive; `INFINITY` once `$n` is past about `709.78`, and `0.0` \
+          far enough below zero.",
+    errors: &[],
+};
+
+/// `Core\Math::log`'s reference card — ADR 0117.
+const LOG_DOC: MethodDoc = MethodDoc {
+    short: "The logarithm of `$n`, natural unless a `base` is given — one member for PHP's \
+            `log`, `log10` and `log2`.",
+    params: &[
+        ParamDoc {
+            name: "n",
+            desc: "The value to take the logarithm of.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "base",
+            desc: "The base, greater than zero; `E` unless said otherwise, and `10.0` and `2.0` \
+                   use the dedicated exact routines rather than a ratio of two logarithms.",
+            shape: &[],
+        },
+    ],
+    ret: "The power `base` must be raised to for `$n`; `-INFINITY` for a zero `$n`, `NaN` for a \
+          negative `$n` and for a `base` of exactly `1.0`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "When `base` is not greater than zero, where PHP's `log` raises a `ValueError`.",
+    }],
+};
+
+/// `Core\Math::sin`'s reference card — ADR 0117.
+const SIN_DOC: MethodDoc = MethodDoc {
+    short: "The sine of an angle in radians, as `sin` does.",
+    params: &[ParamDoc {
+        name: "radians",
+        desc: "The angle, in radians.",
+        shape: &[],
+    }],
+    ret: "A value in `[-1, 1]`; `NaN` for an infinity or `NaN`.",
+    errors: &[],
+};
+
+/// `Core\Math::cos`'s reference card — ADR 0117.
+const COS_DOC: MethodDoc = MethodDoc {
+    short: "The cosine of an angle in radians, as `cos` does.",
+    params: &[ParamDoc {
+        name: "radians",
+        desc: "The angle, in radians.",
+        shape: &[],
+    }],
+    ret: "A value in `[-1, 1]`; `NaN` for an infinity or `NaN`.",
+    errors: &[],
+};
+
+/// `Core\Math::tan`'s reference card — ADR 0117.
+const TAN_DOC: MethodDoc = MethodDoc {
+    short: "The tangent of an angle in radians, as `tan` does.",
+    params: &[ParamDoc {
+        name: "radians",
+        desc: "The angle, in radians.",
+        shape: &[],
+    }],
+    ret: "`sin / cos` of the angle, any `float`; `NaN` for an infinity or `NaN`.",
+    errors: &[],
+};
+
+/// `Core\Math::asin`'s reference card — ADR 0117.
+const ASIN_DOC: MethodDoc = MethodDoc {
+    short: "The arc sine — the angle in radians whose sine is `$n` — as `asin` does.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "A sine, in `[-1, 1]`.",
+        shape: &[],
+    }],
+    ret: "An angle in `[-PI / 2, PI / 2]`; `NaN` for a `$n` outside `[-1, 1]`.",
+    errors: &[],
+};
+
+/// `Core\Math::acos`'s reference card — ADR 0117.
+const ACOS_DOC: MethodDoc = MethodDoc {
+    short: "The arc cosine — the angle in radians whose cosine is `$n` — as `acos` does.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "A cosine, in `[-1, 1]`.",
+        shape: &[],
+    }],
+    ret: "An angle in `[0, PI]`; `NaN` for a `$n` outside `[-1, 1]`.",
+    errors: &[],
+};
+
+/// `Core\Math::atan`'s reference card — ADR 0117.
+const ATAN_DOC: MethodDoc = MethodDoc {
+    short: "The arc tangent — the angle in radians whose tangent is `$n` — as `atan` does; for a \
+            pair of coordinates, `atan2` keeps the quadrant.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "A tangent, any `float`.",
+        shape: &[],
+    }],
+    ret: "An angle in `(-PI / 2, PI / 2)`, reaching either end for an infinite `$n`.",
+    errors: &[],
+};
+
+/// `Core\Math::atan2`'s reference card — ADR 0117.
+const ATAN2_DOC: MethodDoc = MethodDoc {
+    short: "The angle of the point `($x, $y)` from the positive x-axis, in radians, as `atan2` \
+            does — `$y` first, as in PHP and in C.",
+    params: &[
+        ParamDoc {
+            name: "y",
+            desc: "The point's y coordinate.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "x",
+            desc: "The point's x coordinate.",
+            shape: &[],
+        },
+    ],
+    ret: "An angle in `[-PI, PI]`, in the quadrant the two signs choose; `atan2(0.0, 0.0)` is \
+          `0.0` rather than `NaN`.",
+    errors: &[],
+};
+
+/// `Core\Math::sinh`'s reference card — ADR 0117.
+const SINH_DOC: MethodDoc = MethodDoc {
+    short: "The hyperbolic sine of `$n`, as `sinh` does.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The argument, any `float`.",
+        shape: &[],
+    }],
+    ret: "`(exp($n) - exp(-$n)) / 2`, carrying `$n`'s sign; an infinity once `$n` is past about \
+          `±710`.",
+    errors: &[],
+};
+
+/// `Core\Math::cosh`'s reference card — ADR 0117.
+const COSH_DOC: MethodDoc = MethodDoc {
+    short: "The hyperbolic cosine of `$n`, as `cosh` does.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The argument, any `float`.",
+        shape: &[],
+    }],
+    ret: "`(exp($n) + exp(-$n)) / 2`, at least `1.0`; `INFINITY` once `$n` is past about `±710`.",
+    errors: &[],
+};
+
+/// `Core\Math::tanh`'s reference card — ADR 0117.
+const TANH_DOC: MethodDoc = MethodDoc {
+    short: "The hyperbolic tangent of `$n`, as `tanh` does.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The argument, any `float`.",
+        shape: &[],
+    }],
+    ret: "`sinh / cosh` of `$n`, in `[-1, 1]` and reaching either end for an infinite `$n`.",
+    errors: &[],
+};
+
+/// `Core\Math::asinh`'s reference card — ADR 0117.
+const ASINH_DOC: MethodDoc = MethodDoc {
+    short: "The inverse hyperbolic sine of `$n`, as `asinh` does.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "A hyperbolic sine, any `float`.",
+        shape: &[],
+    }],
+    ret: "The value whose `sinh` is `$n`, carrying `$n`'s sign.",
+    errors: &[],
+};
+
+/// `Core\Math::acosh`'s reference card — ADR 0117.
+const ACOSH_DOC: MethodDoc = MethodDoc {
+    short: "The inverse hyperbolic cosine of `$n`, as `acosh` does.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "A hyperbolic cosine, at least `1.0`.",
+        shape: &[],
+    }],
+    ret: "The non-negative value whose `cosh` is `$n`; `NaN` for a `$n` below `1.0`.",
+    errors: &[],
+};
+
+/// `Core\Math::atanh`'s reference card — ADR 0117.
+const ATANH_DOC: MethodDoc = MethodDoc {
+    short: "The inverse hyperbolic tangent of `$n`, as `atanh` does.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "A hyperbolic tangent, in `[-1, 1]`.",
+        shape: &[],
+    }],
+    ret: "The value whose `tanh` is `$n`; `INFINITY` at `1.0`, `-INFINITY` at `-1.0` and `NaN` \
+          outside them.",
+    errors: &[],
+};
+
+/// `Core\Math::toRadians`'s reference card — ADR 0117.
+const TO_RADIANS_DOC: MethodDoc = MethodDoc {
+    short: "An angle in degrees as radians, as `deg2rad` does — computed as PHP's own \
+            `($degrees / 180) * PI`, so a round trip through `toDegrees` agrees with PHP's.",
+    params: &[ParamDoc {
+        name: "degrees",
+        desc: "The angle, in degrees.",
+        shape: &[],
+    }],
+    ret: "The same angle in radians, so `toRadians(180.0)` is `PI`.",
+    errors: &[],
+};
+
+/// `Core\Math::toDegrees`'s reference card — ADR 0117.
+const TO_DEGREES_DOC: MethodDoc = MethodDoc {
+    short: "An angle in radians as degrees, as `rad2deg` does — computed as PHP's own \
+            `($radians / PI) * 180`, so a round trip through `toRadians` agrees with PHP's.",
+    params: &[ParamDoc {
+        name: "radians",
+        desc: "The angle, in radians.",
+        shape: &[],
+    }],
+    ret: "The same angle in degrees, so `toDegrees(PI)` is `180.0`.",
+    errors: &[],
+};
+
+/// `Core\Math::isNan`'s reference card — ADR 0117.
+const IS_NAN_DOC: MethodDoc = MethodDoc {
+    short: "Whether `$n` is `NaN` — the one `float` that is not equal to itself, so `==` cannot \
+            ask — as `is_nan` does.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The value to test.",
+        shape: &[],
+    }],
+    ret: "`true` for `NaN` alone; `false` for every other `float`, the infinities included.",
+    errors: &[],
+};
+
+/// `Core\Math::isFinite`'s reference card — ADR 0117.
+const IS_FINITE_DOC: MethodDoc = MethodDoc {
+    short: "Whether `$n` is neither an infinity nor `NaN`, as `is_finite` does; negated and \
+            joined with `isNan`, it is `is_infinite` too.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The value to test.",
+        shape: &[],
+    }],
+    ret: "`true` for every ordinary `float`, zero included; `false` for `INFINITY`, `-INFINITY` \
+          and `NaN`.",
+    errors: &[],
+};
+
+/// `Core\Math::toBase`'s reference card — ADR 0117.
+const TO_BASE_DOC: MethodDoc = MethodDoc {
+    short: "`$n` written out in `$base`, with lowercase digits above nine, as `decbin`, `dechex`, \
+            `decoct` and the writing half of `base_convert` do.",
+    params: &[
+        ParamDoc {
+            name: "n",
+            desc: "The integer to write.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "base",
+            desc: "The radix, from `2` to `36` — the digits and the Latin letters.",
+            shape: &[],
+        },
+    ],
+    ret: "The digit string, with no prefix and no padding; a negative `$n` gets a leading `-`, \
+          which `base_convert` has no answer for, and `0` is `\"0\"`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "When `$base` is outside `2` to `36`, where `base_convert` answers `0`.",
+    }],
+};
+
+/// `Core\Math::fromBase`'s reference card — ADR 0117.
+const FROM_BASE_DOC: MethodDoc = MethodDoc {
+    short: "The integer `$s` spells in `$base`, case-insensitive above nine, as `bindec`, \
+            `hexdec`, `octdec` and the reading half of `base_convert` do — but every digit must \
+            belong to the base, where all four of PHP's silently skip one that does not.",
+    params: &[
+        ParamDoc {
+            name: "s",
+            desc: "The digit string, with an optional leading `-` and no prefix, whitespace or \
+                   grouping.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "base",
+            desc: "The radix, from `2` to `36` — the digits and the Latin letters.",
+            shape: &[],
+        },
+    ],
+    ret: "The `int` written, the exact inverse of `toBase`, leading `-` included.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "When `$base` is outside `2` to `36`, when `$s` has no digits, when a character of \
+               `$s` is not a digit of `$base`, or when the value does not fit an `int`.",
+    }],
+};
+
+/// `Core\Math::format`'s reference card — ADR 0117.
+const FORMAT_DOC: MethodDoc = MethodDoc {
+    short: "`$n` written for a reader, with a fixed count of decimals and separators the caller \
+            names, as `number_format` does — except that grouping is off unless asked for, since \
+            Novis has no ambient locale.",
+    params: &[
+        ParamDoc {
+            name: "n",
+            desc: "The number to write: an `int`, a finite `float` or a `decimal`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "decimals",
+            desc: "How many fractional digits to write, at most `100`; `0` unless said \
+                   otherwise, which writes no decimal separator at all.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "decimalSeparator",
+            desc: "The text between the integer and fractional digits, `.` unless said \
+                   otherwise, copied into the result verbatim.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "groupSeparator",
+            desc: "The text between each group of three integer digits, counted from the right; \
+                   empty unless said otherwise, so no grouping happens by default.",
+            shape: &[],
+        },
+    ],
+    ret: "The digit string, rounded half away from zero at `decimals` places as `number_format` \
+          rounds — exactly for a `decimal` — with a leading `-` for a negative `$n`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "When `$n` is an infinity or `NaN`, which have no digits, when `$n` is a `uint` \
+               past `INT_MAX`, or when `decimals` is past `100`.",
+    }],
 };
 
 /// `Core\Math`'s eleven constants — spec § 3's own list, replacing `M_PI`,
@@ -427,13 +1097,15 @@ const CONSTANTS: &[CoreConst] = &[
         name: "TAU",
         ty: CoreTy::Float,
         value: Const::Float(std::f64::consts::TAU),
-        desc: "",
+        desc: "The ratio of a circle's circumference to its radius, `2 * PI` or `6.28318…` as the \
+               nearest `float` — a full turn in radians, which PHP spells `2 * M_PI`.",
     },
     CoreConst {
         name: "E",
         ty: CoreTy::Float,
         value: Const::Float(std::f64::consts::E),
-        desc: "",
+        desc: "Euler's number, the base of the natural logarithm, `2.71828…` as the nearest \
+               `float` — PHP's `M_E`, and `log`'s default base.",
     },
     CoreConst {
         name: "EPSILON",
@@ -447,43 +1119,49 @@ const CONSTANTS: &[CoreConst] = &[
         name: "INT_MAX",
         ty: CoreTy::Int,
         value: Const::Int(i64::MAX),
-        desc: "",
+        desc: "The largest `int`, `9223372036854775807` — PHP's `PHP_INT_MAX`.",
     },
     CoreConst {
         name: "INT_MIN",
         ty: CoreTy::Int,
         value: Const::Int(i64::MIN),
-        desc: "",
+        desc: "The smallest `int`, `-9223372036854775808` — PHP's `PHP_INT_MIN`, and the one \
+               value `abs` has no `int` answer for.",
     },
     CoreConst {
         name: "UINT_MAX",
         ty: CoreTy::Uint,
         value: Const::Uint(u64::MAX),
-        desc: "",
+        desc: "The largest `uint`, `18446744073709551615` — a type PHP does not have, so there \
+               is no constant to replace.",
     },
     CoreConst {
         name: "FLOAT_MAX",
         ty: CoreTy::Float,
         value: Const::Float(f64::MAX),
-        desc: "",
+        desc: "The largest finite `float`, `1.7976931348623157e308` — PHP's `PHP_FLOAT_MAX`; \
+               the negative extreme is `-FLOAT_MAX`.",
     },
     CoreConst {
         name: "FLOAT_MIN",
         ty: CoreTy::Float,
         value: Const::Float(f64::MIN_POSITIVE),
-        desc: "",
+        desc: "The smallest positive normal `float`, `2.2250738585072014e-308` — PHP's \
+               `PHP_FLOAT_MIN`, and not the negative extreme, which is `-FLOAT_MAX`.",
     },
     CoreConst {
         name: "NAN",
         ty: CoreTy::Float,
         value: Const::Float(f64::NAN),
-        desc: "",
+        desc: "The `float` that is not a number — PHP's `NAN` — equal to nothing, itself \
+               included, so `isNan` is the only test for it.",
     },
     CoreConst {
         name: "INFINITY",
         ty: CoreTy::Float,
         value: Const::Float(f64::INFINITY),
-        desc: "",
+        desc: "Positive infinity as a `float`, past every finite value — PHP's `INF`; the \
+               negative one is `-INFINITY`, and `isFinite` is `false` for both.",
     },
 ];
 
