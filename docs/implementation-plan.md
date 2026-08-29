@@ -222,20 +222,28 @@
 > captures are deliberately **borrowed**: the closure a field holds and the element `map` passes
 > belong to the member's own arguments, which outlive the group, so the release obligation a dropped
 > `Job` carries falls only on `map`'s rendered `$key` — held as a Rust `String` so that dropping the
-> job releases it. `examples/tasks.nvs` prints three of its four frozen lines: `all=3`,
-> `map=1,4,9,16` and `deadline hit`. The fourth is `limit held at 1` against a frozen `limit held at
-> 2`, and what it measures is real: `Core\Time::sleep` still blocks the thread, so no two children
-> ever overlap and a `limit` bounds nothing observable. Switching it to
-> `nvs_runtime::host::Host::sleep` — which is on the seam now, `nvs-host`'s `timer` module behind it
-> — is two lines that work and then abort, because `nvs_host::Scheduler` tears a **parked**
-> cancelled task down with a forced unwind and a `Core` member's frame is `extern "C"`. So the next
-> slice is not the member: it is that a cancelled task carrying script frames must die by ADR 0002's
-> return status at its next safepoint, the route `nvs_safepoint` already takes for
-> `SafepointFlags::CANCEL`, rather than by an unwind. `nvs_runtime::run_helper` now re-raises a
-> forced unwind rather than reporting it as a helper's own `FATAL`, which is the same test
-> `run_task` already made. The steps the chain took are in [goals/README.md](agent/goals/README.md)
-> § *Starting the chain*. M4's own residue is the 1000-case corpus count, which orders 1–4 meet as
-> the suite grows; nothing else about M4 is open. What the program is measured by is `python
+> job releases it. `examples/tasks.nvs` prints all four of its frozen lines — `all=3`,
+> `map=1,4,9,16`, `deadline hit` and `limit held at 2` — because `Core\Time::sleep` parks its task
+> rather than blocking the thread, so two children under a `limit` of 2 genuinely overlap and the
+> peak the program gauges is the one § 3 describes. What that took was not the member: it was that
+> **a cancelled task standing on script frames is resumed rather than unwound**. A forced unwind is
+> a panic and an Novis stack is not one it may cross — a `Core` member's entry point is `extern "C"`
+> and the compiled frames beneath it carry no unwind tables — so `nvs_runtime::HelperFrame` counts a
+> helper frame for as long as one runs, `nvs_host`'s `yield_on` reads that count at each suspension,
+> and a cancelled task whose stack is not clear of them is handed `Resume::Cancelled` in place of
+> what it was waiting for. The member it is inside answers with `Ctx::cancel`, which sets
+> `SafepointFlags::CANCEL` and returns `nvs_safepoint`'s own status, so the task dies by ADR 0002's
+> return status with no `catch` and no cleanup on the way out — ADR 0072 § 5 reached the only way
+> that stack allows. The notice is delivered **once**, so a park site that ignores it is left parked
+> rather than spinning the sweep, and `Drop for Scheduler` leaks such a task rather than aborting on
+> it, which is ADR 0106's no-`abort()` rule bought for one stack mapping at the death of a worker. §
+> 4's last row is now a variant rather than an unwind through the call: `Outcome::Cancelled` is what
+> a group whose *caller* was cancelled returns, and both `Core\Task` members turn it into the same
+> `Ctx::cancel`. `nvs_host::group::Child::run` asks `Ctx::cancelled()` before it reads a pending
+> message, because a child that stopped by status leaves one behind and it is not a throw. Stage 4's
+> acceptance is closed. The steps the chain took are in [goals/README.md](agent/goals/README.md) §
+> *Starting the chain*. M4's own residue is the 1000-case corpus count, which orders 1–4 meet as the
+> suite grows; nothing else about M4 is open. What the program is measured by is `python
 > tools/check-migration.py` at 100% classified, which stood at 25% the day the program was scheduled
 > and reads 34% now that goal 1's own five domains — dates and times, regular expressions, JSON,
 > URLs and paths — carry a row per name. `python tools/gaps.py`, `python tools/holes.py` and `python

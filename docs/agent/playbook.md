@@ -3526,6 +3526,7 @@ sibling in the same namespace unqualified.
   the other route Novis already has for exactly this: a cancelled task with
   script frames dies by ADR 0002's return status at its next safepoint, which is
   what `nvs_safepoint` gives `SafepointFlags::CANCEL`.
+- **A task that dies by ADR 0002's return status leaves a *pending* message on its context, and whatever collects that context must not read it as a throw.** The symptom is a program whose deadline works perfectly printing `uncaught in a cancelled sibling: the request was cancelled` and then an uncaught exception at the `Core\Task::map` call site — a cancelled child, collected by `nvs_host::group::Child::run`, whose `ctx.pending()` was the safepoint's own record of the teardown rather than anything the script threw. `Ctx::cancelled()` is the discriminator and it is asked *before* `pending()`; a cancelled child's slot stays empty, exactly as it does for one a forced unwind tore down. The same trap is waiting for every future collector of a child context — the request boundary under `nvs serve`, and whatever reports a `spawn script`.
 
 ## Divergences and refusals already pinned
 
