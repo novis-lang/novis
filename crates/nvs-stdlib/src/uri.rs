@@ -1312,13 +1312,13 @@ struct Level {
 /// — an object or a closure. `null` never reaches here: [`build`] drops the
 /// pair instead, which is `http_build_query`'s behaviour and the only one that
 /// round-trips, since a query string cannot spell an absent value.
-fn scalar_text(value: Value, member: &str) -> Result<Vec<u8>, Fault> {
+fn scalar_text(value: Value, owner: &str, member: &str) -> Result<Vec<u8>, Fault> {
     if let Some(set) = value.as_bool() {
         return Ok(if set { b"1".to_vec() } else { b"0".to_vec() });
     }
     let text = nvs_runtime::value_to_string(value).map_err(|_| {
         Fault::thrown(format!(
-            "Core\\Uri::{member}(): a parameter's value is neither a scalar nor a nested array, \
+            "{owner}::{member}(): a parameter's value is neither a scalar nor a nested array, \
              so there is no text a query string could write it as"
         ))
     })?;
@@ -1346,10 +1346,25 @@ fn scalar_text(value: Value, member: &str) -> Result<Vec<u8>, Fault> {
 /// therefore written with its indexes (`b[0]=`, not `b[]=`), so the round trip
 /// preserves the keys rather than renumbering them.
 ///
+/// **`Core\Router::url` is the second caller**, which is why `owner` names the
+/// class rather than being spelled into the message and why `omit` exists at
+/// all: ADR 0102 § 6 makes a `$params` key that named no capture a query
+/// parameter, so the link's query string is exactly this member run over the
+/// same array with the captures left out. Written as one pass rather than as a
+/// filtered copy of the array, because a copy would be an allocation and a
+/// refcount edge per link built. `omit` is matched at the **top level only** —
+/// a capture is a whole `$params` key, and `a[b]` is a nested value of the key
+/// `a` rather than a name of its own.
+///
 /// # Errors
 ///
 /// [`scalar_text`]'s, for a value with no text form.
-fn build(root: *mut nvs_runtime::ArrayHeader, member: &str) -> Result<String, Fault> {
+pub(crate) fn build(
+    root: *mut nvs_runtime::ArrayHeader,
+    owner: &str,
+    member: &str,
+    omit: &[&str],
+) -> Result<String, Fault> {
     let mut out = String::new();
     let mut name: Vec<u8> = Vec::new();
     let mut stack = vec![Level {
@@ -1366,6 +1381,10 @@ fn build(root: *mut nvs_runtime::ArrayHeader, member: &str) -> Result<String, Fa
         let prefix = level.prefix;
         let key = level.array.key_at(live).expect("a live slot has a key");
         let value = level.array.value_at(live).expect("a live slot has a value");
+
+        if prefix == 0 && omit.iter().any(|name| name.as_bytes() == key.as_bytes()) {
+            continue;
+        }
 
         name.truncate(prefix);
         if prefix == 0 {
@@ -1393,7 +1412,10 @@ fn build(root: *mut nvs_runtime::ArrayHeader, member: &str) -> Result<String, Fa
         }
         out.push_str(&encode(&name, Form::FormValue));
         out.push('=');
-        out.push_str(&encode(&scalar_text(value, member)?, Form::FormValue));
+        out.push_str(&encode(
+            &scalar_text(value, owner, member)?,
+            Form::FormValue,
+        ));
     }
     Ok(out)
 }
@@ -1857,7 +1879,7 @@ nvs_runtime::nvs_helper! {
             ))
         })?;
 
-        produced(&build(parameters, "buildQuery")?)
+        produced(&build(parameters, "Core\\Uri", "buildQuery", &[])?)
     }
 }
 

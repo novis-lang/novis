@@ -1,0 +1,57 @@
+--TEST--
+a `Core\Router::url` `$params` key that names no capture becomes a percent-encoded query string, spelled exactly as `Core\Uri::buildQuery` spells it — ADR 0102 § 6
+--FILE--
+<?nvs
+// § 6's other half. The prepared path names every capture, so a key still in
+// `$params` once they have been substituted is by construction not one, and
+// § 6 makes it a query parameter rather than an error. The *refusal* half —
+// a key that is neither a capture nor a declared `#[Query]` parameter — needs
+// that attribute and is not reachable yet.
+class Posts {
+    #[\Core\Route(path: "/posts/{id}", method: \Core\Http\Method::Get, name: "Posts::show")]
+    public function show(uint $id): string { return "post " . $id; }
+
+    #[\Core\Route(path: "/posts/{page?}", method: \Core\Http\Method::Get, name: "Posts::list")]
+    public function list(uint $page = 1): string { return "page " . $page; }
+}
+
+// The complement, asserted on both sides of one call: `id` is the capture and
+// is spent on the path, `sort` is not and is spent on the query. A pass that
+// wrote every key would print `?id=7&sort=new`.
+echo "split=", Core\Router::url("Posts::show", ["id" => 7, "sort" => "new"]), "\n";
+
+// Nothing left over is no `?` at all, rather than an empty one — the two are
+// different URLs to a cache and to a signature.
+echo "none=", Core\Router::url("Posts::show", ["id" => 7]), "\n";
+
+// An optional capture nobody filled drops its whole segment (ADR 0077 § 2) and
+// the query is still written: the two halves of the path do not interact.
+echo "optional=", Core\Router::url("Posts::list", ["sort" => "new"]), "\n";
+
+// Entry order, `&`-joined, and every byte outside the unreserved set escaped
+// under `application/x-www-form-urlencoded` — a space is `+`, and `/`, `&` and
+// `=` cannot close the value they are written inside.
+echo "escaped=", Core\Router::url("Posts::show", ["id" => 7, "q" => "a/b&c=d", "note" => "two words"]), "\n";
+
+// The query half is `Core\Uri::buildQuery`'s own pass rather than a second
+// convention, so the agreement below is what pins it: the same leftover keys,
+// asked of both members, answer the same text. A link that grew its own
+// encoder would still look plausible on the line above and fail here. The
+// answer prints as `1` because that is what `true as string` is (ADR 0007 § 2).
+string $query = Core\Uri::buildQuery(["q" => "a/b&c=d", "note" => "two words"]);
+echo "agrees=", Core\Router::url("Posts::show", ["id" => 7, "q" => "a/b&c=d", "note" => "two words"]) == "/posts/7?" . $query, "\n";
+
+// And the conventions that come with it: a nested value goes under its whole
+// bracketed path with the brackets themselves encoded, and a `null` is dropped
+// rather than written as an empty value — `http_build_query`'s two rules, held
+// here because there is one implementation and not two.
+echo "nested=", Core\Router::url("Posts::show", ["id" => 7, "tag" => ["a" => 1, "b" => 2]]), "\n";
+echo "null=", Core\Router::url("Posts::show", ["id" => 7, "sort" => null]), "\n";
+--EXPECT--
+split=/posts/7?sort=new
+none=/posts/7
+optional=/posts?sort=new
+escaped=/posts/7?q=a%2Fb%26c%3Dd&note=two+words
+agrees=1
+nested=/posts/7?tag%5Ba%5D=1&tag%5Bb%5D=2
+null=/posts/7

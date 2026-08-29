@@ -231,6 +231,22 @@ fn segment_text(value: Value, member: &str, key: &str) -> Result<String, Fault> 
 /// A `{name...}` is the one exception, and § 2 is why — that form *is* every
 /// remaining segment, so its `/`s are structure rather than content, and each
 /// segment between them is encoded on its own.
+///
+/// **What the path did not take becomes the query string**, which is
+/// ADR 0102 § 6's other half: the prepared pieces name every capture, so a
+/// `$params` key left over once they have been substituted is by construction
+/// not one, and § 6 makes it a query parameter. It is written by
+/// [`crate::uri::build`] — `Core\Uri::buildQuery`'s own pass, run over the same
+/// array with the captures omitted — so a link's query string is
+/// `http_build_query`'s spelling down to its nesting and its `Form::FormValue`
+/// escaping, rather than a second convention a reader would have to learn. The
+/// walk is O(`$params`) whether or not anything is left over; `$params` is a
+/// literal written at the call site and is small.
+///
+/// The **refusal** half of § 6 — a key that is neither a capture nor a declared
+/// `#[Query]` parameter is a compile error — is not here and cannot be: it
+/// needs the attribute, and `nvs_types::links`' gap 1 owns why. Until then
+/// every leftover key is a query parameter rather than a typo.
 fn substitute(template: &str, params: &Value, member: &str) -> Result<String, Fault> {
     let raw = params.array_ptr().ok_or_else(|| {
         Fault::fatal(format!(
@@ -241,6 +257,9 @@ fn substitute(template: &str, params: &Value, member: &str) -> Result<String, Fa
     })?;
     let params = crate::arr::borrowed(raw);
     let mut out = String::with_capacity(template.len());
+    // Every key the path consumed, in the order the pieces name them — what
+    // the query string below is the complement of.
+    let mut captures: Vec<&str> = Vec::new();
     for piece in template.split(link::PIECE_SEPARATOR) {
         let (tag, key) = piece.as_bytes().split_first().ok_or_else(|| {
             Fault::fatal("a prepared route link's piece is a tag byte and its text")
@@ -251,6 +270,7 @@ fn substitute(template: &str, params: &Value, member: &str) -> Result<String, Fa
             out.push_str(key);
             continue;
         }
+        captures.push(key);
         let Some(value) = params.get(key.as_bytes()) else {
             if *tag == link::OPTIONAL {
                 continue;
@@ -271,6 +291,11 @@ fn substitute(template: &str, params: &Value, member: &str) -> Result<String, Fa
         } else {
             out.push_str(&encode(text.as_bytes(), Form::Component));
         }
+    }
+    let query = crate::uri::build(raw, "Core\\Router", member, &captures)?;
+    if !query.is_empty() {
+        out.push('?');
+        out.push_str(&query);
     }
     Ok(out)
 }

@@ -2,60 +2,61 @@
 
 ## State
 
-**Goal 1 Stage 2's derive gaps are closed.** ADR 0071 §§ 2 and 7's three refusals are on disk with
-`E0756`/`E0757`/`E0758`, and `crates/nvs-types/tests/derive.rs` holds the acceptance check's three
-named tests. The codec-reachable test is a **deferred pass** — `derive::resolve_field_types`, run
-from `check.rs` after every file has been walked, exactly like `links::resolve` — because "another
-class that itself has a codec" is a whole-program question and a field must not answer differently
-for a class declared later in the file.
+**Goal 1 Stage 2's route table has eight of its acceptance check's nine named tests on disk and green**
+in `crates/nvs-types/tests/routes.rs`. The ninth,
+`a_url_key_that_is_neither_a_capture_nor_a_query_parameter_is_a_diagnostic`, cannot be written before
+`#[Query]` exists — `crates/nvs-types/src/links.rs`' gap 1 owns why — so the check stays red at exactly
+one item, which is item 4.
 
-**It refuses the unreachable set, not the undecoded one.** A `decimal`, an `Instant`, an enum, an
-`array<T>`, an inline shape and a nested derived class are all § 2-reachable and all still erase to
-`CodecTy::Opaque`, so a `decodeAs<T>` over one keeps failing at run time; those decoders are
-`nvs_stdlib::json`'s gap. `crates/nvs-types/src/derive.rs`'s gap 2 is that split's only home, and
-refusing an `Opaque` here would report a missing decoder as a broken contract.
+**`common::check_program_table` is new**: a whole *program* written to a temp dir and walked by
+`nvs_hir::resolve_program`, then checked. It is the only shape that can tell "the program's table" apart
+from "this file's" — `check_src_table` resolves one file, so a class in a second is never found — and
+the duplicate-route and unknown-name questions are asked over two files through it now.
 
-**ADR 0077 § 4's two link refusals have a case on each side**, one reject file for `E0754`/`E0755`
-and one core file for the `{page?}` that is dropped rather than refused.
+**ADR 0102 § 6's runtime half is on disk.** A `$params` key that names no capture becomes the link's
+query string, written by `crate::uri::build` — `Core\Uri::buildQuery`'s own pass, run over the same array
+with the captures omitted — so a link's query is `http_build_query`'s spelling, nesting and escaping
+rather than a second convention. The refusal half is slice 3 below. `substitute`'s doc comment in
+`crates/nvs-stdlib/src/router.rs` is that split's home.
 
-**Item 15 in `docs/agent/loop-goal.md` still owns M4's seventeen `nvs-ir` lowering refusals**,
-unchanged and standing by design; the ratchet is `CEILING` at `crates/nvs-ir/tests/refusals.rs:66`.
+**Item 15 in `docs/agent/loop-goal.md` still owns M4's seventeen `nvs-ir` lowering refusals**, unchanged
+and standing by design; the ratchet is `CEILING` at `crates/nvs-ir/tests/refusals.rs:66`.
 
 ## Next group
 
-**Two file sets. Slices 1 and 2 share `crates/nvs-stdlib/src/router.rs`,
-`crates/nvs-stdlib/src/uri.rs` and `tests/conformance/`; slice 3 is `tools/` alone and can go last
-or by itself.**
+**One file set: `crates/nvs-types/src/derive.rs`, `src/routes.rs`, `src/links.rs`, `src/commands.rs` and
+`tests/routes.rs`.** All three slices are item 4's `#[Query]`, and slice 3 is what turns the route-table
+acceptance check green.
 
-- [ ] **A `$params` key naming no capture becomes a percent-encoded query string.** ADR 0102 § 6's
-      other half. `substitute` at `crates/nvs-stdlib/src/router.rs:234` is where it lands — the
-      prepared pieces name every capture, so what is left over in `$params` is the query — and
-      `uri.rs`'s `encode` (`crates/nvs-stdlib/src/uri.rs:603`, with `Form` at `:575`) is the
-      encoder; do not write a second one. `crates/nvs-types/src/links.rs`' gap 1 owns why the
-      *refusal* half waits on `#[Query]`.
-- [ ] **A `.nvst` reject case over the three new derive refusals.** `E0756` (a field typed by a
-      class with no codec, and a `bytes` field), `E0757` (both halves hand-written), `E0758` (a
-      deriving class with no field). All three are written at
-      `crates/nvs-types/src/derive.rs:210`–`:330`; the Rust twins are
-      `crates/nvs-types/tests/derive.rs`, so this is the `--EXPECTF-ERROR--` half only. ADR 0071
-      §§ 2 and 7.
-- [ ] **`goal-switch.py` carries the outgoing goal's unclosed items, not only its checks.** The bug
-      item 15's last paragraph names: a carried check whose green depends on an item list arrives
-      without its basis, and every goal in `docs/agent/goals/chain.toml` otherwise inherits item 15
-      by hand. `tools/goal-switch.py:41` (`LIVE`/`MARKER`) is the insertion point and
-      `tools/holes.py:194` (`items`) is the reader whose contract it has to satisfy.
+- [ ] **`#[Query]` joins the roster and is recognized on a parameter.** ADR 0102 §§ 3 and 6. The name goes
+      on `ATTRIBUTES` at `crates/nvs-types/src/derive.rs:81`, matched nominally like every other one; the
+      pass that reads it is beside `check_captures` at `crates/nvs-types/src/routes.rs:445`, which already
+      holds the method's parameter list and is where a capture is bound to its parameter.
+- [ ] **A `#[Query]` parameter's type is held to § 3's closed list.** The roster is
+      `crates/nvs-types/src/commands.rs:230`'s `converts_from_string`, read and never copied — § 3's list
+      is one question asked by the capture check, the `#[Option]` check and this one. Extend
+      `a_capture_or_query_parameter_outside_the_type_list_is_a_diagnostic` in
+      `crates/nvs-types/tests/routes.rs` rather than writing a second test: its own comment says the query
+      half joins it here, and the acceptance check names that one test for both halves.
+- [ ] **A `$params` key that is neither a capture nor a declared `#[Query]` parameter is a compile error.**
+      ADR 0102 § 6, next free code `E0759`. It is `crates/nvs-types/src/links.rs:165`'s `resolve` beside
+      `covered` at `:215` — the site already holds the literal keys and the row, so what it lacks is the
+      route's declared query parameters. Closes `links.rs`' gap 1, writes the acceptance check's last name
+      `a_url_key_that_is_neither_a_capture_nor_a_query_parameter_is_a_diagnostic`, and retires the
+      paragraph in `substitute`'s doc comment (`crates/nvs-stdlib/src/router.rs`) that says it cannot be
+      done yet.
 
 ## Backlog
 
-- Item 15's seventeen `nvs-ir` refusals stay open by design — `docs/agent/loop-goal.md` item 15 is
-  the inventory and the ratchet is the guard.
-- A promoted constructor parameter is still not a derive field (`derive.rs`'s gap 1), and `E0758`
-  now makes a promotion-only deriving class a hard error rather than a silent empty codec.
-- ADR 0102 § 6 spells the fallback `[app] origin` while ADR 0104 § 1 makes `[[app]]` an array of
-  tables keyed on `root`/`entry`; one of the two bodies is stale and the ADR body is the rule.
-- `crates/nvs-test/src/case.rs:193` still says `nvs.toml` is not read until M6 — true of the reader,
-  no longer true of the file.
-- The mount prefix `Core\Router::url` prepends is still empty, and there is no `::match` — goal 6's,
-  per this goal's § *Standing decisions*.
-- Items 10 and 11 (every class's conformance floor to 3, every `Core` member's error paths asserted)
-  are the standing fallback when a group is blocked — `python tools/gaps.py` ranks both.
+- `#[Access]` and ADR 0096's "a `#[Route]` without a sibling `#[Access]` does not compile" — item 4's
+  other half, `docs/agent/loop-goal.md`.
+- The command table's check names four tests and two exist: `a_command_table_is_built_from_the_program_enumeration`
+  and `a_duplicate_command_name_is_a_diagnostic` are owed, and `check_program_table` is now the shape for
+  the first — item 6.
+- `crates/nvs-types/src/links.rs` gap 2: `Core\Router::url(name: "…")` is a named argument, is not folded,
+  and throws as a computed name would.
+- `crates/nvs-types/src/routes.rs` gap 2: only the first `#[Route]` on a method becomes a row, so ADR 0110
+  § 1's shared-`name` exception has nothing yet to except.
+- Item 5's launder claim: the spec's Q column marks `url`/`urlAbsolute` **launder**, and no case asserts a
+  `tainted` value reaching one — the playbook's qualifier bullet is why it cannot be written yet.
+- Item 7's intrinsic folding (ADR 0057) is untouched; three module docs mention it and no pass reads them.

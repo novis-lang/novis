@@ -770,6 +770,15 @@ is why" — is this file.
   on two intra-doc links in `crates/nvs-stdlib/src/router.rs` that no session that iteration had
   written. Budget for it: a gate that has been red is not a gate that has been passing up to that
   point, and "did I cause this" is answered by the line number, not by the timing.
+- **A `loop-goal.toml` stage's *comment header* can carry a rule the orientation pack never prints, and
+  stage 2's forbids the obvious fix.** The route-table check names nine tests, and six of the behaviours
+  were already asserted in `crates/nvs-types/tests/routes.rs` under better names — so renaming those to the
+  check's spellings reads as the cheap close, and the four-line comment above the `[[check]]` block says
+  exactly the opposite: *"Every test named below must EXIST and pass. Most do not exist yet; writing one is
+  how the loop finishes its item. Do not rename one to something already green."* `orient.py` prints the
+  item, the standing decisions and the ADR sections; it does not print the TOML's own comments. When an
+  acceptance failure names a test that "did not run", `sed -n` the twenty lines around its `[[check]]`
+  block before deciding what the failure means — that block, comment included, is the specification.
 
 ## Running things
 
