@@ -86,6 +86,13 @@ modules = [
   "crates/nvs-stdlib/src/granularity.rs",
   # Stage 4 adds two subcommands; `info.rs` is the shape a non-running one takes.
   "crates/nvs-cli/src/main.rs",
+  # `Core\Arr` is the largest class in the depth table and the thinnest members left are its own.
+  "crates/nvs-stdlib/src/arr.rs",
+  # The two a depth session reaches whatever class it is on: `case.rs` is the `.nvst` section list --
+  # which sections exist at all, and so what a case may configure -- and `ctx.rs` is where the
+  # per-request state a `Core` member reads lives, ADR 0102 § 6's origin included.
+  "crates/nvs-test/src/case.rs",
+  "crates/nvs-runtime/src/ctx.rs",
 ]
 
 # The decisions this goal's work sits inside. orient.py prints the one-sentence bullet for each out of

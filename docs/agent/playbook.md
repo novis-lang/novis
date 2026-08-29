@@ -2486,6 +2486,29 @@ is why" — is this file.
   **nothing** for false, so a column of booleans in `--EXPECT--` silently changes width and reads as
   a missing field rather than as a `false`; `$b ? "y" : "n"` is the spelling that keeps such a row
   legible. Both are invisible until the case runs, and the second one passes review.
+- **A `.nvst` case configures the run it makes through `--FILE <path>--`, and a scratch probe at the
+  repo root does not.** `Core\Router::urlAbsolute` reads ADR 0102 § 6's origin out of `[app] origin`
+  in `./nvs.toml` — the *working directory's*, `configured_origin` at
+  `crates/nvs-cli/src/main.rs:520` — and both `router.rs`' gap 2 and the one case that existed read
+  as though that made the answering half unreachable off the command line. It is not:
+  `crates/nvs-test/src/run.rs` runs every case in a private temporary directory and writes each
+  `--FILE <path>--` section into it before the case, so `--FILE nvs.toml--` is the mount a CLI run
+  otherwise has none of. What makes it easy to miss is that the neighbouring sections refuse with a
+  sentence — `--INI--` says `nvs.toml` is not read until M6 and `--ENV--` says the environment is
+  unreachable until M8 — so the format looks like it configures nothing. The trap on the other side
+  is worse, because it passes: **the repo's own `nvs.toml` already sets
+  `origin = "https://example.test"`**, so `target/debug/nvs run scratch.nvs` from the repo root
+  answers an absolute link and proves nothing about the case, which will run without one. Probe from
+  a scratch directory carrying the `nvs.toml` the case will carry.
+- **`BELOW_THE_FLOOR` in `crates/nvs-stdlib/tests/conformance_coverage.rs` fails the build when you
+  *fix* one of its members, and nothing points at it from the case you just wrote.** The list is a
+  ratchet asserted in both directions — a member below the floor and not listed fails, and a listed
+  member that has reached it fails too — so the last case of a group that lifts a member to three
+  turns `cargo test -p nvs-stdlib` red with `1 member(s) listed in BELOW_THE_FLOOR have reached the
+  floor of 3`. The fix is to delete the line, which is the point; the cost is a whole `verify.py`
+  cycle if you meet it at the end of the group rather than at the start. `grep -n <member>
+  crates/nvs-stdlib/tests/conformance_coverage.rs` before writing the cases is the cheap check, and
+  a group aimed at a member `gaps.py --coverage` shows below 3 should assume it is listed.
 
 ## Splitting a file that got too big
 
