@@ -60,8 +60,14 @@
 > Windows for a socket that never connected. Deadlines are on the same reactor:
 > `crates/nvs-host/src/timer.rs` is Stage 2 item 5, one deadline per task, armed by
 > `sleep`/`park_until` and enforced as the timeout of the very poll `Reactor::turn` was about to
-> make, so a sleep and a timeout are one mechanism and not two clocks. Closing it turned up a latent
-> path to `abort()` — a suspended coroutine dropped under `run_task`'s containment boundary — which
+> make, so a sleep and a timeout are one mechanism and not two clocks. That mechanism now bounds the
+> stream as well: an `NvsTcp` carries an optional deadline, a park files it with the core's timers
+> beside the reactor registration, off a core it is the blocking poll's own timeout, and what ends
+> the wait is the clock and not the wake — `io::ErrorKind::TimedOut` through the ordinary
+> `Read`/`Write` return, since that is the only error channel those traits have.
+> `NvsTcp::connect_timeout` is ADR 0074 § 5's `connect_timeout` over it, bounding the handshake and
+> lifting the bound before the stream is handed back. Closing it turned up a latent path to
+> `abort()` — a suspended coroutine dropped under `run_task`'s containment boundary — which
 > `nvs_runtime::Teardown` now closes. What a task *costs* is settled too:
 > `crates/nvs-host/src/stack.rs` is ADR 0115 § 4 — 1 MiB of reserved address space per task,
 > resident only in the pages its handler touched, pooled per worker and recycled the moment the task

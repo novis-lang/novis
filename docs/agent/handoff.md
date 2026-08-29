@@ -2,55 +2,53 @@
 
 ## State
 
-**Goal 2, Stage 2. Items 4 and 5 are on disk: the reactor, the parking stream, the task's stack
-policy, the parking `connect`, and deadlines.** `crates/nvs-host/src/timer.rs` is the one home for
-the timer design — one deadline per task (a task is one stack, so arming twice replaces), kept exact
-so `Reactor::retire` can drop a finished task's deadline the way it drops its registrations, and
-enforced as the timeout of the poll `Reactor::turn` was about to make rather than by a clock of its
-own. `sleep` and `park_until` are the two views of it; off a core the thread sleeps, exactly as
-`net.rs`'s reads block there. `NvsTcp::connect` (`net.rs:121`) is ADR 0115 § 3's order applied to a
-handshake, and `finish_connecting` (`net.rs:155`) is the one home for *why* its two questions are
-`SO_ERROR` and a zero-length write and not `mio`'s own `peer_addr` — see the playbook bullet. 44
-tests in the crate, green on Windows and under WSL.
+**Goal 2, Stage 2. Items 4 and 5 are on disk bar one piece: the reactor, the parking stream, the
+task's stack policy, the parking `connect`, deadlines — and now every wait in
+`crates/nvs-host/src/net.rs` is bounded by one.** That module's doc § *Every wait is bounded by a
+clock, not by a wake* is the one home for why the bound is a deadline rather than a per-call
+duration and why the clock and not the resume decides; `crates/nvs-host/src/timer.rs` is unchanged
+and still the one home for the timer design itself. `NvsTcp::connect_timeout` (`net.rs:192`) is ADR
+0074 § 5's `connect_timeout`: the bound is on the handshake and is lifted before the stream is
+handed back, so a later read takes whatever deadline its caller sets. 49 tests in the crate, green
+on Windows.
 
-`crates/nvs-host/src/stack.rs` is unchanged and still ADR 0115 § 4's only home. **The acceptance
-failure on `examples/tasks.nvs` (`Core\Task` has no member named `all`) is still not a regression** —
-loop-goal.md § *Stage 2* writes no `Core\Task` member until this stage is green, and `Task::all` is
-Stage 4's. `nvs-host` is still outside `nvs-cli`'s dependency graph, so `THIRD-PARTY-LICENSES.txt`
-still needs no regeneration.
+**What is left of item 4 is the Unix-domain sibling**, and nothing else in Stage 2 depends on it —
+items 6 (the blocking pool) and 7 (the watchdog) are independent of it and of each other.
+
+**The acceptance failure on `examples/tasks.nvs` (`Core\Task` has no member named `all`) is still
+not a regression** — loop-goal.md § *Stage 2* writes no `Core\Task` member until this stage is
+green, and `Task::all` is Stage 4's. `nvs-host` is still outside `nvs-cli`'s dependency graph, so
+`THIRD-PARTY-LICENSES.txt` still needs no regeneration.
 
 ## Next group
 
-**Joining the two mechanisms this session landed, then the last of § 3's surface.** One file set:
-`crates/nvs-host/src/net.rs`, `crates/nvs-host/src/timer.rs` and `crates/nvs-host/src/reactor.rs`.
-They are one group because the first slice is what makes the second and third worth having — every
-wait in `net.rs` currently has no upper bound at all, which is ADR 0074 § 5's "no spelling for an
-unbounded wait" read from the other end.
+**The Unix-domain sibling, which is the last of loop-goal.md § *Stage 2* item 4.** One file set:
+`crates/nvs-host/src/net.rs`, a new `crates/nvs-host/src/unix.rs` and
+`crates/nvs-host/src/lib.rs:62-76` (the module list and the re-exports). Read `net.rs` first — the
+second slice is that module with one type substituted, and the first slice decides how much of it
+is copied.
 
-- [ ] **A wait that a deadline can end.** `net.rs:197`'s `wait_until_ready` gains a deadline: arm
-      `Timers` (`timer.rs:77`) for the running task beside the reactor registration, and on the way
-      back out of `suspend_current` decide between "retry the syscall" and `io::ErrorKind::TimedOut`
-      by re-reading the clock — a wake is still a hint, so the clock and not the wake is what
-      decides. `block_until_ready` (`net.rs:259`) takes the same bound as its poll timeout. ADR 0074
-      § 5 and ADR 0072 § 3 both resolve to this one mechanism; nothing here needs a `Core` spelling
-      yet.
-- [ ] **`NvsTcp::connect` under a connect timeout.** ADR 0074 § 5 names `connect_timeout`
-      separately from `deadline`, and `finish_connecting` (`net.rs:155`) is one loop over the call
-      above, so this is the argument threaded through and a test that a connect to a black hole
-      (`10.255.255.1:80` is the usual unroutable stand-in) returns `TimedOut` in the time asked for
-      rather than in the platform's own minutes.
-- [ ] **The Unix-domain sibling of `NvsTcp`.** loop-goal.md § *Stage 2* item 4 names it in the same
-      breath as the TCP stream. **Decide the platform question first and record it in `net.rs`'s
-      module doc**: `mio::net::UnixStream` is `#[cfg(unix)]`, so this is either a cfg-gated type or
-      a named non-goal — the parking half is `NvsTcp`'s verbatim and only the constructor differs.
+- [ ] **Decide a second type against a generic over the source, and record the answer in `net.rs`'s
+      module doc.** The four functions that would be shared are `wait_until_ready`
+      (`net.rs:275`), `arm` (`net.rs:321`), `unregister` (`net.rs:346`) and `block_until_ready`
+      (`net.rs:362`) — all four touch `self.inner` only through `mio::event::Source` plus
+      `Read`/`Write`, so a generic is available. The ones that would not are `Read`/`Write`
+      themselves and `finish_connecting` (`net.rs:228`), which is TCP's own question. This is a
+      decided-and-recorded call under the goal's standing decisions, not an ADR.
+- [ ] **`NvsUnix` over `mio::net::UnixStream`, `#[cfg(unix)]`.** ADR 0115 § 3's five-rule parking
+      contract, the same deadline surface (`set_deadline`, `net.rs:126`), `from_std` and `connect`,
+      exported from `lib.rs`. A Unix socket's connect completes or fails locally, so
+      `finish_connecting`'s two questions are TCP's and are not carried over — say so where it is
+      not carried.
+- [ ] **Verify it under WSL, because Windows compiles none of it.** `verify.py` on this host never
+      builds a `cfg(unix)` module, so the slice above is unverified until `wsl cargo test -p
+      nvs-host` has run; `docs/agent/commands.md` § *WSL* is the invocation. Budget a call for it
+      inside step 3 rather than treating the Windows run as the verdict.
 
 ## Backlog
 
-- **The blocking pool**, bounded at twice the core count — loop-goal.md § *Stage 2* item 6, ADR 0106
-  § 6. New module; no overlap with the file set above.
-- **The watchdog** reading each worker's in-flight deadline — item 7, ADR 0106 § 7. Wants the
-  deadline mechanism above to exist first.
-- **`Reactor::turn` retries a bounded wait**, which spins if readiness keeps arriving for a task
-  that no longer parks; bounded by the deadline and documented at the site. Revisit if a benchmark
-  ever sees it.
-- Stage 3 (`spawn`/`await`, the task tree) is what this stage unblocks — `docs/agent/loop-goal.md`.
+- Item 6, the blocking pool bounded at twice the core count — ADR 0106 § 6, its own new module.
+- Item 7, the watchdog reading the in-flight deadline each worker already maintains — ADR 0106 § 7.
+- A `Core` spelling for a deadline is still nobody's item; ADR 0072 § 3's `{limit, deadline}` is
+  Stage 3's and reaches this mechanism through `net.rs`'s `set_deadline`.
+- M4's residue: the 1000-case conformance corpus count, which grows with the suite.
