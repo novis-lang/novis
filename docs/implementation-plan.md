@@ -528,11 +528,26 @@
 > {previous: …}`, and a `reject` case where a misspelling and a name at a variadic tail are the same
 > refusal. **No member's shape changed** — no parameter added, removed, reordered or renamed — and
 > the stage's four modules and `0063 §1` are out of the goal's `[context]` manifest now that its
-> three checks are green. One hole in R2 is left and it is the *parser's*: seven rows name a
-> parameter `fn` (`Core\Arr::map` and its siblings), and `fn:` in argument position is read as the
-> closure keyword, so `crates/nvs-syntax/src/parser/expr.rs:904` admitting a keyword token before a
-> `:` is what closes it — a rename would be a breaking change to the spec under R2 and is not the
-> fix.
+> three checks are green. **That last hole in R2 is closed, and it was the parser's.** `parse_arg`
+> in `crates/nvs-syntax/src/parser/expr.rs` admits a `TokenKind::Keyword` before a `:` as well as an
+> `Ident`, so the seven rows naming a parameter `fn` — `Core\Arr::map`, `::mapKeys`, `::reduce`,
+> `Core\Out::capture`, `Core\Regex::replaceWith` and `Core\Task::map` — are callable by the name the
+> spec writes, and no member was renamed to get there. The `:` is the whole disambiguation: no
+> expression in argument position begins with a keyword followed by one, so `fn:` and an `fn`
+> literal can sit in the same argument without either reading being in doubt, and the reading costs
+> the grammar nothing beyond the same one-token contextual rule `spawn` and `type` already take.
+> `parse_arg`'s own doc comment is that rule's one home. Two `nvs-syntax` tests hold both sides —
+> the keyword read as a name, and the closure still read as a closure — and a keyword name that
+> reaches no parameter is the ordinary `E0486` with the parameter list in its help, because what
+> refuses it is the callee and not the grammar. `tests/conformance/core/`'s
+> `a-parameter-the-lexer-reserves-is-still-callable-by-its-name.nvst` calls `map`, `reduce` and
+> `replaceWith` by name and out of order from the language surface, and the reject case that already
+> pinned a misspelling gains the keyword line beside it. Stage 7's `cargo-named` check is aimed at
+> the crate that can host it now: `-p nvs-cli`, because the `#[Test]` runner is
+> `crates/nvs-cli/src/runner.rs` — the one crate depending on both `nvs-host`'s `Isolate` and the
+> front end that builds a test's program — while `crates/nvs-test` is the `.nvst` case runner and
+> depends on neither, so "did one test get an isolate of its own" is a question it cannot ask. Its
+> four test names are still unwritten, which is the item-25 work that check reports as open.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

@@ -2,54 +2,51 @@
 
 ## State
 
-**Stage 0b is closed.** Items 28, 29 and 30 are on disk and all three of its acceptance checks pass
-locally. The plan's `Open now` is the one home for what landed; `MethodSig::param_names` is a `Vec`
-with no producer writing `None`, and `E0485` is retired in `crates/nvs-diagnostics/src/lib.rs:1019`.
-The goal's `[context]` no longer carries the stage's four modules or `0063 §1`, and
-`docs/agent/goals/2-concurrency.toml` is byte-identical to `docs/agent/loop-goal.toml` again.
+**Stage 0b's residue is closed: ADR 0063 R2 now holds end to end, including for a parameter whose
+spec name is a reserved word.** `crates/nvs-syntax/src/parser/expr.rs`'s `parse_arg` reads any word
+before a `:` as an argument name, keyword or not, so `Core\Arr::map(fn: …, a: …)` parses and the
+seven `fn`-named rows need no rename. The plan's `Open now` is the one home for what landed; the rule
+itself lives in `parse_arg`'s doc comment.
 
-**One hole in ADR 0063 R2 is left open and it is the parser's, not the registry's.** Seven rows name
-a parameter `fn` — `Core\Arr::map` and its siblings — and `Core\Arr::map(fn: $f, a: $a)` does not
-parse: `crates/nvs-syntax/src/parser/expr.rs:904` admits a name only for `TokenKind::Ident`, so `fn`
-is read as the closure keyword and the call reports `E0101` plus two cascade mismatches. The spec is
-authoritative for the name and a rename is a breaking change under R2, so the fix is the parser.
-That is slice 1 below.
+**Stage 7 is the open front, and its acceptance check is now aimed correctly.** The
+`7 test isolates` check in `docs/agent/loop-goal.toml` runs `-p nvs-cli`, not `-p nvs-test`, and
+`docs/agent/goals/2-concurrency.toml` is byte-identical again. All four of its names are still
+unwritten — that is item 25 itself, and it is the next group below.
 
-**The driver's failing acceptance check is Stage 7's, and its `args` names a crate that cannot host
-it.** `crates/nvs-test` is the `.nvst` case runner (`case.rs`/`expect.rs`/`run.rs`) and does not
-depend on `nvs-host`; the `#[Test]` runner is `crates/nvs-cli/src/runner.rs`, which does. The
-playbook trap *Tooling > a loop-goal.toml check can name a test in a crate that cannot host it* is
-the procedure, including the `cp` back over the goal file.
-
-**Orientation gap:** `[context] modules` has no pattern for `crates/nvs-syntax/src/parser/expr.rs`
-or `crates/nvs-cli/src/runner.rs`, which slices 1 and 3 need.
+**Orientation gap, unchanged from last session:** `[context] modules` has no pattern for
+`crates/nvs-cli/src/runner.rs`, which the whole next group is written against, nor for
+`crates/nvs-syntax/src/parser/expr.rs`. Add both selectors before the next session opens this group.
 
 ## Next group
 
-**Slices 1 and 2 share `crates/nvs-syntax/src/parser/expr.rs` and its tests; slice 3 opens Stage 7's
-own file set and is here for its anchors.**
+**All three slices share `crates/nvs-cli/src/runner.rs` and `crates/nvs-host/src/isolate.rs`; they
+are Stage 7 item 25 and ADR 0079 §§ 2 and 16, and together they turn the goal's `7 test isolates`
+check green.**
 
-- [ ] **A keyword-spelled parameter name is callable.** `crates/nvs-syntax/src/parser/expr.rs:904`
-      tests `TokenKind::Ident` before a `:`; a keyword token in that position is a name too, because
-      the `:` is the whole disambiguation and no expression starts with a keyword followed by one.
-      This is the same one-token contextual rule `spawn` and `await` already take
-      (`crates/nvs-syntax/src/token.rs`). ADR 0063 R2 is the rule it closes; a `nvs-syntax` test
-      beside `parse_arg` is the guard.
-- [ ] **The case.** `tests/conformance/core/` — `Core\Arr::map(fn: …, a: …)` written out of order,
-      beside the `a-core-member-is-called-by-the-names-the-spec-writes.nvst` this session added, and
-      one `reject` line if a keyword name that reaches no parameter should still be `E0486`.
-- [ ] **Stage 7 item 25 — one isolate per test.** `crates/nvs-cli/src/runner.rs:48` and `:299` are
-      the two comments saying isolate-per-test is M5's and unbuilt; `:190` builds one `Ctx` for the
-      whole run and `:436` is the per-test entry. `crates/nvs-host/src/isolate.rs:90` is `Isolate`.
-      ADR 0079 §§ 2 and 16. Move the four test names off `-p nvs-test` first.
+- [ ] **One isolate per `#[Test]`.** `crates/nvs-cli/src/runner.rs:190` builds one `Ctx` for the
+      whole run and `:436` is the per-test entry; `:48` and `:299` are the two comments still saying
+      isolate-per-test is M5's and unbuilt. `crates/nvs-host/src/isolate.rs:90` is `Isolate`, whose
+      program arrives as a closure rather than a path, so the runner — which already holds the
+      compiled unit — is the one place that closure can be built. The guard is
+      `each_test_runs_in_its_own_isolate_sharing_only_compiled_code`, and what it must observe is a
+      static written by one test that the next one does not read back (ADR 0116 § 4's fresh statics
+      base).
+- [ ] **The runner owns the test's task tree.** Same file: a test's isolate is a child task, so a
+      `Core\Task::all` inside a `#[Test]` has a calling task to be a child of, and nothing the test
+      started is still running when its row is reported (ADR 0072 § 4). Guard:
+      `the_runner_owns_the_tests_task_tree`.
+- [ ] **A fixed clock and a seed are per-test.** Guards `a_test_at_a_fixed_clock_reads_that_clock`
+      and `a_test_with_a_seed_draws_the_same_sequence_twice`; both are properties of the child
+      context the slice above builds, so they are cheap once it lands and expensive before it.
 
 ## Backlog
 
-- Stage 7 item 26 — `#[Test(at:, seed:)]`; `crates/nvs-types/src/testing.rs:554` already reads § 9's
-  rows by parameter name (docs/agent/loop-goal.md item 26, ADR 0079 § 12).
-- Stage 4 item 15 — `Core\Task::afterResponse` and the `[deferred]` block (loop-goal.md item 15).
-- Stage 6 item 22 — `Core\Script::args()` and `Core\Script::valueOrThrow` (plan `Open now`).
-- Stage 8 item 27 — `benches/isolation.rs` and its guard (docs/plan/m5.md § *Verify*).
-- `Core\Secret::reveal()` is still unregistered, so ADR 0033's escape hatch is open at both ends.
-- § 4's prose writes `Date::at(int $y, uint $m, uint $d)` where `DateTime::at`'s table row writes
-  `year`/`month`/`day`; the guard reads rows, so nothing compares the two (docs/spec/01-core-library.md).
+- Item 22's `Core\Script::valueOrThrow` is still unwritten — `docs/plan/m5.md`, Stage 6.
+- `Core\Secret::reveal()` is absent from the registry, so ADR 0033's escape hatch is open at both
+  ends — `crates/nvs-stdlib/src/registry.rs`.
+- The graph copy asks its class-identity question of the answer but not of the argument; closing it
+  means the `nvs_runtime::script` seam answering with a unit's class table
+  (`crates/nvs-runtime/src/graph.rs` module doc).
+- M4's 1000-case conformance floor — `docs/implementation-plan.md`, Stage 8.
+- The other 342 registry rows carry no ADR 0117 reference card — `crates/nvs-stdlib/src/registry.rs`.
+- `python tools/check-migration.py` reads 34% classified against a 100% floor — Stage 8.
