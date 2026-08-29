@@ -797,6 +797,77 @@ impl Ctx {
         self.statics_store.len()
     }
 
+    /// A context for a **child task of this request** — what `nvs-host` hands
+    /// [`crate::host::Job`] when it runs a group.
+    ///
+    /// [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md)
+    /// § 1's children "share the request", and this is the one place that
+    /// sharing is decided: `nvs-host`'s `group` module doc is the home of *why*
+    /// each field is on the side of the line it is on, because it is the only
+    /// code that builds one.
+    ///
+    /// **The static-property base is shared by aliasing it**, which is the
+    /// whole point. Compiled code loads a static through [`Self::statics`]
+    /// inline, so a child with its own store would give the request two copies
+    /// of every static and `Gauge::$live += 1` inside a child would be
+    /// invisible outside it. The child's own `statics_store` stays empty, so
+    /// its [`Drop`] releases nothing the parent owns — there is exactly one
+    /// owner of those slots and it is still the parent.
+    ///
+    /// Everything a *task* owns rather than a request starts fresh: the output
+    /// buffer, the capture stack, the assertion ledger, the pending failure,
+    /// the yielder and the stack bounds — the last two because the child will
+    /// run on a stack of its own that this context has never seen. So does the
+    /// diagnostic sink, which starts at [`OutputSink::Stderr`] like any fresh
+    /// context's: an [`OutputSink`] is not `Clone`, and a redirected one is a
+    /// test reading its own dumps back rather than a property of the request.
+    ///
+    /// **What it spends:** one `Ctx` per in-flight child, freed when that child
+    /// ends, plus the origin's own bytes copied once. O(in-flight) and not
+    /// O(children ever spawned), per
+    /// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md).
+    ///
+    /// # Safety
+    ///
+    /// `self` must outlive the returned context, and no code may run on the
+    /// child after `self` is gone: the child holds a bare pointer into this
+    /// context's static-property storage and nothing in the type expresses
+    /// that. `nvs-host`'s group runner discharges it structurally — the call
+    /// does not return until no child is still running (§ 4), and a parent torn
+    /// down first cancels every child, which the scheduler tears down without
+    /// resuming it.
+    #[must_use]
+    #[expect(
+        unsafe_code,
+        reason = "the parent-outlives-child obligation is a fact about the                   caller's control flow and cannot be expressed in the signature"
+    )]
+    pub unsafe fn child(&self) -> Self {
+        let mut child = Self::new(OutputSink::Buffer(Vec::new()));
+        // Request-wide, and therefore shared or copied.
+        child.statics = self.statics;
+        child.debug = self.debug;
+        child.origin = self.origin.clone();
+        child.runtime_error_class = self.runtime_error_class.clone();
+        child.deadline = std::sync::atomic::AtomicU64::new(
+            self.deadline.load(std::sync::atomic::Ordering::Relaxed),
+        );
+        child
+    }
+
+    /// The base of the static-property storage compiled code loads inline —
+    /// the word at [`STATICS_OFFSET`], handed out rather than re-derived.
+    ///
+    /// Null before [`Ctx::install_statics`] has run, which is safe because a
+    /// unit declaring no static emits no instruction that reads it. Two callers
+    /// want it and neither can reach the field: `nvs-host`'s group runner,
+    /// which gives a child the *same* base so a request has one copy of every
+    /// static rather than one per task ([`Ctx::child`]), and a test asserting
+    /// that it did.
+    #[must_use]
+    pub fn statics_base(&self) -> *mut Value {
+        self.statics
+    }
+
     /// Releases every armed slot and disarms the pointer beside them.
     ///
     /// Each slot owns exactly one reference — [`FieldDefault::materialize`]

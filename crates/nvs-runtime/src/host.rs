@@ -84,6 +84,7 @@ use std::cell::Cell;
 use std::time::Duration;
 
 use crate::ctx::Ctx;
+use crate::throwable::Thrown;
 use crate::value::Value;
 
 /// One child of the group: what it runs, and the answer it hands back.
@@ -93,6 +94,16 @@ use crate::value::Value;
 /// knowing which: `Task::all` closes over one field's `fn` literal, `Task::map`
 /// over the shared callback and one element. What the host is told is that this
 /// runs on a child's stack with a child's context and produces a value.
+///
+/// **A job may be dropped without ever being called**, and the builder owes the
+/// release in that case. A `limit` that never lets the last job start, a
+/// sibling that threw, and an expired deadline all end the group with jobs
+/// still queued, and the host drops them rather than running work whose result
+/// § 4 has already decided it will not return. Anything a job captured that
+/// owns a reference — the element `Task::map` closed over, the closure both
+/// members call — must therefore be released by that capture's own [`Drop`] and
+/// not only by the body, or a cancelled group leaks one reference per job it
+/// never reached.
 pub type Job = Box<dyn FnOnce(&mut Ctx) -> Value>;
 
 /// [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md) § 3's
@@ -122,9 +133,17 @@ pub enum Outcome {
     Completed(Vec<Value>),
     /// A child threw, every sibling was cancelled, and the call waited for
     /// those cancellations. This is the **first** throw by completion order; a
-    /// second is written to `Core\Log` by the host rather than handed back,
-    /// because only one can propagate and neither may be swallowed.
-    Threw(Value),
+    /// second is written by the host rather than handed back, because only one
+    /// can propagate and neither may be swallowed.
+    ///
+    /// A [`Thrown`] rather than a [`Value`], because that is what a failure
+    /// already is on both sides of this seam: it is what [`Ctx::take_thrown`]
+    /// hands the host out of the child's context and what [`Ctx::raise`] takes
+    /// from the member on the way out, so neither end has to unwrap an object
+    /// pointer out of a tagged value and put it back. It may be null — the
+    /// state a bare-message fault with no exception class installed leaves —
+    /// and `raise` handles that as it already does everywhere else.
+    Threw(Thrown),
     /// The deadline expired, every child was cancelled, and the call waited.
     /// The member turns this into `TimeoutError`; the host does not know that
     /// class.
