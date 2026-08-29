@@ -2521,6 +2521,13 @@ is why" — is this file.
   member's entry for entry. Same family as the `bytes` array key ICE. What makes it expensive is
   that `Core\Arr::hasKey($seen, $k)` — the *member* taking the same union — accepts it happily, so
   the failing half of a two-line idiom is the half that looks unremarkable.
+- **A `--EXPECT--` is byte-exact, and a loop that echoes its separator *after* each item leaves a
+  trailing space nothing shows you.** `echo $a, "/", $b, " ";` inside a `foreach` costs a run: the
+  expected block cannot carry a trailing space (an editor or a hook strips one, and the diff prints
+  identically on both sides), so the row loop collects into an `array<string>` and the line is
+  `Core\Str::join($rows, " ")` instead. The value a fold member answers — `Core\Arr::sum`'s
+  `int|float|decimal` — concatenates with `.` and `echo`es fine even where `as string` on that union
+  does not, so building the row string is available wherever echoing it is.
 
 ## Splitting a file that got too big
 
