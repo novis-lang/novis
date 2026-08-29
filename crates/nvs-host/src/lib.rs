@@ -37,17 +37,32 @@
 //! what a worker's body is. The scheduler itself still knows nothing about I/O,
 //! so a run queue remains testable with none in it at all.
 //!
-//! **Still outstanding:** `NvsTcp` — the stream whose `Read`/`Write` look
-//! blocking and park instead (ADR 0115 § 3) — and the blocking pool ADR 0106
-//! § 6 sends filesystem calls, name resolution and child processes to.
+//! A task reaches that reactor through a thread-local, not through an argument:
+//! [`reactor::install`] holds one on the worker's thread and
+//! [`reactor::with_current`] borrows it, because a socket's `Read` is handed a
+//! buffer and nothing else. [`current_task`] and [`suspend_current`] are the
+//! other half, the task's own id and its yielder without a `Ctx` to carry them.
+//! `reactor`'s module doc records that decision and what it was chosen over.
+//!
+//! [`NvsTcp`] is that route's first consumer: a socket whose `Read` and `Write`
+//! are `std::io`'s own and which parks instead of blocking, ADR 0115 § 3. Its
+//! module doc owns the try-then-park order and what a repeat park costs.
+//!
+//! **Still outstanding:** a parking `connect`, which lands with the accept loop
+//! that needs it, and the blocking pool ADR 0106 § 6 sends filesystem calls,
+//! name resolution and child processes to.
 
 pub mod affinity;
+pub mod net;
 pub mod reactor;
 pub mod scheduler;
 
 pub use affinity::{CpuId, cpus, pin_current_thread};
-pub use reactor::{Interest, Reactor, run_until_idle};
-pub use scheduler::{Finished, RunReport, Scheduler, TaskId, Waiting, suspend};
+pub use net::NvsTcp;
+pub use reactor::{Installed, Interest, Reactor, run_until_idle};
+pub use scheduler::{
+    Finished, RunReport, Scheduler, TaskId, Waiting, current_task, suspend, suspend_current,
+};
 
 /// One OS thread, pinned to one CPU, running one [`Scheduler`].
 ///
