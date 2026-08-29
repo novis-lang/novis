@@ -1,0 +1,43 @@
+--TEST--
+every `Core` parameter is callable by the spec's `$name` — a static and an instance member written out of order, a defaulted positional skipped in the middle, the trailing bag as `options:`, and written order as evaluation order (ADR 0063 R2, ADR 0007 § 5)
+--FILE--
+<?nvs
+final class Tap {
+    // Written order is observable: each of these says when it ran.
+    public static function text(string $mark, string $v): string {
+        echo "tap:", $mark, " ";
+        return $v;
+    }
+    public static function count(string $mark, uint $v): uint {
+        echo "tap:", $mark, " ";
+        return $v;
+    }
+}
+
+// The names are `docs/spec/01-core-library.md`'s signature column, so which
+// parameter an argument fills is its name and not its place in the list.
+echo Core\Str::repeat(times: 3, s: "ab"), "\n";
+
+// A defaulted positional skipped in the *middle*: `$padding` takes the
+// registry row's own default, which is the registry's and not the call's.
+echo "[", Core\Str::padStart(length: 4, s: "x"), "]\n";
+
+// R2's trailing bag is callable by the one name every bag has, whatever the
+// member is — `options`, never a per-member spelling.
+array<int> $odd = Core\Arr::range(1, 5, options: {step: 2});
+echo Core\Arr::count($odd), "\n";
+
+// An instance member takes the same rule; the receiver is not a parameter and
+// so is not one of the names.
+Core\Uri $base = Core\Uri::parse("https://example.test/a/b");
+echo $base->resolve(reference: "c")->toString(), "\n";
+
+// Evaluation is in written order; placement is in parameter order. The two
+// disagree here, and both are visible on one line.
+echo Core\Str::repeat(times: Tap::count("times", 2), s: Tap::text("s", "z")), "\n";
+--EXPECT--
+ababab
+[   x]
+3
+https://example.test/a/c
+tap:times tap:s zz

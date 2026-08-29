@@ -1,0 +1,20 @@
+--TEST--
+a name that reaches no `Core` parameter is refused where it is written, whether it is a misspelling or the one name a variadic tail carries (ADR 0063 R2)
+--FILE--
+<?nvs
+// The spec writes `Core\Str::repeat(string $s, uint $times)`, so `subject:`
+// names no parameter of it — the same refusal a user-declared method gives,
+// because a `Core` signature is now the same kind of signature.
+echo Core\Str::repeat(subject: "x", times: 2), "\n";
+// R2 also says a name never reaches a variadic tail. The row names that slot
+// so the list stays aligned, but `...$arguments` is one array built at the
+// call site out of what is written into it, so there is nothing to key.
+echo Core\Str::format(template: "%s", arguments: "x"), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0486]: no parameter of this call can be filled by the name `subject`
+%A
+error[E0486]: no parameter of this call can be filled by the name `arguments`
+%A
+error: aborting due to 2 errors

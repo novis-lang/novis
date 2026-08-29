@@ -1,0 +1,37 @@
+--TEST--
+a `Throwable`'s synthesized constructor is callable by name like any other member — `message:` on its own, and `options: {previous: …}` for the chain (ADR 0063 R2, spec § 10)
+--FILE--
+<?nvs
+// The constructor is `constructor(string $message, {previous?: Throwable|null})`
+// and nothing about it is special-cased: the required parameter is `$message`.
+try {
+    throw new LogicError(message: "by name");
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// The bag is `options` here for the reason it is `options` at a `Core` member:
+// being callable by that one name is a property of being a bag.
+try {
+    try {
+        throw new RuntimeError(message: "cause");
+    } catch (RuntimeError $inner) {
+        throw new LogicError(message: "wrapper", options: {previous: $inner});
+    }
+} catch (LogicError $outer) {
+    echo $outer->message, "\n";
+    echo $outer->previous?->message ?? "none", "\n";
+}
+
+// And the bag stays optional by construction: naming the message alone leaves
+// `previous` null rather than unfilled.
+try {
+    throw new LogicError(message: "alone");
+} catch (LogicError $solo) {
+    echo $solo->previous?->message ?? "none", "\n";
+}
+--EXPECT--
+by name
+wrapper
+cause
+none
