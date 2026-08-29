@@ -44,14 +44,14 @@
 > [docs/agent/goals/](agent/goals/README.md), each with its own `[context]` manifest and acceptance
 > TOML; `python tools/loop.py --chain docs/agent/goals/chain.toml` walks them, carrying each goal's
 > whole acceptance list forward as the next one's floor through `goal-switch.py`. The switch from
-> M4's goal has been made and the chain is running goal 1 — the steps it took are in
-> [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's own residue is the 1000-case
-> corpus count, which orders 1–4 meet as the suite grows; nothing else about M4 is open. What the
-> program is measured by is `python tools/check-migration.py` at 100% classified, which stood at 25%
-> the day the program was scheduled and reads 34% now that goal 1's own five domains — dates and
-> times, regular expressions, JSON, URLs and paths — carry a row per name. `python tools/gaps.py`,
-> `python tools/holes.py` and `python tools/check-migration.py --report` are the three worklists
-> behind it, and no session re-derives one.
+> M4's goal has been made and the chain has finished goal 1 and is running goal 2 — the steps it
+> took are in [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's own residue is
+> the 1000-case corpus count, which orders 1–4 meet as the suite grows; nothing else about M4 is
+> open. What the program is measured by is `python tools/check-migration.py` at 100% classified,
+> which stood at 25% the day the program was scheduled and reads 34% now that goal 1's own five
+> domains — dates and times, regular expressions, JSON, URLs and paths — carry a row per name.
+> `python tools/gaps.py`, `python tools/holes.py` and `python tools/check-migration.py --report` are
+> the three worklists behind it, and no session re-derives one.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

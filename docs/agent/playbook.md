@@ -888,6 +888,17 @@ is why" — is this file.
   the whole check and costs one call. A member with three *deep* cases needs a new boundary, not a
   fourth table — and the check belongs in the session that *writes* the next group, since it is the
   one holding the context.
+- **A goal switch orphans whatever a carried check's green depended on, and `cargo test -p nvs-ir
+  --test refusals` is where you find out.** `goal-switch.py` carries the outgoing goal's `[[check]]`
+  blocks forward as the next goal's floor and its unclosed *items* not at all, so `nvs-ir (no refusal
+  left)` arrives without the item list that attributed its seventeen sites — a full-tree red at the
+  first `verify.py` of the new goal, in a crate the session never touched. It has now happened at two
+  switches; the second time the fix stopped being a paragraph pasted into the new goal by hand.
+  `python tools/holes.py` reads `docs/agent/carried-refusals.md` as a second item source, numbered
+  from 900 so `--item 901` names the entry the document shows, and a goal's own `.md` must not
+  restate it. If this test goes red on you, check whether the sites are *new* before writing
+  anything: `python tools/holes.py --unattributed` says, and `CEILING` in `refusals.rs:66` is what
+  catches a genuinely new one even when attribution claims its file.
 
 ## Running things
 
