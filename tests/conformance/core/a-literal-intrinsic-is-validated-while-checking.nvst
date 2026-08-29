@@ -1,16 +1,20 @@
+--TEST--
+A folded intrinsic and its runtime twin answer the same value, for each of ADR 0057 § 1's four reached grammars (ADR 0057 §§ 1, 2, 4)
+--FILE--
 <?nvs
-// ADR 0057's intrinsic literal folding, as a program.
+// ADR 0057's intrinsic literal folding, asserted rather than described.
 //
 // Four of § 1's closed list, each reached twice: once with a literal argument,
 // which the compiler validates and prepares while checking, and once through a
 // variable, which compiles to an ordinary runtime call with ordinary runtime
 // validation. Nothing is refused for being dynamic (§ 2) — the difference is
-// only *when* a malformed argument is found.
+// only *when* a malformed argument is found, which is the other half of this
+// pair (`reject/a-malformed-literal-intrinsic-is-a-compile-error.nvst`).
 //
-// Each line below prints the two answers' shared value and prints "diverged"
-// if they are not shared, which is § 4 asserted rather than asserted about: a
-// fold may produce an earlier answer and never a different one, because the
-// prepared path and the runtime path are one implementation and not two.
+// Each line prints the two answers' shared value and prints "diverged" if they
+// are not shared, which is § 4 asserted rather than asserted about: a fold may
+// produce an earlier answer and never a different one, because the prepared
+// path and the runtime path are one implementation and not two.
 
 // `Core\Time\DateTime::format` — the CLDR pattern is validated and the format
 // plan parsed at compile time.
@@ -47,3 +51,8 @@ var $source = "https://example.test/users/7?page=2";
 var $foldedHost = Core\Uri::parse("https://example.test/users/7?page=2")->host() ?? "absent";
 var $runtimeHost = Core\Uri::parse($source)->host() ?? "absent";
 echo "host=", $foldedHost == $runtimeHost ? $foldedHost : "diverged", "\n";
+--EXPECT--
+2026-08-28
+matched
+total: 42
+host=example.test
