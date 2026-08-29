@@ -88,6 +88,35 @@
 //!    `nvs_types::expr::operators::require_stringable` where the operand's
 //!    type names this class and `nvs_stdlib::instance`'s descriptor renderer
 //!    where it names none.
+//!
+//! # What these members do with a qualifier
+//!
+//! ADR 0088 § 2's classification splits this module's `string` parameters in
+//! two, and neither half is [`Qual::Contagious`] — which is unusual enough to
+//! be worth the paragraph.
+//!
+//! * **Every pattern is a [`Qual::Sink`].** ADR 0063 R11's third grammar is
+//!   the CLDR date pattern, and ADR 0088 § 1's corollary makes a grammar a
+//!   sink wherever it is declared: the three `format` members' one parameter,
+//!   and `Core\Time::parse`'s *second*. A pattern is an instruction to
+//!   [`crate::cldr`], so a `tainted` one is refused rather than compiled.
+//! * **Every parsed text is [`Qual::Neutral`]** — `Core\Time::fromIso`,
+//!   `Core\Time::parse`'s first argument, `Duration::parse` and `Zone::of`.
+//!   Each answers a value from a **closed space**: an instant, a civil
+//!   date-time, a magnitude of nanoseconds, an entry of the IANA roster. No
+//!   byte of the argument survives into any of them, and rendering one back
+//!   goes through a pattern the *call site* wrote, so there is nothing for a
+//!   qualifier to travel on. This is ADR 0024 § 2's "a checked conversion
+//!   launders" reached at a member rather than at a cast, and it is the same
+//!   judgement ADR 0102 § 5 makes when it narrows a route capture to a closed
+//!   set with a type.
+//!
+//!   The line it draws is the one `Core\Bytes::at` is on the other side of:
+//!   `at` answers a `uint` and is contagious anyway, because that `uint` *is*
+//!   a byte of the subject and `fill`/`join` put the buffer back together out
+//!   of those numbers. A parse's answer cannot be taken apart into the text it
+//!   came from. The neighbouring class to be careful with is `Core\Uri`, whose
+//!   `parse` keeps the host and the path as text and so is contagious.
 
 use std::sync::OnceLock;
 
@@ -97,7 +126,9 @@ use jiff::{SignedDuration, Timestamp, Zoned};
 use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
 use nvs_syntax::duration;
 
-use crate::registry::{Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy};
+use crate::registry::{
+    Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy, Qual,
+};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -188,7 +219,7 @@ pub const DURATION: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "parse",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: "nvs_core_time_duration_parse",
@@ -620,7 +651,7 @@ pub const ZONE: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "of",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Instance(ZONE_NAME),
             symbol: "nvs_core_time_zone_of",
@@ -912,7 +943,7 @@ pub const DATETIME: CoreClass = CoreClass {
     instance: &[
         CoreMethod {
             name: "format",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_time_datetime_format",
@@ -1128,14 +1159,18 @@ pub const TIME: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "fromIso",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Instance(INSTANT_NAME),
             symbol: "nvs_core_time_from_iso",
         },
         CoreMethod {
             name: "parse",
-            params: &[CoreTy::Str, CoreTy::Str, CoreTy::Instance(ZONE_NAME)],
+            params: &[
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Text(Qual::Sink),
+                CoreTy::Instance(ZONE_NAME),
+            ],
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
             symbol: "nvs_core_time_parse",
@@ -1257,7 +1292,7 @@ pub const DATE: CoreClass = CoreClass {
     instance: &[
         CoreMethod {
             name: "format",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_time_date_format",
@@ -1390,7 +1425,7 @@ pub const TIME_OF_DAY: CoreClass = CoreClass {
     instance: &[
         CoreMethod {
             name: "format",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_time_of_day_format",
