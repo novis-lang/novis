@@ -1,11 +1,16 @@
 ---
 /**
- * The tool-owned technical block on a method page: the declaration, the
- * parameter/options tables, the return type, qualifier classification and
- * PHP equivalents — all rendered from src/data/core.json, so it stays
+ * The tool-owned technical block on a method page: the declaration in the
+ * canonical multi-line layout of ADR 0039 (one parameter per line, trailing
+ * comma), syntax-coloured, every type name a link to its page (`typeLink` in
+ * src/lib/core.ts), and each parameter's registry description (ADR 0117) as a
+ * `//` comment on its own line — a shape-typed parameter or options bag opens
+ * across lines, one key each — so the block stays valid Novis. Below it the
+ * facts nothing else on the page carries: qualifier classification, PHP
+ * equivalents, spec note. All rendered from src/data/core.json, so it stays
  * current without touching the page's human prose.
  */
-import { findMember } from '~/lib/core'
+import { findMember, typeLink } from '~/lib/core'
 
 interface Props {
   id: string
@@ -22,35 +27,145 @@ const escape = (s: string) =>
 /** Inline-code markdown (`x`) to HTML. */
 const ticks = (s: string) => escape(s).replace(/`([^`]+)`/g, '<code>$1</code>')
 
-/** Colored declaration HTML. */
-function declarationHtml(): string {
-  const parts: string[] = []
-  if (member.static) {
-    parts.push(`<span class="sig-class">${escape(cls.name)}</span><span class="sig-punct">::</span>`)
-  } else {
-    parts.push(`<span class="sig-var">$${escape(member.receiver ?? 'instance')}</span><span class="sig-punct">-&gt;</span>`)
-  }
-  parts.push(`<span class="sig-name">${escape(member.name)}</span>`)
-  if (member.generics) parts.push(`<span class="sig-generics">${escape(member.generics)}</span>`)
-  parts.push('<span class="sig-punct">(</span>')
-  const paramBits: string[] = []
-  for (const p of member.params) {
-    let bit = `<span class="sig-type">${escape(p.type || 'mixed')}</span> `
-    bit += `<span class="sig-var">${p.variadic ? '...' : ''}$${escape(p.name)}</span>`
-    if (p.default !== null) bit += `<span class="sig-punct"> = </span><span class="sig-default">${escape(p.default)}</span>`
-    paramBits.push(bit)
-  }
-  if (member.options.length > 0) {
-    const opts = member.options
-      .map((o) => `${escape(o.name)}?${o.type ? `: ${escape(o.type)}` : ''}`)
-      .join(', ')
-    paramBits.push(`<span class="sig-options">{${opts}}</span>`)
-  }
-  parts.push(paramBits.join('<span class="sig-punct">, </span>'))
-  parts.push('<span class="sig-punct">): </span>')
-  parts.push(`<span class="sig-type">${escape(member.returnType)}</span>`)
-  return parts.join('')
+const span = (cls: string, s: string) => `<span class="${cls}">${escape(s)}</span>`
+const punct = (s: string) => span('sig-punct', s)
+
+const generics = new Set((member.generics ?? '').match(/[A-Za-z_][A-Za-z0-9_]*/g) ?? [])
+
+/** One name inside a type: a generic, a qualifier keyword, or a linked type. */
+function nameHtml(name: string): string {
+  if (generics.has(name)) return span('sig-generic', name)
+  if (name === 'secret' || name === 'tainted') return span('sig-keyword', name)
+  const href = typeLink(name)
+  if (!href) return span('sig-generic', name)
+  return `<a class="sig-type sig-link" href="${escape(href)}">${escape(name)}</a>`
 }
+
+/** A type expression, every name in it linked; punctuation left as it is. */
+function typeHtml(type: string): string {
+  const parts = (type || 'mixed').split(/([A-Za-z_][A-Za-z0-9_\\]*)/)
+  return parts
+    .map((part, i) => {
+      if (part === '') return ''
+      if (i % 2 === 0) return punct(part)
+      // A name followed by `:` or `?:` is a key of an inline shape, not a type.
+      if (/^\??:/.test(parts[i + 1] ?? '')) return span('sig-var', part)
+      return nameHtml(part)
+    })
+    .join('')
+}
+
+/** Split `a, b<c, d>, {e, f}` at its top-level commas. */
+function splitTopLevel(s: string): string[] {
+  const out: string[] = []
+  let depth = 0
+  let cur = ''
+  for (const ch of s) {
+    if (ch === '<' || ch === '{' || ch === '(') depth++
+    if (ch === '>' || ch === '}' || ch === ')') depth--
+    if (ch === ',' && depth === 0) {
+      out.push(cur)
+      cur = ''
+    } else {
+      cur += ch
+    }
+  }
+  if (cur.trim()) out.push(cur)
+  return out.map((p) => p.trim()).filter(Boolean)
+}
+
+interface ShapeKey {
+  key: string
+  optional: boolean
+  type: string
+  descHtml: string
+}
+
+/** The keys of a shape type such as `{name: callable, …}` when the registry has not listed them. */
+function parseShape(type: string): ShapeKey[] {
+  const inner = type.slice(type.indexOf('{') + 1, type.lastIndexOf('}'))
+  return splitTopLevel(inner).map((part) => {
+    const m = /^([A-Za-z_][A-Za-z0-9_]*)(\?)?\s*(?::\s*(.+))?$/.exec(part)
+    if (!m) return { key: part, optional: false, type: '', descHtml: '' }
+    return { key: m[1], optional: m[2] === '?', type: (m[3] ?? '').trim(), descHtml: '' }
+  })
+}
+
+/** One rendered line: the code cell and, when there is one, the comment beside it. */
+interface Line {
+  code: string
+  comment: string
+}
+const lines: Line[] = []
+const INDENT = '    '
+const push = (code: string, comment = '') => lines.push({ code, comment })
+
+const docFor = (name: string) => member.doc?.params?.find((p) => p.name === name)
+
+/** `{` … `}` across lines, one key each; `open` is what precedes `{`, `close` what follows `}`. */
+function pushShape(keys: ShapeKey[], indent: string, open: string, close: string, closeComment = '') {
+  push(`${indent}${open}${punct('{')}`)
+  for (const k of keys) {
+    if (!/^[A-Za-z_]/.test(k.key)) {
+      push(`${indent}${INDENT}${punct(k.key)}`)
+      continue
+    }
+    let code = `${indent}${INDENT}${span('sig-var', k.key)}`
+    if (k.optional) code += punct('?')
+    if (k.type) code += `${punct(': ')}${typeHtml(k.type)}`
+    push(code + punct(','), k.descHtml)
+  }
+  push(`${indent}${punct('}')}${close}`, closeComment)
+}
+
+// Head: `Core\Hash::of(` or `$s->length(`.
+let head = ''
+if (member.static) {
+  head += `<a class="sig-class sig-link" href="${escape(cls.url)}">${escape(cls.name)}</a>${punct('::')}`
+} else {
+  head += `${span('sig-var', `$${member.receiver ?? 'instance'}`)}${punct('->')}`
+}
+head += span('sig-name', member.name)
+if (member.generics) head += span('sig-generics', member.generics)
+push(head + punct('('))
+
+// One parameter per line, its description as a trailing comment.
+for (const p of member.params) {
+  const doc = docFor(p.name)
+  const varName = `${p.variadic ? '...' : ''}$${p.name}`
+  let tail = ` ${span('sig-var', varName)}`
+  if (p.default !== null) tail += `${punct(' = ')}${span('sig-default', p.default)}`
+  tail += punct(',')
+  const isShape = p.type.trim().startsWith('{')
+  if (isShape) {
+    const keys: ShapeKey[] =
+      doc?.shape && doc.shape.length > 0
+        ? doc.shape.map((k) => ({
+            key: k.key.replace(/\?$/, ''),
+            optional: k.key.endsWith('?'),
+            type: k.type,
+            descHtml: k.descHtml,
+          }))
+        : parseShape(p.type)
+    pushShape(keys, INDENT, '', tail, doc?.descHtml ?? '')
+  } else {
+    push(`${INDENT}${typeHtml(p.type)}${tail}`, doc?.descHtml ?? '')
+  }
+}
+
+// The options bag: a trailing shape literal, every entry optional.
+if (member.options.length > 0) {
+  const keys: ShapeKey[] = member.options.map((o) => ({
+    key: o.name,
+    optional: true,
+    type: o.type,
+    descHtml: docFor(o.name)?.descHtml ?? '',
+  }))
+  pushShape(keys, INDENT, '', punct(','))
+}
+
+// `): type`, the return description as its comment.
+push(`${punct('): ')}${typeHtml(member.returnType)}`, member.doc?.returnHtml ?? '')
 
 const qualifier = member.qualifier.trim()
 const qualifierKind = qualifier.startsWith('sink')
@@ -74,70 +189,10 @@ const replaces = member.replaces && !/^nothing\b/i.test(member.replaces.trim()) 
 
 <div class="method-signature not-content">
   <div class="method-signature-decl-row">
-    <code class="method-signature-decl" set:html={declarationHtml()} />
+    <pre class="method-signature-decl"><code>{lines.map((l) => <span class="sig-line"><span class="sig-code" set:html={l.code} /><span class="sig-comment" set:html={l.comment ? `// ${l.comment}` : ''} /></span>)}</code></pre>
   </div>
 
-  {
-    member.params.length > 0 && (
-      <table class="method-signature-table">
-        <caption>Parameters</caption>
-        <thead>
-          <tr>
-            <th scope="col">Name</th>
-            <th scope="col">Type</th>
-            <th scope="col">Default</th>
-          </tr>
-        </thead>
-        <tbody>
-          {member.params.map((p) => (
-            <tr>
-              <td>
-                <code>
-                  {p.variadic ? '...' : ''}${p.name}
-                </code>
-              </td>
-              <td>
-                <code class="sig-type-cell">{p.type || 'mixed'}</code>
-              </td>
-              <td>{p.default !== null ? <code>{p.default}</code> : p.variadic ? <em>variadic</em> : <span class="method-required">required</span>}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    )
-  }
-
-  {
-    member.options.length > 0 && (
-      <table class="method-signature-table">
-        <caption>
-          Options <span class="method-signature-caption-hint">— a trailing shape literal, every entry optional</span>
-        </caption>
-        <thead>
-          <tr>
-            <th scope="col">Option</th>
-            <th scope="col">Type</th>
-          </tr>
-        </thead>
-        <tbody>
-          {member.options.map((o) => (
-            <tr>
-              <td>
-                <code>{o.name}</code>
-              </td>
-              <td>{o.type ? <code class="sig-type-cell">{o.type}</code> : <em>—</em>}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    )
-  }
-
   <dl class="method-signature-facts">
-    <div>
-      <dt>Returns</dt>
-      <dd><code class="sig-type-cell">{member.returnType}</code></dd>
-    </div>
     <div>
       <dt>Taint &amp; secret</dt>
       <dd class:list={['method-qualifier', `method-qualifier-${qualifierKind}`]}>{qualifierText[qualifierKind]}</dd>

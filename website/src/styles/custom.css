@@ -57,21 +57,55 @@
   background-color: var(--sl-color-bg-nav);
 }
 .method-signature-decl-row {
-  display: flex;
-  gap: 0.75rem 1rem;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
   padding: 0.9rem 1rem;
   background-color: var(--nv-accent-softer);
   border-bottom: 1px solid var(--sl-color-hairline);
+  overflow-x: auto;
 }
+/* The declaration in `nvs fmt`'s multi-line layout: one line per parameter,
+   its `//` description in a second column so the comments line up. */
 .method-signature-decl {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
   font-size: var(--sl-text-sm);
   line-height: 1.6;
-  overflow-x: auto;
+}
+.method-signature-decl > code {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 1.5rem;
   background: none;
   padding: 0;
+  font-size: inherit;
+}
+.method-signature-decl .sig-line {
+  display: contents;
+}
+.method-signature-decl .sig-code {
+  white-space: pre;
+}
+.method-signature-decl .sig-comment {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  min-width: 12ch;
+  color: var(--sl-color-gray-3);
+  font-style: italic;
+}
+.method-signature-decl .sig-comment code {
+  font-style: normal;
+  background: none;
+  padding: 0;
+  color: var(--sl-color-gray-2);
+}
+.method-signature-decl .sig-link {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px dotted color-mix(in oklab, currentColor 45%, transparent);
+}
+.method-signature-decl .sig-link:hover {
+  border-bottom-style: solid;
 }
 .method-signature-decl .sig-class {
   color: var(--sl-color-text-accent);
@@ -82,8 +116,12 @@
   font-weight: 700;
 }
 .method-signature-decl .sig-type,
-.method-signature-decl .sig-generics {
+.method-signature-decl .sig-generics,
+.method-signature-decl .sig-generic {
   color: var(--sl-color-text-accent);
+}
+.method-signature-decl .sig-keyword {
+  color: var(--nv-ok);
 }
 .method-signature-decl .sig-var {
   color: var(--sl-color-text);
@@ -91,70 +129,19 @@
 .method-signature-decl .sig-punct {
   color: var(--sl-color-gray-3);
 }
-.method-signature-decl .sig-default,
-.method-signature-decl .sig-options {
+.method-signature-decl .sig-default {
   color: var(--sl-color-gray-2);
 }
-
-.method-signature-table {
-  width: 100%;
-  margin: 0;
-  border-collapse: collapse;
-  table-layout: fixed;
-  font-size: var(--sl-text-sm);
-}
-.method-signature-table caption {
-  text-align: start;
-  font-weight: 600;
-  padding: 0.85rem 1rem 0.6rem;
-  color: var(--sl-color-white);
-}
-.method-signature-caption-hint {
-  font-weight: 400;
-  color: var(--sl-color-gray-3);
-  font-size: var(--sl-text-xs);
-}
-.method-signature-table th {
-  text-align: start;
-  font-size: var(--sl-text-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--sl-color-gray-2);
-  background-color: color-mix(in oklab, var(--sl-color-gray-6) 60%, transparent);
-  padding: 0.5rem 1rem;
-  border-top: 1px solid var(--sl-color-hairline);
-  border-bottom: 1px solid var(--sl-color-hairline);
-}
-.method-signature-table th:first-child {
-  width: 30%;
-}
-.method-signature-table th + th,
-.method-signature-table td + td {
-  border-inline-start: 1px solid color-mix(in oklab, var(--sl-color-hairline) 60%, transparent);
-}
-.method-signature-table td {
-  padding: 0.55rem 1rem;
-  border-bottom: 1px solid var(--sl-color-hairline);
-  vertical-align: top;
-  overflow-wrap: anywhere;
-}
-.method-signature-table td:first-child code {
-  font-weight: 600;
-  color: var(--sl-color-white);
-}
-.method-required {
-  display: inline-block;
-  font-size: var(--sl-text-xs);
-  font-weight: 600;
-  line-height: 1;
-  padding: 0.25em 0.5em;
-  border-radius: 999px;
-  color: var(--sl-color-gray-2);
-  background-color: color-mix(in oklab, var(--sl-color-gray-4) 12%, transparent);
-  border: 1px solid var(--sl-color-hairline);
-}
-.sig-type-cell {
-  color: var(--sl-color-text-accent);
+@media (max-width: 40rem) {
+  .method-signature-decl > code {
+    grid-template-columns: 1fr;
+  }
+  .method-signature-decl .sig-comment:empty {
+    display: none;
+  }
+  .method-signature-decl .sig-comment {
+    padding-inline-start: 2rem;
+  }
 }
 
 .method-signature-facts {
