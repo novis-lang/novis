@@ -73,10 +73,17 @@
 //!    ADR 0057 makes both intrinsics whose literal pattern is prepared while
 //!    compiling; [`crate::cldr`]'s own gap 1 owns what that changes and what
 //!    it does not.
-//! 3. **`Core\Time::sleep` blocks the core thread.** M5's scheduler is what
-//!    turns it into a suspension point; until then it is
-//!    [`std::thread::sleep`], which is correct for a CLI program and wrong for
-//!    a request. The signature does not change when that lands.
+//! 3. **`Core\Time::sleep` blocks the core thread**, and what is left is no
+//!    longer the scheduler. [`nvs_runtime::host::Host::sleep`] is the route,
+//!    `nvs-host`'s `timer` module is the mechanism, and switching this member
+//!    to it is two lines that work — until a `Core\Task` group cancels a child
+//!    that is parked in one. `nvs_host::Scheduler` tears a parked task down
+//!    with a **forced unwind**, and this member's frame is `extern "C"`, which
+//!    aborts the process rather than letting one through. So the member parks
+//!    once a cancelled task with script frames dies by ADR 0002's return status
+//!    at its next safepoint rather than by an unwind; `Host::sleep`'s own doc
+//!    and `docs/agent/handoff.md` carry that slice. The signature does not
+//!    change when it lands.
 //! 4. **`Comparable` and `Stringable` are satisfied by member, not by
 //!    declaration.** The spec says a `Duration` implements both and an
 //!    `Instant` implements `Comparable`; `compareTo` and `toString` are
@@ -396,7 +403,7 @@ fn count(args: &[Value], at: usize, member: &str) -> Result<i64, Fault> {
 /// # Errors
 ///
 /// A [`Fault::fatal`] naming the member, for the reason [`count`] gives.
-fn nanos_of(args: &[Value], at: usize, member: &str) -> Result<i64, Fault> {
+pub(crate) fn nanos_of(args: &[Value], at: usize, member: &str) -> Result<i64, Fault> {
     let object = crate::instance::receiver(args[at], &DURATION, member)?;
     crate::instance::slot(object, NANOS_SLOT)
         .as_int()
@@ -1704,9 +1711,14 @@ nvs_runtime::nvs_helper! {
     ///
     /// A negative or zero duration returns at once rather than throwing:
     /// "sleep until a moment already past" is a wait of no time, which is what
-    /// every caller computing a deadline wants. **Blocks the core thread** —
-    /// this module's gap 3 owns why, and the signature does not change when
-    /// M5's scheduler makes it a suspension point.
+    /// every caller computing a deadline wants.
+    ///
+    /// **Blocks the core thread** — this module's gap 3 owns why, and it is now
+    /// one specific thing rather than "the scheduler has not landed":
+    /// [`nvs_runtime::host::Host::sleep`] is the route and it works, but a task
+    /// parked *inside a helper frame* cannot be cancelled, because the
+    /// scheduler tears a parked task down with a forced unwind and this frame
+    /// is `extern "C"`. The signature does not change when that is closed.
     fn nvs_core_time_sleep(_ctx, args: [1]) {
         let nanos = nanos_of(args, 0, "sleep")?;
         if nanos > 0 {

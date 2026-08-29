@@ -1348,7 +1348,7 @@ pub(crate) fn borrowed(array: *mut nvs_runtime::ArrayHeader) -> std::mem::Manual
 /// preserves the keys it kept, because the gap is exactly what degrades the
 /// result to the hash form and renders them there. `docs/perf/userland-gap.md`
 /// § D is the measurement.
-fn store_at(out: &mut NvsArray, key: SlotKey, value: Value) {
+pub(crate) fn store_at(out: &mut NvsArray, key: SlotKey, value: Value) {
     match key {
         SlotKey::Index(index) => out.set_index(index, value),
         SlotKey::Str(key) => out.set(key, value),
