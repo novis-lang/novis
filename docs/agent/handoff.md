@@ -2,73 +2,77 @@
 
 ## State
 
-**Stage 5's item 10 has a gate, and it is a ratchet.**
-`every_core_class_has_a_conformance_floor_of_three` in `crates/nvs-stdlib/tests/conformance_coverage.rs`
-puts a floor of three cases under every registered member. It landed over an existing violation set of
-26, so the members below the floor are named in `BELOW_THE_FLOOR` (`:247`) and the test fails both on a
-member that is *not* listed and below the floor **and** on a listed member that has reached it — the
-list cannot go stale in either direction, and nothing can be added to it. **Twenty of the twenty-six
-closed this session; six remain**, and they are the next group.
+**ADR 0088 § 2's classification has a home in the registry, and its gate is a ratchet.**
+`CoreTy::Text(Qual)` / `CoreTy::Blob(Qual)` are the classified spellings of a `string`/`bytes`
+**parameter**; bare `CoreTy::Str`/`Bytes` in parameter position now mean *unclassified*, which ADR
+0088 § 2 makes a refusal rather than a default. `Qual` (`registry.rs`, above `CoreTy`) is the four
+marks the spec's Q column renders. `every_member_parameter_carries_a_qualifier_classification`
+(`crates/nvs-stdlib/src/registry.rs:1652`) fails on a member with an unclassified string parameter
+that is **not** in `UNCLASSIFIED` (`:1509`) and on a listed member that **has** been classified — the
+list cannot go stale in either direction and nothing can be added to it. It landed at **118**;
+`Core\Regex` is the one class already classified and so is absent from it.
 
-**The driver's failing acceptance check is closed.** `nvs-stdlib (the coverage gates)` reported
-`every_core_class_has_a_conformance_floor_of_three did not run`; the test now exists and passes.
+**Only the data landed, not the enforcement.** `nvs_types::core_lib::lower` maps `Text(_)` to the
+same interned `string` as `Str`, so no observable behaviour changed and the playbook's bullet about
+no `Core` member accepting a `tainted` argument still holds. Wiring `Qual` into
+`nvs_types::expr::args` is a separate slice, in the backlog.
 
-**The counting rule is `gaps.py`'s, ported.** `Attribution` in that file is the same attribution
-`tools/gaps.py`'s `coverage` performs — a case holds a class it names, or one that something it called
-answers an instance of, to a fixed point — so the gate and the worklist cannot rank a member
-differently. That tool's docstring stays the only home for *why*; see the playbook bullet for the one
-place the two genuinely part, which is that `gaps.py` misses whole classes.
+**The driver's acceptance check is still red, and it will name item 11 next.** `nvs-stdlib (the
+coverage gates)` lists five tests; four now exist, and
+`every_error_path_is_asserted_or_declared_unreachable` does not. That is the first slice below.
 
-**The stage-4 `#[Api]` group is untouched.** The previous handoff's group — § 2's `tags`/`security`,
-`errors`/`example`, and § 1's object response schema — is still open and unstarted, in the backlog
-below with its anchors intact.
+**One acceptance check was flaky and no longer is.** `nvs-cli (determinism and the diff)`'s four
+tests shared one temp path per fixture stem across threads; `crates/nvs-cli/tests/openapi.rs`'s
+`document` now takes a fresh file per call. See the playbook bullet — the flake's triage points at
+whatever you happen to be holding.
 
-**Orientation gap, tenth session running:** `[context] adrs` still does not carry `0085 §§ 1-4`. New
-this session: nothing in the pack describes Stage 5's item 10, so the goal TOML's stage-5 `[[check]]`
-block had to be read by hand to learn what the named test was for — `[context]` has no field that
-prints a stage's own comment header, and the playbook already warns that block *is* the specification.
+**The stage-5 floor group is untouched.** The six members still under the floor are unchanged in
+`BELOW_THE_FLOOR` (`crates/nvs-stdlib/tests/conformance_coverage.rs:255`), still the group the
+previous handoff named, and still open.
+
+**Orientation gap, eleventh session running:** `[context] adrs` still does not carry `0085 §§ 1-4`.
+New this session: nothing in the pack said which of the coverage gates' five named tests already
+exist, so the failing check had to be triaged by `grep`ping for four `fn` names — the goal TOML's
+stage-5 `[[check]]` block is the only place that list lives and `[context]` has no field printing it.
 
 ## Next group
 
-**The six members still under the floor, § item 10 — delete each line from `BELOW_THE_FLOOR` as its
-case lands, or the gate fails on the stale entry. Shared file set:** `tests/conformance/core/`,
-`crates/nvs-stdlib/tests/conformance_coverage.rs:247`.
+**Item 11's gate, then item 12's list shrinking. Shared file set:** `crates/nvs-stdlib/src/registry.rs:1509`
+(the ratchet), `crates/nvs-stdlib/tests/allocation_policy.rs:92` (the source-scan shape), and one
+`crates/nvs-stdlib/src/<class>.rs` per classification slice.
 
-- [ ] **`Core\Regex::quote` and `Core\Math::atan2`, one case each** — the two that need no program
-      structure at all. `quote` is **launder** for the pattern sink (spec § 5), so its second question
-      is that a quoted metacharacter string matches itself literally and nothing else;
-      `crates/nvs-stdlib/src/math.rs:222` is `atan2`, whose second question is the quadrant its two
-      signs pick out, asserted by comparison against `Core\Math::PI` rather than by printing a float.
-- [ ] **`Core\Attributes::all`, one case** — the row is `crates/nvs-stdlib/src/attributes.rs:53`, and
-      it is folded at compile time (`address()` maps both members to `folded_at_compile_time`). The
-      existing case is `tests/conformance/core/an-attribute-is-retrieved-by-the-shape-it-satisfies.nvst`;
-      the unasked question is the empty retrieval — `all<T>` where no attach site satisfies `T` answers
-      the empty array rather than refusing, which is what makes it the plural of `get`'s `null`.
-- [ ] **`Core\Program::implementing`, two cases** — it is at 1 and needs two. One of them is already
-      on the goal's own worklist:
-      `tests/conformance/core/program-implementing-enumerates-every-implementor.nvst` is listed in
-      `docs/agent/loop-goal.toml`'s stage-5 `cases` block and does not exist. ADR 0061 § 3 is in the
-      orientation pack; the existing case is `…-expands-to-new-expressions-at-the-call-site.nvst`.
-- [ ] **`Core\Router::urlAbsolute` (two) and `Core\Time\TimeOfDay::compareTo` (one)** — `urlAbsolute`
-      is `crates/nvs-stdlib/src/router.rs:146` and is the hard one: a program declaring no `#[Route]`
-      has an empty table, so today's only reachable claim is the refusal
-      (`router-url-and-url-absolute-refuse-the-same-unknown-names.nvst` already asks it once) and a
-      third case of that shape is the "another row of the same shape" conventions.md forbids. Its two
-      cases probably want the route-table case the goal also owes, or the unasserted throw at
-      `router.rs:351`. `compareTo` is `crates/nvs-stdlib/src/time.rs:1420` and is ordinary: the bound
-      asserted on both sides, plus agreement with the other three `compareTo` members.
+- [ ] **`every_error_path_is_asserted_or_declared_unreachable`, goal § item 11.** The last unwritten
+      test in the failing check, so it outranks everything else here. **Read `python tools/gaps.py
+      --errors` first**: there are ~300 `Fault::` sites in `crates/nvs-stdlib/src`, of which that tool
+      calls 68 unasserted, and only it can tell the two apart — a Rust test cannot, so the gate is a
+      source scan over *declaration comments* plus a frozen list, not a coverage computation.
+      `crates/nvs-stdlib/tests/allocation_policy.rs:92`'s `no_member_revalidates_a_string_argument`
+      is the source-scan shape; `registry.rs:1652` is the two-way ratchet shape. Judge before
+      writing: item 11 says a `Fault::fatal` may be an invariant no program reaches, and then the
+      answer is a comment at the site.
+- [ ] **`Core\Validate` (6) and `Core\Uuid` (2), all `Qual::Neutral`.** Every `Validate::is*` returns
+      `bool` and `Uuid::parse`/`tryParse` answer an opaque instance, so the result carries nothing
+      from the argument. Rows at `crates/nvs-stdlib/src/validate.rs:162` and `uuid.rs:134`; delete
+      their eight lines from `registry.rs:1509` in the same commit or the gate fails on the stale
+      entries.
+- [ ] **`Core\Str`'s 37 rows, the largest single block of the 118.** The spec's Q column
+      (`docs/spec/01-core-library.md` § 1) already answers them: nine *Inspection* members and
+      `codePoints` are `neutral`, `format`'s template is `sink` (ADR 0063 R11 — one of the four
+      grammars), and every remaining cell is blank, which that file's § *How to read an entry* says
+      means `contagious` was chosen. `crates/nvs-stdlib/src/str.rs:125` is the first row.
+- [ ] **The six members still under the conformance floor**, unchanged from the previous handoff:
+      `Core\Regex::quote` + `Core\Math::atan2` (`crates/nvs-stdlib/src/math.rs:222`), then
+      `Core\Attributes::all` (`attributes.rs:53`), `Core\Program::implementing`,
+      `Core\Router::urlAbsolute` and `Core\Time\TimeOfDay::compareTo`. Delete each line from
+      `BELOW_THE_FLOOR` (`tests/conformance_coverage.rs:255`) as its case lands.
 
 ## Backlog
 
-- Stage 4 § 2: `tags`/`security` reach the document — `crates/nvs-types/src/routes.rs:659`
-  (`API_OPTIONS`), `:750` (`check_api`), `:321` (`Route`), `crates/nvs-cli/src/openapi.rs:147`
-  (`operation`). Gap 3 in that emitter's module doc.
-- Stage 4 § 2: `errors` and `example`, the two structured `#[Api]` fields. Same file set.
-- Stage 4 § 1: an object response schema — `DerivedCodec` at `crates/nvs-types/src/derive.rs:178`,
-  gap 1 in `crates/nvs-cli/src/openapi.rs`'s module doc.
-- `[context] adrs` in `docs/agent/loop-goal.toml` still owes `0085 §§ 1-4`; ten sessions have sliced it
-  by hand.
-- `python tools/gaps.py` drops whole classes from its ranking (playbook, *Tooling*). Fixing it to read
-  `registry::CLASSES` would make the worklist agree with the gate.
-- 72 unasserted `Fault` sites remain (`python tools/gaps.py --errors`); `router.rs:351` and
-  `csv.rs:512` are the two `thrown` ones a case can catch.
+- Wire `Qual` into the checker so a `Contagious` parameter accepts a `tainted` argument and a
+  `Launder` one strips it — ADR 0088 §§ 3-5, `nvs_types::expr::args`. Nothing in item 12 asks for it.
+- The 16 `string`-typed `CoreOption`s (`csv.rs:171`, `math.rs:462`, `str.rs:438`, `test.rs:124`,
+  `uri.rs:464`) are parameters too and are counted by the gate through their member's row.
+- Stage 4's `#[Api]` group — § 2's `tags`/`security`, `errors`/`example`, § 1's object response
+  schema — still open and unstarted; `docs/agent/goals/1-core-depth.md` items 6-9 own it.
+- `[context] adrs` wants `0085 §§ 1-4`, and `[context]` wants a field that prints a stage's
+  `[[check]]` comment header — the playbook already warns that block *is* the specification.

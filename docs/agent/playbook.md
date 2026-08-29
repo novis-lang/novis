@@ -2217,6 +2217,15 @@ is why" — is this file.
   `nvs build --openapi` emits both its operations. `examples/routes.nvs` splits across a root because it
   is demonstrating ADR 0061 § 5's scan, not because an emitter fixture has to. Three near-identical
   fixtures are then three files rather than six, and they read as a diff of each other.
+- **A test helper that names a file in `CARGO_TARGET_TMPDIR` after its *input* races the other
+  tests that ask for the same input.** `crates/nvs-cli/tests/openapi.rs`'s `document(stem)` wrote
+  `{stem}.json`, three of its tests ask for `base`, and `cargo test` runs them on their own threads:
+  a reader that catches another thread's `fs::write` half-done sees a truncated document, `nvs api
+  diff` reports no change, and `an_api_diff_classifies_a_removed_route_as_breaking` fails with a
+  message that reads like a diff bug. It reproduces roughly one run in three and never under
+  `cargo test -- <one test name>`, which is the trap: the obvious triage — stash the change, run the
+  named test, watch it pass — points at your own diff. Run the **whole** test binary on the stashed
+  tree before believing that. The fix is a per-call counter in the file name, not a lock.
 
 ## Splitting a file that got too big
 
@@ -2941,6 +2950,19 @@ sibling in the same namespace unqualified.
   then fails `cargo doc` with `-D rustdoc::broken_intra_doc_links` — a whole verify run spent on a
   four-character edit. Before renaming a `pub` item, `grep -n "Self::<oldname>\|\[\`<oldname>\`\]"` over the
   crate: an intra-doc link is invisible to every other tool in the gate.
+- **A new `CoreTy` variant that *wraps* another type silently falsifies seven walkers, and ADR 0088
+  § 2's classification is a leaf variant because of it.** Every recursive `match` over `CoreTy` in
+  `crates/nvs-stdlib/src/registry.rs` — `collect_written`, and the six inside `mod tests` — ends
+  `_ => {}` under a comment saying "a variant that carries no nested type carries no variable
+  either". `CoreTy` is `#[non_exhaustive]`, so nothing outside errors either, and a
+  `Classified(Qual, &'static CoreTy)` wrapper would have compiled clean while making `written()`,
+  the nullable check and the enum-case check blind to whatever it wrapped. The landed spelling is
+  `CoreTy::Text(Qual)` / `CoreTy::Blob(Qual)` — leaves, so the wildcard arms stay honest — and the
+  only two sites that had to change are the ones that name `CoreTy::Str` specifically:
+  `nvs_types::core_lib::lower` and one `matches!` in a registry test. **Landing the data is not
+  landing the enforcement**: `lower` maps `Text(_)` to the same interned `string` as `Str`, so the
+  bullet above about no `Core` member accepting a `tainted` argument is still true for every one of
+  them, classified or not.
 
 ## Divergences and refusals already pinned
 
