@@ -227,6 +227,7 @@ pub(crate) fn check_stmts(
                 crate::conformance::check_class_conformance(decl, &qname, env);
                 crate::derive::check_class_derive(decl, &qname, &ctx, env);
                 crate::testing::check_class_tests(decl, &qname, &ctx, env);
+                crate::commands::check_class_commands(decl, &qname, &ctx, env);
                 record_property_defaults(&qname, env);
                 record_lateinit_properties(&qname, env);
                 record_static_properties(&qname, env);

@@ -2748,6 +2748,14 @@ sibling in the same namespace unqualified.
   pass that checks its payload, which is the one thing that keeps that closed list from admitting
   `#[Command(nmae: "x")]` in silence. A handoff item that says an attribute "becomes a shape-typed
   `type` alias" is naming the diagnostic, not the mechanism.
+- **A `Class::CONST` whose class does not exist passes checking and panics `nvs-ir`.**
+  `echo \Core\Http\Method::Get;` type-checks clean today and dies at
+  `crates/nvs-ir/src/lower/expr.rs:274` with "a `Class::CONST` … with no value recorded in the
+  typed-expression table". So a one-line probe that *compiles* is not evidence that the name it
+  writes resolves to anything, and `nvs_types::check` reports no `E0405` for the class half of
+  that spelling. The same hole is why a payload roster naming an enum the tree does not declare
+  (`nvs_types::routes` gap 1) admits a case of the wrong enum rather than refusing it: nothing
+  below the roster is asking whether the name exists.
 
 ## Divergences and refusals already pinned
 
