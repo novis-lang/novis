@@ -139,12 +139,18 @@ class StatusLine:
         detail   the current item       `wsl fixtures/closures.nvs`, `Edit tools/loop.py`
         elapsed  how long this phase has been going
 
-    Above them, on its own row, the **goal of the running session** -- the checklist item
-    `orient.py` handed it, `item 1/3 · Item 29 — read the names.` It is the one thing about a
-    session the scrolling output never says: the tool calls name files, the pack scrolled off
-    minutes ago, and the item's own title is the only line that says what all of it is *for*.
-    Set from the pack the moment it is built (`session_goal`), and left standing through the
-    acceptance check that judges the session, since that is still the same item.
+    Above them, on its own row, **what the work is for**, widest first: the loop goal the run is
+    driving toward -- the title of `docs/agent/loop-goal.md`, behind `goal 2/6` when a chain is
+    driving (`goal_title`) -- and then the goal of the running session, the checklist item
+    `orient.py` handed it, `item 1/3 · Item 29 — read the names.` (`session_goal`). Neither is
+    something the scrolling output says: the tool calls name files, the pack scrolled off
+    minutes ago, and these two titles are the only lines that say what all of it is *for*. The
+    session half is set the moment the pack is built and stands through the acceptance check
+    that judges the session, since that is still the same item.
+
+    The row is usually longer than a terminal, so it **scrolls**: the ticker slides a window over
+    it a character at a time, holds at each end, and comes back -- a bounce rather than a wrap,
+    so the start and the end are both read in full and nothing is ever cut mid-word for good.
 
     A count is shown only when the total is known ahead of time -- the acceptance sweep knows how
     many checks it is about to run, a session does not know how many tool calls it will make, so the
@@ -166,7 +172,8 @@ class StatusLine:
         self.cut = "..."
         self.bar = "-"
         self.dash = " -- "
-        self.goal = ""
+        self.loop_goal = ""  # the run's goal, from `goal_title`
+        self.goal = ""  # the running session's item, from `session_goal`
         self.scope = ""
         self.phase = ""
         self.detail = ""
@@ -217,10 +224,12 @@ class StatusLine:
     # -- what it says ------------------------------------------------------------------
 
     def set(self, phase=None, detail=None, scope=None, total=None, done=None, calls=None,
-            goal=None):
+            goal=None, loop_goal=None):
         """Update any subset of the fields. A new `phase` restarts the elapsed clock and clears
         the detail and the counters, because those belonged to the phase that just ended."""
         with self.lock:
+            if loop_goal is not None:
+                self.loop_goal = loop_goal
             if goal is not None:
                 self.goal = goal
             if scope is not None:
@@ -292,17 +301,44 @@ class StatusLine:
         what should catch the eye is the status, not the furniture around it."""
         return C.paint(self.bar * max(18, self.width() - 1), C.GRAY)
 
+    # The scroll's tempo, in ticker frames of `INTERVAL`: one character every `SCROLL_STEP`
+    # frames, and `SCROLL_HOLD` frames of rest at either end before it turns around.
+    SCROLL_STEP = 2
+    SCROLL_HOLD = 16
+
     def goal_row(self):
-        """The row between the rule and the status line: what the running session is for.
+        """The row between the rule and the status line: the loop goal, then the session's item.
 
         Grey and indented like the key row, so the one white line in the block is still the
-        status. Truncated the same way `compose()` truncates, for the same reason: a row that
-        wraps is a row the next erase only half removes."""
-        body = (self.goal or "(no session has been oriented yet)").replace("\n", " ")
+        status. Never truncated: a row longer than the terminal is shown through a window that
+        the ticker slides along it, `scroll_offset` says how far. Cut short the way `compose()`
+        cuts, the loop goal's title would eat the whole width and the session's item -- the half
+        that changes -- would never be seen at all."""
+        parts = [self.loop_goal, self.goal or "(no session has been oriented yet)"]
+        body = self.sep.join(p for p in parts if p).replace("\n", " ")
         room = max(18, self.width() - 3)
         if len(body) > room:
-            body = body[: room - len(self.cut)] + self.cut
+            start = self.scroll_offset(len(body) - room)
+            body = body[start: start + room]
         return "  " + C.paint(body, C.GRAY)
+
+    def scroll_offset(self, overflow):
+        """Where the window over an overflowing row starts on this frame: 0 for `SCROLL_HOLD`
+        frames, then one character further every `SCROLL_STEP` frames until the end is in view,
+        a hold there, and the same walk back. A bounce, not a wrap -- text that loops around
+        never shows either end for long, and the ends are the two things worth reading."""
+        walk = overflow * self.SCROLL_STEP
+        cycle = 2 * (walk + self.SCROLL_HOLD)
+        t = self._frame % cycle
+        if t < self.SCROLL_HOLD:
+            return 0
+        t -= self.SCROLL_HOLD
+        if t < walk:
+            return t // self.SCROLL_STEP
+        t -= walk
+        if t < self.SCROLL_HOLD:
+            return overflow
+        return overflow - (t - self.SCROLL_HOLD) // self.SCROLL_STEP
 
     def keys(self):
         """The row under the status line: what a keypress would do *right now*.
@@ -1803,6 +1839,25 @@ def load_goal():
     return Goal(tomllib.loads(GOAL_TOML.read_text(encoding="utf-8")))
 
 
+def goal_title(chain=None):
+    """The loop-goal half of the status line's goal row: the H1 of `docs/agent/loop-goal.md`,
+    behind `goal 2/6` when a chain is driving. Read from disk each time, for the reason
+    `load_goal()` is: a chain switch rewrites the file, and the row has to follow it. A file that
+    cannot be read, or has no heading, leaves the row saying so rather than ending the run."""
+    title = ""
+    try:
+        for line in GOAL_MD.read_text(encoding="utf-8").splitlines():
+            if line.startswith("# "):
+                title = line[2:].strip()
+                break
+    except OSError:
+        pass
+    title = title or f"{rel_to_root(GOAL_MD)} has no heading"
+    if chain is not None and chain.current is not None:
+        return f"goal {chain.index + 1}/{len(chain.goals)}{TICKER.sep}{title}"
+    return title
+
+
 def session_goal(pack):
     """What the status line's goal row says for the session about to run: the checklist item
     `orient.py` picked for it, read back out of the pack rather than out of the handoff.
@@ -2733,6 +2788,7 @@ def run_cli():
 
     if opts.status:
         TICKER.start()
+    TICKER.set(loop_goal=goal_title())
 
     if opts.goal_only or opts.leg_only:
         # By hand is exactly when the full output is wanted: `--goal-only` is what you run to
@@ -2820,7 +2876,10 @@ def run_cli():
             say(fail, C.RED)
             return 2
 
-    TICKER.set(phase="making room", detail="pruning earlier runs' logs and scratch")
+    # Set again here rather than only above: a chain that just installed its first goal rewrote
+    # `loop-goal.md` after the first read, and this is the first moment the row can name it.
+    TICKER.set(loop_goal=goal_title(chain),
+               phase="making room", detail="pruning earlier runs' logs and scratch")
     if not make_room(opts):
         return 2
     if not claim_run(opts):
@@ -3039,6 +3098,7 @@ def drive(opts, goal, chain=None):
                 reason = f"chain: {rel_to_root(GOAL_TOML)} did not load after the switch -- {e}"
                 kind = "chain-error"
                 break
+            TICKER.set(loop_goal=goal_title(chain))
             continue
         ledger(f"       goal check: {fail}")
 
