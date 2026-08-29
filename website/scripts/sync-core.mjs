@@ -65,9 +65,47 @@ for (const cls of classes) {
 // Field-wise precedence: a doc field the registry carries wins; a field it
 // lacks falls back to the spec-derived default. The Method* components apply
 // that rule at build time — here we only attach what the toolchain reported.
-const { docs: registryDocs, note: metaNote } = loadRegistryDocs(repoDir)
+const { docs: registryDocs, enumDocs, constDocs, note: metaNote } = loadRegistryDocs(repoDir)
 
 const asHtml = (s) => inlineHtml(String(s), 'docs/spec')
+
+// Enums and constants are the two rosters the same ADR documents beside the
+// members. The spec's `Enums:` line names an enum by its last segment (`Order`)
+// while the registry names it in full (`Core\Order`); the class page is where
+// the spec (or `enumOwners`) put it, so the lookup is by that short name.
+const enumDocFor = (shortName) =>
+  enumDocs.get(`Core\\${shortName}`) ??
+  [...enumDocs.entries()].find(([full]) => full.endsWith(`\\${shortName}`))?.[1]
+
+for (const cls of classes) {
+  for (const e of cls.enums) {
+    const doc = enumDocFor(e.name)
+    if (!doc) continue
+    const elided = e.cases.some((c) => c.includes('…'))
+    e.doc = {
+      ...(doc.short ? { shortHtml: asHtml(doc.short) } : {}),
+      ...(doc.cases.size > 0
+        ? { cases: e.cases.map((name) => ({ name, descHtml: doc.cases.has(name) ? asHtml(doc.cases.get(name)) : '' })) }
+        : {}),
+    }
+    for (const name of doc.cases.keys()) {
+      if (!elided && !e.cases.includes(name)) {
+        warnings.push(`registry documents case "${name}" on Core\\${e.name}, which the spec does not declare`)
+      }
+    }
+  }
+  cls.constants = cls.constants.map((name) => {
+    const desc = constDocs.get(`${cls.name}::${name}`)
+    return { name, descHtml: desc ? asHtml(desc) : '' }
+  })
+}
+for (const key of constDocs.keys()) {
+  const [className, name] = key.split('::')
+  const cls = classes.find((c) => c.name === className)
+  if (!cls || !cls.constants.some((c) => c.name === name)) {
+    warnings.push(`registry documents constant ${key}, which the spec does not declare`)
+  }
+}
 
 for (const cls of classes) {
   for (const m of cls.members) {

@@ -60,10 +60,21 @@ const clsExtra = cls as typeof cls & { summaryHtml?: string; surfaceHtml?: strin
     cls.enums.length > 0 && (
       <>
         <h2 id="enums">Enums</h2>
-        <ul>
+        <ul class="nv-param-docs">
           {cls.enums.map((e) => (
             <li>
-              <code>{e.raw}</code>
+              <code>{e.raw}</code> —{' '}
+              {e.doc?.shortHtml ? <span set:html={e.doc.shortHtml} /> : <em>not documented yet.</em>}
+              {e.doc?.cases && e.doc.cases.length > 0 && (
+                <ul>
+                  {e.doc.cases.map((c) => (
+                    <li>
+                      <code>{c.name}</code> —{' '}
+                      {c.descHtml ? <span set:html={c.descHtml} /> : <em>not documented yet.</em>}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </li>
           ))}
         </ul>
@@ -75,12 +86,13 @@ const clsExtra = cls as typeof cls & { summaryHtml?: string; surfaceHtml?: strin
     cls.constants.length > 0 && (
       <>
         <h2 id="constants">Constants</h2>
-        <ul>
+        <ul class="nv-param-docs">
           {cls.constants.map((c) => (
             <li>
               <code>
-                {cls.name}::{c}
-              </code>
+                {cls.name}::{c.name}
+              </code>{' '}
+              — {c.descHtml ? <span set:html={c.descHtml} /> : <em>not documented yet.</em>}
             </li>
           ))}
         </ul>

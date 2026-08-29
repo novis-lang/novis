@@ -62,6 +62,16 @@ export interface CoreMember {
   doc?: CoreMemberDoc
 }
 
+/**
+ * An enum's registry card (ADR 0117): its short description and, when any
+ * case is documented, one entry per spec-declared case in spec order with the
+ * registry's description or '' for a case not written yet.
+ */
+export interface CoreEnumDoc {
+  shortHtml?: string
+  cases?: { name: string; descHtml: string }[]
+}
+
 export interface CoreClass {
   id: string
   name: string
@@ -69,8 +79,8 @@ export interface CoreClass {
   summary: string
   surface: string
   adrs: string[]
-  enums: { name: string; cases: string[]; raw: string }[]
-  constants: string[]
+  enums: { name: string; cases: string[]; raw: string; doc?: CoreEnumDoc }[]
+  constants: { name: string; descHtml: string }[]
   members: CoreMember[]
   unparsed: { memberCell: string; signatureCell: string; section: string }[]
   implemented: boolean

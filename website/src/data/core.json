@@ -14,7 +14,20 @@
             "Asc",
             "Desc"
           ],
-          "raw": "Order { Asc, Desc }"
+          "raw": "Order { Asc, Desc }",
+          "doc": {
+            "shortHtml": "The direction <code>Core\\Arr::sort</code> and <code>sortByKey</code> put elements in — spec § 2's <code>{order: …}</code> option, which is <code>Asc</code> when omitted.",
+            "cases": [
+              {
+                "name": "Asc",
+                "descHtml": "Smallest first — what an omitted <code>{order: …}</code> means."
+              },
+              {
+                "name": "Desc",
+                "descHtml": "Largest first — <code>rsort</code>, <code>arsort</code> and <code>krsort</code> as one option rather than three names."
+              }
+            ]
+          }
         },
         {
           "name": "SetOn",
@@ -3189,6 +3202,30 @@
           "section": "6. `Core\\Json`",
           "implemented": true,
           "notesHtml": "",
+          "doc": {
+            "shortHtml": "Serializes <code>$value</code> as JSON text — scalars, arrays and instances of classes carrying <code>#[Json\\Derive]</code> — on one line unless <code>pretty</code> is set.",
+            "params": [
+              {
+                "name": "value",
+                "descHtml": "The value to encode: <code>null</code>, <code>bool</code>, <code>int</code>, <code>uint</code>, <code>float</code>, <code>decimal</code>, <code>string</code>, an array, or an instance of a class carrying <code>#[Json\\Derive]</code>."
+              },
+              {
+                "name": "pretty",
+                "descHtml": "Indent the output across lines, as <code>JSON_PRETTY_PRINT</code> does; the default is one line."
+              },
+              {
+                "name": "escapeUnicode",
+                "descHtml": "Write every non-ASCII character as a <code>\\uXXXX</code> escape, as <code>json_encode</code> does by default; the default here keeps UTF-8 as it is."
+              }
+            ],
+            "returnHtml": "The JSON text.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "<code>$value</code> holds something JSON cannot spell: a <code>NaN</code> or infinite <code>float</code>, a value of a type with no JSON encoding, an instance of a class without <code>#[Json\\Derive]</code>, or nesting past 1024 levels."
+              }
+            ]
+          },
           "slug": "encode",
           "url": "/docs/core/json/encode/"
         },
@@ -3312,21 +3349,83 @@
             "Up",
             "Down"
           ],
-          "raw": "RoundMode { HalfUp, HalfDown, HalfEven, HalfOdd, Up, Down }"
+          "raw": "RoundMode { HalfUp, HalfDown, HalfEven, HalfOdd, Up, Down }",
+          "doc": {
+            "shortHtml": "How <code>Core\\Math::round</code> settles a value between two neighbours — PHP's four <code>PHP_ROUND_HALF_*</code> constants plus the two whole-direction rules <code>ceil</code> and <code>floor</code> only cover at a precision of zero.",
+            "cases": [
+              {
+                "name": "HalfUp",
+                "descHtml": "A tie goes away from zero — <code>PHP_ROUND_HALF_UP</code>, and <code>round</code>'s default there and here."
+              },
+              {
+                "name": "HalfDown",
+                "descHtml": "A tie goes toward zero — <code>PHP_ROUND_HALF_DOWN</code>."
+              },
+              {
+                "name": "HalfEven",
+                "descHtml": "A tie goes to the even neighbour — banker's rounding, <code>PHP_ROUND_HALF_EVEN</code>, the rule that does not accumulate a bias over many values."
+              },
+              {
+                "name": "HalfOdd",
+                "descHtml": "A tie goes to the odd neighbour — <code>PHP_ROUND_HALF_ODD</code>."
+              },
+              {
+                "name": "Up",
+                "descHtml": "Every value goes away from zero, tie or not — <code>ceil</code> for a positive number and <code>floor</code> for a negative one, at any precision."
+              },
+              {
+                "name": "Down",
+                "descHtml": "Every value goes toward zero, tie or not — truncation, at any precision."
+              }
+            ]
+          }
         }
       ],
       "constants": [
-        "PI",
-        "TAU",
-        "E",
-        "EPSILON",
-        "INT_MAX",
-        "INT_MIN",
-        "UINT_MAX",
-        "FLOAT_MAX",
-        "FLOAT_MIN",
-        "NAN",
-        "INFINITY"
+        {
+          "name": "PI",
+          "descHtml": "The ratio of a circle's circumference to its diameter, <code>3.14159…</code> as the nearest <code>float</code> — PHP's <code>M_PI</code>."
+        },
+        {
+          "name": "TAU",
+          "descHtml": ""
+        },
+        {
+          "name": "E",
+          "descHtml": ""
+        },
+        {
+          "name": "EPSILON",
+          "descHtml": "The smallest <code>float</code> that added to <code>1.0</code> gives a value other than <code>1.0</code>, <code>2.220446049250313e-16</code> — PHP's <code>PHP_FLOAT_EPSILON</code>, and the tolerance to compare two floats with in place of <code>==</code>."
+        },
+        {
+          "name": "INT_MAX",
+          "descHtml": ""
+        },
+        {
+          "name": "INT_MIN",
+          "descHtml": ""
+        },
+        {
+          "name": "UINT_MAX",
+          "descHtml": ""
+        },
+        {
+          "name": "FLOAT_MAX",
+          "descHtml": ""
+        },
+        {
+          "name": "FLOAT_MIN",
+          "descHtml": ""
+        },
+        {
+          "name": "NAN",
+          "descHtml": ""
+        },
+        {
+          "name": "INFINITY",
+          "descHtml": ""
+        }
       ],
       "members": [
         {
@@ -4590,7 +4689,10 @@
       "adrs": [],
       "enums": [],
       "constants": [
-        "SEPARATOR"
+        {
+          "name": "SEPARATOR",
+          "descHtml": ""
+        }
       ],
       "members": [
         {
@@ -5237,6 +5339,34 @@
           "section": "5. `Core\\Regex`",
           "implemented": true,
           "notesHtml": "",
+          "doc": {
+            "shortHtml": "Finds the first match of <code>$pattern</code> in <code>$subject</code> at or after <code>from</code>, as a <code>Match</code> carrying its groups and offset — <code>preg_match</code> with <code>$matches</code> and <code>PREG_OFFSET_CAPTURE</code> folded into the return.",
+            "params": [
+              {
+                "name": "subject",
+                "descHtml": "The text to search."
+              },
+              {
+                "name": "pattern",
+                "descHtml": "A <code>Pattern</code> from <code>Core\\Regex::compile</code>, or a pattern string compiled with no flags; the pattern is a sink (ADR 0056)."
+              },
+              {
+                "name": "from",
+                "descHtml": "The grapheme index the search starts at; negative counts from the end, and an index past the end starts at the end."
+              }
+            ],
+            "returnHtml": "The first <code>Match</code>, or <code>null</code> when the pattern matches nowhere at or after <code>from</code>.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "<code>$pattern</code> does not compile under either of ADR 0056's two engines."
+              },
+              {
+                "error": "RuntimeError",
+                "descHtml": "The backtracking engine exhausted its step budget against this subject."
+              }
+            ]
+          },
           "slug": "match",
           "url": "/docs/core/regex/match/"
         },
@@ -5604,6 +5734,16 @@
           "section": "1. `Core\\Str`",
           "implemented": true,
           "notesHtml": "",
+          "doc": {
+            "shortHtml": "Counts the graphemes in <code>$s</code> — user-perceived characters, ADR 0009's default unit — so a combining sequence counts once and this is never a byte count.",
+            "params": [
+              {
+                "name": "s",
+                "descHtml": "The string to measure."
+              }
+            ],
+            "returnHtml": "The grapheme count; <code>0</code> for the empty string."
+          },
           "slug": "length",
           "url": "/docs/core/str/length/"
         },
@@ -8694,7 +8834,10 @@
       "adrs": [],
       "enums": [],
       "constants": [
-        "UTC"
+        {
+          "name": "UTC",
+          "descHtml": ""
+        }
       ],
       "members": [
         {
