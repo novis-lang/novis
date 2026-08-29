@@ -1,0 +1,67 @@
+--TEST--
+Core\Arr::flattenDeep answers the same leaves at every nesting depth including one far past a recursive walk's stack, and an array written into itself flattens to the snapshot it stored rather than diverging, per spec § 2
+--FILE--
+<?nvs
+// `crates/nvs-stdlib/src/arr.rs:2219`'s doc gives two reasons for the shape of
+// the walk, and no case asks about either. It uses "an explicit stack rather
+// than recursion" because "the nesting depth is the caller's data, and a deeply
+// nested argument must not be able to reach the host stack's limit"; and it
+// keeps no visited set because "an array cannot contain itself — it is a
+// copy-on-write value, so `$a[] = $a` stores a copy". The sibling cases
+// `arr-flatten-deep-is-flatten-iterated-to-a-fixed-point` and
+// `arr-flatten-unwraps-one-level-and-flatten-deep-all-of-them` both work over
+// nestings a source literal can write, which is where neither reason bites.
+
+// The same two leaves under a sweep of depths, the last of them 5,000 levels —
+// far past what a recursive walk could take a frame at a time, and a depth no
+// literal in this file could spell. The answer is invariant: what changes with
+// the depth is only how far the walk has to go.
+array<int> $depths = [0, 1, 2, 3, 10, 5000];
+int $asked = 0;
+int $same = 0;
+foreach ($depths as int $d) {
+    array<mixed> $nested = ["a", "b"];
+    int $wrapped = 0;
+    while ($wrapped < $d) {
+        $nested = [$nested];
+        $wrapped = $wrapped + 1;
+    }
+    $asked = $asked + 1;
+    if (Core\Json::encode(Core\Arr::flattenDeep($nested)) == "[\"a\",\"b\"]") {
+        $same = $same + 1;
+    }
+}
+echo $asked as string, " ", $same as string, "\n";
+
+// What the sweep's rows actually are, so six agreements are not six flat
+// arrays: the same construction at depth 3, printed before it is flattened.
+array<mixed> $three = ["a", "b"];
+int $i = 0;
+while ($i < 3) {
+    $three = [$three];
+    $i = $i + 1;
+}
+echo Core\Json::encode($three), " ", Core\Json::encode(Core\Arr::flattenDeep($three)), "\n";
+
+// The second reason. Writing an array into itself stores the value it had at
+// the moment of the write — ADR 0069's copy-on-write array is a value, not a
+// handle — so the walk is finite with nothing tracking what it has visited.
+// Once, then again over the result, so the nesting the second write stores is
+// itself already a nested one.
+array<mixed> $a = ["x"];
+$a["self"] = $a;
+echo Core\Json::encode(Core\Arr::flattenDeep($a)), "\n";
+$a["again"] = $a;
+echo Core\Json::encode(Core\Arr::flattenDeep($a)), "\n";
+
+// And the subject that produced those two answers, which is what makes them
+// snapshots rather than cycles: `self` holds the one-entry array, and `again`
+// holds the two-entry one that already contained it. Neither holds `$a` as it
+// stands now.
+echo Core\Json::encode($a), "\n";
+--EXPECT--
+6 6
+[[[["a","b"]]]] ["a","b"]
+["x","x"]
+["x","x","x","x"]
+{"0":"x","self":["x"],"again":{"0":"x","self":["x"]}}
