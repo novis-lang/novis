@@ -9,9 +9,9 @@
   cross-*machine* fan-out, which § 4 places outside the runtime deliberately. The upgrade is **HTTP/1.1
   only**, where it is native — [0097](0097-development-server-and-proxied-origin.md) § 1 removes h2c, so
   RFC 8441 extended `CONNECT` is neither reachable nor needed.
-- **Amends:** [0006](0006-isolated-script-execution.md) — `spawn script`'s `with(...)` clause gains a second
-  caller in § 2 below, with identical grant, limit and argument rules; the isolate itself is the same
-  `Isolate`, not a second isolation path.
+- **Amends:** [0006](0006-isolated-script-execution.md) — `spawn script`'s operand and its `with(...)`
+  options gain a second caller in § 2 below, taking them as ordinary named arguments, with identical grant,
+  limit and argument rules; the isolate itself is the same `Isolate`, not a second isolation path.
   [0072](0072-core-task-structured-concurrency.md) § 6 — `afterResponse` and a connection isolate are the
   two things in Novis that outlive a response, and § 6 below states the difference so they are not confused,
   the way [docs/spec/00-overview.md](../spec/00-overview.md) § 2 does for `require` and `spawn script`.
@@ -26,9 +26,9 @@
 
 > **In short:** an upgraded connection is **its own root isolate** — the same `Isolate` a request and a
 > `spawn script` child already are, with its own memory, CPU and time budget, sharing nothing but compiled
-> code. It is opened the way a script is spawned: `Core\Socket::upgrade('sockets/chat.nvs', with(args: …))`
-> takes **`spawn script`'s operand — a file, or a callable that captures nothing** — never a capturing
-> closure, so [ADR 0006](0006-isolated-script-execution.md)'s existing rules for the entry, grants, limits,
+> code. It is opened the way a script is spawned: `Core\Socket::upgrade('sockets/chat.nvs', args: …)`
+> takes **`spawn script`'s operand — a file, or a static method** — never a closure, so
+> [ADR 0006](0006-isolated-script-execution.md)'s existing rules for the entry, grants, limits,
 > arguments and path checking are reused whole and nothing crosses the boundary except values copied by
 > [0023](0023-clone-serialize-and-cross-boundary-copy.md)'s graph copy. Inside, code is **an ordinary
 > loop** — `while (var $msg = $conn->receive()) { … }` — because suspension has no colour, so there is no
@@ -95,23 +95,28 @@ never the credential that proved it.
 #[Access(allow: Role::User)]
 public static function chat(string $room): Http\Response {
     var $user = Web\Auth::require();                       // an ordinary authenticated request
-    return Core\Socket::upgrade('sockets/chat.nvs', with(
+    return Core\Socket::upgrade('sockets/chat.nvs',
         args:   {room: $room, userId: $user->id},
         limits: {memory: 8mb, idle: 5m},
         grants: {},                                        // narrowed: this socket needs nothing
-    ));
+    );
 }
 ```
 
+Naming a method instead of a file, `Core\Socket::upgrade(Chat::run(...), args: {room: $room, userId:
+$user->id})` opens the connection as `Chat::run(room: …, userId: …)`, with the same copy in between.
+
 - **The target is `spawn script`'s operand**, under the rule [ADR 0006](0006-isolated-script-execution.md)
-  fixes: a file path, resolved and root-checked exactly as `spawn script`'s is, or a callable that captures
-  nothing — `Chat::run(...)`, or an `fn` literal whose body reads no outer variable — decided syntactically
-  at the call site. It is never a capturing closure: a capture would carry state across a boundary that
-  exists to prevent exactly that, and [0031](0031-callable-is-the-only-closure-type.md) removed the `use`
-  clause that would have made the capture visible, so a literal that reads `$room` is a compile error naming
-  `$room` and pointing at `args:`. The callable form still reads its input through `Core\Script::args()`, so
-  the copy stays visible at the call site in both forms.
-- **`with(...)` is 0006's clause**, unchanged — `args`, `limits`, `grants`, `on`. `args` crosses by
+  fixes: a file path, resolved and root-checked exactly as `spawn script`'s is, or a static method —
+  `Chat::run(...)`, called with `args:` bound to its parameters by name — decided syntactically at the
+  call site. It is never a closure: a capture would carry state across a boundary that exists to prevent
+  exactly that, and [0031](0031-callable-is-the-only-closure-type.md) removed the `use` clause that would
+  have made the capture visible, so an `fn` literal or a `callable`-typed variable here is the compile
+  error 0006 defines, naming the method form.
+- **The options are 0006's, spelled as ordinary named arguments** — `args`, `limits`, `grants`, `on`.
+  `upgrade` is a method, so it takes them the way every method takes a named argument; `spawn script`'s
+  `with(…)` is that same grammar after a construct's operand, and a `with(…)` written *inside* an argument
+  list would read as a call to a function named `with`. `args` crosses by
   [0023](0023-clone-serialize-and-cross-boundary-copy.md)'s graph copy, so it is a value and never a shared
   reference.
 - **A `secret` may not be passed**, per [0033](0033-secret-qualifier-for-confidential-values.md); a
@@ -267,8 +272,9 @@ place two spellings could appear for one job:
 - **A capturing closure as the upgrade target.** Reads best at the call site. Rejected because it would
   either capture the request's heap — destroying the isolation this ADR is about — or copy the captures
   silently at the boundary, hiding behind an ordinary-looking closure the very copy § 2 keeps visible in
-  `args`, and turning a captured handle into a runtime refusal instead of a compile error. The callable
-  that captures nothing is allowed *because* it is not this: it carries code and nothing else.
+  `args`, and turning a captured handle into a runtime refusal instead of a compile error. A static method
+  is allowed *because* it is not this: it carries code and nothing else, and its input arrives through the
+  same `args` a file's does.
 - **A second wait beside `receive()`** — a `Core\Topic::receive()` drained by a sibling task under
   `Core\Task::all`. Works with nothing new, and every connection script would write the same two-task
   scaffold to get one loop's worth of behaviour. Rejected for § 3's select inside `receive()`: the

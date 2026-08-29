@@ -40,9 +40,9 @@
 
 ## Decision
 
-**Novis gets a first-class construct for executing another `.nvs` file — or a callable that captures
-nothing — as an isolated unit of work inside the same process — an *isolate*. It shares nothing with its
-parent except immutable compiled code and its parent's resource budget.**
+**Novis gets a first-class construct for executing another `.nvs` file — or a static method — as an
+isolated unit of work inside the same process — an *isolate*. It shares nothing with its parent except
+immutable compiled code and its parent's resource budget.**
 
 The provisional surface, spelled out here so the semantics have something to hang on. The *semantics* below
 are what this ADR fixes; the exact spelling is pinned down in `docs/spec/` during M5, and is the part to
@@ -80,21 +80,27 @@ mixed $month = Script::args()['month'];
 return ['rows' => Reports::build($month)];
 ```
 
-**The operand names the entry, and it is one of two things: a path, or a callable that captures nothing.**
+**The operand names the entry, and it is one of two things: a path, or a static method.**
 `spawn script Reports::monthly(...) with(args: {month: $m})` runs that static method in a fresh isolate
-exactly as the path form runs a file, and it still reads its input through `Core\Script::args()`, so the copy
-the boundary performs stays visible at the call site rather than hidden in a parameter list. The operand is
-decided syntactically, at the spawn site: an `fn` literal whose capture set is empty
-([ADR 0031](0031-callable-is-the-only-closure-type.md) § 2 makes that set implicit, minimal and therefore
-knowable) or a `Class::method(...)` reference, which captures nothing by construction. A literal that reads
-an outer variable is a compile error naming the variable and pointing at `args:`; a variable of type
-`callable` is refused outright, because whether *it* captures is not known statically and the rule is not
-worth a qualifier on the type. What crosses in either form is the one thing an isolate always shares —
-compiled code — so the budget, grant and copy rules below do not distinguish the two. The same operand rule
-is `Core\Socket::upgrade`'s and `Core\Sse::upgrade`'s ([0083](0083-persistent-connections-are-isolates.md)
+exactly as the path form runs a file, and the isolate calls it with `args:`'s entries as **named
+arguments** — `Reports::monthly(month: $m)`, after the copy below — so the entry is an ordinary function
+with an ordinary signature: typed at the boundary, callable and testable directly, and a name `args:`
+holds that the entry does not declare, or a required parameter it omits, is the ordinary named-argument
+error, reported at compile time when `args:` is a literal and at the spawn otherwise. A file has no
+parameter list, which is why the path form reads `Core\Script::args()` instead; the accessor answers the
+map in either form ([0012](0012-no-superglobals.md) § 6 defines it as the map the isolate was spawned
+with), a method entry simply has no reason to call it. The operand is decided syntactically at the spawn
+site — a `string` expression, or a `Class::method(...)` reference written there — and nothing else. A
+variable of type `callable` is refused, because whether *it* captures is not known statically and the rule
+is not worth a qualifier on the type. An `fn` literal is refused too, with a diagnostic naming the method
+form: a literal with nothing to capture is a function that has not been given a name, and the same
+`fn() => …` one keyword away in `spawn worker` *does* capture, so allowing it here would be one spelling
+with two meanings. What crosses in either form is the one thing an isolate always shares — compiled code —
+so the budget, grant and copy rules below do not distinguish the two. The same operand rule is
+`Core\Socket::upgrade`'s and `Core\Sse::upgrade`'s ([0083](0083-persistent-connections-are-isolates.md)
 § 2); a `[[schedule]]` entry ([0073](0073-scheduled-work-is-config.md)) and a `Core\Queue` job
 ([0084](0084-durable-background-jobs.md)) stay paths, because a string in a config file or a database row
-can hold a path and cannot hold a callable.
+can hold a path and cannot hold a method reference.
 
 `spawn script` joins `spawn` (a task on this core, same heap) and `spawn worker` (a task on another core,
 values deep-copied) rather than introducing a parallel concurrency vocabulary: it is awaited like them, it
@@ -131,8 +137,8 @@ bullets below are that ADR's rules, restated here because this is the boundary a
 - **Closures, `inout` bindings and objects holding a host handle cannot cross.** A closure captures a heap
   and a scope, an `inout` binding is an alias, and an open file or child process is a handle owned by this
   process;
-  none of the three has a meaning in another heap. (A callable that captures *nothing* may be the entry,
-  above, for the same reason: it carries code and no heap.) **The idiom for a script that needs a live handle inside
+  none of the three has a meaning in another heap. (A static method may be the entry, above, for the same
+  reason: a `Class::method(...)` reference carries code and no heap.) **The idiom for a script that needs a live handle inside
   the child is to pass what identifies it, not the handle itself** — a DSN, a path, a credential reference —
   as an ordinary `args:` value, and have the child open its own. This is not a workaround; it is the isolation model's actual point (no
   ambient authority, no shared handle), the same reason a spawned isolate cannot see the parent's
@@ -291,6 +297,15 @@ state-bleed suite for isolates, and that a fix on either path cannot forget the 
 - **An independent budget per isolate** rather than a share of the root's. A hole in isolation, not a
   trade-off: memory would stop being attributable to a request, forbidden by
   [0004](0004-memory-for-simplicity.md)'s *bounded, not merely modest* clause.
+- **A method entry reading `Core\Script::args()`, its parameter list ignored.** Kept the two operand forms
+  uniform. Rejected: `Reports::monthly(...)` is first-class-callable syntax, which everywhere else means
+  "call this with arguments", so a reader writes `monthly(int $month)` and expects the binding — and an
+  entry that reads the accessor instead cannot be called or tested as an ordinary function. The copy is
+  exactly as visible either way: it is the `args:` key at the spawn site.
+- **An `fn` literal that captures nothing as the entry.** Rejected for the reason in the decision: a
+  closure minus its capture is a function without a name, and the identical literal captures in
+  `spawn worker`. Requiring the name costs one declaration and removes a capture-set checker, its
+  diagnostic, and one spelling with two meanings.
 
 ## Revisiting
 

@@ -135,11 +135,12 @@ suite gains connections as its third parameterisation rather than a second suite
     **the upgrading request's arena is released while the connection is open** — the memory probe in the
     ADR's *Verification*, and the claim that a connection is not a held request.
 19b. **`Core\Socket::upgrade` and the entry rule it shares with `spawn script`.** `upgrade` takes ADR 0006's
-    operand — a file path, or a callable that captures nothing — and its `with(...)` clause whole, and
-    returning it is what performs it. The operand's callable half lands **first at `spawn script`**: the
-    parser, lowering's capture-set check with its diagnostic naming the variable, and a function→`Program`
-    arm beside `program_over` in `crates/nvs-cli/src/script.rs`; `upgrade` then reuses all three rather
-    than growing a check of its own.
+    operand — a file path, or a static method — and 0006's options as ordinary named arguments (`args:`,
+    `limits:`, `grants:`, `on:`), and returning it is what performs it. The operand's method half lands
+    **first at `spawn script`**: the parser, the type check that binds `args:` to the entry's parameters by
+    name and refuses an `fn` literal or a `callable`-typed variable with a diagnostic naming the method
+    form, and a function→`Program` arm beside `program_over` in `crates/nvs-cli/src/script.rs`; `upgrade`
+    then reuses all three rather than growing a check of its own.
 19c. **`Core\Socket::current`, `Socket\Message`, `send`, `receive`, `close`** — ADR 0083 § 3. `receive()`
     is **the one wait**, over the peer *and* the connection's subscribed topics, answering a peer frame
     (payload `tainted`) or a topic delivery (the copied value and the topic's name); there is no
@@ -233,8 +234,9 @@ what this adds.
 - **`tungstenite` is the framing crate**, sync, over `NvsStream` with no adapter, picked under ADR 0051
   § 4's pre-authorization; owning RFC 6455 is refused for the reason owning h1 is.
 - **`receive()` selects over both sources** — ADR 0083 § 3 — and an isolate's entry is a path or a
-  callable that captures nothing — ADR 0006. Both are decided in those bodies; a session that wants a
-  `Core\Topic::receive()` or a capturing closure has found the decision, not a gap.
+  static method with `args:` bound to its parameters — ADR 0006. Both are decided in those bodies; a
+  session that wants a `Core\Topic::receive()`, an `fn` literal entry or a capturing closure has found the
+  decision, not a gap.
 - **`Core\Session` may not use the local cache tier.** ADR 0059 § 4.
 - **A mount routes and carries nothing else.** Policy is the per-app block's, which goal 3 built.
 - **`nvs ctl reload` is the socket's only operation**, and there is no network-reachable control surface in

@@ -161,7 +161,7 @@ spellings rejected, and the reasoning.
   ([0055](0055-extension-qualifier-declarations.md)).
 - **Extensions are sandboxed wasm, never `dlopen`** ([0003](0003-extension-system.md)).
 - **An isolate shares nothing but compiled code, and spends its parent's budget**; its entry is a file
-  path or a callable that captures nothing, never a capturing closure
+  path or a static method whose parameters `args:` binds by name, never a closure
   ([0006](0006-isolated-script-execution.md)).
 - **A WebSocket or SSE connection is its own root isolate, opened with `spawn script`'s operand**, its
   `receive()` is the one wait over the peer and its topics, and `Core\Topic` closes a slow subscriber

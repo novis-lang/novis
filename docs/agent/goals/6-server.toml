@@ -281,12 +281,12 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "6b persistent connections"
-name = "nvs-cli (ADR 0006 -- an isolate's entry is a path or a callable that captures nothing)"
+name = "nvs-cli (ADR 0006 -- an isolate's entry is a path or a static method)"
 args = ["test", "-p", "nvs-cli"]
 tests = [
   "spawn_script_runs_a_static_method_reference_in_a_fresh_isolate",
-  "spawn_script_runs_a_literal_that_captures_nothing_in_a_fresh_isolate",
-  "a_spawn_target_that_captures_a_variable_is_refused_naming_it",
+  "spawn_script_binds_args_to_the_entrys_parameters_by_name",
+  "an_fn_literal_is_refused_as_a_spawn_target_naming_the_method_form",
   "a_callable_typed_variable_is_refused_as_a_spawn_target",
 ]
 
@@ -301,7 +301,7 @@ tests = [
   "the_upgrading_requests_arena_is_released_while_the_connection_is_open",
   "a_connection_isolate_cannot_read_the_upgrading_requests_state",
   # § 2 -- the entry rule is spawn script's, at a second site.
-  "an_upgrade_by_callable_is_the_same_isolate_as_an_upgrade_by_path",
+  "an_upgrade_by_static_method_is_the_same_isolate_as_an_upgrade_by_path",
   # § 3 -- one wait, two sources; null when the peer closed.
   "receive_answers_a_peer_frame_and_a_topic_delivery_from_one_wait",
   "receive_answers_null_when_the_peer_closes",
