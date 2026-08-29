@@ -28,7 +28,7 @@
   forward reference to a mechanism no ADR had defined.
   [docs/spec/01-core-library.md](../spec/01-core-library.md) §§ 13 and 15 — the `Core\Router` row and the
   `Core\Request` roster.
-- **Amended by:** none.
+- **Amended by:** 0110
 
 > **In short:** [ADR 0077](0077-compile-time-routing.md) stopped at matching and was right to. What it left
 > was not a boundary problem but a set of holes an application falls into on its first week: the match
@@ -202,8 +202,10 @@ difference is what [0095](0095-ambiguous-input-is-refused-never-repaired.md) ref
 [0097](0097-development-server-and-proxied-origin.md) § 7 refuses for the trailing slash specifically.
 
 What this replaces is a real papercut rather than a missing convenience: the two-attribute spelling is
-already legal, because `#[Route]` is repeatable — but `name` may not be duplicated, so one of the two forms
-loses reverse-URL generation, and [0076](0076-observability-export.md) § 1 sees one endpoint as two series.
+already legal, because `#[Route]` is repeatable — but the two forms carry different paths, so
+[0110](0110-one-methods-repeated-routes-share-a-name-when-they-share-a-path.md) § 1's shared name is not
+available to them, one of the two loses reverse-URL generation, and
+[0076](0076-observability-export.md) § 1 sees one endpoint as two series.
 In the trie, `{name?}` is one node marked terminal, so it costs the 13.2 ns static-hit path and not a
 second walk.
 

@@ -1,0 +1,198 @@
+# ADR 0110 — One method's repeated routes share a name when they share a path
+
+- **Status:** Accepted
+- **Date:** 2026-08-29
+- **Scope:** decides that repeated `#[Route]` attributes on one method may carry the same `name` when they
+  also carry the same `path`, that every other duplicate `name` stays a compile error, what
+  `Core\Router::url` and `Core\Router\Match::name` do with a shared one, and how
+  [0085](0085-openapi-is-generated-from-the-route-table.md)'s `operationId` stays unique. Not in scope: the
+  duplicate-*route* rule over `(path, method)` pairs, which
+  [0077](0077-compile-time-routing.md) § 3 keeps unchanged; dispatch, which that ADR's § 4 still refuses;
+  and deriving a `path` or a `name` from the declaring class, which *Alternatives rejected* declines.
+- **Depends on:** [0077](0077-compile-time-routing.md) — without its route table and its duplicate-`name`
+  rule there is nothing here to relax.
+- **Amends:** [0077](0077-compile-time-routing.md) § 3 — its unconditional *"Duplicate `name` values are a
+  compile error the same way"* gains the one exception § 1 below states, and that sentence is rewritten
+  there rather than overlaid here.
+  [0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 4 — its
+  papercut paragraph says `name` *"may not be duplicated, so one of the two forms loses reverse-URL
+  generation"*, which is no longer true of the same-path case; the paragraph is corrected there.
+  [0085](0085-openapi-is-generated-from-the-route-table.md) § 1 — its *Path, method, operation id* row
+  needs a rule for a name two operations share, and § 3 below is it.
+
+> **In short:** `#[Route]` is repeatable, which is how one method serves several verbs — but
+> [0077](0077-compile-time-routing.md) § 3 made a duplicate `name` a compile error, so at most one of those
+> verbs could be named, and the rest lost `Core\Router::url` and lost
+> [0076](0076-observability-export.md) § 1's `route` label. **Repeated `#[Route]` attributes on one method
+> may now share a `name`, provided they share a `path`.** That condition is the whole of the safety
+> argument: one path per name keeps `url()` a function, so no rule is needed to choose between two. Every
+> other duplicate `name` — across two methods, or on one method whose repetitions differ in `path` — stays
+> the compile error it was, and the duplicate-*route* rule over `(path, method)` is untouched. **No
+> wildcard verb is added and none will be**: `methodsFor` owes an exact `Allow:` header and
+> [0096](0096-a-route-without-a-declared-access-decision-does-not-compile.md) § 4 classifies CSRF per verb,
+> and both read the exact set a wildcard would erase.
+
+## Context
+
+- **`method` is required and singular.** [0077](0077-compile-time-routing.md) § 1 rejected a
+  `methods: array<Method>` field because the attribute is already repeatable, and repeating it is how
+  `/health` answers both `Get` and `Head`.
+- **But § 3 of the same ADR made a duplicate `name` a compile error**, with no exception for the
+  repetition its own § 1 recommends. The two rules were written for different failures and collide on this
+  one shape. The result is a route that must choose:
+
+  ```php
+  #[Route(path: "/webhook", method: Http\Method::Post, name: "webhook")]
+  #[Route(path: "/webhook", method: Http\Method::Put)]      // unnamed — no url(), no route label
+  #[Route(path: "/webhook", method: Http\Method::Patch)]    // unnamed
+  #[Access(Public)]
+  public function receive(): Response { … }
+  ```
+
+- **Two things break, and neither is cosmetic.** [0077](0077-compile-time-routing.md) § 4 makes a literal
+  `url()` name that does not resolve a compile error, so a link to the `Put` form cannot be *written* —
+  the only escape is concatenating the path by hand, which is the URL-path sink that member exists to
+  launder. And [0076](0076-observability-export.md) § 1's `route` label carries the declared name or
+  nothing, so one endpoint reports as one named series plus a heap of unlabelled requests, which is worse
+  than either a wrong answer or no answer because it looks like a working dashboard.
+- **This is a papercut [0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+  § 4 already diagnosed on a different axis.** There the two forms were a path with and without a trailing
+  segment, the two-attribute spelling was legal, one form lost its name, and metrics split — and that ADR
+  fixed it by adding `{name?}` to the grammar rather than by living with it. The verb axis has the
+  identical shape and never got the same treatment.
+- **The obvious fix is the wrong one.** A wildcard verb erases exactly the fact two mechanisms read: § 2
+  below is the argument, and it is the reason this ADR relaxes a name rule instead of adding a `method`
+  spelling.
+
+## Decision
+
+### 1. A `name` may repeat on one method when the `path` repeats with it
+
+Repeated `#[Route]` attributes on **one method** may carry the same `name`, provided every one of them
+carries the same `path`:
+
+```php
+#[Route(path: "/webhook", method: Http\Method::Post,   name: "webhook")]
+#[Route(path: "/webhook", method: Http\Method::Put,    name: "webhook")]
+#[Route(path: "/webhook", method: Http\Method::Patch,  name: "webhook")]
+#[Route(path: "/webhook", method: Http\Method::Delete, name: "webhook")]
+#[Access(Public)]
+public function receive(): Response { … }
+```
+
+Every other duplicate `name` is the compile error it was, naming both sites:
+
+- the same `name` on **two different methods** — the copy-paste that gives two endpoints one identity, and
+  the failure the original rule was written for;
+- the same `name` on one method whose repetitions carry **different paths** — `url()` would have two
+  answers and no ground to prefer one.
+
+**The duplicate-*route* rule is untouched.** Two attributes sharing both `path` and `method` remain an
+error whether or not they sit on one method, so nothing here lets a duplicate route in through the door a
+shared name opens.
+
+Writing the name on each line, rather than inheriting it from the first, is deliberate: the attributes are
+independent literals ([0046](0046-attributes-shape-literal-metadata.md)), an inheritance rule would make
+their order matter, and order-independence is what [0077](0077-compile-time-routing.md) § 2 spends its
+precedence rules to buy.
+
+### 2. No wildcard verb, and the two mechanisms that forbid one
+
+**There is no `Method::Any`, no `method` omission and no multi-valued `method`.** This is a decision, not a
+deferral, because two shipped mechanisms read the exact verb set a wildcard would erase:
+
+- **`Core\Router::methodsFor`**
+  ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 2) returns
+  the verbs a path serves, and an empty list is a `404` while a non-empty one is a `405` with an `Allow:`
+  header naming them. A wildcard route makes that header either unanswerable or a dump of the whole enum,
+  and `405` stops being reachable at all.
+- **CSRF-by-default** ([0096](0096-a-route-without-a-declared-access-decision-does-not-compile.md) § 4) is
+  classified per verb — on for `POST`, `PUT`, `PATCH` and `DELETE`, off for the safe ones. A wildcard
+  declares a route that is half unsafe, and the server would have to decide from the request rather than
+  from the declaration, which is the arrangement § 4 of that ADR explicitly rejected.
+
+`Core\Http\Method` is a closed enum ([0010](0010-enums-are-a-value-type.md)) besides, so a wildcard could
+not honestly mean *any* verb even if the two objections above did not exist — it would mean *the ones this
+version of `Core` happens to name*, silently changing meaning when a case is added.
+
+§ 1 gives the ergonomics a wildcard was wanted for: one name, one `url()` target, one metrics series. What
+it does not give is one *line*, and that is the point — each verb a route answers stays visible at the
+declaration, which is where `methodsFor` and the CSRF classification read it.
+
+### 3. `url()`, the match, and the generated `operationId`
+
+- **`Core\Router::url("webhook", […])` returns the one path**, because § 1's condition makes the
+  name-to-path mapping a function. No verb argument is added to `url` or `urlAbsolute`; a caller that
+  needs to know which verb to send already knows.
+- **`Core\Router\Match::name` carries the shared name for every verb**, so
+  [0076](0076-observability-export.md) § 1's `route` label reports one series per endpoint. That section
+  needs no amendment: it already says the label carries the route's declared name, and this ADR only means
+  more routes have one.
+- **The route table's shape does not change.** It still holds one entry per `(path, method)` pair; `name`
+  is a column on each entry rather than a key into them, and the reverse index it feeds is built from that
+  column exactly as before.
+- **[0085](0085-openapi-is-generated-from-the-route-table.md) § 1's `operationId` is the `name`, with the
+  lowercased verb appended when two operations share it** — `webhook.post`, `webhook.put`. OpenAPI requires
+  `operationId` to be unique per operation, and `(path, method)` is unique by § 1's own condition, so the
+  suffix is deterministic and needs no counter. A name carried by exactly one operation is emitted bare, so
+  no existing document moves.
+
+## Consequences
+
+- **A multi-verb endpoint is one thing everywhere it is observed** — one `url()` target, one `route` label,
+  one row in a generated document with one `operationId` per verb under it. That was the whole cost.
+- **Runtime cost is zero and memory cost is one column's worth of repeats.** No table entry is added, no
+  index is added, and the `?string` column that held `none` now holds a value. Under
+  [ADR 0004](0004-memory-for-simplicity.md)'s ordering this is not a trade worth stating further.
+- **Nothing that compiles today stops compiling.** This ADR only widens what is accepted, so there is no
+  migration and no sweep — the opposite of
+  [0096](0096-a-route-without-a-declared-access-decision-does-not-compile.md)'s *Consequences*, which is
+  why that one had to be decided before M7 and this one did not.
+- **A method serving both a safe and an unsafe verb now reads as one route**, and it carries one
+  `#[Access]` for both. That was already true — `#[Access]` has always been per method — but this ADR makes
+  the shape more attractive, so it is worth saying plainly that the CSRF classification is still per verb:
+  the `Post` form is protected and the `Get` form is not, from one declaration.
+- **The diagnostic for a duplicate `name` gets harder to write than it was**, because it must now say
+  *which* of the three conditions failed and name two sites in each case. A rule with an exception costs
+  its exception at the diagnostic, and that is where this ADR's complexity lands rather than at the
+  matcher.
+
+## Alternatives rejected
+
+- **A wildcard verb — `Method::Any`, or omitting `method`.** The spelling everyone reaches for, and it is
+  one line instead of four. Rejected in § 2: `methodsFor` owes an exact `Allow:` and CSRF is classified per
+  verb, so both would have to start reading the request instead of the declaration.
+- **`methods: array<Method>` on the attribute.** Rejected in [0077](0077-compile-time-routing.md) § 1 and
+  not reopened here: it gives one route two spellings and makes the repeatable-attribute rule redundant.
+- **Inheriting the `name` from the first of a repeated attribute.** Fewer characters than § 1's
+  write-it-each-time. Rejected: it makes the attributes' order significant, and
+  [0077](0077-compile-time-routing.md) § 2 spends real design effort making a route table order-independent.
+- **Allowing a shared `name` across different paths, with `url()` taking a verb to disambiguate.** Rejected:
+  it puts an argument on `url()` that callers must supply for one route's shape and not another's, and it
+  reintroduces the choose-between-two-declarations rule § 1's condition exists to avoid.
+- **Deriving `path` or `name` from the declaring class and method**, the convention-routing arrangement of
+  Rails, CakePHP and ASP.NET's convention routes. It makes a route free to declare and is genuinely
+  pleasant in an application whose URLs are nobody's API. Rejected on the asymmetry it cannot fix: the
+  compiler checks every *internal* reference to a route and exactly zero *external* ones, so renaming a
+  class produces a tidy set of compile errors for the `url()` calls and silently moves the URL that is in
+  a bookmark, an email, another service's configuration and a search index. A path is a public interface
+  and a class name is an implementation detail; a derivation rule welds them together, and
+  [0077](0077-compile-time-routing.md) § 1 already declined the weaker form of this for the same family of
+  reasons. The typing it saves is better bought by a quick fix that *writes* the derived path into the
+  source once ([0040](0040-vscode-deep-tooling-and-resilient-parsing.md) owns those), leaving a path that
+  is real text, greppable, and stable under every later rename.
+
+## Verification
+
+- A `.nvst` case per branch of § 1: repeated `#[Route]` on one method sharing `path` and `name` compiles;
+  the same `name` with differing paths is a compile error naming both attributes; the same `name` on two
+  methods is a compile error naming both methods; two attributes sharing `path` *and* `method` is still
+  [0077](0077-compile-time-routing.md) § 3's duplicate-route error, so the exception did not widen that one.
+- A case asserting `Core\Router::url` on a shared name resolves — a literal name is what asserts a route
+  table, per `examples/routes.nvs`, so a shared name that failed to resolve would fail the build.
+- A case asserting `Core\Router\Match::name` is set for **each** verb of a shared-name route, which is the
+  [0076](0076-observability-export.md) § 1 half of the papercut and is not observable through `url()`.
+- The frozen OpenAPI document for a fixture with one shared-name route and one bare-name route, pinning
+  both halves of § 3's `operationId` rule in one artifact.
+- A case asserting no wildcard spelling parses: `method: Http\Method::Any` fails to resolve as an enum case,
+  and a `#[Route]` with no `method` fails against the declared `Core\Route` shape.

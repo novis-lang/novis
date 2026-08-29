@@ -105,6 +105,7 @@ so you never have to open this file to route a topic.
 | `#[Attribute]`-style metadata, annotations, `Core\Attributes`, why there's no attribute base class | [0046](0046-attributes-shape-literal-metadata.md) |
 | Hydrating a class from JSON or a database row — `#[Json\Derive]`, `#[Db\Derive]`, `JsonSerializable`, `PDO::FETCH_CLASS`, serde-style derives, reporting every bad field of a submitted form | [0071](0071-derived-codecs.md) |
 | Routing — `#[Route]`, URL patterns and `{id}` placeholders, reverse URL generation, why the router does not dispatch, `Core\Router` | [0077](0077-compile-time-routing.md) |
+| Whether one method may serve several verbs under one route name, why there is no wildcard verb, and why a path is never derived from the declaring class | [0110](0110-one-methods-repeated-routes-share-a-name-when-they-share-a-path.md) |
 | Reading the current route and its parameters, a `405` and its `Allow:` header, binding a query parameter with `#[Query]`, an optional `{page?}` segment, narrowing a capture to a closed set, why the router refuses a regex, absolute links and `[app]`/mount `origin`, `Core\Request::mount()` for subdomain multi-tenancy, who enforces `#[Access]` | [0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) |
 | Writing a CLI program — colour and `Cli\Text`, why `echo` neutralizes escape sequences, prompts and `select`, password input, progress bars and in-place output, `#[Command]`/`#[Option]` argument parsing, `--help` and shell completions, `isTty`, terminal width | [0086](0086-core-cli-terminal-is-a-sink.md) |
 | Python — what Novis claims against it and what may never be said, whether a script needs `<?nvs`, `#!`/shebang, why there is no REPL or interactive shell, `pip`/virtualenv/PyInstaller, and how the two are benchmarked | [0100](0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md) |
@@ -316,6 +317,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0107](0107-by-reference-parameters-are-spelled-inout-at-both-ends.md) | A by-reference binding is spelled `inout`, at the declaration and at the call | Accepted |
 | [0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) | One reference index answers five features, editor completion may only offer what the compiler already derived, and a template region gets services but no second formatter | Accepted |
 | [0109](0109-a-for-header-declares-its-own-counter.md) | A `for` header may declare its own counter, and an init clause is a declaration or an expression list, never both | Accepted |
+| [0110](0110-one-methods-repeated-routes-share-a-name-when-they-share-a-path.md) | One method's repeated routes share a name when they share a path | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

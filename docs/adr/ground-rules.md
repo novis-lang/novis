@@ -250,6 +250,9 @@ spellings rejected, and the reasoning.
   ([0073](0073-scheduled-work-is-config.md)).
 - **`#[Route]` builds the route table while compiling, and the router stops at matching**
   ([0077](0077-compile-time-routing.md)).
+- **One method's repeated routes may share a `name` when they share a `path`, and there is no wildcard
+  verb** — `methodsFor` owes an exact `Allow:` header and CSRF is classified per verb
+  ([0110](0110-one-methods-repeated-routes-share-a-name-when-they-share-a-path.md)).
 - **The server matches each request once before the handler, and `Core\Request::route()` is that match**
   ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)).
 - **A capture narrows to a closed set with a type and never with a regex**, because a pattern over the

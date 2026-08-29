@@ -15,7 +15,7 @@
   [0019](0019-reflection-and-ast-parsing-are-core-features.md) — one more thing its *Consequences* named as
   a userland use of reflection is a compiler pass instead, for the same reason routing became one.
   [docs/implementation-plan.md](../implementation-plan.md) — M4S gains the emitter, M7 the serving.
-- **Amended by:** 0102
+- **Amended by:** 0102, 0110
 - **Depends on:** [0077](0077-compile-time-routing.md) and [0071](0071-derived-codecs.md) — with neither,
   there is nothing to generate from.
 
@@ -60,7 +60,7 @@
 
 | Part of the document | Comes from |
 |---|---|
-| Path, method, operation id | `#[Route]`'s `path`, `method` and `name` ([0077](0077-compile-time-routing.md)) |
+| Path, method, operation id | `#[Route]`'s `path`, `method` and `name` ([0077](0077-compile-time-routing.md)); a `name` two operations share carries the lowercased verb as a suffix, so `operationId` stays unique ([0110](0110-one-methods-repeated-routes-share-a-name-when-they-share-a-path.md) § 3) |
 | Path parameters and their schemas | the handler's own parameters, by declared type — the same binding [0077](0077-compile-time-routing.md) § 3 already makes |
 | Query parameters | `#[Query]` parameters, by declared type, with a parameter default making one optional ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 3) |
 | Request body schema | the `#[Json\Derive]` codec of the body parameter's class ([0071](0071-derived-codecs.md)) |

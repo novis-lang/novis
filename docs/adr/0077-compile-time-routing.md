@@ -21,7 +21,7 @@
   [docs/spec/01-core-library.md](../spec/01-core-library.md) § 13 — a `Core\Router` row.
   [docs/implementation-plan.md](../implementation-plan.md) — M4S gains the table-building pass, M7 the
   matcher.
-- **Amended by:** 0082, 0085, 0096, 0097, 0102
+- **Amended by:** 0082, 0085, 0096, 0097, 0102, 0110
 
 > **In short:** `#[Route(path: "/users/{id}", method: Http\Method::Get, name: "user.show")]` on a method is
 > read **while compiling**, through the program enumeration
@@ -169,7 +169,12 @@ kind:
 **Two routes with the same `method` and the same path *shape* are a duplicate-route compile error**, naming
 both sites, regardless of their parameter types. A type narrows matching at run time; it never disambiguates
 two declarations, because a rule under which it did would make matching depend on declaration order after
-all. Duplicate `name` values are a compile error the same way.
+all. **Duplicate `name` values are a compile error the same way, with one exception**: repeated `#[Route]`
+attributes on **one method** may share a `name` when they also share a `path`, which is how a route
+answering several verbs stays one thing to `url()` and to
+[0076](0076-observability-export.md) § 1's `route` label
+([0110](0110-one-methods-repeated-routes-share-a-name-when-they-share-a-path.md) § 1). Two methods sharing
+a name, and one method whose repetitions differ in `path`, remain errors.
 
 ### 4. The API, and where it stops
 
