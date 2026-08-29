@@ -907,6 +907,10 @@ is why" — is this file.
   **rename** the existing test rather than adding a second copy of it — the check is the contract
   for the name, and two tests asserting one thing is how the next session loses an hour deciding
   which is authoritative.
+- `python tools/adr.py --index` **prints** the regenerated index table; it does not write it. The
+  `index table is stale` finding stays until you paste the new row into `README.md` yourself, and the
+  two *other* index findings (`no bullet in ground-rules.md`, `no row in § Where to look`) are three
+  separate edits in two files, not one. Budget four edits per new ADR, then `--check` for `exit=0`.
 
 ## Running things
 
