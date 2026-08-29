@@ -1212,6 +1212,125 @@ mod tests {
         assert_eq!(report.finished, 1);
     }
 
+    /// ADR 0115 § 3's claim in the strongest form there is: the stream is a
+    /// plain `Read`/`Write`, so a protocol implementation that has never heard
+    /// of this crate runs over it unchanged. TLS is the witness worth having.
+    /// It reads and writes inside a single call; a record is a length-prefixed
+    /// frame that a short read *corrupts* rather than merely delays; and
+    /// `rustls` treats a `WouldBlock` from the socket as an error to propagate
+    /// rather than a park to retry — so a stream that leaked one would fail
+    /// here and nowhere else in this module. Nothing in the client half below
+    /// names `NvsTcp` except the line that constructs it.
+    ///
+    /// The peer answers late twice, and the second one is the point. Once
+    /// before its handshake flight, so the session parks mid-handshake; then
+    /// with the answer's **last byte** held back, so a park lands strictly
+    /// inside an application record rather than tidily between two. A stream
+    /// that reported a short read as a complete one passes the first and fails
+    /// the second.
+    #[test]
+    fn a_rustls_session_streams_over_it_unmodified() {
+        use rustls::pki_types::{PrivateKeyDer, PrivatePkcs8KeyDer, ServerName};
+        use std::sync::Arc;
+
+        let issued = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()])
+            .expect("the certificate could not be generated");
+        let cert = issued.cert.der().clone();
+        let key =
+            PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(issued.signing_key.serialize_der()));
+
+        // The provider is named rather than installed: `install_default` is
+        // global to the whole test binary, and this test needs no such reach.
+        let provider = Arc::new(rustls::crypto::ring::default_provider());
+        let server_config = rustls::ServerConfig::builder_with_provider(Arc::clone(&provider))
+            .with_safe_default_protocol_versions()
+            .expect("the provider refused the default versions")
+            .with_no_client_auth()
+            .with_single_cert(vec![cert.clone()], key)
+            .expect("the certificate and the key did not pair");
+        let mut roots = rustls::RootCertStore::empty();
+        roots
+            .add(cert)
+            .expect("the root store refused the certificate");
+        let client_config = rustls::ClientConfig::builder_with_provider(provider)
+            .with_safe_default_protocol_versions()
+            .expect("the provider refused the default versions")
+            .with_root_certificates(roots)
+            .with_no_client_auth();
+
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+        let peer = std::thread::spawn(move || {
+            let (mut sock, _) = listener.accept().expect("the accept failed");
+            let mut conn = rustls::ServerConnection::new(Arc::new(server_config))
+                .expect("the server config was rejected");
+            // Late on purpose: the client is already parked on this flight.
+            std::thread::sleep(Duration::from_millis(20));
+            let mut heard = [0_u8; 5];
+            rustls::Stream::new(&mut conn, &mut sock)
+                .read_exact(&mut heard)
+                .expect("the peer's read failed");
+            assert_eq!(&heard, b"ping\n");
+
+            // Framed by hand instead of through `Stream`, for the one thing a
+            // test needs out of it: the record becomes a buffer this thread
+            // can cut, and the cut is what puts the park inside it.
+            conn.writer()
+                .write_all(b"pong\n")
+                .expect("the peer's write failed");
+            let mut record = Vec::new();
+            while conn.wants_write() {
+                conn.write_tls(&mut record)
+                    .expect("the record could not be framed");
+            }
+            let (head, tail) = record.split_at(record.len() - 1);
+            sock.write_all(head).expect("the peer's first half failed");
+            std::thread::sleep(Duration::from_millis(20));
+            sock.write_all(tail).expect("the peer's last byte failed");
+        });
+
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+        let session = Rc::new(RefCell::new(None));
+        let recorded = Rc::clone(&session);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            let mut sock = NvsTcp::connect(addr).expect("the connect failed");
+            let name = ServerName::try_from("localhost").expect("the name is not a DNS name");
+            let mut conn = rustls::ClientConnection::new(Arc::new(client_config), name)
+                .expect("the client config was rejected");
+            let mut tls = rustls::Stream::new(&mut conn, &mut sock);
+            tls.write_all(b"ping\n").expect("the write failed");
+            tls.flush().expect("the flush failed");
+            let mut heard = [0_u8; 5];
+            tls.read_exact(&mut heard).expect("the read failed");
+            *recorded.borrow_mut() = Some((
+                String::from_utf8(heard.to_vec()).expect("the plaintext was not text"),
+                // Not decoration: a session that had skipped verification would
+                // have carried the same five bytes.
+                conn.peer_certificates().is_some(),
+            ));
+        });
+
+        let report = run_until_idle(&mut sched).expect("the loop failed");
+        peer.join().expect("the peer thread panicked");
+        let session = session.borrow();
+        let (plaintext, verified) = session.as_ref().expect("the session never completed");
+        assert_eq!(plaintext, "pong\n", "the session lost its plaintext");
+        assert!(
+            *verified,
+            "the handshake completed without a verified certificate"
+        );
+        assert!(
+            report.resumes > 1,
+            "the session never parked, so nothing was driven across a park"
+        );
+        assert_eq!(report.finished, 1);
+        // Rule 3: the registration went back with the task, TLS or not.
+        assert_eq!(with_current(|reactor| reactor.registrations()), Some(0));
+    }
+
     /// A path under the system temporary directory that nothing else in this
     /// binary will pick.
     ///

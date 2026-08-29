@@ -21,6 +21,16 @@ core_affinity.workspace = true
 # two questions, and ADR 0115 § 1 says why a poller is not a `tokio`.
 mio.workspace = true
 
+[dev-dependencies]
+# One test's worth: `a_rustls_session_streams_over_it_unmodified` in `net.rs`
+# runs a real TLS session over `NvsStream` with nothing about this crate visible
+# to it, which is what makes ADR 0115 § 3's "a plain `Read` and `Write`" a
+# checked claim rather than a described one. The workspace `Cargo.toml`'s
+# comment above these two answers ADR 0051 § 4 for them, including the part that
+# is spent rather than met.
+rustls.workspace = true
+rcgen.workspace = true
+
 # ---------------------------------------------------------------------------
 # This crate cannot inherit the workspace lint policy: a coroutine yielder
 # reaches a helper through `Ctx` as an opaque pointer (that is what removes

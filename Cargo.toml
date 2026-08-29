@@ -77,6 +77,37 @@ core_affinity = "0.8"
 # contract above it.
 mio = { version = "1", features = ["os-poll", "net"] }
 
+# --- TLS over that stream, for one test and nothing else (ADR 0115 § 3) ---
+# `nvs-host`'s stream is a plain `Read`/`Write`, and the claim that buys is that
+# an *unmodified* protocol implementation runs over it. TLS is the hardest
+# witness for that claim available: a handshake reads and writes inside one
+# call, a record is a length-prefixed frame that a short read corrupts, and a
+# peer answering late leaves the park exactly mid-record. So these are
+# `[dev-dependencies]` of `crates/nvs-host` alone — no Novis binary links
+# either, `cargo tree -e normal` never reaches them, and what a shipped TLS
+# client is built on is goal 4's `Core\Http\Client` question rather than this
+# one.
+# ADR 0051 § 4 is answered for that scope and no wider one. `rustls` itself is
+# pure Rust; its default `aws-lc-rs` provider is a C library, so it is off, and
+# `ring` — pregenerated BoringSSL assembly behind a Rust API — is the provider.
+# `ring` is therefore the one place in this file where ground-rules.md
+# § *Pure-Rust dependencies by default* is spent rather than met, and what it is
+# spent on is a test binary: nothing it compiles reaches a request, a release
+# artifact or a user's machine. The alternative was a hand-rolled framing peer
+# pretending to be a protocol, which would have tested this crate against our
+# own idea of one.
+# `rcgen` is the certificate that handshake needs, on the same provider, so the
+# two share one crypto implementation instead of pulling a second.
+rustls = { version = "0.23", default-features = false, features = [
+    "std",
+    "ring",
+    "tls12",
+] }
+rcgen = { version = "0.14", default-features = false, features = [
+    "crypto",
+    "ring",
+] }
+
 # --- extension sandbox (M9). Built on the same cranelift version above;
 # --- spike #4 confirmed wasmtime 48 and cranelift 0.135 coexist.
 # --- See docs/adr/0003-extension-system.md.
