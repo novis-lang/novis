@@ -1,0 +1,177 @@
+--TEST--
+Spec § 4: the calendar has two ends and the clock has none — `Core\Time\Date::plus`/`minus` refuse at -9999-01-01 and 9999-12-31 in every unit a date takes, one step inside either end is answered, and the step is not modular, where the same two members on a `TimeOfDay` wrap instead and refuse nothing; and the count itself has its own bound, one entry wide, with a different sentence on each side of it
+--FILE--
+<?nvs
+// § 4 gives `Date` and `TimeOfDay` the same two members over the same
+// `Core\Unit`, and they answer differently at their extremes for one reason:
+// a clock dial is closed and a calendar is an interval. Everything below is
+// that one difference, counted from both sides rather than read off a row —
+// a member that refused *near* the end, or wrapped a date the way it wraps a
+// reading, prints plausibly against either half alone.
+class Both {
+    public static function date(Core\Time\Date $d, int $count, Core\Unit $unit): string {
+        try {
+            return $d->plus($count, $unit)->format("yyyy-MM-dd");
+        } catch (RuntimeError $refused) {
+            return $refused->message;
+        }
+    }
+
+    public static function back(Core\Time\Date $d, int $count, Core\Unit $unit): string {
+        try {
+            return $d->minus($count, $unit)->format("yyyy-MM-dd");
+        } catch (RuntimeError $refused) {
+            return $refused->message;
+        }
+    }
+
+    public static function moved(string $answer): bool {
+        return !Core\Str::contains($answer, "Core\\Time\\Date::");
+    }
+
+    public static function clock(Core\Time\TimeOfDay $t, int $count, Core\Unit $unit): string {
+        return $t->plus($count, $unit)->format("HH:mm:ss.SSSSSSSSS");
+    }
+}
+
+// The five units a date takes, and the six a clock takes. The two lists are
+// disjoint and together they are `Core\Unit` entire — which is § 4's two
+// arithmetics written as an enum, and the reason neither sweep below can be
+// widened to the other's values.
+array<Core\Unit> $calendar = [
+    Core\Unit::Day,
+    Core\Unit::Week,
+    Core\Unit::Month,
+    Core\Unit::Quarter,
+    Core\Unit::Year,
+];
+array<Core\Unit> $dial = [
+    Core\Unit::Nanosecond,
+    Core\Unit::Microsecond,
+    Core\Unit::Millisecond,
+    Core\Unit::Second,
+    Core\Unit::Minute,
+    Core\Unit::Hour,
+];
+
+var $top = Core\Time\Date::at(9999, 12, 31);
+var $bottom = Core\Time\Date::at(-9999, 1, 1);
+var $inside = Core\Time\Date::at(2024, 6, 15);
+
+// Both ends of the calendar, in every unit it takes: a step of one off either
+// end is refused, and the same step from a date inside the range is answered.
+// The `inside` column is what makes the refusals mean the *end* rather than
+// the member — a `plus` that had stopped working would score 0 there too.
+int $unit = 0;
+int $pastTop = 0;
+int $pastBottom = 0;
+int $withinTop = 0;
+int $withinBottom = 0;
+int $insideMoves = 0;
+for (; $unit < 5; $unit = $unit + 1) {
+    var $each = $calendar[$unit as string];
+    if (!Both::moved(Both::date($top, 1, $each))) {
+        $pastTop = $pastTop + 1;
+    }
+    if (!Both::moved(Both::back($bottom, 1, $each))) {
+        $pastBottom = $pastBottom + 1;
+    }
+    // One step in from each end, by the same unit: the last move the calendar
+    // accepts on that side. Nothing here is a refusal, so the bound is named
+    // on both sides in all five units and not only in days.
+    if (Both::moved(Both::back($top, 1, $each))) {
+        $withinTop = $withinTop + 1;
+    }
+    if (Both::moved(Both::date($bottom, 1, $each))) {
+        $withinBottom = $withinBottom + 1;
+    }
+    if (Both::moved(Both::date($inside, 1, $each))
+        && Both::moved(Both::back($inside, 1, $each))) {
+        $insideMoves = $insideMoves + 1;
+    }
+}
+echo "past-top=", $pastTop as string,
+    " past-bottom=", $pastBottom as string,
+    " within-top=", $withinTop as string,
+    " within-bottom=", $withinBottom as string,
+    " inside=", $insideMoves as string, "|\n";
+
+// The same two ends on the dial, in every unit *it* takes: a step off the top
+// is answered, never refused, and the answer is on the far side — which is the
+// whole of what "the dial is closed" means. Twelve moves, twelve answers, and
+// every one of them smaller than the reading it came from.
+var $dialTop = Core\Time\TimeOfDay::at(23, 59, {second: 59, nanos: 999999999});
+var $dialBottom = Core\Time\TimeOfDay::at(0, 0);
+int $tick = 0;
+int $wrappedUp = 0;
+int $wrappedDown = 0;
+for (; $tick < 6; $tick = $tick + 1) {
+    var $beat = $dial[$tick as string];
+    if ($dialTop->plus(1, $beat)->compareTo($dialTop) < 0) {
+        $wrappedUp = $wrappedUp + 1;
+    }
+    if ($dialBottom->minus(1, $beat)->compareTo($dialBottom) > 0) {
+        $wrappedDown = $wrappedDown + 1;
+    }
+}
+echo "wrapped-up=", $wrappedUp as string,
+    " wrapped-down=", $wrappedDown as string,
+    " top-plus-nano=", Both::clock($dialTop, 1, Core\Unit::Nanosecond),
+    " top-plus-hour=", Both::clock($dialTop, 1, Core\Unit::Hour), "|\n";
+
+// Modularity is the same difference said the other way. A whole turn of the
+// dial is the identity, so a count and that count plus a turn are one move;
+// a calendar has no turn, so no count is the identity but zero and two counts
+// that differ are two dates. Both halves are counted, because "these two agree"
+// and "these two differ" are each vacuous alone.
+int $round = 0;
+int $modular = 0;
+int $notModular = 0;
+array<int> $offsets = [1, 5, 23, 1000];
+for (; $round < 4; $round = $round + 1) {
+    int $count = $offsets[$round as string];
+    var $noon = Core\Time\TimeOfDay::at(12, 0);
+    if (Both::clock($noon, $count, Core\Unit::Hour)
+        == Both::clock($noon, $count + 24, Core\Unit::Hour)) {
+        $modular = $modular + 1;
+    }
+    // The calendar's nearest thing to a turn is a year of days, and it is not
+    // one: 366 days on from a date is another date, never the same one.
+    if (Both::date($inside, $count, Core\Unit::Day)
+        != Both::date($inside, $count + 366, Core\Unit::Day)) {
+        $notModular = $notModular + 1;
+    }
+}
+echo "clock-modular=", $modular as string,
+    " calendar-not-modular=", $notModular as string, "|\n";
+
+// The count has its own bound, and it is a different bound from the
+// calendar's: 7,304,484 days is a span the step builds and then refuses for
+// where it lands, while 7,304,485 is a count no span carries at all. One entry
+// apart, one sentence each — the same shape the clock's own step has at
+// 175,307,616 hours, and the reason the whole count is still handed to a span
+// rather than reduced first.
+echo "carried=", Both::date(Core\Time\Date::at(1, 1, 1), 7304484, Core\Unit::Day), "|\n";
+echo "uncarried=", Both::date(Core\Time\Date::at(1, 1, 1), 7304485, Core\Unit::Day), "|\n";
+// And a count far past that is the same sentence rather than a wrap: a date is
+// never reached by going round.
+echo "far=", Both::date($inside, 4294967296, Core\Unit::Day), "|\n";
+
+// What the two ends say when they are reached. The unit decides which of the
+// calendar's own two bounds the step lands outside — a month or a year step
+// leaves the year range, a week step leaves the epoch-day range it is counted
+// in — so the sentence names the field that stopped it and not the member's
+// argument.
+echo "top-day=", Both::date($top, 1, Core\Unit::Day), "|\n";
+echo "top-week=", Both::date($top, 1, Core\Unit::Week), "|\n";
+echo "bottom-year=", Both::back($bottom, 1, Core\Unit::Year), "|\n";
+--EXPECT--
+past-top=5 past-bottom=5 within-top=5 within-bottom=5 inside=5|
+wrapped-up=6 wrapped-down=6 top-plus-nano=00:00:00.000000000 top-plus-hour=00:59:59.999999999|
+clock-modular=4 calendar-not-modular=4|
+carried=Core\Time\Date::plus(): parameter 'Unix epoch days' is not in the required range of -4371587..=2932896|
+uncarried=Core\Time\Date::plus(): parameter 'days' is not in the required range of -7304484..=7304484|
+far=Core\Time\Date::plus(): parameter 'days' is not in the required range of -7304484..=7304484|
+top-day=Core\Time\Date::plus(): parameter 'year' is not in the required range of -9999..=9999|
+top-week=Core\Time\Date::plus(): parameter 'Unix epoch days' is not in the required range of -4371587..=2932896|
+bottom-year=Core\Time\Date::minus(): parameter 'year' is not in the required range of -9999..=9999|
