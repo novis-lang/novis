@@ -238,6 +238,83 @@ fn an_all_bits_off_debug_probe_stays_in_the_safepoint_cost_class() {
 
 #[test]
 #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
+fn an_amortised_deadline_poll_costs_less_than_the_check_it_rides_beside() {
+    // ADR 0106 § 5 owns exactly one number and this is it: a helper whose
+    // runtime scales with its input polls the deadline through
+    // `nvs_runtime::bounded_loop`, the poll is amortised over
+    // `DEADLINE_POLL_BATCH` iterations, and what makes that batch the right
+    // size is that the amortised cost stays **under the stack check's own
+    // per-call cost**.
+    //
+    // Both sides are measured here rather than one of them being a constant.
+    // A ceiling copied from one developer's box is what makes a guard like this
+    // flaky, and the two costs move together anyway: they are the same shape.
+    // The right-hand side is the cost class the test above establishes — one
+    // load from `Ctx`'s hot line and one branch predicted not taken — which is
+    // exactly what the stack check compiles to, at the same emit site the
+    // safepoint poll uses (`nvs-runtime`'s `ctx` module doc). Measuring the
+    // emitted check itself would need the probe JIT to grow a stack-check site;
+    // measuring its cost class needs nothing new and answers the same question.
+    const DEPTH: usize = 8;
+    const STMTS_PER_FRAME: usize = 16;
+    const ITEMS: usize = nvs_runtime::DEADLINE_POLL_BATCH * 64;
+
+    let mut probe = Probe::new();
+    let plain_chain = probe.compile_probe_chain(DEPTH, Helper::Double, STMTS_PER_FRAME, false);
+    let checked_chain = probe.compile_probe_chain(DEPTH, Helper::Double, STMTS_PER_FRAME, true);
+    let mut probe_ctx = Ctx::new();
+    let arg = Value::int(3);
+
+    let t_plain_chain = ns_per_op(200_000, 5, || {
+        black_box(call(plain_chain, &mut probe_ctx, arg));
+    });
+    let t_checked_chain = ns_per_op(200_000, 5, || {
+        black_box(call(checked_chain, &mut probe_ctx, arg));
+    });
+    let per_check = (t_checked_chain - t_plain_chain) / (DEPTH * STMTS_PER_FRAME) as f64;
+
+    // The two loops differ by exactly what the combinator adds: a register
+    // countdown and a branch predicted not taken, plus one flag load per batch.
+    // `black_box` on the accumulator keeps both scalar, so neither side wins by
+    // being vectorized rather than by being cheaper.
+    let mut rt = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
+    let mut sum = 0usize;
+
+    let t_plain_loop = ns_per_op(2_000, 5, || {
+        for item in 0..ITEMS {
+            sum = black_box(sum.wrapping_add(item));
+        }
+    });
+    let t_polled_loop = ns_per_op(2_000, 5, || {
+        nvs_runtime::bounded_loop(&mut rt, "Core\\Probe::sweep", 0..ITEMS, |_ctx, item| {
+            sum = black_box(sum.wrapping_add(item));
+            Ok(())
+        })
+        .expect("nothing set a deadline on this context");
+    });
+    black_box(sum);
+
+    let per_poll = (t_polled_loop - t_plain_loop) / ITEMS as f64;
+    println!(
+        "amortised deadline poll: {per_poll:.4} ns per iteration \
+         ({ITEMS} iterations, batch {}, {t_polled_loop:.0} ns vs {t_plain_loop:.0} ns) \
+         against a hot-line check at {per_check:.4} ns{}",
+        nvs_runtime::DEADLINE_POLL_BATCH,
+        under(per_poll.max(f64::MIN_POSITIVE), per_check)
+    );
+
+    assert!(
+        per_poll < per_check,
+        "an amortised deadline poll now costs {per_poll:.4} ns per iteration, \
+         over the {per_check:.4} ns a hot-line check costs. That is ADR 0106 \
+         § 5's own bound, and the fix is the batch in \
+         `nvs_runtime::DEADLINE_POLL_BATCH` or the shape of `bounded_loop`'s \
+         countdown — not this comparison, which is what the ADR says."
+    );
+}
+
+#[test]
+#[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
 fn a_probe_that_is_switched_on_mid_flight_actually_fires() {
     // The other half of the same claim, and the reason the cost above is
     // worth paying: setting the word on a context is the entire mechanism, so
