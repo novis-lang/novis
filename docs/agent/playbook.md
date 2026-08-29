@@ -2418,6 +2418,20 @@ is why" — is this file.
   starting a floor-closing slice: the list is also the cheapest confirmation that the member
   you picked is the one the tree is actually waiting on, and its remaining entries are the next
   session's group.
+- **A `.nvst` case's bindings are function-scoped, not block-scoped, so a second sweep cannot reuse the
+  first one's names.** A `for`/`foreach` body that declares `string $subject` makes a later, entirely
+  separate loop's `string $subject` an `E0406: '$subject' is already declared`, with the two lines
+  pointed at as if one statement were a duplicate of the other — which reads as a copy-paste slip rather
+  than as the scoping rule it is. Renaming the second sweep's bindings is the whole fix, and it is worth
+  doing by hand: a blind textual `$c` → `$meta` also rewrites `$codes` and `$cells`, and the case then
+  fails on names that never existed.
+- **`target/debug/nvs test <one-case.nvst>` runs a single case and prints its actual stdout on a
+  mismatch**, so an `--EXPECT--` is frozen by writing the case with an *empty* one, running it once and
+  pasting back what it printed. That is cheaper than keeping a parallel `.nvs` scratch under
+  `.agent-tmp/`, which costs writing the body twice. Two cautions: the report indents the actual output
+  by four spaces, so the paste is de-indented by hand; and a value that can be empty or end in a space
+  needs a delimiter around it in the `echo` (`"[", $x, "]"`), because a trailing space is invisible in
+  the report and exact in the comparison.
 
 ## Splitting a file that got too big
 
