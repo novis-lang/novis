@@ -24,6 +24,15 @@
 //! [`every_core_class_has_a_conformance_floor_of_three`] is that floor —
 //! landed as a ratchet over the twenty-six members that were already below it,
 //! for the reason [`BELOW_THE_FLOOR`] states.
+//!
+//! **The third gate is the paths no case takes.** A member's guards are
+//! reached by neither the happy path nor the boundaries above it, and Stage
+//! 5's item 11 is
+//! [`every_error_path_is_asserted_or_declared_unreachable`]: every `Fault::`
+//! message either appears in a case's frozen output, or carries a sentence at
+//! its own site saying which diagnostic refuses the call before the runtime
+//! can ever answer it. [`OWED_A_CASE`] is the ratchet that landed over the
+//! fifty-seven that were neither.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -341,4 +350,468 @@ fn every_core_class_has_a_conformance_floor_of_three() {
         closed.len(),
         closed.join("\n  ")
     );
+}
+
+// ------------------------------------------------------------------ the error paths
+
+/// How far past a `Fault::` site its message is looked for, in bytes.
+///
+/// Wide enough to span the two arguments a `Fault::thrown` writes before its
+/// text and a `format!` wrapped over four lines by rustfmt, which is what the
+/// widest sites in `bytes.rs` hold.
+const MESSAGE_WINDOW: usize = 700;
+
+/// How many lines above a `Fault::` site its declaration of unreachability may
+/// sit, and the phrase that declares it.
+///
+/// The search stops at the first `Fault::` it meets on the way up, so a
+/// declaration is never read as covering the site below the one it was written
+/// for. A phrase rather than an attribute because what is being declared is a
+/// judgement about *source programs*, which no attribute can carry: the
+/// sentence after the colon is the whole content, and a reader who disagrees
+/// with it deletes the comment and writes the case.
+const DECLARATION_WINDOW: usize = 8;
+const DECLARATION: &str = "unreachable from source";
+
+/// Every `.rs` file under this crate's `src/`, as `(name, contents)`.
+fn stdlib_sources() -> Vec<(String, String)> {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut out = Vec::new();
+    for entry in fs::read_dir(&dir).unwrap_or_else(|err| panic!("{}: {err}", dir.display())) {
+        let path = entry.expect("a readable directory entry").path();
+        if path.extension().is_some_and(|ext| ext == "rs") {
+            let name = path
+                .file_name()
+                .expect("a file with an extension has a name")
+                .to_string_lossy()
+                .into_owned();
+            let text = fs::read_to_string(&path).unwrap_or_else(|err| panic!("{name}: {err}"));
+            out.push((name, text));
+        }
+    }
+    out.sort();
+    out
+}
+
+/// The whole text of every case under `tests/conformance/` and
+/// `tests/differential/`, concatenated.
+///
+/// Whole text rather than the `--FILE--` section [`case_sources`] reads: what
+/// asserts an error path is the *output* a case froze — an `--EXPECT--` line,
+/// an `--EXPECTF-ERROR--` block, or the frozen half of a divergence — and
+/// enumerating those sections is how one of them gets missed. Both suites,
+/// because a message reached through a PHP-comparable member is asserted in
+/// `tests/differential/` and nowhere else.
+///
+/// This is the corpus `python tools/gaps.py --errors` reads, deliberately the
+/// same one: that tool is the worklist [`OWED_A_CASE`] freezes, and a gate
+/// computing a different set could not be cross-checked against it.
+fn error_corpus() -> String {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut paths = Vec::new();
+    for suite in ["tests/conformance", "tests/differential"] {
+        cases(&root.join(suite), &mut paths);
+    }
+    assert!(
+        paths.len() > 100,
+        "{} holds {} cases across both suites, which is too few to be the corpus — \
+         a check over it would pass vacuously",
+        root.display(),
+        paths.len()
+    );
+    paths
+        .iter()
+        .map(|path| {
+            fs::read_to_string(path).unwrap_or_else(|err| panic!("{}: {err}", path.display()))
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// One `Fault::` site: where it is, the run of its message before the first
+/// format hole, and whether a [`DECLARATION`] sits above it.
+struct Site {
+    file: String,
+    line: usize,
+    stem: String,
+    declared: bool,
+}
+
+/// `text` truncated to at most `bytes`, at a character boundary, and to the
+/// first doc comment before that.
+///
+/// A `///` at the start of a line cannot appear inside an argument list — a
+/// doc comment attaches to an item — so it is where the call being read ends
+/// however the search is going. Without that stop, a `Fault::` whose message
+/// was built above it reads the *next item's* prose as its message, which is
+/// how `test.rs`'s `Fault::thrown_as` acquires the stem "a test that asserts
+/// nothing" in `python tools/gaps.py --errors`.
+fn head(text: &str, bytes: usize) -> &str {
+    let mut end = match text.char_indices().find(|(at, _)| *at >= bytes) {
+        Some((at, _)) => at,
+        None => text.len(),
+    };
+    for (at, _) in text[..end].match_indices("///") {
+        let before = &text[..at];
+        if before.ends_with('\n') || before.trim_end_matches([' ', '\t']).ends_with('\n') {
+            end = at;
+            break;
+        }
+    }
+    &text[..end]
+}
+
+/// The first string literal in `window` whose content is 10 to 400 characters,
+/// still carrying its escapes.
+///
+/// The bound is the same one `gaps.py` writes: under ten characters is a
+/// separator or a member name passed alongside the message rather than the
+/// message, and past four hundred no case froze it whole.
+fn first_literal(window: &str) -> Option<String> {
+    let mut chars = window.char_indices();
+    while let Some((_, opening)) = chars.next() {
+        if opening != '"' {
+            continue;
+        }
+        let mut content = String::new();
+        let mut escaped = false;
+        let mut closed = false;
+        for (_, c) in chars.by_ref() {
+            if escaped {
+                content.push('\\');
+                content.push(c);
+                escaped = false;
+            } else if c == '\\' {
+                escaped = true;
+            } else if c == '"' {
+                closed = true;
+                break;
+            } else {
+                content.push(c);
+            }
+        }
+        if !closed {
+            return None;
+        }
+        if (10..=400).contains(&content.chars().count()) {
+            return Some(content);
+        }
+    }
+    None
+}
+
+/// A Rust string literal's content as the bytes it spells, for the two escapes
+/// a diagnostic message uses.
+///
+/// A trailing backslash continues the literal onto the next line and eats the
+/// indent that follows, so a message rustfmt wrapped would otherwise be
+/// truncated at the wrap. Every other escape keeps both of its characters:
+/// `\n` before a format hole would be part of the stem either way, and
+/// rewriting it to a newline would only make the stem harder to grep for.
+fn unescape(raw: &str) -> String {
+    let mut out = String::new();
+    let mut chars = raw.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        match chars.next() {
+            Some('\n') => while chars.next_if(|next| next.is_whitespace()).is_some() {},
+            Some('"') => out.push('"'),
+            Some('\\') => out.push('\\'),
+            Some(other) => {
+                out.push('\\');
+                out.push(other);
+            }
+            None => out.push('\\'),
+        }
+    }
+    out
+}
+
+/// Every `Fault::fatal` / `Fault::thrown` / `Fault::thrown_as` site in this
+/// crate's `src/` whose message has a stem long enough to find in a case.
+fn fault_sites() -> Vec<Site> {
+    let mut out = Vec::new();
+    for (file, text) in stdlib_sources() {
+        let lines: Vec<&str> = text.lines().collect();
+        for (at, _) in text.match_indices("Fault::") {
+            let rest = &text[at + "Fault::".len()..];
+            let kind: String = rest
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                .collect();
+            if !matches!(kind.as_str(), "fatal" | "thrown" | "thrown_as") {
+                continue;
+            }
+            let after = rest[kind.len()..].trim_start();
+            let Some(arguments) = after.strip_prefix('(') else {
+                continue;
+            };
+            let Some(raw) = first_literal(head(arguments, MESSAGE_WINDOW)) else {
+                continue;
+            };
+            let message = unescape(&raw);
+            let stem = message
+                .split(['{', '}'])
+                .next()
+                .unwrap_or_default()
+                .trim()
+                .to_owned();
+            // Too short to tell one site from another, and too short to match
+            // a case's output without matching half the corpus with it.
+            if stem.chars().count() < 14 {
+                continue;
+            }
+            let line = text[..at].matches('\n').count() + 1;
+            let declared = lines[line.saturating_sub(1 + DECLARATION_WINDOW)..line - 1]
+                .iter()
+                .rev()
+                .take_while(|above| !above.contains("Fault::"))
+                .any(|above| above.to_ascii_lowercase().contains(DECLARATION));
+            out.push(Site {
+                file: file.clone(),
+                line,
+                stem,
+                declared,
+            });
+        }
+    }
+    out
+}
+
+/// The error paths that neither suite reaches and no site declares
+/// unreachable, frozen at the size the gate below landed at.
+///
+/// **This list may only shrink**, and it shrinks two ways, because item 11
+/// has two answers and the site is what decides between them. A boundary a
+/// program can reach loses its line here by gaining a case that catches the
+/// message and echoes it. An invariant no source program can reach — an
+/// argument type-guard behind a parameter the checker already types, most of
+/// these — loses its line by gaining a [`DECLARATION`] comment saying which
+/// diagnostic refuses the call first.
+///
+/// The test below fails on a site that is *not* here and is neither asserted
+/// nor declared, and equally on a line here whose site has since become one or
+/// the other, so an entry cannot go stale in either direction and nothing can
+/// be added without deleting this sentence.
+///
+/// `python tools/gaps.py --errors` is the same set with each site's anchor and
+/// whole message, which is what a session works from; the key here is the file
+/// and the stem because a line number moves under an unrelated edit and a stem
+/// does not. One line covers every site in its file writing that stem.
+const OWED_A_CASE: &[(&str, &str)] = &[
+    ("arr.rs", "Core\\Arr::chunk expected"),    // arr.rs:1733
+    ("arr.rs", "Core\\Arr::fill expected"),     // arr.rs:2317
+    ("arr.rs", "Core\\Arr::fillKeys expected"), // arr.rs:2341
+    (
+        "arr.rs",
+        "Core\\Arr::sort expected a `Core\\Order` case for `order`, got tag",
+    ), // arr.rs:2810
+    ("arr.rs", "Core\\Arr::sort expected"),     // arr.rs:2820
+    (
+        "arr.rs",
+        "Core\\Arr::sortByKey expected a `Core\\Order` case for `order`, got tag",
+    ), // arr.rs:2974
+    (
+        "arr.rs",
+        "Core\\Arr::average was given more entries than a `uint` counts",
+    ), // arr.rs:4126
+    ("bytes.rs", "Core\\Bytes::join expected"), // bytes.rs:707
+    ("bytes.rs", "Core\\Bytes::pack expected"), // bytes.rs:1105, bytes.rs:1112
+    ("bytes.rs", "Core\\Bytes::unpack expected"), // bytes.rs:1332
+    ("csv.rs", "Core\\Csv::format(): column"),  // csv.rs:512
+    ("debug.rs", "Core\\Debug::dump could not write:"), // debug.rs:147
+    ("debug.rs", "Core\\Debug::dump expected"), // debug.rs:177
+    (
+        "debug.rs",
+        "Core\\Debug::dump read an empty slot the array reported as live",
+    ), // debug.rs:187
+    (
+        "format.rs",
+        "`value_to_string` answered something that is not a string",
+    ), // format.rs:475
+    ("hash.rs", "Core\\Hash::hmac reached with `Core\\Digest::"), // hash.rs:473
+    ("hash.rs", "Core\\Hash\\Stream::finish found tag"), // hash.rs:616
+    ("json.rs", "Core\\Json::decode expected"), // json.rs:237
+    (
+        "json.rs",
+        "Core\\Json::decode(): a checked `maxDepth` always fits a `u32`",
+    ), // json.rs:250
+    ("json.rs", "Core\\Json::encode expected"), // json.rs:533
+    (
+        "json.rs",
+        "internal error: `Core\\Json::decodeAs` was called with no class in argument 0",
+    ), // json.rs:714
+    ("json.rs", "internal error: `"),           // json.rs:823
+    (
+        "math.rs",
+        "Core\\Math::round expected a `Core\\RoundMode` case for `mode`, got tag",
+    ), // math.rs:1302
+    ("path.rs", "Core\\Path::join expected"),   // path.rs:592
+    (
+        "path.rs",
+        "Core\\Path::join read an empty slot the array reported as live",
+    ), // path.rs:606
+    (
+        "regex.rs",
+        "Core\\Regex\\Match::text() found no group `0` on this match",
+    ), // regex.rs:1042
+    (
+        "router.rs",
+        "`value_to_string` answered something that is not a string",
+    ), // router.rs:229
+    (
+        "router.rs",
+        "a prepared route link's piece is a tag byte and its text",
+    ), // router.rs:282
+    ("router.rs", "a prepared route link is built out of `str`"), // router.rs:285
+    (
+        "router.rs",
+        "Core\\Router::urlAbsolute(): no origin is configured for this unit, so `",
+    ), // router.rs:351
+    ("str.rs", "Core\\Str::length counted past `uint`"), // str.rs:789
+    ("str.rs", "Core\\Str::join expected"),     // str.rs:882
+    ("str.rs", "Core\\Str::replaceAll expected"), // str.rs:1305
+    (
+        "str.rs",
+        "Core\\Str::replaceAll found a key that is not valid UTF-8",
+    ), // str.rs:1339
+    ("str.rs", "Core\\Str counted a position past `uint`"), // str.rs:1520
+    ("str.rs", "Core\\Str::normalize expected a `"), // str.rs:2292
+    ("str.rs", "Core\\Str::fromCodePoints expected"), // str.rs:2382
+    ("str.rs", "Core\\Str::format expected"),   // str.rs:2436
+    ("test.rs", "Core\\Test::assertTrue expected"), // test.rs:315
+    ("test.rs", "Core\\Test::assertCount expected"), // test.rs:367, test.rs:380
+    ("test.rs", "Core\\Test::assertThrows expected"), // test.rs:432
+    (
+        "test.rs",
+        "Core\\Test::assertEquals expected an `int` from `compareTo`, got tag",
+    ), // test.rs:663
+    ("test.rs", "Core\\Test::assertEqualsDeep walked"), // test.rs:692
+    ("time.rs", "Core\\Time\\Instant::"),       // time.rs:1479, time.rs:1487, time.rs:1492
+    (
+        "time.rs",
+        "Core\\Time::fromEpoch expected a `uint` for `nanos`, got tag",
+    ), // time.rs:1686
+    ("time.rs", "Core\\Time::at expected a `uint` for `"), // time.rs:2520
+    ("time.rs", "Core\\Time\\Date::format could not place `"), // time.rs:2707
+    ("time.rs", "Core\\Time\\TimeOfDay::format could not place `"), // time.rs:2907
+    ("uri.rs", "Core\\Uri::with expected a `string` for its `"), // uri.rs:934
+    (
+        "uri.rs",
+        "`value_to_string` answered something that is not a string",
+    ), // uri.rs:1364
+    (
+        "uri.rs",
+        "Core\\Uri::with expected an `int` for its `port` option, got tag",
+    ), // uri.rs:1642
+    ("uri.rs", "Core\\Uri::resolve found a null `text` slot"), // uri.rs:1692
+    ("uri.rs", "Core\\Uri::resolve expected"),  // uri.rs:1702
+    (
+        "uri.rs",
+        "Core\\Uri::resolve produced text `fluent-uri` will not read back",
+    ), // uri.rs:1726
+    ("uri.rs", "Core\\Uri::buildQuery expected"), // uri.rs:1912
+    ("validate.rs", "Core\\Validate::isIp received"), // validate.rs:275
+    (
+        "validate.rs",
+        "Core\\Validate::isIp expected `4`, `6` or nothing for `version`, got tag",
+    ), // validate.rs:280
+];
+
+/// Stage 5's item 11: every error path a `Core` member can take is asserted by
+/// a case, or is declared at the site to be one no source program reaches.
+///
+/// The two are not the same claim and only the site can tell them apart. A
+/// `Fault::thrown` is a boundary — a column of the wrong type, an origin that
+/// was never configured — and a case catches it and echoes the message. Most
+/// of the `Fault::fatal` sites are the other kind: `Core\Arr::count expected
+/// array, got tag 3` is what the *runtime* would say to an argument
+/// `nvs_types` refuses at `E0401` before any of it runs, so there is no
+/// program to write and the honest answer is a sentence at the site saying
+/// which diagnostic gets there first. Both are unreachable in the same sense a
+/// `debug_assert!` is, and neither is dead code: the guard is what makes the
+/// `unsafe` below it sound.
+///
+/// What this forbids is the third state, which is where all of them start —
+/// a message nobody has judged, which reads exactly like a live path and
+/// exactly like an impossible one.
+///
+/// **The limit, stated rather than implied:** of the crate's 269 `Fault::`
+/// sites this reads 165, the ones whose message begins with enough literal
+/// text to find in a case. A message opening on its own format hole —
+/// `` `{code}` is not a pack directive `` — has a stem that would match half
+/// the corpus or none of it, so neither this nor `gaps.py` can say whether a
+/// case reaches it, and requiring a declaration for one would be requiring a
+/// judgement no case could ever discharge. Giving such a site a few words of
+/// its own before the first hole brings it under the gate, which is a better
+/// message anyway.
+#[test]
+fn every_error_path_is_asserted_or_declared_unreachable() {
+    let corpus = error_corpus();
+    let sites = fault_sites();
+    assert!(
+        sites.len() > 150,
+        "found {} `Fault::` site(s) with a stem in this crate's src/, which is too few to \
+         be all of them — the scan has stopped matching and the gate is passing vacuously",
+        sites.len()
+    );
+
+    let owing: Vec<Site> = sites
+        .into_iter()
+        .filter(|site| !site.declared && !corpus.contains(&site.stem))
+        .collect();
+
+    let listed = |site: &Site| {
+        OWED_A_CASE
+            .iter()
+            .any(|(file, stem)| *file == site.file && *stem == site.stem)
+    };
+    // Grouped by the pair the list is keyed on, so a stem two sites share
+    // freezes as one line carrying both anchors rather than as two identical
+    // ones — `Core\Bytes::pack` guards its format and its value list with the
+    // same sentence, and both are the same judgement.
+    let mut unlisted: Vec<(&Site, Vec<usize>)> = Vec::new();
+    for site in owing.iter().filter(|site| !listed(site)) {
+        match unlisted
+            .iter_mut()
+            .find(|(first, _)| first.file == site.file && first.stem == site.stem)
+        {
+            Some((_, lines)) => lines.push(site.line),
+            None => unlisted.push((site, vec![site.line])),
+        }
+    }
+    let missing = unlisted
+        .iter()
+        .map(|(site, lines)| {
+            let anchors = lines
+                .iter()
+                .map(|line| format!("{}:{line}", site.file))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("    ({:?}, {:?}), // {anchors}", site.file, site.stem)
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        missing.is_empty(),
+        "{} error path(s) are neither asserted by a case nor declared unreachable at the \
+         site. Write the case, or write a comment within the {DECLARATION_WINDOW} lines \
+         above the site containing \"{DECLARATION}\" and the diagnostic that refuses the \
+         call first — a declaration further up than that is one this gate cannot see. If \
+         this gate is being re-frozen, these are the lines:\n{}",
+        missing.len(),
+        missing.join("\n")
+    );
+
+    for (file, stem) in OWED_A_CASE {
+        assert!(
+            owing
+                .iter()
+                .any(|site| site.file == *file && site.stem == *stem),
+            "{file}'s `{stem}` is asserted or declared and is still named in `OWED_A_CASE`; \
+             delete that line, because the list only shrinks"
+        );
+    }
 }
