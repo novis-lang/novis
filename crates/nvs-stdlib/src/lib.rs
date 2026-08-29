@@ -279,6 +279,10 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         // names on purpose — `router::link`'s own docs own why one member has
         // two entry points.
         .chain(router::link::SYMBOLS)
+        // ADR 0006's two constructs, which are syntax rather than members and
+        // so have no row to be found through — `script`'s own module doc owns
+        // why a `spawn script`/`await` symbol may not be callable by name.
+        .chain([script::SPAWN_SYMBOL, script::AWAIT_SYMBOL])
         .map(|symbol| (symbol, address_of(symbol)))
         .collect()
 }
@@ -310,6 +314,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| random::address(symbol))
         .or_else(|| router::address(symbol))
         .or_else(|| regex::address(symbol))
+        .or_else(|| script::address(symbol))
         .or_else(|| serialize::address(symbol))
         .or_else(|| task::address(symbol))
         .or_else(|| test::address(symbol))
@@ -342,6 +347,9 @@ mod tests {
                 // to `Core\Router::url`/`::urlAbsolute` and to no row of their
                 // own — see `router::link`.
                 + router::link::SYMBOLS.len()
+                // ADR 0006's `spawn script` and `await`, which are syntax and
+                // so have no row either — see `script`'s module doc.
+                + 2
         );
         assert!(symbols.iter().all(|(_, address)| !address.is_null()));
     }

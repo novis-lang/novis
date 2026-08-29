@@ -2230,10 +2230,17 @@ mod tests {
     /// by name rather than given a member the spec does not write. Two are:
     /// `Core\Regex\Pattern`, read by `Core\Regex`'s members, and
     /// `Core\Cli\Text`, whose one slot `nvs_runtime::value_to_string` reads
-    /// when `echo` writes a captured carrier out ([`crate::cli`]).
+    /// when `echo` writes a captured carrier out ([`crate::cli`]). The third
+    /// is `Core\Script\Handle`, whose one slot the lowering of `await` reads
+    /// and whose emptiness of members is the whole point of it
+    /// ([`crate::script`]).
     #[test]
     fn a_class_with_slots_has_instance_members_and_the_reverse() {
-        const HANDLES: &[&str] = &[r"Core\Regex\Pattern", nvs_runtime::CARRIER_CLI_TEXT];
+        const HANDLES: &[&str] = &[
+            r"Core\Regex\Pattern",
+            nvs_runtime::CARRIER_CLI_TEXT,
+            crate::script::HANDLE_NAME,
+        ];
         for class in CLASSES {
             if HANDLES.contains(&class.name) {
                 assert!(

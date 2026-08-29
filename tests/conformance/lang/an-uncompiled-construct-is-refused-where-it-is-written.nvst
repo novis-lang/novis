@@ -1,5 +1,5 @@
 --TEST--
-The one construct the front end accepts and nothing below it compiles yet is refused at its own site — `spawn script` is `E0703` (ADR 0006, M5) — while `require` is whole in both of ADR 0021's forms and reports nothing at either
+The one thing the front end accepts and nothing below it enforces is refused at its own site — a `spawn script` option is `E0777` (ADR 0006, goal 3) — while `require` is whole in both of ADR 0021's forms and reports nothing at either
 --FILE--
 <?nvs
 // ADR 0021 § 3's value form runs now: the site calls the target file's own
@@ -16,10 +16,11 @@ echo $c as string;
 require "cfg.nvs";
 echo Cfg::name();
 
-// ADR 0006's isolate spawn, which nothing below the checker compiles yet
-// (`docs/plan/m5.md`). Refusing it where it is written is the only
-// reading that cannot silently do nothing.
-spawn script "cfg.nvs";
+// ADR 0006's spawn itself lowers now (`E0703` is retired). What is still
+// refused is an option this compiler parses and does not enforce: a `grants:`
+// narrowing accepted and dropped would hand the child the parent's authority,
+// so it is refused where it is written rather than ignored.
+spawn script "cfg.nvs" with(grants: 7);
 --FILE cfg.nvs--
 <?nvs
 class Cfg {
@@ -29,11 +30,11 @@ class Cfg {
 }
 return "cfg-value";
 --EXPECTF-ERROR--
-error[E0703]: `spawn script` is not compiled yet
-   --> %s:19:1
+error[E0777]: `spawn script`'s `grants:` is not enforced yet
+   --> %s:20:29
    |
-19 | spawn script "cfg.nvs";
-   | ^^^^^^^^^^^^^^^^^^^^^^ no isolate is created here
-   = help: ADR 0006's isolates arrive with `docs/plan/m5.md`, together with the value-crossing copy a spawn boundary needs. There is no same-frame spelling of this to fall back on
+20 | spawn script "cfg.nvs" with(grants: 7);
+   |                             ^^^^^^^^^ this option would be accepted and ignored
+   = help: ADR 0006 specifies all five options and this compiler enforces `args:` and `output:`. Refusing the other three is deliberate: a `grants:` narrowing that were silently dropped would hand the child the parent's authority
 
 error: aborting due to 1 error

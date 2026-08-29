@@ -1,0 +1,28 @@
+--TEST--
+`await` consumes the started isolate a handle names, so a handle awaited twice throws rather than waiting again — ADR 0006 § *Decision*
+--FILE child.nvs--
+<?nvs
+echo "from the child";
+return 7;
+--FILE--
+<?nvs
+// The handle is a `Core\Script\Handle`, whose one slot holds the key its
+// running isolate was filed under on this request
+// (`nvs_runtime::Ctx::hold_started_script`). `await` takes that entry, not the
+// object, so the parent still owns `$job` afterwards — and there is nothing
+// left for a second `await` to collect.
+var $job = spawn script "child.nvs" with(output: "capture");
+var $first = await $job;
+echo "ok=", $first->ok ? "true" : "false", "\n";
+echo "output=", $first->output, "\n";
+
+try {
+    var $again = await $job;
+    echo "unreachable", "\n";
+} catch (LogicError $twice) {
+    echo $twice->message, "\n";
+}
+--EXPECT--
+ok=true
+output=from the child
+`await` was given a handle a previous `await` already collected

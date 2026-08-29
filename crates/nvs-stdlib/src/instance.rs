@@ -271,7 +271,11 @@ thread_local! {
 /// canonicalizes `{y: …, x: …}` and `{x: …, y: …}` to one interned type by
 /// sorting, so the runtime layout has to be the same order or a written shape
 /// type and a built value would disagree about which slot is which.
-const SHAPE_ROSTER: &[(&str, &[&str])] = &[(crate::issue::SHAPE, crate::issue::FIELDS)];
+const SHAPE_ROSTER: &[(&str, &[&str])] = &[
+    (crate::issue::SHAPE, crate::issue::FIELDS),
+    (crate::script::RESULT_SHAPE, crate::script::RESULT_FIELDS),
+    (crate::script::FAILURE_SHAPE, crate::script::FAILURE_FIELDS),
+];
 
 /// `name`'s shape descriptor on this core, built and leaked on first use.
 ///

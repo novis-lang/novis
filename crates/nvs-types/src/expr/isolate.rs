@@ -91,7 +91,7 @@
 
 use nvs_diagnostics::{Diagnostic, code};
 use nvs_hir::QName;
-use nvs_syntax::ast::{Expr, SpawnOption};
+use nvs_syntax::ast::{Expr, SpawnOption, SpawnOptionKey};
 use rustc_hash::FxHashSet;
 
 use crate::locals::LocalScope;
@@ -110,7 +110,6 @@ use super::check_expr;
 /// the *other* lines, and the one thing a program can write with a handle is
 /// the one thing that has a type to check it against.
 pub(crate) fn check_spawn_script(
-    expr: &Expr,
     path: &Expr,
     options: &[SpawnOption],
     live: &mut FxHashSet<String>,
@@ -118,23 +117,50 @@ pub(crate) fn check_spawn_script(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> TypeId {
-    check_expr(path, None, live, scope, ctx, env);
+    let string = env.interner.string();
+    check_expr(path, Some(string), live, scope, ctx, env);
     for opt in options {
-        check_expr(&opt.value, None, live, scope, ctx, env);
+        let expected = match opt.key {
+            // The value that crosses. No expected type, because ADR 0023 § 2's
+            // walk is what decides whether a given graph may cross and that is
+            // a run-time question for everything a declared type does not
+            // already settle.
+            SpawnOptionKey::Args => None,
+            SpawnOptionKey::Output => Some(string),
+            SpawnOptionKey::Limits | SpawnOptionKey::Grants | SpawnOptionKey::On => {
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_SPAWN_OPTION_UNSUPPORTED,
+                        format!(
+                            "`spawn script`'s `{}:` is not enforced yet",
+                            spelling(opt.key)
+                        ),
+                    )
+                    .with_primary(opt.span, "this option would be accepted and ignored")
+                    .with_help(
+                        "ADR 0006 specifies all five options and this compiler enforces \
+                         `args:` and `output:`. Refusing the other three is deliberate: a \
+                         `grants:` narrowing that were silently dropped would hand the \
+                         child the parent's authority",
+                    ),
+                );
+                None
+            }
+        };
+        check_expr(&opt.value, expected, live, scope, ctx, env);
     }
-    env.diags.report(
-        Diagnostic::error(
-            code::E_SPAWN_SCRIPT_UNLOWERED,
-            "`spawn script` is not compiled yet",
-        )
-        .with_primary(expr.span, "no isolate is created here")
-        .with_help(
-            "ADR 0006's isolates arrive with `docs/plan/m5.md`, together with the \
-             value-crossing copy a spawn boundary needs. There is no same-frame \
-             spelling of this to fall back on",
-        ),
-    );
     script_handle(env)
+}
+
+/// One option key as the program spells it.
+fn spelling(key: SpawnOptionKey) -> &'static str {
+    match key {
+        SpawnOptionKey::Args => "args",
+        SpawnOptionKey::Limits => "limits",
+        SpawnOptionKey::Grants => "grants",
+        SpawnOptionKey::Output => "output",
+        SpawnOptionKey::On => "on",
+    }
 }
 
 /// `await <operand>` — the prefix half of the same surface, refused for the
@@ -152,7 +178,6 @@ pub(crate) fn check_spawn_script(
 /// about a `string` binding on the next line rather than only about `await`
 /// itself, and the refusal is what stops the compilation either way.
 pub(crate) fn check_await(
-    expr: &Expr,
     operand: &Expr,
     live: &mut FxHashSet<String>,
     scope: &LocalScope,
@@ -161,15 +186,6 @@ pub(crate) fn check_await(
 ) -> TypeId {
     let handle = script_handle(env);
     check_expr(operand, Some(handle), live, scope, ctx, env);
-    env.diags.report(
-        Diagnostic::error(code::E_AWAIT_UNLOWERED, "`await` is not compiled yet")
-            .with_primary(expr.span, "nothing is awaited here")
-            .with_help(
-                "ADR 0006's isolates arrive with `docs/plan/m5.md`, and `await` is what \
-                 turns the handle `spawn script` hands back into a `ScriptResult`. There \
-                 is no synchronous spelling of this to fall back on",
-            ),
-    );
     script_result(env)
 }
 

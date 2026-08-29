@@ -419,10 +419,14 @@ impl<'a> Lowering<'a> {
                     (self.coerce(*cur, one, Ty::Int, Ty::Tagged, env), Ty::Tagged)
                 }
             }
+            ExprKind::SpawnScript { path, options } => {
+                self.lower_spawn_script(path, options, env, cur)
+            }
+            ExprKind::Await(operand) => self.lower_await(operand, env, cur),
             // Nothing the checker accepts reaches this arm any more, and the
             // proof is the roster rather than the message below it. `ExprKind`
-            // has 46 variants; the arms above cover 35 of them, plus one of
-            // `Assign`'s two `inout` shapes. Of the eleven with no arm and
+            // has 46 variants; the arms above cover 37 of them, plus one of
+            // `Assign`'s two `inout` shapes. Of the nine with no arm and
             // the one `Assign` shape:
             //
             // * `Error` is a parse error already reported, and does not
@@ -441,13 +445,9 @@ impl<'a> Lowering<'a> {
             //   no `send()` for it to answer with. The statement form goes
             //   through `Self::lower_yield` one file over, reached from
             //   `nvs_types::expr::check_expr_stmt`'s matching split.
-            // * `spawn script` is `E0703` and `await` is `E0776`, because
-            //   nothing below this crate compiles either yet — ADR 0006's
-            //   isolates arrive at M5. Two codes and not one because the two
-            //   constructs arrive separately and a program writing only one
-            //   should hear about the one it wrote. Their neighbour used to be
-            //   `require` used for its value; that lowers one arm above now,
-            //   and `E0704` is retired.
+            //   Their neighbour used to be `spawn script` and `await`, both
+            //   refused where they were written; both lower two arms above
+            //   now, and `E0703`, `E0704` and `E0776` are all retired.
             // * `$obj::class` is `E0702`; the statically-named spelling lowers
             //   one arm above.
             //
@@ -2494,6 +2494,123 @@ impl<'a> Lowering<'a> {
     /// a value lowered but never *staged* is one `release_temporaries_since`
     /// cannot see — `Core\Router::url("…", ["id" => 7])` leaked its literal
     /// array once per call until both lines below existed.
+    /// `spawn script <path> with(…)` — ADR 0006 § *Decision*'s isolate spawn,
+    /// as one [`InstKind::CoreCall`] answering a `Core\Script\Handle`.
+    ///
+    /// A `CoreCall` and not an `InstKind` of its own, which is the decision
+    /// this arm records: a spawn is a call into native code that can throw,
+    /// takes three values and answers one, and that is exactly what
+    /// `nvs-codegen` already emits for a `Core` member — a variant of its own
+    /// would buy a second shape in the backend for no behaviour. The symbol
+    /// carries no registry row (`nvs_stdlib::script`'s module doc owns why),
+    /// so nothing but this arm can reach it, which is what keeps `spawn
+    /// script` syntax rather than a member with a keyword in front of it.
+    ///
+    /// Three arguments in a fixed order — the path, the `args:` value and the
+    /// `output:` spelling — with the two options materialized to `null` and
+    /// `"capture"` where the program omitted them, the same way
+    /// [`Self::lower_options_arg`] materializes an ADR 0063 R2 bag's defaults.
+    /// `limits:`, `grants:` and `on:` never arrive: `nvs_types`' own
+    /// `check_spawn_script` refuses each under `E0777` rather than let one be
+    /// accepted and dropped.
+    ///
+    /// The `args:` value is **transferred**, alone among the three, because it
+    /// is the one the isolate keeps: it crosses the boundary into the child's
+    /// ownership root and this frame may not release it afterwards. The path
+    /// and the output spelling are borrowed like every other `Core` argument.
+    fn lower_spawn_script(
+        &mut self,
+        path: &Expr,
+        options: &[SpawnOption],
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let mark = self.temporaries_mark();
+        let (path_v, path_ty) = self.lower_expr(path, Some(Ty::Str), env, cur);
+        let aliasing = self.aliasing_read(path);
+        self.account_for_arg(path_v, path_ty, ArgOwnership::Borrowed, aliasing, *cur);
+
+        let written = |key: SpawnOptionKey| options.iter().find(|opt| opt.key == key);
+        let args_v = match written(SpawnOptionKey::Args) {
+            Some(opt) => {
+                let (v, ty) = self.lower_expr(&opt.value, Some(Ty::Tagged), env, cur);
+                let aliasing = self.aliasing_read(&opt.value);
+                let v = self.coerce(*cur, v, ty, Ty::Tagged, env);
+                // The one transferred argument. A value the frame still owns
+                // is retained first, so the reference the child consumes is a
+                // second one rather than this frame's only one.
+                self.account_for_arg(v, Ty::Tagged, ArgOwnership::Transferred, aliasing, *cur);
+                v
+            }
+            // A child that was passed nothing reads `null` from
+            // `Core\Script::args()`, which is what a missing option means and
+            // not an empty array: the two are distinguishable and a program
+            // that passed `[]` said something different.
+            None => {
+                let (v, _) = self.emit(*cur, Ty::Null, InstKind::ConstNull);
+                self.coerce(*cur, v, Ty::Null, Ty::Tagged, env)
+            }
+        };
+        let output_v = match written(SpawnOptionKey::Output) {
+            Some(opt) => {
+                let (v, ty) = self.lower_expr(&opt.value, Some(Ty::Str), env, cur);
+                let aliasing = self.aliasing_read(&opt.value);
+                self.account_for_arg(v, ty, ArgOwnership::Borrowed, aliasing, *cur);
+                v
+            }
+            // ADR 0006 § *Output is captured by default*, spelled here rather
+            // than defaulted in the helper so that the default is visible in
+            // the IR a reader dumps.
+            None => {
+                let (v, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr("capture".to_owned()));
+                self.account_for_arg(v, Ty::Str, ArgOwnership::Borrowed, false, *cur);
+                v
+            }
+        };
+
+        let result = self.emit_fallible(
+            *cur,
+            Ty::Object,
+            InstKind::CoreCall {
+                symbol: nvs_types::CORE_SCRIPT_SPAWN,
+                args: vec![path_v, args_v, output_v],
+            },
+            env,
+        );
+        self.release_temporaries_since(mark, *cur);
+        result
+    }
+
+    /// `await <handle>` — the other half, as the second of the two symbols.
+    ///
+    /// The handle is **borrowed**, exactly as a `Core` member's receiver is:
+    /// what the helper consumes is the request's table entry for the started
+    /// isolate, not the object the program is holding, so the frame that wrote
+    /// `$job` still owns `$job` afterwards. Awaiting one twice is therefore a
+    /// throw from the helper rather than anything this arm can see.
+    ///
+    /// The answer is an ADR 0036 shape value, which is an ordinary object with
+    /// slots, so `$result->ok` on the next line lowers to the `SlotGet` a
+    /// written shape literal's read already lowers to — `nvs-ir` learns
+    /// nothing here about where the shape came from.
+    fn lower_await(&mut self, operand: &Expr, env: &mut Env, cur: &mut BlockId) -> (ValueId, Ty) {
+        let mark = self.temporaries_mark();
+        let (handle, ty) = self.lower_expr(operand, Some(Ty::Object), env, cur);
+        let aliasing = self.aliasing_read(operand);
+        self.account_for_arg(handle, ty, ArgOwnership::Borrowed, aliasing, *cur);
+        let result = self.emit_fallible(
+            *cur,
+            Ty::Object,
+            InstKind::CoreCall {
+                symbol: nvs_types::CORE_SCRIPT_AWAIT,
+                args: vec![handle],
+            },
+            env,
+        );
+        self.release_temporaries_since(mark, *cur);
+        result
+    }
+
     fn lower_route_link(
         &mut self,
         prepared: &str,

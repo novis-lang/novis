@@ -1,5 +1,5 @@
-//! ADR 0006's `spawn script` and `await`: what each is typed as, and what stays
-//! refused until the lowering exists.
+//! ADR 0006's `spawn script` and `await`: what each is typed as, and which of
+//! the five `with(...)` options this compiler will accept.
 //!
 //! `nvs_types::expr::isolate`'s module doc is the home of the decision these
 //! pin — the handle is a registered `Core` class and the result is an ADR 0036
@@ -16,24 +16,52 @@ mod common;
 use common::*;
 use nvs_diagnostics::code;
 
-/// The construct is refused where it is written, and its operands are still
-/// checked so a typo beside it is reported in the same run.
+/// Neither construct is refused any more — both lower — and the operands are
+/// still checked, so a typo beside one is reported in the same run.
 #[test]
-fn spawn_script_and_await_are_each_refused_under_their_own_code() {
-    let diags =
-        check_in_method("var $h = spawn script \"c.nvs\";\nmixed $r = await $h;\n$h = $undefined;");
-    assert!(
-        diags
-            .iter()
-            .any(|d| d.code == Some(code::E_AWAIT_UNLOWERED)),
-        "{diags:?}"
+fn spawn_script_and_await_are_accepted_and_their_operands_still_checked() {
+    let diags = check_in_method(
+        "var $h = spawn script \"c.nvs\";
+mixed $r = await $h;
+$h = $undefined;",
     );
     assert!(
         diags
             .iter()
-            .any(|d| d.code == Some(code::E_SPAWN_SCRIPT_UNLOWERED)),
+            .any(|d| d.code == Some(code::E_UNDEFINED_VARIABLE)),
         "{diags:?}"
     );
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code == Some(code::E_SPAWN_OPTION_UNSUPPORTED)),
+        "{diags:?}"
+    );
+}
+
+/// The two options this compiler enforces are accepted, and the three it does
+/// not are refused where they are written rather than accepted and ignored —
+/// `E_SPAWN_OPTION_UNSUPPORTED`'s own doc is the home of why that is the safe
+/// reading and not the pedantic one.
+#[test]
+fn the_three_unenforced_spawn_options_are_refused_and_the_two_enforced_ones_are_not() {
+    let accepted =
+        check_in_method("var $h = spawn script \"c.nvs\" with(args: 7, output: \"capture\");");
+    assert!(
+        !accepted
+            .iter()
+            .any(|d| d.code == Some(code::E_SPAWN_OPTION_UNSUPPORTED)),
+        "{accepted:?}"
+    );
+    for option in ["limits: 7", "grants: 7", "on: \"worker\""] {
+        let diags = check_in_method(&format!("var $h = spawn script \"c.nvs\" with({option});"));
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_SPAWN_OPTION_UNSUPPORTED)),
+            "{option}: {diags:?}"
+        );
+    }
 }
 
 /// A spawn answers with `Core\Script\Handle`, which a program may name in a

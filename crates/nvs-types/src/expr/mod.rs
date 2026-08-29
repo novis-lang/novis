@@ -740,9 +740,9 @@ pub(crate) fn infer(
         // what each is typed as, and why the handle and the result are
         // answered by opposite mechanisms. [`isolate`] owns it.
         ExprKind::SpawnScript { path, options } => {
-            isolate::check_spawn_script(expr, path, options, live, scope, ctx, env)
+            isolate::check_spawn_script(path, options, live, scope, ctx, env)
         }
-        ExprKind::Await(inner) => isolate::check_await(expr, inner, live, scope, ctx, env),
+        ExprKind::Await(inner) => isolate::check_await(inner, live, scope, ctx, env),
         // ADR 0021 § 3's **value** form. The statement form never reaches here
         // — `crate::locals::check_stmt` checks only the path for one, matching
         // `nvs_ir::lower::Lowering::lower_expr_stmt` — so arriving at all is

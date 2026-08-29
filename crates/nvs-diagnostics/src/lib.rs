@@ -1253,15 +1253,8 @@ pub mod code {
     /// instead. `self::class` and `parent::class` name a class the compiler
     /// resolves and are not refused.
     pub const E_CLASS_NAME_CONST_NOT_STATIC: Code = Code::new("E0702");
-    /// `spawn script '...'` — ADR 0006's isolate spawn, which has no lowering
-    /// yet.
-    ///
-    /// The construct is real and specified; `docs/plan/m5.md` is where it
-    /// arrives, along with the value-crossing copy an isolate boundary needs.
-    /// Until then a program that writes it is refused where it is written
-    /// rather than accepted and dropped, which is the only reading that
-    /// cannot silently do nothing.
-    pub const E_SPAWN_SCRIPT_UNLOWERED: Code = Code::new("E0703");
+    // `E0703` is retired and is never reused: `spawn script` refused its own
+    // construct until `nvs-ir` had an arm for it, and it lowers now.
     // `E0704` is retired and is never reused: `require` used for its
     // **value** is ADR 0021 § 3's `mixed` and lowers, the site calling the
     // target file's own script frame and keeping what it hands back
@@ -2247,17 +2240,20 @@ pub mod code {
     /// run time (`nvs_runtime::graph`), because the object's static type is
     /// what a call site sees and its properties are not.
     pub const E_SECRET_CROSSES_A_BOUNDARY: Code = Code::new("E0775");
-    /// `await expr` — the prefix half of ADR 0006's spawn surface, which has
-    /// no lowering yet.
+    // `E0776` is retired and is never reused: it was `await`'s half of the
+    // pair `E0703` was `spawn script`'s, and both lower now.
+    /// `spawn script … with(limits: …)`, `with(grants: …)` or `with(on: …)` —
+    /// an ADR 0006 option this compiler parses and does not yet enforce.
     ///
-    /// A separate code from [`E_SPAWN_SCRIPT_UNLOWERED`] rather than a second
-    /// site reporting that one, because the two constructs arrive separately
-    /// and a program that writes only one of them should be told about the
-    /// one it wrote. The reasoning is otherwise identical: the construct is
-    /// real and specified, `docs/plan/m5.md` is where it arrives, and until
-    /// then it is refused where it is written rather than accepted and
-    /// dropped.
-    pub const E_AWAIT_UNLOWERED: Code = Code::new("E0776");
+    /// Refused rather than ignored, and that is the whole of the decision: a
+    /// `grants:` narrowing that is silently dropped hands the child the
+    /// parent's authority, which is priority 1 traded for a nicer error
+    /// message. `limits:` and `on:` are refused beside it because the same
+    /// reading — "the program asked for something and got something else" —
+    /// applies to a budget and to a core, and because refusing all three is
+    /// one rule for a reader to learn instead of three cases. Enforcement is
+    /// goal 3's, and it is what removes this code.
+    pub const E_SPAWN_OPTION_UNSUPPORTED: Code = Code::new("E0777");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
