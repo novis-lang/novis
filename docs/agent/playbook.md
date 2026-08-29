@@ -3454,6 +3454,17 @@ sibling in the same namespace unqualified.
   until it has genuinely reached the earliest deadline (`crates/nvs-host/src/reactor.rs:332`). The
   giveaway that it is this and not a lost wake: the same code with a *second* runnable task passes,
   because the extra turn hides the early return.
+- **A task cannot reach the `&mut Scheduler` that is resuming it, and every obvious design for the
+  task tree dies on that.** `Scheduler::run` holds `&mut self` for the whole turn, so a running
+  task can call neither `spawn` nor `cancel` nor anything else on the scheduler — which means a
+  parent/child link stored on `Task`, or a cancel flag read out of the run queue, cannot be written
+  from the one place that knows the answer. What works is splitting the scheduler in two: the run
+  queue and the stack pool stay behind `&mut self`, and the part a task needs — the id counter, the
+  parent links, the cancel flags, and a pending list of children asked for but not yet built — goes
+  in an `Rc<RefCell<..>>` the scheduler publishes in a thread-local for the length of its turn
+  (`scheduler.rs:211` and `:782`), which is the shape `crate::reactor` already uses. The second
+  half of the same trap: never call `Coroutine::force_unwind` from a task's own stack. Teardown
+  belongs on the scheduler's stack, which is why cancellation *marks* and the next turn unwinds.
 
 ## Divergences and refusals already pinned
 

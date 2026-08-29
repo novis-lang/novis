@@ -118,9 +118,30 @@
 > `crates/nvs-host/src/stack.rs` is ADR 0115 § 4 — 1 MiB of reserved address space per task,
 > resident only in the pages its handler touched, pooled per worker and recycled the moment the task
 > ends, with the recursion limit armed from that stack instead of asserted from a ceiling on the
-> worker's. The steps the chain took are in [goals/README.md](agent/goals/README.md) § *Starting the
-> chain*. M4's own residue is the 1000-case corpus count, which orders 1–4 meet as the suite grows;
-> nothing else about M4 is open. What the program is measured by is `python
+> worker's. Stage 3's task tree is on disk beneath all of that. Every task carries a parent and the
+> children under it, and the parent is **taken from the task that spawned it** rather than passed in
+> — `nvs_host::spawn_child` reads `current_task`, so ADR 0072 § 1's "each is a child of the calling
+> task" is a property of the call and not of a caller's diligence. A running task cannot reach the
+> `&mut Scheduler` that is resuming it, so the tree is the half of a scheduler a task *can* reach:
+> an `Rc<RefCell<TaskTree>>` published in a thread-local for the length of `Scheduler::run`, holding
+> the id counter, the parent links, the cancel flags and the children a task asked for but the
+> scheduler has not built yet. Cancellation marks and the scheduler tears down: `Scheduler::cancel`
+> and `cancel_task` flag a task and every descendant and do nothing else, and the forced unwind runs
+> on the scheduler's own stack — before a marked task is resumed, or over the parked set once the
+> run queue drains — because unwinding a coroutine from a frame standing on that coroutine's stack
+> is not a thing to arrange. A marked task therefore dies at its next safepoint when it is running
+> and at once when it is already parked, which is ADR 0072 § 5's rule from both directions, and what
+> the unwind runs is native `Drop` and no script code. A task's death cancels whatever it left
+> running, so § 4's "control does not leave the call with work still running" holds one level below
+> the member that will promise it, and a cancelled task hands back its id rather than a `Finished` —
+> its `Ctx` went down with its stack. `scheduler.rs`'s module doc § *The task tree, and what
+> cancelling one costs* is that design's only home; no ADR slot was free for it. Four of the five
+> names Stage 3's `cargo-named` check asks of `nvs-host` are green over it, plus
+> `a_cancelled_tasks_arena_is_released`; the fifth,
+> `a_bounded_channel_send_suspends_rather_than_growing`, needs item 11's channel, which does not
+> exist yet. The steps the chain took are in [goals/README.md](agent/goals/README.md) § *Starting
+> the chain*. M4's own residue is the 1000-case corpus count, which orders 1–4 meet as the suite
+> grows; nothing else about M4 is open. What the program is measured by is `python
 > tools/check-migration.py` at 100% classified, which stood at 25% the day the program was scheduled
 > and reads 34% now that goal 1's own five domains — dates and times, regular expressions, JSON,
 > URLs and paths — carry a row per name. `python tools/gaps.py`, `python tools/holes.py` and `python
