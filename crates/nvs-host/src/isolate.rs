@@ -14,20 +14,15 @@
 //! inbound HTTP request. This is that type; what differs between the two is the
 //! [`Program`] handed in and the [`Output`] asked for, not the boundary.
 //!
-//! # Decision: the program arrives as a closure, not as a path
+//! # The program arrives as a closure, not as a path
 //!
-//! An isolate runs another `.nvs` file, and resolving a path to runnable code
-//! means the compiler — `nvs-ir`, `nvs-codegen`, and the unit cache in front of
-//! them. None of that may be reached from here, for the reason
-//! [`nvs_runtime::host`]'s own module doc records about the seam below it: an
-//! edge from the host to the compiler would link a scheduler, a reactor and a
-//! JIT into every `nvs check`.
-//!
-//! So a [`Program`] is a boxed closure over an already-prepared unit, exactly as
-//! [`nvs_runtime::host::Job`] is for a task, and whoever *can* compile builds
-//! one — `nvs-cli` today, the server at M7. Both crossings, the failure
-//! classification and the whole context construction live here regardless,
-//! because not one of them depends on where the code came from.
+//! An isolate runs another `.nvs` file, and turning a path into runnable code
+//! is [`nvs_runtime::script`]'s seam rather than anything this module can do —
+//! that module owns the decision and the reason. What matters here is only the
+//! consequence: a [`Program`] is a boxed closure over an already-prepared unit,
+//! exactly as [`nvs_runtime::host::Job`] is for a task. Both crossings, the
+//! failure classification and the whole context construction live here
+//! regardless, because not one of them depends on where the code came from.
 //!
 //! # Decision: a refused argument is the parent's fault, a refused answer is the child's
 //!
@@ -59,18 +54,7 @@ use nvs_runtime::{Ctx, OutputSink, TaskRoot, Value};
 
 use crate::scheduler::{Waiting, Wake, cancel_task, spawn_child, suspend_current};
 
-/// An isolate's code, prepared by whoever could compile it.
-///
-/// Called once, on the isolate's own stack, with the isolate's own context and
-/// the argument value that has already crossed. It owes that context what a
-/// request's entry point owes one: arming the child unit's statics through
-/// [`Ctx::install_statics`] before running any of its code, and answering with
-/// the value the script's top-level `return` produced — `Value::null()` for a
-/// script that returned nothing.
-///
-/// The argument is **transferred**: the program owns that reference, and
-/// releasing it is the isolate context's job when it goes.
-pub type Program = Box<dyn FnOnce(&mut Ctx, Value) -> Value>;
+pub use nvs_runtime::script::Program;
 
 /// Where the child's `echo` ends up — ADR 0006 § *Output is captured by
 /// default*.

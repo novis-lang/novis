@@ -256,6 +256,7 @@ pub mod host;
 pub mod identity;
 pub mod object;
 pub mod release;
+pub mod script;
 pub mod sequence;
 mod string;
 pub mod throwable;

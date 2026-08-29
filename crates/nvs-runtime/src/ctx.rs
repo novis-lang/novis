@@ -416,6 +416,16 @@ pub struct Ctx {
     /// has no `push`. [`Ctx::install_statics`] is the one place the two are
     /// written, so they cannot disagree.
     statics_store: Box<[Value]>,
+    /// The value that crossed into this isolate, owned — see
+    /// [`Ctx::set_isolate_argument`].
+    ///
+    /// Cold, and null for every context that is not an isolate's, which is
+    /// every request. It is a field here rather than a slot the program keeps
+    /// because it is the isolate's ownership *root*
+    /// ([ADR 0116](../../../docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
+    /// § 2): what releases it is dropping this context, and nothing else knows
+    /// when that happens.
+    isolate_argument: Value,
     /// [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
     /// § 5's per-test assertion ledger, in the order the assertions ran.
     ///
@@ -637,6 +647,9 @@ pub struct TraceEvent {
 impl Drop for Ctx {
     fn drop(&mut self) {
         self.release_statics();
+        // An isolate's argument is one of its roots and is released with them
+        // — `Ctx::set_isolate_argument` owns why it is held here at all.
+        self.set_isolate_argument(Value::null());
     }
 }
 
@@ -717,6 +730,7 @@ impl Ctx {
             fault: None,
             helper_calls: 0,
             statics_store: Vec::new().into_boxed_slice(),
+            isolate_argument: Value::null(),
             assertions: Vec::new(),
         };
         ctx.arm_stack_limit(base, STACK_CEILING);
@@ -929,6 +943,42 @@ impl Ctx {
         for value in store.into_vec() {
             unsafe { value.release() };
         }
+    }
+
+    /// Takes ownership of the value that crossed into this isolate, so that
+    /// releasing the isolate releases it too.
+    ///
+    /// This is where [`crate::script::Program`]'s "the argument is
+    /// transferred" lands. A program is handed one reference and has to put it
+    /// somewhere [ADR 0116](../../../docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
+    /// § 2's wholesale release will reach; this context *is* that ownership
+    /// root, so this is the one place with both the reference and the lifetime
+    /// in hand. Calling it twice releases what it replaces, and a context that
+    /// is never handed one holds `null` and releases nothing.
+    ///
+    /// The child's own surface for *reading* it is item 20's and does not exist
+    /// yet; until it does, this is the slot that keeps the argument accounted
+    /// for rather than leaked.
+    #[expect(
+        unsafe_code,
+        reason = "this context owned the reference it is replacing, having \
+                  been handed it by exactly one earlier call"
+    )]
+    pub fn set_isolate_argument(&mut self, value: Value) {
+        let previous = std::mem::replace(&mut self.isolate_argument, value);
+        // SAFETY: `isolate_argument` holds one owned reference or null, and
+        // nothing else points at it — the field is private and handed out only
+        // by the borrowing accessor below.
+        unsafe { previous.release() };
+    }
+
+    /// The value that crossed into this isolate, **borrowed**.
+    ///
+    /// No reference is handed over, exactly as reading any other slot hands
+    /// none over: a caller that keeps the value retains it first.
+    #[must_use]
+    pub fn isolate_argument(&self) -> Value {
+        self.isolate_argument
     }
 
     /// Arms [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
