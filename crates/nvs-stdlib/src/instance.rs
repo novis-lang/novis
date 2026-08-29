@@ -118,6 +118,14 @@ const DISPATCH_ROSTER: &[(&str, &[(&str, &str)])] = &[
         &[(sequence::ITERATE, crate::heap::ITERATE_SYMBOL)],
     ),
     (
+        crate::channel::NAME,
+        &[
+            (sequence::ITERATE, crate::channel::ITERATE_SYMBOL),
+            (sequence::ADVANCE, crate::channel::ADVANCE_SYMBOL),
+            (sequence::CURRENT, crate::channel::CURRENT_SYMBOL),
+        ],
+    ),
+    (
         crate::cursor::NAME,
         &[
             (sequence::ADVANCE, crate::cursor::ADVANCE_SYMBOL),

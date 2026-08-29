@@ -1,0 +1,51 @@
+--TEST--
+Twenty values through a `Core\Task\Channel` of capacity one arrive exactly once each and in the order they were sent, counted rather than read off a line — ADR 0072 § 4's "nothing still running" over `nvs_stdlib::channel`
+--FILE--
+<?nvs
+// A capacity of one makes every send past the first wait, so this sweep is
+// nineteen suspensions of the producer and nineteen of the consumer. What it
+// asserts is a property of the whole run rather than any one line of it: a
+// channel that dropped a value, delivered one twice, or handed them back out
+// of order fails here while still looking right on a three-element case.
+class Tally {
+    public static int $count = 0;
+    public static int $sum = 0;
+    public static int $last = 0;
+    public static bool $ordered = true;
+}
+
+var $chan = new Core\Task\Channel<int>(1);
+
+Core\Task::all({
+    produce: fn(): int => {
+        foreach (Core\Arr::range(1, 20) as int $n) {
+            $chan->send($n);
+        }
+        $chan->close();
+        return 20;
+    },
+    consume: fn(): int => {
+        foreach ($chan as int $n) {
+            if ($n != Tally::$last + 1) {
+                Tally::$ordered = false;
+            }
+            Tally::$last = $n;
+            Tally::$count += 1;
+            Tally::$sum += $n;
+        }
+        return Tally::$count;
+    },
+});
+
+// 20 values and 1+2+…+20 = 210. A dropped value moves both; a duplicate moves
+// both the other way.
+echo Tally::$count, " ", Tally::$sum, "\n";
+
+if (Tally::$ordered) {
+    echo "in order", "\n";
+} else {
+    echo "reordered", "\n";
+}
+--EXPECT--
+20 210
+in order

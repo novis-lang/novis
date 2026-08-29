@@ -1,0 +1,33 @@
+--TEST--
+`Core\Task\Channel::close` ends the stream without discarding it, is idempotent, and leaves a drained channel walking zero times — `nvs_stdlib::channel`'s end-of-stream, ADR 0053 § 1's iteration protocol
+--FILE--
+<?nvs
+// No tasks anywhere in this case, deliberately: nothing here reaches the
+// bound, so nothing here waits, and a channel that needs a scheduler to be
+// *used* would be a worse type than one that only needs a scheduler to wait.
+var $chan = new Core\Task\Channel<string>(3);
+
+$chan->send("a");
+$chan->send("b");
+
+// Closing does not discard: a value sent before the close is delivered after
+// it. The second call asks for a state the channel is already in, which is not
+// an error — there is nothing a diagnostic could help with.
+$chan->close();
+$chan->close();
+
+foreach ($chan as string $queued) {
+    echo $queued, "\n";
+}
+
+// Empty *and* closed is the end of the walk rather than a wait, so a second
+// `foreach` over the same channel runs its body zero times instead of hanging.
+foreach ($chan as string $queued) {
+    echo "unexpected ", $queued, "\n";
+}
+
+echo "drained", "\n";
+--EXPECT--
+a
+b
+drained

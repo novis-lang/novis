@@ -870,6 +870,11 @@ pub const CLASSES: &[CoreClass] = &[
     // signature is here and the body is a placeholder — [`crate::task`] owns
     // why, and it is the one row of the three that is not compile-time folded.
     crate::task::CLASS,
+    // Goal 2's item 11, and no spec § of its own either — ADR 0072's scope
+    // line leaves this type's spelling undecided, so [`crate::channel`]'s
+    // module doc is the one home for the surface and for why the queue lives
+    // in the instance's own slots rather than in the host.
+    crate::channel::CLASS,
     // § 13, and the second row after `Core\Attributes` whose members never
     // run: ADR 0061 § 3 expands `implementing<T>()` while checking, so
     // [`crate::program`] registers a signature and an aborting body.
@@ -923,6 +928,7 @@ pub const CONSTRUCTORS: &[(&str, &CoreMethod)] = &[
     (crate::objmap::NAME, &crate::objmap::NEW),
     (crate::objset::NAME, &crate::objset::NEW),
     (crate::heap::NAME, &crate::heap::NEW),
+    (crate::channel::NAME, &crate::channel::NEW),
 ];
 
 /// The constructor that builds a `class` instance, or `None` when `new` on it
@@ -1091,6 +1097,7 @@ pub const GENERIC_CLASSES: &[(&str, &[&str])] = &[
     (r"Core\ObjectMap", &["K", "V"]),
     (r"Core\ObjectSet", &["T"]),
     (r"Core\Heap", &["T"]),
+    (r"Core\Task\Channel", &["T"]),
 ];
 
 /// Every `Core` class a `foreach` can walk, and the element its
@@ -1115,6 +1122,7 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
     (r"Core\ObjectMap", &CoreTy::Var("K")),
     (r"Core\ObjectSet", &CoreTy::Var("T")),
     (r"Core\Heap", &CoreTy::Var("T")),
+    (r"Core\Task\Channel", &CoreTy::Var("T")),
 ];
 
 /// The element type `class`'s `Iterable<T>` is fixed at, or `None` when it is

@@ -15,7 +15,7 @@ class Meter {
 
 // Capacity two, against eight items: the buffer cannot hold the run, so the
 // producer must be made to wait four times over.
-var $chan = new Core\Task\Channel(2);
+var $chan = new Core\Task\Channel<int>(2);
 
 // Both halves are children of this call, so ADR 0072 § 4's promise applies
 // with nothing added: `all` does not return with either still running, which
