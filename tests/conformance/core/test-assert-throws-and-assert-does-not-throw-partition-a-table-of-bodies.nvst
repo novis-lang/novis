@@ -1,0 +1,171 @@
+--TEST--
+`Core\Test::assertThrows` at the root and `Core\Test::assertDoesNotThrow` are one predicate and its negation over every body, and below the root they are not -- ADR 0079 §§ 4, 20
+--FILE--
+<?nvs
+// The two members read the same three outcomes off one `call_closure`: the
+// body returned, the body threw, or the body ended the request. Each was
+// written to answer the *middle* one and to hand the third on unchanged, so
+// the property that ties them together is that over any body they disagree --
+// `assertThrows(…, Throwable::class)` holds exactly where `assertDoesNotThrow`
+// fails and the other way about. A member that grew its own notion of "threw"
+// -- one that judged a released return value, or that treated an unmatched
+// class as no throw at all -- still prints plausibly on its own line, so the
+// question is asked of a whole table and the *agreements* are counted.
+//
+// `Throwable::class` is what makes the pair complementary. It is
+// `nvs_hir::errors::TREE`'s root, so the bound accepts every throw the tree
+// can carry and the class argument stops narrowing anything. The last count
+// below is that claim's other half: name a class inside the tree and the two
+// members are no longer complements, because `assertThrows` is a bound and
+// `assertDoesNotThrow` has no bound to be the negation of.
+//
+// The bodies are named static methods for the reason
+// `test-assert-throws-is-bounded-on-both-sides-of-the-class-it-names.nvst`
+// gives -- a first-class `Class::method(...)` reference does not exist yet, so
+// each row's `callable` is a `fn` literal calling one.
+
+final class Ask {
+    // The verdict as a `bool` rather than as control flow. A refusal is a
+    // `Core\Test\Failure` on both members (ADR 0079 § 4), which is the whole
+    // reason one helper can ask either of them.
+    public static function throws(callable $body, string $class): bool {
+        try {
+            Core\Test::assertThrows($body, $class);
+            return true;
+        } catch (Core\Test\Failure $refused) {
+            return false;
+        }
+    }
+
+    public static function quiet(callable $body): bool {
+        try {
+            Core\Test::assertDoesNotThrow($body);
+            return true;
+        } catch (Core\Test\Failure $refused) {
+            return false;
+        }
+    }
+}
+
+final class Ran {
+    public static function parse(): void {
+        throw new ParseError("the input is not JSON");
+    }
+
+    public static function logic(): void {
+        throw new LogicError("the caller had it backwards");
+    }
+
+    public static function arithmetic(): void {
+        throw new ArithmeticError("the divisor is zero");
+    }
+
+    // The throw crosses a closure frame before it reaches the one
+    // `call_closure` is watching, which is the edge a member reading its own
+    // frame rather than the pending throw would part company on.
+    public static function nested(): void {
+        callable $inner = fn (): void => { throw new IOError("the disk is full"); };
+        $inner();
+    }
+
+    // Work first, throw after: the body is not one that could only ever throw.
+    public static function late(): int {
+        array<int> $steps = [1, 2, 3];
+        int $sum = 0;
+        foreach ($steps as string $step => int $n) {
+            $sum = $sum + $n;
+        }
+        throw new TimeoutError("after 6 steps");
+    }
+
+    public static function nothing(): void {
+    }
+
+    public static function seven(): int {
+        return 7;
+    }
+
+    public static function absent(): ?int {
+        return null;
+    }
+
+    // A container answer, which both members release rather than hand on --
+    // a `callable`'s value is the caller's and neither of these is the caller.
+    public static function container(): array<string> {
+        return ["a", "b"];
+    }
+
+    // Threw and caught its own throw, so nothing is pending by the time the
+    // body returns. This row is the one that separates "the body contains a
+    // `throw`" from "the body threw".
+    public static function caught(): string {
+        try {
+            Ran::parse();
+        } catch (ParseError $swallowed) {
+            return $swallowed->message;
+        }
+        return "";
+    }
+}
+
+array<callable> $throwing = [
+    fn (): void => { Ran::parse(); },
+    fn (): void => { Ran::logic(); },
+    fn (): void => { Ran::arithmetic(); },
+    fn (): void => { Ran::nested(); },
+    fn (): int => { return Ran::late(); },
+];
+
+array<callable> $returning = [
+    fn (): void => { Ran::nothing(); },
+    fn (): int => { return Ran::seven(); },
+    fn (): ?int => { return Ran::absent(); },
+    fn (): array<string> => { return Ran::container(); },
+    fn (): string => { return Ran::caught(); },
+];
+
+// Every row of both tables asked both ways. `$partition` counts the rows where
+// the two verdicts differed, which is the invariant; the two side counts say
+// *which* way round each table came out, so a pair that disagreed by both
+// being wrong cannot reach 10 here.
+int $partition = 0;
+int $threwHeld = 0;
+foreach ($throwing as string $t => callable $body) {
+    if (Ask::throws($body, Throwable::class)) {
+        $threwHeld = $threwHeld + 1;
+    }
+    if (Ask::throws($body, Throwable::class) != Ask::quiet($body)) {
+        $partition = $partition + 1;
+    }
+}
+
+int $quietHeld = 0;
+foreach ($returning as string $r => callable $body2) {
+    if (Ask::quiet($body2)) {
+        $quietHeld = $quietHeld + 1;
+    }
+    if (Ask::throws($body2, Throwable::class) != Ask::quiet($body2)) {
+        $partition = $partition + 1;
+    }
+}
+
+echo "partition=", $partition, "/10\n";
+echo "assertThrows held on the throwing table: ", $threwHeld, "/5\n";
+echo "assertDoesNotThrow held on the returning table: ", $quietHeld, "/5\n";
+
+// The same throwing table against a class inside the tree instead of its root.
+// Four of the five threw something `LogicError` does not bound, so on those
+// rows `assertThrows` refuses *and* so does `assertDoesNotThrow`: neither holds,
+// and the pair is not a partition. Only the root makes it one.
+int $neither = 0;
+foreach ($throwing as string $n => callable $body3) {
+    if (Ask::throws($body3, LogicError::class) == false && Ask::quiet($body3) == false) {
+        $neither = $neither + 1;
+    }
+}
+echo "below the root, neither holds: ", $neither, "/5\n";
+--EXPECT--
+partition=10/10
+assertThrows held on the throwing table: 5/5
+assertDoesNotThrow held on the returning table: 5/5
+below the root, neither holds: 4/5
