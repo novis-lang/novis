@@ -68,12 +68,6 @@ modules = [
   "crates/nvs-ir/src/lower/generator.rs",
   # `Core\Task`, `Core\Serialize` and `Core\Script` are registered here.
   "crates/nvs-stdlib/src/registry.rs",
-  # Stage 0b's file set (items 28-30). REMOVE these four when its three checks are green: every later
-  # session pays for them otherwise.
-  "crates/nvs-stdlib/src/lib.rs",
-  "crates/nvs-types/src/core_lib.rs",
-  "crates/nvs-types/src/signatures.rs",
-  "crates/nvs-types/src/expr/args.rs",
 ]
 # NOT in `modules`, and it cannot be: `benches/abi-probe/src/lib.rs` is the proven coroutine shape this
 # goal moves into `nvs-host`, and orient.py's map covers `crates/` and `editors/` only. Every session of
@@ -89,8 +83,6 @@ adrs = [
   "0072 §5",
   "0106 §6",
   "0023 §2",
-  # Stage 0b: R2's amended row and the reversed alternative. REMOVE with the four modules above.
-  "0063 §1",
 ]
 
 shapes = ["A `Core` member — the four edits", "A `.nvst` test case", "An ADR", "A commit message"]
@@ -157,9 +149,9 @@ tests = [
 # by the spec's `$name`. Items 28-30 in loop-goal.md. A "0" stage runs in the catch-up class, ahead of
 # the program legs, and after Stage 0 because the run order inside the class is this file's order.
 #
-# Every test and case named below must EXIST and pass, and none of them exists yet -- writing one is how
-# the loop finishes its item. Do not rename one to something already green. REMOVE the four Stage 0b
-# modules and the `0063 §1` section from `[context]` when the three checks are green.
+# Every test and case named below must EXIST and pass. All three checks are green: items 28-30 landed,
+# and the stage's four modules and `0063 §1` have been taken back out of `[context]` as this block used
+# to ask. The checks stay as the floor -- do not rename one to something already green.
 # ---------------------------------------------------------------------------------------------------
 [[check]]
 kind = "cargo-named"
