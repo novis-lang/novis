@@ -124,10 +124,13 @@ no new call-argument syntax was needed for it. Every key in *spawn-option* is op
 'jobs/report.nvs';` with no `with(…)` clause at all is legal and spawns with inherited grants, no argument,
 and the parent's remaining budget.
 
-The expression's static type — an awaitable handle that a subsequent `await` turns into a `ScriptResult` —
-belongs to the concurrency type surface M5 defines, not to this document; this section fixes only the
-`spawn script … with(…)` token sequence, so that the M1 parser has a grammar to implement without waiting on
-M5's design.
+The expression's static type is `Core\Script\Handle`, a registered class with no members at all — `await` is
+the only thing a program may do with one — and `await` answers with a `ScriptResult` **shape** rather than
+with a class. Both are the concurrency type surface M5 defines rather than this document's:
+`crates/nvs-types/src/expr/isolate.rs`'s module doc is the one home of the field set and of why the two
+halves take opposite mechanisms, and `crates/nvs-stdlib/src/script.rs` is the handle's row. This section
+fixes only the `spawn script … with(…)` token sequence, so that the M1 parser has a grammar to implement
+without waiting on M5's design.
 
 `await`'s operand is a *unary* expression, so the postfix chain binds tighter than the keyword does and
 `await $h->handle` awaits the property. Both `spawn`/`script`/`with` and `await` are **contextual**: they

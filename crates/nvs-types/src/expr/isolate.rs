@@ -5,9 +5,16 @@
 //! yet: `crates/nvs-ir/src/lower/expr.rs`'s roster comment is the proof that no
 //! lowering arm exists, and `docs/plan/m5.md` is the schedule. The refusal is
 //! what keeps that roster true, so it stays until the lowering lands rather
-//! than until the type does — `await` already answers with the type below, and
-//! `spawn script` answers `mixed` until the class its handle is has a registry
-//! row (item 22).
+//! than until the types do — and the types are now both here: `spawn script`
+//! answers with the handle class and `await` answers with the shape below,
+//! which is what lets a program hear about the *rest* of a line it wrote
+//! rather than only about the construct itself.
+//!
+//! That is also what makes `await`'s operand checkable, and it is checked:
+//! `await 5` is an ordinary `E_TYPE_MISMATCH` naming `Core\Script\Handle`,
+//! reported by [`check_expr`] against the expected type rather than by a rule
+//! of this module's own. There is nothing else in the language that produces a
+//! handle, so an operand that is not one cannot have come from a spawn.
 //!
 //! # The handle is a `Core` class and the result is a shape
 //!
@@ -18,8 +25,9 @@
 //! whose members are called, and `CoreClass::slots` is a layout helper bodies
 //! read by index, never source.
 //!
-//! - **The handle is a registered `Core` class**, `Core\Script\Handle`. It is
-//!   exactly a value with no readable part: § *Failure is a value, not an
+//! - **The handle is a registered `Core` class**, `Core\Script\Handle` —
+//!   [`nvs_stdlib::script`] is the row, and the one home of why it declares no
+//!   members. It is exactly a value with no readable part: § *Failure is a value, not an
 //!   exception* gives a program nothing to do with a handle but `await` it, and
 //!   the property such a class cannot have is the property this one must not
 //!   have. `Core\Task` beside `Core\Task\Channel<T>` is the same pairing
@@ -82,6 +90,7 @@
 //! [`ExprInfo::ShapeProperty`]: crate::expr_table::ExprInfo::ShapeProperty
 
 use nvs_diagnostics::{Diagnostic, code};
+use nvs_hir::QName;
 use nvs_syntax::ast::{Expr, SpawnOption};
 use rustc_hash::FxHashSet;
 
@@ -96,7 +105,10 @@ use super::check_expr;
 /// Its operands are still checked, because a typo in the path expression is
 /// worth reporting alongside, and then the construct itself is refused:
 /// refusing it where it is written is the only reading that cannot silently do
-/// nothing.
+/// nothing. The answer is [`script_handle`] regardless, for [`check_await`]'s
+/// reason — a refused construct with an honest type reports the mistakes on
+/// the *other* lines, and the one thing a program can write with a handle is
+/// the one thing that has a type to check it against.
 pub(crate) fn check_spawn_script(
     expr: &Expr,
     path: &Expr,
@@ -122,18 +134,23 @@ pub(crate) fn check_spawn_script(
              spelling of this to fall back on",
         ),
     );
-    env.interner.mixed()
+    script_handle(env)
 }
 
 /// `await <operand>` — the prefix half of the same surface, refused for the
 /// same reason and in the same shape.
 ///
-/// Its operand is checked first: `await $handel` is an undefined variable
-/// whether or not the construct compiles. The answer is [`script_result`] all
-/// the same, because the type is decided even though the lowering is not: a
-/// program that reads `$result->ok` hears about a `string` binding on the next
-/// line rather than only about `await` itself, and the refusal is what stops
-/// the compilation either way.
+/// Its operand is checked first, and **against [`script_handle`]**: `await
+/// $handel` is an undefined variable whether or not the construct compiles,
+/// and `await 5` is a value that no `spawn script` produced. That second one is
+/// reported by [`check_expr`] itself, naming the expected class — this module
+/// adds no rule of its own for it, because there is nothing about the mismatch
+/// that a declared parameter of the same type would not already say.
+///
+/// The answer is [`script_result`] all the same, because the type is decided
+/// even though the lowering is not: a program that reads `$result->ok` hears
+/// about a `string` binding on the next line rather than only about `await`
+/// itself, and the refusal is what stops the compilation either way.
 pub(crate) fn check_await(
     expr: &Expr,
     operand: &Expr,
@@ -142,7 +159,8 @@ pub(crate) fn check_await(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> TypeId {
-    check_expr(operand, None, live, scope, ctx, env);
+    let handle = script_handle(env);
+    check_expr(operand, Some(handle), live, scope, ctx, env);
     env.diags.report(
         Diagnostic::error(code::E_AWAIT_UNLOWERED, "`await` is not compiled yet")
             .with_primary(expr.span, "nothing is awaited here")
@@ -153,6 +171,20 @@ pub(crate) fn check_await(
             ),
     );
     script_result(env)
+}
+
+/// `Core\Script\Handle`, interned: the class a spawn answers with and the only
+/// type an `await` accepts.
+///
+/// Named through [`nvs_stdlib::script::HANDLE_NAME`] rather than written out,
+/// because the registry row and this are the two halves of one name.
+/// [`crate::core_lib`]'s `seed` has already put the class in the very table
+/// [`TypeInterner::class`](crate::ty::TypeInterner::class) reads, so nothing
+/// here registers anything — a `Core` instance type is an ordinary class type
+/// from the moment its row exists.
+pub(crate) fn script_handle(env: &mut Env<'_>) -> TypeId {
+    env.interner
+        .class(QName::parse(nvs_stdlib::script::HANDLE_NAME))
 }
 
 /// ADR 0006's `ScriptResult`, interned: the shape this module's doc decides on,
