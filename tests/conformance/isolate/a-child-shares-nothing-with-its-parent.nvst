@@ -1,0 +1,53 @@
+--TEST--
+An isolate's class statics and its output buffer are its own: the child reads a fresh store rather than what the parent wrote, and its `echo` reaches the parent only as a value the parent prints — ADR 0006 § *Decision*, ADR 0116 § 4
+--FILE child.nvs--
+<?nvs
+// The child's own declaration of the same class. ADR 0116 § 4: an isolate's
+// context is built with a statics base of its own, so the same compiled load
+// reads a different store here — this is the fresh zero, not the 7 the parent
+// wrote one line before the spawn.
+final class Ledger {
+    public static int $entries = 0;
+}
+
+echo "child read ", Ledger::$entries, "\n";
+
+// And the write does not travel the other way either. Nothing about this
+// store is reachable from the parent's, which is the whole of ADR 0006 §
+// *Decision*'s "globals, class statics, constants defined at runtime: no,
+// fresh" row.
+Ledger::$entries = 99;
+echo "child wrote ", Ledger::$entries, "\n";
+
+return "done";
+--FILE--
+<?nvs
+// ADR 0006 § *Decision*'s table, as a program: what a child shares with its
+// parent is compiled code and the budget, and this case is two of the rows
+// that say "no" — class statics, and the output buffer.
+
+final class Ledger {
+    public static int $entries = 0;
+}
+
+Ledger::$entries = 7;
+echo "parent wrote ", Ledger::$entries, "\n";
+
+// `output: 'capture'` is the second row. The child echoes twice while it
+// runs, and neither line lands here — they arrive as a string the parent
+// prints below, *after* the line reporting the await, which is what makes
+// "no, captured separately" an observable fact rather than a race.
+var $job = spawn script "child.nvs" with(output: "capture");
+var $done = await $job;
+echo "ok=", $done->ok ? "true" : "false", "\n";
+echo $done->output;
+
+// The read that matters: the parent's own store still holds what the parent
+// put in it. A child that could reach a parent static would print 99 here.
+echo "parent still reads ", Ledger::$entries, "\n";
+--EXPECT--
+parent wrote 7
+ok=true
+child read 0
+child wrote 99
+parent still reads 7
