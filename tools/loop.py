@@ -139,6 +139,12 @@ class StatusLine:
         detail   the current item       `wsl fixtures/closures.nvs`, `Edit tools/loop.py`
         elapsed  how long this phase has been going
 
+    Above them, on its own row, the **goal** the run is working toward -- the title of
+    `docs/agent/loop-goal.md`, with `goal 2/6` in front of it when a chain is driving. It changes
+    only when a chain advances, which is exactly why it gets a row rather than a field: a run of
+    three hundred sessions crosses several goals, and the session counter alone does not say
+    which one this is.
+
     A count is shown only when the total is known ahead of time -- the acceptance sweep knows how
     many checks it is about to run, a session does not know how many tool calls it will make, so the
     session shows a running count and no percentage rather than a number that pretends to be one.
@@ -159,6 +165,7 @@ class StatusLine:
         self.cut = "..."
         self.bar = "-"
         self.dash = " -- "
+        self.goal = ""
         self.scope = ""
         self.phase = ""
         self.detail = ""
@@ -208,10 +215,13 @@ class StatusLine:
 
     # -- what it says ------------------------------------------------------------------
 
-    def set(self, phase=None, detail=None, scope=None, total=None, done=None, calls=None):
+    def set(self, phase=None, detail=None, scope=None, total=None, done=None, calls=None,
+            goal=None):
         """Update any subset of the fields. A new `phase` restarts the elapsed clock and clears
         the detail and the counters, because those belonged to the phase that just ended."""
         with self.lock:
+            if goal is not None:
+                self.goal = goal
             if scope is not None:
                 self.scope = scope
             if phase is not None and phase != self.phase:
@@ -281,6 +291,18 @@ class StatusLine:
         what should catch the eye is the status, not the furniture around it."""
         return C.paint(self.bar * max(18, self.width() - 1), C.GRAY)
 
+    def goal_row(self):
+        """The row between the rule and the status line: which goal the run is working toward.
+
+        Grey and indented like the key row, so the one white line in the block is still the
+        status. Truncated the same way `compose()` truncates, for the same reason: a row that
+        wraps is a row the next erase only half removes."""
+        body = (self.goal or "(no goal loaded)").replace("\n", " ")
+        room = max(18, self.width() - 3)
+        if len(body) > room:
+            body = body[: room - len(self.cut)] + self.cut
+        return "  " + C.paint(body, C.GRAY)
+
     def keys(self):
         """The row under the status line: what a keypress would do *right now*.
 
@@ -307,10 +329,11 @@ class StatusLine:
         return "  " + C.paint(body, C.YELLOW if CONTROL.stop else C.GRAY)
 
     def rows(self):
-        """How tall the live block is: the rule and the status line always, the key row only when
-        there is a console to type at. Both `draw` and `erase` read this, and a height that
-        changes mid-run is handled by giving the old block back before claiming the new one."""
-        return 3 if CONTROL.tty else 2
+        """How tall the live block is: the rule, the goal row and the status line always, the key
+        row only when there is a console to type at. Both `draw` and `erase` read this, and a
+        height that changes mid-run is handled by giving the old block back before claiming the
+        new one."""
+        return 4 if CONTROL.tty else 3
 
     def erase(self):
         if self._rows:
@@ -336,7 +359,7 @@ class StatusLine:
             self.erase()  # the block changed height; hand the old one back before claiming this
         out = "\n" * (want - 1) if not self._rows else ""  # claim the rows under this one, once
         out += f"\033[{want - 1}A\r\033[2K" + self.divider()  # up to the rule
-        for line in [self.compose()] + ([self.keys()] if want > 2 else []):
+        for line in [self.goal_row(), self.compose()] + ([self.keys()] if want > 3 else []):
             out += "\033[B\r\033[2K" + line  # and back down, one row at a time
         sys.stdout.write(out)
         sys.stdout.flush()
@@ -1779,6 +1802,25 @@ def load_goal():
     return Goal(tomllib.loads(GOAL_TOML.read_text(encoding="utf-8")))
 
 
+def goal_title(chain=None):
+    """What the status line's goal row says: the H1 of `docs/agent/loop-goal.md`, behind
+    `goal 2/6` when a chain is driving. Read from disk each time, for the reason `load_goal()`
+    is: a chain switch rewrites the file, and the row has to follow it. A file that cannot be
+    read, or has no heading, leaves the row saying so rather than ending the run."""
+    title = ""
+    try:
+        for line in GOAL_MD.read_text(encoding="utf-8").splitlines():
+            if line.startswith("# "):
+                title = line[2:].strip()
+                break
+    except OSError:
+        pass
+    title = title or f"{rel_to_root(GOAL_MD)} has no heading"
+    if chain is not None and chain.current is not None:
+        return f"goal {chain.index + 1}/{len(chain.goals)}{TICKER.sep}{title}"
+    return title
+
+
 # --------------------------------------------------------------------------------- chain
 
 
@@ -2682,6 +2724,7 @@ def run_cli():
 
     if opts.status:
         TICKER.start()
+    TICKER.set(goal=goal_title())
 
     if opts.goal_only or opts.leg_only:
         # By hand is exactly when the full output is wanted: `--goal-only` is what you run to
@@ -2769,7 +2812,10 @@ def run_cli():
             say(fail, C.RED)
             return 2
 
-    TICKER.set(phase="making room", detail="pruning earlier runs' logs and scratch")
+    # Set again here rather than only above: a chain that just installed its first goal rewrote
+    # `loop-goal.md` after the first read, and this is the first moment the row can name it.
+    TICKER.set(goal=goal_title(chain),
+               phase="making room", detail="pruning earlier runs' logs and scratch")
     if not make_room(opts):
         return 2
     if not claim_run(opts):
@@ -2988,6 +3034,7 @@ def drive(opts, goal, chain=None):
                 reason = f"chain: {rel_to_root(GOAL_TOML)} did not load after the switch -- {e}"
                 kind = "chain-error"
                 break
+            TICKER.set(goal=goal_title(chain))
             continue
         ledger(f"       goal check: {fail}")
 
