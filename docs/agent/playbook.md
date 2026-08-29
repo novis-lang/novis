@@ -797,6 +797,14 @@ is why" — is this file.
   passed since the kind was introduced in `058c1f0`. When an acceptance failure's detail is not a
   sentence about your code — `True`, an empty string, a bare number — read the branch in `loop.py` that
   produced it before touching the tree, and check the other call sites of whatever helper it names.
+- **`orient.py`'s "THE DRIVER'S LAST ACCEPTANCE CHECK FAILED" can be a record from the *previous* run,
+  already repaired.** The pack opened this session with stage 4's `nvs build --openapi emits 3.1` failing
+  and the bare-`True` detail the bullet above explains — but the three `True` records in `.loop/log.md` all
+  sit in the run that started 05:29, `ba38b77` fixed `loop.py` at 06:31:36, and the run that is holding the
+  tree now started 06:33:25 with no acceptance line yet. The ledger keeps the last *recorded* result across
+  the `## run started` boundary, so a failure repaired at the end of a run is what the next run's first
+  session reads. Two calls settle it: `git log --format=%ad --date=iso <the fixing commit>` against the
+  `started:` line the pack prints, and running the check's own `argv` by hand.
 
 ## Running things
 

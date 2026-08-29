@@ -1,0 +1,40 @@
+<?nvs
+// ADR 0085 § 1's response body row: the `200` response's schema is the
+// handler's *declared* return type, so this fixture declares the three answers
+// the emitter has to tell apart -- a type it maps, a type it does not, and no
+// body at all.
+
+class Note
+{
+    public string $title = "";
+}
+
+class Notes
+{
+    #[\Core\Route(path: "/notes/count", method: \Core\Http\Method::Get, name: "Notes::count")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function count(): uint
+    {
+        return 3;
+    }
+
+    // A class has fields, and which of them reach the wire is ADR 0071's codec
+    // rather than the class's property list, so the schema is the empty one --
+    // *any* -- until the row carries that roster.
+    #[\Core\Route(path: "/notes/first", method: \Core\Http\Method::Get, name: "Notes::first")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function first(): Note
+    {
+        return new Note();
+    }
+
+    // No body: a response with no `content` at all, which is not the same
+    // claim as a body whose schema admits anything.
+    #[\Core\Route(path: "/notes/ping", method: \Core\Http\Method::Get, name: "Notes::ping")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function ping(): void
+    {
+    }
+}
+
+echo "GET /notes/count -> Notes::count", "\n";

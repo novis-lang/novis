@@ -29,20 +29,24 @@
 //! Each of these is a row of § 1 whose source exists but does not reach this
 //! module, and each is *absent* from the document rather than guessed at:
 //!
-//! 1. **Response schemas.** The handler's declared return type is not on the
-//!    row, and rendering a class as a schema is [ADR 0071](../../../docs/adr/0071-derived-codecs.md)'s
-//!    codec, which the emitter has no access to. An operation therefore carries
-//!    no `responses` member — legal in 3.1, where it is optional.
-//! 2. **Request body schemas**, for the same reason.
-//! 3. **Summary and description.** Doc comments are parsed but not carried on
-//!    the row.
-//! 4. **Everything `#[Api]` supplies** (§ 2) — tags, errors, security, examples,
-//!    deprecation — which is a compiler-recognized attribute that does not exist
-//!    yet.
-//! 5. **`info.version`.** The document has to carry one (3.1 requires it) and
+//! 1. **A response body that is an object.** The declared return type is on the
+//!    row and [`responses`] renders it, but only through [`schema`] — so a
+//!    handler answering with a *class* gets the empty schema, because the fields
+//!    of one are [ADR 0071](../../../docs/adr/0071-derived-codecs.md)'s codec
+//!    and the codec is not on the row. It is that roster and not the class's
+//!    declared properties: a property map holds the private ones too, and a
+//!    document that published those would be leaking exactly what
+//!    `#[Json\Derive]` exists to decide.
+//! 2. **Request body schemas**, for the same reason and one more: which
+//!    parameter *is* the body is a question the row does not answer either.
+//! 3. **Everything `#[Api]` supplies** (§ 2) — `tags`, `errors`, `security`,
+//!    `example`. The attribute exists and `nvs_types::routes`' `check_api` holds
+//!    it to § 2's *may add and may not contradict*; what is missing is the other
+//!    half, which is a row that carries the four values here.
+//! 4. **`info.version`.** The document has to carry one (3.1 requires it) and
 //!    nothing in the program declares one, so it is a fixed `0.0.0` until
 //!    `nvs.toml` grows the key M6's reader would own.
-//! 6. **A type outside [`schema`]'s list** — an enum, a literal union,
+//! 5. **A type outside [`schema`]'s list** — an enum, a literal union,
 //!    `Core\Uuid` — is emitted with the empty schema, which in JSON Schema means
 //!    *any*. That is the honest rendering of "the compiler knows this type and
 //!    the emitter has no mapping for it yet".
@@ -143,11 +147,52 @@ fn base_id(row: &Route) -> &str {
 fn operation(row: &Route, id: &str) -> Value {
     let mut operation = Map::new();
     operation.insert("operationId".to_owned(), json!(id));
+    // § 1's last row, already split into its two halves by
+    // `nvs_types::routes`'s `doc_comment`: a method with no doc comment carries
+    // neither member, for `parameters`' reason above.
+    if let Some(summary) = &row.summary {
+        operation.insert("summary".to_owned(), json!(summary));
+    }
+    if let Some(description) = &row.description {
+        operation.insert("description".to_owned(), json!(description));
+    }
     if !row.params.is_empty() {
         let params: Vec<Value> = row.params.iter().map(parameter).collect();
         operation.insert("parameters".to_owned(), Value::Array(params));
     }
+    operation.insert("responses".to_owned(), responses(row.returns.as_deref()));
     Value::Object(operation)
+}
+
+/// § 1's response body: the handler's declared return type, as the one response
+/// the route table can speak for.
+///
+/// **`200` and nothing else.** The other status codes an operation answers with
+/// are § 2's `errors`, which the row does not carry yet; inventing a `4xx` here
+/// would be the emitter holding an opinion the code never stated, which is the
+/// one thing ADR 0085 is against.
+///
+/// `description` is required of every response object in 3.1, and `success` is
+/// what a generated one can honestly say: the *prose* about an operation is its
+/// doc comment, which the operation already carries, and repeating it here would
+/// put the same sentence in a document twice.
+///
+/// A `void` handler answers with no body, so the response carries no `content`
+/// rather than an empty schema — the two mean different things to a generated
+/// client. Everything else is JSON, which is § 1's "through the same codec":
+/// the codec a return type reaches this document through is
+/// [ADR 0071](../../../docs/adr/0071-derived-codecs.md)'s, and that codec is
+/// JSON.
+fn responses(returns: Option<&str>) -> Value {
+    let mut success = Map::new();
+    success.insert("description".to_owned(), json!("success"));
+    if !matches!(returns, None | Some("void")) {
+        success.insert(
+            "content".to_owned(),
+            json!({"application/json": {"schema": schema(returns)}}),
+        );
+    }
+    json!({"200": Value::Object(success)})
 }
 
 /// One parameter object, in declaration order within its route.

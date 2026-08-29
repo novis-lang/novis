@@ -105,6 +105,101 @@ fn a_program_with_a_diagnostic_emits_no_document() {
     assert!(doc.is_empty(), "and writes no document: {doc}");
 }
 
+/// § 1's last row: the summary is the doc comment's first sentence, the
+/// description is the rest, and a method that wrote no doc comment carries
+/// neither member.
+///
+/// The bound is asserted on both sides on purpose — an emitter that wrote a
+/// `summary` for every operation would pass the first half alone, and one that
+/// wrote none would pass the second. The `//`-commented and `/* */`-commented
+/// handlers are the third side: a doc comment is `/** … */` and prose above a
+/// declaration in any other spelling is a note to the next reader of the source,
+/// not text this document may publish.
+#[test]
+fn an_operations_summary_and_description_come_from_the_handlers_doc_comment() {
+    let (doc, err, ok) = build(&fixture("documented"));
+    assert!(ok, "the fixture compiles: {err}");
+    let document: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
+    let operation = |path: &str, verb: &str| document["paths"][path][verb].clone();
+
+    // Wrapped across two source lines, and one line in the document.
+    let index = operation("/notes", "get");
+    assert_eq!(
+        index["summary"], "Lists every note the caller may read.",
+        "the first sentence, collapsed onto one line:\n{doc}"
+    );
+    let description = index["description"]
+        .as_str()
+        .unwrap_or_else(|| panic!("the rest of the comment is the description:\n{doc}"));
+    assert!(
+        description.starts_with("The first sentence above")
+            && description.contains("\n\nA second paragraph"),
+        "trimmed, with its paragraph break kept:\n{description}"
+    );
+
+    // One sentence is a summary and nothing else -- an empty `description` is
+    // a member a hand-written document would not carry.
+    let show = operation("/notes/{id}", "get");
+    assert_eq!(show["summary"], "One sentence and no more.");
+    assert!(
+        show["description"].is_null(),
+        "a one-sentence comment writes no description:\n{show}"
+    );
+
+    // Neither spelling above `create` and `destroy` is a doc comment.
+    for (path, verb) in [("/notes", "post"), ("/notes/{id}", "delete")] {
+        let bare = operation(path, verb);
+        assert!(
+            bare["summary"].is_null() && bare["description"].is_null(),
+            "`{verb} {path}` documented nothing, so the operation says nothing:\n{bare}"
+        );
+    }
+    assert!(
+        !doc.contains("not a doc comment") && !doc.contains("note to the next reader"),
+        "and no line-comment text reached the document at all:\n{doc}"
+    );
+}
+
+/// § 1's response body row: the `200` response's schema is the handler's
+/// declared return type, through the same `schema` mapping a parameter's is.
+///
+/// The three answers the emitter has to tell apart, in one fixture: a type it
+/// maps (`uint`, floor and all), a type it does not (a class, whose fields are
+/// ADR 0071's codec rather than this document's guess), and `void`, which
+/// carries no `content` at all. The third is the one that would go wrong
+/// silently — an empty schema means *any body*, and *no body* is a different
+/// promise to a generated client.
+#[test]
+fn an_operations_response_schema_is_the_handlers_declared_return_type() {
+    let (doc, err, ok) = build(&fixture("returns"));
+    assert!(ok, "the fixture compiles: {err}");
+    let document: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
+    let ok_response = |path: &str| document["paths"][path]["get"]["responses"]["200"].clone();
+
+    let counted = ok_response("/notes/count");
+    assert_eq!(
+        counted["content"]["application/json"]["schema"],
+        serde_json::json!({"type": "integer", "minimum": 0}),
+        "a `uint` return is a non-negative integer, exactly as a `uint` capture is:\n{doc}"
+    );
+    assert!(
+        counted["description"].is_string(),
+        "3.1 requires a description on every response object:\n{counted}"
+    );
+
+    assert_eq!(
+        ok_response("/notes/first")["content"]["application/json"]["schema"],
+        serde_json::json!({}),
+        "a class has no schema here until its codec's roster reaches the row:\n{doc}"
+    );
+
+    let empty = ok_response("/notes/ping");
+    assert!(
+        empty["content"].is_null(),
+        "a `void` handler answers with no body, which is not a body admitting anything:\n{empty}"
+    );
+}
+
 // -------------------------------------------------------------------------
 // § 4 — `nvs api diff`, the gate.
 //

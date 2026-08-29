@@ -87,12 +87,20 @@
 //! describes the operation however many `#[Route]`s the method carries, so it
 //! is asked once per method beside `#[Access]` rather than once per row.
 //!
+//! The same walk reads one thing that is not an attribute at all: § 1's last
+//! row gives the summary and description to **the declaration's own doc
+//! comment**, so [`doc_comment`] reads the `/** … */` block in front of the
+//! member and [`Route`] carries the two strings it splits into. Here rather
+//! than at the emitter because the row is what crosses out of this crate, and
+//! out of the source text rather than off a token because the lexer keeps no
+//! trivia — [`doc_comment`]'s own comment owns that, including what replaces it.
+//!
 //! A `#[Query]` written where no `#[Route]` reads it is [`check_stray_query`],
 //! and it is the one thing here the per-class walk cannot ask: that walk selects
 //! the methods a `#[Route]` marks, so a stray marker is invisible to it by
 //! construction and the question belongs to the walk that visits every method.
 
-use nvs_diagnostics::{Diagnostic, Diagnostics, Span, code};
+use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use nvs_hir::QName;
 use nvs_syntax::ast::{
     Attribute, AttributeGroup, ClassDecl, ClassMemberKind, ExprKind, MethodMember,
@@ -353,6 +361,31 @@ pub struct Route {
     /// no sibling `#[Access]` (§ 1), no `allow`, or an `allow` naming nothing
     /// (§ 1a) — so every row of a program that compiles carries a decision.
     pub access: Option<String>,
+    /// [ADR 0085](../../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)
+    /// § 1's summary: the first sentence of the declaration's own doc comment,
+    /// or `None` where the method carries none.
+    ///
+    /// Split here rather than at the emitter, for the reason this whole row
+    /// exists: what rides across is a decision with no resolution left in it,
+    /// and *which sentence is the summary* is a reading of the source that the
+    /// renderer would otherwise have to make a second time — once per document
+    /// it writes, against text it can no longer see the source of.
+    pub summary: Option<String>,
+    /// The remainder of the same doc comment, whitespace-trimmed and with its
+    /// paragraphs intact, or `None` where the comment was one sentence.
+    pub description: Option<String>,
+    /// § 1's response body: the handler's **declared** return type as
+    /// [`crate::TypeInterner::describe`] renders it, the same spelling and for
+    /// the same reason [`RouteParam::ty`] is one — the interner is dropped with
+    /// the checking pass, and the emitter's whole use of a type is to choose a
+    /// JSON Schema for it.
+    ///
+    /// `None` only where the signature table holds no row for the handler,
+    /// which a program that compiles does not reach. Nothing is inferred from a
+    /// `return` statement: § 1's promise is that the document says what the
+    /// *code declares*, and a body's inferred type is not something an author
+    /// wrote.
+    pub returns: Option<String>,
     /// The whole attribute.
     pub span: Span,
 }
@@ -485,8 +518,20 @@ pub(crate) fn check_class_routes(
         {
             check_api(api, m, class, ctx, env);
         }
+        // § 1's summary and description, read once for the method: one doc
+        // comment describes the operation however many verbs it serves, which
+        // is `#[Api]`'s arrangement two lines up and for its reason.
+        let doc = doc_comment(member.span, env.src);
+        let returns = declared_return(m, class, env);
+        let handler = Handler {
+            m,
+            class,
+            label: &handler,
+            doc: doc.as_ref(),
+            returns: returns.as_deref(),
+        };
         for attr in routes {
-            collect_route(attr, m, class, handler.clone(), access, ctx, env);
+            collect_route(attr, &handler, access, ctx, env);
         }
     }
 }
@@ -972,13 +1017,18 @@ fn report_api(
 /// author who wrote neither wrote the empty attribute once.
 fn collect_route(
     attr: &Attribute,
-    m: &MethodMember,
-    class: &QName,
-    handler: String,
+    handler: &Handler<'_>,
     access: Option<&Attribute>,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
+    let Handler {
+        m,
+        class,
+        label: handler,
+        doc,
+        returns,
+    } = *handler;
     let path = folded_str(attr, PATH, env);
     let verb = verb_of(attr, ctx, env);
     let (Some((path, path_span)), Some(verb)) = (path, verb) else {
@@ -1024,7 +1074,7 @@ fn collect_route(
             return;
         }
     };
-    let mut params = check_captures(&captures, path_span, m, class, &handler, env);
+    let mut params = check_captures(&captures, path_span, m, class, handler, env);
     params.extend(query_params(m, class, ctx, env));
     let name = folded_str(attr, NAME, env);
     let access = access.and_then(|access| access_name(access, ctx, env));
@@ -1032,11 +1082,139 @@ fn collect_route(
         verb,
         path,
         name,
-        handler,
+        handler: handler.to_owned(),
         params,
         access,
+        summary: doc.map(|doc| doc.summary.clone()),
+        description: doc.and_then(|doc| doc.description.clone()),
+        returns: returns.map(str::to_owned),
         span: attr.span,
     });
+}
+
+/// The method a `#[Route]` is attached to, as [`collect_route`] needs it.
+///
+/// One argument rather than five because every field is a fact about the
+/// *method* and is therefore the same for every row it produces — a method
+/// serving two verbs declares two routes off one of these — and because the row
+/// builder was the one function in this module that had grown past what a
+/// reader can hold in their head at the call site.
+#[derive(Clone, Copy)]
+struct Handler<'a> {
+    /// The declaration itself: its parameter list is what a capture and a
+    /// `#[Query]` marker are checked against.
+    m: &'a MethodMember,
+    /// The declaring class, for the same two walks.
+    class: &'a QName,
+    /// `Class::method` as [`crate::expr_table::ExprTypeTable::method_label`]
+    /// renders it, built once for the method rather than per row.
+    label: &'a str,
+    /// ADR 0085 § 1's summary and description, or `None` where the method
+    /// carries no doc comment.
+    doc: Option<&'a Doc>,
+    /// § 1's response body: the declared return type, rendered.
+    returns: Option<&'a str>,
+}
+
+/// [ADR 0085](../../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)
+/// § 1's last row, as the two strings it is: *first sentence is the summary,
+/// remainder the description*.
+struct Doc {
+    /// The first sentence, collapsed onto one line — a summary that wrapped
+    /// across three source lines is one string here, because the reader of a
+    /// generated document has no margin to wrap it back to.
+    summary: String,
+    /// Everything after that sentence, trimmed but with its paragraph breaks
+    /// intact, or `None` where the comment was one sentence and no more.
+    description: Option<String>,
+}
+
+/// The `/** … */` block sitting immediately above a declaration, split by
+/// [`Doc`]'s rule, or `None` where there is none.
+///
+/// **Read out of the source text rather than off a token**, because there is no
+/// token to read: `nvs_syntax`'s lexer preserves no trivia at all — its own
+/// module doc is that contract, and a token stream that carried comments would
+/// make every consumer skip them — and
+/// [ADR 0099](../../../../docs/adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md)'s
+/// trivia layer, which is where a declaration's doc comment is meant to come
+/// from once `nvs lsp` needs it for hover, is M10's. Until then this is the one
+/// question asked of a comment anywhere in the compiler, it is asked at a
+/// position the parser already recorded, and it is answered by looking at the
+/// bytes in front of that position.
+///
+/// `decl` is the member's *whole* span, attributes and modifiers included
+/// ([`nvs_syntax::ast::ClassMember::span`]), so the comment this finds is the
+/// one above `#[Route]` — where a reader writes it — and not one wedged between
+/// the attributes and `public function`.
+fn doc_comment(decl: Span, src: &SourceFile) -> Option<Doc> {
+    let before = src
+        .span_text(Span::new(decl.file, 0, decl.start))?
+        .trim_end();
+    // The nearest `/*` going backwards opens the comment this `*/` closes,
+    // unless the comment's own text quotes a comment opener — which costs a
+    // doc comment nothing but its summary, and is not worth a scanner.
+    let body = before.strip_suffix("*/")?;
+    let open = body.rfind("/*")?;
+    let text = body[open..].strip_prefix("/**")?;
+    split_doc(&undecorate(text))
+}
+
+/// § 1's response body row: the handler's declared return type, rendered.
+///
+/// Read out of [`crate::signatures`] rather than off [`MethodMember`]'s own
+/// `return_type` because that is the syntax and this wants the *resolved* type —
+/// the same lookup [`check_api_example`] makes for § 2's `example`, and by the
+/// same three steps, so a method's return type is asked for once in this module
+/// however many questions are asked of it.
+fn declared_return(m: &MethodMember, class: &QName, env: &Env<'_>) -> Option<String> {
+    let method = span_text(env.src, m.name);
+    let ty = env
+        .signatures
+        .get(class)
+        .and_then(|sig| sig.methods.get(method))
+        .map(|sig| sig.return_ty)?;
+    Some(env.interner.describe(ty))
+}
+
+/// A docblock's body as plain text: every line trimmed, and the leading `*`
+/// every continuation line carries by convention dropped with it.
+fn undecorate(raw: &str) -> String {
+    let lines: Vec<&str> = raw
+        .lines()
+        .map(|line| {
+            let line = line.trim();
+            line.strip_prefix('*').unwrap_or(line).trim()
+        })
+        .collect();
+    lines.join("\n").trim().to_owned()
+}
+
+/// § 1's split, over the undecorated text.
+///
+/// The summary ends at the first `.` that a space or the end of the text
+/// follows, or at the first blank line, whichever comes first — the blank line
+/// because a comment whose opening line is a heading with no full stop would
+/// otherwise swallow the whole block as its summary, and a document reader
+/// renders `summary` on one line.
+fn split_doc(text: &str) -> Option<Doc> {
+    if text.is_empty() {
+        return None;
+    }
+    let sentence = text
+        .match_indices('.')
+        .find(|(i, _)| text[i + 1..].starts_with(char::is_whitespace) || i + 1 == text.len())
+        .map(|(i, _)| i + 1);
+    let end = match (sentence, text.find("\n\n")) {
+        (Some(sentence), Some(para)) => sentence.min(para),
+        (found, None) | (None, found) => found.unwrap_or(text.len()),
+    };
+    let summary = text[..end].split_whitespace().collect::<Vec<_>>().join(" ");
+    let description = text[end..].trim();
+    Some(Doc {
+        summary,
+        description: (!description.is_empty()).then(|| description.to_owned()),
+    })
 }
 
 /// § 2's three capture forms, each holding the name it binds. A segment that is
