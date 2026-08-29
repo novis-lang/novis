@@ -84,19 +84,30 @@
 > and `blocking::run` is the whole handoff — take the wake, hand the closure to this thread's pool,
 > park, and take the answer out of a slot on the way back, with a panic in the work carried back to
 > the task's own stack rather than lost off the core. Its `Drop` deliberately does not join: the
-> pool lives in a thread-local, and joining from a TLS destructor deadlocks on Windows. What is left
-> of Stage 2 is item 7, the watchdog. What a task *costs* is settled too:
-> `crates/nvs-host/src/stack.rs` is ADR 0115 § 4 — 1 MiB of reserved address space per task,
-> resident only in the pages its handler touched, pooled per worker and recycled the moment the task
-> ends, with the recursion limit armed from that stack instead of asserted from a ceiling on the
-> worker's. The steps the chain took are in [goals/README.md](agent/goals/README.md) § *Starting the
-> chain*. M4's own residue is the 1000-case corpus count, which orders 1–4 meet as the suite grows;
-> nothing else about M4 is open. What the program is measured by is `python
-> tools/check-migration.py` at 100% classified, which stood at 25% the day the program was scheduled
-> and reads 34% now that goal 1's own five domains — dates and times, regular expressions, JSON,
-> URLs and paths — carry a row per name. `python tools/gaps.py`, `python tools/holes.py` and `python
-> tools/check-migration.py --report` are the three worklists behind it, and no session re-derives
-> one.
+> pool lives in a thread-local, and joining from a TLS destructor deadlocks on Windows. Stage 2's
+> implementation is complete: `crates/nvs-host/src/watchdog.rs` is item 7 and ADR 0106 § 7 — one
+> thread for the process, started with the first core that registers, reading the earliest deadline
+> each core publishes and reporting one that has been behind its own clock by a margin. Nothing is
+> written for it on any path, which is the item's own constraint: `Timers` publishes its first entry
+> into an `AtomicU64` beside the ordered index it already keeps, and because `take_due` drops a
+> deadline the moment the core polls after it, a published deadline still a margin in the past is a
+> statement about the *core* and not about a slow request. A stall is reported once per deadline
+> rather than once per sweep, since a wedged core republishes nothing — ADR 0106 § 10's coalescing
+> arriving for free. Firing writes ADR 0020 § 4's floor and does nothing else; the shed half of § 7
+> is admission control's and does not exist in this crate yet. What is left of the stage is its
+> *acceptance*: the Stage 2 `cargo-named` check names ten `nvs-host` tests that exist under no
+> spelling at all, and `the_watchdog_reports_a_wedged_worker_without_a_heartbeat` is the first of
+> them on disk. What a task *costs* is settled too: `crates/nvs-host/src/stack.rs` is ADR 0115 § 4 —
+> 1 MiB of reserved address space per task, resident only in the pages its handler touched, pooled
+> per worker and recycled the moment the task ends, with the recursion limit armed from that stack
+> instead of asserted from a ceiling on the worker's. The steps the chain took are in
+> [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's own residue is the 1000-case
+> corpus count, which orders 1–4 meet as the suite grows; nothing else about M4 is open. What the
+> program is measured by is `python tools/check-migration.py` at 100% classified, which stood at 25%
+> the day the program was scheduled and reads 34% now that goal 1's own five domains — dates and
+> times, regular expressions, JSON, URLs and paths — carry a row per name. `python tools/gaps.py`,
+> `python tools/holes.py` and `python tools/check-migration.py --report` are the three worklists
+> behind it, and no session re-derives one.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

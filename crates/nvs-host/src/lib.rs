@@ -71,8 +71,12 @@
 //! [`RemoteWake`] — and it is the only way a call with no readiness to wait on
 //! reaches a thread here.
 //!
-//! **Still outstanding:** the watchdog that notices a core which has stopped
-//! turning at all.
+//! [`watchdog`] is ADR 0106 § 7: one thread for the process, reading the
+//! earliest deadline each core publishes through [`timer::DeadlineView`] and
+//! reporting a core that has been behind its own clock by a margin. It reads
+//! state the deadline mechanism keeps anyway, so no worker writes anything for
+//! it — that module's doc is why, and why detection is the whole of what it
+//! does.
 
 pub mod affinity;
 pub mod blocking;
@@ -81,6 +85,7 @@ pub mod reactor;
 pub mod scheduler;
 pub mod stack;
 pub mod timer;
+pub mod watchdog;
 
 pub use affinity::{CpuId, cpus, pin_current_thread};
 pub use blocking::BlockingPool;
@@ -92,7 +97,8 @@ pub use scheduler::{
     Finished, RunReport, Scheduler, TaskId, Waiting, current_task, suspend, suspend_current,
 };
 pub use stack::{MAX_POOLED_STACKS, TASK_STACK_SIZE};
-pub use timer::{Timers, park_until, sleep};
+pub use timer::{DeadlineView, Timers, park_until, sleep};
+pub use watchdog::{Registration, Stall, Watchdog};
 
 /// One OS thread, pinned to one CPU, running one [`Scheduler`].
 ///
