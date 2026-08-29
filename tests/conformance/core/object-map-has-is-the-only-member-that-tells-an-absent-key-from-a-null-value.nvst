@@ -1,0 +1,91 @@
+--TEST--
+`Core\ObjectMap<K, ?V>::get` answers `null` for a key it does not hold and for a key holding `null`, so `has` is the only member that tells the two apart, and every other member counts the second and not the first — docs/spec/01-core-library.md § 9
+--FILE--
+<?nvs
+// The *edge* shape, at the one place § 9's `?V` read gives up information: a
+// map's `get` returns `?V`, so with a nullable `V` the absent answer and a
+// stored `null` are the same value. That is the documented cost of having no
+// `$m[$k]` subscript to throw and no `getOrNull` twin to ask instead (ADR 0063
+// R5), and what makes it a cost rather than a hole is that `has`, `count`,
+// `keys` and `values` all still separate the two. A map that took `null` as a
+// deletion — which is how PHP's arrays and half of PHP's `??` idioms read —
+// passes every line here that mentions `get` and fails every other one.
+final class Tag {
+    public function constructor(public readonly string $name) {}
+}
+
+Tag $held = new Tag("held");
+Tag $nulled = new Tag("nulled");
+Tag $absent = new Tag("absent");
+
+Core\ObjectMap<Tag, ?int> $map = new Core\ObjectMap<Tag, ?int>();
+$map->set($held, 1);
+$map->set($nulled, null);
+
+// The two reads no member can tell apart, side by side. `??` cannot separate
+// them either — it is the same `null` — which is the whole of the edge.
+echo "get ", $map->get($nulled) ?? -1, " ", $map->get($absent) ?? -1, "\n";
+echo "  both null ", (($map->get($nulled) == null) && ($map->get($absent) == null)) ? "y" : "n", "\n";
+
+// Every other member does separate them: a key holding `null` is a key.
+echo "has ", $map->has($held) ? "y" : "n", $map->has($nulled) ? "y" : "n",
+     $map->has($absent) ? "y" : "n", "\n";
+echo "count ", $map->count(), " empty ", $map->isEmpty() ? "y" : "n", "\n";
+
+string $keys = "";
+foreach ($map->keys() as Tag $key) {
+    $keys = $keys . $key->name . ",";
+}
+echo "keys ", $keys, Core\Arr::count($map->keys()), "\n";
+
+// `values()` holds the `null` in the slot its key was written into, so the two
+// lists stay the same length and stay paired — a map that dropped the entry
+// would answer one shorter here and pair the survivors wrongly.
+int $nulls = 0;
+foreach ($map->values() as ?int $value) {
+    if ($value == null) {
+        $nulls = $nulls + 1;
+    }
+}
+echo "values ", Core\Arr::count($map->values()), " of which null ", $nulls, "\n";
+
+// A walk yields the `null`-valued key like any other, and its value comes back
+// through the same `get` the walk cannot use to tell it apart.
+string $walked = "";
+foreach ($map as Tag $each) {
+    $walked = $walked . $each->name . "=" . (($map->get($each) ?? -1) as string) . ",";
+}
+echo "walk ", $walked, "\n";
+
+// Writing `null` over a value is a write and not a removal, and writing a
+// value back over the `null` is the same write in the other direction: the
+// count never moves and the key never leaves its place in the order.
+$map->set($held, null);
+echo "overwritten ", $map->count(), " ", $map->has($held) ? "y" : "n",
+     " ", $map->get($held) ?? -1, "\n";
+$map->set($held, 2);
+echo "restored ", $map->count(), " ", $map->get($held) ?? -1, "\n";
+
+// Removal is the one thing that does take the key out, and it is the only way
+// to make `has` false. Removing the `null`-valued key is a removal like any
+// other — the entry was never a hole to begin with.
+$map->remove($nulled);
+echo "removed ", $map->count(), " ", $map->has($nulled) ? "y" : "n",
+     " ", $map->get($nulled) ?? -1, "\n";
+
+// Removing a key that was never held changes nothing, which is the other side
+// of the same bound: `remove` is driven by `has`, not by what `get` answered.
+$map->remove($absent);
+echo "absent removed ", $map->count(), " ", $map->has($absent) ? "y" : "n", "\n";
+--EXPECT--
+get -1 -1
+  both null y
+has yyn
+count 2 empty n
+keys held,nulled,2
+values 2 of which null 1
+walk held=1,nulled=-1,
+overwritten 2 y -1
+restored 2 2
+removed 1 n -1
+absent removed 1 n
