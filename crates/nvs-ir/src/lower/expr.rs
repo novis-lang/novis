@@ -2484,7 +2484,13 @@ impl<'a> Lowering<'a> {
     ///
     /// `$params` is borrowed like every other `Core` argument
     /// (`InstKind::CoreCall`), and the prepared string is a temporary this
-    /// frame owns, which is why the release below covers the whole run.
+    /// frame owns, which is why the release below covers the whole run. Both
+    /// go through [`Self::account_for_arg`] to get there: this arm builds its
+    /// argument vector by hand rather than through
+    /// [`Self::lower_call_args`](crate::lower::Lowering::lower_call_args), and
+    /// a value lowered but never *staged* is one `release_temporaries_since`
+    /// cannot see — `Core\Router::url("…", ["id" => 7])` leaked its literal
+    /// array once per call until both lines below existed.
     fn lower_route_link(
         &mut self,
         prepared: &str,
@@ -2495,13 +2501,21 @@ impl<'a> Lowering<'a> {
     ) -> (ValueId, Ty) {
         let mark = self.temporaries_mark();
         let (template, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(prepared.to_owned()));
+        // Not an aliasing read of anything: the prepared path is this frame's
+        // own constant. Its header is immortal, so the release this stages is
+        // a no-op at run time — it is here because the *rule* is that every
+        // argument is accounted for, and an exception is what the next hand-
+        // rolled argument list would copy.
+        self.account_for_arg(template, Ty::Str, ArgOwnership::Borrowed, false, *cur);
         // The arity is the member's own and was checked in `nvs_types`, and a
         // site is only recorded when both arguments are written positionally —
         // `nvs_types::links`' gap 2.
         let CallArgs::List(list) = args else {
             panic!("nvs-ir: a resolved route link has a written argument list")
         };
-        let (params, _) = self.lower_expr(&list[1].value, None, env, cur);
+        let (params, params_ty) = self.lower_expr(&list[1].value, None, env, cur);
+        let aliasing = self.aliasing_read(&list[1].value);
+        self.account_for_arg(params, params_ty, ArgOwnership::Borrowed, aliasing, *cur);
         let symbol = if absolute {
             nvs_types::CORE_ROUTE_LINK_ABSOLUTE
         } else {

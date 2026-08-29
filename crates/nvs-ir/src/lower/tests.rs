@@ -3758,3 +3758,57 @@ fn a_subscript_through_a_tagged_base_lowers() {
         "{text}"
     );
 }
+
+/// A resolved `Core\Router::url` releases the `$params` array it was handed —
+/// [`Lowering::lower_route_link`]'s own accounting, and the one thing about
+/// that arm which no snapshot of a *passing* program would have shown.
+///
+/// This arm builds its two arguments by hand instead of through
+/// [`Lowering::lower_call_args`], so it is the only `Core` call site where
+/// [`Lowering::account_for_arg`] can be forgotten — and it was: every
+/// `Core\Router::url("…", ["id" => 7])` leaked one array header per call, which
+/// only the `examples/` valgrind sweep saw, because a leak is invisible to the
+/// program that causes it. Asserted over the array's own `ValueId` rather than
+/// by counting releases, so a release of the *template* beside it cannot stand
+/// in for this one.
+#[test]
+fn a_resolved_route_link_releases_its_params_array() {
+    let (f, map, file) = lower_script_src(concat!(
+        "<?nvs\nclass T {\n",
+        r#"  #[\Core\Route(path:"/users/{id}", method: \Core\Http\Method::Get, "#,
+        "name: \"Users::show\")]\n",
+        r#"  #[\Core\Access(allow: \Core\Audience::Public)]"#,
+        "\n",
+        "  public function show(uint $id): string { return \"u\"; }\n",
+        "}\n",
+        r#"echo Core\Router::url("Users::show", ["id" => 7]);"#,
+        "\n",
+    ));
+    let insts = || f.blocks.iter().flat_map(|b| b.insts.iter());
+    let call = insts()
+        .find_map(|i| match &i.kind {
+            InstKind::CoreCall { symbol, args } if *symbol == nvs_types::CORE_ROUTE_LINK => {
+                Some(args.clone())
+            }
+            _ => None,
+        })
+        .expect("the link resolved: a `CoreCall` to the prepared-path helper");
+    let params = *call.last().expect("the link takes two arguments");
+    // The literal threads a fresh `ValueId` per entry written into it, so what
+    // reaches the call is the last `array.set` rather than the `array.new` —
+    // which is exactly why this asserts over the argument the call names.
+    assert!(
+        insts().any(|i| i.result == Some(params)
+            && matches!(
+                i.kind,
+                InstKind::ArrayNew { .. } | InstKind::ArraySet { .. }
+            )),
+        "the link's second argument is the written array literal: {}",
+        print_function(&f, map.file(file))
+    );
+    assert!(
+        insts().any(|i| matches!(i.kind, InstKind::Release { operand } if operand == params)),
+        "nothing released the `$params` array: {}",
+        print_function(&f, map.file(file))
+    );
+}
