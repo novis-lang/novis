@@ -2318,6 +2318,22 @@ is why" — is this file.
   cheap habit is to check the case's members against `crates/nvs-stdlib/tests/conformance_coverage.rs`'s
   two rosters *before* the run rather than after it. The ratchet is working when this happens, not
   broken.
+- **An `--ORACLE--` helper named after a PHP built-in is a fatal, and the runner reports it as a
+  *case* failure.** A `function pos($v)` in the oracle half — the obvious name for "render a
+  `?uint` position" — is `Cannot redeclare function pos()`, because `pos()` is `current()`'s alias
+  and PHP has ~1,900 of these in the global namespace. The runner prints `PHP exited 255` plus the
+  stderr, which is legible once you read it and reads like a case bug for the first few seconds.
+  The cheap habit is to prefix every oracle helper with `php` (`phpAfter`, `phpLines`, `phpSort`) as
+  the existing `str-before-and-after` and `arr-*` cases already do, and to keep the un-prefixed
+  spellings for the Novis side, where a `Show::`/`Render::` class can never collide with anything.
+
+- **A bare array literal in argument position is `array<mixed>` and does not narrow, so a `Core\Arr`
+  member that takes a second array needs a typed local.** `Core\Arr::diff($a, [4, 2])` is
+  `E0401: expected array<int>, found array<mixed>` at the literal, and so are `replaceRange`'s
+  replacement, `appendAll`'s operand and `fromKeysAndValues`' two arguments — five sites in one file,
+  all reported at once. `array<int> $against = [4, 2];` on the line above fixes each. The subject
+  argument never has this problem because it comes from a declared variable, which is why the shape
+  only bites on the members taking *two* arrays.
 
 ## Splitting a file that got too big
 
