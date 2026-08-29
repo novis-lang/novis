@@ -2772,6 +2772,18 @@ sibling in the same namespace unqualified.
   first thing that reports `E0063: missing field`. The two real sites are `check.rs`'s per-file loop
   and `signatures.rs`, which wants a scratch value for the same reason it passes a placeholder
   `ExprTypeTable`: its pass runs before anything fills the new table.
+- **A `Core` implementation symbol that no `CoreMethod` row names is never handed to the JIT, and
+  the failure is a `cranelift-jit` panic at run time rather than anything a build reports.**
+  `nvs_stdlib::symbols()` (`crates/nvs-stdlib/src/lib.rs:264`) builds the roster it registers by
+  walking `registry::CLASSES`' member rows, so adding an arm to a module's own `address()` — which
+  reads like the whole registration, and is what `docs/agent/conventions.md` § *A `Core` member*
+  calls "the one that bites" — resolves nothing: `address_of` is only ever asked about a symbol the
+  roster already produced. The symptom is `can't resolve symbol nvs_core_…` from
+  `cranelift-jit/src/backend.rs`, naming no Novis file. Any symbol lowering emits that is not a
+  member's own — ADR 0077 § 4's two prepared link entry points, a constructor — owes a `.chain()`
+  in that function beside `registry::CONSTRUCTORS`', **and** a term in
+  `every_registered_member_has_an_implementation_address`' arithmetic, which is the same sum
+  written out a second time and fails the moment the roster grows.
 
 ## Divergences and refusals already pinned
 

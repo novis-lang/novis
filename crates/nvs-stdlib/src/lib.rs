@@ -222,7 +222,7 @@ mod program;
 pub mod random;
 pub mod regex;
 pub mod registry;
-mod router;
+pub mod router;
 pub mod str;
 mod test;
 pub mod time;
@@ -271,6 +271,10 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         // rosters are chained rather than the constructor being folded into
         // one of them.
         .chain(registry::CONSTRUCTORS.iter().map(|(_, new)| new.symbol))
+        // ADR 0077 § 4's two prepared link implementations, which no member row
+        // names on purpose — `router::link`'s own docs own why one member has
+        // two entry points.
+        .chain(router::link::SYMBOLS)
         .map(|symbol| (symbol, address_of(symbol)))
         .collect()
 }
@@ -327,6 +331,10 @@ mod tests {
                 .map(|class| class.members().count())
                 .sum::<usize>()
                 + registry::CONSTRUCTORS.len()
+                // ADR 0077 § 4's two prepared link entry points, which belong
+                // to `Core\Router::url`/`::urlAbsolute` and to no row of their
+                // own — see `router::link`.
+                + router::link::SYMBOLS.len()
         );
         assert!(symbols.iter().all(|(_, address)| !address.is_null()));
     }

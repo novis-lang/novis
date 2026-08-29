@@ -572,7 +572,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 /// exactly two decisions and duplicating the pass would make it possible for
 /// them to drift in the twenty they share.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Form {
+pub(crate) enum Form {
     /// RFC 3986 § 2.1: `~` is unreserved and a space is `%20`.
     Component,
     /// `application/x-www-form-urlencoded`: `~` is encoded and a space is `+`.
@@ -600,7 +600,7 @@ const HEX: [u8; 16] = *b"0123456789ABCDEF";
 /// Capacity is the input's length rather than three times it: the common
 /// subject is mostly unreserved, so reserving for the worst case would triple
 /// the allocation of every call to pay for the rare one that needs it.
-fn encode(text: &[u8], form: Form) -> String {
+pub(crate) fn encode(text: &[u8], form: Form) -> String {
     let mut out = String::with_capacity(text.len());
     for &byte in text {
         match byte {

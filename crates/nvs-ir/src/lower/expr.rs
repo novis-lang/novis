@@ -231,6 +231,18 @@ impl<'a> Lowering<'a> {
                     let ctors = ctors.clone();
                     return self.lower_program_instances(&classes, &ctors, env, cur);
                 }
+                // ADR 0077 § 4's link, resolved in `nvs check` against § 5's
+                // finished table and recorded as the named route's path,
+                // already split by § 2's grammar. The call still happens — a
+                // link percent-encodes runtime values and is not a constant —
+                // so what changes is which implementation answers and what
+                // argument 0 is. See `nvs_stdlib::router::link`.
+                if let Some(ExprInfo::RouteLink { pieces, absolute }) = self.exprs.lookup(expr.span)
+                {
+                    let prepared = nvs_types::UrlPiece::prepared(pieces);
+                    let absolute = *absolute;
+                    return self.lower_route_link(&prepared, absolute, args, env, cur);
+                }
                 self.lower_static_call(class, args, expr, env, cur)
             }
             ExprKind::PropertyAccess {
@@ -2456,6 +2468,56 @@ impl<'a> Lowering<'a> {
             entries.push((index.to_string(), built.0));
         }
         self.emit(*cur, Ty::Array, InstKind::ArrayNew { entries })
+    }
+
+    /// `Core\Router::url(...)`/`::urlAbsolute(...)` over a route name
+    /// `nvs_types::links` resolved — [ADR 0077](../../../../docs/adr/0077-compile-time-routing.md)
+    /// § 4's link.
+    ///
+    /// Two arguments in and two out, and only the first is different: the
+    /// written name is replaced by the *prepared path* the checker resolved it
+    /// to, and `$params` is lowered exactly as `lower_static_call`'s `Core`
+    /// branch would have lowered it. So this is not a fold — the call is still
+    /// made, because percent-encoding a run-time value is run-time work — it is
+    /// ADR 0057 § 3's *preparation*, with the lookup and the path's grammar
+    /// paid once at compile time.
+    ///
+    /// `$params` is borrowed like every other `Core` argument
+    /// (`InstKind::CoreCall`), and the prepared string is a temporary this
+    /// frame owns, which is why the release below covers the whole run.
+    fn lower_route_link(
+        &mut self,
+        prepared: &str,
+        absolute: bool,
+        args: &CallArgs,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let mark = self.temporaries_mark();
+        let (template, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(prepared.to_owned()));
+        // The arity is the member's own and was checked in `nvs_types`, and a
+        // site is only recorded when both arguments are written positionally —
+        // `nvs_types::links`' gap 2.
+        let CallArgs::List(list) = args else {
+            panic!("nvs-ir: a resolved route link has a written argument list")
+        };
+        let (params, _) = self.lower_expr(&list[1].value, None, env, cur);
+        let symbol = if absolute {
+            nvs_types::CORE_ROUTE_LINK_ABSOLUTE
+        } else {
+            nvs_types::CORE_ROUTE_LINK
+        };
+        let result = self.emit_fallible(
+            *cur,
+            Ty::Str,
+            InstKind::CoreCall {
+                symbol,
+                args: vec![template, params],
+            },
+            env,
+        );
+        self.release_temporaries_since(mark, *cur);
+        result
     }
 
     /// `$obj->method(...)`/`$this->method(...)` — the receiver is

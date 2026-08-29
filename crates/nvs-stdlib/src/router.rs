@@ -60,9 +60,10 @@
 //!    class, which is what makes the closed set safe: a verb outside this
 //!    roster never reaches a route table at all.
 
-use nvs_runtime::Fault;
+use nvs_runtime::{Fault, HelperResult, NvsStr, Tag, Value};
 
 use crate::registry::{CoreClass, CoreEnum, CoreMethod, CoreTy};
+use crate::uri::{Form, encode};
 
 /// `Core\Http\Method`'s fully-qualified name, written once so the registry row
 /// and every message quoting it cannot drift apart.
@@ -137,14 +138,191 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// The two symbols ADR 0077 § 4's **folded** link is lowered to, and the wire
+/// format they read argument 0 as.
+///
+/// Neither is a [`CoreMethod`] row, and that is the point: a program calls
+/// `Core\Router::url`, and `nvs_ir::lower` redirects the call here whenever
+/// `nvs_types::links` resolved its literal name against the compile-time table.
+/// So the *member* is one, and which of the two implementations answers is a
+/// property of what the compiler could prove — the same arrangement ADR 0057
+/// § 4 states for every prepared literal: one implementation, reached at two
+/// entry points, never two implementations.
+///
+/// **Argument 0 is the route's path, already split.** `nvs_types::routes`'
+/// `link_pieces` reads § 2's grammar — the only reading of it anywhere — and
+/// `nvs_types::UrlPiece::prepared` writes its answer out in this format:
+/// pieces separated by [`PIECE_SEPARATOR`], each one a tag byte from the four
+/// constants below followed by its text. Reading it back is a `split` and a
+/// byte test, so no second parser of a path exists to disagree with the first.
+pub mod link {
+    /// `nvs_core_router_link` — `Core\Router::url` with the lookup already
+    /// made.
+    pub const SYMBOL: &str = "nvs_core_router_link";
+    /// `nvs_core_router_link_absolute` — the same with ADR 0102 § 6's
+    /// configured origin in front.
+    pub const ABSOLUTE_SYMBOL: &str = "nvs_core_router_link_absolute";
+    /// What separates two pieces. `\u{1}` because a path segment cannot hold
+    /// one: § 2's capture names are identifiers and its literal segments come
+    /// out of a `#[Route]` payload that a control byte would already have made
+    /// unusable as a URL.
+    pub const PIECE_SEPARATOR: char = '\u{1}';
+    /// A literal segment, its leading `/` included — copied out verbatim.
+    pub const LITERAL: u8 = b'L';
+    /// `{name}`: `/` and the percent-encoded value at `name`.
+    pub const REQUIRED: u8 = b'R';
+    /// `{name?}`: [`REQUIRED`], or the whole segment dropped.
+    pub const OPTIONAL: u8 = b'O';
+    /// `{name...}`: [`REQUIRED`] with the value's own `/`s left alone.
+    pub const REST: u8 = b'*';
+
+    /// Both symbols, for [`crate::symbols`], which builds the JIT's roster out
+    /// of the member rows and so would never reach an implementation no
+    /// [`super::CoreMethod`] names — the same reason
+    /// [`crate::registry::CONSTRUCTORS`] is chained there.
+    pub const SYMBOLS: [&str; 2] = [SYMBOL, ABSOLUTE_SYMBOL];
+}
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_router_url" => (nvs_core_router_url as *const ()).cast(),
         "nvs_core_router_url_absolute" => (nvs_core_router_url_absolute as *const ()).cast(),
+        "nvs_core_router_link" => (nvs_core_router_link as *const ()).cast(),
+        "nvs_core_router_link_absolute" => (nvs_core_router_link_absolute as *const ()).cast(),
         _ => return None,
     })
+}
+
+/// One `$params` value as the text a path segment carries.
+///
+/// [`nvs_runtime::value_to_string`]'s own rules, plus the release its contract
+/// requires: a `Tag::Str` operand comes back as itself with one fresh
+/// reference, so the bytes are copied out and the reference dropped here.
+fn segment_text(value: Value, member: &str, key: &str) -> Result<String, Fault> {
+    let text = nvs_runtime::value_to_string(value).map_err(|_| {
+        Fault::thrown(format!(
+            "Core\\Router::{member}(): `{key}` holds a value with no text form, so there is \
+             nothing a path segment could be built out of it"
+        ))
+    })?;
+    let owned = text
+        .as_text()
+        .ok_or_else(|| Fault::fatal("`value_to_string` answered something that is not a string"))?
+        .to_owned();
+    #[expect(
+        unsafe_code,
+        reason = "`value_to_string` hands back exactly one fresh reference, and \
+                  the text has been copied out of it"
+    )]
+    unsafe {
+        text.release();
+    }
+    Ok(owned)
+}
+
+/// The prepared path with every capture substituted — the whole of both link
+/// helpers below, since they differ only in what stands in front of it.
+///
+/// Each substituted value is percent-encoded under
+/// [`Form::Component`](crate::uri::Form::Component), which is § 4's launder for
+/// the URL-path sink: a value holding a `/` cannot climb out of its segment.
+/// A `{name...}` is the one exception, and § 2 is why — that form *is* every
+/// remaining segment, so its `/`s are structure rather than content, and each
+/// segment between them is encoded on its own.
+fn substitute(template: &str, params: &Value, member: &str) -> Result<String, Fault> {
+    let raw = params.array_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Router::{member} expected {:?} for `$params`, got tag {}",
+            Tag::Array,
+            params.tag_byte()
+        ))
+    })?;
+    let params = crate::arr::borrowed(raw);
+    let mut out = String::with_capacity(template.len());
+    for piece in template.split(link::PIECE_SEPARATOR) {
+        let (tag, key) = piece.as_bytes().split_first().ok_or_else(|| {
+            Fault::fatal("a prepared route link's piece is a tag byte and its text")
+        })?;
+        let key = std::str::from_utf8(key)
+            .map_err(|_| Fault::fatal("a prepared route link is built out of `str`"))?;
+        if *tag == link::LITERAL {
+            out.push_str(key);
+            continue;
+        }
+        let Some(value) = params.get(key.as_bytes()) else {
+            if *tag == link::OPTIONAL {
+                continue;
+            }
+            return Err(Fault::thrown(format!(
+                "Core\\Router::{member}(): `$params` holds no `{key}`, which this route's path \
+                 captures"
+            )));
+        };
+        let text = segment_text(value, member, key)?;
+        out.push('/');
+        if *tag == link::REST {
+            let encoded: Vec<String> = text
+                .split('/')
+                .map(|segment| encode(segment.as_bytes(), Form::Component))
+                .collect();
+            out.push_str(&encoded.join("/"));
+        } else {
+            out.push_str(&encode(text.as_bytes(), Form::Component));
+        }
+    }
+    Ok(out)
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Router::url` over a name the compiler resolved — see [`link`].
+    ///
+    /// The mount prefix ADR 0097 § 3 has this member prepend is empty here and
+    /// only here: a program run off the command line is mounted nowhere, and
+    /// there is no server yet to be mounted by. The prefix joins in front of
+    /// [`substitute`]'s answer when one exists, which is why the substitution
+    /// is its own function rather than this body.
+    fn nvs_core_router_link(_ctx, args: [2]) {
+        let template = link_template(args, "url")?;
+        produced(&substitute(template, &args[1], "url")?)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Router::urlAbsolute` over a name the compiler resolved —
+    /// [`nvs_core_router_link`] with ADR 0102 § 6's configured origin in front.
+    ///
+    /// The origin is per mount, falling back to `[app] origin`, and is never
+    /// derived from `Host` or `X-Forwarded-Host`. `nvs.toml`'s reader is M6's
+    /// (`nvs_syntax`'s own module docs name it), so there is no origin to read
+    /// and nothing to fall back to — and ADR 0097 § 3 makes a unit that
+    /// resolves none an error rather than a link with an empty authority in it.
+    fn nvs_core_router_link_absolute(_ctx, args: [2]) {
+        let template = link_template(args, "urlAbsolute")?;
+        let path = substitute(template, &args[1], "urlAbsolute")?;
+        Err(Fault::thrown(format!(
+            "Core\\Router::urlAbsolute(): no origin is configured for this unit, so `{path}` \
+             has no absolute form. ADR 0102 § 6 refuses to derive one from a request header, \
+             and `nvs.toml`'s `[app] origin` is not read yet"
+        )))
+    }
+}
+
+/// Argument 0 of a link helper — the prepared template `nvs-ir` emitted.
+fn link_template<'a>(args: &'a [Value], member: &str) -> Result<&'a str, Fault> {
+    args[0].as_text().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Router::{member} expected {:?} for its prepared path, got tag {}",
+            Tag::Str,
+            args[0].tag_byte()
+        ))
+    })
+}
+
+/// A freshly built `string` result.
+fn produced(text: &str) -> HelperResult {
+    Ok(Value::str(NvsStr::new(text.as_bytes())))
 }
 
 /// The answer both members give for a name the table does not hold, which is
