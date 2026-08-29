@@ -1,0 +1,82 @@
+--TEST--
+Core\Random::pick, sample and shuffle agree at their two smallest subjects — an empty array answers absence and an empty array rather than throwing, a one-entry array answers that entry every time, and the first refusal on each side names both numbers — spec § 11, ADR 0063 R4 and R7
+
+--FILE--
+<?nvs
+// `random-draws-over-an-array` already asks `pick` for one answer at each of
+// these two subjects, one draw each. What no case asks is whether the answer
+// is the *only* one either subject can give: a draw is deterministic here, so
+// what a single line reports as a plausible answer is what a hundred lines
+// must report as the same answer, and the three members must agree about it.
+// The refusals are the other half — one step past what each subject holds is
+// the smallest `sample` request that cannot be met, at 1-from-0 and 2-from-1.
+array<string> $empty = [];
+array<string> $one = ["only"];
+
+// --- Nothing to draw from --------------------------------------------------
+// ADR 0063 R7: absence is `?T`, and R6 reserves the throw for failure. An
+// empty subject is not a failure — the caller asked a question with no answer
+// — so `pick` returns `null` and keeps its throw for the arguments that are
+// genuinely wrong. Counted over 100 draws rather than read off one line,
+// because a member that answered `null` only sometimes would print the same
+// first line.
+int $nulls = 0;
+for (int $i = 0; $i < 100; $i = $i + 1) {
+    var $p = Core\Random::pick($empty);
+    $nulls = $nulls + (($p == null) ? 1 : 0);
+}
+echo "empty picks null ", $nulls, " of 100\n";
+
+// `sample` and `shuffle` return `array<T>`, which has an empty value where
+// `?T` has `null`, so the same "no answer" comes back as the empty array and
+// still without a throw. Asking for zero entries is the request that is always
+// satisfiable, whatever the subject holds.
+array<string> $sampledEmpty = Core\Random::sample($empty, 0);
+array<string> $shuffledEmpty = Core\Random::shuffle($empty);
+echo "empty sample ", Core\Arr::count($sampledEmpty), " shuffle ", Core\Arr::count($shuffledEmpty), "\n";
+
+// --- One thing to draw from ------------------------------------------------
+// The smallest subject a draw can actually answer from. All three members are
+// total here and all three answer the same entry, so the agreement is exact
+// rather than statistical: 100 picks and there is one value they can be.
+int $picked = 0;
+for (int $j = 0; $j < 100; $j = $j + 1) {
+    var $q = Core\Random::pick($one);
+    $picked = $picked + (($q != null) && ($q == "only") ? 1 : 0);
+}
+echo "one picks its entry ", $picked, " of 100\n";
+
+array<string> $sampledOne = Core\Random::sample($one, 1);
+array<string> $shuffledOne = Core\Random::shuffle($one);
+echo "one sample ", Core\Arr::count($sampledOne), " ", $sampledOne[0], "\n";
+echo "one shuffle ", Core\Arr::count($shuffledOne), " ", $shuffledOne[0], "\n";
+
+// --- The first request neither subject can satisfy --------------------------
+// The bound's other side, one step past what each subject holds. `sample`'s
+// refusal is where "no answer" stops being absence and becomes a failure: a
+// distinct sample of `n` from fewer than `n` entries cannot exist, and the
+// only alternatives are a duplicate or a short answer, both of which are
+// silent. The message carries the number asked for and the number held, so the
+// caller sees which of the two was computed wrong — and the two subjects here
+// put those numbers at 1-from-0 and 2-from-1, the smallest each side goes.
+try {
+    Core\Random::sample($empty, 1);
+    echo "empty sample 1 drew\n";
+} catch (Throwable $fromEmpty) {
+    echo $fromEmpty->message, "\n";
+}
+try {
+    Core\Random::sample($one, 2);
+    echo "one sample 2 drew\n";
+} catch (Throwable $fromOne) {
+    echo $fromOne->message, "\n";
+}
+
+--EXPECT--
+empty picks null 100 of 100
+empty sample 0 shuffle 0
+one picks its entry 100 of 100
+one sample 1 only
+one shuffle 1 only
+Core\Random::sample(): asked for 1 distinct entries from an array that holds 0
+Core\Random::sample(): asked for 2 distinct entries from an array that holds 1
