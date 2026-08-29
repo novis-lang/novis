@@ -2,62 +2,65 @@
 
 ## State
 
-**Stage 5 is closed but for one item that has nothing to attach to yet.** ADR 0023 § 2's graph
-copy is `crates/nvs-runtime/src/graph.rs` — one walk, two carriers — `Core\Serialize::encode`/
-`decode` are the member pair over it, and the checker half now refuses both directions. All
-four of Stage 5's `cargo-named` tests are green and `examples/serialize.nvs` prints its four
-frozen lines. What remains of the stage is joining the **live** carrier to the `spawn`
-boundary, which Stage 6 has to build first.
+**Stage 6 has its heap boundary.** [ADR 0116](../adr/0116-an-isolates-arena-is-an-ownership-root.md) is
+the goal's second pre-authorized slot and is spent: an isolate's arena is an **ownership root**, not an
+address range, so entering one maps nothing, "released wholesale" is one drain of `crate::release`'s
+worklist (which runs the native teardown a region free would skip), and a crossing at refcount 1 is a
+pointer handoff rather than a copy. The ADR's body is the rule; the plan's *Open now* summarises it.
 
-**ADR 0033 § 4's cross-boundary sink is one check for both carriers**, by design:
-`nvs_types::expr::quals::reject_secret_boundary_argument` (`E0775`) reads the written
-arguments of a call, so when `spawn`/`spawn worker`/`spawn script` lower they pass their own
-argument list to it rather than growing a second rule. It is a call-site walk and not a
-parameter type because `encode` declares `mixed`, which a `secret string` satisfies. The
-complement is `graph.rs`'s `field_is_secret`: a `secret`-typed *property* is invisible from a
-call site, so the walk refuses that one at run time.
+**`crates/nvs-host/src/isolate.rs` is that ADR in code** — design.md's one `Isolate` type. A `Program` is
+a boxed closure over an already-prepared unit rather than a path, because reaching the compiler from here
+would link a JIT into `nvs check`; the module doc owns that and the argument/answer refusal asymmetry.
+`Ctx::isolate` (`crates/nvs-runtime/src/ctx.rs:886`) is the runtime half: an isolate's statics base is its
+own, where `Ctx::child`'s aliases, and that one word is the whole of "a child cannot read or write a
+parent static". It is safe where `Ctx::child` is `unsafe`.
 
-**`Core\Secret::reveal()` does not exist**, and four diagnostics' help text already names it as
-the way out. It is not a missing row: the registry has no parameter spelling that *accepts* a
-qualifier, and `Qual::Launder` has no consumer in `nvs-types` either — the same reason
-`Qual::Sink` needs none (see the playbook bullet). Item 18's escape hatch is open at both ends
-and is a design slice, not a member slice.
+**Four of Stage 6's eight `cargo-named` names are green**, all in `isolate.rs`'s own test module:
+`a_child_cannot_read_or_write_a_parent_variable_or_static`, `a_child_cannot_see_the_parents_output_buffer`,
+`a_closure_a_reference_or_a_resource_is_refused_at_the_boundary` and
+`an_uncaught_throw_in_a_child_leaves_the_parent_running`. 116 tests in the crate, against 110.
 
-**The driver's failing acceptance check is Stage 6's**, not a regression: `examples/isolate.nvs`
-exits on `E0703 — 'spawn script' is not compiled yet`, which is item 20's whole subject.
+**The driver's acceptance check still fails, and it is still item 20's:** `examples/isolate.nvs` exits on
+`E0703 — 'spawn script' is not compiled yet`. Nothing above closes it, because nothing above reaches the
+language surface — the next group is where that happens.
 
-**Orientation gaps.** `[context] adrs` names ADR 0023 § 2 only; § 3 and ADR 0033 § 4 were both
-read by hand this session and § 4 is the one that specifies the sink. `[context] modules` still
-has no pattern for `nvs-types/src/expr/` — `quals.rs`, `calls.rs` and `core_lib.rs` are where
-every qualifier rule lives — nor for `nvs-stdlib/src/instance.rs` or `nvs-runtime/src/object.rs`.
+**One anchor in the previous handoff was wrong and is corrected here.** `E0703` is *reported* by
+`crates/nvs-types/src/expr/mod.rs:749`, not by `crates/nvs-ir/src/lower/expr.rs:444` — that line is the
+lowering dispatch's roster **comment**, which explains the refusal but does not raise it. A group that
+edits only the `nvs-ir` line will find the checker still refusing.
+
+**Orientation gaps.** `[context] adrs` printed ADR 0023 § 2 only; ADR 0006's `## Decision`,
+*What is and is not shared*, *Failure is a value* and *Output is captured by default* were all read by
+hand and are what a Stage 6 slice is written against — that ADR is the goal's subject and none of it is in
+the manifest. `[context] modules` still has no pattern for `nvs-types/src/expr/`, and now none for
+`nvs-runtime/src/{graph,alloc,release}.rs` either.
 
 ## Next group
 
-**Stage 6's opening: `spawn script` gets something to lower to.** File set:
-`docs/adr/` (the pre-authorized isolate slot), `crates/nvs-host/` and
-`crates/nvs-ir/src/lower/expr.rs:444` (the `E0703` refusal this group replaces), against
-`crates/nvs-runtime/src/ctx.rs`'s `Ctx::child` and `crates/nvs-host/src/group.rs` (the child
-context and the one `Host` implementor, both already landed).
+**`spawn script` reaches the `Isolate` that now exists.** File set: `crates/nvs-types/src/expr/mod.rs`,
+`crates/nvs-ir/src/lower/expr.rs`, `crates/nvs-cli/`, against `crates/nvs-host/src/isolate.rs` and
+`crates/nvs-runtime/src/ctx.rs:886` (both landed, read-only for this group).
 
-- [ ] **ADR 0116 — the isolate heap boundary.** Goal item 20 and one of the goal's two
-      pre-authorized ADR slots: what an arena is, what it costs, and how a value crosses —
-      the parts [ADR 0006](../adr/0006-isolated-script-execution.md) states as behaviour
-      rather than as implementation. Re-derive the next free number before creating the file.
-      `crates/nvs-runtime/src/graph.rs`'s `Live` carrier is the crossing this specifies.
-- [ ] **The `Isolate` type in `crates/nvs-host`**, item 20's implementation: its own arena,
-      `Core` accessor backing state and config overlay. It is a task with a heap boundary, so
-      it sits beside `group.rs`'s `SchedulerHost` rather than inside it.
-- [ ] **`spawn script` lowers**, replacing `crates/nvs-ir/src/lower/expr.rs:444`'s `E0703`.
-      That closes the acceptance check `examples/isolate.nvs` currently fails on; the
-      `ScriptResult` shape and the value-crossing refusals are items 22-23 and come after.
+- [ ] **Build a `Program` from a path** — the half `nvs-host` may not have. `nvs-cli`'s own run path
+      already compiles a file and installs a unit's statics; the slice is a resolver returning
+      `nvs_host::Program` for an `examples/isolate/*.nvs`, published through a seam `nvs-ir`'s lowering
+      can reach. ADR 0006 § *Executing code is its own capability* bounds it; ADR 0116 § 5 says what
+      crosses. Anchors: `crates/nvs-host/src/isolate.rs:@Program`, `crates/nvs-runtime/src/host.rs`
+      (the shape of an existing seam).
+- [ ] **Retire `E0703`** at `crates/nvs-types/src/expr/mod.rs:749` — the *reporting* site — and lower the
+      construct at `crates/nvs-ir/src/lower/expr.rs:444`'s arm, whose roster comment names it. The
+      `with(…)` options are ADR 0006's `args`/`output` only for this slice; `limits` and `grants` are
+      goal 3's and each site says so.
+- [ ] **`examples/isolate.nvs` prints its five frozen lines**, which is the driver's failing check
+      (`docs/agent/loop-goal.toml`, stage `6 isolates`). The three children under `examples/isolate/`
+      already exist.
 
 ## Backlog
 
-- `Core\Secret::reveal()` — goal item 18's escape hatch, needing a qualifier-accepting parameter
-  spelling and a `Qual::Launder` consumer. `docs/agent/goals/2-concurrency.md:118`.
-- Stage 5's live-carrier join: `graph.rs`'s `Live` reached from the `spawn` boundary once one
-  exists. `docs/agent/goals/2-concurrency.md:110`.
-- Items 21-24: the request tree's shared budget, `Core\Script::args()`, the crossing refusals,
-  and `output: capture|inherit`. `docs/agent/goals/2-concurrency.md:131`.
-- M4's 1000-case corpus count, met as the suite grows. `docs/implementation-plan.md`.
-- `python tools/check-migration.py` at 34%, the parity program's own measure.
+- Stage 6's other four `cargo-named` names: an unresolvable class at the boundary, a contained panic, a
+  cancelled parent leaving no orphan, a child cancelled at its next safepoint (`docs/agent/loop-goal.toml`).
+- `Core\Script::args()` — how a child reads what crossed in; ADR 0012 says it is a method, not a variable.
+- `Core\Secret::reveal()`: item 18's escape hatch, open at both ends — no parameter spelling accepts a
+  qualifier and `Qual::Launder` has no consumer (ADR 0033).
+- `on: 'worker'` — ADR 0116 § 6 decided the crossing may not adopt across cores; the placement is unbuilt.
+- M4's residue: the 1000-case conformance corpus count (`docs/implementation-plan.md`).

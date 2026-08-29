@@ -2642,6 +2642,17 @@ is why" — is this file.
   running it once is cheaper and more reliable than counting. The columns are already right if the
   scratch probe under `.agent-tmp/` used the same indentation, since a column does not shift with the
   header.
+- **A `nvs-host` test makes a context *fail* with `Ctx::set_pending("message")`, not with `Thrown::new`.**
+  That constructor is `unsafe fn new(class: *const ClassDesc, message: &str)` and needs a descriptor you
+  would have to build first; `set_pending` takes a bare message and `take_thrown` promotes it through the
+  error class the context carries — so a test that wants a *named* failure installs one first
+  (`ClassTable::define("Throwable", &["message", "previous", "backtrace", "location"], &[])` plus
+  `set_runtime_error_class`), and without one the name is gone and `take_thrown` answers a null `Thrown`.
+  The neighbouring shape is a value `nvs_runtime::graph`'s walk **refuses**: a closure there is not
+  `closure::` anything, it is a class carrying the `CLOSURE_INVOKE` method row, so
+  `ClassTable::define` + `set_methods` + `NvsObj::new` is the whole fixture — leak the table, because a
+  descriptor's address is its identity. `crates/nvs-runtime/src/graph.rs:925` and
+  `crates/nvs-host/src/isolate.rs`'s `closure_value` are the two copies of it.
 
 ## Splitting a file that got too big
 

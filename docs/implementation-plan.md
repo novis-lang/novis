@@ -309,13 +309,44 @@
 > names as the way out and every one of these diagnostics' help text points at, is not in the
 > registry yet — it needs a parameter spelling that *accepts* a qualifier and a `Qual::Launder` no
 > consumer reads — so item 18's escape hatch is open at both ends. What is left of Stage 5 is
-> joining the live carrier to the `spawn` boundary, which has no boundary to join to until Stage 6.
-> The steps the chain took are in [goals/README.md](agent/goals/README.md) § *Starting the chain*.
-> M4's own residue is the 1000-case corpus count, which orders 1–4 meet as the suite grows; nothing
-> else about M4 is open. What the program is measured by is `python tools/check-migration.py` at
-> 100% classified, which stood at 25% the day the program was scheduled and reads 34% now that goal
-> 1's own five domains — dates and times, regular expressions, JSON, URLs and paths — carry a row
-> per name. `python tools/gaps.py`, `python tools/holes.py` and `python tools/check-migration.py
+> joining the live carrier to the `spawn` boundary, and Stage 6 has now begun building that
+> boundary. ADR 0116 is the goal's second pre-authorized slot, spent: **an isolate's arena is an
+> ownership root, not an address range.** Entering one maps nothing and leaving one unmaps nothing —
+> allocation keeps going through the process allocator, and what an isolate owns is reachability,
+> enforced at the single place a value can move. The region arena the word implies was rejected on
+> three facts the tree already holds: freeing a region runs no native drop, so a
+> `Core\Db\Transaction` would stay open where ADR 0072 § 5 requires it rolled back; a bump region
+> cannot reuse a freed intermediate, so a loop appending to one string would make an isolate's
+> footprint O(work done) rather than O(live), which ADR 0004 calls a leak; and the latency a region
+> is usually reached for was already collected by `alloc.rs`'s per-thread cache. "Released
+> wholesale" is therefore one drain of `crate::release`'s worklist over the isolate's roots —
+> iterative, bounded by what is live, running every native teardown — and the same drain a cancelled
+> isolate gets from the scheduler's own stack. The payoff for the crossing is § 5's: because both
+> sides allocate from the same place, `Live`'s move at refcount 1 is a pointer handoff rather than a
+> copy, so a child returning a large array costs the walk and not the array.
+> `crates/nvs-host/src/isolate.rs` is that ADR in code, and it is design.md's one `Isolate` type:
+> the argument crosses in through `copy_graph`, the program runs as a child task on a stack of its
+> own, the answer crosses out **before** the context is dropped, and dropping it is the wholesale
+> release. Two decisions are its module doc's. A **program arrives as a closure, not as a path**,
+> for the reason `nvs_runtime::host`'s seam already records — resolving a path means the compiler,
+> and an edge from the host to `nvs-ir` would link a scheduler, a reactor and a JIT into every `nvs
+> check` — so whoever can compile builds one, `nvs-cli` today and the server at M7. And the two
+> refusals of the one walk **mean different things**: an argument that cannot cross was built by the
+> parent before any child existed, so it is an `Err` with no task started and the caller raises it
+> in the parent, while an answer that cannot cross was built by the child and is ADR 0006's
+> failure-is-a-value, `ok = false` beside an uncaught throw. What it needed from the runtime is
+> `Ctx::isolate`, the other half of the pair `Ctx::child` opens and the one place the two part: a
+> task aliases the request's static-property base, an isolate gets its own, and that single word is
+> the whole of "a child cannot read or write a parent static". It is safe where `Ctx::child` is
+> `unsafe`, because nothing in the returned context points into the parent. Four of Stage 6's eight
+> `cargo-named` names are green on it, plus two the module's own asymmetry needs; 116 tests in the
+> crate against 110. The steps the chain took are in goals/README.md § *Starting the chain*. The
+> steps the chain took are in [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's
+> own residue is the 1000-case corpus count, which orders 1–4 meet as the suite grows; nothing else
+> about M4 is open. What the program is measured by is `python tools/check-migration.py` at 100%
+> classified, which stood at 25% the day the program was scheduled and reads 34% now that goal 1's
+> own five domains — dates and times, regular expressions, JSON, URLs and paths — carry a row per
+> name. `python tools/gaps.py`, `python tools/holes.py` and `python tools/check-migration.py
 > --report` are the three worklists behind it, and no session re-derives one.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
