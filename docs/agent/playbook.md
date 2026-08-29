@@ -2661,6 +2661,13 @@ is why" — is this file.
   `ClassTable::define` + `set_methods` + `NvsObj::new` is the whole fixture — leak the table, because a
   descriptor's address is its identity. `crates/nvs-runtime/src/graph.rs:925` and
   `crates/nvs-host/src/isolate.rs`'s `closure_value` are the two copies of it.
+- **`await 5` does not parse, so a fixture that wants a badly-typed operand binds one first.**
+  `await` is contextual (`docs/spec/00-overview.md` § 2) and is read as the operator only before
+  what the production needs, so a bare literal after it leaves `await` read as an identifier and the
+  parse fails with `E0101 expected ';'` pointing past the literal — not with anything naming
+  `await`. `int $n = 5;` then `await $n` is the spelling that reaches the type checker, and
+  `crates/nvs-types/tests/isolates.rs`'s `await_refuses_an_operand_no_spawn_produced` is the worked
+  example. The same applies to `spawn script` before anything that is not a string expression.
 
 ## Splitting a file that got too big
 
@@ -3573,6 +3580,15 @@ sibling in the same namespace unqualified.
   rule is the *opposite* shape: a sink whose parameter is `mixed` (`Core\Debug::dump`,
   `Core\Serialize::encode`), where nothing below the call site can still see the qualifier, which is why
   those three live in `expr/quals.rs` as call-site walks over the written arguments.
+- **The two `Core` coverage gates run in opposite directions, and a class with no members owes
+  neither anything.** `conformance_coverage.rs` walks `registry::CLASSES` and asks the repository
+  for a `.nvst` case per *member* (plus a floor of three per member); `spec_registry_coverage.rs`
+  walks `docs/spec/01-core-library.md` §§ 1-12's `| Member | Signature |` *rows* and asks the
+  registry for each. So registering `Core\Script\Handle` — three lines and a module — turned both
+  green with no spec edit and no case, where the handoff had predicted a spec entry beside it.
+  Adding a row to the spec for such a class is the actual trap: it would demand a member the class
+  exists in order not to have. A class's *prose* home is still owed, and § 19's own last line says
+  where the concurrency surface's is: `docs/spec/00-overview.md` § 2, not this file.
 
 ## Divergences and refusals already pinned
 

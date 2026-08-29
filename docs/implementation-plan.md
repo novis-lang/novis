@@ -390,17 +390,32 @@
 > the refusal is what keeps `nvs-ir`'s roster comment true and that roster ends in a `panic!`: a
 > construct may not stop being refused before it starts being lowered. The one surface cost is that
 > ADR 0006's `$result->valueOrThrow()` cannot be a method on a shape and becomes
-> `Core\Script::valueOrThrow($result)`, a static member on the class item 22 introduces anyway.
-> `spawn script` still answers `mixed`, because its `Core\Script\Handle` needs a registry row and
-> `crates/nvs-stdlib/tests/spec_registry_coverage.rs` makes that a `docs/spec/01-core-library.md`
-> edit rather than a one-line addition. The steps the chain took are in
-> [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's own residue is the 1000-case
-> corpus count, which orders 1–4 meet as the suite grows; nothing else about M4 is open. What the
-> program is measured by is `python tools/check-migration.py` at 100% classified, which stood at 25%
-> the day the program was scheduled and reads 34% now that goal 1's own five domains — dates and
-> times, regular expressions, JSON, URLs and paths — carry a row per name. `python tools/gaps.py`,
-> `python tools/holes.py` and `python tools/check-migration.py --report` are the three worklists
-> behind it, and no session re-derives one.
+> `Core\Script::valueOrThrow($result)`, a static member on the class item 22 introduces anyway. Both
+> constructs now carry their type. `spawn script` answers with `Core\Script\Handle`, which
+> `crates/nvs-stdlib/src/script.rs` registers with **no members at all** — no `cancel()`, no
+> `isDone()`, no `id()`, because cancellation is the parent's own teardown reaching its children
+> (ADR 0072 § 5) and every "is it finished yet" answer is stale before the caller reads it, which is
+> the argument `Core\Task\Channel` already records for `count`/`isFull`. It is absent from
+> `CONSTRUCTORS` too, so `new Core\Script\Handle()` is refused where it is written; the only thing
+> that may build one is the lowering of a spawn. It declares no slots either, and that is not an
+> oversight — a slot is the layout a helper body reads back by index, so it is declared by whoever
+> writes one, and what a handle holds is item 22's to decide. `await` is now checked **against**
+> that class, so `await $n` over an `int` is an ordinary `E_TYPE_MISMATCH` naming what it wanted
+> rather than only the refusal: nothing but a spawn produces a handle, so an operand that is not one
+> cannot have come from one. The class owed `docs/spec/01-core-library.md` nothing, contrary to what
+> the item predicted — `spec_registry_coverage.rs` reads §§ 1-12's *table rows* and asks the
+> registry for each, so a memberless class is invisible to it, and a row there would demand the very
+> member this class must not have. The concurrency language surface belongs to
+> `docs/spec/00-overview.md` § 2 by `01-core-library.md` § 19's own routing line, and that is where
+> both types are now named and pointed at their module doc. Both refusals stay, for the roster
+> reason above. The steps the chain took are in [goals/README.md](agent/goals/README.md) § *Starting
+> the chain*. M4's own residue is the 1000-case corpus count, which orders 1–4 meet as the suite
+> grows; nothing else about M4 is open. What the program is measured by is `python
+> tools/check-migration.py` at 100% classified, which stood at 25% the day the program was scheduled
+> and reads 34% now that goal 1's own five domains — dates and times, regular expressions, JSON,
+> URLs and paths — carry a row per name. `python tools/gaps.py`, `python tools/holes.py` and `python
+> tools/check-migration.py --report` are the three worklists behind it, and no session re-derives
+> one.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
