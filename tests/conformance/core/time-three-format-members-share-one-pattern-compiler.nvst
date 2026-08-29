@@ -1,5 +1,5 @@
 --TEST--
-`Core\Time`'s three `format` members refuse a malformed pattern with one sentence each naming its own member, and the two zone-free halves narrow that grammar into disjoint halves — spec § 4
+`Core\Time`'s three `format` members refuse a malformed pattern as a `LogicError` with one sentence each naming its own member, and the two zone-free halves narrow that grammar into disjoint halves — spec §§ 4, 10
 --FILE--
 <?nvs
 // Spec § 4's three rendering members — `Core\Time\DateTime::format`,
@@ -34,11 +34,11 @@ string $quoteLeftOpen = "'unclosed";
 string $zoneOnce = "V";
 string $zoneThrice = "VVV";
 try { echo $dt->format($letterG), "\n"; }
-catch (Throwable $unknownOnDateTime) { echo $unknownOnDateTime->message, "\n"; }
+catch (LogicError $unknownOnDateTime) { echo $unknownOnDateTime->message, "\n"; }
 try { echo $date->format("G"), "\n"; }
-catch (Throwable $unknownOnDate) { echo $unknownOnDate->message, "\n"; }
+catch (LogicError $unknownOnDate) { echo $unknownOnDate->message, "\n"; }
 try { echo $clock->format("G"), "\n"; }
-catch (Throwable $unknownOnClock) { echo $unknownOnClock->message, "\n"; }
+catch (LogicError $unknownOnClock) { echo $unknownOnClock->message, "\n"; }
 echo $dt->format("'G'"), "\n";
 
 // An unterminated quote is the other way the compiler stops, and it names the
@@ -46,7 +46,7 @@ echo $dt->format("'G'"), "\n";
 // reader fixes. `''` is one apostrophe, which is what makes an unpaired one
 // detectable at all.
 try { echo $dt->format($quoteLeftOpen), "\n"; }
-catch (Throwable $openQuote) { echo $openQuote->message, "\n"; }
+catch (LogicError $openQuote) { echo $openQuote->message, "\n"; }
 echo $dt->format("''"), "\n";
 
 // `V` is the one letter whose *count* is the whole grammar: the IANA
@@ -54,22 +54,22 @@ echo $dt->format("''"), "\n";
 // `VV` renders and every other count is refused, from either direction.
 echo $dt->format("VV"), "\n";
 try { echo $dt->format($zoneOnce), "\n"; }
-catch (Throwable $tooFew) { echo $tooFew->message, "\n"; }
+catch (LogicError $tooFew) { echo $tooFew->message, "\n"; }
 try { echo $dt->format($zoneThrice), "\n"; }
-catch (Throwable $tooMany) { echo $tooMany->message, "\n"; }
+catch (LogicError $tooMany) { echo $tooMany->message, "\n"; }
 
 // The two zone-free halves refuse a field they would have to invent a value
 // for, rather than filling one in: every value they could invent — midnight,
 // the process's own zone — is a wrong answer stated confidently. Each of the
 // four sentences names the class it is speaking for.
 try { echo $date->format("HH"), "\n"; }
-catch (Throwable $hourOnDate) { echo $hourOnDate->message, "\n"; }
+catch (LogicError $hourOnDate) { echo $hourOnDate->message, "\n"; }
 try { echo $date->format("VV"), "\n"; }
-catch (Throwable $zoneOnDate) { echo $zoneOnDate->message, "\n"; }
+catch (LogicError $zoneOnDate) { echo $zoneOnDate->message, "\n"; }
 try { echo $clock->format("yyyy"), "\n"; }
-catch (Throwable $yearOnClock) { echo $yearOnClock->message, "\n"; }
+catch (LogicError $yearOnClock) { echo $yearOnClock->message, "\n"; }
 try { echo $clock->format("VV"), "\n"; }
-catch (Throwable $zoneOnClock) { echo $zoneOnClock->message, "\n"; }
+catch (LogicError $zoneOnClock) { echo $zoneOnClock->message, "\n"; }
 
 // Quoting is what a caller reaches for when the *text* was wanted rather than
 // the field, and it is accepted by exactly the members that refuse the field —
@@ -82,11 +82,11 @@ echo $date->format("'HH'"), "|", $clock->format("'yyyy'"), "\n";
 // and inside the narrowing, the field the class has no room for beats the zone
 // it does not have.
 try { echo $date->format("G HH"), "\n"; }
-catch (Throwable $unreadableFirst) { echo $unreadableFirst->message, "\n"; }
+catch (LogicError $unreadableFirst) { echo $unreadableFirst->message, "\n"; }
 try { echo $date->format("HH VV"), "\n"; }
-catch (Throwable $timeBeforeZone) { echo $timeBeforeZone->message, "\n"; }
+catch (LogicError $timeBeforeZone) { echo $timeBeforeZone->message, "\n"; }
 try { echo $clock->format("yyyy VV"), "\n"; }
-catch (Throwable $calendarBeforeZone) { echo $calendarBeforeZone->message, "\n"; }
+catch (LogicError $calendarBeforeZone) { echo $calendarBeforeZone->message, "\n"; }
 
 // Counted: the subset is closed over the whole ASCII alphabet, not merely over
 // the letters § 4's own examples happen to use. 52 single-letter patterns, 15
@@ -104,7 +104,7 @@ for (int $n = 0; $n < 52; $n = $n + 1) {
     try {
         $dt->format($letter);
         $taken = $taken + 1;
-    } catch (Throwable $sweptLetter) {
+    } catch (LogicError $sweptLetter) {
         $refused = $refused + 1;
         if (Core\Str::contains($sweptLetter->message, "`" . $letter . "` is not a pattern letter")) {
             $named = $named + 1;
@@ -129,9 +129,9 @@ int $onNeither = 0;
 foreach ($fields as string $field) {
     bool $dateTakes = true;
     bool $clockTakes = true;
-    try { $dt->format($field); $whole = $whole + 1; } catch (Throwable $notWhole) { }
-    try { $date->format($field); } catch (Throwable $notOnDate) { $dateTakes = false; }
-    try { $clock->format($field); } catch (Throwable $notOnClock) { $clockTakes = false; }
+    try { $dt->format($field); $whole = $whole + 1; } catch (LogicError $notWhole) { }
+    try { $date->format($field); } catch (LogicError $notOnDate) { $dateTakes = false; }
+    try { $clock->format($field); } catch (LogicError $notOnClock) { $clockTakes = false; }
     if ($dateTakes) { $onDates = $onDates + 1; }
     if ($clockTakes) { $onClocks = $onClocks + 1; }
     if ($dateTakes && $clockTakes) { $onBoth = $onBoth + 1; }

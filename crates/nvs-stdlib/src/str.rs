@@ -1461,7 +1461,7 @@ const FORMAT_DOC: MethodDoc = MethodDoc {
     ret: "The filled-in text; a width or precision counts graphemes, and `%f` always writes `.` \
           as the decimal separator.",
     errors: &[ErrorDoc {
-        error: "RuntimeError",
+        error: "LogicError",
         desc: "The template holds a malformed or unknown placeholder, names more arguments than \
                were passed, leaves an argument no placeholder reads, or reaches a value with no \
                reading for its conversion — an array for `%d`, or a `decimal` that is not whole \

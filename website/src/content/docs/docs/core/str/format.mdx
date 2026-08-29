@@ -52,7 +52,9 @@ Returns `string`: the filled-in template. Number formatting is locale-independen
 - A **literal** template with mismatched placeholders (wrong count, wrong type, unknown
   conversion) does not compile.
 - A **tainted** template is refused at compile time (see above).
-- A malformed template that only exists at run time throws `ParseError`.
+- A malformed template that only exists at run time throws `LogicError`: the template is
+  the program's own grammar rather than input, so it lands on the "bug in the program" side
+  of spec § 10's tree, exactly where a bad `Core\Time::parse` pattern does.
 
 <MethodChangelog id="Str.format" />
 

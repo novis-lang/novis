@@ -1725,7 +1725,7 @@ const DATETIME_FORMAT_DOC: MethodDoc = MethodDoc {
     }],
     ret: "The rendered text.",
     errors: &[ErrorDoc {
-        error: "RuntimeError",
+        error: "LogicError",
         desc: "`$pattern` does not compile — a field letter outside the implemented subset, or \
                an unterminated quote.",
     }],
@@ -2520,7 +2520,7 @@ const DATE_FORMAT_DOC: MethodDoc = MethodDoc {
     }],
     ret: "The rendered text.",
     errors: &[ErrorDoc {
-        error: "RuntimeError",
+        error: "LogicError",
         desc: "`$pattern` does not compile, or names a time-of-day or zone field, which a date \
                would have to invent.",
     }],
@@ -2821,7 +2821,7 @@ const TIME_OF_DAY_FORMAT_DOC: MethodDoc = MethodDoc {
     }],
     ret: "The rendered text.",
     errors: &[ErrorDoc {
-        error: "RuntimeError",
+        error: "LogicError",
         desc: "`$pattern` does not compile, or names a calendar or zone field, which a clock \
                reading would have to invent.",
     }],
@@ -3702,7 +3702,12 @@ nvs_runtime::nvs_helper! {
         let at = zoned_of(args, 0, "format")?;
         let pattern = text_of(args, 1, "Core\\Time\\DateTime::format")?;
         let pieces = crate::cldr::compile(pattern)
-            .map_err(|why| Fault::thrown(format!("Core\\Time\\DateTime::format(): {why}")))?;
+            .map_err(|why| {
+                Fault::thrown_as(
+                    ThrownClass::Logic,
+                    format!("Core\\Time\\DateTime::format(): {why}"),
+                )
+            })?;
         Ok(Value::str(NvsStr::new(
             crate::cldr::render(&pieces, &at).as_bytes(),
         )))
@@ -4239,7 +4244,9 @@ nvs_runtime::nvs_helper! {
         let pattern = text_of(args, 1, r"Core\Time\Date::format")?;
         let pieces = crate::cldr::compile(pattern)
             .and_then(|pieces| crate::cldr::date_fields_only(&pieces).map(|()| pieces))
-            .map_err(|why| Fault::thrown(format!("Core\\Time\\Date::format(): {why}")))?;
+            .map_err(|why| {
+                Fault::thrown_as(ThrownClass::Logic, format!("Core\\Time\\Date::format(): {why}"))
+            })?;
         // Rendered from the civil date rather than from a placement on the
         // timeline, because that placement is not total at either end of the
         // year range `Date::at` accepts — [`crate::cldr::render_utc`] owns the
@@ -4470,7 +4477,12 @@ nvs_runtime::nvs_helper! {
         let pattern = text_of(args, 1, r"Core\Time\TimeOfDay::format")?;
         let pieces = crate::cldr::compile(pattern)
             .and_then(|pieces| crate::cldr::time_fields_only(&pieces).map(|()| pieces))
-            .map_err(|why| Fault::thrown(format!("Core\\Time\\TimeOfDay::format(): {why}")))?;
+            .map_err(|why| {
+                Fault::thrown_as(
+                    ThrownClass::Logic,
+                    format!("Core\\Time\\TimeOfDay::format(): {why}"),
+                )
+            })?;
         // The date below is arbitrary and unobservable: no piece that survived
         // `time_fields_only` reads a calendar field or a zone. Rendered civil
         // rather than placed on the timeline for [`crate::cldr::render_utc`]'s

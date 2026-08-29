@@ -64,7 +64,7 @@
 //! 0009 § 2 owns that unit; restating it per member is what would let two
 //! members drift apart.
 
-use nvs_runtime::{Fault, NvsStr, Tag, Value};
+use nvs_runtime::{Fault, NvsStr, Tag, ThrownClass, Value};
 
 use crate::granularity::DEFAULT;
 
@@ -73,21 +73,25 @@ use crate::granularity::DEFAULT;
 ///
 /// # Errors
 ///
-/// A `Fault::thrown` for every refusal this module's own docs list: a
-/// malformed or unknown placeholder, an argument count that does not match the
+/// A `LogicError` for every refusal this module's own docs list: a malformed
+/// or unknown placeholder, an argument count that does not match the
 /// placeholders, or a value with no reading for the conversion it reached.
+/// Every one is spec § 10's "bug in the program" — the template is the
+/// program's own grammar and the arguments its own call, never input — which
+/// is the side `Core\Time::parse` puts a bad *pattern* on, as against the
+/// `ParseError` it keeps for text.
 pub(crate) fn format(template: &str, arguments: &[Value]) -> Result<String, Fault> {
     let mut out = String::with_capacity(template.len());
     let mut used = vec![false; arguments.len()];
     let mut next = 0usize;
     for piece in Pieces::new(template) {
-        match piece.map_err(Fault::thrown)? {
+        match piece.map_err(|why| Fault::thrown_as(ThrownClass::Logic, why))? {
             Piece::Text(text) => out.push_str(text),
             Piece::Spec(spec) => {
                 let index = spec.index(&mut next);
-                let argument = arguments
-                    .get(index)
-                    .ok_or_else(|| Fault::thrown(reads_missing(index, arguments.len())))?;
+                let argument = arguments.get(index).ok_or_else(|| {
+                    Fault::thrown_as(ThrownClass::Logic, reads_missing(index, arguments.len()))
+                })?;
                 used[index] = true;
                 let body = spec.convert(argument)?;
                 spec.pad_into(&body, &mut out);
@@ -95,7 +99,7 @@ pub(crate) fn format(template: &str, arguments: &[Value]) -> Result<String, Faul
         }
     }
     if let Some(unused) = used.iter().position(|seen| !seen) {
-        return Err(Fault::thrown(never_read(unused)));
+        return Err(Fault::thrown_as(ThrownClass::Logic, never_read(unused)));
     }
     Ok(out)
 }
@@ -129,7 +133,7 @@ pub struct Placeholder {
 ///
 /// # Errors
 ///
-/// The text of the `Fault::thrown` [`format`] would have raised on the same
+/// The text of the `LogicError` [`format`] would have raised on the same
 /// template, so a diagnostic quotes the runtime's own words rather than a
 /// second wording of the same refusal.
 pub fn placeholders(template: &str) -> Result<Vec<Placeholder>, String> {
@@ -521,11 +525,14 @@ fn integer(argument: &Value, conversion: char) -> Result<i64, Fault> {
             .as_decimal()
             .and_then(nvs_runtime::Decimal::to_i64)
             .ok_or_else(|| {
-                Fault::thrown(format!(
-                    "Core\\Str::format(): `%{conversion}` needs a whole number, and this \
+                Fault::thrown_as(
+                    ThrownClass::Logic,
+                    format!(
+                        "Core\\Str::format(): `%{conversion}` needs a whole number, and this \
                      `decimal` is not one — round it with `Core\\Math::floor`, `::ceil` or \
                      `::round` first"
-                ))
+                    ),
+                )
             }),
         _ => Err(unreadable(conversion)),
     }
@@ -649,9 +656,10 @@ fn malformed(after: &str) -> String {
 
 /// A value with no reading for the conversion it reached.
 fn unreadable(conversion: char) -> Fault {
-    Fault::thrown(format!(
-        "Core\\Str::format(): `%{conversion}` has no reading for this value"
-    ))
+    Fault::thrown_as(
+        ThrownClass::Logic,
+        format!("Core\\Str::format(): `%{conversion}` has no reading for this value"),
+    )
 }
 
 #[cfg(test)]

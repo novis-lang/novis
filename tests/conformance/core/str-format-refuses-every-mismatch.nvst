@@ -9,34 +9,35 @@ Core\Str::format throws for every argument-mismatch PHP's printf family hides, o
 // § 2 leaves a computed argument to run time with ordinary runtime validation,
 // and this case is what asserts that half is unchanged: the same four
 // mismatches, the same four messages, from the one implementation both paths
-// share.
+// share — and one class, spec § 10's `LogicError`, since a template and its
+// argument list are the program's own writing rather than input.
 
 // Too few arguments for the placeholders written.
 string $few = "%s and %s";
 try {
     echo Core\Str::format($few, "one"), "\n";
-} catch (Throwable $e) {
+} catch (LogicError $e) {
     echo "few: ", $e->message, "\n";
 }
 // An argument no placeholder ever read — PHP ignores this one.
 string $one = "%s";
 try {
     echo Core\Str::format($one, "read", "unread"), "\n";
-} catch (Throwable $e) {
+} catch (LogicError $e) {
     echo "extra: ", $e->message, "\n";
 }
 // A conversion outside the closed list the template grammar allows.
 string $unknown = "%q";
 try {
     echo Core\Str::format($unknown, 1), "\n";
-} catch (Throwable $e) {
+} catch (LogicError $e) {
     echo "unknown: ", $e->message, "\n";
 }
 // A value with no reading for the conversion it reached.
 string $number = "%d";
 try {
     echo Core\Str::format($number, "twelve"), "\n";
-} catch (Throwable $e) {
+} catch (LogicError $e) {
     echo "reading: ", $e->message, "\n";
 }
 --EXPECT--
