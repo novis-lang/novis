@@ -2138,6 +2138,24 @@ is why" — is this file.
   a `tests/conformance/reject/` case must still fail for its *own* reason, which means the new rule has
   to be satisfied there rather than asserted. Count the inline fixtures before budgeting the rewrite —
   the helper is usually 25 of the sites and the manual ones are 5.
+- **A `printf` fixture written in a Novis `"…"` string loses `%1$s` to interpolation, and the
+  diagnostics blame the *variable*.** `Core\Str::format("%1$s %2$d", …)` in a double-quoted
+  Novis literal is three `E0301`s about undeclared `$s` and `$d` — the template never
+  reaches the checker as written, so a fixture pinning positional placeholders reads as a
+  bug in the pass it is testing. Single-quote it: `'%1$s %2$d'` folds to the same
+  `ConstArg::Str` and interpolates nothing. This is a real collision between two grammars
+  rather than a fixture quirk, so it is also what a *program* writing positional
+  placeholders has to do; `crates/nvs-types/tests/intrinsics.rs` says so at the one case
+  that needs it.
+
+- **Making a member an ADR 0057 intrinsic breaks the conformance case that pinned its runtime
+  throw, and the failure names the *case*.** `str-format-refuses-every-mismatch.nvst` caught
+  four `Core\Str::format` mismatches out of literal templates; the moment the checker read
+  those literals, all four became compile errors and the case reported `standard output does
+  not match / actual: <empty>` with four `E0769`/`E0770`s above it. The fix is § 2's own
+  division rather than deleting the case: read the template out of a `string $t` variable and
+  the runtime path is back, unchanged. Expect one such case per grammar as the remaining rows
+  land — `grep` the throw's own message text in `tests/conformance/` before writing the arm.
 
 ## Splitting a file that got too big
 

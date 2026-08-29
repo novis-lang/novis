@@ -1,28 +1,41 @@
 --TEST--
-Core\Str::format throws for every argument-mismatch PHP's printf family hides
+Core\Str::format throws for every argument-mismatch PHP's printf family hides, on the runtime path ADR 0057 § 2 leaves to it
 --FILE--
 <?nvs
+// Every template below is read out of a variable rather than written at the
+// call. ADR 0057 § 1 makes `Core\Str::format` an intrinsic, so a *literal*
+// template is checked while compiling and each of these four would be a
+// compile error instead — pinned as one in crates/nvs-types/tests/intrinsics.rs.
+// § 2 leaves a computed argument to run time with ordinary runtime validation,
+// and this case is what asserts that half is unchanged: the same four
+// mismatches, the same four messages, from the one implementation both paths
+// share.
+
 // Too few arguments for the placeholders written.
+string $few = "%s and %s";
 try {
-    echo Core\Str::format("%s and %s", "one"), "\n";
+    echo Core\Str::format($few, "one"), "\n";
 } catch (Throwable $e) {
     echo "few: ", $e->message, "\n";
 }
 // An argument no placeholder ever read — PHP ignores this one.
+string $one = "%s";
 try {
-    echo Core\Str::format("%s", "read", "unread"), "\n";
+    echo Core\Str::format($one, "read", "unread"), "\n";
 } catch (Throwable $e) {
     echo "extra: ", $e->message, "\n";
 }
 // A conversion outside the closed list the template grammar allows.
+string $unknown = "%q";
 try {
-    echo Core\Str::format("%q", 1), "\n";
+    echo Core\Str::format($unknown, 1), "\n";
 } catch (Throwable $e) {
     echo "unknown: ", $e->message, "\n";
 }
 // A value with no reading for the conversion it reached.
+string $number = "%d";
 try {
-    echo Core\Str::format("%d", "twelve"), "\n";
+    echo Core\Str::format($number, "twelve"), "\n";
 } catch (Throwable $e) {
     echo "reading: ", $e->message, "\n";
 }
