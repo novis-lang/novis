@@ -449,11 +449,24 @@ impl<S: Source> NvsStream<S> {
                     // Rule 1: registered, and the borrow above is already
                     // dropped, *then* the yield. Never the other way round.
                     armed?;
-                    let parked = suspend_current(Waiting::Parked);
+                    let resumed = suspend_current(Waiting::Parked);
                     if deadline.is_some() {
                         reactor::with_current(|reactor| reactor.timers().disarm(me));
                     }
-                    parked
+                    if resumed.cancelled() {
+                        // The wait is over and the syscall is not ready, so the
+                        // only honest answer is an error — and it has to be a
+                        // terminal one, because a cancellation is delivered
+                        // once and a retrying caller would park again with
+                        // nothing coming. `Interrupted` is the kind that reads
+                        // right and is exactly the one `Read::read_exact` and
+                        // friends retry, so it is not that one.
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::ConnectionAborted,
+                            "the task was cancelled",
+                        ));
+                    }
+                    resumed.suspended()
                 }
             },
         };

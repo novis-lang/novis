@@ -263,6 +263,13 @@ fn run_group(
             ThrownClass::Timeout,
             format!("{member}: the deadline expired before every child returned"),
         )),
+        // The *calling* task was cancelled while it waited here — § 4's last
+        // row. Not a throw and not a value: the request is over, so the answer
+        // is the flag `nvs_safepoint` already reports as a `FATAL` no `catch`
+        // sees, and the member returns ordinarily to let the frames between
+        // here and that poll unwind by ADR 0002's status. `Host::sleep`'s
+        // `Woken::Cancelled` takes the identical route.
+        Some(Outcome::Cancelled) => Err(ctx.cancel()),
         None => Err(Fault::fatal(format!(
             "{member} needs a scheduler on this thread and there is none"
         ))),

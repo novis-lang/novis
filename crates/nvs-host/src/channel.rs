@@ -277,7 +277,11 @@ impl<T> Sender<T> {
                     let waiter = Waiter::register(&self.inner, wake, Side::Send);
                     let parked = suspend_current(Waiting::Parked);
                     drop(waiter);
-                    if !parked {
+                    // A cancellation ends the wait the same way a missing
+                    // scheduler does, and for the same reason: there is nothing
+                    // to wait for any more, so the value comes back to its
+                    // owner rather than the caller looping to be told again.
+                    if !parked.suspended() || parked.cancelled() {
                         return Err(SendError::WouldBlock(value));
                     }
                 }
@@ -356,7 +360,9 @@ impl<T> Receiver<T> {
                     let waiter = Waiter::register(&self.inner, wake, Side::Recv);
                     let parked = suspend_current(Waiting::Parked);
                     drop(waiter);
-                    if !parked {
+                    // Beside the send's, for its reason: a cancelled receiver
+                    // has stopped waiting, and looping would only park it again.
+                    if !parked.suspended() || parked.cancelled() {
                         return Err(RecvError::WouldBlock);
                     }
                 }

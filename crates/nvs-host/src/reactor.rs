@@ -893,7 +893,10 @@ mod tests {
         let counter = Rc::clone(&resumes);
         let id = sched.spawn(ctx(), TaskRoot::Worker, move |ctx| {
             counter.set(counter.get() + 1);
-            assert!(suspend(ctx, Waiting::Parked), "there was no scheduler");
+            assert!(
+                suspend(ctx, Waiting::Parked).suspended(),
+                "there was no scheduler"
+            );
             counter.set(counter.get() + 1);
         });
         with_current(|reactor| reactor.register(&mut server, id, Interest::READABLE))
@@ -1069,7 +1072,10 @@ mod tests {
             with_current(|reactor| reactor.register(&mut server, me, Interest::READABLE))
                 .expect("no reactor was installed")
                 .expect("the OS refused a registration");
-            assert!(suspend_current(Waiting::Parked), "there was no scheduler");
+            assert!(
+                suspend_current(Waiting::Parked).suspended(),
+                "there was no scheduler"
+            );
             assert_eq!(
                 current_task(),
                 Some(me),
@@ -1098,7 +1104,10 @@ mod tests {
         let counter = Rc::clone(&resumes);
         let id = sched.spawn(ctx(), TaskRoot::Worker, move |ctx| {
             counter.set(counter.get() + 1);
-            assert!(suspend(ctx, Waiting::Parked), "there was no scheduler");
+            assert!(
+                suspend(ctx, Waiting::Parked).suspended(),
+                "there was no scheduler"
+            );
             counter.set(counter.get() + 1);
         });
         // Rule 1's ordering, for a handoff rather than a registration: the

@@ -90,7 +90,7 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use nvs_runtime::host::{Bounds, Host, Job, Outcome};
+use nvs_runtime::host::{Bounds, Host, Job, Outcome, Woken};
 use nvs_runtime::{AssertionOutcome, Ctx, TaskRoot, Thrown, Value};
 
 use crate::reactor;
@@ -121,12 +121,12 @@ pub(crate) fn install() -> nvs_runtime::host::Installed {
 }
 
 impl Host for SchedulerHost {
-    fn sleep(&self, duration: Duration) {
+    fn sleep(&self, duration: Duration) -> Woken {
         // The whole implementation, because the mechanism is already the one a
         // deadline uses: `crate::timer` arms this task's own deadline on the
         // reactor the core is about to poll, and falls back to blocking when
         // there is no task to park — see that module's docs.
-        crate::timer::sleep(duration);
+        crate::timer::sleep(duration)
     }
 
     fn run_group(&self, ctx: &mut Ctx, jobs: Vec<Job>, bounds: Bounds) -> Outcome {
@@ -152,6 +152,13 @@ enum Ending {
     Threw,
     /// The deadline passed before the last child returned.
     TimedOut,
+    /// The **calling** task was cancelled while it waited here — ADR 0072 § 4's
+    /// last row. It is an ending like the other two rather than an unwind
+    /// through the call, because the call is standing on a helper frame and no
+    /// unwind may cross one; `crate::scheduler`'s `Resume` owns that decision.
+    /// The children are cancelled and waited for exactly as they are for the
+    /// other two, and it is the *member* that then stops the request.
+    Cancelled,
 }
 
 /// One job's answer and the request-wide state its child accumulated.
@@ -192,9 +199,16 @@ impl Child {
     /// Runs this child's job and files what it produced.
     fn run(&self, job: Job, ctx: &mut Ctx) {
         let answer = job(ctx);
+        // A cancelled child did not fail. It ran until a member told it it was
+        // cancelled and then stopped by ADR 0002's return status, so its
+        // context carries a pending message the way every stopped request does
+        // — and § 5 means that message is neither a `Throwable` the group may
+        // propagate nor a second throw to write down. Its slot stays empty,
+        // exactly as it does for a child a forced unwind tore down.
+        let cancelled = ctx.cancelled();
         // Two statements, because `pending()` borrows the context and
         // `take_thrown` needs it back.
-        let failed = ctx.pending().is_some();
+        let failed = !cancelled && ctx.pending().is_some();
         let thrown = failed.then(|| ctx.take_thrown());
         let output = ctx.take_buffered_output().unwrap_or_default();
         let assertions = ctx.take_assertions();
@@ -203,6 +217,19 @@ impl Child {
         let slot = &mut group.slots[self.index];
         slot.output = output;
         slot.assertions = assertions;
+        if cancelled {
+            // What it echoed before it was stopped, it did echo, so the two
+            // fields above are still filed. The value is not an answer.
+            #[expect(
+                unsafe_code,
+                reason = "the job transferred this reference and no slot will \
+                          take it"
+            )]
+            unsafe {
+                answer.release();
+            }
+            return;
+        }
         let Some(thrown) = thrown else {
             slot.answer = Some(answer);
             return;
@@ -307,11 +334,16 @@ fn run_as_children(ctx: &mut Ctx, jobs: Vec<Job>, bounds: Bounds, wake: Rc<Wake>
             break;
         }
 
-        // 3. Park until a child reports or the deadline lands.
+        // 3. Park until a child reports, the deadline lands, or this task is
+        //    itself cancelled.
         let armed = arm_deadline(ending, expires);
-        let suspended = suspend_current(Waiting::Parked);
+        let resumed = suspend_current(Waiting::Parked);
+        let suspended = resumed.suspended();
         if armed {
             disarm_deadline();
+        }
+        if resumed.cancelled() && ending.is_none() {
+            ending = Some(Ending::Cancelled);
         }
         if !suspended {
             // Nothing suspended, so the core was never handed back and no child
@@ -387,8 +419,17 @@ fn collect(ctx: &mut Ctx, group: &Rc<RefCell<Group>>, ending: Option<Ending>) ->
         }
     }
 
-    let failed = group.thrown.take();
-    if failed.is_some() || ending == Some(Ending::TimedOut) {
+    let mut failed = group.thrown.take();
+    if ending == Some(Ending::Cancelled)
+        && let Some(thrown) = failed.take()
+    {
+        // The caller is being torn down, so there is nobody left to propagate
+        // to — and § 4's "never swallowed" holds all the same, through the
+        // channel a second throw already uses.
+        let message = format!("uncaught in a cancelled group: {}\n", thrown.message());
+        let _ = ctx.write_diagnostic(message.as_bytes());
+    }
+    if failed.is_some() || matches!(ending, Some(Ending::TimedOut | Ending::Cancelled)) {
         for slot in &mut group.slots {
             if let Some(answer) = slot.answer.take() {
                 #[expect(
@@ -401,9 +442,10 @@ fn collect(ctx: &mut Ctx, group: &Rc<RefCell<Group>>, ending: Option<Ending>) ->
                 }
             }
         }
-        return match failed {
-            Some(thrown) => Outcome::Threw(thrown),
-            None => Outcome::TimedOut,
+        return match (failed, ending) {
+            (Some(thrown), _) => Outcome::Threw(thrown),
+            (None, Some(Ending::Cancelled)) => Outcome::Cancelled,
+            (None, _) => Outcome::TimedOut,
         };
     }
 
@@ -461,6 +503,10 @@ fn run_here(ctx: &mut Ctx, jobs: Vec<Job>, bounds: Bounds) -> Outcome {
             match ending {
                 Ending::Threw => Outcome::Threw(ctx.take_thrown()),
                 Ending::TimedOut => Outcome::TimedOut,
+                // Unreachable here: this path has no task, so there is nothing
+                // for a scheduler to have cancelled — the jobs ran on the
+                // caller's own stack, one after another.
+                Ending::Cancelled => Outcome::Cancelled,
             }
         }
     }

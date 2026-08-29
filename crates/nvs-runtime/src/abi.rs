@@ -298,6 +298,10 @@ pub unsafe fn run_helper<F>(
 where
     F: FnOnce(&mut Ctx, &[Value]) -> HelperResult,
 {
+    // Before anything else and dropped after everything else: from here to the
+    // return, a task standing on this stack is one a host may not force-unwind.
+    // See [`HelperFrame`].
+    let _frame = HelperFrame::enter();
     let outcome = panic::catch_unwind(AssertUnwindSafe(|| {
         #[expect(
             unsafe_code,
@@ -663,6 +667,79 @@ impl Drop for Teardown {
     }
 }
 
+thread_local! {
+    /// How many helper frames the stack this thread is *running on* carries.
+    ///
+    /// Running on, not "has ever entered": [`HelperFrame::take`] moves the count
+    /// off the thread at a stack switch and [`HelperFrame::restore`] puts it
+    /// back, so a task suspended inside a helper does not make its neighbour
+    /// look as if it were inside one.
+    static HELPER_FRAMES: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+/// A frame a forced unwind may not cross, counted for as long as the helper
+/// runs.
+///
+/// [`Teardown`] above is how an unwind gets *through* [`run_task`]'s
+/// containment boundary. This is the question that has to be asked before one
+/// is started at all: **a helper's entry point is `extern "C"`**, and an unwind
+/// leaving one aborts the process rather than continuing outwards — as does an
+/// unwind through the compiled Novis frames underneath it, which carry no
+/// unwind tables. A host that cancels a task standing on such a stack therefore
+/// may not unwind it; it has to resume the task and let it die by
+/// [ADR 0002](../../../docs/adr/0002-error-propagation.md)'s return status at
+/// its next safepoint, which is
+/// [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md) § 5's
+/// rule reached the only way this stack allows. `nvs-host`'s scheduler module
+/// owns that decision and is this type's only consumer.
+///
+/// **What it spends:** two thread-local word accesses per helper call, on a
+/// `Cell<u32>` with a `const` initializer — the same cost class as
+/// [`crate::ctx::CurrentCtx`]'s pair, bought for the same reason. The
+/// alternative is asking the *caller* to declare what its stack looks like at
+/// every park site, which is exactly the kind of invariant AGENTS.md's priority
+/// ordering says not to spend.
+#[derive(Debug)]
+#[must_use = "the frame is counted only while this guard lives"]
+pub struct HelperFrame(());
+
+impl HelperFrame {
+    /// Counts one helper frame until the guard is dropped.
+    pub fn enter() -> Self {
+        HELPER_FRAMES.with(|frames| frames.set(frames.get().saturating_add(1)));
+        Self(())
+    }
+
+    /// Whether the stack running right now carries one.
+    #[must_use]
+    pub fn on_this_stack() -> bool {
+        HELPER_FRAMES.with(std::cell::Cell::get) > 0
+    }
+
+    /// Takes the count off the thread, answering what it was.
+    ///
+    /// For a stack switch and nothing else: the count describes one stack, and
+    /// the coroutine that is about to give the core back is taking its stack
+    /// with it. The switch's other side owes a [`HelperFrame::restore`] of the
+    /// same number — unless it never comes back, in which case the guards on
+    /// that stack drop against a count that is already zero, which saturates.
+    #[must_use]
+    pub fn take() -> u32 {
+        HELPER_FRAMES.with(|frames| frames.replace(0))
+    }
+
+    /// Puts back what [`HelperFrame::take`] answered.
+    pub fn restore(frames: u32) {
+        HELPER_FRAMES.with(|slot| slot.set(frames));
+    }
+}
+
+impl Drop for HelperFrame {
+    fn drop(&mut self) {
+        HELPER_FRAMES.with(|frames| frames.set(frames.get().saturating_sub(1)));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     // `nvs_helper!` emits `pub` entry points; inside this private test module
@@ -676,6 +753,13 @@ mod tests {
         /// Returns its one argument unchanged.
         fn nvs_test_identity(_ctx, args: [1]) {
             Ok(args[0])
+        }
+    }
+
+    nvs_helper! {
+        /// Reports whether a helper frame is counted while a helper runs.
+        fn nvs_test_counts_its_frame(_ctx, _args: [0]) {
+            Ok(Value::bool(HelperFrame::on_this_stack()))
         }
     }
 
@@ -735,6 +819,25 @@ mod tests {
         let mut ctx = Ctx::buffered();
         let value = call(nvs_test_arity_zero, &mut ctx, &[]).unwrap();
         assert_eq!(value.as_bool(), Some(true));
+    }
+
+    #[test]
+    fn a_helper_counts_its_own_frame_and_gives_it_back() {
+        // The question a host asks before it force-unwinds a task: is there an
+        // `extern "C"` frame on this stack? `HelperFrame`'s doc owns why the
+        // answer decides between an unwind and a resume, and `nvs-host`'s
+        // scheduler is what asks.
+        let mut ctx = Ctx::buffered();
+        assert!(
+            !HelperFrame::on_this_stack(),
+            "a frame was counted outside every helper"
+        );
+        let value = call(nvs_test_counts_its_frame, &mut ctx, &[]).unwrap();
+        assert_eq!(value.as_bool(), Some(true));
+        assert!(
+            !HelperFrame::on_this_stack(),
+            "the frame outlived the call it was entered for"
+        );
     }
 
     #[test]

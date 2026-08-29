@@ -75,11 +75,16 @@
 //! decision to make on the same terms — what does this member wait for that a
 //! group cannot express — rather than a slot to fill.
 //!
-//! [`Outcome`] is § 4's table, minus its last row. "The calling task is
-//! cancelled" is not a variant because it is not a return: `nvs-host` tears a
-//! cancelled task down by a forced unwind of its stack, which travels *through*
-//! this call rather than out of it, and what that unwind runs is native `Drop`
-//! and no script code (§ 5).
+//! [`Outcome`] is § 4's table, all four rows of it, and the last one is a
+//! variant for a reason worth stating: "the calling task is cancelled" would be
+//! no return at all if the caller could be unwound where it stands, which is
+//! how it was first written here. It cannot. The caller of a `Core` member is
+//! standing on an `extern "C"` frame, a forced unwind may not cross one
+//! ([`crate::HelperFrame`]), so the host resumes the caller and this call
+//! returns [`Outcome::Cancelled`] like anything else. The member's answer is
+//! [`Ctx::cancel`], which is § 5's teardown by
+//! [ADR 0002](../../../docs/adr/0002-error-propagation.md)'s return status: no
+//! `catch` sees it and no script code runs on the way out.
 //!
 //! # What it spends
 //!
@@ -133,7 +138,8 @@ pub struct Bounds {
 }
 
 /// How a group ended — [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md)
-/// § 4's table, and the module docs own why its last row is not here.
+/// § 4's table, and the module docs own why its last row is a variant here
+/// rather than an unwind.
 ///
 /// Every variant is reached with **nothing still running**. That is the whole
 /// of what the member promises and it is discharged on this side of the seam.
@@ -158,6 +164,33 @@ pub enum Outcome {
     /// The member turns this into `TimeoutError`; the host does not know that
     /// class.
     TimedOut,
+    /// The **calling** task was cancelled, every child was cancelled, and the
+    /// call waited — ADR 0072 § 4's last row.
+    ///
+    /// A return rather than an unwind because the caller is standing on an
+    /// `extern "C"` frame no unwind may cross ([`crate::HelperFrame`]); the
+    /// module docs own that. The member's answer is [`Ctx::cancel`], which is
+    /// [`Woken::Cancelled`]'s answer too, for the same reason.
+    Cancelled,
+}
+
+/// How a wait ended — what [`Host::sleep`] answers.
+///
+/// Two variants because a park has two ways to end and a member has to tell
+/// them apart: the clock reached the instant asked for, or the task was
+/// cancelled while it waited. A cancelled task standing on script frames cannot
+/// be unwound where it parked ([`crate::HelperFrame`]), so its host resumes it
+/// instead, and this is what the resume says. The member's answer to
+/// [`Woken::Cancelled`] is [`crate::SafepointFlags::CANCEL`] and an ordinary
+/// return: the next safepoint poll is then
+/// [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md) § 5's
+/// teardown, and because it is a poll rather than a throw, no `catch` sees it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Woken {
+    /// The wait ran to the end of the duration asked for.
+    Elapsed,
+    /// The task was cancelled while it waited, and the wait is over early.
+    Cancelled,
 }
 
 /// Whatever is running tasks on this thread, as much of it as a `Core` member
@@ -201,18 +234,15 @@ pub trait Host: std::fmt::Debug {
     /// `reactor` module owns that route. A host with no task beneath the call
     /// still owes the wait, and blocking is the right answer there.
     ///
-    /// **Its one intended caller does not call it yet**, and the reason is not
-    /// this method: `Core\Time::sleep` is an `extern "C"` helper frame, and
-    /// `nvs_host::Scheduler` tears a *parked* cancelled task down with a forced
-    /// unwind, which aborts the process rather than crossing one. So a member
-    /// may not park until a cancelled task carrying script frames dies by
-    /// [ADR 0002](../../../docs/adr/0002-error-propagation.md)'s return status
-    /// at its next safepoint instead — the route `nvs_safepoint` already takes
-    /// for `SafepointFlags::CANCEL`. `nvs_stdlib::time`'s gap 3 is that slice's
-    /// other end. The method stays because the decision it records is the one
-    /// that survives: a member that waits on the clock reaches its host, and it
-    /// does not reach `nvs-host`.
-    fn sleep(&self, duration: Duration);
+    /// [`Woken::Cancelled`] is how a cancellation reaches the member, and it is
+    /// the whole reason this answers anything at all. A task parked here is
+    /// standing on an `extern "C"` helper frame, so its host may not unwind it
+    /// ([`crate::HelperFrame`]); it resumes the task instead, and the member
+    /// turns that into [`ADR 0002`](../../../docs/adr/0002-error-propagation.md)'s
+    /// return status at the next safepoint. A host with no task beneath the
+    /// call still owes the wait, blocking is the right answer there, and it
+    /// answers [`Woken::Elapsed`] because nothing could have cancelled it.
+    fn sleep(&self, duration: Duration) -> Woken;
 }
 
 thread_local! {
@@ -270,7 +300,7 @@ pub fn is_installed() -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        Bounds, Duration, Host, Installed, Job, Outcome, install, is_installed, with_current,
+        Bounds, Duration, Host, Installed, Job, Outcome, Woken, install, is_installed, with_current,
     };
     use crate::ctx::{Ctx, OutputSink};
 
@@ -296,10 +326,11 @@ mod tests {
             Outcome::Completed(Vec::new())
         }
 
-        fn sleep(&self, _duration: Duration) {
+        fn sleep(&self, _duration: Duration) -> Woken {
             // Counted with the groups: what the route has to prove is that the
             // call arrives, and a test that really waited would only be slow.
             self.0.set(self.0.get() + 1);
+            Woken::Elapsed
         }
     }
 

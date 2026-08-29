@@ -79,6 +79,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
+use nvs_runtime::host::Woken;
+
 use crate::reactor;
 use crate::scheduler::{TaskId, Waiting, current_task, suspend_current};
 
@@ -246,27 +248,33 @@ impl Timers {
 ///
 /// Off a core the thread sleeps instead; this module's docs say why that is not
 /// the parking rule being bent.
-pub fn park_until(at: Instant) {
+pub fn park_until(at: Instant) -> Woken {
     loop {
         let now = Instant::now();
         if now >= at {
-            return;
+            return Woken::Elapsed;
         }
         let mut parked = false;
         if let Some(me) = current_task()
             && reactor::with_current(|reactor| reactor.timers().arm(me, at)).is_some()
         {
-            parked = suspend_current(Waiting::Parked);
-            if !parked {
+            let resumed = suspend_current(Waiting::Parked);
+            parked = resumed.suspended();
+            if !parked || resumed.cancelled() {
                 // Nothing suspended, so nothing is coming back for that
                 // deadline; leaving it filed would have the reactor holding a
-                // wake for a task that never stopped running.
+                // wake for a task that never stopped running. A cancellation
+                // owes the same tidy-up for the same reason — the wait is over
+                // and the instant is still in the future.
                 reactor::with_current(|reactor| reactor.timers().disarm(me));
+            }
+            if resumed.cancelled() {
+                return Woken::Cancelled;
             }
         }
         if !parked {
             std::thread::sleep(at - now);
-            return;
+            return Woken::Elapsed;
         }
     }
 }
@@ -275,8 +283,8 @@ pub fn park_until(at: Instant) {
 ///
 /// The other view of [`park_until`], and the one a script's `sleep` reaches:
 /// same mechanism, same wake, one clock.
-pub fn sleep(duration: Duration) {
-    park_until(Instant::now() + duration);
+pub fn sleep(duration: Duration) -> Woken {
+    park_until(Instant::now() + duration)
 }
 
 #[cfg(test)]

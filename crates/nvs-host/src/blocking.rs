@@ -350,7 +350,12 @@ where
                 Err(panic) => std::panic::resume_unwind(panic),
             };
         }
-        if !suspend_current(Waiting::Parked) {
+        // A cancellation is not a way out of this wait: the pool thread is
+        // already running the closure and the slot it writes into is on this
+        // stack, so the task has to be here when it lands. Ending early is what
+        // would be unsound, and a cancelled task dies at its next safepoint
+        // once the call it is inside returns.
+        if !suspend_current(Waiting::Parked).suspended() {
             // Unreachable in practice: `current_task` answered, so there is a
             // scheduler. Yielding rather than asserting keeps a hypothetical
             // wrong answer here a slow loop instead of a killed worker.

@@ -979,6 +979,45 @@ impl Ctx {
         self.safepoint |= flags;
     }
 
+    /// Whether this request has been cancelled — the flag [`Ctx::cancel`] sets.
+    ///
+    /// What it distinguishes is a context that *failed* from one that was
+    /// stopped: both carry a pending message afterwards, and only one of them
+    /// is a `Throwable` anybody may see. `nvs_host::group` is the caller, for
+    /// exactly that question about a child.
+    #[must_use]
+    pub fn cancelled(&self) -> bool {
+        self.safepoint.contains(SafepointFlags::CANCEL)
+    }
+
+    /// Stops this request for a cancellation, and answers the [`crate::Fault`]
+    /// the member that was told about it returns.
+    ///
+    /// A `Core` member that parks can be resumed by its own task's
+    /// cancellation rather than by what it was waiting for
+    /// ([`crate::host::Woken::Cancelled`], [`crate::host::Outcome::Cancelled`]),
+    /// because a stack standing on an `extern "C"` helper frame is one no
+    /// forced unwind may cross — [`crate::HelperFrame`] owns that. What the
+    /// member owes then is
+    /// [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md)
+    /// § 5's teardown: no `catch`, no cleanup, no user code at all.
+    ///
+    /// That is already exactly what [`SafepointFlags::CANCEL`] means, so this
+    /// sets the flag and asks [`nvs_safepoint`] for the answer rather than
+    /// inventing a second one — the status and its message keep one home, and
+    /// what comes back is what the poll compiled code was going to make anyway
+    /// would have said, only without the statements in between.
+    pub fn cancel(&mut self) -> crate::Fault {
+        self.request_safepoint(SafepointFlags::CANCEL);
+        #[expect(
+            unsafe_code,
+            reason = "the pointer is a reborrow of this `&mut self`, which is \
+                      live for the whole call"
+        )]
+        let status = unsafe { nvs_safepoint(&raw mut *self) };
+        crate::Fault::Pending(status)
+    }
+
     /// The active [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
     /// probes.
     #[must_use]

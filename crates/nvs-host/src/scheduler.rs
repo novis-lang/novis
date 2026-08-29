@@ -83,6 +83,30 @@
 //! hands back the ids instead, and whoever owns the request boundary decides
 //! what that means.
 //!
+//! **A stack carrying script frames is told instead of unwound**, and this is
+//! the half of the rule that is not free. A forced unwind is a panic, and an
+//! Novis stack is not one it may cross: a `Core` member's entry point is
+//! `extern "C"`, which aborts the process rather than letting one out, and the
+//! compiled frames beneath it carry no unwind tables at all
+//! ([ADR 0002](../../../docs/adr/0002-error-propagation.md)). So a task is only
+//! ever force-unwound when [`nvs_runtime::HelperFrame`] says its stack is
+//! clear of both, which [`yield_on`] reads at each suspension and [`Task`]
+//! remembers. A task standing on a helper frame is **resumed** with
+//! [`Resume::Cancelled`] in place of what it was waiting for; the member it is
+//! inside stops the request with `Ctx::cancel`, and it dies by ADR 0002's
+//! return status at the safepoint compiled code was going to poll anyway. § 5
+//! is untouched by the difference — the status is a `FATAL` no `catch` sees,
+//! and what runs between the notice and the death is native `Drop` and a
+//! `return`, not user code.
+//!
+//! The notice is delivered **once**. A park site that ignores it parks again
+//! and is then left parked, rather than being collected, resumed and re-parked
+//! on every turn for as long as the scheduler lives; the sites that a script
+//! can reach — `Core\Time::sleep` and a `Core\Task` group — do not ignore it.
+//! What that costs is at the very end of a worker's life, in `Drop for
+//! Scheduler`, which has no turn left to give and leaks such a task rather than
+//! aborting on it; that `Drop`'s own doc is the home of what it spends.
+//!
 //! **A task's death cancels whatever it left running**, whether it died by
 //! returning, by cancellation or by teardown. That is ADR 0072 § 4's "control
 //! does not leave the call with work still running", enforced one level below
@@ -167,9 +191,78 @@ pub enum Waiting {
     Parked,
 }
 
+/// What a suspension told the scheduler, which is [`Waiting`] plus the one
+/// thing only the suspending stack can know.
+///
+/// Private, and built in [`yield_on`] rather than passed in: a park site says
+/// *why* it is waiting and nothing about what its stack looks like, which is
+/// the whole point of a seam that removes async colouring.
+#[derive(Clone, Copy, Debug)]
+struct Suspended {
+    waiting: Waiting,
+    /// Whether this stack is one [`Scheduler::tear_down`] may force-unwind —
+    /// `false` the moment a helper frame is on it, per
+    /// [`nvs_runtime::HelperFrame`].
+    unwindable: bool,
+}
+
+/// What a resume means to the task being resumed.
+///
+/// The scheduler's half of the answer [`nvs_runtime::HelperFrame`] asks for: a
+/// cancelled task whose stack carries script frames is resumed with
+/// [`Resume::Cancelled`] instead of being unwound, and dies by
+/// [ADR 0002](../../../docs/adr/0002-error-propagation.md)'s return status at
+/// its next safepoint. The module doc's *task tree* section is the whole
+/// decision.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Resume {
+    /// Carry on: whatever the task was waiting for is ready, or the scheduler
+    /// is simply giving it its next slice.
+    Run,
+    /// The task has been cancelled and this resume is the notice. It is
+    /// delivered **once**, so a park site that ignores it is parked again with
+    /// nothing further coming.
+    Cancelled,
+}
+
+/// What a suspend answered its caller — the return of [`suspend`] and
+/// [`suspend_current`].
+///
+/// Three answers rather than [`Resume`]'s two, because "nothing suspended" is a
+/// refusal a caller has to handle and is not a way of being resumed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Resumed {
+    /// There was no task beneath the call, so nothing was suspended and the
+    /// core was never handed back. The caller must block or fail rather than
+    /// run on as if it had waited.
+    NotSuspended,
+    /// The task suspended and something woke it.
+    Woken,
+    /// The task suspended and what brought it back was its own cancellation.
+    /// The caller must stop waiting: this is delivered once, and the task is
+    /// expected to reach a safepoint rather than park again.
+    Cancelled,
+}
+
+impl Resumed {
+    /// Whether the core was actually handed back.
+    #[must_use]
+    pub fn suspended(self) -> bool {
+        !matches!(self, Self::NotSuspended)
+    }
+
+    /// Whether the wait ended in a cancellation.
+    #[must_use]
+    pub fn cancelled(self) -> bool {
+        matches!(self, Self::Cancelled)
+    }
+}
+
 /// The yielder a task suspends through — private to this crate, because the
 /// only pointer to one that escapes is the opaque `*const ()` in [`Ctx`].
-type TaskYielder = Yielder<(), Waiting>;
+type TaskYielder = Yielder<Resume, Suspended>;
 
 /// A task's identity within one scheduler, and the handle something wakes it
 /// by.
@@ -433,7 +526,17 @@ pub struct RunReport {
 
 struct Task {
     id: TaskId,
-    coro: Coroutine<(), Waiting, Finished>,
+    coro: Coroutine<Resume, Suspended, Finished>,
+    /// Whether this task's stack may be force-unwound, as of its last
+    /// suspension. `true` for a task that has never run: an unstarted
+    /// coroutine's stack holds nothing to unwind.
+    unwindable: bool,
+    /// Whether [`Resume::Cancelled`] has already been delivered to it. A
+    /// cancellation is delivered once — a task that parks again after being
+    /// told is left parked rather than told a second time, which is what keeps
+    /// [`Scheduler::run`]'s parked sweep from spinning against a park site that
+    /// ignores the answer.
+    told: bool,
 }
 
 impl std::fmt::Debug for Task {
@@ -508,13 +611,35 @@ impl Drop for Scheduler {
     /// § 5's rule: what the unwind runs is native `Drop`, so an arena is
     /// released and a handle is closed, and no `catch` or `finally` is
     /// consulted.
+    ///
+    /// **A task standing on a helper frame is leaked instead** — see
+    /// [`Task::unwindable`] and [`nvs_runtime::HelperFrame`]. There is no
+    /// unwind that can cross that frame and no safepoint to reach without
+    /// resuming the task, and this is a `Drop`: nobody is left to run it. What
+    /// it spends is that task's stack mapping and whatever the stack held,
+    /// once per task, at the death of the worker that owned it —
+    /// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md)'s
+    /// O(in-flight) rather than O(requests served) — and what it buys is
+    /// [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)'s
+    /// rule that no path reaches `abort()`, which is the one this would
+    /// otherwise be. The ordinary end of a request never arrives here:
+    /// [`Scheduler::run`] returns when its tasks are done, and one still parked
+    /// in a `Core` member is a worker retiring under a request that never
+    /// finished.
     fn drop(&mut self) {
         if self.ready.is_empty() && self.parked.is_empty() {
             return;
         }
         let _teardown = nvs_runtime::Teardown::enter();
-        self.ready.clear();
-        self.parked.clear();
+        let ready = std::mem::take(&mut self.ready);
+        let parked = std::mem::take(&mut self.parked);
+        for task in ready.into_iter().chain(parked.into_values()) {
+            if task.unwindable {
+                drop(task);
+            } else {
+                std::mem::forget(task);
+            }
+        }
     }
 }
 
@@ -587,7 +712,9 @@ impl Scheduler {
         let mut ctx = ctx;
         let (base, ceiling) = crate::stack::bounds(&stack);
         ctx.arm_stack_limit(base, ceiling);
-        let coro = Coroutine::with_stack(stack, move |yielder: &TaskYielder, ()| {
+        // The first resume's argument is ignored: a task that has not started
+        // has an empty stack, so a cancelled one is torn down rather than told.
+        let coro = Coroutine::with_stack(stack, move |yielder: &TaskYielder, _first: Resume| {
             // Taking a pointer to the yielder is safe; only turning it back
             // into a reference is not, and `suspend` below owns that `unsafe`.
             // It is erased to `*const ()` so that `nvs-runtime` — the crate
@@ -607,7 +734,12 @@ impl Scheduler {
             Finished { id, ctx, outcome }
         });
 
-        self.ready.push_back(Task { id, coro });
+        self.ready.push_back(Task {
+            id,
+            coro,
+            unwindable: true,
+            told: false,
+        });
     }
 
     /// Moves a parked task back to the run queue, reporting whether there was
@@ -652,16 +784,36 @@ impl Scheduler {
             self.drain_wakes();
             while let Some(mut task) = self.ready.pop_front() {
                 // Before the resume, not after: a task marked while it was on
-                // the queue must not get another instruction.
-                if self.tree.borrow().is_cancelled(task.id) {
-                    self.tear_down(task, &mut report);
-                    continue;
-                }
+                // the queue must not get another instruction — unless its stack
+                // is one no unwind may cross, in which case the notice *is* the
+                // instruction and the module doc's *task tree* section owns why.
+                let resume = if self.tree.borrow().is_cancelled(task.id) {
+                    if task.unwindable {
+                        self.tear_down(task, &mut report);
+                        continue;
+                    }
+                    if task.told {
+                        // Already told, and back here anyway: it owes a
+                        // safepoint, and telling it twice would be a second
+                        // notice with no new fact in it.
+                        Resume::Run
+                    } else {
+                        task.told = true;
+                        Resume::Cancelled
+                    }
+                } else {
+                    Resume::Run
+                };
                 report.resumes += 1;
-                match task.coro.resume(()) {
-                    CoroutineResult::Yield(Waiting::Yielded) => self.ready.push_back(task),
-                    CoroutineResult::Yield(Waiting::Parked) => {
-                        self.parked.insert(task.id, task);
+                match task.coro.resume(resume) {
+                    CoroutineResult::Yield(suspended) => {
+                        task.unwindable = suspended.unwindable;
+                        match suspended.waiting {
+                            Waiting::Yielded => self.ready.push_back(task),
+                            Waiting::Parked => {
+                                self.parked.insert(task.id, task);
+                            }
+                        }
                     }
                     CoroutineResult::Return(finished) => {
                         report.finished += 1;
@@ -682,11 +834,17 @@ impl Scheduler {
             // standing on one — so this is where a cancellation catches it.
             // Tearing one down can cancel its children, which is why this is a
             // loop and not a tail.
+            //
+            // A task that has already been told and parked again is not doomed
+            // here: it has had its one notice, and collecting it again would
+            // put it back on the run queue every turn for as long as it parks.
             let doomed: Vec<TaskId> = self
                 .parked
-                .keys()
-                .copied()
-                .filter(|id| self.tree.borrow().is_cancelled(*id))
+                .iter()
+                .filter(|(id, task)| {
+                    self.tree.borrow().is_cancelled(**id) && (task.unwindable || !task.told)
+                })
+                .map(|(id, _)| *id)
                 .collect();
             // A teardown drops the handles the dead task was holding, and
             // dropping the last sender of a channel wakes everyone still
@@ -697,7 +855,14 @@ impl Scheduler {
             }
             for id in doomed {
                 if let Some(task) = self.parked.remove(&id) {
-                    self.tear_down(task, &mut report);
+                    if task.unwindable {
+                        self.tear_down(task, &mut report);
+                    } else {
+                        // Its stack cannot be unwound where it stands, so it
+                        // goes back on the run queue and the branch above hands
+                        // it `Resume::Cancelled` on the way in.
+                        self.ready.push_back(task);
+                    }
                 }
             }
         }
@@ -720,6 +885,12 @@ impl Scheduler {
     }
 
     /// Unwinds a cancelled task's stack and recycles it.
+    ///
+    /// **Only for a task whose stack may be unwound** — [`Task::unwindable`],
+    /// which is [`nvs_runtime::HelperFrame`] read at the task's last
+    /// suspension. A task standing on a helper frame is resumed with
+    /// [`Resume::Cancelled`] instead; both callers make that test, and calling
+    /// this without it is a process abort rather than a wrong answer.
     ///
     /// Called only from [`Scheduler::run`], which is to say only from the
     /// scheduler's own stack: `force_unwind` is a `longjmp` into the coroutine
@@ -939,17 +1110,20 @@ pub fn cancel_task(id: TaskId) -> usize {
 /// on a coroutine stack, its own callers are not marked, and nothing about
 /// Novis's calling convention changes because it might wait.
 ///
-/// `false` means there is no scheduler beneath this context — a `Core` member
-/// reached from `nvs run`, or a unit test — and **the caller must then do
-/// something else**: block, or fail. It must not treat a refusal as a
-/// successful wait, because nothing suspended and control is about to run on
-/// as if it had.
+/// [`Resumed::NotSuspended`] means there is no scheduler beneath this context —
+/// a `Core` member reached from `nvs run`, or a unit test — and **the caller
+/// must then do something else**: block, or fail. It must not treat a refusal
+/// as a successful wait, because nothing suspended and control is about to run
+/// on as if it had.
 ///
-/// **A cancelled task's suspend does not return.** This is the safepoint the
-/// module doc's *task tree* section names: the scheduler unwinds the stack
-/// instead of resuming it, so every frame between here and the task's root is
-/// dropped and none of them runs script code. A caller cannot detect that and
-/// has nothing to do about it.
+/// **A cancelled task's suspend either does not return, or returns
+/// [`Resumed::Cancelled`].** Which of the two depends on the stack, not on the
+/// caller: a stack the scheduler may unwind is unwound where it stands, so no
+/// frame between here and the task's root runs anything but its own `Drop`; a
+/// stack carrying a helper frame cannot be unwound at all, so it is resumed
+/// with the notice instead and the caller must stop waiting. Either way no
+/// script code runs, which is ADR 0072 § 5, and the module doc's *task tree*
+/// section owns the whole decision.
 ///
 /// # Panics
 ///
@@ -957,13 +1131,12 @@ pub fn cancel_task(id: TaskId) -> usize {
 /// overflow of the task's own stack, which is
 /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's
 /// territory and is guarded by `Ctx`'s stack limit long before it is reached.
-pub fn suspend(ctx: &Ctx, waiting: Waiting) -> bool {
+pub fn suspend(ctx: &Ctx, waiting: Waiting) -> Resumed {
     let raw = ctx.yielder();
     if raw.is_null() {
-        return false;
+        return Resumed::NotSuspended;
     }
-    yield_on(raw, waiting);
-    true
+    yield_on(raw, waiting)
 }
 
 thread_local! {
@@ -1015,21 +1188,26 @@ pub fn current_task() -> Option<TaskId> {
 /// carry one in — the parking `Read` and `Write` of a socket, whose signatures
 /// are `std::io`'s and not ours.
 ///
-/// `false` means the same thing it means there, and obliges the caller the same
-/// way: nothing suspended, so block or fail rather than run on.
-pub fn suspend_current(waiting: Waiting) -> bool {
+/// Every answer means the same thing it means there, and obliges the caller the
+/// same way: [`Resumed::NotSuspended`] is "nothing suspended, so block or fail
+/// rather than run on", and [`Resumed::Cancelled`] is "stop waiting".
+pub fn suspend_current(waiting: Waiting) -> Resumed {
     match RUNNING.get() {
-        Some(running) => {
-            yield_on(running.yielder, waiting);
-            true
-        }
-        None => false,
+        Some(running) => yield_on(running.yielder, waiting),
+        None => Resumed::NotSuspended,
     }
 }
 
 /// Hands the core back through an erased `&TaskYielder`, and restores this
 /// task's identity when control comes back to this stack.
-fn yield_on(raw: *const (), waiting: Waiting) {
+///
+/// This is also where the scheduler learns what kind of stack it is holding.
+/// [`nvs_runtime::HelperFrame`]'s count is a fact about the stack that is
+/// running, so it is read here — the last moment this stack is the running one
+/// — and travels out in the suspension rather than being asked for afterwards,
+/// when the scheduler is standing on its own stack and the count is somebody
+/// else's.
+fn yield_on(raw: *const (), waiting: Waiting) -> Resumed {
     // SAFETY: a non-null erased yielder is written in exactly one place —
     // `Scheduler::spawn`'s coroutine body, from `&Yielder` — into the task's
     // `Ctx` and into `RUNNING` in the same statement, and cleared from both
@@ -1047,8 +1225,21 @@ fn yield_on(raw: *const (), waiting: Waiting) {
     // the switch — a suspended coroutine dropped during teardown — therefore
     // leaves `RUNNING` empty rather than naming a task whose stack is gone.
     let running = RUNNING.replace(None);
-    yielder.suspend(waiting);
+    // Off the thread beside `RUNNING` and for the same reason: the count
+    // belongs to this stack, which is about to stop being the one the thread is
+    // running. A task that never comes back leaves it at zero, and its own
+    // guards saturate against that as they drop.
+    let frames = nvs_runtime::HelperFrame::take();
+    let resume = yielder.suspend(Suspended {
+        waiting,
+        unwindable: frames == 0,
+    });
+    nvs_runtime::HelperFrame::restore(frames);
     RUNNING.set(running);
+    match resume {
+        Resume::Run => Resumed::Woken,
+        Resume::Cancelled => Resumed::Cancelled,
+    }
 }
 
 #[cfg(test)]
@@ -1164,7 +1355,7 @@ mod tests {
         // and nothing else, is not marked in any way, and suspends. If this
         // ever needs a second argument, Novis has grown a colour.
         fn deep(ctx: &Ctx) -> bool {
-            suspend(ctx, Waiting::Yielded)
+            suspend(ctx, Waiting::Yielded).suspended()
         }
 
         let mut sched = Scheduler::new();
@@ -1185,7 +1376,7 @@ mod tests {
         // The other half of the seam: the same call on the main stack reports
         // that nothing suspended, rather than pretending it waited.
         let ctx = ctx();
-        assert!(!suspend(&ctx, Waiting::Parked));
+        assert!(!suspend(&ctx, Waiting::Parked).suspended());
         assert!(ctx.yielder().is_null());
     }
 
@@ -1294,7 +1485,7 @@ mod tests {
         // panic path is the one that would forget.
         let mut sched = Scheduler::new();
         sched.spawn(ctx(), TaskRoot::Request, |ctx| {
-            assert!(suspend(ctx, Waiting::Yielded));
+            assert!(suspend(ctx, Waiting::Yielded).suspended());
             panic!("after suspending once");
         });
 
@@ -1345,7 +1536,7 @@ mod tests {
     fn there_is_no_current_task_off_a_scheduler() {
         assert!(current_task().is_none());
         assert!(
-            !suspend_current(Waiting::Parked),
+            !suspend_current(Waiting::Parked).suspended(),
             "a suspend with no task beneath it claimed to have parked"
         );
     }
@@ -1777,6 +1968,95 @@ mod tests {
             "a cancelled task handed back a Finished, so the unwind was caught \
              by the containment boundary instead of passing through it"
         );
+    }
+
+    #[test]
+    fn a_cancelled_task_standing_on_a_helper_frame_is_resumed_and_not_unwound() {
+        // The abort this closes, and the reason `Core\Time::sleep` can park at
+        // all: a forced unwind may not cross an `extern "C"` frame, so a task
+        // parked under one is *told* it is cancelled and dies by ADR 0002's
+        // return status instead. `HelperFrame` is what the park reads, and it
+        // is the same guard `nvs_runtime::run_helper` holds around every
+        // `Core` member.
+        let told = Rc::new(Cell::new(false));
+        let saw = Rc::clone(&told);
+        let dropped = Rc::new(Cell::new(false));
+        let native = Rc::clone(&dropped);
+
+        let mut sched = Scheduler::new();
+        let id = sched.spawn(ctx(), TaskRoot::Request, move |task_ctx| {
+            let _native = NativeDrop(native);
+            let _frame = nvs_runtime::HelperFrame::enter();
+            saw.set(suspend(task_ctx, Waiting::Parked).cancelled());
+        });
+        sched.run();
+
+        sched.cancel(id);
+        let report = sched.run();
+
+        assert!(told.get(), "the park was never told about the cancellation");
+        assert_eq!(
+            report.cancelled, 0,
+            "the stack was force-unwound after all, which is the abort"
+        );
+        assert!(dropped.get(), "the task did not reach its own end");
+        assert_eq!(
+            sched.take_finished().len(),
+            1,
+            "a task that returns hands back a Finished, cancelled or not"
+        );
+    }
+
+    #[test]
+    fn a_cancellation_is_delivered_once_and_a_park_after_it_is_left_alone() {
+        // Delivery-once is what keeps `run`'s parked sweep from spinning: a
+        // park site that ignores the notice would otherwise be collected,
+        // resumed and re-parked on every turn, for as long as the scheduler
+        // lived.
+        let notices = Rc::new(Cell::new(0_usize));
+        let counted = Rc::clone(&notices);
+
+        let mut sched = Scheduler::new();
+        let id = sched.spawn(ctx(), TaskRoot::Request, move |task_ctx| {
+            let _frame = nvs_runtime::HelperFrame::enter();
+            for _ in 0..2 {
+                if suspend(task_ctx, Waiting::Parked).cancelled() {
+                    counted.set(counted.get() + 1);
+                }
+            }
+        });
+        sched.run();
+
+        sched.cancel(id);
+        let report = sched.run();
+        assert_eq!(notices.get(), 1, "the notice did not arrive");
+        assert_eq!(
+            report.parked, 1,
+            "a task that parked again after its notice was collected again"
+        );
+
+        // And an ordinary wake still resumes it, with no second notice: the
+        // fact was delivered, not the flag re-read.
+        assert!(sched.wake(id));
+        let report = sched.run();
+        assert_eq!(notices.get(), 1, "the notice was delivered twice");
+        assert_eq!(report.finished, 1);
+    }
+
+    #[test]
+    fn a_worker_retiring_over_a_helper_frame_leaks_rather_than_aborts() {
+        // ADR 0106: no path reaches `abort()`. `Drop for Scheduler` unwinds
+        // what it can and leaks what it cannot, and the leak is deliberate —
+        // the doc on that `Drop` says what it spends. Reaching the assert at
+        // all is the whole test; the process not surviving is the failure.
+        let mut sched = Scheduler::new();
+        sched.spawn(ctx(), TaskRoot::Request, move |task_ctx| {
+            let _frame = nvs_runtime::HelperFrame::enter();
+            suspend(task_ctx, Waiting::Parked);
+        });
+        let report = sched.run();
+        assert_eq!(report.parked, 1);
+        drop(sched);
     }
 
     #[test]
