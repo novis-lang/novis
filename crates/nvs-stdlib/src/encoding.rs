@@ -228,6 +228,7 @@ pub(crate) const CHARSET: CoreEnum = CoreEnum {
         // The index's legacy miscellaneous table, less `replacement`.
         ("XUserDefined", 40),
     ],
+    doc: None,
 };
 
 /// How one [`CHARSET`] case's octets are made.

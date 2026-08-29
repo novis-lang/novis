@@ -820,6 +820,13 @@ pub struct CoreConst {
     pub ty: CoreTy,
     /// Its value, inlined wherever the constant is written.
     pub value: Const,
+    /// What the constant is, in one sentence of inline markdown — ADR 0117
+    /// § 1's card for a constant, which is this one field because a constant
+    /// has a value and no signature. A plain string rather than an
+    /// `Option<&'static …>` as [`CoreEnum::doc`] is, since a one-field card
+    /// has nothing for a struct to hold: **empty means "not written yet"**,
+    /// the same rule [`MethodDoc`] states, and `nvs meta --json` omits it.
+    pub desc: &'static str,
 }
 
 /// One `Core` domain class — ADR 0011's "every callable is a class member,"
@@ -1050,6 +1057,38 @@ pub struct CoreEnum {
     /// auto-increment is a *source* convenience, and a table read by the
     /// compiler has nothing to gain from re-deriving what it could state.
     pub cases: &'static [(&'static str, i64)],
+    /// Its reference card, or `None` for an enum nobody has documented yet —
+    /// the same seam [`CoreMethod::doc`] is, on the roster it left out.
+    pub doc: Option<&'static EnumDoc>,
+}
+
+/// One enum's reference documentation — ADR 0117 § 1's card for the values a
+/// parameter may take, so a `{mode: RoundMode::HalfEven}` is explained where
+/// `RoundMode` is declared and not only where `round` is.
+///
+/// The same rules as [`MethodDoc`]: inline markdown, one or two sentences a
+/// field, **an empty string or an empty slice means "not written yet"**, and
+/// `nvs meta --json` omits such a field. Spends the same kind of memory —
+/// static strings, per process — which the ADR's *Consequences* prices.
+#[derive(Clone, Copy, Debug)]
+pub struct EnumDoc {
+    /// What the enum chooses between, in one or two sentences.
+    pub short: &'static str,
+    /// One entry per case, in [`CoreEnum::cases`]' declaration order and
+    /// matched to a case **by name** — `every_enum_case_doc_names_a_real_case`
+    /// holds the two rosters together. Empty for an enum whose cases are a
+    /// table rather than a card, such as one case per WHATWG encoding.
+    pub cases: &'static [CaseDoc],
+}
+
+/// One enum case's name and description.
+#[derive(Clone, Copy, Debug)]
+pub struct CaseDoc {
+    /// The case's name exactly as [`CoreEnum::cases`] spells it — `Asc`,
+    /// `HalfEven`.
+    pub name: &'static str,
+    /// What choosing this case means, in one sentence.
+    pub desc: &'static str,
 }
 
 /// Every enum `Core` owns.
@@ -1947,6 +1986,38 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+
+    /// Every [`CaseDoc`] names a case its enum actually declares, in the
+    /// enum's own order — the check that keeps an enum's card and its case
+    /// table from drifting apart, since `nvs meta --json` emits the card by
+    /// name and a consumer looks a case up by it.
+    #[test]
+    fn every_enum_case_doc_names_a_real_case() {
+        for declared in ENUMS {
+            let Some(doc) = declared.doc else {
+                continue;
+            };
+            let documented: Vec<&str> = doc.cases.iter().map(|case| case.name).collect();
+            let cases: Vec<&str> = declared
+                .cases
+                .iter()
+                .map(|(name, _)| *name)
+                .filter(|name| documented.contains(name))
+                .collect();
+            for case in &documented {
+                assert!(
+                    cases.contains(case),
+                    "{}'s card documents `{case}`, which is not a case",
+                    declared.name
+                );
+            }
+            assert_eq!(
+                documented, cases,
+                "{}'s card lists its cases out of declaration order",
+                declared.name
+            );
         }
     }
 

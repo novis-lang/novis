@@ -97,6 +97,7 @@ pub(crate) const METHOD: CoreEnum = CoreEnum {
         ("Patch", 6),
         ("Delete", 7),
     ],
+    doc: None,
 };
 
 /// `Core\Audience`'s fully-qualified name, written once for
@@ -114,6 +115,7 @@ pub(crate) const AUDIENCE_NAME: &str = r"Core\Audience";
 pub(crate) const AUDIENCE: CoreEnum = CoreEnum {
     name: AUDIENCE_NAME,
     cases: &[("Public", 0)],
+    doc: None,
 };
 
 /// `Core\Router`'s fully-qualified name, in one place so the registry row and

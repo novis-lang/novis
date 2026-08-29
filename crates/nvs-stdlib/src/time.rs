@@ -717,6 +717,7 @@ pub const ZONE: CoreClass = CoreClass {
             symbol: "nvs_core_time_zone_of",
             args: &[Const::Str("UTC")],
         },
+        desc: "",
     }],
 };
 
@@ -893,6 +894,7 @@ pub const UNIT: CoreEnum = CoreEnum {
         ("Quarter", 9),
         ("Year", 10),
     ],
+    doc: None,
 };
 
 /// Spec § 4's `Core\Weekday`, Monday-first — ISO-8601's own order, which is
@@ -913,6 +915,7 @@ pub const WEEKDAY: CoreEnum = CoreEnum {
         ("Saturday", 5),
         ("Sunday", 6),
     ],
+    doc: None,
 };
 
 /// The `{year?, month?, day?, hour?, minute?, second?, nanos?}` bag

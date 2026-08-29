@@ -204,6 +204,7 @@ const CONSTANTS: &[CoreConst] = &[CoreConst {
     name: "SEPARATOR",
     ty: CoreTy::Str,
     value: Const::Str(SEPARATOR),
+    desc: "",
 }];
 
 /// The separator this platform's paths are written with — `\` on Windows and

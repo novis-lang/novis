@@ -128,6 +128,7 @@ const LENGTH_DOC: MethodDoc = MethodDoc {
 pub(crate) const NORMAL_FORM: CoreEnum = CoreEnum {
     name: NORMAL_FORM_NAME,
     cases: &[("Nfc", 0), ("Nfd", 1), ("Nfkc", 2), ("Nfkd", 3)],
+    doc: None,
 };
 
 /// `Core\Str`'s registry rows, in the spec's own order.

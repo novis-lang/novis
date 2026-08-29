@@ -382,56 +382,67 @@ const CONSTANTS: &[CoreConst] = &[
         name: "PI",
         ty: CoreTy::Float,
         value: Const::Float(std::f64::consts::PI),
+        desc: "",
     },
     CoreConst {
         name: "TAU",
         ty: CoreTy::Float,
         value: Const::Float(std::f64::consts::TAU),
+        desc: "",
     },
     CoreConst {
         name: "E",
         ty: CoreTy::Float,
         value: Const::Float(std::f64::consts::E),
+        desc: "",
     },
     CoreConst {
         name: "EPSILON",
         ty: CoreTy::Float,
         value: Const::Float(f64::EPSILON),
+        desc: "",
     },
     CoreConst {
         name: "INT_MAX",
         ty: CoreTy::Int,
         value: Const::Int(i64::MAX),
+        desc: "",
     },
     CoreConst {
         name: "INT_MIN",
         ty: CoreTy::Int,
         value: Const::Int(i64::MIN),
+        desc: "",
     },
     CoreConst {
         name: "UINT_MAX",
         ty: CoreTy::Uint,
         value: Const::Uint(u64::MAX),
+        desc: "",
     },
     CoreConst {
         name: "FLOAT_MAX",
         ty: CoreTy::Float,
         value: Const::Float(f64::MAX),
+        desc: "",
     },
     CoreConst {
         name: "FLOAT_MIN",
         ty: CoreTy::Float,
         value: Const::Float(f64::MIN_POSITIVE),
+        desc: "",
     },
     CoreConst {
         name: "NAN",
         ty: CoreTy::Float,
         value: Const::Float(f64::NAN),
+        desc: "",
     },
     CoreConst {
         name: "INFINITY",
         ty: CoreTy::Float,
         value: Const::Float(f64::INFINITY),
+        desc: "",
     },
 ];
 
@@ -452,6 +463,7 @@ pub const ROUND_MODE: CoreEnum = CoreEnum {
         ("Up", 4),
         ("Down", 5),
     ],
+    doc: None,
 };
 
 /// `int|float|decimal` — spec § 3's own union, at the three members here that

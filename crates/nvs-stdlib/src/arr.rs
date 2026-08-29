@@ -629,6 +629,7 @@ const QUOTIENT: &[CoreTy] = &[CoreTy::Float, CoreTy::Decimal];
 pub const ORDER: CoreEnum = CoreEnum {
     name: r"Core\Order",
     cases: &[("Asc", 0), ("Desc", 1)],
+    doc: None,
 };
 
 /// `Core\SetOn` — the enum [`nvs_core_arr_diff`] and [`nvs_core_arr_intersect`]
@@ -642,6 +643,7 @@ pub const ORDER: CoreEnum = CoreEnum {
 pub const SET_ON: CoreEnum = CoreEnum {
     name: r"Core\SetOn",
     cases: &[("Values", 0), ("Keys", 1), ("Both", 2)],
+    doc: None,
 };
 
 /// `int|string` — ADR 0007 § 5's two array-key types, which the spec's § 2

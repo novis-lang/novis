@@ -167,6 +167,7 @@ pub(crate) const DIGEST: CoreEnum = CoreEnum {
         ("Crc32c", 13),
         ("Blake3", 14),
     ],
+    doc: None,
 };
 
 /// Spec § 11's `StrongDigest` — the closed subset [`nvs_core_hash_hmac`]
