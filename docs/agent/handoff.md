@@ -2,20 +2,30 @@
 
 ## State
 
-**Stage 0b's residue is closed: ADR 0063 R2 now holds end to end, including for a parameter whose
-spec name is a reserved word.** `crates/nvs-syntax/src/parser/expr.rs`'s `parse_arg` reads any word
-before a `:` as an argument name, keyword or not, so `Core\Arr::map(fn: …, a: …)` parses and the
-seven `fn`-named rows need no rename. The plan's `Open now` is the one home for what landed; the rule
-itself lives in `parse_arg`'s doc comment.
+**Every `Core` registry entry now carries its ADR 0117 reference card** — 347 members, 11 enums, every
+constant — and `every_registry_row_carries_a_reference_card` in `crates/nvs-stdlib/src/registry.rs`
+refuses a new one without. The rule a future member follows is
+[conventions.md](conventions.md) § *A `Core` member — the five edits*, edit 2; ADR 0117 § 1 records
+that the fields stopped being optional. Every card's `errors` was read from the helper body, not the
+prose, so the cards are honest about the classes the code throws today — mostly `RuntimeError`, since a
+bare `Fault::thrown` is that class — and the disagreements that reading surfaced are in the backlog
+below, unresolved. The website's reference has already taken them: `npm run sync:core` ran after the
+backfill, its scan repaired to read a row that carries `names`, and every draft page and
+`website/src/data/core.json` are regenerated from the cards.
 
-**Stage 7 is the open front, and its acceptance check is now aimed correctly.** The
-`7 test isolates` check in `docs/agent/loop-goal.toml` runs `-p nvs-cli`, not `-p nvs-test`, and
-`docs/agent/goals/2-concurrency.toml` is byte-identical again. All four of its names are still
-unwritten — that is item 25 itself, and it is the next group below.
+**Stage 0b's residue is closed: ADR 0063 R2 holds end to end, including for a parameter whose spec
+name is a reserved word.** `crates/nvs-syntax/src/parser/expr.rs`'s `parse_arg` reads any word before a
+`:` as an argument name, keyword or not, so `Core\Arr::map(fn: …, a: …)` parses and the seven
+`fn`-named rows need no rename. The rule itself lives in `parse_arg`'s doc comment.
 
-**Orientation gap, unchanged from last session:** `[context] modules` has no pattern for
-`crates/nvs-cli/src/runner.rs`, which the whole next group is written against, nor for
-`crates/nvs-syntax/src/parser/expr.rs`. Add both selectors before the next session opens this group.
+**Stage 7 is the open front, and its acceptance check is aimed correctly.** The `7 test isolates` check
+in `docs/agent/loop-goal.toml` runs `-p nvs-cli`, and `docs/agent/goals/2-concurrency.toml` is
+byte-identical to it. All four of its names are still unwritten — that is item 25 itself, and it is the
+next group below.
+
+**Orientation gap, unchanged:** `[context] modules` has no pattern for `crates/nvs-cli/src/runner.rs`,
+which the whole next group is written against, nor for `crates/nvs-syntax/src/parser/expr.rs`. Add both
+selectors before the next session opens this group.
 
 ## Next group
 
@@ -48,5 +58,19 @@ check green.**
   means the `nvs_runtime::script` seam answering with a unit's class table
   (`crates/nvs-runtime/src/graph.rs` module doc).
 - M4's 1000-case conformance floor — `docs/implementation-plan.md`, Stage 8.
-- The other 342 registry rows carry no ADR 0117 reference card — `crates/nvs-stdlib/src/registry.rs`.
 - `python tools/check-migration.py` reads 34% classified against a 100% floor — Stage 8.
+- **Spec versus code, found by the card backfill; each needs one of the two changed.** Spec § 2 says
+  `by` and `comparator` on `Core\Arr::sort`/`diff`/`intersect` are mutually exclusive and a compile
+  error; `nvs_core_arr_sort`'s doc says they compose and the code composes them.
+  `website/src/content/docs/docs/core/str/format.mdx` promises `ParseError` for a malformed run-time
+  template; `crates/nvs-stdlib/src/format.rs` throws `RuntimeError`. `$dt->format`, `$d->format` and
+  `$t->format` throw `RuntimeError` for a bad pattern where `Core\Time::parse` throws `LogicError` for
+  the same failure. Every `Core\Math` throw is `RuntimeError` where spec § 3 and ADR 0007 § 4 say
+  `ArithmeticError` — `math.rs`'s module doc already records that one. The cards follow the code in
+  all four.
+- `npm run sync:core` warns six times that the registry documents a parameter the spec does not
+  declare — `$b` on `Core\Encoding::fromBase64`/`fromBase64Url`/`fromHex`/`fromBase32`, `$d` on
+  `Core\Time\Duration::plus`/`minus`. The spec's combined rows (`toBase64` / `fromBase64`, one
+  signature) carry no signature for the second member, so the website's parser sees no name where
+  the Rust guard already skips the row. Either the spec writes both signatures or
+  `website/scripts/lib/spec.mjs` learns the combined row.

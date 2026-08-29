@@ -483,14 +483,17 @@
 > times, regular expressions, JSON, URLs and paths — carry a row per name. `python tools/gaps.py`,
 > `python tools/holes.py` and `python tools/check-migration.py --report` are the three worklists
 > behind it, and no session re-derives one. **ADR 0117's seam is in the core toolchain**: a registry
-> row carries an optional reference card (`nvs_stdlib::registry::MethodDoc`, `CoreMethod::doc`),
-> `nvs meta --json` prints the whole registry in that ADR's § 2 shape, and three members —
-> `Str::length`, `Json::encode`, `Regex::match` — carry theirs, as do two enums — `Core\Order` and
+> row carries its reference card (`nvs_stdlib::registry::MethodDoc`, `CoreMethod::doc`), `nvs meta
+> --json` prints the whole registry in that ADR's § 2 shape, and three members — `Str::length`,
+> `Json::encode`, `Regex::match` — carry theirs, as do two enums — `Core\Order` and
 > `Core\RoundMode`, a line per case — and two constants, `Core\Math::PI` and `EPSILON`, through the
-> same seam's `EnumDoc` and `CoreConst::desc`; the other 342 rows, eight enums and eleven constants
-> say nothing yet and are documented one by one, each upgrading the website's reference on its next
-> `npm run sync:core`, whose report line counts how many carry one. **Stage 0b's first half is on
-> disk: every `Core` parameter now has its name on the row.**
+> same seam's `EnumDoc` and `CoreConst::desc`; **since 2026-08-30 every row, every enum and every
+> constant carries its card** — `every_registry_row_carries_a_reference_card` in `registry.rs` fails
+> the crate on one without, the card is the second of conventions.md's five edits so a new member
+> lands documented or not at all, and the website's reference takes all of them on its next `npm run
+> sync:core`. Every card's `errors` is what the helper body throws, which is how the backfill turned
+> up the spec-versus-code disagreements the handoff's backlog now lists. **Stage 0b's first half is
+> on disk: every `Core` parameter now has its name on the row.**
 > `nvs_stdlib::registry::CoreMethod::names` is one `&'static str` per positional slot, aligned to
 > `positional()`, and a trailing options bag is not on the row at all — its one name is
 > `registry::OPTIONS_NAME`, which lives beside `CoreTy::Options` because being callable as `options`
