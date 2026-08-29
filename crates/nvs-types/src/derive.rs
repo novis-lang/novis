@@ -79,7 +79,7 @@ use crate::{Ctx, Env, span_text, strip_sigil};
 /// module's, `#[Test]` is [`crate::testing`]'s, `#[Command]`/`#[Option]` are
 /// [`crate::commands`]', `#[Route]` is [`crate::routes`]'.
 pub const ATTRIBUTES: &[&str] = [
-    DERIVE, FIELD, TEST, FIXTURE, TEST_WITH, COMMAND, OPTION, ROUTE,
+    DERIVE, FIELD, TEST, FIXTURE, TEST_WITH, COMMAND, OPTION, ROUTE, QUERY,
 ]
 .as_slice();
 
@@ -138,6 +138,16 @@ pub const OPTION: &str = r"Core\Option";
 /// bare places it with `use Core\Route;`, and importing the router instead
 /// imports a different name. [`crate::routes`] owns the payload.
 pub const ROUTE: &str = r"Core\Route";
+
+/// `#[Query]` — ADR 0102 § 3's per-parameter marker, on a parameter of a
+/// `#[Route]` method, and it carries nothing at all: the key it binds by is the
+/// parameter's own name and the type it converts to is the parameter's own
+/// type, so there is no field left for a payload to hold. It is the counterpart
+/// of [`OPTION`] — the sentence that decides where a parameter's value comes
+/// from, with no inference from defaults or types — and like [`ROUTE`] it names
+/// no member of anything, so a file that spells it bare places it with
+/// `use Core\Query;`. [`crate::routes`] owns what it means.
+pub const QUERY: &str = r"Core\Query";
 
 /// One derived class's JSON field list, in declaration order — ADR 0071 § 2's
 /// "declaration order fixes encode order, so output is byte-deterministic".

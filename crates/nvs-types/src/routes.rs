@@ -42,19 +42,29 @@
 //! per-attribute walk for [`check_class_routes`]' own reason: a payload with no
 //! declaration around it can see neither the parameter list nor the class.
 //!
+//! The same walk reads
+//! [ADR 0102](../../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+//! § 3's `#[Query]` ([`query_params`]): a parameter the *declaration* binds from
+//! the query string rather than one the path names, so it is a second reading of
+//! the same parameter list and not a third reading of the path. The keys land on
+//! the row, because the only question asked about them is § 6's and it is asked
+//! from [`crate::links`] once the whole table exists.
+//!
 //! The conversion roster is [`crate::commands::converts_from_string`], read and
-//! never copied — ADR 0086 § 6 takes § 3's list unchanged, so the two passes ask
-//! one question. The single thing this pass adds to it is that a `{name...}`
-//! arrives as the one `tainted string` § 3 says it does, so it binds a `string`
-//! and nothing else.
+//! never copied — ADR 0086 § 6 takes § 3's list unchanged and ADR 0102 § 3 takes
+//! it unchanged again for a query parameter, so all three passes ask one
+//! question. The single thing this pass adds to it is that a `{name...}` arrives
+//! as the one `tainted string` § 3 says it does, so it binds a `string` and
+//! nothing else.
 //!
 //! # Known gaps
 //!
-//! 1. **Nothing reverses the table yet.** The rows cross into `nvs-ir` on
-//!    [`crate::expr_table::ExprTypeTable::routes`] — the channel every other
-//!    whole-program fact travels to lowering by — but § 4's `Core\Router::url`
-//!    does not read them, so a literal route name still resolves to nothing at
-//!    compile time and throws at run time.
+//! 1. **A `#[Query]` outside a `#[Route]` method is not refused**, which is
+//!    [`crate::commands`]' gap 2 exactly: [`check_class_routes`] reads only the
+//!    methods § 3 gives the marker a meaning on, so one written anywhere else
+//!    silently binds nothing. It is owed the same refusal, and for the same
+//!    reason — a recognized name that does nothing where it is written is the
+//!    mistake the closed roster exists to prevent.
 //! 2. **Only the first `#[Route]` on a method becomes a row**, because
 //!    [`crate::testing::attribute_named`] answers with one attribute. ADR 0046
 //!    § 3's repetition — one method serving two verbs — therefore contributes
@@ -122,6 +132,14 @@ pub struct Route {
     /// `Class::method` the attribute is attached to, rendered as
     /// [`crate::expr_table::ExprTypeTable::method_label`] renders one.
     pub handler: String,
+    /// ADR 0102 § 3's `#[Query]` parameters, by the key each binds — see
+    /// [`query_params`], which is where the marker is read.
+    ///
+    /// On the row rather than left in the declaration because the one question
+    /// asked about them is § 6's, and it is asked from [`crate::links`] after
+    /// every file has been walked: by then the method that declared them is in
+    /// a file the walk has moved past.
+    pub query: Vec<String>,
     /// The whole attribute.
     pub span: Span,
 }
@@ -260,12 +278,14 @@ fn collect_route(
         }
     };
     check_captures(&captures, path_span, m, class, &handler, env);
+    let query = query_params(m, class, ctx, env);
     let name = folded_str(attr, NAME, env);
     env.routes.rows.push(Route {
         verb,
         path,
         name,
         handler,
+        query,
         span: attr.span,
     });
 }
@@ -537,6 +557,58 @@ fn check_captures(
             }),
         );
     }
+}
+
+/// ADR 0102 § 3's `#[Query]` parameters of the method the attribute is attached
+/// to, by the key each binds — which is the parameter's own name, the attribute
+/// carrying nothing that could give it another.
+///
+/// Beside [`check_captures`] rather than inside it because the two read one
+/// parameter list to opposite ends: a capture starts from the path and looks
+/// for the parameter it names, while a `#[Query]` starts from the declaration
+/// and names no part of the path at all. It is the counterpart of
+/// [`crate::commands::check_options`]' walk, and § 3's "the same type list as a
+/// path capture" is that list read from the one place that holds it.
+///
+/// **A failed conversion is still a compile error here**, not § 3's `400`: the
+/// `400` is what a bad *value* gets at run time, and this is the declaration
+/// saying it would have nothing to arrive at whatever the value was.
+fn query_params(m: &MethodMember, class: &QName, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Vec<String> {
+    // Copied out of `env` for [`check_captures`]' reason exactly.
+    let (src, signatures) = (env.src, env.signatures);
+    let method = span_text(src, m.name).to_owned();
+    let sig = signatures
+        .get(class)
+        .and_then(|class_sig| class_sig.methods.get(&method));
+    let mut keys = Vec::new();
+    for (index, param) in m.params.iter().enumerate() {
+        if crate::testing::attribute_named(&param.attributes, crate::derive::QUERY, ctx, env)
+            .is_none()
+        {
+            continue;
+        }
+        let name = crate::strip_sigil(span_text(env.src, param.name)).to_owned();
+        if let Some(ty) = sig.and_then(|sig| sig.params.get(index).copied())
+            && !crate::commands::converts_from_string(ty, env)
+        {
+            let described = env.interner.describe(ty);
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_ROUTE_CAPTURE_TYPE_HAS_NO_CONVERSION,
+                    format!("`{described}` is not a type `#[Query] ${name}` can arrive at"),
+                )
+                .with_primary(param.span, "no conversion from a query value")
+                .with_help(
+                    "a query value arrives as text and its type comes from the parameter, so a \
+                     `#[Query]` declares the same list a capture does (ADR 0102 § 3): `string`, \
+                     `int`, `uint`, `decimal`, an enum, a union of literal types, or \
+                     `Core\\Uuid`",
+                ),
+            );
+        }
+        keys.push(name);
+    }
+    keys
 }
 
 /// The field `option` as written, or `None` where the payload has no such
