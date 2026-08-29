@@ -46,10 +46,15 @@
 //! 4. **`info.version`.** The document has to carry one (3.1 requires it) and
 //!    nothing in the program declares one, so it is a fixed `0.0.0` until
 //!    `nvs.toml` grows the key M6's reader would own.
-//! 5. **A type outside [`schema`]'s list** — an enum, a literal union,
-//!    `Core\Uuid` — is emitted with the empty schema, which in JSON Schema means
-//!    *any*. That is the honest rendering of "the compiler knows this type and
-//!    the emitter has no mapping for it yet".
+//! 5. **An enum-case subset**, which is the half of § 1's *Enumerations* row a
+//!    literal union does not cover. A capture declared at one gets the empty
+//!    schema — *any* — because `nvs_types::routes`' `closed_set` returns no set
+//!    for it on purpose: a case's segment spelling is `Core\Router::match`'s to
+//!    decide, and that member is out of scope. When the row carries the set,
+//!    [`schema`] emits it with no further work, exactly as a literal union's
+//!    already is. Anything else outside [`schema`]'s list is the same honest
+//!    rendering of "the compiler knows this type and the emitter has no mapping
+//!    for it yet".
 
 use std::collections::BTreeMap;
 
@@ -189,7 +194,7 @@ fn responses(returns: Option<&str>) -> Value {
     if !matches!(returns, None | Some("void")) {
         success.insert(
             "content".to_owned(),
-            json!({"application/json": {"schema": schema(returns)}}),
+            json!({"application/json": {"schema": schema(returns, None)}}),
         );
     }
     json!({"200": Value::Object(success)})
@@ -204,11 +209,12 @@ fn parameter(param: &RouteParam) -> Value {
             ParamIn::Query => "query",
         },
         "required": param.required,
-        "schema": schema(param.ty.as_deref()),
+        "schema": schema(param.ty.as_deref(), param.allowed.as_deref()),
     })
 }
 
-/// § 1's "by declared type": the JSON Schema one Novis type renders as.
+/// § 1's "by declared type": the JSON Schema one Novis type renders as, and its
+/// *Enumerations* row where the declared type is a closed set.
 ///
 /// The empty schema is *any*, and is what a type with no mapping gets. The list
 /// is deliberately short — these are the types a path capture or a `#[Query]`
@@ -218,8 +224,25 @@ fn parameter(param: &RouteParam) -> Value {
 /// guessed at. `tainted string` renders as `string` because the qualifier is a
 /// fact about the compiler's tracking, not about the wire
 /// ([ADR 0024](../../../docs/adr/0024-taint-tracking.md)).
-fn schema(ty: Option<&str>) -> Value {
-    match ty {
+///
+/// `allowed` is [`RouteParam::allowed`], and it *joins* the type mapping rather
+/// than replacing it: `enum` constrains a value, it does not describe one. A
+/// union of literal types has no entry in the list above and never will — its
+/// rendering is `"en"|"de"|"fr"`, which names no JSON Schema type — so today the
+/// set joins the empty schema and is the whole of what the parameter says,
+/// which is exactly
+/// [ADR 0102](../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+/// § 5's `enum: [en, de, fr]`.
+///
+/// **The members are emitted as JSON strings, including an `int` literal's.**
+/// The row carries the set as the segment text each value is written with — its
+/// own doc comment owns why — so `1|2|3` emits `["1", "2", "3"]` and a generated
+/// client puts `1` in the URL either way. Emitting them as numbers would mean
+/// deciding a *JSON* type the row does not carry, in the module whose whole
+/// premise is that it decides nothing; and no `"type"` is emitted beside the set
+/// for the same reason, JSON Schema taking the type from the members.
+fn schema(ty: Option<&str>, allowed: Option<&[String]>) -> Value {
+    let mut rendered = match ty {
         Some("bool") => json!({"type": "boolean"}),
         Some("int") => json!({"type": "integer"}),
         // A `uint` is an integer with a floor, and saying so is the difference
@@ -230,6 +253,18 @@ fn schema(ty: Option<&str>) -> Value {
         // which is `Core\Json`'s own reading of ADR 0054's type.
         Some("decimal") => json!({"type": "string", "format": "decimal"}),
         Some("string" | "tainted string") => json!({"type": "string"}),
+        // The one class a capture may be declared at (§ 5), and the format
+        // registered for it in the JSON Schema dialect 3.1 uses. The spelling is
+        // `nvs_stdlib::uuid::NAME` as `describe` renders it — matched as text
+        // like every arm above, because this crate depends on `nvs-types` alone.
+        Some(r"Core\Uuid") => json!({"type": "string", "format": "uuid"}),
         _ => json!({}),
+    };
+    if let (Some(values), Some(object)) = (allowed, rendered.as_object_mut()) {
+        object.insert(
+            "enum".to_owned(),
+            Value::Array(values.iter().map(|value| json!(value)).collect()),
+        );
     }
+    rendered
 }
