@@ -123,6 +123,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             symbol: "nvs_core_uuid_v4",
+            doc: None,
         },
         CoreMethod {
             name: "v7",
@@ -130,6 +131,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             symbol: "nvs_core_uuid_v7",
+            doc: None,
         },
         CoreMethod {
             name: "parse",
@@ -137,6 +139,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             symbol: "nvs_core_uuid_parse",
+            doc: None,
         },
         CoreMethod {
             name: "tryParse",
@@ -144,6 +147,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Instance(NAME)),
             symbol: "nvs_core_uuid_try_parse",
+            doc: None,
         },
     ],
     instance: &[CoreMethod {
@@ -152,6 +156,7 @@ pub const CLASS: CoreClass = CoreClass {
         defaults: &[],
         return_ty: CoreTy::Str,
         symbol: "nvs_core_uuid_to_string",
+        doc: None,
     }],
     slots: &["high", "low"],
     constants: &[],

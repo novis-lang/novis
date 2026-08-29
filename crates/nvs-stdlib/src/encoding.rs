@@ -323,6 +323,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_encoding_encode_text",
+            doc: None,
         },
         CoreMethod {
             name: "decodeText",
@@ -330,6 +331,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_encoding_decode_text",
+            doc: None,
         },
         CoreMethod {
             name: "isValidText",
@@ -337,6 +339,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_encoding_is_valid_text",
+            doc: None,
         },
         CoreMethod {
             name: "toBase64",
@@ -344,6 +347,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_encoding_to_base64",
+            doc: None,
         },
         CoreMethod {
             name: "fromBase64",
@@ -351,6 +355,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_encoding_from_base64",
+            doc: None,
         },
         CoreMethod {
             name: "toBase64Url",
@@ -358,6 +363,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_encoding_to_base64_url",
+            doc: None,
         },
         CoreMethod {
             name: "fromBase64Url",
@@ -365,6 +371,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_encoding_from_base64_url",
+            doc: None,
         },
         CoreMethod {
             name: "toBase32",
@@ -372,6 +379,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_encoding_to_base32",
+            doc: None,
         },
         CoreMethod {
             name: "fromBase32",
@@ -379,6 +387,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_encoding_from_base32",
+            doc: None,
         },
         CoreMethod {
             name: "toHex",
@@ -386,6 +395,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_encoding_to_hex",
+            doc: None,
         },
         CoreMethod {
             name: "fromHex",
@@ -393,6 +403,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_encoding_from_hex",
+            doc: None,
         },
     ],
     instance: &[],

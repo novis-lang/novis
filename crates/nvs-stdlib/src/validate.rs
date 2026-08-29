@@ -179,6 +179,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_validate_is_email",
+            doc: None,
         },
         CoreMethod {
             name: "isDomain",
@@ -186,6 +187,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_validate_is_domain",
+            doc: None,
         },
         CoreMethod {
             name: "isIp",
@@ -193,6 +195,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_validate_is_ip",
+            doc: None,
         },
         CoreMethod {
             name: "isMac",
@@ -200,6 +203,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_validate_is_mac",
+            doc: None,
         },
         CoreMethod {
             name: "isAscii",
@@ -207,6 +211,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_validate_is_ascii",
+            doc: None,
         },
         CoreMethod {
             name: "isPrintable",
@@ -214,6 +219,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_validate_is_printable",
+            doc: None,
         },
     ],
     instance: &[],

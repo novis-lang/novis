@@ -103,6 +103,7 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
     defaults: &[],
     return_ty: CoreTy::Instance(NAME),
     symbol: NEW_SYMBOL,
+    doc: None,
 };
 
 /// `Core\Task\Channel<T>` — two members, because everything else a program
@@ -122,6 +123,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_channel_send",
+            doc: None,
         },
         CoreMethod {
             name: "close",
@@ -129,6 +131,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_channel_close",
+            doc: None,
         },
     ],
     slots: &["items", "capacity", "closed", "next", "current"],

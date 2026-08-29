@@ -162,6 +162,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_test_assert_same",
+            doc: None,
         },
         CoreMethod {
             name: "assertEquals",
@@ -169,6 +170,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_test_assert_equals",
+            doc: None,
         },
         CoreMethod {
             name: "assertEqualsDeep",
@@ -176,6 +178,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_test_assert_equals_deep",
+            doc: None,
         },
         CoreMethod {
             name: "assertTrue",
@@ -183,6 +186,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_test_assert_true",
+            doc: None,
         },
         CoreMethod {
             name: "assertNull",
@@ -190,6 +194,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_test_assert_null",
+            doc: None,
         },
         CoreMethod {
             name: "assertCount",
@@ -201,6 +206,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_test_assert_count",
+            doc: None,
         },
         CoreMethod {
             name: "assertThrows",
@@ -212,6 +218,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_test_assert_throws",
+            doc: None,
         },
         CoreMethod {
             name: "assertDoesNotThrow",
@@ -219,6 +226,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_test_assert_does_not_throw",
+            doc: None,
         },
         CoreMethod {
             name: "expectFailure",
@@ -226,6 +234,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_test_expect_failure",
+            doc: None,
         },
     ],
     instance: &[],

@@ -58,6 +58,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Union(NUMBER),
             symbol: "nvs_core_math_abs",
+            doc: None,
         },
         CoreMethod {
             name: "sign",
@@ -65,6 +66,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_math_sign",
+            doc: None,
         },
         CoreMethod {
             name: "min",
@@ -72,6 +74,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Var("T"),
             symbol: "nvs_core_math_min",
+            doc: None,
         },
         CoreMethod {
             name: "max",
@@ -79,6 +82,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Var("T"),
             symbol: "nvs_core_math_max",
+            doc: None,
         },
         CoreMethod {
             name: "clamp",
@@ -86,6 +90,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Var("T"),
             symbol: "nvs_core_math_clamp",
+            doc: None,
         },
         CoreMethod {
             name: "ceil",
@@ -93,6 +98,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_ceil",
+            doc: None,
         },
         CoreMethod {
             name: "floor",
@@ -100,6 +106,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_floor",
+            doc: None,
         },
         CoreMethod {
             name: "truncate",
@@ -107,6 +114,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_truncate",
+            doc: None,
         },
         CoreMethod {
             name: "round",
@@ -114,6 +122,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_round",
+            doc: None,
         },
         CoreMethod {
             name: "intDiv",
@@ -121,6 +130,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_math_int_div",
+            doc: None,
         },
         CoreMethod {
             name: "mod",
@@ -128,6 +138,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_mod",
+            doc: None,
         },
         CoreMethod {
             name: "gcd",
@@ -135,6 +146,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_math_gcd",
+            doc: None,
         },
         CoreMethod {
             name: "lcm",
@@ -142,6 +154,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_math_lcm",
+            doc: None,
         },
         CoreMethod {
             name: "sqrt",
@@ -149,6 +162,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_sqrt",
+            doc: None,
         },
         CoreMethod {
             name: "cbrt",
@@ -156,6 +170,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_cbrt",
+            doc: None,
         },
         CoreMethod {
             name: "hypot",
@@ -163,6 +178,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_hypot",
+            doc: None,
         },
         CoreMethod {
             name: "exp",
@@ -170,6 +186,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_exp",
+            doc: None,
         },
         CoreMethod {
             name: "log",
@@ -177,6 +194,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_log",
+            doc: None,
         },
         CoreMethod {
             name: "sin",
@@ -184,6 +202,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_sin",
+            doc: None,
         },
         CoreMethod {
             name: "cos",
@@ -191,6 +210,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_cos",
+            doc: None,
         },
         CoreMethod {
             name: "tan",
@@ -198,6 +218,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_tan",
+            doc: None,
         },
         CoreMethod {
             name: "asin",
@@ -205,6 +226,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_asin",
+            doc: None,
         },
         CoreMethod {
             name: "acos",
@@ -212,6 +234,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_acos",
+            doc: None,
         },
         CoreMethod {
             name: "atan",
@@ -219,6 +242,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_atan",
+            doc: None,
         },
         CoreMethod {
             name: "atan2",
@@ -226,6 +250,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_atan2",
+            doc: None,
         },
         CoreMethod {
             name: "sinh",
@@ -233,6 +258,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_sinh",
+            doc: None,
         },
         CoreMethod {
             name: "cosh",
@@ -240,6 +266,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_cosh",
+            doc: None,
         },
         CoreMethod {
             name: "tanh",
@@ -247,6 +274,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_tanh",
+            doc: None,
         },
         CoreMethod {
             name: "asinh",
@@ -254,6 +282,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_asinh",
+            doc: None,
         },
         CoreMethod {
             name: "acosh",
@@ -261,6 +290,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_acosh",
+            doc: None,
         },
         CoreMethod {
             name: "atanh",
@@ -268,6 +298,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_atanh",
+            doc: None,
         },
         CoreMethod {
             name: "toRadians",
@@ -275,6 +306,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_to_radians",
+            doc: None,
         },
         CoreMethod {
             name: "toDegrees",
@@ -282,6 +314,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_to_degrees",
+            doc: None,
         },
         CoreMethod {
             name: "isNan",
@@ -289,6 +322,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_math_is_nan",
+            doc: None,
         },
         CoreMethod {
             name: "isFinite",
@@ -296,6 +330,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_math_is_finite",
+            doc: None,
         },
         CoreMethod {
             name: "toBase",
@@ -303,6 +338,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_math_to_base",
+            doc: None,
         },
         CoreMethod {
             name: "fromBase",
@@ -310,6 +346,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_math_from_base",
+            doc: None,
         },
         CoreMethod {
             name: "format",
@@ -317,6 +354,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_math_format",
+            doc: None,
         },
     ],
     instance: &[],

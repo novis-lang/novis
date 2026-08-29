@@ -54,6 +54,7 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
     defaults: &[],
     return_ty: CoreTy::Instance(NAME),
     symbol: NEW_SYMBOL,
+    doc: None,
 };
 
 /// `Core\ObjectMap<K, V>` — docs/spec/01-core-library.md § 9's first row.
@@ -79,6 +80,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_object_map_set",
+            doc: None,
         },
         CoreMethod {
             name: "get",
@@ -86,6 +88,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Var("V")),
             symbol: "nvs_core_object_map_get",
+            doc: None,
         },
         CoreMethod {
             name: "has",
@@ -93,6 +96,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_object_map_has",
+            doc: None,
         },
         CoreMethod {
             name: "remove",
@@ -100,6 +104,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_object_map_remove",
+            doc: None,
         },
         CoreMethod {
             name: "count",
@@ -107,6 +112,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Uint,
             symbol: "nvs_core_object_map_count",
+            doc: None,
         },
         CoreMethod {
             name: "isEmpty",
@@ -114,6 +120,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_object_map_is_empty",
+            doc: None,
         },
         CoreMethod {
             name: "keys",
@@ -121,6 +128,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("K")),
             symbol: "nvs_core_object_map_keys",
+            doc: None,
         },
         CoreMethod {
             name: "values",
@@ -128,6 +136,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("V")),
             symbol: "nvs_core_object_map_values",
+            doc: None,
         },
         CoreMethod {
             name: "clear",
@@ -135,6 +144,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_object_map_clear",
+            doc: None,
         },
     ],
     slots: &["keys", "values"],

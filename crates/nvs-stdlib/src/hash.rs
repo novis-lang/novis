@@ -229,6 +229,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_hash_of",
+            doc: None,
         },
         CoreMethod {
             name: "hmac",
@@ -236,6 +237,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_hash_hmac",
+            doc: None,
         },
         CoreMethod {
             name: "equals",
@@ -243,6 +245,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_hash_equals",
+            doc: None,
         },
         CoreMethod {
             name: "stream",
@@ -250,6 +253,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(STREAM_NAME),
             symbol: "nvs_core_hash_stream",
+            doc: None,
         },
     ],
     instance: &[],
@@ -278,6 +282,7 @@ pub(crate) const STREAM: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_hash_stream_update",
+            doc: None,
         },
         CoreMethod {
             name: "finish",
@@ -285,6 +290,7 @@ pub(crate) const STREAM: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_hash_stream_finish",
+            doc: None,
         },
     ],
     slots: &["digest", "chunks", "open"],

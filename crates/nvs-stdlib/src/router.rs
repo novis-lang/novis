@@ -146,6 +146,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_router_url",
+            doc: None,
         },
         CoreMethod {
             name: "urlAbsolute",
@@ -153,6 +154,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_router_url_absolute",
+            doc: None,
         },
     ],
     instance: &[],

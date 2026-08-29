@@ -93,6 +93,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_path_basename",
+            doc: None,
         },
         CoreMethod {
             name: "dirname",
@@ -103,6 +104,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_path_dirname",
+            doc: None,
         },
         CoreMethod {
             name: "extension",
@@ -110,6 +112,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_path_extension",
+            doc: None,
         },
         CoreMethod {
             name: "withExtension",
@@ -120,6 +123,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_path_with_extension",
+            doc: None,
         },
         CoreMethod {
             name: "join",
@@ -130,6 +134,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_path_join",
+            doc: None,
         },
         CoreMethod {
             name: "split",
@@ -137,6 +142,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
             symbol: "nvs_core_path_split",
+            doc: None,
         },
         CoreMethod {
             name: "normalize",
@@ -144,6 +150,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_path_normalize",
+            doc: None,
         },
         CoreMethod {
             name: "isAbsolute",
@@ -151,6 +158,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_path_is_absolute",
+            doc: None,
         },
         CoreMethod {
             name: "relativeTo",
@@ -161,6 +169,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_path_relative_to",
+            doc: None,
         },
     ],
     instance: &[],

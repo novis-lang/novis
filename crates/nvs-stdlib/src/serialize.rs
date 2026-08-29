@@ -51,6 +51,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_serialize_encode",
+            doc: None,
         },
         CoreMethod {
             name: "decode",
@@ -58,6 +59,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Mixed,
             symbol: "nvs_core_serialize_decode",
+            doc: None,
         },
     ],
     instance: &[],

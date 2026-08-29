@@ -60,6 +60,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[Const::Str("")],
             return_ty: CoreTy::Nullable(&T),
             symbol: "nvs_core_attributes_get",
+            doc: None,
         },
         CoreMethod {
             name: "all",
@@ -67,6 +68,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[Const::Str("")],
             return_ty: CoreTy::Array(&T),
             symbol: "nvs_core_attributes_all",
+            doc: None,
         },
     ],
     instance: &[],

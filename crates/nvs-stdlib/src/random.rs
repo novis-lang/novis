@@ -82,6 +82,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_random_int",
+            doc: None,
         },
         CoreMethod {
             name: "float",
@@ -89,6 +90,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_random_float",
+            doc: None,
         },
         CoreMethod {
             name: "bytes",
@@ -96,6 +98,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_random_bytes",
+            doc: None,
         },
         CoreMethod {
             name: "token",
@@ -103,6 +106,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[Const::Uint(DEFAULT_TOKEN_BYTES)],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_random_token",
+            doc: None,
         },
         CoreMethod {
             name: "pick",
@@ -110,6 +114,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
             symbol: "nvs_core_random_pick",
+            doc: None,
         },
         CoreMethod {
             name: "sample",
@@ -117,6 +122,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_random_sample",
+            doc: None,
         },
         CoreMethod {
             name: "shuffle",
@@ -124,6 +130,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_random_shuffle",
+            doc: None,
         },
     ],
     instance: &[],

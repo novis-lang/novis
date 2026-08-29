@@ -52,6 +52,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         defaults: &[],
         return_ty: CoreTy::Array(&T),
         symbol: "nvs_core_program_implementing",
+        doc: None,
     }],
     instance: &[],
     slots: &[],

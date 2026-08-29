@@ -102,6 +102,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_debug_dump",
+            doc: None,
         },
         CoreMethod {
             name: "render",
@@ -109,6 +110,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(crate::cli::NAME),
             symbol: "nvs_core_debug_render",
+            doc: None,
         },
     ],
     instance: &[],

@@ -32,6 +32,7 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
     defaults: &[],
     return_ty: CoreTy::Instance(NAME),
     symbol: NEW_SYMBOL,
+    doc: None,
 };
 
 /// `Core\ObjectSet<T>` — docs/spec/01-core-library.md § 9's second row.
@@ -53,6 +54,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_object_set_add",
+            doc: None,
         },
         CoreMethod {
             name: "has",
@@ -60,6 +62,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_object_set_has",
+            doc: None,
         },
         CoreMethod {
             name: "remove",
@@ -67,6 +70,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_object_set_remove",
+            doc: None,
         },
         CoreMethod {
             name: "count",
@@ -74,6 +78,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Uint,
             symbol: "nvs_core_object_set_count",
+            doc: None,
         },
         CoreMethod {
             name: "isEmpty",
@@ -81,6 +86,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_object_set_is_empty",
+            doc: None,
         },
         CoreMethod {
             name: "union",
@@ -88,6 +94,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             symbol: "nvs_core_object_set_union",
+            doc: None,
         },
         CoreMethod {
             name: "intersect",
@@ -95,6 +102,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             symbol: "nvs_core_object_set_intersect",
+            doc: None,
         },
         CoreMethod {
             name: "diff",
@@ -102,6 +110,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             symbol: "nvs_core_object_set_diff",
+            doc: None,
         },
         CoreMethod {
             name: "clear",
@@ -109,6 +118,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_object_set_clear",
+            doc: None,
         },
     ],
     slots: &["entries"],

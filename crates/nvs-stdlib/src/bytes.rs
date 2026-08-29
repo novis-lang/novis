@@ -177,6 +177,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Uint,
             symbol: "nvs_core_bytes_length",
+            doc: None,
         },
         CoreMethod {
             name: "at",
@@ -184,6 +185,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Uint,
             symbol: "nvs_core_bytes_at",
+            doc: None,
         },
         CoreMethod {
             name: "slice",
@@ -195,6 +197,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[Const::Null],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_bytes_slice",
+            doc: None,
         },
         CoreMethod {
             name: "indexOf",
@@ -206,6 +209,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Uint),
             symbol: "nvs_core_bytes_index_of",
+            doc: None,
         },
         CoreMethod {
             name: "compare",
@@ -213,6 +217,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_bytes_compare",
+            doc: None,
         },
         CoreMethod {
             name: "contains",
@@ -220,6 +225,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_bytes_contains",
+            doc: None,
         },
         CoreMethod {
             name: "startsWith",
@@ -227,6 +233,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_bytes_starts_with",
+            doc: None,
         },
         CoreMethod {
             name: "endsWith",
@@ -234,6 +241,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_bytes_ends_with",
+            doc: None,
         },
         CoreMethod {
             name: "fill",
@@ -241,6 +249,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_bytes_fill",
+            doc: None,
         },
         CoreMethod {
             name: "repeat",
@@ -248,6 +257,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_bytes_repeat",
+            doc: None,
         },
         CoreMethod {
             name: "join",
@@ -258,6 +268,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[Const::Bytes(b"")],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_bytes_join",
+            doc: None,
         },
         CoreMethod {
             name: "pack",
@@ -265,6 +276,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_bytes_pack",
+            doc: None,
         },
         CoreMethod {
             name: "unpack",
@@ -272,6 +284,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Mixed),
             symbol: "nvs_core_bytes_unpack",
+            doc: None,
         },
     ],
     instance: &[],

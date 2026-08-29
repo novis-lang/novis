@@ -146,6 +146,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Uint,
             symbol: "nvs_core_str_length",
+            doc: None,
         },
         CoreMethod {
             name: "at",
@@ -153,6 +154,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_at",
+            doc: None,
         },
         CoreMethod {
             name: "isEmpty",
@@ -160,6 +162,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_str_is_empty",
+            doc: None,
         },
         CoreMethod {
             name: "contains",
@@ -167,6 +170,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_str_contains",
+            doc: None,
         },
         CoreMethod {
             name: "startsWith",
@@ -174,6 +178,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_str_starts_with",
+            doc: None,
         },
         CoreMethod {
             name: "endsWith",
@@ -181,6 +186,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_str_ends_with",
+            doc: None,
         },
         CoreMethod {
             name: "slice",
@@ -192,6 +198,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[Const::Null],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_slice",
+            doc: None,
         },
         CoreMethod {
             name: "indexOf",
@@ -203,6 +210,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Uint),
             symbol: "nvs_core_str_index_of",
+            doc: None,
         },
         CoreMethod {
             name: "lastIndexOf",
@@ -214,6 +222,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Uint),
             symbol: "nvs_core_str_last_index_of",
+            doc: None,
         },
         CoreMethod {
             name: "countOf",
@@ -221,6 +230,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Uint,
             symbol: "nvs_core_str_count_of",
+            doc: None,
         },
         CoreMethod {
             name: "compare",
@@ -232,6 +242,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_str_compare",
+            doc: None,
         },
         CoreMethod {
             name: "before",
@@ -243,6 +254,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_str_before",
+            doc: None,
         },
         CoreMethod {
             name: "after",
@@ -254,6 +266,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_str_after",
+            doc: None,
         },
         CoreMethod {
             name: "join",
@@ -261,6 +274,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[Const::Str("")],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_join",
+            doc: None,
         },
         CoreMethod {
             name: "split",
@@ -272,6 +286,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
             symbol: "nvs_core_str_split",
+            doc: None,
         },
         CoreMethod {
             name: "chunk",
@@ -279,6 +294,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
             symbol: "nvs_core_str_chunk",
+            doc: None,
         },
         CoreMethod {
             name: "lines",
@@ -286,6 +302,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
             symbol: "nvs_core_str_lines",
+            doc: None,
         },
         CoreMethod {
             name: "graphemes",
@@ -293,6 +310,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
             symbol: "nvs_core_str_graphemes",
+            doc: None,
         },
         CoreMethod {
             name: "codePoints",
@@ -300,6 +318,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Uint),
             symbol: "nvs_core_str_code_points",
+            doc: None,
         },
         CoreMethod {
             name: "replace",
@@ -312,6 +331,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_replace",
+            doc: None,
         },
         CoreMethod {
             name: "replaceAll",
@@ -323,6 +343,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_replace_all",
+            doc: None,
         },
         CoreMethod {
             name: "replaceRange",
@@ -335,6 +356,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_replace_range",
+            doc: None,
         },
         CoreMethod {
             name: "padStart",
@@ -346,6 +368,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[Const::Str(" ")],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_pad_start",
+            doc: None,
         },
         CoreMethod {
             name: "padEnd",
@@ -357,6 +380,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[Const::Str(" ")],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_pad_end",
+            doc: None,
         },
         CoreMethod {
             name: "trim",
@@ -367,6 +391,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_trim",
+            doc: None,
         },
         CoreMethod {
             name: "trimStart",
@@ -377,6 +402,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_trim_start",
+            doc: None,
         },
         CoreMethod {
             name: "trimEnd",
@@ -387,6 +413,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_trim_end",
+            doc: None,
         },
         CoreMethod {
             name: "repeat",
@@ -394,6 +421,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_repeat",
+            doc: None,
         },
         CoreMethod {
             name: "reverse",
@@ -401,6 +429,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_reverse",
+            doc: None,
         },
         CoreMethod {
             name: "wrap",
@@ -412,6 +441,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_wrap",
+            doc: None,
         },
         CoreMethod {
             name: "lower",
@@ -419,6 +449,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_lower",
+            doc: None,
         },
         CoreMethod {
             name: "upper",
@@ -426,6 +457,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_upper",
+            doc: None,
         },
         CoreMethod {
             name: "upperFirst",
@@ -433,6 +465,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_upper_first",
+            doc: None,
         },
         CoreMethod {
             name: "lowerFirst",
@@ -440,6 +473,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_lower_first",
+            doc: None,
         },
         CoreMethod {
             name: "fold",
@@ -447,6 +481,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_fold",
+            doc: None,
         },
         CoreMethod {
             name: "normalize",
@@ -457,6 +492,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_normalize",
+            doc: None,
         },
         CoreMethod {
             name: "fromCodePoint",
@@ -464,6 +500,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_from_code_point",
+            doc: None,
         },
         CoreMethod {
             name: "fromCodePoints",
@@ -471,6 +508,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_from_code_points",
+            doc: None,
         },
         CoreMethod {
             name: "format",
@@ -478,6 +516,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_format",
+            doc: None,
         },
     ],
     instance: &[],

@@ -69,6 +69,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         defaults: &[],
         return_ty: CoreTy::Instance(crate::cli::NAME),
         symbol: "nvs_core_out_capture",
+        doc: None,
     }],
     instance: &[],
     slots: &[],

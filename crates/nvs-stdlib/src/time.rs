@@ -175,6 +175,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: FROM_NANOS_SYMBOL,
+            doc: None,
         },
         CoreMethod {
             name: "microseconds",
@@ -182,6 +183,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: "nvs_core_time_duration_microseconds",
+            doc: None,
         },
         CoreMethod {
             name: "milliseconds",
@@ -189,6 +191,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: "nvs_core_time_duration_milliseconds",
+            doc: None,
         },
         CoreMethod {
             name: "seconds",
@@ -196,6 +199,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: "nvs_core_time_duration_seconds",
+            doc: None,
         },
         CoreMethod {
             name: "minutes",
@@ -203,6 +207,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: "nvs_core_time_duration_minutes",
+            doc: None,
         },
         CoreMethod {
             name: "hours",
@@ -210,6 +215,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: "nvs_core_time_duration_hours",
+            doc: None,
         },
         CoreMethod {
             name: "days",
@@ -217,6 +223,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: "nvs_core_time_duration_days",
+            doc: None,
         },
         CoreMethod {
             name: "weeks",
@@ -224,6 +231,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: "nvs_core_time_duration_weeks",
+            doc: None,
         },
         CoreMethod {
             name: "parse",
@@ -231,6 +239,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: "nvs_core_time_duration_parse",
+            doc: None,
         },
     ],
     instance: &[
@@ -240,6 +249,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_time_duration_to_nanoseconds",
+            doc: None,
         },
         CoreMethod {
             name: "toMicroseconds",
@@ -247,6 +257,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_time_duration_to_microseconds",
+            doc: None,
         },
         CoreMethod {
             name: "toMilliseconds",
@@ -254,6 +265,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_time_duration_to_milliseconds",
+            doc: None,
         },
         CoreMethod {
             name: "toSeconds",
@@ -261,6 +273,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_time_duration_to_seconds",
+            doc: None,
         },
         CoreMethod {
             name: "plus",
@@ -268,6 +281,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: "nvs_core_time_duration_plus",
+            doc: None,
         },
         CoreMethod {
             name: "minus",
@@ -275,6 +289,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: "nvs_core_time_duration_minus",
+            doc: None,
         },
         CoreMethod {
             name: "multipliedBy",
@@ -282,6 +297,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: "nvs_core_time_duration_multiplied_by",
+            doc: None,
         },
         CoreMethod {
             name: "negated",
@@ -289,6 +305,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: "nvs_core_time_duration_negated",
+            doc: None,
         },
         CoreMethod {
             name: "compareTo",
@@ -296,6 +313,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_time_duration_compare_to",
+            doc: None,
         },
         CoreMethod {
             name: "toString",
@@ -303,6 +321,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_time_duration_to_string",
+            doc: None,
         },
     ],
     slots: &["nanos"],
@@ -663,6 +682,7 @@ pub const ZONE: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(ZONE_NAME),
             symbol: "nvs_core_time_zone_of",
+            doc: None,
         },
         CoreMethod {
             name: "fixed",
@@ -670,6 +690,7 @@ pub const ZONE: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(ZONE_NAME),
             symbol: "nvs_core_time_zone_fixed",
+            doc: None,
         },
         CoreMethod {
             name: "system",
@@ -677,6 +698,7 @@ pub const ZONE: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(ZONE_NAME),
             symbol: "nvs_core_time_zone_system",
+            doc: None,
         },
     ],
     instance: &[CoreMethod {
@@ -685,6 +707,7 @@ pub const ZONE: CoreClass = CoreClass {
         defaults: &[],
         return_ty: CoreTy::Instance(DURATION_NAME),
         symbol: "nvs_core_time_zone_offset_at",
+        doc: None,
     }],
     slots: &["id"],
     constants: &[CoreConst {
@@ -738,6 +761,7 @@ pub const INSTANT: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
             symbol: "nvs_core_time_instant_in",
+            doc: None,
         },
         CoreMethod {
             name: "toEpochSeconds",
@@ -745,6 +769,7 @@ pub const INSTANT: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_time_instant_to_epoch_seconds",
+            doc: None,
         },
         CoreMethod {
             name: "toEpochMillis",
@@ -752,6 +777,7 @@ pub const INSTANT: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_time_instant_to_epoch_millis",
+            doc: None,
         },
         CoreMethod {
             name: "toEpochMicros",
@@ -759,6 +785,7 @@ pub const INSTANT: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_time_instant_to_epoch_micros",
+            doc: None,
         },
         CoreMethod {
             name: "plus",
@@ -766,6 +793,7 @@ pub const INSTANT: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(INSTANT_NAME),
             symbol: "nvs_core_time_instant_plus",
+            doc: None,
         },
         CoreMethod {
             name: "minus",
@@ -773,6 +801,7 @@ pub const INSTANT: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(INSTANT_NAME),
             symbol: "nvs_core_time_instant_minus",
+            doc: None,
         },
         CoreMethod {
             name: "since",
@@ -780,6 +809,7 @@ pub const INSTANT: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: "nvs_core_time_instant_since",
+            doc: None,
         },
         CoreMethod {
             name: "compareTo",
@@ -787,6 +817,7 @@ pub const INSTANT: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_time_instant_compare_to",
+            doc: None,
         },
         CoreMethod {
             name: "toIso",
@@ -794,6 +825,7 @@ pub const INSTANT: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_time_instant_to_iso",
+            doc: None,
         },
     ],
     slots: &["seconds", "nanos"],
@@ -955,6 +987,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_time_datetime_format",
+            doc: None,
         },
         CoreMethod {
             name: "plus",
@@ -962,6 +995,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
             symbol: "nvs_core_time_datetime_plus",
+            doc: None,
         },
         CoreMethod {
             name: "minus",
@@ -969,6 +1003,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
             symbol: "nvs_core_time_datetime_minus",
+            doc: None,
         },
         CoreMethod {
             name: "next",
@@ -976,6 +1011,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
             symbol: "nvs_core_time_datetime_next",
+            doc: None,
         },
         CoreMethod {
             name: "previous",
@@ -983,6 +1019,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
             symbol: "nvs_core_time_datetime_previous",
+            doc: None,
         },
         CoreMethod {
             name: "with",
@@ -990,6 +1027,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
             symbol: "nvs_core_time_datetime_with",
+            doc: None,
         },
         CoreMethod {
             name: "withTime",
@@ -997,6 +1035,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
             symbol: "nvs_core_time_datetime_with_time",
+            doc: None,
         },
         CoreMethod {
             name: "startOf",
@@ -1004,6 +1043,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
             symbol: "nvs_core_time_datetime_start_of",
+            doc: None,
         },
         CoreMethod {
             name: "endOf",
@@ -1011,6 +1051,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
             symbol: "nvs_core_time_datetime_end_of",
+            doc: None,
         },
         CoreMethod {
             name: "difference",
@@ -1018,6 +1059,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_time_datetime_difference",
+            doc: None,
         },
         CoreMethod {
             name: "toInstant",
@@ -1025,6 +1067,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(INSTANT_NAME),
             symbol: "nvs_core_time_datetime_to_instant",
+            doc: None,
         },
         CoreMethod {
             name: "date",
@@ -1032,6 +1075,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATE_NAME),
             symbol: "nvs_core_time_datetime_date",
+            doc: None,
         },
         CoreMethod {
             name: "timeOfDay",
@@ -1039,6 +1083,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(TIME_OF_DAY_NAME),
             symbol: "nvs_core_time_datetime_time_of_day",
+            doc: None,
         },
         CoreMethod {
             name: "zone",
@@ -1046,6 +1091,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(ZONE_NAME),
             symbol: "nvs_core_time_datetime_zone",
+            doc: None,
         },
         CoreMethod {
             name: "weekday",
@@ -1053,6 +1099,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Enum(WEEKDAY.name),
             symbol: "nvs_core_time_datetime_weekday",
+            doc: None,
         },
         CoreMethod {
             name: "dayOfYear",
@@ -1060,6 +1107,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Uint,
             symbol: "nvs_core_time_datetime_day_of_year",
+            doc: None,
         },
         CoreMethod {
             name: "isLeapYear",
@@ -1067,6 +1115,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_time_datetime_is_leap_year",
+            doc: None,
         },
     ],
     slots: &["seconds", "nanos", "zone"],
@@ -1136,6 +1185,7 @@ pub const TIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(INSTANT_NAME),
             symbol: "nvs_core_time_now",
+            doc: None,
         },
         CoreMethod {
             name: "monotonic",
@@ -1143,6 +1193,7 @@ pub const TIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: "nvs_core_time_monotonic",
+            doc: None,
         },
         CoreMethod {
             name: "sleep",
@@ -1150,6 +1201,7 @@ pub const TIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_time_sleep",
+            doc: None,
         },
         CoreMethod {
             name: "fromEpoch",
@@ -1164,6 +1216,7 @@ pub const TIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(INSTANT_NAME),
             symbol: "nvs_core_time_from_epoch",
+            doc: None,
         },
         CoreMethod {
             name: "fromIso",
@@ -1171,6 +1224,7 @@ pub const TIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(INSTANT_NAME),
             symbol: "nvs_core_time_from_iso",
+            doc: None,
         },
         CoreMethod {
             name: "parse",
@@ -1182,6 +1236,7 @@ pub const TIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
             symbol: "nvs_core_time_parse",
+            doc: None,
         },
         CoreMethod {
             name: "at",
@@ -1216,6 +1271,7 @@ pub const TIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
             symbol: "nvs_core_time_at",
+            doc: None,
         },
     ],
     instance: &[],
@@ -1296,6 +1352,7 @@ pub const DATE: CoreClass = CoreClass {
         defaults: &[],
         return_ty: CoreTy::Instance(DATE_NAME),
         symbol: "nvs_core_time_date_at",
+        doc: None,
     }],
     instance: &[
         CoreMethod {
@@ -1304,6 +1361,7 @@ pub const DATE: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_time_date_format",
+            doc: None,
         },
         CoreMethod {
             name: "plus",
@@ -1311,6 +1369,7 @@ pub const DATE: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATE_NAME),
             symbol: "nvs_core_time_date_plus",
+            doc: None,
         },
         CoreMethod {
             name: "minus",
@@ -1318,6 +1377,7 @@ pub const DATE: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATE_NAME),
             symbol: "nvs_core_time_date_minus",
+            doc: None,
         },
         CoreMethod {
             name: "with",
@@ -1325,6 +1385,7 @@ pub const DATE: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATE_NAME),
             symbol: "nvs_core_time_date_with",
+            doc: None,
         },
         CoreMethod {
             name: "compareTo",
@@ -1332,6 +1393,7 @@ pub const DATE: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_time_date_compare_to",
+            doc: None,
         },
     ],
     slots: &["year", "month", "day"],
@@ -1429,6 +1491,7 @@ pub const TIME_OF_DAY: CoreClass = CoreClass {
         defaults: &[],
         return_ty: CoreTy::Instance(TIME_OF_DAY_NAME),
         symbol: "nvs_core_time_of_day_at",
+        doc: None,
     }],
     instance: &[
         CoreMethod {
@@ -1437,6 +1500,7 @@ pub const TIME_OF_DAY: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_time_of_day_format",
+            doc: None,
         },
         CoreMethod {
             name: "plus",
@@ -1444,6 +1508,7 @@ pub const TIME_OF_DAY: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(TIME_OF_DAY_NAME),
             symbol: "nvs_core_time_of_day_plus",
+            doc: None,
         },
         CoreMethod {
             name: "minus",
@@ -1451,6 +1516,7 @@ pub const TIME_OF_DAY: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(TIME_OF_DAY_NAME),
             symbol: "nvs_core_time_of_day_minus",
+            doc: None,
         },
         CoreMethod {
             name: "with",
@@ -1458,6 +1524,7 @@ pub const TIME_OF_DAY: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(TIME_OF_DAY_NAME),
             symbol: "nvs_core_time_of_day_with",
+            doc: None,
         },
         CoreMethod {
             name: "compareTo",
@@ -1465,6 +1532,7 @@ pub const TIME_OF_DAY: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_time_of_day_compare_to",
+            doc: None,
         },
     ],
     slots: &["hour", "minute", "second", "nanos"],

@@ -97,6 +97,7 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
     defaults: &[Const::Null],
     return_ty: CoreTy::Instance(NAME),
     symbol: NEW_SYMBOL,
+    doc: None,
 };
 
 /// `Core\Heap<T>` — docs/spec/01-core-library.md § 9's third row.
@@ -114,6 +115,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_heap_push",
+            doc: None,
         },
         CoreMethod {
             name: "peek",
@@ -121,6 +123,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Var("T"),
             symbol: "nvs_core_heap_peek",
+            doc: None,
         },
         CoreMethod {
             name: "pop",
@@ -128,6 +131,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Var("T"),
             symbol: "nvs_core_heap_pop",
+            doc: None,
         },
         CoreMethod {
             name: "count",
@@ -135,6 +139,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Uint,
             symbol: "nvs_core_heap_count",
+            doc: None,
         },
         CoreMethod {
             name: "isEmpty",
@@ -142,6 +147,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_heap_is_empty",
+            doc: None,
         },
     ],
     slots: &["entries", "comparator"],

@@ -145,6 +145,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Array(&CoreTy::Str)),
             symbol: "nvs_core_csv_parse",
+            doc: None,
         },
         CoreMethod {
             name: "format",
@@ -155,6 +156,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_csv_format",
+            doc: None,
         },
     ],
     instance: &[],

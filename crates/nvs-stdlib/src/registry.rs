@@ -575,6 +575,78 @@ pub enum Const {
     },
 }
 
+/// One member's reference documentation — the card, not the essay.
+///
+/// [ADR 0117](../../../docs/adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md)
+/// § 1's five fields, as plain static data next to the row they describe,
+/// so the one artifact that provably matches the shipped behaviour is also
+/// the one that documents it. Every field is inline markdown, one or two
+/// sentences; long-form prose stays in the website's pages by the same
+/// ADR's *Alternatives rejected*. **An empty string or an empty slice means
+/// "not written yet"**, never "there is nothing to say": `nvs meta --json`
+/// omits such a field, and a consumer falls back to the spec for it
+/// (§ 3's field-wise precedence).
+///
+/// Spends memory per process, never per request — static strings in
+/// `.rodata`, a few hundred bytes per documented member, which the ADR's
+/// *Consequences* prices for the whole registry.
+#[derive(Clone, Copy, Debug)]
+pub struct MethodDoc {
+    /// What the member does, in one or two sentences.
+    pub short: &'static str,
+    /// One entry per parameter, positional, in [`CoreMethod::params`]'s
+    /// order — the trailing options bag included, documented as one
+    /// parameter whose [`ParamDoc::shape`] lists its options.
+    pub params: &'static [ParamDoc],
+    /// What the member answers with, beyond the type the row already states.
+    pub ret: &'static str,
+    /// Every error the member throws, and when.
+    pub errors: &'static [ErrorDoc],
+}
+
+/// One parameter's name and description.
+///
+/// The first place a parameter's **name** exists in the registry at all —
+/// [`crate`]'s gap 3 records that a row carries types and never names, and
+/// this is the field that will carry them when a `Core` call becomes
+/// callable by name. Until then it is documentation, and nothing in
+/// `nvs-types` reads it.
+#[derive(Clone, Copy, Debug)]
+pub struct ParamDoc {
+    /// The name as the spec writes it, without the `$` — `s`, `pattern`,
+    /// `options`.
+    pub name: &'static str,
+    /// What the parameter is, in one sentence.
+    pub desc: &'static str,
+    /// For a shape-typed parameter — an options bag — one entry per key;
+    /// empty for a parameter that is not a shape.
+    pub shape: &'static [ShapeKeyDoc],
+}
+
+/// One key of a shape-typed parameter.
+#[derive(Clone, Copy, Debug)]
+pub struct ShapeKeyDoc {
+    /// The key's own name — what a call site writes on the left of the
+    /// `:` in `{pretty: true}`.
+    pub key: &'static str,
+    /// Its type, spelled as the spec spells it — `bool`, `int`, `?string`.
+    pub ty: &'static str,
+    /// What the key does, in one sentence.
+    pub desc: &'static str,
+}
+
+/// One error a member throws.
+#[derive(Clone, Copy, Debug)]
+pub struct ErrorDoc {
+    /// The thrown class's name as a `catch` writes it —
+    /// [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
+    /// § 10's tree, so `RuntimeError`, `ParseError`, and not a namespaced
+    /// spelling the language has no such class under.
+    pub error: &'static str,
+    /// When it is thrown, in one sentence.
+    pub desc: &'static str,
+}
+
 /// One `Core` member.
 #[derive(Clone, Copy, Debug)]
 pub struct CoreMethod {
@@ -607,6 +679,12 @@ pub struct CoreMethod {
     /// member is never mistakable for a `nvs_runtime` primitive in a
     /// disassembly.
     pub symbol: &'static str,
+    /// The member's reference documentation, or `None` for a row not yet
+    /// documented —
+    /// [ADR 0117](../../../docs/adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md)'s
+    /// seam. Read by `nvs meta --json` and by nothing on the request path;
+    /// the runtime dispatches on [`Self::symbol`] and never looks here.
+    pub doc: Option<&'static MethodDoc>,
 }
 
 impl CoreTy {
@@ -1482,6 +1560,7 @@ mod tests {
             defaults: &[],
             return_ty: CoreTy::Written("R"),
             symbol: "nvs_core_sample",
+            doc: None,
         };
         assert_eq!(METHOD.written(), vec!["K", "V", "R"]);
     }

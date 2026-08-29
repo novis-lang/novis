@@ -106,6 +106,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(PATTERN_NAME),
             symbol: "nvs_core_regex_compile",
+            doc: None,
         },
         CoreMethod {
             name: "matches",
@@ -116,6 +117,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_regex_matches",
+            doc: None,
         },
         CoreMethod {
             name: "match",
@@ -127,6 +129,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Instance(MATCH_NAME)),
             symbol: "nvs_core_regex_match",
+            doc: None,
         },
         CoreMethod {
             name: "matchAll",
@@ -137,6 +140,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Instance(MATCH_NAME)),
             symbol: "nvs_core_regex_match_all",
+            doc: None,
         },
         CoreMethod {
             name: "replace",
@@ -149,6 +153,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_regex_replace",
+            doc: None,
         },
         CoreMethod {
             name: "replaceWith",
@@ -161,6 +166,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_regex_replace_with",
+            doc: None,
         },
         CoreMethod {
             name: "split",
@@ -172,6 +178,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
             symbol: "nvs_core_regex_split",
+            doc: None,
         },
         CoreMethod {
             name: "quote",
@@ -179,6 +186,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_regex_quote",
+            doc: None,
         },
     ],
     instance: &[],
@@ -322,6 +330,7 @@ pub const MATCH: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_regex_match_group",
+            doc: None,
         },
         CoreMethod {
             name: "groups",
@@ -329,6 +338,7 @@ pub const MATCH: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Nullable(&CoreTy::Str)),
             symbol: "nvs_core_regex_match_groups",
+            doc: None,
         },
         CoreMethod {
             name: "offset",
@@ -336,6 +346,7 @@ pub const MATCH: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_regex_match_offset",
+            doc: None,
         },
         CoreMethod {
             name: "text",
@@ -343,6 +354,7 @@ pub const MATCH: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_regex_match_text",
+            doc: None,
         },
     ],
     slots: &["groups", "offset"],

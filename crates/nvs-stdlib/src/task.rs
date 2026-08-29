@@ -112,6 +112,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Var("S"),
             symbol: "nvs_core_task_all",
+            doc: None,
         },
         CoreMethod {
             name: "map",
@@ -123,6 +124,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("U")),
             symbol: "nvs_core_task_map",
+            doc: None,
         },
     ],
     instance: &[],

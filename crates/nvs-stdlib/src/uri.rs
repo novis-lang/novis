@@ -377,6 +377,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             symbol: "nvs_core_uri_parse",
+            doc: None,
         },
         CoreMethod {
             name: "tryParse",
@@ -384,6 +385,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Instance(NAME)),
             symbol: "nvs_core_uri_try_parse",
+            doc: None,
         },
         CoreMethod {
             name: "encodeComponent",
@@ -391,6 +393,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_uri_encode_component",
+            doc: None,
         },
         CoreMethod {
             name: "decodeComponent",
@@ -398,6 +401,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_uri_decode_component",
+            doc: None,
         },
         CoreMethod {
             name: "encodeFormValue",
@@ -405,6 +409,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_uri_encode_form_value",
+            doc: None,
         },
         CoreMethod {
             name: "decodeFormValue",
@@ -412,6 +417,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_uri_decode_form_value",
+            doc: None,
         },
         CoreMethod {
             name: "parseQuery",
@@ -419,6 +425,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Mixed),
             symbol: "nvs_core_uri_parse_query",
+            doc: None,
         },
         CoreMethod {
             name: "buildQuery",
@@ -426,6 +433,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_uri_build_query",
+            doc: None,
         },
     ],
     instance: &[
@@ -435,6 +443,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_uri_scheme",
+            doc: None,
         },
         CoreMethod {
             name: "userInfo",
@@ -442,6 +451,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_uri_user_info",
+            doc: None,
         },
         CoreMethod {
             name: "host",
@@ -449,6 +459,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_uri_host",
+            doc: None,
         },
         CoreMethod {
             name: "port",
@@ -456,6 +467,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Int),
             symbol: "nvs_core_uri_port",
+            doc: None,
         },
         CoreMethod {
             name: "path",
@@ -463,6 +475,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_uri_path",
+            doc: None,
         },
         CoreMethod {
             name: "query",
@@ -470,6 +483,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_uri_query",
+            doc: None,
         },
         CoreMethod {
             name: "fragment",
@@ -477,6 +491,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_uri_fragment",
+            doc: None,
         },
         CoreMethod {
             name: "toString",
@@ -484,6 +499,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_uri_to_string",
+            doc: None,
         },
         CoreMethod {
             name: "with",
@@ -522,6 +538,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             symbol: "nvs_core_uri_with",
+            doc: None,
         },
         CoreMethod {
             name: "resolve",
@@ -529,6 +546,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             symbol: "nvs_core_uri_resolve",
+            doc: None,
         },
         CoreMethod {
             name: "compareTo",
@@ -536,6 +554,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_uri_compare_to",
+            doc: None,
         },
     ],
     slots: &[

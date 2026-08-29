@@ -97,6 +97,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Uint,
             symbol: "nvs_core_arr_count",
+            doc: None,
         },
         CoreMethod {
             name: "filter",
@@ -104,6 +105,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_filter",
+            doc: None,
         },
         CoreMethod {
             name: "map",
@@ -111,6 +113,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("U")),
             symbol: "nvs_core_arr_map",
+            doc: None,
         },
         CoreMethod {
             name: "mapKeys",
@@ -118,6 +121,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_map_keys",
+            doc: None,
         },
         CoreMethod {
             name: "groupBy",
@@ -125,6 +129,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Array(&CoreTy::Var("T"))),
             symbol: "nvs_core_arr_group_by",
+            doc: None,
         },
         CoreMethod {
             name: "reduce",
@@ -136,6 +141,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Var("U"),
             symbol: "nvs_core_arr_reduce",
+            doc: None,
         },
         CoreMethod {
             name: "find",
@@ -143,6 +149,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_find",
+            doc: None,
         },
         CoreMethod {
             name: "findKey",
@@ -150,6 +157,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_arr_find_key",
+            doc: None,
         },
         CoreMethod {
             name: "any",
@@ -157,6 +165,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_arr_any",
+            doc: None,
         },
         CoreMethod {
             name: "all",
@@ -164,6 +173,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_arr_all",
+            doc: None,
         },
         CoreMethod {
             name: "isEmpty",
@@ -171,6 +181,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_arr_is_empty",
+            doc: None,
         },
         CoreMethod {
             name: "hasKey",
@@ -181,6 +192,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_arr_has_key",
+            doc: None,
         },
         CoreMethod {
             name: "contains",
@@ -188,6 +200,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_arr_contains",
+            doc: None,
         },
         CoreMethod {
             name: "keyOf",
@@ -195,6 +208,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_arr_key_of",
+            doc: None,
         },
         CoreMethod {
             name: "isList",
@@ -202,6 +216,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_arr_is_list",
+            doc: None,
         },
         CoreMethod {
             name: "keys",
@@ -209,6 +224,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
             symbol: "nvs_core_arr_keys",
+            doc: None,
         },
         CoreMethod {
             name: "values",
@@ -216,6 +232,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_values",
+            doc: None,
         },
         CoreMethod {
             name: "first",
@@ -223,6 +240,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_first",
+            doc: None,
         },
         CoreMethod {
             name: "last",
@@ -230,6 +248,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_last",
+            doc: None,
         },
         CoreMethod {
             name: "firstKey",
@@ -237,6 +256,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_arr_first_key",
+            doc: None,
         },
         CoreMethod {
             name: "lastKey",
@@ -244,6 +264,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_arr_last_key",
+            doc: None,
         },
         CoreMethod {
             name: "slice",
@@ -256,6 +277,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[Const::Null],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_slice",
+            doc: None,
         },
         CoreMethod {
             name: "replaceRange",
@@ -268,6 +290,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[Const::EmptyArray],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_replace_range",
+            doc: None,
         },
         CoreMethod {
             name: "chunk",
@@ -279,6 +302,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Array(&CoreTy::Var("T"))),
             symbol: "nvs_core_arr_chunk",
+            doc: None,
         },
         CoreMethod {
             name: "append",
@@ -289,6 +313,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_append",
+            doc: None,
         },
         CoreMethod {
             name: "prepend",
@@ -299,6 +324,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_prepend",
+            doc: None,
         },
         CoreMethod {
             name: "withoutFirst",
@@ -306,6 +332,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_without_first",
+            doc: None,
         },
         CoreMethod {
             name: "withoutLast",
@@ -313,6 +340,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_without_last",
+            doc: None,
         },
         CoreMethod {
             name: "padStart",
@@ -324,6 +352,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_pad_start",
+            doc: None,
         },
         CoreMethod {
             name: "padEnd",
@@ -335,6 +364,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_pad_end",
+            doc: None,
         },
         CoreMethod {
             name: "reverse",
@@ -345,6 +375,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_reverse",
+            doc: None,
         },
         CoreMethod {
             name: "flip",
@@ -352,6 +383,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
             symbol: "nvs_core_arr_flip",
+            doc: None,
         },
         CoreMethod {
             name: "flatten",
@@ -359,6 +391,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_flatten",
+            doc: None,
         },
         CoreMethod {
             name: "flattenDeep",
@@ -366,6 +399,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Mixed),
             symbol: "nvs_core_arr_flatten_deep",
+            doc: None,
         },
         CoreMethod {
             name: "column",
@@ -377,6 +411,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_column",
+            doc: None,
         },
         CoreMethod {
             name: "sort",
@@ -387,6 +422,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_sort",
+            doc: None,
         },
         CoreMethod {
             name: "sortByKey",
@@ -397,6 +433,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_sort_by_key",
+            doc: None,
         },
         CoreMethod {
             name: "fill",
@@ -404,6 +441,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_fill",
+            doc: None,
         },
         CoreMethod {
             name: "fillKeys",
@@ -411,6 +449,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_fill_keys",
+            doc: None,
         },
         CoreMethod {
             name: "range",
@@ -418,6 +457,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Int),
             symbol: "nvs_core_arr_range",
+            doc: None,
         },
         CoreMethod {
             name: "fromKeysAndValues",
@@ -428,6 +468,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_from_keys_and_values",
+            doc: None,
         },
         CoreMethod {
             name: "from",
@@ -438,6 +479,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_from",
+            doc: None,
         },
         CoreMethod {
             name: "overlay",
@@ -448,6 +490,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Union(COMBINED)),
             symbol: "nvs_core_arr_overlay",
+            doc: None,
         },
         CoreMethod {
             name: "overlayDeep",
@@ -458,6 +501,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Union(COMBINED)),
             symbol: "nvs_core_arr_overlay_deep",
+            doc: None,
         },
         CoreMethod {
             name: "underlay",
@@ -468,6 +512,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Union(COMBINED)),
             symbol: "nvs_core_arr_underlay",
+            doc: None,
         },
         CoreMethod {
             name: "appendAll",
@@ -478,6 +523,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Union(COMBINED)),
             symbol: "nvs_core_arr_append_all",
+            doc: None,
         },
         CoreMethod {
             name: "diff",
@@ -489,6 +535,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_diff",
+            doc: None,
         },
         CoreMethod {
             name: "intersect",
@@ -500,6 +547,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_intersect",
+            doc: None,
         },
         CoreMethod {
             name: "countBy",
@@ -507,6 +555,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Uint),
             symbol: "nvs_core_arr_count_by",
+            doc: None,
         },
         CoreMethod {
             name: "unique",
@@ -514,6 +563,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_unique",
+            doc: None,
         },
         CoreMethod {
             name: "min",
@@ -521,6 +571,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_min",
+            doc: None,
         },
         CoreMethod {
             name: "max",
@@ -528,6 +579,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_max",
+            doc: None,
         },
         CoreMethod {
             name: "sum",
@@ -535,6 +587,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Union(crate::math::NUMBER),
             symbol: "nvs_core_arr_sum",
+            doc: None,
         },
         CoreMethod {
             name: "product",
@@ -542,6 +595,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Union(crate::math::NUMBER),
             symbol: "nvs_core_arr_product",
+            doc: None,
         },
         CoreMethod {
             name: "average",
@@ -549,6 +603,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Union(QUOTIENT)),
             symbol: "nvs_core_arr_average",
+            doc: None,
         },
     ],
     instance: &[],

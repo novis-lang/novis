@@ -133,6 +133,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_json_encode",
+            doc: None,
         },
         CoreMethod {
             name: "decode",
@@ -143,6 +144,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Mixed,
             symbol: "nvs_core_json_decode",
+            doc: None,
         },
         CoreMethod {
             name: "decodeAs",
@@ -153,6 +155,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Written("T"),
             symbol: "nvs_core_json_decode_as",
+            doc: None,
         },
         CoreMethod {
             name: "isValid",
@@ -160,6 +163,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_json_is_valid",
+            doc: None,
         },
     ],
     instance: &[],
