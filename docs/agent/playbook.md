@@ -1227,6 +1227,14 @@ is why" — is this file.
   produced before suspecting the code under test — everything after it is teardown. The fix is to
   detach (drop the `JoinHandle`s) and let the threads see a shutdown flag, which is what a pool that
   may be torn down from anywhere has to do anyway.
+- **A `loop-goal.toml` acceptance check reports the *first* diagnostic, not the tree's whole
+  distance from passing.** Stage 6's check on `examples/isolate.nvs` has said
+  `E0703 — 'spawn script' is not compiled yet` for several sessions, which reads as one construct
+  away. It is three: `./target/debug/nvs.exe check examples/isolate.nvs` also reports `E0319`
+  (`await` is not a constant that exists) and `E0101` on the very next line, because `await` is
+  not a keyword — it is nowhere in `nvs-syntax`'s AST, so the example does not even parse past it.
+  One `nvs check` of a failing `exact` check's own file, before planning the group that closes it,
+  is the difference between a group and a milestone.
 
 ## Writing a test case
 

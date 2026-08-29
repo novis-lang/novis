@@ -340,9 +340,36 @@
 > the whole of "a child cannot read or write a parent static". It is safe where `Ctx::child` is
 > `unsafe`, because nothing in the returned context points into the parent. Four of Stage 6's eight
 > `cargo-named` names are green on it, plus two the module's own asymmetry needs; 116 tests in the
-> crate against 110. The steps the chain took are in goals/README.md § *Starting the chain*. The
-> steps the chain took are in [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's
-> own residue is the 1000-case corpus count, which orders 1–4 meet as the suite grows; nothing else
+> crate against 110. The other half of the pair — where the code an isolate runs *comes from* — is
+> now on disk as well. `crates/nvs-runtime/src/script.rs` is the second seam this crate inverts,
+> beside `host.rs`'s: a `Resolver` trait declared where both sides already depend on it, published
+> in a thread-local, and one `resolve(path)` answering with a `Program` or with `ResolveError`'s two
+> variants. It is a seam of its own rather than a third `Host` method because the two have different
+> subjects and different lifetimes — a host is per core and its subject is a task, a resolver is per
+> program and its subject is code, and `nvs check` has a resolver's whole toolchain with no
+> scheduler while a bare worker thread has the reverse. `nvs_host::Program` is now a re-export of
+> that seam's type rather than a second declaration of the same closure, so the argument-transfer
+> contract has one home. `crates/nvs-cli/src/script.rs` is the one implementor: the front end,
+> `lower_program` and `nvs_codegen::compile` `nvs run` already carries, behind a cache keyed by the
+> path **as written**, leaked once per process so that ADR 0006's "an isolate shares immutable
+> compiled code" is a property of that cache and of nothing else. Its module doc owns the two
+> decisions only an implementor can make — a relative path is anchored at the **working directory**
+> rather than at the entry file, which is what `examples/isolate.nvs` is already written against and
+> what `require`'s opposite rule (ADR 0021, resolved against the requiring file, because a library
+> moves as a unit) is the contrast for; and one unit per written path, at a footprint of O(the
+> program's text) rather than O(isolates spawned). Where the transferred argument *lands* is decided
+> too: `Ctx::set_isolate_argument` is the isolate's own ownership root holding it, released when
+> that context is dropped, which is ADR 0116 § 2's wholesale release reaching the one value a
+> program is handed and has nowhere else to put. The route is proved end to end without any of the
+> language surface — `examples/isolate/hello.nvs` resolves, runs inside a real `Isolate` and hands
+> back `child said hello`, and `throws.nvs` arrives as `ok = false` carrying `RuntimeError` rather
+> than as an `Err`. What is left of item 20 is the language surface, and it is **three** constructs
+> rather than the one the acceptance check names: `spawn script` still reports `E0703` from
+> `nvs-types`, there is no `ScriptResult`, and `await` is not a keyword at all — `nvs check
+> examples/isolate.nvs` reports it as `E0319`, a bare constant that does not exist, followed by
+> `E0101`. The steps the chain took are in goals/README.md § *Starting the chain*. The steps the
+> chain took are in [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's own
+> residue is the 1000-case corpus count, which orders 1–4 meet as the suite grows; nothing else
 > about M4 is open. What the program is measured by is `python tools/check-migration.py` at 100%
 > classified, which stood at 25% the day the program was scheduled and reads 34% now that goal 1's
 > own five domains — dates and times, regular expressions, JSON, URLs and paths — carry a row per
