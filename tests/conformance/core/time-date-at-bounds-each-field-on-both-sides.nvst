@@ -1,0 +1,153 @@
+--TEST--
+Spec § 4: `Core\Time\Date::at` bounds each of its three fields on both sides — year -9999/9999 against -10000/10000, month 1/12 against 0/13, day 1/31 against 0/32 — the day's own ceiling is read from the other two fields rather than fixed, and past every calendar bound there is a second one, a field wider than the calendar writes, with its own sentence and its own pair of neighbours
+--FILE--
+<?nvs
+// § 4: `at` is the only way to write a `Date`'s three fields, so the bounds it
+// enforces are the whole of what a calendar date can be. Each is asserted on
+// both sides: a member that stopped one entry early prints plausibly against
+// either half alone, and a member that clamped instead of refusing prints
+// plausibly against the accepted half.
+//
+// Unlike the clock's four fields, a date's three do not have independent
+// ceilings — February's last day is a fact about the year — so the sweep below
+// is over (year, month) pairs and not over a fixed row.
+class Cal {
+    // The rendering, or the refusal, as one string. Both halves of every bound
+    // below go through this, so an accepted value and a refused one are told
+    // apart by what came back and never by which line printed.
+    public static function at(int $year, int $month, int $day): string {
+        try {
+            return Core\Time\Date::at($year, $month as uint, $day as uint)->format("yyyy-MM-dd");
+        } catch (RuntimeError $refused) {
+            return $refused->message;
+        }
+    }
+
+    public static function accepted(int $year, int $month, int $day): bool {
+        return !Core\Str::contains(Cal::at($year, $month, $day), "Core\\Time\\Date::at()");
+    }
+
+    // The second bound, the one past the calendar: a number no calendar field
+    // can hold at all. `date_from_parts` narrows the three `int`s to the
+    // widths `civil::Date::new` takes *before* the calendar sees them, so a
+    // field past that width is refused by a different sentence — one naming
+    // the three fields together rather than the one that spoiled the date.
+    public static function narrowed(int $year, int $month, int $day): bool {
+        return Core\Str::contains(
+            Cal::at($year, $month, $day),
+            "a month and a day are numbers a calendar writes",
+        );
+    }
+}
+
+// The accepted side, one field at a time: each row puts a single field at an
+// end and the others at their floor, so a bound read off the wrong field shows
+// up as a rendering rather than as a missing refusal. The year has two ends
+// and the other two fields have one apiece, because a month and a day are
+// counted from 1 and a year is not counted at all.
+echo "year-lo=", Cal::at(-9999, 1, 1), "|\n";
+echo "year-hi=", Cal::at(9999, 1, 1), "|\n";
+echo "month-hi=", Cal::at(2024, 12, 1), "|\n";
+echo "day-hi=", Cal::at(2024, 1, 31), "|\n";
+// All three at an end at once, which is where the bounds are simultaneously
+// reachable — so they are not three separate claims about three separate
+// dates.
+echo "all-three=", Cal::at(9999, 12, 31), "|\n";
+
+// The refused side, one past each end, in the same shape. The floors are
+// reached here and the clock's are not: `at`'s two `uint` fields still refuse
+// zero, because a calendar counts its months and days from one. A negative
+// month never reaches the member at all — that is `E0401: expected `uint`,
+// found `int`` in the checker, and a case that must fail to compile is a
+// different file.
+echo "year-past-lo=", Cal::at(-10000, 1, 1), "|\n";
+echo "year-past-hi=", Cal::at(10000, 1, 1), "|\n";
+echo "month-zero=", Cal::at(2024, 0, 1), "|\n";
+echo "month-past-hi=", Cal::at(2024, 13, 1), "|\n";
+echo "day-zero=", Cal::at(2024, 1, 0), "|\n";
+echo "day-past-hi=", Cal::at(2024, 1, 32), "|\n";
+
+// Which field the sentence names, when more than one is past its end. Unlike
+// the clock's constructor — whose four fields arrive in one options bag and
+// are refused in one sentence naming the whole reading — a date's three are
+// checked in the calendar's own precedence, and the sentence names the
+// outermost field that is wrong: the year before the month, the month before
+// the day. That is the same precedence `compareTo` orders by.
+echo "all-past=", Cal::at(10000, 13, 32), "|\n";
+echo "two-past=", Cal::at(2024, 13, 32), "|\n";
+
+// The day's ceiling is not a number: it is read from the year and the month
+// together, which is the whole of why § 4 has no `checkdate`. Six (year,
+// month) pairs, each with the last day it accepts — including both halves of
+// the century rule, where 2000 is a leap year and 1900 is not — and each
+// asserted on both sides: the last day accepted, the next one refused. A
+// member holding one fixed ceiling per month passes the first four rows and
+// fails 1900; a member holding 31 everywhere fails all twelve counts.
+array<int> $years = [2024, 2023, 2000, 1900, 2024, 2024];
+array<int> $months = [2, 2, 2, 2, 4, 1];
+array<int> $lasts = [29, 28, 29, 28, 30, 31];
+int $row = 0;
+int $lastAccepted = 0;
+int $nextRefused = 0;
+string $ceilings = "";
+for (; $row < 6; $row = $row + 1) {
+    int $year = $years[$row as string];
+    int $month = $months[$row as string];
+    int $last = $lasts[$row as string];
+    if (Cal::accepted($year, $month, $last)) {
+        $lastAccepted = $lastAccepted + 1;
+    }
+    if (!Cal::accepted($year, $month, $last + 1)) {
+        $nextRefused = $nextRefused + 1;
+    }
+    $ceilings = $ceilings . Cal::at($year, $month, $last) . " ";
+}
+echo "last-accepted=", $lastAccepted as string,
+    " next-refused=", $nextRefused as string, "|\n";
+echo $ceilings, "|\n";
+// And the refusal says which month it is talking about, so a caller reading it
+// learns the ceiling rather than only that 29 was wrong.
+echo "leap-sentence=", Cal::at(2023, 2, 29), "|\n";
+
+// The second bound, past the calendar's. Every field has one, every one of
+// them is one entry wide, and the sentence changes across it: 32,767 is a year
+// the calendar refuses by name and 32,768 is a number no year field holds;
+// 127 is a month the calendar refuses by name and 128 is not a month at all.
+// Both halves are asserted, because a single refusal proves nothing about
+// where the two sentences part.
+echo "year-widest-calendar=", (!Cal::narrowed(32767, 1, 1)
+    && !Cal::accepted(32767, 1, 1)) as string,
+    " year-past-width=", Cal::narrowed(32768, 1, 1) as string,
+    " year-widest-calendar-lo=", (!Cal::narrowed(-32768, 1, 1)
+        && !Cal::accepted(-32768, 1, 1)) as string,
+    " year-past-width-lo=", Cal::narrowed(-32769, 1, 1) as string, "|\n";
+echo "month-widest-calendar=", (!Cal::narrowed(2024, 127, 1)
+    && !Cal::accepted(2024, 127, 1)) as string,
+    " month-past-width=", Cal::narrowed(2024, 128, 1) as string,
+    " day-widest-calendar=", (!Cal::narrowed(2024, 1, 127)
+        && !Cal::accepted(2024, 1, 127)) as string,
+    " day-past-width=", Cal::narrowed(2024, 1, 128) as string, "|\n";
+// A field far past everything is refused by that same second sentence rather
+// than taken modulo anything: month 100,000 is not month 4 of some later year,
+// which is the difference between a constructor and the step `plus` takes.
+echo "far-past=", Cal::at(2024, 100000, 1), "|\n";
+--EXPECT--
+year-lo=-9999-01-01|
+year-hi=9999-01-01|
+month-hi=2024-12-01|
+day-hi=2024-01-31|
+all-three=9999-12-31|
+year-past-lo=Core\Time\Date::at(): parameter 'year' is not in the required range of -9999..=9999|
+year-past-hi=Core\Time\Date::at(): parameter 'year' is not in the required range of -9999..=9999|
+month-zero=Core\Time\Date::at(): parameter 'month' is not in the required range of 1..=12|
+month-past-hi=Core\Time\Date::at(): parameter 'month' is not in the required range of 1..=12|
+day-zero=Core\Time\Date::at(): parameter 'day' is not in the required range of 1..=31|
+day-past-hi=Core\Time\Date::at(): parameter 'day' for `2024-01` is invalid, must be in range `1..=31`|
+all-past=Core\Time\Date::at(): parameter 'year' is not in the required range of -9999..=9999|
+two-past=Core\Time\Date::at(): parameter 'month' is not in the required range of 1..=12|
+last-accepted=6 next-refused=6|
+2024-02-29 2023-02-28 2000-02-29 1900-02-28 2024-04-30 2024-01-31 |
+leap-sentence=Core\Time\Date::at(): parameter 'day' for `2023-02` is invalid, must be in range `1..=28`|
+year-widest-calendar=1 year-past-width=1 year-widest-calendar-lo=1 year-past-width-lo=1|
+month-widest-calendar=1 month-past-width=1 day-widest-calendar=1 day-past-width=1|
+far-past=Core\Time\Date::at(): a year is within -9999..=9999, and a month and a day are numbers a calendar writes|
