@@ -131,6 +131,14 @@ impl std::fmt::Display for GraphError {
     }
 }
 
+/// The receiving side of a copy, as the one question the walk asks of it: does
+/// this program declare the class this name spells, and at what address?
+///
+/// The same shape [`decode`] takes for the same question, named here because a
+/// carrier holds one and an `Option` of it is past what a signature should
+/// spell out twice.
+pub type Receiving<'a> = &'a dyn Fn(&str) -> Option<*const ClassDesc>;
+
 /// What one node of a walked graph becomes.
 ///
 /// Implemented twice and no more — see the module docs' first decision.
@@ -160,6 +168,23 @@ trait Carrier {
     /// An instance of `class`, before any of its fields is walked. Registered
     /// in the identity map immediately, which is what lets a cycle terminate.
     fn open_object(&mut self, class: &ClassDesc, adopted: Option<Value>) -> Self::Node;
+
+    /// § 2's *unresolvable class*: may an instance of `class` exist on the
+    /// receiving side at all?
+    ///
+    /// A carrier question rather than one of [`refusable`]'s, because the two
+    /// carriers have different receiving sides — [`Encode`] writes the class
+    /// name into the payload and the answer is `decode`'s to give, once it
+    /// knows the table it is decoding *into*, while [`Live`] has that table in
+    /// hand at the crossing. The default is therefore "yes", and only `Live`
+    /// overrides it.
+    ///
+    /// # Errors
+    ///
+    /// [`GraphError`] naming the class, per § 2's "never a stub".
+    fn admit(&self, _class: &ClassDesc) -> Result<(), GraphError> {
+        Ok(())
+    }
 
     /// Entry or field `index` of `holder`, now that it has been walked. `key`
     /// is the array key it goes under, and `None` for an object's field slot.
@@ -277,6 +302,7 @@ fn walk<C: Carrier>(
             )]
             let class: &ClassDesc = unsafe { &*object.class() };
             refusable(class)?;
+            carrier.admit(class)?;
             let adopt = carrier.adopt(value);
             let holder = carrier.open_object(class, adopt.then_some(value));
             seen.insert(ptr, holder.clone());
@@ -338,10 +364,53 @@ fn refusable(class: &ClassDesc) -> Result<(), GraphError> {
 
 /// § 2's first carrier: arena-to-arena, with no intervening byte
 /// representation.
-struct Live;
+///
+/// `receiving` is the class table the copy lands in, when the crossing has one
+/// — the isolate boundary's answer, on its way back to a parent that compiled
+/// its own unit. `None` is a copy that does not leave the program that made it
+/// (`clone`, and the argument going *in*, whose destination table does not
+/// exist yet), where every class is by construction the receiving side's own.
+struct Live<'a> {
+    receiving: Option<Receiving<'a>>,
+}
 
-impl Carrier for Live {
+impl Carrier for Live<'_> {
     type Node = Value;
+
+    /// § 2's third bullet, at the live carrier: **the same class, not a class
+    /// of the same name.**
+    ///
+    /// Identity is the descriptor's address, which is stricter than resolving
+    /// the name and is deliberately so. A copy keeps the descriptor it was
+    /// built with — that is what makes an adopted allocation a pointer handoff
+    /// rather than a rebuild (ADR 0116 § 5) — so admitting a same-named class
+    /// from another compiled unit would hand the receiving side an object
+    /// whose field indices are the *sender's* layout and whose methods are the
+    /// sender's compiled code. That is a hole in the isolation the boundary
+    /// exists for, and the priority ordering does not trade rule 1 for the
+    /// convenience of rule 4.
+    ///
+    /// What it costs is worth stating plainly: `nvs-cli`'s resolver compiles
+    /// one unit per written path, so today a class declared in both files is
+    /// two descriptors and an instance of it does not cross. Making it cross
+    /// is a question about *sharing a class table between units*, not about
+    /// this walk.
+    fn admit(&self, class: &ClassDesc) -> Result<(), GraphError> {
+        let Some(receiving) = self.receiving else {
+            return Ok(());
+        };
+        let name = class.name();
+        match receiving(name) {
+            Some(desc) if std::ptr::eq(desc, std::ptr::from_ref(class)) => Ok(()),
+            Some(_) => Err(GraphError(format!(
+                "`{name}` on the receiving side is a different class, so an \
+                 instance of this one has no meaning there"
+            ))),
+            None => Err(GraphError(format!(
+                "`{name}` is not a class the receiving side declares"
+            ))),
+        }
+    }
 
     fn adopt(&mut self, value: Value) -> bool {
         // The walk holds one reference; if it is the only one, nothing else
@@ -418,8 +487,27 @@ impl Carrier for Live {
 /// [`GraphError`] naming the value that has no meaning on the other side, or
 /// the `secret` property that may not cross unrevealed.
 pub fn copy_graph(value: Value) -> Result<Value, GraphError> {
+    copy_graph_into(value, None)
+}
+
+/// The same copy, made *into* a program whose class table `receiving` answers
+/// for — [`Live::admit`] is the whole of the difference.
+///
+/// One function with an `Option` rather than two, because a caller that has a
+/// receiving table and a caller that does not are the same crossing otherwise,
+/// and the walk may not learn which one it is running under.
+///
+/// # Errors
+///
+/// Everything [`copy_graph`] refuses, plus an object whose class the receiving
+/// side does not have — ADR 0023 § 2's third bullet, which [`Live::admit`]
+/// owns the reading of.
+pub fn copy_graph_into(
+    value: Value,
+    receiving: Option<Receiving<'_>>,
+) -> Result<Value, GraphError> {
     let mut seen = Seen::new();
-    walk(&mut Live, value, &mut seen, 0)
+    walk(&mut Live { receiving }, value, &mut seen, 0)
 }
 
 // ============================================================================

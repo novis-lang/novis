@@ -1266,6 +1266,23 @@ impl Ctx {
         Some(self.runtime_error_class.as_ref()?.sibling(name)?.desc())
     }
 
+    /// The same table as a **handle that keeps it alive by itself** — one
+    /// [`ErrorClass`] is a handle on the whole table, since `sibling` reaches
+    /// any class in it by name.
+    ///
+    /// [`Self::class_desc`] answers for a caller holding this context; this
+    /// answers for one that will still be asking after it has let go of it.
+    /// Its caller is the isolate boundary: a child's answer is copied out on
+    /// the child's own stack, where the *parent's* context is borrowed by the
+    /// frame parked on the join, so the receiving side has to have been taken
+    /// before the child started. Cloning it is an `Rc` bump and holding it
+    /// keeps one class table alive for the length of one isolate, which is
+    /// bounded by what is in flight.
+    #[must_use]
+    pub fn class_table(&self) -> Option<ErrorClass> {
+        self.runtime_error_class.clone()
+    }
+
     /// The descriptor `class` names, or the installed `RuntimeError`'s if the
     /// table holds no such class, or null if none was installed at all.
     ///
