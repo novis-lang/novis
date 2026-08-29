@@ -104,6 +104,10 @@ pub fn check_program(
     // declaring class to disambiguate it, so a counter that restarted per
     // file would give two files' first closures the same synthesized class.
     let mut closure_seq = 0;
+    // ADR 0077 § 5's rows accumulate across the files rather than per file:
+    // `crate::routes::check_table` reports collisions between declarations,
+    // and § 5's scan is what brings two files' routes into one program.
+    let mut routes = crate::routes::RouteTable::default();
     for file in files {
         let mut env = Env {
             symbols: &module.symbols,
@@ -116,6 +120,7 @@ pub fn check_program(
             src: file.src,
             interner: &mut *interner,
             exprs: &mut *exprs,
+            routes: &mut routes,
             diags: &mut *diags,
             closure_seq,
             exit_targets: Vec::new(),
@@ -133,6 +138,7 @@ pub fn check_program(
         check_stmts(file.stmts, &[], &FxHashMap::default(), &mut frame, &mut env);
         closure_seq = env.closure_seq;
     }
+    crate::routes::check_table(&routes, diags);
     record_property_types(&signatures, exprs);
     enums
 }
@@ -228,6 +234,7 @@ pub(crate) fn check_stmts(
                 crate::derive::check_class_derive(decl, &qname, &ctx, env);
                 crate::testing::check_class_tests(decl, &qname, &ctx, env);
                 crate::commands::check_class_commands(decl, &qname, &ctx, env);
+                crate::routes::check_class_routes(decl, &qname, &ctx, env);
                 record_property_defaults(&qname, env);
                 record_lateinit_properties(&qname, env);
                 record_static_properties(&qname, env);

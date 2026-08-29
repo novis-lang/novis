@@ -340,6 +340,16 @@ pub(crate) struct Env<'a> {
     /// Where a call's/`new`'s resolved target is persisted for `nvs-ir` to
     /// read back later — see [`crate::expr_table`]'s own module docs.
     pub exprs: &'a mut crate::expr_table::ExprTypeTable,
+    /// ADR 0077 § 5's route table as it is collected — one row per `#[Route]`
+    /// the per-class walk reaches, across every file.
+    ///
+    /// Here rather than a local of [`crate::check::check_program`]'s loop
+    /// because both of the errors [`crate::routes::check_table`] reports are
+    /// collisions *between* declarations, and § 5's scan is what puts the two
+    /// colliding files in the same program in the first place. The pass that
+    /// only collects signatures hands it a scratch table, exactly as it does
+    /// [`Self::exprs`].
+    pub routes: &'a mut crate::routes::RouteTable,
     pub diags: &'a mut nvs_diagnostics::Diagnostics,
     /// How many ADR 0031 `fn` closure literals this run has checked so far —
     /// the suffix that makes each one's synthesized environment class label

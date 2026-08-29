@@ -2,14 +2,24 @@
 //! out of the route table, and the payload check that is the pass behind the
 //! roster entry.
 //!
-//! The table itself has no rows yet — `nvs_types::routes`' gaps own what §§ 1-3
-//! still cannot report — so what is asserted here is exactly what the name *is*
-//! today: recognized after `nvs_hir::resolve_ref`, and checked against a roster
-//! of options rather than against a shape.
+//! The table now has rows, and the two errors that are questions about the
+//! whole enumeration — a route declared twice and a `name` claimed twice — are
+//! asserted here too. What it still owes is `nvs_types::routes`' own gap list:
+//! nothing reverses the table, and nothing reads the method an attribute is
+//! attached to.
 
 mod common;
 
 use common::check_src;
+use nvs_diagnostics::{Code, Diagnostics, code};
+
+/// Whether `diags` reported `want`. Asserted by code rather than by
+/// `has_errors`, because every fixture below writes a payload the roster walk
+/// also has an opinion about, and "some error was reported" is satisfied by
+/// the wrong one.
+fn reported(diags: &Diagnostics, want: Code) -> bool {
+    diags.iter().any(|d| d.code == Some(want))
+}
 
 /// § 1's own example, reduced to one controller method. The placing import is
 /// per *name* — `use Core\Route;` aliases `Route`, and it is not the
@@ -25,7 +35,9 @@ fn a_route_is_matched_nominally_rather_than_as_a_shape() {
     // `type` alias and was never going to be one, because § 1 builds a table
     // from it and a userland alias must not contribute a route.
     let diags = check_src(
-        "<?nvs\nclass Users {\n  #[\\Core\\Route(path: \"/users/{id}\", name: \"Users::show\")]\n  \
+        "<?nvs\nclass Users {\n  \
+         #[\\Core\\Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get, \
+         name: \"Users::show\")]\n  \
          public function show(uint $id): string { return \"\"; }\n}\n",
     );
     assert!(!diags.has_errors(), "{diags:?}");
@@ -35,11 +47,12 @@ fn a_route_is_matched_nominally_rather_than_as_a_shape() {
     // is the ordinary undeclared-name refusal rather than a silently ignored
     // attribute.
     let diags = check_src(&route_src(
-        "  #[Route(path: \"/health\")]\n  public function health(): string { return \"\"; }\n",
+        "  #[Route(path: \"/health\", method: \\Core\\Http\\Method::Get)]\n  \
+         public function health(): string { return \"\"; }\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
     let diags = check_src(
-        "<?nvs\nclass Users {\n  #[Route(path: \"/health\")]\n  \
+        "<?nvs\nclass Users {\n  #[Route(path: \"/health\", method: \\Core\\Http\\Method::Get)]\n  \
          public function health(): string { return \"\"; }\n}\n",
     );
     assert!(diags.has_errors());
@@ -49,10 +62,12 @@ fn a_route_is_matched_nominally_rather_than_as_a_shape() {
 fn the_attribute_repeats_so_one_method_serves_two_verbs() {
     // § 1: no `methods: array<Method>` field and no union — ADR 0046 § 3's
     // repeatability is what already covers it, so two attributes on one method
-    // are two payloads each checked on its own.
+    // are two payloads each checked on its own, and two rows of the table.
+    // Two *verbs*, because the rows are what § 3's duplicate-route error is
+    // over and one path served twice by the same verb is that error.
     let diags = check_src(&route_src(
-        "  #[Route(path: \"/health\", name: \"health.get\")]\n  \
-         #[Route(path: \"/health\", name: \"health.head\")]\n  \
+        "  #[Route(path: \"/health\", method: \\Core\\Http\\Method::Get, name: \"health.get\")]\n  \
+         #[Route(path: \"/health\", method: \\Core\\Http\\Method::Head, name: \"health.head\")]\n  \
          public function health(): string { return \"\"; }\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
@@ -127,4 +142,83 @@ fn a_case_of_another_enum_is_refused_at_the_method_option() {
          public function index(): string { return \"\"; }\n}\n",
     );
     assert!(diags.has_errors());
+}
+
+#[test]
+fn a_row_needs_a_path_and_a_verb_and_says_which_is_missing() {
+    // § 1 marks only `name` optional. The empty attribute is the shape the
+    // userland alias it replaces would have refused, and it is refused by the
+    // pass that would have to build a row out of it.
+    let diags = check_src(&route_src(
+        "  #[Route]\n  public function health(): string { return \"\"; }\n",
+    ));
+    assert!(reported(&diags, code::E_ROUTE_INCOMPLETE), "{diags:?}");
+    assert_eq!(diags.error_count(), 1, "{diags:?}");
+
+    // One diagnostic for the empty attribute above, and one here — never one
+    // per missing field, which is the same attribute reported twice.
+    let diags = check_src(&route_src(
+        "  #[Route(name: \"health\")]\n  public function health(): string { return \"\"; }\n",
+    ));
+    assert_eq!(diags.error_count(), 1, "{diags:?}");
+
+    // A `path` written at the wrong type is that error and not this one: the
+    // field is there, and naming it missing would report the author's second
+    // problem ahead of their first.
+    let diags = check_src(&route_src(
+        "  #[Route(path: 1, method: \\Core\\Http\\Method::Get)]\n  \
+         public function health(): string { return \"\"; }\n",
+    ));
+    assert!(diags.has_errors());
+    assert!(!reported(&diags, code::E_ROUTE_INCOMPLETE), "{diags:?}");
+}
+
+#[test]
+fn one_route_shape_is_served_once_per_verb() {
+    // § 2 matches by shape, so two captures differing only in name are the one
+    // route both would match — the pair the written text would call different.
+    let diags = check_src(&route_src(
+        "  #[Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get, name: \"a\")]\n  \
+         public function show(uint $id): string { return \"\"; }\n  \
+         #[Route(path: \"/users/{userId}\", method: \\Core\\Http\\Method::Get, name: \"b\")]\n  \
+         public function other(uint $userId): string { return \"\"; }\n",
+    ));
+    assert!(reported(&diags, code::E_DUPLICATE_ROUTE), "{diags:?}");
+
+    // The same path under a different verb is a different route, and a
+    // different literal segment is a different shape — the two halves that
+    // stop this from being a rule about the path alone.
+    let diags = check_src(&route_src(
+        "  #[Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get, name: \"a\")]\n  \
+         public function show(uint $id): string { return \"\"; }\n  \
+         #[Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Delete, name: \"b\")]\n  \
+         public function drop(uint $id): string { return \"\"; }\n  \
+         #[Route(path: \"/users/new\", method: \\Core\\Http\\Method::Get, name: \"c\")]\n  \
+         public function fresh(): string { return \"\"; }\n",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn a_route_name_names_one_route() {
+    // § 4's `url` reverses the table by name, so a name meaning two routes is
+    // a link with no answer — a question about the enumeration, which is why
+    // it is asked once every file has been walked rather than per declaration.
+    let diags = check_src(&route_src(
+        "  #[Route(path: \"/users\", method: \\Core\\Http\\Method::Get, name: \"Users::show\")]\n  \
+         public function index(): string { return \"\"; }\n  \
+         #[Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get, name: \"Users::show\")]\n  \
+         public function show(uint $id): string { return \"\"; }\n",
+    ));
+    assert!(reported(&diags, code::E_DUPLICATE_ROUTE_NAME), "{diags:?}");
+
+    // Two rows with no `name` at all collide over nothing: § 1 leaves it
+    // optional, and an absent name is not a name two routes share.
+    let diags = check_src(&route_src(
+        "  #[Route(path: \"/users\", method: \\Core\\Http\\Method::Get)]\n  \
+         public function index(): string { return \"\"; }\n  \
+         #[Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get)]\n  \
+         public function show(uint $id): string { return \"\"; }\n",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
 }

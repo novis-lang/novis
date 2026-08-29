@@ -1891,6 +1891,38 @@ pub mod code {
     /// answer it.
     pub const E_OPTION_TYPE_HAS_NO_CONVERSION: Code = Code::new("E0746");
 
+    /// A `#[Route]` gives no `path`, no `method`, or neither.
+    ///
+    /// ADR 0077 § 1 marks only `name` optional, and a row of § 5's table is a
+    /// path and a verb together: an attribute naming neither declares nothing
+    /// and would be a route the author believes exists. Reported by the pass
+    /// that builds the table rather than by the payload's roster check, for
+    /// the reason `nvs_types::routes` states — a roster says what a field may
+    /// hold, and *required* is a fact about the row.
+    ///
+    /// Both missing fields are named in one diagnostic: an author who wrote
+    /// neither wrote one empty attribute, not two mistakes.
+    pub const E_ROUTE_INCOMPLETE: Code = Code::new("E0747");
+
+    /// Two `#[Route]`s declare the same verb and the same path shape.
+    ///
+    /// ADR 0077 § 3's duplicate-route error. § 2 matches by *shape*, so
+    /// `/users/{id}` and `/users/{userId}` are one route however they are
+    /// spelled, and the same path under a different verb is not a duplicate at
+    /// all. A question about the whole enumeration rather than about one
+    /// declaration, so it is reported once every file has been walked, at the
+    /// declaration that arrives second in load order.
+    pub const E_DUPLICATE_ROUTE: Code = Code::new("E0748");
+
+    /// Two `#[Route]`s claim the same `name`.
+    ///
+    /// ADR 0077 § 3's second table-wide error, and the one § 4 rests on:
+    /// `Core\Router::url` reverses the table by name, so a name that means two
+    /// routes is a link with no answer. Reported at the second declaration,
+    /// like [`E_DUPLICATE_ROUTE`], and at the `name:` field rather than at the
+    /// whole attribute, because the rest of the attribute is fine.
+    pub const E_DUPLICATE_ROUTE_NAME: Code = Code::new("E0749");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

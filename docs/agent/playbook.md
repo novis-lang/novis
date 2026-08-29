@@ -2766,6 +2766,12 @@ sibling in the same namespace unqualified.
   `Core\Arr::append`'s second parameter is one *element*, so `Core\Arr::append($a, $b)`
   over two arrays is `E0401: expected int, found array<int>` rather than a concatenation
   — build the combined array with a `foreach` and one `append` per element.
+- **A field added to `nvs_types::Env` builds clean and fails `--all-targets`.** There are three
+  construction sites, and the third (`crates/nvs-types/src/lower.rs:668`) is inside a `#[cfg(test)]`
+  module, so `cargo build -p nvs-types` is green while `cargo check -p nvs-types --all-targets` is the
+  first thing that reports `E0063: missing field`. The two real sites are `check.rs`'s per-file loop
+  and `signatures.rs`, which wants a scratch value for the same reason it passes a placeholder
+  `ExprTypeTable`: its pass runs before anything fills the new table.
 
 ## Divergences and refusals already pinned
 

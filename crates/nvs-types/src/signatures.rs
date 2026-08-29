@@ -601,6 +601,9 @@ pub fn build_signatures(
     // ever lowers property/parameter/return *type annotations*, never a call
     // expression, so nothing during this pass ever records into `exprs`.
     let mut placeholder_exprs = crate::expr_table::ExprTypeTable::default();
+    // And the same for ADR 0077 § 5's rows: they are collected by
+    // `crate::check`'s per-class walk, which is a later pass than this one.
+    let mut placeholder_routes = crate::routes::RouteTable::default();
     // Same again: ADR 0046 § 4's retrieval is an expression, and this pass
     // checks none, so the table it reads is empty here rather than built twice.
     let empty_attributes = crate::retrieval::AttributeTable::default();
@@ -616,6 +619,7 @@ pub fn build_signatures(
             src: file.src,
             interner: &mut *interner,
             exprs: &mut placeholder_exprs,
+            routes: &mut placeholder_routes,
             diags: &mut *diags,
             closure_seq: 0,
             exit_targets: Vec::new(),

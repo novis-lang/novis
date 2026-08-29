@@ -676,6 +676,7 @@ mod tests {
             src: map.file(file),
             interner: &mut interner,
             exprs: &mut exprs,
+            routes: &mut crate::routes::RouteTable::default(),
             diags: &mut diags,
             closure_seq: 0,
             exit_targets: Vec::new(),
