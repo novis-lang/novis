@@ -417,9 +417,9 @@ fn closure_param_tags(closure: Value) -> Result<u64, Fault> {
 /// *widened in place* rather than refused, through
 /// [`crate::helpers::widen_to_float`] and therefore through the same row a
 /// written `as float` takes. Above 2^53 that row refuses, and so does this —
-/// as `ArithmeticError`, the class ADR 0007 § 4 names for a numeric overflow,
-/// which a helper failure cannot reach (see `crate::helpers`'s `does_not_fit`)
-/// but this function can.
+/// as `ArithmeticError`, the class ADR 0007 § 4 names for a numeric overflow
+/// and the one `crate::helpers`' `numeric_does_not_fit` raises for the written
+/// `as float`.
 ///
 /// Because it converts, `args` is the caller's *copy* rather than the caller's
 /// slice; [`call_closure`] owns that distinction.

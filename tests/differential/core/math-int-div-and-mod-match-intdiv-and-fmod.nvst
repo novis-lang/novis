@@ -42,9 +42,9 @@ echo Core\Math::intDiv(Core\Math::INT_MAX, 1), " ", Core\Math::intDiv(Core\Math:
 // The two divisions that have no `int` answer, and both languages refuse both:
 // a zero divisor, and `INT_MIN / -1`, whose exact quotient is one past `int`'s
 // largest value. PHP raises `DivisionByZeroError` and `ArithmeticError`; Novis
-// raises a `Fault::thrown`. The class differs, so what is asserted is that a
-// `Throwable` handler reaches each of them, which is the observable both
-// languages share.
+// raises `ArithmeticError` for both. The first class differs, so what is
+// asserted is that a `Throwable` handler reaches each of them, which is the
+// observable both languages share.
 try {
     var $undefined = Core\Math::intDiv(7, 0);
     echo "divided\n";

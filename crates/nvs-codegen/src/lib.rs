@@ -413,9 +413,10 @@ impl Unit {
     /// Three obligations share the one call, and the second is the reason it
     /// is not optional:
     ///
-    /// 1. *Behaviour.* A runtime helper's failure carries only a message; the
-    ///    installed class is what promotes it to a catchable object with a
-    ///    backtrace ([`nvs_runtime::Ctx::set_runtime_error_class`]).
+    /// 1. *Behaviour.* A runtime helper's failure carries a message and a
+    ///    § 10 class name; the installed class is the anchor that resolves
+    ///    the name to a catchable object with a backtrace
+    ///    ([`nvs_runtime::Ctx::set_runtime_error_class`]).
     /// 2. *Safety.* Compiled code bakes each descriptor's address in as a
     ///    constant (see [`Classes`]), so an exception object still sitting on
     ///    the context points into this table and nothing else keeps it alive.

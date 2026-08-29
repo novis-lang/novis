@@ -830,9 +830,10 @@ impl<'a> Lowering<'a> {
     /// The throw is a `RuntimeError` and not the `LogicError` a closure
     /// parameter's identical check raises
     /// ([`super::closure`]'s `check_param_class`): this is the `as` operator,
-    /// whose every other checked row throws that class through
-    /// `nvs_runtime::helpers`' `does_not_fit`, and an operand out of `mixed` is
-    /// untrusted input rather than a call written wrong. What arrived is not
+    /// whose string and non-numeric rows throw that class through
+    /// `nvs_runtime::helpers`' `does_not_fit` (its numeric rows are ADR 0007
+    /// § 4's `ArithmeticError`), and an operand out of `mixed` is untrusted
+    /// input rather than a call written wrong. What arrived is not
     /// named in the message, for the reason that function's doc comment
     /// records — no [`InstKind`] reads an object's class name.
     ///

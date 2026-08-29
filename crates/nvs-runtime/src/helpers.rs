@@ -781,13 +781,14 @@ fn mixed_signedness() -> Fault {
 }
 
 /// ADR 0007 § 4's overflow throw, worded exactly as `nvs-codegen`'s
-/// `raise_arithmetic_error` words the statically typed row's.
-///
-/// Known gap, shared with [`arithmetic_error`] and [`does_not_fit`]: a helper
-/// failure carries only a message, so the driver promotes this to spec § 10's
-/// `RuntimeError` rather than the `ArithmeticError` the ADR names.
+/// `raise_arithmetic_error` words the statically typed row's, and of the same
+/// class: a tagged operand reaching this row and a typed one reaching that
+/// one are the same operation, so one `catch (ArithmeticError)` sees both.
 fn overflowed(op: ArithRow) -> Fault {
-    Fault::thrown(format!("Integer {} overflowed", op.word()))
+    Fault::thrown_as(
+        crate::ThrownClass::Arithmetic,
+        format!("Integer {} overflowed", op.word()),
+    )
 }
 
 /// The `int ⊕ int` rows. Every one that can leave the type is `checked_*`:
@@ -802,7 +803,10 @@ fn signed_arith(op: ArithRow, left: i64, right: i64) -> Result<Value, Fault> {
         ArithRow::Div => return signed_div(left, right),
         ArithRow::Mod => {
             if right == 0 {
-                return Err(Fault::thrown("Modulo by zero".to_owned()));
+                return Err(Fault::thrown_as(
+                    crate::ThrownClass::Arithmetic,
+                    "Modulo by zero",
+                ));
             }
             // `i64::MIN % -1` is `0` rather than an overflow, which is PHP 8's
             // answer and the identity `nvs-codegen`'s `emit_int_mod` rewrites
@@ -827,7 +831,10 @@ fn signed_arith(op: ArithRow, left: i64, right: i64) -> Result<Value, Fault> {
 /// `nvs-codegen`'s `emit_int_div` is the same three guards in Cranelift.
 fn signed_div(left: i64, right: i64) -> Result<Value, Fault> {
     if right == 0 {
-        return Err(Fault::thrown("Division by zero".to_owned()));
+        return Err(Fault::thrown_as(
+            crate::ThrownClass::Arithmetic,
+            "Division by zero",
+        ));
     }
     #[expect(
         clippy::cast_precision_loss,
@@ -907,7 +914,10 @@ fn unsigned_arith(op: ArithRow, left: u64, right: u64) -> Result<Value, Fault> {
         ArithRow::Div => return unsigned_div(left, right),
         ArithRow::Mod => {
             if right == 0 {
-                return Err(Fault::thrown("Modulo by zero".to_owned()));
+                return Err(Fault::thrown_as(
+                    crate::ThrownClass::Arithmetic,
+                    "Modulo by zero",
+                ));
             }
             left % right
         }
@@ -932,7 +942,10 @@ fn unsigned_arith(op: ArithRow, left: u64, right: u64) -> Result<Value, Fault> {
 /// overflow arm, an unsigned type having no asymmetric minimum.
 fn unsigned_div(left: u64, right: u64) -> Result<Value, Fault> {
     if right == 0 {
-        return Err(Fault::thrown("Division by zero".to_owned()));
+        return Err(Fault::thrown_as(
+            crate::ThrownClass::Arithmetic,
+            "Division by zero",
+        ));
     }
     if left.is_multiple_of(right) {
         return Ok(Value::uint(left / right));
@@ -985,13 +998,15 @@ fn float_arith(op: ArithRow, left: Value, right: Value) -> Result<Value, Fault> 
             let int = value
                 .as_int()
                 .ok_or_else(|| wrong_tag("nvs_value_arith", Tag::Int, value))?;
-            row::int_to_float(int).ok_or_else(|| does_not_fit(&format!("`int` {int}"), "float"))
+            row::int_to_float(int)
+                .ok_or_else(|| numeric_does_not_fit(&format!("`int` {int}"), "float"))
         }
         _ => {
             let uint = value
                 .as_uint()
                 .ok_or_else(|| wrong_tag("nvs_value_arith", Tag::Uint, value))?;
-            row::uint_to_float(uint).ok_or_else(|| does_not_fit(&format!("`uint` {uint}"), "float"))
+            row::uint_to_float(uint)
+                .ok_or_else(|| numeric_does_not_fit(&format!("`uint` {uint}"), "float"))
         }
     };
     let (left, right) = (operand(left)?, operand(right)?);
@@ -1244,13 +1259,24 @@ crate::nvs_helper! {
 /// fit — ADR 0007 § 2's "`as` ... either produces a value of the target type or
 /// throws. It never rounds, truncates, or substitutes a default."
 ///
-/// Known gap: the message is all a helper failure can carry, so the driver
-/// promotes every one of these to spec § 10's `RuntimeError`. ADR 0007 § 4
-/// names `ArithmeticError` for a numeric overflow, which is the closer class —
-/// reaching it needs a helper failure to name its own class, which nothing in
-/// `crate::abi` expresses yet.
+/// Spec § 10's `RuntimeError` — "the world said no" — for a string that is not
+/// a number and for a `mixed` whose tag is not the target's at all. A
+/// *numeric* value the target has no room for is [`numeric_does_not_fit`].
 fn does_not_fit(what: &str, target: &str) -> Fault {
     Fault::thrown(format!("cannot convert {what} to `{target}`"))
+}
+
+/// [`does_not_fit`] for a number the target type has no room for — an `int`
+/// past 2^53 into `float`, a `float` with a fraction into `int`, a `uint` past
+/// `int::MAX` — which is the overflow ADR 0007 § 4 names `ArithmeticError`,
+/// and the class `crate::closure`'s identical widening check already raises.
+/// Same wording as the non-numeric case, so a diagnostic quoting one quotes
+/// both.
+fn numeric_does_not_fit(what: &str, target: &str) -> Fault {
+    Fault::thrown_as(
+        crate::ThrownClass::Arithmetic,
+        format!("cannot convert {what} to `{target}`"),
+    )
 }
 
 /// ADR 0007 § 2's checked conversion rows, one function each, answering `None`
@@ -1346,7 +1372,7 @@ crate::nvs_helper! {
         let value = expect_tag!("nvs_int_to_uint", args[0], as_int, Tag::Int);
         row::int_to_uint(value)
             .map(Value::uint)
-            .ok_or_else(|| does_not_fit(&format!("`int` {value}"), "uint"))
+            .ok_or_else(|| numeric_does_not_fit(&format!("`int` {value}"), "uint"))
     }
 }
 
@@ -1356,7 +1382,7 @@ crate::nvs_helper! {
         let value = expect_tag!("nvs_uint_to_int", args[0], as_uint, Tag::Uint);
         row::uint_to_int(value)
             .map(Value::int)
-            .ok_or_else(|| does_not_fit(&format!("`uint` {value}"), "int"))
+            .ok_or_else(|| numeric_does_not_fit(&format!("`uint` {value}"), "int"))
     }
 }
 
@@ -1366,7 +1392,7 @@ crate::nvs_helper! {
         let value = expect_tag!("nvs_int_to_float", args[0], as_int, Tag::Int);
         row::int_to_float(value)
             .map(Value::float)
-            .ok_or_else(|| does_not_fit(&format!("`int` {value}"), "float"))
+            .ok_or_else(|| numeric_does_not_fit(&format!("`int` {value}"), "float"))
     }
 }
 
@@ -1376,7 +1402,7 @@ crate::nvs_helper! {
         let value = expect_tag!("nvs_uint_to_float", args[0], as_uint, Tag::Uint);
         row::uint_to_float(value)
             .map(Value::float)
-            .ok_or_else(|| does_not_fit(&format!("`uint` {value}"), "float"))
+            .ok_or_else(|| numeric_does_not_fit(&format!("`uint` {value}"), "float"))
     }
 }
 
@@ -1386,7 +1412,7 @@ crate::nvs_helper! {
         let value = expect_tag!("nvs_float_to_int", args[0], as_float, Tag::Float);
         row::float_to_int(value)
             .map(Value::int)
-            .ok_or_else(|| does_not_fit(&format!("`float` {value}"), "int"))
+            .ok_or_else(|| numeric_does_not_fit(&format!("`float` {value}"), "int"))
     }
 }
 
@@ -1396,7 +1422,7 @@ crate::nvs_helper! {
         let value = expect_tag!("nvs_float_to_uint", args[0], as_float, Tag::Float);
         row::float_to_uint(value)
             .map(Value::uint)
-            .ok_or_else(|| does_not_fit(&format!("`float` {value}"), "uint"))
+            .ok_or_else(|| numeric_does_not_fit(&format!("`float` {value}"), "uint"))
     }
 }
 
@@ -2102,15 +2128,14 @@ crate::nvs_helper! {
 
 /// [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md) § 3's
 /// `ArithmeticError`: an overflow of either kind, or a zero divisor.
-///
-/// Known gap, shared with [`does_not_fit`]: a helper failure carries only a
-/// message, so the driver promotes this to spec § 10's `RuntimeError` rather
-/// than the `ArithmeticError` the ADR names.
 fn arithmetic_error(operation: &str) -> Fault {
-    Fault::thrown(format!(
-        "`decimal` {operation} is outside the type's range (ADR 0054 § 1: a 96-bit \
-         mantissa at a scale of 0 to 28), or divides by zero"
-    ))
+    Fault::thrown_as(
+        crate::ThrownClass::Arithmetic,
+        format!(
+            "`decimal` {operation} is outside the type's range (ADR 0054 § 1: a 96-bit \
+             mantissa at a scale of 0 to 28), or divides by zero"
+        ),
+    )
 }
 
 /// One arithmetic or comparison operand as a [`Decimal`].
@@ -2316,7 +2341,7 @@ crate::nvs_helper! {
         let value = decimal_operand("nvs_decimal_to_int", args[0])?;
         value.to_i64()
             .map(Value::int)
-            .ok_or_else(|| does_not_fit(&format!("`decimal` {value}"), "int"))
+            .ok_or_else(|| numeric_does_not_fit(&format!("`decimal` {value}"), "int"))
     }
 }
 
@@ -2327,7 +2352,7 @@ crate::nvs_helper! {
         let value = decimal_operand("nvs_decimal_to_uint", args[0])?;
         value.to_u64()
             .map(Value::uint)
-            .ok_or_else(|| does_not_fit(&format!("`decimal` {value}"), "uint"))
+            .ok_or_else(|| numeric_does_not_fit(&format!("`decimal` {value}"), "uint"))
     }
 }
 

@@ -6,14 +6,14 @@
 //!
 //! # Two rules cover every member here, so no member restates them
 //!
-//! * **A division by zero throws**, in `intDiv` and in `mod` alike — spec § 3's
-//!   opening paragraph, which is why PHP's silently-`INF` `fdiv` has no
-//!   equivalent. So does an operation whose exact answer does not fit its
-//!   result type: `intDiv(int::MIN, -1)`, `abs(int::MIN)`, an `lcm` past
-//!   `int`. A helper's failure carries a message and not a class, so the
-//!   driver promotes each of these to spec § 10's `RuntimeError` rather than
-//!   the `ArithmeticError` ADR 0007 § 4 names — `nvs_runtime::helpers`' own
-//!   `does_not_fit` records that gap once, for every helper that has it.
+//! * **A division by zero throws `ArithmeticError`**, in `intDiv` and in `mod`
+//!   alike — spec § 3's opening paragraph, which is why PHP's silently-`INF`
+//!   `fdiv` has no equivalent. So does an operation whose exact answer does
+//!   not fit its result type: `intDiv(int::MIN, -1)`, `abs(int::MIN)`, an
+//!   `lcm` past `int`, a `uint` argument past `int` — ADR 0007 § 4's class for
+//!   an overflow, the same one the operators raise. A refusal that is about
+//!   the *argument* rather than the arithmetic — a base outside 2..=36, an
+//!   empty range for `clamp`, a `NaN` for `sign` — stays a `RuntimeError`.
 //! * **A domain error is IEEE's answer, not a throw.** `sqrt(-1.0)`,
 //!   `log(0.0)`, `asin(2.0)` and the rest produce `NaN` or an infinity exactly
 //!   as PHP's do, and [`nvs_core_math_is_nan`]/[`nvs_core_math_is_finite`] are
@@ -34,7 +34,7 @@
 //! `Core\Decimal`'s own roster (ADR 0054 § 3) is where the four naturally
 //! land, which is why they wait rather than growing a `float` answer here.
 
-use nvs_runtime::{Decimal, Fault, NvsStr, Tag, Value};
+use nvs_runtime::{Decimal, Fault, NvsStr, Tag, ThrownClass, Value};
 
 use crate::ordering::compare_values;
 use crate::registry::{
@@ -412,7 +412,7 @@ const ABS_DOC: MethodDoc = MethodDoc {
     }],
     ret: "`$n` with its sign dropped, in the type it came in; `-0.0` becomes `0.0`.",
     errors: &[ErrorDoc {
-        error: "RuntimeError",
+        error: "ArithmeticError",
         desc: "When `$n` is `INT_MIN`, whose magnitude is one past `INT_MAX`, or a `uint` past \
                `INT_MAX`.",
     }],
@@ -427,10 +427,16 @@ const SIGN_DOC: MethodDoc = MethodDoc {
         shape: &[],
     }],
     ret: "`-1` below zero, `1` above it and `0` for zero, `-0.0` included.",
-    errors: &[ErrorDoc {
-        error: "RuntimeError",
-        desc: "When `$n` is `NaN`, which is on neither side of zero, or a `uint` past `INT_MAX`.",
-    }],
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "When `$n` is `NaN`, which is on neither side of zero.",
+        },
+        ErrorDoc {
+            error: "ArithmeticError",
+            desc: "When `$n` is a `uint` past `INT_MAX`.",
+        },
+    ],
 };
 
 /// `Core\Math::min`'s reference card — ADR 0117.
@@ -597,7 +603,7 @@ const INT_DIV_DOC: MethodDoc = MethodDoc {
     ],
     ret: "The quotient with any remainder dropped, so `intDiv(-7, 2)` is `-3`.",
     errors: &[ErrorDoc {
-        error: "RuntimeError",
+        error: "ArithmeticError",
         desc: "When `$b` is zero, or when `$a` is `INT_MIN` and `$b` is `-1`, whose exact \
                answer is one past `INT_MAX`.",
     }],
@@ -622,7 +628,7 @@ const MOD_DOC: MethodDoc = MethodDoc {
     ret: "`$a - $b * truncate($a / $b)`, carrying `$a`'s sign; `NaN` when `$a` is an infinity, and \
           `$a` unchanged when `$b` is one.",
     errors: &[ErrorDoc {
-        error: "RuntimeError",
+        error: "ArithmeticError",
         desc: "When `$b` is zero — a division by zero, which throws here rather than answering \
                `NaN` as `fmod` does.",
     }],
@@ -647,7 +653,7 @@ const GCD_DOC: MethodDoc = MethodDoc {
     ret: "The largest integer dividing both, at least `0`; `gcd(0, 0)` is `0` and \
           `gcd($a, 0)` is `abs($a)`.",
     errors: &[ErrorDoc {
-        error: "RuntimeError",
+        error: "ArithmeticError",
         desc: "When the answer does not fit an `int`, which only `gcd(INT_MIN, 0)` and \
                `gcd(INT_MIN, INT_MIN)` reach.",
     }],
@@ -671,7 +677,7 @@ const LCM_DOC: MethodDoc = MethodDoc {
     ],
     ret: "The smallest positive integer both divide, or `0` when either argument is `0`.",
     errors: &[ErrorDoc {
-        error: "RuntimeError",
+        error: "ArithmeticError",
         desc: "When the answer is past `INT_MAX`, the usual case for two large coprime \
                arguments.",
     }],
@@ -1024,11 +1030,17 @@ const FROM_BASE_DOC: MethodDoc = MethodDoc {
         },
     ],
     ret: "The `int` written, the exact inverse of `toBase`, leading `-` included.",
-    errors: &[ErrorDoc {
-        error: "RuntimeError",
-        desc: "When `$base` is outside `2` to `36`, when `$s` has no digits, when a character of \
-               `$s` is not a digit of `$base`, or when the value does not fit an `int`.",
-    }],
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "When `$base` is outside `2` to `36`, when `$s` has no digits, or when a \
+                   character of `$s` is not a digit of `$base`.",
+        },
+        ErrorDoc {
+            error: "ArithmeticError",
+            desc: "When the value does not fit an `int`.",
+        },
+    ],
 };
 
 /// `Core\Math::format`'s reference card — ADR 0117.
@@ -1063,11 +1075,17 @@ const FORMAT_DOC: MethodDoc = MethodDoc {
     ],
     ret: "The digit string, rounded half away from zero at `decimals` places as `number_format` \
           rounds — exactly for a `decimal` — with a leading `-` for a negative `$n`.",
-    errors: &[ErrorDoc {
-        error: "RuntimeError",
-        desc: "When `$n` is an infinity or `NaN`, which have no digits, when `$n` is a `uint` \
-               past `INT_MAX`, or when `decimals` is past `100`.",
-    }],
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "When `$n` is an infinity or `NaN`, which have no digits, or when `decimals` \
+                   is past `100`.",
+        },
+        ErrorDoc {
+            error: "ArithmeticError",
+            desc: "When `$n` is a `uint` past `INT_MAX`.",
+        },
+    ],
 };
 
 /// `Core\Math`'s eleven constants — spec § 3's own list, replacing `M_PI`,
@@ -1409,9 +1427,12 @@ fn number_at(args: &[Value], index: usize, member: &str) -> Result<Number, Fault
     }
     if let Some(uint) = args[index].as_uint() {
         return i64::try_from(uint).map(Number::Integer).map_err(|_| {
-            Fault::thrown(format!(
-                "Core\\Math::{member} cannot take {uint}: it is past `int`'s largest value"
-            ))
+            Fault::thrown_as(
+                ThrownClass::Arithmetic,
+                format!(
+                    "Core\\Math::{member} cannot take {uint}: it is past `int`'s largest value"
+                ),
+            )
         });
     }
     if let Some(float) = args[index].as_float() {
@@ -1593,10 +1614,10 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_math_abs(_ctx, args: [1]) {
         Ok(match number_at(args, 0, "abs")? {
             Number::Integer(n) => Value::int(n.checked_abs().ok_or_else(|| {
-                Fault::thrown(
+                Fault::thrown_as(
+                    ThrownClass::Arithmetic,
                     "Core\\Math::abs has no `int` answer for `int`'s smallest value: its \
-                     magnitude is one past the largest"
-                        .to_owned(),
+                     magnitude is one past the largest",
                 )
             })?),
             Number::Real(n) => Value::float(n.abs()),
@@ -1739,8 +1760,9 @@ nvs_runtime::nvs_helper! {
         let a = float_at(args, 0, "mod")?;
         let b = float_at(args, 1, "mod")?;
         if b == 0.0 {
-            return Err(Fault::thrown(
-                "Core\\Math::mod was given a zero divisor".to_owned(),
+            return Err(Fault::thrown_as(
+                ThrownClass::Arithmetic,
+                "Core\\Math::mod was given a zero divisor",
             ));
         }
         Ok(Value::float(a % b))
@@ -2030,18 +2052,23 @@ fn readable(byte: u8) -> String {
 }
 
 /// The throw an exact answer that does not fit `int` is — the shape ADR 0007
-/// § 4 makes an overflow, rather than PHP's silent widening to `float`.
+/// § 4 makes an overflow, `ArithmeticError`, rather than PHP's silent widening
+/// to `float`.
 fn does_not_fit(member: &str) -> Fault {
-    Fault::thrown(format!(
-        "Core\\Math::{member}'s answer does not fit an `int`"
-    ))
+    Fault::thrown_as(
+        ThrownClass::Arithmetic,
+        format!("Core\\Math::{member}'s answer does not fit an `int`"),
+    )
 }
 
 /// The throw [`nvs_core_math_int_div`]'s two failures share, naming which one
 /// it was — the divisor is the only thing that tells them apart.
 fn divide_by_zero_or_overflow(member: &str, divisor: i64) -> Fault {
     if divisor == 0 {
-        Fault::thrown(format!("Core\\Math::{member} was given a zero divisor"))
+        Fault::thrown_as(
+            ThrownClass::Arithmetic,
+            format!("Core\\Math::{member} was given a zero divisor"),
+        )
     } else {
         does_not_fit(member)
     }

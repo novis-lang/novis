@@ -498,12 +498,13 @@ pub unsafe extern "C" fn nvs_raise(ctx: *mut Ctx, thrown: *mut ObjHeader) {
 ///
 /// The one caller today is `nvs-codegen`'s integer `%`, whose zero divisor
 /// must throw spec § 10's `ArithmeticError` rather than trap the process. That
-/// site has no Novis expression to construct the exception from, and cannot go
-/// through a helper's [`crate::Fault`] either: a helper failure carries a bare
-/// message, which `run_helper` promotes to `RuntimeError` and only
-/// `RuntimeError` (see [`Ctx::set_runtime_error_class`]). Naming the class is
-/// the whole point here, and compiled code already knows the descriptor's
-/// address as a constant — so it passes it.
+/// site has no Novis expression to construct the exception from and no helper
+/// call to carry a [`crate::Fault`] out of — the operator is inline machine
+/// code — so it names the class itself: compiled code already knows the
+/// descriptor's address as a constant, and passes it. (A helper *can* name a
+/// class of its own, [`crate::Fault::thrown_as`]; only the bare-message form
+/// is promoted to `RuntimeError`, through [`Ctx::set_runtime_error_class`]'s
+/// anchor.)
 ///
 /// A null or too-small `class` leaves the pending failure with no object
 /// behind it, exactly as [`Thrown::new`] documents; the status the caller

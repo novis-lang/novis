@@ -41,9 +41,8 @@ fn a_modulo_by_zero_throws_arithmetic_error_rather_than_trapping() {
     // The whole reason this operator waited for the throw path: `srem` on a
     // zero divisor traps, which is a request-isolation failure rather than a
     // wrong answer. The message is PHP's own, and the class is spec § 10's
-    // `ArithmeticError` — which is why the raise names a descriptor instead of
-    // going through a helper's `Fault`, whose bare message could only ever be
-    // promoted to `RuntimeError`.
+    // `ArithmeticError` — raised by naming a descriptor from the inline code,
+    // since there is no helper call here to carry a `Fault` out of.
     assert_eq!(
         output_of(
             "<?nvs
