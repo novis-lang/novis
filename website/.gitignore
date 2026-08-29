@@ -1,27 +1,5 @@
-# Everything under here is regenerable. Nothing in this file is a build artifact
-# of the Rust workspace — the website subproject is self-contained on purpose.
-
-# npm
 node_modules/
-
-# Astro
 dist/
 .astro/
-.vercel/
-.netlify/
-
-# Generated content and data. These are produced by `python site.py sync` from a
-# source that lives elsewhere in the repository, and are never hand-edited. If
-# you find yourself wanting to edit one, edit its source instead — the file
-# header of every generated file names it.
-src/content/docs/design/
-src/generated/
-src/grammars/
-
-# Local environment overrides
 .env
 .env.local
-
-# Multi-version assembly output (`python site.py assemble`)
-.site-out/
-
