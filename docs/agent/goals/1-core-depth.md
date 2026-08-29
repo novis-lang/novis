@@ -56,8 +56,50 @@ paths* list — 68 sites when this was written — is the inventory of the middl
 
 M4's entire acceptance list, inserted mechanically by `goal-switch.py` and **never traded for anything
 above it.** A session that finds it has to change a floor fixture's expected output has found a bug in its
-own slice. Nothing in this goal touches `nvs-ir` lowering or `nvs-codegen`, so a failure there is a real
-regression and never a scope question.
+own slice. Nothing in this goal *writes* `nvs-ir` lowering or `nvs-codegen`, so a failure there is a real
+regression and never a scope question — with one declared exception, which owns what M4 left standing
+there rather than scheduling any of it.
+
+15. **M4's seventeen lowering refusals keep an owner across the goal switch.**
+    The ratchet is what lets them stand.
+    `nvs-ir` type-checks each of these shapes and then refuses it. M4's item list anchored
+    every one, and the switch carried M4's *check* into this stage without carrying the *items* that made
+    it green, so `every_refusal_is_a_diagnostic_or_decided` began failing on sites nothing in this tree
+    had touched. This item is that inventory, so the gate can tell a carried gap from a new one.
+    Numbered fifteenth because the fourteen below keep the numbers this goal's TOML comments and
+    `python tools/holes.py --item N` already use.
+
+    - `crates/nvs-ir/src/lower/call.rs:773` and `:1104` — an argument list through a `callable` that is
+      not plain positional, and a by-reference argument from something other than a bare local or a
+      compile-time-known property.
+    - `crates/nvs-ir/src/lower/control.rs:744`, `:978` and `:989` — a `switch` label at a representation
+      other than the subject's own, a `foreach` key binding outside ADR 0007 § 5's one stored key type,
+      and a `foreach` over an ADR 0053 `Iterable`/`Iterator` subject.
+    - `crates/nvs-ir/src/lower/convert.rs:574` — a truthy condition over a representation the conversion
+      slice does not carry.
+    - `crates/nvs-ir/src/lower/exception.rs:32` — `throw` on a representation that is not an object.
+    - `crates/nvs-ir/src/lower/expr.rs:1670`, `:2548`, `:2737`, `:3800` and `:3836` — a `match` label at a
+      foreign representation, an instance call and a static call with no resolved target in the
+      typed-expression table, `instanceof` against a subject that cannot hold an object, and `clone` on
+      one.
+    - `crates/nvs-ir/src/lower/mod.rs:2276`, `:2705` and `:2792` — an array-element write through a shape
+      that is not a bare local, a compile-time-known property or a static property, and the two declared
+      type lists that do not yet spell every atom ADR 0007 § 3 allows.
+    - `crates/nvs-ir/src/lower/stmt.rs:269` and `:1465` — a local declaration shape the control-flow
+      slice does not lower, and `unset` on anything but an array element with an explicit subscript.
+
+    **This goal does not close them and is not judged on them.** It is `Core`'s pure half, and no `Core`
+    member reaches one of these shapes; a session that finds itself editing a file above has taken the
+    wrong slice. What makes standing acceptable is the second half of the same gate: `CEILING` in
+    `crates/nvs-ir/tests/refusals.rs:66` holds the total at seventeen and **may never rise**, so a
+    refusal added beside a carried one fails the run even though attribution claims its file. Each
+    closes the way M4 required — it lowers, or a diagnostic naming its rule refuses it, never a panic
+    however well worded — in the first goal that writes `nvs-ir` lowering again.
+
+    **The recurrence is the switch's bug, not this file's.** `tools/goal-switch.py` carries a goal's
+    `[[check]]` blocks forward and its unclosed items not at all, so a carried check whose green depends
+    on an item list arrives without its basis; until that is fixed, every goal in
+    `docs/agent/goals/chain.toml` inherits this paragraph by hand.
 
 ## Stage 2 — the four attribute passes, which are one pass
 
@@ -194,5 +236,7 @@ not an example to read for inspiration.
 ## What this goal does not touch
 
 Anything needing a capability, a reactor, a driver or an open handle — that is goals 2–6. `nvs-ir` and
-`nvs-codegen`, except where an attribute pass emits through the path `#[Json\Derive]` already uses. Doc
+`nvs-codegen`, except where an attribute pass emits through the path `#[Json\Derive]` already uses.
+Item 15 *owns* seventeen standing `nvs-ir` refusals without scheduling one of them; owning is not
+touching, and it is there so the floor's own gate has an answer rather than a hole. Doc
 trimming and dependency sweeps, both of which the user fires.
