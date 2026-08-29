@@ -8,6 +8,7 @@
 - **Amends:** [0007](0007-explicit-type-system.md) — § 1's binding-site table gains a second local-decl
   spelling; the *Alternatives rejected*/*Revisiting* entries naming "inference for locals only" are
   resolved by this ADR rather than left open.
+- **Amended by:** 0114
 
 > **In short:** `var $name = expr;` declares a local without writing its type — the type is `expr`'s own
 > checked type, fixed onto the binding forever, exactly as if that type had been written by hand. It is
@@ -32,8 +33,13 @@ changes" is unaffected; `var` only changes how that first type gets there.**
   `mixed`, honestly, because that is what the initializer's own type is.
 - A bare array-literal initializer is refused: `var $x = [1, 2];` is `E_VAR_ARRAY_LITERAL_NEEDS_TYPE`,
   naming `array<T> $x = [1, 2];` as the fix. This is the one case `var` cannot cover, for the same reason
-  ADR 0007 § 5 checks an array literal against a target rather than inferring one — an empty or
-  heterogeneous literal has nothing to synthesize a useful element type from. The restriction is on the
+  ADR 0007 § 5 checks an array literal against a target rather than inferring one. That a literal's own
+  type *can* be computed does not reopen this —
+  [ADR 0114](0114-an-array-literals-own-type-is-synthesized-for-one-code-action.md) computes one for an
+  editor action whose answer lands as text in the file, read in a diff and approved, where an element type
+  inferred onto a `var` binding is visible nowhere at all. An empty or heterogeneous literal is exactly
+  where that difference bites, and it is a difference in legibility rather than in capability. The
+  restriction is on the
   initializer's own top level only; `var $x = f([1, 2]);` is fine; `f`'s parameter type is the array
   literal's target either way.
 - Every other rule that already applies to a plain `LocalDecl` — declare-once, definite assignment,

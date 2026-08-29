@@ -14,7 +14,7 @@
   wiring, for VS Code only; its PhpStorm half is untouched.
   [docs/implementation-plan.md](../implementation-plan.md) M4/M5/M10 — inserts M4B between M4
   and M5, and narrows M10's remaining VS Code scope to what M4B does not cover.
-- **Amended by:** 0099, 0108, 0110
+- **Amended by:** 0099, 0108, 0110, 0114
 
 > **In short:** VS Code is the reference client, and it is getting real depth, not a thin LSP passthrough
 > with a grammar file. A **minimal `nvs-lsp`** (diagnostics, hover, go-to-definition, basic completion) and
@@ -238,8 +238,9 @@ first, so the catalog is honest about sequencing rather than implying all of it 
   [ADR 0039](0039-canonical-code-formatting.md) § 9). This is not a small addition for Novis specifically:
   [ADR 0082](0082-the-first-party-framework.md) makes inline HTML the template engine, so this region is
   where an application's markup is written.
-- **Three code actions that generate rather than fix** — implement missing members, override a method,
-  declare the function you just called — each bounded to text a declaration already determines
+- **Four code actions that write rather than fix** — implement missing members, override a method,
+  declare the function you just called, and narrow an `array<mixed>` annotation to the type of the literal
+  under it — each bounded to text a declaration or a literal already determines
   ([ADR 0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) § 4).
 - **The DAP capabilities the wired-up UI is only as deep as** — conditional breakpoints, hit counts,
   logpoints, exception filters, stepping exclusions, path mappings, the value returned after a step out,

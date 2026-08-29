@@ -5,7 +5,7 @@
 - **Scope:** the type grammar; the declaration requirement at every binding site; `uint`; typed and
   nested arrays; string-only array keys; unions and `mixed`; the conversion operator; the result type of
   every arithmetic operator
-- **Amended by:** 0008, 0010, 0011, 0012, 0013, 0015, 0022, 0024, 0027, 0028, 0031, 0033, 0034, 0035, 0036, 0037, 0047, 0053, 0054, 0063, 0066, 0069, 0090, 0109
+- **Amended by:** 0008, 0010, 0011, 0012, 0013, 0015, 0022, 0024, 0027, 0028, 0031, 0033, 0034, 0035, 0036, 0037, 0047, 0053, 0054, 0063, 0066, 0069, 0090, 0109, 0114
 
 > **In short:** every binding — parameter, property, constant, local, loop variable, closure parameter,
 > return — declares a type, and **a binding's declared type never changes**. A *value's* type changes only
@@ -320,7 +320,11 @@ One type parameter, not two, because the key type is fixed by the language.
 - **Array literals are checked against the target type, never inferred and then compared.** Because every
   binding is annotated, a literal always has a target. This is the second place where the mandatory
   annotation deletes machinery rather than adding it, and it is why
-  [0037](0037-var-local-type-inference.md) refuses a bare array-literal initializer.
+  [0037](0037-var-local-type-inference.md) refuses a bare array-literal initializer. A synthesis of a
+  literal's own type does exist, off this path and unreachable from it:
+  [0114](0114-an-array-literals-own-type-is-synthesized-for-one-code-action.md) computes one for a single
+  editor action that rewrites an annotation into text a person approves in a diff, and no compile path
+  calls it — so this bullet is still what every position in the language gets.
 - **At runtime** an array header carries a pointer to an interned, immutable type descriptor. It is what
   lets a value arriving through `mixed`, `Core\Json::decode` or an
   [isolate boundary](0006-isolated-script-execution.md) be checked at all, and what lets a diagnostic name

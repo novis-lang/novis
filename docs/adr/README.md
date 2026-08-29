@@ -161,6 +161,7 @@ so you never have to open this file to route a topic.
 | Hiding a credential on a shared screen, blurring a `secret` literal in the editor, `nvs/redactions`, marking a `tainted` value with a glyph, and what a decoration still leaks (Search, diffs, the clipboard) | [0101](0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md) |
 | Find-all-references, occurrence highlight, CodeLens, type hierarchy, dimming an unused member; whether the editor completes a route name, a config directive or a framework's conventions; Emmet and HTML/CSS/JS editing inside a template region; generating a missing member or override; what `nvs dap` must report for the debugger UI to be deep; `nvs check --json` | [0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) |
 | Typing a PHP built-in's name and getting the Novis one; where the candidate list and the answer each come from; why a completion item may insert nothing; `nvs.completion.phpNames` | [0111](0111-a-php-builtin-completes-to-its-novis-destination.md) |
+| Narrowing an `array<mixed>` annotation to the type of the literal under it; what "narrowest" means once literal types widen; where that synthesis lives and why no compile path calls it; why the action never runs on save | [0114](0114-an-array-literals-own-type-is-synthesized-for-one-code-action.md) |
 | Writing a test case — the `.nvst` sections, `--EXPECTF--`'s escapes, `--ORACLE--`/`--ORACLE-DIVERGES--`, how `nvs test` decides pass or fail, importing a `.phpt` | [crates/nvs-test/src/lib.rs](../../crates/nvs-test/src/lib.rs)'s module doc — the one home for the format |
 | Testing a program *written in* Novis — `#[Test]`, `Core\Test`, assertions, doubles, fixtures, parameterized cases, property testing, snapshots, `#[Bench]`, mutation testing, why PHPUnit's mechanism does not port | [0079](0079-testing-is-a-language-feature.md) — distinct from the `.nvst` row above, which is Novis's own conformance suite |
 | Third-party licenses, attribution, what `nvs info` prints, whether a new dependency's license may ship | [0065](0065-third-party-attribution-and-nvs-info.md) |
@@ -324,6 +325,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0111](0111-a-php-builtin-completes-to-its-novis-destination.md) | A PHP built-in completes to its Novis destination, and a completion item may only insert what the registry holds | Accepted |
 | [0112](0112-authority-is-keyed-on-the-enclosing-namespace.md) | Authority is keyed on the enclosing namespace, and an optional capability degrades where a required one refuses | Accepted |
 | [0113](0113-a-qualified-name-is-absolute.md) | A qualified name is absolute, and the leading `\` does not parse | Accepted |
+| [0114](0114-an-array-literals-own-type-is-synthesized-for-one-code-action.md) | An array literal's own type is synthesized for one code action, and no compile path asks for it | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

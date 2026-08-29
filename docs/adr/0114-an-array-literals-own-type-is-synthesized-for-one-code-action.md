@@ -1,0 +1,222 @@
+# ADR 0114 — An array literal's own type is synthesized for one code action, and no compile path asks for it
+
+- **Status:** Accepted
+- **Date:** 2026-08-29
+- **Scope:** the *narrow this annotation to the literal's type* code action — what it reads, what it
+  writes, when it declines to answer, where its one new function lives, and why it never runs on save.
+  It does **not** decide the object-shape rewrite a record-shaped literal really wants
+  ([0036](0036-anonymous-object-shapes.md) owns shapes, and this action never changes a value's kind), it
+  adds **no diagnostic and no hint** — nothing here makes the checker say anything it does not already
+  say — and it does not cover narrowing from writes made *after* the declaration, which *Revisiting*
+  holds. M4B's frozen set is untouched: [0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) draws
+  that boundary and this decision sits on the far side of it.
+- **Depends on:** [0007](0007-explicit-type-system.md) — § 5 is the container this decides how to spell.
+- **Amends:** [0007](0007-explicit-type-system.md) § 5 — its "checked against a target, never inferred"
+  bullet gains the clause admitting a synthesis that no compile path calls;
+  [0037](0037-var-local-type-inference.md) — its refusal of a bare array-literal initializer is restated
+  as a choice about what a reader can see rather than a capability the compiler lacks;
+  [0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) § 4
+  — a fourth action joins the three generators, and that section gains the rule excluding it from
+  `source.fixAll.nvs`; [0040](0040-vscode-deep-tooling-and-resilient-parsing.md) § 3 — its one-line
+  summary of that section counts the same four. [docs/plan/m10.md](../plan/m10.md) gains the action and
+  its one core function.
+- **Amended by:** none.
+
+> **In short:** a deep nested literal gets annotated `array<mixed>` because writing
+> `array<array<array<float>>>` by hand is tedious, and the annotation then costs the program the typed
+> path for the rest of its life. The type is derivable — the checker already walks every element and
+> throws the answers away. **One function in `nvs-types` keeps them**: each element's type widened to its
+> base ([0047](0047-literal-and-enum-case-types.md)'s literals are not the answer), joined into one
+> canonical union, wrapped in an `array<…>`, and rendered back to the spelling a person could have typed.
+> **No compile path calls it** — `check_array_literal` still returns `array<mixed>` where it has no
+> expectation, which is the one line holding 0007 § 5 and 0037 in place — so the language is unchanged
+> and that claim is a guard test rather than an argument. The action offers only what the literal in
+> front of it determines, declines where the value arrives from input or resolves to `mixed` anyway, and
+> because `array<T>` is invariant it is **always a diff the developer approves and never a save-time
+> fix**.
+
+## Context
+
+Every binding declares a type, and `array<T>` nests to any depth ([0007](0007-explicit-type-system.md)
+§ 5). For a configuration tree, a fixture, a matrix or a table written as one literal, the honest type is
+several levels deep, and transcribing it by hand is exactly the kind of work that gets skipped: the
+developer writes `array<mixed>`, fills the literal in, and moves on.
+
+That annotation is not free. Every operation on a `mixed` resolves dynamically through the generic helper
+path (§ 6 of the same ADR), every element write becomes a runtime check instead of a compile error, and
+every read out of the structure needs an `as` at the far end. The cost is paid on the request path, for
+the rest of the program's life, to save one line of typing.
+
+The fact needed to remove that cost is already in front of the checker. With no expected type,
+[`check_array_literal`](../../crates/nvs-types/src/expr/literals.rs) walks every element and computes a
+type for each — and then returns `array<mixed>`, discarding them. That discard is deliberate and load
+bearing: it is what makes an array literal *checked against a target rather than inferred*, and what lets
+[0037](0037-var-local-type-inference.md) refuse `var $x = [1, 2];`. The opportunity is to keep the answer
+somewhere the compiler never looks.
+
+## Decision
+
+### 1. One action, one edit, on a literal that is right there
+
+The action is offered on the **type annotation** of a declaration whose initializer is an **array literal
+in the same file**. It rewrites that annotation and nothing else — not the literal, not a use site, not
+another line. It is invoked by the developer from the annotation; there is no diagnostic behind it,
+because nothing here is wrong.
+
+It is **M10** work, and not by preference:
+[0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) already rules that M4B ships the code actions
+whose fix a diagnostic already knows and no others, and that any quick fix needing the checker to compute
+something new is M10's. This one is the definition of the second case.
+
+### 2. Narrowest means narrowest *base* type
+
+The synthesized element type is the canonical union of the element types, each widened to its base:
+`ty::literal_base` already performs exactly that widening for a different reason, and `ty::make_union`
+already canonicalises. So `['retry' => 1, 'depth' => 3]` yields `array<int>` and never `array<1|3>`, which
+would be narrower and would refuse the next write made to it. Enum cases widen to their enum by the same
+call.
+
+- A nested literal recurses, which is where the whole value of the action is: `array<array<array<float>>>`
+  from one keystroke.
+- `[]` already has type `array<never>`, which satisfies every `array<T>`, so there is nothing to offer and
+  the action does not appear.
+- The walk inherits § 5's **depth-32 descriptor bound**: past it the action declines rather than
+  proposing a type the checker would then refuse.
+- The action offers only a type that renders back to a spelling a developer could have written, because
+  the edit it makes is source text a human reads in a diff.
+
+### 3. It answers from the literal, or it does not answer
+
+Three refusals, and each is a soundness question rather than a difficulty one:
+
+- **No literal, no action.** `array<mixed> $body = Core\Json::decode($raw);` gets nothing. Neither does a
+  `Core\Request::query()`, a `Core\Script::args()` or any other value that arrives from outside. Those are
+  `array<mixed>` *on purpose* ([0007](0007-explicit-type-system.md) § 6, [0012](0012-no-superglobals.md));
+  the shape of one payload someone looked at does not bound the next request's, and narrowing there would
+  convert a runtime check into a compile-time assumption that is not true. This is priority 1 and 2, not
+  ergonomics.
+- **A `mixed` element poisons the answer, and a no-op is not offered.** An element whose own type is
+  `mixed` — including a spread of one — makes the union `mixed`, so the synthesis yields `array<mixed>`
+  and the action stays hidden rather than proposing the annotation that is already written.
+- **Everything else is answerable, and that is a property of the language rather than of the
+  implementation.** Because every binding site declares a type, an element that is a variable or a call
+  has a type the checker already holds; there is no PHP-style guess anywhere in this action.
+
+### 4. One function in `nvs-types`, which the compile path never calls
+
+The synthesis is a single function in the checker's crate — a sibling of `check_array_literal`, not a
+change to it — returning the type an array literal would have if it were synthesized bottom-up, or
+nothing where § 3 declines. It reuses `make_union`, `literal_base` and the array constructor, all of
+which exist.
+
+**What deliberately does not change is the more important half:**
+
+- `check_array_literal` still returns `array<mixed>` where it has no expectation. That single line is what
+  keeps a literal checked against a target rather than inferred, keeps `var $x = [1, 2];` refused, and
+  keeps every no-expectation position — an `echo` argument, a bare expression statement — typing exactly
+  as it does today.
+- No new diagnostic and no new code. Nothing in `nvs-syntax`, `nvs-hir`, `nvs-ir`, `nvs-codegen`,
+  `nvs-runtime` or `nvs-stdlib`. No change to the runtime array descriptor, and nothing per request.
+- **A guard test holds that no compile path reaches the new function**, so "this changes no language
+  behaviour" is checkable rather than argued — the same habit as every other architecture assumption in
+  this repository, which are tested rather than remembered.
+
+It lives in `nvs-types` rather than in `nvs-lsp` for the reason that decides most of this repository's
+layout: putting it in the editor's crate would mean a second implementation of union canonicalisation and
+literal widening, living outside the type system that owns both, and the two would drift. The type table
+is the one home for what a type is; the editor asks it a question.
+
+### 5. Invariance makes this a diff, never a save-time fix
+
+`array<T>` is invariant ([0007](0007-explicit-type-system.md) § 5), so narrowing a declaration is not a
+local edit: a binding that was an `array<mixed>` and is now an `array<array<int>>` no longer satisfies a
+parameter typed `array<mixed>`, and that call site needs an explicit `as array<mixed>` and its O(n)
+restamp. The consequences are two rules:
+
+- **The action is never registered under `source.fixAll.nvs`.** The casing fix and the legacy-cast fix
+  compose with format-on-save because their edit cannot break another line
+  ([0039](0039-canonical-code-formatting.md) § 9,
+  [0040](0040-vscode-deep-tooling-and-resilient-parsing.md) § 3). This one can, so it is invoked, previewed
+  and approved like the generators beside it.
+- **It does not chase the call sites it affects.** Repairing them means choosing between an `as` at the
+  call, a wider parameter and a narrower one — a refactoring with a decision in it, which § 4's bound
+  refuses to let a light bulb make.
+
+### 6. `var` still refuses a bare array literal, and that is not a leftover
+
+Once the checker's crate contains a function that computes a type from an array literal, the obvious
+question is why [0037](0037-var-local-type-inference.md) still refuses `var $x = [1, 2];`. It refuses
+because of where the answer ends up, not because the answer is unavailable: this action's output is **text
+in the file, read in a diff and approved by a person**, while a `var` binding's inferred type is visible
+nowhere at all. A heterogeneous literal producing `array<int|string>` is a fact worth showing someone; the
+same fact attached invisibly to a binding is how a program acquires a type nobody chose. Same computation,
+opposite legibility, and legibility is the whole of what 0037 was deciding.
+
+## Consequences
+
+- **The request path gets faster where the action is used**, which is the point: a narrowed array leaves
+  the generic helper path for the typed one, and its element writes become compile errors instead of
+  runtime throws. Nothing is spent per request, and no memory is spent at all beyond one more interned
+  descriptor where the program did not already have that type.
+- **A union in the offer is a signal, not a defect.** When the action proposes
+  `array<string|int|array<string>>`, the value is a record and wants an object shape
+  ([0036](0036-anonymous-object-shapes.md)) rather than an array. Surfacing that in one keystroke is
+  useful; acting on it is not this action's business, because converting an array literal to an object
+  literal changes copy-on-write value semantics into shared-reference ones.
+- **The core's exposure is one function and one export.** A reviewer can confirm the language is untouched
+  by grepping for its callers, which is why § 4 spends a test on making that grep authoritative.
+- **The action is uncalled until M10.** The function and its consumer land together, deliberately: shipping
+  it earlier would leave a public function in a crate the parity program is actively changing, with no
+  consumer to keep it honest.
+
+## Alternatives rejected
+
+- **Make `check_array_literal` return the synthesized type when it has no expectation.** One line, and it
+  is a language change: `var $x = [1, 2];` would start compiling, `echo` arguments and bare expression
+  statements would retype, and 0007 § 5's rule would simply be false. The whole design is arranged so that
+  this line does not move.
+- **Put the synthesis in `nvs-lsp`.** A second implementation of union canonicalisation and literal
+  widening outside the type system. They would agree on the day they were written and not afterwards.
+- **Offer the true narrowest type, literals included.** `array<1|3>` is narrower, correct, and refuses the
+  next write the developer makes. A quick fix that produces a type its user must immediately widen is a
+  worse tool than no quick fix.
+- **Narrow from the writes made after the declaration**, so a structure built up statement by statement can
+  be fixed too. This needs the join over every write reaching the declaration — the general inference 0007
+  turned down — and a generator that picks between possible answers, which
+  [0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) § 4's
+  bound refuses. Held in *Revisiting* with the trigger that would change the cost.
+- **Let a developer point the action at a value that came from input**, on the grounds that they know their
+  data. The type would then assert something about every future request from one observed payload, and the
+  failure appears far from the annotation that caused it.
+- **Register it under `source.fixAll.nvs` with the other quick fixes**, so it composes with format-on-save.
+  Invariance means the edit can break a line the developer is not looking at; a fix that runs on save must
+  not be able to do that.
+- **A hint-severity diagnostic saying an annotation could be narrower**, so the light bulb appears without
+  being asked for. That makes the checker say something new, and every deliberate `array<mixed>` — which is
+  every one that holds input — would need suppressing. Discoverability rides on the annotation's own light
+  bulb instead.
+
+## Revisiting
+
+**The write-sensitive form becomes cheap if the reference index makes it cheap.**
+[0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) § 1's
+index already answers "every other use of this symbol" for five other features. If it comes to answer
+"every write reaching this declaration" for one of them, the cost objection above disappears and only the
+choice objection remains — and a single straight-line block with no branch and no escape may be a case
+where there is no choice to make. Reopen then, and not before.
+
+## Verification
+
+- Unit tests on the synthesis, in `nvs-types`: a homogeneous nest at three levels, a heterogeneous literal
+  producing a canonical union, an integer literal widening to `int`, an enum case widening to its enum,
+  `[]` yielding no offer, a `mixed` element yielding no offer, and a literal past depth 32 yielding no
+  offer.
+- A guard test that no compile path calls the new function — the claim in § 4, held by a test rather than
+  by review.
+- A test that `check_array_literal` still returns `array<mixed>` with no expectation, and that
+  `var $x = [1, 2];` still reports its diagnostic. These are the two observable proofs that the language
+  did not move.
+- At M10, an `nvs-lsp` round trip: the action is offered on a literal-initialized annotation, absent on a
+  `Core\Json::decode` initializer, and the file it produces still checks clean.
+- A client test that the action is **not** in the `source.fixAll.nvs` set, so a format-on-save never
+  applies it.

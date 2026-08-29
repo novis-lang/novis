@@ -320,6 +320,11 @@ spellings rejected, and the reasoning.
   is a candidate, the migration table is the answer, and an item inserts only a member the `Core` registry
   already holds — so a dropped, undecided or not-yet-built destination appears and types nothing**
   ([0111](0111-a-php-builtin-completes-to-its-novis-destination.md)).
+- **An `array<mixed>` annotation narrows to the type of the literal under it through one editor action —
+  element types widened to their base and joined, offered only where that literal is right there, never
+  where the value arrived from input, and never on save because `array<T>` is invariant — and the synthesis
+  it calls sits in `nvs-types` unreachable from every compile path**
+  ([0114](0114-an-array-literals-own-type-is-synthesized-for-one-code-action.md)).
 - **A `secret` value's bytes are concealed in the editor by default, on ranges the server computes and the
   client only draws; `tainted` gets no default decoration, because how a construct looks is the user's
   theme's to decide** ([0101](0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md);

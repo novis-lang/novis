@@ -18,7 +18,7 @@
   [0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 6 — the frozen roster gains three settings,
   one command, one request of Novis's own and an `extensionKind`, added and never renamed under that
   section's own rule. [docs/plan/m10.md](../plan/m10.md) is rewritten to match.
-- **Amended by:** 0111
+- **Amended by:** 0111, 0114
 
 > **In short:** Novis's editor plan already matched a mature commercial PHP extension on everything a
 > *language server* does. Everything it was missing sat in the layer above: **finding a symbol's other
@@ -187,11 +187,11 @@ and validation in the half of a `.nvs` file that is markup.
 - **Off by one setting.** `nvs.template.services` (default `true`) disables the forwarding, because a user
   with their own HTML tooling has to be able to get out of the way of ours.
 
-### 4. Three code actions that generate, bounded by what the type system already fixed
+### 4. Four code actions that write only what a declaration or a literal already determines
 
 [ADR 0040](0040-vscode-deep-tooling-and-resilient-parsing.md) § 3's M10 list is entirely *fixes* — each
-backed by a diagnostic. Three **generators** join it, each writing only what a declaration already
-determines:
+backed by a diagnostic. Four **actions that write** join it, three of them generators, each producing only
+what a declaration or a literal already determines:
 
 - **Implement missing members.** On a class that does not satisfy an interface or an abstract base, insert
   every missing method and property with the signature copied from the declaration, its `inout` markers
@@ -203,9 +203,17 @@ determines:
 - **Declare the function you just called.** On the diagnostic for an unresolved call, insert a declaration
   whose parameter types are the argument types at the call site and whose return type is the one the
   context requires — both already computed to produce the diagnostic.
+- **Narrow an `array<mixed>` to the type of its literal.** On a declaration whose initializer is an array
+  literal, rewrite the annotation to the type that literal determines — each element's type widened to its
+  base and joined into one canonical union, nested literals recursed
+  ([0114](0114-an-array-literals-own-type-is-synthesized-for-one-code-action.md)). It writes an annotation
+  rather than a declaration, and the bound below holds identically: the literal determines the answer, so
+  there is nothing to choose. It is also the one action here **excluded from `source.fixAll.nvs`**, because
+  `array<T>` is invariant and narrowing a declaration can require an `as` at a call site the developer is
+  not looking at — an edit that can do that may not run on save.
 
-**The bound is the rule, not the list**: a generator may write only text the type system has already fully
-determined. It never invents a body, never names a parameter from a heuristic, and never picks between two
+**The bound is the rule, not the list**: an action here may write only text the type system has already
+fully determined. It never invents a body, never names a parameter from a heuristic, and never picks between two
 possible signatures. Anything needing a choice is a refactoring the user drives, not an action a light
 bulb offers. **Getter/setter generation is refused under this bound and under
 [ADR 0014](0014-property-observer.md)** — Novis has property hooks, so the pair of methods that action
