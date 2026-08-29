@@ -3147,6 +3147,16 @@ sibling in the same namespace unqualified.
   so the failure names a member you did not think you were editing. Grep the class's own `mod tests`
   for `CoreTy::Str` before classifying it; `Core\Path`, `Core\Time` and `Core\Uri` happened not to
   have one and `Core\Test` does.
+- **A *prepared* `Core` member has two bodies, and the registry names the one that throws.** Reading
+  `nvs_stdlib::registry`'s `symbol` for `Core\Router::url` lands on `nvs_core_router_url`, whose whole
+  body is `Err(no_such_route(...))` — which reads as "this feature is not built", and the module's own
+  *Known gaps* agreed. It is built: `nvs_types::links` folds a literal route name while checking,
+  `nvs_ir::lower::expr::lower_route_link` swaps the written name for a *prepared path* and calls a
+  **second symbol** (`nvs_core_router_link`), and that one does the real work. The registry row names
+  the unfolded path because that is the one a computed argument takes. So for any member ADR 0057 § 3
+  *prepares* rather than folds, `grep` the crate for a sibling symbol before believing the body the row
+  points at — or just run it: `target/debug/nvs.exe run` on four lines settled in one call what reading
+  three doc comments had got backwards.
 
 ## Divergences and refusals already pinned
 
