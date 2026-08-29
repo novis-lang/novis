@@ -26,13 +26,21 @@ because prose was carrying the argument.
 | `open` | not yet decided. Absence of a row means the same thing, and the checker counts both |
 
 A `dropped` row is a promise: `nvs convert` (M11) emits its cell as the diagnostic, so a migrating program
-is told what happened rather than left with an unresolved call.
+is told what happened rather than left with an unresolved call. The editor keeps the same promise a keystroke
+earlier — [ADR 0111](../adr/0111-a-php-builtin-completes-to-its-novis-destination.md) offers every name in
+the inventory as a completion candidate, and shows this cell to whoever reaches for the dropped built-in.
 
 **This table is read by a machine, so the Novis cell has one shape that is mechanical and one that is not.**
 A cell that is exactly one `Core` member spelling is the rename `nvs convert` applies; anything else — a
 cell naming two members, a rewrite, or a reason — is prose the converter may not guess at, and must carry
 that rule's id from [ADR 0089](../adr/0089-convert-is-one-rule-table-with-two-modes.md) § 6. Neither the
 name table nor the rule table is copied into the other.
+
+**Two machines read these rows, and one row may mean different things to them.** `nvs-lsp` reads the same
+cells ([ADR 0111](../adr/0111-a-php-builtin-completes-to-its-novis-destination.md)) with a person in the
+loop, so a cell naming more than one member — prose the converter may not act on — is one completion item
+per member there. Every `member` spelling in this file is checked against `nvs-stdlib`'s registry when that
+layer is generated, so a spelling this file gets wrong fails a build instead of reaching anyone.
 
 ## What the inventory is
 

@@ -308,6 +308,10 @@ spellings rejected, and the reasoning.
   occurrence highlight, CodeLens, type hierarchy and unused-member dimming; and an inline-HTML region gets
   the editor's own HTML/CSS/JS services but **no** formatter beside `nvs fmt`
   ([0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md)).
+- **A PHP built-in completes to its Novis destination: every name the differential oracle's inventory holds
+  is a candidate, the migration table is the answer, and an item inserts only a member the `Core` registry
+  already holds — so a dropped, undecided or not-yet-built destination appears and types nothing**
+  ([0111](0111-a-php-builtin-completes-to-its-novis-destination.md)).
 - **A `secret` value's bytes are concealed in the editor by default, on ranges the server computes and the
   client only draws; `tainted` gets no default decoration, because how a construct looks is the user's
   theme's to decide** ([0101](0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md);

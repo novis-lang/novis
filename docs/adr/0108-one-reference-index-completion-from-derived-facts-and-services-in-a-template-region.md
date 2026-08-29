@@ -18,7 +18,7 @@
   [0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 6 — the frozen roster gains three settings,
   one command, one request of Novis's own and an `extensionKind`, added and never renamed under that
   section's own rule. [docs/plan/m10.md](../plan/m10.md) is rewritten to match.
-- **Amended by:** none.
+- **Amended by:** 0111
 
 > **In short:** Novis's editor plan already matched a mature commercial PHP extension on everything a
 > *language server* does. Everything it was missing sat in the layer above: **finding a symbol's other
@@ -117,6 +117,12 @@ starting point:
 > `nvs-lsp` contains no framework-specific module, no annotation dialect, no convention scan and no
 > directory-layout knowledge. It offers a value in a completion list only where the compiler already
 > derives that value for another reason, and it reaches it through the same table that other reason uses.
+>
+> One thing offered is not such a value, and is held by the stricter half of the same rule: a **name from
+> another language**. [0111](0111-a-php-builtin-completes-to-its-novis-destination.md) admits every PHP
+> built-in as a *candidate*, out of a checked-in table with a coverage checker over it rather than out of a
+> scan — and leaves the insert side of this rule untouched, so such an item types a member only where the
+> compiler can already resolve it, and three of its four shapes type nothing at all.
 
 What that admits at M10, each with the table it reads:
 

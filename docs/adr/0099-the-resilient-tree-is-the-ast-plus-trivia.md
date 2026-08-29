@@ -18,7 +18,7 @@
   each fold is applied in that ADR's own body, which states the current rule;
   [ADR 0016](0016-ide-integration.md) § 2's `nvs lsp` spelling is unchanged, only what is behind it.
   [docs/plan/m4b.md](../plan/m4b.md) and [docs/plan/m10.md](../plan/m10.md) are rewritten to match.
-- **Amended by:** 0101, 0108
+- **Amended by:** 0101, 0108, 0111
 
 > **In short:** Novis's parser already does most of what "resilient parsing" names — every production returns
 > a node rather than a `Result`, a missing member name is already an `E_EXPECTED_TOKEN` plus a node, and
@@ -418,7 +418,9 @@ showing server health and version; `nvs run`/`nvs test` as Tasks; and the AST pa
   renamed — which is the rule ADR 0101 was applied under, not an exception to it, and the rule under which
   [ADR 0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) § 6
   adds, at M10, the settings `nvs.check.scope`, `nvs.codeLens.enable` and `nvs.template.services`, the
-  command `nvs.checkWorkspace`, and a second request of Novis's own, `nvs/regions`.
+  command `nvs.checkWorkspace`, and a second request of Novis's own, `nvs/regions` — and under which
+  [ADR 0111](0111-a-php-builtin-completes-to-its-novis-destination.md) § 5 adds, at the same milestone, the
+  setting `nvs.completion.phpNames` (`all`/`resolved`/`off`, default `all`).
 - **`language-configuration.json` is content, not a checkbox.** Comments (`//`, `#`, `/* */`), brackets,
   auto-closing and surrounding pairs, `indentationRules`, `onEnterRules` continuing a `/** */` block, and
   folding markers. The one that is Novis-specific and that a borrowed PHP file gets wrong is **`wordPattern`
