@@ -588,6 +588,12 @@ nvs_runtime::nvs_helper! {
     /// two-slot helper.
     fn nvs_core_path_join(_ctx, args: [2]) {
         let base = text(&args[0], "join", "the base")?;
+        // Unreachable from source for a stronger reason than a checker
+        // refusal: parameter 1 is `CoreTy::Variadic`, and its doc comment
+        // records that `nvs_ir::lower::lower_call_args` *builds* the
+        // `array<string>` this slot holds out of every argument from that
+        // position on. No source expression reaches the slot at all, so there
+        // is no call — well-typed or not — that could put another tag here.
         let tail = args[1].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Path::join expected {:?} for the segments, got tag {}",

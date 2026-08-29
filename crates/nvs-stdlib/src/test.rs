@@ -311,6 +311,10 @@ nvs_runtime::nvs_helper! {
     /// not, and a test meaning to assert a non-empty array says
     /// `Core\Arr::isEmpty($rows)` or writes the comparison out.
     fn nvs_core_test_assert_true(ctx, args: [2]) {
+        // Unreachable from source, and the doc comment above says why the
+        // parameter is spelled that way: it is a declared `bool` in `CLASS`,
+        // so `assertTrue($rows)` over anything else is `E0401: expected bool,
+        // found mixed` at the checker rather than a truthy conversion here.
         let actual = args[0].as_bool().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Test::assertTrue expected {:?}, got tag {}",
@@ -363,6 +367,9 @@ nvs_runtime::nvs_helper! {
     /// therefore written `Core\Test::assertSame(Core\Str::length($s), 3)`,
     /// which says which length it meant.
     fn nvs_core_test_assert_count(ctx, args: [3]) {
+        // Unreachable from source: `array<T>` in `CLASS`, so a `mixed`
+        // subject is `E0401: expected array<mixed>, found mixed` and a
+        // `?array<string>` is the same code over the union.
         let array = args[0].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Test::assertCount expected {:?}, got tag {}",
@@ -376,6 +383,9 @@ nvs_runtime::nvs_helper! {
                       allocation, so it is live for the length of this call"
         )]
         let count = unsafe { nvs_runtime::nvs_array_count(array) }.cast_unsigned();
+        // Unreachable from source for the same reason as the subject above:
+        // parameter 1 is `CoreTy::Uint`, so a `mixed` count is `E0401:
+        // expected uint, found mixed` at the second argument.
         let expected = args[1].as_uint().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Test::assertCount expected {:?}, got tag {}",
@@ -428,6 +438,10 @@ nvs_runtime::nvs_helper! {
     /// provoked failure recorded, which is why a test asserting that an
     /// assertion fails writes `expectFailure` instead.
     fn nvs_core_test_assert_throws(ctx, args: [3]) {
+        // Unreachable from source: parameter 1 is `CoreTy::Str` in `CLASS`,
+        // so the class name is `E0401: expected string, found mixed` at the
+        // checker before this body sees it. `Core\Test\Failure::class` is the
+        // spelling a call uses, and `::class` is a `string`.
         let expected = args[1].as_text().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Test::assertThrows expected {:?}, got tag {}",

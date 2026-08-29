@@ -173,6 +173,10 @@ nvs_runtime::nvs_helper! {
 fn record_of(tail: &Value) -> Result<Record, Fault> {
     let mut record = Record::at(Level::Debug);
     let caps = Caps::default();
+    // Unreachable from source: `dump`'s one parameter is `CoreTy::Variadic`,
+    // so `nvs_ir::lower::lower_call_args` builds this `array<mixed>` rather
+    // than any source expression supplying it — the same judgement as
+    // `crate::path`'s `join`, which states it in full.
     let array = tail.array_ptr().ok_or_else(|| {
         Fault::fatal(format!(
             "Core\\Debug::dump expected {:?} for its arguments, got tag {}",

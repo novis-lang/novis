@@ -618,12 +618,9 @@ const OWED_A_CASE: &[(&str, &str)] = &[
         "arr.rs",
         "Core\\Arr::average was given more entries than a `uint` counts",
     ), // arr.rs:4126
-    ("bytes.rs", "Core\\Bytes::join expected"), // bytes.rs:707
     ("bytes.rs", "Core\\Bytes::pack expected"), // bytes.rs:1105, bytes.rs:1112
     ("bytes.rs", "Core\\Bytes::unpack expected"), // bytes.rs:1332
-    ("csv.rs", "Core\\Csv::format(): column"),  // csv.rs:512
     ("debug.rs", "Core\\Debug::dump could not write:"), // debug.rs:147
-    ("debug.rs", "Core\\Debug::dump expected"), // debug.rs:177
     (
         "debug.rs",
         "Core\\Debug::dump read an empty slot the array reported as live",
@@ -634,12 +631,10 @@ const OWED_A_CASE: &[(&str, &str)] = &[
     ), // format.rs:475
     ("hash.rs", "Core\\Hash::hmac reached with `Core\\Digest::"), // hash.rs:473
     ("hash.rs", "Core\\Hash\\Stream::finish found tag"), // hash.rs:616
-    ("json.rs", "Core\\Json::decode expected"), // json.rs:237
     (
         "json.rs",
         "Core\\Json::decode(): a checked `maxDepth` always fits a `u32`",
     ), // json.rs:250
-    ("json.rs", "Core\\Json::encode expected"), // json.rs:533
     (
         "json.rs",
         "internal error: `Core\\Json::decodeAs` was called with no class in argument 0",
@@ -649,7 +644,6 @@ const OWED_A_CASE: &[(&str, &str)] = &[
         "math.rs",
         "Core\\Math::round expected a `Core\\RoundMode` case for `mode`, got tag",
     ), // math.rs:1302
-    ("path.rs", "Core\\Path::join expected"),   // path.rs:592
     (
         "path.rs",
         "Core\\Path::join read an empty slot the array reported as live",
@@ -667,13 +661,7 @@ const OWED_A_CASE: &[(&str, &str)] = &[
         "a prepared route link's piece is a tag byte and its text",
     ), // router.rs:282
     ("router.rs", "a prepared route link is built out of `str`"), // router.rs:285
-    (
-        "router.rs",
-        "Core\\Router::urlAbsolute(): no origin is configured for this unit, so `",
-    ), // router.rs:351
     ("str.rs", "Core\\Str::length counted past `uint`"), // str.rs:789
-    ("str.rs", "Core\\Str::join expected"),     // str.rs:882
-    ("str.rs", "Core\\Str::replaceAll expected"), // str.rs:1305
     (
         "str.rs",
         "Core\\Str::replaceAll found a key that is not valid UTF-8",
@@ -682,9 +670,6 @@ const OWED_A_CASE: &[(&str, &str)] = &[
     ("str.rs", "Core\\Str::normalize expected a `"), // str.rs:2292
     ("str.rs", "Core\\Str::fromCodePoints expected"), // str.rs:2382
     ("str.rs", "Core\\Str::format expected"),   // str.rs:2436
-    ("test.rs", "Core\\Test::assertTrue expected"), // test.rs:315
-    ("test.rs", "Core\\Test::assertCount expected"), // test.rs:367, test.rs:380
-    ("test.rs", "Core\\Test::assertThrows expected"), // test.rs:432
     (
         "test.rs",
         "Core\\Test::assertEquals expected an `int` from `compareTo`, got tag",

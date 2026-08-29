@@ -233,6 +233,11 @@ const _: () = assert!(DEPTH_CEILING < u32::MAX as u64);
 
 /// The `maxDepth` option, checked.
 fn max_depth(value: &Value) -> Result<u32, Fault> {
+    // Unreachable from source: `maxDepth` is a `CoreTy::Uint` option in
+    // `DECODE_OPTIONS` below, so `{maxDepth: $m}` over a `mixed` is `E0401:
+    // expected uint, found mixed` at the checker and the bag a call that
+    // omits it passes carries the `Const::Uint` default. The `1..=1024`
+    // refusal underneath is the reachable half, and it throws.
     let asked = value.as_uint().ok_or_else(|| {
         Fault::fatal(format!(
             "Core\\Json::decode expected {:?} for the `maxDepth` option, got tag {}",
@@ -529,6 +534,9 @@ nvs_runtime::nvs_helper! {
 
 /// One `bool` option.
 fn flag(value: &Value, option: &str) -> Result<bool, Fault> {
+    // Unreachable from source: both callers pass an `ENCODE_OPTIONS` slot and
+    // both of those are `CoreTy::Bool`, so `{pretty: $m}` over a `mixed` is
+    // `E0401: expected bool, found mixed` at the checker.
     value.as_bool().ok_or_else(|| {
         Fault::fatal(format!(
             "Core\\Json::encode expected {:?} for the `{option}` option, got tag {}",

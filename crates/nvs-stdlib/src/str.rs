@@ -878,6 +878,10 @@ nvs_runtime::nvs_helper! {
     /// counterpart: ADR 0063 R1 puts the subject first, and R20 leaves no room
     /// for a second spelling of one operation.
     fn nvs_core_str_join(_ctx, args: [2]) {
+        // Unreachable from source: parameter 0 is `array<string>` in `CLASS`
+        // above, so a non-container subject is `E0401: expected
+        // array<string>, found mixed` at the checker. Same judgement as
+        // `crate::arr`'s `nvs_core_arr_count`, which states it in full.
         let parts = args[0].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Str::join expected {:?} for the subject, got tag {}",
@@ -1301,6 +1305,11 @@ nvs_runtime::nvs_helper! {
     /// call site, not against this comment.
     fn nvs_core_str_replace_all(_ctx, args: [3]) {
         let subject = text(&args[0], "replaceAll", "the subject")?;
+        // Unreachable from source: parameter 1 is `array<string>` in `CLASS`
+        // above, so a non-container table is `E0401: expected array<string>,
+        // found mixed` at the checker. The `found a key that is not valid
+        // UTF-8` guard further down is a different question and keeps its
+        // line on the ratchet.
         let pairs = args[1].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Str::replaceAll expected {:?} for the pairs, got tag {}",

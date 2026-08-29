@@ -462,9 +462,8 @@ nvs_runtime::nvs_helper! {
     /// # Errors
     ///
     /// [`dialect_byte`]'s and [`distinct`]'s for the dialect, and a
-    /// [`Fault::thrown`] for a row that is not an array of `string`s. The
-    /// declared parameter type already says so, but `array<mixed>` reaches
-    /// this member through `mixed` and the throw names which cell.
+    /// [`Fault::thrown`] for a row that is not an array of `string`s — which
+    /// [`write_record`] holds no source program can produce, and says why.
     fn nvs_core_csv_format(_ctx, args: [4]) {
         let rows = array_of(&args[0], "format", "the rows")?;
         let separator = dialect_byte(&args[1], "format", "separator")?;
@@ -496,7 +495,8 @@ nvs_runtime::nvs_helper! {
 ///
 /// # Errors
 ///
-/// A [`Fault::thrown`] naming the column, for a cell that is not a `string`.
+/// A [`Fault::thrown`] naming the column, for a cell that is not a `string` —
+/// which no source program produces, for the reason the guard itself states.
 fn write_record(
     out: &mut Vec<u8>,
     record: &NvsArray,
@@ -508,6 +508,13 @@ fn write_record(
     while let Some(live) = record.next_slot(slot) {
         slot = live + 1;
         let value = record.value_at(live).expect("a live slot has a value");
+        // Both call sites are `array<string>` — `format`'s rows are
+        // `array<array<string>>` and its `header` option is `array<string>` —
+        // so a `mixed` cell is `E0401` at the argument, and the one spelling
+        // that fills such a binding from untyped data, `Core\Json::decode(…)
+        // as array<string>`, refuses per *element* at the conversion. Probed
+        // with `nvs run` at one level and at two: unreachable from source, and
+        // kept because it is what makes `as_str_bytes` safe to unwrap here.
         let field = value.as_str_bytes().ok_or_else(|| {
             Fault::thrown(format!(
                 "Core\\Csv::format(): column {column} of a row holds a value that is not a \

@@ -832,6 +832,14 @@ is why" — is this file.
   reason, so it reads 71 sites where the tool lists 72 and the difference is that one row. A
   `Fault::` whose message is built above the call is outside both, the same way a message opening on
   its own format hole is: neither can be matched against a case by its stem.
+- **`DECLARATION_WINDOW` is 8 lines counted from the `Fault::` line, not from the guard's first
+  line, so a nine-line comment sits silently outside it.** `conformance_coverage.rs` slices
+  `lines[fault - 9 .. fault - 1]`, and a `Fault::thrown(format!(` two lines below `let x = …` leaves
+  only **seven** lines for the comment above it. A declaration written as a doc comment on the
+  enclosing `fn` is always outside the window when the body does anything at all before the guard —
+  put it in the body, immediately above the `let`, and keep it to seven lines. The failure names the
+  right site and reads like the phrase is missing, which is the misleading part: it was present and
+  one line too high.
 
 ## Running things
 
@@ -2235,6 +2243,17 @@ is why" — is this file.
   `cargo test -- <one test name>`, which is the trap: the obvious triage — stash the change, run the
   named test, watch it pass — points at your own diff. Run the **whole** test binary on the stashed
   tree before believing that. The fix is a per-call counter in the file name, not a lock.
+- **The exception tree has no `Core\Error`, and naming one in a `catch` is an ICE rather than a
+  diagnostic.** `nvs_hir::errors::TREE`'s roots are `Throwable`, `LogicError` and `RuntimeError` —
+  `errors.rs`' own module doc says there is deliberately no `Error` and no `Exception` — but
+  `Core\Error` *is* a `nvs_stdlib::registry` class (ADR 0063's *Amends* line adds it beside
+  `Core\Path`, `Core\Out` and `Core\Bytes`), so `catch (Core\Error $e) { … $e->message … }` resolves
+  the class, finds no member, and panics in `nvs-ir`: *"an instance method call at 0:228..241 has no
+  resolved target recorded in the typed-expression table"*. The spelling a case wants is
+  `catch (RuntimeError $e)`, and **`message` is a property, not a method** — `$e->message()` is
+  `E0405` with a help line naming all four (`message`, `previous`, `backtrace`, `location`). Two
+  wrong guesses in a row cost two runs; the diagnostic for the second one is excellent and there is
+  none at all for the first.
 
 ## Splitting a file that got too big
 

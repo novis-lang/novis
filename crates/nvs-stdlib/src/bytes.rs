@@ -703,6 +703,10 @@ nvs_runtime::nvs_helper! {
     /// miscompile rather than a conversion this member could perform —
     /// ADR 0009 § 3 keeps `bytes` and `string` apart at exactly this boundary.
     fn nvs_core_bytes_join(_ctx, args: [2]) {
+        // Unreachable from source: parameter 0 is `array<bytes>` in `CLASS`
+        // above, so a non-container subject is `E0401: expected
+        // array<bytes>, found mixed` at the checker. Same judgement as
+        // `crate::arr`'s `nvs_core_arr_count`, which states it in full.
         let parts = args[0].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Bytes::join expected {:?} for the subject, got tag {}",
