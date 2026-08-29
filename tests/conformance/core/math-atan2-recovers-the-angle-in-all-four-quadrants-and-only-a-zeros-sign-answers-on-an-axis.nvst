@@ -1,0 +1,152 @@
+--TEST--
+Core\Math::atan2 hands back the angle every point on the unit circle was built from, in all four quadrants and nowhere outside a single turn, and on the four axes the sign of a zero argument is the whole answer — docs/spec/01-core-library.md § 3
+--FILE--
+<?nvs
+// The case beside this one asks what `atan2` answers *relative to* `atan`. This
+// one never mentions `atan`: it asks whether `atan2` is the inverse of the pair
+// (`sin`, `cos`) taken together, which is the property the member exists for.
+// An angle is turned into a point and handed back, and the row counts as
+// recovered only if the angle that comes out is the one that went in.
+//
+// Asserted by counting over a sweep, so a member that had grown its own
+// quadrant rule — or its own range — fails here while every individual line it
+// prints still looks like an angle.
+//
+// The sweep is two full turns at eighth-turn steps, which is the smallest table
+// that reaches all four quadrants, both half-turn approaches and every axis,
+// twice each.
+array<float> $eighths = [
+    -16.0, -15.0, -14.0, -13.0, -12.0, -11.0, -10.0, -9.0,
+    -8.0, -7.0, -6.0, -5.0, -4.0, -3.0, -2.0, -1.0,
+    0.0,
+    1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
+    9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0,
+];
+// Recovery is asserted to a tolerance and not to equality, because `sin`, `cos`
+// and `atan2` each round: the round trip is three roundings deep and is not
+// required to land on the same `float` it started from. The tolerance is far
+// tighter than an eighth of a turn, so no row can be recovered by the wrong
+// angle.
+float $tol = 0.000000000001;
+int $rows = 0;
+int $recovered = 0;
+int $wrapped = 0;
+int $inRange = 0;
+int $q1 = 0;
+int $q2 = 0;
+int $q3 = 0;
+int $q4 = 0;
+int $zeroLeg = 0;
+foreach ($eighths as float $e) {
+    float $theta = $e * Core\Math::PI / 8.0;
+    float $s = Core\Math::sin($theta);
+    float $c = Core\Math::cos($theta);
+    float $back = Core\Math::atan2($s, $c);
+    $rows = $rows + 1;
+    // The range is a closed claim and not a tolerance: `atan2`'s answer is a
+    // principal value, so no argument anywhere on the circle may produce one
+    // past a half turn in either direction.
+    if (Core\Math::abs($back) <= Core\Math::PI) {
+        $inRange = $inRange + 1;
+    }
+    // The seventeen rows from `-PI` to `PI` inclusive are the ones a principal
+    // value can carry, so they come back as themselves.
+    if (Core\Math::abs($back - $theta) < $tol) {
+        $recovered = $recovered + 1;
+    }
+    // The sixteen outside it come back one whole turn away — the same point of
+    // the plane, named by the angle inside the range. Both directions count,
+    // because the sweep goes a full turn past the range at each end.
+    if ((Core\Math::abs($back - ($theta - Core\Math::TAU)) < $tol)
+        || (Core\Math::abs($back - ($theta + Core\Math::TAU)) < $tol)) {
+        $wrapped = $wrapped + 1;
+    }
+    // Counted to make the second half of this case necessary: a whole turn of
+    // eighth steps crosses the axes eight times, and only the row at zero
+    // itself produces a leg that is exactly a zero. Every other crossing is a
+    // tiny non-zero with a sign, which is why the sweep never asks the question
+    // the axes below ask.
+    if (($s == 0.0) || ($c == 0.0)) {
+        $zeroLeg = $zeroLeg + 1;
+    }
+    // The four quadrants by the signs of the point, partitioning the sweep, so
+    // the recovery count above is known to have been earned in all four rather
+    // than in one of them thirty-three times.
+    if (($c > 0.0) && ($s >= 0.0)) {
+        $q1 = $q1 + 1;
+    }
+    if (($c <= 0.0) && ($s > 0.0)) {
+        $q2 = $q2 + 1;
+    }
+    if (($c < 0.0) && ($s <= 0.0)) {
+        $q3 = $q3 + 1;
+    }
+    if (($c >= 0.0) && ($s < 0.0)) {
+        $q4 = $q4 + 1;
+    }
+}
+// Thirty-three rows: every one inside the range, seventeen of them recovered
+// exactly and the other sixteen a whole turn away, which is a partition. The
+// quadrant counts are nine and three eights — the extra row is the origin-facing
+// one at angle zero, whose point sits on the boundary the first quadrant owns.
+echo "rows=", $rows, " recovered=", $recovered, " wrapped=", $wrapped,
+     " inRange=", $inRange, "\n";
+echo "quadrants=", $q1, "/", $q2, "/", $q3, "/", $q4, " zeroLeg=", $zeroLeg, "\n";
+
+// The two half-turn rows of the sweep, read on their own. A half turn is the
+// one angle in the range whose point is reached from two directions, and the
+// sweep recovers it as `PI` going one way and `-PI` going the other — which it
+// can only do because `sin` of a half turn is a tiny *signed* value rather than
+// a zero, as `zeroLeg` above says.
+float $up = Core\Math::atan2(Core\Math::sin(Core\Math::PI), Core\Math::cos(Core\Math::PI));
+float $down = Core\Math::atan2(Core\Math::sin(0.0 - Core\Math::PI), Core\Math::cos(0.0 - Core\Math::PI));
+echo "half turns: ", $up, "|", $down, " differ=", ($up != $down) as string, "\n";
+// And each is exactly what the corresponding signed zero answers, so the tiny
+// residue `sin` leaves is not what the answer is made of: the sign is.
+echo "  a signed zero answers each: ", ($up == Core\Math::atan2(0.0, -1.0)) as string,
+     "|", ($down == Core\Math::atan2(-0.0, -1.0)) as string, "\n";
+
+// The four axes with an exact zero leg, in both signs of that zero — eight
+// arguments naming four points. Which of the eight answers coincide is the
+// whole of what a zero's sign decides, so it is counted rather than read off.
+array<float> $axisY = [0.0, -0.0, 0.0, -0.0, 1.0, 1.0, -1.0, -1.0];
+array<float> $axisX = [1.0, 1.0, -1.0, -1.0, 0.0, -0.0, 0.0, -0.0];
+array<float> $axis = [];
+foreach ($axisY as string $i => float $y) {
+    $axis[] = Core\Math::atan2($y, $axisX[$i]);
+}
+int $pairs = 0;
+int $equal = 0;
+int $left = 0;
+foreach ($axis as float $a) {
+    int $right = 0;
+    foreach ($axis as float $b) {
+        if ($left < $right) {
+            $pairs = $pairs + 1;
+            if ($a == $b) {
+                $equal = $equal + 1;
+            }
+        }
+        $right = $right + 1;
+    }
+    $left = $left + 1;
+}
+// Three of twenty-eight pairs agree, and naming them is naming the rule: a zero
+// *y* is invisible on the positive x-axis, where both signs answer a zero, and
+// decisive on the negative one, where they answer the two half turns. A zero
+// *x* is invisible on both y-axes, where the quarter turn is already determined
+// by the sign of $y. So the sign of a zero argument is the whole answer at
+// exactly one of the four axes.
+echo "axis pairs=", $pairs, " equal=", $equal, "\n";
+echo "axes: ", $axis["0"], "|", $axis["2"], "|", $axis["4"], "|", $axis["6"], "\n";
+// The one pair `==` cannot tell apart is still two answers, and the reciprocal
+// is what reads them — the same instrument the parity case uses.
+echo "invisible sign: ", 1.0 / $axis["0"], "|", 1.0 / $axis["1"], "\n";
+--EXPECT--
+rows=33 recovered=17 wrapped=16 inRange=33
+quadrants=9/8/8/8 zeroLeg=1
+half turns: 3.1415926535898|-3.1415926535898 differ=1
+  a signed zero answers each: 1|1
+axis pairs=28 equal=3
+axes: 0|3.1415926535898|1.5707963267949|-1.5707963267949
+invisible sign: INF|-INF
