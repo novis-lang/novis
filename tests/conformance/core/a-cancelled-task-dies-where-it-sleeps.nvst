@@ -1,0 +1,30 @@
+--TEST--
+A child cancelled while it sleeps runs nothing further, and its `catch` never sees the cancellation — ADR 0072 §§ 4, 5
+--FILE--
+<?nvs
+// § 4: the deadline expires, every child is cancelled, the call waits for
+// those cancellations, and `TimeoutError` is thrown. Each child here is
+// parked in `Core\Time::sleep` when that happens, which is the case the
+// scheduler cannot answer with a forced unwind — the child is standing on a
+// `Core` member's `extern "C"` frame — so it is resumed and told instead.
+//
+// § 5 is the rest of the case: what a told child may run on its way out is
+// nothing. The `echo` after the sleep would print if the wait had merely
+// ended early, and the `catch` would print if the cancellation were a
+// `Throwable`. Neither is, so the whole output is the parent's one line.
+try {
+    Core\Task::map([1, 2, 3], fn (int $n): int => {
+        try {
+            Core\Time::sleep(2s);
+        } catch (Throwable $e) {
+            echo "a child caught its own cancellation\n";
+        }
+        echo "a child ran past its sleep\n";
+        return $n;
+    }, {deadline: 20ms});
+    echo "the deadline was missed\n";
+} catch (TimeoutError $e) {
+    echo "the deadline was hit\n";
+}
+--EXPECT--
+the deadline was hit
