@@ -3544,6 +3544,16 @@ sibling in the same namespace unqualified.
   has to hand such a member, and `crates/nvs-stdlib/src/arr.rs:1792` is the shape to copy. Worth the
   bullet because the row and the body are written in the same minute and nothing between them says which
   tag a `CoreTy` lands as.
+- **`Qual::Sink` has no consumer in `nvs-types`, and that is not the gap it looks like.** A classified
+  `CoreTy::Text(q)`/`Blob(q)` lowers to exactly what its unclassified spelling lowers to
+  (`crates/nvs-types/src/core_lib.rs:286`), so the refusal a sink parameter gets is ordinary
+  assignability: a `tainted bytes` argument does not satisfy a plain `bytes` parameter, and no rule in
+  the checker mentions `Qual` at all. Grepping for the code that reads `Qual::Sink` therefore finds
+  `crates/nvs-stdlib` and nothing else — the classification is data plus that crate's own
+  `every_member_parameter_carries_a_qualifier_classification` self-test. What genuinely needs a checker
+  rule is the *opposite* shape: a sink whose parameter is `mixed` (`Core\Debug::dump`,
+  `Core\Serialize::encode`), where nothing below the call site can still see the qualifier, which is why
+  those three live in `expr/quals.rs` as call-site walks over the written arguments.
 
 ## Divergences and refusals already pinned
 

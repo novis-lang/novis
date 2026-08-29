@@ -292,17 +292,31 @@
 > table `set_runtime_error_class` already installed rather than registering a second one.
 > `examples/serialize.nvs` prints all four of its frozen lines, and its stale-shape golden is a real
 > payload now rather than the placeholder that stood there: the same class name with a second `int
-> $extra` beside `$n`, written in the format `graph.rs` emits. What is left of Stage 5 is items
-> 17-18's two `nvs-types` names — `serialize_decode_refuses_a_tainted_operand` and
-> `a_secret_value_is_refused_at_the_boundary_unless_revealed` — and joining the live carrier to the
-> `spawn` boundary, which has no boundary to join to until Stage 6. The steps the chain took are in
-> [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's own residue is the 1000-case
-> corpus count, which orders 1–4 meet as the suite grows; nothing else about M4 is open. What the
-> program is measured by is `python tools/check-migration.py` at 100% classified, which stood at 25%
-> the day the program was scheduled and reads 34% now that goal 1's own five domains — dates and
-> times, regular expressions, JSON, URLs and paths — carry a row per name. `python tools/gaps.py`,
-> `python tools/holes.py` and `python tools/check-migration.py --report` are the three worklists
-> behind it, and no session re-derives one.
+> $extra` beside `$n`, written in the format `graph.rs` emits. Stage 5's checker half is on disk as
+> well, and both of the stage's `nvs-types` names are green. `Core\Serialize::decode`'s `Qual::Sink`
+> row needed nothing added to enforce it: a classified `CoreTy::Text`/`Blob` lowers to exactly what
+> its unclassified spelling lowers to, so a `tainted bytes` argument is refused by ordinary
+> assignability and `serialize_decode_refuses_a_tainted_operand` is a test over machinery that was
+> already there. ADR 0033 § 4's cross-boundary sink did need a check, and it is
+> `nvs_types::expr::quals::reject_secret_boundary_argument` under a new `E0775`. It is a call-site
+> rule rather than a parameter type for the reason `Core\Debug::dump`'s already is — `encode`
+> declares `mixed`, which a `secret string` satisfies, so the written argument is the last place the
+> qualifier is visible — and it is **one** function for both of ADR 0023 § 2's carriers, which is
+> how § 4 states the rule: `spawn`/`spawn worker`/`spawn script` reach it rather than growing a
+> second one when they lower. The half a call site cannot see is the walk's own: a `secret`-typed
+> *property* of a copied object is `graph.rs`'s `field_is_secret` refusal at run time, because an
+> argument's static type is the class and not its storage. `Core\Secret::reveal()`, which ADR 0033
+> names as the way out and every one of these diagnostics' help text points at, is not in the
+> registry yet — it needs a parameter spelling that *accepts* a qualifier and a `Qual::Launder` no
+> consumer reads — so item 18's escape hatch is open at both ends. What is left of Stage 5 is
+> joining the live carrier to the `spawn` boundary, which has no boundary to join to until Stage 6.
+> The steps the chain took are in [goals/README.md](agent/goals/README.md) § *Starting the chain*.
+> M4's own residue is the 1000-case corpus count, which orders 1–4 meet as the suite grows; nothing
+> else about M4 is open. What the program is measured by is `python tools/check-migration.py` at
+> 100% classified, which stood at 25% the day the program was scheduled and reads 34% now that goal
+> 1's own five domains — dates and times, regular expressions, JSON, URLs and paths — carry a row
+> per name. `python tools/gaps.py`, `python tools/holes.py` and `python tools/check-migration.py
+> --report` are the three worklists behind it, and no session re-derives one.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
