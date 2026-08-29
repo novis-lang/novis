@@ -1,0 +1,27 @@
+<?nvs
+// The two rows of ADR 0085 § 1 a *narrowed* declared type supplies: a capture
+// whose type is a closed set (ADR 0102 § 5) is the *Enumerations* row, and a
+// `Core\Uuid` capture is a string with a format.
+//
+// The `#[Query]` parameter carries no default on purpose: a default at a
+// literal or union declared type is `E0451`, so a closed-set key is a required
+// one and this fixture is not the place to argue about that.
+
+class Docs
+{
+    #[\Core\Route(path: "/{lang}/docs/{page}", method: \Core\Http\Method::Get, name: "Docs::show")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function show("en"|"de"|"fr" $lang, string $page, #[\Core\Query] 1|2|3 $depth): string
+    {
+        return $lang . "/" . $page;
+    }
+
+    #[\Core\Route(path: "/docs/{id}", method: \Core\Http\Method::Get, name: "Docs::byId")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function byId(\Core\Uuid $id): string
+    {
+        return "one doc";
+    }
+}
+
+echo "GET /en/docs/intro -> Docs::show", "\n";

@@ -200,6 +200,69 @@ fn an_operations_response_schema_is_the_handlers_declared_return_type() {
     );
 }
 
+/// § 1's *Enumerations* row, and
+/// [ADR 0102](../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+/// § 5's own promise about it — "the generated document emits
+/// `enum: [en, de, fr]` with no further work".
+///
+/// Asserted as whole schema objects rather than as `doc.contains("enum")`,
+/// because the two things that would go wrong here are both invisible to a
+/// substring: a set emitted in some order other than the union's, which § 3's
+/// determinism forbids, and a set emitted *beside* a `type` the row never
+/// carried. The `int` union is the second case — its members are the segment
+/// text they are written with, so they are strings here and `1` in the URL
+/// either way, which [`nvs_types::RouteParam::allowed`] owns.
+#[test]
+fn a_closed_set_parameter_carries_the_unions_members_as_an_enum() {
+    let (doc, err, ok) = build(&fixture("narrowed"));
+    assert!(ok, "the fixture compiles: {err}");
+    let document: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
+    let params = &document["paths"]["/{lang}/docs/{page}"]["get"]["parameters"];
+
+    assert_eq!(
+        params[0],
+        serde_json::json!({
+            "name": "lang",
+            "in": "path",
+            "required": true,
+            "schema": {"enum": ["en", "de", "fr"]},
+        }),
+        "a `\"en\"|\"de\"|\"fr\"` capture is the union's members, in its order:\n{doc}"
+    );
+    assert_eq!(
+        params[1]["schema"],
+        serde_json::json!({"type": "string"}),
+        "the capture beside it is unnarrowed and gains no `enum`:\n{doc}"
+    );
+    assert_eq!(
+        params[2],
+        serde_json::json!({
+            "name": "depth",
+            "in": "query",
+            "required": true,
+            "schema": {"enum": ["1", "2", "3"]},
+        }),
+        "a `#[Query]` key narrows by the same walk, ADR 0102 § 3 giving it § 5's type list:\n{doc}"
+    );
+}
+
+/// § 1 by way of ADR 0102 § 5's other named capture type: `Core\Uuid` is the one
+/// class a segment converts to, and `format: uuid` is what the JSON Schema
+/// dialect 3.1 uses already registers for it. The empty schema this used to emit
+/// said *any string, or any number, or any object*.
+#[test]
+fn a_uuid_capture_is_a_string_with_the_registered_format() {
+    let (doc, err, ok) = build(&fixture("narrowed"));
+    assert!(ok, "the fixture compiles: {err}");
+    let document: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
+
+    assert_eq!(
+        document["paths"]["/docs/{id}"]["get"]["parameters"][0]["schema"],
+        serde_json::json!({"type": "string", "format": "uuid"}),
+        "a `Core\\Uuid` capture is a formatted string:\n{doc}"
+    );
+}
+
 // -------------------------------------------------------------------------
 // § 4 — `nvs api diff`, the gate.
 //
@@ -210,9 +273,9 @@ fn an_operations_response_schema_is_the_handlers_declared_return_type() {
 // two frozen files agreeing with each other.
 // -------------------------------------------------------------------------
 
-/// The three-fixture family under `tests/fixtures/api`, each one file: `base`,
-/// `base` with an operation deleted, and `base` with one optional `#[Query]`
-/// parameter added.
+/// One fixture of `tests/fixtures/api`, each one file. The diff family below is
+/// three of them: `base`, `base` with an operation deleted, and `base` with one
+/// optional `#[Query]` parameter added.
 fn fixture(stem: &str) -> String {
     format!(
         "{}/tests/fixtures/api/{stem}.nvs",
