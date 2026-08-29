@@ -52,6 +52,19 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
    [ADR 0052](../../adr/0052-closed-doors.md). There is no scheme dispatch anywhere in the filesystem or
    stream abstractions, and the refusal is by construction rather than by a blocklist.
 7. **`Core\Env`**, and the standard streams `IO::stdin()`/`stdout()`/`stderr()`.
+33. **`Core\Hash::ofFile(string $path, Digest $digest): bytes` — the constant-memory file digest.** A
+    path sink needing `fs.read`, replacing `md5_file`, `sha1_file` and `hash_file`. Numbered out of
+    sequence for item 15's reason in goal 1; it is in *this* stage rather than goal 1's because it opens
+    a file, and goal 1 does not.
+
+    **It exists because neither route without it is O(1) in the file.**
+    `Hash::of(IO::read($p), …)` holds the whole file, and so does the `Hash::stream` loop that looks like
+    the fix — [hash.rs:606](../../../crates/nvs-stdlib/src/hash.rs) concatenates its retained chunks at
+    `finish`, so that route peaks at twice the file. Hashing in Rust with a fixed buffer sidesteps the
+    whole problem, because the hasher never has to survive a Novis call boundary — which is the actual
+    obstacle item 34 describes. [ADR 0042](../../adr/0042-on-disk-artifact-cache-format.md)'s mmap
+    argument is the technique, already argued for the artifact cache and reused rather than re-decided.
+    **What it spends:** one fixed buffer per call and no per-file growth, which is the point.
 
 ## Stage 3 — processes and the terminal
 
@@ -74,13 +87,31 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
 ## Stage 4 — crypto, and the protocols built on it
 
 12. **Hashing and crypto**, RustCrypto and **AEAD-only** per ADR 0051 § 3: `sha2`, `blake3`, `argon2`,
-    `bcrypt`, `aes-gcm`. `Core\Password` rides them.
+    `bcrypt`, `aes-gcm`. `Core\Password` rides them. `Core\Digest`'s roster is goal 1 item 16 and is not
+    redone here; this item's hashing half is the migration rows for `hash_algos`'s names over it.
 13. **`Core\Secret::reveal()`**, which with the password-hashing helpers is one of exactly two ways a value
     legitimately loses `secret` — [ADR 0033](../../adr/0033-secret-qualifier-for-confidential-values.md).
 14. **[ADR 0060](../../adr/0060-application-security-protocols.md)'s closed roster** — signed cookies,
     CSRF, TOTP, JWT — and § 4's rule that they are **correct by construction, not by careful use**. § 5 is
     the one most often got wrong: a verified signature does **not** launder. A JWT whose signature checks
     out still carries `tainted` claims.
+34. **`Core\Hash\Stream` holds a compression state rather than its chunks.** Today it accumulates:
+    `update` retains each buffer into a slot and `finish` hashes the concatenation
+    ([hash.rs:606](../../../crates/nvs-stdlib/src/hash.rs)), so a program that streams to keep its memory
+    flat gets the opposite — the footprint is the total fed, and twice that at `finish`. The surface is
+    already `hash_init`/`update`/`final` and does not change, which is exactly what makes this safe to
+    land late and why it was written this way first.
+
+    **Its precondition is not scheduled anywhere, and that is the finding.** A live `sha2::Sha256` cannot
+    live in a `Core` instance's slots — they hold values Novis holds, and an instance has no destructor —
+    which is the wall [`identity_store`](../../../crates/nvs-stdlib/src/identity_store.rs) met and
+    answered the same way. It needs **a runtime tag owning a native object with a release hook**, which
+    no goal in `chain.toml` currently owns; a session that finds it needs one before this item records
+    the decision under the standing rule below rather than reporting `BLOCKED`. `digest 0.10` cannot
+    serialize a hasher into a slot instead — `crypto_common::SerializableState` is a later major.
+
+    **The same tag buys `Hash::of` over an `Iterable<bytes>`**, so `Core\Request::bodyStream()` is hashed
+    without buffering; goal 6's uploads are that caller, and item 5's `writeStream` is the shape.
 
 ## Stage 5 — the network
 
