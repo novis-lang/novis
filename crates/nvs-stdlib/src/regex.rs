@@ -523,21 +523,8 @@ fn compiled(pattern: &str, flags: u8, member: &str) -> Result<Rc<Compiled>, Faul
         return Ok(hit);
     }
 
-    let spelled = effective(pattern, flags);
-    let built = match regex::Regex::new(&spelled) {
-        Ok(linear) => Compiled::Linear(linear),
-        Err(_) => Compiled::Backtracking(
-            fancy_regex::RegexBuilder::new(&spelled)
-                .backtrack_limit(BACKTRACK_BUDGET)
-                .build()
-                .map_err(|err| {
-                    Fault::thrown(format!(
-                        "Core\\Regex::{member}(): `{pattern}` is not a pattern either engine can \
-                         compile: {err}"
-                    ))
-                })?,
-        ),
-    };
+    let built = build(pattern, flags)
+        .map_err(|why| Fault::thrown(format!("Core\\Regex::{member}(): {why}")))?;
 
     let built = Rc::new(built);
     CACHE.with_borrow_mut(|cache| {
@@ -547,6 +534,52 @@ fn compiled(pattern: &str, flags: u8, member: &str) -> Result<Rc<Compiled>, Faul
         cache.push((pattern.to_owned(), flags, Rc::clone(&built)));
     });
     Ok(built)
+}
+
+/// `pattern` under `flags`, offered to ADR 0056's two engines in that order —
+/// the whole of what "compiling a pattern" is, with no cache and no `Fault`
+/// around it so that both callers can reach it.
+///
+/// # Errors
+///
+/// The sentence [`compiled`] throws, without the member prefix a call site
+/// adds: the caller that has one is the runtime, and the caller that does not
+/// is [`validate`].
+fn build(pattern: &str, flags: u8) -> Result<Compiled, String> {
+    let spelled = effective(pattern, flags);
+    Ok(match regex::Regex::new(&spelled) {
+        Ok(linear) => Compiled::Linear(linear),
+        Err(_) => Compiled::Backtracking(
+            fancy_regex::RegexBuilder::new(&spelled)
+                .backtrack_limit(BACKTRACK_BUDGET)
+                .build()
+                .map_err(|err| {
+                    format!("`{pattern}` is not a pattern either engine can compile: {err}")
+                })?,
+        ),
+    })
+}
+
+/// Whether `pattern` is one either engine can compile, for a caller that wants
+/// the refusal and not the automaton —
+/// [ADR 0057](../../../../docs/adr/0057-intrinsic-literal-folding.md)'s fold,
+/// which reads a **literal** pattern while checking and reports § 3's
+/// diagnostic instead of the throw [`compiled`] would have made.
+///
+/// # Errors
+///
+/// [`build`]'s own sentence, unchanged, so a pattern refused while checking is
+/// exactly one the first call would have thrown on (§ 4).
+///
+/// The flags are **not** read: they reach [`effective`] as a `(?ims:…)` group
+/// wrapped around the pattern, which is balanced whatever the pattern is, so
+/// it can turn no accepted pattern into a refused one nor the other way round.
+/// Reading them would mean folding `Core\Regex::compile`'s options bag as
+/// well, for an answer that cannot differ — and the tier the pattern lands in,
+/// which *is* flag-sensitive, is gap 1's `[regex] backtracking = "deny"` and
+/// not this.
+pub fn validate(pattern: &str) -> Result<(), String> {
+    build(pattern, NO_FLAGS).map(|_| ())
 }
 
 /// ADR 0056 § 2's throw: the backtracking tier ran out of steps.

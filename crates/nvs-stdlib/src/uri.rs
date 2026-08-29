@@ -802,6 +802,43 @@ fn port_out_of_range(member: &str) -> Fault {
     ))
 }
 
+/// Whether `text` is a URI reference `Core\Uri::parse` would answer for, for
+/// a caller that wants the refusal and not the object —
+/// [ADR 0057](../../../../docs/adr/0057-intrinsic-literal-folding.md)'s fold,
+/// which reads a **literal** URI while checking and reports § 3's diagnostic
+/// instead of the throw [`nvs_core_uri_parse`] would have made.
+///
+/// # Errors
+///
+/// [`read`]'s sentence or [`port_of`]'s, without the member prefix a throw
+/// carries. **Both** steps run, for the reason [`nvs_core_uri_try_parse`]'s
+/// docs give at length: folding only the grammar one would make this pass
+/// silent about one of the two texts `parse` refuses, and a validator that
+/// disagrees with its parser is precisely what that member exists to prevent.
+/// Nothing is built, so no [`Value`] is allocated in the compiler.
+pub fn validate(text: &str) -> Result<(), String> {
+    let reference = read(text, "parse").map_err(stated)?;
+    if let Some(authority) = reference.authority() {
+        port_of(&authority, "parse").map_err(stated)?;
+    }
+    Ok(())
+}
+
+/// The sentence inside a fault [`read`] or [`port_of`] built, with the
+/// `Core\Uri::parse(): ` prefix removed — a diagnostic already names the
+/// member it points at, and a throw has to.
+fn stated(fault: Fault) -> String {
+    let Fault::Thrown(_, message) = fault else {
+        // Neither step builds any other variant, and a `Fatal` reaching here
+        // would be an engine bug rather than something about this literal.
+        return "this text is not a URI reference (RFC 3986 § 4.1)".to_owned();
+    };
+    message
+        .strip_prefix(r"Core\Uri::parse(): ")
+        .unwrap_or(&message)
+        .to_owned()
+}
+
 /// A fresh `Core\Uri` holding `reference`'s text and its seven components.
 ///
 /// # Errors

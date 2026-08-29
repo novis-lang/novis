@@ -283,6 +283,30 @@ pub(crate) fn compile(pattern: &str) -> Result<Vec<Piece>, String> {
     Ok(pieces)
 }
 
+/// Whether `pattern` is one [`compile`] can read, for a caller that wants the
+/// refusal and not the pieces —
+/// [ADR 0057](../../../../docs/adr/0057-intrinsic-literal-folding.md)'s fold,
+/// which reads a *literal* pattern while checking and reports § 3's diagnostic
+/// instead of the throw the runtime would have made.
+///
+/// # Errors
+///
+/// [`compile`]'s own sentence, unchanged: the fold and the runtime path are
+/// one implementation, so a pattern refused here is exactly one the first call
+/// would have thrown on (§ 4). This is what `nvs-types` reaches rather than
+/// [`compile`] itself, because a caller that discards the pieces should not
+/// make `Piece` and `Field` public API — the same split
+/// [`crate::format::placeholders`] makes beside the renderer it shares a walk
+/// with.
+///
+/// The *member* restrictions are deliberately not applied: `Core\Time::parse`
+/// also refuses a zonal field (`civil_fields_only`), which is a rule about
+/// that member rather than about the grammar, and leaving it to run time keeps
+/// this answer sound — everything it refuses, every caller refuses.
+pub fn validate(pattern: &str) -> Result<(), String> {
+    compile(pattern).map(|_| ())
+}
+
 /// Appends `text` to the pieces, merging it into a trailing literal so that
 /// `"-"`-separated runs are one piece rather than three.
 fn push_literal(pieces: &mut Vec<Piece>, text: &str) {

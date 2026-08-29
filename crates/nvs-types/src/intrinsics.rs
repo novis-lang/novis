@@ -45,7 +45,16 @@
 //!    and the parsed plan stored in ADR 0042's artifact cache — needs a
 //!    channel from here to `nvs-ir`; validation is the half that pays for
 //!    itself without one, and is what `nvs check` reports.
-//! 3. **A named or spread argument is not read.** `Core\Str::format(template:
+//! 3. **A member's own restriction on a well-formed pattern is left to run
+//!    time.** `Core\Time::parse` refuses a *zonal* field in a pattern the
+//!    grammar reads perfectly well (`nvs_stdlib::cldr`'s `civil_fields_only`),
+//!    because its zone is argument 3 rather than something the pattern names.
+//!    That is a rule about the member and not about the pattern language, and
+//!    [`Grammar`] carries one variant per language by § 1's own reading — so
+//!    refusing it here would need a per-row restriction the table does not
+//!    have a column for. Leaving it leaves § 4 intact: everything this pass
+//!    refuses, the runtime refuses too.
+//! 4. **A named or spread argument is not read.** `Core\Str::format(template:
 //!    "…")` folds nothing and runs unvalidated, exactly as
 //!    [`crate::links`]' own gap 1 describes: reading one needs the slot
 //!    mapping `check_args_typed` built and this pass is not handed.
@@ -165,7 +174,7 @@ pub(crate) fn check_call(
     let CallArgs::List(list) = args else {
         return;
     };
-    // Gap 3: a `name:` or a `...` moves an argument away from the position the
+    // Gap 4: a `name:` or a `...` moves an argument away from the position the
     // row names, so the whole call is left to run time rather than read out of
     // order.
     if list.iter().any(|arg| arg.name.is_some() || arg.spread) {
@@ -180,12 +189,38 @@ pub(crate) fn check_call(
     };
     match row.grammar {
         Grammar::Template => check_template(&text, pattern.value.span, row, arg_types, env),
-        // Each remaining grammar's reader lands with its own slice — the row
-        // is here first because § 1's *list* is the decision and a parser is
-        // only what implements it. Until then these members behave exactly as
-        // they did: the literal reaches the runtime unvalidated, which is what
-        // this pass is replacing rather than something it breaks.
-        Grammar::Regex | Grammar::Uri | Grammar::DateFormat | Grammar::Duration => {}
+        // Both CLDR rows read the same pattern language through the same
+        // `compile`, which is why they share one variant: the two members
+        // differ only in what they do with the pieces afterwards.
+        Grammar::DateFormat => {
+            if let Err(message) = nvs_stdlib::cldr::validate(&text) {
+                report_malformed(pattern.value.span, &message, env);
+            }
+        }
+        // ADR 0056 § 3's compile-time fact, as far as § 1's list carries it:
+        // the pattern is offered to the same two engines the first call would
+        // have offered it to. Which *tier* it landed in is not reported, which
+        // is that ADR's own gap 1 rather than this pass's.
+        Grammar::Regex => {
+            if let Err(message) = nvs_stdlib::regex::validate(&text) {
+                report_malformed(pattern.value.span, &message, env);
+            }
+        }
+        // Both of `Core\Uri::parse`'s throwing steps, which is the rule its
+        // own `tryParse` is written around: a validator that agrees with the
+        // parser about only one of them is the divergence that member exists
+        // to prevent.
+        Grammar::Uri => {
+            if let Err(message) = nvs_stdlib::uri::validate(&text) {
+                report_malformed(pattern.value.span, &message, env);
+            }
+        }
+        // The last grammar's reader lands with its own slice — the row is here
+        // first because § 1's *list* is the decision and a parser is only what
+        // implements it. Until then the member behaves exactly as it did: the
+        // literal reaches the runtime unvalidated, which is what this pass is
+        // replacing rather than something it breaks.
+        Grammar::Duration => {}
     }
 }
 

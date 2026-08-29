@@ -198,7 +198,7 @@
 pub mod arr;
 mod attributes;
 mod bytes;
-mod cldr;
+pub mod cldr;
 mod cli;
 mod csv;
 mod cursor;
