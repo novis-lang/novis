@@ -1,0 +1,121 @@
+--TEST--
+`Core\Validate::isPrintable` refuses Unicode general category `Cc` and nothing else: both refused runs are found by sweeping rather than named, the invisible characters just outside the category are accepted, and the answer over a string is the conjunction over its characters — docs/spec/01-core-library.md § 12
+--FILE--
+<?nvs
+// `validate-ascii-and-printable-name-their-own-bounds.nvst` names where this
+// member's line falls in the first 272 code points. This case asserts what the
+// line *is*: general category `Cc`, which is exactly "has no printed form" —
+// and not any of the three things it is repeatedly mistaken for. It is not
+// "renders visibly" (a bidi override is printable), not "is not a line break"
+// (`U+2028` is printable and `\n` is not), and not "is ASCII" (that is the
+// neighbouring member).
+//
+// So each row below names a refused character beside the character just outside
+// the category doing the same job, which is the only way a member that grew a
+// wider reading of "control" fails: a spoofing check answers every named row in
+// the sibling case identically and parts company here.
+// `crates/nvs-stdlib/src/validate.rs`'s module doc owns why refusing a bidi
+// override would be the false confidence ADR 0024 exists to prevent.
+final class Cp {
+    // A single code point as a `string`. `Core\Str::fromCodePoint` takes a
+    // `uint`, so a sweep's `int` counter is converted at the argument.
+    public static function one(int $c): string {
+        return Core\Str::fromCodePoint($c as uint);
+    }
+
+    public static function yn(bool $b): string {
+        return $b ? "y" : "n";
+    }
+}
+
+// Ending a line is a job two categories do. `LF` (0x0A), `CR` (0x0D) and `NEL`
+// (0x85, the C1 one a UTF-8 decode can produce) are `Cc` and are refused;
+// `LINE SEPARATOR` (U+2028) and `PARAGRAPH SEPARATOR` (U+2029) do the same job
+// from categories `Zl` and `Zp` and are accepted. The pair is the bound: a
+// member that asked "does this end a line" rather than "is this `Cc`" answers
+// `n` five times here.
+echo "line-breaks ",
+     Cp::yn(Core\Validate::isPrintable(Cp::one(10))),
+     Cp::yn(Core\Validate::isPrintable(Cp::one(13))),
+     Cp::yn(Core\Validate::isPrintable(Cp::one(133))),
+     Cp::yn(Core\Validate::isPrintable(Cp::one(8232))),
+     Cp::yn(Core\Validate::isPrintable(Cp::one(8233))),
+     "\n";
+
+// The five characters a spoofing check exists to refuse — `SOFT HYPHEN`,
+// `ZERO WIDTH SPACE`, `LEFT-TO-RIGHT MARK`, `RIGHT-TO-LEFT OVERRIDE` and the
+// byte order mark. None is `Cc`, so all five are printable, and this member
+// says so rather than half-refusing them.
+echo "invisible ",
+     Cp::yn(Core\Validate::isPrintable(Cp::one(173))),
+     Cp::yn(Core\Validate::isPrintable(Cp::one(8203))),
+     Cp::yn(Core\Validate::isPrintable(Cp::one(8206))),
+     Cp::yn(Core\Validate::isPrintable(Cp::one(8238))),
+     Cp::yn(Core\Validate::isPrintable(Cp::one(65279))),
+     "\n";
+
+// Separating words is the same story: `SPACE`, `NO-BREAK SPACE` and
+// `IDEOGRAPHIC SPACE` are `Zs` and accepted, and `TAB` is `Cc` and refused
+// however much it reads like one of them.
+echo "spaces ",
+     Cp::yn(Core\Validate::isPrintable(Cp::one(32))),
+     Cp::yn(Core\Validate::isPrintable(Cp::one(160))),
+     Cp::yn(Core\Validate::isPrintable(Cp::one(12288))),
+     Cp::yn(Core\Validate::isPrintable(Cp::one(9))),
+     "\n";
+
+// Both runs, searched for over `U+0000`..`U+20FF` instead of named: how many
+// code points are refused, how many separate runs they form, and where the last
+// one ends. `Cc` is 65 code points in two runs — `0x00`..`0x1F`, then `DEL`
+// through `0x9F` as one unbroken stretch — ending at `0x9F`. Any wider reading
+// of "control" moves at least the first number, and one that treated `DEL` as
+// its own case moves the second.
+int $refused = 0;
+int $runs = 0;
+int $last = 0;
+bool $previous = true;
+int $c = 0;
+for (; $c < 8448; $c = $c + 1) {
+    bool $ok = Core\Validate::isPrintable(Cp::one($c));
+    if (!$ok) {
+        $refused = $refused + 1;
+        $last = $c;
+        if ($previous) {
+            $runs = $runs + 1;
+        }
+    }
+    $previous = $ok;
+}
+echo "sweep ", $refused as string, "|", $runs as string, "|", $last as string, "\n";
+
+// The answer over a `string` is the conjunction over its characters, so one
+// character decides it wherever it sits. The same insertion done twice over
+// every position of a five-character subject: a `TAB` refuses all six, and a
+// `RIGHT-TO-LEFT OVERRIDE` — the character that would break a member reading
+// "printable" as "safe to show" — refuses none.
+string $base = "novis";
+int $withControl = 0;
+int $withOverride = 0;
+int $p = 0;
+for (; $p < 6; $p = $p + 1) {
+    string $head = Core\Str::slice($base, 0, $p);
+    string $tail = Core\Str::slice($base, $p);
+    if (Core\Validate::isPrintable($head . Cp::one(9) . $tail)) {
+        $withControl = $withControl + 1;
+    }
+    if (Core\Validate::isPrintable($head . Cp::one(8238) . $tail)) {
+        $withOverride = $withOverride + 1;
+    }
+}
+echo "insert ", $withControl as string, "/6 ", $withOverride as string, "/6\n";
+
+// And the subject with no characters to ask about, which this member answers
+// `true` where every `ctype_*` answers `false` — the module doc owns why.
+echo "empty ", Cp::yn(Core\Validate::isPrintable("")), "\n";
+--EXPECT--
+line-breaks nnnyy
+invisible yyyyy
+spaces yyyn
+sweep 65|2|159
+insert 0/6 6/6
+empty y
