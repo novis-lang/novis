@@ -88,7 +88,8 @@ use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, StrWriter, Tag, Value};
 use unicode_normalization::UnicodeNormalization;
 
 use crate::registry::{
-    Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, MethodDoc, ParamDoc, Qual,
+    CaseDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc, ErrorDoc,
+    MethodDoc, ParamDoc, Qual,
 };
 
 // ============================================================================
@@ -128,7 +129,35 @@ const LENGTH_DOC: MethodDoc = MethodDoc {
 pub(crate) const NORMAL_FORM: CoreEnum = CoreEnum {
     name: NORMAL_FORM_NAME,
     cases: &[("Nfc", 0), ("Nfd", 1), ("Nfkc", 2), ("Nfkd", 3)],
-    doc: None,
+    doc: Some(&NORMAL_FORM_DOC),
+};
+
+/// [`NORMAL_FORM`]'s reference card — ADR 0117.
+const NORMAL_FORM_DOC: EnumDoc = EnumDoc {
+    short: "Which of UAX #15's four normal forms `Core\\Str::normalize` rewrites into — composed \
+            or decomposed on one axis, canonical or compatibility on the other.",
+    cases: &[
+        CaseDoc {
+            name: "Nfc",
+            desc: "Canonical composition: `é` is one code point, and only canonical equivalents \
+                   are unified — the form to store and compare text in.",
+        },
+        CaseDoc {
+            name: "Nfd",
+            desc: "Canonical decomposition: `é` is `e` plus a combining acute, and only canonical \
+                   equivalents are unified.",
+        },
+        CaseDoc {
+            name: "Nfkc",
+            desc: "Compatibility composition: `Nfc`, and a character that merely renders like \
+                   another — `ﬁ`, `①` — is unified with it too, which does not round-trip.",
+        },
+        CaseDoc {
+            name: "Nfkd",
+            desc: "Compatibility decomposition: `Nfd`, plus the same compatibility unification \
+                   `Nfkc` applies.",
+        },
+    ],
 };
 
 /// `Core\Str`'s registry rows, in the spec's own order.
@@ -174,7 +203,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_at",
-            doc: None,
+            doc: Some(&AT_DOC),
         },
         CoreMethod {
             name: "isEmpty",
@@ -183,7 +212,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_str_is_empty",
-            doc: None,
+            doc: Some(&IS_EMPTY_DOC),
         },
         CoreMethod {
             name: "contains",
@@ -192,7 +221,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_str_contains",
-            doc: None,
+            doc: Some(&CONTAINS_DOC),
         },
         CoreMethod {
             name: "startsWith",
@@ -201,7 +230,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_str_starts_with",
-            doc: None,
+            doc: Some(&STARTS_WITH_DOC),
         },
         CoreMethod {
             name: "endsWith",
@@ -210,7 +239,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_str_ends_with",
-            doc: None,
+            doc: Some(&ENDS_WITH_DOC),
         },
         CoreMethod {
             name: "slice",
@@ -223,7 +252,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[Const::Null],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_slice",
-            doc: None,
+            doc: Some(&SLICE_DOC),
         },
         CoreMethod {
             name: "indexOf",
@@ -236,7 +265,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Uint),
             symbol: "nvs_core_str_index_of",
-            doc: None,
+            doc: Some(&INDEX_OF_DOC),
         },
         CoreMethod {
             name: "lastIndexOf",
@@ -249,7 +278,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Uint),
             symbol: "nvs_core_str_last_index_of",
-            doc: None,
+            doc: Some(&LAST_INDEX_OF_DOC),
         },
         CoreMethod {
             name: "countOf",
@@ -258,7 +287,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Uint,
             symbol: "nvs_core_str_count_of",
-            doc: None,
+            doc: Some(&COUNT_OF_DOC),
         },
         CoreMethod {
             name: "compare",
@@ -271,7 +300,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_str_compare",
-            doc: None,
+            doc: Some(&COMPARE_DOC),
         },
         CoreMethod {
             name: "before",
@@ -284,7 +313,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_str_before",
-            doc: None,
+            doc: Some(&BEFORE_DOC),
         },
         CoreMethod {
             name: "after",
@@ -297,7 +326,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_str_after",
-            doc: None,
+            doc: Some(&AFTER_DOC),
         },
         CoreMethod {
             name: "join",
@@ -306,7 +335,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[Const::Str("")],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_join",
-            doc: None,
+            doc: Some(&JOIN_DOC),
         },
         CoreMethod {
             name: "split",
@@ -319,7 +348,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
             symbol: "nvs_core_str_split",
-            doc: None,
+            doc: Some(&SPLIT_DOC),
         },
         CoreMethod {
             name: "chunk",
@@ -328,7 +357,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
             symbol: "nvs_core_str_chunk",
-            doc: None,
+            doc: Some(&CHUNK_DOC),
         },
         CoreMethod {
             name: "lines",
@@ -337,7 +366,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
             symbol: "nvs_core_str_lines",
-            doc: None,
+            doc: Some(&LINES_DOC),
         },
         CoreMethod {
             name: "graphemes",
@@ -346,7 +375,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
             symbol: "nvs_core_str_graphemes",
-            doc: None,
+            doc: Some(&GRAPHEMES_DOC),
         },
         CoreMethod {
             name: "codePoints",
@@ -355,7 +384,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Uint),
             symbol: "nvs_core_str_code_points",
-            doc: None,
+            doc: Some(&CODE_POINTS_DOC),
         },
         CoreMethod {
             name: "replace",
@@ -369,7 +398,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_replace",
-            doc: None,
+            doc: Some(&REPLACE_DOC),
         },
         CoreMethod {
             name: "replaceAll",
@@ -382,7 +411,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_replace_all",
-            doc: None,
+            doc: Some(&REPLACE_ALL_DOC),
         },
         CoreMethod {
             name: "replaceRange",
@@ -396,7 +425,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_replace_range",
-            doc: None,
+            doc: Some(&REPLACE_RANGE_DOC),
         },
         CoreMethod {
             name: "padStart",
@@ -409,7 +438,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[Const::Str(" ")],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_pad_start",
-            doc: None,
+            doc: Some(&PAD_START_DOC),
         },
         CoreMethod {
             name: "padEnd",
@@ -422,7 +451,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[Const::Str(" ")],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_pad_end",
-            doc: None,
+            doc: Some(&PAD_END_DOC),
         },
         CoreMethod {
             name: "trim",
@@ -434,7 +463,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_trim",
-            doc: None,
+            doc: Some(&TRIM_DOC),
         },
         CoreMethod {
             name: "trimStart",
@@ -446,7 +475,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_trim_start",
-            doc: None,
+            doc: Some(&TRIM_START_DOC),
         },
         CoreMethod {
             name: "trimEnd",
@@ -458,7 +487,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_trim_end",
-            doc: None,
+            doc: Some(&TRIM_END_DOC),
         },
         CoreMethod {
             name: "repeat",
@@ -467,7 +496,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_repeat",
-            doc: None,
+            doc: Some(&REPEAT_DOC),
         },
         CoreMethod {
             name: "reverse",
@@ -476,7 +505,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_reverse",
-            doc: None,
+            doc: Some(&REVERSE_DOC),
         },
         CoreMethod {
             name: "wrap",
@@ -489,7 +518,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_wrap",
-            doc: None,
+            doc: Some(&WRAP_DOC),
         },
         CoreMethod {
             name: "lower",
@@ -498,7 +527,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_lower",
-            doc: None,
+            doc: Some(&LOWER_DOC),
         },
         CoreMethod {
             name: "upper",
@@ -507,7 +536,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_upper",
-            doc: None,
+            doc: Some(&UPPER_DOC),
         },
         CoreMethod {
             name: "upperFirst",
@@ -516,7 +545,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_upper_first",
-            doc: None,
+            doc: Some(&UPPER_FIRST_DOC),
         },
         CoreMethod {
             name: "lowerFirst",
@@ -525,7 +554,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_lower_first",
-            doc: None,
+            doc: Some(&LOWER_FIRST_DOC),
         },
         CoreMethod {
             name: "fold",
@@ -534,7 +563,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_fold",
-            doc: None,
+            doc: Some(&FOLD_DOC),
         },
         CoreMethod {
             name: "normalize",
@@ -546,7 +575,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_normalize",
-            doc: None,
+            doc: Some(&NORMALIZE_DOC),
         },
         CoreMethod {
             name: "fromCodePoint",
@@ -555,7 +584,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_from_code_point",
-            doc: None,
+            doc: Some(&FROM_CODE_POINT_DOC),
         },
         CoreMethod {
             name: "fromCodePoints",
@@ -564,7 +593,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_from_code_points",
-            doc: None,
+            doc: Some(&FROM_CODE_POINTS_DOC),
         },
         CoreMethod {
             name: "format",
@@ -573,12 +602,871 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_format",
-            doc: None,
+            doc: Some(&FORMAT_DOC),
         },
     ],
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\Str::at`'s reference card — ADR 0117.
+const AT_DOC: MethodDoc = MethodDoc {
+    short: "Answers the one character at `$index`, as `$s[$i]` and `mb_substr($s, $i, 1)` do — \
+            counted in graphemes, ADR 0009's default unit, and never a byte.",
+    params: &[
+        ParamDoc {
+            name: "s",
+            desc: "The string to index into.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "index",
+            desc: "The position of the character; a negative one counts from the end.",
+            shape: &[],
+        },
+    ],
+    ret: "The character, as a one-grapheme string.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$index` addresses nothing — it lies at or past the string's length in either \
+               direction.",
+    }],
+};
+
+/// `Core\Str::isEmpty`'s reference card — ADR 0117.
+const IS_EMPTY_DOC: MethodDoc = MethodDoc {
+    short: "Answers whether `$s` holds no characters at all — the `$s === \"\"` test.",
+    params: &[ParamDoc {
+        name: "s",
+        desc: "The string to test.",
+        shape: &[],
+    }],
+    ret: "`true` for the empty string, `false` for any other.",
+    errors: &[],
+};
+
+/// `Core\Str::contains`'s reference card — ADR 0117.
+const CONTAINS_DOC: MethodDoc = MethodDoc {
+    short: "Answers whether `$needle` occurs anywhere in `$haystack`, as `str_contains` does.",
+    params: &[
+        ParamDoc {
+            name: "haystack",
+            desc: "The string searched in.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "needle",
+            desc: "The string searched for, matched case-sensitively.",
+            shape: &[],
+        },
+    ],
+    ret: "`true` when it occurs; an empty needle is contained in every string, the empty one \
+          included.",
+    errors: &[],
+};
+
+/// `Core\Str::startsWith`'s reference card — ADR 0117.
+const STARTS_WITH_DOC: MethodDoc = MethodDoc {
+    short: "Answers whether `$s` begins with `$prefix`, as `str_starts_with` does.",
+    params: &[
+        ParamDoc {
+            name: "s",
+            desc: "The string to test.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "prefix",
+            desc: "The text it must begin with, matched case-sensitively.",
+            shape: &[],
+        },
+    ],
+    ret: "`true` when it does; an empty prefix begins every string.",
+    errors: &[],
+};
+
+/// `Core\Str::endsWith`'s reference card — ADR 0117.
+const ENDS_WITH_DOC: MethodDoc = MethodDoc {
+    short: "Answers whether `$s` ends with `$suffix`, as `str_ends_with` does.",
+    params: &[
+        ParamDoc {
+            name: "s",
+            desc: "The string to test.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "suffix",
+            desc: "The text it must end with, matched case-sensitively.",
+            shape: &[],
+        },
+    ],
+    ret: "`true` when it does; an empty suffix ends every string.",
+    errors: &[],
+};
+
+/// `Core\Str::slice`'s reference card — ADR 0117.
+const SLICE_DOC: MethodDoc = MethodDoc {
+    short: "Cuts the part of `$s` that starts at `$offset` and runs for `$length` characters, as \
+            `substr` and `mb_substr` do — counted in graphemes, so no slice ever splits a \
+            character.",
+    params: &[
+        ParamDoc {
+            name: "s",
+            desc: "The string to cut from.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "offset",
+            desc: "Where the slice begins; a negative offset counts from the end.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "length",
+            desc: "How many characters to take; a negative one stops that many from the end, and \
+                   `null` runs to the end.",
+            shape: &[],
+        },
+    ],
+    ret: "The selected text, or `\"\"` for a window that is empty or lies past either end; `$s` \
+          is unchanged.",
+    errors: &[],
+};
+
+/// `Core\Str::indexOf`'s reference card — ADR 0117.
+const INDEX_OF_DOC: MethodDoc = MethodDoc {
+    short: "Finds the first occurrence of `$needle` in `$haystack` and answers its position, as \
+            `strpos`, `stripos`, `mb_strpos` and `mb_stripos` do.",
+    params: &[
+        ParamDoc {
+            name: "haystack",
+            desc: "The string searched in.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "needle",
+            desc: "The string searched for; an empty one matches where the search starts.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "from",
+            desc: "The position the search starts at; a negative one counts from the end, and \
+                   the default is `0`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "caseInsensitive",
+            desc: "Match through Unicode's simple lower-case mapping of each character rather \
+                   than exactly; the default is `false`.",
+            shape: &[],
+        },
+    ],
+    ret: "The grapheme position of the first occurrence at or after `from`, usable as `slice`'s \
+          offset; `null` when the needle does not occur there — never `false`.",
+    errors: &[],
+};
+
+/// `Core\Str::lastIndexOf`'s reference card — ADR 0117.
+const LAST_INDEX_OF_DOC: MethodDoc = MethodDoc {
+    short: "Finds the last occurrence of `$needle` in `$haystack` and answers its position, as \
+            `strrpos`, `strripos` and `mb_strrpos` do.",
+    params: &[
+        ParamDoc {
+            name: "haystack",
+            desc: "The string searched in.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "needle",
+            desc: "The string searched for.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "before",
+            desc: "Only an occurrence that ends at or before this position counts; a negative \
+                   one counts from the end, and the default is the whole string.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "caseInsensitive",
+            desc: "Match through Unicode's simple lower-case mapping of each character rather \
+                   than exactly; the default is `false`.",
+            shape: &[],
+        },
+    ],
+    ret: "The grapheme position of the last such occurrence — occurrences may overlap, so \
+          `lastIndexOf(\"aaa\", \"aa\")` is `1`; `null` when none occurs — never `false`.",
+    errors: &[],
+};
+
+/// `Core\Str::countOf`'s reference card — ADR 0117.
+const COUNT_OF_DOC: MethodDoc = MethodDoc {
+    short: "Counts the non-overlapping occurrences of `$needle` in `$haystack`, as \
+            `substr_count` does.",
+    params: &[
+        ParamDoc {
+            name: "haystack",
+            desc: "The string searched in.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "needle",
+            desc: "The string counted, matched case-sensitively; never empty.",
+            shape: &[],
+        },
+    ],
+    ret: "The count, `0` when the needle does not occur; `countOf(\"aaa\", \"aa\")` is `1`, \
+          because a count partitions the subject where `lastIndexOf` does not.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$needle` is empty.",
+    }],
+};
+
+/// `Core\Str::compare`'s reference card — ADR 0117.
+const COMPARE_DOC: MethodDoc = MethodDoc {
+    short: "Orders `$a` against `$b`, as `strcmp`, `strcasecmp`, `strnatcmp` and \
+            `strnatcasecmp` do — the two options pick which of the four.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The first string.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "b",
+            desc: "The second string.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "caseInsensitive",
+            desc: "Compare Unicode's simple lower-case mapping of each character instead, so \
+                   `ß` and `SS` still differ; the default is `false`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "natural",
+            desc: "Order embedded digit runs by their numeric value, so `\"img2\"` sorts before \
+                   `\"img12\"` — a different ordering, not a variant of the default; the \
+                   default is `false`.",
+            shape: &[],
+        },
+    ],
+    ret: "`-1`, `0` or `1` — the sign only, never a byte difference.",
+    errors: &[],
+};
+
+/// `Core\Str::before`'s reference card — ADR 0117.
+const BEFORE_DOC: MethodDoc = MethodDoc {
+    short: "Answers everything in `$s` up to the first occurrence of `$needle`, as \
+            `strstr($h, $n, true)` does; `{last: true}` cuts at the last occurrence instead, as \
+            `strrchr` does.",
+    params: &[
+        ParamDoc {
+            name: "s",
+            desc: "The string to cut.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "needle",
+            desc: "The separator to cut at, matched case-sensitively and left out of the answer.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "last",
+            desc: "Cut at the last occurrence rather than the first; the default is `false`.",
+            shape: &[],
+        },
+    ],
+    ret: "The text before the occurrence, without the needle; `null` when the needle does not \
+          occur — never `false`.",
+    errors: &[],
+};
+
+/// `Core\Str::after`'s reference card — ADR 0117.
+const AFTER_DOC: MethodDoc = MethodDoc {
+    short: "Answers everything in `$s` past the first occurrence of `$needle`, as `strstr` \
+            does minus the needle itself; `{last: true}` cuts at the last occurrence instead, \
+            as `strrchr` does.",
+    params: &[
+        ParamDoc {
+            name: "s",
+            desc: "The string to cut.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "needle",
+            desc: "The separator to cut at, matched case-sensitively and left out of the answer.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "last",
+            desc: "Cut at the last occurrence rather than the first; the default is `false`.",
+            shape: &[],
+        },
+    ],
+    ret: "The text after the occurrence, without the needle; `null` when the needle does not \
+          occur — never `false`.",
+    errors: &[],
+};
+
+/// `Core\Str::join`'s reference card — ADR 0117.
+const JOIN_DOC: MethodDoc = MethodDoc {
+    short: "Concatenates the strings in `$parts` with `$separator` between each neighbouring \
+            pair, as `implode` does.",
+    params: &[
+        ParamDoc {
+            name: "parts",
+            desc: "The strings to join, in slot order.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "separator",
+            desc: "What goes between two neighbouring parts; the default is the empty string.",
+            shape: &[],
+        },
+    ],
+    ret: "The joined string; `\"\"` for an empty array.",
+    errors: &[],
+};
+
+/// `Core\Str::split`'s reference card — ADR 0117.
+const SPLIT_DOC: MethodDoc = MethodDoc {
+    short: "Splits `$s` at every occurrence of `$separator`, as `explode` does.",
+    params: &[
+        ParamDoc {
+            name: "s",
+            desc: "The string to split.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "separator",
+            desc: "The text to split at, matched case-sensitively; never empty.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "limit",
+            desc: "At most this many pieces when positive, the last holding the unsplit \
+                   remainder; every piece but the last `-limit` of them when negative; the \
+                   subject unsplit when `0`. The default is no limit.",
+            shape: &[],
+        },
+    ],
+    ret: "The pieces in order, without the separator; `[\"\"]` for the empty string, and `[]` \
+          when a negative limit drops every piece.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$separator` is empty.",
+    }],
+};
+
+/// `Core\Str::chunk`'s reference card — ADR 0117.
+const CHUNK_DOC: MethodDoc = MethodDoc {
+    short: "Divides `$s` into pieces of `$size` characters each, as `str_split`, `mb_str_split` \
+            and `chunk_split` do — counted in graphemes, so no chunk ever splits a character.",
+    params: &[
+        ParamDoc {
+            name: "s",
+            desc: "The string to divide.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "size",
+            desc: "How many characters each chunk holds; at least `1`.",
+            shape: &[],
+        },
+    ],
+    ret: "The chunks in order, only the last of them possibly shorter; `[]` for the empty \
+          string.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$size` is `0`.",
+    }],
+};
+
+/// `Core\Str::lines`'s reference card — ADR 0117.
+const LINES_DOC: MethodDoc = MethodDoc {
+    short: "Splits `$s` into its lines, as `explode(PHP_EOL, …)` does — at `\\n`, `\\r\\n` and \
+            a lone `\\r` alike, whatever the platform.",
+    params: &[ParamDoc {
+        name: "s",
+        desc: "The text to split.",
+        shape: &[],
+    }],
+    ret: "The lines without their terminators; a trailing terminator adds no final empty line, \
+          an interior empty line is still a line, and the empty string has no lines at all.",
+    errors: &[],
+};
+
+/// `Core\Str::graphemes`'s reference card — ADR 0117.
+const GRAPHEMES_DOC: MethodDoc = MethodDoc {
+    short: "Splits `$s` into its extended grapheme clusters — the unit `length` counts and `at` \
+            indexes — as the split half of intl's `grapheme_*` family does.",
+    params: &[ParamDoc {
+        name: "s",
+        desc: "The string to split.",
+        shape: &[],
+    }],
+    ret: "One string per grapheme, in order; `[]` for the empty string.",
+    errors: &[],
+};
+
+/// `Core\Str::codePoints`'s reference card — ADR 0117.
+const CODE_POINTS_DOC: MethodDoc = MethodDoc {
+    short: "Lists the Unicode scalar values of `$s`, as `mb_str_split` plus `mb_ord` does — \
+            code points rather than graphemes, so a combining sequence is several.",
+    params: &[ParamDoc {
+        name: "s",
+        desc: "The string to read.",
+        shape: &[],
+    }],
+    ret: "One `uint` per code point, in order, each in `0..=0x10FFFF` and never a surrogate; \
+          `[]` for the empty string.",
+    errors: &[],
+};
+
+/// `Core\Str::replace`'s reference card — ADR 0117.
+const REPLACE_DOC: MethodDoc = MethodDoc {
+    short: "Replaces every occurrence of `$search` in `$s` with `$replacement`, as `str_replace` \
+            and `str_ireplace` do — non-overlapping, left to right, and the replacement is \
+            never rescanned.",
+    params: &[
+        ParamDoc {
+            name: "s",
+            desc: "The string to rewrite.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "search",
+            desc: "The text to look for; an empty one matches nothing.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "replacement",
+            desc: "The text put in its place.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "caseInsensitive",
+            desc: "Match through Unicode's simple lower-case mapping of each character rather \
+                   than exactly; the default is `false`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "limit",
+            desc: "Replace at most this many occurrences, from the left; `0` replaces nothing, \
+                   and the default is every one.",
+            shape: &[],
+        },
+    ],
+    ret: "The rewritten string; `$s` unchanged when nothing matched.",
+    errors: &[],
+};
+
+/// `Core\Str::replaceAll`'s reference card — ADR 0117.
+const REPLACE_ALL_DOC: MethodDoc = MethodDoc {
+    short: "Substitutes a whole table at once — `$pairs` keyed needle to replacement — as \
+            `strtr` and the array form of `str_replace` do: one pass, the longest matching \
+            needle wins at each position, and a replacement is never rescanned.",
+    params: &[
+        ParamDoc {
+            name: "s",
+            desc: "The string to rewrite.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "pairs",
+            desc: "The substitutions, each key the text to find and its value the text put \
+                   there; an empty key is skipped.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "caseInsensitive",
+            desc: "Match through Unicode's simple lower-case mapping of each character, where \
+                   a tie goes to the pair written first; the default is `false`.",
+            shape: &[],
+        },
+    ],
+    ret: "The rewritten string; `$s` unchanged for an empty table or when nothing matched.",
+    errors: &[],
+};
+
+/// `Core\Str::replaceRange`'s reference card — ADR 0117.
+const REPLACE_RANGE_DOC: MethodDoc = MethodDoc {
+    short: "Puts `$replacement` in place of the window `slice` would answer for the same \
+            `$offset` and `$length`, as `substr_replace` does.",
+    params: &[
+        ParamDoc {
+            name: "s",
+            desc: "The string to rewrite.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "offset",
+            desc: "Where the window begins; a negative offset counts from the end.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "length",
+            desc: "How many characters the window covers; a negative one stops that many from \
+                   the end, and `null` runs to the end.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "replacement",
+            desc: "The text put in the window's place; `\"\"` removes the window.",
+            shape: &[],
+        },
+    ],
+    ret: "The rewritten string; an empty window — a `$length` of `0`, or one reaching back past \
+          the offset — makes this an insertion at that position.",
+    errors: &[],
+};
+
+/// `Core\Str::padStart`'s reference card — ADR 0117.
+const PAD_START_DOC: MethodDoc = MethodDoc {
+    short: "Prepends copies of `$padding` to `$s` until it is `$length` characters long, as \
+            `str_pad` with `STR_PAD_LEFT` does — counted in graphemes.",
+    params: &[
+        ParamDoc {
+            name: "s",
+            desc: "The string to pad.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "length",
+            desc: "The length to reach.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "padding",
+            desc: "The text repeated to fill the shortfall, cut at its own end when it does not \
+                   divide evenly; the default is one space.",
+            shape: &[],
+        },
+    ],
+    ret: "The padded string; `$s` unchanged when it is already `$length` long or longer.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$padding` is empty while `$s` is shorter than `$length`, or the result would be \
+               larger than this process can hold.",
+    }],
+};
+
+/// `Core\Str::padEnd`'s reference card — ADR 0117.
+const PAD_END_DOC: MethodDoc = MethodDoc {
+    short: "Appends copies of `$padding` to `$s` until it is `$length` characters long, as \
+            `str_pad` with `STR_PAD_RIGHT` does — counted in graphemes.",
+    params: &[
+        ParamDoc {
+            name: "s",
+            desc: "The string to pad.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "length",
+            desc: "The length to reach.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "padding",
+            desc: "The text repeated to fill the shortfall, cut at its own end when it does not \
+                   divide evenly; the default is one space.",
+            shape: &[],
+        },
+    ],
+    ret: "The padded string; `$s` unchanged when it is already `$length` long or longer.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$padding` is empty while `$s` is shorter than `$length`, or the result would be \
+               larger than this process can hold.",
+    }],
+};
+
+/// `Core\Str::trim`'s reference card — ADR 0117.
+const TRIM_DOC: MethodDoc = MethodDoc {
+    short: "Strips every leading and trailing character drawn from `characters` off `$s`, as \
+            `trim` does — matched by character, and without `trim`'s `a..z` range syntax.",
+    params: &[
+        ParamDoc {
+            name: "s",
+            desc: "The string to trim.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "characters",
+            desc: "The set of characters to strip, each one literal; the default is space, tab, \
+                   newline, carriage return, NUL and vertical tab.",
+            shape: &[],
+        },
+    ],
+    ret: "The trimmed string; `$s` unchanged when neither end holds one of the characters.",
+    errors: &[],
+};
+
+/// `Core\Str::trimStart`'s reference card — ADR 0117.
+const TRIM_START_DOC: MethodDoc = MethodDoc {
+    short: "Strips every leading character drawn from `characters` off `$s`, as `ltrim` does — \
+            matched by character, and without `ltrim`'s `a..z` range syntax.",
+    params: &[
+        ParamDoc {
+            name: "s",
+            desc: "The string to trim.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "characters",
+            desc: "The set of characters to strip, each one literal; the default is space, tab, \
+                   newline, carriage return, NUL and vertical tab.",
+            shape: &[],
+        },
+    ],
+    ret: "The trimmed string; `$s` unchanged when it does not begin with one of the characters.",
+    errors: &[],
+};
+
+/// `Core\Str::trimEnd`'s reference card — ADR 0117.
+const TRIM_END_DOC: MethodDoc = MethodDoc {
+    short: "Strips every trailing character drawn from `characters` off `$s`, as `rtrim` and \
+            `chop` do — matched by character, and without `rtrim`'s `a..z` range syntax.",
+    params: &[
+        ParamDoc {
+            name: "s",
+            desc: "The string to trim.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "characters",
+            desc: "The set of characters to strip, each one literal; the default is space, tab, \
+                   newline, carriage return, NUL and vertical tab.",
+            shape: &[],
+        },
+    ],
+    ret: "The trimmed string; `$s` unchanged when it does not end with one of the characters.",
+    errors: &[],
+};
+
+/// `Core\Str::repeat`'s reference card — ADR 0117.
+const REPEAT_DOC: MethodDoc = MethodDoc {
+    short: "Concatenates `$times` copies of `$s`, as `str_repeat` does.",
+    params: &[
+        ParamDoc {
+            name: "s",
+            desc: "The string to repeat.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "times",
+            desc: "How many copies to write.",
+            shape: &[],
+        },
+    ],
+    ret: "The repeated string; `\"\"` when `$times` is `0` or `$s` is empty.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The result would be larger than this process can hold.",
+    }],
+};
+
+/// `Core\Str::reverse`'s reference card — ADR 0117.
+const REVERSE_DOC: MethodDoc = MethodDoc {
+    short: "Reverses the order of the characters in `$s`, as `strrev` does — by grapheme rather \
+            than by byte, so `\"café\"` becomes `\"éfac\"` and a combining mark stays on its \
+            letter.",
+    params: &[ParamDoc {
+        name: "s",
+        desc: "The string to reverse.",
+        shape: &[],
+    }],
+    ret: "The reversed string; the same length as `$s`, and `\"\"` for the empty string.",
+    errors: &[],
+};
+
+/// `Core\Str::wrap`'s reference card — ADR 0117.
+const WRAP_DOC: MethodDoc = MethodDoc {
+    short: "Breaks `$s` into lines no longer than `$width` characters by inserting `breakWith` \
+            at spaces, as `wordwrap` does — counted in graphemes.",
+    params: &[
+        ParamDoc {
+            name: "s",
+            desc: "The text to wrap.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "width",
+            desc: "The longest line allowed, in characters; `0` breaks at every space.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "breakWith",
+            desc: "The text inserted at each break, and a line reset wherever it already occurs \
+                   in `$s`; the default is `\"\\n\"`, without `wordwrap`'s leading space.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "cutLongWords",
+            desc: "Break a word longer than `$width` in the middle rather than letting it \
+                   overrun the line; the default is `false`.",
+            shape: &[],
+        },
+    ],
+    ret: "The wrapped text.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`breakWith` is empty, or `$width` is `0` with `cutLongWords` set.",
+    }],
+};
+
+/// `Core\Str::lower`'s reference card — ADR 0117.
+const LOWER_DOC: MethodDoc = MethodDoc {
+    short: "Lower-cases `$s` through Unicode's full lowercase mapping, as `mb_strtolower` does; \
+            there is no byte-wise `strtolower` twin.",
+    params: &[ParamDoc {
+        name: "s",
+        desc: "The string to lower-case.",
+        shape: &[],
+    }],
+    ret: "The lower-cased string, possibly a different length from `$s`.",
+    errors: &[],
+};
+
+/// `Core\Str::upper`'s reference card — ADR 0117.
+const UPPER_DOC: MethodDoc = MethodDoc {
+    short: "Upper-cases `$s` through Unicode's full uppercase mapping, as `mb_strtoupper` does, \
+            so `straße` becomes `STRASSE`; there is no byte-wise `strtoupper` twin.",
+    params: &[ParamDoc {
+        name: "s",
+        desc: "The string to upper-case.",
+        shape: &[],
+    }],
+    ret: "The upper-cased string, possibly a different length from `$s`.",
+    errors: &[],
+};
+
+/// `Core\Str::upperFirst`'s reference card — ADR 0117.
+const UPPER_FIRST_DOC: MethodDoc = MethodDoc {
+    short: "Upper-cases the first character of `$s` and copies the rest through, as `ucfirst` \
+            does — with Unicode's mapping, so a leading `ß` expands to `SS`.",
+    params: &[ParamDoc {
+        name: "s",
+        desc: "The string whose first character changes.",
+        shape: &[],
+    }],
+    ret: "The string with its first character upper-cased; `\"\"` for the empty string.",
+    errors: &[],
+};
+
+/// `Core\Str::lowerFirst`'s reference card — ADR 0117.
+const LOWER_FIRST_DOC: MethodDoc = MethodDoc {
+    short: "Lower-cases the first character of `$s` and copies the rest through, as `lcfirst` \
+            does — with Unicode's mapping rather than a byte's.",
+    params: &[ParamDoc {
+        name: "s",
+        desc: "The string whose first character changes.",
+        shape: &[],
+    }],
+    ret: "The string with its first character lower-cased; `\"\"` for the empty string.",
+    errors: &[],
+};
+
+/// `Core\Str::fold`'s reference card — ADR 0117.
+const FOLD_DOC: MethodDoc = MethodDoc {
+    short: "Case-folds `$s` through Unicode's default full folding, as \
+            `mb_convert_case($s, MB_CASE_FOLD)` does — a comparison key rather than text to \
+            show, so `ß` becomes `ss` and `ﬁ` becomes `fi`.",
+    params: &[ParamDoc {
+        name: "s",
+        desc: "The string to fold.",
+        shape: &[],
+    }],
+    ret: "The folded string; two strings that differ only by case fold to the same one, which \
+          `compare`'s `{caseInsensitive: true}` cannot promise.",
+    errors: &[],
+};
+
+/// `Core\Str::normalize`'s reference card — ADR 0117.
+const NORMALIZE_DOC: MethodDoc = MethodDoc {
+    short: "Rewrites `$s` into the UAX #15 normal form `$form`, as `Normalizer::normalize` does, \
+            so two encodings of the same text compare equal.",
+    params: &[
+        ParamDoc {
+            name: "s",
+            desc: "The string to normalize.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "form",
+            desc: "Which of the four forms: `Nfc` or `Nfd` for a canonical one, `Nfkc` or `Nfkd` \
+                   for a compatibility one.",
+            shape: &[],
+        },
+    ],
+    ret: "The normalized string; an ASCII subject comes back unchanged under every form.",
+    errors: &[],
+};
+
+/// `Core\Str::fromCodePoint`'s reference card — ADR 0117.
+const FROM_CODE_POINT_DOC: MethodDoc = MethodDoc {
+    short: "Builds the one-character string for the Unicode scalar value `$codePoint`, as \
+            `mb_chr` does; `chr`'s byte lives on `Core\\Bytes` instead.",
+    params: &[ParamDoc {
+        name: "codePoint",
+        desc: "The scalar value, at most `0x10FFFF` and never a surrogate.",
+        shape: &[],
+    }],
+    ret: "A string of that one code point.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$codePoint` is not a Unicode scalar value — above `0x10FFFF`, in the surrogate \
+               range `0xD800..=0xDFFF`, or negative.",
+    }],
+};
+
+/// `Core\Str::fromCodePoints`'s reference card — ADR 0117.
+const FROM_CODE_POINTS_DOC: MethodDoc = MethodDoc {
+    short: "Builds the string whose code points are `$codePoints`, in order — `codePoints`' \
+            inverse, as `implode(array_map(\"mb_chr\", …))` does.",
+    params: &[ParamDoc {
+        name: "codePoints",
+        desc: "The scalar values, in order; each at most `0x10FFFF` and never a surrogate.",
+        shape: &[],
+    }],
+    ret: "The string; `\"\"` for an empty array, and nothing at all when an element is refused.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "An element is not a Unicode scalar value — above `0x10FFFF`, in the surrogate \
+               range `0xD800..=0xDFFF`, or negative.",
+    }],
+};
+
+/// `Core\Str::format`'s reference card — ADR 0117.
+const FORMAT_DOC: MethodDoc = MethodDoc {
+    short: "Fills the `printf` template `$template` from `$arguments`, as `sprintf` and \
+            `vsprintf` do — the closed conversion list `%s %d %u %f %e %g %x %X %o %b %%` with \
+            `printf`'s flags, width, precision and `%1$s` positions, and none of its locale \
+            reading.",
+    params: &[
+        ParamDoc {
+            name: "template",
+            desc: "The `printf` template — a taint sink, so it must be trusted text; a literal \
+                   one has its placeholders checked at compile time.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "arguments",
+            desc: "The values the placeholders consume, in order or by `%1$s` position; every \
+                   one must be read by at least one placeholder.",
+            shape: &[],
+        },
+    ],
+    ret: "The filled-in text; a width or precision counts graphemes, and `%f` always writes `.` \
+          as the decimal separator.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The template holds a malformed or unknown placeholder, names more arguments than \
+               were passed, leaves an argument no placeholder reads, or reaches a value with no \
+               reading for its conversion — an array for `%d`, or a `decimal` that is not whole \
+               for an integer conversion.",
+    }],
 };
 
 /// `Core\Str::split`'s `{limit?: int}` — [`nvs_core_str_split`]'s own docs own
