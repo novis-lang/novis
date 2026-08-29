@@ -899,6 +899,14 @@ is why" — is this file.
   restate it. If this test goes red on you, check whether the sites are *new* before writing
   anything: `python tools/holes.py --unattributed` says, and `CEILING` in `refusals.rs:66` is what
   catches a genuinely new one even when attribution claims its file.
+- **A `cargo-named` `loop-goal.toml` check names *test names*, so a test that pins the same
+  behaviour under a different name does not close it.** Stage `0 containment` asked for
+  `a_panic_in_a_worker_task_is_contained_at_the_task`; the behaviour was fully pinned on disk as
+  `a_panic_with_no_helper_beneath_it_is_contained_at_the_task_root`, and the driver reported "did
+  not run" every iteration. `grep` the check's `tests = [...]` before writing anything, and
+  **rename** the existing test rather than adding a second copy of it — the check is the contract
+  for the name, and two tests asserting one thing is how the next session loses an hour deciding
+  which is authoritative.
 
 ## Running things
 
@@ -2556,6 +2564,13 @@ is why" — is this file.
   the line above — `array<int> $starts = [0, 1, 2];` — and then `foreach ($starts as int $n)`.
   Cost two compiles in one case; every `foreach` in the corpus goes over a named variable for
   exactly this reason.
+- **`Ctx::take_pending` answers an empty string for a *throw* in a hand-built context**, so a test
+  outside the compiler pipeline cannot assert on a thrown message. `nvs_runtime::Ctx::buffered()`
+  has no runtime error class installed, `Thrown::message()` returns `String::new()` when its
+  object is null, and the failure looks like the member said nothing rather than like the harness
+  is missing a class. Assert the ADR 0002 *status* — `THROWN` against `FATAL` — which is the half
+  a bare harness can see and is usually the claim anyway;
+  `benches/abi-probe/tests/invariants.rs`'s `decode_on_this_stack` is the worked shape.
 
 ## Splitting a file that got too big
 
