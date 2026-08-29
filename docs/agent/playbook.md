@@ -2509,6 +2509,18 @@ is why" — is this file.
   cycle if you meet it at the end of the group rather than at the start. `grep -n <member>
   crates/nvs-stdlib/tests/conformance_coverage.rs` before writing the cases is the cheap check, and
   a group aimed at a member `gaps.py --coverage` shows below 3 should assume it is listed.
+- **An array subscript whose key is a `string|int` union is an ICE, not a diagnostic, on both the
+  read and the write — and it is the type `foreach` binds over `array<string|int>`.** ADR 0007 § 5
+  makes `int|string` the key type and `nvs_types::check_array_key_type` accepts the union, so
+  `foreach ($keys as string|int $k) { $seen[$k] = true; }` compiles and then panics in `nvs-ir`:
+  *"an array key lowered to Tagged — nvs_types::check_program is trusted to have already rejected a
+  float/bool/null key"* (`crates/nvs-ir/src/lower/expr.rs:1972`, whose `lower_array_key` has arms
+  for `Ty::Str`, `Ty::Int` and `Ty::Uint` and nothing for a tagged one). `$seen[$k as string]` is
+  the spelling that works, and it is not a compromise: `as string` renders exactly the decimal
+  spelling array normalization maps an integer key onto, so a hand-built key table agrees with the
+  member's entry for entry. Same family as the `bytes` array key ICE. What makes it expensive is
+  that `Core\Arr::hasKey($seen, $k)` — the *member* taking the same union — accepts it happily, so
+  the failing half of a two-line idiom is the half that looks unremarkable.
 
 ## Splitting a file that got too big
 
