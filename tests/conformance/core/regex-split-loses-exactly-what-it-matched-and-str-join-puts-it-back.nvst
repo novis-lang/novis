@@ -1,0 +1,122 @@
+--TEST--
+Core\Regex::split loses exactly the text it matched — its pieces interleaved with Core\Regex::matchAll's put the subject back — and Core\Str::join is its inverse wherever the pattern is one literal — ADR 0056 §§ 4-5
+--FILE--
+<?nvs
+// § 5's `split` row, asked what its two siblings do not.
+// `regex-split-counts-the-pieces-it-produced` and `regex-split-honours-its-
+// options` both pin the *options* — `limit` at both ends of its range, and
+// when `keepEmpty` is applied — by counting pieces. Neither asks what the
+// pieces are, and a member that dropped a character at every boundary, or kept
+// the separator on one side of it, answers both of them correctly.
+//
+// What pins that is an inverse: splitting throws away exactly the matched
+// text and nothing else, so putting the matched text back reproduces the
+// subject. `Core\Str::join` is that inverse when the pattern matches one
+// literal, and `Core\Regex::matchAll` supplies the separators when it does
+// not. Two members of two classes agreeing on one subject, counted over a
+// table rather than read off a row.
+
+// A literal separator, so `join` can put back what `split` removed. The rows
+// are the shapes a partition goes wrong at: a separator at each end, two of
+// them adjacent, a subject that is nothing but separators, a subject with
+// none, the empty subject, a separator wider than one character, three that
+// are metacharacters and so reach `split` through `quote`, and one that is not
+// ASCII, where a piece is counted in graphemes on both sides.
+array<string> $subjects = ["a,b,c", ",lead", "trail,", "a,,b", "no-sep", ",,,", "", "a::b::c", "a.b.c", "x|y|z", "h(i)j", "hé☃wörld"];
+array<string> $separators = [",", ",", ",", ",", ",", ",", ",", "::", ".", "|", "(", "☃"];
+int $rows = Core\Arr::count($subjects) as int;
+int $restored = 0;
+int $withEmpty = 0;
+int $lostByDropping = 0;
+int $i = 0;
+for (; $i < $rows; $i = $i + 1) {
+    string $subject = $subjects[$i as string];
+    string $sep = $separators[$i as string];
+    array<string> $pieces = Core\Regex::split($subject, Core\Regex::quote($sep));
+    if (Core\Str::join($pieces, $sep) == $subject) {
+        $restored = $restored + 1;
+    }
+
+    // The other side of the same bound: `keepEmpty: false` is what makes the
+    // inverse fail, and it fails on the rows that have an empty piece to drop
+    // — all but one of them. The exception is the empty subject, whose only
+    // piece is empty and whose dropped partition joins back to the empty
+    // string anyway, so the two counts below differ by exactly that row.
+    // Counting both columns is what says the option costs the inverse rather
+    // than that the member is unreliable.
+    bool $hasEmpty = false;
+    foreach ($pieces as string $piece) {
+        if ($piece == "") {
+            $hasEmpty = true;
+        }
+    }
+    if ($hasEmpty) {
+        $withEmpty = $withEmpty + 1;
+    }
+    array<string> $dense = Core\Regex::split($subject, Core\Regex::quote($sep), {keepEmpty: false});
+    if (Core\Str::join($dense, $sep) == $subject) {
+    } else {
+        $lostByDropping = $lostByDropping + 1;
+    }
+
+    echo Core\Arr::count($pieces), " piece(s) of ", $subject, " on ", $sep, "\n";
+}
+echo $restored, " of ", $rows, " rows are restored by join, ", $withEmpty, " hold an empty piece and ", $lostByDropping, " are no longer restorable once it is dropped\n";
+
+// The general pattern, where the separators are not one string and `join`
+// cannot be the inverse on its own. `matchAll` reports what was removed, so
+// piece, separator, piece, separator … is the subject again — and the piece
+// count is the match count plus one, which is the same claim counted rather
+// than spelled.
+array<string> $texts = ["a1b22c333", "one  two   three", "a,b;c", "abc", "baaac", "abc"];
+array<string> $patterns = ["\\d+", "\\s+", "[,;]", "z", "a*", ""];
+int $general = Core\Arr::count($texts) as int;
+int $woven = 0;
+int $counted = 0;
+int $j = 0;
+for (; $j < $general; $j = $j + 1) {
+    string $text = $texts[$j as string];
+    string $pattern = $patterns[$j as string];
+    array<string> $parts = Core\Regex::split($text, $pattern);
+    array<Core\Regex\Match> $found = Core\Regex::matchAll($text, $pattern);
+    int $np = Core\Arr::count($parts) as int;
+    int $nm = Core\Arr::count($found) as int;
+    if ($np == $nm + 1) {
+        $counted = $counted + 1;
+    }
+    string $rebuilt = "";
+    int $k = 0;
+    for (; $k < $np; $k = $k + 1) {
+        $rebuilt = $rebuilt . $parts[$k as string];
+        if ($k < $nm) {
+            var $one = $found[$k as string];
+            $rebuilt = $rebuilt . $one->text();
+        }
+    }
+    if ($rebuilt == $text) {
+        $woven = $woven + 1;
+    }
+    echo $pattern, " over ", $text, ": ", $np, " piece(s), ", $nm, " match(es)\n";
+}
+echo $woven, " of ", $general, " subjects are woven back from their pieces and their matches, and ", $counted, " have one more piece than match\n";
+--EXPECT--
+3 piece(s) of a,b,c on ,
+2 piece(s) of ,lead on ,
+2 piece(s) of trail, on ,
+3 piece(s) of a,,b on ,
+1 piece(s) of no-sep on ,
+4 piece(s) of ,,, on ,
+1 piece(s) of  on ,
+3 piece(s) of a::b::c on ::
+3 piece(s) of a.b.c on .
+3 piece(s) of x|y|z on |
+2 piece(s) of h(i)j on (
+2 piece(s) of hé☃wörld on ☃
+12 of 12 rows are restored by join, 5 hold an empty piece and 4 are no longer restorable once it is dropped
+\d+ over a1b22c333: 4 piece(s), 3 match(es)
+\s+ over one  two   three: 3 piece(s), 2 match(es)
+[,;] over a,b;c: 3 piece(s), 2 match(es)
+z over abc: 1 piece(s), 0 match(es)
+a* over baaac: 4 piece(s), 3 match(es)
+ over abc: 5 piece(s), 4 match(es)
+6 of 6 subjects are woven back from their pieces and their matches, and 6 have one more piece than match
