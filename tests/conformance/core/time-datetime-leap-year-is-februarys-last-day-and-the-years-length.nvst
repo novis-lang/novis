@@ -1,0 +1,157 @@
+--TEST--
+Spec § 4: `Core\Time\DateTime::isLeapYear` is one fact said three ways — the flag, whether `Core\Time\Date::at($y, 2, 29)` is accepted, and whether the year's ordinal count reaches 366 — counted over a table of years spanning both halves of the century rule in both signs and both ends of the range, asserting the three agree rather than what each answered; and the calendar interval a `Date` spans is wider at both ends than the one a UTC `DateTime` does, which is why the year's length is also read from inside the year
+--FILE--
+<?nvs
+// § 4 gives the leap year three independent readings. `isLeapYear` asks the
+// underlying civil year; `Date::at` asks the calendar, because a date that
+// does not exist throws where it is built and that is the whole reason § 4
+// has no `checkdate`; `dayOfYear` counts. A member that grew its own leap
+// rule still prints plausibly on its own line, so what is asserted here is
+// that the three **agree**, row for row, and never what any one of them said.
+class Year {
+    // Way 1: the flag, read off a `DateTime` in the middle of the year so it
+    // cannot be reading the day it was asked on.
+    public static function flag(int $year): bool {
+        var $utc = Core\Time\Zone::UTC;
+        return Core\Time::at($year, 6, 1, $utc)->isLeapYear();
+    }
+
+    // Way 2: whether February has a twenty-ninth at all. This is the
+    // constructor's own bound — `Date::at`'s day ceiling is read from the
+    // year and the month together — asked as a question about the year.
+    public static function feb29(int $year): bool {
+        try {
+            Core\Time\Date::at($year, 2, 29);
+            return true;
+        } catch (RuntimeError $refused) {
+            return false;
+        }
+    }
+
+    // Way 3, from inside the year: every day after February is pushed along
+    // by one, so March's first is the 61st day of a leap year and the 60th of
+    // a common one. Asked here rather than only at the year's end because the
+    // end of the range has no December — see the interval block below.
+    public static function marchShifts(int $year): bool {
+        var $utc = Core\Time\Zone::UTC;
+        uint $march = Core\Time::at($year, 3, 1, $utc)->dayOfYear();
+        uint $shifted = 61;
+        return $march == $shifted;
+    }
+
+    // Way 3, from the year's own end: the length of the year, which is what
+    // `date("L")` was ever consulted for.
+    public static function reaches366(int $year): bool {
+        var $utc = Core\Time\Zone::UTC;
+        uint $last = Core\Time::at($year, 12, 31, $utc)->dayOfYear();
+        uint $long = 366;
+        return $last == $long;
+    }
+
+    public static function endReadable(int $year): bool {
+        var $utc = Core\Time\Zone::UTC;
+        try {
+            Core\Time::at($year, 12, 31, $utc);
+            return true;
+        } catch (RuntimeError $refused) {
+            return false;
+        }
+    }
+}
+
+// The table. Both halves of the century rule are present twice over, once in
+// each sign — 2000 and 2400 are leap where 1900 and 2100 are not, and the same
+// rule read backwards makes year 0 and -400 leap where -100 is not — because
+// the proleptic calendar a `Date` extends does not stop at the epoch, and a
+// rule written as `year % 4 == 0` with a `year > 0` guard would pass the first
+// four rows and fail the next three. Both ends of the accepted range are rows
+// too, and 9996 and -9996 are the leap years just inside them.
+array<int> $years = [2024, 2023, 2000, 1900, 2100, 2400, 0, -100, -400, -4, 9999, 9996, -9999, -9996];
+int $row = 0;
+int $agree = 0;
+int $leaps = 0;
+int $endAsked = 0;
+int $endAgrees = 0;
+string $found = "";
+for (; $row < 14; $row = $row + 1) {
+    int $year = $years[$row as string];
+    bool $flag = Year::flag($year);
+    if ($flag == Year::feb29($year) && $flag == Year::marchShifts($year)) {
+        $agree = $agree + 1;
+    }
+    if ($flag) {
+        $leaps = $leaps + 1;
+        string $label = $year as string;
+        $found = $found . $label . " ";
+    }
+    if (Year::endReadable($year)) {
+        $endAsked = $endAsked + 1;
+        if ($flag == Year::reaches366($year)) {
+            $endAgrees = $endAgrees + 1;
+        }
+    }
+}
+// The count is the assertion. The split beside it is what stops the agreement
+// from being vacuous: three members that all answered `false` everywhere would
+// agree on all fourteen rows and report no leap years at all.
+echo "rows=", $row as string, " agree=", $agree as string,
+    " leap=", $leaps as string, " common=", ($row - $leaps) as string, "|\n";
+echo "leap-years=", $found, "|\n";
+echo "end-asked=", $endAsked as string, " end-agrees=", $endAgrees as string, "|\n";
+
+// Why one row of fourteen has no December reading: a `Date` is a calendar
+// value with no zone and no instant behind it, so it spans the whole of
+// -9999-01-01..9999-12-31, while a `DateTime` must be convertible to the
+// instant its zone puts it at — and that conversion runs out of range inside
+// the calendar's last day and inside its first two. So the interval is wider
+// at both ends, one refusal names `Core\Time::at` and says what overflowed,
+// and one step inside each end is answered.
+var $utc = Core\Time\Zone::UTC;
+echo "date-top=", Core\Time\Date::at(9999, 12, 31)->format("yyyy-MM-dd"), "|\n";
+try {
+    Core\Time::at(9999, 12, 31, $utc);
+    echo "top-accepted|\n";
+} catch (RuntimeError $refused) {
+    echo "top-refused=", Core\Str::contains($refused->message, "Core\\Time::at()") as string,
+        Core\Str::contains($refused->message, "overflowed") as string, "|\n";
+}
+echo "dt-top=", Core\Time::at(9999, 12, 30, $utc)->format("yyyy-MM-dd HH:mm"), "|\n";
+echo "date-bottom=", Core\Time\Date::at(-9999, 1, 1)->format("yyyy-MM-dd"), "|\n";
+try {
+    Core\Time::at(-9999, 1, 2, $utc);
+    echo "bottom-accepted|\n";
+} catch (RuntimeError $refused) {
+    echo "bottom-refused|\n";
+}
+echo "dt-bottom=", Core\Time::at(-9999, 1, 3, $utc)->format("yyyy-MM-dd HH:mm"), "|\n";
+
+// And the flag is a fact about the year rather than about the day it is read
+// on: four days spread across each of one leap year and one common one, each
+// reached by stepping from the first of January so the reading is not the
+// constructor's own argument, and all eight answer their year's own flag.
+array<int> $days = [1, 60, 152, 365];
+int $probe = 0;
+int $reads = 0;
+for (; $probe < 4; $probe = $probe + 1) {
+    int $day = $days[$probe as string];
+    var $leapRead = Core\Time::at(2024, 1, 1, $utc)->plus($day - 1, Core\Unit::Day);
+    var $commonRead = Core\Time::at(2023, 1, 1, $utc)->plus($day - 1, Core\Unit::Day);
+    if ($leapRead->isLeapYear()) {
+        $reads = $reads + 1;
+    }
+    if (!$commonRead->isLeapYear()) {
+        $reads = $reads + 1;
+    }
+}
+echo "reads=", $reads as string, "|\n";
+--EXPECT--
+rows=14 agree=14 leap=8 common=6|
+leap-years=2024 2000 2400 0 -400 -4 9996 -9996 |
+end-asked=13 end-agrees=13|
+date-top=9999-12-31|
+top-refused=11|
+dt-top=9999-12-30 00:00|
+date-bottom=-9999-01-01|
+bottom-refused|
+dt-bottom=-9999-01-03 00:00|
+reads=8|
