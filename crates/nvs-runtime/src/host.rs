@@ -193,6 +193,21 @@ pub enum Woken {
     Cancelled,
 }
 
+/// A one-shot handle that makes the task it was taken for runnable again.
+///
+/// A boxed closure rather than a type of its own because there is exactly one
+/// thing a holder does with it — fire it — and because the host's own wake is
+/// a task id plus the tree it belongs to, neither of which this crate can
+/// spell. It is deliberately **not** `Send`: a task never migrates off its
+/// core, so a wake that crossed a thread would be naming a task the receiving
+/// scheduler does not own.
+///
+/// Firing one is a *hint*, exactly as `nvs-host`'s own wake is: the task may
+/// already have been woken by someone else, or have ended, and being late is
+/// not an error. So a member that parks re-checks the state it parked for
+/// rather than treating a resume as an answer.
+pub type Waker = Box<dyn FnOnce()>;
+
 /// Whatever is running tasks on this thread, as much of it as a `Core` member
 /// is allowed to want.
 ///
@@ -243,6 +258,37 @@ pub trait Host: std::fmt::Debug {
     /// call still owes the wait, blocking is the right answer there, and it
     /// answers [`Woken::Elapsed`] because nothing could have cancelled it.
     fn sleep(&self, duration: Duration) -> Woken;
+
+    /// A handle that makes the **calling** task runnable again, once, or
+    /// `None` when there is no task beneath the call.
+    ///
+    /// Taken *before* the state that will be waited on is released, and fired
+    /// by whoever changes that state. That order is the whole contract: a
+    /// handle taken after the release could be registered by a task the peer
+    /// has already run past, which is the one way a park becomes a hang.
+    ///
+    /// `None` is what a member with nowhere to park refuses on, and it is the
+    /// reason this is separate from [`Host::park`] rather than folded into it:
+    /// a park with no task under it can only block the core, which
+    /// [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+    /// § 6 forbids outright, so the member has to learn there is no task
+    /// *before* it commits to waiting.
+    fn waker(&self) -> Option<Waker>;
+
+    /// Gives the core back until one of this task's [`Waker`]s fires, or the
+    /// task is cancelled.
+    ///
+    /// [`Woken::Elapsed`] here means "the wait ended for its own reason" —
+    /// a waker fired, or nothing could hold the task parked at all. There is
+    /// no third answer to give: a waker is a hint, so the caller re-checks the
+    /// state it was waiting on either way, and a park that could not be
+    /// entered is then one more turn of that loop rather than a case of its
+    /// own. [`Woken::Cancelled`] is the only answer that means something
+    /// different, and it means what it means for [`Host::sleep`]: the task is
+    /// standing on an `extern "C"` helper frame ([`crate::HelperFrame`]), so
+    /// its host resumed it rather than unwinding it, and the member's answer
+    /// is [`Ctx::cancel`].
+    fn park(&self) -> Woken;
 }
 
 thread_local! {
@@ -329,6 +375,17 @@ mod tests {
         fn sleep(&self, _duration: Duration) -> Woken {
             // Counted with the groups: what the route has to prove is that the
             // call arrives, and a test that really waited would only be slow.
+            self.0.set(self.0.get() + 1);
+            Woken::Elapsed
+        }
+
+        fn waker(&self) -> Option<super::Waker> {
+            // No task under this host at all, which is exactly the answer a
+            // member with nowhere to park has to be able to read.
+            None
+        }
+
+        fn park(&self) -> Woken {
             self.0.set(self.0.get() + 1);
             Woken::Elapsed
         }

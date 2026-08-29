@@ -143,6 +143,30 @@ impl Host for SchedulerHost {
             None => run_here(ctx, jobs, bounds),
         }
     }
+
+    fn waker(&self) -> Option<nvs_runtime::host::Waker> {
+        // `Wake` is already the one-shot, fire-from-anywhere handle the seam
+        // describes, so this is a box and nothing else. `None` outside a turn
+        // is `Wake::current`'s own refusal, unchanged: there is no task here to
+        // be woken later, and the member that asked has to say so rather than
+        // park a core.
+        let wake = Wake::current()?;
+        Some(Box::new(move || wake.wake()))
+    }
+
+    fn park(&self) -> Woken {
+        // `Waiting::Parked` rather than `Waiting::Yielded`: the task is off the
+        // run queue until someone fires the wake it handed out, which is the
+        // whole difference between waiting and being polite.
+        let parked = suspend_current(Waiting::Parked);
+        if parked.cancelled() {
+            Woken::Cancelled
+        } else {
+            // Both a real wake and a park that could not be entered at all —
+            // the seam's doc owns why those are one answer.
+            Woken::Elapsed
+        }
+    }
 }
 
 /// Why a group stopped starting children.
