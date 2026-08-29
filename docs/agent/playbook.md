@@ -2594,6 +2594,26 @@ is why" — is this file.
   is missing a class. Assert the ADR 0002 *status* — `THROWN` against `FATAL` — which is the half
   a bare harness can see and is usually the claim anyway;
   `benches/abi-probe/tests/invariants.rs`'s `decode_on_this_stack` is the worked shape.
+- **A concurrency test that is the *first* one to run wide is worth writing even where the behaviour
+  is already landed, and `a_blocking_call_goes_to_a_pool_bounded_at_twice_the_core_count` is the
+  worked example.** Every earlier `nvs-host` test drove one or two parked tasks; that one drives
+  `2 × cpus + 2` concurrent blocking calls, and it failed at 11 of 34 finished because
+  `Reactor::turn` reported `0` woken and `run_until_idle` reads `0` as idle. The cause is structural
+  rather than flaky: one drain takes the queued ids of *several* pokes at once, so the surplus pokes
+  come back ready over an empty queue, which is the common case exactly when the pool is saturated.
+  When a `run_until_idle` returns with tasks still parked, suspect the turn's "nothing woke, so
+  nothing can" exit before suspecting the wake that did not arrive — and read the two conditions
+  together, because the entry test and the retry test have to be the same one.
+
+- **Two adjacent `Instant::now()` calls can return the same instant, and `Timers::publish` turns a
+  deadline equal to its base into one a nanosecond later** (`timer.rs:@publish` — the `.max(NOTHING +
+  1)` that keeps a real deadline out of the "nothing filed" sentinel's way). So a test that arms at
+  `let start = Instant::now()` on a `Timers` built the line before, and then sweeps at exactly `start
+  + margin`, is one nanosecond short of overdue and reports nothing.
+  `watchdog::tests::a_second_wedge_on_a_later_deadline_reports_again` failed that way — only under a
+  loaded machine, and only inside the full suite, which is the expensive kind of flake. Arm strictly
+  after the base (`Instant::now() + Duration::from_millis(1)`) whenever a sweep instant is derived
+  from the armed one.
 
 ## Splitting a file that got too big
 

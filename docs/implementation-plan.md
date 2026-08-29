@@ -95,12 +95,22 @@
 > rather than once per sweep, since a wedged core republishes nothing — ADR 0106 § 10's coalescing
 > arriving for free. Firing writes ADR 0020 § 4's floor and does nothing else; the shed half of § 7
 > is admission control's and does not exist in this crate yet. What is left of the stage is its
-> *acceptance*: the Stage 2 `cargo-named` check names ten `nvs-host` tests that exist under no
-> spelling at all, and `the_watchdog_reports_a_wedged_worker_without_a_heartbeat` is the first of
-> them on disk. What a task *costs* is settled too: `crates/nvs-host/src/stack.rs` is ADR 0115 § 4 —
-> 1 MiB of reserved address space per task, resident only in the pages its handler touched, pooled
-> per worker and recycled the moment the task ends, with the recursion limit armed from that stack
-> instead of asserted from a ceiling on the worker's. The steps the chain took are in
+> *acceptance*, and it is nearly closed: nine of the ten `nvs-host` tests the Stage 2 `cargo-named`
+> check names are now on disk, over behaviour that was already landed — the parking pair and the
+> neighbour that keeps running (`net.rs`), one core per scheduler with no task ever migrating and
+> the non-atomic refcount that buys (`scheduler.rs`), a sleep and a socket timeout in one table
+> (`timer.rs`), and a blocking call reaching a pool bounded at twice the core count (`blocking.rs`).
+> Writing the last of those found a real abandoned-task bug and closed it: `Reactor::turn` returned
+> `0` — which `run_until_idle` reads as *idle* — whenever a poll woke nothing, and a drain that
+> takes several pokes' ids at once leaves the surplus pokes to come back ready over an empty queue,
+> so a core with the pool saturated abandoned two thirds of its parked tasks. The retry test is now
+> the same test the blocking state is entered on: a turn that would block for a reason may not then
+> report that reason gone. `a_rustls_session_streams_over_it_unmodified` is the tenth name and the
+> only one left; it is the one with a cost, since `nvs-host` has no TLS dev-dependency yet. What a
+> task *costs* is settled too: `crates/nvs-host/src/stack.rs` is ADR 0115 § 4 — 1 MiB of reserved
+> address space per task, resident only in the pages its handler touched, pooled per worker and
+> recycled the moment the task ends, with the recursion limit armed from that stack instead of
+> asserted from a ceiling on the worker's. The steps the chain took are in
 > [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's own residue is the 1000-case
 > corpus count, which orders 1–4 meet as the suite grows; nothing else about M4 is open. What the
 > program is measured by is `python tools/check-migration.py` at 100% classified, which stood at 25%
