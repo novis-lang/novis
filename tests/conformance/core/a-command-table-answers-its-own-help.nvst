@@ -1,0 +1,207 @@
+--TEST--
+every `#[Command]` and `#[Option]` the program declares is readable back out of its own declaration, so a usage text is generated rather than written — ADR 0086 § 6, ADR 0046 §§ 4-5
+--FILE--
+<?nvs
+// ADR 0086 § 6's command table is built while compiling, and its reader —
+// `Core\Command::help(?string $name): Cli\Text` — is goal 4's, because a
+// terminal is not reachable before capabilities exist
+// (docs/agent/goals/1-core-depth.md item 6). So this case asks the question
+// that *is* answerable today, and it is the one that section's promise rests
+// on: **nobody writes usage text**, which is only true if every word of it is
+// already in the declaration. ADR 0046 §§ 4-5's retrieval reads those payloads
+// back at the call site, so the help below contains no text of its own —
+// every name, every spelling and every sentence in it was retrieved.
+//
+// Two things are asserted, and the first is not a line below:
+//
+//   * **The table is the compilation.** § 6's three compile errors — a
+//     duplicate command name, two options sharing a spelling, an `#[Option]`
+//     on a parameter whose declared type has no conversion from `string` —
+//     are all reachable from this file, so a table that never grew a row, or
+//     grew two rows for one name, does not reach the runtime at all.
+//   * **Correctness is counted.** Four rows over three methods, every one of
+//     them described, no two named alike — a retrieval that answered
+//     plausibly for `deploy` and collapsed the two names one method declares
+//     still fails the sweep.
+//
+// The `about` is asked of a command and of an option through *one* shape,
+// which is the agreement this case is built around: § 6 gives both kinds of
+// row the same field, so a declaration that grew its own spelling for one of
+// them fails here while still reading correctly on its own line.
+
+// § 6's own example, written as that section writes it: a parameter is a
+// positional argument unless it carries `#[Option]`, with no inference from
+// defaults or types, and `uint $retries` is converted during matching.
+class Deploy {
+    #[\Core\Command(name: "deploy", about: "Push the current build")]
+    public static function deploy(
+        tainted string $target,
+        #[\Core\Option(short: "n", long: "dry-run", about: "Print what would happen")] bool $dryRun,
+        #[\Core\Option] uint $retries = 3,
+    ): uint {
+        echo $target, $dryRun ? "!" : "", $retries, "\n";
+        return 0;
+    }
+}
+
+// A second class, because the table is built out of ADR 0061 § 3's
+// whole-program enumeration rather than out of one declaration site — and a
+// second option carrying an `about` and no `short`, which is the other side of
+// the bound the counters below name.
+class Migrate {
+    #[\Core\Command(name: "migrate", about: "Apply pending migrations")]
+    public static function migrate(
+        #[\Core\Option(about: "Say what would happen and stop")] bool $pretend,
+    ): void {
+    }
+}
+
+// ADR 0046 § 3's repetition, read as `nvs_types::commands` reads it: two
+// `#[Command]`s on one method are two names for one implementation, which is
+// what an alias is. Both become rows, so the roster below is four long over
+// three methods.
+class Seed {
+    #[\Core\Command(name: "seed", about: "Load the fixtures")]
+    #[\Core\Command(name: "fixtures", about: "Load the fixtures")]
+    public static function seed(): void {
+    }
+}
+
+// The one place a retrieval's `null` is turned into a countable answer. A
+// `?T` narrows inside an `if` body and nowhere else, so without these the
+// sweep below would be written as nested `if`s and the help would be written
+// as text.
+class Help {
+    public static function name(?{name: string} $row): string {
+        if ($row == null) { return ""; }
+        return $row->name;
+    }
+
+    // Asked of a `#[Command]` and of an `#[Option]` alike — see the header.
+    public static function about(?{about: string} $row): string {
+        if ($row == null) { return ""; }
+        return $row->about;
+    }
+
+    // The short spelling is optional, so its absence is the empty string and
+    // the rendered line simply has no `-x, ` in front of its long form.
+    public static function short(?{short: string} $row): string {
+        if ($row == null) { return ""; }
+        return "-" . $row->short . ", ";
+    }
+
+    public static function long(?{long: string} $row): string {
+        if ($row == null) { return ""; }
+        return "--" . $row->long;
+    }
+}
+
+// § 4's method spelling: a first-class-callable reference names the method the
+// `#[Command]` is attached to.
+?{name: string} $deployName = Core\Attributes::get<{name: string}>(Deploy::deploy(...));
+?{about: string} $deployAbout = Core\Attributes::get<{about: string}>(Deploy::deploy(...));
+?{name: string} $migrateName = Core\Attributes::get<{name: string}>(Migrate::migrate(...));
+?{about: string} $migrateAbout = Core\Attributes::get<{about: string}>(Migrate::migrate(...));
+
+// `all<T>` rather than `get<T>`, because this method declares two rows and
+// `get<T>` answers the first — the alias is invisible to the singular form.
+array<{name: string}> $seedNames = Core\Attributes::all<{name: string}>(Seed::seed(...));
+array<{about: string}> $seedAbouts = Core\Attributes::all<{about: string}>(Seed::seed(...));
+
+array<string> $names = [
+    Help::name($deployName),
+    Help::name($migrateName),
+    $seedNames[0]->name,
+    $seedNames[1]->name,
+];
+
+array<string> $abouts = [
+    Help::about($deployAbout),
+    Help::about($migrateAbout),
+    $seedAbouts[0]->about,
+    $seedAbouts[1]->about,
+];
+
+int $described = 0;
+foreach ($abouts as string $one) {
+    if ($one != "") { $described = $described + 1; }
+}
+
+int $unique = 0;
+foreach ($names as string $one) {
+    int $same = 0;
+    foreach ($names as string $other) {
+        if ($one == $other) { $same = $same + 1; }
+    }
+    if ($same == 1) { $unique = $unique + 1; }
+}
+
+echo "commands=", Core\Arr::count($names), "\n";
+echo "described=", $described, "\n";
+echo "unique=", $unique, "\n";
+
+// § 4's parameter spelling: the same reference plus the parameter's own name,
+// written as a literal. The three options are asked the one `about` shape the
+// two commands above were asked, and the two that carry a sentence answer it.
+?{about: string} $dryRunAbout = Core\Attributes::get<{about: string}>(Deploy::deploy(...), "dryRun");
+?{about: string} $retriesAbout = Core\Attributes::get<{about: string}>(Deploy::deploy(...), "retries");
+?{about: string} $pretendAbout = Core\Attributes::get<{about: string}>(Migrate::migrate(...), "pretend");
+?{short: string} $dryRunShort = Core\Attributes::get<{short: string}>(Deploy::deploy(...), "dryRun");
+?{short: string} $pretendShort = Core\Attributes::get<{short: string}>(Migrate::migrate(...), "pretend");
+?{long: string} $dryRunLong = Core\Attributes::get<{long: string}>(Deploy::deploy(...), "dryRun");
+
+array<string> $optionAbouts = [
+    Help::about($dryRunAbout),
+    Help::about($retriesAbout),
+    Help::about($pretendAbout),
+];
+
+int $documented = 0;
+foreach ($optionAbouts as string $one) {
+    if ($one != "") { $documented = $documented + 1; }
+}
+
+int $shorts = 0;
+if (Help::short($dryRunShort) != "") { $shorts = $shorts + 1; }
+if (Help::short($pretendShort) != "") { $shorts = $shorts + 1; }
+
+echo "options=", Core\Arr::count($optionAbouts), "\n";
+echo "documented=", $documented, "\n";
+echo "shorts=", $shorts, "\n";
+
+// The one thing retrieval cannot see, said out loud rather than left as a
+// surprising count: it is *structural*, so a payload-less `#[Option]` and a
+// parameter carrying no attribute at all answer the same nothing. `$target`
+// is positional and `$retries` is an option with no fields, and both are
+// `none` here. § 6's table tells them apart because it matches the attribute
+// *nominally* off `nvs_types::derive::ATTRIBUTES` — which is the whole reason
+// that roster exists, and is why the table is not built out of this pass.
+?{about: string} $targetAbout = Core\Attributes::get<{about: string}>(Deploy::deploy(...), "target");
+echo "positional=", $targetAbout != null ? "some" : "none", "\n";
+echo "bare option=", $retriesAbout != null ? "some" : "none", "\n";
+
+// The help itself. Every word below came out of a declaration; the layout is
+// all this file contributes, and § 6's generated version replaces even that.
+echo "\n";
+echo Help::name($deployName), " - ", Help::about($deployAbout), "\n";
+echo "  ", Help::short($dryRunShort), Help::long($dryRunLong), "  ", Help::about($dryRunAbout), "\n";
+echo Help::name($migrateName), " - ", Help::about($migrateAbout), "\n";
+echo "  ", Help::short($pretendShort), Help::about($pretendAbout), "\n";
+echo $seedNames[0]->name, " - ", $seedAbouts[0]->about, "\n";
+echo $seedNames[1]->name, " - ", $seedAbouts[1]->about, "\n";
+--EXPECT--
+commands=4
+described=4
+unique=4
+options=3
+documented=2
+shorts=1
+positional=none
+bare option=none
+
+deploy - Push the current build
+  -n, --dry-run  Print what would happen
+migrate - Apply pending migrations
+  Say what would happen and stop
+seed - Load the fixtures
+fixtures - Load the fixtures
