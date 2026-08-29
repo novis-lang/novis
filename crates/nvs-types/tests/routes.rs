@@ -23,7 +23,9 @@
 //! ADR 0102 § 8 leaves enforcement to the dispatcher, so what the row carries
 //! is the name the declaration resolved to.
 //!
-//! Not landed yet: § 4's `csrf: false` on a route whose every verb is safe.
+//! ADR 0096 is asserted here whole: § 1's presence rule, § 1a's payload and
+//! one-per-method rules, and § 4's opt-out held to a method that has something
+//! to opt out of.
 
 mod common;
 
@@ -272,6 +274,64 @@ fn the_collected_table_crosses_on_the_expression_table() {
     // rather than as absent.
     let (_, exprs) = check_src_table("<?nvs\necho \"\";\n");
     assert!(exprs.routes().rows().is_empty());
+}
+
+#[test]
+fn every_route_on_one_method_becomes_a_row_and_they_may_share_a_name() {
+    // ADR 0046 § 3's repetition, read as ADR 0077 § 1 writes it: one method
+    // serving three verbs declares three routes rather than one. ADR 0110 § 1
+    // then lets them carry the same `name`, because they carry the same path
+    // and `url()` therefore has one answer to give.
+    let webhook = |name: &str| {
+        format!(
+            "  #[Route(path: \"/webhook\", method: \\Core\\Http\\Method::Post, name: \"{name}\")]\n  \
+             #[Route(path: \"/webhook\", method: \\Core\\Http\\Method::Put, name: \"{name}\")]\n  \
+             #[Route(path: \"/webhook\", method: \\Core\\Http\\Method::Delete, name: \"{name}\")]\n  \
+             public function receive(): string {{ return \"\"; }}\n"
+        )
+    };
+    let (diags, exprs) = check_src_table(&route_src(&webhook("webhook")));
+    assert!(!diags.has_errors(), "{diags:?}");
+    let table = exprs.routes();
+    assert_eq!(table.rows().len(), 3);
+    let verbs: Vec<&str> = table.rows().iter().map(|row| row.verb.as_str()).collect();
+    assert_eq!(verbs, ["Post", "Put", "Delete"]);
+
+    // Every row is the same method's, and every one carries ADR 0096 § 1's
+    // decision: the sibling `#[Access]` is asked once and answers for all of
+    // them, which is why one attribute covering three routes is not a hole.
+    for row in table.rows() {
+        assert_eq!(row.handler, "Users::receive");
+        assert_eq!(row.access.as_deref(), Some("Core\\Audience::Public"));
+    }
+
+    // § 1's exception has two halves and needs both. The same name on two
+    // *methods* is the copy-paste the original rule was written for.
+    let (diags, _) = check_src_table(&route_src(&format!(
+        "{}  #[Route(path: \"/other\", method: \\Core\\Http\\Method::Get, name: \"webhook\")]\n  \
+         public function other(): string {{ return \"\"; }}\n",
+        webhook("webhook")
+    )));
+    assert!(reported(&diags, code::E_DUPLICATE_ROUTE_NAME), "{diags:?}");
+
+    // And one method whose repetitions carry different paths is the ambiguity
+    // itself: `url()` would have two answers and no ground to prefer one.
+    let (diags, _) = check_src_table(&route_src(
+        "  #[Route(path: \"/webhook\", method: \\Core\\Http\\Method::Post, name: \"webhook\")]\n  \
+         #[Route(path: \"/hook\", method: \\Core\\Http\\Method::Post, name: \"webhook\")]\n  \
+         public function receive(): string { return \"\"; }\n",
+    ));
+    assert!(reported(&diags, code::E_DUPLICATE_ROUTE_NAME), "{diags:?}");
+
+    // The duplicate-*route* rule is untouched by that exception: two
+    // attributes sharing both `path` and `method` are one route however they
+    // are grouped, so nothing enters through the door a shared name opens.
+    let (diags, _) = check_src_table(&route_src(
+        "  #[Route(path: \"/webhook\", method: \\Core\\Http\\Method::Post)]\n  \
+         #[Route(path: \"/webhook\", method: \\Core\\Http\\Method::Post)]\n  \
+         public function receive(): string { return \"\"; }\n",
+    ));
+    assert!(reported(&diags, code::E_DUPLICATE_ROUTE), "{diags:?}");
 }
 
 #[test]
@@ -800,6 +860,49 @@ fn an_access_decision_is_required_and_is_a_name() {
         reported(&diags, code::E_ACCESS_ALLOW_NOT_A_NAME),
         "{diags:?}"
     );
+}
+
+#[test]
+fn csrf_false_on_a_route_whose_every_verb_is_safe_does_not_compile() {
+    // §§ 1a and 4: CSRF is on for the four unsafe verbs and for no other, so
+    // beside a `Get` the opt-out turns nothing off and is refused rather than
+    // ignored.
+    let safe = "<?nvs\nclass Users {\n  \
+                #[\\Core\\Route(path: \"/users\", method: \\Core\\Http\\Method::Get)]\n  \
+                #[\\Core\\Access(allow: \\Core\\Audience::Public, csrf: false)]\n  \
+                public function index(): string { return \"\"; }\n}\n";
+    let diags = check_src(safe);
+    assert!(
+        reported(&diags, code::E_CSRF_WITHOUT_UNSAFE_VERB),
+        "{diags:?}"
+    );
+    assert_eq!(diags.error_count(), 1, "{diags:?}");
+
+    // The same payload over an unsafe verb is § 4's whole point — `access_src`
+    // writes `Post` for exactly this reason.
+    let diags = check_src(&access_src("allow: Role::Admin, csrf: false"));
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    // Only `false` is refused: `csrf: true` on a safe route restates the
+    // default rather than claiming anything untrue.
+    let diags = check_src(&safe.replace("csrf: false", "csrf: true"));
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    // And an `#[Access]` that never mentions the field is the ordinary case.
+    let diags = check_src(&safe.replace(", csrf: false", ""));
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    // The verbs are the *method's*, not the row's: one unsafe `#[Route]` among
+    // several is a check to opt out of, and the refusal is not repeated once
+    // per row either.
+    let diags = check_src(
+        "<?nvs\nclass Users {\n  \
+         #[\\Core\\Route(path: \"/users\", method: \\Core\\Http\\Method::Get)]\n  \
+         #[\\Core\\Route(path: \"/users\", method: \\Core\\Http\\Method::Post)]\n  \
+         #[\\Core\\Access(allow: \\Core\\Audience::Public, csrf: false)]\n  \
+         public function index(): string { return \"\"; }\n}\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
 }
 
 #[test]

@@ -27,7 +27,9 @@
 //! with a payload shares. That is one declaration read on its own.
 //!
 //! **The whole program's routes**, as [`RouteTable`]: [`check_class_routes`]
-//! adds one row per `#[Route]` as [`crate::check`]'s per-class walk reaches it,
+//! adds one row per `#[Route]` — every one the method carries, so ADR 0046
+//! § 3's repetition is one method serving two verbs — as [`crate::check`]'s
+//! per-class walk reaches it,
 //! and [`check_table`] then holds the collected rows to the two of § 1-§ 3's
 //! four compile errors that are questions about the *enumeration* — a duplicate
 //! route and a duplicate `name`. A row needs a `path` and a `method` to exist
@@ -61,7 +63,9 @@
 //! is [`check_one_access`], from the walk that visits every method's list. The
 //! decision itself rides on the row as [`Route::access`], because ADR 0102 § 8
 //! leaves enforcement to whoever dispatches. § 4's `csrf` opt-out is a question
-//! about a row's verbs and is not asked yet.
+//! about a *method's* verbs rather than a row's — one `#[Access]` covers every
+//! `#[Route]` the method carries — and so is [`check_csrf_opt_out`], from the
+//! same walk.
 //!
 //! The conversion roster is [`crate::commands::converts_from_string`], read and
 //! never copied — ADR 0086 § 6 takes § 3's list unchanged and ADR 0102 § 3 takes
@@ -78,13 +82,6 @@
 //!    silently binds nothing. It is owed the same refusal, and for the same
 //!    reason — a recognized name that does nothing where it is written is the
 //!    mistake the closed roster exists to prevent.
-//! 2. **Only the first `#[Route]` on a method becomes a row**, because
-//!    [`crate::testing::attribute_named`] answers with one attribute. ADR 0046
-//!    § 3's repetition — one method serving two verbs — therefore contributes
-//!    one row rather than two, and
-//!    [ADR 0110](../../../../docs/adr/0110-one-methods-repeated-routes-share-a-name-when-they-share-a-path.md)
-//!    § 1's exception, which lets those repetitions share a `name` when they
-//!    share a `path`, has nothing yet to except.
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, Span, code};
 use nvs_hir::QName;
@@ -108,6 +105,13 @@ const NAME: &str = "name";
 
 const ALLOW: &str = "allow";
 const CSRF: &str = "csrf";
+
+/// The four verbs ADR 0096 § 4 turns CSRF on for, named once: [`CSRF`] is an
+/// opt-out from *these*, and [`check_csrf_opt_out`] is the only reader.
+///
+/// Spelled as [`verb_of`] answers — the enum case's own name — because that is
+/// the form the row carries and the form the check compares.
+const UNSAFE_VERBS: [&str; 4] = ["Post", "Put", "Patch", "Delete"];
 
 /// `#[Route(path: string, method: Core\Http\Method, name?: string)]` — ADR 0077
 /// § 1's own spelling, in the order that section writes it.
@@ -159,7 +163,7 @@ pub(crate) const ACCESS_OPTIONS: &[(&str, OptionTy)] =
 /// § 1a's other two rules are not here, because neither is about one payload:
 /// "exactly one `#[Access]` per method" is a question about an attribute list
 /// and is [`check_one_access`], and `csrf: false` on a route whose every verb is
-/// safe is a question about that route's verbs.
+/// safe is a question about that method's verbs and is [`check_csrf_opt_out`].
 pub(crate) fn check_access(attr: &Attribute, env: &mut Env<'_>) {
     let Some(field) = written(attr, ALLOW, env) else {
         env.diags.report(
@@ -337,6 +341,13 @@ impl RouteTable {
 /// reason plus one of its own: a row is keyed by the class and method it is
 /// attached to, and the per-attribute walk holds a payload with no declaration
 /// around it.
+///
+/// **Every** `#[Route]` on the method becomes a row, which is ADR 0046 § 3's
+/// repetition read as ADR 0077 § 1 writes it — one method serving two verbs
+/// declares two routes. The method's *other* two questions are asked once
+/// against the first of them: § 1's sibling `#[Access]` and § 4's `csrf`
+/// opt-out are facts about the method, so asking them per attribute would
+/// report one mistake once per verb.
 pub(crate) fn check_class_routes(
     decl: &ClassDecl,
     class: &QName,
@@ -347,15 +358,23 @@ pub(crate) fn check_class_routes(
         let ClassMemberKind::Method(m) = &member.kind else {
             continue;
         };
-        let Some(attr) =
-            crate::testing::attribute_named(&m.attributes, crate::derive::ROUTE, ctx, env)
-        else {
+        let routes: Vec<&Attribute> = m
+            .attributes
+            .iter()
+            .flat_map(|group| &group.attributes)
+            .filter(|attr| crate::derive::attribute_is(attr, crate::derive::ROUTE, ctx, env))
+            .collect();
+        let Some(&first) = routes.first() else {
             continue;
         };
-        let attr = attr.clone();
         let handler = format!("{class}::{}", span_text(env.src, m.name));
-        let access = check_access_declared(&attr, m, &handler, ctx, env);
-        collect_route(&attr, m, class, handler, access, ctx, env);
+        let access = check_access_declared(first, m, &handler, ctx, env);
+        if let Some(access) = access {
+            check_csrf_opt_out(access, m, ctx, env);
+        }
+        for attr in routes {
+            collect_route(attr, m, class, handler.clone(), access, ctx, env);
+        }
     }
 }
 
@@ -403,6 +422,64 @@ fn check_access_declared<'a>(
         ),
     );
     None
+}
+
+/// ADR 0096 § 4's opt-out, held to the thing it opts out of: `csrf: false`
+/// beside a method whose every `#[Route]` names one of the verbs outside
+/// [`UNSAFE_VERBS`].
+///
+/// The verbs are the *method's* rather than the row's, which is why this is
+/// asked here and not in [`collect_route`]: § 1a gives a method one `#[Access]`
+/// covering every `#[Route]` it carries, so a single unsafe verb among them is
+/// a check to opt out of and the field is doing its job. Asking it of the row
+/// instead would report one mistake once per verb and would still have to read
+/// the sibling attributes to know it was the same mistake.
+///
+/// Only `false` is refused. `csrf: true` on a safe route restates § 4's default
+/// rather than claiming anything untrue, and refusing a *restatement* would be
+/// this compiler holding an opinion about style.
+///
+/// A verb [`verb_of`] cannot read counts as unsafe and the opt-out stands: the
+/// roster walk has already reported that field, and refusing the opt-out too
+/// would name the author's second problem before their first.
+fn check_csrf_opt_out(access: &Attribute, m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    let Some(field) = written(access, CSRF, env) else {
+        return;
+    };
+    let value = field.value.clone();
+    let span = field.span;
+    let declared = env.interner.intern(crate::ty::Ty::Bool);
+    if !matches!(
+        crate::defaults::literal_default(&value, declared, env),
+        Some(crate::defaults::ConstArg::Bool(false))
+    ) {
+        return;
+    }
+    let has_something_to_opt_out_of =
+        m.attributes
+            .iter()
+            .flat_map(|group| &group.attributes)
+            .any(|attr| {
+                crate::derive::attribute_is(attr, crate::derive::ROUTE, ctx, env)
+                    && match verb_of(attr, ctx, env) {
+                        Some(verb) => UNSAFE_VERBS.contains(&verb.as_str()),
+                        None => true,
+                    }
+            });
+    if has_something_to_opt_out_of {
+        return;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_CSRF_WITHOUT_UNSAFE_VERB,
+            "this route has no CSRF check to opt out of",
+        )
+        .with_primary(span, "every `#[Route]` on this method names a safe verb")
+        .with_help(
+            "ADR 0096 § 4 turns CSRF on for `Post`, `Put`, `Patch` and `Delete` and for no other \
+             verb — delete the field, or write it on the route that is actually unsafe",
+        ),
+    );
 }
 
 /// One `#[Route]` payload as a row, or the refusal that it is not one.
@@ -883,6 +960,15 @@ fn access_name(attr: &Attribute, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<String>
 /// can see the other. Both are reported at the row that arrives *second* in
 /// load order, so which of two colliding declarations is named does not depend
 /// on the filesystem.
+///
+/// The `name` half carries
+/// [ADR 0110](../../../../docs/adr/0110-one-methods-repeated-routes-share-a-name-when-they-share-a-path.md)
+/// § 1's exception — repetitions on one method sharing a path share a name —
+/// and it is asked here rather than in [`check_class_routes`] because it is the
+/// same question the rest of this walk asks: two rows, and whether they are the
+/// one endpoint `Core\Router::url` can answer for. The duplicate-*route* rule
+/// above is untouched by it, so two attributes sharing both `path` and `method`
+/// stay an error however they are grouped.
 pub(crate) fn check_table(table: &RouteTable, diags: &mut Diagnostics) {
     let mut routes: FxHashMap<(&str, String), &Route> = FxHashMap::default();
     let mut names: FxHashMap<&str, &Route> = FxHashMap::default();
@@ -907,6 +993,14 @@ pub(crate) fn check_table(table: &RouteTable, diags: &mut Diagnostics) {
             continue;
         };
         if let Some(prior) = names.insert(name.as_str(), row) {
+            // ADR 0110 § 1's exception: repetitions on one method may share a
+            // name when they share a path, because then `url()` has one answer
+            // to give. Both halves are required — the same name on two methods
+            // is the copy-paste the rule was written for, and one method whose
+            // repetitions carry different paths is the ambiguity itself.
+            if prior.handler == row.handler && prior.path == row.path {
+                continue;
+            }
             let handler = &prior.handler;
             diags.report(
                 Diagnostic::error(

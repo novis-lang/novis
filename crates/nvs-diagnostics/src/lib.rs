@@ -2078,6 +2078,17 @@ pub mod code {
     /// an author reading the error is deciding whether to keep.
     pub const E_ACCESS_REPEATED: Code = Code::new("E0763");
 
+    /// A `csrf: false` beside a method whose every `#[Route]` names a safe verb.
+    ///
+    /// ADR 0096 § 4's opt-out, held to the thing it opts out of: CSRF is on by
+    /// default for `Post`, `Put`, `Patch` and `Delete` and for no other verb, so
+    /// beside a method declaring none of those the field turns nothing off.
+    /// Refused rather than ignored because a field that reads as a security
+    /// decision and has no effect is exactly how one ends up pasted onto routes
+    /// that never needed it — and a reader auditing those routes then has to
+    /// re-derive which of them the runtime was ever going to check.
+    pub const E_CSRF_WITHOUT_UNSAFE_VERB: Code = Code::new("E0764");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");
