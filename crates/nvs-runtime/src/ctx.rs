@@ -854,6 +854,49 @@ impl Ctx {
         child
     }
 
+    /// A context for an **isolate** — the other half of the pair
+    /// [`Ctx::child`] opens, and the one place the two part.
+    ///
+    /// [ADR 0116](../../../docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
+    /// § 4: an isolate's arena is an ownership root of its own, so its
+    /// static-property base is **its own** rather than an alias of this
+    /// request's. That single difference is the whole of ADR 0006's "globals,
+    /// class statics and runtime-defined constants are fresh", and it is why
+    /// this constructor is safe where [`Ctx::child`] is `unsafe`: nothing in
+    /// the returned context points into this one, so there is no
+    /// parent-outlives-child obligation for a caller to discharge.
+    ///
+    /// The store starts **empty**, not merely fresh. Slot numbering is the
+    /// child unit's, baked into the code that will run here, so the caller arms
+    /// it with that unit's own defaults through
+    /// [`install_statics`](Ctx::install_statics) — which is
+    /// `nvs_codegen::Unit::install_in`'s job, exactly as it is for a request.
+    ///
+    /// What crosses is what ADR 0006's table calls request-wide and immutable:
+    /// the debug flags, the origin, the runtime error class table (compiled
+    /// code, shared by design) and the deadline word, since a budget is
+    /// accounted at the root of the request tree and never per isolate. The
+    /// output sink is the caller's, because `output: 'capture'` and
+    /// `output: 'inherit'` differ in nothing else.
+    ///
+    /// **What it spends:** one `Ctx` per in-flight isolate plus its own statics
+    /// store once armed, both freed when that isolate ends. O(in-flight), per
+    /// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md).
+    #[must_use]
+    pub fn isolate(&self, output: OutputSink) -> Self {
+        let mut isolate = Self::new(output);
+        // Request-wide, and therefore copied. `statics` is deliberately absent:
+        // it stays null until this context is armed with the child unit's own
+        // defaults, which is the difference this constructor exists for.
+        isolate.debug = self.debug;
+        isolate.origin = self.origin.clone();
+        isolate.runtime_error_class = self.runtime_error_class.clone();
+        isolate.deadline = std::sync::atomic::AtomicU64::new(
+            self.deadline.load(std::sync::atomic::Ordering::Relaxed),
+        );
+        isolate
+    }
+
     /// The base of the static-property storage compiled code loads inline —
     /// the word at [`STATICS_OFFSET`], handed out rather than re-derived.
     ///

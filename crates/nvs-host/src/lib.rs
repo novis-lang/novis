@@ -89,6 +89,7 @@ pub mod affinity;
 pub mod blocking;
 pub mod channel;
 pub mod group;
+pub mod isolate;
 pub mod net;
 pub mod reactor;
 pub mod scheduler;
@@ -100,6 +101,7 @@ pub use affinity::{CpuId, cpus, pin_current_thread};
 pub use blocking::BlockingPool;
 pub use channel::{Receiver, RecvError, SendError, Sender, TryRecvError, TrySendError, channel};
 pub use group::SchedulerHost;
+pub use isolate::{Completion, Failure, Isolate, Output, Program};
 #[cfg(unix)]
 pub use net::NvsUnix;
 pub use net::{NvsStream, NvsTcp};
