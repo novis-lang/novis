@@ -1,18 +1,29 @@
 /**
  * `npm run sync:core` — update the Core function reference from the repository.
  *
- * Reads   ../docs/spec/01-core-library.md      (authoritative for every signature)
+ * Reads   ../docs/spec/01-core-library.md      (authoritative for the surface:
+ *                                               every member, planned or not)
  *         ../crates/nvs-stdlib/src/*.rs        (which members are implemented)
+ *         `nvs meta --json`                    (registry-carried documentation,
+ *                                               ADR 0117 — optional until the
+ *                                               toolchain provides it)
  *         scripts/spec-overrides.mjs           (hand-maintained parse corrections)
  *
  * Writes  src/data/core.json                   (tool-owned; regenerated every run)
- *         src/content/docs/docs/core/**.mdx    (created ONLY when missing — these
- *                                               pages hold human prose and the tool
- *                                               never overwrites an existing one)
+ *         src/content/docs/docs/core/**.mdx    (ownership is per page, decided by
+ *                                               its `draft` flag — see below)
+ *
+ * Page ownership (the whole design hangs on this): a page carrying
+ * `novis.draft: true` is TOOL-OWNED and regenerated on every run, so its
+ * defaults can never go stale. Removing the flag hands the page to humans
+ * forever — from then on this script never touches it. The stubs themselves
+ * contain no generated prose: every default renders at build time from
+ * core.json through the Method* components, so even a human-owned page keeps
+ * following the repository wherever it kept a component.
  *
  * The report at the end is part of the contract: rows the spec parser could
- * not read, member pages whose member no longer exists, and members that
- * gained or lost their implementation all show up there.
+ * not read, member pages whose member no longer exists, and where the
+ * documentation came from all show up there.
  */
 
 import fs from 'node:fs'
@@ -20,6 +31,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseSpec } from './lib/spec.mjs'
 import { scanRegistry } from './lib/registry.mjs'
+import { loadRegistryDocs } from './lib/meta.mjs'
 import { blocksHtml, inlineHtml } from './lib/md.mjs'
 import { overrides } from './spec-overrides.mjs'
 
@@ -43,6 +55,51 @@ for (const cls of classes) {
   cls.implemented = cls.name in implemented
   for (const m of cls.members) {
     m.implemented = members.includes(m.name)
+  }
+}
+
+// ---------------------------------------------------------------- registry docs (ADR 0117)
+
+// Field-wise precedence: a doc field the registry carries wins; a field it
+// lacks falls back to the spec-derived default. The Method* components apply
+// that rule at build time — here we only attach what the toolchain reported.
+const { docs: registryDocs, note: metaNote } = loadRegistryDocs(repoDir)
+
+const asHtml = (s) => inlineHtml(String(s), 'docs/spec')
+
+for (const cls of classes) {
+  for (const m of cls.members) {
+    m.notesHtml = m.notes ? asHtml(m.notes) : ''
+    const doc = registryDocs.get(`${cls.name}::${m.name}`)
+    if (!doc) continue
+    m.doc = {
+      ...(doc.short ? { shortHtml: asHtml(doc.short) } : {}),
+      ...(Array.isArray(doc.params)
+        ? {
+            params: doc.params.map((p) => ({
+              name: String(p.name ?? ''),
+              descHtml: p.desc ? asHtml(p.desc) : '',
+              ...(Array.isArray(p.shape)
+                ? {
+                    shape: p.shape.map((k) => ({
+                      key: String(k.key ?? ''),
+                      type: String(k.type ?? ''),
+                      descHtml: k.desc ? asHtml(k.desc) : '',
+                    })),
+                  }
+                : {}),
+            })),
+          }
+        : {}),
+      ...(doc.return ? { returnHtml: asHtml(doc.return) } : {}),
+      ...(Array.isArray(doc.errors)
+        ? { errors: doc.errors.map((e) => ({ error: String(e.error ?? ''), descHtml: e.desc ? asHtml(e.desc) : '' })) }
+        : {}),
+    }
+    for (const p of m.doc.params ?? []) {
+      const known = m.params.some((sp) => sp.name === p.name) || m.options.some((o) => o.name === p.name)
+      if (!known) warnings.push(`registry documents parameter "${p.name}" on ${cls.name}::${m.name}, which the spec does not declare`)
+    }
   }
 }
 
@@ -88,7 +145,38 @@ if (!fs.existsSync(changelogPath)) {
 fs.mkdirSync(outPagesDir, { recursive: true })
 
 let createdPages = 0
+let regeneratedPages = 0
+let humanPages = 0
 const yaml = (s) => JSON.stringify(s)
+
+/** True when the page still carries `draft: true` in its frontmatter — i.e.
+ * no human has taken ownership of it, so the tool may regenerate it. */
+function isToolOwned(file) {
+  const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(fs.readFileSync(file, 'utf8'))
+  return fm ? /\bdraft:\s*true\b/.test(fm[1]) : false
+}
+
+/** Write a stub: create when missing, regenerate while tool-owned, keep once human-owned. */
+function writeStub(file, content) {
+  if (!fs.existsSync(file)) {
+    createdPages++
+  } else if (isToolOwned(file)) {
+    regeneratedPages++
+  } else {
+    humanPages++
+    return
+  }
+  fs.writeFileSync(file, content)
+}
+
+/** Markdown → plain text for the frontmatter `description` (meta tags). */
+function plain(s) {
+  return s
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/`/g, '')
+    .replace(/\*\*?/g, '')
+    .trim()
+}
 
 /** Human-readable phrase for the Replaces cell, or ''. Keeps inline-code
  * ticks — they are MDX-safe and protect characters like `<=>`. */
@@ -103,15 +191,19 @@ function classDir(cls) {
   return path.join(outPagesDir, cls.slug)
 }
 
+const ownershipComment = `{/* OWNERSHIP: while \`draft: true\` stands above, this page is TOOL-OWNED and
+    \`npm run sync:core\` REGENERATES it on every run — edits here will be lost.
+    To take ownership, remove \`draft: true\`; the tool then never touches this
+    file again. Keep a <Method...> component wherever its default (rendered
+    from the repository's own data) is good enough; replace one with your own
+    prose where it is not. */}`
+
 for (const cls of classes) {
   fs.mkdirSync(classDir(cls), { recursive: true })
 
-  // ---- class page (human-owned after creation)
-  const clsIndex = path.join(classDir(cls), 'index.mdx')
-  if (!fs.existsSync(clsIndex)) {
-    createdPages++
-    const shortName = cls.name
-    const page = `---
+  // ---- class page
+  const shortName = cls.name
+  const clsPage = `---
 title: ${yaml(shortName)}
 description: ${yaml(`The ${shortName} class of the Novis Core library — every member, with signatures and status.`)}
 sidebar:
@@ -125,37 +217,39 @@ novis:
 
 import ClassOverview from '@components/ClassOverview.astro'
 
-{/* HUMAN-OWNED PAGE. \`npm run sync:core\` created this stub once and will never
-    overwrite it. The prose here is yours; the member table below renders from
-    the generated data and stays current on its own. */}
+${ownershipComment}
 
 {/* Group note: if this class needs an important note at the top (like the
     UTF-8 note on Str), write it here as a normal Starlight aside. */}
 
 <ClassOverview id=${yaml(cls.id)} />
 `
-    fs.writeFileSync(clsIndex, page)
-  }
+  writeStub(path.join(classDir(cls), 'index.mdx'), clsPage)
 
-  // ---- method pages (human-owned after creation)
+  // ---- method pages
   for (const m of cls.members) {
-    const file = path.join(classDir(cls), `${m.slug}.mdx`)
-    if (fs.existsSync(file)) continue
-    createdPages++
-
     const fullName = `${cls.name}::${m.name}`
     const repl = replacesPhrase(m.replaces)
-    const lead = repl ? `Novis's replacement for PHP's ${repl}.` : `A member of ${cls.name}.`
-    const leadPlain = repl
-      ? `Novis's replacement for PHP's ${repl.replace(/`/g, '')}.`
-      : `A member of ${cls.name}.`
+    const leadPlain = m.doc?.shortHtml
+      ? plain(String(registryDocs.get(`${cls.name}::${m.name}`)?.short ?? ''))
+      : repl
+        ? `Novis's replacement for PHP's ${plain(repl)}.`
+        : `A member of ${cls.name}.`
 
-    const paramLines = m.params
-      .map((p) => `- **\`$${p.name}\`** (\`${p.type || 'mixed'}\`${p.default !== null ? `, default \`${p.default}\`` : ''}${p.variadic ? ', variadic' : ''}) — *to be documented.*`)
-      .join('\n')
-    const optionLines = m.options
-      .map((o) => `- **\`${o.name}\`**${o.type ? ` (\`${o.type}\`)` : ''} — *to be documented.*`)
-      .join('\n')
+    const hasParams = m.params.length > 0
+    const hasOptions = m.options.length > 0
+
+    const imports = [
+      `import MethodLead from '@components/MethodLead.astro'`,
+      `import MethodSignature from '@components/MethodSignature.astro'`,
+      `import MethodDescription from '@components/MethodDescription.astro'`,
+      ...(hasParams || hasOptions ? [`import ParamDocs from '@components/ParamDocs.astro'`] : []),
+      `import MethodReturn from '@components/MethodReturn.astro'`,
+      `import MethodErrors from '@components/MethodErrors.astro'`,
+      `import MethodChangelog from '@components/MethodChangelog.astro'`,
+      `import MethodExamples from '@components/MethodExamples.astro'`,
+      `import SeeAlso from '@components/SeeAlso.astro'`,
+    ].join('\n')
 
     const page = `---
 title: ${yaml(fullName)}
@@ -168,47 +262,41 @@ novis:
   draft: true
 ---
 
-import MethodSignature from '@components/MethodSignature.astro'
-import MethodChangelog from '@components/MethodChangelog.astro'
-import MethodExamples from '@components/MethodExamples.astro'
-import SeeAlso from '@components/SeeAlso.astro'
+${imports}
 
-{/* HUMAN-OWNED PAGE. \`npm run sync:core\` created this stub once and will never
-    overwrite it. Edit every prose section freely; the signature block, the
-    changelog and the examples render from generated data and files. Remove
-    \`draft: true\` above once the prose has been reviewed. */}
+${ownershipComment}
 
-${lead}
+<MethodLead id=${yaml(m.id)} />
 
 <MethodSignature id=${yaml(m.id)} />
 
 ## Description
 
-*To be documented${m.notes ? ` — the spec notes: ${m.notes.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/\*/g, '')}` : ''}.*
+<MethodDescription id=${yaml(m.id)} />
 ${
-  paramLines
+  hasParams
     ? `
 ### Parameters
 
-${paramLines}
+<ParamDocs id=${yaml(m.id)} kind="params" />
 `
     : ''
 }${
-      optionLines
+      hasOptions
         ? `
 ### Options
 
-${optionLines}
+<ParamDocs id=${yaml(m.id)} kind="options" />
 `
         : ''
     }
 ## Return value
 
-Returns \`${m.returnType}\`. *To be documented.*
+<MethodReturn id=${yaml(m.id)} />
 
 ## Errors
 
-*To be documented.*
+<MethodErrors id=${yaml(m.id)} />
 
 <MethodChangelog id=${yaml(m.id)} />
 
@@ -220,7 +308,7 @@ Returns \`${m.returnType}\`. *To be documented.*
 {/* Related members: list ids like "Str.isEmpty". Renders nothing while empty. */}
 <SeeAlso ids={[]} />
 `
-    fs.writeFileSync(file, page)
+    writeStub(path.join(classDir(cls), `${m.slug}.mdx`), page)
   }
 }
 
@@ -247,8 +335,11 @@ walk(outPagesDir)
 const memberCount = classes.reduce((n, c) => n + c.members.length, 0)
 const implCount = classes.reduce((n, c) => n + c.members.filter((m) => m.implemented).length, 0)
 console.log(
-  `sync:core — ${classes.length} classes, ${memberCount} members (${implCount} implemented), ${createdPages} page(s) created, ${warnings.length} warning(s)`
+  `sync:core — ${classes.length} classes, ${memberCount} members (${implCount} implemented), ` +
+    `${createdPages} page(s) created, ${regeneratedPages} draft page(s) regenerated, ${humanPages} human-owned page(s) untouched, ` +
+    `${warnings.length} warning(s)`
 )
+console.log(`  registry docs: ${metaNote}`)
 for (const w of warnings) console.warn(`  warn: ${w}`)
 if (orphans.length > 0) {
   console.warn('  orphan pages (member no longer in the spec — review and delete by hand):')

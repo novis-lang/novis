@@ -15,6 +15,31 @@ export interface CoreOption {
   type: string
 }
 
+/** A shape key documented by the registry (ADR 0117). */
+export interface CoreShapeKeyDoc {
+  key: string
+  type: string
+  descHtml: string
+}
+
+export interface CoreParamDoc {
+  name: string
+  descHtml: string
+  shape?: CoreShapeKeyDoc[]
+}
+
+/**
+ * Registry-carried documentation (ADR 0117): present only for members the
+ * `nvs` binary documents via `nvs meta --json`. Every field is optional; a
+ * field the registry lacks falls back to the spec-derived default.
+ */
+export interface CoreMemberDoc {
+  shortHtml?: string
+  params?: CoreParamDoc[]
+  returnHtml?: string
+  errors?: { error: string; descHtml: string }[]
+}
+
 export interface CoreMember {
   id: string
   name: string
@@ -33,6 +58,8 @@ export interface CoreMember {
   slug: string
   url: string
   fromOverride?: boolean
+  notesHtml?: string
+  doc?: CoreMemberDoc
 }
 
 export interface CoreClass {

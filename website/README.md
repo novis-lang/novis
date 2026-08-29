@@ -25,14 +25,20 @@ npm run build    # build the static site into dist/
 ## Who owns which file
 
 The whole design hangs on one rule: **tool-owned files are regenerated from scratch;
-human-owned files are created once as stubs and never overwritten.**
+human-owned files are never overwritten.** For Core reference pages, ownership is
+per page and the `novis.draft: true` frontmatter flag is the switch: while it stands,
+the page is tool-owned and `sync:core` regenerates it on every run (so its defaults can
+never go stale); removing the flag hands the page to humans forever. The stubs contain
+no generated prose — every default renders at build time from `core.json` through the
+`Method*` components, so even a human-owned page keeps following the repository
+wherever it kept a component.
 
 | Path | Owner | Notes |
 | --- | --- | --- |
 | `src/content/docs/docs/adr/**` | tool | regenerated on every `sync:adrs` — edit the ADRs in `../docs/adr/` instead |
 | `src/data/core.json`, `src/data/adrs.json` | tool | regenerated on every sync |
 | `src/data/core-changelog.json` | human | per-member changelog entries; the tool only creates the empty file |
-| `src/content/docs/docs/core/**.mdx` | **human** | created as stubs by `sync:core`, then yours: lead text, description, parameter docs, errors, tips, `<SeeAlso ids={…}>`. Remove `draft: true` after reviewing a page |
+| `src/content/docs/docs/core/**.mdx` | **per page** | tool-owned (regenerated every `sync:core`) while `novis.draft: true`; remove the flag to take ownership — then yours: lead text, description, parameter docs, errors, tips, `<SeeAlso ids={…}>` |
 | `src/content/claims/*.md` | human | one file per "Why Novis?" claim; add a file, the page updates |
 | `examples/core/<Class>/<member>/*.nvs` | human | runnable examples; sibling `.out` = expected output, verified by `examples:check` |
 | `scripts/spec-overrides.mjs` | human | corrections for spec table rows the parser cannot read — every fix goes here, never into the parser |
@@ -52,8 +58,16 @@ orphans at the end of its run for a human to review and delete.
 2. `scripts/lib/registry.mjs` scans `../crates/nvs-stdlib/src/*.rs` for registered
    `CoreClass` declarations — that is what drives the per-member
    **Available / Not yet implemented** badge, automatically, on every sync.
-3. Member pages render the technical block from the data (`<MethodSignature>`); the
-   prose around it is the page's own and survives every sync.
+3. `scripts/lib/meta.mjs` asks the built `nvs` binary for its registry docs
+   (`nvs meta --json`, ADR 0117): short description, parameter/shape-key/return/error
+   descriptions, authored next to the Rust implementation. Precedence is **field-wise**:
+   a doc field the registry carries wins, one it lacks falls back to the spec — so
+   documentation migrates member by member with no flag day. A toolchain without the
+   subcommand just means "spec only", reported, never fatal.
+4. Member pages render every default from the data at build time (`<MethodSignature>`,
+   `<MethodLead>`, `<MethodDescription>`, `<ParamDocs>`, `<MethodReturn>`,
+   `<MethodErrors>`); human prose replaces a component where the default is not enough,
+   and survives every sync once the page's `draft` flag is removed.
 
 Novis code blocks get syntax highlighting from `config/novis.tmLanguage.json`
 (languages `novis` / `nvs` in fenced code blocks).

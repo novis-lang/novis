@@ -52,6 +52,7 @@
           "qualifier": "neutral",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "count",
           "url": "/docs/core/arr/count/"
         },
@@ -79,6 +80,7 @@
           "qualifier": "neutral",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "isempty",
           "url": "/docs/core/arr/isempty/"
         },
@@ -106,6 +108,7 @@
           "qualifier": "neutral",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "islist",
           "url": "/docs/core/arr/islist/"
         },
@@ -141,6 +144,7 @@
           "qualifier": "neutral",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "haskey",
           "url": "/docs/core/arr/haskey/"
         },
@@ -176,6 +180,7 @@
           "qualifier": "neutral",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "contains",
           "url": "/docs/core/arr/contains/"
         },
@@ -211,6 +216,7 @@
           "qualifier": "neutral",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "keyof",
           "url": "/docs/core/arr/keyof/"
         },
@@ -238,6 +244,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "keys",
           "url": "/docs/core/arr/keys/"
         },
@@ -265,6 +272,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "values",
           "url": "/docs/core/arr/values/"
         },
@@ -292,6 +300,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "first",
           "url": "/docs/core/arr/first/"
         },
@@ -319,6 +328,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "last",
           "url": "/docs/core/arr/last/"
         },
@@ -346,6 +356,7 @@
           "qualifier": "neutral",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "firstkey",
           "url": "/docs/core/arr/firstkey/"
         },
@@ -373,6 +384,7 @@
           "qualifier": "neutral",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "lastkey",
           "url": "/docs/core/arr/lastkey/"
         },
@@ -421,6 +433,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "slice",
           "url": "/docs/core/arr/slice/"
         },
@@ -472,6 +485,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "replacerange",
           "url": "/docs/core/arr/replacerange/"
         },
@@ -512,6 +526,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "chunk",
           "url": "/docs/core/arr/chunk/"
         },
@@ -547,6 +562,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "append",
           "url": "/docs/core/arr/append/"
         },
@@ -582,6 +598,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "prepend",
           "url": "/docs/core/arr/prepend/"
         },
@@ -609,6 +626,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "withoutfirst",
           "url": "/docs/core/arr/withoutfirst/"
         },
@@ -636,6 +654,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "withoutlast",
           "url": "/docs/core/arr/withoutlast/"
         },
@@ -679,6 +698,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "padstart",
           "url": "/docs/core/arr/padstart/"
         },
@@ -722,6 +742,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "padend",
           "url": "/docs/core/arr/padend/"
         },
@@ -754,6 +775,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "reverse",
           "url": "/docs/core/arr/reverse/"
         },
@@ -781,6 +803,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "flip",
           "url": "/docs/core/arr/flip/"
         },
@@ -808,6 +831,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "flatten",
           "url": "/docs/core/arr/flatten/"
         },
@@ -835,6 +859,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "flattendeep",
           "url": "/docs/core/arr/flattendeep/"
         },
@@ -870,6 +895,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "fill",
           "url": "/docs/core/arr/fill/"
         },
@@ -905,6 +931,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "fillkeys",
           "url": "/docs/core/arr/fillkeys/"
         },
@@ -945,6 +972,7 @@
           "qualifier": "neutral",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "range",
           "url": "/docs/core/arr/range/"
         },
@@ -980,6 +1008,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "fromkeysandvalues",
           "url": "/docs/core/arr/fromkeysandvalues/"
         },
@@ -1012,6 +1041,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "from",
           "url": "/docs/core/arr/from/"
         },
@@ -1052,6 +1082,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "column",
           "url": "/docs/core/arr/column/"
         },
@@ -1087,6 +1118,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "overlay",
           "url": "/docs/core/arr/overlay/"
         },
@@ -1122,6 +1154,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "overlaydeep",
           "url": "/docs/core/arr/overlaydeep/"
         },
@@ -1157,6 +1190,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "underlay",
           "url": "/docs/core/arr/underlay/"
         },
@@ -1192,6 +1226,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "appendall",
           "url": "/docs/core/arr/appendall/"
         },
@@ -1240,6 +1275,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "diff",
           "url": "/docs/core/arr/diff/"
         },
@@ -1288,6 +1324,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "intersect",
           "url": "/docs/core/arr/intersect/"
         },
@@ -1320,6 +1357,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "unique",
           "url": "/docs/core/arr/unique/"
         },
@@ -1352,6 +1390,7 @@
           "qualifier": "neutral",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "countby",
           "url": "/docs/core/arr/countby/"
         },
@@ -1387,6 +1426,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "map",
           "url": "/docs/core/arr/map/"
         },
@@ -1422,6 +1462,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "mapkeys",
           "url": "/docs/core/arr/mapkeys/"
         },
@@ -1457,6 +1498,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "filter",
           "url": "/docs/core/arr/filter/"
         },
@@ -1500,6 +1542,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "reduce",
           "url": "/docs/core/arr/reduce/"
         },
@@ -1535,6 +1578,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "find",
           "url": "/docs/core/arr/find/"
         },
@@ -1570,6 +1614,7 @@
           "qualifier": "neutral",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "findkey",
           "url": "/docs/core/arr/findkey/"
         },
@@ -1605,6 +1650,7 @@
           "qualifier": "neutral",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "any",
           "url": "/docs/core/arr/any/"
         },
@@ -1640,6 +1686,7 @@
           "qualifier": "neutral",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "all",
           "url": "/docs/core/arr/all/"
         },
@@ -1675,6 +1722,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "groupby",
           "url": "/docs/core/arr/groupby/"
         },
@@ -1702,6 +1750,7 @@
           "qualifier": "neutral",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "sum",
           "url": "/docs/core/arr/sum/"
         },
@@ -1729,6 +1778,7 @@
           "qualifier": "neutral",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "product",
           "url": "/docs/core/arr/product/"
         },
@@ -1756,6 +1806,7 @@
           "qualifier": "neutral",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "average",
           "url": "/docs/core/arr/average/"
         },
@@ -1783,6 +1834,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "min",
           "url": "/docs/core/arr/min/"
         },
@@ -1810,6 +1862,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "max",
           "url": "/docs/core/arr/max/"
         },
@@ -1854,6 +1907,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "sort",
           "url": "/docs/core/arr/sort/"
         },
@@ -1890,6 +1944,7 @@
           "qualifier": "",
           "section": "2. `Core\\Arr`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "sortbykey",
           "url": "/docs/core/arr/sortbykey/"
         }
@@ -1993,6 +2048,7 @@
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "length",
           "url": "/docs/core/bytes/length/"
         },
@@ -2029,6 +2085,7 @@
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "answers the octet as a <code>uint</code>, not a one-byte buffer",
           "slug": "at",
           "url": "/docs/core/bytes/at/"
         },
@@ -2073,6 +2130,7 @@
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "slice",
           "url": "/docs/core/bytes/slice/"
         },
@@ -2114,6 +2172,7 @@
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "no <code>caseInsensitive</code> option — case is a text concept",
           "slug": "indexof",
           "url": "/docs/core/bytes/indexof/"
         },
@@ -2150,6 +2209,7 @@
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "lexicographic octet order",
           "slug": "compare",
           "url": "/docs/core/bytes/compare/"
         },
@@ -2186,6 +2246,7 @@
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "contains",
           "url": "/docs/core/bytes/contains/"
         },
@@ -2222,6 +2283,7 @@
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "startswith",
           "url": "/docs/core/bytes/startswith/"
         },
@@ -2258,6 +2320,7 @@
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "endswith",
           "url": "/docs/core/bytes/endswith/"
         },
@@ -2294,6 +2357,7 @@
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "join",
           "url": "/docs/core/bytes/join/"
         },
@@ -2330,6 +2394,7 @@
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "a <code>$byte</code> above 255 throws",
           "slug": "fill",
           "url": "/docs/core/bytes/fill/"
         },
@@ -2366,6 +2431,7 @@
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "repeat",
           "url": "/docs/core/bytes/repeat/"
         },
@@ -2402,6 +2468,7 @@
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "pack",
           "url": "/docs/core/bytes/pack/"
         },
@@ -2438,6 +2505,7 @@
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "unpack",
           "url": "/docs/core/bytes/unpack/"
         }
@@ -2647,6 +2715,7 @@
           "qualifier": "",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "parse",
           "url": "/docs/core/csv/parse/"
         },
@@ -2687,6 +2756,7 @@
           "qualifier": "",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "format",
           "url": "/docs/core/csv/format/"
         }
@@ -2743,6 +2813,7 @@
           "qualifier": "sink (name)",
           "section": "18. `Core\\Db`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "connect",
           "url": "/docs/core/db/connect/"
         },
@@ -2775,6 +2846,7 @@
           "qualifier": "sink (host)",
           "section": "18. `Core\\Db`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "open",
           "url": "/docs/core/db/open/"
         },
@@ -2802,6 +2874,7 @@
           "qualifier": "",
           "section": "18. `Core\\Db`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "inlist",
           "url": "/docs/core/db/inlist/"
         },
@@ -2829,6 +2902,7 @@
           "qualifier": "launder (identifier)",
           "section": "18. `Core\\Db`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "quoteidentifier",
           "url": "/docs/core/db/quoteidentifier/"
         }
@@ -2938,6 +3012,7 @@
           "qualifier": "sink (sql)",
           "section": "18. `Core\\Db`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "query",
           "url": "/docs/core/db-queryable/query/"
         },
@@ -2978,6 +3053,7 @@
           "qualifier": "sink (sql)",
           "section": "18. `Core\\Db`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "queryas",
           "url": "/docs/core/db-queryable/queryas/"
         },
@@ -3018,6 +3094,7 @@
           "qualifier": "sink (sql)",
           "section": "18. `Core\\Db`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "execute",
           "url": "/docs/core/db-queryable/execute/"
         },
@@ -3058,6 +3135,7 @@
           "qualifier": "sink (sql)",
           "section": "18. `Core\\Db`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "executemany",
           "url": "/docs/core/db-queryable/executemany/"
         },
@@ -3102,6 +3180,7 @@
           "qualifier": "sink (sql)",
           "section": "18. `Core\\Db`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "stream",
           "url": "/docs/core/db-queryable/stream/"
         },
@@ -3146,6 +3225,7 @@
           "qualifier": "sink (sql)",
           "section": "18. `Core\\Db`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "streamas",
           "url": "/docs/core/db-queryable/streamas/"
         },
@@ -3186,6 +3266,7 @@
           "qualifier": "",
           "section": "18. `Core\\Db`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "transaction",
           "url": "/docs/core/db-queryable/transaction/"
         }
@@ -3346,6 +3427,7 @@
           "qualifier": "",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "decodetext",
           "url": "/docs/core/encoding/decodetext/"
         },
@@ -3381,6 +3463,7 @@
           "qualifier": "",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "encodetext",
           "url": "/docs/core/encoding/encodetext/"
         },
@@ -3416,6 +3499,7 @@
           "qualifier": "neutral",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "isvalidtext",
           "url": "/docs/core/encoding/isvalidtext/"
         },
@@ -3443,6 +3527,7 @@
           "qualifier": "",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "tobase64",
           "url": "/docs/core/encoding/tobase64/"
         },
@@ -3470,6 +3555,7 @@
           "qualifier": "",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "tobase64url",
           "url": "/docs/core/encoding/tobase64url/"
         },
@@ -3497,6 +3583,7 @@
           "qualifier": "",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "tohex",
           "url": "/docs/core/encoding/tohex/"
         },
@@ -3524,6 +3611,7 @@
           "qualifier": "",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "tobase32",
           "url": "/docs/core/encoding/tobase32/"
         },
@@ -3552,6 +3640,7 @@
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "frombase64",
           "url": "/docs/core/encoding/frombase64/"
         },
@@ -3580,6 +3669,7 @@
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "frombase64url",
           "url": "/docs/core/encoding/frombase64url/"
         },
@@ -3608,6 +3698,7 @@
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "fromhex",
           "url": "/docs/core/encoding/fromhex/"
         },
@@ -3636,6 +3727,7 @@
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "frombase32",
           "url": "/docs/core/encoding/frombase32/"
         }
@@ -3743,6 +3835,7 @@
           "qualifier": "neutral",
           "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "of",
           "url": "/docs/core/hash/of/"
         },
@@ -3786,6 +3879,7 @@
           "qualifier": "neutral",
           "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "hmac",
           "url": "/docs/core/hash/hmac/"
         },
@@ -3821,6 +3915,7 @@
           "qualifier": "neutral",
           "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "equals",
           "url": "/docs/core/hash/equals/"
         },
@@ -3848,6 +3943,7 @@
           "qualifier": "",
           "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "stream",
           "url": "/docs/core/hash/stream/"
         }
@@ -3893,6 +3989,7 @@
           "qualifier": "",
           "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "update",
           "url": "/docs/core/hash-stream/update/"
         },
@@ -3911,6 +4008,7 @@
           "qualifier": "",
           "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "finish",
           "url": "/docs/core/hash-stream/finish/"
         }
@@ -4038,6 +4136,7 @@
           "qualifier": "",
           "section": "6. `Core\\Json`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "encode",
           "url": "/docs/core/json/encode/"
         },
@@ -4070,6 +4169,7 @@
           "qualifier": "",
           "section": "6. `Core\\Json`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "decode",
           "url": "/docs/core/json/decode/"
         },
@@ -4102,6 +4202,7 @@
           "qualifier": "",
           "section": "6. `Core\\Json`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "decodeas",
           "url": "/docs/core/json/decodeas/"
         },
@@ -4129,6 +4230,7 @@
           "qualifier": "neutral",
           "section": "6. `Core\\Json`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "isvalid",
           "url": "/docs/core/json/isvalid/"
         }
@@ -4257,6 +4359,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "abs",
           "url": "/docs/core/math/abs/"
         },
@@ -4284,6 +4387,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "sign",
           "url": "/docs/core/math/sign/"
         },
@@ -4319,6 +4423,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "min",
           "url": "/docs/core/math/min/"
         },
@@ -4354,6 +4459,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "max",
           "url": "/docs/core/math/max/"
         },
@@ -4397,6 +4503,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "clamp",
           "url": "/docs/core/math/clamp/"
         },
@@ -4424,6 +4531,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "ceil",
           "url": "/docs/core/math/ceil/"
         },
@@ -4451,6 +4559,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "floor",
           "url": "/docs/core/math/floor/"
         },
@@ -4478,6 +4587,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "truncate",
           "url": "/docs/core/math/truncate/"
         },
@@ -4514,6 +4624,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "round",
           "url": "/docs/core/math/round/"
         },
@@ -4549,6 +4660,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "intdiv",
           "url": "/docs/core/math/intdiv/"
         },
@@ -4584,6 +4696,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "mod",
           "url": "/docs/core/math/mod/"
         },
@@ -4619,6 +4732,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "gcd",
           "url": "/docs/core/math/gcd/"
         },
@@ -4654,6 +4768,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "lcm",
           "url": "/docs/core/math/lcm/"
         },
@@ -4681,6 +4796,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "sqrt",
           "url": "/docs/core/math/sqrt/"
         },
@@ -4708,6 +4824,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "cbrt",
           "url": "/docs/core/math/cbrt/"
         },
@@ -4743,6 +4860,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "hypot",
           "url": "/docs/core/math/hypot/"
         },
@@ -4770,6 +4888,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "exp",
           "url": "/docs/core/math/exp/"
         },
@@ -4802,6 +4921,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "log",
           "url": "/docs/core/math/log/"
         },
@@ -4829,6 +4949,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "sin",
           "url": "/docs/core/math/sin/"
         },
@@ -4856,6 +4977,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "cos",
           "url": "/docs/core/math/cos/"
         },
@@ -4883,6 +5005,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "tan",
           "url": "/docs/core/math/tan/"
         },
@@ -4910,6 +5033,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "asin",
           "url": "/docs/core/math/asin/"
         },
@@ -4937,6 +5061,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "acos",
           "url": "/docs/core/math/acos/"
         },
@@ -4964,6 +5089,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "atan",
           "url": "/docs/core/math/atan/"
         },
@@ -4999,6 +5125,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "atan2",
           "url": "/docs/core/math/atan2/"
         },
@@ -5026,6 +5153,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "toradians",
           "url": "/docs/core/math/toradians/"
         },
@@ -5053,6 +5181,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "todegrees",
           "url": "/docs/core/math/todegrees/"
         },
@@ -5080,6 +5209,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "isnan",
           "url": "/docs/core/math/isnan/"
         },
@@ -5107,6 +5237,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "isfinite",
           "url": "/docs/core/math/isfinite/"
         },
@@ -5142,6 +5273,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "tobase",
           "url": "/docs/core/math/tobase/"
         },
@@ -5177,6 +5309,7 @@
           "qualifier": "neutral",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "frombase",
           "url": "/docs/core/math/frombase/"
         },
@@ -5217,6 +5350,7 @@
           "qualifier": "",
           "section": "3. `Core\\Math`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "format",
           "url": "/docs/core/math/format/"
         },
@@ -5245,6 +5379,7 @@
           "section": "3. `Core\\Math`",
           "fromOverride": true,
           "implemented": true,
+          "notesHtml": "",
           "slug": "sinh",
           "url": "/docs/core/math/sinh/"
         },
@@ -5273,6 +5408,7 @@
           "section": "3. `Core\\Math`",
           "fromOverride": true,
           "implemented": true,
+          "notesHtml": "",
           "slug": "cosh",
           "url": "/docs/core/math/cosh/"
         },
@@ -5301,6 +5437,7 @@
           "section": "3. `Core\\Math`",
           "fromOverride": true,
           "implemented": true,
+          "notesHtml": "",
           "slug": "tanh",
           "url": "/docs/core/math/tanh/"
         },
@@ -5329,6 +5466,7 @@
           "section": "3. `Core\\Math`",
           "fromOverride": true,
           "implemented": true,
+          "notesHtml": "",
           "slug": "asinh",
           "url": "/docs/core/math/asinh/"
         },
@@ -5357,6 +5495,7 @@
           "section": "3. `Core\\Math`",
           "fromOverride": true,
           "implemented": true,
+          "notesHtml": "",
           "slug": "acosh",
           "url": "/docs/core/math/acosh/"
         },
@@ -5385,6 +5524,7 @@
           "section": "3. `Core\\Math`",
           "fromOverride": true,
           "implemented": true,
+          "notesHtml": "",
           "slug": "atanh",
           "url": "/docs/core/math/atanh/"
         }
@@ -5543,6 +5683,7 @@
           "qualifier": "",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "capture",
           "url": "/docs/core/out/capture/"
         }
@@ -5614,6 +5755,7 @@
           "qualifier": "",
           "section": "8. `Core\\Path`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "basename",
           "url": "/docs/core/path/basename/"
         },
@@ -5646,6 +5788,7 @@
           "qualifier": "",
           "section": "8. `Core\\Path`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "dirname",
           "url": "/docs/core/path/dirname/"
         },
@@ -5673,6 +5816,7 @@
           "qualifier": "",
           "section": "8. `Core\\Path`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "extension",
           "url": "/docs/core/path/extension/"
         },
@@ -5708,6 +5852,7 @@
           "qualifier": "",
           "section": "8. `Core\\Path`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "withextension",
           "url": "/docs/core/path/withextension/"
         },
@@ -5743,6 +5888,7 @@
           "qualifier": "",
           "section": "8. `Core\\Path`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "join",
           "url": "/docs/core/path/join/"
         },
@@ -5770,6 +5916,7 @@
           "qualifier": "",
           "section": "8. `Core\\Path`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "split",
           "url": "/docs/core/path/split/"
         },
@@ -5797,6 +5944,7 @@
           "qualifier": "",
           "section": "8. `Core\\Path`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "normalize",
           "url": "/docs/core/path/normalize/"
         },
@@ -5824,6 +5972,7 @@
           "qualifier": "neutral",
           "section": "8. `Core\\Path`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "isabsolute",
           "url": "/docs/core/path/isabsolute/"
         },
@@ -5859,6 +6008,7 @@
           "qualifier": "",
           "section": "8. `Core\\Path`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "relativeto",
           "url": "/docs/core/path/relativeto/"
         }
@@ -5950,6 +6100,7 @@
           "qualifier": "neutral",
           "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "int",
           "url": "/docs/core/random/int/"
         },
@@ -5968,6 +6119,7 @@
           "qualifier": "neutral",
           "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "float",
           "url": "/docs/core/random/float/"
         },
@@ -5995,6 +6147,7 @@
           "qualifier": "neutral",
           "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "bytes",
           "url": "/docs/core/random/bytes/"
         },
@@ -6022,6 +6175,7 @@
           "qualifier": "neutral",
           "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "token",
           "url": "/docs/core/random/token/"
         },
@@ -6049,6 +6203,7 @@
           "qualifier": "",
           "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "pick",
           "url": "/docs/core/random/pick/"
         },
@@ -6084,6 +6239,7 @@
           "qualifier": "",
           "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "sample",
           "url": "/docs/core/random/sample/"
         },
@@ -6111,6 +6267,7 @@
           "qualifier": "",
           "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "shuffle",
           "url": "/docs/core/random/shuffle/"
         }
@@ -6211,6 +6368,7 @@
           "qualifier": "sink (pattern)",
           "section": "5. `Core\\Regex`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "compile",
           "url": "/docs/core/regex/compile/"
         },
@@ -6246,6 +6404,7 @@
           "qualifier": "neutral",
           "section": "5. `Core\\Regex`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "matches",
           "url": "/docs/core/regex/matches/"
         },
@@ -6286,6 +6445,7 @@
           "qualifier": "sink (pattern)",
           "section": "5. `Core\\Regex`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "match",
           "url": "/docs/core/regex/match/"
         },
@@ -6321,6 +6481,7 @@
           "qualifier": "sink (pattern)",
           "section": "5. `Core\\Regex`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "matchall",
           "url": "/docs/core/regex/matchall/"
         },
@@ -6369,6 +6530,7 @@
           "qualifier": "sink (pattern)",
           "section": "5. `Core\\Regex`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "replace",
           "url": "/docs/core/regex/replace/"
         },
@@ -6417,6 +6579,7 @@
           "qualifier": "sink (pattern)",
           "section": "5. `Core\\Regex`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "replacewith",
           "url": "/docs/core/regex/replacewith/"
         },
@@ -6461,6 +6624,7 @@
           "qualifier": "sink (pattern)",
           "section": "5. `Core\\Regex`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "split",
           "url": "/docs/core/regex/split/"
         },
@@ -6488,6 +6652,7 @@
           "qualifier": "launder (for the pattern sink)",
           "section": "5. `Core\\Regex`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "quote",
           "url": "/docs/core/regex/quote/"
         }
@@ -6533,6 +6698,7 @@
           "qualifier": "",
           "section": "5. `Core\\Regex`",
           "implemented": false,
+          "notesHtml": "one group's text; <code>null</code> where the pattern declares it and this match did not reach it, and a <strong>throw</strong> for a group the pattern does not declare",
           "slug": "group",
           "url": "/docs/core/regex-match/group/"
         },
@@ -6551,6 +6717,7 @@
           "qualifier": "",
           "section": "5. `Core\\Regex`",
           "implemented": false,
+          "notesHtml": "every group at once, in <code>preg_match</code>'s own order: a named group under its name, then under its number",
           "slug": "groups",
           "url": "/docs/core/regex-match/groups/"
         },
@@ -6569,6 +6736,7 @@
           "qualifier": "",
           "section": "5. `Core\\Regex`",
           "implemented": false,
+          "notesHtml": "where the whole match starts, in <a href=\"/docs/adr/0009/\" data-adr=\"0009\">ADR 0009</a> § 2's unit — not <code>PREG_OFFSET_CAPTURE</code>'s bytes",
           "slug": "offset",
           "url": "/docs/core/regex-match/offset/"
         },
@@ -6587,6 +6755,7 @@
           "qualifier": "",
           "section": "5. `Core\\Regex`",
           "implemented": false,
+          "notesHtml": "the whole match, which is group <code>0</code>",
           "slug": "text",
           "url": "/docs/core/regex-match/text/"
         }
@@ -6665,7 +6834,7 @@
       "constants": [],
       "members": [],
       "unparsed": [],
-      "implemented": false,
+      "implemented": true,
       "slug": "serialize",
       "url": "/docs/core/serialize/",
       "summaryHtml": "",
@@ -6788,6 +6957,7 @@
           "qualifier": "neutral",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "length",
           "url": "/docs/core/str/length/"
         },
@@ -6815,6 +6985,7 @@
           "qualifier": "neutral",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "isempty",
           "url": "/docs/core/str/isempty/"
         },
@@ -6850,6 +7021,7 @@
           "qualifier": "",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "at",
           "url": "/docs/core/str/at/"
         },
@@ -6885,6 +7057,7 @@
           "qualifier": "neutral",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "contains",
           "url": "/docs/core/str/contains/"
         },
@@ -6920,6 +7093,7 @@
           "qualifier": "neutral",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "startswith",
           "url": "/docs/core/str/startswith/"
         },
@@ -6955,6 +7129,7 @@
           "qualifier": "neutral",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "endswith",
           "url": "/docs/core/str/endswith/"
         },
@@ -6999,6 +7174,7 @@
           "qualifier": "neutral",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "indexof",
           "url": "/docs/core/str/indexof/"
         },
@@ -7043,6 +7219,7 @@
           "qualifier": "neutral",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "lastindexof",
           "url": "/docs/core/str/lastindexof/"
         },
@@ -7078,6 +7255,7 @@
           "qualifier": "neutral",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "countof",
           "url": "/docs/core/str/countof/"
         },
@@ -7122,6 +7300,7 @@
           "qualifier": "neutral",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "compare",
           "url": "/docs/core/str/compare/"
         },
@@ -7165,6 +7344,7 @@
           "qualifier": "",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "slice",
           "url": "/docs/core/str/slice/"
         },
@@ -7205,6 +7385,7 @@
           "qualifier": "",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "before",
           "url": "/docs/core/str/before/"
         },
@@ -7245,6 +7426,7 @@
           "qualifier": "",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "after",
           "url": "/docs/core/str/after/"
         },
@@ -7285,6 +7467,7 @@
           "qualifier": "",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "split",
           "url": "/docs/core/str/split/"
         },
@@ -7320,6 +7503,7 @@
           "qualifier": "",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "chunk",
           "url": "/docs/core/str/chunk/"
         },
@@ -7347,6 +7531,7 @@
           "qualifier": "",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "lines",
           "url": "/docs/core/str/lines/"
         },
@@ -7374,6 +7559,7 @@
           "qualifier": "",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "graphemes",
           "url": "/docs/core/str/graphemes/"
         },
@@ -7401,6 +7587,7 @@
           "qualifier": "neutral",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "codepoints",
           "url": "/docs/core/str/codepoints/"
         },
@@ -7436,6 +7623,7 @@
           "qualifier": "",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "join",
           "url": "/docs/core/str/join/"
         },
@@ -7488,6 +7676,7 @@
           "qualifier": "",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "replace",
           "url": "/docs/core/str/replace/"
         },
@@ -7528,6 +7717,7 @@
           "qualifier": "",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "replaceall",
           "url": "/docs/core/str/replaceall/"
         },
@@ -7579,6 +7769,7 @@
           "qualifier": "",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "replacerange",
           "url": "/docs/core/str/replacerange/"
         },
@@ -7611,6 +7802,7 @@
           "qualifier": "",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "trim",
           "url": "/docs/core/str/trim/"
         },
@@ -7643,6 +7835,7 @@
           "qualifier": "",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "trimstart",
           "url": "/docs/core/str/trimstart/"
         },
@@ -7675,6 +7868,7 @@
           "qualifier": "",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "trimend",
           "url": "/docs/core/str/trimend/"
         },
@@ -7718,6 +7912,7 @@
           "qualifier": "",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "padstart",
           "url": "/docs/core/str/padstart/"
         },
@@ -7761,6 +7956,7 @@
           "qualifier": "",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "padend",
           "url": "/docs/core/str/padend/"
         },
@@ -7796,6 +7992,7 @@
           "qualifier": "",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "repeat",
           "url": "/docs/core/str/repeat/"
         },
@@ -7823,6 +8020,7 @@
           "qualifier": "",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "reverse",
           "url": "/docs/core/str/reverse/"
         },
@@ -7867,6 +8065,7 @@
           "qualifier": "",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "wrap",
           "url": "/docs/core/str/wrap/"
         },
@@ -7894,6 +8093,7 @@
           "qualifier": "",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "lower",
           "url": "/docs/core/str/lower/"
         },
@@ -7921,6 +8121,7 @@
           "qualifier": "",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "upper",
           "url": "/docs/core/str/upper/"
         },
@@ -7948,6 +8149,7 @@
           "qualifier": "",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "upperfirst",
           "url": "/docs/core/str/upperfirst/"
         },
@@ -7975,6 +8177,7 @@
           "qualifier": "",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "lowerfirst",
           "url": "/docs/core/str/lowerfirst/"
         },
@@ -8002,6 +8205,7 @@
           "qualifier": "",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "fold",
           "url": "/docs/core/str/fold/"
         },
@@ -8037,6 +8241,7 @@
           "qualifier": "",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "normalize",
           "url": "/docs/core/str/normalize/"
         },
@@ -8064,6 +8269,7 @@
           "qualifier": "neutral",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "fromcodepoint",
           "url": "/docs/core/str/fromcodepoint/"
         },
@@ -8091,6 +8297,7 @@
           "qualifier": "neutral",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "fromcodepoints",
           "url": "/docs/core/str/fromcodepoints/"
         },
@@ -8126,6 +8333,7 @@
           "qualifier": "sink (template)",
           "section": "1. `Core\\Str`",
           "implemented": true,
+          "notesHtml": "",
           "slug": "format",
           "url": "/docs/core/str/format/"
         }
@@ -8182,6 +8390,7 @@
           "qualifier": "",
           "section": "19. `Core\\Task`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "all",
           "url": "/docs/core/task/all/"
         },
@@ -8226,6 +8435,7 @@
           "qualifier": "",
           "section": "19. `Core\\Task`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "map",
           "url": "/docs/core/task/map/"
         },
@@ -8258,6 +8468,7 @@
           "qualifier": "",
           "section": "19. `Core\\Task`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "afterresponse",
           "url": "/docs/core/task/afterresponse/"
         }
@@ -8345,6 +8556,7 @@
           "qualifier": "neutral",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "now",
           "url": "/docs/core/time/now/"
         },
@@ -8363,6 +8575,7 @@
           "qualifier": "neutral",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "monotonic",
           "url": "/docs/core/time/monotonic/"
         },
@@ -8390,6 +8603,7 @@
           "qualifier": "neutral",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "sleep",
           "url": "/docs/core/time/sleep/"
         },
@@ -8422,6 +8636,7 @@
           "qualifier": "neutral",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "fromepoch",
           "url": "/docs/core/time/fromepoch/"
         },
@@ -8449,6 +8664,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "fromiso",
           "url": "/docs/core/time/fromiso/"
         },
@@ -8492,6 +8708,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "parse",
           "url": "/docs/core/time/parse/"
         },
@@ -8560,6 +8777,7 @@
           "qualifier": "neutral",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "at",
           "url": "/docs/core/time/at/"
         }
@@ -8622,6 +8840,7 @@
           "section": "",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "constructing an invalid date throws",
           "slug": "at",
           "url": "/docs/core/time-date/at/"
         }
@@ -8667,6 +8886,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "<a href=\"/docs/adr/0057/\" data-adr=\"0057\">ADR 0057</a> intrinsic, CLDR patterns. Replaces <code>date</code>, <code>gmdate</code>, <code>idate</code>, <code>strftime</code>, <code>date_format</code>",
           "slug": "format",
           "url": "/docs/core/time-datetime/format/"
         },
@@ -8702,6 +8922,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "calendar arithmetic: adding <code>1, Unit::Month</code> lands on the same day-of-month, clamped to the month's length, and crossing a DST boundary is a 23- or 25-hour day. Replaces <code>date_add</code>, <code>date_sub</code>, <code>modify</code>, <code>strtotime</code>'s relative half",
           "slug": "plus",
           "url": "/docs/core/time-datetime/plus/"
         },
@@ -8737,6 +8958,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "calendar arithmetic: adding <code>1, Unit::Month</code> lands on the same day-of-month, clamped to the month's length, and crossing a DST boundary is a 23- or 25-hour day. Replaces <code>date_add</code>, <code>date_sub</code>, <code>modify</code>, <code>strtotime</code>'s relative half",
           "slug": "minus",
           "url": "/docs/core/time-datetime/minus/"
         },
@@ -8764,6 +8986,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "the nearest strictly later (earlier) day with that weekday, time-of-day preserved. Replaces <code>strtotime(&quot;next monday&quot;)</code>",
           "slug": "next",
           "url": "/docs/core/time-datetime/next/"
         },
@@ -8791,6 +9014,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "the nearest strictly later (earlier) day with that weekday, time-of-day preserved. Replaces <code>strtotime(&quot;next monday&quot;)</code>",
           "slug": "previous",
           "url": "/docs/core/time-datetime/previous/"
         },
@@ -8838,6 +9062,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "replaces <code>setDate</code>, <code>setTime</code>, <code>setISODate</code>",
           "slug": "with",
           "url": "/docs/core/time-datetime/with/"
         },
@@ -8865,6 +9090,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "the common half of <code>with</code>, spelled as the operation it is",
           "slug": "withtime",
           "url": "/docs/core/time-datetime/withtime/"
         },
@@ -8892,6 +9118,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "distinct operations at a DST boundary, which is why both exist",
           "slug": "startof",
           "url": "/docs/core/time-datetime/startof/"
         },
@@ -8919,6 +9146,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "distinct operations at a DST boundary, which is why both exist",
           "slug": "endof",
           "url": "/docs/core/time-datetime/endof/"
         },
@@ -8954,6 +9182,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "whole units from the receiver <strong>to</strong> <code>$other</code>, counted in the <em>receiver's</em> zone — an age in years, a term in months. Replaces <code>date_diff</code> + <code>DateInterval</code>'s <code>y</code>/<code>m</code>/<code>d</code> fields",
           "slug": "difference",
           "url": "/docs/core/time-datetime/difference/"
         },
@@ -8972,6 +9201,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "toinstant",
           "url": "/docs/core/time-datetime/toinstant/"
         },
@@ -8990,6 +9220,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "component views",
           "slug": "date",
           "url": "/docs/core/time-datetime/date/"
         },
@@ -9008,6 +9239,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "replaces <code>date(&quot;N&quot;)</code>",
           "slug": "weekday",
           "url": "/docs/core/time-datetime/weekday/"
         },
@@ -9026,6 +9258,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "replaces <code>date(&quot;z&quot;)</code>",
           "slug": "dayofyear",
           "url": "/docs/core/time-datetime/dayofyear/"
         },
@@ -9044,6 +9277,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "replaces <code>date(&quot;L&quot;)</code>, <code>checkdate</code>'s year half",
           "slug": "isleapyear",
           "url": "/docs/core/time-datetime/isleapyear/"
         },
@@ -9063,6 +9297,7 @@
           "section": "4. `Core\\Time`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "component view",
           "slug": "timeofday",
           "url": "/docs/core/time-datetime/timeofday/"
         },
@@ -9082,6 +9317,7 @@
           "section": "4. `Core\\Time`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "component view",
           "slug": "zone",
           "url": "/docs/core/time-datetime/zone/"
         }
@@ -9127,6 +9363,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "plus <code>nanoseconds</code>, <code>microseconds</code>, <code>milliseconds</code>, <code>minutes</code>, <code>hours</code>, <code>days</code>, <code>weeks</code> — for a <strong>computed</strong> count; a literal one is <a href=\"/docs/adr/0070/\" data-adr=\"0070\">ADR 0070</a>'s <code>30s</code>",
           "slug": "seconds",
           "url": "/docs/core/time-duration/seconds/"
         },
@@ -9154,6 +9391,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "the run-time form of that same literal grammar, one implementation for both. Throws on anything it does not accept, so it <strong>launders</strong> a <code>tainted</code> config value",
           "slug": "parse",
           "url": "/docs/core/time-duration/parse/"
         },
@@ -9172,6 +9410,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "plus <code>toMilliseconds</code>, <code>toMicroseconds</code>, <code>toNanoseconds</code>",
           "slug": "toseconds",
           "url": "/docs/core/time-duration/toseconds/"
         },
@@ -9200,6 +9439,7 @@
           "section": "4. `Core\\Time`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "nanoseconds",
           "url": "/docs/core/time-duration/nanoseconds/"
         },
@@ -9228,6 +9468,7 @@
           "section": "4. `Core\\Time`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "microseconds",
           "url": "/docs/core/time-duration/microseconds/"
         },
@@ -9256,6 +9497,7 @@
           "section": "4. `Core\\Time`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "milliseconds",
           "url": "/docs/core/time-duration/milliseconds/"
         },
@@ -9284,6 +9526,7 @@
           "section": "4. `Core\\Time`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "minutes",
           "url": "/docs/core/time-duration/minutes/"
         },
@@ -9312,6 +9555,7 @@
           "section": "4. `Core\\Time`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "hours",
           "url": "/docs/core/time-duration/hours/"
         },
@@ -9340,6 +9584,7 @@
           "section": "4. `Core\\Time`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "days",
           "url": "/docs/core/time-duration/days/"
         },
@@ -9368,6 +9613,7 @@
           "section": "4. `Core\\Time`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "weeks",
           "url": "/docs/core/time-duration/weeks/"
         },
@@ -9387,6 +9633,7 @@
           "section": "4. `Core\\Time`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "tomilliseconds",
           "url": "/docs/core/time-duration/tomilliseconds/"
         },
@@ -9406,6 +9653,7 @@
           "section": "4. `Core\\Time`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "tomicroseconds",
           "url": "/docs/core/time-duration/tomicroseconds/"
         },
@@ -9425,6 +9673,7 @@
           "section": "4. `Core\\Time`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "tonanoseconds",
           "url": "/docs/core/time-duration/tonanoseconds/"
         },
@@ -9453,6 +9702,7 @@
           "section": "4. `Core\\Time`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "plus",
           "url": "/docs/core/time-duration/plus/"
         },
@@ -9481,6 +9731,7 @@
           "section": "4. `Core\\Time`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "minus",
           "url": "/docs/core/time-duration/minus/"
         },
@@ -9509,6 +9760,7 @@
           "section": "4. `Core\\Time`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "multipliedby",
           "url": "/docs/core/time-duration/multipliedby/"
         },
@@ -9528,6 +9780,7 @@
           "section": "4. `Core\\Time`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "negated",
           "url": "/docs/core/time-duration/negated/"
         }
@@ -9573,6 +9826,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "the only instant→calendar conversion; a zone is never implicit",
           "slug": "in",
           "url": "/docs/core/time-instant/in/"
         },
@@ -9591,6 +9845,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "replaces <code>getTimestamp</code>, <code>date(&quot;U&quot;)</code>",
           "slug": "toepochseconds",
           "url": "/docs/core/time-instant/toepochseconds/"
         },
@@ -9609,6 +9864,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "plus <code>toEpochMicros</code>, replacing <code>microtime(true)</code>'s two halves",
           "slug": "toepochmillis",
           "url": "/docs/core/time-instant/toepochmillis/"
         },
@@ -9636,6 +9892,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "replaces <code>date_add</code>, <code>date_sub</code>, <code>modify</code>",
           "slug": "plus",
           "url": "/docs/core/time-instant/plus/"
         },
@@ -9663,6 +9920,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "replaces <code>date_add</code>, <code>date_sub</code>, <code>modify</code>",
           "slug": "minus",
           "url": "/docs/core/time-instant/minus/"
         },
@@ -9690,6 +9948,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "replaces <code>date_diff</code>, <code>DateInterval</code> arithmetic",
           "slug": "since",
           "url": "/docs/core/time-instant/since/"
         },
@@ -9717,6 +9976,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "<code>Instant</code> implements <code>Comparable</code> (<a href=\"/docs/adr/0013/\" data-adr=\"0013\">ADR 0013</a>), so <code>&lt;</code>/<code>&gt;</code> work directly",
           "slug": "compareto",
           "url": "/docs/core/time-instant/compareto/"
         },
@@ -9735,6 +9995,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "replaces <code>date(DATE_ATOM)</code>",
           "slug": "toiso",
           "url": "/docs/core/time-instant/toiso/"
         },
@@ -9754,6 +10015,7 @@
           "section": "4. `Core\\Time`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "toepochmicros",
           "url": "/docs/core/time-instant/toepochmicros/"
         }
@@ -9817,6 +10079,7 @@
           "section": "",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "at",
           "url": "/docs/core/time-timeofday/at/"
         }
@@ -9864,6 +10127,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "IANA identifier; throws on an unknown one. Replaces <code>DateTimeZone</code>",
           "slug": "of",
           "url": "/docs/core/time-zone/of/"
         },
@@ -9891,6 +10155,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "a fixed offset from UTC, for a timestamp that carries one instead of a region",
           "slug": "fixed",
           "url": "/docs/core/time-zone/fixed/"
         },
@@ -9909,6 +10174,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "the host's configured zone, read once at boot. Replaces <code>date_default_timezone_get</code>",
           "slug": "system",
           "url": "/docs/core/time-zone/system/"
         },
@@ -9936,6 +10202,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": false,
+          "notesHtml": "replaces <code>getOffset</code>",
           "slug": "offsetat",
           "url": "/docs/core/time-zone/offsetat/"
         }
@@ -10000,6 +10267,7 @@
           "qualifier": "",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "parse",
           "url": "/docs/core/uri/parse/"
         },
@@ -10027,6 +10295,7 @@
           "qualifier": "",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "tryparse",
           "url": "/docs/core/uri/tryparse/"
         },
@@ -10054,6 +10323,7 @@
           "qualifier": "",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "encodecomponent",
           "url": "/docs/core/uri/encodecomponent/"
         },
@@ -10081,6 +10351,7 @@
           "qualifier": "",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "encodeformvalue",
           "url": "/docs/core/uri/encodeformvalue/"
         },
@@ -10108,6 +10379,7 @@
           "qualifier": "",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "parsequery",
           "url": "/docs/core/uri/parsequery/"
         },
@@ -10135,6 +10407,7 @@
           "qualifier": "",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "buildquery",
           "url": "/docs/core/uri/buildquery/"
         },
@@ -10178,6 +10451,7 @@
           "qualifier": "",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "with",
           "url": "/docs/core/uri/with/"
         },
@@ -10205,6 +10479,7 @@
           "qualifier": "",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "resolve",
           "url": "/docs/core/uri/resolve/"
         },
@@ -10232,6 +10507,7 @@
           "qualifier": "",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "compareto",
           "url": "/docs/core/uri/compareto/"
         },
@@ -10251,6 +10527,7 @@
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "scheme",
           "url": "/docs/core/uri/scheme/"
         },
@@ -10270,6 +10547,7 @@
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "one reader, not <code>user</code>/<code>pass</code> — RFC 3986 § 3.2.1 deprecates the split form",
           "slug": "userinfo",
           "url": "/docs/core/uri/userinfo/"
         },
@@ -10289,6 +10567,7 @@
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "<code>null</code> where no authority was written, <code>&quot;&quot;</code> where an empty one was",
           "slug": "host",
           "url": "/docs/core/uri/host/"
         },
@@ -10308,6 +10587,7 @@
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "port",
           "url": "/docs/core/uri/port/"
         },
@@ -10327,6 +10607,7 @@
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "path",
           "url": "/docs/core/uri/path/"
         },
@@ -10346,6 +10627,7 @@
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "query",
           "url": "/docs/core/uri/query/"
         },
@@ -10365,6 +10647,7 @@
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "fragment",
           "url": "/docs/core/uri/fragment/"
         },
@@ -10384,6 +10667,7 @@
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "tostring",
           "url": "/docs/core/uri/tostring/"
         },
@@ -10412,6 +10696,7 @@
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "decodecomponent",
           "url": "/docs/core/uri/decodecomponent/"
         },
@@ -10440,6 +10725,7 @@
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "decodeformvalue",
           "url": "/docs/core/uri/decodeformvalue/"
         }
@@ -10476,6 +10762,7 @@
           "qualifier": "neutral",
           "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "v4",
           "url": "/docs/core/uuid/v4/"
         },
@@ -10494,6 +10781,7 @@
           "qualifier": "neutral",
           "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "v7",
           "url": "/docs/core/uuid/v7/"
         },
@@ -10521,6 +10809,7 @@
           "qualifier": "",
           "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "parse",
           "url": "/docs/core/uuid/parse/"
         },
@@ -10548,6 +10837,7 @@
           "qualifier": "",
           "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "tryparse",
           "url": "/docs/core/uuid/tryparse/"
         },
@@ -10566,6 +10856,7 @@
           "qualifier": "neutral",
           "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
           "implemented": false,
+          "notesHtml": "",
           "slug": "tostring",
           "url": "/docs/core/uuid/tostring/"
         }
@@ -10612,6 +10903,7 @@
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "isemail",
           "url": "/docs/core/validate/isemail/"
         },
@@ -10645,6 +10937,7 @@
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "isip",
           "url": "/docs/core/validate/isip/"
         },
@@ -10673,6 +10966,7 @@
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "ismac",
           "url": "/docs/core/validate/ismac/"
         },
@@ -10701,6 +10995,7 @@
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "isdomain",
           "url": "/docs/core/validate/isdomain/"
         },
@@ -10729,6 +11024,7 @@
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "isascii",
           "url": "/docs/core/validate/isascii/"
         },
@@ -10757,6 +11053,7 @@
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
           "implemented": false,
+          "notesHtml": "",
           "slug": "isprintable",
           "url": "/docs/core/validate/isprintable/"
         }

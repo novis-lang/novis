@@ -9,36 +9,42 @@ novis:
   draft: true
 ---
 
+import MethodLead from '@components/MethodLead.astro'
 import MethodSignature from '@components/MethodSignature.astro'
+import MethodDescription from '@components/MethodDescription.astro'
+import ParamDocs from '@components/ParamDocs.astro'
+import MethodReturn from '@components/MethodReturn.astro'
+import MethodErrors from '@components/MethodErrors.astro'
 import MethodChangelog from '@components/MethodChangelog.astro'
 import MethodExamples from '@components/MethodExamples.astro'
 import SeeAlso from '@components/SeeAlso.astro'
 
-{/* HUMAN-OWNED PAGE. `npm run sync:core` created this stub once and will never
-    overwrite it. Edit every prose section freely; the signature block, the
-    changelog and the examples render from generated data and files. Remove
-    `draft: true` above once the prose has been reviewed. */}
+{/* OWNERSHIP: while `draft: true` stands above, this page is TOOL-OWNED and
+    `npm run sync:core` REGENERATES it on every run — edits here will be lost.
+    To take ownership, remove `draft: true`; the tool then never touches this
+    file again. Keep a <Method...> component wherever its default (rendered
+    from the repository's own data) is good enough; replace one with your own
+    prose where it is not. */}
 
-Novis's replacement for PHP's `array_combine, …)`, the `keyBy` idiom.
+<MethodLead id="Arr.mapKeys" />
 
 <MethodSignature id="Arr.mapKeys" />
 
 ## Description
 
-*To be documented.*
+<MethodDescription id="Arr.mapKeys" />
 
 ### Parameters
 
-- **`$a`** (`array<T>`) — *to be documented.*
-- **`$fn`** (`callable`) — *to be documented.*
+<ParamDocs id="Arr.mapKeys" kind="params" />
 
 ## Return value
 
-Returns `array<T>`. *To be documented.*
+<MethodReturn id="Arr.mapKeys" />
 
 ## Errors
 
-*To be documented.*
+<MethodErrors id="Arr.mapKeys" />
 
 <MethodChangelog id="Arr.mapKeys" />
 
