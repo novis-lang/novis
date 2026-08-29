@@ -125,7 +125,9 @@
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, Value};
 
-use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy};
+use crate::registry::{
+    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
+};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -146,7 +148,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Array(&CoreTy::Str)),
             symbol: "nvs_core_csv_parse",
-            doc: None,
+            doc: Some(&PARSE_DOC),
         },
         CoreMethod {
             name: "format",
@@ -158,12 +160,97 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_csv_format",
-            doc: None,
+            doc: Some(&FORMAT_DOC),
         },
     ],
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\Csv::parse`'s reference card — ADR 0117.
+const PARSE_DOC: MethodDoc = MethodDoc {
+    short: "Parses the whole CSV document `$text` into its records, as `str_getcsv` and the \
+            parsing half of `fgetcsv` do, by RFC 4180's grammar: a field is quoted or it is not, \
+            a doubled quote inside a quoted field is one quote, a record ends at `LF` or `CRLF`, \
+            and a blank line is not a record.",
+    params: &[
+        ParamDoc {
+            name: "text",
+            desc: "The CSV document, whole.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "separator",
+            desc: "The single ASCII byte between fields; `,` by default.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "quote",
+            desc: "The single ASCII byte that quotes a field; `\"` by default.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "escape",
+            desc: "The single ASCII byte that escapes a quote inside a quoted field, or the \
+                   empty string for none, which is the default — a doubled quote is the RFC's \
+                   own escape.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "header",
+            desc: "Consume the first record as column names and key every returned row by \
+                   them; the default keys each field by its column index.",
+            shape: &[],
+        },
+    ],
+    ret: "One array per record, every field a `string`, keyed by column index or — with \
+          `header` — by the header's names, a field past the header's last name keeping its \
+          index; the header row itself is not returned. The document itself never fails to \
+          parse, and an empty document is the empty array.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "A dialect option is empty, longer than one ASCII character, or `CR` or `LF`; or \
+               two of `separator`, `quote` and `escape` name the same byte.",
+    }],
+};
+
+/// `Core\Csv::format`'s reference card — ADR 0117.
+const FORMAT_DOC: MethodDoc = MethodDoc {
+    short: "Writes `$rows` as a CSV document, as `fputcsv`'s formatting half does over a whole \
+            document: a field is quoted exactly when it holds the separator, the quote, `CR` \
+            or `LF`, a quote inside one is doubled, and every record ends with `LF`, so \
+            `parse(format($rows))` answers `$rows`.",
+    params: &[
+        ParamDoc {
+            name: "rows",
+            desc: "The records to write, each an array of `string` fields taken in order; a \
+                   row's keys are ignored.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "separator",
+            desc: "The single ASCII byte written between fields; `,` by default.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "quote",
+            desc: "The single ASCII byte that quotes a field; `\"` by default.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "header",
+            desc: "Column names written as the first record; `null`, the default, writes no \
+                   header row.",
+            shape: &[],
+        },
+    ],
+    ret: "The document; the empty string for no rows and no header.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "A dialect option is empty, longer than one ASCII character, or `CR` or `LF`; or \
+               `separator` and `quote` name the same byte.",
+    }],
 };
 
 /// `Core\Csv::parse`'s dialect and its one structural option.

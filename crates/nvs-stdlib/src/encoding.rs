@@ -157,7 +157,9 @@ use data_encoding::{BASE32, BASE32_NOPAD};
 use encoding_rs::{DecoderResult, Encoding};
 use nvs_runtime::{Fault, NvsStr, Value};
 
-use crate::registry::{CoreClass, CoreEnum, CoreMethod, CoreTy, Qual};
+use crate::registry::{
+    CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -228,7 +230,17 @@ pub(crate) const CHARSET: CoreEnum = CoreEnum {
         // The index's legacy miscellaneous table, less `replacement`.
         ("XUserDefined", 40),
     ],
-    doc: None,
+    doc: Some(&CHARSET_DOC),
+};
+
+/// [`CHARSET`]'s reference card — ADR 0117; a table rather than a card, so
+/// only `short` is written, as [`EnumDoc::cases`] allows.
+const CHARSET_DOC: EnumDoc = EnumDoc {
+    short: "The encoding a `Core\\Encoding` text conversion reads or writes — one case per \
+            encoding in the WHATWG Encoding Standard's index, in that document's order and in \
+            Novis's casing, with `Ascii` and `Latin1` kept apart from `Windows1252` and no \
+            `Replacement` case, since a conversion is exact or it throws.",
+    cases: &[],
 };
 
 /// How one [`CHARSET`] case's octets are made.
@@ -325,7 +337,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_encoding_encode_text",
-            doc: None,
+            doc: Some(&ENCODE_TEXT_DOC),
         },
         CoreMethod {
             name: "decodeText",
@@ -334,7 +346,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_encoding_decode_text",
-            doc: None,
+            doc: Some(&DECODE_TEXT_DOC),
         },
         CoreMethod {
             name: "isValidText",
@@ -343,7 +355,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_encoding_is_valid_text",
-            doc: None,
+            doc: Some(&IS_VALID_TEXT_DOC),
         },
         CoreMethod {
             name: "toBase64",
@@ -352,7 +364,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_encoding_to_base64",
-            doc: None,
+            doc: Some(&TO_BASE64_DOC),
         },
         CoreMethod {
             name: "fromBase64",
@@ -361,7 +373,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_encoding_from_base64",
-            doc: None,
+            doc: Some(&FROM_BASE64_DOC),
         },
         CoreMethod {
             name: "toBase64Url",
@@ -370,7 +382,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_encoding_to_base64_url",
-            doc: None,
+            doc: Some(&TO_BASE64_URL_DOC),
         },
         CoreMethod {
             name: "fromBase64Url",
@@ -379,7 +391,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_encoding_from_base64_url",
-            doc: None,
+            doc: Some(&FROM_BASE64_URL_DOC),
         },
         CoreMethod {
             name: "toBase32",
@@ -388,7 +400,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_encoding_to_base32",
-            doc: None,
+            doc: Some(&TO_BASE32_DOC),
         },
         CoreMethod {
             name: "fromBase32",
@@ -397,7 +409,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_encoding_from_base32",
-            doc: None,
+            doc: Some(&FROM_BASE32_DOC),
         },
         CoreMethod {
             name: "toHex",
@@ -406,7 +418,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_encoding_to_hex",
-            doc: None,
+            doc: Some(&TO_HEX_DOC),
         },
         CoreMethod {
             name: "fromHex",
@@ -415,12 +427,209 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_encoding_from_hex",
-            doc: None,
+            doc: Some(&FROM_HEX_DOC),
         },
     ],
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\Encoding::encodeText`'s reference card — ADR 0117.
+const ENCODE_TEXT_DOC: MethodDoc = MethodDoc {
+    short: "Writes `$s` as `$charset`'s octets, as `iconv`, `mb_convert_encoding` and \
+            `utf8_encode` do — exactly, with no `//IGNORE` or `//TRANSLIT` mode: a character \
+            the charset cannot spell throws rather than becoming `?` or `&#NNNN;`.",
+    params: &[
+        ParamDoc {
+            name: "s",
+            desc: "The text to encode.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "charset",
+            desc: "The encoding to write.",
+            shape: &[],
+        },
+    ],
+    ret: "The encoded octets.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$charset` has no spelling for a character of `$s`; the message names the \
+               character and its offset.",
+    }],
+};
+
+/// `Core\Encoding::decodeText`'s reference card — ADR 0117.
+const DECODE_TEXT_DOC: MethodDoc = MethodDoc {
+    short: "Reads the octets `$b` as `$charset` into a string, as `iconv`, \
+            `mb_convert_encoding` and `utf8_decode` do — exactly: a sequence the charset \
+            cannot read throws rather than becoming U+FFFD or being dropped.",
+    params: &[
+        ParamDoc {
+            name: "b",
+            desc: "The octets to decode.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "charset",
+            desc: "The encoding they are in.",
+            shape: &[],
+        },
+    ],
+    ret: "The decoded text; the empty string for the empty buffer.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "A byte sequence of `$b` is not valid `$charset`; the message names its offset.",
+    }],
+};
+
+/// `Core\Encoding::isValidText`'s reference card — ADR 0117.
+const IS_VALID_TEXT_DOC: MethodDoc = MethodDoc {
+    short: "Tells whether every byte sequence in `$b` is one `$charset` reads, as \
+            `mb_check_encoding` does — `decodeText`'s question without the throw.",
+    params: &[
+        ParamDoc {
+            name: "b",
+            desc: "The octets to check.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "charset",
+            desc: "The encoding they are checked against.",
+            shape: &[],
+        },
+    ],
+    ret: "`true` when `decodeText` would succeed; always `true` under `Charset::Latin1`, \
+          which gives all 256 octets a meaning.",
+    errors: &[],
+};
+
+/// `Core\Encoding::toBase64`'s reference card — ADR 0117.
+const TO_BASE64_DOC: MethodDoc = MethodDoc {
+    short: "Spells `$b` in RFC 4648 § 4's base64 alphabet, padded — byte for byte what \
+            `base64_encode` answers.",
+    params: &[ParamDoc {
+        name: "b",
+        desc: "The octets to encode.",
+        shape: &[],
+    }],
+    ret: "The base64 text; the empty string for the empty buffer.",
+    errors: &[],
+};
+
+/// `Core\Encoding::fromBase64`'s reference card — ADR 0117.
+const FROM_BASE64_DOC: MethodDoc = MethodDoc {
+    short: "Reads base64 text `$b` back to octets, as `base64_decode` does in strict mode and \
+            stricter: § 4's alphabet only, padding required and canonical, and no unread bits \
+            in the last symbol. URL-safe text is `fromBase64Url`'s to read.",
+    params: &[ParamDoc {
+        name: "b",
+        desc: "The base64 text.",
+        shape: &[],
+    }],
+    ret: "The decoded octets; the empty buffer for the empty string.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$b` is not strict base64 — a symbol outside the alphabet, `-` and `_` \
+               included, missing or wrong padding, a truncated final group, or non-canonical \
+               trailing bits.",
+    }],
+};
+
+/// `Core\Encoding::toBase64Url`'s reference card — ADR 0117.
+const TO_BASE64_URL_DOC: MethodDoc = MethodDoc {
+    short: "Spells `$b` in RFC 4648 § 5's URL-safe base64 alphabet, unpadded — the \
+            `rtrim(strtr(base64_encode($b), \"+/\", \"-_\"), \"=\")` idiom, as a JWT or a \
+            query string expects it.",
+    params: &[ParamDoc {
+        name: "b",
+        desc: "The octets to encode.",
+        shape: &[],
+    }],
+    ret: "The URL-safe base64 text; the empty string for the empty buffer.",
+    errors: &[],
+};
+
+/// `Core\Encoding::fromBase64Url`'s reference card — ADR 0117.
+const FROM_BASE64_URL_DOC: MethodDoc = MethodDoc {
+    short: "Reads URL-safe base64 text `$b` back to octets — `toBase64Url`'s other half, as \
+            strict as `fromBase64` and refusing padding rather than tolerating it.",
+    params: &[ParamDoc {
+        name: "b",
+        desc: "The URL-safe base64 text, unpadded.",
+        shape: &[],
+    }],
+    ret: "The decoded octets; the empty buffer for the empty string.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$b` is not unpadded URL-safe base64 — a symbol outside the alphabet, `+`, \
+               `/` and `=` included, a truncated final group, or non-canonical trailing bits.",
+    }],
+};
+
+/// `Core\Encoding::toBase32`'s reference card — ADR 0117.
+const TO_BASE32_DOC: MethodDoc = MethodDoc {
+    short: "Spells `$b` in RFC 4648 § 6's base32 alphabet, upper case and unpadded — the form \
+            an `otpauth:` secret is written in; PHP has no counterpart.",
+    params: &[ParamDoc {
+        name: "b",
+        desc: "The octets to encode.",
+        shape: &[],
+    }],
+    ret: "The base32 text; the empty string for the empty buffer.",
+    errors: &[],
+};
+
+/// `Core\Encoding::fromBase32`'s reference card — ADR 0117.
+const FROM_BASE32_DOC: MethodDoc = MethodDoc {
+    short: "Reads base32 text `$b` back to octets — `toBase32`'s other half, taking either \
+            case and padding that is canonical or absent, since neither changes which octets \
+            come out.",
+    params: &[ParamDoc {
+        name: "b",
+        desc: "The base32 text.",
+        shape: &[],
+    }],
+    ret: "The decoded octets; the empty buffer for the empty string.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$b` holds a symbol outside the alphabet — a space between groups included — \
+               a truncated final group, non-canonical trailing bits, or padding that is \
+               present but wrong.",
+    }],
+};
+
+/// `Core\Encoding::toHex`'s reference card — ADR 0117.
+const TO_HEX_DOC: MethodDoc = MethodDoc {
+    short: "Spells `$b` as lowercase hexadecimal, two digits per octet, as `bin2hex` and the \
+            `unpack(\"H*\", …)` idiom do.",
+    params: &[ParamDoc {
+        name: "b",
+        desc: "The octets to encode.",
+        shape: &[],
+    }],
+    ret: "The hex text, twice `$b`'s length; the empty string for the empty buffer.",
+    errors: &[],
+};
+
+/// `Core\Encoding::fromHex`'s reference card — ADR 0117.
+const FROM_HEX_DOC: MethodDoc = MethodDoc {
+    short: "Reads hexadecimal text `$b` back to octets, as `hex2bin` does but throwing where \
+            it warned and answered `false`: either case, two digits per octet, and nothing \
+            between the pairs.",
+    params: &[ParamDoc {
+        name: "b",
+        desc: "The hexadecimal text.",
+        shape: &[],
+    }],
+    ret: "The decoded octets, half as many as `$b` has digits; the empty buffer for the empty \
+          string.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$b` has an odd number of digits, or a character that is not `0`-`9`, `a`-`f` \
+               or `A`-`F` — a space, a colon or a `0x` prefix included.",
+    }],
 };
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that

@@ -37,7 +37,7 @@
 
 use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, Qual};
+use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
 
 /// ADR 0023 § 2's `encode`/`decode` pair, taking
 /// [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) R6's naming.
@@ -52,7 +52,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_serialize_encode",
-            doc: None,
+            doc: Some(&ENCODE_DOC),
         },
         CoreMethod {
             name: "decode",
@@ -61,12 +61,53 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Mixed,
             symbol: "nvs_core_serialize_decode",
-            doc: None,
+            doc: Some(&DECODE_DOC),
         },
     ],
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\Serialize::encode`'s reference card — ADR 0117.
+const ENCODE_DOC: MethodDoc = MethodDoc {
+    short: "Copies the whole value graph under `$value` into Novis's own closed byte format, as \
+            `serialize` does — the same graph copy the `spawn` boundary runs, externalized so it \
+            can be stored or sent.",
+    params: &[ParamDoc {
+        name: "value",
+        desc: "The value to encode: scalars, arrays and class instances, however deeply \
+               nested.",
+        shape: &[],
+    }],
+    ret: "The payload; tainted whenever `$value` was, since encoding launders nothing.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "`$value` holds something that has no meaning on the other side of a copy \
+               boundary — a closure, a resource, or an instance with a `secret` property that \
+               was not revealed — or the graph nests deeper than the copy's limit.",
+    }],
+};
+
+/// `Core\Serialize::decode`'s reference card — ADR 0117.
+const DECODE_DOC: MethodDoc = MethodDoc {
+    short: "Rebuilds the value `encode` wrote into `$payload`, as `unserialize` does, over \
+            Novis's own format and no other. The parameter is a `tainted` sink, so bytes that \
+            arrived from outside the process are refused at compile time.",
+    params: &[ParamDoc {
+        name: "payload",
+        desc: "The bytes `encode` answered.",
+        shape: &[],
+    }],
+    ret: "The decoded value, every instance in it an object of the class this program \
+          declares under the name the payload records.",
+    errors: &[ErrorDoc {
+        error: "ParseError",
+        desc: "`$payload` does not carry Novis's serialization marker, is another format \
+               version, ends in the middle of a value or carries bytes past its end, or names \
+               a class this program does not declare or whose declared properties are not \
+               the ones the payload records.",
+    }],
 };
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that

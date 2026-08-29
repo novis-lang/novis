@@ -148,7 +148,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Mixed,
             symbol: "nvs_core_json_decode",
-            doc: None,
+            doc: Some(&DECODE_DOC),
         },
         CoreMethod {
             name: "decodeAs",
@@ -160,7 +160,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Written("T"),
             symbol: "nvs_core_json_decode_as",
-            doc: None,
+            doc: Some(&DECODE_AS_DOC),
         },
         CoreMethod {
             name: "isValid",
@@ -169,7 +169,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_json_is_valid",
-            doc: None,
+            doc: Some(&IS_VALID_DOC),
         },
     ],
     instance: &[],
@@ -219,6 +219,90 @@ const ENCODE_DOC: MethodDoc = MethodDoc {
                of a type with no JSON encoding, an instance of a class without \
                `#[Json\\Derive]`, or nesting past 1024 levels.",
     }],
+};
+
+/// `Core\Json::decode`'s reference card — ADR 0117.
+const DECODE_DOC: MethodDoc = MethodDoc {
+    short: "Parses the JSON text `$json` into a value, as `json_decode` does with `$associative` \
+            set: an object becomes a string-keyed array, an array a list, and a scalar itself. A \
+            malformed document throws rather than answering `null`, so there is no \
+            `json_last_error`.",
+    params: &[
+        ParamDoc {
+            name: "json",
+            desc: "The JSON text to parse.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "maxDepth",
+            desc: "The deepest nesting accepted, counted as PHP's `$depth` is — a scalar document \
+                   is depth 1, `[1]` is depth 2; `512` by default and at most `1024`.",
+            shape: &[],
+        },
+    ],
+    ret: "The decoded value: `null`, `bool`, `int`, `float`, `string`, or an array; a JSON object \
+          is always a string-keyed array, never an object.",
+    errors: &[
+        ErrorDoc {
+            error: "ParseError",
+            desc: "`$json` is not a valid JSON document, nests deeper than `maxDepth`, or holds \
+                   an integer literal too large for `int`; the one issue it carries has an empty \
+                   path.",
+        },
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`maxDepth` is `0` or above `1024`.",
+        },
+    ],
+};
+
+/// `Core\Json::decodeAs`'s reference card — ADR 0117.
+const DECODE_AS_DOC: MethodDoc = MethodDoc {
+    short: "Parses the JSON object `$json` into an instance of `T`, a class carrying \
+            `#[Json\\Derive]`, reading every declared field and running the constructor only \
+            when all of them matched; it replaces hand-written hydration.",
+    params: &[
+        ParamDoc {
+            name: "json",
+            desc: "The JSON text to parse, whose top level must be an object.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "maxDepth",
+            desc: "The deepest nesting accepted, counted as PHP's `$depth` is — a scalar document \
+                   is depth 1, `[1]` is depth 2; `512` by default and at most `1024`.",
+            shape: &[],
+        },
+    ],
+    ret: "A new `T` built from the document's fields.",
+    errors: &[
+        ErrorDoc {
+            error: "ParseError",
+            desc: "`$json` is not a valid JSON document, nests deeper than `maxDepth`, holds an \
+                   integer literal too large for `int`, is not an object at the top level, or has \
+                   fields that are missing or of the wrong type — every failed field is one issue \
+                   on the error, at its own path, and the message counts them.",
+        },
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`T` has no JSON codec because it does not carry `#[Json\\Derive]`, or \
+                   `maxDepth` is `0` or above `1024`.",
+        },
+    ],
+};
+
+/// `Core\Json::isValid`'s reference card — ADR 0117.
+const IS_VALID_DOC: MethodDoc = MethodDoc {
+    short: "Tells whether `$json` is a document `decode` would accept at the default depth of \
+            `512`, as `json_validate` does, by parsing it.",
+    params: &[ParamDoc {
+        name: "json",
+        desc: "The JSON text to check.",
+        shape: &[],
+    }],
+    ret: "`true` when `$json` parses; `false` for malformed text, nesting past `512`, or an \
+          integer literal too large for `int`.",
+    errors: &[],
 };
 
 const ENCODE_OPTIONS: &[CoreOption] = &[

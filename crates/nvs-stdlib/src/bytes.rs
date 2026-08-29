@@ -154,7 +154,9 @@
 
 use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 
-use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy, Qual};
+use crate::registry::{
+    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -178,7 +180,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Uint,
             symbol: "nvs_core_bytes_length",
-            doc: None,
+            doc: Some(&LENGTH_DOC),
         },
         CoreMethod {
             name: "at",
@@ -187,7 +189,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Uint,
             symbol: "nvs_core_bytes_at",
-            doc: None,
+            doc: Some(&AT_DOC),
         },
         CoreMethod {
             name: "slice",
@@ -200,7 +202,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[Const::Null],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_bytes_slice",
-            doc: None,
+            doc: Some(&SLICE_DOC),
         },
         CoreMethod {
             name: "indexOf",
@@ -213,7 +215,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Uint),
             symbol: "nvs_core_bytes_index_of",
-            doc: None,
+            doc: Some(&INDEX_OF_DOC),
         },
         CoreMethod {
             name: "compare",
@@ -222,7 +224,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_bytes_compare",
-            doc: None,
+            doc: Some(&COMPARE_DOC),
         },
         CoreMethod {
             name: "contains",
@@ -231,7 +233,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_bytes_contains",
-            doc: None,
+            doc: Some(&CONTAINS_DOC),
         },
         CoreMethod {
             name: "startsWith",
@@ -240,7 +242,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_bytes_starts_with",
-            doc: None,
+            doc: Some(&STARTS_WITH_DOC),
         },
         CoreMethod {
             name: "endsWith",
@@ -249,7 +251,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_bytes_ends_with",
-            doc: None,
+            doc: Some(&ENDS_WITH_DOC),
         },
         CoreMethod {
             name: "fill",
@@ -258,7 +260,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_bytes_fill",
-            doc: None,
+            doc: Some(&FILL_DOC),
         },
         CoreMethod {
             name: "repeat",
@@ -267,7 +269,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_bytes_repeat",
-            doc: None,
+            doc: Some(&REPEAT_DOC),
         },
         CoreMethod {
             name: "join",
@@ -279,7 +281,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[Const::Bytes(b"")],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_bytes_join",
-            doc: None,
+            doc: Some(&JOIN_DOC),
         },
         CoreMethod {
             name: "pack",
@@ -288,7 +290,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_bytes_pack",
-            doc: None,
+            doc: Some(&PACK_DOC),
         },
         CoreMethod {
             name: "unpack",
@@ -297,12 +299,321 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Mixed),
             symbol: "nvs_core_bytes_unpack",
-            doc: None,
+            doc: Some(&UNPACK_DOC),
         },
     ],
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\Bytes::length`'s reference card — ADR 0117.
+const LENGTH_DOC: MethodDoc = MethodDoc {
+    short: "Counts the octets in `$b`, as `strlen` does on binary data; O(1), where \
+            `Core\\Str::length` walks its subject.",
+    params: &[ParamDoc {
+        name: "b",
+        desc: "The buffer to measure.",
+        shape: &[],
+    }],
+    ret: "The byte count; `0` for the empty buffer.",
+    errors: &[],
+};
+
+/// `Core\Bytes::at`'s reference card — ADR 0117.
+const AT_DOC: MethodDoc = MethodDoc {
+    short: "Answers the one octet at `$index` of `$b` as a number, as `ord($s[$i])` does; a \
+            negative index counts from the end.",
+    params: &[
+        ParamDoc {
+            name: "b",
+            desc: "The buffer.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "index",
+            desc: "The byte's position, negative to count from the end.",
+            shape: &[],
+        },
+    ],
+    ret: "The octet, `0` to `255`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$index` addresses no byte of `$b`.",
+    }],
+};
+
+/// `Core\Bytes::slice`'s reference card — ADR 0117.
+const SLICE_DOC: MethodDoc = MethodDoc {
+    short: "Copies a window of `$b`, as `substr` does on binary data, counted in bytes.",
+    params: &[
+        ParamDoc {
+            name: "b",
+            desc: "The buffer.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "offset",
+            desc: "Where the window starts; negative counts from the end, and one before the \
+                   start clamps to it.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "length",
+            desc: "How many bytes to take; negative stops that many short of the end, and \
+                   `null`, the default, runs to the end.",
+            shape: &[],
+        },
+    ],
+    ret: "The window as a new buffer; the empty buffer for an offset past the end or a window \
+          that closes before it opens.",
+    errors: &[],
+};
+
+/// `Core\Bytes::indexOf`'s reference card — ADR 0117.
+const INDEX_OF_DOC: MethodDoc = MethodDoc {
+    short: "Finds where `$needle` first occurs in `$haystack`, as `strpos` does on binary data, \
+            as a byte offset `slice` takes directly. There is no case-insensitive option, \
+            because a byte string has no case.",
+    params: &[
+        ParamDoc {
+            name: "haystack",
+            desc: "The buffer searched.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "needle",
+            desc: "The bytes looked for; an empty needle is found where the search starts.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "from",
+            desc: "The byte offset the search starts at; negative counts from the end, and \
+                   the default is `0`.",
+            shape: &[],
+        },
+    ],
+    ret: "The byte offset of the first occurrence at or after `from`, or `null` when there is \
+          none — never `false`.",
+    errors: &[],
+};
+
+/// `Core\Bytes::compare`'s reference card — ADR 0117.
+const COMPARE_DOC: MethodDoc = MethodDoc {
+    short: "Orders `$a` against `$b` lexicographically over unsigned octets, as `strcmp` does on \
+            binary data; a shorter buffer that is a prefix of a longer one sorts first. For \
+            equality alone, `==` is the operator.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The first buffer.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "b",
+            desc: "The second buffer.",
+            shape: &[],
+        },
+    ],
+    ret: "`-1`, `0` or `1` — exactly those three, as PHP 8's `strcmp` answers.",
+    errors: &[],
+};
+
+/// `Core\Bytes::contains`'s reference card — ADR 0117.
+const CONTAINS_DOC: MethodDoc = MethodDoc {
+    short: "Tells whether `$needle` occurs anywhere in `$haystack`, as `str_contains` does on \
+            binary data.",
+    params: &[
+        ParamDoc {
+            name: "haystack",
+            desc: "The buffer searched.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "needle",
+            desc: "The bytes looked for.",
+            shape: &[],
+        },
+    ],
+    ret: "`true` when it occurs; an empty needle is contained in every buffer, the empty one \
+          included.",
+    errors: &[],
+};
+
+/// `Core\Bytes::startsWith`'s reference card — ADR 0117.
+const STARTS_WITH_DOC: MethodDoc = MethodDoc {
+    short: "Tells whether `$b` begins with `$prefix`, as `str_starts_with` does on binary data — \
+            the member a magic-byte sniff writes.",
+    params: &[
+        ParamDoc {
+            name: "b",
+            desc: "The buffer.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "prefix",
+            desc: "The bytes it must begin with.",
+            shape: &[],
+        },
+    ],
+    ret: "`true` when it does; an empty prefix begins every buffer.",
+    errors: &[],
+};
+
+/// `Core\Bytes::endsWith`'s reference card — ADR 0117.
+const ENDS_WITH_DOC: MethodDoc = MethodDoc {
+    short: "Tells whether `$b` ends with `$suffix`, as `str_ends_with` does on binary data.",
+    params: &[
+        ParamDoc {
+            name: "b",
+            desc: "The buffer.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "suffix",
+            desc: "The bytes it must end with.",
+            shape: &[],
+        },
+    ],
+    ret: "`true` when it does; an empty suffix ends every buffer.",
+    errors: &[],
+};
+
+/// `Core\Bytes::fill`'s reference card — ADR 0117.
+const FILL_DOC: MethodDoc = MethodDoc {
+    short: "Builds a buffer of `$length` copies of the octet `$byte`, as the \
+            `str_repeat(chr($b), $n)` idiom does; a zero-filled header is `fill(16, 0)`.",
+    params: &[
+        ParamDoc {
+            name: "length",
+            desc: "How many octets to write.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "byte",
+            desc: "The octet repeated, `0` to `255`.",
+            shape: &[],
+        },
+    ],
+    ret: "The new buffer; the empty buffer for a length of `0`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$byte` is above `255`, or `$length` is larger than any buffer this process \
+               could hold.",
+    }],
+};
+
+/// `Core\Bytes::repeat`'s reference card — ADR 0117.
+const REPEAT_DOC: MethodDoc = MethodDoc {
+    short: "Builds a buffer of `$b` repeated `$times` times, as `str_repeat` does on binary \
+            data.",
+    params: &[
+        ParamDoc {
+            name: "b",
+            desc: "The buffer repeated.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "times",
+            desc: "How many copies to write.",
+            shape: &[],
+        },
+    ],
+    ret: "The new buffer; the empty buffer for a count of `0` or an empty subject.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$times`, or the result, is larger than any buffer this process could hold.",
+    }],
+};
+
+/// `Core\Bytes::join`'s reference card — ADR 0117.
+const JOIN_DOC: MethodDoc = MethodDoc {
+    short: "Concatenates every buffer in `$parts` with `$separator` between neighbours, as \
+            `implode` does on binary data — `Core\\Str::join`'s row over buffers, and this \
+            class's only concatenation. No element is converted.",
+    params: &[
+        ParamDoc {
+            name: "parts",
+            desc: "The buffers to join, in order.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "separator",
+            desc: "The bytes written between neighbours; the empty buffer by default.",
+            shape: &[],
+        },
+    ],
+    ret: "The new buffer; the empty buffer for no parts.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The result is larger than any buffer this process could hold.",
+    }],
+};
+
+/// `Core\Bytes::pack`'s reference card — ADR 0117.
+const PACK_DOC: MethodDoc = MethodDoc {
+    short: "Writes `$values` as the octets `$format` describes, as `pack` does, over a closed \
+            code table: `a`/`A`/`Z` a buffer NUL-padded, space-padded, or NUL-padded and \
+            NUL-terminated; `c`/`C` one octet; `n`/`v`, `N`/`V` and `J`/`P` 16, 32 and 64 bits \
+            most or least significant octet first; `G`/`g` binary32 and `E`/`e` binary64 the \
+            same way; `x` one NUL octet. A bare code takes the whole argument, never one \
+            octet, and an integer field takes the union of its width's signed and unsigned \
+            ranges in two's complement.",
+    params: &[
+        ParamDoc {
+            name: "format",
+            desc: "The format string — an intrinsic and a sink, so a literal — where each code \
+                   may be followed by a count or `*`: how many arguments a numeric field \
+                   takes, and how many octets wide a buffer field is.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "values",
+            desc: "The values written, one per numeric field and one buffer per buffer field; \
+                   an integer field takes an `int` or a `uint`, a float field a `float`, and \
+                   nothing is converted.",
+            shape: &[],
+        },
+    ],
+    ret: "The packed buffer.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$format` holds a code outside the table — the machine-width codes `s`, `S`, \
+               `i`, `I`, `l`, `L`, `q`, `Q`, `f` and `d`, the hex codes `h` and `H`, and the \
+               cursor codes `X` and `@` are refused naming the replacement — or `x*`, or a \
+               count larger than any buffer; a field's value is missing, of the wrong type, \
+               outside its width's range, a `float` outside binary32's range, or a buffer \
+               wider than its field; or the format writes fewer values than the call passed.",
+    }],
+};
+
+/// `Core\Bytes::unpack`'s reference card — ADR 0117.
+const UNPACK_DOC: MethodDoc = MethodDoc {
+    short: "Reads `$b` back through `$format`, as `unpack` does, over `pack`'s code table in \
+            reverse — so `unpack(pack($f, ...$v), $f)` is `$v`, field for field. Octets the \
+            format does not describe throw rather than being ignored.",
+    params: &[
+        ParamDoc {
+            name: "b",
+            desc: "The buffer read.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "format",
+            desc: "The same format string `pack` takes, an intrinsic and a sink; there is no \
+                   second grammar for field names.",
+            shape: &[],
+        },
+    ],
+    ret: "The fields as a positional list, never PHP's name-keyed map: an `int` for `c`, a \
+          `uint` for every other integer code, a `float` for `G`/`g`/`E`/`e`, and a `bytes` \
+          for a buffer code with `A`'s and `Z`'s padding taken back off.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$format` holds a code outside the table or a count larger than any buffer, a \
+               field reads past the end of `$b`, or octets are left over after the last \
+               field.",
+    }],
 };
 
 /// `Core\Bytes::indexOf`'s `{from?: int}` — the module doc owns why
