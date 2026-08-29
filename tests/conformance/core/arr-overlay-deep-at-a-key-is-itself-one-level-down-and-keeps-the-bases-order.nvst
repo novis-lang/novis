@@ -1,0 +1,120 @@
+--TEST--
+`Core\Arr::overlayDeep` at a key holding maps on both sides is itself applied to those two maps, bottoming out in `::overlay`, and the merged map keeps the base's key order with the layer's new keys appended — ADR 0069 § 1
+--FILE--
+<?nvs
+// `crates/nvs-stdlib/src/arr.rs:3836`'s doc gives the rule as a condition —
+// recurse "only where both sides of a key hold an array and neither is a list"
+// — and `merged` implements it by calling `overlay_into` on the two sides
+// again. `arr-overlay-deep-differs-from-overlay-only-where-both-sides-hold-a-map`
+// sweeps the ten ways that *condition* can hold or fail. What is left is the
+// step it takes when it does hold, asserted as an identity the member has with
+// itself: the answer under a key is what the member answers for the two values
+// under that key, one level down, and the walk that produces it is
+// `overlay`'s — same replace-in-place, same append, so the same key order.
+// A member that recursed correctly but rebuilt the nested map in the layer's
+// order, or in sorted order, passes every existing case and fails this one.
+
+// Six pairs of maps, all of which recurse. The last three carry the question
+// further down: a map inside a map, three levels of it, and a row whose layer
+// writes the base's keys back in the other order.
+array<array<array<mixed>>> $subs = [
+    [["a" => 1, "b" => 2], ["b" => 9, "c" => 3]],
+    [["a" => 1], ["a" => 2]],
+    [["a" => 1, "b" => 2], ["c" => 3]],
+    [["a" => ["x" => 1, "y" => 2]], ["a" => ["y" => 9]]],
+    [["a" => ["x" => ["deep" => 1, "e" => 2]]], ["a" => ["x" => ["e" => 9]]]],
+    [["a" => 1, "b" => ["x" => 1]], ["b" => ["y" => 2], "a" => 5]],
+];
+
+array<string> $answers = [];
+string $shape = "";
+int $asked = 0;
+int $descentAgrees = 0;
+int $orderAgrees = 0;
+int $deeperThanOverlay = 0;
+foreach ($subs as array<array<mixed>> $pair) {
+    $asked = $asked + 1;
+    array<mixed> $bs = $pair["0"];
+    array<mixed> $ls = $pair["1"];
+
+    // The two maps under one shared key. Every top-level value is an array, so
+    // `overlayDeep`'s own `array<T|U>` is `array<array<mixed>>` and the answer
+    // under the key can be read back without a cast.
+    array<array<mixed>> $base = ["k" => $bs];
+    array<array<mixed>> $layer = ["k" => $ls];
+    array<array<mixed>> $deep = Core\Arr::overlayDeep($base, $layer);
+    array<mixed> $under = $deep["k"];
+
+    // The descent itself: the member applied to the whole pair, read at the
+    // key, is the member applied to the pair's two values. This is what
+    // `merged` calling `overlay_into` again *means*, and it holds at every
+    // depth because that call is the same call.
+    if (Core\Json::encode($under) == Core\Json::encode(Core\Arr::overlayDeep($bs, $ls))) {
+        $descentAgrees = $descentAgrees + 1;
+    }
+
+    // The order the nested walk leaves behind, rebuilt from the two sides
+    // rather than read off either answer: the base's keys, in the base's
+    // order, then the keys only the layer has, in the layer's order. An entry
+    // the layer replaces does not move, which is the half a member appending
+    // every incoming key would fail.
+    array<string> $expected = Core\Arr::keys($bs);
+    foreach (Core\Arr::keys($ls) as string $lk) {
+        if (!Core\Arr::hasKey($bs, $lk)) {
+            $expected[] = $lk;
+        }
+    }
+    if (Core\Str::join(Core\Arr::keys($under), ",") == Core\Str::join($expected, ",")) {
+        $orderAgrees = $orderAgrees + 1;
+    }
+
+    // Where the descent bottoms out. One level of maps is exactly `overlay` of
+    // the two, since there is nothing under them to recurse into; a pair
+    // carrying maps further down parts from it, and that parting is the
+    // recursion continuing. `s` and `d` say which row is which.
+    if (Core\Json::encode($under) == Core\Json::encode(Core\Arr::overlay($bs, $ls))) {
+        $shape = $shape . "s";
+    } else {
+        $shape = $shape . "d";
+        $deeperThanOverlay = $deeperThanOverlay + 1;
+    }
+
+    $answers[] = Core\Json::encode($under);
+}
+echo $asked as string, " ", $descentAgrees as string, " ", $orderAgrees as string, " ",
+     $shape, " ", $deeperThanOverlay as string, "\n";
+echo Core\Str::join($answers, " "), "\n";
+
+// The identity said once without the counting, at the depth where it is least
+// obvious: three levels down, the key `deep` survives from the base, `e` is
+// replaced from the layer, and both stay in the base's order.
+array<array<mixed>> $b3 = ["k" => ["a" => ["x" => ["deep" => 1, "e" => 2]]]];
+array<array<mixed>> $l3 = ["k" => ["a" => ["x" => ["e" => 9, "new" => 3]]]];
+echo Core\Json::encode(Core\Arr::overlayDeep($b3, $l3)), "\n";
+
+// And the other side of the rule, so the six agreements above are not read as
+// "it recurses": the three shapes that do not recurse answer what `::overlay`
+// answers, which is the member's whole difference from it — a list on either
+// side, and a scalar meeting a map.
+array<array<mixed>> $listSide = ["k" => [1, 2]];
+array<array<mixed>> $mapSide = ["k" => ["a" => 9]];
+array<mixed> $scalarSide = ["k" => 5];
+int $sameAsOverlay = 0;
+if (Core\Json::encode(Core\Arr::overlayDeep($listSide, $mapSide)) ==
+    Core\Json::encode(Core\Arr::overlay($listSide, $mapSide))) {
+    $sameAsOverlay = $sameAsOverlay + 1;
+}
+if (Core\Json::encode(Core\Arr::overlayDeep($mapSide, $listSide)) ==
+    Core\Json::encode(Core\Arr::overlay($mapSide, $listSide))) {
+    $sameAsOverlay = $sameAsOverlay + 1;
+}
+if (Core\Json::encode(Core\Arr::overlayDeep($mapSide, $scalarSide)) ==
+    Core\Json::encode(Core\Arr::overlay($mapSide, $scalarSide))) {
+    $sameAsOverlay = $sameAsOverlay + 1;
+}
+echo $sameAsOverlay as string, " ", Core\Json::encode(Core\Arr::overlayDeep($mapSide, $scalarSide)), "\n";
+--EXPECT--
+6 6 6 sssddd 3
+{"a":1,"b":9,"c":3} {"a":2} {"a":1,"b":2,"c":3} {"a":{"x":1,"y":9}} {"a":{"x":{"deep":1,"e":9}}} {"a":5,"b":{"x":1,"y":2}}
+{"k":{"a":{"x":{"deep":1,"e":9,"new":3}}}}
+3 {"k":5}
