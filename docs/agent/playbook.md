@@ -2807,6 +2807,16 @@ sibling in the same namespace unqualified.
   inside; when the two disagree the ADR body wins and the handoff is the bug. ADR 0104 is the one to
   read next here — it makes `[[app]]` an array of tables keyed on `root`/`entry`, which ADR 0102 § 6's
   plain `[app] origin` does not know about yet.
+- **A refusal over a *derived* fact fires on declarations that were already refused for something
+  else, and the existing `--EXPECTF-ERROR--` case is what catches it.** ADR 0071 § 7's "an attribute
+  with no effect is a mistake" reads as "refuse a `#[Json\Derive]` class whose field list came out
+  empty" — but `reject/a-json-derive-refuses-a-secret-or-lateinit-field.nvst` declares two properties
+  and has *both* refused, so its list is empty too and its frozen `aborting due to 2 errors` became
+  three. The fix is a three-way outcome per property (kept / skipped in writing / refused) rather
+  than an `Option`, so the empty-contract error fires for a class that chose an empty contract and
+  never for one that was already told what is wrong. General shape: before adding a diagnostic
+  whose condition is *the absence of a result*, grep the reject tree for a case that already makes
+  that result absent.
 
 ## Divergences and refusals already pinned
 

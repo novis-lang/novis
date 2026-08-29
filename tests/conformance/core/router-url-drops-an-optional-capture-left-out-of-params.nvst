@@ -1,0 +1,35 @@
+--TEST--
+a `{page?}` left out of `Core\Router::url`'s `$params` is not refused, because its whole segment is dropped — ADR 0077 §§ 2 and 4
+--FILE--
+<?nvs
+// The positive twin of the two refusals in
+// `reject/a-route-link-refuses-an-unknown-name-and-an-uncovered-capture.nvst`:
+// a capture left out of `$params` is a compile error for `{id}` and is *not*
+// one for `{page?}`, because an optional capture's whole segment is dropped
+// when nothing fills it (ADR 0077 § 2, ADR 0102 § 4).
+class Posts {
+    // § 4 (ADR 0102): an optional capture is last, and the parameter it binds
+    // to has a default — which is what makes the absent case well-typed rather
+    // than nullable by accident.
+    #[\Core\Route(path: "/posts/{page?}", method: \Core\Http\Method::Get, name: "Posts::list")]
+    public function list(uint $page = 1): string { return "page " . $page; }
+
+    #[\Core\Route(path: "/posts/{id}/edit", method: \Core\Http\Method::Get, name: "Posts::edit")]
+    public function edit(uint $id): string { return "edit " . $id; }
+}
+
+// The bound, asserted on both sides at one call site each: the same key absent
+// and present, on the same route. A `url` that treated `{page?}` like `{id}`
+// would not compile at all, and one that dropped a supplied value would print
+// the first line twice.
+echo "absent=", Core\Router::url("Posts::list", []), "\n";
+echo "present=", Core\Router::url("Posts::list", ["page" => 3]), "\n";
+
+// The other side of the same rule, on the route next to it: a *required*
+// capture supplied is substituted rather than dropped, so "an absent segment
+// disappears" is a property of `?` and not of the substitution.
+echo "required=", Core\Router::url("Posts::edit", ["id" => 7]), "\n";
+--EXPECT--
+absent=/posts
+present=/posts/3
+required=/posts/7/edit
