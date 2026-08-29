@@ -95,6 +95,10 @@ adrs = [
   "0063",
   "0088 §2",
   "0061 §3",
+  "0096 §1",
+  "0096 §1a",
+  "0096 §4",
+  "0102 §8",
 ]
 
 # Headings of docs/agent/conventions.md naming shapes this goal will write.

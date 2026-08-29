@@ -2,61 +2,64 @@
 
 ## State
 
-**Goal 1 Stage 2's route table is closed at the acceptance check**: all nine tests the
-`nvs-types (the route table)` check names are on disk and green in `crates/nvs-types/tests/routes.rs`,
-including the two this session wrote. Item 4's `#[Query]` half is done; its `#[Access]` half is not, and
-is the next group.
+**ADR 0096 is landed except for where the decision goes.** `#[Access]` is `nvs_types::derive::ACCESS` on
+`ATTRIBUTES`; `routes::check_access` holds one payload to § 1a's two rules a roster cannot state — `allow`
+is required, and its value is an enum case or a class constant, which are one `ExprKind::ClassConstAccess`
+— and `routes::check_access_declared` refuses a `#[Route]` whose method carries no sibling (§§ 1 and 3).
+Three new codes: `E0760`, `E0761`, `E0762`.
 
-**`#[Query]` is `nvs_types::derive::QUERY` on `ATTRIBUTES`**, read by `routes::query_params` beside
-`check_captures` — a second reading of the same parameter list, never a third reading of the path. The
-keys land on `Route::query` and cross into `nvs-ir` on the row, because the only question asked about
-them is ADR 0102 § 6's and it is asked after every file is walked. § 3's "the same type list as a path
-capture" is `crate::commands::converts_from_string`, read and not copied, so all three passes over that
-list ask one question.
+**`allow` is `OptionTy::Mixed`**, the roster type's fifth row and the first with no type behind it: § 1a
+declares the field `mixed` because § 2 is a promise *not* to know what a decision means, so `intern`
+answers `None` and the value is checked as ADR 0046 § 2's constant and placed at nothing.
 
-**ADR 0102 § 6's refusal is `E0759` in `links::declared`** — a `$params` key naming neither a capture nor
-a declared `#[Query]` parameter. It short-circuits behind `E0755`, so one misspelled key that is both
-faults is reported once, at the half that says what to write.
+**`Core\Audience::Public` exists** — `nvs_stdlib::router::AUDIENCE`, one case, on `registry::ENUMS`. It is
+what makes the fix for `E0762` a name that already resolves, and § 1a says it will not grow a second case.
 
-**Two module-doc gaps moved.** `links.rs`' gap 1 is closed and deleted. `routes.rs`' gap 1 was stale — it
-claimed nothing reverses the table, which `links.rs` has done for some time — and now names the real hole:
-a `#[Query]` outside a `#[Route]` method is not refused, which is `commands.rs`' gap 2 exactly.
+**Every route fixture in the tree declares a decision now.** In `crates/nvs-types/tests/routes.rs` that is
+the `with_access` helper (`tests/routes.rs:38`), which supplies it for every fixture that is about
+something else; the two `core/` `.nvst` cases, the one `reject/` case and `examples/routes/Users.nvs`
+carry it written out, and the reject case's `--EXPECTF-ERROR--` line numbers moved with the inserted lines.
+
+**Three parts of ADR 0096 are not landed and are the next group**: the decision does not ride on the
+`Route` row, a second `#[Access]` on one method is not refused, and `csrf: false` on a route whose every
+verb is safe is accepted. `routes.rs`' module doc names the last two as the questions it does not ask yet.
+
+**The acceptance check that fails is item 6's**, `a_command_table_is_built_from_the_program_enumeration` —
+ADR 0086 § 6's command table, untouched by this group and open by design, not a regression.
 
 **Item 15 in `docs/agent/loop-goal.md` still owns M4's seventeen `nvs-ir` lowering refusals**, unchanged
 and standing by design; the ratchet is `CEILING` at `crates/nvs-ir/tests/refusals.rs:66`.
 
-**Manifest gap:** `orient.py` printed no ADR 0096 section, and the whole next group is that ADR. Add
-`0096` §§ 1, 1a, 2 and 3 to `[context] adrs` in `docs/agent/loop-goal.toml`.
-
 ## Next group
 
-**One file set: `crates/nvs-types/src/derive.rs`, `src/routes.rs`, `src/attributes.rs`,
-`crates/nvs-diagnostics/src/lib.rs` and `tests/routes.rs`.** All three slices are item 4's remaining
-half, `#[Access]`, and no acceptance check names them — the item does.
+**One file set: `crates/nvs-types/src/routes.rs`, `src/expr_table.rs`, `tests/routes.rs` and
+`crates/nvs-diagnostics/src/lib.rs`.** All three finish ADR 0096; no acceptance check names them.
 
-- [ ] **`#[Access]` joins the roster and its payload is checked.** ADR 0096 §§ 1 and 1a. The constant
-      goes beside `QUERY` at `crates/nvs-types/src/derive.rs:150` and on `ATTRIBUTES` at
-      `crates/nvs-types/src/derive.rs:81`; its option roster is a `const` beside
-      `crates/nvs-types/src/routes.rs:105`'s `OPTIONS`, dispatched from the `else if` chain at
-      `crates/nvs-types/src/attributes.rs:138`. § 1a is the one to read first: it says which field is
-      required and which is deliberately *not* checked.
-- [ ] **A `#[Route]` with no sibling `#[Access]` does not compile.** ADR 0096 §§ 1 and 3 — an omission is
-      an error and never a default. The question is asked where the method's attributes are already in
-      hand, `collect_route` at `crates/nvs-types/src/routes.rs:227`; the next free code is `E0760`, after
-      `crates/nvs-diagnostics/src/lib.rs:2034`. Every fixture in `crates/nvs-types/tests/routes.rs` then
-      needs a sibling attribute, and `route_src` at `crates/nvs-types/tests/routes.rs:32` is where most
-      of them are built.
 - [ ] **The decision lands on the `Route` row.** ADR 0102 § 8: the *dispatcher* enforces the access
-      decision and the server never does, so the row is what carries it across — beside `Route::query` at
-      `crates/nvs-types/src/routes.rs:142`, the same reasoning and the same channel.
+      decision, so the declared name has to cross into `nvs-ir` on the row the way `query` already does —
+      as the resolved string, since § 2 never asks what it means. `Route` at
+      `crates/nvs-types/src/routes.rs:198`, filled in `collect_route` at `routes.rs:345`, crossing through
+      `crate::expr_table`; `check_access_declared` at `routes.rs:313` is where the sibling is already
+      found.
+- [ ] **A second `#[Access]` on one method is refused, naming both.** ADR 0096 § 1a's last bullet: two
+      decisions are two readings — conjunction or disjunction — and choosing silently is what § 3 exists
+      to prevent. `check_access_declared` (`routes.rs:313`) holds the method's attribute groups already,
+      but `crate::testing::attribute_named` answers with *one*, so this counts them itself. Next free
+      code is `E0763`.
+- [ ] **`csrf: false` on a route whose every verb is safe does not compile.** ADR 0096 §§ 1a and 4 — it
+      needs the row's verb, so it follows the first slice. The safe/unsafe split is the contiguous tail
+      from `Post` in `nvs_stdlib::router::METHOD` (`crates/nvs-stdlib/src/router.rs:83`), which that
+      const's own doc says is a bound to take rather than a list to copy.
 
 ## Backlog
 
-- A `#[Query]` outside a `#[Route]` method is not refused — `nvs_types::routes`' gap 1, and
-  `nvs_types::commands`' gap 2 is the identical hole for `#[Option]`.
-- Only the first `#[Route]` on a method becomes a row — `nvs_types::routes`' gap 2, ADR 0110 § 1.
-- Item 6, the command table: `a_command_table_is_built_from_the_program_enumeration` and
-  `a_duplicate_command_name_is_a_diagnostic` — `nvs_types::commands`' gaps 1 and 3.
-- A named argument to `Core\Router::url` is not folded — `nvs_types::links`' gap 1.
-- `E0759` has no `.nvst` reject case; `tests/conformance/reject/a-route-link-refuses-an-unknown-name-and-an-uncovered-capture.nvst` is the file it belongs beside.
-- Item 15's seventeen `nvs-ir` lowering refusals — `docs/agent/loop-goal.md`.
+- ADR 0077 § 1's example (`docs/adr/0077-compile-time-routing.md:80`) writes a `#[Route]` with no sibling
+  `#[Access]`, which no longer compiles; `docs/agent/doc-cleanup.md` owns that pass.
+- A `#[Query]` or `#[Access]` outside a `#[Route]` method is not refused — `nvs_types::routes`' module
+  doc gap 1, which is `nvs_types::commands`' gap 2 exactly.
+- Only the first `#[Route]` on a method becomes a row — `routes.rs`' gap 2; ADR 0110 § 1 has nothing to
+  except until it does.
+- Item 6, the command table (ADR 0086 § 6), is the acceptance check still open — `docs/agent/loop-goal.md`.
+- Item 15 owns M4's seventeen `nvs-ir` lowering refusals — `docs/agent/loop-goal.md`.
+- `[context] adrs` now carries ADR 0096 §§ 1, 1a, 4 and ADR 0102 § 8, in `docs/agent/loop-goal.toml` and
+  in `docs/agent/goals/1-core-depth.toml`; the next session should get them printed rather than sliced.

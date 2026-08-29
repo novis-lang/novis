@@ -2119,6 +2119,17 @@ is why" — is this file.
   green. The fix was to declare the keys the case was already relying on, not to weaken the rule.
   Before adding a refusal, `grep -rl` the corpus for the *feature* it refuses — a case written for
   the permissive half of a two-half rule is invisible to the crate's own test run.
+- **A new compiler rule that every existing fixture violates is one test-helper edit and a handful of
+  line numbers, not N rewrites.** ADR 0096 § 1's "a `#[Route]` without an `#[Access]` does not compile"
+  turned 19 of `crates/nvs-types/tests/routes.rs`' tests red at once, and the fixtures are all built by
+  one `route_src` helper — so the decision is supplied there (`with_access`, which inserts the attribute
+  ahead of every `public function`), and only the handful of tests that build a source inline had to be
+  wrapped. What that leaves is the two things a helper cannot reach: a `.nvst` `--EXPECTF-ERROR--`
+  section quotes **source line numbers**, so inserting a line into `--FILE--` shifts every one of them
+  below it and the failure reads as a diagnostic that moved rather than as a case that grew a line; and
+  a `tests/conformance/reject/` case must still fail for its *own* reason, which means the new rule has
+  to be satisfied there rather than asserted. Count the inline fixtures before budgeting the rewrite —
+  the helper is usually 25 of the sites and the manual ones are 5.
 
 ## Splitting a file that got too big
 
