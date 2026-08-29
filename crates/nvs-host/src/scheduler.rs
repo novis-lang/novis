@@ -105,6 +105,17 @@
 //! O(in-flight) and not O(tasks ever spawned), plus one queued id per wake in
 //! flight, which every turn drains.
 //!
+//! **A `Core` member reaches none of this directly.** `nvs-stdlib` does not
+//! depend on this crate and may not start to — the signature registry lives
+//! there, so `nvs-types` and `nvs-codegen` would link a reactor to answer a
+//! question about a signature. `Core\Task::all` therefore arrives through
+//! [`nvs_runtime::host`], a trait declared in the crate both sides already
+//! depend on and published in a thread-local the way [`crate::reactor`] and
+//! this module's own `TREE` already are. That module's own docs are the one home for the three
+//! decisions behind it, including why what crosses is a whole group rather than
+//! a `spawn`/`wait`/`cancel` for the caller to sequence: § 4's "nothing still
+//! running" is a property of the sequence, so the seam owns the sequence.
+//!
 //! # What this module deliberately does not know
 //!
 //! Nothing about I/O. [`Waiting::Parked`] hands the core back and the task sits

@@ -251,6 +251,7 @@ pub mod dispatch;
 mod fmt;
 pub mod graphemes;
 pub mod helpers;
+pub mod host;
 pub mod identity;
 pub mod object;
 pub mod release;

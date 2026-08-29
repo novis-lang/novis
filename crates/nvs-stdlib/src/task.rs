@@ -29,9 +29,17 @@
 //! [`unimplemented_scheduler_half`] is what it reaches. Running the closures as
 //! children of the calling task — with § 3's `{limit, deadline}` enforced and
 //! § 4's "control does not leave the call with work still running" held — is
-//! the *next* slice of Stage 4, and it needs the `nvs-host` scheduler reachable
-//! from a helper, which no `Core` member is yet. The body says exactly that and
-//! stops rather than answering plausibly.
+//! the *next* slice of Stage 4.
+//!
+//! **The route is now decided and on disk**: [`nvs_runtime::host`] is the seam
+//! a `Core` member reaches its host through, and that module's own docs are the
+//! one home for why it is a thread-local declared in `nvs-runtime` rather than
+//! a dependency on `nvs-host`, and why what crosses it is a whole group rather
+//! than a `spawn`/`wait`/`cancel` for this member to sequence. What is missing
+//! is at both ends of it: nothing implements [`nvs_runtime::host::Host`] yet,
+//! and neither row here turns its argument into
+//! [`Job`](nvs_runtime::host::Job)s. The body says exactly that and stops
+//! rather than answering plausibly.
 //!
 //! Nothing under `tests/conformance/` runs either one: the six cases that name
 //! them are all `--EXPECTF-ERROR--` cases over §§ 1 to 3's typing rules, which
@@ -121,8 +129,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 /// the unreachable body [`crate::attributes`] has.
 ///
 /// One function rather than one per member, because what stops the call is the
-/// same missing thing in both: neither `all` nor `map` can reach a scheduler
-/// from a helper at this commit, so a second copy would differ only in the
+/// same missing thing in both: the seam they would run their children through
+/// has no implementor at this commit, so a second copy would differ only in the
 /// member it names and would have to be deleted with the first.
 extern "C" fn unimplemented_scheduler_half() {
     // Written through the handle rather than with `eprintln!`, which this
@@ -132,8 +140,8 @@ extern "C" fn unimplemented_scheduler_half() {
     use std::io::Write as _;
     let _ = std::io::stderr().write_all(
         b"nvs: `Core\\Task` type-checks but has no body yet - ADR 0072 \xc2\xa7\xc2\xa7 1 and 2's \
-          children run on the `nvs-host` scheduler, which no `Core` member can reach \
-          from a helper at this commit\n",
+          children run through the `nvs_runtime::host` seam, which nothing implements \
+          or installs at this commit\n",
     );
     std::process::abort();
 }
