@@ -14,7 +14,15 @@ class Migrate implements Command
         // process exit status. That is the one place ADR 0086 diverges from
         // 0077 — a CLI has one entry point and no pipeline to own, so this
         // table dispatches where the route table stops at matching.
-        return $pretend ? 0 : 1;
+        //
+        // Two returns rather than one ternary: a bare `0` is placed at the
+        // declared `uint`, but a ternary's arms are checked with no expectation
+        // at all, so `$pretend ? 0 : 1` is `int` and does not satisfy `uint`.
+        // That gap is the compiler's, not this fixture's — see the handoff.
+        if ($pretend) {
+            return 0;
+        }
+        return 1;
     }
 
     public function usage(): string

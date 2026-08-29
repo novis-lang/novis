@@ -2078,6 +2078,13 @@ is why" — is this file.
   every digit is: `App\Sub\A` against `App\SubA` is the shortest such pair. Work the divergence out
   on paper before writing the fixture, because a case that does not contain one passes against
   either implementation and reads exactly like a case that does.
+- **`use Core;` does not place a bare `#[Command]`, and the failure reads as if the roster edit did
+  not land.** A `use` aliases one *name*, so the import that lets a file write `#[Command]` is
+  `use Core\Command;` exactly as `#[Test]`'s is `use Core\Test;`; with only `use Core;` in scope the
+  attribute resolves to `\Command` and the answer is `E0303: `Command` is not declared` — the
+  ordinary undeclared-name refusal, which looks nothing like "this is not on the recognized roster"
+  and points at the wrong file. Fully qualified (`#[\Core\Command(...)]`) needs no import and is the
+  spelling to reach for when a case is about the match rather than about the import.
 
 ## Splitting a file that got too big
 
@@ -2732,6 +2739,15 @@ sibling in the same namespace unqualified.
   is `E0303: 'App\Core\Command' is not declared`, which names the joined path rather than the missing
   backslash. The top-level fixtures never show this because they are in the global namespace, so it
   first bites on the *autoloaded* half of a two-file example.
+- **A `Core` attribute name cannot be an ADR 0046 § 1 shape alias, because there is no `Core`-seeded
+  alias table.** `nvs_hir::AliasTable` is collected from source `type` declarations and from nothing
+  else (`crates/nvs-hir/src/aliases.rs:92`), so `Core\Command` reaches
+  `nvs_types::attributes::resolve_shape_alias` with no entry, `qname.is_core()` says it is declared,
+  and the answer is `E0726: … is not a `type` alias` — a refusal no stdlib edit can lift. Every
+  `Core`-owned attribute is therefore a *nominal* match on `nvs_types::derive::ATTRIBUTES` and owes a
+  pass that checks its payload, which is the one thing that keeps that closed list from admitting
+  `#[Command(nmae: "x")]` in silence. A handoff item that says an attribute "becomes a shape-typed
+  `type` alias" is naming the diagnostic, not the mechanism.
 
 ## Divergences and refusals already pinned
 
