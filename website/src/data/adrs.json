@@ -1796,5 +1796,25 @@
     "amends": [],
     "amendedBy": [],
     "url": "/docs/adr/0115/"
+  },
+  {
+    "number": "0116",
+    "title": "An isolate's arena is an ownership root, not an address range",
+    "status": "Accepted",
+    "date": "2026-08-29",
+    "inShort": "an isolate's arena is an ownership root — one Ctx and the values reachable from it — not a region of address space. Allocation keeps going through the process allocator, so entering an isolate maps no memory and leaving one unmaps none; what an isolate owns is reachability, and the boundary is enforced at the single place a value can move, ADR 0023 § 2's graph copy. \"Released wholesale\" is therefore one drain of crate::release's worklist over that root, which runs the native teardown a region free would skip, and a move at refcount 1 across the boundary is a pointer handoff that costs nothing — sound only because both sides allocate from the same place.",
+    "amends": [],
+    "amendedBy": [],
+    "url": "/docs/adr/0116/"
+  },
+  {
+    "number": "0117",
+    "title": "An implemented Core member documents itself in the registry",
+    "status": "Accepted",
+    "date": "2026-08-29",
+    "inShort": "an implemented Core member's reference documentation — short description, parameter names and descriptions, shape-key docs, return description, thrown errors — lives in its registry declaration in nvs-stdlib, next to the code it documents, and nvs meta --json prints the whole registry as JSON. docs/spec/01-core-library.md remains authoritative for the surface — every member, implemented or not, and its signature as designed. Where both speak about an implemented member, precedence is field-wise: a doc field the registry carries wins, a field it lacks falls back to the spec — so documentation migrates member by member, with no flag day and no consumer ever blocked on an unfilled field. Extended prose (long descriptions, examples, tips) never moves into Rust; it stays in the website's pages.",
+    "amends": [],
+    "amendedBy": [],
+    "url": "/docs/adr/0117/"
   }
 ]
