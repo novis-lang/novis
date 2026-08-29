@@ -1,0 +1,29 @@
+--TEST--
+a `Core` parameter whose spec name is a reserved word is callable by that name — `fn:` in argument position is a name, and an `fn` literal beside it is still a closure (ADR 0063 R2)
+--FILE--
+<?nvs
+// `docs/spec/01-core-library.md` § 6 writes `Core\Arr::map(array<T> $a,
+// callable $fn): array<U>`, so R2's "every parameter is callable by the spec's
+// $name" makes `fn:` a name here. The `:` is the whole disambiguation: nothing
+// else in argument position is a keyword followed by one, so the value on the
+// same line can be an `fn` literal without either reading being in doubt.
+array<string> $shouted = Core\Arr::map(fn: fn (string $w): string => Core\Str::upper($w), a: ["ab", "cd"]);
+echo Core\Str::join($shouted, "-"), "\n";
+
+// All three of `reduce`'s names, none of them in the row's own order.
+echo Core\Arr::reduce(initial: 100, fn: fn (int $acc, int $n): int => $acc + $n, a: [1, 2, 3]), "\n";
+
+// A sibling member that names the same slot `$predicate` rather than `$fn`:
+// one mechanism resolves both, and which word a row writes is the spec's.
+array<string> $letters = ["a", "b", "c"];
+echo Core\Str::join(Core\Arr::filter(predicate: fn (string $w): bool => $w != "b", a: $letters), ""), "\n";
+
+// § 5's `replaceWith` names its third parameter `$fn` too, and its callback is
+// a closure written into the argument the name fills.
+echo Core\Regex::replaceWith(fn: fn (Core\Regex\Match $m): string => "<" . $m->text() . ">",
+    pattern: "\\d+", subject: "a1b22c"), "\n";
+--EXPECT--
+AB-CD
+106
+ac
+a<1>b<22>c

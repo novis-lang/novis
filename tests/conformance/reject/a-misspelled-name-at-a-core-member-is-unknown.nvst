@@ -10,6 +10,10 @@ echo Core\Str::repeat(subject: "x", times: 2), "\n";
 // so the list stays aligned, but `...$arguments` is one array built at the
 // call site out of what is written into it, so there is nothing to key.
 echo Core\Str::format(template: "%s", arguments: "x"), "\n";
+// A name the lexer reserves gets the same answer as any other word. The parser
+// reads `fn:` in argument position as a name because the `:` is there, so what
+// refuses it is the callee's parameter list and not the grammar.
+echo Core\Str::repeat(fn: "x", times: 2), "\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
@@ -17,4 +21,6 @@ error[E0486]: no parameter of this call can be filled by the name `subject`
 %A
 error[E0486]: no parameter of this call can be filled by the name `arguments`
 %A
-error: aborting due to 2 errors
+error[E0486]: no parameter of this call can be filled by the name `fn`
+%A
+error: aborting due to 3 errors
