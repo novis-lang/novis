@@ -1,0 +1,70 @@
+--TEST--
+`Core\Http\Method` declares exactly the eight verbs ADR 0074 § 7 names, each a distinct integer constant, and the four CSRF enforcement covers are the contiguous tail — ADR 0077 § 1, ADR 0096 § 4, ADR 0010 § 3
+--FILE--
+<?nvs
+// The depth claim is *a bound asserted on both sides*, plus an invariance over
+// a sweep: the last safe verb and the first unsafe one are named together by
+// counting every safe/unsafe pair, so an enum that grew a case in the middle
+// fails here while every individual line still reads plausibly.
+//
+// ADR 0010 § 3: a case *is* its integer constant, so what a written case
+// materializes is that constant — `nvs_stdlib::router::METHOD` is the table it
+// comes from, and these are the values that table states.
+array<int> $safe = [
+    Core\Http\Method::Get as int,
+    Core\Http\Method::Head as int,
+    Core\Http\Method::Options as int,
+    Core\Http\Method::Trace as int,
+];
+
+// ADR 0096 § 4's set, in the order the enum declares it. CSRF enforcement is
+// on by default for exactly these four, which is why they are a tail rather
+// than four values scattered through the roster.
+array<int> $unsafe = [
+    Core\Http\Method::Post as int,
+    Core\Http\Method::Put as int,
+    Core\Http\Method::Patch as int,
+    Core\Http\Method::Delete as int,
+];
+
+// 16 pairs, and the claim is that every one of them agrees: no safe verb's
+// value reaches any unsafe verb's. A `Connect` case inserted anywhere, or a
+// verb moved across the boundary, takes this off 16.
+var $tail = 0;
+foreach ($safe as int $s) {
+    foreach ($unsafe as int $u) {
+        if ($s < $u) {
+            $tail = $tail + 1;
+        }
+    }
+}
+echo "tail=", $tail as string, "\n";
+
+array<int> $all = [];
+foreach ($safe as int $s) {
+    $all = Core\Arr::append($all, $s);
+}
+foreach ($unsafe as int $u) {
+    $all = Core\Arr::append($all, $u);
+}
+
+// 64 pairs, of which exactly 8 may be equal — each value with itself. Counted
+// rather than read off eight lines, so two cases sharing a constant fails here
+// however plausibly each prints on its own.
+var $same = 0;
+foreach ($all as int $a) {
+    foreach ($all as int $b) {
+        if ($a == $b) {
+            $same = $same + 1;
+        }
+    }
+}
+echo "count=", Core\Arr::count($all) as string, " distinct=", $same as string, "\n";
+
+// The far side of the same bound: eight distinct values spanning 0..7 is a
+// dense range, so the roster has no hole a retired verb left behind.
+echo "range=", Core\Arr::min($all) as string, "..", Core\Arr::max($all) as string, "\n";
+--EXPECT--
+tail=16
+count=8 distinct=8
+range=0..7

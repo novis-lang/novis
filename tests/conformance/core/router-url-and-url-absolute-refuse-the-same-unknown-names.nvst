@@ -1,0 +1,67 @@
+--TEST--
+`Core\Router::url` and `Core\Router::urlAbsolute` throw on a name no route declares, and refuse exactly the same names as each other — ADR 0077 § 4, ADR 0102 § 6
+--FILE--
+<?nvs
+// The depth claim is *agreement*: one question asked of the two members that
+// share § 4's lookup, asserting that they answer the same rather than what
+// each answered. `urlAbsolute` is `url` with ADR 0102 § 6's configured origin
+// in front, so a name one of them resolves and the other does not would mean
+// two lookups had grown apart — which is exactly what a second copy of the
+// table would produce.
+//
+// The names are held in a variable rather than written at the call, because
+// § 4 makes a *literal* name that is not a declared route a compile error and
+// a computed one a throw. This case is about the throw, and it stays about the
+// throw once the compile-time table lands.
+array<string> $names = [
+    // The spelling `examples/routes.nvs` uses, which is a real route there and
+    // no route here: this program declares no `#[Route]` and no `autoload`
+    // root, so the table it asks is empty by construction (ADR 0077 § 5 — a
+    // program that declares no route still performs no scan).
+    "Users::show",
+    // The empty name, which no route may carry: § 1's `name` is optional and
+    // never derived, so there is no route whose name is nothing.
+    "",
+    // A near miss on the first, which is the typo the launderer exists to
+    // catch before it reaches a link.
+    "users.show",
+];
+
+var $agree = 0;
+foreach ($names as string $n) {
+    var $path = "resolved";
+    try {
+        Core\Router::url($n, []);
+    } catch (RuntimeError $e) {
+        $path = "threw";
+    }
+
+    var $absolute = "resolved";
+    try {
+        Core\Router::urlAbsolute($n, []);
+    } catch (RuntimeError $e) {
+        $absolute = "threw";
+    }
+
+    if ($path == $absolute) {
+        $agree = $agree + 1;
+    }
+}
+
+// Both halves: the two members agreed on every name, and what they agreed on
+// is the refusal. Counting the agreements rather than printing each answer is
+// what makes a member that grew its own lookup fail here.
+echo "agree=", $agree as string, "/", Core\Arr::count($names) as string, "\n";
+
+var $refused = 0;
+foreach ($names as string $n) {
+    try {
+        Core\Router::url($n, []);
+    } catch (RuntimeError $e) {
+        $refused = $refused + 1;
+    }
+}
+echo "refused=", $refused as string, "\n";
+--EXPECT--
+agree=3/3
+refused=3

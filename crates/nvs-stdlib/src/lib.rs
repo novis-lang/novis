@@ -222,6 +222,7 @@ mod program;
 pub mod random;
 pub mod regex;
 pub mod registry;
+mod router;
 pub mod str;
 mod test;
 pub mod time;
@@ -298,6 +299,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| path::address(symbol))
         .or_else(|| program::address(symbol))
         .or_else(|| random::address(symbol))
+        .or_else(|| router::address(symbol))
         .or_else(|| regex::address(symbol))
         .or_else(|| test::address(symbol))
         .or_else(|| time::address(symbol))

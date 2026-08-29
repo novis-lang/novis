@@ -735,6 +735,10 @@ pub const CLASSES: &[CoreClass] = &[
     crate::hash::CLASS,
     crate::hash::STREAM,
     crate::uri::CLASS,
+    // § 15's link half only — ADR 0077 § 4's `url`/`urlAbsolute`. `match` and
+    // `methodsFor` answer a request and land with the server; [`crate::router`]
+    // owns why, and owns the enum that section's `method` parameter takes.
+    crate::router::CLASS,
     crate::csv::CLASS,
     crate::validate::CLASS,
     crate::out::CLASS,
@@ -842,11 +846,13 @@ pub struct CoreEnum {
 /// through — the same "seed a table rather than special-case `Core`" rule
 /// `nvs_types::core_lib` states for members.
 ///
-/// The spec's § 2 names `SetOn { Values, Keys, Both }` and its § 4 names
-/// `Month { January … December }`. Both are deliberately absent: no member
-/// takes or answers with either yet, and an entry here is reachable from
-/// source the moment it exists — a case a program can write and pass nowhere
-/// is surface with no meaning behind it.
+/// The spec's § 4 names `Month { January … December }` and it is deliberately
+/// absent: no member takes or answers with it yet, and an entry here is
+/// reachable from source the moment it exists — a case a program can write and
+/// pass nowhere is surface with no meaning behind it. That is the test every
+/// row below has passed, and it is the one [`crate::router::METHOD`] passes
+/// through an *attribute* rather than through a member: ADR 0077 § 1's
+/// `#[Route(method: …)]` is where a program writes a case of it.
 ///
 /// One line per enum, declared beside the member that takes it — the same
 /// rule [`CLASSES`] follows, for the same reason.
@@ -859,6 +865,7 @@ pub const ENUMS: &[CoreEnum] = &[
     crate::time::UNIT,
     crate::time::WEEKDAY,
     crate::hash::DIGEST,
+    crate::router::METHOD,
 ];
 
 /// Looks a class up by its fully-qualified name.
