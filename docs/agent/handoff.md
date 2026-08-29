@@ -2,72 +2,79 @@
 
 ## State
 
-**`Core\Test`'s conformance floor is closed.** Three depth cases landed over
-`crates/nvs-stdlib/src/test.rs`'s assertion members; `python tools/gaps.py` now puts the
-class at depth **5.0**, floor **4** (it was 4.0 / 3, and was the ranked-first gap). The
-corpus is at **921**, all passing.
+**`Core\Math`'s conformance floor is closed.** Three depth cases landed over
+`crates/nvs-stdlib/src/math.rs`'s circular, rounding and base members; `python tools/gaps.py`
+now puts the class at depth **5.0**, floor **3** (it was 5.0 / 2, and was the ranked-first
+floor-2 class). The corpus is at **924**, all passing.
 
-**The Stage 8 acceptance check still fails at 921 of 950 wanted.** That is a growth floor,
+**The Stage 8 acceptance check still fails at 924 of 950 wanted.** That is a growth floor,
 not a regression — no case fails and no check names a test that disappeared. It closes as
-the suite grows; the fastest route is the floor-2 classes in `## Backlog`.
+the suite grows; the fastest route is the next group below, then the rest of `gaps.py`'s
+floor-3 head.
 
 **What the three cases pin**, all in `tests/conformance/core/`:
 
-- `...-partition-a-table-of-bodies.nvst` — `assertThrows` at `Throwable::class` and
-  `assertDoesNotThrow` are one predicate and its negation over ten bodies (five throwing,
-  five returning, including a throw crossing a closure frame and a body that catches its
-  own). Its last count is the other half: named a class *inside* the tree, the two are no
-  longer complements, because only one of them has a bound.
-- `...-agrees-with-the-exception-tree-at-every-pair.nvst` — all 81 pairs of
-  `nvs_hir::errors::TREE`'s nine classes, with the expected verdict *derived* from a parent
-  map keyed by `::class` rather than restated. 21 of 81 hold. A name the tree does not carry
-  bounds nothing, so it refuses all nine.
-- `...-are-one-predicate-over-every-value-kind.nvst` — `assertNull`, `assertSame` against
-  `null` in both orders and `assertEquals` against `null` agree over an object, a closure,
-  `bytes`, a container of containers, a shape, a `Core\Time\Duration`, an enum case and a
-  `?T` holding a value, plus the three spellings of `null`. `assertSame($x, $x)` is the
-  control that stops the counts being satisfied by a member that refuses everything.
+- `...-recovers-the-angle-in-all-four-quadrants-...nvst` — `atan2` is the inverse of the
+  pair (`sin`, `cos`) taken together, over two full turns at eighth-turn steps: 33 rows, 17
+  recovered as themselves and 16 a whole turn away, all 33 inside `[-PI, PI]`, and the four
+  quadrants counted so the recovery is known to be earned in all of them. Its second half is
+  the boundary the sweep never reaches — a sweep crosses an axis with a *tiny signed* leg
+  (`zeroLeg=1`), so the eight exactly-signed-zero axis arguments are a separate table, and
+  three of their 28 pairs agree. The case beside it owns `atan2` versus `atan`.
+- `...-rounding-members-are-one-ordering-...nvst` — `floor <= x <= ceil` with the two ends
+  never more than one apart, `truncate` the end nearer zero in both signs, `round` always an
+  end and never further than half. Its point is the partition 7+7+14 over 28 rows: the seven
+  exact halves are the only rows the ordering leaves undetermined, which is what hands the
+  question to the mode case beside it.
+- `...-round-trip-over-every-base-the-pair-accepts.nvst` — 11 values × 35 bases = 385 cells,
+  each round-tripping, reading back upper-cased, carrying its sign in the writing and never
+  padded; plus 374 consecutive-base pairs where a wider base is never a longer writing.
+  `Core\Math::INT_MIN` is the row that earns the table: its magnitude does not fit a positive
+  `int`, so a member that negates before writing fails at every base.
 
 **Untouched:** item 12's roster (10 `UNCLASSIFIED` members at
 `crates/nvs-stdlib/src/registry.rs:1526`), a `bytes` array key ICE in `nvs-ir`, and
 `catch (Core\Error $e)` panicking — the last two have playbook bullets under
 *Writing a test case*.
 
-**Orientation gaps.** `[context] modules` owes `crates/nvs-stdlib/src/math.rs` (the next
-group's file, absent from the map) and still owes `crates/nvs-stdlib/src/hash.rs` and
-`src/test.rs`. Still owed from before: `crates/nvs-types/src/links.rs`, `src/routes.rs`,
-`crates/nvs-stdlib/src/validate.rs`, `src/str.rs`, `docs/spec/01-core-library.md`,
-`docs/spec/02-php-migration.md`, `tools/check-migration.py`, the stage-7 comment header's
-per-goal floor table, a selector printing the *failing* check's own `cases` block, and a
-`[context] anchors` entry for `registry.rs`'s `UNCLASSIFIED`.
+**Orientation gaps.** `[context] modules` owes `crates/nvs-stdlib/src/math.rs` (this
+session's file, still absent from the map) and now owes nothing new for the next group —
+`src/regex.rs` is already in it. Still owed: `crates/nvs-stdlib/src/hash.rs`, `src/test.rs`,
+`crates/nvs-types/src/links.rs`, `src/routes.rs`, `crates/nvs-stdlib/src/validate.rs`,
+`src/str.rs`, `docs/spec/01-core-library.md`, `docs/spec/02-php-migration.md`,
+`tools/check-migration.py`, the stage-7 comment header's per-goal floor table, a selector
+printing the *failing* check's own `cases` block, and a `[context] anchors` entry for
+`registry.rs`'s `UNCLASSIFIED`.
 
 ## Next group
 
-**Shared file set:** `crates/nvs-stdlib/src/math.rs` and `tests/conformance/core/`.
-`gaps.py` ranks `Core\Math` first among the floor-2 classes — depth **5.0**, floor **2**,
-44 cases over 38 members — and its three thinnest are one file and one domain. The
-differential gap is empty for all three, so these are conformance-depth cases, never
-`--ORACLE--` ones (conventions.md).
+**Shared file set:** `crates/nvs-stdlib/src/regex.rs` and `tests/conformance/core/`.
+`gaps.py` ranks `Core\Regex` first — depth **5.0**, floor **2**, 27 cases over 8 members —
+and its three thinnest are one file and one domain. The differential gap is empty, so these
+are conformance-depth cases, never `--ORACLE--` ones (conventions.md). `quote` is on
+`conformance_coverage.rs`'s `BELOW_THE_FLOOR` worklist, whose whole remaining content is
+`Core\Regex::quote`, `Core\Router::urlAbsolute` and `Core\Time\TimeOfDay::compareTo` —
+**delete the line in the same commit as the third case**, per the new playbook bullet.
 
-- [ ] **`Core\Math::atan2` is one angle recovered over all four quadrants**
-      (`crates/nvs-stdlib/src/math.rs:999`) — a table of angles, each turned into
-      `(sin, cos)` and handed back, counting the rows that come out where they went in, plus
-      the four signed-zero axes where the sign of the argument is the whole answer.
-- [ ] **`ceil`, `floor` and `round` agree on an ordering and part only at the half**
-      (`math.rs:649`, `math.rs:655`, `math.rs:901`) — one table of floats asked all three
-      ways, counting `floor <= round <= ceil` and that the three coincide exactly on the
-      integers. `round`'s third argument is its precision and is the bound to name.
-- [ ] **`toBase` and `fromBase` round-trip over every base the pair accepts**
-      (`math.rs:1072`, `math.rs:1105`) — bases 2..36 by a table, counting the values that
-      survive the round trip, with the first refused base on each side named together.
+- [ ] **`Core\Regex::quote` makes any string match itself and nothing else**
+      (`crates/nvs-stdlib/src/regex.rs:1305`) — a table of subjects containing every
+      metacharacter, each quoted into a pattern, counting the rows that match themselves
+      exactly once and the rows where the unquoted spelling would have matched something
+      else or failed to compile at all.
+- [ ] **`Core\Regex::replaceWith`'s callback sees every match and only the matches**
+      (`crates/nvs-stdlib/src/regex.rs:1163`) — the callback's answers reassembled against
+      the subject, counting that the untouched spans plus the replacements are the subject
+      back, and that a `limit` stops the callback rather than discarding its work.
+- [ ] **`Core\Regex::split` and `Core\Str::join` are inverses wherever the pattern matches
+      no empty span** (`crates/nvs-stdlib/src/regex.rs:1253`) — a table of subjects and
+      patterns, counting the rows the join rebuilds, and the `limit` bound named on both
+      sides.
 
 ## Backlog
 
-- The 950-case Stage 8 floor: the floor-2 classes are `Core\Regex` (`quote` 2),
-  `Core\Debug` (`dump` 3, `render` 7), `Core\Csv`, `Core\Hash\Stream` and
-  `Core\Time\TimeOfDay` (`compareTo` 2) — `python tools/gaps.py`.
-- Item 12's 10 `UNCLASSIFIED` members — `crates/nvs-stdlib/src/registry.rs:1526`, ADR 0088 § 2.
-- `catch (Core\Error $e)` is an ICE rather than a diagnostic — playbook, *Writing a test case*.
-- A `bytes` array key ICE in `nvs-ir` — playbook, *Writing a test case*.
-- `gaps.py`'s 65 unasserted `Fault::fatal` sites, most unreachable from source — judge before writing.
-- `docs/spec/01-core-library.md` § 11's roster is fifteen `Core\Digest` cases — landed, nothing owed.
+- `Core\Arr` floor 3 — `column`, `fillKeys`, `firstKey` (`gaps.py`, 224 cases / 55 members).
+- `Core\Time\DateTime` floor 3 — `isLeapYear`, `dayOfYear`, `timeOfDay` (`gaps.py`).
+- `Core\Bytes` floor 3 — `unpack`, `at`, `repeat` (`gaps.py`).
+- Item 12's 10 `UNCLASSIFIED` members, `crates/nvs-stdlib/src/registry.rs:1526` (ADR 0088 § 2).
+- 67 unasserted error paths, 65 of them `Fault::fatal` (`python tools/gaps.py --errors`).
+- `catch (Core\Error $e)` is an ICE, not a diagnostic (`docs/agent/playbook.md`).

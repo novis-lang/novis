@@ -2407,6 +2407,17 @@ is why" — is this file.
   binding rather than at the literal, because element types are not inferred into the literal's own type;
   `array<int> $steps = [1, 2, 3];` and then looping over `$steps` compiles unchanged. The key binding is a
   separate and well-diagnosed question — always `string`, `E0723` with ADR 0007 § 5 in the help line.
+- **Taking a member to the floor of three is two edits, and the second one is a
+  `BELOW_THE_FLOOR` line you did not write.** `crates/nvs-stdlib/tests/conformance_coverage.rs`
+  carries an explicit worklist of the members still under the floor, and
+  `every_core_class_has_a_conformance_floor_of_three` fails just as loudly for a *stale* entry
+  ("1 member(s) listed in `BELOW_THE_FLOOR` have reached the floor of 3") as for a member that
+  is genuinely short. Nothing in the orientation pack names the list, `gaps.py` does not print
+  it, and the case itself passes on its own — so it surfaces only at the full `verify.py`, one
+  rebuild after the work looked finished. Grep that constant for the member's name *before*
+  starting a floor-closing slice: the list is also the cheapest confirmation that the member
+  you picked is the one the tree is actually waiting on, and its remaining entries are the next
+  session's group.
 
 ## Splitting a file that got too big
 
