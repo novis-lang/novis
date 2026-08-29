@@ -2528,6 +2528,23 @@ is why" — is this file.
   `Core\Str::join($rows, " ")` instead. The value a fold member answers — `Core\Arr::sum`'s
   `int|float|decimal` — concatenates with `.` and `echo`es fine even where `as string` on that union
   does not, so building the row string is available wherever echoing it is.
+- **A zero-width match that starts where the previous match ended is dropped, and all four of
+  `Core\Regex`'s iterating members drop it together.** `replace`, `replaceWith`, `matchAll` and
+  `split` are each built on the `regex` crate's `captures_iter`/`split`, whose documented rule is
+  that an empty match directly following a non-empty one is not reported; PCRE reports it. So
+  `Core\Regex::replace("ab", "b*", "-")` is `-a-` where `preg_replace('/b*/','-','ab')` is `-a--`,
+  and `matchAll("baaac", "a*")` finds three matches where `preg_match_all` finds four. The members
+  agree with *each other*, so every conformance case passes and only an oracle case sees it — which
+  is why it survived eighteen `.nvst` cases over the class. Until it is fixed, a differential row
+  over § 5 must not put a zero-width match after a wide one; the three cases that name this
+  divergence in their comments are the ones to update when it is.
+- **A bare array literal in a `foreach` header is `mixed`, and the binding's type annotation is
+  what reports it.** `foreach ([0, 1, 2] as int $n)` is `E0401: expected 'int', found 'mixed'`
+  pointing at `int $n` rather than at the literal, which reads as if the binding were wrong. The
+  literal has no element type until something declares one, so the spelling is a typed binding on
+  the line above — `array<int> $starts = [0, 1, 2];` — and then `foreach ($starts as int $n)`.
+  Cost two compiles in one case; every `foreach` in the corpus goes over a named variable for
+  exactly this reason.
 
 ## Splitting a file that got too big
 

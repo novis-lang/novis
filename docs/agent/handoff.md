@@ -2,77 +2,78 @@
 
 ## State
 
-**Corpus at 951, all passing** (948 → 951), which **closes the Stage 8 acceptance check** that wanted
-950 and failed after session 0009. No case fails and no check names a test that disappeared.
+**The differential suite is at 200, all passing** (193 → 200), which **closes the Stage 5 depth
+acceptance check** that wanted 200 and failed after session 0010. Conformance is unchanged at 951
+and no case fails. **No `nvs-stdlib` source changed.**
 
-**The whole next group landed — all three slices.** `Core\Arr`'s three floor-3 members named by the
-last handoff each gained the shape their existing cases were missing. **No `nvs-stdlib` source
-changed**: every member the three cases reach already answered correctly, on the first run in each
-case.
+**`Core\Regex` was the thinnest differential domain** — 2 oracle cases over 8 members, against 47
+for `Core\Arr` and 40 for `Core\Str` — while PCRE is the definitive authority for every one of
+them. `gaps.py --differential` reports 0 gaps and is right: every member with a **Replaces** entry
+had *a* case. The gap it cannot see is depth, and that is where the seven new cases went.
 
-**What the three new cases pin**, all in `tests/conformance/core/`. (1) `from` and a `foreach` drive
-one source identically: a single `foreach` records the entries seen and the advances made at every
-prefix, and a fresh cursor per limit `0..6` is asked to match both — with the same comparison against
-the *next* prefix required to agree nowhere, so seven identical cells could not pass. The unbounded
-drive, the `Iterable` shape and the array shape (where the agreement is over the values, the keys
-being what `from` drops) are each asserted beside it. (2) `product` is `sum`'s fold over the other
-operator: each agrees with the fold written out, both split at every one of 28 split points, each
-seed is inert in its own fold and only its own (`1` leaves the product alone and moves the sum, `0`
-the reverse), both promote alike, and both refuse the same two subjects naming themselves — while
-`sum` answers the `int` row whose product overflows, which is where the pair parts. (3) `overlayDeep`
-at a key holding maps on both sides is *itself* applied to those two maps — the identity `merged`'s
-re-entry into `overlay_into` means — bottoming out in `::overlay` at one level, with the nested key
-order rebuilt from both sides (base's order, then the layer's new keys) rather than read off either
-answer.
+**What the seven pin**, all in `tests/differential/core/`. `matches` as a predicate over 28 rows
+paired so that each feature has the nearest subject that fails it, straddling both of ADR 0056's
+tiers. `replace` over the replacement grammar the two languages *share* — `$0`, `$n`, `${n}`, a
+reference naming no group, the `$10`/`${1}0` boundary and the limit — with `\1` and `$$` left to
+the conformance case, because those are decisions rather than agreements. `matchAll` against
+`preg_match_all` under `PREG_SET_ORDER | PREG_UNMATCHED_AS_NULL`, counting sets, entries, absent
+and empty. `offset` against `PREG_OFFSET_CAPTURE`, with `{from:}` swept over one subject to
+separate "where the search began" from "what the offset counts from", ASCII-only because `offset`
+is a grapheme index. `replaceWith` against `preg_replace_callback`, including the computed answers
+a template cannot spell. `split` against `preg_split` — and, beside it, the divergence case for
+the three rows where it parts, which `nvs_core_regex_split`'s own doc comment already decided:
+`limit` is `Core\Str::split`'s word, and `keepEmpty` drops empties *after* it.
 
-**Files:** `arr-from-and-a-foreach-drive-one-sequence-alike-at-every-prefix.nvst`,
-`arr-product-is-the-fold-arr-sum-is-over-the-other-operator.nvst`,
-`arr-overlay-deep-at-a-key-is-itself-one-level-down-and-keeps-the-bases-order.nvst`.
+**One open correctness divergence, found by writing these and not yet fixed** — it has a playbook
+bullet and heads the next group. All four of § 5's iterating members drop a zero-width match that
+starts where the previous match ended, because they share the `regex` crate's iterator; PCRE
+reports it. Three of the seven cases say so in their comments and route around it.
 
-**One trap cost a run and has a playbook bullet**: a loop echoing its separator after each row leaves
-a trailing space, and `--EXPECT--` is byte-exact.
+**Untouched:** the `Core\Arr` floor-3 group the last handoff named (`replaceRange`, `withoutFirst`,
+`underlay`) — the acceptance failure outranked it and it is below, unchanged. Item 12's roster
+(10 `UNCLASSIFIED` members at `crates/nvs-stdlib/src/registry.rs:1526`) and `catch (Core\Error $e)`
+panicking both still have playbook bullets.
 
-**`Core\Arr` is still the thinnest class** — `python tools/gaps.py --coverage` ranks it floor **3**
-over 55 members and 237 cases — and the three members left at that floor are the next group below.
-`Core\Math` is beside it at floor 3 (`atan2`, `hypot`, `lcm`) if `Core\Arr` clears.
-
-**Untouched:** item 12's roster (10 `UNCLASSIFIED` members at `crates/nvs-stdlib/src/registry.rs:1526`)
-and `catch (Core\Error $e)` panicking — both have playbook bullets. `Core\Math` has no `pow`; `**` is
-the operator, and `E0405` says so at once.
-
-**Orientation.** The pack was complete for the item it was given. Still owed by `[context]`:
+**Orientation.** The pack was complete for the item it named, but the item was not what the session
+owed: the acceptance check that outranked it is a `tests/differential/` count, and nothing in
+`[context]` prints the differential suite's shape. `docs/spec/01-core-library.md` § 5 and the
+`[context] cases` selector for the failing check's own `cases` block are both still owed, as are
 `hash.rs`, `test.rs`, `nvs-types/src/links.rs`, `routes.rs`, `validate.rs`,
-`docs/spec/01-core-library.md`, `docs/spec/02-php-migration.md`, `tools/check-migration.py`, the
-stage-7 comment header's per-goal floor table, and a selector printing the failing check's own
-`cases` block.
+`docs/spec/02-php-migration.md` and `tools/check-migration.py`.
 
 ## Next group
 
-**Shared file set:** `crates/nvs-stdlib/src/arr.rs` and `tests/conformance/core/`. These are the
-three members `gaps.py --coverage` now names at `Core\Arr`'s floor of 3, and the first two share the
-offset/length reading the `Core\Str` twins already have a worked pair for.
+**Shared file set:** `crates/nvs-stdlib/src/regex.rs` and `tests/differential/core/`. The first
+slice is a source fix and the two after it are the cases that could not be written without it.
 
-- [ ] **`replaceRange` takes the window `slice` names, and putting the window back is the subject**
-      (`nvs_core_arr_replace_range` at `crates/nvs-stdlib/src/arr.rs:1717`) — spec § 2. The `Core\Str`
-      twin's shape, over an array: the offset/length sign table on both sides, and the identity
-      `replaceRange($a, $k, $n, Core\Arr::slice($a, $k, $n)) == $a` over every cell of it. The
-      playbook's *`Core\Str`'s twins part from PHP over a unit* bullet owns why the string pair needed
-      an oracle and this one does not — an array indexes entries, not clusters.
-- [ ] **`withoutFirst` is `slice($a, 1)`, and the question is what happens to the keys**
-      (`nvs_core_arr_without_first` at `crates/nvs-stdlib/src/arr.rs:1910`) — spec § 2. Agreement with
-      `slice`, with `first`/`firstKey` before and after, and over a map as well as a list, so whether
-      the remaining entries keep their keys is asserted rather than shown on one line.
-- [ ] **`underlay` is not `overlay` with its arguments flipped, and the difference is key order**
-      (`nvs_core_arr_underlay` at `crates/nvs-stdlib/src/arr.rs:3858`) — ADR 0069 § 1; the doc comment
-      at that anchor states the claim outright. Over a table: `underlay($a, $b)` and `overlay($b, $a)`
-      hold the same entries for every pair (compare after `Core\Arr::sort` of the keys) and part on
-      `Core\Arr::keys` wherever `$b` holds a key `$a` does not — counted both ways, so a member that
-      was implemented as the flip fails.
+- [ ] **A zero-width match starting where the previous match ended is reported, as PCRE reports
+      it** (`nvs_core_regex_replace_with` at `crates/nvs-stdlib/src/regex.rs:1163`,
+      `nvs_core_regex_split`'s `pieces_of` at `crates/nvs-stdlib/src/regex.rs:1208`, and the
+      `captures_iter` loops `nvs_core_regex_replace`/`nvs_core_regex_match_all` share) — spec § 5.
+      One iteration rule, four call sites: after a non-empty match ending at `e`, search again
+      *from* `e` and accept an empty match there, then advance a cluster. Re-freeze whatever
+      conformance expectations move; `regex-replace-with-sees-exactly-the-matches-match-all-reports`
+      is the case that pins the members against each other and must stay green.
+- [ ] **The zero-width rows come back**, in the three cases whose comments name the divergence:
+      `regex-match-all-reports-the-sets-preg_match_all-reports-in-set-order.nvst` (restore
+      `["baaac", "a*"]`), `regex-replace-matches-preg_replace-over-the-grammar-the-two-share.nvst`
+      (add `["ab", "b*", "-"]`), and
+      `regex-replace-with-answers-what-preg_replace_callback-answers.nvst`.
+- [ ] **The four compile flags are the PCRE modifiers they are named for**
+      (`COMPILE_OPTIONS` at `crates/nvs-stdlib/src/regex.rs:252`) — spec § 5. `caseInsensitive`,
+      `multiline`, `dotAll` and `ungreedy` against `/…/i`, `/…/m`, `/…/s` and `/…/U`, over one
+      table of subjects, with the pairs as well as the singles. The one member of § 5 with no
+      oracle case at all; a shape literal takes only literals here, so the flag combinations are
+      written out rather than swept from a variable.
 
 ## Backlog
 
-- Item 12's 10 `UNCLASSIFIED` members — `crates/nvs-stdlib/src/registry.rs:1526`, goal item 12.
-- `catch (Core\Error $e)` ICEs in `nvs-ir` — playbook, *Divergences and refusals already pinned*.
-- A `string|int` array subscript ICEs where the `Core` member taking the union accepts it — playbook.
-- `Core\Math` at floor 3 (`atan2`, `hypot`, `lcm`) once `Core\Arr` clears — `gaps.py --coverage`.
-- The `[context]` selectors listed under *Orientation* above — `docs/agent/loop-goal.toml`.
+- `Core\Arr`'s floor-3 members — `replaceRange`, `withoutFirst`, `underlay`, all named with their
+  anchors in `git show 892cf33:docs/agent/handoff.md`. `gaps.py --coverage` re-derives them.
+- `Core\Math` is beside `Core\Arr` at floor 3: `atan2`, `hypot`, `lcm`.
+- `Core\Uri` has one differential case over 20 members, and `Core\Json` three — the same depth gap
+  `Core\Regex` had, in the two next-thinnest domains.
+- Item 12's `UNCLASSIFIED` roster, `crates/nvs-stdlib/src/registry.rs:1526`.
+- `catch (Core\Error $e)` is an ICE rather than a diagnostic; playbook owns the spelling.
+- `[context]` owes a selector for the failing check's own `cases` block, so a session that must
+  close an acceptance check can read its worklist without opening `loop-goal.toml`.
