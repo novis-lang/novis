@@ -663,6 +663,47 @@ fn named_and_spread_arguments() {
 }
 
 #[test]
+fn a_keyword_spelled_parameter_name_is_a_named_argument() {
+    // ADR 0063 R2 makes every parameter callable by the `$name` the spec
+    // writes, and `Core\Arr::map`'s is `$fn` — a spelling the lexer reserves.
+    // The `:` is the whole disambiguation.
+    let mut map = SourceMap::new();
+    let id = map.add("t.nvs", "<?nvs Core\\Arr::map(fn: $f, array: $xs)");
+    let mut diags = Diagnostics::new();
+    let mut p = Parser::new(map.file(id), &mut diags);
+    p.bump();
+    let e = p.parse_expr();
+    assert!(!diags.has_errors(), "unexpected diagnostics: {diags:?}");
+    let ExprKind::StaticCall {
+        args: CallArgs::List(args),
+        ..
+    } = e.kind
+    else {
+        panic!("expected a static call: {e:?}");
+    };
+    assert_eq!(args.len(), 2);
+    assert_eq!(text(&map, id, args[0].name.expect("a name")), "fn");
+    assert_eq!(text(&map, id, args[1].name.expect("a name")), "array");
+}
+
+#[test]
+fn a_closure_argument_is_still_a_closure() {
+    // The other side of the rule above: a keyword is only a name when a `:`
+    // follows it immediately, so an `fn` literal — which always has its
+    // parameter list next — is untouched.
+    let e = parse_ok("usort($xs, fn (int $a, int $b): int => $a <=> $b)");
+    let ExprKind::Call {
+        args: CallArgs::List(args),
+        ..
+    } = e.kind
+    else {
+        panic!("expected a call: {e:?}");
+    };
+    assert!(args[1].name.is_none());
+    assert!(matches!(args[1].value.kind, ExprKind::Fn(_)));
+}
+
+#[test]
 fn array_literal_with_key_spread_and_by_ref() {
     let e = parse_ok("['a' => 1, &$x, ...$rest]");
     let ExprKind::ArrayLiteral(items) = e.kind else {

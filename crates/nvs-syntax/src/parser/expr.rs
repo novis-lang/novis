@@ -887,6 +887,16 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// `name:` for the same reason it goes outside the parameter's type: it
     /// marks the binding, not the value. Whether it is *required* here needs
     /// the callee's signature and so belongs to `nvs_types` (E0713/E0714).
+    ///
+    /// **A `name` here is any word, keyword or not.** [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md)
+    /// R2 makes every parameter callable by the `$name` the spec writes, and
+    /// seven of those names — `Core\Arr::map`'s `$fn` and its siblings — are
+    /// spellings the lexer reserves. The `:` is the whole disambiguation: no
+    /// expression in argument position starts with a keyword followed by one,
+    /// so admitting a [`Keyword`](TokenKind::Keyword) token before it costs the
+    /// grammar nothing and takes the same one-token contextual reading `spawn`
+    /// and `type` already take ([`crate::token`]). Renaming the parameter is
+    /// the alternative, and R2 makes the spec authoritative for the name.
     pub(super) fn parse_arg(&mut self) -> Arg {
         let start = self.peek().span;
         if self.eat(TokenKind::Ellipsis).is_some() {
@@ -901,7 +911,8 @@ impl<'src, 'd> Parser<'src, 'd> {
             };
         }
         let inout = self.eat_keyword(Keyword::Inout).is_some();
-        if matches!(self.peek().kind, TokenKind::Ident) && self.peek_at(1).kind == TokenKind::Colon
+        if matches!(self.peek().kind, TokenKind::Ident | TokenKind::Keyword(_))
+            && self.peek_at(1).kind == TokenKind::Colon
         {
             let name = self.bump().span;
             self.bump(); // ':'
