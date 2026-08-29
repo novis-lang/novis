@@ -52,54 +52,16 @@ use std::rc::Rc;
 use nvs_runtime::graph::{GraphError, copy_graph};
 use nvs_runtime::{Ctx, OutputSink, TaskRoot, Value};
 
-use crate::scheduler::{Waiting, Wake, cancel_task, spawn_child, suspend_current};
+use crate::scheduler::{TaskId, Waiting, Wake, cancel_task, spawn_child, suspend_current};
 
 pub use nvs_runtime::script::Program;
 
-/// Where the child's `echo` ends up — ADR 0006 § *Output is captured by
-/// default*.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum Output {
-    /// On the result, as bytes. The default, because the alternative silently
-    /// mixes another script's bytes into a response the parent is responsible
-    /// for.
-    #[default]
-    Capture,
-    /// Appended to the parent's own output stream **when the result is
-    /// awaited**, which is what keeps the ordering deterministic under
-    /// concurrency. The child buffers either way; the two options differ only in
-    /// who is handed the bytes at the end.
-    Inherit,
-}
-
-/// What a child's failure looks like on the parent's side: data, never an
-/// exception object (ADR 0006 § *Failure is a value*).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Failure {
-    /// The rendered class name of what the child threw, or `Error` where the
-    /// failure was not a throw at all.
-    pub class: String,
-    /// The message, rendered on the child's side. Copying the exception
-    /// *object* across is what ADR 0006 rejected.
-    pub message: String,
-}
-
-/// What an isolate answers with — the native half of the `ScriptResult` the
-/// language surface will present.
-#[derive(Debug)]
-pub struct Completion {
-    /// True exactly when the child ran to its top-level `return` **and** its
-    /// answer crossed.
-    pub ok: bool,
-    /// The child's returned value, copied into the caller's ownership root.
-    /// `null` whenever `ok` is false.
-    pub value: Value,
-    /// What the child wrote. Emptied by [`Output::Inherit`], which has already
-    /// handed the bytes to the parent's own stream.
-    pub output: Vec<u8>,
-    /// Present exactly when `ok` is false.
-    pub error: Option<Failure>,
-}
+// The three shapes the crossing is described in are declared on the seam
+// itself, in `nvs_runtime::host`, because that is where a `Core` member reaches
+// them from and a name written out in two crates is a name that can drift. They
+// are re-exported here because this module is where they *mean* something: the
+// seam fixes the shape, and everything below decides the behaviour.
+pub use nvs_runtime::host::{Completion, Failure, Output, Running};
 
 /// One isolate: a program, the argument crossing into it, and where its output
 /// goes.
@@ -147,6 +109,26 @@ impl Isolate {
     /// child is started in that case; the module doc owns why the same refusal
     /// on the way back is an `ok = false` instead.
     pub fn run(self, ctx: &mut Ctx) -> Result<Completion, GraphError> {
+        Ok(self.start(ctx)?.join(ctx))
+    }
+
+    /// Starts it and answers with the handle that collects it later —
+    /// `spawn script`'s half of [`Isolate::run`].
+    ///
+    /// The argument crosses here, and the child is a runnable task before this
+    /// returns, which is what makes `spawn` and `await` two constructs: a
+    /// parent that spawns three and awaits three overlaps them. What is
+    /// deferred to [`Running::join`] is only the wait, the answer's crossing
+    /// and the [`Output::Inherit`] hand-over — the last of those deliberately,
+    /// since the await is the one point at which the ordering against the
+    /// parent's own output is a fact rather than a race.
+    ///
+    /// # Errors
+    ///
+    /// [`GraphError`] when the *argument* has no meaning on the other side. No
+    /// child is started in that case; the module doc owns why the same refusal
+    /// on the way back is an `ok = false` instead.
+    pub fn start(self, ctx: &mut Ctx) -> Result<Box<dyn Running>, GraphError> {
         let Self {
             program,
             args,
@@ -160,24 +142,101 @@ impl Isolate {
         // statics base is `Ctx::isolate`'s whole reason for existing.
         let isolate_ctx = ctx.isolate(OutputSink::Buffer(Vec::new()));
 
-        let mut completion = match Wake::current() {
-            Some(wake) => run_as_task(isolate_ctx, program, crossed, Rc::new(wake)),
+        Ok(match Wake::current() {
+            Some(wake) => start_as_task(isolate_ctx, program, crossed, Rc::new(wake), output),
             // No task beneath the call, which takes a host installed by
             // something other than a running scheduler — `run_group`'s own
             // case. The program still has to run and the answer still has to be
-            // right, so it runs on the caller's stack. Nothing about the
-            // boundary weakens: it is the context, not the stack.
-            None => run_here(isolate_ctx, program, crossed),
-        };
-
-        if output == Output::Inherit {
-            // Handed over at the await, which is here — the one point at which
-            // the ordering is a fact rather than a race.
-            let bytes = std::mem::take(&mut completion.output);
-            let _ = ctx.write_output(&bytes);
-        }
-        Ok(completion)
+            // right, so it runs on the caller's stack, at the spawn rather than
+            // at the await: with no scheduler there is no concurrency to defer
+            // it for. Nothing about the boundary weakens — it is the context,
+            // not the stack.
+            None => Box::new(Collected {
+                completion: Some(run_here(isolate_ctx, program, crossed)),
+                output,
+            }),
+        })
     }
+}
+
+/// A child already on a stack of its own, with nobody parked on it yet.
+///
+/// The state `run_as_task` used to hold across its own park loop, named and
+/// handed to the parent instead — which is the whole of what splitting the
+/// spawn from the await took.
+struct Started {
+    /// The child's task, so that a cancelled parent can reach it.
+    id: TaskId,
+    /// Where the child files its answer, once.
+    slot: Rc<RefCell<Option<Completion>>>,
+    /// Set by [`Ended`] however the child's body ended.
+    done: Rc<Cell<bool>>,
+    /// Whose stream the child's bytes go to at the join.
+    output: Output,
+}
+
+impl std::fmt::Debug for Started {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Started")
+            .field("done", &self.done.get())
+            .field("output", &self.output)
+            .finish_non_exhaustive()
+    }
+}
+
+/// A child that already ran, held until it is joined — the no-scheduler case,
+/// where "started" and "finished" are the same moment.
+#[derive(Debug)]
+struct Collected {
+    completion: Option<Completion>,
+    output: Output,
+}
+
+impl Running for Collected {
+    fn join(mut self: Box<Self>, ctx: &mut Ctx) -> Completion {
+        let completion = self.completion.take().unwrap_or_else(cancelled_completion);
+        hand_over(completion, self.output, ctx)
+    }
+}
+
+impl Running for Started {
+    fn join(self: Box<Self>, ctx: &mut Ctx) -> Completion {
+        let mut cancelling = false;
+        while !self.done.get() {
+            let resumed = suspend_current(Waiting::Parked);
+            if !resumed.suspended() {
+                // Nothing suspended, so the core was never handed back and the
+                // child cannot make progress; looping would spin. The same
+                // refusal `suspend` documents.
+                break;
+            }
+            if resumed.cancelled() && !cancelling {
+                // This task was cancelled while it waited. The child dies with
+                // it, and the loop keeps parking until it has — ADR 0072 § 4's
+                // "control does not leave the call with work still running"
+                // holds through a cancellation too.
+                cancelling = true;
+                cancel_task(self.id);
+            }
+        }
+
+        let completion = self.slot.borrow_mut().take();
+        hand_over(
+            completion.unwrap_or_else(cancelled_completion),
+            self.output,
+            ctx,
+        )
+    }
+}
+
+/// Gives an [`Output::Inherit`] child's bytes to the parent's own stream, at the
+/// await and nowhere else.
+fn hand_over(mut completion: Completion, output: Output, ctx: &mut Ctx) -> Completion {
+    if output == Output::Inherit {
+        let bytes = std::mem::take(&mut completion.output);
+        let _ = ctx.write_output(&bytes);
+    }
+    completion
 }
 
 /// Fires when the child's task ends **however** it ended — returning, throwing,
@@ -198,14 +257,21 @@ impl Drop for Ended {
     }
 }
 
-/// The child on a stack of its own, with the awaiting side parked until it ends.
+/// The child onto a stack of its own, runnable before this returns.
 ///
 /// A single-child sibling of `group::run_as_children`'s loop rather than a call
 /// into it, because that runner gives every child a [`Ctx::child`] — the
-/// *aliased* statics base ADR 0116 § 4 says an isolate may not have. The part
-/// that matters is identical: this call does not return while the child is still
-/// running.
-fn run_as_task(isolate_ctx: Ctx, program: Program, args: Value, wake: Rc<Wake>) -> Completion {
+/// *aliased* statics base ADR 0116 § 4 says an isolate may not have. What is
+/// **not** here any more is the park: waiting is [`Started::join`]'s, and the
+/// guarantee that control does not leave with the child still running is the
+/// awaiting call's rather than this one's.
+fn start_as_task(
+    isolate_ctx: Ctx,
+    program: Program,
+    args: Value,
+    wake: Rc<Wake>,
+    output: Output,
+) -> Box<dyn Running> {
     let slot: Rc<RefCell<Option<Completion>>> = Rc::new(RefCell::new(None));
     let done = Rc::new(Cell::new(false));
 
@@ -226,30 +292,18 @@ fn run_as_task(isolate_ctx: Ctx, program: Program, args: Value, wake: Rc<Wake>) 
     let Some(id) = spawned else {
         // Unreachable from inside a turn: holding a `Wake` is `current_task`
         // and the tree both answering. Nothing ran, so nothing is owed.
-        return cancelled_completion();
+        return Box::new(Collected {
+            completion: Some(cancelled_completion()),
+            output,
+        });
     };
 
-    let mut cancelling = false;
-    while !done.get() {
-        let resumed = suspend_current(Waiting::Parked);
-        if !resumed.suspended() {
-            // Nothing suspended, so the core was never handed back and the
-            // child cannot make progress; looping would spin. The same refusal
-            // `suspend` documents.
-            break;
-        }
-        if resumed.cancelled() && !cancelling {
-            // This task was cancelled while it waited. The child dies with it,
-            // and the loop keeps parking until it has — ADR 0072 § 4's "control
-            // does not leave the call with work still running" holds through a
-            // cancellation too.
-            cancelling = true;
-            cancel_task(id);
-        }
-    }
-
-    let completion = slot.borrow_mut().take();
-    completion.unwrap_or_else(cancelled_completion)
+    Box::new(Started {
+        id,
+        slot,
+        done,
+        output,
+    })
 }
 
 /// The child on the caller's own stack, for a host with no scheduler under it.

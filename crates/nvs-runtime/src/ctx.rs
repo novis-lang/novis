@@ -446,6 +446,9 @@ pub struct Ctx {
     /// itself, [`AssertionOutcome::member`] being a `&'static str` the member
     /// names rather than a built string.
     assertions: Vec<AssertionOutcome>,
+    /// The isolates this request has started and not yet awaited, by the key
+    /// its `Core\Script\Handle` carries — see [`Ctx::hold_started_script`].
+    started_scripts: Vec<Option<Box<dyn crate::host::Running>>>,
 }
 
 /// One entry of [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
@@ -732,6 +735,7 @@ impl Ctx {
             statics_store: Vec::new().into_boxed_slice(),
             isolate_argument: Value::null(),
             assertions: Vec::new(),
+            started_scripts: Vec::new(),
         };
         ctx.arm_stack_limit(base, STACK_CEILING);
         ctx
@@ -979,6 +983,36 @@ impl Ctx {
     #[must_use]
     pub fn isolate_argument(&self) -> Value {
         self.isolate_argument
+    }
+
+    /// Files a started isolate against this request and answers the key that
+    /// takes it back out — what a `Core\Script\Handle`'s one slot holds.
+    ///
+    /// A handle is an object and a `Core` instance has no native drop, so a
+    /// key into a table is the only representation available and *whose* table
+    /// it is is the whole question. It is the request's, so that the footprint
+    /// is O(isolates this request has started and not awaited) and is released
+    /// with the request — a process-wide table would be O(spawns served),
+    /// which [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md) calls
+    /// a leak rather than a trade. `crates/nvs-stdlib/src/channel.rs` records
+    /// the same reasoning for the queue it keeps in slots instead.
+    ///
+    /// **What it spends:** one pointer pair per live handle, and nothing at all
+    /// for a request that spawns none. A key is never reused, so a handle
+    /// awaited twice reads an empty slot rather than another request's isolate.
+    pub fn hold_started_script(&mut self, running: Box<dyn crate::host::Running>) -> u64 {
+        self.started_scripts.push(Some(running));
+        // The index, one-based, so that a handle slot never holds a key a
+        // zeroed value could be mistaken for.
+        self.started_scripts.len() as u64
+    }
+
+    /// Takes the isolate `key` names back out, or `None` when it has already
+    /// been taken — an `await` of a handle a previous `await` consumed.
+    #[must_use]
+    pub fn take_started_script(&mut self, key: u64) -> Option<Box<dyn crate::host::Running>> {
+        let index = usize::try_from(key.checked_sub(1)?).ok()?;
+        self.started_scripts.get_mut(index)?.take()
     }
 
     /// Arms [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)

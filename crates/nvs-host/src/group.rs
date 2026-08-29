@@ -90,8 +90,12 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use nvs_runtime::host::{Bounds, Host, Job, Outcome, Woken};
+use nvs_runtime::graph::GraphError;
+use nvs_runtime::host::{Bounds, Host, Job, Outcome, Output, Running, Woken};
+use nvs_runtime::script::Program;
 use nvs_runtime::{AssertionOutcome, Ctx, TaskRoot, Thrown, Value};
+
+use crate::isolate::Isolate;
 
 use crate::reactor;
 use crate::scheduler::{
@@ -166,6 +170,22 @@ impl Host for SchedulerHost {
             // the seam's doc owns why those are one answer.
             Woken::Elapsed
         }
+    }
+
+    fn start_isolate(
+        &self,
+        ctx: &mut Ctx,
+        program: Program,
+        args: Value,
+        output: Output,
+    ) -> Result<Box<dyn Running>, GraphError> {
+        // The whole implementation: `crate::isolate` is ADR 0006's boundary and
+        // decides everything about it, and what this seam adds is only that a
+        // `Core` member can reach it without naming this crate. There is no
+        // group here and no `Bounds` — an isolate is one child, and what bounds
+        // it is the tree's budget rather than a per-call limit (ADR 0006
+        // § *Budgets are accounted at the root of the request tree*).
+        Isolate::new(program, args, output).start(ctx)
     }
 }
 

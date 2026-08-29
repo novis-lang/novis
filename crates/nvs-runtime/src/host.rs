@@ -99,6 +99,8 @@ use std::cell::Cell;
 use std::time::Duration;
 
 use crate::ctx::Ctx;
+use crate::graph::GraphError;
+use crate::script::Program;
 use crate::throwable::Thrown;
 use crate::value::Value;
 
@@ -208,6 +210,79 @@ pub enum Woken {
 /// rather than treating a resume as an answer.
 pub type Waker = Box<dyn FnOnce()>;
 
+/// Where an isolate's `echo` ends up — [ADR
+/// 0006](../../../docs/adr/0006-isolated-script-execution.md) § *Output is
+/// captured by default*.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Output {
+    /// On the result, as bytes. The default, because the alternative silently
+    /// mixes another script's bytes into a response the parent is responsible
+    /// for.
+    #[default]
+    Capture,
+    /// Appended to the parent's own output stream **when the result is
+    /// awaited**, which is what keeps the ordering deterministic under
+    /// concurrency. The child buffers either way; the two options differ only in
+    /// who is handed the bytes at the end.
+    Inherit,
+}
+
+/// What a child's failure looks like on the parent's side: data, never an
+/// exception object (ADR 0006 § *Failure is a value*).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Failure {
+    /// The rendered class name of what the child threw, or `Error` where the
+    /// failure was not a throw at all.
+    pub class: String,
+    /// The message, rendered on the child's side. Copying the exception
+    /// *object* across is what ADR 0006 rejected.
+    pub message: String,
+}
+
+/// What an isolate answers with — the native half of the `ScriptResult` the
+/// language surface presents.
+#[derive(Debug)]
+pub struct Completion {
+    /// True exactly when the child ran to its top-level `return` **and** its
+    /// answer crossed.
+    pub ok: bool,
+    /// The child's returned value, copied into the caller's ownership root.
+    /// `null` whenever `ok` is false.
+    pub value: Value,
+    /// What the child wrote. Emptied by [`Output::Inherit`], which has already
+    /// handed the bytes to the parent's own stream.
+    pub output: Vec<u8>,
+    /// Present exactly when `ok` is false.
+    pub error: Option<Failure>,
+}
+
+/// An isolate that has already been started and has not been collected yet —
+/// what `spawn script` answers with, and the only thing `await` consumes.
+///
+/// Opaque on purpose: everything an implementor holds for one is a task id and
+/// a slot on its own scheduler, neither of which this crate can spell. What the
+/// seam fixes is that the two halves exist separately, which is what makes
+/// `spawn` and `await` two constructs rather than one blocking call wearing two
+/// names.
+///
+/// **Dropping one without joining it is legal and is not a leak**: the child is
+/// a task under the caller's own task, so it dies with it
+/// ([ADR 0006](../../../docs/adr/0006-isolated-script-execution.md)'s "the
+/// isolate is a child task"). What it costs is that the child's answer is
+/// discarded rather than crossing, which is exactly what a program that spawned
+/// and never awaited asked for.
+pub trait Running: std::fmt::Debug {
+    /// Waits until the child has ended and answers with what crossed back.
+    ///
+    /// Suspends the calling task while it waits, exactly as
+    /// [`Host::run_group`] does, and for the same reason: control does not
+    /// leave this call with the child still running. `ctx` is the **parent's**,
+    /// and is borrowed rather than held so that an [`Output::Inherit`] child's
+    /// bytes reach the parent's stream at the one point where the ordering is a
+    /// fact rather than a race.
+    fn join(self: Box<Self>, ctx: &mut Ctx) -> Completion;
+}
+
 /// Whatever is running tasks on this thread, as much of it as a `Core` member
 /// is allowed to want.
 ///
@@ -289,6 +364,39 @@ pub trait Host: std::fmt::Debug {
     /// its host resumed it rather than unwinding it, and the member's answer
     /// is [`Ctx::cancel`].
     fn park(&self) -> Woken;
+
+    /// Starts `program` as an isolate under the calling task and answers with
+    /// the handle that collects it later.
+    ///
+    /// This is the half of [ADR
+    /// 0006](../../../docs/adr/0006-isolated-script-execution.md)'s spawn that
+    /// only a scheduler can do, and it is deliberately **eager**: the child is
+    /// a runnable task before this returns, so a parent that spawns three and
+    /// then awaits three overlaps them. Deferring the start to the join would
+    /// make `spawn`/`await` a pair of names for one blocking call and would buy
+    /// the language nothing for the second construct it charges a reader for.
+    ///
+    /// `args` is **transferred**, and one reference to it is consumed however
+    /// this ends — the graph copy takes it on the success path, and the `Err`
+    /// path releases it. `ctx` is the parent's, and is borrowed only for the
+    /// length of the call: the isolate's own ownership root is built here
+    /// ([ADR 0116](../../../docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
+    /// § 2) and is nothing the parent can reach.
+    ///
+    /// # Errors
+    ///
+    /// [`GraphError`] when the **argument** has no meaning on the other side.
+    /// No child is started in that case, which is what makes it the parent's
+    /// fault to raise rather than ADR 0006's failure-is-a-value; the refusal on
+    /// the way *back* is an `ok = false` instead, and `nvs-host`'s `isolate`
+    /// module owns that asymmetry.
+    fn start_isolate(
+        &self,
+        ctx: &mut Ctx,
+        program: Program,
+        args: Value,
+        output: Output,
+    ) -> Result<Box<dyn Running>, GraphError>;
 }
 
 thread_local! {
@@ -388,6 +496,36 @@ mod tests {
         fn park(&self) -> Woken {
             self.0.set(self.0.get() + 1);
             Woken::Elapsed
+        }
+
+        fn start_isolate(
+            &self,
+            ctx: &mut Ctx,
+            program: super::Program,
+            args: crate::value::Value,
+            _output: super::Output,
+        ) -> Result<Box<dyn super::Running>, crate::graph::GraphError> {
+            // No scheduler here, so "started" is "already finished": the route
+            // is what this proves, and a boundary needs a task tree that a unit
+            // test of the seam does not have.
+            self.0.set(self.0.get() + 1);
+            let value = program(ctx, args);
+            Ok(Box::new(Started(std::cell::Cell::new(Some(value)))))
+        }
+    }
+
+    /// The `Recording` host's handle: the answer, held until it is joined.
+    #[derive(Debug)]
+    struct Started(std::cell::Cell<Option<crate::value::Value>>);
+
+    impl super::Running for Started {
+        fn join(self: Box<Self>, _ctx: &mut Ctx) -> super::Completion {
+            super::Completion {
+                ok: true,
+                value: self.0.take().unwrap_or_else(crate::value::Value::null),
+                output: Vec::new(),
+                error: None,
+            }
         }
     }
 
