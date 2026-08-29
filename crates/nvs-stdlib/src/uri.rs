@@ -314,6 +314,34 @@
 //!    both decoders, and changing it is a spec slice rather than a runtime
 //!    one. This is the one place this module diverges from PHP, whose strings
 //!    are byte strings.
+//!
+//! # What these members do with a qualifier
+//!
+//! ADR 0088 § 2's classification, and the judgement that separates this class
+//! from [`crate::time`]'s: **a parse here is [`Qual::Contagious`], not
+//! [`Qual::Neutral`].** `Core\Time::parse` answers an instant, and an instant
+//! is a closed space no byte of the argument survives into. A `Uri` is the
+//! opposite shape: `host()`, `path()` and `query()` hand the caller's own text
+//! straight back, component for component, which is exactly what *Comparison
+//! normalizes* above is written to preserve. So text that arrives tainted
+//! leaves tainted, and `resolve`, `with` and `parseQuery` are contagious for
+//! the same reason — each answers something built out of its argument's bytes.
+//!
+//! **The two encoders are the class's whole point, and they are the only
+//! [`Qual::Launder`] rows here.** Each names its sink in its own doc comment:
+//! [`nvs_core_uri_encode_component`] launders for the URI grammar — the
+//! escaping of `/ ? # & =` is what stops a segment climbing out of its
+//! position in the path — and [`nvs_core_uri_encode_form_value`] launders for
+//! an `application/x-www-form-urlencoded` body, where the escaped `&` and `=`
+//! are what stops a value opening a pair of its own. Both are the *whole*
+//! escape rather than the unsafe-looking bytes, which is the property the
+//! claim rests on.
+//!
+//! The decoders stay [`Qual::Contagious`], and the asymmetry is deliberate: a
+//! laundered value that is decoded again is content once more, so
+//! `decodeComponent(encodeComponent($tainted))` is tainted. A decoder that
+//! inherited its encoder's mark would launder every string that survived a
+//! round trip, which is every string.
 
 use std::mem::ManuallyDrop;
 
@@ -323,7 +351,7 @@ use fluent_uri::resolve::ResolveError;
 use fluent_uri::{ParseErrorKind, Uri, UriRef};
 use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 
-use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy};
+use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy, Qual};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -345,49 +373,49 @@ pub const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "parse",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             symbol: "nvs_core_uri_parse",
         },
         CoreMethod {
             name: "tryParse",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Instance(NAME)),
             symbol: "nvs_core_uri_try_parse",
         },
         CoreMethod {
             name: "encodeComponent",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Launder)],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_uri_encode_component",
         },
         CoreMethod {
             name: "decodeComponent",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_uri_decode_component",
         },
         CoreMethod {
             name: "encodeFormValue",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Launder)],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_uri_encode_form_value",
         },
         CoreMethod {
             name: "decodeFormValue",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_uri_decode_form_value",
         },
         CoreMethod {
             name: "parseQuery",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Mixed),
             symbol: "nvs_core_uri_parse_query",
@@ -462,12 +490,12 @@ pub const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Options(&[
                 CoreOption {
                     name: "scheme",
-                    ty: CoreTy::Str,
+                    ty: CoreTy::Text(Qual::Contagious),
                     default: Const::Null,
                 },
                 CoreOption {
                     name: "host",
-                    ty: CoreTy::Str,
+                    ty: CoreTy::Text(Qual::Contagious),
                     default: Const::Null,
                 },
                 CoreOption {
@@ -477,17 +505,17 @@ pub const CLASS: CoreClass = CoreClass {
                 },
                 CoreOption {
                     name: "path",
-                    ty: CoreTy::Str,
+                    ty: CoreTy::Text(Qual::Contagious),
                     default: Const::Null,
                 },
                 CoreOption {
                     name: "query",
-                    ty: CoreTy::Str,
+                    ty: CoreTy::Text(Qual::Contagious),
                     default: Const::Null,
                 },
                 CoreOption {
                     name: "fragment",
-                    ty: CoreTy::Str,
+                    ty: CoreTy::Text(Qual::Contagious),
                     default: Const::Null,
                 },
             ])],
@@ -497,7 +525,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "resolve",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             symbol: "nvs_core_uri_resolve",
@@ -1803,6 +1831,12 @@ nvs_runtime::nvs_helper! {
     /// of its position in the path, and a value holding an `&` cannot open a
     /// second query pair. Escaping only the unsafe-looking bytes is how the
     /// injection this member exists to prevent gets back in.
+    ///
+    /// **It launders** ([`Qual::Launder`]), and the sink it launders for is
+    /// the URI grammar itself: a path segment, a query name or value, a
+    /// fragment. A `tainted` argument comes back plain because after this
+    /// member no byte of it can be read as a delimiter — which is ADR 0088
+    /// § 2's whole condition for claiming the mark.
     fn nvs_core_uri_encode_component(_ctx, args: [1]) {
         let text = text_of(args, "encodeComponent")?;
 
@@ -1842,6 +1876,11 @@ nvs_runtime::nvs_helper! {
     /// A program building a whole query string reaches for `Uri::buildQuery`
     /// instead (gap 3), which writes the `=` and the `&` as well. This member
     /// is one side of one pair.
+    ///
+    /// **It launders** ([`Qual::Launder`]), and the sink it launders for is an
+    /// `application/x-www-form-urlencoded` body. Both bytes that structure one
+    /// are escaped — the `&` between pairs and the `=` inside a pair — so an
+    /// encoded value cannot open a pair of its own.
     fn nvs_core_uri_encode_form_value(_ctx, args: [1]) {
         let text = text_of(args, "encodeFormValue")?;
 
