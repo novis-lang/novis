@@ -823,6 +823,15 @@ is why" — is this file.
   works differ by one word. For a right-hand boundary specifically, neither is needed: a
   `match_indices` walk plus one `chars().next()` check is what `conformance_coverage.rs`'s `mentions`
   already does.
+- **`gaps.py --errors` reads past a `Fault::` call into the next item's doc comment, so one of its
+  rows is a phantom.** `test.rs`'s `Fault::thrown_as(ThrownClass::TestFailure, text)` carries no
+  literal at all — its message is `format!`ed six lines above it — and the tool's 700-byte window
+  finds the *following* function's `///` prose instead, listing the site as
+  `a test that asserts nothing /// fails`, a stem no case can ever contain. The gate in
+  `crates/nvs-stdlib/tests/conformance_coverage.rs` stops its window at a line-leading `///` for that
+  reason, so it reads 71 sites where the tool lists 72 and the difference is that one row. A
+  `Fault::` whose message is built above the call is outside both, the same way a message opening on
+  its own format hole is: neither can be matched against a case by its stem.
 
 ## Running things
 
