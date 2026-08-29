@@ -37,19 +37,24 @@
 //!
 //! # Known gaps
 //!
-//! 1. **The route table is not built**, so nothing yet turns a `#[Route]`
-//!    declaration into a row [`CLASS`]'s two members could read: every name
-//!    they are given is unknown, and [`no_such_route`] is the whole of the
-//!    lookup. `nvs_types::routes`' own gap 1 owns which of ADR 0077's compile
-//!    errors are still unreported, and § 4's *literal*-name check is among
-//!    them — so `examples/routes.nvs` compiles and then throws, where after the
-//!    table lands a bad literal name would not compile at all.
-//! 2. **Neither member laundering is real yet.** `url` percent-encodes each
-//!    substituted value and prepends the mount prefix
+//! 1. **A name this module is handed is one the compiler could not fold.** The
+//!    route table is built and § 4's link is resolved against it while
+//!    compiling: a literal name reaches [`link`]'s two symbols carrying a
+//!    prepared path, an unknown literal one is `E0754` before the program runs,
+//!    and [`CLASS`]'s own two members are what is left over — a *computed*
+//!    name, which § 4 says throws, and `nvs_types::links`' gap 1's named
+//!    argument, which is folded as a computed name would be and throws for a
+//!    reason a reader has to look up. Closing that gap is what would make
+//!    [`no_such_route`] answer only the case § 4 named.
+//! 2. **The mount prefix is the half of the laundering that has nowhere to come
+//!    from.** [`substitute`] percent-encodes every value it puts in a segment,
+//!    which is § 4's launder and is real; what is not is
 //!    ([ADR 0097](../../../../docs/adr/0097-development-server-and-proxied-origin.md)
-//!    § 3), and `urlAbsolute` prepends ADR 0102 § 6's configured origin. Both
-//!    are work over a row gap 1 has none of, and there is no mount to read an
-//!    origin from in a program run off the command line.
+//!    § 3)'s prefix in front of it, because a program run off the command line
+//!    is mounted nowhere. `urlAbsolute` is in the same position for the same
+//!    reason and says so where a program can see it: it reads
+//!    [`Ctx::origin`](nvs_runtime::Ctx::origin) and throws when a unit has
+//!    resolved none, rather than answering an empty authority.
 //! 3. **`match` and `methodsFor` are absent.** § 4's other two members answer a
 //!    *request*, which lands with the server; `docs/agent/loop-goal.md`
 //!    § *Standing decisions* keeps `::match` out of scope on purpose, and
@@ -266,9 +271,14 @@ fn segment_text(value: Value, member: &str, key: &str) -> Result<String, Fault> 
 /// literal written at the call site and is small.
 ///
 /// The **refusal** half of § 6 — a key that is neither a capture nor a declared
-/// `#[Query]` parameter is a compile error — is not here and cannot be: it
-/// needs the attribute, and `nvs_types::links`' gap 1 owns why. Until then
-/// every leftover key is a query parameter rather than a typo.
+/// `#[Query]` parameter is a compile error — is not here and never will be: it
+/// reads the handler's parameter attributes, so it is `E0759` in
+/// `nvs_types::links`, over the same literal keys the fold already collected.
+/// It is a check over what the *call site* wrote, though, not over what the
+/// array holds: a `$params` whose keys are not literals has none for that pass
+/// to read, so a key computed at run time still reaches the walk below and
+/// still becomes a query parameter. § 6 makes that the answer rather than an
+/// error — a link cannot know which of a program's own keys is a typo.
 fn substitute(template: &str, params: &Value, member: &str) -> Result<String, Fault> {
     let raw = params.array_ptr().ok_or_else(|| {
         Fault::fatal(format!(
@@ -390,8 +400,9 @@ fn produced(text: &str) -> HelperResult {
     Ok(Value::str(NvsStr::new(text.as_bytes())))
 }
 
-/// The answer both members give for a name the table does not hold, which is
-/// **every** name until gap 2 above closes.
+/// The answer both members give for a name that reached run time at all — a
+/// computed one, or gap 1's named argument. A folded literal never arrives
+/// here: it is either a prepared path in [`link`]'s symbols or `E0754`.
 ///
 /// A throw rather than an abort, and that is the difference from
 /// [`crate::program`]: `implementing<T>()` is expanded away in `nvs check`, so
@@ -411,9 +422,11 @@ nvs_runtime::nvs_helper! {
     /// `Core\Router::url(string $name, array<mixed> $params): string` — ADR 0077
     /// § 4's launderer for the URL-path sink.
     ///
-    /// It percent-encodes each substituted value and prepends the request's
-    /// mount prefix, neither of which it can do over a table that does not
-    /// exist; see [`no_such_route`] and the module's gap 2.
+    /// This is the *unfolded* member — reached only by a name the compiler
+    /// could not read as a literal — so there is no prepared path to substitute
+    /// into and no lookup to make: § 4 says a computed name throws, and
+    /// [`no_such_route`] is that throw. The resolved twin is
+    /// [`nvs_core_router_link`].
     fn nvs_core_router_url(_ctx, args: [2]) {
         Err(no_such_route("url", args))
     }
