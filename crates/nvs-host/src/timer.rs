@@ -48,12 +48,95 @@
 //! and no neighbour to starve, so the thread sleeps, exactly as
 //! [`crate::net`]'s reads block there. That path is not the one with a
 //! throughput target.
+//!
+//! # Reading a core's earliest deadline from another thread
+//!
+//! [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+//! § 7's watchdog notices a core that has stopped turning at all, and it does
+//! that by *reading the deadline this module already keeps* rather than by a
+//! heartbeat written per request. [`Timers`] therefore publishes its first
+//! entry into a small `Arc` — [`DeadlineView`] — every time that entry can have
+//! changed, which is every method that touches the ordered index. This module's
+//! docs are that mechanism's one home.
+//!
+//! **What a reader sees means "the core has not turned since", not "a request
+//! is slow".** [`Timers::take_due`] removes a deadline the moment the core
+//! polls after it, so a core that is turning never leaves one behind the clock
+//! for longer than a poll. A view whose instant is a margin in the past is
+//! therefore a statement about the *core*, and it is the same statement however
+//! long the request that armed it asked for.
+//!
+//! The published value is nanoseconds after a `base` instant fixed when the
+//! core's timers were created, held in one `AtomicU64` and written `Relaxed`.
+//! An integer rather than a lock because the reader is a stranger: a watchdog
+//! that could be descheduled while holding a mutex a core wants is a way to
+//! wedge the very thing it was added to detect. There is nothing for the
+//! ordering to publish alongside — the value is the whole message — and a
+//! reader one store behind is a watchdog one interval late, not a wrong one.
 
 use std::collections::{BTreeSet, HashMap};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use crate::reactor;
 use crate::scheduler::{TaskId, Waiting, current_task, suspend_current};
+
+/// The sentinel [`Published::earliest`] carries when no deadline is filed.
+///
+/// Zero, which would otherwise name `base` itself — so a deadline armed at or
+/// before the instant its core started publishes as `1` instead (see
+/// [`Timers::publish`]) and the sentinel is unambiguous rather than merely
+/// unlikely.
+const NOTHING: u64 = 0;
+
+/// The cross-thread half of one core's [`Timers`]: its earliest deadline, in a
+/// form a thread that is not that core may read.
+///
+/// Behind an `Arc` for the same reason `reactor::Remote` is — the reader
+/// outlives the call that handed it out, and may outlive the core itself. A
+/// view of a core that is gone keeps reporting whatever that core published
+/// last, which is inert rather than wrong: the only thing above it is looking
+/// for a deadline that stopped moving.
+#[derive(Debug)]
+struct Published {
+    /// What the nanosecond count below is measured from, fixed when the core's
+    /// timers were created. Carried here so the two ends share no clock and no
+    /// process-wide epoch.
+    base: Instant,
+    /// Nanoseconds after `base` of the earliest deadline filed, or [`NOTHING`].
+    earliest: AtomicU64,
+}
+
+impl Default for Published {
+    fn default() -> Self {
+        Self {
+            base: Instant::now(),
+            earliest: AtomicU64::new(NOTHING),
+        }
+    }
+}
+
+/// A read-only handle on one core's earliest deadline.
+///
+/// ADR 0106 § 7's watchdog reads a core through this and touches nothing else:
+/// it carries no reference to the scheduler, the reactor or any task's stack,
+/// and reading it neither blocks the core nor can be blocked by it. That makes
+/// it — with `reactor::RemoteWake` — one of the two things in this crate that
+/// is `Send`. This module's docs say what a reading means.
+#[derive(Clone, Debug)]
+pub struct DeadlineView(Arc<Published>);
+
+impl DeadlineView {
+    /// The earliest deadline the core is holding, or `None` if it holds none.
+    #[must_use]
+    pub fn oldest(&self) -> Option<Instant> {
+        match self.0.earliest.load(Ordering::Relaxed) {
+            NOTHING => None,
+            nanos => Some(self.0.base + Duration::from_nanos(nanos)),
+        }
+    }
+}
 
 /// The deadlines one core is holding, earliest first.
 ///
@@ -67,6 +150,10 @@ pub struct Timers {
     /// Each task's own deadline, which is what makes [`Timers::disarm`] a
     /// removal rather than a scan.
     armed: HashMap<TaskId, Instant>,
+    /// What the first entry of `due` is, for readers off this core. Shared
+    /// with every [`DeadlineView`] handed out, which is the only reason any of
+    /// it is behind an `Arc`.
+    published: Arc<Published>,
 }
 
 impl Timers {
@@ -79,6 +166,7 @@ impl Timers {
             self.due.remove(&(previous, id));
         }
         self.due.insert((at, id));
+        self.publish();
     }
 
     /// Drops `id`'s deadline, reporting whether it had one.
@@ -87,6 +175,7 @@ impl Timers {
             return false;
         };
         self.due.remove(&(at, id));
+        self.publish();
         true
     }
 
@@ -107,7 +196,33 @@ impl Timers {
         }
         self.due.remove(&(at, id));
         self.armed.remove(&id);
+        self.publish();
         Some(id)
+    }
+
+    /// A handle another thread may read this core's earliest deadline through.
+    ///
+    /// Any number of them; they all read the one value this core publishes.
+    #[must_use]
+    pub fn view(&self) -> DeadlineView {
+        DeadlineView(Arc::clone(&self.published))
+    }
+
+    /// Republishes the first entry for [`DeadlineView`] readers.
+    ///
+    /// Called from every method that can change which entry that is, which is
+    /// every method that touches `due`. It is one relaxed store on a path
+    /// already doing a `BTreeSet` insert or removal, which is how ADR 0106 § 7
+    /// gets its watchdog for nothing: what is written is a change to state the
+    /// deadline mechanism was keeping anyway, never a beat per request.
+    fn publish(&self) {
+        let value = self.due.first().map_or(NOTHING, |&(at, _)| {
+            let nanos = at.saturating_duration_since(self.published.base).as_nanos();
+            // A deadline further out than 584 years is not a deadline, and
+            // pinning it at the maximum keeps it out of the sentinel's way.
+            u64::try_from(nanos).unwrap_or(u64::MAX).max(NOTHING + 1)
+        });
+        self.published.earliest.store(value, Ordering::Relaxed);
     }
 
     /// How many tasks are waiting on a deadline.
@@ -273,6 +388,69 @@ mod tests {
         assert_eq!(timers.take_due(now + Duration::from_secs(2)), Some(id));
         assert!(timers.is_empty());
         assert!(!timers.disarm(id), "a fired timer was still armed");
+    }
+
+    /// What the watchdog reads is the *first* entry and nothing else, and it
+    /// tracks every edit to the index rather than only the arm that made it.
+    #[test]
+    fn the_published_deadline_is_the_earliest_one_filed() {
+        let mut timers = Timers::default();
+        let view = timers.view();
+        let now = Instant::now();
+        let (early, late) = (TaskId::from_raw(1), TaskId::from_raw(2));
+
+        assert_eq!(view.oldest(), None, "an empty core published a deadline");
+        timers.arm(late, now + Duration::from_secs(30));
+        timers.arm(early, now + Duration::from_secs(5));
+        assert_eq!(view.oldest(), Some(now + Duration::from_secs(5)));
+
+        // Losing the first entry republishes the one behind it, whichever way
+        // it is lost — otherwise the watchdog would read a deadline the core
+        // has already answered and call a working core wedged.
+        assert_eq!(timers.take_due(now + Duration::from_secs(6)), Some(early));
+        assert_eq!(view.oldest(), Some(now + Duration::from_secs(30)));
+        assert!(timers.disarm(late));
+        assert_eq!(view.oldest(), None, "a disarmed deadline stayed published");
+    }
+
+    /// The whole point of the handle: a thread that is not the core reads it,
+    /// and it stays readable after the core it describes is gone.
+    #[test]
+    fn a_view_crosses_a_thread_and_outlives_its_core() {
+        let mut timers = Timers::default();
+        let view = timers.view();
+        let at = Instant::now() + Duration::from_secs(10);
+        timers.arm(TaskId::from_raw(4), at);
+
+        let reader = view.clone();
+        let read = std::thread::spawn(move || reader.oldest())
+            .join()
+            .expect("the reader panicked");
+        assert_eq!(read, Some(at), "the deadline did not survive the crossing");
+
+        drop(timers);
+        assert_eq!(
+            view.oldest(),
+            Some(at),
+            "a view of a dead core answered nothing, so a wedged core would \
+             read as an idle one"
+        );
+    }
+
+    /// A core hands out its view through the reactor, without `&mut` and so
+    /// without waiting for the core to be between turns.
+    #[test]
+    fn a_reactor_publishes_what_its_timers_hold() {
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+        let view = with_current(|reactor| reactor.deadline_view()).expect("no reactor installed");
+        let at = Instant::now() + Duration::from_secs(30);
+        let id = TaskId::from_raw(9);
+
+        assert_eq!(view.oldest(), None);
+        with_current(|reactor| reactor.timers().arm(id, at));
+        assert_eq!(view.oldest(), Some(at));
+        with_current(|reactor| reactor.timers().disarm(id));
+        assert_eq!(view.oldest(), None);
     }
 
     /// Off a core there is no coroutine to suspend, so the thread waits — and

@@ -133,7 +133,7 @@ use std::time::{Duration, Instant};
 use mio::{Events, Poll, Token, Waker};
 
 use crate::scheduler::{RunReport, Scheduler, TaskId};
-use crate::timer::Timers;
+use crate::timer::{DeadlineView, Timers};
 
 pub use mio::Interest;
 pub use mio::event::Source;
@@ -434,6 +434,18 @@ impl Reactor {
     /// where they are armed from and where the rest of the reasoning lives.
     pub fn timers(&mut self) -> &mut Timers {
         &mut self.timers
+    }
+
+    /// A handle another thread may read this core's earliest deadline through.
+    ///
+    /// The watchdog's end of ADR 0106 § 7, taken here rather than from the
+    /// [`Timers`] directly because the reactor is what a core has a handle on:
+    /// a worker takes its own view once, on its own thread, and hands the copy
+    /// out. [`crate::timer`]'s docs own what a reading of it means and why it
+    /// costs the core nothing.
+    #[must_use]
+    pub fn deadline_view(&self) -> DeadlineView {
+        self.timers.view()
     }
 
     /// How many tasks hold at least one registration.
