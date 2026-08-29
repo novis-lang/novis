@@ -89,6 +89,7 @@ never the credential that proved it.
 
 ```php
 #[Route(path: "/live/chat/{room}", method: Http\Method::Get)]
+#[Access(allow: Role::User)]
 public static function chat(string $room): Http\Response {
     var $user = Web\Auth::require();                       // an ordinary authenticated request
     return Core\Socket::upgrade('sockets/chat.nvs', with(

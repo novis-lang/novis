@@ -79,6 +79,7 @@ already hold to.
 
 ```php
 #[Route(path: "/orders/{id}", method: Http\Method::Get, name: "orders.show")]
+#[Access(allow: Role::User)]
 #[Api(
     tags:      ["Orders"],
     errors:    [{status: 404, type: Api\NotFound}, {status: 403, type: Api\Forbidden}],

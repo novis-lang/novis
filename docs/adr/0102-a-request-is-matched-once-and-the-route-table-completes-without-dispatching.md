@@ -154,8 +154,8 @@ declaring `/posts/{page?}` returns that route's verbs, so the shorter form canno
 
 ```php
 #[Route(path: "/orders", method: Http\Method::Get, name: "orders.index")]
-#[Access(Role::User)]
-public fn index(
+#[Access(allow: Role::User)]
+public function index(
     #[Query] uint $page = 1,
     #[Query] "asc"|"desc" $sort = "asc",
 ): Response { … }
@@ -192,8 +192,8 @@ default is a compile error naming both.
 
 ```php
 #[Route(path: "/posts/{page?}", method: Http\Method::Get, name: "posts.index")]
-#[Access(Public)]
-public fn index(uint $page = 1): Response { … }
+#[Access(allow: Audience::Public)]
+public function index(uint $page = 1): Response { … }
 ```
 
 Precedence slots it below `{name}` and above `{name...}`, so § 2's structural rule extends with no ordering
@@ -217,8 +217,8 @@ an enum's cases**. Everything else about that section is unchanged.
 
 ```php
 #[Route(path: "/{lang}/docs/{page}", method: Http\Method::Get, name: "docs.show")]
-#[Access(Public)]
-public fn show("en"|"de"|"fr" $lang, string $page): Response { … }
+#[Access(allow: Audience::Public)]
+public function show("en"|"de"|"fr" $lang, string $page): Response { … }
 ```
 
 `/fr/docs/intro` matches; `/xx/docs/intro` does not, and falls through to a `404` by § 3's existing

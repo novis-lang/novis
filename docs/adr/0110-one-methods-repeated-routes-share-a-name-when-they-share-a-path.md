@@ -8,7 +8,8 @@
   [0085](0085-openapi-is-generated-from-the-route-table.md)'s `operationId` stays unique. Not in scope: the
   duplicate-*route* rule over `(path, method)` pairs, which
   [0077](0077-compile-time-routing.md) § 3 keeps unchanged; dispatch, which that ADR's § 4 still refuses;
-  and deriving a `path` or a `name` from the declaring class, which *Alternatives rejected* declines.
+  and deriving a `path` or a `name` from the declaring class, which *Alternatives rejected* declines and
+  § 4 replaces with a quick fix that writes one.
 - **Depends on:** [0077](0077-compile-time-routing.md) — without its route table and its duplicate-`name`
   rule there is nothing here to relax.
 - **Amends:** [0077](0077-compile-time-routing.md) § 3 — its unconditional *"Duplicate `name` values are a
@@ -19,6 +20,8 @@
   generation"*, which is no longer true of the same-path case; the paragraph is corrected there.
   [0085](0085-openapi-is-generated-from-the-route-table.md) § 1 — its *Path, method, operation id* row
   needs a rule for a name two operations share, and § 3 below is it.
+  [0040](0040-vscode-deep-tooling-and-resilient-parsing.md) § 3 — its M10 quick-fix roster gains the
+  derived-path action § 4 below specifies.
 
 > **In short:** `#[Route]` is repeatable, which is how one method serves several verbs — but
 > [0077](0077-compile-time-routing.md) § 3 made a duplicate `name` a compile error, so at most one of those
@@ -45,7 +48,7 @@
   #[Route(path: "/webhook", method: Http\Method::Post, name: "webhook")]
   #[Route(path: "/webhook", method: Http\Method::Put)]      // unnamed — no url(), no route label
   #[Route(path: "/webhook", method: Http\Method::Patch)]    // unnamed
-  #[Access(Public)]
+  #[Access(allow: Audience::Public)]
   public function receive(): Response { … }
   ```
 
@@ -76,7 +79,7 @@ carries the same `path`:
 #[Route(path: "/webhook", method: Http\Method::Put,    name: "webhook")]
 #[Route(path: "/webhook", method: Http\Method::Patch,  name: "webhook")]
 #[Route(path: "/webhook", method: Http\Method::Delete, name: "webhook")]
-#[Access(Public)]
+#[Access(allow: Audience::Public)]
 public function receive(): Response { … }
 ```
 
@@ -137,6 +140,43 @@ declaration, which is where `methodsFor` and the CSRF classification read it.
   suffix is deterministic and needs no counter. A name carried by exactly one operation is emitted bare, so
   no existing document moves.
 
+### 4. A quick fix writes a derived path; nothing derives one on its own
+
+*Alternatives rejected* declines convention routing — a `path` the compiler derives from the declaring
+class — because the compiler checks every *internal* reference to a route and no external one. What
+survives of the idea is the typing, and a quick fix buys it without the coupling: on the diagnostic for a
+`#[Route]` whose required `path` is missing, the editor offers the derived path as replacement text the
+developer accepts, edits or ignores.
+
+That places it squarely inside
+[0040](0040-vscode-deep-tooling-and-resilient-parsing.md) § 3's M10 rule — *each backed by a diagnostic the
+checker already emits* — since `path` is a required field of `Core\Route` and its absence already fails.
+
+**The derivation is specified here rather than left to the implementation**, so that firing the action on
+two machines produces the same string:
+
+- the declaring class's **short name**, with a trailing `Controller` removed if present, converted from
+  `PascalCase` ([0029](0029-identifier-casing-is-checked.md)) to kebab-case;
+- then the method's name, `camelCase` to kebab-case, **omitted entirely when the method is named `index`**;
+- then one `{name}` segment per parameter carrying no `#[Query]` whose declared type is one of
+  [0077](0077-compile-time-routing.md) § 3's capture types, in declaration order. A `Request`, a service or
+  any other parameter contributes nothing — that section's own rule, read backwards.
+
+So `UserController::show(uint $id)` offers `/user/{id}`, `UserController::index()` offers `/user`, and
+`AdminUserController::listPending(Request $r)` offers `/admin-user/list-pending`.
+
+**Nothing is pluralized.** `/user` rather than `/users` is deliberate: pluralization is English-only and
+irregular, so a rule that guessed would be wrong often enough that a developer would have to check it every
+time — and checking costs more than typing. Editing the inserted text is the point of inserting text rather
+than deriving a path.
+
+**This is a fix, not one of
+[0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) § 4's
+generators**, and the distinction is load-bearing rather than filing. That section's bound is *text the type
+system has already fully determined*, and a URL is not type-determined by anything. A generator's output has
+to be **right**, which is why that bound is drawn where it is; this action's output has to be a **starting
+point**, and it is read as a diff before it is accepted like every other code action.
+
 ## Consequences
 
 - **A multi-verb endpoint is one thing everywhere it is observed** — one `url()` target, one `route` label,
@@ -180,7 +220,7 @@ declaration, which is where `methodsFor` and the CSRF classification read it.
   [0077](0077-compile-time-routing.md) § 1 already declined the weaker form of this for the same family of
   reasons. The typing it saves is better bought by a quick fix that *writes* the derived path into the
   source once ([0040](0040-vscode-deep-tooling-and-resilient-parsing.md) owns those), leaving a path that
-  is real text, greppable, and stable under every later rename.
+  is real text, greppable, and stable under every later rename — § 4 specifies it.
 
 ## Verification
 

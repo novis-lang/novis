@@ -2,8 +2,9 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-25
-- **Scope:** decides that every `#[Route]` method carries a sibling `#[Access]` attribute, that an omission
-  is a compile error, and that CSRF enforcement is on by default for unsafe methods. Does **not** decide
+- **Scope:** decides that every `#[Route]` method carries a sibling `#[Access]` attribute, what that
+  attribute's payload is (§ 1a), that an omission is a compile error, and that CSRF enforcement is on by
+  default for unsafe methods. Does **not** decide
   what an access name *means*, who evaluates it, or how a session is established — those are the M7 server's
   and `nvs/web`'s ([0082](0082-the-first-party-framework.md)'s `Web\Auth`). Does **not** add a field to
   `#[Route]`, and does **not** introduce middleware, filters, groups or a dispatch opinion of any kind
@@ -64,21 +65,60 @@ without the compiler ever calling anything.
 ### 1. `#[Access]` is a required sibling of `#[Route]`
 
 A method carrying `#[Route]` must also carry `#[Access]`. A `#[Route]` without one is a **compile error**
-naming the method, and suggesting `#[Access(Public)]` for a route that is genuinely open.
+naming the method, and suggesting `#[Access(allow: Audience::Public)]` for a route that is genuinely open.
 
 ```php
-#[Route(method: Get, path: "/admin/users")]
-#[Access(Role::Admin)]
-public fn listUsers(): Response { … }
+#[Route(path: "/admin/users", method: Http\Method::Get)]
+#[Access(allow: Role::Admin)]
+public function listUsers(): Response { … }
 
-#[Route(method: Get, path: "/")]
-#[Access(Public)]                       // written, because an omission is not a default
-public fn home(): Response { … }
+#[Route(path: "/", method: Http\Method::Get)]
+#[Access(allow: Audience::Public)]      // written, because an omission is not a default
+public function home(): Response { … }
 ```
 
 `#[Route]` gains **no field**. Two attributes rather than one is the whole mechanism by which
 [0077](0077-compile-time-routing.md) § 4 stays true: that ADR rejected attaching *behaviour* to its
 attribute, and this attaches a *declaration* to the method instead.
+
+### 1a. The shape, and why its one required field is unchecked
+
+```php
+enum Core\Audience { case Public; }
+type Core\Access = {allow: mixed, csrf?: bool};
+```
+
+An attribute payload has two forms and **both take named fields**
+([0046](0046-attributes-shape-literal-metadata.md) § 1) — there is no positional form — so the decision is
+written `allow:` at every site:
+
+```php
+#[Access(allow: Role::Admin)]
+#[Access(allow: Audience::Public)]
+#[Access(allow: Role::Service, csrf: false)]
+```
+
+- **`allow` is required, and its declared type is `mixed`.** That is
+  [0007](0007-explicit-type-system.md)'s one unchecked position, and it is the honest one here: § 2 below
+  is a promise *not* to know what the value means, so a narrower type would be a claim this ADR does not
+  make. What constrains the field is [0046](0046-attributes-shape-literal-metadata.md) § 2, which already
+  admits only a compile-time constant — narrowed here to **an enum case or a class constant**, refusing a
+  bare literal, because a literal names nothing and § 2's guarantee is precisely that *the name resolves*.
+  `nvs_types::attributes` checks it in the walk it already makes over every attach site.
+- **`Core\Audience::Public` is the one access decision `Core` names.** It exists so that *this route is
+  open* is a resolvable name rather than a magic string or an absent attribute, which is the whole of § 3.
+  Every other value is the application's — a `Role` enum, a policy constant, whatever `Web\Auth`
+  ([0082](0082-the-first-party-framework.md)) or an application's own dispatch reads. **`Core` ships one
+  case and will not grow a second**: a roster of access levels is the interpretation § 2 refuses.
+- **`csrf` is § 4's per-route opt-out**, optional and defaulting to on for the four unsafe verbs that
+  section names. `csrf: false` on a route whose every verb is safe is a compile error — there is nothing
+  to opt out of, and accepting it is how a field ends up pasted onto routes that never needed it.
+- **Exactly one `#[Access]` per method.** [0046](0046-attributes-shape-literal-metadata.md) § 3 makes every
+  attribute repeatable and leaves ambiguity to retrieval; here a second one is a compile error naming both,
+  because two decisions are two readings — conjunction or disjunction — and choosing between them silently
+  is exactly the failure § 3 exists to prevent. A method carrying several `#[Route]` attributes
+  ([0110](0110-one-methods-repeated-routes-share-a-name-when-they-share-a-path.md) § 1) still carries one
+  `#[Access]`, covering all of them.
 
 ### 2. The compiler checks presence and resolution, and nothing else
 
@@ -125,7 +165,8 @@ table reaches it). [0060](0060-application-security-protocols.md) already owns g
 constant-time verification; this decides only the default.
 
 A route that legitimately needs no token — a webhook receiver authenticated by signature, an API
-authenticated by bearer token — says so in its own declaration, named, per route. This follows
+authenticated by bearer token — says so in its own declaration with § 1a's `csrf: false`: per route, in
+the `#[Access]` that route already carries, never a group and never a configuration key. This follows
 [0074](0074-http-defaults-safe-and-finite.md)'s premise that a deployment with nothing configured is
 already safe.
 
@@ -163,7 +204,8 @@ than on what the code says, which is harder to reason about and harder to test.
 - **Leave it to `Web\Auth`** ([0082](0082-the-first-party-framework.md)'s arrangement, unchanged).
   Smallest `Core`, purest route table. Rejected on the *Context* figures: it is the arrangement every PHP
   framework already has, and 57% of exploited vulnerabilities in 2025 happened underneath it.
-- **A default of `#[Access(Public)]` when omitted.** Ergonomic, and it makes adoption free. Rejected in
+- **A default of `#[Access(allow: Audience::Public)]` when omitted.** Ergonomic, and it makes adoption
+  free. Rejected in
   § 3: it is the implicit default whose absence this ADR exists to make visible.
 - **CSRF tokens available but enforcement left to the program.** Rejected in § 4: an unprotected
   state-changing route would be indistinguishable from a protected one at compile time *and* at run time,
@@ -172,7 +214,12 @@ than on what the code says, which is harder to reason about and harder to test.
 ## Verification
 
 - A `.nvst` case per shape: a `#[Route]` with no `#[Access]` is a compile error naming the method; one with
-  `#[Access(Public)]` compiles; one whose access name does not resolve is a compile error naming the name.
+  `#[Access(allow: Audience::Public)]` compiles; one whose access name does not resolve is a compile error
+  naming the name.
+- A `.nvst` case per branch of § 1a: an `allow` holding a bare literal is a compile error; a second
+  `#[Access]` on one method is a compile error naming both; `csrf: false` on a route whose verbs are all
+  safe is a compile error; and `#[Access(Role::Admin)]` — the positional spelling
+  [0046](0046-attributes-shape-literal-metadata.md) § 1 has no form for — fails to parse.
 - A case asserting a method carrying `#[Access]` and **no** `#[Route]` is accepted — this ADR requires the
   sibling in one direction only.
 - A server fixture asserting an unsafe method without a token is refused, that the named opt-out is
