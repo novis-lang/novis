@@ -2364,6 +2364,11 @@ is why" — is this file.
   *same* type is fine, so a roster case that sweeps floats and ints alike wants one name per type
   (`$n` for the float rows, `$i` for the integer ones) rather than one per loop. The same bites twice
   in one file when two blocks both destructure a pair into `$a`/`$b`.
+- A parameter default at a **literal or union** declared type is `E0451`, so a route case writing
+  `#[\Core\Query] "asc"|"desc" $order = "asc"` does not compile — `nvs_types::defaults::literal_default`
+  decodes a default against the *declared* type and has no arm for `Ty::StringLiteral` or `Ty::Union`. A
+  `#[Query]` with no default is simply required, and a link is not obliged to supply one, so write the
+  parameter without a default until that hole is closed.
 
 ## Splitting a file that got too big
 

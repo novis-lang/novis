@@ -279,6 +279,22 @@ fn segment_text(value: Value, member: &str, key: &str) -> Result<String, Fault> 
 /// to read, so a key computed at run time still reaches the walk below and
 /// still becomes a query parameter. § 6 makes that the answer rather than an
 /// error — a link cannot know which of a program's own keys is a typo.
+///
+/// **A value outside ADR 0102 § 5's closed set is substituted here, and throws
+/// nothing.** Its literal spelling is `E0772` in `nvs_types::links`, over the
+/// same folded entries `E0759` reads, and a computed one reaches this walk with
+/// nothing left to check it against: the closed set is the *handler's* declared
+/// type, and what crosses into a prepared template is § 2's path pieces and no
+/// type at all. Carrying the sets across so this could refuse would put a table
+/// on every link a program builds, to re-answer at run time what § 5 already
+/// answers at the only place the value is knowable — and the answer would be a
+/// throw where § 5's own is a `404`, since an out-of-set *segment* is a request
+/// that does not match rather than a program that is wrong. Nothing about the
+/// laundering changes either way: the value is percent-encoded into its own
+/// segment above whatever it holds, so what a bad link produces is a dead URL
+/// and never an escape from one. This is § 6's rule for a computed key, applied
+/// to a computed value for the same reason — the two halves of one entry answer
+/// the same way.
 fn substitute(template: &str, params: &Value, member: &str) -> Result<String, Fault> {
     let raw = params.array_ptr().ok_or_else(|| {
         Fault::fatal(format!(

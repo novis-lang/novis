@@ -1,0 +1,41 @@
+--TEST--
+`Core\Router::url` substitutes a computed value outside a capture's closed set rather than throwing, and encodes it into its own segment — ADR 0102 §§ 5 and 6
+--FILE--
+<?nvs
+// The other side of `E0772`: a *literal* out-of-set value is a compile error
+// (`reject/a-route-link-refuses-a-capture-value-outside-its-closed-set.nvst`),
+// and a computed one is not checked at all — the closed set is the handler's
+// declared type and a prepared template carries § 2's path pieces and no type.
+// `crates/nvs-stdlib/src/router.rs`'s `substitute` owns why that is a
+// substitution rather than a throw: an out-of-set segment is a request that
+// does not match, so what a bad link produces is a `404` and not an error.
+class Docs {
+    // ADR 0096 § 1: the decision is a required sibling of every `#[Route]`.
+    #[\Core\Route(path: "/{lang}/docs/{page}", method: \Core\Http\Method::Get, name: "docs.show")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function show("en"|"de"|"fr" $lang, string $page): string { return $lang . "/" . $page; }
+}
+
+// Held in a variable, which is the whole difference between this and the
+// compile error: § 5's check reads what the call site wrote.
+var $lang = "xx";
+echo "built=", Core\Router::url("docs.show", ["lang" => $lang, "page" => "intro"]), "\n";
+
+// It threw nothing, asserted rather than implied — a member that grew a runtime
+// set check would take this branch instead.
+var $outcome = "built";
+try {
+    Core\Router::url("docs.show", ["lang" => $lang, "page" => "intro"]);
+} catch (RuntimeError $e) {
+    $outcome = "threw";
+}
+echo "outcome=", $outcome, "\n";
+
+// § 4's launder is unchanged by any of it: the value still cannot climb out of
+// its segment, so a bad link is a dead URL and never a path traversal.
+var $hostile = "../../etc";
+echo "encoded=", Core\Router::url("docs.show", ["lang" => $hostile, "page" => "intro"]), "\n";
+--EXPECT--
+built=/xx/docs/intro
+outcome=built
+encoded=/..%2F..%2Fetc/docs/intro
