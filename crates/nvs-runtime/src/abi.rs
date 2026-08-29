@@ -17,6 +17,18 @@
 //! convention, for the reason that ADR's *Corollary* gives: `extern "C"`
 //! rather than `extern "C-unwind"` and the `catch_unwind` wrapper are each a
 //! silent, per-helper correctness cliff, and a macro cannot forget either.
+//!
+//! # Containment has two boundaries, and this module holds both
+//!
+//! The helper wrapper is the **inner** one, and it only ever sees a fault
+//! raised beneath a JIT frame.
+//! [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+//! § 2 puts the **outer** one at the root of every task, because the code a
+//! worker runs with no request beneath it — the accept loop, the HTTP reader,
+//! the compiled-unit cache index — has no helper frame to be contained by.
+//! [`run_task`] is that boundary and [`TaskRoot`] is the whole of what
+//! distinguishes its two outcomes; its doc comment carries the two rules that
+//! travel with it, which are about teardown rather than about wrapping.
 
 use std::panic::{self, AssertUnwindSafe};
 
@@ -401,6 +413,104 @@ pub fn call(function: NvsFn, ctx: &mut Ctx, args: &[Value]) -> Result<Value, i32
     if status == OK { Ok(out) } else { Err(status) }
 }
 
+/// What a task's root was running, and therefore who owns a panic that
+/// reaches it.
+///
+/// [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+/// § 2 splits containment's two outcomes on exactly this question and on
+/// nothing else, so it is the whole of what [`run_task`] has to be told.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TaskRoot {
+    /// A request. Everything the fault touched belongs to that request and is
+    /// released wholesale with its arena, so the request fails through
+    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)'s ladder
+    /// as an internal panic and the worker's other in-flight requests are
+    /// untouched.
+    Request,
+    /// Worker-owned work with no request beneath it — the accept loop, the
+    /// HTTP reader, the compiled-unit cache index. There is nothing to charge
+    /// the fault to and the state that faulted is shared, so the worker is
+    /// **retired**: it stops accepting, its in-flight requests finish under the
+    /// existing drain, and a replacement is started.
+    Worker,
+}
+
+/// A panic that reached a task's root and was contained there.
+#[derive(Debug, Clone)]
+pub struct TaskPanic {
+    message: std::borrow::Cow<'static, str>,
+    root: TaskRoot,
+}
+
+impl TaskPanic {
+    /// The payload's own text, or a generic message for a payload that is
+    /// neither `&'static str` nor `String` — the same recovery the helper
+    /// boundary makes.
+    #[must_use]
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+
+    /// What the task's root was running.
+    #[must_use]
+    pub const fn root(&self) -> TaskRoot {
+        self.root
+    }
+
+    /// Whether this fault retires the worker, which is ADR 0106 § 2's split
+    /// and the only decision a caller has to make from one of these.
+    #[must_use]
+    pub const fn retires_worker(&self) -> bool {
+        matches!(self.root, TaskRoot::Worker)
+    }
+}
+
+impl std::fmt::Display for TaskPanic {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+/// Runs a task's root under the **outer** containment boundary.
+///
+/// [`nvs_helper!`]'s wrapper contains a panic raised beneath a JIT frame, and
+/// that stays exactly where it is: it is the inner boundary, it reports through
+/// [`Ctx`] as [`FATAL`], and a fault it catches never reaches here. This one
+/// exists for the code a worker runs with no helper frame under it at all —
+/// ADR 0106 § 2 — and it is applied by whatever spawns the task rather than
+/// written per call site, for the same reason the macro exists: a boundary a
+/// contributor can forget is not a boundary.
+///
+/// Two rules travel with it, and neither is discharged here because neither is
+/// a wrapper:
+///
+/// * **Nothing on a teardown path may panic.** A panic raised while a panic is
+///   unwinding calls `abort()` before any `catch_unwind` — this one included —
+///   is consulted, so a `Drop` that can fail turns a contained fault into an
+///   uncontained one. What holds it is that Novis's teardown runs no user code
+///   and no fallible operation: [`crate::release`]'s module doc is that rule's
+///   home.
+/// * **Teardown is iterative, never recursive.** Held by the same worklist, and
+///   pinned by `object::tests::a_deep_chain_is_freed_without_recursing` and
+///   `array::tests::a_deeply_nested_array_releases_without_recursing`.
+///
+/// It costs nothing on the path that does not panic, and it is one wrap per
+/// *task* rather than one per call.
+///
+/// # Errors
+///
+/// The contained panic, carrying its message and the [`TaskRoot`] that decides
+/// whether the worker survives it.
+pub fn run_task<T, F>(root: TaskRoot, body: F) -> Result<T, TaskPanic>
+where
+    F: FnOnce() -> T,
+{
+    panic::catch_unwind(AssertUnwindSafe(body)).map_err(|payload| TaskPanic {
+        message: panic_message(&*payload),
+        root,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     // `nvs_helper!` emits `pub` entry points; inside this private test module
@@ -539,5 +649,77 @@ mod tests {
         let mut ctx = Ctx::buffered();
         call(nvs_test_writes, &mut ctx, &[]).unwrap();
         assert_eq!(ctx.take_buffered_output().as_deref(), Some(&b"written"[..]));
+    }
+
+    /// Runs `body` with the panic hook silenced, so a deliberately contained
+    /// panic does not print a backtrace over the test output.
+    fn quietly<T>(body: impl FnOnce() -> T) -> T {
+        let previous = panic::take_hook();
+        panic::set_hook(Box::new(|_| {}));
+        let value = body();
+        panic::set_hook(previous);
+        value
+    }
+
+    #[test]
+    fn a_task_that_returns_normally_is_not_a_panic() {
+        let outcome = run_task(TaskRoot::Worker, || 6 * 7);
+        assert_eq!(outcome.ok(), Some(42));
+    }
+
+    #[test]
+    fn a_panic_with_no_helper_beneath_it_is_contained_at_the_task_root() {
+        // The whole reason this boundary exists: the accept loop and the HTTP
+        // reader have no `nvs_helper!` frame under them, so the inner boundary
+        // never sees their faults.
+        let fault = quietly(|| run_task(TaskRoot::Worker, || panic!("the accept loop faulted")))
+            .expect_err("the panic must be contained here");
+
+        assert_eq!(fault.message(), "the accept loop faulted");
+        assert_eq!(fault.root(), TaskRoot::Worker);
+        assert!(
+            fault.retires_worker(),
+            "shared state faulted, so ADR 0106 § 2 retires the worker"
+        );
+    }
+
+    #[test]
+    fn a_request_owned_panic_does_not_retire_the_worker() {
+        let fault =
+            quietly(|| run_task(TaskRoot::Request, || panic!("a request-owned bug: {}", 7)))
+                .expect_err("the panic must be contained here");
+
+        assert_eq!(fault.message(), "a request-owned bug: 7");
+        assert!(
+            !fault.retires_worker(),
+            "the request owns the fault, so the worker keeps its other requests"
+        );
+    }
+
+    #[test]
+    fn the_helper_boundary_is_still_the_inner_one() {
+        // A panic under a helper is contained *there* and reported as FATAL, so
+        // the outer boundary sees an ordinary return. Nesting the two must not
+        // change either answer.
+        let mut ctx = Ctx::buffered();
+        let status = quietly(|| {
+            run_task(TaskRoot::Request, || {
+                call(nvs_test_panics_static, &mut ctx, &[]).unwrap_err()
+            })
+        })
+        .expect("the inner boundary contains it, so nothing reaches this one");
+
+        assert_eq!(status, FATAL);
+        assert_eq!(
+            ctx.take_pending().as_deref(),
+            Some("a static panic message")
+        );
+    }
+
+    #[test]
+    fn the_worker_runs_the_next_task_after_a_contained_one() {
+        quietly(|| run_task(TaskRoot::Worker, || panic!("first"))).unwrap_err();
+        let outcome = run_task(TaskRoot::Worker, || "second");
+        assert_eq!(outcome.ok(), Some("second"));
     }
 }

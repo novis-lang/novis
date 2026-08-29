@@ -5,6 +5,7 @@
 //! on top of it. See `docs/adr/0002-error-propagation.md`.
 
 use nvs_abi_probe::{Ctx, FATAL, Helper, NvsFn, OK, Probe, THROWN, Value, call, in_coroutine};
+use nvs_runtime::{TaskRoot, run_task};
 
 // ---------------------------------------------------------------------------
 // The checked-return ABI
@@ -234,4 +235,68 @@ fn many_coroutines_can_be_created_and_driven() {
         assert_eq!(run.suspends, 1, "round {round}");
         assert_eq!(run.value, round * 2, "round {round}");
     }
+}
+
+// ---------------------------------------------------------------------------
+// The outer containment boundary — ADR 0106 § 2
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_panic_with_no_helper_beneath_it_is_contained_at_the_task_root() {
+    // The helper wrapper contains what a *helper* raises. This is the fault it
+    // cannot see: the task's own code, running on a coroutine stack with the
+    // JIT frames already returned. Containment has to survive the stack switch,
+    // because a coroutine stack is where `nvs-host` will apply it.
+    let mut probe = Probe::new();
+    let chain: NvsFn = probe.compile_chain(2, Helper::Suspend);
+
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    let fault = run_task(TaskRoot::Worker, move || {
+        in_coroutine(Ctx::new(), move |ctx| {
+            let (status, out) = call(chain, ctx, Value::int(21));
+            assert_eq!(status, OK);
+            assert_eq!(out.as_int(), 42);
+            panic!("the worker's own code faulted");
+        })
+    })
+    .expect_err("a panic on a coroutine stack must not escape the task root");
+    std::panic::set_hook(previous);
+
+    assert_eq!(fault.message(), "the worker's own code faulted");
+    assert!(
+        fault.retires_worker(),
+        "no request owns it, so ADR 0106 § 2 retires the worker rather than \
+         charging it to anyone"
+    );
+
+    // And the thread that contained it still creates and drives coroutines,
+    // which is what "the worker survives" means before the drain exists.
+    let run = in_coroutine(Ctx::new(), move |ctx| {
+        let (status, out) = call(chain, ctx, Value::int(5));
+        assert_eq!(status, OK);
+        out.as_int()
+    });
+    assert_eq!(run.value, 10);
+    assert_eq!(run.suspends, 1);
+}
+
+#[test]
+fn a_request_owned_panic_leaves_the_worker_running() {
+    // The other half of § 2's split, on the same stack shape: a fault a request
+    // owns fails that request and nothing else, so the worker is not retired.
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    let fault = run_task(TaskRoot::Request, || {
+        in_coroutine(Ctx::new(), |_ctx| {
+            panic!("a request-owned bug");
+        })
+    })
+    .expect_err("the panic must be contained at the task root");
+    std::panic::set_hook(previous);
+
+    assert!(
+        !fault.retires_worker(),
+        "the request owns the fault, so the worker keeps its other requests"
+    );
 }

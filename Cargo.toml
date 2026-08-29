@@ -341,9 +341,10 @@ print_stderr = "warn"
 # Profiles
 # ---------------------------------------------------------------------------
 [profile.dev]
-# `catch_unwind` at the helper and request boundaries is how Novis contains a
-# runtime panic to one request. `panic = "abort"` would break that guarantee,
-# so unwinding is mandatory in every profile. See docs/adr/0003.
+# `catch_unwind` at the helper and worker-task boundaries is how Novis contains
+# a runtime panic to one request (ADR 0106 § 2 moved the outer one out to the
+# task root). `panic = "abort"` would break that guarantee, so unwinding is
+# mandatory in every profile. See docs/adr/0003.
 panic = "unwind"
 
 [profile.release]

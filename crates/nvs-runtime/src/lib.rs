@@ -24,7 +24,10 @@
 //!    [`nvs_helper!`], which supplies the mandatory `catch_unwind` wrapper —
 //!    that wrapper is what contains a runtime panic to one request, and it is
 //!    why `panic = "unwind"` is set in every profile of the workspace
-//!    `Cargo.toml`.
+//!    `Cargo.toml`. It is the *inner* of two boundaries: [`run_task`] is the
+//!    outer one, at the root of a worker's task, where a fault with no helper
+//!    frame beneath it is caught and [`TaskRoot`] decides whether the worker
+//!    survives it (`abi`'s own module docs own the pair).
 //! 2. **The value representation** is `docs/implementation-plan.md`'s
 //!    § *Value representation*: a 16-byte tagged [`Value`]. Not NaN-boxed —
 //!    PHP semantics need the full `i64` range.
@@ -279,7 +282,8 @@ static COUNTING_ALLOCATOR: counting_alloc::Counting = counting_alloc::Counting;
 static POOLED_ALLOCATOR: alloc::Pooled = alloc::Pooled;
 
 pub use abi::{
-    EXITED, FATAL, Fault, HelperFn, HelperResult, NvsFn, OK, THROWN, affordable, call, run_helper,
+    EXITED, FATAL, Fault, HelperFn, HelperResult, NvsFn, OK, THROWN, TaskPanic, TaskRoot,
+    affordable, call, run_helper, run_task,
 };
 pub use arith::nvs_float_pow;
 pub use array::{
