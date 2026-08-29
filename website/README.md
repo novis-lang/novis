@@ -50,14 +50,16 @@ orphans at the end of its run for a human to review and delete.
 ## How the Core reference works
 
 1. `scripts/lib/spec.mjs` parses `../docs/spec/01-core-library.md` — the file the repo
-   declares authoritative for every `Core` signature. Well-formed member tables become
+   declares authoritative for the designed surface. Well-formed member tables become
    full member records (signature, parameters, options, return type, PHP "Replaces"
-   list, taint classification); roster tables and bullet rosters become *surface*
-   classes ("Planned" in the sidebar); anything unreadable is a **sync warning**, fixed
+   list, taint classification); anything unreadable is a **sync warning**, fixed
    in `scripts/spec-overrides.mjs`.
 2. `scripts/lib/registry.mjs` scans `../crates/nvs-stdlib/src/*.rs` for registered
-   `CoreClass` declarations — that is what drives the per-member
-   **Available / Not yet implemented** badge, automatically, on every sync.
+   `CoreClass` declarations, and **only implemented members are published**: a member
+   the registry does not hold gets no page, a class with no registered member does not
+   appear at all, and both arrive automatically on the sync after they land. A page
+   whose member leaves the published set is deleted if still tool-owned (`draft: true`)
+   and reported as an orphan if human-owned.
 3. `scripts/lib/meta.mjs` asks the built `nvs` binary for its registry docs
    (`nvs meta --json`, ADR 0117): short description, parameter/shape-key/return/error
    descriptions, authored next to the Rust implementation. Precedence is **field-wise**:

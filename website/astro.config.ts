@@ -14,7 +14,6 @@ const core = JSON.parse(fs.readFileSync('./src/data/core.json', 'utf8')) as {
     id: string
     slug: string
     url: string
-    implemented: boolean
     members: { name: string; slug: string; url: string }[]
   }[]
 }
@@ -26,7 +25,6 @@ novisGrammar.aliases = ['novis', 'nvs']
 const coreSidebar = core.classes.map((cls) => ({
   label: cls.id.replace(/\./g, '\\'),
   collapsed: true,
-  ...(cls.members.length === 0 ? { badge: { text: 'Planned', variant: 'default' as const, class: 'nv-badge-planned' } } : {}),
   items: [
     { label: 'Overview', link: cls.url },
     ...cls.members.map((m) => ({ label: m.name, link: m.url })),

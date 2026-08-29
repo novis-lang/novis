@@ -1,8 +1,8 @@
 ---
 /**
  * The tool-owned body of a Core class page: what the spec says about the
- * class, the complete member table with implementation status, enums and
- * constants. Renders from src/data/core.json.
+ * class, the member table, enums and constants. Renders from
+ * src/data/core.json, which holds implemented members only.
  */
 import { findClass } from '~/lib/core'
 
@@ -14,36 +14,10 @@ const { id } = Astro.props
 const cls = findClass(id)
 if (!cls) throw new Error(`ClassOverview: unknown class id "${id}" — run \`npm run sync:core\`?`)
 
-const implementedCount = cls.members.filter((m) => m.implemented).length
-const surfaceOnly = cls.members.length === 0
 const clsExtra = cls as typeof cls & { summaryHtml?: string; surfaceHtml?: string }
 ---
 
 <div class="class-overview">
-  {
-    surfaceOnly && (
-      <div class="class-planned-note not-content">
-        <strong>Planned.</strong> This class is specified but its member signatures are not finalized in
-        the specification yet. The summary below states what it will own
-        {cls.adrs.length > 0 && (
-          <>
-            {' '}
-            — the governing decision{cls.adrs.length > 1 ? 's are' : ' is'}{' '}
-            {cls.adrs.map((a, i) => (
-              <>
-                {i > 0 && ', '}
-                <a href={`/docs/adr/${a}/`} data-adr={a}>
-                  ADR {a}
-                </a>
-              </>
-            ))}
-          </>
-        )}
-        .
-      </div>
-    )
-  }
-
   {clsExtra.summaryHtml && <div class="class-summary" set:html={clsExtra.summaryHtml} />}
   {!clsExtra.summaryHtml && clsExtra.surfaceHtml && <p class="class-summary" set:html={clsExtra.surfaceHtml} />}
 
@@ -52,8 +26,7 @@ const clsExtra = cls as typeof cls & { summaryHtml?: string; surfaceHtml?: strin
       <>
         <h2 id="members">Members</h2>
         <p class="class-member-count">
-          {cls.members.length} member{cls.members.length === 1 ? '' : 's'}, {implementedCount} implemented in the
-          current toolchain.
+          {cls.members.length} member{cls.members.length === 1 ? '' : 's'}.
         </p>
         <div class="class-member-table-wrapper">
           <table class="class-member-table">
@@ -61,7 +34,6 @@ const clsExtra = cls as typeof cls & { summaryHtml?: string; surfaceHtml?: strin
               <tr>
                 <th scope="col">Member</th>
                 <th scope="col">Signature</th>
-                <th scope="col">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -74,13 +46,6 @@ const clsExtra = cls as typeof cls & { summaryHtml?: string; surfaceHtml?: strin
                   </td>
                   <td>
                     <code class="class-member-sig">{m.signature}</code>
-                  </td>
-                  <td>
-                    <span
-                      class:list={['method-badge', m.implemented ? 'method-badge-available' : 'method-badge-planned']}
-                    >
-                      {m.implemented ? 'Available' : 'Planned'}
-                    </span>
                   </td>
                 </tr>
               ))}

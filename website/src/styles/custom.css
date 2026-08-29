@@ -47,32 +47,6 @@
   border: 0;
 }
 
-/* ------------------------------------------------------------------ badges */
-
-.method-badge {
-  display: inline-block;
-  font-size: 0.72rem;
-  font-weight: 600;
-  line-height: 1;
-  padding: 0.3em 0.55em;
-  border-radius: 999px;
-  white-space: nowrap;
-  vertical-align: middle;
-}
-.method-badge-available {
-  color: var(--nv-ok);
-  background-color: color-mix(in oklab, var(--nv-ok) 14%, transparent);
-  border: 1px solid color-mix(in oklab, var(--nv-ok) 35%, transparent);
-}
-.method-badge-planned {
-  color: var(--sl-color-gray-2);
-  background-color: color-mix(in oklab, var(--sl-color-gray-4) 18%, transparent);
-  border: 1px solid var(--sl-color-hairline);
-}
-.nv-badge-planned {
-  font-size: 0.62rem;
-}
-
 /* --------------------------------------------------------- method signature */
 
 .method-signature {
@@ -226,15 +200,6 @@
 
 /* ------------------------------------------------------------- class pages */
 
-.class-planned-note {
-  border: 1px solid var(--sl-color-hairline);
-  border-inline-start: 4px solid var(--sl-color-accent);
-  border-radius: 0.5rem;
-  padding: 0.75rem 1rem;
-  margin-top: 1.5rem;
-  background-color: var(--nv-accent-softer);
-  font-size: var(--sl-text-sm);
-}
 .class-member-count {
   color: var(--sl-color-gray-3);
   font-size: var(--sl-text-sm);

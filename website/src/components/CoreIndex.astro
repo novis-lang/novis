@@ -1,6 +1,8 @@
 ---
 /**
- * The Core reference landing table: every class, its member count and status.
+ * The Core reference landing table: every published class and its member
+ * count. Only implemented members are published, so there is no status
+ * column — what is listed exists in the current toolchain.
  */
 import { classes } from '~/lib/core'
 
@@ -8,8 +10,6 @@ const rows = classes.map((cls) => ({
   label: cls.id.replace(/\./g, '\\'),
   url: cls.url,
   members: cls.members.length,
-  implemented: cls.members.filter((m) => m.implemented).length,
-  planned: cls.members.length === 0,
 }))
 ---
 
@@ -19,7 +19,6 @@ const rows = classes.map((cls) => ({
       <tr>
         <th scope="col">Class</th>
         <th scope="col">Members</th>
-        <th scope="col">Status</th>
       </tr>
     </thead>
     <tbody>
@@ -31,20 +30,7 @@ const rows = classes.map((cls) => ({
                 <code>Core\{row.label}</code>
               </a>
             </td>
-            <td>{row.planned ? '—' : row.members}</td>
-            <td>
-              {row.planned ? (
-                <span class="method-badge method-badge-planned">Planned</span>
-              ) : row.implemented === row.members ? (
-                <span class="method-badge method-badge-available">Available</span>
-              ) : row.implemented > 0 ? (
-                <span class="method-badge method-badge-available">
-                  {row.implemented}/{row.members} available
-                </span>
-              ) : (
-                <span class="method-badge method-badge-planned">Specified</span>
-              )}
-            </td>
+            <td>{row.members}</td>
           </tr>
         ))
       }

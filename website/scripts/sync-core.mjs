@@ -2,7 +2,9 @@
  * `npm run sync:core` — update the Core function reference from the repository.
  *
  * Reads   ../docs/spec/01-core-library.md      (authoritative for the surface:
- *                                               every member, planned or not)
+ *                                               every member, planned or not —
+ *                                               but only *implemented* members
+ *                                               are published to the site)
  *         ../crates/nvs-stdlib/src/*.rs        (which members are implemented)
  *         `nvs meta --json`                    (registry-carried documentation,
  *                                               ADR 0117 — optional until the
@@ -103,12 +105,25 @@ for (const cls of classes) {
   }
 }
 
+// ---------------------------------------------------------------- publish only what is implemented
+
+// The site shows what the toolchain has: a member not in the registry, and a
+// class with no registered member, are not published. The full spec surface
+// still parses above, so drift warnings keep seeing all of it.
+const parsedClassCount = classes.length
+const parsedMemberCount = classes.reduce((n, c) => n + c.members.length, 0)
+for (const cls of classes) {
+  cls.members = cls.members.filter((m) => m.implemented)
+  cls.unparsed = []
+}
+const published = classes.filter((c) => c.members.length > 0)
+
 // ---------------------------------------------------------------- slugs and urls
 
 const classSlug = (cls) => cls.id.toLowerCase().replace(/\./g, '-')
 const methodSlug = (m) => m.name.toLowerCase()
 
-for (const cls of classes) {
+for (const cls of published) {
   cls.slug = classSlug(cls)
   cls.url = `/docs/core/${cls.slug}/`
   // Pre-rendered HTML for the spec excerpts class pages embed.
@@ -123,7 +138,7 @@ for (const cls of classes) {
 // ---------------------------------------------------------------- data file
 
 fs.mkdirSync(outDataDir, { recursive: true })
-fs.writeFileSync(path.join(outDataDir, 'core.json'), JSON.stringify({ classes }, null, 2) + '\n')
+fs.writeFileSync(path.join(outDataDir, 'core.json'), JSON.stringify({ classes: published }, null, 2) + '\n')
 
 // Changelog store: created once, then human/tool appended via release tooling.
 const changelogPath = path.join(outDataDir, 'core-changelog.json')
@@ -198,7 +213,7 @@ const ownershipComment = `{/* OWNERSHIP: while \`draft: true\` stands above, thi
     from the repository's own data) is good enough; replace one with your own
     prose where it is not. */}`
 
-for (const cls of classes) {
+for (const cls of published) {
   fs.mkdirSync(classDir(cls), { recursive: true })
 
   // ---- class page
@@ -316,28 +331,42 @@ ${
 
 const known = new Set()
 known.add('index.mdx') // the handwritten Core reference landing page
-for (const cls of classes) {
+for (const cls of published) {
   known.add(path.join(cls.slug, 'index.mdx'))
   for (const m of cls.members) known.add(path.join(cls.slug, `${m.slug}.mdx`))
 }
+// A tool-owned orphan (still `draft: true`) is deleted outright — its member
+// left the published set, and nothing in it was human-written. A human-owned
+// orphan is only ever reported.
 const orphans = []
+let deletedPages = 0
 function walk(dir, rel = '') {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name)
     const relPath = path.join(rel, entry.name)
-    if (entry.isDirectory()) walk(path.join(dir, entry.name), relPath)
-    else if (entry.name.endsWith('.mdx') && !known.has(relPath)) orphans.push(relPath)
+    if (entry.isDirectory()) {
+      walk(full, relPath)
+      if (fs.readdirSync(full).length === 0) fs.rmdirSync(full)
+    } else if (entry.name.endsWith('.mdx') && !known.has(relPath)) {
+      if (isToolOwned(full)) {
+        fs.unlinkSync(full)
+        deletedPages++
+      } else {
+        orphans.push(relPath)
+      }
+    }
   }
 }
 walk(outPagesDir)
 
 // ---------------------------------------------------------------- report
 
-const memberCount = classes.reduce((n, c) => n + c.members.length, 0)
-const implCount = classes.reduce((n, c) => n + c.members.filter((m) => m.implemented).length, 0)
+const memberCount = published.reduce((n, c) => n + c.members.length, 0)
 console.log(
-  `sync:core — ${classes.length} classes, ${memberCount} members (${implCount} implemented), ` +
-    `${createdPages} page(s) created, ${regeneratedPages} draft page(s) regenerated, ${humanPages} human-owned page(s) untouched, ` +
-    `${warnings.length} warning(s)`
+  `sync:core — spec surface ${parsedClassCount} classes / ${parsedMemberCount} members; ` +
+    `published ${published.length} classes / ${memberCount} members (implemented only); ` +
+    `${createdPages} page(s) created, ${regeneratedPages} draft page(s) regenerated, ${deletedPages} deleted, ` +
+    `${humanPages} human-owned page(s) untouched, ${warnings.length} warning(s)`
 )
 console.log(`  registry docs: ${metaNote}`)
 for (const w of warnings) console.warn(`  warn: ${w}`)

@@ -75,12 +75,6 @@ const replaces = member.replaces && !/^nothing\b/i.test(member.replaces.trim()) 
 <div class="method-signature not-content">
   <div class="method-signature-decl-row">
     <code class="method-signature-decl" set:html={declarationHtml()} />
-    <span
-      class:list={['method-badge', member.implemented ? 'method-badge-available' : 'method-badge-planned']}
-      title={member.implemented ? 'This member is implemented in the current toolchain.' : 'This member is specified but not implemented yet.'}
-    >
-      {member.implemented ? 'Available' : 'Not yet implemented'}
-    </span>
   </div>
 
   {

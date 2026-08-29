@@ -1957,63 +1957,6 @@
       "surfaceHtml": ""
     },
     {
-      "id": "Ast",
-      "name": "Core\\Ast",
-      "section": "13. Compiler-facing surfaces",
-      "summary": "",
-      "surface": "`parse(string): Node` returning inert typed data",
-      "adrs": [
-        "0019"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "ast",
-      "url": "/docs/core/ast/",
-      "summaryHtml": "",
-      "surfaceHtml": "<code>parse(string): Node</code> returning inert typed data"
-    },
-    {
-      "id": "Attributes",
-      "name": "Core\\Attributes",
-      "section": "13. Compiler-facing surfaces",
-      "summary": "",
-      "surface": "`get<T>`, `all<T>` — structural, not a `Reflect` walk",
-      "adrs": [
-        "0046"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "attributes",
-      "url": "/docs/core/attributes/",
-      "summaryHtml": "",
-      "surfaceHtml": "<code>get&lt;T&gt;</code>, <code>all&lt;T&gt;</code> — structural, not a <code>Reflect</code> walk"
-    },
-    {
-      "id": "BigInt",
-      "name": "Core\\BigInt",
-      "section": "13. Compiler-facing surfaces",
-      "summary": "",
-      "surface": "the non-operator members of the `decimal` scalar and arbitrary-precision integers. Replaces `bcmath`, `gmp`",
-      "adrs": [
-        "0054"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "bigint",
-      "url": "/docs/core/bigint/",
-      "summaryHtml": "",
-      "surfaceHtml": "the non-operator members of the <code>decimal</code> scalar and arbitrary-precision integers. Replaces <code>bcmath</code>, <code>gmp</code>"
-    },
-    {
       "id": "Bytes",
       "name": "Core\\Bytes",
       "section": "7. `Core\\Encoding` and `Core\\Bytes`",
@@ -2047,7 +1990,7 @@
           "qualifier": "neutral",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "length",
           "url": "/docs/core/bytes/length/"
@@ -2084,7 +2027,7 @@
           "qualifier": "",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "answers the octet as a <code>uint</code>, not a one-byte buffer",
           "slug": "at",
           "url": "/docs/core/bytes/at/"
@@ -2129,7 +2072,7 @@
           "qualifier": "",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "slice",
           "url": "/docs/core/bytes/slice/"
@@ -2171,7 +2114,7 @@
           "qualifier": "neutral",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "no <code>caseInsensitive</code> option — case is a text concept",
           "slug": "indexof",
           "url": "/docs/core/bytes/indexof/"
@@ -2208,7 +2151,7 @@
           "qualifier": "neutral",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "lexicographic octet order",
           "slug": "compare",
           "url": "/docs/core/bytes/compare/"
@@ -2245,7 +2188,7 @@
           "qualifier": "neutral",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "contains",
           "url": "/docs/core/bytes/contains/"
@@ -2282,7 +2225,7 @@
           "qualifier": "neutral",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "startswith",
           "url": "/docs/core/bytes/startswith/"
@@ -2319,7 +2262,7 @@
           "qualifier": "neutral",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "endswith",
           "url": "/docs/core/bytes/endswith/"
@@ -2356,7 +2299,7 @@
           "qualifier": "",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "join",
           "url": "/docs/core/bytes/join/"
@@ -2393,7 +2336,7 @@
           "qualifier": "",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "a <code>$byte</code> above 255 throws",
           "slug": "fill",
           "url": "/docs/core/bytes/fill/"
@@ -2430,7 +2373,7 @@
           "qualifier": "",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "repeat",
           "url": "/docs/core/bytes/repeat/"
@@ -2467,7 +2410,7 @@
           "qualifier": "sink (format)",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "pack",
           "url": "/docs/core/bytes/pack/"
@@ -2504,165 +2447,18 @@
           "qualifier": "sink (format)",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "unpack",
           "url": "/docs/core/bytes/unpack/"
         }
       ],
       "unparsed": [],
-      "implemented": false,
+      "implemented": true,
       "slug": "bytes",
       "url": "/docs/core/bytes/",
       "summaryHtml": "",
       "surfaceHtml": ""
-    },
-    {
-      "id": "Cache",
-      "name": "Core\\Cache",
-      "section": "16. Network, data and crypto",
-      "summary": "",
-      "surface": "`local`, `shared`; copy-in/copy-out. Replaces `apcu_*`, `memcached` for the local case",
-      "adrs": [
-        "0059"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "cache",
-      "url": "/docs/core/cache/",
-      "summaryHtml": "",
-      "surfaceHtml": "<code>local</code>, <code>shared</code>; copy-in/copy-out. Replaces <code>apcu_*</code>, <code>memcached</code> for the local case"
-    },
-    {
-      "id": "Cap",
-      "name": "Core\\Cap",
-      "section": "15. Request-facing: `Core\\Server`, `Core\\Request`, `Core\\Response`, `Core\\Session`, `Core\\Env`, `Core\\Cap`, `Core\\Cli`",
-      "summary": "",
-      "surface": "`has(string $capability): bool`, and nothing else. Reports whether the **calling namespace** holds a capability at this point in the request — the grant table narrowed by anything the request or an enclosing isolate already dropped. It is how a package that declared a capability *optional* degrades instead of failing a build, so the argument is a roster name and an unknown one is a compile error ([ADR 0112](../adr/0112-authority-is-keyed-on-the-enclosing-namespace.md) §§ 6, 8). It grants nothing and needs no capability of its own; there is no `Core\\Cap::drop`, because dropping a capability is `Core\\Config::set` and stays there.",
-      "adrs": [],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "cap",
-      "url": "/docs/core/cap/",
-      "summaryHtml": "",
-      "surfaceHtml": "<code>has(string $capability): bool</code>, and nothing else. Reports whether the <strong>calling namespace</strong> holds a capability at this point in the request — the grant table narrowed by anything the request or an enclosing isolate already dropped. It is how a package that declared a capability <em>optional</em> degrades instead of failing a build, so the argument is a roster name and an unknown one is a compile error (<a href=\"/docs/adr/0112/\" data-adr=\"0112\">ADR 0112</a> §§ 6, 8). It grants nothing and needs no capability of its own; there is no <code>Core\\Cap::drop</code>, because dropping a capability is <code>Core\\Config::set</code> and stays there."
-    },
-    {
-      "id": "Cli",
-      "name": "Core\\Cli",
-      "section": "15. Request-facing: `Core\\Server`, `Core\\Request`, `Core\\Response`, `Core\\Session`, `Core\\Env`, `Core\\Cap`, `Core\\Cli`",
-      "summary": "",
-      "surface": "the terminal surface, owned by [ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md) — `arguments(): array<tainted string>`, `write`, `escape`, `isTty(Cli\\Stream)`, `width`, `height`, `colorDepth`, `displayWidth`; the prompts `ask`, `confirm`, `select<T>`, `multiSelect<T>` and `secret(): secret tainted string`; and the scoped regions `live<T>` and `progress<T>`. Its value types are `Cli\\Text`, `Cli\\Style` and `Cli\\Color`, its enums `Cli\\Stream`, `Cli\\ColorDepth` and `Cli\\Shell`. Replaces `$argv`, `$argc`, `readline`, `mb_strwidth`, `posix_isatty`. **Terminal output is a `tainted` sink** that substitutes every control byte with a visible glyph; `Cli\\Text` is the only thing that writes raw. The byte-and-line side of standard input is `Core\\IO` (§ 14), not here; process exit is the `exit` keyword ([ADR 0049](../adr/0049-single-open-tag-and-single-exit-keyword.md)).",
-      "adrs": [],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "cli",
-      "url": "/docs/core/cli/",
-      "summaryHtml": "",
-      "surfaceHtml": "the terminal surface, owned by <a href=\"/docs/adr/0086/\" data-adr=\"0086\">ADR 0086</a> — <code>arguments(): array&lt;tainted string&gt;</code>, <code>write</code>, <code>escape</code>, <code>isTty(Cli\\Stream)</code>, <code>width</code>, <code>height</code>, <code>colorDepth</code>, <code>displayWidth</code>; the prompts <code>ask</code>, <code>confirm</code>, <code>select&lt;T&gt;</code>, <code>multiSelect&lt;T&gt;</code> and <code>secret(): secret tainted string</code>; and the scoped regions <code>live&lt;T&gt;</code> and <code>progress&lt;T&gt;</code>. Its value types are <code>Cli\\Text</code>, <code>Cli\\Style</code> and <code>Cli\\Color</code>, its enums <code>Cli\\Stream</code>, <code>Cli\\ColorDepth</code> and <code>Cli\\Shell</code>. Replaces <code>$argv</code>, <code>$argc</code>, <code>readline</code>, <code>mb_strwidth</code>, <code>posix_isatty</code>. <strong>Terminal output is a <code>tainted</code> sink</strong> that substitutes every control byte with a visible glyph; <code>Cli\\Text</code> is the only thing that writes raw. The byte-and-line side of standard input is <code>Core\\IO</code> (§ 14), not here; process exit is the <code>exit</code> keyword (<a href=\"/docs/adr/0049/\" data-adr=\"0049\">ADR 0049</a>)."
-    },
-    {
-      "id": "Command",
-      "name": "Core\\Command",
-      "section": "13. Compiler-facing surfaces",
-      "summary": "",
-      "surface": "`run(): uint`, `help(?string): Cli\\Text` and `completions(Cli\\Shell): string`, over a table built while compiling from `#[Command]`/`#[Option]`/`#[Argument]`. A duplicate command name, two options sharing a spelling and an `#[Option]` on a parameter with no conversion from `string` are compile errors. Unlike `Core\\Router` it dispatches, because a CLI has one entry point and no middleware question",
-      "adrs": [
-        "0086"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "command",
-      "url": "/docs/core/command/",
-      "summaryHtml": "",
-      "surfaceHtml": "<code>run(): uint</code>, <code>help(?string): Cli\\Text</code> and <code>completions(Cli\\Shell): string</code>, over a table built while compiling from <code>#[Command]</code>/<code>#[Option]</code>/<code>#[Argument]</code>. A duplicate command name, two options sharing a spelling and an <code>#[Option]</code> on a parameter with no conversion from <code>string</code> are compile errors. Unlike <code>Core\\Router</code> it dispatches, because a CLI has one entry point and no middleware question"
-    },
-    {
-      "id": "Compress",
-      "name": "Core\\Compress",
-      "section": "17. Documents and formats",
-      "summary": "",
-      "surface": "gzip, deflate, brotli, zstd — one API replacing `gzopen` handles, `deflate_init` contexts and `zlib.*` stream filters",
-      "adrs": [],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "compress",
-      "url": "/docs/core/compress/",
-      "summaryHtml": "",
-      "surfaceHtml": "gzip, deflate, brotli, zstd — one API replacing <code>gzopen</code> handles, <code>deflate_init</code> contexts and <code>zlib.*</code> stream filters"
-    },
-    {
-      "id": "Config",
-      "name": "Core\\Config",
-      "section": "16. Network, data and crypto",
-      "summary": "",
-      "surface": "`set(string, string): bool`, `get(string): ?string`, `restore(string): void`, `all(): array<string, string>` — the request-local overlay over `nvs.toml`. Replaces `ini_set`, `ini_get`, `ini_restore`, `ini_get_all`, `set_time_limit`. String-in/string-out because the directive name is dynamic; the registry parses with the same parser the boot path uses",
-      "adrs": [
-        "0005",
-        "0064"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "config",
-      "url": "/docs/core/config/",
-      "summaryHtml": "",
-      "surfaceHtml": "<code>set(string, string): bool</code>, <code>get(string): ?string</code>, <code>restore(string): void</code>, <code>all(): array&lt;string, string&gt;</code> — the request-local overlay over <code>nvs.toml</code>. Replaces <code>ini_set</code>, <code>ini_get</code>, <code>ini_restore</code>, <code>ini_get_all</code>, <code>set_time_limit</code>. String-in/string-out because the directive name is dynamic; the registry parses with the same parser the boot path uses"
-    },
-    {
-      "id": "Crypto",
-      "name": "Core\\Crypto",
-      "section": "16. Network, data and crypto",
-      "summary": "",
-      "surface": "AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string. Replaces `openssl_*`'s primitive half and `sodium_*`",
-      "adrs": [
-        "0051"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "crypto",
-      "url": "/docs/core/crypto/",
-      "summaryHtml": "",
-      "surfaceHtml": "AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string. Replaces <code>openssl_<em></code>'s primitive half and <code>sodium_</em></code>"
-    },
-    {
-      "id": "Csrf",
-      "name": "Core\\Csrf",
-      "section": "16. Network, data and crypto",
-      "summary": "",
-      "surface": "the closed four-entry roster; a JWT's algorithm comes from the key, never the token",
-      "adrs": [
-        "0060"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "csrf",
-      "url": "/docs/core/csrf/",
-      "summaryHtml": "",
-      "surfaceHtml": "the closed four-entry roster; a JWT's algorithm comes from the key, never the token"
     },
     {
       "id": "Csv",
@@ -2714,7 +2510,7 @@
           "notes": "",
           "qualifier": "",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "parse",
           "url": "/docs/core/csv/parse/"
@@ -2755,635 +2551,18 @@
           "notes": "",
           "qualifier": "",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "format",
           "url": "/docs/core/csv/format/"
         }
       ],
       "unparsed": [],
-      "implemented": false,
+      "implemented": true,
       "slug": "csv",
       "url": "/docs/core/csv/",
       "summaryHtml": "",
       "surfaceHtml": ""
-    },
-    {
-      "id": "Db",
-      "name": "Core\\Db",
-      "section": "16. Network, data and crypto",
-      "summary": "Semantics are [ADR 0067](../adr/0067-core-db.md) — connection naming and memoization, the capability split,\nwhy there is no `prepare`, the transaction shape, the coercion rule and the full SQL type map. This section\nowns the signatures only. Every member needs `db.connect` or `db.open`, and a connection's credentials live\nin a root-owned `[db.<name>]` block ([ADR 0064](../adr/0064-configuration-file-format.md)).",
-      "surface": "the full surface is § 18 below — the one subsystem in Part II too large for a row. Replaces `PDO` **and** the procedural `mysqli`/`pgsql`/`sqlite3` APIs",
-      "adrs": [
-        "0067"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [
-        {
-          "id": "Db.connect",
-          "name": "connect",
-          "static": true,
-          "receiver": null,
-          "generics": null,
-          "signature": "connect(string $name, {shared?: bool, timeout?: Duration}): Db\\Connection",
-          "params": [
-            {
-              "kind": "param",
-              "name": "name",
-              "type": "string",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            }
-          ],
-          "options": [
-            {
-              "name": "shared",
-              "type": "bool"
-            },
-            {
-              "name": "timeout",
-              "type": "Duration"
-            }
-          ],
-          "returnType": "Db\\Connection",
-          "replaces": "`new PDO`, `mysqli_connect`, `pg_connect`, `new SQLite3`",
-          "notes": "",
-          "qualifier": "sink (name)",
-          "section": "18. `Core\\Db`",
-          "implemented": false,
-          "notesHtml": "",
-          "slug": "connect",
-          "url": "/docs/core/db/connect/"
-        },
-        {
-          "id": "Db.open",
-          "name": "open",
-          "static": true,
-          "receiver": null,
-          "generics": null,
-          "signature": "open(Db\\Settings $settings, {shared?: bool}): Db\\Connection",
-          "params": [
-            {
-              "kind": "param",
-              "name": "settings",
-              "type": "Db\\Settings",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            }
-          ],
-          "options": [
-            {
-              "name": "shared",
-              "type": "bool"
-            }
-          ],
-          "returnType": "Db\\Connection",
-          "replaces": "a runtime-built DSN",
-          "notes": "",
-          "qualifier": "sink (host)",
-          "section": "18. `Core\\Db`",
-          "implemented": false,
-          "notesHtml": "",
-          "slug": "open",
-          "url": "/docs/core/db/open/"
-        },
-        {
-          "id": "Db.inList",
-          "name": "inList",
-          "static": true,
-          "receiver": null,
-          "generics": null,
-          "signature": "inList(array<mixed> $values): Db\\InList",
-          "params": [
-            {
-              "kind": "param",
-              "name": "values",
-              "type": "array<mixed>",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            }
-          ],
-          "options": [],
-          "returnType": "Db\\InList",
-          "replaces": "`implode(\",\", array_fill(0, n, \"?\"))`",
-          "notes": "",
-          "qualifier": "",
-          "section": "18. `Core\\Db`",
-          "implemented": false,
-          "notesHtml": "",
-          "slug": "inlist",
-          "url": "/docs/core/db/inlist/"
-        },
-        {
-          "id": "Db.quoteIdentifier",
-          "name": "quoteIdentifier",
-          "static": true,
-          "receiver": null,
-          "generics": null,
-          "signature": "quoteIdentifier(tainted string $name): string",
-          "params": [
-            {
-              "kind": "param",
-              "name": "name",
-              "type": "tainted string",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            }
-          ],
-          "options": [],
-          "returnType": "string",
-          "replaces": "`mysqli_real_escape_string` on a table/column name",
-          "notes": "",
-          "qualifier": "launder (identifier)",
-          "section": "18. `Core\\Db`",
-          "implemented": false,
-          "notesHtml": "",
-          "slug": "quoteidentifier",
-          "url": "/docs/core/db/quoteidentifier/"
-        }
-      ],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "db",
-      "url": "/docs/core/db/",
-      "summaryHtml": "<p>Semantics are <a href=\"/docs/adr/0067/\" data-adr=\"0067\">ADR 0067</a> — connection naming and memoization, the capability split, why there is no <code>prepare</code>, the transaction shape, the coercion rule and the full SQL type map. This section owns the signatures only. Every member needs <code>db.connect</code> or <code>db.open</code>, and a connection's credentials live in a root-owned <code>[db.&lt;name&gt;]</code> block (<a href=\"/docs/adr/0064/\" data-adr=\"0064\">ADR 0064</a>).</p>",
-      "surfaceHtml": "the full surface is § 18 below — the one subsystem in Part II too large for a row. Replaces <code>PDO</code> <strong>and</strong> the procedural <code>mysqli</code>/<code>pgsql</code>/<code>sqlite3</code> APIs"
-    },
-    {
-      "id": "Db.Column",
-      "name": "Core\\Db\\Column",
-      "section": "18. `Core\\Db`",
-      "summary": "",
-      "surface": "readonly `name: string`, `type: ColumnType`, `nullable: bool`",
-      "adrs": [],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "db-column",
-      "url": "/docs/core/db-column/",
-      "summaryHtml": "",
-      "surfaceHtml": "readonly <code>name: string</code>, <code>type: ColumnType</code>, <code>nullable: bool</code>"
-    },
-    {
-      "id": "Db.Connection",
-      "name": "Core\\Db\\Connection",
-      "section": "18. `Core\\Db`",
-      "summary": "",
-      "surface": "`$c->close(): void`; readonly `driver: Driver`, `serverVersion: string`, `isOpen: bool`",
-      "adrs": [],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "db-connection",
-      "url": "/docs/core/db-connection/",
-      "summaryHtml": "",
-      "surfaceHtml": "<code>$c-&gt;close(): void</code>; readonly <code>driver: Driver</code>, <code>serverVersion: string</code>, <code>isOpen: bool</code>"
-    },
-    {
-      "id": "Db.InList",
-      "name": "Core\\Db\\InList",
-      "section": "18. `Core\\Db`",
-      "summary": "",
-      "surface": "opaque; produced by `Db::inList`, accepted only as a bound parameter",
-      "adrs": [],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "db-inlist",
-      "url": "/docs/core/db-inlist/",
-      "summaryHtml": "",
-      "surfaceHtml": "opaque; produced by <code>Db::inList</code>, accepted only as a bound parameter"
-    },
-    {
-      "id": "Db.Queryable",
-      "name": "Core\\Db\\Queryable",
-      "section": "18. `Core\\Db`",
-      "summary": "",
-      "surface": "",
-      "adrs": [],
-      "enums": [],
-      "constants": [],
-      "members": [
-        {
-          "id": "Db.Queryable.query",
-          "name": "query",
-          "static": false,
-          "receiver": "q",
-          "generics": null,
-          "signature": "query(string $sql, array<mixed> $params, {timeout?: Duration}): Db\\Rows",
-          "params": [
-            {
-              "kind": "param",
-              "name": "sql",
-              "type": "string",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            },
-            {
-              "kind": "param",
-              "name": "params",
-              "type": "array<mixed>",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            }
-          ],
-          "options": [
-            {
-              "name": "timeout",
-              "type": "Duration"
-            }
-          ],
-          "returnType": "Db\\Rows",
-          "replaces": "`PDO::query`/`prepare`+`execute`, `mysqli_query`",
-          "notes": "",
-          "qualifier": "sink (sql)",
-          "section": "18. `Core\\Db`",
-          "implemented": false,
-          "notesHtml": "",
-          "slug": "query",
-          "url": "/docs/core/db-queryable/query/"
-        },
-        {
-          "id": "Db.Queryable.queryAs",
-          "name": "queryAs",
-          "static": false,
-          "receiver": "q",
-          "generics": "<T>",
-          "signature": "queryAs<T>(string $sql, array<mixed> $params, {timeout?}): Db\\Rows<T>",
-          "params": [
-            {
-              "kind": "param",
-              "name": "sql",
-              "type": "string",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            },
-            {
-              "kind": "param",
-              "name": "params",
-              "type": "array<mixed>",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            }
-          ],
-          "options": [
-            {
-              "name": "timeout",
-              "type": ""
-            }
-          ],
-          "returnType": "Db\\Rows<T>",
-          "replaces": "`PDO::FETCH_CLASS`, hand-written hydration",
-          "notes": "",
-          "qualifier": "sink (sql)",
-          "section": "18. `Core\\Db`",
-          "implemented": false,
-          "notesHtml": "",
-          "slug": "queryas",
-          "url": "/docs/core/db-queryable/queryas/"
-        },
-        {
-          "id": "Db.Queryable.execute",
-          "name": "execute",
-          "static": false,
-          "receiver": "q",
-          "generics": null,
-          "signature": "execute(string $sql, array<mixed> $params, {timeout?}): Db\\Write",
-          "params": [
-            {
-              "kind": "param",
-              "name": "sql",
-              "type": "string",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            },
-            {
-              "kind": "param",
-              "name": "params",
-              "type": "array<mixed>",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            }
-          ],
-          "options": [
-            {
-              "name": "timeout",
-              "type": ""
-            }
-          ],
-          "returnType": "Db\\Write",
-          "replaces": "`PDO::exec`, `PDOStatement::execute`, `lastInsertId`",
-          "notes": "",
-          "qualifier": "sink (sql)",
-          "section": "18. `Core\\Db`",
-          "implemented": false,
-          "notesHtml": "",
-          "slug": "execute",
-          "url": "/docs/core/db-queryable/execute/"
-        },
-        {
-          "id": "Db.Queryable.executeMany",
-          "name": "executeMany",
-          "static": false,
-          "receiver": "q",
-          "generics": null,
-          "signature": "executeMany(string $sql, array<array<mixed>> $sets, {timeout?}): uint",
-          "params": [
-            {
-              "kind": "param",
-              "name": "sql",
-              "type": "string",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            },
-            {
-              "kind": "param",
-              "name": "sets",
-              "type": "array<array<mixed>>",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            }
-          ],
-          "options": [
-            {
-              "name": "timeout",
-              "type": ""
-            }
-          ],
-          "returnType": "uint",
-          "replaces": "a loop around `PDOStatement::execute`",
-          "notes": "",
-          "qualifier": "sink (sql)",
-          "section": "18. `Core\\Db`",
-          "implemented": false,
-          "notesHtml": "",
-          "slug": "executemany",
-          "url": "/docs/core/db-queryable/executemany/"
-        },
-        {
-          "id": "Db.Queryable.stream",
-          "name": "stream",
-          "static": false,
-          "receiver": "q",
-          "generics": null,
-          "signature": "stream(string $sql, array<mixed> $params, {timeout?, chunk?: uint}): Iterable<Db\\Row>",
-          "params": [
-            {
-              "kind": "param",
-              "name": "sql",
-              "type": "string",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            },
-            {
-              "kind": "param",
-              "name": "params",
-              "type": "array<mixed>",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            }
-          ],
-          "options": [
-            {
-              "name": "timeout",
-              "type": ""
-            },
-            {
-              "name": "chunk",
-              "type": "uint"
-            }
-          ],
-          "returnType": "Iterable<Db\\Row>",
-          "replaces": "`MYSQLI_USE_RESULT`, `PDO::CURSOR_*`, `pg_query` + `pg_fetch_row`",
-          "notes": "",
-          "qualifier": "sink (sql)",
-          "section": "18. `Core\\Db`",
-          "implemented": false,
-          "notesHtml": "",
-          "slug": "stream",
-          "url": "/docs/core/db-queryable/stream/"
-        },
-        {
-          "id": "Db.Queryable.streamAs",
-          "name": "streamAs",
-          "static": false,
-          "receiver": "q",
-          "generics": "<T>",
-          "signature": "streamAs<T>(string $sql, array<mixed> $params, {timeout?, chunk?: uint}): Iterable<T>",
-          "params": [
-            {
-              "kind": "param",
-              "name": "sql",
-              "type": "string",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            },
-            {
-              "kind": "param",
-              "name": "params",
-              "type": "array<mixed>",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            }
-          ],
-          "options": [
-            {
-              "name": "timeout",
-              "type": ""
-            },
-            {
-              "name": "chunk",
-              "type": "uint"
-            }
-          ],
-          "returnType": "Iterable<T>",
-          "replaces": "—",
-          "notes": "",
-          "qualifier": "sink (sql)",
-          "section": "18. `Core\\Db`",
-          "implemented": false,
-          "notesHtml": "",
-          "slug": "streamas",
-          "url": "/docs/core/db-queryable/streamas/"
-        },
-        {
-          "id": "Db.Queryable.transaction",
-          "name": "transaction",
-          "static": false,
-          "receiver": "q",
-          "generics": null,
-          "signature": "transaction(callable $fn, {isolation?: Isolation, readOnly?: bool, retries?: uint}): T",
-          "params": [
-            {
-              "kind": "param",
-              "name": "fn",
-              "type": "callable",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            }
-          ],
-          "options": [
-            {
-              "name": "isolation",
-              "type": "Isolation"
-            },
-            {
-              "name": "readOnly",
-              "type": "bool"
-            },
-            {
-              "name": "retries",
-              "type": "uint"
-            }
-          ],
-          "returnType": "T",
-          "replaces": "`beginTransaction`/`commit`/`rollBack`, `SAVEPOINT`",
-          "notes": "",
-          "qualifier": "",
-          "section": "18. `Core\\Db`",
-          "implemented": false,
-          "notesHtml": "",
-          "slug": "transaction",
-          "url": "/docs/core/db-queryable/transaction/"
-        }
-      ],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "db-queryable",
-      "url": "/docs/core/db-queryable/",
-      "summaryHtml": "",
-      "surfaceHtml": ""
-    },
-    {
-      "id": "Db.Row",
-      "name": "Core\\Db\\Row",
-      "section": "18. `Core\\Db`",
-      "summary": "",
-      "surface": "`->has(string $name): bool` *(neutral)*, `->get(string $name): mixed`, `->toArray(): array<string, mixed>`, and the typed readers below",
-      "adrs": [],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "db-row",
-      "url": "/docs/core/db-row/",
-      "summaryHtml": "",
-      "surfaceHtml": "<code>-&gt;has(string $name): bool</code> <em>(neutral)</em>, <code>-&gt;get(string $name): mixed</code>, <code>-&gt;toArray(): array&lt;string, mixed&gt;</code>, and the typed readers below"
-    },
-    {
-      "id": "Db.Rows",
-      "name": "Core\\Db\\Rows",
-      "section": "18. `Core\\Db`",
-      "summary": "",
-      "surface": "`->all(): array<Row>`, `->first(): ?Row`, `->value(): mixed`, `->column(int|string $key): array<mixed>`, `->count(): uint`, `->columns(): array<Column>`; `Iterable<Row>`",
-      "adrs": [],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "db-rows",
-      "url": "/docs/core/db-rows/",
-      "summaryHtml": "",
-      "surfaceHtml": "<code>-&gt;all(): array&lt;Row&gt;</code>, <code>-&gt;first(): ?Row</code>, <code>-&gt;value(): mixed</code>, <code>-&gt;column(int|string $key): array&lt;mixed&gt;</code>, <code>-&gt;count(): uint</code>, <code>-&gt;columns(): array&lt;Column&gt;</code>; <code>Iterable&lt;Row&gt;</code>"
-    },
-    {
-      "id": "Db.Transaction",
-      "name": "Core\\Db\\Transaction",
-      "section": "18. `Core\\Db`",
-      "summary": "",
-      "surface": "`$t->rollBack(string $reason): void` — sets the rollback-only flag and throws `Db\\RolledBack`",
-      "adrs": [],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "db-transaction",
-      "url": "/docs/core/db-transaction/",
-      "summaryHtml": "",
-      "surfaceHtml": "<code>$t-&gt;rollBack(string $reason): void</code> — sets the rollback-only flag and throws <code>Db\\RolledBack</code>"
-    },
-    {
-      "id": "Db.Write",
-      "name": "Core\\Db\\Write",
-      "section": "18. `Core\\Db`",
-      "summary": "",
-      "surface": "readonly `affected: uint`, `changed: ?uint`, `lastId: ?uint`",
-      "adrs": [],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "db-write",
-      "url": "/docs/core/db-write/",
-      "summaryHtml": "",
-      "surfaceHtml": "readonly <code>affected: uint</code>, <code>changed: ?uint</code>, <code>lastId: ?uint</code>"
-    },
-    {
-      "id": "Debug",
-      "name": "Core\\Debug",
-      "section": "16. Network, data and crypto",
-      "summary": "",
-      "surface": "`dump(mixed ...$values)` and `render(mixed)` — replacing `var_dump`, `print_r`, `var_export`, `debug_zval_refcount` — plus the coverage, tracing and profiling controls",
-      "adrs": [
-        "0092",
-        "0018"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "debug",
-      "url": "/docs/core/debug/",
-      "summaryHtml": "",
-      "surfaceHtml": "<code>dump(mixed ...$values)</code> and <code>render(mixed)</code> — replacing <code>var_dump</code>, <code>print_r</code>, <code>var_export</code>, <code>debug_zval_refcount</code> — plus the coverage, tracing and profiling controls"
-    },
-    {
-      "id": "Decimal",
-      "name": "Core\\Decimal",
-      "section": "13. Compiler-facing surfaces",
-      "summary": "",
-      "surface": "the non-operator members of the `decimal` scalar and arbitrary-precision integers. Replaces `bcmath`, `gmp`",
-      "adrs": [
-        "0054"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "decimal",
-      "url": "/docs/core/decimal/",
-      "summaryHtml": "",
-      "surfaceHtml": "the non-operator members of the <code>decimal</code> scalar and arbitrary-precision integers. Replaces <code>bcmath</code>, <code>gmp</code>"
     },
     {
       "id": "Encoding",
@@ -3426,7 +2605,7 @@
           "notes": "",
           "qualifier": "",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "decodetext",
           "url": "/docs/core/encoding/decodetext/"
@@ -3462,7 +2641,7 @@
           "notes": "",
           "qualifier": "",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "encodetext",
           "url": "/docs/core/encoding/encodetext/"
@@ -3498,7 +2677,7 @@
           "notes": "",
           "qualifier": "neutral",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "isvalidtext",
           "url": "/docs/core/encoding/isvalidtext/"
@@ -3526,7 +2705,7 @@
           "notes": "",
           "qualifier": "",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "tobase64",
           "url": "/docs/core/encoding/tobase64/"
@@ -3554,7 +2733,7 @@
           "notes": "",
           "qualifier": "",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "tobase64url",
           "url": "/docs/core/encoding/tobase64url/"
@@ -3582,7 +2761,7 @@
           "notes": "",
           "qualifier": "",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "tohex",
           "url": "/docs/core/encoding/tohex/"
@@ -3610,7 +2789,7 @@
           "notes": "",
           "qualifier": "",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "tobase32",
           "url": "/docs/core/encoding/tobase32/"
@@ -3639,7 +2818,7 @@
           "qualifier": "",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "frombase64",
           "url": "/docs/core/encoding/frombase64/"
@@ -3668,7 +2847,7 @@
           "qualifier": "",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "frombase64url",
           "url": "/docs/core/encoding/frombase64url/"
@@ -3697,7 +2876,7 @@
           "qualifier": "",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "fromhex",
           "url": "/docs/core/encoding/fromhex/"
@@ -3726,72 +2905,18 @@
           "qualifier": "",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "frombase32",
           "url": "/docs/core/encoding/frombase32/"
         }
       ],
       "unparsed": [],
-      "implemented": false,
+      "implemented": true,
       "slug": "encoding",
       "url": "/docs/core/encoding/",
       "summaryHtml": "<p><code>Core\\Encoding</code> sits exactly at the <code>bytes</code>↔<code>string</code> boundary, which is the one place a conversion can honestly fail (<a href=\"/docs/adr/0009/\" data-adr=\"0009\">ADR 0009</a>).</p>",
       "surfaceHtml": ""
-    },
-    {
-      "id": "Env",
-      "name": "Core\\Env",
-      "section": "15. Request-facing: `Core\\Server`, `Core\\Request`, `Core\\Response`, `Core\\Session`, `Core\\Env`, `Core\\Cap`, `Core\\Cli`",
-      "summary": "",
-      "surface": "`get(string): ?tainted string`, `all()`, `mode(): Env\\Mode`, and the constants `EOL`, `OS`, `VERSION`; its one enum is `Env\\Mode` — `Production`, `Development`. Read-only — `putenv` has no equivalent, because a process-global mutation is unsound across cores. `mode` reads the run mode ([ADR 0091](../adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)); it is set through `Core\\Config`, like every other directive, and no environment variable is consulted for it.",
-      "adrs": [],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "env",
-      "url": "/docs/core/env/",
-      "summaryHtml": "",
-      "surfaceHtml": "<code>get(string): ?tainted string</code>, <code>all()</code>, <code>mode(): Env\\Mode</code>, and the constants <code>EOL</code>, <code>OS</code>, <code>VERSION</code>; its one enum is <code>Env\\Mode</code> — <code>Production</code>, <code>Development</code>. Read-only — <code>putenv</code> has no equivalent, because a process-global mutation is unsound across cores. <code>mode</code> reads the run mode (<a href=\"/docs/adr/0091/\" data-adr=\"0091\">ADR 0091</a>); it is set through <code>Core\\Config</code>, like every other directive, and no environment variable is consulted for it."
-    },
-    {
-      "id": "Error",
-      "name": "Core\\Error",
-      "section": "10. `Core\\Error` — the exception types",
-      "summary": "A small closed set on one axis. PHP's 13 SPL exception classes are not reproduced: their boundaries are\nundefined in practice, and half of the parallel `Error` tree (`TypeError`, `ArgumentCountError`, most\n`ValueError`) is unreachable because those programs do not compile.",
-      "surface": "",
-      "adrs": [],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "error",
-      "url": "/docs/core/error/",
-      "summaryHtml": "<p>A small closed set on one axis. PHP's 13 SPL exception classes are not reproduced: their boundaries are undefined in practice, and half of the parallel <code>Error</code> tree (<code>TypeError</code>, <code>ArgumentCountError</code>, most <code>ValueError</code>) is unreachable because those programs do not compile.</p>",
-      "surfaceHtml": ""
-    },
-    {
-      "id": "Fatal",
-      "name": "Core\\Fatal",
-      "section": "16. Network, data and crypto",
-      "summary": "",
-      "surface": "structured logging. `write(Log\\Level, string $message, array<string, mixed> $fields = [])`, where `Log\\Level` is `Debug`, `Info`, `Warn`, `Error`, `Critical`. Both refuse a `secret` argument at the call site — a sink on the [0033](../adr/0033-secret-qualifier-for-confidential-values.md) axis; on the `tainted` axis neither is a sink, because a field is *data* ([0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 7) and logging tainted input is the point",
-      "adrs": [
-        "0020",
-        "0092"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "fatal",
-      "url": "/docs/core/fatal/",
-      "summaryHtml": "",
-      "surfaceHtml": "structured logging. <code>write(Log\\Level, string $message, array&lt;string, mixed&gt; $fields = [])</code>, where <code>Log\\Level</code> is <code>Debug</code>, <code>Info</code>, <code>Warn</code>, <code>Error</code>, <code>Critical</code>. Both refuse a <code>secret</code> argument at the call site — a sink on the <a href=\"/docs/adr/0033/\" data-adr=\"0033\">0033</a> axis; on the <code>tainted</code> axis neither is a sink, because a field is <em>data</em> (<a href=\"/docs/adr/0088/\" data-adr=\"0088\">0088</a> § 7) and logging tainted input is the point"
     },
     {
       "id": "Hash",
@@ -3834,7 +2959,7 @@
           "notes": "",
           "qualifier": "neutral",
           "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "of",
           "url": "/docs/core/hash/of/"
@@ -3878,7 +3003,7 @@
           "notes": "",
           "qualifier": "neutral",
           "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "hmac",
           "url": "/docs/core/hash/hmac/"
@@ -3914,7 +3039,7 @@
           "notes": "",
           "qualifier": "neutral",
           "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "equals",
           "url": "/docs/core/hash/equals/"
@@ -3942,14 +3067,14 @@
           "notes": "",
           "qualifier": "",
           "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "stream",
           "url": "/docs/core/hash/stream/"
         }
       ],
       "unparsed": [],
-      "implemented": false,
+      "implemented": true,
       "slug": "hash",
       "url": "/docs/core/hash/",
       "summaryHtml": "",
@@ -3988,7 +3113,7 @@
           "notes": "",
           "qualifier": "",
           "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "update",
           "url": "/docs/core/hash-stream/update/"
@@ -4007,90 +3132,17 @@
           "notes": "",
           "qualifier": "",
           "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "finish",
           "url": "/docs/core/hash-stream/finish/"
         }
       ],
       "unparsed": [],
-      "implemented": false,
+      "implemented": true,
       "slug": "hash-stream",
       "url": "/docs/core/hash-stream/",
       "summaryHtml": "",
-      "surfaceHtml": ""
-    },
-    {
-      "id": "Heap",
-      "name": "Core\\Heap",
-      "section": "9. Collections: `Core\\ObjectMap`, `Core\\ObjectSet`, `Core\\Heap`",
-      "summary": "",
-      "surface": "`push`, `peek`, `pop`, `count`, `isEmpty`; `Iterable`",
-      "adrs": [],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "heap",
-      "url": "/docs/core/heap/",
-      "summaryHtml": "",
-      "surfaceHtml": "<code>push</code>, <code>peek</code>, <code>pop</code>, <code>count</code>, <code>isEmpty</code>; <code>Iterable</code>"
-    },
-    {
-      "id": "Html",
-      "name": "Core\\Html",
-      "section": "17. Documents and formats",
-      "summary": "",
-      "surface": "`escape` (the auto-applied launderer), `sanitize`, `Markup`",
-      "adrs": [
-        "0024"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "html",
-      "url": "/docs/core/html/",
-      "summaryHtml": "",
-      "surfaceHtml": "<code>escape</code> (the auto-applied launderer), <code>sanitize</code>, <code>Markup</code>"
-    },
-    {
-      "id": "Http.Client",
-      "name": "Core\\Http\\Client",
-      "section": "16. Network, data and crypto",
-      "summary": "",
-      "surface": "`get`, `post`, `send(Request)`, `stream`; `Core\\Http::allowUrl` is the SSRF launderer that pins an address. Replaces all ~30 `curl_*` functions and their handle. One trailing `Core\\Http\\Options` shape — `{deadline?, connectTimeout?, headers?, followRedirects?, retry?: {attempts, backoff?, idempotencyKey?}}` — with **no spelling for an unbounded wait**: `deadline` covers every attempt and every hop, retry is jittered, and `post`/`patch` with `retry` and no `idempotencyKey` is a compile error",
-      "adrs": [
-        "0058",
-        "0074"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "http-client",
-      "url": "/docs/core/http-client/",
-      "summaryHtml": "",
-      "surfaceHtml": "<code>get</code>, <code>post</code>, <code>send(Request)</code>, <code>stream</code>; <code>Core\\Http::allowUrl</code> is the SSRF launderer that pins an address. Replaces all ~30 <code>curl_*</code> functions and their handle. One trailing <code>Core\\Http\\Options</code> shape — <code>{deadline?, connectTimeout?, headers?, followRedirects?, retry?: {attempts, backoff?, idempotencyKey?}}</code> — with <strong>no spelling for an unbounded wait</strong>: <code>deadline</code> covers every attempt and every hop, retry is jittered, and <code>post</code>/<code>patch</code> with <code>retry</code> and no <code>idempotencyKey</code> is a compile error"
-    },
-    {
-      "id": "IO",
-      "name": "Core\\IO",
-      "section": "14. `Core\\IO`",
-      "summary": "Every member is an [ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) **path sink** and requires\nan `fs.read` or `fs.write` capability. `resource` is never exposed — an open file is a `Core\\IO\\File`\nobject (R14).\n\n- **Whole-file:** `read(string $path): bytes`, `readText(string $path, {charset?}): string`,\n  `write(string $path, bytes|string $data)`, `append(…)`, `lines(string $path): Iterable<string>` —\n  replacing `file_get_contents`, `file_put_contents`, `file`, `readfile`, `fpassthru`.\n- **Streaming write:** `writeStream(string $path, Iterable<bytes> $src, {max?, overwrite?})` — any stream to\n  disk in one member: an upload part, `Core\\Request::bodyStream()`, a decompressed archive. `overwrite`\n  defaults to `false`, and a write that fails mid-stream removes the partial file\n  ([ADR 0105](../adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md) § 4).\n- **Metadata:** `exists`, `isFile`, `isDir`, `isReadable`, `isWritable`, `size`, `modifiedAt`, `stat` —\n  replacing `file_exists`, `is_file`, `is_dir`, `filesize`, `filemtime`, `fileperms`, `stat`, `lstat`.\n- **Manipulation:** `copy`, `move`, `remove`, `makeDir`, `removeDir`, `list(string $path): array<string>`,\n  `walk(string $path): Iterable<string>`, `temporaryFile`, `temporaryDir` — replacing `copy`, `rename`,\n  `unlink`, `mkdir`, `rmdir`, `scandir`, `glob`, `opendir`/`readdir`/`closedir`, `tempnam`, `tmpfile`,\n  `sys_get_temp_dir`, and the `DirectoryIterator` family.\n- **Resolution:** `canonicalize(string $path): string` (`realpath`), and `within(string $base, tainted\n  string $path): string` — **the path-traversal launderer**: it resolves and then proves containment,\n  which is the check `Core\\Path::normalize` structurally cannot make.\n- **Handles:** `open(string $path, FileMode $mode): File`; `$file->read`, `->readLine`, `->write`,\n  `->seek`, `->tell`, `->truncate`, `->flush`, `->lock`, `->close`. `FileMode` is an enum, never a\n  mode string (R11) — replacing `fopen`'s `\"r+b\"` grammar and the whole `fread`/`fgets`/`fwrite`/`fseek`/\n  `ftell`/`feof`/`flock`/`fstat` family plus `SplFileObject`.\n- **Standard streams:** `IO::stdin()`, `IO::stdout()`, `IO::stderr()`.\n\nNo stream wrappers, no `php://`, no `phar://`, no user-registered protocols\n([ADR 0052](../adr/0052-closed-doors.md)).",
-      "surface": "",
-      "adrs": [],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "io",
-      "url": "/docs/core/io/",
-      "summaryHtml": "<p>Every member is an <a href=\"/docs/adr/0024/\" data-adr=\"0024\">ADR 0024</a> <strong>path sink</strong> and requires an <code>fs.read</code> or <code>fs.write</code> capability. <code>resource</code> is never exposed — an open file is a <code>Core\\IO\\File</code> object (R14).</p>\n<ul><li><strong>Whole-file:</strong> <code>read(string $path): bytes</code>, <code>readText(string $path, {charset?}): string</code>, <code>write(string $path, bytes|string $data)</code>, <code>append(…)</code>, <code>lines(string $path): Iterable&lt;string&gt;</code> — replacing <code>file_get_contents</code>, <code>file_put_contents</code>, <code>file</code>, <code>readfile</code>, <code>fpassthru</code>.</li><li><strong>Streaming write:</strong> <code>writeStream(string $path, Iterable&lt;bytes&gt; $src, {max?, overwrite?})</code> — any stream to disk in one member: an upload part, <code>Core\\Request::bodyStream()</code>, a decompressed archive. <code>overwrite</code> defaults to <code>false</code>, and a write that fails mid-stream removes the partial file (<a href=\"/docs/adr/0105/\" data-adr=\"0105\">ADR 0105</a> § 4).</li><li><strong>Metadata:</strong> <code>exists</code>, <code>isFile</code>, <code>isDir</code>, <code>isReadable</code>, <code>isWritable</code>, <code>size</code>, <code>modifiedAt</code>, <code>stat</code> — replacing <code>file_exists</code>, <code>is_file</code>, <code>is_dir</code>, <code>filesize</code>, <code>filemtime</code>, <code>fileperms</code>, <code>stat</code>, <code>lstat</code>.</li><li><strong>Manipulation:</strong> <code>copy</code>, <code>move</code>, <code>remove</code>, <code>makeDir</code>, <code>removeDir</code>, <code>list(string $path): array&lt;string&gt;</code>, <code>walk(string $path): Iterable&lt;string&gt;</code>, <code>temporaryFile</code>, <code>temporaryDir</code> — replacing <code>copy</code>, <code>rename</code>, <code>unlink</code>, <code>mkdir</code>, <code>rmdir</code>, <code>scandir</code>, <code>glob</code>, <code>opendir</code>/<code>readdir</code>/<code>closedir</code>, <code>tempnam</code>, <code>tmpfile</code>, <code>sys_get_temp_dir</code>, and the <code>DirectoryIterator</code> family.</li><li><strong>Resolution:</strong> <code>canonicalize(string $path): string</code> (<code>realpath</code>), and <code>within(string $base, tainted string $path): string</code> — <strong>the path-traversal launderer</strong>: it resolves and then proves containment, which is the check <code>Core\\Path::normalize</code> structurally cannot make.</li><li><strong>Handles:</strong> <code>open(string $path, FileMode $mode): File</code>; <code>$file-&gt;read</code>, <code>-&gt;readLine</code>, <code>-&gt;write</code>, <code>-&gt;seek</code>, <code>-&gt;tell</code>, <code>-&gt;truncate</code>, <code>-&gt;flush</code>, <code>-&gt;lock</code>, <code>-&gt;close</code>. <code>FileMode</code> is an enum, never a mode string (R11) — replacing <code>fopen</code>'s <code>&quot;r+b&quot;</code> grammar and the whole <code>fread</code>/<code>fgets</code>/<code>fwrite</code>/<code>fseek</code>/ <code>ftell</code>/<code>feof</code>/<code>flock</code>/<code>fstat</code> family plus <code>SplFileObject</code>.</li><li><strong>Standard streams:</strong> <code>IO::stdin()</code>, <code>IO::stdout()</code>, <code>IO::stderr()</code>.</li></ul>\n<p>No stream wrappers, no <code>php://</code>, no <code>phar://</code>, no user-registered protocols (<a href=\"/docs/adr/0052/\" data-adr=\"0052\">ADR 0052</a>).</p>",
       "surfaceHtml": ""
     },
     {
@@ -4241,64 +3293,6 @@
       "url": "/docs/core/json/",
       "summaryHtml": "",
       "surfaceHtml": ""
-    },
-    {
-      "id": "Jwt",
-      "name": "Core\\Jwt",
-      "section": "16. Network, data and crypto",
-      "summary": "",
-      "surface": "the closed four-entry roster; a JWT's algorithm comes from the key, never the token",
-      "adrs": [
-        "0060"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "jwt",
-      "url": "/docs/core/jwt/",
-      "summaryHtml": "",
-      "surfaceHtml": "the closed four-entry roster; a JWT's algorithm comes from the key, never the token"
-    },
-    {
-      "id": "Log",
-      "name": "Core\\Log",
-      "section": "16. Network, data and crypto",
-      "summary": "",
-      "surface": "structured logging. `write(Log\\Level, string $message, array<string, mixed> $fields = [])`, where `Log\\Level` is `Debug`, `Info`, `Warn`, `Error`, `Critical`. Both refuse a `secret` argument at the call site — a sink on the [0033](../adr/0033-secret-qualifier-for-confidential-values.md) axis; on the `tainted` axis neither is a sink, because a field is *data* ([0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 7) and logging tainted input is the point",
-      "adrs": [
-        "0020",
-        "0092"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "log",
-      "url": "/docs/core/log/",
-      "summaryHtml": "",
-      "surfaceHtml": "structured logging. <code>write(Log\\Level, string $message, array&lt;string, mixed&gt; $fields = [])</code>, where <code>Log\\Level</code> is <code>Debug</code>, <code>Info</code>, <code>Warn</code>, <code>Error</code>, <code>Critical</code>. Both refuse a <code>secret</code> argument at the call site — a sink on the <a href=\"/docs/adr/0033/\" data-adr=\"0033\">0033</a> axis; on the <code>tainted</code> axis neither is a sink, because a field is <em>data</em> (<a href=\"/docs/adr/0088/\" data-adr=\"0088\">0088</a> § 7) and logging tainted input is the point"
-    },
-    {
-      "id": "Mail",
-      "name": "Core\\Mail",
-      "section": "16. Network, data and crypto",
-      "summary": "",
-      "surface": "an SMTP client with structured headers. Replaces `mail()`",
-      "adrs": [
-        "0051"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "mail",
-      "url": "/docs/core/mail/",
-      "summaryHtml": "",
-      "surfaceHtml": "an SMTP client with structured headers. Replaces <code>mail()</code>"
     },
     {
       "id": "Math",
@@ -5537,114 +4531,6 @@
       "surfaceHtml": ""
     },
     {
-      "id": "Metrics",
-      "name": "Core\\Metrics",
-      "section": "16. Network, data and crypto",
-      "summary": "",
-      "surface": "`increment(string $name, {by?, labels?})`, `observe(string $name, float $value, {labels?})`, `gauge(…)`. A `labels` **value** is a `tainted` sink with no launderer — label by an enum, an `as`-converted scalar or a route name",
-      "adrs": [
-        "0076"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "metrics",
-      "url": "/docs/core/metrics/",
-      "summaryHtml": "",
-      "surfaceHtml": "<code>increment(string $name, {by?, labels?})</code>, <code>observe(string $name, float $value, {labels?})</code>, <code>gauge(…)</code>. A <code>labels</code> <strong>value</strong> is a <code>tainted</code> sink with no launderer — label by an enum, an <code>as</code>-converted scalar or a route name"
-    },
-    {
-      "id": "Mime",
-      "name": "Core\\Mime",
-      "section": "17. Documents and formats",
-      "summary": "",
-      "surface": "type detection by magic bytes, not by libmagic's rule interpreter",
-      "adrs": [],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "mime",
-      "url": "/docs/core/mime/",
-      "summaryHtml": "",
-      "surfaceHtml": "type detection by magic bytes, not by libmagic's rule interpreter"
-    },
-    {
-      "id": "Net",
-      "name": "Core\\Net",
-      "section": "16. Network, data and crypto",
-      "summary": "",
-      "surface": "TCP/UDP/Unix sockets over the runtime's own reactor. Replaces `socket_*`, `stream_socket_*`, `fsockopen` — three PHP APIs for one job",
-      "adrs": [
-        "0051"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "net",
-      "url": "/docs/core/net/",
-      "summaryHtml": "",
-      "surfaceHtml": "TCP/UDP/Unix sockets over the runtime's own reactor. Replaces <code>socket_<em></code>, <code>stream_socket_</em></code>, <code>fsockopen</code> — three PHP APIs for one job"
-    },
-    {
-      "id": "ObjectMap",
-      "name": "Core\\ObjectMap",
-      "section": "9. Collections: `Core\\ObjectMap`, `Core\\ObjectSet`, `Core\\Heap`",
-      "summary": "`array<T>` is list, stack, queue and dictionary, so `SplStack`, `SplQueue`, `SplDoublyLinkedList`,\n`SplFixedArray`, `ArrayObject` and `ArrayIterator` are dropped as restatements of it. These three survive\nbecause an insertion-ordered `int|string`-keyed hash cannot express them\n([ADR 0063 § 4](../adr/0063-core-api-conventions.md)).",
-      "surface": "`set`, `get`, `has`, `remove`, `count`, `isEmpty`, `keys`, `values`, `clear`; `Iterable`",
-      "adrs": [],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "objectmap",
-      "url": "/docs/core/objectmap/",
-      "summaryHtml": "<p><code>array&lt;T&gt;</code> is list, stack, queue and dictionary, so <code>SplStack</code>, <code>SplQueue</code>, <code>SplDoublyLinkedList</code>, <code>SplFixedArray</code>, <code>ArrayObject</code> and <code>ArrayIterator</code> are dropped as restatements of it. These three survive because an insertion-ordered <code>int|string</code>-keyed hash cannot express them (<a href=\"/docs/adr/0063/\" data-adr=\"0063\">ADR 0063 § 4</a>).</p>",
-      "surfaceHtml": "<code>set</code>, <code>get</code>, <code>has</code>, <code>remove</code>, <code>count</code>, <code>isEmpty</code>, <code>keys</code>, <code>values</code>, <code>clear</code>; <code>Iterable</code>"
-    },
-    {
-      "id": "ObjectSet",
-      "name": "Core\\ObjectSet",
-      "section": "9. Collections: `Core\\ObjectMap`, `Core\\ObjectSet`, `Core\\Heap`",
-      "summary": "",
-      "surface": "`add`, `has`, `remove`, `count`, `isEmpty`, `union`, `intersect`, `diff`, `clear`; `Iterable`",
-      "adrs": [],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "objectset",
-      "url": "/docs/core/objectset/",
-      "summaryHtml": "",
-      "surfaceHtml": "<code>add</code>, <code>has</code>, <code>remove</code>, <code>count</code>, <code>isEmpty</code>, <code>union</code>, <code>intersect</code>, <code>diff</code>, <code>clear</code>; <code>Iterable</code>"
-    },
-    {
-      "id": "Os",
-      "name": "Core\\Os",
-      "section": "16. Network, data and crypto",
-      "summary": "",
-      "surface": "process and host facts (`pid`, `hostname`, `cpuCount`, `memoryUsage`, `loadAverage`). Replaces `posix_*` minus fork, `php_uname`, `memory_get_usage`, `getrusage`, `sys_getloadavg`",
-      "adrs": [
-        "0051"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "os",
-      "url": "/docs/core/os/",
-      "summaryHtml": "",
-      "surfaceHtml": "process and host facts (<code>pid</code>, <code>hostname</code>, <code>cpuCount</code>, <code>memoryUsage</code>, <code>loadAverage</code>). Replaces <code>posix_*</code> minus fork, <code>php_uname</code>, <code>memory_get_usage</code>, <code>getrusage</code>, <code>sys_getloadavg</code>"
-    },
-    {
       "id": "Out",
       "name": "Core\\Out",
       "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
@@ -5682,37 +4568,18 @@
           "notes": "",
           "qualifier": "",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "capture",
           "url": "/docs/core/out/capture/"
         }
       ],
       "unparsed": [],
-      "implemented": false,
+      "implemented": true,
       "slug": "out",
       "url": "/docs/core/out/",
       "summaryHtml": "",
       "surfaceHtml": ""
-    },
-    {
-      "id": "Password",
-      "name": "Core\\Password",
-      "section": "16. Network, data and crypto",
-      "summary": "",
-      "surface": "`hash(secret string): string`, `verify(secret string, string): bool`, `needsRehash(string): bool` — **no algorithm argument**. Replaces `password_hash`, `password_verify`, `crypt`",
-      "adrs": [
-        "0063"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "password",
-      "url": "/docs/core/password/",
-      "summaryHtml": "",
-      "surfaceHtml": "<code>hash(secret string): string</code>, <code>verify(secret string, string): bool</code>, <code>needsRehash(string): bool</code> — <strong>no algorithm argument</strong>. Replaces <code>password_hash</code>, <code>password_verify</code>, <code>crypt</code>"
     },
     {
       "id": "Path",
@@ -6021,44 +4888,6 @@
       "surfaceHtml": ""
     },
     {
-      "id": "Process",
-      "name": "Core\\Process",
-      "section": "16. Network, data and crypto",
-      "summary": "",
-      "surface": "`run`, `spawn` — argv only, never a shell string",
-      "adrs": [
-        "0044"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "process",
-      "url": "/docs/core/process/",
-      "summaryHtml": "",
-      "surfaceHtml": "<code>run</code>, <code>spawn</code> — argv only, never a shell string"
-    },
-    {
-      "id": "Program",
-      "name": "Core\\Program",
-      "section": "13. Compiler-facing surfaces",
-      "summary": "",
-      "surface": "`implementing<T>()`",
-      "adrs": [
-        "0061"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "program",
-      "url": "/docs/core/program/",
-      "summaryHtml": "",
-      "surfaceHtml": "<code>implementing&lt;T&gt;()</code>"
-    },
-    {
       "id": "Random",
       "name": "Core\\Random",
       "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
@@ -6278,44 +5107,6 @@
       "url": "/docs/core/random/",
       "summaryHtml": "<p><code>Core\\Random</code> is a CSPRNG, always — PHP's <code>rand</code>/<code>mt_rand</code>/<code>shuffle</code>/<code>str_shuffle</code>/<code>array_rand</code> and its newer <code>Random\\Randomizer</code> OOP twin all collapse into it, and none of the insecure generators survives under any name.</p>",
       "surfaceHtml": ""
-    },
-    {
-      "id": "RateLimit",
-      "name": "Core\\RateLimit",
-      "section": "16. Network, data and crypto",
-      "summary": "",
-      "surface": "`consume(tainted string $key, uint $limit, Duration $per, {burst?, cost?}): RateLimit\\Decision` over the shared store, and `shed(…)` per core and approximate. `Decision` is readonly `allowed: bool`, `limit: uint`, `remaining: uint`, `retryAfter: ?Duration`. Both **neutral**; a `secret` key is refused; an unreachable store throws",
-      "adrs": [
-        "0075"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "ratelimit",
-      "url": "/docs/core/ratelimit/",
-      "summaryHtml": "",
-      "surfaceHtml": "<code>consume(tainted string $key, uint $limit, Duration $per, {burst?, cost?}): RateLimit\\Decision</code> over the shared store, and <code>shed(…)</code> per core and approximate. <code>Decision</code> is readonly <code>allowed: bool</code>, <code>limit: uint</code>, <code>remaining: uint</code>, <code>retryAfter: ?Duration</code>. Both <strong>neutral</strong>; a <code>secret</code> key is refused; an unreachable store throws"
-    },
-    {
-      "id": "Reflect",
-      "name": "Core\\Reflect",
-      "section": "13. Compiler-facing surfaces",
-      "summary": "",
-      "surface": "`forClass`, `forObject`, `typeOf(mixed): TypeKind`, and the visibility-respecting walk. Replaces `ReflectionClass` **and** `get_class`, `get_object_vars`, `get_class_methods`, `method_exists`, `property_exists`, `class_exists`, `is_a`, `is_subclass_of`, `class_implements`, `spl_object_id`",
-      "adrs": [
-        "0019"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "reflect",
-      "url": "/docs/core/reflect/",
-      "summaryHtml": "",
-      "surfaceHtml": "<code>forClass</code>, <code>forObject</code>, <code>typeOf(mixed): TypeKind</code>, and the visibility-respecting walk. Replaces <code>ReflectionClass</code> <strong>and</strong> <code>get_class</code>, <code>get_object_vars</code>, <code>get_class_methods</code>, <code>method_exists</code>, <code>property_exists</code>, <code>class_exists</code>, <code>is_a</code>, <code>is_subclass_of</code>, <code>class_implements</code>, <code>spl_object_id</code>"
     },
     {
       "id": "Regex",
@@ -6697,7 +5488,7 @@
           "notes": "one group's text; `null` where the pattern declares it and this match did not reach it, and a **throw** for a group the pattern does not declare",
           "qualifier": "",
           "section": "5. `Core\\Regex`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "one group's text; <code>null</code> where the pattern declares it and this match did not reach it, and a <strong>throw</strong> for a group the pattern does not declare",
           "slug": "group",
           "url": "/docs/core/regex-match/group/"
@@ -6716,7 +5507,7 @@
           "notes": "every group at once, in `preg_match`'s own order: a named group under its name, then under its number",
           "qualifier": "",
           "section": "5. `Core\\Regex`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "every group at once, in <code>preg_match</code>'s own order: a named group under its name, then under its number",
           "slug": "groups",
           "url": "/docs/core/regex-match/groups/"
@@ -6735,7 +5526,7 @@
           "notes": "where the whole match starts, in [ADR 0009](../adr/0009-string-and-bytes.md) § 2's unit — not `PREG_OFFSET_CAPTURE`'s bytes",
           "qualifier": "",
           "section": "5. `Core\\Regex`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "where the whole match starts, in <a href=\"/docs/adr/0009/\" data-adr=\"0009\">ADR 0009</a> § 2's unit — not <code>PREG_OFFSET_CAPTURE</code>'s bytes",
           "slug": "offset",
           "url": "/docs/core/regex-match/offset/"
@@ -6754,163 +5545,18 @@
           "notes": "the whole match, which is group `0`",
           "qualifier": "",
           "section": "5. `Core\\Regex`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "the whole match, which is group <code>0</code>",
           "slug": "text",
           "url": "/docs/core/regex-match/text/"
         }
       ],
       "unparsed": [],
-      "implemented": false,
+      "implemented": true,
       "slug": "regex-match",
       "url": "/docs/core/regex-match/",
       "summaryHtml": "",
       "surfaceHtml": ""
-    },
-    {
-      "id": "Request",
-      "name": "Core\\Request",
-      "section": "15. Request-facing: `Core\\Server`, `Core\\Request`, `Core\\Response`, `Core\\Session`, `Core\\Env`, `Core\\Cap`, `Core\\Cli`",
-      "summary": "",
-      "surface": "`method`, `path`, `query`, `body`, `bodyStream`, `header`, `headers`, `cookie`, `files`, `clientIp`, `scheme`, `host`, `mount`, `route`, `isHead` — replacing `$_GET`, `$_POST`, `$_FILES`, `$_COOKIE`, `$_REQUEST`, `filter_input`. `path` is the request path with the matched mount's prefix **removed** and `mount(): {prefix, captures}` is what was removed together with that mount's glob captures, `tainted`, which is how a host-mounted deployment learns which tenant it serves; `route(): ?Router\\Match` is the match the server made once before the handler, and is what the CSRF check and the `route` metric label read ([0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)); `method` reports `Get` for a `HEAD` request so a `Get`-only route table still matches, with `isHead` carrying the truth; `clientIp` and `scheme` are resolved from the socket peer unless a peer in `[server] trusted_proxies` asserted otherwise; `files(): Iterable<Part>` is the **only** way to receive an uploaded file and yields parts lazily, each carrying `name`, a `tainted` `filename` that is never a path and a `tainted` `contentType`, and consumed by `readAll({max?}): tainted bytes`, by iterating `content: Iterable<bytes>`, or by `saveTo(string $path, {max?, overwrite?})` — there is no temp path, no `move_uploaded_file` and no `size` ([ADR 0105](../adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)); a multipart form's non-file parts are buffered into `post()` as usual; and `bodyStream(): Iterable<bytes>` is the raw-body alternative to `body`, exclusive with it and with `files` on one request ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md) §§ 3, 6, 7, 8).",
-      "adrs": [],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "request",
-      "url": "/docs/core/request/",
-      "summaryHtml": "",
-      "surfaceHtml": "<code>method</code>, <code>path</code>, <code>query</code>, <code>body</code>, <code>bodyStream</code>, <code>header</code>, <code>headers</code>, <code>cookie</code>, <code>files</code>, <code>clientIp</code>, <code>scheme</code>, <code>host</code>, <code>mount</code>, <code>route</code>, <code>isHead</code> — replacing <code>$_GET</code>, <code>$_POST</code>, <code>$_FILES</code>, <code>$_COOKIE</code>, <code>$_REQUEST</code>, <code>filter_input</code>. <code>path</code> is the request path with the matched mount's prefix <strong>removed</strong> and <code>mount(): {prefix, captures}</code> is what was removed together with that mount's glob captures, <code>tainted</code>, which is how a host-mounted deployment learns which tenant it serves; <code>route(): ?Router\\Match</code> is the match the server made once before the handler, and is what the CSRF check and the <code>route</code> metric label read (<a href=\"/docs/adr/0102/\" data-adr=\"0102\">0102</a>); <code>method</code> reports <code>Get</code> for a <code>HEAD</code> request so a <code>Get</code>-only route table still matches, with <code>isHead</code> carrying the truth; <code>clientIp</code> and <code>scheme</code> are resolved from the socket peer unless a peer in <code>[server] trusted_proxies</code> asserted otherwise; <code>files(): Iterable&lt;Part&gt;</code> is the <strong>only</strong> way to receive an uploaded file and yields parts lazily, each carrying <code>name</code>, a <code>tainted</code> <code>filename</code> that is never a path and a <code>tainted</code> <code>contentType</code>, and consumed by <code>readAll({max?}): tainted bytes</code>, by iterating <code>content: Iterable&lt;bytes&gt;</code>, or by <code>saveTo(string $path, {max?, overwrite?})</code> — there is no temp path, no <code>move_uploaded_file</code> and no <code>size</code> (<a href=\"/docs/adr/0105/\" data-adr=\"0105\">ADR 0105</a>); a multipart form's non-file parts are buffered into <code>post()</code> as usual; and <code>bodyStream(): Iterable&lt;bytes&gt;</code> is the raw-body alternative to <code>body</code>, exclusive with it and with <code>files</code> on one request (<a href=\"/docs/adr/0097/\" data-adr=\"0097\">ADR 0097</a> §§ 3, 6, 7, 8)."
-    },
-    {
-      "id": "Response",
-      "name": "Core\\Response",
-      "section": "15. Request-facing: `Core\\Server`, `Core\\Request`, `Core\\Response`, `Core\\Session`, `Core\\Env`, `Core\\Cap`, `Core\\Cli`",
-      "summary": "",
-      "surface": "`setStatus`, `setHeader`, `addCookie`, `redirect`, and the five body members `html(Core\\Html\\Markup)`, `json(mixed)`, `text(string)`, `bytes(bytes, string $contentType)`, `sendFile(…)` — replacing `header`, `headers_sent`, `setcookie`, `setrawcookie`, `http_response_code`. `setHeader` is a header **sink** and overrides a policy-owned header on one response; `addCookie`'s options shape defaults every field from `[http.cookies]`, so a cookie written with no options is `Secure; HttpOnly; SameSite=Lax; Path=/` and `SameSite` is an enum, never a string ([ADR 0074](../adr/0074-http-defaults-safe-and-finite.md)). **One body member per shape, each setting its own `Content-Type`**, replacing a single `write`: `json` serializes the value itself so a tainted one is safe, `text` accepts tainted because `nosniff` is on by default, and `bytes`' content type is a sink. `echo` is the sixth, HTML-only path, and mixing it with any of the five on one response is a compile error ([ADR 0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 4).",
-      "adrs": [],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "response",
-      "url": "/docs/core/response/",
-      "summaryHtml": "",
-      "surfaceHtml": "<code>setStatus</code>, <code>setHeader</code>, <code>addCookie</code>, <code>redirect</code>, and the five body members <code>html(Core\\Html\\Markup)</code>, <code>json(mixed)</code>, <code>text(string)</code>, <code>bytes(bytes, string $contentType)</code>, <code>sendFile(…)</code> — replacing <code>header</code>, <code>headers_sent</code>, <code>setcookie</code>, <code>setrawcookie</code>, <code>http_response_code</code>. <code>setHeader</code> is a header <strong>sink</strong> and overrides a policy-owned header on one response; <code>addCookie</code>'s options shape defaults every field from <code>[http.cookies]</code>, so a cookie written with no options is <code>Secure; HttpOnly; SameSite=Lax; Path=/</code> and <code>SameSite</code> is an enum, never a string (<a href=\"/docs/adr/0074/\" data-adr=\"0074\">ADR 0074</a>). <strong>One body member per shape, each setting its own <code>Content-Type</code></strong>, replacing a single <code>write</code>: <code>json</code> serializes the value itself so a tainted one is safe, <code>text</code> accepts tainted because <code>nosniff</code> is on by default, and <code>bytes</code>' content type is a sink. <code>echo</code> is the sixth, HTML-only path, and mixing it with any of the five on one response is a compile error (<a href=\"/docs/adr/0088/\" data-adr=\"0088\">ADR 0088</a> § 4)."
-    },
-    {
-      "id": "Router",
-      "name": "Core\\Router",
-      "section": "13. Compiler-facing surfaces",
-      "summary": "",
-      "surface": "`match(Http\\Method, tainted string): ?Router\\Match`, `methodsFor(tainted string): array<Http\\Method>` (empty ⇒ 404, else 405 + `Allow:`), `url(string $name, array<string, mixed>): string` (**launder**, URL path) and `urlAbsolute(...)` (**launder**, URL — prepends the mount's configured `origin`), over a table built while compiling from `#[Route]`. The server matches once per request and `Core\\Request::route()` is that match. A duplicate route, a `{param}` with no matching method parameter, an unknown literal `url()` name and a `url()` key that is neither a capture nor a declared `#[Query]` parameter are compile errors",
-      "adrs": [
-        "0077",
-        "0102"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "router",
-      "url": "/docs/core/router/",
-      "summaryHtml": "",
-      "surfaceHtml": "<code>match(Http\\Method, tainted string): ?Router\\Match</code>, <code>methodsFor(tainted string): array&lt;Http\\Method&gt;</code> (empty ⇒ 404, else 405 + <code>Allow:</code>), <code>url(string $name, array&lt;string, mixed&gt;): string</code> (<strong>launder</strong>, URL path) and <code>urlAbsolute(...)</code> (<strong>launder</strong>, URL — prepends the mount's configured <code>origin</code>), over a table built while compiling from <code>#[Route]</code>. The server matches once per request and <code>Core\\Request::route()</code> is that match. A duplicate route, a <code>{param}</code> with no matching method parameter, an unknown literal <code>url()</code> name and a <code>url()</code> key that is neither a capture nor a declared <code>#[Query]</code> parameter are compile errors"
-    },
-    {
-      "id": "Serialize",
-      "name": "Core\\Serialize",
-      "section": "13. Compiler-facing surfaces",
-      "summary": "",
-      "surface": "`encode(mixed $value): bytes` and `decode(bytes $data): mixed` — the user-facing half of the one graph-copy operation the `spawn` boundary already runs. `decode` is a **`tainted` sink**. Replaces `serialize`, `unserialize`",
-      "adrs": [
-        "0023"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": true,
-      "slug": "serialize",
-      "url": "/docs/core/serialize/",
-      "summaryHtml": "",
-      "surfaceHtml": "<code>encode(mixed $value): bytes</code> and <code>decode(bytes $data): mixed</code> — the user-facing half of the one graph-copy operation the <code>spawn</code> boundary already runs. <code>decode</code> is a <strong><code>tainted</code> sink</strong>. Replaces <code>serialize</code>, <code>unserialize</code>"
-    },
-    {
-      "id": "Server",
-      "name": "Core\\Server",
-      "section": "15. Request-facing: `Core\\Server`, `Core\\Request`, `Core\\Response`, `Core\\Session`, `Core\\Env`, `Core\\Cap`, `Core\\Cli`",
-      "summary": "These replace PHP's superglobals ([ADR 0012](../adr/0012-no-superglobals.md)); every value they return that\noriginates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md)).\n\n- `Core\\Request`: `method`, `path`, `query`, `body`, `bodyStream`, `header`, `headers`, `cookie`, `files`,\n- `Core\\Response`: `setStatus`, `setHeader`, `addCookie`, `redirect`, and the five body members\n- `Core\\Server`: the request's own environment — replacing `$_SERVER` — plus `traceId(): string`, which is\n- `Core\\Session`: `get`, `set`, `remove`, `clear`, `regenerate`, `destroy` — replacing all ~25 `session_*`\n- `Core\\Env`: `get(string): ?tainted string`, `all()`, `mode(): Env\\Mode`, and the constants `EOL`, `OS`,\n- `Core\\Cap`: `has(string $capability): bool`, and nothing else. Reports whether the **calling namespace**\n- `Core\\Cli`: the terminal surface, owned by [ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md) —",
-      "surface": "the request's own environment — replacing `$_SERVER` — plus `traceId(): string`, which is present on every request whether or not the trace is sampled and is Novis's only request identifier ([ADR 0076](../adr/0076-observability-export.md)), and `isDraining(): bool`, true once graceful shutdown has begun ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md) § 5).",
-      "adrs": [],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "server",
-      "url": "/docs/core/server/",
-      "summaryHtml": "<p>These replace PHP's superglobals (<a href=\"/docs/adr/0012/\" data-adr=\"0012\">ADR 0012</a>); every value they return that originates outside the process is <code>tainted</code> (<a href=\"/docs/adr/0024/\" data-adr=\"0024\">ADR 0024</a>).</p>\n<ul><li><code>Core\\Request</code>: <code>method</code>, <code>path</code>, <code>query</code>, <code>body</code>, <code>bodyStream</code>, <code>header</code>, <code>headers</code>, <code>cookie</code>, <code>files</code>,</li><li><code>Core\\Response</code>: <code>setStatus</code>, <code>setHeader</code>, <code>addCookie</code>, <code>redirect</code>, and the five body members</li><li><code>Core\\Server</code>: the request's own environment — replacing <code>$_SERVER</code> — plus <code>traceId(): string</code>, which is</li><li><code>Core\\Session</code>: <code>get</code>, <code>set</code>, <code>remove</code>, <code>clear</code>, <code>regenerate</code>, <code>destroy</code> — replacing all ~25 <code>session_*</code></li><li><code>Core\\Env</code>: <code>get(string): ?tainted string</code>, <code>all()</code>, <code>mode(): Env\\Mode</code>, and the constants <code>EOL</code>, <code>OS</code>,</li><li><code>Core\\Cap</code>: <code>has(string $capability): bool</code>, and nothing else. Reports whether the <strong>calling namespace</strong></li><li><code>Core\\Cli</code>: the terminal surface, owned by <a href=\"/docs/adr/0086/\" data-adr=\"0086\">ADR 0086</a> —</li></ul>",
-      "surfaceHtml": "the request's own environment — replacing <code>$_SERVER</code> — plus <code>traceId(): string</code>, which is present on every request whether or not the trace is sampled and is Novis's only request identifier (<a href=\"/docs/adr/0076/\" data-adr=\"0076\">ADR 0076</a>), and <code>isDraining(): bool</code>, true once graceful shutdown has begun (<a href=\"/docs/adr/0097/\" data-adr=\"0097\">ADR 0097</a> § 5)."
-    },
-    {
-      "id": "Session",
-      "name": "Core\\Session",
-      "section": "15. Request-facing: `Core\\Server`, `Core\\Request`, `Core\\Response`, `Core\\Session`, `Core\\Env`, `Core\\Cap`, `Core\\Cli`",
-      "summary": "",
-      "surface": "`get`, `set`, `remove`, `clear`, `regenerate`, `destroy` — replacing all ~25 `session_*` functions. May not use `Core\\Cache` ([ADR 0059](../adr/0059-cross-request-state-is-explicit.md)).",
-      "adrs": [],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "session",
-      "url": "/docs/core/session/",
-      "summaryHtml": "",
-      "surfaceHtml": "<code>get</code>, <code>set</code>, <code>remove</code>, <code>clear</code>, <code>regenerate</code>, <code>destroy</code> — replacing all ~25 <code>session_*</code> functions. May not use <code>Core\\Cache</code> (<a href=\"/docs/adr/0059/\" data-adr=\"0059\">ADR 0059</a>)."
-    },
-    {
-      "id": "Signal",
-      "name": "Core\\Signal",
-      "section": "16. Network, data and crypto",
-      "summary": "",
-      "surface": "graceful shutdown only. What remains of `pcntl_*` after `fork` is refused",
-      "adrs": [
-        "0051"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "signal",
-      "url": "/docs/core/signal/",
-      "summaryHtml": "",
-      "surfaceHtml": "graceful shutdown only. What remains of <code>pcntl_*</code> after <code>fork</code> is refused"
-    },
-    {
-      "id": "SignedCookie",
-      "name": "Core\\SignedCookie",
-      "section": "16. Network, data and crypto",
-      "summary": "",
-      "surface": "the closed four-entry roster; a JWT's algorithm comes from the key, never the token",
-      "adrs": [
-        "0060"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "signedcookie",
-      "url": "/docs/core/signedcookie/",
-      "summaryHtml": "",
-      "surfaceHtml": "the closed four-entry roster; a JWT's algorithm comes from the key, never the token"
     },
     {
       "id": "Str",
@@ -8389,7 +7035,7 @@
           "notes": "",
           "qualifier": "",
           "section": "19. `Core\\Task`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "all",
           "url": "/docs/core/task/all/"
@@ -8434,70 +7080,18 @@
           "notes": "",
           "qualifier": "",
           "section": "19. `Core\\Task`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "map",
           "url": "/docs/core/task/map/"
-        },
-        {
-          "id": "Task.afterResponse",
-          "name": "afterResponse",
-          "static": true,
-          "receiver": null,
-          "generics": null,
-          "signature": "afterResponse(callable $fn, {deadline?: Duration}): void",
-          "params": [
-            {
-              "kind": "param",
-              "name": "fn",
-              "type": "callable",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            }
-          ],
-          "options": [
-            {
-              "name": "deadline",
-              "type": "Duration"
-            }
-          ],
-          "returnType": "void",
-          "replaces": "`fastcgi_finish_request`",
-          "notes": "",
-          "qualifier": "",
-          "section": "19. `Core\\Task`",
-          "implemented": false,
-          "notesHtml": "",
-          "slug": "afterresponse",
-          "url": "/docs/core/task/afterresponse/"
         }
       ],
       "unparsed": [],
-      "implemented": false,
+      "implemented": true,
       "slug": "task",
       "url": "/docs/core/task/",
       "summaryHtml": "<p>Semantics are <a href=\"/docs/adr/0072/\" data-adr=\"0072\">ADR 0072</a> — what cancellation does and does not run, why control never leaves a call with work still running, and the <code>[deferred]</code> bound. This section owns the signatures only. Nothing here needs a capability; it needs the M5 scheduler, which is why it sits in Part II and lands at <strong>M5</strong> rather than M8.</p>",
       "surfaceHtml": "§ 19 below — <code>all</code>, <code>map</code>, <code>afterResponse</code>"
-    },
-    {
-      "id": "Test",
-      "name": "Core\\Test",
-      "section": "13. Compiler-facing surfaces",
-      "summary": "",
-      "surface": "the assertion roster — `assertSame`/`assertEquals<T>`/`assertEqualsDeep`, `assertTrue`, `assertNull`, `assertCount`, `assertContains`, `assertThrows`, `assertDoesNotThrow`, `expectFailure` — plus `double<T>`/`partial<T>`, `assertCalled`/`assertNeverCalled`, `advance`, `assertCompletes`, `assertMatchesInline` and `request`. Every one is subject-first and generic where it compares",
-      "adrs": [
-        "0079"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "test",
-      "url": "/docs/core/test/",
-      "summaryHtml": "",
-      "surfaceHtml": "the assertion roster — <code>assertSame</code>/<code>assertEquals&lt;T&gt;</code>/<code>assertEqualsDeep</code>, <code>assertTrue</code>, <code>assertNull</code>, <code>assertCount</code>, <code>assertContains</code>, <code>assertThrows</code>, <code>assertDoesNotThrow</code>, <code>expectFailure</code> — plus <code>double&lt;T&gt;</code>/<code>partial&lt;T&gt;</code>, <code>assertCalled</code>/<code>assertNeverCalled</code>, <code>advance</code>, <code>assertCompletes</code>, <code>assertMatchesInline</code> and <code>request</code>. Every one is subject-first and generic where it compares"
     },
     {
       "id": "Time",
@@ -8555,7 +7149,7 @@
           "notes": "",
           "qualifier": "neutral",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "now",
           "url": "/docs/core/time/now/"
@@ -8574,7 +7168,7 @@
           "notes": "",
           "qualifier": "neutral",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "monotonic",
           "url": "/docs/core/time/monotonic/"
@@ -8602,7 +7196,7 @@
           "notes": "",
           "qualifier": "neutral",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "sleep",
           "url": "/docs/core/time/sleep/"
@@ -8635,7 +7229,7 @@
           "notes": "",
           "qualifier": "neutral",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "fromepoch",
           "url": "/docs/core/time/fromepoch/"
@@ -8663,7 +7257,7 @@
           "notes": "",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "fromiso",
           "url": "/docs/core/time/fromiso/"
@@ -8707,7 +7301,7 @@
           "notes": "",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "parse",
           "url": "/docs/core/time/parse/"
@@ -8776,14 +7370,14 @@
           "notes": "",
           "qualifier": "neutral",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "at",
           "url": "/docs/core/time/at/"
         }
       ],
       "unparsed": [],
-      "implemented": false,
+      "implemented": true,
       "slug": "time",
       "url": "/docs/core/time/",
       "summaryHtml": "<p>PHP has ~40 <code>date_<em></code> procedural functions that are aliases of <code>DateTime</code> methods, </em>and* a <code>DateTime</code>/<code>DateTimeImmutable</code> mutable/immutable pair. Both duplications are gone (R17, R20): there are objects only, and every one is immutable. There is <strong>no ambient timezone</strong> — no process default, no per-request default — so a <code>Zone</code> is an explicit argument at every instant↔calendar conversion.</p>\n<p><strong>Two arithmetics, and the type says which one you get.</strong> An <code>Instant</code> moves by a <code>Duration</code>, which is an exact count of nanoseconds; a <code>DateTime</code> moves by a count of a <code>Unit</code>, which is a calendar step that a DST boundary or a short month can make longer or shorter than its nominal length. <code>Time::now()-&gt;plus(72h)</code> and <code>Time::now()-&gt;in($zone)-&gt;plus(3, Unit::Day)</code> are different operations, and PHP's <code>&quot;+3 days&quot;</code> is ambiguous between them. There is no relative-expression string anywhere in this class: everything <code>strtotime</code> spells is a typed call, and <a href=\"/docs/adr/0070/\" data-adr=\"0070\">ADR 0070</a>'s <code>72h</code>/<code>30d</code> literal is what keeps them short.</p>",
@@ -8839,14 +7433,14 @@
           "qualifier": "",
           "section": "",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "constructing an invalid date throws",
           "slug": "at",
           "url": "/docs/core/time-date/at/"
         }
       ],
       "unparsed": [],
-      "implemented": false,
+      "implemented": true,
       "slug": "time-date",
       "url": "/docs/core/time-date/",
       "summaryHtml": "",
@@ -8885,7 +7479,7 @@
           "notes": "[ADR 0057](../adr/0057-intrinsic-literal-folding.md) intrinsic, CLDR patterns. Replaces `date`, `gmdate`, `idate`, `strftime`, `date_format`",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "<a href=\"/docs/adr/0057/\" data-adr=\"0057\">ADR 0057</a> intrinsic, CLDR patterns. Replaces <code>date</code>, <code>gmdate</code>, <code>idate</code>, <code>strftime</code>, <code>date_format</code>",
           "slug": "format",
           "url": "/docs/core/time-datetime/format/"
@@ -8921,7 +7515,7 @@
           "notes": "calendar arithmetic: adding `1, Unit::Month` lands on the same day-of-month, clamped to the month's length, and crossing a DST boundary is a 23- or 25-hour day. Replaces `date_add`, `date_sub`, `modify`, `strtotime`'s relative half",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "calendar arithmetic: adding <code>1, Unit::Month</code> lands on the same day-of-month, clamped to the month's length, and crossing a DST boundary is a 23- or 25-hour day. Replaces <code>date_add</code>, <code>date_sub</code>, <code>modify</code>, <code>strtotime</code>'s relative half",
           "slug": "plus",
           "url": "/docs/core/time-datetime/plus/"
@@ -8957,7 +7551,7 @@
           "notes": "calendar arithmetic: adding `1, Unit::Month` lands on the same day-of-month, clamped to the month's length, and crossing a DST boundary is a 23- or 25-hour day. Replaces `date_add`, `date_sub`, `modify`, `strtotime`'s relative half",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "calendar arithmetic: adding <code>1, Unit::Month</code> lands on the same day-of-month, clamped to the month's length, and crossing a DST boundary is a 23- or 25-hour day. Replaces <code>date_add</code>, <code>date_sub</code>, <code>modify</code>, <code>strtotime</code>'s relative half",
           "slug": "minus",
           "url": "/docs/core/time-datetime/minus/"
@@ -8985,7 +7579,7 @@
           "notes": "the nearest strictly later (earlier) day with that weekday, time-of-day preserved. Replaces `strtotime(\"next monday\")`",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "the nearest strictly later (earlier) day with that weekday, time-of-day preserved. Replaces <code>strtotime(&quot;next monday&quot;)</code>",
           "slug": "next",
           "url": "/docs/core/time-datetime/next/"
@@ -9013,7 +7607,7 @@
           "notes": "the nearest strictly later (earlier) day with that weekday, time-of-day preserved. Replaces `strtotime(\"next monday\")`",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "the nearest strictly later (earlier) day with that weekday, time-of-day preserved. Replaces <code>strtotime(&quot;next monday&quot;)</code>",
           "slug": "previous",
           "url": "/docs/core/time-datetime/previous/"
@@ -9061,7 +7655,7 @@
           "notes": "replaces `setDate`, `setTime`, `setISODate`",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "replaces <code>setDate</code>, <code>setTime</code>, <code>setISODate</code>",
           "slug": "with",
           "url": "/docs/core/time-datetime/with/"
@@ -9089,7 +7683,7 @@
           "notes": "the common half of `with`, spelled as the operation it is",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "the common half of <code>with</code>, spelled as the operation it is",
           "slug": "withtime",
           "url": "/docs/core/time-datetime/withtime/"
@@ -9117,7 +7711,7 @@
           "notes": "distinct operations at a DST boundary, which is why both exist",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "distinct operations at a DST boundary, which is why both exist",
           "slug": "startof",
           "url": "/docs/core/time-datetime/startof/"
@@ -9145,7 +7739,7 @@
           "notes": "distinct operations at a DST boundary, which is why both exist",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "distinct operations at a DST boundary, which is why both exist",
           "slug": "endof",
           "url": "/docs/core/time-datetime/endof/"
@@ -9181,7 +7775,7 @@
           "notes": "whole units from the receiver **to** `$other`, counted in the *receiver's* zone — an age in years, a term in months. Replaces `date_diff` + `DateInterval`'s `y`/`m`/`d` fields",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "whole units from the receiver <strong>to</strong> <code>$other</code>, counted in the <em>receiver's</em> zone — an age in years, a term in months. Replaces <code>date_diff</code> + <code>DateInterval</code>'s <code>y</code>/<code>m</code>/<code>d</code> fields",
           "slug": "difference",
           "url": "/docs/core/time-datetime/difference/"
@@ -9200,7 +7794,7 @@
           "notes": "",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "toinstant",
           "url": "/docs/core/time-datetime/toinstant/"
@@ -9219,7 +7813,7 @@
           "notes": "component views",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "component views",
           "slug": "date",
           "url": "/docs/core/time-datetime/date/"
@@ -9238,7 +7832,7 @@
           "notes": "replaces `date(\"N\")`",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "replaces <code>date(&quot;N&quot;)</code>",
           "slug": "weekday",
           "url": "/docs/core/time-datetime/weekday/"
@@ -9257,7 +7851,7 @@
           "notes": "replaces `date(\"z\")`",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "replaces <code>date(&quot;z&quot;)</code>",
           "slug": "dayofyear",
           "url": "/docs/core/time-datetime/dayofyear/"
@@ -9276,7 +7870,7 @@
           "notes": "replaces `date(\"L\")`, `checkdate`'s year half",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "replaces <code>date(&quot;L&quot;)</code>, <code>checkdate</code>'s year half",
           "slug": "isleapyear",
           "url": "/docs/core/time-datetime/isleapyear/"
@@ -9296,7 +7890,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "component view",
           "slug": "timeofday",
           "url": "/docs/core/time-datetime/timeofday/"
@@ -9316,14 +7910,14 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "component view",
           "slug": "zone",
           "url": "/docs/core/time-datetime/zone/"
         }
       ],
       "unparsed": [],
-      "implemented": false,
+      "implemented": true,
       "slug": "time-datetime",
       "url": "/docs/core/time-datetime/",
       "summaryHtml": "",
@@ -9362,7 +7956,7 @@
           "notes": "plus `nanoseconds`, `microseconds`, `milliseconds`, `minutes`, `hours`, `days`, `weeks` — for a **computed** count; a literal one is [ADR 0070](../adr/0070-duration-literals.md)'s `30s`",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "plus <code>nanoseconds</code>, <code>microseconds</code>, <code>milliseconds</code>, <code>minutes</code>, <code>hours</code>, <code>days</code>, <code>weeks</code> — for a <strong>computed</strong> count; a literal one is <a href=\"/docs/adr/0070/\" data-adr=\"0070\">ADR 0070</a>'s <code>30s</code>",
           "slug": "seconds",
           "url": "/docs/core/time-duration/seconds/"
@@ -9390,7 +7984,7 @@
           "notes": "the run-time form of that same literal grammar, one implementation for both. Throws on anything it does not accept, so it **launders** a `tainted` config value",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "the run-time form of that same literal grammar, one implementation for both. Throws on anything it does not accept, so it <strong>launders</strong> a <code>tainted</code> config value",
           "slug": "parse",
           "url": "/docs/core/time-duration/parse/"
@@ -9409,7 +8003,7 @@
           "notes": "plus `toMilliseconds`, `toMicroseconds`, `toNanoseconds`",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "plus <code>toMilliseconds</code>, <code>toMicroseconds</code>, <code>toNanoseconds</code>",
           "slug": "toseconds",
           "url": "/docs/core/time-duration/toseconds/"
@@ -9438,7 +8032,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "nanoseconds",
           "url": "/docs/core/time-duration/nanoseconds/"
@@ -9467,7 +8061,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "microseconds",
           "url": "/docs/core/time-duration/microseconds/"
@@ -9496,7 +8090,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "milliseconds",
           "url": "/docs/core/time-duration/milliseconds/"
@@ -9525,7 +8119,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "minutes",
           "url": "/docs/core/time-duration/minutes/"
@@ -9554,7 +8148,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "hours",
           "url": "/docs/core/time-duration/hours/"
@@ -9583,7 +8177,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "days",
           "url": "/docs/core/time-duration/days/"
@@ -9612,7 +8206,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "weeks",
           "url": "/docs/core/time-duration/weeks/"
@@ -9632,7 +8226,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "tomilliseconds",
           "url": "/docs/core/time-duration/tomilliseconds/"
@@ -9652,7 +8246,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "tomicroseconds",
           "url": "/docs/core/time-duration/tomicroseconds/"
@@ -9672,7 +8266,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "tonanoseconds",
           "url": "/docs/core/time-duration/tonanoseconds/"
@@ -9701,7 +8295,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "plus",
           "url": "/docs/core/time-duration/plus/"
@@ -9730,7 +8324,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "minus",
           "url": "/docs/core/time-duration/minus/"
@@ -9759,7 +8353,7 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "multipliedby",
           "url": "/docs/core/time-duration/multipliedby/"
@@ -9779,14 +8373,14 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "negated",
           "url": "/docs/core/time-duration/negated/"
         }
       ],
       "unparsed": [],
-      "implemented": false,
+      "implemented": true,
       "slug": "time-duration",
       "url": "/docs/core/time-duration/",
       "summaryHtml": "",
@@ -9825,7 +8419,7 @@
           "notes": "the only instant→calendar conversion; a zone is never implicit",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "the only instant→calendar conversion; a zone is never implicit",
           "slug": "in",
           "url": "/docs/core/time-instant/in/"
@@ -9844,7 +8438,7 @@
           "notes": "replaces `getTimestamp`, `date(\"U\")`",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "replaces <code>getTimestamp</code>, <code>date(&quot;U&quot;)</code>",
           "slug": "toepochseconds",
           "url": "/docs/core/time-instant/toepochseconds/"
@@ -9863,7 +8457,7 @@
           "notes": "plus `toEpochMicros`, replacing `microtime(true)`'s two halves",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "plus <code>toEpochMicros</code>, replacing <code>microtime(true)</code>'s two halves",
           "slug": "toepochmillis",
           "url": "/docs/core/time-instant/toepochmillis/"
@@ -9891,7 +8485,7 @@
           "notes": "replaces `date_add`, `date_sub`, `modify`",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "replaces <code>date_add</code>, <code>date_sub</code>, <code>modify</code>",
           "slug": "plus",
           "url": "/docs/core/time-instant/plus/"
@@ -9919,7 +8513,7 @@
           "notes": "replaces `date_add`, `date_sub`, `modify`",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "replaces <code>date_add</code>, <code>date_sub</code>, <code>modify</code>",
           "slug": "minus",
           "url": "/docs/core/time-instant/minus/"
@@ -9947,7 +8541,7 @@
           "notes": "replaces `date_diff`, `DateInterval` arithmetic",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "replaces <code>date_diff</code>, <code>DateInterval</code> arithmetic",
           "slug": "since",
           "url": "/docs/core/time-instant/since/"
@@ -9975,7 +8569,7 @@
           "notes": "`Instant` implements `Comparable` ([ADR 0013](../adr/0013-comparable-interface.md)), so `<`/`>` work directly",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "<code>Instant</code> implements <code>Comparable</code> (<a href=\"/docs/adr/0013/\" data-adr=\"0013\">ADR 0013</a>), so <code>&lt;</code>/<code>&gt;</code> work directly",
           "slug": "compareto",
           "url": "/docs/core/time-instant/compareto/"
@@ -9994,7 +8588,7 @@
           "notes": "replaces `date(DATE_ATOM)`",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "replaces <code>date(DATE_ATOM)</code>",
           "slug": "toiso",
           "url": "/docs/core/time-instant/toiso/"
@@ -10014,14 +8608,14 @@
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "toepochmicros",
           "url": "/docs/core/time-instant/toepochmicros/"
         }
       ],
       "unparsed": [],
-      "implemented": false,
+      "implemented": true,
       "slug": "time-instant",
       "url": "/docs/core/time-instant/",
       "summaryHtml": "",
@@ -10078,14 +8672,14 @@
           "qualifier": "",
           "section": "",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "at",
           "url": "/docs/core/time-timeofday/at/"
         }
       ],
       "unparsed": [],
-      "implemented": false,
+      "implemented": true,
       "slug": "time-timeofday",
       "url": "/docs/core/time-timeofday/",
       "summaryHtml": "",
@@ -10126,7 +8720,7 @@
           "notes": "IANA identifier; throws on an unknown one. Replaces `DateTimeZone`",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "IANA identifier; throws on an unknown one. Replaces <code>DateTimeZone</code>",
           "slug": "of",
           "url": "/docs/core/time-zone/of/"
@@ -10154,7 +8748,7 @@
           "notes": "a fixed offset from UTC, for a timestamp that carries one instead of a region",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "a fixed offset from UTC, for a timestamp that carries one instead of a region",
           "slug": "fixed",
           "url": "/docs/core/time-zone/fixed/"
@@ -10173,7 +8767,7 @@
           "notes": "the host's configured zone, read once at boot. Replaces `date_default_timezone_get`",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "the host's configured zone, read once at boot. Replaces <code>date_default_timezone_get</code>",
           "slug": "system",
           "url": "/docs/core/time-zone/system/"
@@ -10201,37 +8795,18 @@
           "notes": "replaces `getOffset`",
           "qualifier": "",
           "section": "4. `Core\\Time`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "replaces <code>getOffset</code>",
           "slug": "offsetat",
           "url": "/docs/core/time-zone/offsetat/"
         }
       ],
       "unparsed": [],
-      "implemented": false,
+      "implemented": true,
       "slug": "time-zone",
       "url": "/docs/core/time-zone/",
       "summaryHtml": "",
       "surfaceHtml": ""
-    },
-    {
-      "id": "Totp",
-      "name": "Core\\Totp",
-      "section": "16. Network, data and crypto",
-      "summary": "",
-      "surface": "the closed four-entry roster; a JWT's algorithm comes from the key, never the token",
-      "adrs": [
-        "0060"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "totp",
-      "url": "/docs/core/totp/",
-      "summaryHtml": "",
-      "surfaceHtml": "the closed four-entry roster; a JWT's algorithm comes from the key, never the token"
     },
     {
       "id": "Uri",
@@ -10266,7 +8841,7 @@
           "notes": "",
           "qualifier": "",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "parse",
           "url": "/docs/core/uri/parse/"
@@ -10294,7 +8869,7 @@
           "notes": "",
           "qualifier": "",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "tryparse",
           "url": "/docs/core/uri/tryparse/"
@@ -10322,7 +8897,7 @@
           "notes": "",
           "qualifier": "",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "encodecomponent",
           "url": "/docs/core/uri/encodecomponent/"
@@ -10350,7 +8925,7 @@
           "notes": "",
           "qualifier": "",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "encodeformvalue",
           "url": "/docs/core/uri/encodeformvalue/"
@@ -10378,7 +8953,7 @@
           "notes": "",
           "qualifier": "",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "parsequery",
           "url": "/docs/core/uri/parsequery/"
@@ -10406,7 +8981,7 @@
           "notes": "",
           "qualifier": "",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "buildquery",
           "url": "/docs/core/uri/buildquery/"
@@ -10450,7 +9025,7 @@
           "notes": "",
           "qualifier": "",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "with",
           "url": "/docs/core/uri/with/"
@@ -10478,7 +9053,7 @@
           "notes": "",
           "qualifier": "",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "resolve",
           "url": "/docs/core/uri/resolve/"
@@ -10506,7 +9081,7 @@
           "notes": "",
           "qualifier": "",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "compareto",
           "url": "/docs/core/uri/compareto/"
@@ -10526,7 +9101,7 @@
           "qualifier": "neutral",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "scheme",
           "url": "/docs/core/uri/scheme/"
@@ -10546,7 +9121,7 @@
           "qualifier": "neutral",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "one reader, not <code>user</code>/<code>pass</code> — RFC 3986 § 3.2.1 deprecates the split form",
           "slug": "userinfo",
           "url": "/docs/core/uri/userinfo/"
@@ -10566,7 +9141,7 @@
           "qualifier": "neutral",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "<code>null</code> where no authority was written, <code>&quot;&quot;</code> where an empty one was",
           "slug": "host",
           "url": "/docs/core/uri/host/"
@@ -10586,7 +9161,7 @@
           "qualifier": "neutral",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "port",
           "url": "/docs/core/uri/port/"
@@ -10606,7 +9181,7 @@
           "qualifier": "neutral",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "path",
           "url": "/docs/core/uri/path/"
@@ -10626,7 +9201,7 @@
           "qualifier": "neutral",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "query",
           "url": "/docs/core/uri/query/"
@@ -10646,7 +9221,7 @@
           "qualifier": "neutral",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "fragment",
           "url": "/docs/core/uri/fragment/"
@@ -10666,7 +9241,7 @@
           "qualifier": "neutral",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "tostring",
           "url": "/docs/core/uri/tostring/"
@@ -10695,7 +9270,7 @@
           "qualifier": "",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "decodecomponent",
           "url": "/docs/core/uri/decodecomponent/"
@@ -10724,14 +9299,14 @@
           "qualifier": "",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "decodeformvalue",
           "url": "/docs/core/uri/decodeformvalue/"
         }
       ],
       "unparsed": [],
-      "implemented": false,
+      "implemented": true,
       "slug": "uri",
       "url": "/docs/core/uri/",
       "summaryHtml": "",
@@ -10761,7 +9336,7 @@
           "notes": "",
           "qualifier": "neutral",
           "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "v4",
           "url": "/docs/core/uuid/v4/"
@@ -10780,7 +9355,7 @@
           "notes": "",
           "qualifier": "neutral",
           "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "v7",
           "url": "/docs/core/uuid/v7/"
@@ -10808,7 +9383,7 @@
           "notes": "",
           "qualifier": "",
           "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "parse",
           "url": "/docs/core/uuid/parse/"
@@ -10836,7 +9411,7 @@
           "notes": "",
           "qualifier": "",
           "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "tryparse",
           "url": "/docs/core/uuid/tryparse/"
@@ -10855,14 +9430,14 @@
           "notes": "",
           "qualifier": "neutral",
           "section": "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`",
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "tostring",
           "url": "/docs/core/uuid/tostring/"
         }
       ],
       "unparsed": [],
-      "implemented": false,
+      "implemented": true,
       "slug": "uuid",
       "url": "/docs/core/uuid/",
       "summaryHtml": "",
@@ -10902,7 +9477,7 @@
           "qualifier": "neutral",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "isemail",
           "url": "/docs/core/validate/isemail/"
@@ -10936,7 +9511,7 @@
           "qualifier": "neutral",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "isip",
           "url": "/docs/core/validate/isip/"
@@ -10965,7 +9540,7 @@
           "qualifier": "neutral",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "ismac",
           "url": "/docs/core/validate/ismac/"
@@ -10994,7 +9569,7 @@
           "qualifier": "neutral",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "isdomain",
           "url": "/docs/core/validate/isdomain/"
@@ -11023,7 +9598,7 @@
           "qualifier": "neutral",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "isascii",
           "url": "/docs/core/validate/isascii/"
@@ -11052,54 +9627,18 @@
           "qualifier": "neutral",
           "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
           "fromOverride": true,
-          "implemented": false,
+          "implemented": true,
           "notesHtml": "",
           "slug": "isprintable",
           "url": "/docs/core/validate/isprintable/"
         }
       ],
       "unparsed": [],
-      "implemented": false,
+      "implemented": true,
       "slug": "validate",
       "url": "/docs/core/validate/",
       "summaryHtml": "",
       "surfaceHtml": ""
-    },
-    {
-      "id": "Xml",
-      "name": "Core\\Xml",
-      "section": "17. Documents and formats",
-      "summary": "",
-      "surface": "one API replacing DOM, SimpleXML, XMLReader, XMLWriter, `xml_parser_*` and XSLTProcessor. Its **tree** API and its **streaming** reader/writer are different jobs, not twins — the tree materialises, the stream does not, and no operation is available through both",
-      "adrs": [],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "xml",
-      "url": "/docs/core/xml/",
-      "summaryHtml": "",
-      "surfaceHtml": "one API replacing DOM, SimpleXML, XMLReader, XMLWriter, <code>xml_parser_*</code> and XSLTProcessor. Its <strong>tree</strong> API and its <strong>streaming</strong> reader/writer are different jobs, not twins — the tree materialises, the stream does not, and no operation is available through both"
-    },
-    {
-      "id": "Zip",
-      "name": "Core\\Zip",
-      "section": "17. Documents and formats",
-      "summary": "",
-      "surface": "Core rather than an extension because `../` entries, symlink entries and decompression bombs are *policy*, and policy must be non-optional",
-      "adrs": [
-        "0051"
-      ],
-      "enums": [],
-      "constants": [],
-      "members": [],
-      "unparsed": [],
-      "implemented": false,
-      "slug": "zip",
-      "url": "/docs/core/zip/",
-      "summaryHtml": "",
-      "surfaceHtml": "Core rather than an extension because <code>../</code> entries, symlink entries and decompression bombs are <em>policy</em>, and policy must be non-optional"
     }
   ]
 }
