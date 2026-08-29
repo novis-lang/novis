@@ -56,14 +56,18 @@
 > and loops only on `WouldBlock`, keeps its registration across parks, and waits on a poll of its
 > own when there is no core to hand back. Closing it turned up a latent path to `abort()` — a
 > suspended coroutine dropped under `run_task`'s containment boundary — which
-> `nvs_runtime::Teardown` now closes. The steps the chain took are in
-> [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's own residue is the 1000-case
-> corpus count, which orders 1–4 meet as the suite grows; nothing else about M4 is open. What the
-> program is measured by is `python tools/check-migration.py` at 100% classified, which stood at 25%
-> the day the program was scheduled and reads 34% now that goal 1's own five domains — dates and
-> times, regular expressions, JSON, URLs and paths — carry a row per name. `python tools/gaps.py`,
-> `python tools/holes.py` and `python tools/check-migration.py --report` are the three worklists
-> behind it, and no session re-derives one.
+> `nvs_runtime::Teardown` now closes. What a task *costs* is settled too:
+> `crates/nvs-host/src/stack.rs` is ADR 0115 § 4 — 1 MiB of reserved address space per task,
+> resident only in the pages its handler touched, pooled per worker and recycled the moment the task
+> ends, with the recursion limit armed from that stack instead of asserted from a ceiling on the
+> worker's. The steps the chain took are in [goals/README.md](agent/goals/README.md) § *Starting the
+> chain*. M4's own residue is the 1000-case corpus count, which orders 1–4 meet as the suite grows;
+> nothing else about M4 is open. What the program is measured by is `python
+> tools/check-migration.py` at 100% classified, which stood at 25% the day the program was scheduled
+> and reads 34% now that goal 1's own five domains — dates and times, regular expressions, JSON,
+> URLs and paths — carry a row per name. `python tools/gaps.py`, `python tools/holes.py` and `python
+> tools/check-migration.py --report` are the three worklists behind it, and no session re-derives
+> one.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
