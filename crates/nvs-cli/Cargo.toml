@@ -20,6 +20,10 @@ nvs-types.workspace = true
 nvs-ir.workspace = true
 nvs-codegen.workspace = true
 nvs-runtime.workspace = true
+# `nvs run` executes its program inside a task rather than on the main thread's
+# stack, because ADR 0072 § 1's children are children *of the calling task* and
+# there has to be one. `main.rs`'s § *What `run` executes* owns the rest.
+nvs-host.workspace = true
 nvs-test.workspace = true
 clap.workspace = true
 # ADR 0085's document, built and written as JSON rather than as text — the

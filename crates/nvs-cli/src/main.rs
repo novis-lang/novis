@@ -43,6 +43,17 @@
 //! statements — [ADR 0008](../../../docs/adr/0008-static-and-global.md) § 2's
 //! "the script body is a function, so its variables are locals". That frame is
 //! the entry point; the methods are reachable from it by name.
+//!
+//! It runs **inside a task**, on a [`nvs_host::Scheduler`] of its own with a
+//! reactor installed over it, rather than on the main thread's stack. That is
+//! not about concurrency at the top level — there is one task — but about what
+//! is beneath it: [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md)
+//! § 1's children are children *of the calling task*, and a `Core\Task::all`
+//! in a CLI program has nowhere to put them if the program is not one. The
+//! root is `TaskRoot::Request`, so a panic that reaches it fails this run
+//! rather than retiring anything
+//! ([ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+//! § 2).
 
 #![allow(
     clippy::print_stdout,
@@ -616,13 +627,79 @@ fn run_run(
     if let Some(site) = fault_inject {
         ctx.inject_fault(site.into());
     }
-    let outcome = nvs_runtime::call(entry, &mut ctx, &[]);
+    // ADR 0072 §§ 1 and 3: the program is a *task*, because the children a
+    // `Core\Task::all` inside it asks for are children of the calling task and
+    // `nvs_host::spawn_child` reads that caller off the scheduler rather than
+    // being told it. One task, one core, and no thread is pinned — a CLI run
+    // wants the tree, not the fan-out.
+    let mut sched = nvs_host::Scheduler::new();
+    // Two things have to come back out of the task, and they come back by
+    // different routes. The call's status is written into a cell the body
+    // captures, since a task's body returns nothing; the `Ctx` arrives in the
+    // `Finished` the scheduler hands back, because it was moved into the task
+    // rather than borrowed by it, and everything reported below is read off
+    // that one.
+    let status: std::rc::Rc<std::cell::Cell<Option<Result<(), i32>>>> =
+        std::rc::Rc::new(std::cell::Cell::new(None));
+    let root = sched.spawn(ctx, nvs_runtime::TaskRoot::Request, {
+        let status = std::rc::Rc::clone(&status);
+        move |ctx| {
+            // The returned value is discarded exactly as it was when this was a
+            // direct call: the script frame answers with null.
+            status.set(Some(nvs_runtime::call(entry, ctx, &[]).map(|_| ())));
+        }
+    });
+
+    // The reactor is what a parked task is woken by, so it is installed even
+    // for a program that never parks — `run_until_idle` refuses a scheduler
+    // with no reactor on its thread, and which of the two a program is is not
+    // knowable from here.
+    let reactor = match nvs_host::Reactor::new() {
+        Ok(reactor) => reactor,
+        Err(error) => {
+            eprintln!("error: could not start the reactor: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let installed = nvs_host::reactor::install(reactor);
+    let ran = nvs_host::run_until_idle(&mut sched);
+    drop(installed);
+    if let Err(error) = ran {
+        eprintln!("error: the scheduler stopped: {error}");
+        return ExitCode::FAILURE;
+    }
+
+    let Some(finished) = sched
+        .take_finished()
+        .into_iter()
+        .find(|finished| finished.id == root)
+    else {
+        // The script's task neither finished nor was cancelled — nothing can
+        // cancel it, since it is the root and the run is over.
+        eprintln!("internal error: the script's task did not finish");
+        return ExitCode::FAILURE;
+    };
+    let mut ctx = finished.ctx;
+
     // Flushed before anything is reported: Rust's standard output is
     // line-buffered, and `echo "Hello, World!"` has no trailing newline.
     if let Err(error) = ctx.flush_output() {
         eprintln!("error: could not flush output: {error}");
         return ExitCode::FAILURE;
     }
+
+    // ADR 0106 § 2's outer boundary caught a panic under the task root. For a
+    // request that is a failed request; for a CLI run it is this process's
+    // failure, reported as the fatal it is rather than unwinding out of `main`.
+    if let Err(panic) = finished.outcome {
+        eprintln!("FATAL: {}", panic.message());
+        return ExitCode::FAILURE;
+    }
+
+    let Some(outcome) = status.get() else {
+        eprintln!("internal error: the script's task ran nothing");
+        return ExitCode::FAILURE;
+    };
 
     match outcome {
         Ok(_) => ExitCode::SUCCESS,
