@@ -1923,6 +1923,55 @@ pub mod code {
     /// whole attribute, because the rest of the attribute is fine.
     pub const E_DUPLICATE_ROUTE_NAME: Code = Code::new("E0749");
 
+    /// A `#[Route]`'s `path` is not one ADR 0077 § 2's grammar admits.
+    ///
+    /// One code for the whole grammar, because every way a path fails it is
+    /// the same fact — the router cannot build a node out of this — and the
+    /// message names which way it was. The four: a path that does not begin
+    /// at the root, a segment that is neither a literal nor a whole capture
+    /// (`/u{id}`, `/{id}.json`), a capture naming nothing a parameter could
+    /// be called, and a `{name?}` or `{name...}` written anywhere but last.
+    ///
+    /// § 2's "at most once" and "never in one path together" need no rule of
+    /// their own: one segment is last, so a second trailing form is already
+    /// in a position it is refused at.
+    pub const E_ROUTE_PATH_GRAMMAR: Code = Code::new("E0750");
+
+    /// A `{name}` capture names no parameter of the method it is attached to.
+    ///
+    /// ADR 0077 § 3's first compile error. A capture's value arrives *as* the
+    /// parameter it is named after, so a capture with no parameter is a value
+    /// with nowhere to go; the comparison is exact, per
+    /// [ADR 0029](../../../docs/adr/0029-identifier-casing-is-checked.md), so
+    /// `{userId}` and `$userid` are two names. The reverse is not an error: a
+    /// parameter the path does not name is simply not the router's.
+    pub const E_ROUTE_CAPTURE_UNBOUND: Code = Code::new("E0751");
+
+    /// A capture's parameter is declared at a type no path segment converts
+    /// to.
+    ///
+    /// ADR 0077 § 3's second compile error, over the roster
+    /// `nvs_types::commands::converts_from_string` holds for both this and
+    /// ADR 0086 § 6's `#[Option]` — one list, read twice. A `{name...}` is
+    /// the one capture that roster does not answer for: § 3 hands a catch-all
+    /// over as the single `tainted string` it was read as, nothing about it
+    /// having been checked, so it binds a `string` and no other type.
+    ///
+    /// The primary span is the parameter, as with
+    /// [`E_OPTION_TYPE_HAS_NO_CONVERSION`]: the path is written correctly and
+    /// it is the declared type that cannot answer it.
+    pub const E_ROUTE_CAPTURE_TYPE_HAS_NO_CONVERSION: Code = Code::new("E0752");
+
+    /// A `{name?}` capture is bound to a parameter with no default.
+    ///
+    /// ADR 0077 § 2: an optional capture matches one whole segment or none,
+    /// and the default is what makes the absent case *well-typed* rather than
+    /// nullable by accident — the router never invents a `null` for a
+    /// parameter whose type does not admit one. Both sites are named, the
+    /// parameter first, because the fix is a default rather than a rewritten
+    /// path.
+    pub const E_OPTIONAL_CAPTURE_NEEDS_DEFAULT: Code = Code::new("E0753");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

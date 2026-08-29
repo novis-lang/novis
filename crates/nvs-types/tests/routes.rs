@@ -4,13 +4,14 @@
 //!
 //! The table now has rows, and the two errors that are questions about the
 //! whole enumeration — a route declared twice and a `name` claimed twice — are
-//! asserted here too. What it still owes is `nvs_types::routes`' own gap list:
-//! nothing reverses the table, and nothing reads the method an attribute is
-//! attached to.
+//! asserted here too, alongside § 2's path grammar and § 3's three questions
+//! about the method an attribute is attached to. What it still owes is
+//! `nvs_types::routes`' own gap list: nothing reverses the table, and a method's
+//! second `#[Route]` is not a second row.
 
 mod common;
 
-use common::check_src;
+use common::{check_src, check_src_table};
 use nvs_diagnostics::{Code, Diagnostics, code};
 
 /// Whether `diags` reported `want`. Asserted by code rather than by
@@ -195,6 +196,179 @@ fn one_route_shape_is_served_once_per_verb() {
          public function drop(uint $id): string { return \"\"; }\n  \
          #[Route(path: \"/users/new\", method: \\Core\\Http\\Method::Get, name: \"c\")]\n  \
          public function fresh(): string { return \"\"; }\n",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn the_collected_table_crosses_on_the_expression_table() {
+    // § 5's rows are collected here and reversed in `nvs-ir`, so what makes
+    // them reachable at all is `ExprTypeTable::routes` — the channel every
+    // other whole-program fact crosses by. Asserted through the table rather
+    // than through a `url` call, because nothing reverses it yet.
+    let (diags, exprs) = check_src_table(&route_src(
+        "  #[Route(path: \"/users\", method: \\Core\\Http\\Method::Get, name: \"Users::index\")]\n  \
+         public function index(): string { return \"\"; }\n  \
+         #[Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get, name: \"Users::show\")]\n  \
+         public function show(uint $id): string { return \"\"; }\n  \
+         #[Route(path: \"/health\", method: \\Core\\Http\\Method::Get)]\n  \
+         public function health(): string { return \"\"; }\n",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    let table = exprs.routes();
+    assert_eq!(table.rows().len(), 3);
+    // Load order, and declaration order within a file — the order § 3's
+    // duplicate errors are reported in, so a consumer walking the rows sees
+    // the same program the diagnostics described.
+    let paths: Vec<&str> = table.rows().iter().map(|row| row.path.as_str()).collect();
+    assert_eq!(paths, ["/users", "/users/{id}", "/health"]);
+
+    // § 4 reverses the table by name, which is the one lookup a row is found
+    // by; a route that claimed no `name` is in the table and is reachable by
+    // nothing.
+    let show = table.named("Users::show").expect("the named route");
+    assert_eq!(show.path, "/users/{id}");
+    assert_eq!(show.verb, "Get");
+    assert_eq!(show.handler, "Users::show");
+    assert!(table.named("Users::health").is_none());
+
+    // A program declaring no route pays nothing and reads back as empty
+    // rather than as absent.
+    let (_, exprs) = check_src_table("<?nvs\necho \"\";\n");
+    assert!(exprs.routes().rows().is_empty());
+}
+
+#[test]
+fn a_path_begins_at_the_root_and_a_capture_is_a_whole_segment() {
+    // § 2: everything that is not a capture is a literal segment compared byte
+    // for byte, and a capture is a *whole* segment — there is no escape and no
+    // partial form, so `u{id}` is one thing or the other and is neither.
+    for path in [
+        "users",
+        "/users/u{id}",
+        "/users/{id}.json",
+        "/users/{}",
+        "/users/{2id}",
+        "/users/{id",
+    ] {
+        let diags = check_src(&route_src(&format!(
+            "  #[Route(path: \"{path}\", method: \\Core\\Http\\Method::Get)]\n  \
+             public function show(uint $id): string {{ return \"\"; }}\n"
+        )));
+        assert!(
+            reported(&diags, code::E_ROUTE_PATH_GRAMMAR),
+            "{path}: {diags:?}"
+        );
+    }
+}
+
+#[test]
+fn a_capture_that_may_absorb_the_end_of_a_path_is_written_last() {
+    // § 2 permits `{name?}` and `{name...}` in the last position only, and
+    // both "at most once" and "never in one path together" fall out of that
+    // rather than needing one of their own: one segment is last.
+    for path in [
+        "/posts/{page?}/comments",
+        "/files/{rest...}/raw",
+        "/posts/{a?}/{page?}",
+        "/files/{a...}/{rest...}",
+    ] {
+        let diags = check_src(&route_src(&format!(
+            "  #[Route(path: \"{path}\", method: \\Core\\Http\\Method::Get)]\n  \
+             public function show(string $a = \"\", string $page = \"\", string $rest = \"\"): \
+             string {{ return \"\"; }}\n"
+        )));
+        assert!(
+            reported(&diags, code::E_ROUTE_PATH_GRAMMAR),
+            "{path}: {diags:?}"
+        );
+    }
+}
+
+#[test]
+fn a_capture_arrives_as_the_parameter_it_is_named_after() {
+    // § 3: the comparison is exact, per ADR 0029, so `{userId}` and `$userid`
+    // are two names and the capture has nowhere to arrive.
+    let diags = check_src(&route_src(
+        "  #[Route(path: \"/users/{userId}\", method: \\Core\\Http\\Method::Get)]\n  \
+         public function show(uint $userid): string { return \"\"; }\n",
+    ));
+    assert!(reported(&diags, code::E_ROUTE_CAPTURE_UNBOUND), "{diags:?}");
+
+    // The reverse is deliberately fine: a parameter the path does not name is
+    // simply not the router's.
+    let diags = check_src(&route_src(
+        "  #[Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get)]\n  \
+         public function show(uint $id, string $note = \"\"): string { return \"\"; }\n",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn a_captures_type_is_one_a_segment_converts_to() {
+    // § 3's roster is `nvs_types::commands::converts_from_string` and there is
+    // no second copy of it here, so an `array<int>` is refused at a capture for
+    // the reason it is refused at an `#[Option]`.
+    let diags = check_src(&route_src(
+        "  #[Route(path: \"/users/{id}\", method: \\Core\\Http\\Method::Get)]\n  \
+         public function show(array<int> $id): string { return \"\"; }\n",
+    ));
+    assert!(
+        reported(&diags, code::E_ROUTE_CAPTURE_TYPE_HAS_NO_CONVERSION),
+        "{diags:?}"
+    );
+
+    // A catch-all is the one capture that roster does not answer for: nothing
+    // about it was checked, so § 3 hands it over as one `tainted string` and a
+    // `uint` is not a type it can arrive at, however well `uint` converts.
+    let diags = check_src(&route_src(
+        "  #[Route(path: \"/files/{rest...}\", method: \\Core\\Http\\Method::Get)]\n  \
+         public function raw(uint $rest): string { return \"\"; }\n",
+    ));
+    assert!(
+        reported(&diags, code::E_ROUTE_CAPTURE_TYPE_HAS_NO_CONVERSION),
+        "{diags:?}"
+    );
+
+    let diags = check_src(&route_src(
+        "  #[Route(path: \"/files/{rest...}\", method: \\Core\\Http\\Method::Get)]\n  \
+         public function raw(string $rest): string { return \"\"; }\n",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn an_optional_capture_needs_a_default_to_be_absent_at() {
+    // § 2: `{page?}` matches one whole segment or none, and the default is what
+    // makes the absent case well-typed rather than nullable by accident.
+    let diags = check_src(&route_src(
+        "  #[Route(path: \"/posts/{page?}\", method: \\Core\\Http\\Method::Get)]\n  \
+         public function page(uint $page): string { return \"\"; }\n",
+    ));
+    assert!(
+        reported(&diags, code::E_OPTIONAL_CAPTURE_NEEDS_DEFAULT),
+        "{diags:?}"
+    );
+
+    let diags = check_src(&route_src(
+        "  #[Route(path: \"/posts/{page?}\", method: \\Core\\Http\\Method::Get)]\n  \
+         public function page(uint $page = 1): string { return \"\"; }\n",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn a_shape_keeps_the_capture_form_it_erases_the_name_of() {
+    // § 2's precedence is structural — a `{name}` beats a `{name?}` — so the
+    // two are two nodes of the trie and the pair has an answer that does not
+    // depend on declaration order. A shape erasing the form would report them
+    // as the duplicate they are not.
+    let diags = check_src(&route_src(
+        "  #[Route(path: \"/posts/{page}\", method: \\Core\\Http\\Method::Get, name: \"a\")]\n  \
+         public function one(uint $page): string { return \"\"; }\n  \
+         #[Route(path: \"/posts/{page?}\", method: \\Core\\Http\\Method::Get, name: \"b\")]\n  \
+         public function two(uint $page = 1): string { return \"\"; }\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
 }

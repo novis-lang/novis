@@ -33,25 +33,39 @@
 //! route and a duplicate `name`. A row needs a `path` and a `method` to exist
 //! at all, so this is also where an attribute that named neither is refused.
 //!
+//! Between the two, and inside [`collect_route`], the path is read twice: once
+//! on its own against § 2's grammar ([`parse_path`], which splits it into
+//! [`Capture`]s and refuses the four ways it is not a path), and once against
+//! the method the attribute is attached to ([`check_captures`], which asks § 3
+//! whether each capture names a parameter and whether that parameter's declared
+//! type is one a segment converts to). Both live here rather than in the
+//! per-attribute walk for [`check_class_routes`]' own reason: a payload with no
+//! declaration around it can see neither the parameter list nor the class.
+//!
+//! The conversion roster is [`crate::commands::converts_from_string`], read and
+//! never copied — ADR 0086 § 6 takes § 3's list unchanged, so the two passes ask
+//! one question. The single thing this pass adds to it is that a `{name...}`
+//! arrives as the one `tainted string` § 3 says it does, so it binds a `string`
+//! and nothing else.
+//!
 //! # Known gaps
 //!
-//! 1. **The table is collected but not yet handed on**, so nothing reverses it:
-//!    § 4's `Core\Router::url` still resolves no name, because the rows do not
-//!    reach `nvs-ir`. [`crate::expr_table`] is the channel a compile-time fact
-//!    already travels to lowering by, and is where this goes rather than a
-//!    second return value on [`crate::check::check_program`].
-//! 2. **Nothing reads the method the attribute is attached to**, so § 2's path
-//!    grammar and the other two of § 3's compile errors are not reported: a
-//!    `{param}` with no matching parameter, and a capture whose parameter type
-//!    has no conversion from a segment ([`crate::commands::converts_from_string`]
-//!    is that roster, and has no second copy here). A malformed `path` is
-//!    admitted for the same reason — its grammar is checked by the pass that
-//!    binds captures to parameters, because that is the pass that has to split
-//!    it anyway.
+//! 1. **Nothing reverses the table yet.** The rows cross into `nvs-ir` on
+//!    [`crate::expr_table::ExprTypeTable::routes`] — the channel every other
+//!    whole-program fact travels to lowering by — but § 4's `Core\Router::url`
+//!    does not read them, so a literal route name still resolves to nothing at
+//!    compile time and throws at run time.
+//! 2. **Only the first `#[Route]` on a method becomes a row**, because
+//!    [`crate::testing::attribute_named`] answers with one attribute. ADR 0046
+//!    § 3's repetition — one method serving two verbs — therefore contributes
+//!    one row rather than two, and
+//!    [ADR 0110](../../../../docs/adr/0110-one-methods-repeated-routes-share-a-name-when-they-share-a-path.md)
+//!    § 1's exception, which lets those repetitions share a `name` when they
+//!    share a `path`, has nothing yet to except.
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, Span, code};
 use nvs_hir::QName;
-use nvs_syntax::ast::{Attribute, ClassDecl, ClassMemberKind, ExprKind};
+use nvs_syntax::ast::{Attribute, ClassDecl, ClassMemberKind, ExprKind, MethodMember};
 use rustc_hash::FxHashMap;
 
 use crate::testing::OptionTy;
@@ -85,23 +99,30 @@ pub(crate) const OPTIONS: &[(&str, OptionTy)] = &[
 
 /// One row of ADR 0077 § 5's table: a `#[Route]` that named both of the fields
 /// a row cannot exist without, resolved to the strings the table is keyed by.
+///
+/// Public because the finished row is what crosses into `nvs-ir` — the same
+/// arrangement [`crate::expr_table::Delegation`] has, and for its reason: what
+/// rides across is a decision with no resolution left in it, so the consumer
+/// holds strings rather than a second copy of this crate's tables.
 #[derive(Debug)]
-pub(crate) struct Route {
+pub struct Route {
     /// The `Core\Http\Method` case by its own name — `Get`, `Post`. Kept as
     /// the case rather than as ADR 0010 § 3's backing integer because every
     /// reader of a row is a diagnostic or a link, and neither has anything to
     /// say about the integer.
-    verb: String,
-    /// `path` exactly as written, captures and all.
-    path: String,
+    pub verb: String,
+    /// `path` exactly as written, captures and all, and admitted by § 2's
+    /// grammar — [`parse_path`] is what a reader splits it with rather than a
+    /// second reading of the same string.
+    pub path: String,
     /// § 1's optional `name`, with the span that wrote it — the span, because
     /// a duplicate is reported at the field rather than at the attribute.
-    name: Option<(String, Span)>,
-    /// `Class::method` the attribute is attached to. For a message today, and
-    /// for § 3's check over that method's parameter list once it lands.
-    handler: String,
+    pub name: Option<(String, Span)>,
+    /// `Class::method` the attribute is attached to, rendered as
+    /// [`crate::expr_table::ExprTypeTable::method_label`] renders one.
+    pub handler: String,
     /// The whole attribute.
-    span: Span,
+    pub span: Span,
 }
 
 /// Every route the program declares, in the order they were walked — file by
@@ -117,8 +138,31 @@ pub(crate) struct Route {
 /// depend on filesystem enumeration ([ADR 0061](../../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
 /// § 3).
 #[derive(Debug, Default)]
-pub(crate) struct RouteTable {
+pub struct RouteTable {
     rows: Vec<Route>,
+}
+
+impl RouteTable {
+    /// Every row, in load order.
+    #[must_use]
+    pub fn rows(&self) -> &[Route] {
+        &self.rows
+    }
+
+    /// The row § 1's `name` names, or `None` where no route claims it — § 4's
+    /// `url`/`urlAbsolute` reverse the table by exactly this question.
+    ///
+    /// The first match, which is the only one that can be reached: two rows
+    /// claiming one name is [`code::E_DUPLICATE_ROUTE_NAME`], so a program in
+    /// which this could be ambiguous does not compile.
+    #[must_use]
+    pub fn named(&self, name: &str) -> Option<&Route> {
+        self.rows.iter().find(|row| {
+            row.name
+                .as_ref()
+                .is_some_and(|(claimed, _)| claimed == name)
+        })
+    }
 }
 
 /// Every `#[Route]` `decl` declares, collected into `env`'s table.
@@ -149,7 +193,7 @@ pub(crate) fn check_class_routes(
         };
         let attr = attr.clone();
         let handler = format!("{class}::{}", span_text(env.src, m.name));
-        collect_route(&attr, handler, ctx, env);
+        collect_route(&attr, m, class, handler, ctx, env);
     }
 }
 
@@ -161,10 +205,17 @@ pub(crate) fn check_class_routes(
 /// the reading [`crate::commands`]' own gap gives `#[Command]`'s `name` for the
 /// same reason. Both missing fields are named in one diagnostic, because an
 /// author who wrote neither wrote the empty attribute once.
-fn collect_route(attr: &Attribute, handler: String, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+fn collect_route(
+    attr: &Attribute,
+    m: &MethodMember,
+    class: &QName,
+    handler: String,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
     let path = folded_str(attr, PATH, env);
     let verb = verb_of(attr, ctx, env);
-    let (Some((path, _)), Some(verb)) = (path, verb) else {
+    let (Some((path, path_span)), Some(verb)) = (path, verb) else {
         // A field written at the wrong type has already been reported by the
         // roster walk, and reporting it again as a missing one would name the
         // author's second problem before their first.
@@ -189,6 +240,25 @@ fn collect_route(attr: &Attribute, handler: String, ctx: &Ctx<'_>, env: &mut Env
         );
         return;
     };
+    let captures = match parse_path(&path) {
+        Ok(captures) => captures,
+        Err(Refusal { what, help }) => {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_ROUTE_PATH_GRAMMAR,
+                    format!("`{handler}`'s path {what}"),
+                )
+                .with_primary(path_span, "the router cannot match this path")
+                .with_help(help),
+            );
+            // The row is not pushed. A path with no grammar has no shape
+            // either, so keeping it would report the author a duplicate of
+            // something as their second problem before they have fixed their
+            // first.
+            return;
+        }
+    };
+    check_captures(&captures, path_span, m, class, &handler, env);
     let name = folded_str(attr, NAME, env);
     env.routes.rows.push(Route {
         verb,
@@ -197,6 +267,247 @@ fn collect_route(attr: &Attribute, handler: String, ctx: &Ctx<'_>, env: &mut Env
         handler,
         span: attr.span,
     });
+}
+
+/// § 2's three capture forms, each holding the name it binds. A segment that is
+/// none of them is a literal, compared byte for byte and case-sensitively
+/// ([ADR 0062](../../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)),
+/// and is not held here at all.
+#[derive(Clone, Copy, Debug)]
+enum Capture<'a> {
+    /// `{name}` — one whole segment.
+    One(&'a str),
+    /// `{name?}` — one whole segment or none.
+    Optional(&'a str),
+    /// `{name...}` — every remaining segment as one `tainted string`.
+    Rest(&'a str),
+}
+
+impl<'a> Capture<'a> {
+    /// The parameter name this capture binds to, sigil-less, as § 3 compares
+    /// it.
+    fn name(self) -> &'a str {
+        match self {
+            Self::One(name) | Self::Optional(name) | Self::Rest(name) => name,
+        }
+    }
+
+    /// The capture as an author wrote it, for a diagnostic that has to point
+    /// at one of three forms and cannot point at a span inside a folded
+    /// literal.
+    fn written(self) -> String {
+        match self {
+            Self::One(name) => format!("{{{name}}}"),
+            Self::Optional(name) => format!("{{{name}?}}"),
+            Self::Rest(name) => format!("{{{name}...}}"),
+        }
+    }
+}
+
+/// A path § 2's grammar does not admit: the clause that completes "this
+/// handler's path …", and the help that follows it.
+struct Refusal {
+    what: String,
+    help: &'static str,
+}
+
+/// § 2's grammar over one whole path: the captures it declares, in order, or
+/// the one way it is not a path.
+///
+/// Pure, and separate from the diagnostic it feeds, so the grammar reads as the
+/// rules § 2 writes rather than through the reporting around them. It stops at
+/// the first refusal for the reason [`collect_route`] drops the row: a path is
+/// one thing, and a reader fixing its first fault re-reads the rest anyway.
+///
+/// § 2's "at most once" and "never in the same path as a `{name...}`" are not
+/// checked separately, because both fall out of *last position only*: one
+/// segment is last, so a second trailing form is already somewhere it is
+/// refused.
+fn parse_path(path: &str) -> Result<Vec<Capture<'_>>, Refusal> {
+    if !path.starts_with('/') {
+        return Err(Refusal {
+            what: "does not begin with `/`".to_owned(),
+            help: "a route is matched against a request's path, which always begins at the \
+                   root, so a path that does not start with `/` could match nothing",
+        });
+    }
+    let segments: Vec<&str> = path.split('/').collect();
+    let last = segments.len() - 1;
+    let mut captures: Vec<Capture<'_>> = Vec::new();
+    for (index, &segment) in segments.iter().enumerate() {
+        let Some(capture) = capture_of(segment)? else {
+            continue;
+        };
+        if index != last && !matches!(capture, Capture::One(_)) {
+            return Err(Refusal {
+                what: format!(
+                    "writes `{}` somewhere other than the last position",
+                    capture.written()
+                ),
+                help: "a capture that may absorb the end of a path has nothing to follow it, \
+                       so `{name?}` and `{name...}` are written last or not at all",
+            });
+        }
+        if captures.iter().any(|prior| prior.name() == capture.name()) {
+            return Err(Refusal {
+                what: format!("captures `{}` twice", capture.name()),
+                help: "a capture arrives as the parameter it is named after, so two of one \
+                       name are two values for one parameter",
+            });
+        }
+        captures.push(capture);
+    }
+    Ok(captures)
+}
+
+/// One segment read as § 2's grammar: the capture it declares, `None` for a
+/// literal segment, or the clause saying what it is instead.
+///
+/// A segment carrying a brace anywhere is held to being a capture *whole*.
+/// There is no escape and no partial form, which is the half of § 2 that keeps
+/// `{` an ordinary byte in a literal segment impossible rather than ambiguous:
+/// a path meaning one of two things is refused rather than repaired
+/// ([ADR 0095](../../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)).
+fn capture_of(segment: &str) -> Result<Option<Capture<'_>>, Refusal> {
+    if !segment.contains('{') && !segment.contains('}') {
+        return Ok(None);
+    }
+    let Some(inner) = segment
+        .strip_prefix('{')
+        .and_then(|rest| rest.strip_suffix('}'))
+    else {
+        return Err(Refusal {
+            what: format!("has a segment `{segment}` that is neither a literal nor a capture"),
+            help: "a capture is a whole segment — `/users/{id}`, never `/users/u{id}` or \
+                   `/users/{id}.json`",
+        });
+    };
+    let capture = if let Some(name) = inner.strip_suffix("...") {
+        Capture::Rest(name)
+    } else if let Some(name) = inner.strip_suffix('?') {
+        Capture::Optional(name)
+    } else {
+        Capture::One(inner)
+    };
+    let name = capture.name();
+    if name.is_empty()
+        || name.starts_with(|c: char| c.is_ascii_digit())
+        || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+    {
+        return Err(Refusal {
+            what: format!("writes `{segment}`, which captures no name a parameter could have"),
+            help: "a capture names the parameter it binds to, so it holds an identifier and \
+                   nothing else: `{id}`, `{page?}` or `{rest...}`",
+        });
+    }
+    Ok(Some(capture))
+}
+
+/// § 3's two questions about the method the attribute is attached to — every
+/// capture names a parameter of that name, and that parameter's declared type
+/// is one a segment converts to — and § 2's one question of the same kind: a
+/// `{name?}` is well-typed only where its parameter has a default.
+///
+/// The primary span of the two type-shaped refusals is the *parameter*, as it
+/// is for [`crate::commands::check_convertible`]: the path is written correctly
+/// and it is the declaration that cannot answer it. The unbound capture is the
+/// other way round, and is reported at the `path:` field, because that is where
+/// the name with no counterpart was written.
+fn check_captures(
+    captures: &[Capture<'_>],
+    path_span: Span,
+    m: &MethodMember,
+    class: &QName,
+    handler: &str,
+    env: &mut Env<'_>,
+) {
+    // Copied out of `env` rather than read through it, so both stay readable
+    // while a diagnostic is reported into the same `env`.
+    let (src, signatures) = (env.src, env.signatures);
+    let method = span_text(src, m.name).to_owned();
+    let sig = signatures
+        .get(class)
+        .and_then(|class_sig| class_sig.methods.get(&method));
+    for capture in captures {
+        let name = capture.name();
+        let Some((index, param)) = m
+            .params
+            .iter()
+            .enumerate()
+            .find(|(_, param)| crate::strip_sigil(span_text(src, param.name)) == name)
+        else {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_ROUTE_CAPTURE_UNBOUND,
+                    format!(
+                        "`{handler}` has no parameter `${name}` for `{}` to arrive as",
+                        capture.written()
+                    ),
+                )
+                .with_primary(path_span, "this capture names no parameter")
+                .with_help(
+                    "a capture is the parameter it is named after and the comparison is exact \
+                     (ADR 0029) — the reverse is fine, and a parameter the path does not name \
+                     is simply not the router's",
+                ),
+            );
+            continue;
+        };
+        if matches!(capture, Capture::Optional(_)) && param.default.is_none() {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_OPTIONAL_CAPTURE_NEEDS_DEFAULT,
+                    format!(
+                        "`${name}` has no default, so `{}` has nothing to be when it is absent",
+                        capture.written()
+                    ),
+                )
+                .with_primary(param.span, "this parameter needs a default")
+                .with_secondary(path_span, "the capture that may match no segment")
+                .with_help(
+                    "an optional capture matches one whole segment or none, and the default is \
+                     what makes the absent case well-typed rather than nullable by accident",
+                ),
+            );
+        }
+        let Some(ty) = sig.and_then(|sig| sig.params.get(index).copied()) else {
+            continue;
+        };
+        let admitted = match capture {
+            // The one row the shared roster does not answer for: nothing about
+            // a catch-all is checked, so there is no conversion to choose and
+            // it arrives as the `tainted string` it was read as.
+            Capture::Rest(_) => matches!(
+                env.interner.get(ty),
+                crate::ty::Ty::String | crate::ty::Ty::TaintedString
+            ),
+            _ => crate::commands::converts_from_string(ty, env),
+        };
+        if admitted {
+            continue;
+        }
+        let described = env.interner.describe(ty);
+        let written = capture.written();
+        env.diags.report(
+            Diagnostic::error(
+                code::E_ROUTE_CAPTURE_TYPE_HAS_NO_CONVERSION,
+                format!("`{described}` is not a type `{written}` can arrive at"),
+            )
+            .with_primary(param.span, "no conversion from a path segment")
+            .with_secondary(path_span, "the capture bound here")
+            .with_help(match capture {
+                Capture::Rest(_) => {
+                    "a `{name...}` is every remaining segment as one value and nothing about it \
+                     was checked, so it arrives as a `string` and at no other type"
+                }
+                _ => {
+                    "a segment is converted to the parameter's declared type, so a capture \
+                     binds `string`, `int`, `uint`, `decimal`, an enum, a union of literal \
+                     types, or `Core\\Uuid` — and never a regex (ADR 0102 § 5)"
+                }
+            }),
+        );
+    }
 }
 
 /// The field `option` as written, or `None` where the payload has no such
@@ -296,22 +607,25 @@ pub(crate) fn check_table(table: &RouteTable, diags: &mut Diagnostics) {
     }
 }
 
-/// § 2's path *shape*: the path with every capture's name erased, so
-/// `/users/{id}` and `/users/{userId}` are the one route they match as.
+/// § 2's path *shape*: the path with every capture's name erased but its
+/// *form* kept, so `/users/{id}` and `/users/{userId}` are the one route they
+/// match as while `/posts/{page}` and `/posts/{page?}` stay two.
 ///
-/// A capture is a whole segment or it is not a capture — that much of § 2's
-/// grammar is decided here rather than deferred, because a duplicate reported
-/// over the written text would miss the pair this error exists for. A segment
-/// this rule leaves alone is a segment § 2's own grammar check, once it lands,
-/// is what refuses.
+/// The form is kept because § 2's precedence is structural — a literal beats a
+/// `{name}`, which beats a `{name?}`, which beats a `{name...}` — so the three
+/// are three nodes of the trie and a pair of them has an answer that does not
+/// depend on declaration order. Erasing the form would report that pair as the
+/// duplicate it is not.
+///
+/// Only a row [`parse_path`] admitted reaches here, so a segment that is not a
+/// capture is a literal and there is no third case to leave alone.
 fn shape(path: &str) -> String {
     path.split('/')
-        .map(|segment| {
-            if segment.starts_with('{') && segment.ends_with('}') && segment.len() >= 2 {
-                "{}"
-            } else {
-                segment
-            }
+        .map(|segment| match capture_of(segment) {
+            Ok(Some(Capture::One(_))) => "{}",
+            Ok(Some(Capture::Optional(_))) => "{?}",
+            Ok(Some(Capture::Rest(_))) => "{...}",
+            _ => segment,
         })
         .collect::<Vec<_>>()
         .join("/")
