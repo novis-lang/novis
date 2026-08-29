@@ -1028,9 +1028,20 @@ nvs_runtime::nvs_helper! {
         let wants_key = nvs_runtime::closure_arity(args[1])? >= 2;
 
         let mut out = NvsArray::new();
+        // The live slots, as an iterator, so the walk goes through
+        // `nvs_runtime::bounded_loop` and the deadline poll arrives with the
+        // shape rather than being remembered here — ADR 0106 § 5's first
+        // constraint. An entry boundary is a point where abandoning is
+        // consistent: `out` is a named local holding whole entries, so
+        // propagating a fired poll releases the partial result by dropping it,
+        // exactly as the throw path below already does.
         let mut from = 0usize;
-        while let Some(slot) = base.next_slot(from) {
+        let slots = std::iter::from_fn(|| {
+            let slot = base.next_slot(from)?;
             from = slot + 1;
+            Some(slot)
+        });
+        nvs_runtime::bounded_loop(ctx, "Core\\Arr::map", slots, |ctx, slot| {
             let value = base
                 .value_at(slot)
                 .expect("next_slot only names live entries");
@@ -1064,7 +1075,8 @@ nvs_runtime::nvs_helper! {
             // `SlotKey`'s own `NvsStr` both do by releasing.
             let mapped = mapped?;
             store_at(&mut out, key, mapped);
-        }
+            Ok(())
+        })?;
         Ok(Value::array(out))
     }
 }
