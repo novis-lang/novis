@@ -120,6 +120,46 @@ gets its first adversarial traffic.
     sampled or not**, and spans derived from ADR 0041's existing event kinds **with no probe added to ADR
     0018's measured path**. Goal 4 built the outbound half; this closes the loop.
 
+## Stage 6b — persistent connections
+
+[ADR 0083](../../adr/0083-persistent-connections-are-isolates.md) whole. [m7.md](../../plan/m7.md) places
+it in this milestone and no stage above carries it. A connection is a **root isolate** opened by a request
+that then ends normally, so this stage adds a lifetime, not an isolation path — and item 25's state-bleed
+suite gains connections as its third parameterisation rather than a second suite.
+
+19a. **The upgrade seam.** `hyper`'s `on_upgrade` hands back the `Upgraded` io, which downcasts to the
+    coroutine's own `NvsStream`; RFC 6455 framing is `tungstenite` over that stream — it is a plain
+    `Read + Write`, so the sync crate fits with no adapter — with its `max_frame_size` and
+    `max_message_size` set from § 7's caps. Framing is not owned, for the reason h1 is not: it is where the
+    smuggling-class bugs live. The connection isolate is goal 2's `Isolate` with the socket moved in, and
+    **the upgrading request's arena is released while the connection is open** — the memory probe in the
+    ADR's *Verification*, and the claim that a connection is not a held request.
+19b. **`Core\Socket::upgrade` and the entry rule it shares with `spawn script`.** `upgrade` takes ADR 0006's
+    operand — a file path, or a callable that captures nothing — and its `with(...)` clause whole, and
+    returning it is what performs it. The operand's callable half lands **first at `spawn script`**: the
+    parser, lowering's capture-set check with its diagnostic naming the variable, and a function→`Program`
+    arm beside `program_over` in `crates/nvs-cli/src/script.rs`; `upgrade` then reuses all three rather
+    than growing a check of its own.
+19c. **`Core\Socket::current`, `Socket\Message`, `send`, `receive`, `close`** — ADR 0083 § 3. `receive()`
+    is **the one wait**, over the peer *and* the connection's subscribed topics, answering a peer frame
+    (payload `tainted`) or a topic delivery (the copied value and the topic's name); there is no
+    `Core\Topic::receive()` and no two-task scaffold in a connection script. `send` suspends until the frame
+    is buffered and throws on the send timeout.
+19d. **`Core\Topic`** — § 4, the one place thread-per-core is crossed on purpose. A publish serialises
+    once with Stage 5's byte carrier (goal 2 item 16) and each subscriber unserialises into its own arena;
+    the wake across cores is `Reactor::remote_wake`; the per-subscriber queue is bounded and **overflow
+    closes that subscriber with a defined code**, never blocking the publisher. A `tainted` topic name and
+    a `secret` value are compile errors, the fixtures goal 4's qualifier suite already has a shape for.
+19e. **`Core\Sse::upgrade`** — § 5: the same isolate with no `receive`, and the line it draws — a stream
+    that ends with its request is a streaming response (Stage 4) and stays in the request isolate.
+19f. **Bounds and lifetimes** — § 7: connections per process, frame and message size, idle, lifetime and
+    send timeouts, subscriber queue depth — every one finite with nothing configured, on the timer table
+    goal 2 built, asserted the way ADR 0074's defaults are. A connection exceeding its memory, CPU or
+    lifetime budget closes with the defined code and reports as that, never as an out-of-memory.
+19g. **Reload and drain** — § 7, over items 20 and 22: an open connection keeps the compiled unit it began
+    with and one opened after the swap runs the new one; `nvs ctl reload` and graceful shutdown close every
+    connection with the defined code after the drain period, and none outlives it.
+
 ## Stage 7 — the operator's surface
 
 20. **The control socket and `nvs ctl`** — [ADR 0078](../../adr/0078-config-reload-and-control-socket.md)
@@ -190,6 +230,11 @@ what this adds.
 - **One isolation path.** The request is goal 2's `Isolate`. A second one makes Stage 9's state-bleed suite
   meaningless, which is why item 2 is stated as an item rather than assumed.
 - **`max_in_flight` is an arithmetic, not a number.** ADR 0106 amended ADR 0097 § 5 to say so.
+- **`tungstenite` is the framing crate**, sync, over `NvsStream` with no adapter, picked under ADR 0051
+  § 4's pre-authorization; owning RFC 6455 is refused for the reason owning h1 is.
+- **`receive()` selects over both sources** — ADR 0083 § 3 — and an isolate's entry is a path or a
+  callable that captures nothing — ADR 0006. Both are decided in those bodies; a session that wants a
+  `Core\Topic::receive()` or a capturing closure has found the decision, not a gap.
 - **`Core\Session` may not use the local cache tier.** ADR 0059 § 4.
 - **A mount routes and carries nothing else.** Policy is the per-app block's, which goal 3 built.
 - **`nvs ctl reload` is the socket's only operation**, and there is no network-reachable control surface in
