@@ -1,0 +1,117 @@
+--TEST--
+A grapheme count asked again answers what the first ask answered, and a concatenation's count is corrected at the seam rather than summed — ADR 0009 § 2
+--FILE--
+<?nvs
+// ADR 0009 § 2 makes the extended grapheme cluster the unit `Core\Str::length`
+// counts, and the count is meant to be answered a second time out of the
+// string's own header rather than by scanning again. A cache is invisible from
+// source by construction, so what a program can pin is the invariant it must
+// not break: the second answer is the first answer, and both are still what an
+// independent fresh scan says.
+//
+// The failure mode this case exists for is not a slow count but a wrong one,
+// and it hides on a single line: a stale entry, or a concatenation that updated
+// its answer by adding the two halves, prints plausibly for any one subject. So
+// every row is asked all of it and the agreements are counted — a subject that
+// disagrees once moves a count away from `$total`.
+class Seam {
+    // The same binding asked three times. A cache is written by the first ask,
+    // so the second and third are the ones reading it back, and `graphemes`
+    // then counts the same units without going through whatever `length`
+    // remembered.
+    public static function stable(string $s): bool {
+        int $first = Core\Str::length($s) as int;
+        int $second = Core\Str::length($s) as int;
+        int $third = Core\Str::length($s) as int;
+        if ($first != $second) {
+            return false;
+        }
+        if ($second != $third) {
+            return false;
+        }
+        return $first == Core\Arr::count(Core\Str::graphemes($s)) as int;
+    }
+}
+
+// A left half, a right half, and a seam. Five of the nine rows join into one
+// cluster across that seam and four do not, which is the whole reason a count
+// is not additive: UAX #29 decides the boundary from both sides of it.
+//
+// The last row is the one that keeps the rule honest — each half is a `\r\n`
+// that GB3 already holds whole, and joining them puts `\n` before `\r`, which
+// is a boundary rather than another merge.
+array<array<string>> $pairs = [
+    ["a", "\u{0301}"],                  // base + combining mark
+    ["e\u{0301}", "\u{0301}"],          // a cluster that already has one takes a second
+    ["\r", "\n"],                       // GB3, assembled across the seam
+    ["\u{1F1E6}", "\u{1F1F9}"],         // two regional indicators are one flag
+    ["\u{1F44D}", "\u{1F3FD}"],         // emoji + skin-tone modifier
+    ["abc", "def"],
+    ["", "abc"],                        // an empty half contributes no seam at all
+    ["héllo", "!"],
+    ["\r\n", "\r\n"],                   // LF before CR: a boundary, not a merge
+];
+
+int $total = 0;
+int $leftStable = 0;        // asked three times, and a fresh scan agrees
+int $rightStable = 0;
+int $joinedStable = 0;
+int $leftUnchanged = 0;     // the operand's own count survives being concatenated
+int $withinOne = 0;         // a seam removes one cluster or none, never more
+int $merged = 0;            // ...and these are the rows where it removed one
+int $joined = 0;            // total clusters over the nine joined subjects
+int $summed = 0;            // total had the counts simply been added
+
+foreach ($pairs as array<string> $pair) {
+    string $left = $pair[0];
+    string $right = $pair[1];
+    $total = $total + 1;
+
+    if (Seam::stable($left)) {
+        $leftStable = $leftStable + 1;
+    }
+    if (Seam::stable($right)) {
+        $rightStable = $rightStable + 1;
+    }
+
+    int $before = Core\Str::length($left) as int;
+    string $whole = $left . $right;
+    if (Seam::stable($whole)) {
+        $joinedStable = $joinedStable + 1;
+    }
+    // Asked after the concatenation has been built and counted: a boundary
+    // correction that wrote through to the half it read would show up here.
+    if (Core\Str::length($left) as int == $before) {
+        $leftUnchanged = $leftUnchanged + 1;
+    }
+
+    // Read back after `Seam::stable` has already asked, so both totals below
+    // are the cached answer rather than a first scan.
+    int $count = Core\Str::length($whole) as int;
+    int $sum = $before + Core\Str::length($right) as int;
+    $joined = $joined + $count;
+    $summed = $summed + $sum;
+    if ($count == $sum || $count == $sum - 1) {
+        $withinOne = $withinOne + 1;
+    }
+    if ($count == $sum - 1) {
+        $merged = $merged + 1;
+    }
+}
+
+// Every subject answers the same count every time it is asked, and every one of
+// those answers is what a fresh partition into clusters says.
+echo $total, " ", $leftStable, " ", $rightStable, " ", $joinedStable, "\n";
+
+// Concatenating never disturbs the half's own count, and a seam is worth at
+// most one cluster.
+echo $leftUnchanged, " ", $withinOne, "\n";
+
+// Five seams merge, so the corrected total is five below the additive one.
+// Without this line every count above would hold for a `length` that had
+// quietly become additive across `.`.
+echo $merged, " ", $joined, " ", $summed, "\n";
+--EXPECT--
+9 9 9 9
+9 9
+5 22 27
