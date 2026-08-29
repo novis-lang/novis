@@ -878,6 +878,16 @@ is why" — is this file.
   resolved-license column per crate, so `grep -n -E "(crate|names)" THIRD-PARTY-LICENSES.txt`
   against `deny.toml`'s `[licenses] allow` list settles the license half, and the advisory
   half is CI's. Say in the handoff which crates were cleared that way.
+- **`gaps.py --coverage` counts cases per member, not depth, so its *thinnest members* column can
+  name work that is already finished.** A handoff group built off it named `Core\Math`'s `lcm`,
+  `hypot` and `atan2` at three cases each; all three were already pinned to depth —
+  `math-the-division-identity-and-the-gcd-lcm-identity-hold-on-every-row-that-has-one.nvst` §§ 4-5
+  carries `gcd*lcm == |a*b|` over 100 pairs with the sign convention, the zero rows and both
+  members' bounds, and `hypot` and `atan2` each have a case of their own. One
+  `grep -rn 'Class::member' tests/conformance` per named member, before believing the column, is
+  the whole check and costs one call. A member with three *deep* cases needs a new boundary, not a
+  fourth table — and the check belongs in the session that *writes* the next group, since it is the
+  one holding the context.
 
 ## Running things
 
@@ -2469,6 +2479,13 @@ is why" — is this file.
   not one. Pinned by
   `tests/conformance/core/time-datetime-leap-year-is-februarys-last-day-and-the-years-length.nvst`,
   which is why that case reads the year's length from March rather than from December.
+- **`as` binds tighter than arithmetic, and `false as string` is the empty string.** Two `.nvst`
+  spellings that cost a run each. `$which[$i - 1 as string]` parses as `$which[$i - (1 as string)]`
+  and fails `E0716: '-' has no meaning for 'string'` — an index that computes needs its own
+  parentheses, `($i - 1) as string`. And a `bool` printed with `as string` renders `1` for true and
+  **nothing** for false, so a column of booleans in `--EXPECT--` silently changes width and reads as
+  a missing field rather than as a `false`; `$b ? "y" : "n"` is the spelling that keeps such a row
+  legible. Both are invisible until the case runs, and the second one passes review.
 
 ## Splitting a file that got too big
 
