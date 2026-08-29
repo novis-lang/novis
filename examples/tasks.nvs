@@ -1,0 +1,67 @@
+<?nvs
+// ADR 0072's `Core\Task` roster, as a program — one block per section the
+// roster is specified in.
+//
+// The four lines this prints are frozen in `docs/agent/loop-goal.toml`
+// (stage 4); the source below is not, and the session that lands each item
+// is expected to rewrite the block that reaches it.
+
+// § 1: a fixed, heterogeneous set. Each field's type binds from the written
+// `fn` literal's declared return type, so `->rows` is an `array<int>` and
+// `->label` a `string` at the use site with no cast — which is the whole
+// reason the member exists rather than returning `array<mixed>`. The other
+// half of § 1, that a field holding a `callable` *variable* is a compile
+// error, is a `nvs-types` case: no program can print it.
+var $page = Core\Task::all({
+    rows:  fn(): array<int> => [1, 2, 3],
+    label: fn(): string     => "all",
+});
+echo $page->label, "=", Core\Arr::count($page->rows), "\n";
+
+// § 2: the homogeneous case, subject first, the result preserving the
+// input's keys and order regardless of completion order — which is what the
+// four squares below assert and a completion-ordered result would not.
+var $squares = Core\Task::map([1, 2, 3, 4], fn(int $n): int => $n * $n);
+var $line = "";
+foreach ($squares as int $v) {
+    if ($line != "") {
+        $line = $line . ",";
+    }
+    $line = $line . $v;
+}
+echo "map=", $line, "\n";
+
+// § 3: `deadline` is a wall-clock bound on the whole call, not per child,
+// and § 4 says what expiry does — every child is cancelled, the call waits
+// for those cancellations, and `TimeoutError` is thrown. It is thrown rather
+// than returned because a deadline is not one of the results.
+try {
+    Core\Task::map([1, 2], fn(int $n): int => {
+        Core\Time::sleep(200ms);
+        return $n;
+    }, {deadline: 20ms});
+    echo "deadline missed", "\n";
+} catch (TimeoutError $e) {
+    echo "deadline hit", "\n";
+}
+
+// § 3: `limit` is a concurrency shaper — exceeding it *schedules*, and never
+// throws, deliberately unlike § 4's `max_concurrent`, which is a host bound.
+// What proves the shaping is the peak, not the total: six children each hold
+// the gauge across a sleep, so a `limit` that was ignored would print 6.
+class Gauge {
+    public static int $live = 0;
+    public static int $peak = 0;
+}
+
+Core\Task::map(Core\Arr::range(1, 6), fn(int $n): int => {
+    Gauge::$live += 1;
+    if (Gauge::$live > Gauge::$peak) {
+        Gauge::$peak = Gauge::$live;
+    }
+    Core\Time::sleep(5ms);
+    Gauge::$live -= 1;
+    return $n;
+}, {limit: 2});
+
+echo "limit held at ", Gauge::$peak, "\n";

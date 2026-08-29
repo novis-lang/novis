@@ -1,0 +1,60 @@
+<?nvs
+// `Core\Task\Channel` and its backpressure, as a program — goal 2's item 11.
+//
+// The three lines this prints are frozen in `docs/agent/loop-goal.toml`
+// (stage 4); the source is not. The channel's *surface* is M5's own design
+// and no ADR pins it (ADR 0072's scope line says so), so the spellings below
+// are this fixture's proposal and the session that lands the type owns the
+// final one — what it may not change is that a send into a full channel
+// suspends rather than growing the buffer.
+class Meter {
+    public static int $produced = 0;
+    public static int $consumed = 0;
+    public static bool $suspended = false;
+}
+
+// Capacity two, against eight items: the buffer cannot hold the run, so the
+// producer must be made to wait four times over.
+var $chan = new Core\Task\Channel(2);
+
+// Both halves are children of this call, so ADR 0072 § 4's promise applies
+// with nothing added: `all` does not return with either still running, which
+// is what lets the counters below be read as final.
+Core\Task::all({
+    produce: fn(): int => {
+        foreach (Core\Arr::range(1, 8) as int $i) {
+            // A send that returns without the consumer having run did not
+            // suspend. One that lets the consumer make progress in the
+            // middle of it is the backpressure this item exists for, and it
+            // is observable without asking the channel anything about
+            // itself — which is why nothing here reads a `count` or a
+            // `isFull` that the type may well not have.
+            var $before = Meter::$consumed;
+            $chan->send($i);
+            if (Meter::$consumed > $before) {
+                Meter::$suspended = true;
+            }
+            Meter::$produced += 1;
+        }
+
+        // Closing is what ends the consumer's loop; a consumer blocked on a
+        // channel nobody will send to again is the deadlock this replaces.
+        $chan->close();
+        return Meter::$produced;
+    },
+    consume: fn(): int => {
+        foreach ($chan as int $v) {
+            Meter::$consumed += 1;
+        }
+        return Meter::$consumed;
+    },
+});
+
+echo "produced=", Meter::$produced, "\n";
+echo "consumed=", Meter::$consumed, "\n";
+
+if (Meter::$suspended) {
+    echo "sender suspended", "\n";
+} else {
+    echo "sender never waited", "\n";
+}
