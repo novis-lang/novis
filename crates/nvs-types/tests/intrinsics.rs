@@ -224,6 +224,60 @@ fn a_literal_uri_is_validated_while_checking() {
 }
 
 #[test]
+fn a_literal_duration_is_validated_while_checking() {
+    // § 1's row 4, and the one grammar whose parser was already shared by
+    // three callers before this pass was a fourth: ADR 0070 § 5 puts it in
+    // `nvs-syntax` so the lexer's `1h30m`, `Core\Time\Duration::parse` and an
+    // `nvs.toml` directive cannot drift apart. So each refusal below is
+    // literally the diagnostic the *lexer* gives the same text.
+    let backwards =
+        check_call("    Core\\Time\\Duration $d = Core\\Time\\Duration::parse(\"30m1h\");\n");
+    assert!(
+        reported(&backwards, code::E_INTRINSIC_LITERAL_MALFORMED),
+        "units that do not descend: {backwards:?}"
+    );
+
+    let mis_cased =
+        check_call("    Core\\Time\\Duration $d = Core\\Time\\Duration::parse(\"30S\");\n");
+    assert!(
+        reported(&mis_cased, code::E_INTRINSIC_LITERAL_MALFORMED),
+        "a unit in the wrong case: {mis_cased:?}"
+    );
+
+    let unfinished =
+        check_call("    Core\\Time\\Duration $d = Core\\Time\\Duration::parse(\"1h30\");\n");
+    assert!(
+        reported(&unfinished, code::E_INTRINSIC_LITERAL_MALFORMED),
+        "a count with no unit after it: {unfinished:?}"
+    );
+
+    // § 3's range, which is a refusal about the *value* rather than the
+    // shape — a folded literal wider than `Duration` holds is the compile
+    // error that ADR names, not a wrap.
+    let wide = check_call(
+        "    Core\\Time\\Duration $d = Core\\Time\\Duration::parse(\"99999999999w\");\n",
+    );
+    assert!(
+        reported(&wide, code::E_INTRINSIC_LITERAL_MALFORMED),
+        "a duration wider than the type holds: {wide:?}"
+    );
+
+    // And what stays silent: the two spellings § 1 of ADR 0070 opens with, the
+    // sub-second units, and a computed text, which is § 2's rule.
+    let fine = check_call(
+        "    string $t = \"30m1h\";\n    \
+         Core\\Time\\Duration $simple = Core\\Time\\Duration::parse(\"30s\");\n    \
+         Core\\Time\\Duration $compound = Core\\Time\\Duration::parse(\"1h30m\");\n    \
+         Core\\Time\\Duration $small = Core\\Time\\Duration::parse(\"500ms\");\n    \
+         Core\\Time\\Duration $built = Core\\Time\\Duration::parse($t);\n",
+    );
+    assert!(
+        !fine.has_errors(),
+        "a duration the grammar admits was refused: {fine:?}"
+    );
+}
+
+#[test]
 fn a_nullable_argument_is_not_refused_against_a_numeric_conversion() {
     // ADR 0057 § 4 as a test: preparation produces an earlier answer and never
     // a different one. `Core\Str::format("%d", $n)` for a `?int` throws at run

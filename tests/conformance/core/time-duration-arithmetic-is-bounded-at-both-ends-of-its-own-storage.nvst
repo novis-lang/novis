@@ -86,8 +86,12 @@ try {
 // `parse` meets the same ceiling from the other side, and is the one refusal
 // here that is a `ParseError` rather than a `RuntimeError`: nothing failed to
 // fit, a text failed to read. Its sentence is still the same sentence.
+// Behind a binding, because ADR 0057 § 1 folds this member's literal argument
+// and a text past the ceiling is refused while checking when it is written
+// inline — which is that ADR § 3's rule, and not what this case is asking.
+string $past = "9223372036854775808ns";
 try {
-    echo Core\Time\Duration::parse("9223372036854775808ns")->toNanoseconds() as string, "|\n";
+    echo Core\Time\Duration::parse($past)->toNanoseconds() as string, "|\n";
 } catch (ParseError $tooWide) {
     echo $tooWide->message, "|\n";
     $refused = $refused + (Core\Str::contains($tooWide->message, "longer than") ? 1 : 0);

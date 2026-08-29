@@ -28,8 +28,9 @@ try {
 
 // A ParseError is still a RuntimeError and still a Throwable, so a program
 // that caught the wide class before keeps catching it.
+string $unreadable = "nope";
 try {
-    Core\Time\Duration::parse("nope");
+    Core\Time\Duration::parse($unreadable);
     echo "not reached\n";
 } catch (RuntimeError $wide) {
     echo "runtime\n";

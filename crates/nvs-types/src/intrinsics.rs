@@ -215,12 +215,17 @@ pub(crate) fn check_call(
                 report_malformed(pattern.value.span, &message, env);
             }
         }
-        // The last grammar's reader lands with its own slice — the row is here
-        // first because § 1's *list* is the decision and a parser is only what
-        // implements it. Until then the member behaves exactly as it did: the
-        // literal reaches the runtime unvalidated, which is what this pass is
-        // replacing rather than something it breaks.
-        Grammar::Duration => {}
+        // ADR 0070 § 5's three places that must agree already share one parser,
+        // and it lives in `nvs-syntax` because the lexer is one of the three.
+        // So this arm reaches no validator of its own: the function below is
+        // the same call `nvs_core_time_duration_parse` makes and the same one
+        // the lexer makes for a `1h30m` literal, which is why a folded
+        // `Core\Time\Duration::parse("1h30m")` cannot disagree with either.
+        Grammar::Duration => {
+            if let Err(err) = nvs_syntax::duration::parse(&text) {
+                report_malformed(pattern.value.span, &err.message(), env);
+            }
+        }
     }
 }
 
