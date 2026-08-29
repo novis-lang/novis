@@ -1,0 +1,97 @@
+--TEST--
+`Core\Hash\Stream` is an identity rather than a value: every name for one stream is that stream, `finish` closes the object, and two streams of one digest never mix — spec § 11, ADR 0063 R3
+--FILE--
+<?nvs
+// § 11's stream is the one mutable `Core` instance outside § 9's collections,
+// so what every case before this one leaves open is what a *name* holding one
+// means. ADR 0063 R3 is that no `Core` member mutates its subject; `update` is
+// the exception § 11's fourth row buys, and its price is that a stream behaves
+// like an identity rather than like a value — two names for one stream are one
+// stream, and closing it closes it for both.
+class Fed
+{
+    // A stream handed to a helper is the caller's own and not a copy: the
+    // octets fed here reach the digest the caller finishes.
+    public static function feed(Core\Hash\Stream $stream, string $data): void
+    {
+        $stream->update($data);
+    }
+
+    // Two streams of one digest, fed alternately, asserted as agreement with
+    // the one-shot member rather than as either digest — a stream that read
+    // the other's chunks fails the count while still printing a plausible
+    // line of its own.
+    public static function independent(Core\Digest $digest): bool
+    {
+        var $left = Core\Hash::stream($digest);
+        var $right = Core\Hash::stream($digest);
+        $left->update("a");
+        $right->update("z");
+        $left->update("bc");
+        $right->update("yx");
+        return Core\Hash::equals($left->finish(), Core\Hash::of("abc", $digest))
+            && Core\Hash::equals($right->finish(), Core\Hash::of("zyx", $digest));
+    }
+}
+
+// One stream under three names: a second binding, a helper's parameter, and an
+// array entry read back out. Every octet reaches the one digest.
+var $stream = Core\Hash::stream(Core\Digest::Sha256);
+var $alias = $stream;
+array<Core\Hash\Stream> $held = [$stream];
+$stream->update("a");
+$alias->update("b");
+Fed::feed($held[0], "c");
+echo Core\Hash::equals($alias->finish(), Core\Hash::of("abc", Core\Digest::Sha256)) ? "same" : "differ", "\n";
+
+// `finish` closed the object rather than the name that called it, so the other
+// two names are the same finished stream and each member says so.
+try {
+    $stream->finish();
+} catch (Throwable $e) {
+    echo "threw: ", $e->message, "\n";
+}
+try {
+    $held[0]->update("d");
+} catch (Throwable $again) {
+    echo "threw: ", $again->message, "\n";
+}
+
+// Independence over every `Core\Digest` case, counted: six rows and twelve
+// agreements, so no algorithm passes by answering plausibly on its own line.
+int $mixed = 0;
+if (!Fed::independent(Core\Digest::Crc32)) {
+    $mixed = $mixed + 1;
+}
+if (!Fed::independent(Core\Digest::Md5)) {
+    $mixed = $mixed + 1;
+}
+if (!Fed::independent(Core\Digest::Sha1)) {
+    $mixed = $mixed + 1;
+}
+if (!Fed::independent(Core\Digest::Sha256)) {
+    $mixed = $mixed + 1;
+}
+if (!Fed::independent(Core\Digest::Sha384)) {
+    $mixed = $mixed + 1;
+}
+if (!Fed::independent(Core\Digest::Sha512)) {
+    $mixed = $mixed + 1;
+}
+echo "digests whose two streams mixed: ", $mixed, "\n";
+
+// Two streams opened with one digest and fed one input are equal without being
+// the same stream: closing the first leaves the second open, which is the
+// difference between an identity and a value.
+var $first = Core\Hash::stream(Core\Digest::Sha256);
+var $second = Core\Hash::stream(Core\Digest::Sha256);
+$first->update("abc");
+$second->update("abc");
+bytes $done = $first->finish();
+echo Core\Hash::equals($done, $second->finish()) ? "same" : "differ", "\n";
+--EXPECT--
+same
+threw: Core\Hash\Stream::finish(): this stream is finished — a digest is final, so open a new stream with Core\Hash::stream rather than reusing this one
+threw: Core\Hash\Stream::update(): this stream is finished — a digest is final, so open a new stream with Core\Hash::stream rather than reusing this one
+digests whose two streams mixed: 0
+same
