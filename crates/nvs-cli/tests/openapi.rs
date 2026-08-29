@@ -222,10 +222,20 @@ fn fixture(stem: &str) -> String {
 
 /// `nvs build --openapi` for a fixture, written to a file under the target
 /// directory cargo gives an integration test for exactly this.
+///
+/// **A fresh file per call, not one per stem.** Three tests here ask for
+/// `base`, `cargo test` runs them on their own threads, and a reader that
+/// catches another thread's `fs::write` half-done gets a truncated document and
+/// a diff that reports nothing — which is a flake in exactly the four cases
+/// `loop-goal.toml` names as acceptance checks. The counter is what stops two
+/// calls sharing a path at all; the documents are byte-identical either way, so
+/// nothing about what is compared changes.
 fn document(stem: &str) -> std::path::PathBuf {
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let (doc, err, ok) = build(&fixture(stem));
     assert!(ok, "the `{stem}` fixture compiles: {err}");
-    let path = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("{stem}.json"));
+    let nth = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let path = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("{stem}.{nth}.json"));
     std::fs::write(&path, doc).expect("the target directory is writable");
     path
 }
