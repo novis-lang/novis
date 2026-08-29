@@ -25,21 +25,14 @@
 //!
 //! # Known gaps
 //!
-//! 1. **`Core\Http\Method` is declared nowhere yet**, so `method`'s roster row
-//!    interns to nothing and its value is checked as the compile-time constant
-//!    ADR 0046 § 2 requires and placed at no type — a case of the *wrong* enum
-//!    is admitted here today. The row names the enum rather than waiting for
-//!    it, so the check starts working the moment `Core\Request::method`'s enum
-//!    lands; [`crate::testing::OptionTy::intern`] owns why that is a `None`
-//!    rather than a diagnostic.
-//! 2. **The route table itself is not built**, so none of § 1-§ 3's four
+//! 1. **The route table itself is not built**, so none of § 1-§ 3's four
 //!    compile errors is reported: a duplicate route or duplicate `name` (a
 //!    question about the whole program's enumeration), a `{param}` with no
 //!    matching method parameter and a capture whose parameter type has no
 //!    conversion from a segment (questions about the method the attribute is
 //!    attached to, which this walk does not carry). § 2's path grammar is
 //!    validated by that same pass, so a malformed `path` is admitted here too.
-//! 3. **Nothing requires `path` and `method`.** § 1's shape marks only `name`
+//! 2. **Nothing requires `path` and `method`.** § 1's shape marks only `name`
 //!    optional, so an empty `#[Route]` is a payload this pass admits and the
 //!    userland alias it replaces would not. It is the table pass that needs
 //!    both to build a row, and it is what should refuse a row missing either —

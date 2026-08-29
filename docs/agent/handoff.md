@@ -2,62 +2,67 @@
 
 ## State
 
-**ADR 0077 § 1's `#[Core\Route]` is a recognized name with its own payload check.** It is on
-`nvs_types::derive::ATTRIBUTES` (`crates/nvs-types/src/derive.rs:78`) and its roster is the new
-`crates/nvs-types/src/routes.rs`, whose module doc owns the three gaps. The roster *walk* moved
-out of `commands.rs` into `nvs_types::attributes::check_roster` and is now the one walk behind
-`#[Test]`, `#[Command]`, `#[Option]` and `#[Route]`; `OptionTy` (`crates/nvs-types/src/testing.rs:157`)
-is `pub(crate)` and gained an `Enum(&'static str)` row, because § 1's payload is not all `string`.
+**ADR 0077's router has its first two pieces on disk, both in the new
+`crates/nvs-stdlib/src/router.rs`.** `Core\Http\Method` is `ENUMS`' ninth row
+(`crates/nvs-stdlib/src/registry.rs:855`): ADR 0074 § 7's eight verbs, safe ones first so
+ADR 0096 § 4's CSRF set is the contiguous tail from `Post` (value 4) on, `CONNECT`
+deliberately absent. `Core\Router` is in `CLASSES` with § 4's link half only — `url` and
+`urlAbsolute`, `params` declared `array<mixed>` (see the playbook bullet on `array<K, V>`).
 
-**`Core\Http\Method` is declared nowhere**, so `method`'s roster row interns to nothing and a case
-of the *wrong* enum is admitted — `nvs_types::routes` gap 1, and the playbook bullet this session
-added says why nothing below the roster catches it either.
+**`nvs_types::routes`' gap 1 is closed.** The `method` roster row
+(`crates/nvs-types/src/routes.rs:56`) now interns to a real type, so a case of the *wrong*
+enum is refused — `crates/nvs-types/tests/routes.rs`'s
+`a_case_of_another_enum_is_refused_at_the_method_option` is the new twin.
+`OptionTy::intern`'s `None` arm (`crates/nvs-types/src/testing.rs:174`) is now reachable
+by no row and its doc says so.
 
-**ADR 0086 § 6's two local compile errors land**: `E0745` when two options of one `#[Command]`
-claim one spelling (the long form defaults to the parameter's own name, so an explicit `long:`
-over a sibling's name collides), and `E0746` when an `#[Option]`'s parameter has no conversion
-from `string`. Both are `commands::check_class_commands`, hooked at
-`crates/nvs-types/src/check.rs:230`; `commands::converts_from_string` is the one home for
-ADR 0077 § 3's conversion roster and is what the route table's own pass should read.
+**`examples/routes.nvs` compiles and reaches its `echo`s, then throws.** Both `url` calls
+resolve; the bodies are one shared `no_such_route` refusal, because the route table is not
+built and every name is unknown. The driver's acceptance check therefore still fails, one
+phase later than before — its `want` needs `url=/users/7` and
+`absolute=https://example.test/…`, which is the whole next group plus ADR 0102 § 6's
+configured origin. `App\Users` is still never scanned: `Core\Router::url` is not yet one of
+the calls that opt a program into ADR 0061 § 5's scan.
 
-**The driver's failing acceptance check is still `examples/routes.nvs`**, unchanged and with no new
-errors: `Core\Router` has no `url`/`urlAbsolute` and there is no router module under `nvs-stdlib`.
-`App\Users` is still never scanned. Note its frozen `want` needs `url=/users/7` and
-`absolute=https://example.test/…`, so the member rows alone do not close it — the § 5 scan, the
-table and ADR 0102 § 6's configured origin are all in front of that line.
-
-**`python tools/verify.py` is still red at `crates/nvs-ir/tests/refusals.rs:179`** — the same 17
-unattributed lowering refusals the goal switch orphaned, untouched by this session and unrelated
-to it. It is the first failure, so the gate stops there and never reaches the `.nvst` trees or
-clippy — `nvs test tests/conformance` was run by hand instead and is 881 green, and
-`cargo test -p nvs-types` is green including the two new suites.
+**`python tools/verify.py` is still red at `crates/nvs-ir/tests/refusals.rs:179`** — the
+same 17 unattributed lowering refusals, unchanged and untouched by this session. It is the
+first failure, so the gate never reaches the `.nvst` trees or clippy; both were run by
+hand instead — `nvs test tests/conformance` is 883 green, `cargo clippy -p nvs-stdlib -p
+nvs-types --all-targets` is clean, and `cargo test -p nvs-stdlib -p nvs-types` is green.
 
 ## Next group
 
-**One file set: `crates/nvs-stdlib/src/registry.rs`, a new `crates/nvs-stdlib/src/router.rs`,
-`crates/nvs-types/src/routes.rs`.** Take them in this order — the enum unblocks the roster row the
-first slice of this session had to leave interning to nothing.
+**One file set: `crates/nvs-hir/src/requires.rs`, `crates/nvs-types/src/routes.rs`,
+`crates/nvs-types/src/commands.rs` (as the model, not to edit).** In this order — nothing
+can build a table over classes the scan never loaded.
 
-- [ ] **`Core\Http\Method` joins `ENUMS`** — the roster is `crates/nvs-stdlib/src/registry.rs:853`
-      and `CoreEnum`'s shape is `crates/nvs-stdlib/src/registry.rs:824`. Declared beside the member
-      that takes it, which is the rule that roster states, so it lands with the router module rather
-      than on its own. It is what `Core\Request::method` answers with and what
-      `crates/nvs-types/src/routes.rs:@OPTIONS` already names. ADR 0077 § 1.
-- [ ] **`Core\Router::url`/`urlAbsolute` rows** — `CLASSES` is
-      `crates/nvs-stdlib/src/registry.rs:709`, and the four edits a `Core` member owes are in
-      `docs/agent/conventions.md`. ADR 0077 § 4 and ADR 0102 § 6 (the origin is configured per
-      mount, never read from a header). The moment `url` exists the § 5 scan runs and `App\Users`
-      is checked for the first time — its three `#[\Core\Route]`s are recognized now, so what it
-      hits next is whatever else that file names, not `E0726`.
-- [ ] **The route table itself** — ADR 0061 § 3's scan filtered by `#[Route]`, which is what
-      `url("Users::show", ["id" => 7])` reverses into `/users/7`. This is the slice that closes the
-      acceptance check, and it is the one that can report §§ 1-3's four remaining compile errors.
+- [ ] **`Core\Router::url`/`urlAbsolute` opt a program into § 5's scan** —
+      `is_program_scan` is `crates/nvs-hir/src/requires.rs:587` and the scan site it gates
+      is `crates/nvs-hir/src/requires.rs:352`. Today only `Core\Program::implementing<T>()`
+      answers it, so `examples/routes.nvs` never loads `App\Users`. ADR 0077 § 5,
+      ADR 0061 § 3.
+- [ ] **The route table is collected from the scanned classes** — one row per
+      `#[Core\Route]`, keyed by `name`, over the roster at
+      `crates/nvs-types/src/routes.rs:56`. `commands::check_class_commands`
+      (`crates/nvs-types/src/commands.rs:91`) is the worked shape for a per-class
+      attribute pass, and `nvs_types::derive::ROUTE` (`crates/nvs-types/src/derive.rs:136`)
+      is the name. ADR 0077 §§ 1-3.
+- [ ] **§ 2's path grammar and § 3's `{param}`-to-parameter check, in that same pass** —
+      the two of ADR 0077's four compile errors that are answerable from one method and its
+      attribute. The duplicate-route and duplicate-`name` errors need the whole table and
+      come with it. ADR 0077 §§ 2-3, `nvs_types::routes`' gap 1 and gap 2.
 
 ## Backlog
 
-- 17 unattributed lowering refusals, `crates/nvs-ir/tests/refusals.rs:179` — verify's first failure.
-- A ternary's arms are checked with `None`, so `$b ? 0 : 1` is `int` at a `uint` return —
-  `crates/nvs-types/src/expr/mod.rs:365`.
-- An `#[Option]` on a method carrying no `#[Command]` is not refused — `nvs_types::commands` gap 2.
-- `#[Route]`'s `path`/`method` are not required — `nvs_types::routes` gap 3, the table pass's.
-- `Core\Command::run` and `Core\Router::match` are later goals' — `docs/agent/loop-goal.md`.
+- `Core\Router::url` still laundering nothing: percent-encoding and the mount prefix —
+  `nvs_stdlib::router`'s gap 2, ADR 0077 § 4.
+- `urlAbsolute`'s configured origin, per mount falling back to `[app] origin` —
+  ADR 0102 § 6.
+- `Core\Router::match`/`methodsFor` and `Core\Router\Match` — out of scope by
+  `docs/agent/loop-goal.md` § *Standing decisions*.
+- `Core\Request` and the verb parse that turns an unrecognized method into a 501 rather
+  than a case — `nvs_stdlib::router`'s gap 4.
+- The spec's `array<string, mixed>` spellings name a type the grammar has no form for —
+  `docs/spec/01-core-library.md:918` and `:1058`, same family as commit 23b5781's ADR pass.
+- The 17 unattributed lowering refusals at `crates/nvs-ir/tests/refusals.rs:179`, which
+  keep `verify.py` red for every session.

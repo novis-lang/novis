@@ -2756,6 +2756,16 @@ sibling in the same namespace unqualified.
   that spelling. The same hole is why a payload roster naming an enum the tree does not declare
   (`nvs_types::routes` gap 1) admits a case of the wrong enum rather than refusing it: nothing
   below the roster is asking whether the name exists.
+- **`array<K, V>` is a spelling the docs write and the type system has no form for.**
+  `nvs_types::ty::Ty::Array` carries one `TypeId`, and there is no `CoreTy` for a keyed
+  array — a Novis array's keys are `int|string` by construction and are not part of its
+  type. So `array<string, mixed>`, which spec § 15 and ADR 0077 § 4 both write for
+  `Core\Router::url`'s `$params`, is declared as `CoreTy::Array(&CoreTy::Mixed)` and the
+  key rule is enforced where it can be (§ 4 makes a literal key naming neither a capture
+  nor a `#[Query]` parameter a compile error). Same family, one call earlier:
+  `Core\Arr::append`'s second parameter is one *element*, so `Core\Arr::append($a, $b)`
+  over two arrays is `E0401: expected int, found array<int>` rather than a concatenation
+  — build the combined array with a `foreach` and one `append` per element.
 
 ## Divergences and refusals already pinned
 

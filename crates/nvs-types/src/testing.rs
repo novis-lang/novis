@@ -176,10 +176,13 @@ impl OptionTy {
     /// naming an enum this program declares nowhere.
     ///
     /// `None` rather than a diagnostic, because a roster is a *static* table
-    /// and the enum it names may be one the tree does not have yet —
-    /// `Core\Http\Method` is [`crate::routes`]' own gap 1. The value is then
-    /// checked as the compile-time constant ADR 0046 § 2 already requires,
-    /// and placed at nothing.
+    /// and the enum it names may be one the tree does not have yet. **No row
+    /// is in that state today** — `Core\Http\Method` was, and landed as
+    /// `nvs_stdlib::router::METHOD` — so this arm is what a row added ahead of
+    /// its enum gets rather than something a program can reach: the value is
+    /// checked as the compile-time constant ADR 0046 § 2 already requires, and
+    /// placed at nothing. A diagnostic here would report a gap in *this* crate
+    /// against the source that tripped over it.
     pub(crate) fn intern(self, env: &mut Env<'_>) -> Option<TypeId> {
         let scalar = match self {
             Self::Str => Ty::String,

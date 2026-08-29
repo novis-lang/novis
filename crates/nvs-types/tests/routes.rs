@@ -103,15 +103,28 @@ fn a_path_and_a_name_are_strings_and_each_is_written_once() {
 #[test]
 fn a_method_case_is_admitted_at_the_enum_the_roster_names() {
     // § 1's `method` is an enum case (ADR 0063 R11), which ADR 0046 § 2 admits
-    // in a payload — so the fixture's own spelling passes the payload walk. The
-    // enum it names is declared nowhere yet, so the row interns to nothing and
-    // the case is checked as a constant and placed at no type;
-    // `nvs_types::routes`' gap 1 is that this admits a case of the wrong enum
-    // until `Core\Http\Method` lands.
+    // in a payload — so the fixture's own spelling passes the payload walk.
+    // `Core\Http\Method` is `nvs_stdlib::router::METHOD`, seeded into the enum
+    // table like any other `Core` enum, so the roster row interns to that type
+    // and the case is placed at it rather than at nothing.
     let diags = check_src(
         "<?nvs\nclass Users {\n  \
          #[\\Core\\Route(path: \"/users\", method: \\Core\\Http\\Method::Get, name: \"Users::index\")]\n  \
          public function index(): string { return \"\"; }\n}\n",
     );
     assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn a_case_of_another_enum_is_refused_at_the_method_option() {
+    // The half the row interning to a real type buys: before `Core\Http\Method`
+    // existed, `method` was checked as a compile-time constant and placed at no
+    // type, so any enum case at all passed. `Core\Digest` is an unrelated `Core`
+    // enum, so this is that same walk with the type restored.
+    let diags = check_src(
+        "<?nvs\nclass Users {\n  \
+         #[\\Core\\Route(path: \"/users\", method: \\Core\\Digest::Md5)]\n  \
+         public function index(): string { return \"\"; }\n}\n",
+    );
+    assert!(diags.has_errors());
 }
