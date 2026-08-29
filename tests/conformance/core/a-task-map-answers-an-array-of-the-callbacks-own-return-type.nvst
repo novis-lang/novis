@@ -1,0 +1,36 @@
+--TEST--
+`Core\Task::map` answers an `array<U>` whose `U` is the callback's own declared return type, so nothing at the use site is `mixed` — ADR 0072 § 2
+--FILE--
+<?nvs
+// § 2's signature is `map(array<T>, callable, {limit?, deadline?}): array<U>`,
+// and `U` binds from the one callback the whole call shares — which is the
+// contrast that makes `all` and `map` two members rather than one. `all` needs
+// a per-field binding site because a shape literal carries a different closure
+// in every field; `map` writes its callback once, so an ordinary
+// `CoreTy::CallableTo` already says everything there is to say.
+//
+// The scheduler half is not on disk (`crates/nvs-stdlib/src/task.rs` owns what
+// the body is until it is), so what a case can ask is what the *checker*
+// believes. Both mis-declarations below quote `string` back — one at an
+// element, one at the whole array — and an `array<mixed>` answer, which is the
+// thing § 2 exists to avoid, could say it at neither position.
+class Probe {
+    public static function typed(): void {
+        var $out = Core\Task::map([1, 2, 3], fn(int $n): string => "x");
+        int $first = $out[0];
+        array<int> $all = $out;
+        echo $first, Core\Arr::count($all);
+    }
+}
+
+Probe::typed();
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `int`, found `string`
+   --> case.nvs:17:22
+%A
+error[E0401]: expected `array<int>`, found `array<string>`
+   --> case.nvs:18:27
+%A
+error: aborting due to 2 errors

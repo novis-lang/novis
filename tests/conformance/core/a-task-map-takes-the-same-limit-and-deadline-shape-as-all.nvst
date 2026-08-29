@@ -1,0 +1,39 @@
+--TEST--
+`Core\Task::map` is bounded by the same `{limit, deadline}` shape as `Core\Task::all` and by no other spelling: `timeout` is still not an option, `limit` is still a `uint`, and there is no second member carrying a bound — ADR 0072 §§ 2, 3, ADR 0063 R2
+--FILE--
+<?nvs
+// § 3 gives `all` and `map` one options shape between them, so the question
+// worth asking of the second member is not what it accepts but whether it
+// *agrees* with the first. A member that grew its own bounds would still look
+// right read on its own line; it fails here.
+//
+// The three refusals are the three ways that agreement could have been lost.
+// `timeout` is the name § 3 spends a paragraph refusing, and R2's trailing
+// options shape is what leaves no room for it. `limit: "two"` asks whether the
+// option's declared type survived being written a second time. And a
+// `mapLimit` naming its bound in the member is the shape R20 forbids outright
+// — one way to say one thing — which is why the absence is asserted rather
+// than assumed.
+class Probe {
+    public static function bounds(): void {
+        var $c = Core\Task::map([1], fn(int $n): int => $n, {timeout: 5s});
+        var $d = Core\Task::map([1], fn(int $n): int => $n, {limit: "two"});
+        Core\Task::mapLimit([1], fn(int $n): int => $n, 2);
+        echo 1;
+    }
+}
+
+Probe::bounds();
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0454]: `timeout` is not an option of this member
+   --> case.nvs:16:62
+%A
+error[E0401]: expected `uint`, found `string`
+   --> case.nvs:17:69
+%A
+error[E0405]: `Core\Task` has no member named `mapLimit`
+   --> case.nvs:18:9
+%A
+error: aborting due to 3 errors

@@ -2,29 +2,43 @@
 //! structured concurrency, registered here as a signature ahead of the body
 //! that will answer it.
 //!
-//! What is on disk is the **compile-time half** of § 1: `Task::all` takes a
-//! shape literal of zero-argument `fn` literals and answers a shape with the
-//! same field names, each field carrying *that field's* declared return type.
-//! [`crate::registry::CoreTy::CallableShapeTo`] is the mechanism and owns why
-//! no ordinary type at that position could say it;
+//! What is on disk is the **compile-time half** of §§ 1 and 2. `Task::all`
+//! takes a shape literal of zero-argument `fn` literals and answers a shape
+//! with the same field names, each field carrying *that field's* declared
+//! return type. [`crate::registry::CoreTy::CallableShapeTo`] is the mechanism
+//! and owns why no ordinary type at that position could say it;
 //! `nvs_types::expr::args` is the one place a field is read, and the one place
 //! `E0773`/`E0774` are reported.
 //!
-//! # The body is a placeholder, and this is the third such row
+//! `Task::map` needs none of that, and the contrast is § 2's whole argument for
+//! two members rather than one. Its subject is an `array<T>` and its callback
+//! is written once for every element, so one ordinary
+//! [`crate::registry::CoreTy::CallableTo`] binds `U` from that one callback's
+//! declared return type and the answer is `array<U>` — the same three-line
+//! shape `Core\Arr::map` already has, plus § 3's options bag. A shape literal
+//! cannot express "one per element of a runtime array" and an array cannot
+//! carry a per-element type; each member is the cheap spelling of exactly the
+//! job the other cannot state.
+//!
+//! # Both bodies are one placeholder
 //!
 //! [`crate::attributes`] and [`crate::program`] register signatures whose
-//! members are folded in `nvs check` and therefore genuinely never run. This
-//! one is not that: a program that writes `Core\Task::all({...})` compiles,
-//! `nvs-ir` lowers the call, and [`unimplemented_scheduler_half`] is what it
-//! reaches. Running the closures as children of the calling task — with § 3's
-//! `{limit, deadline}` enforced and § 4's "control does not leave the call with
-//! work still running" held — is the *next* slice of Stage 4, and it needs the
-//! `nvs-host` scheduler reachable from a helper, which no `Core` member is yet.
-//! The body says exactly that and stops rather than answering plausibly.
+//! members are folded in `nvs check` and therefore genuinely never run. These
+//! are not that: a program that writes `Core\Task::all({...})` or
+//! `Core\Task::map([...], fn ...)` compiles, `nvs-ir` lowers the call, and
+//! [`unimplemented_scheduler_half`] is what it reaches. Running the closures as
+//! children of the calling task — with § 3's `{limit, deadline}` enforced and
+//! § 4's "control does not leave the call with work still running" held — is
+//! the *next* slice of Stage 4, and it needs the `nvs-host` scheduler reachable
+//! from a helper, which no `Core` member is yet. The body says exactly that and
+//! stops rather than answering plausibly.
 //!
-//! Nothing under `tests/conformance/` calls it: the three cases that name
-//! `Core\Task::all` are all `--EXPECTF-ERROR--` cases over § 1's typing rules,
-//! which is what the whole class currently is.
+//! Nothing under `tests/conformance/` runs either one: the six cases that name
+//! them are all `--EXPECTF-ERROR--` cases over §§ 1 to 3's typing rules, which
+//! is what the whole class currently is. That is a real discharge of the
+//! coverage floor and not a loophole — the gate greps `--FILE--` and runs
+//! nothing, and a case pinning what the *checker* believes is the only kind
+//! that can exist before a body does.
 //!
 //! # `{limit, deadline}` is the only optioned spelling
 //!
@@ -66,13 +80,26 @@ const OPTIONS: &[CoreOption] = &[
 /// The registry row. See [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    methods: &[CoreMethod {
-        name: "all",
-        params: &[CoreTy::CallableShapeTo("S"), CoreTy::Options(OPTIONS)],
-        defaults: &[],
-        return_ty: CoreTy::Var("S"),
-        symbol: "nvs_core_task_all",
-    }],
+    methods: &[
+        CoreMethod {
+            name: "all",
+            params: &[CoreTy::CallableShapeTo("S"), CoreTy::Options(OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Var("S"),
+            symbol: "nvs_core_task_all",
+        },
+        CoreMethod {
+            name: "map",
+            params: &[
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::CallableTo("U"),
+                CoreTy::Options(OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Var("U")),
+            symbol: "nvs_core_task_map",
+        },
+    ],
     instance: &[],
     slots: &[],
     constants: &[],
@@ -82,14 +109,21 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
-        "nvs_core_task_all" => (unimplemented_scheduler_half as *const ()).cast(),
+        "nvs_core_task_all" | "nvs_core_task_map" => {
+            (unimplemented_scheduler_half as *const ()).cast()
+        }
         _ => return None,
     })
 }
 
-/// The body the row names until the scheduler half of § 1 lands — see this
-/// module's own docs, which own why this is a placeholder rather than the
-/// unreachable body [`crate::attributes`] has.
+/// The body **both** rows name until the scheduler half of §§ 1 and 2 lands —
+/// see this module's own docs, which own why this is a placeholder rather than
+/// the unreachable body [`crate::attributes`] has.
+///
+/// One function rather than one per member, because what stops the call is the
+/// same missing thing in both: neither `all` nor `map` can reach a scheduler
+/// from a helper at this commit, so a second copy would differ only in the
+/// member it names and would have to be deleted with the first.
 extern "C" fn unimplemented_scheduler_half() {
     // Written through the handle rather than with `eprintln!`, which this
     // crate's lints refuse: a `Core` member's own output goes through
@@ -97,7 +131,7 @@ extern "C" fn unimplemented_scheduler_half() {
     // thing a process does before stopping.
     use std::io::Write as _;
     let _ = std::io::stderr().write_all(
-        b"nvs: `Core\\Task::all` type-checks but has no body yet - ADR 0072 \xc2\xa7 1's \
+        b"nvs: `Core\\Task` type-checks but has no body yet - ADR 0072 \xc2\xa7\xc2\xa7 1 and 2's \
           children run on the `nvs-host` scheduler, which no `Core` member can reach \
           from a helper at this commit\n",
     );
