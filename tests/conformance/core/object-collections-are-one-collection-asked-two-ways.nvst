@@ -1,0 +1,162 @@
+--TEST--
+`Core\ObjectMap<K, V>`'s keys are a `Core\ObjectSet<K>`: one script of writes run against both leaves them agreeing about membership, size, emptiness and order at every step — docs/spec/01-core-library.md § 9
+--FILE--
+<?nvs
+// The *agreement* shape, across the two classes rather than within one. Each
+// class already has a sweep of its own; what neither says alone is that they
+// are one collection asked two ways — § 9's map is its key set plus a lookup,
+// so `set`/`remove`/`clear` must move a map's keys exactly as `add`/`remove`/
+// `clear` move a set's members. A class that grew its own identity rule, its
+// own insertion order or its own emptiness test still prints plausibly on its
+// own line and fails here.
+final class Tag {
+    public function constructor(public readonly string $name) {}
+}
+
+final class Both {
+    // The questions both classes answer, asked of both and compared. No answer
+    // is ever read on its own: what comes back is whether the two said the same
+    // thing, so a shared mistake is the only way past this and a shared mistake
+    // is what the two per-class sweeps already catch.
+    public static function agree(Core\ObjectMap<Tag, int> $m, Core\ObjectSet<Tag> $s, array<Tag> $universe): bool {
+        if ($m->count() != $s->count()) {
+            return false;
+        }
+        if ($m->isEmpty() != $s->isEmpty()) {
+            return false;
+        }
+        foreach ($universe as Tag $candidate) {
+            if ($m->has($candidate) != $s->has($candidate)) {
+                return false;
+            }
+        }
+        return Both::walk($m, $s) != "";
+    }
+
+    // A `foreach` over a map yields its keys and over a set its members, so the
+    // two walks are one walk — same members, same insertion order — and
+    // `keys()` is that list a third way. Answers the shared rendering, or the
+    // empty string when the three disagree, which is why an empty collection
+    // renders as `-` rather than as nothing.
+    public static function walk(Core\ObjectMap<Tag, int> $m, Core\ObjectSet<Tag> $s): string {
+        string $mapped = "-";
+        foreach ($m as Tag $key) {
+            $mapped = $mapped . $key->name;
+        }
+        string $walked = "-";
+        foreach ($s as Tag $member) {
+            $walked = $walked . $member->name;
+        }
+        string $listed = "-";
+        foreach ($m->keys() as Tag $each) {
+            $listed = $listed . $each->name;
+        }
+        if ($mapped != $walked || $listed != $mapped) {
+            return "";
+        }
+        return $mapped;
+    }
+}
+
+array<Tag> $universe = [
+    new Tag("0"), new Tag("1"), new Tag("2"),
+    new Tag("3"), new Tag("4"), new Tag("5"),
+];
+
+// One script, applied to both. Each mutator meets its own degenerate case: a
+// write over a key already held, a removal of one never held, a `clear` of an
+// already-empty collection, and a write after a `clear` — the step that says a
+// cleared collection is a usable one rather than a spent one.
+array<string> $kind = [
+    "put", "put", "put", "put", "rem", "put",
+    "rem", "rem", "put", "clear", "clear", "put", "put", "rem",
+];
+array<int> $which = [0, 1, 2, 1, 0, 5, 3, 5, 4, 0, 0, 3, 1, 3];
+
+Core\ObjectMap<Tag, int> $map = new Core\ObjectMap<Tag, int>();
+Core\ObjectSet<Tag> $set = new Core\ObjectSet<Tag>();
+
+int $agreed = 0;
+int $steps = 0;
+string $trail = "";
+
+// A pair that was never written to is the sweep's first row.
+if (Both::agree($map, $set, $universe)) {
+    $agreed = $agreed + 1;
+}
+$steps = $steps + 1;
+
+foreach ($kind as string $op) {
+    int $at = $which[($steps - 1) as string];
+    Tag $subject = $universe[$at as string];
+    if ($op == "put") {
+        $map->set($subject, $at);
+        $set->add($subject);
+    }
+    if ($op == "rem") {
+        $map->remove($subject);
+        $set->remove($subject);
+    }
+    if ($op == "clear") {
+        $map->clear();
+        $set->clear();
+    }
+    if (Both::agree($map, $set, $universe)) {
+        $agreed = $agreed + 1;
+    }
+    $trail = $trail . Both::walk($map, $set) . ",";
+    $steps = $steps + 1;
+}
+echo "agreed ", $agreed, "/", $steps, "\n";
+echo $trail, "\n";
+
+// The lookup half is the only thing the map holds that the set does not, and
+// it survives every one of those steps: each key still in the map answers the
+// value its last write gave it, and a key the sweep removed answers `null`
+// through the same read.
+echo "values ", $map->get($universe[1 as string]) ?? -1, "|",
+     $map->get($universe[3 as string]) ?? -1, "|",
+     $map->get($universe[0 as string]) ?? -1, "\n";
+
+// A write over a key already held is not a fresh insertion in either class, so
+// neither collection moves it to the end. This is the one ordering rule a map
+// could plausibly have taken from a value it is overwriting rather than from
+// the key it is not.
+Core\ObjectMap<Tag, int> $order = new Core\ObjectMap<Tag, int>();
+Core\ObjectSet<Tag> $same = new Core\ObjectSet<Tag>();
+foreach ($universe as Tag $filled) {
+    $order->set($filled, 0);
+    $same->add($filled);
+}
+$order->set($universe[0 as string], 99);
+$same->add($universe[0 as string]);
+echo "rewritten ", Both::walk($order, $same), " ", $order->get($universe[0 as string]) ?? -1, "\n";
+
+// Removing and writing again *is* a fresh insertion, and both classes agree
+// that it lands at the end.
+$order->remove($universe[0 as string]);
+$same->remove($universe[0 as string]);
+$order->set($universe[0 as string], 7);
+$same->add($universe[0 as string]);
+echo "reinserted ", Both::walk($order, $same), " ", $order->get($universe[0 as string]) ?? -1, "\n";
+
+// Both key on identity rather than on contents, so two tags spelling the same
+// name are two entries in each, and one tag reached through a second binding
+// is one entry in each (ADR 0090 § 4 — a collection is an object, and these
+// hold objects).
+Tag $twin = new Tag("0");
+Tag $alias = $universe[0 as string];
+$order->set($twin, 1);
+$same->add($twin);
+$order->set($alias, 2);
+$same->add($alias);
+echo "identity ", Both::walk($order, $same), " ",
+     $order->count(), " ", $same->count(), " ",
+     ($order->get($twin) ?? -1), ($order->get($alias) ?? -1), "\n";
+--EXPECT--
+agreed 15/15
+-0,-01,-012,-012,-12,-125,-125,-12,-124,-,-,-3,-31,-1,
+values 1|-1|-1
+rewritten -012345 99
+reinserted -123450 7
+identity -1234500 7 7 12
