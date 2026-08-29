@@ -2,12 +2,16 @@
 //! `Core\Router::url` and `::urlAbsolute` over a **literal** route name,
 //! resolved against § 5's finished table while compiling.
 //!
-//! Two of the three refusals here are that ADR's — an unknown name, and a
-//! capture no key supplies. The third is
-//! [ADR 0102](../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
-//! § 6's, and it exists because that section gives every *other* key a meaning:
-//! a key covering no capture becomes the link's query string, so a key covering
-//! nothing at all had to stop being one ([`declared`]).
+//! Two of the four refusals here are that ADR's — an unknown name, and a
+//! capture no key supplies. The other two are
+//! [ADR 0102](../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)'s,
+//! and they are the two halves of one `$params` entry. § 6's is about the
+//! **key**, and it exists because that section gives every *other* key a
+//! meaning: a key covering no capture becomes the link's query string, so a key
+//! covering nothing at all had to stop being one ([`declared`]). § 5's is about
+//! the **value**, and it exists because that section narrows a capture to a
+//! closed set: a value outside it is a link to a path the router answers `404`
+//! to ([`within_set`]).
 //!
 //! # Why this is two passes and not one
 //!
@@ -43,6 +47,11 @@
 //!    legal and records no site, so it throws at run time as a computed name
 //!    would. Reading one needs the slot mapping `check_args_typed` already
 //!    built and this pass is not handed.
+//! 2. **An enum-case capture has no closed set to check against**, so [`within_set`]
+//!    passes every value written for one. `crate::routes::closed_set` owns why:
+//!    what segment text arrives at a case is `Core\Router::match`'s decision and
+//!    that member is out of scope, so the set has no spelling to compare with
+//!    yet rather than being one this pass declines to read.
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, Span, code};
 use nvs_hir::QName;
@@ -82,7 +91,19 @@ pub(crate) struct LinkSite {
     /// Argument 1's literal string keys, in written order, or `None` where it
     /// is not an array literal — in which case there is nothing to check
     /// coverage against and § 4 asks for nothing.
-    keys: Option<Vec<String>>,
+    args: Option<Vec<LinkArg>>,
+}
+
+/// One entry of a link's `$params` whose key folded to a literal.
+struct LinkArg {
+    /// The key as written, which is what a capture and a `#[Query]` name are
+    /// both compared against.
+    key: String,
+    /// The value as the segment text it would be substituted as, where it
+    /// folded to one — a `string` or an `int` literal, which are the two
+    /// spellings ADR 0102 § 5's closed sets are written in. `None` for
+    /// everything else, and a `None` is checked against nothing.
+    value: Option<String>,
 }
 
 /// Whether `owner::member` is one of § 4's two link builders — the same nominal
@@ -110,30 +131,35 @@ pub(crate) fn record_site(call: &Expr, member: &str, args: &CallArgs, env: &mut 
         // A missing argument is the arity check's refusal, already made.
         return;
     };
-    let Some(ConstArg::Str(name)) = folded_str(name_arg, env) else {
+    let Some(ConstArg::Str(name)) = folded_as(name_arg, crate::ty::Ty::String, env) else {
         return;
     };
-    let keys = list.get(1).and_then(|arg| literal_keys(&arg.value, env));
+    let args = list.get(1).and_then(|arg| literal_args(&arg.value, env));
     env.links.push(LinkSite {
         span: call.span,
         member: member.to_owned(),
         name,
         name_span: name_arg.span,
-        keys,
+        args,
     });
 }
 
-/// `$params`' keys where it is an array literal every key of which is a string
-/// literal, and `None` otherwise.
+/// `$params`' entries where it is an array literal every key of which is a
+/// string literal, and `None` otherwise.
 ///
 /// A keyless element contributes no key rather than aborting the read: it is an
 /// integer key, which covers no capture, so the coverage check below is exactly
 /// right to report it as a capture with nothing supplying it.
-fn literal_keys(expr: &Expr, env: &mut Env<'_>) -> Option<Vec<String>> {
+///
+/// A **value** that does not fold is kept rather than dropped, and it is why
+/// this reads entries and not keys: the key is still a key § 6 has a question
+/// about, and only the § 5 question below is the one a computed value has no
+/// answer to.
+fn literal_args(expr: &Expr, env: &mut Env<'_>) -> Option<Vec<LinkArg>> {
     let ExprKind::ArrayLiteral(items) = &expr.kind else {
         return None;
     };
-    let mut keys = Vec::with_capacity(items.len());
+    let mut args = Vec::with_capacity(items.len());
     for item in items {
         if item.spread {
             // A spread hides keys, so the array as written no longer says what
@@ -143,18 +169,38 @@ fn literal_keys(expr: &Expr, env: &mut Env<'_>) -> Option<Vec<String>> {
         let Some(key) = &item.key else {
             continue;
         };
-        let Some(ConstArg::Str(text)) = folded_str(key, env) else {
+        let Some(ConstArg::Str(text)) = folded_as(key, crate::ty::Ty::String, env) else {
             return None;
         };
-        keys.push(text);
+        args.push(LinkArg {
+            key: text,
+            value: segment_text(&item.value, env),
+        });
     }
-    Some(keys)
+    Some(args)
 }
 
-/// One expression folded as a `string`, through the one literal decoder — see
+/// The segment text one `$params` value would be substituted as, where it is a
+/// literal — `nvs_stdlib::router`'s `segment_text` reaching the same two tags
+/// through `value_to_string`, which is why an `int` is its decimal spelling
+/// here as it is there.
+fn segment_text(expr: &Expr, env: &mut Env<'_>) -> Option<String> {
+    match folded_as(expr, crate::ty::Ty::String, env) {
+        Some(ConstArg::Str(text)) => Some(text),
+        _ => match folded_as(expr, crate::ty::Ty::Int, env) {
+            Some(ConstArg::Int(value)) => Some(value.to_string()),
+            _ => None,
+        },
+    }
+}
+
+/// One expression folded at `ty`, through the one literal decoder — see
 /// [`crate::routes::folded_str`], which reads an attribute field the same way.
-fn folded_str(expr: &Expr, env: &mut Env<'_>) -> Option<ConstArg> {
-    let declared = env.interner.intern(crate::ty::Ty::String);
+/// The type drives the decoding rather than the literal's own shape, which is
+/// [`crate::defaults::literal_default`]'s rule and the reason a value is asked
+/// twice above rather than once.
+fn folded_as(expr: &Expr, ty: crate::ty::Ty, env: &mut Env<'_>) -> Option<ConstArg> {
+    let declared = env.interner.intern(ty);
     crate::defaults::literal_default(expr, declared, env)
 }
 
@@ -194,10 +240,13 @@ pub(crate) fn resolve(
         };
         // Short-circuiting on purpose: a misspelled key is usually both a
         // capture with nothing supplying it and a key with nothing to be, and
-        // naming the capture is the half that says what to write.
-        if let Some(keys) = &site.keys
-            && !(covered(&pieces, keys, site, row, diags)
-                && declared(&pieces, keys, site, row, diags))
+        // naming the capture is the half that says what to write. § 5's
+        // question about a *value* comes last for the same reason — it is only
+        // a question once the key it is written under names something.
+        if let Some(args) = &site.args
+            && !(covered(&pieces, args, site, row, diags)
+                && declared(&pieces, args, site, row, diags)
+                && within_set(args, site, row, diags))
         {
             continue;
         }
@@ -226,14 +275,14 @@ pub(crate) fn resolve(
 /// as the capture-to-parameter one in [`crate::routes`] is.
 fn declared(
     pieces: &[UrlPiece],
-    keys: &[String],
+    args: &[LinkArg],
     site: &LinkSite,
     row: &crate::routes::Route,
     diags: &mut Diagnostics,
 ) -> bool {
     let unknown: Vec<&str> =
-        keys.iter()
-            .map(String::as_str)
+        args.iter()
+            .map(|arg| arg.key.as_str())
             .filter(|key| {
                 !pieces.iter().any(|piece| match piece {
                     UrlPiece::Required(name) | UrlPiece::Optional(name) | UrlPiece::Rest(name) => {
@@ -280,7 +329,7 @@ fn declared(
 /// required is exactly [`UrlPiece::Required`] and [`UrlPiece::Rest`].
 fn covered(
     pieces: &[UrlPiece],
-    keys: &[String],
+    args: &[LinkArg],
     site: &LinkSite,
     row: &crate::routes::Route,
     diags: &mut Diagnostics,
@@ -291,7 +340,7 @@ fn covered(
             UrlPiece::Required(name) | UrlPiece::Rest(name) => Some(name.as_str()),
             UrlPiece::Literal(_) | UrlPiece::Optional(_) => None,
         })
-        .filter(|name| !keys.iter().any(|key| key == name))
+        .filter(|name| !args.iter().any(|arg| arg.key == *name))
         .collect();
     if missing.is_empty() {
         return true;
@@ -308,10 +357,16 @@ fn covered(
                 "`{}`'s path `{}` captures {named}, and this `$params` supplies {}",
                 row.handler,
                 row.path,
-                if keys.is_empty() {
+                if args.is_empty() {
                     "no keys at all".to_owned()
                 } else {
-                    format!("only {}", keys.join(", "))
+                    format!(
+                        "only {}",
+                        args.iter()
+                            .map(|arg| arg.key.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
                 }
             ),
         )
@@ -323,4 +378,71 @@ fn covered(
         ),
     );
     false
+}
+
+/// ADR 0102 § 5's compile error: a literal value the parameter it supplies
+/// cannot hold.
+///
+/// § 5 narrows a capture to a closed set with a *type*, and a segment outside
+/// that set fails the conversion and falls through to a `404` — so a link built
+/// out of one is a link to a route that will not match, and the table can say
+/// so before the program runs. That is the same laundering argument § 4 makes
+/// about the path: a value is checked where it is written, because the sink it
+/// reaches cannot check it.
+///
+/// **A `#[Query]` parameter's set is checked too**, and by the same walk, since
+/// § 3 gives a query value the same type list a capture has: a value outside it
+/// is the handler's own `400` rather than a `404`, which is a different answer
+/// to the same dead link. What is *not* checked is a value that did not fold
+/// ([`LinkArg::value`]) and a parameter whose type names no set at all
+/// ([`crate::routes::RouteParam::allowed`]) — in both cases there is nothing to
+/// compare, exactly as [`declared`] reads only literal keys.
+///
+/// The **first** offending value is reported and the walk stops, as the pair
+/// above stops: one refusal per call, because a `$params` written against the
+/// wrong route is usually wrong in every entry at once and a list of them says
+/// nothing the first does not.
+fn within_set(
+    args: &[LinkArg],
+    site: &LinkSite,
+    row: &crate::routes::Route,
+    diags: &mut Diagnostics,
+) -> bool {
+    for arg in args {
+        let (Some(value), Some(param)) = (
+            arg.value.as_deref(),
+            row.params.iter().find(|param| param.name == arg.key),
+        ) else {
+            continue;
+        };
+        let Some(allowed) = &param.allowed else {
+            continue;
+        };
+        if allowed.iter().any(|admitted| admitted == value) {
+            continue;
+        }
+        let named = allowed
+            .iter()
+            .map(|admitted| format!("`{admitted}`"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        diags.report(
+            Diagnostic::error(
+                code::E_ROUTE_LINK_VALUE_NOT_IN_SET,
+                format!(
+                    "`{}` admits {named} for `{}`, and this link supplies `{value}`",
+                    row.handler, arg.key
+                ),
+            )
+            .with_primary(site.span, "no request could carry this value")
+            .with_help(
+                "ADR 0102 § 5: a capture narrows to a closed set with a type, and a segment \
+                 outside it falls through to a `404` rather than reaching the handler — so this \
+                 link names a route it would not match. Correct the value, or widen the \
+                 parameter's declared type",
+            ),
+        );
+        return false;
+    }
+    true
 }

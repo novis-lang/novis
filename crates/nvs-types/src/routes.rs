@@ -402,12 +402,15 @@ pub enum ParamIn {
 /// One parameter of a route, as the two readers past the walk need it.
 ///
 /// Deliberately *not* a second copy of the declaration: it holds the name the
-/// value binds by, where it arrives from, whether it may be absent, and the
-/// declared type rendered by [`crate::TypeInterner::describe`] — the four
-/// things [ADR 0085](../../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)
-/// § 1's document is built out of, and nothing else. A rendered type rather
-/// than a `TypeId` because the interner that would answer it is dropped with
-/// the checking pass, and because the emitter's whole use of a type is to
+/// value binds by, where it arrives from, whether it may be absent, the
+/// declared type rendered by [`crate::TypeInterner::describe`], and — where
+/// that type is one — [ADR 0102](../../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+/// § 5's closed set of values it admits. Those are the five things
+/// [ADR 0085](../../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)
+/// § 1's document is built out of — the last of them is that section's
+/// *Enumerations* row, `enum: [en, de, fr]` — and nothing else. A rendered type
+/// rather than a `TypeId` because the interner that would answer it is dropped
+/// with the checking pass, and because the emitter's whole use of a type is to
 /// choose a JSON Schema for it.
 #[derive(Debug)]
 pub struct RouteParam {
@@ -426,6 +429,15 @@ pub struct RouteParam {
     /// that has already been refused, since a capture naming no parameter is
     /// [`code::E_ROUTE_CAPTURE_UNBOUND`].
     pub ty: Option<String>,
+    /// ADR 0102 § 5's closed set, as the segment text each admitted value is
+    /// written with, in the order the union declares them — or `None` where the
+    /// declared type is not a closed set at all, which is every `string`,
+    /// `int`, `uint`, `decimal` and `Core\Uuid` capture.
+    ///
+    /// Computed here, where the interner is still alive, for [`Self::ty`]'s
+    /// reason exactly. An enum-case member contributes nothing and takes the
+    /// whole set with it — see [`closed_set`], which owns why.
+    pub allowed: Option<Vec<String>>,
 }
 
 /// Every route the program declares, in the order they were walked — file by
@@ -1417,6 +1429,7 @@ fn check_captures(
             source: ParamIn::Path,
             required: !matches!(capture, Capture::Optional(_)),
             ty: None,
+            allowed: None,
         });
         let Some((index, param)) = m
             .params
@@ -1462,8 +1475,10 @@ fn check_captures(
             continue;
         };
         let described = env.interner.describe(ty);
+        let allowed = closed_set(ty, env);
         if let Some(row) = params.last_mut() {
             row.ty = Some(described.clone());
+            row.allowed = allowed;
         }
         let admitted = match capture {
             // The one row the shared roster does not answer for: nothing about
@@ -1500,6 +1515,35 @@ fn check_captures(
         );
     }
     params
+}
+
+/// [ADR 0102](../../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+/// § 5's closed set: every value `ty` admits, spelled as the path segment or
+/// query value that arrives at it — or `None` where `ty` is not a closed set.
+///
+/// The narrower question than [`crate::commands::converts_from_string`], which
+/// asks whether a segment converts *at all*: `string`, `int` and `Core\Uuid`
+/// all convert and none of them names a set anything could be checked against.
+/// What is left is § 5's two additions, minus the half no caller can use yet:
+///
+/// - a **union of `string` or `int` literal types**, and a lone literal type,
+///   which is the same set written with one member;
+/// - an **enum-case subset**, which returns `None` and takes the whole union
+///   with it. A case's segment spelling is `Core\Router::match`'s to decide —
+///   the case name, or ADR 0010 § 3's backing value — and that member is out of
+///   scope (`docs/agent/loop-goal.md` § *Standing decisions*). A set half of
+///   whose members had no spelling would refuse links that are correct, which
+///   is the one failure mode a compile-time refusal may not have.
+fn closed_set(ty: crate::ty::TypeId, env: &Env<'_>) -> Option<Vec<String>> {
+    let one = |member: crate::ty::TypeId| match env.interner.get(member) {
+        crate::ty::Ty::StringLiteral(text) => Some(text.clone()),
+        crate::ty::Ty::IntLiteral(value) => Some(value.to_string()),
+        _ => None,
+    };
+    match env.interner.get(ty) {
+        crate::ty::Ty::Union(members) => members.iter().map(|member| one(*member)).collect(),
+        _ => one(ty).map(|only| vec![only]),
+    }
 }
 
 /// ADR 0102 § 3's `#[Query]` parameters of the method the attribute is attached
@@ -1563,6 +1607,7 @@ fn query_params(
             // no optionality.
             required: param.default.is_none(),
             ty: declared.map(|ty| env.interner.describe(ty)),
+            allowed: declared.and_then(|ty| closed_set(ty, env)),
         });
     }
     keys

@@ -2161,6 +2161,20 @@ pub mod code {
     /// correct the attribute, or correct the code it disagrees with.
     pub const E_API_CONTRADICTS_THE_CODE: Code = Code::new("E0771");
 
+    /// A `Core\Router::url` `$params` value is a literal outside the closed set
+    /// the parameter it supplies declares.
+    ///
+    /// ADR 0102 § 5: a capture narrows to a closed set with a *type*, and a
+    /// path segment outside that set fails the conversion and falls through to
+    /// `404`. A link built out of such a value is therefore a link to a route
+    /// that will not match — the one shape of dead link the table can see
+    /// before the program runs, and the mirror of
+    /// [`E_ROUTE_LINK_UNKNOWN_PARAM`]: that one is a key that names nothing,
+    /// this one a key that names something and cannot hold what it was given.
+    /// Only a *literal* value is checked, exactly as § 6's key rule checks only
+    /// a literal key — a computed value has nothing to read.
+    pub const E_ROUTE_LINK_VALUE_NOT_IN_SET: Code = Code::new("E0772");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");
