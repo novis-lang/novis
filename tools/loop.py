@@ -1399,9 +1399,11 @@ class Goal:
                 return f"{label}: exit 0, and this check asserts a non-zero exit"
             if not wanted_nonzero and r.code != 0:
                 return f"{label}: exit {r.code} -- {r.first_err_line}"
-            missing = ordered_in(r.out + "\n" + r.err, c.get("want", []))
-            if missing:
-                return f"{label}: {missing}"
+            # `ordered_in` is a predicate, not a description of what is absent -- reading it as
+            # one inverts the check and reports the bare word `True` as the failure.
+            want = c.get("want", [])
+            if not ordered_in(r.out + "\n" + r.err, want):
+                return f"{label}: output lacks, in order: {' -> '.join(want)}"
             self.remember(c["name"])
             return ""
 
