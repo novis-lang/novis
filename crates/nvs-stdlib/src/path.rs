@@ -58,10 +58,22 @@
 //!    relative path, which is worse.
 //!
 //! Neither is a missing *member*: spec § 8's roster is whole here.
+//!
+//! # What these members do with a qualifier
+//!
+//! ADR 0088 § 2's classification, and the one judgement in it worth writing
+//! down: **`normalize` is not a launderer.** It is the member most likely to be
+//! read as one — resolving `..` is exactly what stops a path climbing out of a
+//! directory, so it *looks* like the thing that makes a `tainted` path safe —
+//! and spec § 8 says outright that it is not. Its answer is still the caller's
+//! bytes rearranged, and the sink it would have to launder for is a filesystem
+//! nothing in this module opens. So it is `Qual::Contagious` with the other
+//! seven text-answering members, and `isAbsolute` is the class's only
+//! `Qual::Neutral` row because a `bool` carries no byte of its subject.
 
 use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 
-use crate::registry::{Const, CoreClass, CoreConst, CoreMethod, CoreOption, CoreTy};
+use crate::registry::{Const, CoreClass, CoreConst, CoreMethod, CoreOption, CoreTy, Qual};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -74,63 +86,78 @@ pub const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "basename",
-            params: &[CoreTy::Str, CoreTy::Options(BASENAME_OPTIONS)],
+            params: &[
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Options(BASENAME_OPTIONS),
+            ],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_path_basename",
         },
         CoreMethod {
             name: "dirname",
-            params: &[CoreTy::Str, CoreTy::Options(DIRNAME_OPTIONS)],
+            params: &[
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Options(DIRNAME_OPTIONS),
+            ],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_path_dirname",
         },
         CoreMethod {
             name: "extension",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_path_extension",
         },
         CoreMethod {
             name: "withExtension",
-            params: &[CoreTy::Str, CoreTy::Nullable(&CoreTy::Str)],
+            params: &[
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Nullable(&CoreTy::Text(Qual::Contagious)),
+            ],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_path_with_extension",
         },
         CoreMethod {
             name: "join",
-            params: &[CoreTy::Str, CoreTy::Variadic(&CoreTy::Str)],
+            params: &[
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Variadic(&CoreTy::Text(Qual::Contagious)),
+            ],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_path_join",
         },
         CoreMethod {
             name: "split",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
             symbol: "nvs_core_path_split",
         },
         CoreMethod {
             name: "normalize",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_path_normalize",
         },
         CoreMethod {
             name: "isAbsolute",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_path_is_absolute",
         },
         CoreMethod {
             name: "relativeTo",
-            params: &[CoreTy::Str, CoreTy::Str],
+            params: &[
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Text(Qual::Contagious),
+            ],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_path_relative_to",
