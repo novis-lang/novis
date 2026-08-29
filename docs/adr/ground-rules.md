@@ -120,6 +120,9 @@ spellings rejected, and the reasoning.
   `<?nvs echo`, not a second tag ([0049](0049-single-open-tag-and-single-exit-keyword.md)).
 - **`[...]` is the only destructuring spelling**
   ([0050](0050-list-destructuring-spelling-rejected.md)).
+- **A name with a `\` in it is absolute and a leading `\` does not parse** — a name without one resolves
+  through the imports then the enclosing namespace, and nowhere else
+  ([0113](0113-a-qualified-name-is-absolute.md)).
 - **Identifier casing is a hard compiler error with no suppression**, checked on the leading character only
   ([0029](0029-identifier-casing-is-checked.md)).
 - **No identifier may start with `_`, and the constructor is spelled `constructor`**

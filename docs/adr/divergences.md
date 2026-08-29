@@ -91,6 +91,7 @@ carries one row per PHP built-in and is the home for those.
 | APCu, `shmop`, `sysv*` share memory across requests | no cross-request state except an explicit, capability-gated store | [0052](0052-closed-doors.md) § 3, [0059](0059-cross-request-state-is-explicit.md) |
 | `eval`, `FFI`, `dl()`, stream wrappers and `phar://` | all four closed, with no ini flag and no trusted mode | [0052](0052-closed-doors.md) |
 | `putenv`, `setlocale`, `bcscale`, `mb_internal_encoding`, `date_default_timezone_set` | no ambient process-global state; locale, scale and timezone are always explicit arguments | [0052](0052-closed-doors.md) § 3, [0063](0063-core-api-conventions.md) § 4 |
+| a qualified name is relative to the current namespace, and a leading `\` forces the root | every name with a `\` is absolute; a leading `\` does not parse, and there is no fallback to the root for a short name | [0113](0113-a-qualified-name-is-absolute.md) |
 | `continue` inside a `switch` behaves as `break` | `switch` owns `break` and nothing else; `continue` always means the innermost loop | [README.md](README.md) § *Decisions taken at project start* |
 
 ## Security defaults that change observable behaviour

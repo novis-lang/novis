@@ -138,6 +138,7 @@ so you never have to open this file to route a topic.
 | What "the same value" means — strict identity, `in_array`'s strict flag, `array_search`, `array_unique`, whether two objects/arrays/`NaN`/`-0.0` match | [crates/nvs-runtime/src/identity.rs](../../crates/nvs-runtime/src/identity.rs) — one row per representation, and the hash that agrees with it |
 | Property hooks, `__get`/`__set`, `PropertyObserver`, undefined properties, `__call`/`__callStatic` | [0014](0014-property-observer.md) |
 | `class_alias`, `use … as …`, or a `type` alias | [0015](0015-no-name-aliasing.md) |
+| Whether a name needs a leading `\`, what a qualified name resolves against, reaching a root-level name from inside a namespace | [0113](0113-a-qualified-name-is-absolute.md) |
 | `trait`, horizontal code reuse, mixins, `insteadof`, how a PHP trait migrates | [0043](0043-interface-default-methods-and-delegation-replace-traits.md) |
 | Code coverage, call tracing, the per-call profiler, `Core\Debug`, the `[debug]` config section | [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) |
 | A timeline/flame-chart view combining calls with GC pauses and isolate boundaries, exporting to speedscope | [0041](0041-timeline-export-and-gc-spawn-trace-events.md) |
@@ -322,6 +323,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0110](0110-one-methods-repeated-routes-share-a-name-when-they-share-a-path.md) | One method's repeated routes share a name when they share a path | Accepted |
 | [0111](0111-a-php-builtin-completes-to-its-novis-destination.md) | A PHP built-in completes to its Novis destination, and a completion item may only insert what the registry holds | Accepted |
 | [0112](0112-authority-is-keyed-on-the-enclosing-namespace.md) | Authority is keyed on the enclosing namespace, and an optional capability degrades where a required one refuses | Accepted |
+| [0113](0113-a-qualified-name-is-absolute.md) | A qualified name is absolute, and the leading `\` does not parse | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 
