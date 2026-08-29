@@ -1,0 +1,112 @@
+--TEST--
+Spec § 4: `Core\Time\DateTime::dayOfYear` is one increasing run per year — walked a day at a time it starts at 1, gains exactly one at every step, is its own position in the walk, and stops at the year's length before restarting at 1 on the next January — and every one of those readings agrees with the `D` pattern letter and with the zone-free `Date` half
+--FILE--
+<?nvs
+// § 4's `dayOfYear` replaces `date("z")` and is one-based where PHP's is
+// zero-based, so what a case can assert about it is not a number but the shape
+// of the whole run: no gap, no repeat, and no reading that disagrees with the
+// same fact spelled another way. A member that counted from zero, or that
+// skipped the leap day, or that kept counting into January, is a broken run
+// while every single line it prints still reads plausibly.
+class Run {
+    // One year, walked a day at a time from its first. Every count returned is
+    // over the whole year, so a member that is wrong on one day of 366 fails.
+    public static function walk(int $year): string {
+        var $utc = Core\Time\Zone::UTC;
+        var $first = Core\Time::at($year, 1, 1, $utc);
+        int $length = 365;
+        if ($first->isLeapYear()) {
+            $length = 366;
+        }
+        int $index = 1;
+        int $increments = 0;
+        int $isIndex = 0;
+        int $agrees = 0;
+        int $previous = 0;
+        var $day = $first;
+        for (; $index <= $length; $index = $index + 1) {
+            int $ordinal = $day->dayOfYear() as int;
+            // No repeat and no gap: each reading is the one before it plus one,
+            // which is the whole claim, counted rather than eyeballed.
+            if ($ordinal == $previous + 1) {
+                $increments = $increments + 1;
+            }
+            // And the run is anchored: the nth day of the year reads n, so a
+            // run that increases correctly from the wrong start still fails.
+            if ($ordinal == $index) {
+                $isIndex = $isIndex + 1;
+            }
+            // The same fact said two other ways — the CLDR `D` letter this
+            // member shares a value with, and the zone-free calendar half,
+            // which counts the same day without knowing what time it is.
+            string $rendered = $ordinal as string;
+            if ($rendered == $day->format("D") && $rendered == $day->date()->format("D")) {
+                $agrees = $agrees + 1;
+            }
+            $previous = $ordinal;
+            $day = $day->plus(1, Core\Unit::Day);
+        }
+        // `$day` has stepped one past the year's last, so it is where the run
+        // restarts: the ordinal returns to 1 rather than continuing to 367.
+        int $wrapped = $day->dayOfYear() as int;
+        return "length=" . ($length as string)
+            . " increments=" . ($increments as string)
+            . " anchored=" . ($isIndex as string)
+            . " agrees=" . ($agrees as string)
+            . " last=" . ($previous as string)
+            . " restart=" . ($wrapped as string)
+            . " next=" . $day->format("yyyy-MM-dd");
+    }
+}
+
+// Four years: an ordinary leap year and an ordinary common one, and both
+// halves of the century rule, because the leap day is the only place the run's
+// length changes and a member holding one fixed length passes half of these.
+echo "2024 ", Run::walk(2024), "|\n";
+echo "2023 ", Run::walk(2023), "|\n";
+echo "2000 ", Run::walk(2000), "|\n";
+echo "1900 ", Run::walk(1900), "|\n";
+
+// The ordinal is a fact about the day and not about the time carried, so both
+// ends of a day answer the same, and the two ends of a year are the run's own.
+var $utc = Core\Time\Zone::UTC;
+var $noon = Core\Time::at(2024, 7, 4, $utc, {hour: 12, minute: 30, second: 45});
+echo "day-ends=", ($noon->startOf(Core\Unit::Day)->dayOfYear() == $noon->dayOfYear()) as string,
+    ($noon->endOf(Core\Unit::Day)->dayOfYear() == $noon->dayOfYear()) as string, "|\n";
+echo "year-ends=", $noon->startOf(Core\Unit::Year)->dayOfYear() as string,
+    " ", $noon->endOf(Core\Unit::Year)->dayOfYear() as string, "|\n";
+
+// Where the two lengths part, month by month: the first of each month, in a
+// leap year and in a common one. January and February are the same ordinal in
+// both and the other ten are one apart — the leap day is a single insertion,
+// not a rescaling, which is the same fact the run above counts one step at a
+// time.
+array<int> $months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+int $month = 0;
+int $same = 0;
+int $shifted = 0;
+string $firsts = "";
+for (; $month < 12; $month = $month + 1) {
+    int $number = $months[$month as string];
+    int $leap = Core\Time::at(2024, $number as uint, 1, $utc)->dayOfYear() as int;
+    int $common = Core\Time::at(2023, $number as uint, 1, $utc)->dayOfYear() as int;
+    if ($leap == $common) {
+        $same = $same + 1;
+    }
+    if ($leap == $common + 1) {
+        $shifted = $shifted + 1;
+    }
+    string $label = $leap as string;
+    $firsts = $firsts . $label . " ";
+}
+echo "same=", $same as string, " shifted=", $shifted as string, "|\n";
+echo "firsts=", $firsts, "|\n";
+--EXPECT--
+2024 length=366 increments=366 anchored=366 agrees=366 last=366 restart=1 next=2025-01-01|
+2023 length=365 increments=365 anchored=365 agrees=365 last=365 restart=1 next=2024-01-01|
+2000 length=366 increments=366 anchored=366 agrees=366 last=366 restart=1 next=2001-01-01|
+1900 length=365 increments=365 anchored=365 agrees=365 last=365 restart=1 next=1901-01-01|
+day-ends=11|
+year-ends=1 366|
+same=2 shifted=10|
+firsts=1 32 61 92 122 153 183 214 245 275 306 336 |
