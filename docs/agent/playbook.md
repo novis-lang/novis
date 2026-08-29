@@ -1197,6 +1197,16 @@ is why" — is this file.
   `std::os::unix::net::SocketAddr` and **`mio::net` re-exports no address type at all**, so the
   symmetric-looking `mio::net::SocketAddr` is `E0425` — invisible to every Windows leg, including
   the acceptance check.
+- **A thread-local whose `Drop` joins threads deadlocks on Windows, and the symptom is a test that
+  runs its whole body and then never reports.** `blocking.rs`'s pool is reached from a free function
+  through a `thread_local!`, exactly as the reactor is, so its `Drop` runs from a TLS destructor —
+  and Windows runs those under the loader lock, which the thread being joined needs in order to run
+  its own destructors and exit. The test printed its last line, `run_until_idle` returned a correct
+  `RunReport`, and `cargo test` sat there until it was killed; two `nvs_host-*.exe` processes still
+  running is what says the binary hung rather than the build. Read the *last* line the test body
+  produced before suspecting the code under test — everything after it is teardown. The fix is to
+  detach (drop the `JoinHandle`s) and let the threads see a shutdown flag, which is what a pool that
+  may be torn down from anywhere has to do anyway.
 
 ## Writing a test case
 

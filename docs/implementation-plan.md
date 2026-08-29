@@ -73,7 +73,19 @@
 > not one type per socket family* is that decision's one home. Windows compiles none of the
 > `#[cfg(unix)]` half, so the crate is 53 tests under WSL against 49 here. Closing it turned up a
 > latent path to `abort()` — a suspended coroutine dropped under `run_task`'s containment boundary —
-> which `nvs_runtime::Teardown` now closes. What a task *costs* is settled too:
+> which `nvs_runtime::Teardown` now closes. Stage 2 item 6 is closed as well, in two halves. A core
+> can now be woken from a thread that is not it: `Reactor::remote_wake` hands out a `Send`, one-shot
+> `RemoteWake` that queues a `TaskId` and pokes `mio`'s own waker, `WAKE_TOKEN` is the single token
+> in that reactor which is not a task id, and the count of outstanding handles is the third thing
+> `Reactor::turn`'s "can anything still wake this core" test asks about — without it a task waiting
+> on the pool, which holds neither a registration nor a deadline, would be abandoned rather than
+> waited for. `crates/nvs-host/src/blocking.rs` is the pool over it: bounded at twice the core count
+> per ADR 0106 § 6, threads started only when work arrives so a worker that never blocks holds none,
+> and `blocking::run` is the whole handoff — take the wake, hand the closure to this thread's pool,
+> park, and take the answer out of a slot on the way back, with a panic in the work carried back to
+> the task's own stack rather than lost off the core. Its `Drop` deliberately does not join: the
+> pool lives in a thread-local, and joining from a TLS destructor deadlocks on Windows. What is left
+> of Stage 2 is item 7, the watchdog. What a task *costs* is settled too:
 > `crates/nvs-host/src/stack.rs` is ADR 0115 § 4 — 1 MiB of reserved address space per task,
 > resident only in the pages its handler touched, pooled per worker and recycled the moment the task
 > ends, with the recursion limit armed from that stack instead of asserted from a ceiling on the
