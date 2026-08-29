@@ -390,6 +390,55 @@ fn run_check(path: &std::path::Path, autoload_map: bool) -> ExitCode {
 /// same spelling `nvs-ir`'s own snapshots use.
 const SCRIPT: &str = "<script>";
 
+/// ADR 0102 § 6's configured origin, read out of `./nvs.toml`'s `[app] origin`
+/// — and that key alone.
+///
+/// **This is not `nvs.toml`'s reader**, and must not grow into one. M6's is,
+/// with ADR 0064's syntax, ADR 0103's include tree and ownership check, and
+/// ADR 0005's directive registry behind it; `nvs_syntax`'s module docs name it
+/// as the caller that has not arrived. What is here reads one key, because ADR
+/// 0102 § 6 makes the origin *configured* and refuses every other source
+/// outright: with nowhere to configure it, `Core\Router::urlAbsolute` has no
+/// answer it is allowed to give at all. A second key added here is a second
+/// configuration format, so the next one goes in M6's reader instead.
+///
+/// The location is ADR 0103 § 1 step 2 — `./nvs.toml` in the working
+/// directory, **exactly one directory and never a walk upward**, and never
+/// beside the entry file. Step 1's `--config` is M6's closed flag list and
+/// step 3's shipped defaults name no origin, so there is one place to look.
+/// A file that is absent, unreadable or holds no `[app] origin` resolves
+/// `None`, which is not an error here: ADR 0097 § 3's "a unit that resolves
+/// none is an error" is reported at the link site, where the message can name
+/// the route it could not build.
+fn configured_origin() -> Option<String> {
+    let text = std::fs::read_to_string("nvs.toml").ok()?;
+    let mut in_app = false;
+    for line in text.lines() {
+        let line = line.split('#').next().unwrap_or("").trim();
+        if let Some(table) = line
+            .strip_prefix('[')
+            .and_then(|rest| rest.strip_suffix(']'))
+        {
+            in_app = table.trim() == "app";
+            continue;
+        }
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        if !in_app || key.trim() != "origin" {
+            continue;
+        }
+        if let Some(quoted) = value
+            .trim()
+            .strip_prefix('"')
+            .and_then(|rest| rest.strip_suffix('"'))
+        {
+            return Some(quoted.to_owned());
+        }
+    }
+    None
+}
+
 fn run_run(
     path: &std::path::Path,
     dump_ir: bool,
@@ -448,6 +497,11 @@ fn run_run(
     // The script's own frame is the request, for a CLI run: one `Ctx` writing
     // to the process's standard output.
     let mut ctx = nvs_runtime::Ctx::stdout();
+    // ADR 0102 § 6's origin is resolved before the program runs and never
+    // during it, which is the whole of what makes it un-sniffable.
+    if let Some(origin) = configured_origin() {
+        ctx.set_origin(&origin);
+    }
     // Hands the context the unit's class table: the class a helper's
     // bare-message failure is promoted to, and the shared ownership that lets
     // the context outlive the unit. `Unit::install_in` owns both reasons.

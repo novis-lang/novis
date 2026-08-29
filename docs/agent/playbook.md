@@ -756,6 +756,20 @@ is why" — is this file.
   whose crate owns the diagnostic rather than inventing a test where it was filed, and then copy
   `docs/agent/loop-goal.toml` over `docs/agent/goals/<goal>.toml` — they are byte-identical by
   construction, and the chain's next `goal-switch.py` restores the goal file over the live one.
+- **`holes.py` only sees a numbered item whose bold title fits on one line, and a wrapped one fails
+  *silently and backwards*.** `ITEM` is `^(\d+)\. \*\*(.+?)\*\*` with no `re.DOTALL`, so an item written
+  `15. **a title that wraps\n    before its closing stars**` matches nothing — and because an item's body
+  runs to the *next* item mark, all of its anchors are absorbed by the item above it. The observable
+  result is the opposite of a failure: `--unattributed` drops to 0 and the summary attributes the sites
+  to some earlier number, so the gate goes green while the ownership it reports is a fiction. `python
+  tools/holes.py --item N` is the check — it prints "no item N" for the item you just wrote.
+
+- **`verify.py` short-circuits, so the session that turns a red step green inherits every failure the
+  steps after it were hiding.** Closing the refusal gate at step 3 let step 5 (`cargo doc`, `-D
+  warnings` with `rustdoc::broken_intra_doc_links`) run for the first time in some while, and it failed
+  on two intra-doc links in `crates/nvs-stdlib/src/router.rs` that no session that iteration had
+  written. Budget for it: a gate that has been red is not a gate that has been passing up to that
+  point, and "did I cause this" is answered by the line number, not by the timing.
 
 ## Running things
 
@@ -2784,6 +2798,15 @@ sibling in the same namespace unqualified.
   in that function beside `registry::CONSTRUCTORS`', **and** a term in
   `every_registered_member_has_an_implementation_address`' arithmetic, which is the same sum
   written out a second time and fails the moment the roster grows.
+- **The handoff proposes; the ADR decides — and `nvs.toml`'s location is the worked case.** The handoff
+  scoped `[app] origin` as "read `nvs.toml` beside the entry file", which ADR 0103 § 1 step 2 forbids
+  outright: the root of the configuration tree is `./nvs.toml` in the **working directory**, exactly one
+  directory and never a walk upward, with `--config` as the only other source. Following the handoff
+  would have put the fixture in `examples/` where no `nvs run` from the repository root would ever read
+  it. A handoff bullet is the previous session's *plan*, written before it read the ADR the slice lands
+  inside; when the two disagree the ADR body wins and the handoff is the bug. ADR 0104 is the one to
+  read next here — it makes `[[app]]` an array of tables keyed on `root`/`entry`, which ADR 0102 § 6's
+  plain `[app] origin` does not know about yet.
 
 ## Divergences and refusals already pinned
 

@@ -25,7 +25,7 @@
 //! names eight verbs and [ADR 0096](../../../../docs/adr/0096-a-route-without-a-declared-access-decision-does-not-compile.md)
 //! § 4 names four of them as the ones CSRF enforcement covers. Those four are
 //! this enum's contiguous *tail*, the same arrangement — and for the same
-//! reason — as [`crate::hash::STRONG`]'s: a rule over a set of cases becomes a
+//! reason — as `crate::hash`'s private `STRONG`: a rule over a set of cases becomes a
 //! bound rather than a match arm nobody remembers to extend.
 //!
 //! `CONNECT` is deliberately not a case. It establishes a proxy tunnel, so it
@@ -152,7 +152,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// **Argument 0 is the route's path, already split.** `nvs_types::routes`'
 /// `link_pieces` reads § 2's grammar — the only reading of it anywhere — and
 /// `nvs_types::UrlPiece::prepared` writes its answer out in this format:
-/// pieces separated by [`PIECE_SEPARATOR`], each one a tag byte from the four
+/// pieces separated by [`link::PIECE_SEPARATOR`], each one a tag byte from the four
 /// constants below followed by its text. Reading it back is a `split` and a
 /// byte test, so no second parser of a path exists to disagree with the first.
 pub mod link {
@@ -294,18 +294,25 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_core_router_link`] with ADR 0102 § 6's configured origin in front.
     ///
     /// The origin is per mount, falling back to `[app] origin`, and is never
-    /// derived from `Host` or `X-Forwarded-Host`. `nvs.toml`'s reader is M6's
-    /// (`nvs_syntax`'s own module docs name it), so there is no origin to read
-    /// and nothing to fall back to — and ADR 0097 § 3 makes a unit that
-    /// resolves none an error rather than a link with an empty authority in it.
-    fn nvs_core_router_link_absolute(_ctx, args: [2]) {
+    /// derived from `Host` or `X-Forwarded-Host` — so this member reads what
+    /// was resolved *before* the request ran, out of
+    /// [`Ctx::origin`](nvs_runtime::Ctx::origin), and never a value the
+    /// request could have influenced. A unit that resolves none throws here
+    /// rather than answering with an empty authority in it, which is ADR 0097
+    /// § 3's rule at the one place a CLI run can enforce it: § 6 puts the
+    /// *boot* error at mount expansion, and there is no mount off the command
+    /// line to expand.
+    fn nvs_core_router_link_absolute(ctx, args: [2]) {
         let template = link_template(args, "urlAbsolute")?;
         let path = substitute(template, &args[1], "urlAbsolute")?;
-        Err(Fault::thrown(format!(
-            "Core\\Router::urlAbsolute(): no origin is configured for this unit, so `{path}` \
-             has no absolute form. ADR 0102 § 6 refuses to derive one from a request header, \
-             and `nvs.toml`'s `[app] origin` is not read yet"
-        )))
+        let Some(origin) = ctx.origin() else {
+            return Err(Fault::thrown(format!(
+                "Core\\Router::urlAbsolute(): no origin is configured for this unit, so `{path}` \
+                 has no absolute form. ADR 0102 § 6 refuses to derive one from a request header, \
+                 so give `nvs.toml` an `[app] origin`"
+            )));
+        };
+        produced(&format!("{origin}{path}"))
     }
 }
 

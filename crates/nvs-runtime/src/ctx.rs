@@ -260,6 +260,25 @@ pub struct Ctx {
     /// [`Self::set_diagnostic_sink`] explicitly, so a test that does not is
     /// never quietly swallowing one.
     diagnostic: OutputSink,
+    /// [ADR 0102](../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+    /// § 6's configured origin: the scheme and authority
+    /// `Core\Router::urlAbsolute` puts in front of a link, with no trailing
+    /// `/`.
+    ///
+    /// **Configured, never sniffed.** § 6 refuses `Host` and
+    /// `X-Forwarded-Host` outright, which is why this is written *before* the
+    /// request runs and nothing during it can move it — `nvs run` reads
+    /// `nvs.toml`'s `[app] origin` today, and the mount that accepted the
+    /// request will write it once there is a server, since
+    /// [ADR 0097](../../../docs/adr/0097-development-server-and-proxied-origin.md)
+    /// § 3 makes a mount's own origin win over the application's. `None` is a
+    /// unit that resolves neither, and the link helper throws rather than
+    /// answering with an empty authority in it.
+    ///
+    /// **What it spends:** two words per request, plus the origin's own bytes
+    /// once — tens of them, not thousands — and nothing at all for a program
+    /// that configures none.
+    origin: Option<Box<str>>,
     /// `Core\Out::capture`'s buffers, innermost last —
     /// [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
     /// § 5.
@@ -610,6 +629,7 @@ impl Ctx {
             runtime_error_class: None,
             output,
             diagnostic: OutputSink::Stderr,
+            origin: None,
             captures: Vec::new(),
             stmt_hits: Vec::new(),
             trace: Vec::new(),
@@ -634,6 +654,26 @@ impl Ctx {
     /// Records the status `exit(n)` named — `nvs_exit`'s one side effect.
     pub fn set_exit_code(&mut self, code: i64) {
         self.exit_code = code;
+    }
+
+    /// ADR 0102 § 6's configured origin, or `None` when this unit resolves
+    /// none — see [`Self::origin`]'s field docs for why it is never sniffed.
+    #[must_use]
+    pub fn origin(&self) -> Option<&str> {
+        self.origin.as_deref()
+    }
+
+    /// Configures this request's origin, dropping a trailing `/` so a link is
+    /// the origin and the path concatenated and nothing has to decide which
+    /// side owns the separator.
+    ///
+    /// Written **before** the request runs, by whoever resolved it: `nvs run`
+    /// from the configuration, and the mount that accepted the request once
+    /// there is a server. Nothing on the request path calls this, which is
+    /// what makes § 6's "configured, never sniffed" a property of the shape
+    /// rather than of a review.
+    pub fn set_origin(&mut self, origin: &str) {
+        self.origin = Some(origin.trim_end_matches('/').into());
     }
 
     /// Arms this request's static-property storage: one slot per entry in

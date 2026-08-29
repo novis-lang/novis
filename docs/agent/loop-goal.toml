@@ -18,6 +18,9 @@ files = [
   "examples/program.nvs",
   "examples/routes.nvs",
   "examples/commands.nvs",
+  # ADR 0102 § 6's origin has to be configured somewhere for `routes.nvs` to print an absolute link, and
+  # ADR 0103 § 1 step 2 says where: `./nvs.toml`, the working directory and no walk upward. One key.
+  "nvs.toml",
   # ADR 0057's folding: a literal date format, a literal pattern and a literal template, each validated
   # while checking, beside the same three reached through a variable so the runtime path is exercised too.
   "examples/intrinsics.nvs",

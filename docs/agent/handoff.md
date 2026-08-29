@@ -2,76 +2,62 @@
 
 ## State
 
-**ADR 0077 § 4's link half folds, and `Core\Router::url` answers.**
-`examples/routes.nvs` prints `url=/users/7`: `crate::links` (`crates/nvs-types/src/links.rs`)
-records every `url`/`urlAbsolute` site whose argument 0 folded to a literal, and
-`links::resolve` (`links.rs:165`) looks each one up against the finished table from
-`check_program` (`crates/nvs-types/src/check.rs:149`) — **after** the file loop, because a
-`url` call in the entry file routinely names a route § 5's scan finds later. Two new codes:
-`E0754` a literal name no `#[Route]` claims, `E0755` a `$params` literal covering less than
-the path's captures. The resolved route rides across as `ExprInfo::RouteLink { pieces,
-absolute }`, recorded **over** the `ExprInfo::Call` the walk already wrote at that span, so a
-*computed* name keeps its `Call` and throws — § 4's own rule, with no second state.
+**Goal 1's floor gate is green and `examples/routes.nvs` prints all five of its `want` lines.**
+Two things landed.
 
-**§ 2's grammar is still read exactly once.** `routes::link_pieces` (`routes.rs:419`) is the
-only reader outside `parse_path`, and it answers `Vec<UrlPiece>`;
-`UrlPiece::prepared` (`expr_table.rs:261`) writes that out in the format
-`nvs_stdlib::router::link` defines, `nvs-ir` emits it as argument 0 of a `CoreCall`
-(`lower_route_link`, `crates/nvs-ir/src/lower/expr.rs:2488`), and `substitute`
-(`crates/nvs-stdlib/src/router.rs:236`) reads it back with a `split` and a byte test. No
-runtime parser of a path exists to disagree with the compiler's.
+**Item 15 in `docs/agent/loop-goal.md` owns M4's seventeen `nvs-ir` lowering refusals.** They were
+never a regression: `goal-switch.py` carries the outgoing goal's `[[check]]` blocks forward as the
+floor and its *unclosed items* not at all, so `every_refusal_is_a_diagnostic_or_decided` arrived in
+Stage 1 without the item list that made it green. Item 15 is the inventory — seven files, every site
+anchored — and it states outright that this goal does not close them; what makes standing acceptable is
+`CEILING` at `crates/nvs-ir/tests/refusals.rs:66`, which holds the total at seventeen and may never
+rise. `python tools/holes.py --unattributed` reads 0 and `--item 15` prints all seventeen.
 
-**`python tools/verify.py` is red on something this session did not cause, and it blocks the
-whole gate.** `cargo test -p nvs-ir --test refusals`'
-`every_refusal_is_a_diagnostic_or_decided` reports **17 unattributed refusals**, all
-long-standing `nvs-ir` lowering gaps in `call.rs`, `control.rs`, `convert.rs`, `exception.rs`,
-`expr.rs`, `mod.rs` and `stmt.rs`. Confirmed pre-existing by stashing this session's work and
-re-running at `7e39dd2`. `holes.py --unattributed` attributes a refusal to an **open item in
-`docs/agent/loop-goal.md`**, and goal 1's item list names none of these where M4's did — so
-this is the goal switch's residue, not a regression in the tree. The test forbids the
-allowlist by name; the fix is an item or a standing decision in the goal file.
+**`Core\Router::urlAbsolute` answers.** `Ctx::origin` (`crates/nvs-runtime/src/ctx.rs`, the field beside
+`diagnostic`) carries ADR 0102 § 6's origin, written *before* the request runs and by nothing on it,
+which is what makes "configured, never sniffed" a property of the shape. `configured_origin`
+(`crates/nvs-cli/src/main.rs`) resolves it from `./nvs.toml`'s `[app] origin` — ADR 0103 § 1 step 2's
+location, not the entry file's directory — and the repository's own `nvs.toml` is that fixture, one key
+and a comment saying why it is one key. A unit resolving none still throws at
+`crates/nvs-stdlib/src/router.rs:303`, naming the route it could not build.
 
-**The acceptance check is red on its last line only, and for one missing thing.**
-`urlAbsolute` throws (`router.rs:300`): ADR 0102 § 6's origin is configured and never sniffed,
-`[app] origin` lives in `nvs.toml`, and **`nvs.toml` has no reader at all** — it is M6's, per
-`nvs_syntax`'s own module docs. Everything else in `examples/routes.nvs` matches
-`docs/agent/loop-goal.toml`'s `want`.
+**`configured_origin` is not `nvs.toml`'s reader and must not grow into one.** M6's is, with ADR 0064's
+syntax, ADR 0103's include tree and ownership check, and ADR 0005's registry. Its doc comment is that
+rule's home.
 
 ## Next group
 
-**Two file sets, and the first item stands alone: `docs/agent/loop-goal.md`, then
-`crates/nvs-stdlib/src/router.rs`, `crates/nvs-cli/src/main.rs`, `tests/conformance/core/`.**
+**One file set — `crates/nvs-types/src/links.rs`, `crates/nvs-stdlib/src/router.rs`,
+`crates/nvs-stdlib/src/uri.rs`, `tests/conformance/core/` — then one tooling slice that shares none of
+it and can go last or alone.**
 
-- [ ] **The 17 unattributed refusals get an owner, so `verify.py` can go green again.**
-      `python tools/holes.py --unattributed` is the list and
-      `crates/nvs-ir/tests/refusals.rs:144` is the gate. Read what M4's goal file said about
-      them before writing anything: these are `nvs-ir`'s declared lowering gaps, so the answer
-      is one open item in `docs/agent/loop-goal.md` naming the set, or a § *Standing decisions*
-      paragraph — **not** an `ALLOWLIST` entry, which that test's own message forbids.
-- [ ] **`[app] origin` reaches `urlAbsolute`.** ADR 0097 § 3 makes the origin per mount falling
-      back to `[app] origin`, and ADR 0102 § 6 refuses every other source. There is no mount and
-      no config reader off the command line, so this slice is: read `nvs.toml` beside the entry
-      file for `[app] origin` only, hand it to the runtime the way `_ctx` already carries
-      per-run state, and keep § 3's "a unit that resolves none is an error" as the throw at
-      `crates/nvs-stdlib/src/router.rs:303`. Decide *where the value lives* first — the
-      `nvs_helper!` bodies take `_ctx` and nothing else. `examples/` then needs the `nvs.toml`
-      the check's `absolute=https://example.test/users/7` implies. ADR 0097 § 3, ADR 0102 § 6.
-- [ ] **A `.nvst` case over the two refusals.** An unknown literal name (`E0754`) and a
-      `$params` that covers no capture (`E0755`), both `--EXPECTF-ERROR--`; plus the positive
-      twin — a `{page?}` left out of `$params` is *not* refused, because its whole segment is
-      dropped. `crates/nvs-types/src/links.rs:165` is where both messages are written.
-      ADR 0077 § 4.
-- [ ] **A `$params` key naming no capture becomes a query string.** § 4's other half, and
-      `crates/nvs-stdlib/src/router.rs:236` is where it lands — the pieces name every capture,
-      so what is left over is the query. `crates/nvs-stdlib/src/uri.rs`'s query builder is the
-      implementation; do not write a second one. `links.rs`' gap 1 owns why the *refusal* half
-      waits on `#[Query]`.
+- [ ] **A `.nvst` case over the two link refusals.** An unknown literal name (`E0754`) and a `$params`
+      covering less than the path's captures (`E0755`), both `--EXPECTF-ERROR--`; plus the positive twin
+      — a `{page?}` left out of `$params` is *not* refused, because its whole segment is dropped
+      (`crates/nvs-stdlib/src/router.rs:253`, the `link::OPTIONAL` arm). Both messages are written at
+      `crates/nvs-types/src/links.rs:165`. ADR 0077 § 4.
+- [ ] **A `$params` key naming no capture becomes a percent-encoded query string.** ADR 0102 § 6's other
+      half. `substitute` at `crates/nvs-stdlib/src/router.rs:234` is where it lands — the prepared pieces
+      name every capture, so what is left over in `$params` is the query — and
+      `crates/nvs-stdlib/src/uri.rs`'s query builder is the implementation; do not write a second one.
+      `links.rs`' gap 1 owns why the *refusal* half waits on `#[Query]`.
+- [ ] **`goal-switch.py` carries the outgoing goal's unclosed items, not only its checks.** The bug item
+      15's last paragraph names: a carried check whose green depends on an item list arrives without its
+      basis, and every goal in `docs/agent/goals/chain.toml` otherwise inherits item 15 by hand.
+      `tools/goal-switch.py:41` (`LIVE`/`MARKER`) is the insertion point and `tools/holes.py:194`
+      (`items`) is the reader whose contract it has to satisfy — a one-line bold title, per the playbook.
 
 ## Backlog
 
-- `urlAbsolute`'s mount prefix: `url` prepends one too (ADR 0097 § 3) and there is no mount.
-- `nvs_types::links` gap 2 — a named argument (`url(name: "…")`) records no site and throws.
-- `nvs_types::routes` gap 2 — only the first `#[Route]` on a method becomes a row (ADR 0110 § 1).
-- ADR 0085's OpenAPI emitter reads `ExprTypeTable::routes`; nothing does yet (`loop-goal.toml`
-  stage 4).
-- `Core\Router::match`/`methodsFor` and `Core\Router\Match` — out of scope by standing decision.
+- Item 15's seventeen `nvs-ir` refusals stay open by design — `docs/agent/loop-goal.md` item 15 is the
+  inventory and the ratchet is the guard.
+- ADR 0102 § 6 spells the fallback `[app] origin` while ADR 0104 § 1 makes `[[app]]` an array of tables
+  keyed on `root`/`entry`; one of the two bodies is stale and the ADR body is the rule.
+- `crates/nvs-test/src/case.rs:193` still says `nvs.toml` is not read until M6 — true of the reader,
+  no longer true of the file.
+- The mount prefix `Core\Router::url` prepends is still empty, and there is no `::match` — goal 6's,
+  per this goal's § *Standing decisions*.
+- Items 10 and 11 (every class's conformance floor to 3, every `Core` member's error paths asserted) are
+  the standing fallback when a group is blocked — `python tools/gaps.py` ranks both.
+- `nvs.toml`'s real reader, with ADR 0103's include tree and ownership check — M6's, and the one thing
+  that retires `configured_origin`.

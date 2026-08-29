@@ -1,0 +1,19 @@
+# The repository's own `nvs.toml` — ADR 0103 § 1 step 2's `./nvs.toml`, found
+# in the working directory and nowhere else.
+#
+# It holds exactly one directive, because exactly one directive is read: ADR
+# 0102 § 6 makes `Core\Router::urlAbsolute`'s origin *configured* and refuses
+# to derive one from `Host` or `X-Forwarded-Host`, so a program calling that
+# member has no answer it is allowed to give until this key exists.
+# `configured_origin` in `crates/nvs-cli/src/main.rs` is the reader and its doc
+# comment owns why it is one key rather than a config format; M6 lands the real
+# tree, with ADR 0064's syntax and ADR 0103's ownership check, and this file
+# becomes an ordinary root of it.
+#
+# `examples/routes.nvs` is what reads it today, so `nvs run` from this
+# directory prints an absolute link rather than throwing. Changing the value
+# changes that program's expected output, which `docs/agent/loop-goal.toml`
+# freezes.
+
+[app]
+origin = "https://example.test"
