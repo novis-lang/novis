@@ -1,0 +1,166 @@
+--TEST--
+A `foreach` over a `Core\ObjectSet<T>` walks a snapshot taken when the loop began, so every mutation a body makes — including `clear` — leaves the walk whole and is what the next walk sees, and a `Core\ObjectMap<K, V>`'s key walk answers the same for the same script — docs/spec/01-core-library.md § 9, ADR 0053 §§ 1, 3
+--FILE--
+<?nvs
+// A set's snapshot was the untested half of the pair: the map's is pinned by
+// `object-map-iterates-its-keys`, and a set has the same cursor under it
+// (`crate::cursor` owns the mechanism). Written as *agreement* rather than as
+// two tables, because the interesting claim is that the two classes take the
+// snapshot at the same moment and answer the same sequence for it.
+final class Walk {
+    // The set's own walk, rendered. A body that mutates mid-walk is the point,
+    // so what is asserted is what the walk yielded, not what the set holds.
+    public static function set(Core\ObjectSet<string> $s): string {
+        string $seen = "";
+        foreach ($s as string $member) {
+            $seen = $seen . $member;
+        }
+        return $seen;
+    }
+
+    public static function map(Core\ObjectMap<string, int> $m): string {
+        string $seen = "";
+        foreach ($m as string $key) {
+            $seen = $seen . $key;
+        }
+        return $seen;
+    }
+}
+
+// 1. A removal inside the body — of the member the body is standing on, and of
+//    one the walk has not reached yet — takes nothing out of the walk. Both
+//    classes are driven by one script and their two walks are compared.
+Core\ObjectSet<string> $set = new Core\ObjectSet<string>();
+Core\ObjectMap<string, int> $map = new Core\ObjectMap<string, int>();
+array<string> $abcde = ["a", "b", "c", "d", "e"];
+foreach ($abcde as string $filled) {
+    $set->add($filled);
+    $map->set($filled, 1);
+}
+
+string $setSeen = "";
+foreach ($set as string $member) {
+    $setSeen = $setSeen . $member;
+    if ($member == "b") {
+        $set->remove("b");
+        $set->remove("d");
+    }
+}
+string $mapSeen = "";
+foreach ($map as string $key) {
+    $mapSeen = $mapSeen . $key;
+    if ($key == "b") {
+        $map->remove("b");
+        $map->remove("d");
+    }
+}
+echo "removed mid-walk ", $setSeen, " ", $mapSeen, " agree ",
+     ($setSeen == $mapSeen) as string, "\n";
+echo "  left holding ", Walk::set($set), " ", Walk::map($map), " ",
+     $set->count(), " ", $map->count(), "\n";
+
+// 2. An addition inside the body is not walked by the pass that made it — the
+//    snapshot predates it — and is walked by the next one. This is the half a
+//    live cursor would get wrong in the other direction, walking forever.
+$set->clear();
+$map->clear();
+foreach ($abcde as string $refilled) {
+    $set->add($refilled);
+    $map->set($refilled, 1);
+}
+string $grew = "";
+foreach ($set as string $member) {
+    $grew = $grew . $member;
+    if ($member == "a") {
+        $set->add("x");
+        $set->add("y");
+    }
+}
+string $grewMap = "";
+foreach ($map as string $key) {
+    $grewMap = $grewMap . $key;
+    if ($key == "a") {
+        $map->set("x", 1);
+        $map->set("y", 1);
+    }
+}
+echo "added mid-walk ", $grew, " ", $grewMap, " agree ",
+     ($grew == $grewMap) as string, "\n";
+echo "  next walk ", Walk::set($set), " ", Walk::map($map), "\n";
+
+// 3. `clear` inside the body is the extreme of both: the walk finishes the
+//    snapshot it began with, and what the body wrote after the `clear` is the
+//    whole of what is left. A cleared collection is usable inside the very
+//    loop that cleared it.
+$set->clear();
+$map->clear();
+foreach ($abcde as string $thirdFill) {
+    $set->add($thirdFill);
+    $map->set($thirdFill, 1);
+}
+string $cleared = "";
+foreach ($set as string $member) {
+    $cleared = $cleared . $member;
+    if ($member == "c") {
+        $set->clear();
+        $set->add("z");
+    }
+}
+string $clearedMap = "";
+foreach ($map as string $key) {
+    $clearedMap = $clearedMap . $key;
+    if ($key == "c") {
+        $map->clear();
+        $map->set("z", 9);
+    }
+}
+echo "cleared mid-walk ", $cleared, " ", $clearedMap, " agree ",
+     ($cleared == $clearedMap) as string, "\n";
+echo "  left holding ", Walk::set($set), " ", Walk::map($map), " ",
+     $set->isEmpty() ? "empty" : "filled", " ", $map->get("z") ?? -1, "\n";
+
+// 4. Two walks over one collection are two snapshots, not one shared cursor,
+//    and each is taken where its own loop begins rather than once per
+//    collection. So the outer walk keeps all three members while the inner one
+//    — entered afresh three times — sees each removal the outer body has made
+//    by then: 3 + 2 + 1 pairs rather than 3 x 3, and the outer still finishes.
+$set->clear();
+$map->clear();
+array<string> $pqr = ["p", "q", "r"];
+foreach ($pqr as string $triple) {
+    $set->add($triple);
+    $map->set($triple, 1);
+}
+int $pairs = 0;
+string $crossed = "";
+foreach ($set as string $outer) {
+    foreach ($set as string $inner) {
+        $crossed = $crossed . $outer . $inner;
+        $pairs = $pairs + 1;
+    }
+    $set->remove($outer);
+}
+int $mapPairs = 0;
+string $mapCrossed = "";
+foreach ($map as string $outerKey) {
+    foreach ($map as string $innerKey) {
+        $mapCrossed = $mapCrossed . $outerKey . $innerKey;
+        $mapPairs = $mapPairs + 1;
+    }
+    $map->remove($outerKey);
+}
+echo "nested ", $pairs, " ", $mapPairs, " agree ",
+     ($crossed == $mapCrossed) as string, "\n";
+echo "  ", $crossed, "\n";
+echo "  drained ", $set->isEmpty() ? "empty" : "filled", " ",
+     $map->isEmpty() ? "empty" : "filled", "\n";
+--EXPECT--
+removed mid-walk abcde abcde agree 1
+  left holding ace ace 3 3
+added mid-walk abcde abcde agree 1
+  next walk abcdexy abcdexy
+cleared mid-walk abcde abcde agree 1
+  left holding z z filled 9
+nested 6 6 agree 1
+  pppqprqqqrrr
+  drained empty empty
