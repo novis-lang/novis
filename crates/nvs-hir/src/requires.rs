@@ -1180,6 +1180,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Harvest) {
                 e!(&option.value);
             }
         }
+        ExprKind::Await(inner) => e!(inner),
         _ => {}
     }
 }

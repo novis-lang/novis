@@ -421,8 +421,8 @@ impl<'a> Lowering<'a> {
             }
             // Nothing the checker accepts reaches this arm any more, and the
             // proof is the roster rather than the message below it. `ExprKind`
-            // has 45 variants; the arms above cover 35 of them, plus one of
-            // `Assign`'s two `inout` shapes. Of the ten with no arm and
+            // has 46 variants; the arms above cover 35 of them, plus one of
+            // `Assign`'s two `inout` shapes. Of the eleven with no arm and
             // the one `Assign` shape:
             //
             // * `Error` is a parse error already reported, and does not
@@ -441,10 +441,13 @@ impl<'a> Lowering<'a> {
             //   no `send()` for it to answer with. The statement form goes
             //   through `Self::lower_yield` one file over, reached from
             //   `nvs_types::expr::check_expr_stmt`'s matching split.
-            // * `spawn script` is `E0703`, because nothing below this crate
-            //   compiles it yet — ADR 0006's isolates arrive at M5. Its
-            //   neighbour used to be `require` used for its value; that lowers
-            //   one arm above now, and `E0704` is retired.
+            // * `spawn script` is `E0703` and `await` is `E0776`, because
+            //   nothing below this crate compiles either yet — ADR 0006's
+            //   isolates arrive at M5. Two codes and not one because the two
+            //   constructs arrive separately and a program writing only one
+            //   should hear about the one it wrote. Their neighbour used to be
+            //   `require` used for its value; that lowers one arm above now,
+            //   and `E0704` is retired.
             // * `$obj::class` is `E0702`; the statically-named spelling lowers
             //   one arm above.
             //

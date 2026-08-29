@@ -811,6 +811,7 @@ fn check_expr(expr: &Expr, src: &SourceFile, diags: &mut Diagnostics) {
                 check_expr(&option.value, src, diags);
             }
         }
+        ExprKind::Await(inner) => check_expr(inner, src, diags),
         ExprKind::Require { path } => check_expr(path, src, diags),
         ExprKind::ObjectLiteral(fields) => {
             // ADR 0036 § 2: a literal's field names are ordinary property

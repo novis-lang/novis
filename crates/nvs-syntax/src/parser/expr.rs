@@ -1097,6 +1097,9 @@ impl<'src, 'd> Parser<'src, 'd> {
             TokenKind::Keyword(
                 kw @ (Keyword::Include | Keyword::IncludeOnce | Keyword::RequireOnce),
             ) => self.parse_rejected_include_family(kw),
+            TokenKind::Ident if self.at_contextual("await") && self.at_await_operand() => {
+                self.parse_await()
+            }
             TokenKind::Ident
                 if self.at_contextual("spawn") && self.peek_at(1).kind == TokenKind::Ident =>
             {
@@ -2005,6 +2008,51 @@ impl<'src, 'd> Parser<'src, 'd> {
                 path: Box::new(path),
                 options,
             },
+        }
+    }
+
+    // ========================================================================
+    // `await expr`
+    // ========================================================================
+
+    /// Whether the token after a contextual `await` begins an operand.
+    ///
+    /// `await` is contextual for [`crate::token`]'s reason and disambiguated
+    /// the way `spawn` is — by what follows it, not by reserving the spelling
+    /// — so `await` written alone stays an ordinary name and only a
+    /// juxtaposition is the operator. The four kinds listed are every shape an
+    /// awaitable can be written as: the variable holding a handle, a
+    /// parenthesised expression, a name (`await someHandle`, and also
+    /// `await spawn script '…'`, whose `spawn` is itself an [`TokenKind::Ident`]),
+    /// and a qualified name's leading `\`.
+    ///
+    /// The one spelling this claims from a program that predates it is
+    /// `await($x)`, which PHP would read as a call to a function named
+    /// `await`. That is the intended reading here and the trade is deliberate:
+    /// the alternative — excluding `(` — would make `await ($handle)` a
+    /// mysterious unknown-function error at the one place a developer is most
+    /// likely to reach for parentheses.
+    fn at_await_operand(&mut self) -> bool {
+        matches!(
+            self.peek_at(1).kind,
+            TokenKind::Variable | TokenKind::Ident | TokenKind::Backslash | TokenKind::LParen
+        )
+    }
+
+    /// `await $handle` — ADR 0006's other half.
+    ///
+    /// The operand is a [`Self::parse_unary`], exactly as `clone`'s is, so
+    /// `await $h->result` awaits the property and `await $h + 1` adds to what
+    /// the await produced. Nothing binds tighter than the postfix chain here,
+    /// which is what makes `await` read as one word in front of the handle
+    /// rather than as a call.
+    pub(super) fn parse_await(&mut self) -> Expr {
+        let start = self.bump().span; // 'await'
+        let operand = self.parse_unary();
+        let span = start.to(operand.span);
+        Expr {
+            span,
+            kind: ExprKind::Await(Box::new(operand)),
         }
     }
 

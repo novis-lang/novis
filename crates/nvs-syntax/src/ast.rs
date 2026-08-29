@@ -938,6 +938,13 @@ pub enum ExprKind {
         /// The `with(...)` options, if a `with` clause was given.
         options: Vec<SpawnOption>,
     },
+    /// `await expr` — the prefix half of the same grammar
+    /// ([`docs/spec/00-overview.md` § 2](../../../docs/spec/00-overview.md)):
+    /// the awaitable handle a `spawn script` produced becomes a
+    /// `ScriptResult`. Contextual like `spawn` itself — see
+    /// [`crate::token`]'s module docs — so it is this variant only where an
+    /// operand follows, and a bare `await` is still an ordinary name.
+    Await(Box<Expr>),
     /// `require` — an expression, not a statement, per
     /// [`docs/spec/00-overview.md` § 2](../../../docs/spec/00-overview.md):
     /// `$x = require 'a.nvs';` is legal.

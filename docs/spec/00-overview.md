@@ -114,6 +114,7 @@ spawn-option        := 'args'   ':' expr
                       | 'grants' ':' expr
                       | 'output' ':' expr
                       | 'on'     ':' expr
+await-expr          := 'await' unary-expr
 ```
 
 `spawn-script-expr` is an expression, not a statement, so it can appear anywhere an expression can (assigned,
@@ -127,6 +128,13 @@ The expression's static type — an awaitable handle that a subsequent `await` t
 belongs to the concurrency type surface M5 defines, not to this document; this section fixes only the
 `spawn script … with(…)` token sequence, so that the M1 parser has a grammar to implement without waiting on
 M5's design.
+
+`await`'s operand is a *unary* expression, so the postfix chain binds tighter than the keyword does and
+`await $h->handle` awaits the property. Both `spawn`/`script`/`with` and `await` are **contextual**: they
+lex as ordinary identifiers and are read as this grammar only where one is followed by what the production
+needs — `script` after `spawn`, an operand after `await` — so a program that already uses either spelling
+as a constant, a function or a method name still parses. The one reading this claims from such a program is
+`await($x)`, which is the operator over a parenthesised operand and not a call to a function named `await`.
 
 ## 3. The declaration-slot grammar (ADR 0007's spelling)
 

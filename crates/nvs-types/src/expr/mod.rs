@@ -758,6 +758,24 @@ pub(crate) fn infer(
             );
             env.interner.mixed()
         }
+        // The prefix half of the same surface, refused for the same reason and
+        // in the same shape. Its operand is checked first — `await $handel` is
+        // an undefined variable whether or not the construct compiles — and
+        // the answer is `mixed` because the type it will have is
+        // `ScriptResult`, which no registry row declares yet.
+        ExprKind::Await(inner) => {
+            check_expr(inner, None, live, scope, ctx, env);
+            env.diags.report(
+                Diagnostic::error(code::E_AWAIT_UNLOWERED, "`await` is not compiled yet")
+                    .with_primary(expr.span, "nothing is awaited here")
+                    .with_help(
+                        "ADR 0006's isolates arrive with `docs/plan/m5.md`, and `await` is what \
+                         turns the handle `spawn script` hands back into a `ScriptResult`. There \
+                         is no synchronous spelling of this to fall back on",
+                    ),
+            );
+            env.interner.mixed()
+        }
         // ADR 0021 § 3's **value** form. The statement form never reaches here
         // — `crate::locals::check_stmt` checks only the path for one, matching
         // `nvs_ir::lower::Lowering::lower_expr_stmt` — so arriving at all is

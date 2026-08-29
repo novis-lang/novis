@@ -2299,6 +2299,7 @@ impl<'a> Lowering<'a> {
                     self.collect_reassigned_in_expr(&option.value, seen, out);
                 }
             }
+            ExprKind::Await(inner) => self.collect_reassigned_in_expr(inner, seen, out),
             _ => {}
         }
     }

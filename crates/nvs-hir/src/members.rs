@@ -820,6 +820,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                 e!(&option.value);
             }
         }
+        ExprKind::Await(inner) => e!(inner),
         ExprKind::Require { path } => e!(path),
         // The two name-shaped expressions that only ever mean a class are
         // refused here, in value position, because every position where they

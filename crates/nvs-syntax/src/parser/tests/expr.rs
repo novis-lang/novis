@@ -723,6 +723,38 @@ fn spawn_and_script_are_still_plain_identifiers_elsewhere() {
 }
 
 #[test]
+fn await_is_a_prefix_expression_over_the_handle() {
+    // `docs/spec/00-overview.md` § 2: the awaitable a `spawn script` produces
+    // becomes a `ScriptResult` at a subsequent `await`. The operand is a unary
+    // expression, so the postfix chain binds tighter than the keyword does.
+    let e = parse_ok("await $handle");
+    let ExprKind::Await(inner) = e.kind else {
+        panic!("expected await: {e:?}");
+    };
+    assert!(matches!(inner.kind, ExprKind::Variable(_)));
+
+    let e = parse_ok("await $h->result");
+    let ExprKind::Await(inner) = e.kind else {
+        panic!("expected await: {e:?}");
+    };
+    assert!(matches!(inner.kind, ExprKind::PropertyAccess { .. }));
+
+    // The inline spelling § 2 calls out: a spawn awaited where it is written.
+    let e = parse_ok("await spawn script 'jobs/report.nvs'");
+    let ExprKind::Await(inner) = e.kind else {
+        panic!("expected await: {e:?}");
+    };
+    assert!(matches!(inner.kind, ExprKind::SpawnScript { .. }));
+}
+
+#[test]
+fn await_is_still_a_plain_identifier_with_no_operand() {
+    // Contextual, like `spawn`: with nothing to await after it, the spelling
+    // is an ordinary constant-fetch name and not a half-parsed construct.
+    assert!(matches!(parse_ok("await").kind, ExprKind::ConstFetch(_)));
+}
+
+#[test]
 fn alt_colon_syntax_end_words_are_plain_identifiers() {
     // PHP's alternative colon syntax (`if (...): ... endif;`) is deliberately
     // out of scope; `endif`/`endfor`/`endforeach`/`endswitch`/`endwhile`/

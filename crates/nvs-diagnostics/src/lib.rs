@@ -2247,6 +2247,17 @@ pub mod code {
     /// run time (`nvs_runtime::graph`), because the object's static type is
     /// what a call site sees and its properties are not.
     pub const E_SECRET_CROSSES_A_BOUNDARY: Code = Code::new("E0775");
+    /// `await expr` — the prefix half of ADR 0006's spawn surface, which has
+    /// no lowering yet.
+    ///
+    /// A separate code from [`E_SPAWN_SCRIPT_UNLOWERED`] rather than a second
+    /// site reporting that one, because the two constructs arrive separately
+    /// and a program that writes only one of them should be told about the
+    /// one it wrote. The reasoning is otherwise identical: the construct is
+    /// real and specified, `docs/plan/m5.md` is where it arrives, and until
+    /// then it is refused where it is written rather than accepted and
+    /// dropped.
+    pub const E_AWAIT_UNLOWERED: Code = Code::new("E0776");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
