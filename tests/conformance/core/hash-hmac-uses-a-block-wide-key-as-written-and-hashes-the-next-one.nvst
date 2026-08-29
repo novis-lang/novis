@@ -1,0 +1,103 @@
+--TEST--
+`Core\Hash::hmac` zero-extends a key up to exactly one block and replaces the first key past it with its own digest, asserted from both sides of that bound — spec § 11, ADR 0009 §§ 1 and 3
+--FILE--
+<?nvs
+// § 11: RFC 2104 has one width at which a key stops being used as written —
+// the digest's block. At or below it the key is zero-extended to the block; one
+// octet past it the key becomes `H(key)` and *that* is zero-extended instead.
+// Both rules are already exercised in the middle of their ranges by the vector
+// cases; what is asserted here is the boundary itself, from both sides, because
+// an implementation that hashes one octet early or one octet late answers a
+// perfectly plausible digest on either range alone.
+//
+// The block is 64 octets for SHA-256 and 128 for SHA-384 and SHA-512 — the one
+// number the two halves of § 11's `StrongDigest` disagree on, so each is asked
+// about its own.
+class Width
+{
+    // Zero-extension, asked without naming a padded block: a key below the
+    // block extends with a zero octet, so appending one names the same padded
+    // key and must answer the same digest. At the block it stops — the wider
+    // key is past it and is hashed instead.
+    public static function zeroExtends(
+        string $message,
+        uint $octets,
+        Core\Digest::Sha256|Core\Digest::Sha384|Core\Digest::Sha512 $digest,
+    ): bool
+    {
+        bytes $key = Core\Encoding::fromHex(Core\Str::repeat("ab", $octets));
+        bytes $wider = Core\Encoding::fromHex(Core\Str::repeat("ab", $octets) . "00");
+        return Core\Hash::equals(
+            Core\Hash::hmac($message, $key, $digest),
+            Core\Hash::hmac($message, $wider, $digest),
+        );
+    }
+
+    // The replacement, asked the same way: an overlong key answers exactly what
+    // its own digest answers as a key, since `H(key)` is shorter than a block
+    // and is therefore used as written.
+    public static function isHashedFirst(
+        string $message,
+        uint $octets,
+        Core\Digest::Sha256|Core\Digest::Sha384|Core\Digest::Sha512 $digest,
+    ): bool
+    {
+        bytes $key = Core\Encoding::fromHex(Core\Str::repeat("ab", $octets));
+        return Core\Hash::equals(
+            Core\Hash::hmac($message, $key, $digest),
+            Core\Hash::hmac($message, Core\Hash::of($key, $digest), $digest),
+        );
+    }
+
+    // Four questions per digest, two expecting agreement and two expecting
+    // disagreement, counted rather than printed one line at a time. The mixed
+    // polarity is what stops the row passing vacuously: a member answering
+    // "equal" to everything fails the middle two, and one answering "differ"
+    // to everything fails the outer two.
+    public static function row(
+        string $message,
+        uint $block,
+        Core\Digest::Sha256|Core\Digest::Sha384|Core\Digest::Sha512 $digest,
+    ): int
+    {
+        int $count = 0;
+
+        // One octet below the block: still zero-extended.
+        if (Width::zeroExtends($message, $block - 1, $digest)) {
+            $count = $count + 1;
+        }
+
+        // At the block: the last width used as written, so the key one octet
+        // wider is a different key rather than the same padded one.
+        if (!Width::zeroExtends($message, $block, $digest)) {
+            $count = $count + 1;
+        }
+
+        // And at the block the key is not hashed — the other side of the same
+        // bound, which a member replacing one octet early would fail here while
+        // still agreeing with every published vector below it.
+        if (!Width::isHashedFirst($message, $block, $digest)) {
+            $count = $count + 1;
+        }
+
+        // One octet past it, it is.
+        if (Width::isHashedFirst($message, $block + 1, $digest)) {
+            $count = $count + 1;
+        }
+
+        return $count;
+    }
+}
+
+// Two message shapes, since the inner hash's own padding falls in a different
+// place behind each and the key rule must not depend on it.
+string $short = "what do ya want for nothing?";
+echo "sha256: ", Width::row($short, 64, Core\Digest::Sha256), "/4\n";
+echo "sha384: ", Width::row($short, 128, Core\Digest::Sha384), "/4\n";
+echo "sha512: ", Width::row($short, 128, Core\Digest::Sha512), "/4\n";
+echo "sha256, empty message: ", Width::row("", 64, Core\Digest::Sha256), "/4\n";
+--EXPECT--
+sha256: 4/4
+sha384: 4/4
+sha512: 4/4
+sha256, empty message: 4/4
