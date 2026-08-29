@@ -1,0 +1,143 @@
+--TEST--
+`Core\Arr::from` and a `foreach` drive one sequence the same way, agreeing on the entries seen and on the advances made at every prefix of it, over all three shapes — spec § 2, ADR 0053 §§ 1 and 3
+--FILE--
+<?nvs
+// `crates/nvs-stdlib/src/arr.rs:2527`'s doc says `{limit: n}` stops the *drive*
+// rather than truncating the answer, and that the cursor behind all three
+// shapes is driven by name in `nvs_runtime::sequence` — by the same two calls
+// a `foreach` makes. The two existing cases pin one side each:
+// `arr-from-drains-a-sequence` compares finished arrays, and
+// `arr-from-limit-bounds-the-drive-on-both-sides` counts `from`'s own advances
+// against numbers written into the case. What is left is the *agreement*: one
+// source walked by `foreach` and drained by `from`, asserting the two see the
+// same entries after the same number of advances at every prefix — so a `from`
+// that grew a drive of its own fails here while each of its own lines still
+// reads correctly on its own.
+
+// ADR 0053 § 1 gives an `Iterator<T>` exactly `advance()` and `current()`, so
+// the count of the first is the whole of what a program can observe about a
+// drive. The values carry a duplicate pair and a zero: a drive that collapsed
+// repeats, or that read a `0` as the end of the sequence, agrees with nothing
+// below.
+class Counted implements Iterator<int> {
+    private array<int> $values;
+    private int $at;
+    public uint $advances;
+
+    public function constructor() {
+        $this->values = [7, 7, 9, 4, 0];
+        $this->at = -1;
+        $this->advances = 0;
+    }
+
+    public function advance(): bool {
+        $this->advances = $this->advances + 1;
+        $this->at = $this->at + 1;
+        return $this->at < 5;
+    }
+
+    public function current(): int {
+        return $this->values[$this->at];
+    }
+}
+
+// ADR 0053 § 1's second shape: a thing that produces a fresh cursor, which
+// `foreach` and `from` each ask for exactly once.
+class Numbers implements Iterable<int> {
+    public function iterate(): Iterator<int> {
+        return new Counted();
+    }
+}
+
+// One `foreach`, observed at every prefix rather than only at its end. After
+// the k-th element is bound, `advances` is exactly k; the entry appended after
+// the loop is the state past the last element, where the advance that *reported
+// exhaustion* has happened and no element came back from it. Nothing about
+// `Core\Arr::from` is consulted to build this table — that is what makes it a
+// second opinion rather than a restatement.
+var $walked = new Counted();
+array<int> $sofar = [];
+array<string> $seenAt = ["[]"];
+array<uint> $advancesAt = [0];
+foreach ($walked as int $v) {
+    $sofar[] = $v;
+    $seenAt[] = Core\Json::encode($sofar);
+    $advancesAt[] = $walked->advances;
+}
+$seenAt[] = Core\Json::encode($sofar);
+$advancesAt[] = $walked->advances;
+
+// The agreement itself, at all seven prefixes of a five-element sequence: the
+// two below the count, the exact count, and the one past it where the source
+// stops the drive instead of the limit. A fresh cursor per question, since a
+// cursor is spent once drained.
+//
+// The third counter is the control. Asked against the *next* prefix, the same
+// comparison must agree nowhere at all — otherwise `7 7 7` would be what a
+// table of seven identical cells prints too, and the case would pass over a
+// `from` that answered the same array for every limit.
+int $asked = 0;
+int $entryAgrees = 0;
+int $driveAgrees = 0;
+int $offByOneAgrees = 0;
+uint $n = 0;
+while ($n < 7) {
+    $asked = $asked + 1;
+    var $c = new Counted();
+    string $got = Core\Json::encode(Core\Arr::from($c, {limit: $n}));
+    if ($got == $seenAt[$n]) {
+        $entryAgrees = $entryAgrees + 1;
+    }
+    if ($c->advances == $advancesAt[$n]) {
+        $driveAgrees = $driveAgrees + 1;
+    }
+    if ($n < 5 && $got == $seenAt[$n + 1]) {
+        $offByOneAgrees = $offByOneAgrees + 1;
+    }
+    $n = $n + 1;
+}
+echo $asked as string, " ", $entryAgrees as string, " ", $driveAgrees as string,
+     " ", $offByOneAgrees as string, "\n";
+
+// The table both counters were read against, said out loud so a later change to
+// the drive shows up as this line moving rather than as a count staying at 7.
+echo Core\Json::encode($seenAt), "\n";
+echo Core\Json::encode($advancesAt), "\n";
+
+// The same agreement with no limit written at all: the drive that only the
+// source stops makes the same six advances the `foreach` made, and answers what
+// the `foreach` collected.
+var $free = new Counted();
+echo Core\Json::encode(Core\Arr::from($free)), " ", $free->advances as string, " ",
+     Core\Json::encode($sofar), " ", $walked->advances as string, "\n";
+
+// Shape two. Each of the two asks `iterate()` once and drives what it gets, so
+// the agreement is over the entries; the advance counts live inside cursors
+// neither caller keeps.
+var $nums = new Numbers();
+array<int> $iterableWalk = [];
+foreach ($nums as int $v2) {
+    $iterableWalk[] = $v2;
+}
+echo Core\Json::encode(Core\Arr::from($nums)), " ", Core\Json::encode($iterableWalk), "\n";
+
+// Shape three, where the two callers differ on purpose and the agreement says
+// exactly where: § 2 makes `from`'s answer a list whichever shape went in, and
+// a `foreach` binds each key beside its value. So the two agree on the
+// *values*, in order, and the keys are the part `from` drops.
+array<int> $keyed = ["w" => 7, "x" => 7, "y" => 9, "z" => 4, "" => 0];
+array<int> $arrayWalk = [];
+array<string> $arrayKeys = [];
+foreach ($keyed as string $k => int $v3) {
+    $arrayWalk[] = $v3;
+    $arrayKeys[] = $k;
+}
+echo Core\Json::encode(Core\Arr::from($keyed)), " ", Core\Json::encode($arrayWalk), " ",
+     Core\Json::encode(Core\Arr::keys($keyed)), " ", Core\Json::encode($arrayKeys), "\n";
+--EXPECT--
+7 7 7 0
+["[]","[7]","[7,7]","[7,7,9]","[7,7,9,4]","[7,7,9,4,0]","[7,7,9,4,0]"]
+[0,1,2,3,4,5,6]
+[7,7,9,4,0] 6 [7,7,9,4,0] 6
+[7,7,9,4,0] [7,7,9,4,0]
+[7,7,9,4,0] [7,7,9,4,0] ["w","x","y","z",""] ["w","x","y","z",""]
