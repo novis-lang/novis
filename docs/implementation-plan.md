@@ -376,18 +376,31 @@
 > excluding `(` would make `await ($handle)` an unknown-function error at the one place a developer
 > is most likely to reach for parentheses. `docs/spec/00-overview.md` § 2 carries the production and
 > that rule. `examples/isolate.nvs` now parses whole and reports only `E0703` and `E0776`, where it
-> used to stop at `E0319` on the `await` line. The two constructs left are `ScriptResult` and the
-> lowering, and what `ScriptResult` should *be* is a narrower question than it was: a `Core`
-> instance has no property a program can reach (`crates/nvs-stdlib/src/registry.rs:775`), while
-> `->ok` and `->output` are what the example writes — so the shape `Core\Task::all` already answers
-> with, read with `->` and lowering today, is the candidate rather than a registered class. The
-> steps the chain took are in [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's
-> own residue is the 1000-case corpus count, which orders 1–4 meet as the suite grows; nothing else
-> about M4 is open. What the program is measured by is `python tools/check-migration.py` at 100%
-> classified, which stood at 25% the day the program was scheduled and reads 34% now that goal 1's
-> own five domains — dates and times, regular expressions, JSON, URLs and paths — carry a row per
-> name. `python tools/gaps.py`, `python tools/holes.py` and `python tools/check-migration.py
-> --report` are the three worklists behind it, and no session re-derives one.
+> used to stop at `E0319` on the `await` line. What `ScriptResult` *is* is now decided and recorded
+> in the module doc that owns it: `crates/nvs-types/src/expr/isolate.rs`, which is also where both
+> of ADR 0006's constructs are checked from as of this session. **The handle is a registered `Core`
+> class and the result is an ADR 0036 shape**, and one fact decides both — a `Core` instance has no
+> property a program can reach (`crates/nvs-stdlib/src/registry.rs:775`). That is exactly what a
+> handle *is*, since `await` is the only thing a program may do with one, and exactly what the
+> result may not be, since `$result->ok` is read on the next line; a shape needs no new machinery at
+> all, where a class would need a property resolution in `nvs-types`, a slot read in `nvs-ir` and a
+> per-slot type the registry has no spelling for. `await` already answers with `{ok: bool, value:
+> mixed, output: string, error: ?{class: string, message: string}}` — one field per member of
+> `nvs_host::Completion`, four `nvs-types` tests over it — while still reporting `E0776`, because
+> the refusal is what keeps `nvs-ir`'s roster comment true and that roster ends in a `panic!`: a
+> construct may not stop being refused before it starts being lowered. The one surface cost is that
+> ADR 0006's `$result->valueOrThrow()` cannot be a method on a shape and becomes
+> `Core\Script::valueOrThrow($result)`, a static member on the class item 22 introduces anyway.
+> `spawn script` still answers `mixed`, because its `Core\Script\Handle` needs a registry row and
+> `crates/nvs-stdlib/tests/spec_registry_coverage.rs` makes that a `docs/spec/01-core-library.md`
+> edit rather than a one-line addition. The steps the chain took are in
+> [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's own residue is the 1000-case
+> corpus count, which orders 1–4 meet as the suite grows; nothing else about M4 is open. What the
+> program is measured by is `python tools/check-migration.py` at 100% classified, which stood at 25%
+> the day the program was scheduled and reads 34% now that goal 1's own five domains — dates and
+> times, regular expressions, JSON, URLs and paths — carry a row per name. `python tools/gaps.py`,
+> `python tools/holes.py` and `python tools/check-migration.py --report` are the three worklists
+> behind it, and no session re-derives one.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
