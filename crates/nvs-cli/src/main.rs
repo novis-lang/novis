@@ -73,6 +73,7 @@ mod api_diff;
 mod info;
 mod openapi;
 mod runner;
+mod script;
 
 #[derive(ClapParser)]
 #[command(
@@ -662,7 +663,14 @@ fn run_run(
         }
     };
     let installed = nvs_host::reactor::install(reactor);
+    // ADR 0006's isolate runs another file, and this is the only crate that can
+    // turn a path into one — `script`'s module doc owns the two decisions in
+    // it, and `nvs_runtime::script` owns why the edge runs this way round.
+    // Installed for the whole run rather than per spawn: the unit cache behind
+    // it is what makes a second isolate over one path share compiled code.
+    let resolver = nvs_runtime::script::install(script::Compiler::leaked());
     let ran = nvs_host::run_until_idle(&mut sched);
+    drop(resolver);
     drop(installed);
     if let Err(error) = ran {
         eprintln!("error: the scheduler stopped: {error}");
