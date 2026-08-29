@@ -73,17 +73,17 @@
 //!    ADR 0057 makes both intrinsics whose literal pattern is prepared while
 //!    compiling; [`crate::cldr`]'s own gap 1 owns what that changes and what
 //!    it does not.
-//! 3. **`Core\Time::sleep` blocks the core thread**, and what is left is no
-//!    longer the scheduler. [`nvs_runtime::host::Host::sleep`] is the route,
-//!    `nvs-host`'s `timer` module is the mechanism, and switching this member
-//!    to it is two lines that work — until a `Core\Task` group cancels a child
-//!    that is parked in one. `nvs_host::Scheduler` tears a parked task down
-//!    with a **forced unwind**, and this member's frame is `extern "C"`, which
-//!    aborts the process rather than letting one through. So the member parks
-//!    once a cancelled task with script frames dies by ADR 0002's return status
-//!    at its next safepoint rather than by an unwind; `Host::sleep`'s own doc
-//!    and `docs/agent/handoff.md` carry that slice. The signature does not
-//!    change when it lands.
+//! 3. **`Core\Time::sleep` parks the task rather than blocking the core**, and
+//!    what is left of it is one thing: a wait *off* a core still blocks the
+//!    thread it is on, which is right for `nvs run` and is what a worker's
+//!    blocking pool would otherwise be for. The route is
+//!    [`nvs_runtime::host::Host::sleep`] and the mechanism is `nvs-host`'s
+//!    `timer` module — this task's own deadline on the reactor the core is
+//!    about to poll. A cancellation mid-sleep comes back as
+//!    [`nvs_runtime::host::Woken::Cancelled`] and the member stops the request
+//!    through [`nvs_runtime::Ctx::cancel`], because a parked task standing on
+//!    an `extern "C"` frame is resumed rather than unwound; `nvs_host`'s
+//!    scheduler module doc owns that decision.
 //! 4. **`Comparable` and `Stringable` are satisfied by member, not by
 //!    declaration.** The spec says a `Duration` implements both and an
 //!    `Instant` implements `Comparable`; `compareTo` and `toString` are
@@ -130,6 +130,7 @@ use std::sync::OnceLock;
 use jiff::civil::{self, Weekday};
 use jiff::tz::{Offset, TimeZone};
 use jiff::{SignedDuration, Timestamp, Zoned};
+use nvs_runtime::host::Woken;
 use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
 use nvs_syntax::duration;
 
@@ -1713,16 +1714,29 @@ nvs_runtime::nvs_helper! {
     /// "sleep until a moment already past" is a wait of no time, which is what
     /// every caller computing a deadline wants.
     ///
-    /// **Blocks the core thread** — this module's gap 3 owns why, and it is now
-    /// one specific thing rather than "the scheduler has not landed":
-    /// [`nvs_runtime::host::Host::sleep`] is the route and it works, but a task
-    /// parked *inside a helper frame* cannot be cancelled, because the
-    /// scheduler tears a parked task down with a forced unwind and this frame
-    /// is `extern "C"`. The signature does not change when that is closed.
-    fn nvs_core_time_sleep(_ctx, args: [1]) {
+    /// **Parks the task rather than blocking the core** — the wait goes to
+    /// [`nvs_runtime::host::Host::sleep`], which is `nvs-host`'s reactor
+    /// arming this task's own deadline, so a neighbour pinned to the same core
+    /// runs while this one waits (ADR 0106 § 6). It is also what makes a
+    /// `Core\Task::all` under a `limit` observable at all: with a blocking
+    /// sleep no two children ever overlap.
+    ///
+    /// [`Woken::Cancelled`] is the group cancelling this child mid-sleep. The
+    /// member stops the request there and then, through [`Ctx::cancel`], which
+    /// is ADR 0072 § 5's teardown reached by ADR 0002's return status — the
+    /// only way it can be reached from a frame that is `extern "C"`.
+    ///
+    /// With no host on the thread the wait still has to happen, and blocking is
+    /// the right answer: nothing else is running on this core.
+    fn nvs_core_time_sleep(ctx, args: [1]) {
         let nanos = nanos_of(args, 0, "sleep")?;
         if nanos > 0 {
-            std::thread::sleep(std::time::Duration::from_nanos(nanos.unsigned_abs()));
+            let duration = std::time::Duration::from_nanos(nanos.unsigned_abs());
+            match nvs_runtime::host::with_current(|host| host.sleep(duration)) {
+                Some(Woken::Cancelled) => return Err(ctx.cancel()),
+                Some(Woken::Elapsed) => {}
+                None => std::thread::sleep(duration),
+            }
         }
         Ok(Value::null())
     }
