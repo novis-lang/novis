@@ -29,13 +29,21 @@ echo Core\Time::parse("24-06-01", "yy-MM-dd", $berlin)->format("yyyy-MM-dd"), "|
 // compile step runs before any text is looked at, so a call with *both*
 // arguments wrong reports the pattern — which is what makes this the class a
 // caller sees first.
-try { Core\Time::parse("2024-03-31", "yyyy-MM-dd Q", $berlin); }
+//
+// Each pattern is read out of a variable: `Core\Time::parse` is on ADR 0057
+// § 1's list, so its *literal* form is refused while compiling instead, and
+// § 2's division leaves the computed spelling as the one whose class a `catch`
+// can still name.
+string $quarters = "yyyy-MM-dd Q";
+string $unterminated = "yyyy 'unterminated";
+string $shortZone = "V";
+try { Core\Time::parse("2024-03-31", $quarters, $berlin); }
 catch (LogicError $unknownLetter) { echo $unknownLetter->message, "\n"; }
-try { Core\Time::parse("2024-03-31", "yyyy 'unterminated", $berlin); }
+try { Core\Time::parse("2024-03-31", $unterminated, $berlin); }
 catch (LogicError $unclosed) { echo $unclosed->message, "\n"; }
-try { Core\Time::parse("2024-03-31", "V", $berlin); }
+try { Core\Time::parse("2024-03-31", $shortZone, $berlin); }
 catch (LogicError $zoneCount) { echo $zoneCount->message, "\n"; }
-try { Core\Time::parse("nothing like a date", "yyyy-MM-dd Q", $berlin); }
+try { Core\Time::parse("nothing like a date", $quarters, $berlin); }
 catch (LogicError $bothWrong) { echo $bothWrong->message, "\n"; }
 
 // A further refusal is about this *member* rather than about the pattern

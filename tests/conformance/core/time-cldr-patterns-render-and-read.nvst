@@ -38,13 +38,20 @@ try {
 
 // The grammar is closed: an unquoted letter outside it is a diagnostic naming
 // itself, which is CLDR's own rule and the opposite of `strftime`'s.
+//
+// Both patterns arrive in a variable. `Core\Time\DateTime::format` is on ADR
+// 0057 § 1's list, so a *literal* one of these is the same refusal made while
+// compiling, and § 2's division is that only a computed argument still reaches
+// a `catch`.
+string $unknownLetter = "yyyy G";
+string $openQuote = "yyyy 'unclosed";
 try {
-    $d->format("yyyy G");
+    $d->format($unknownLetter);
 } catch (Throwable $e) {
     echo Core\Str::contains($e->message, "not a pattern letter") as string, "|\n";
 }
 try {
-    $d->format("yyyy 'unclosed");
+    $d->format($openQuote);
 } catch (Throwable $e) {
     echo Core\Str::contains($e->message, "nothing closes") as string, "|\n";
 }

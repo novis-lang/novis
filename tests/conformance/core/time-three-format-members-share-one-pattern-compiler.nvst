@@ -23,7 +23,17 @@ var $clock = Core\Time\TimeOfDay::at(14, 5, {second: 9});
 // `strftime` silently passing it through. All three members say it, so the
 // grammar cannot drift between them, and the accepted side is the very
 // spelling the message suggests.
-try { echo $dt->format("G"), "\n"; }
+//
+// Only the `$dt` sites read their pattern out of a variable, and that is ADR
+// 0057 § 1's asymmetry rather than style: `Core\Time\DateTime::format` is on
+// its list, so a literal malformed pattern there is a compile error (§ 2),
+// while `Core\Time\Date::format` and `Core\Time\TimeOfDay::format` are not on
+// it and still throw from a literal.
+string $letterG = "G";
+string $quoteLeftOpen = "'unclosed";
+string $zoneOnce = "V";
+string $zoneThrice = "VVV";
+try { echo $dt->format($letterG), "\n"; }
 catch (Throwable $unknownOnDateTime) { echo $unknownOnDateTime->message, "\n"; }
 try { echo $date->format("G"), "\n"; }
 catch (Throwable $unknownOnDate) { echo $unknownOnDate->message, "\n"; }
@@ -35,7 +45,7 @@ echo $dt->format("'G'"), "\n";
 // opening rather than a position: a pattern is short and the `'` is what a
 // reader fixes. `''` is one apostrophe, which is what makes an unpaired one
 // detectable at all.
-try { echo $dt->format("'unclosed"), "\n"; }
+try { echo $dt->format($quoteLeftOpen), "\n"; }
 catch (Throwable $openQuote) { echo $openQuote->message, "\n"; }
 echo $dt->format("''"), "\n";
 
@@ -43,9 +53,9 @@ echo $dt->format("''"), "\n";
 // identifier has one spelling, so the bound is named on both sides at once —
 // `VV` renders and every other count is refused, from either direction.
 echo $dt->format("VV"), "\n";
-try { echo $dt->format("V"), "\n"; }
+try { echo $dt->format($zoneOnce), "\n"; }
 catch (Throwable $tooFew) { echo $tooFew->message, "\n"; }
-try { echo $dt->format("VVV"), "\n"; }
+try { echo $dt->format($zoneThrice), "\n"; }
 catch (Throwable $tooMany) { echo $tooMany->message, "\n"; }
 
 // The two zone-free halves refuse a field they would have to invent a value

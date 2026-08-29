@@ -94,8 +94,12 @@ echo Core\Arr::count(Core\Regex::matchAll($subject, $reused)), " ", Core\Regex::
 // impossible pattern is refused. `compile` compiles eagerly and throws at the
 // call that named the mistake; the string spelling has no such call, so the
 // same pattern is refused at whichever member first uses it.
+// Written through a variable, because a *literal* impossible pattern is now
+// ADR 0057 § 1's compile error at `compile` — § 2's division, and the half
+// this case is about is the one that still reaches a `catch`.
+var $impossible = "a(b";
 try {
-    var $never = Core\Regex::compile("a(b");
+    var $never = Core\Regex::compile($impossible);
     echo "compiled\n";
 } catch (Throwable $atCompile) {
     echo "refused at compile\n";

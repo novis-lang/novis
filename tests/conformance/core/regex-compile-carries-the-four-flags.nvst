@@ -50,8 +50,13 @@ echo Core\Regex::matches("foobaz", $fancy) as string, "|\n";
 // whichever member later used the handle (ADR 0056 § 5). The message quotes
 // the pattern as the program wrote it, not the flag-wrapped form the engines
 // are given.
+//
+// The pattern arrives in a variable: written as a literal it is ADR 0057 § 1's
+// compile error instead, which is the same refusal made earlier and therefore
+// not the one a `catch` can see (§ 2).
+string $unclosed = "(unclosed";
 try {
-    Core\Regex\Pattern $bad = Core\Regex::compile("(unclosed", {caseInsensitive: true});
+    Core\Regex\Pattern $bad = Core\Regex::compile($unclosed, {caseInsensitive: true});
     echo "compiled|\n";
 } catch (Throwable $e) {
     echo Core\Str::contains($e->message, "either engine") as string, "|\n";
