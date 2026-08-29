@@ -2625,6 +2625,14 @@ is why" — is this file.
   loaded machine, and only inside the full suite, which is the expensive kind of flake. Arm strictly
   after the base (`Instant::now() + Duration::from_millis(1)`) whenever a sweep instant is derived
   from the armed one.
+- **A frozen `--EXPECTF-ERROR--` block's line numbers are read off the runner, not counted by hand.**
+  `--FILE--`'s first line — the `<?nvs` — is `case.nvs:1`, so the number is the case file's own line
+  minus the header, and miscounting the prose comment above the code by one is the whole failure mode.
+  `target/debug/nvs test tests/conformance/core --filter <slug>` prints expected against actual with
+  the real `case.nvs:NN:CC` in the actual half, so writing the block with any plausible numbers and
+  running it once is cheaper and more reliable than counting. The columns are already right if the
+  scratch probe under `.agent-tmp/` used the same indentation, since a column does not shift with the
+  header.
 
 ## Splitting a file that got too big
 

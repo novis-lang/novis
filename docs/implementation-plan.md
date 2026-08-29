@@ -164,18 +164,26 @@
 > position is checked in full there and a second assignability pass could only repeat the same
 > mistake. § 3's `{limit?: uint, deadline?: Duration}` is the row's options bag, both options
 > defaulting to `Const::Null` because neither type has an "unbounded" value in it, and there is no
-> `timeout` member and no `race`. What Stage 4 does **not** have is the body:
-> `crates/nvs-stdlib/src/task.rs` registers a signature and a placeholder that stops rather than
-> answering plausibly, because running the closures as children of the calling task needs the
-> `nvs-host` scheduler reachable from a `Core` helper and no helper can reach it yet. So
-> `examples/tasks.nvs` still fails its acceptance check, and closing that is what the next group is.
-> The steps the chain took are in [goals/README.md](agent/goals/README.md) § *Starting the chain*.
-> M4's own residue is the 1000-case corpus count, which orders 1–4 meet as the suite grows; nothing
-> else about M4 is open. What the program is measured by is `python tools/check-migration.py` at
-> 100% classified, which stood at 25% the day the program was scheduled and reads 34% now that goal
-> 1's own five domains — dates and times, regular expressions, JSON, URLs and paths — carry a row
-> per name. `python tools/gaps.py`, `python tools/holes.py` and `python tools/check-migration.py
-> --report` are the three worklists behind it, and no session re-derives one.
+> `timeout` member and no `race`. § 2's `map` is the second row, and what it cost is the section's
+> own argument for two members rather than one: `map(array<T>, callable, {limit?, deadline?}):
+> array<U>` needed no new machinery at all — an ordinary `CoreTy::CallableTo` binds `U` from the one
+> callback the whole call shares, so the row is the three-line shape `Core\Arr::map` already had
+> plus § 3's options bag, while `all` needed a whole second binding site because a shape literal
+> carries a different closure in every field. What Stage 4 does **not** have is either body:
+> `crates/nvs-stdlib/src/task.rs` registers two signatures against one placeholder that stops rather
+> than answering plausibly, because running the closures as children of the calling task needs the
+> `nvs-host` scheduler reachable from a `Core` helper and no helper can reach it yet.
+> `examples/tasks.nvs` now compiles *whole* — all four of the blocks its acceptance check freezes
+> type-check, `Core\Time::sleep`, `Core\Arr::range`, the static-property gauge and the
+> `TimeoutError` catch included — and reaches that placeholder rather than a diagnostic, so the
+> scheduler seam is the only thing left between the tree and that check. The steps the chain took
+> are in [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's own residue is the
+> 1000-case corpus count, which orders 1–4 meet as the suite grows; nothing else about M4 is open.
+> What the program is measured by is `python tools/check-migration.py` at 100% classified, which
+> stood at 25% the day the program was scheduled and reads 34% now that goal 1's own five domains —
+> dates and times, regular expressions, JSON, URLs and paths — carry a row per name. `python
+> tools/gaps.py`, `python tools/holes.py` and `python tools/check-migration.py --report` are the
+> three worklists behind it, and no session re-derives one.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

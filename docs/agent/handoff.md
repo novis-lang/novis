@@ -2,58 +2,52 @@
 
 ## State
 
-**Stage 4's compile-time half is on disk: `Core\Task::all` type-checks, and all three
-`nvs-types` names the stage's `cargo-named` check asks for are green**
-(`docs/agent/loop-goal.toml:1479`). The registry gained one class and one member.
+**Stage 4's compile-time half is complete: both `Core\Task::all` and `Core\Task::map`
+type-check.** ADR 0072 § 2's row (`crates/nvs-stdlib/src/task.rs:92`) needed no new machinery —
+`CoreTy::Array(&CoreTy::Var("T"))`, `CoreTy::CallableTo("U")`, the shared `OPTIONS` at `task.rs:67`
+and `CoreTy::Array(&CoreTy::Var("U"))` back — and that contrast is § 2's own argument for two
+members rather than one, recorded in the module doc rather than restated anywhere else.
 
-ADR 0072 § 1's per-field typing needed a second binding site beside `CoreTy::CallableTo`, and
-that is the only new idea here: **`CoreTy::CallableShapeTo("S")`**
-(`crates/nvs-stdlib/src/registry.rs:230`, interned as `Ty::CallableShapeTo` at
-`crates/nvs-types/src/ty.rs:171`) declares that a parameter is a shape literal of written `fn`
-literals and that the shape of *their* results binds `S`. Both variants' doc comments are the
-design's home; `generics.rs`'s module doc § *The one variable that is not at a position* now
-covers the pair. `bind_callable_shape` (`crates/nvs-types/src/expr/args.rs:799`) is the one
-place a field is read and the one place `E0773`/`E0774` are reported, which is why the variant
-substitutes to `mixed`: that position is already checked in full.
+**`examples/tasks.nvs` now compiles whole and fails only at the placeholder.** Every block its
+acceptance check freezes type-checks; `./target/debug/nvs run examples/tasks.nvs` prints the
+placeholder's own line from `unimplemented_scheduler_half` (`task.rs:127`) and aborts. Both rows
+share that one body, on purpose: what stops them is the same missing thing.
 
-**The body is a placeholder and says so at its own site**
-(`crates/nvs-stdlib/src/task.rs:93`). A program that writes `Core\Task::all({...})` compiles
-and reaches it; running the closures as children needs `nvs_host::spawn_child`
-(`crates/nvs-host/src/scheduler.rs:882`) reachable from a `Core` helper, which nothing is yet.
-`examples/tasks.nvs` therefore still fails its acceptance check — **that is not a regression**,
-it is the next group.
+**What is missing is the seam, and nothing else.** No `Core` helper can reach the `nvs-host`
+scheduler — `nvs_host::spawn_child` (`crates/nvs-host/src/scheduler.rs:882`) takes a `Ctx` and a
+`TaskRoot`, and a helper holds the `Ctx` (`crates/nvs-runtime/src/ctx.rs:246`) but has no way to the
+rest. `nvs-host`'s own `Cargo.toml:36` comment says the yielder already arrives through `Ctx` as an
+opaque pointer, which is where to start.
 
-**The orientation pack was missing what this item was specified by.** `[context] adrs` carries
-ADR 0072 §§ 4 and 5 only; §§ 1 and 3 had to be sliced by hand, and both are load-bearing for
-every remaining Stage 4 item. Add them. Item 11's own residue — no `Core\Task\Channel` row in
-`nvs_stdlib::registry` — is unchanged.
+**The orientation pack is still missing the ADR sections this stage is specified by.** `[context]
+adrs` carries ADR 0072 §§ 4 and 5 only; § 2 had to be sliced by hand this session exactly as §§ 1
+and 3 were last session. Add **§§ 1, 2 and 3** — every remaining Stage 4 item reads them. Item 11's
+residue — no `Core\Task\Channel` row in `nvs_stdlib::registry` — is unchanged.
 
 ## Next group
 
-**`Core\Task::map` and then the scheduler seam under both members.** File set:
-`crates/nvs-stdlib/src/task.rs` (`CLASS:67`, `OPTIONS:53`, the placeholder at `:93`),
-`crates/nvs-runtime/src/ctx.rs`, `crates/nvs-host/src/scheduler.rs:882`, and
-`crates/nvs-types/tests/core_members.rs`.
+**The scheduler seam, then a body on each row.** File set: `crates/nvs-stdlib/src/task.rs`
+(`CLASS:81`, `address:110`, the placeholder at `:127`), `crates/nvs-runtime/src/ctx.rs:246`,
+`crates/nvs-host/src/scheduler.rs` (`spawn_child:882`, `current_task:985`, `TaskTree:220`), and
+`crates/nvs-runtime/src/closure.rs:132`.
 
-- [ ] **`Core\Task::map`'s row and its § 2 typing** — ADR 0072 § 2. `map(array<T>, callable,
-      {limit?, deadline?}): array<U>` is the shape `Core\Arr::map` already has
-      (`crates/nvs-stdlib/src/arr.rs:110`): `CoreTy::Array(&CoreTy::Var("T"))` plus
-      `CoreTy::CallableTo("U")`, reusing `OPTIONS` at `task.rs:53`. Needs **three**
-      `tests/conformance/` cases naming `Core\Task::map(` — the floor gate, and the new
-      playbook bullet says why they may be `--EXPECTF-ERROR--` cases.
-- [ ] **The scheduler seam: how a `Core` helper reaches the host.** `nvs_host::spawn_child`
-      takes a `Ctx` and a `TaskRoot`; a helper has the `Ctx` and nothing else. Decide and
-      record it in `crates/nvs-runtime/src/ctx.rs`'s module doc — a standing decision covers
-      this, so do not stop for it.
-- [ ] **`nvs_core_task_all` running its children** — ADR 0072 §§ 1, 3, 4. Replaces
-      `unimplemented_scheduler_half` (`crates/nvs-stdlib/src/task.rs:93`), and the shape
-      argument arrives as one `Tag::Obj` because `nvs-ir` lowers an `ObjectLiteral` outside an
-      options position as an ordinary shape. Closes the `examples/tasks.nvs` `all=3` line.
+- [ ] **The seam: how a `Core` helper reaches the host.** Decide it and record it in the module doc
+      that owns it — no ADR slot is free, and `scheduler.rs`'s module doc is already the home of the
+      task tree's design. The shape to weigh: a thread-local, as `reactor.rs` already chose for
+      reaching the reactor, against a second opaque pointer in `Ctx`. `run_task`
+      (`crates/nvs-runtime/src/abi.rs:579`) is the containment boundary the children run inside.
+- [ ] **`nvs_core_task_all` running its children** — ADR 0072 §§ 1, 3, 4. Each field's closure is
+      spawned with `spawn_child`, `nvs_runtime::call_closure` (`closure.rs:132`) invokes it, and the
+      call does not return with work still running. `{deadline}` throws `TimeoutError`; § 5 says the
+      teardown runs no script code.
+- [ ] **`nvs_core_task_map` over the array** — § 2's "preserving the input's keys and order
+      regardless of completion order", and `{limit}` as a shaper that schedules rather than throwing.
+      `examples/tasks.nvs`'s `Gauge` block is the peak-not-total assertion this owes.
 
 ## Backlog
 
-- `Core\Task\Channel`'s registry row — item 11's language surface (`registry.rs:872`).
-- `examples/channel.nvs`'s acceptance check, which needs that row.
-- `[context] adrs` in `docs/agent/loop-goal.toml` is missing ADR 0072 §§ 1-3.
-- `Core\Task::first` — ADR 0072 § 3 defers it and names the spelling; not this goal's.
-- `Core\Task` has no `docs/spec/` § of its own; ADR 0072 is its only home.
+- No `Core\Task\Channel` row in `nvs_stdlib::registry` — Stage 3 item 11's language surface;
+  `crates/nvs-host/src/channel.rs`'s module doc is the design.
+- `examples/channel.nvs` acceptance check is unmet and needs that row first — `loop-goal.toml:1494`.
+- Add ADR 0072 §§ 1, 2, 3 to `[context] adrs` in `docs/agent/loop-goal.toml`.
+- M4 residue: the 1000-case conformance corpus count — `docs/implementation-plan.md`.
