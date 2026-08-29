@@ -246,6 +246,7 @@ mod ctx;
 pub mod decimal;
 pub mod dispatch;
 mod fmt;
+pub mod graphemes;
 pub mod helpers;
 pub mod identity;
 pub mod object;
@@ -317,9 +318,10 @@ pub use object::{
     nvs_value_instanceof,
 };
 pub use string::{
-    CAP_OFFSET, HEADER_ALIGN, IMMORTAL_REFCOUNT, LEN_OFFSET, NvsStr, PAYLOAD_OFFSET,
-    REFCOUNT_OFFSET, StrHeader, StrWriter, immortal_header_bytes, nvs_str_append, nvs_str_concat,
-    nvs_str_concat_n, nvs_str_eq, nvs_str_new, nvs_str_release, nvs_str_retain,
+    CAP_OFFSET, COUNT_UNKNOWN, GRAPHEMES_OFFSET, HEADER_ALIGN, IMMORTAL_REFCOUNT, LEN_OFFSET,
+    NvsStr, PAYLOAD_OFFSET, REFCOUNT_OFFSET, StrHeader, StrWriter, immortal_header_bytes,
+    nvs_str_append, nvs_str_concat, nvs_str_concat_n, nvs_str_eq, nvs_str_new, nvs_str_release,
+    nvs_str_retain,
 };
 pub use throwable::{
     BACKTRACE_SLOT, ISSUES_SLOT, LOCATION_SLOT, MESSAGE_SLOT, PREVIOUS_SLOT, SLOT_COUNT, Thrown,

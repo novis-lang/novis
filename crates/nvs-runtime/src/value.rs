@@ -442,6 +442,28 @@ impl Value {
         Some(unsafe { NvsStr::text_of(ptr) })
     }
 
+    /// How many extended grapheme clusters this value holds, if it is a
+    /// string — ADR 0009 § 2's unit, answered from the header rather than
+    /// rescanned once anything has asked before.
+    ///
+    /// The safe seam `nvs_stdlib::granularity` reads: the tag check is what
+    /// discharges [`NvsStr::grapheme_count_of`]'s obligation, exactly as it
+    /// does for [`Self::as_text`], and a `Tag::Bytes` value answers `None`
+    /// here because bytes have no clusters to count — `string.rs`'s
+    /// § *The cached grapheme count* is where that split is stated.
+    #[must_use]
+    pub fn grapheme_count(&self) -> Option<usize> {
+        let ptr = self.str_ptr()?;
+        #[expect(
+            unsafe_code,
+            reason = "a Tag::Str value owns a reference to a live allocation \
+                      (see this type's Ownership section), so it is live for \
+                      at least this call — and the tag is what says the \
+                      payload is text rather than a `bytes`'s octets"
+        )]
+        Some(unsafe { NvsStr::grapheme_count_of(ptr) })
+    }
+
     /// The `bytes` payload's octets, if this value is a `bytes`.
     ///
     /// Deliberately **not** the same reader as [`Self::as_str_bytes`], even

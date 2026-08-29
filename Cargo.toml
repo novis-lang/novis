@@ -64,7 +64,7 @@ blake3 = "1"
 # --- Unicode text segmentation (ADR 0009 § 2's grapheme granularity) ---
 # UAX #29 extended grapheme cluster boundaries, which `string`'s default
 # length/indexing unit is defined by. Pure Rust, no build script, no C.
-# `crates/nvs-stdlib/src/granularity.rs` owns why this crate and not another.
+# `crates/nvs-runtime/src/graphemes.rs` owns why this crate and not another.
 unicode-segmentation = "1"
 
 # --- Unicode case folding (`Core\Str::fold`) ---

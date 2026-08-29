@@ -1,4 +1,4 @@
-//! Novis's refcounted string: one heap allocation, a three-word header, and the
+//! Novis's refcounted string: one heap allocation, a four-word header, and the
 //! bytes inline behind it.
 //!
 //! This is the first non-scalar representation the runtime owns, and the one
@@ -12,10 +12,10 @@
 //! # Layout
 //!
 //! ```text
-//! offset 0                              offset size_of::<StrHeader>()
-//! +-------------+-----------+---------+ +------------------------------+
-//! | refcount    | len       | cap     | | cap bytes, the first len live |
-//! +-------------+-----------+---------+ +------------------------------+
+//! offset 0                                          offset size_of::<StrHeader>()
+//! +-------------+-----------+---------+-----------+ +------------------------------+
+//! | refcount    | len       | cap     | graphemes | | cap bytes, the first len live |
+//! +-------------+-----------+---------+-----------+ +------------------------------+
 //! ```
 //!
 //! One allocation, not two. A `Box<StrData>` holding a `Box<[u8]>` would be
@@ -46,6 +46,40 @@
 //! that is never appended to holds exactly its payload. That is priority 5
 //! spent on priority 3, which is the direction [AGENTS.md](../../../AGENTS.md)
 //! asks for, and it is the whole of what this word spends.
+//!
+//! # The cached grapheme count, and what it spends
+//!
+//! [ADR 0009](../../../docs/adr/0009-string-and-bytes.md) § 2 makes a
+//! `string`'s length a count of extended grapheme clusters, which is O(n)
+//! where PHP's `strlen` is O(1) — so a program asking twice used to pay
+//! twice. The fourth word is that answer, kept: [`NvsStr::grapheme_count`]
+//! fills it on the first ask and reads it on every later one, and
+//! [`COUNT_UNKNOWN`] is the "nobody has asked" state every fresh allocation
+//! starts in. **Lazily**, because the overwhelming majority of strings a
+//! request builds are never asked their length at all, and scanning each one
+//! eagerly would be paying the cost this word exists to remove.
+//!
+//! What it costs is **8 more bytes per string allocation**, a 24-byte header
+//! becoming 32 — priority 5 spent on priority 3, the direction
+//! [AGENTS.md](../../../AGENTS.md) asks for.
+//!
+//! A concatenation does **not** sum the two counts: a cluster can span the
+//! join — a base letter in one buffer and a combining mark in the next — so
+//! [`nvs_str_concat`], [`nvs_str_concat_n`] and [`nvs_str_append`] subtract
+//! one for every seam [`crate::graphemes::joins_at`] answers for, which is
+//! bounded by the clusters touching the seam rather than by either length.
+//! They propagate a count **only when every operand already has one**: forcing
+//! an uncached operand would make concatenation O(n) in segmentation, which is
+//! exactly the cost being removed. They also leave it unknown where the seam
+//! *re-groups* what follows it, which a run of regional indicators can do and
+//! nothing else does — [`crate::graphemes::seam_joins`] is the one home for
+//! that case. The result is otherwise left [`COUNT_UNKNOWN`], and the first
+//! ask pays the ordinary scan.
+//!
+//! That rule is also what keeps the propagation sound over a `bytes`: the two
+//! tags share this allocation and a `bytes` payload need not be UTF-8, but
+//! nothing ever asks a `bytes` for a grapheme count, so no `bytes` allocation
+//! has a cached one and no seam of one is ever read as text.
 //!
 //! # Why the refcount is a plain `Cell`
 //!
@@ -136,6 +170,12 @@ pub struct StrHeader {
     /// from. Immutable for the allocation's lifetime: growing means a new
     /// allocation, never a bigger `cap` on this one.
     cap: usize,
+    /// How many extended grapheme clusters the live payload holds, or
+    /// [`COUNT_UNKNOWN`] while nobody has asked. Written by
+    /// [`NvsStr::grapheme_count`] on the first ask and by the concatenation
+    /// primitives when they can correct a seam — never for an immortal header,
+    /// which two requests share and this module's docs say is never written.
+    graphemes: Cell<usize>,
 }
 
 /// Byte offset of the reference count within [`StrHeader`].
@@ -147,8 +187,20 @@ pub const LEN_OFFSET: usize = std::mem::offset_of!(StrHeader, len);
 /// Byte offset of the payload capacity within [`StrHeader`].
 pub const CAP_OFFSET: usize = std::mem::offset_of!(StrHeader, cap);
 
+/// Byte offset of the cached grapheme count within [`StrHeader`].
+pub const GRAPHEMES_OFFSET: usize = std::mem::offset_of!(StrHeader, graphemes);
+
 /// Byte offset of the payload itself, relative to the [`StrHeader`] pointer.
 pub const PAYLOAD_OFFSET: usize = std::mem::size_of::<StrHeader>();
+
+/// The cached grapheme count of a string nobody has asked the length of.
+///
+/// `usize::MAX` is the sentinel for the reason [`IMMORTAL_REFCOUNT`] is: no
+/// real string can reach it. Every cluster costs at least one payload byte and
+/// [`try_str_layout`] refuses a payload past `isize::MAX`, so a count that
+/// high would need more memory than the address space holding it — which is
+/// why the state fits in the word rather than costing a second one for a flag.
+pub const COUNT_UNKNOWN: usize = usize::MAX;
 
 /// The alignment a [`StrHeader`] must be written at.
 ///
@@ -172,7 +224,8 @@ pub const HEADER_ALIGN: usize = std::mem::align_of::<StrHeader>();
 pub const IMMORTAL_REFCOUNT: usize = usize::MAX;
 
 /// The header bytes a compiled unit writes in front of a string literal's
-/// payload, in the host's byte order.
+/// payload, in the host's byte order — the payload itself, because the
+/// grapheme count is one of the four words and a literal's is free here.
 ///
 /// This is the whole of what `nvs-codegen` needs to know about [`StrHeader`]:
 /// it emits these bytes, then the `len` payload bytes, and hands out the
@@ -186,14 +239,22 @@ pub const IMMORTAL_REFCOUNT: usize = usize::MAX;
 /// already makes. An ahead-of-time backend targeting another byte order would
 /// take the target's endianness here.
 #[must_use]
-pub fn immortal_header_bytes(len: usize) -> [u8; PAYLOAD_OFFSET] {
+pub fn immortal_header_bytes(payload: &[u8]) -> [u8; PAYLOAD_OFFSET] {
     let mut header = [0_u8; PAYLOAD_OFFSET];
+    let len = payload.len();
+    // Counted here rather than left [`COUNT_UNKNOWN`] because this header is
+    // the one nothing may ever write: it is in a compiled unit two requests
+    // share, so the lazy fill every allocated string uses would be a race.
+    // Compile time is where a literal's count is free, and a `bytes` literal —
+    // whose payload need not be text — simply has none.
+    let graphemes = std::str::from_utf8(payload).map_or(COUNT_UNKNOWN, crate::graphemes::count);
     // `cap` equals `len`, as it does for every string this module builds: an
     // immortal one has no spare room to append into and could not use it.
     for (offset, word) in [
         (REFCOUNT_OFFSET, IMMORTAL_REFCOUNT),
         (LEN_OFFSET, len),
         (CAP_OFFSET, len),
+        (GRAPHEMES_OFFSET, graphemes),
     ] {
         header[offset..offset + std::mem::size_of::<usize>()].copy_from_slice(&word.to_ne_bytes());
     }
@@ -235,6 +296,62 @@ fn try_str_layout(cap: usize) -> Option<Layout> {
 /// twice its payload, which this module's docs state as what capacity spends.
 fn grown_capacity(len: usize, needed: usize) -> usize {
     needed.max(len.saturating_mul(2))
+}
+
+/// Records `count` as `header`'s cached grapheme count, unless this is an
+/// immortal header.
+///
+/// An immortal one is in a compiled unit two requests share, so writing it
+/// would be the race this module's docs § *An immortal string* rules out — and
+/// it needs no write anyway, [`immortal_header_bytes`] having counted at
+/// compile time. Every caller goes through here rather than remembering the
+/// exception.
+fn remember_count(header: &StrHeader, count: usize) {
+    if header.refcount.get() != IMMORTAL_REFCOUNT {
+        header.graphemes.set(count);
+    }
+}
+
+/// The grapheme count `ptr` already holds, or `None` while nobody has asked.
+///
+/// The gate on every propagation: a piece with no count is one whose count
+/// would have to be *scanned* for, and a concatenation that scans is the cost
+/// this whole word exists to remove. It is also what keeps a `bytes` operand
+/// out of the text paths — nothing ever asks a `bytes` its grapheme count, so
+/// no `bytes` allocation has one.
+///
+/// # Safety
+///
+/// `ptr` must refer to a live Novis string allocation.
+#[expect(
+    unsafe_code,
+    reason = "the pointee's liveness is the caller's obligation to state"
+)]
+unsafe fn cached_count(ptr: *const StrHeader) -> Option<usize> {
+    #[expect(unsafe_code, reason = "the caller guarantees the pointee is live")]
+    let count = unsafe { &*ptr }.graphemes.get();
+    (count != COUNT_UNKNOWN).then_some(count)
+}
+
+/// The joined payload's grapheme count: the sum of the pieces', less one for
+/// every seam a cluster spans — or `None` where a seam re-groups what follows
+/// it and no correction to the sum is right.
+///
+/// `text` is the **joined** payload and `seams` its cumulative interior byte
+/// offsets, in order — which is what makes the correction exact rather than a
+/// window heuristic, per [`crate::graphemes::seam_joins`], which also owns the
+/// one case answering `None`. A repeated offset is an empty piece and is
+/// tested once, not twice: two seams at one byte are one join.
+fn joined_count(text: &str, sum: usize, seams: impl Iterator<Item = usize>) -> Option<usize> {
+    let mut total = sum;
+    let mut previous = 0;
+    for seam in seams {
+        if seam != previous && crate::graphemes::seam_joins(text, seam)? {
+            total -= 1;
+        }
+        previous = seam;
+    }
+    Some(total)
 }
 
 /// An owning handle to one reference of an Novis string.
@@ -401,6 +518,7 @@ impl NvsStr {
                 refcount: Cell::new(1),
                 len: Cell::new(len),
                 cap,
+                graphemes: Cell::new(COUNT_UNKNOWN),
             });
         }
         Some(ptr)
@@ -450,6 +568,57 @@ impl NvsStr {
     #[must_use]
     pub fn refcount(&self) -> usize {
         self.header().refcount.get()
+    }
+
+    /// How many extended grapheme clusters the payload holds — ADR 0009 § 2's
+    /// unit, and this module's docs § *The cached grapheme count* for why the
+    /// answer is kept.
+    ///
+    /// The first ask scans; every later one reads the word. **Only call this
+    /// on a `string`**: the payload is read as text, which is
+    /// [`NvsStr::text_of`]'s obligation and is discharged by the *tag*, so a
+    /// `bytes` goes through [`crate::Value::grapheme_count`] and is answered
+    /// `None` instead of arriving here.
+    #[must_use]
+    pub fn grapheme_count(&self) -> usize {
+        let ptr = self.ptr.as_ptr();
+        #[expect(unsafe_code, reason = "the pointee is live for `&self`'s borrow")]
+        unsafe {
+            Self::grapheme_count_of(ptr)
+        }
+    }
+
+    /// [`NvsStr::grapheme_count`] against a raw pointer, for a caller holding
+    /// one rather than a handle — `nvs_stdlib::granularity`'s seam, which
+    /// reaches a string through a [`crate::Value`] and owns no reference of
+    /// its own to hand over.
+    ///
+    /// # Safety
+    ///
+    /// `ptr` must refer to a live Novis string allocation whose payload is a
+    /// `string`'s — well-formed UTF-8 — which is [`NvsStr::text_of`]'s
+    /// obligation and is what the `Tag::Str` a caller matched on states.
+    #[must_use]
+    #[expect(
+        unsafe_code,
+        reason = "both the pointee's liveness and its payload's encoding are \
+                  the caller's obligation to state"
+    )]
+    pub unsafe fn grapheme_count_of(ptr: *const StrHeader) -> usize {
+        #[expect(unsafe_code, reason = "the caller guarantees the pointee is live")]
+        let header = unsafe { &*ptr };
+        let cached = header.graphemes.get();
+        if cached != COUNT_UNKNOWN {
+            return cached;
+        }
+        #[expect(
+            unsafe_code,
+            reason = "the caller guarantees a live `string` payload, which is \
+                      exactly `text_of`'s obligation"
+        )]
+        let count = crate::graphemes::count(unsafe { Self::text_of(ptr) });
+        remember_count(header, count);
+        count
     }
 
     fn header(&self) -> &StrHeader {
@@ -855,7 +1024,23 @@ pub unsafe extern "C" fn nvs_str_concat(
                   the fresh allocation it made"
     )]
     let (left, right) = unsafe { (NvsStr::bytes_of(lhs), NvsStr::bytes_of(rhs)) };
-    NvsStr::from_pieces(&[left, right]).into_raw()
+    let out = NvsStr::from_pieces(&[left, right]).into_raw();
+    #[expect(
+        unsafe_code,
+        reason = "`out` is the allocation just made and no other handle to it \
+                  exists; both operands are live by this function's contract, \
+                  and each is read as text only once it has a cached count, \
+                  which only a `string` ever has"
+    )]
+    unsafe {
+        if let (Some(l), Some(r)) = (cached_count(lhs), cached_count(rhs))
+            && let Some(joined) =
+                joined_count(NvsStr::text_of(out), l + r, std::iter::once(left.len()))
+        {
+            remember_count(&*out, joined);
+        }
+    }
+    out
 }
 
 /// Allocates a fresh string holding every piece's bytes in order, with a
@@ -914,6 +1099,25 @@ pub unsafe extern "C" fn nvs_str_concat_n(
             let bytes = NvsStr::bytes_of(*piece);
             std::ptr::copy_nonoverlapping(bytes.as_ptr(), dst.add(written), bytes.len());
             written += bytes.len();
+        }
+        // Every piece or none: one uncached operand and the sum is unknown,
+        // which is `cached_count`'s whole rule. The seams are the cumulative
+        // lengths, recomputed rather than kept, because keeping them would be
+        // the scratch allocation this function exists to do without.
+        let sum = pieces.iter().try_fold(0_usize, |total, piece| {
+            cached_count(*piece).map(|count| total + count)
+        });
+        if let Some(sum) = sum {
+            let mut at = 0_usize;
+            let seams = pieces[..pieces.len().saturating_sub(1)]
+                .iter()
+                .map(|piece| {
+                    at += NvsStr::bytes_of(*piece).len();
+                    at
+                });
+            if let Some(joined) = joined_count(NvsStr::text_of(out.as_ptr()), sum, seams) {
+                remember_count(out.as_ref(), joined);
+            }
         }
         out.as_ptr()
     }
@@ -977,6 +1181,13 @@ pub unsafe extern "C" fn nvs_str_append(
             .checked_add(added)
             .expect("an Novis string's length cannot overflow a usize");
         let src = suffix.cast::<u8>().add(PAYLOAD_OFFSET);
+        // Read before either payload moves, and used after: an append changes
+        // the count of the string it answers, so a stale word would outlive
+        // the bytes it counted. `None` on either side leaves the result
+        // `COUNT_UNKNOWN`, which the in-place path below writes back over the
+        // target's own — the one place a cached count is *invalidated* rather
+        // than corrected.
+        let counts = cached_count(target).zip(cached_count(suffix));
         if header.refcount.get() == 1 && header.cap >= needed {
             // The two ranges cannot overlap even when `suffix == target`: the
             // source is the first `added` bytes of the payload and the
@@ -985,12 +1196,28 @@ pub unsafe extern "C" fn nvs_str_append(
             let dst = target.cast::<u8>().add(PAYLOAD_OFFSET + len);
             std::ptr::copy_nonoverlapping(src, dst, added);
             header.len.set(needed);
+            header.graphemes.set(COUNT_UNKNOWN);
+            if let Some((held, gained)) = counts
+                && let Some(joined) =
+                    joined_count(NvsStr::text_of(target), held + gained, std::iter::once(len))
+            {
+                remember_count(header, joined);
+            }
             return target;
         }
         let grown = NvsStr::alloc_uninit(needed, grown_capacity(len, needed));
         let dst = grown.as_ptr().cast::<u8>().add(PAYLOAD_OFFSET);
         std::ptr::copy_nonoverlapping(target.cast::<u8>().add(PAYLOAD_OFFSET), dst, len);
         std::ptr::copy_nonoverlapping(src, dst.add(len), added);
+        if let Some((held, gained)) = counts
+            && let Some(joined) = joined_count(
+                NvsStr::text_of(grown.as_ptr()),
+                held + gained,
+                std::iter::once(len),
+            )
+        {
+            remember_count(grown.as_ref(), joined);
+        }
         // Last, so that `suffix`'s bytes are read before a `suffix == target`
         // release can free them.
         nvs_str_release(target);
@@ -1302,7 +1529,8 @@ mod tests {
         assert_eq!(REFCOUNT_OFFSET, 0);
         assert_eq!(LEN_OFFSET, word);
         assert_eq!(CAP_OFFSET, 2 * word);
-        assert_eq!(PAYLOAD_OFFSET, 3 * word);
+        assert_eq!(GRAPHEMES_OFFSET, 3 * word);
+        assert_eq!(PAYLOAD_OFFSET, 4 * word);
     }
 
     #[test]
@@ -1465,7 +1693,7 @@ mod tests {
         )]
         let view =
             unsafe { std::slice::from_raw_parts_mut(words.as_mut_ptr().cast::<u8>(), total) };
-        view[..PAYLOAD_OFFSET].copy_from_slice(&immortal_header_bytes(bytes.len()));
+        view[..PAYLOAD_OFFSET].copy_from_slice(&immortal_header_bytes(bytes));
         view[PAYLOAD_OFFSET..].copy_from_slice(bytes);
         words
     }
@@ -1522,6 +1750,187 @@ mod tests {
             assert_eq!(NvsStr::refcount_of(ptr), IMMORTAL_REFCOUNT);
             nvs_str_release(grown);
             nvs_str_release(suffix);
+        }
+    }
+
+    /// The strings a grapheme count is interesting over: an empty one, plain
+    /// ASCII, a `CRLF` (GB3, the one ASCII rule that joins two bytes), a
+    /// combining mark with and without its base, a ZWJ sequence, and a
+    /// regional-indicator run whose parity a seam can split.
+    const CORPUS: &[&str] = &[
+        "",
+        "a",
+        "cafe",
+        "e\u{301}",
+        "\u{301}",
+        "\r",
+        "\n",
+        "\r\n",
+        "\u{1F1E9}",
+        "\u{1F1E9}\u{1F1EA}",
+        "\u{1F468}\u{200D}\u{1F469}",
+        "\u{200D}",
+        "héllo",
+    ];
+
+    /// ADR 0009's *Consequences* asks that an immutable string's count be
+    /// computed once: the first ask scans, every later one reads the fourth
+    /// word, and a literal — whose header the compiled unit already carries —
+    /// never scans at all.
+    #[test]
+    fn a_repeated_grapheme_count_is_answered_from_the_header() {
+        use crate::graphemes::{forget_scans, scans};
+        use unicode_segmentation::UnicodeSegmentation;
+
+        let text = "e\u{301}\u{1F1E9}\u{1F1EA}ok";
+        let expected = text.graphemes(true).count();
+        let subject = NvsStr::new(text.as_bytes());
+
+        forget_scans();
+        assert_eq!(subject.grapheme_count(), expected);
+        assert_eq!(scans(), 1, "the first ask is the one that scans");
+        for _ in 0..16 {
+            assert_eq!(subject.grapheme_count(), expected);
+        }
+        assert_eq!(scans(), 1, "every later ask reads the header");
+
+        let mut unit = immortal_unit(text.as_bytes());
+        let ptr = unit.as_mut_ptr().cast::<StrHeader>();
+        forget_scans();
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        unsafe {
+            assert_eq!(NvsStr::grapheme_count_of(ptr), expected);
+            assert_eq!(NvsStr::grapheme_count_of(ptr), expected);
+            // Asking did not write the word two requests share.
+            assert_eq!(NvsStr::refcount_of(ptr), IMMORTAL_REFCOUNT);
+        }
+        assert_eq!(scans(), 0, "a literal's count is in the compiled unit");
+    }
+
+    /// The half a sum cannot do: a cluster spanning the join is one cluster,
+    /// so `4 + 1` is `4` — and the correction costs no rescan of either side.
+    #[test]
+    fn a_concatenation_corrects_the_boundary_without_rescanning() {
+        use crate::graphemes::{forget_scans, scans};
+
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]
+        unsafe {
+            let base = NvsStr::new(b"cafe").into_raw();
+            let mark = NvsStr::new("\u{301}".as_bytes()).into_raw();
+            let empty = NvsStr::new(b"").into_raw();
+            // Room to spare, so the append below takes its in-place path.
+            let target = NvsStr::build(16, |out| out.push(b"cafe")).into_raw();
+            assert_eq!(NvsStr::grapheme_count_of(base), 4);
+            assert_eq!(NvsStr::grapheme_count_of(mark), 1);
+            assert_eq!(NvsStr::grapheme_count_of(empty), 0);
+            assert_eq!(NvsStr::grapheme_count_of(target), 4);
+
+            forget_scans();
+            let joined = nvs_str_concat(base, mark);
+            assert_eq!(NvsStr::grapheme_count_of(joined), 4, "the seam joined");
+            let apart = nvs_str_concat(base, base);
+            assert_eq!(NvsStr::grapheme_count_of(apart), 8, "and this one did not");
+            assert_eq!(scans(), 0, "neither side was rescanned");
+
+            // Three pieces with an empty one between them: two seams at one
+            // byte are one join, not two.
+            let pieces = [base.cast_const(), empty.cast_const(), mark.cast_const()];
+            let spanning = nvs_str_concat_n(pieces.as_ptr(), pieces.len());
+            assert_eq!(NvsStr::grapheme_count_of(spanning), 4);
+            assert_eq!(scans(), 0);
+
+            // An append corrects its own seam without moving the payload.
+            let appended = nvs_str_append(target, mark);
+            assert_eq!(appended.cast_const(), target.cast_const(), "in place");
+            assert_eq!(NvsStr::grapheme_count_of(appended), 4);
+            assert_eq!(scans(), 0);
+
+            // A flag pasted onto an odd run of them re-groups every flag after
+            // the seam, so no per-seam correction is right and the result is
+            // left to the ordinary scan — `graphemes::seam_joins` owns why.
+            let one_flag = NvsStr::new("\u{1F1E9}".as_bytes()).into_raw();
+            let pair = NvsStr::new("\u{1F1E9}\u{1F1EA}".as_bytes()).into_raw();
+            assert_eq!(NvsStr::grapheme_count_of(one_flag), 1);
+            assert_eq!(NvsStr::grapheme_count_of(pair), 1);
+            forget_scans();
+            let regrouped = nvs_str_concat(one_flag, pair);
+            assert_eq!(scans(), 0, "the concatenation itself still scans nothing");
+            assert_eq!(NvsStr::grapheme_count_of(regrouped), 2);
+            assert_eq!(scans(), 1);
+
+            forget_scans();
+            // An operand nobody has counted leaves the result uncounted rather
+            // than scanning it: a concatenation that segments is the cost the
+            // whole word exists to remove.
+            let fresh = NvsStr::new("\u{301}".as_bytes()).into_raw();
+            let unknown = nvs_str_concat(base, fresh);
+            assert_eq!(scans(), 0, "building it scanned nothing");
+            assert_eq!(NvsStr::grapheme_count_of(unknown), 4);
+            assert_eq!(scans(), 1, "the first ask paid the ordinary scan");
+
+            for ptr in [
+                base, mark, empty, joined, apart, spanning, appended, one_flag, pair, regrouped,
+                fresh, unknown,
+            ] {
+                nvs_str_release(ptr);
+            }
+        }
+    }
+
+    /// The failure mode is a wrong index, not a slow one: however a string was
+    /// built, its cached count is what a fresh segmentation of the same bytes
+    /// answers.
+    #[test]
+    fn a_cached_count_equals_a_fresh_scan_over_the_corpus() {
+        use unicode_segmentation::UnicodeSegmentation;
+
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]
+        unsafe {
+            for left in CORPUS {
+                for right in CORPUS {
+                    let expected = format!("{left}{right}").graphemes(true).count();
+
+                    let lhs = NvsStr::new(left.as_bytes()).into_raw();
+                    let rhs = NvsStr::new(right.as_bytes()).into_raw();
+                    // Counted first, so the concatenation propagates rather
+                    // than leaving the result unknown.
+                    let _ = NvsStr::grapheme_count_of(lhs);
+                    let _ = NvsStr::grapheme_count_of(rhs);
+
+                    let joined = nvs_str_concat(lhs, rhs);
+                    assert_eq!(
+                        NvsStr::grapheme_count_of(joined),
+                        expected,
+                        "{left:?} . {right:?}"
+                    );
+
+                    let pieces = [lhs.cast_const(), rhs.cast_const()];
+                    let n_ary = nvs_str_concat_n(pieces.as_ptr(), pieces.len());
+                    assert_eq!(
+                        NvsStr::grapheme_count_of(n_ary),
+                        expected,
+                        "concat_n {left:?} . {right:?}"
+                    );
+
+                    // Both append paths: one with room to spare, one without.
+                    for capacity in [left.len(), left.len() + right.len()] {
+                        let target =
+                            NvsStr::build(capacity, |out| out.push(left.as_bytes())).into_raw();
+                        let _ = NvsStr::grapheme_count_of(target);
+                        let appended = nvs_str_append(target, rhs);
+                        assert_eq!(
+                            NvsStr::grapheme_count_of(appended),
+                            expected,
+                            "append {left:?} .= {right:?} at capacity {capacity}"
+                        );
+                        nvs_str_release(appended);
+                    }
+
+                    for ptr in [lhs, rhs, joined, n_ary] {
+                        nvs_str_release(ptr);
+                    }
+                }
+            }
         }
     }
 }

@@ -1322,6 +1322,7 @@ version = "0.0.1"
 dependencies = [
  "bitflags 2.13.1",
  "subtle",
+ "unicode-segmentation",
 ]
 
 [[package]]

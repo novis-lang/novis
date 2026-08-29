@@ -1048,7 +1048,7 @@ impl Emitter<'_, '_> {
     fn emit_immortal_str(&mut self, bytes: &[u8]) -> Result<Value, CodegenError> {
         let mut object =
             Vec::with_capacity(nvs_runtime::PAYLOAD_OFFSET.saturating_add(bytes.len()));
-        object.extend_from_slice(&nvs_runtime::immortal_header_bytes(bytes.len()));
+        object.extend_from_slice(&nvs_runtime::immortal_header_bytes(bytes));
         object.extend_from_slice(bytes);
 
         let mut desc = DataDescription::new();

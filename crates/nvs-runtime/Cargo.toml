@@ -30,6 +30,12 @@ bitflags.workspace = true
 # `subtle` states it: an optimiser is free to turn the obvious loop back into
 # an early exit, and that barrier is the whole point of the dependency.
 subtle.workspace = true
+# ADR 0009 § 2's grapheme cluster is `string`'s length unit, and this crate
+# holds the header the count is cached in and the concatenation that corrects
+# it at the seam — so the UAX #29 primitives have to be reachable from here.
+# `graphemes.rs` owns why the kernel lives in the runtime rather than beside
+# the unit choice in `nvs-stdlib`.
+unicode-segmentation.workspace = true
 
 # ---------------------------------------------------------------------------
 # This crate cannot inherit the workspace lint policy. It owns the heap
