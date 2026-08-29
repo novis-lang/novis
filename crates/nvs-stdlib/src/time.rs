@@ -135,7 +135,8 @@ use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
 use nvs_syntax::duration;
 
 use crate::registry::{
-    Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy, Qual,
+    CaseDoc, Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc,
+    ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 // ============================================================================
@@ -176,7 +177,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: FROM_NANOS_SYMBOL,
-            doc: None,
+            doc: Some(&DURATION_NANOSECONDS_DOC),
         },
         CoreMethod {
             name: "microseconds",
@@ -185,7 +186,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: "nvs_core_time_duration_microseconds",
-            doc: None,
+            doc: Some(&DURATION_MICROSECONDS_DOC),
         },
         CoreMethod {
             name: "milliseconds",
@@ -194,7 +195,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: "nvs_core_time_duration_milliseconds",
-            doc: None,
+            doc: Some(&DURATION_MILLISECONDS_DOC),
         },
         CoreMethod {
             name: "seconds",
@@ -203,7 +204,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: "nvs_core_time_duration_seconds",
-            doc: None,
+            doc: Some(&DURATION_SECONDS_DOC),
         },
         CoreMethod {
             name: "minutes",
@@ -212,7 +213,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: "nvs_core_time_duration_minutes",
-            doc: None,
+            doc: Some(&DURATION_MINUTES_DOC),
         },
         CoreMethod {
             name: "hours",
@@ -221,7 +222,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: "nvs_core_time_duration_hours",
-            doc: None,
+            doc: Some(&DURATION_HOURS_DOC),
         },
         CoreMethod {
             name: "days",
@@ -230,7 +231,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: "nvs_core_time_duration_days",
-            doc: None,
+            doc: Some(&DURATION_DAYS_DOC),
         },
         CoreMethod {
             name: "weeks",
@@ -239,7 +240,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: "nvs_core_time_duration_weeks",
-            doc: None,
+            doc: Some(&DURATION_WEEKS_DOC),
         },
         CoreMethod {
             name: "parse",
@@ -248,7 +249,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: "nvs_core_time_duration_parse",
-            doc: None,
+            doc: Some(&DURATION_PARSE_DOC),
         },
     ],
     instance: &[
@@ -259,7 +260,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_time_duration_to_nanoseconds",
-            doc: None,
+            doc: Some(&DURATION_TO_NANOSECONDS_DOC),
         },
         CoreMethod {
             name: "toMicroseconds",
@@ -268,7 +269,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_time_duration_to_microseconds",
-            doc: None,
+            doc: Some(&DURATION_TO_MICROSECONDS_DOC),
         },
         CoreMethod {
             name: "toMilliseconds",
@@ -277,7 +278,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_time_duration_to_milliseconds",
-            doc: None,
+            doc: Some(&DURATION_TO_MILLISECONDS_DOC),
         },
         CoreMethod {
             name: "toSeconds",
@@ -286,7 +287,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_time_duration_to_seconds",
-            doc: None,
+            doc: Some(&DURATION_TO_SECONDS_DOC),
         },
         CoreMethod {
             name: "plus",
@@ -295,7 +296,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: "nvs_core_time_duration_plus",
-            doc: None,
+            doc: Some(&DURATION_PLUS_DOC),
         },
         CoreMethod {
             name: "minus",
@@ -304,7 +305,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: "nvs_core_time_duration_minus",
-            doc: None,
+            doc: Some(&DURATION_MINUS_DOC),
         },
         CoreMethod {
             name: "multipliedBy",
@@ -313,7 +314,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: "nvs_core_time_duration_multiplied_by",
-            doc: None,
+            doc: Some(&DURATION_MULTIPLIED_BY_DOC),
         },
         CoreMethod {
             name: "negated",
@@ -322,7 +323,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: "nvs_core_time_duration_negated",
-            doc: None,
+            doc: Some(&DURATION_NEGATED_DOC),
         },
         CoreMethod {
             name: "compareTo",
@@ -331,7 +332,7 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_time_duration_compare_to",
-            doc: None,
+            doc: Some(&DURATION_COMPARE_TO_DOC),
         },
         CoreMethod {
             name: "toString",
@@ -340,11 +341,275 @@ pub const DURATION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_time_duration_to_string",
-            doc: None,
+            doc: Some(&DURATION_TO_STRING_DOC),
         },
     ],
     slots: &["nanos"],
     constants: &[],
+};
+
+/// `Core\Time\Duration::nanoseconds`'s reference card — ADR 0117.
+const DURATION_NANOSECONDS_DOC: MethodDoc = MethodDoc {
+    short: "Builds a `Duration` of exactly `$n` nanoseconds — the computed-count form of ADR \
+            0070's duration literal, and the member a literal such as `30s` itself reaches a \
+            value through.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The count of nanoseconds; negative for a duration that runs backwards.",
+        shape: &[],
+    }],
+    ret: "A `Duration` of `$n` nanoseconds.",
+    errors: &[],
+};
+
+/// `Core\Time\Duration::microseconds`'s reference card — ADR 0117.
+const DURATION_MICROSECONDS_DOC: MethodDoc = MethodDoc {
+    short: "Builds a `Duration` of `$n` microseconds, for a count computed at run time; a \
+            constant one is a duration literal.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The count of microseconds; negative for a duration that runs backwards.",
+        shape: &[],
+    }],
+    ret: "A `Duration` of `$n` × 1000 nanoseconds.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$n` microseconds is longer than a `Duration` can hold — past ±2⁶³ nanoseconds.",
+    }],
+};
+
+/// `Core\Time\Duration::milliseconds`'s reference card — ADR 0117.
+const DURATION_MILLISECONDS_DOC: MethodDoc = MethodDoc {
+    short: "Builds a `Duration` of `$n` milliseconds, for a count computed at run time; a \
+            constant one is a duration literal such as `250ms`.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The count of milliseconds; negative for a duration that runs backwards.",
+        shape: &[],
+    }],
+    ret: "A `Duration` of `$n` × 1 000 000 nanoseconds.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$n` milliseconds is longer than a `Duration` can hold — past ±2⁶³ nanoseconds.",
+    }],
+};
+
+/// `Core\Time\Duration::seconds`'s reference card — ADR 0117.
+const DURATION_SECONDS_DOC: MethodDoc = MethodDoc {
+    short: "Builds a `Duration` of `$n` seconds, for a count computed at run time; a constant \
+            one is ADR 0070's literal, `30s`.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The count of seconds; negative for a duration that runs backwards.",
+        shape: &[],
+    }],
+    ret: "A `Duration` of `$n` seconds.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$n` seconds is longer than a `Duration` can hold — past ±2⁶³ nanoseconds, \
+               about 292 years.",
+    }],
+};
+
+/// `Core\Time\Duration::minutes`'s reference card — ADR 0117.
+const DURATION_MINUTES_DOC: MethodDoc = MethodDoc {
+    short: "Builds a `Duration` of `$n` minutes, for a count computed at run time; a constant \
+            one is a duration literal such as `1h30m`.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The count of minutes; negative for a duration that runs backwards.",
+        shape: &[],
+    }],
+    ret: "A `Duration` of `$n` × 60 seconds.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$n` minutes is longer than a `Duration` can hold — about 292 years.",
+    }],
+};
+
+/// `Core\Time\Duration::hours`'s reference card — ADR 0117.
+const DURATION_HOURS_DOC: MethodDoc = MethodDoc {
+    short: "Builds a `Duration` of `$n` hours — exact hours of 3600 seconds, which is how \
+            `Time::now()->plus(72h)` differs from a calendar step of three days. A constant \
+            count is the literal `72h`.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The count of hours; negative for a duration that runs backwards.",
+        shape: &[],
+    }],
+    ret: "A `Duration` of `$n` × 3600 seconds.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$n` hours is longer than a `Duration` can hold — about 292 years.",
+    }],
+};
+
+/// `Core\Time\Duration::days`'s reference card — ADR 0117.
+const DURATION_DAYS_DOC: MethodDoc = MethodDoc {
+    short: "Builds a `Duration` of `$n` days of exactly 24 hours each — never a calendar day, \
+            which `DateTime::plus($n, Unit::Day)` is. A constant count is the literal `30d`.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The count of 24-hour days; negative for a duration that runs backwards.",
+        shape: &[],
+    }],
+    ret: "A `Duration` of `$n` × 86 400 seconds.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$n` days is longer than a `Duration` can hold — about 292 years.",
+    }],
+};
+
+/// `Core\Time\Duration::weeks`'s reference card — ADR 0117.
+const DURATION_WEEKS_DOC: MethodDoc = MethodDoc {
+    short: "Builds a `Duration` of `$n` weeks of exactly seven 24-hour days each — never a \
+            calendar week, which `DateTime::plus($n, Unit::Week)` is.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The count of 168-hour weeks; negative for a duration that runs backwards.",
+        shape: &[],
+    }],
+    ret: "A `Duration` of `$n` × 604 800 seconds.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$n` weeks is longer than a `Duration` can hold — about 292 years.",
+    }],
+};
+
+/// `Core\Time\Duration::parse`'s reference card — ADR 0117.
+const DURATION_PARSE_DOC: MethodDoc = MethodDoc {
+    short: "Reads ADR 0070's duration literal grammar — `30s`, `1h30m`, `7d` — at run time, \
+            through the one implementation the lexer uses for the source literal: the typed \
+            form of `strtotime` for an exact offset arriving in a config value or a flag. It \
+            accepts nothing else, so a `tainted` value comes out laundered.",
+    params: &[ParamDoc {
+        name: "text",
+        desc: "The text to read, in the duration literal grammar.",
+        shape: &[],
+    }],
+    ret: "The `Duration` the text spells.",
+    errors: &[ErrorDoc {
+        error: "ParseError",
+        desc: "`$text` is not a duration literal — an unknown or repeated unit, a missing \
+               count, trailing text — or spells more than a `Duration` can hold.",
+    }],
+};
+
+/// `Core\Time\Duration::toNanoseconds`'s reference card — ADR 0117.
+const DURATION_TO_NANOSECONDS_DOC: MethodDoc = MethodDoc {
+    short: "Answers the receiver as a count of nanoseconds, which is exactly what it holds.",
+    params: &[],
+    ret: "The whole count of nanoseconds; negative for a duration that runs backwards.",
+    errors: &[],
+};
+
+/// `Core\Time\Duration::toMicroseconds`'s reference card — ADR 0117.
+const DURATION_TO_MICROSECONDS_DOC: MethodDoc = MethodDoc {
+    short: "Answers the receiver as a count of whole microseconds.",
+    params: &[],
+    ret: "The nanosecond count divided by 1000, truncated toward zero.",
+    errors: &[],
+};
+
+/// `Core\Time\Duration::toMilliseconds`'s reference card — ADR 0117.
+const DURATION_TO_MILLISECONDS_DOC: MethodDoc = MethodDoc {
+    short: "Answers the receiver as a count of whole milliseconds.",
+    params: &[],
+    ret: "The nanosecond count divided by 1 000 000, truncated toward zero.",
+    errors: &[],
+};
+
+/// `Core\Time\Duration::toSeconds`'s reference card — ADR 0117.
+const DURATION_TO_SECONDS_DOC: MethodDoc = MethodDoc {
+    short: "Answers the receiver as a count of whole seconds.",
+    params: &[],
+    ret: "The nanosecond count divided by 1 000 000 000, truncated toward zero — `0` for \
+          anything shorter than a second.",
+    errors: &[],
+};
+
+/// `Core\Time\Duration::plus`'s reference card — ADR 0117.
+const DURATION_PLUS_DOC: MethodDoc = MethodDoc {
+    short: "Adds `$d` to the receiver, nanosecond for nanosecond.",
+    params: &[ParamDoc {
+        name: "d",
+        desc: "The duration to add; a negative one shortens the result.",
+        shape: &[],
+    }],
+    ret: "A new `Duration` of the sum; the receiver is unchanged.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The sum is longer than a `Duration` can hold.",
+    }],
+};
+
+/// `Core\Time\Duration::minus`'s reference card — ADR 0117.
+const DURATION_MINUS_DOC: MethodDoc = MethodDoc {
+    short: "Subtracts `$d` from the receiver, nanosecond for nanosecond.",
+    params: &[ParamDoc {
+        name: "d",
+        desc: "The duration to subtract; a negative one lengthens the result.",
+        shape: &[],
+    }],
+    ret: "A new `Duration` of the difference, negative where `$d` is the longer; the receiver \
+          is unchanged.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The difference is longer than a `Duration` can hold.",
+    }],
+};
+
+/// `Core\Time\Duration::multipliedBy`'s reference card — ADR 0117.
+const DURATION_MULTIPLIED_BY_DOC: MethodDoc = MethodDoc {
+    short: "Scales the receiver by a whole factor.",
+    params: &[ParamDoc {
+        name: "factor",
+        desc: "The integer to multiply by; `0` answers an empty duration and a negative factor \
+               reverses the direction.",
+        shape: &[],
+    }],
+    ret: "A new `Duration` of `$factor` times the receiver; the receiver is unchanged.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The product is longer than a `Duration` can hold.",
+    }],
+};
+
+/// `Core\Time\Duration::negated`'s reference card — ADR 0117.
+const DURATION_NEGATED_DOC: MethodDoc = MethodDoc {
+    short: "Reverses the receiver's direction: `30s` becomes `-30s`.",
+    params: &[],
+    ret: "A new `Duration` of the same length in the opposite direction; the receiver is \
+          unchanged.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The receiver is the one duration whose negation does not fit — exactly −2⁶³ \
+               nanoseconds.",
+    }],
+};
+
+/// `Core\Time\Duration::compareTo`'s reference card — ADR 0117.
+const DURATION_COMPARE_TO_DOC: MethodDoc = MethodDoc {
+    short: "Orders two durations by length and sign, as `Comparable` (ADR 0013) requires, so a \
+            shorter duration compares below a longer one and a negative one below every \
+            positive one.",
+    params: &[ParamDoc {
+        name: "other",
+        desc: "The duration to compare against.",
+        shape: &[],
+    }],
+    ret: "`-1` when the receiver is shorter than `$other`, `0` when they are equal, `1` when \
+          it is longer.",
+    errors: &[],
+};
+
+/// `Core\Time\Duration::toString`'s reference card — ADR 0117.
+const DURATION_TO_STRING_DOC: MethodDoc = MethodDoc {
+    short: "Renders the receiver in the duration literal grammar — `1h30m`, `250ms` — as \
+            `Stringable` requires, so the text round-trips through `Duration::parse`.",
+    params: &[],
+    ret: "The literal spelling of the receiver.",
+    errors: &[],
 };
 
 /// [`DURATION`]'s one slot, by index — see `crate::regex`'s own slot constants
@@ -702,7 +967,7 @@ pub const ZONE: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(ZONE_NAME),
             symbol: "nvs_core_time_zone_of",
-            doc: None,
+            doc: Some(&ZONE_OF_DOC),
         },
         CoreMethod {
             name: "fixed",
@@ -711,7 +976,7 @@ pub const ZONE: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(ZONE_NAME),
             symbol: "nvs_core_time_zone_fixed",
-            doc: None,
+            doc: Some(&ZONE_FIXED_DOC),
         },
         CoreMethod {
             name: "system",
@@ -720,7 +985,7 @@ pub const ZONE: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(ZONE_NAME),
             symbol: "nvs_core_time_zone_system",
-            doc: None,
+            doc: Some(&ZONE_SYSTEM_DOC),
         },
     ],
     instance: &[CoreMethod {
@@ -730,7 +995,7 @@ pub const ZONE: CoreClass = CoreClass {
         defaults: &[],
         return_ty: CoreTy::Instance(DURATION_NAME),
         symbol: "nvs_core_time_zone_offset_at",
-        doc: None,
+        doc: Some(&ZONE_OFFSET_AT_DOC),
     }],
     slots: &["id"],
     constants: &[CoreConst {
@@ -740,8 +1005,70 @@ pub const ZONE: CoreClass = CoreClass {
             symbol: "nvs_core_time_zone_of",
             args: &[Const::Str("UTC")],
         },
-        desc: "",
+        desc: "The UTC zone — the only zone that is ever a default, and only where a call \
+               site writes it explicitly.",
     }],
+};
+
+/// `Core\Time\Zone::of`'s reference card — ADR 0117.
+const ZONE_OF_DOC: MethodDoc = MethodDoc {
+    short: "Looks an IANA identifier such as `Europe/Berlin` up in the bundled time-zone \
+            database, replacing `new DateTimeZone(...)` — and throws on one it does not have \
+            rather than falling back to UTC.",
+    params: &[ParamDoc {
+        name: "id",
+        desc: "An IANA zone identifier; a `+02:00` offset spelling is `Zone::fixed`'s and is \
+               refused here.",
+        shape: &[],
+    }],
+    ret: "The `Zone` the identifier names.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$id` is not in the IANA database, or begins with a sign.",
+    }],
+};
+
+/// `Core\Time\Zone::fixed`'s reference card — ADR 0117.
+const ZONE_FIXED_DOC: MethodDoc = MethodDoc {
+    short: "Builds a zone at a fixed offset from UTC, with no DST rules — for a timestamp that \
+            carries an offset rather than a region, which is every RFC 3339 string.",
+    params: &[ParamDoc {
+        name: "offset",
+        desc: "The offset east of UTC, a whole number of seconds; negative for a zone west of \
+               Greenwich.",
+        shape: &[],
+    }],
+    ret: "A `Zone` whose identifier is the offset's `±HH:MM[:SS]` spelling.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$offset` has a subsecond part, or lies outside ±25:59:59 of UTC.",
+    }],
+};
+
+/// `Core\Time\Zone::system`'s reference card — ADR 0117.
+const ZONE_SYSTEM_DOC: MethodDoc = MethodDoc {
+    short: "Answers the host's configured zone, replacing `date_default_timezone_get` — as an \
+            ordinary value a program passes on explicitly, never an ambient default; there is \
+            no `date_default_timezone_set`.",
+    params: &[],
+    ret: "The host's `Zone` under its IANA name, or as a fixed offset where the host names \
+          none (a bare `TZ=+02:00`, an unmapped Windows zone).",
+    errors: &[],
+};
+
+/// `Core\Time\Zone::offsetAt`'s reference card — ADR 0117.
+const ZONE_OFFSET_AT_DOC: MethodDoc = MethodDoc {
+    short: "Answers the zone's offset from UTC at a given instant, replacing `getOffset` — an \
+            instant because a zone with DST has no single offset: `Europe/Berlin` is `+01:00` \
+            in January and `+02:00` in July.",
+    params: &[ParamDoc {
+        name: "i",
+        desc: "The instant to read the offset at.",
+        shape: &[],
+    }],
+    ret: "The offset east of UTC as a `Duration` of whole seconds; negative west of \
+          Greenwich, zero for UTC.",
+    errors: &[],
 };
 
 /// [`ZONE`]'s one slot, by index.
@@ -786,7 +1113,7 @@ pub const INSTANT: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
             symbol: "nvs_core_time_instant_in",
-            doc: None,
+            doc: Some(&INSTANT_IN_DOC),
         },
         CoreMethod {
             name: "toEpochSeconds",
@@ -795,7 +1122,7 @@ pub const INSTANT: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_time_instant_to_epoch_seconds",
-            doc: None,
+            doc: Some(&INSTANT_TO_EPOCH_SECONDS_DOC),
         },
         CoreMethod {
             name: "toEpochMillis",
@@ -804,7 +1131,7 @@ pub const INSTANT: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_time_instant_to_epoch_millis",
-            doc: None,
+            doc: Some(&INSTANT_TO_EPOCH_MILLIS_DOC),
         },
         CoreMethod {
             name: "toEpochMicros",
@@ -813,7 +1140,7 @@ pub const INSTANT: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_time_instant_to_epoch_micros",
-            doc: None,
+            doc: Some(&INSTANT_TO_EPOCH_MICROS_DOC),
         },
         CoreMethod {
             name: "plus",
@@ -822,7 +1149,7 @@ pub const INSTANT: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(INSTANT_NAME),
             symbol: "nvs_core_time_instant_plus",
-            doc: None,
+            doc: Some(&INSTANT_PLUS_DOC),
         },
         CoreMethod {
             name: "minus",
@@ -831,7 +1158,7 @@ pub const INSTANT: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(INSTANT_NAME),
             symbol: "nvs_core_time_instant_minus",
-            doc: None,
+            doc: Some(&INSTANT_MINUS_DOC),
         },
         CoreMethod {
             name: "since",
@@ -840,7 +1167,7 @@ pub const INSTANT: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: "nvs_core_time_instant_since",
-            doc: None,
+            doc: Some(&INSTANT_SINCE_DOC),
         },
         CoreMethod {
             name: "compareTo",
@@ -849,7 +1176,7 @@ pub const INSTANT: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_time_instant_compare_to",
-            doc: None,
+            doc: Some(&INSTANT_COMPARE_TO_DOC),
         },
         CoreMethod {
             name: "toIso",
@@ -858,11 +1185,130 @@ pub const INSTANT: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_time_instant_to_iso",
-            doc: None,
+            doc: Some(&INSTANT_TO_ISO_DOC),
         },
     ],
     slots: &["seconds", "nanos"],
     constants: &[],
+};
+
+/// `Core\Time\Instant::in`'s reference card — ADR 0117.
+const INSTANT_IN_DOC: MethodDoc = MethodDoc {
+    short: "Reads this instant on `$zone`'s calendar — the only instant→calendar conversion \
+            there is, which is why no zone is ever implicit.",
+    params: &[ParamDoc {
+        name: "zone",
+        desc: "The zone whose civil date and time to read.",
+        shape: &[],
+    }],
+    ret: "A `DateTime` at this same instant, in `$zone`.",
+    errors: &[],
+};
+
+/// `Core\Time\Instant::toEpochSeconds`'s reference card — ADR 0117.
+const INSTANT_TO_EPOCH_SECONDS_DOC: MethodDoc = MethodDoc {
+    short: "Answers the Unix timestamp, replacing `getTimestamp` and `date(\"U\")`.",
+    params: &[],
+    ret: "Whole seconds since `1970-01-01T00:00:00Z`, negative before it, with the subsecond \
+          part dropped.",
+    errors: &[],
+};
+
+/// `Core\Time\Instant::toEpochMillis`'s reference card — ADR 0117.
+const INSTANT_TO_EPOCH_MILLIS_DOC: MethodDoc = MethodDoc {
+    short: "Answers the Unix timestamp in milliseconds — one of `microtime(true)`'s two \
+            halves, as an exact integer rather than a `float`.",
+    params: &[],
+    ret: "Whole milliseconds since the Unix epoch, truncated toward zero.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The instant is further from the epoch than a 64-bit millisecond count reaches.",
+    }],
+};
+
+/// `Core\Time\Instant::toEpochMicros`'s reference card — ADR 0117.
+const INSTANT_TO_EPOCH_MICROS_DOC: MethodDoc = MethodDoc {
+    short: "Answers the Unix timestamp in microseconds — `microtime`'s other half, as an \
+            exact integer.",
+    params: &[],
+    ret: "Whole microseconds since the Unix epoch, truncated toward zero.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The instant is further from the epoch than a 64-bit microsecond count reaches.",
+    }],
+};
+
+/// `Core\Time\Instant::plus`'s reference card — ADR 0117.
+const INSTANT_PLUS_DOC: MethodDoc = MethodDoc {
+    short: "Moves the instant forward by an exact `Duration`, replacing `date_add` and \
+            `modify` for an exact offset — so it crosses a DST boundary without noticing one; \
+            a calendar step is `$i->in($zone)->plus($n, Unit::Day)`.",
+    params: &[ParamDoc {
+        name: "d",
+        desc: "The exact duration to add; a negative one moves the instant back.",
+        shape: &[],
+    }],
+    ret: "A new `Instant`; the receiver is unchanged.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The result lies outside the representable range, about ±9999 years.",
+    }],
+};
+
+/// `Core\Time\Instant::minus`'s reference card — ADR 0117.
+const INSTANT_MINUS_DOC: MethodDoc = MethodDoc {
+    short: "Moves the instant back by an exact `Duration`, replacing `date_sub` for an exact \
+            offset.",
+    params: &[ParamDoc {
+        name: "d",
+        desc: "The exact duration to subtract; a negative one moves the instant forward.",
+        shape: &[],
+    }],
+    ret: "A new `Instant`; the receiver is unchanged.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The result lies outside the representable range, about ±9999 years.",
+    }],
+};
+
+/// `Core\Time\Instant::since`'s reference card — ADR 0117.
+const INSTANT_SINCE_DOC: MethodDoc = MethodDoc {
+    short: "Measures the exact time from `$earlier` to this instant, replacing `date_diff` and \
+            `DateInterval` arithmetic with none of that type's \"1 month\" ambiguity.",
+    params: &[ParamDoc {
+        name: "earlier",
+        desc: "The instant to measure from.",
+        shape: &[],
+    }],
+    ret: "The `Duration` from `$earlier` to the receiver — negative when `$earlier` is in \
+          fact later, so it is `plus`'s inverse rather than an absolute distance.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The two instants are further apart than a `Duration` can hold, about 292 years.",
+    }],
+};
+
+/// `Core\Time\Instant::compareTo`'s reference card — ADR 0117.
+const INSTANT_COMPARE_TO_DOC: MethodDoc = MethodDoc {
+    short: "Orders two instants on the timeline, as `Comparable` (ADR 0013) requires.",
+    params: &[ParamDoc {
+        name: "other",
+        desc: "The instant to compare against.",
+        shape: &[],
+    }],
+    ret: "`-1` when the receiver is earlier than `$other`, `0` when they are the same instant, \
+          `1` when it is later.",
+    errors: &[],
+};
+
+/// `Core\Time\Instant::toIso`'s reference card — ADR 0117.
+const INSTANT_TO_ISO_DOC: MethodDoc = MethodDoc {
+    short: "Renders the instant as an RFC 3339 timestamp in UTC, replacing `date(DATE_ATOM)` — \
+            the one rendering that needs no zone.",
+    params: &[],
+    ret: "Text such as `2024-03-01T12:00:00Z`, with the fractional seconds included when they \
+          are not zero.",
+    errors: &[],
 };
 
 /// [`INSTANT`]'s slots, by index.
@@ -926,7 +1372,63 @@ pub const UNIT: CoreEnum = CoreEnum {
         ("Quarter", 9),
         ("Year", 10),
     ],
-    doc: None,
+    doc: Some(&UNIT_DOC),
+};
+
+/// [`UNIT`]'s reference card — ADR 0117.
+const UNIT_DOC: EnumDoc = EnumDoc {
+    short: "The calendar step a `DateTime`, `Date` or `TimeOfDay` moves by, and the unit \
+            `startOf`, `endOf` and `difference` count in — the half of § 4's two arithmetics \
+            a DST boundary or a short month can lengthen or shorten, listed smallest first.",
+    cases: &[
+        CaseDoc {
+            name: "Nanosecond",
+            desc: "One nanosecond, the finest step any value here resolves.",
+        },
+        CaseDoc {
+            name: "Microsecond",
+            desc: "One microsecond — 1000 nanoseconds.",
+        },
+        CaseDoc {
+            name: "Millisecond",
+            desc: "One millisecond — 1 000 000 nanoseconds.",
+        },
+        CaseDoc {
+            name: "Second",
+            desc: "One second of the civil clock.",
+        },
+        CaseDoc {
+            name: "Minute",
+            desc: "One minute of the civil clock.",
+        },
+        CaseDoc {
+            name: "Hour",
+            desc: "One hour of the civil clock.",
+        },
+        CaseDoc {
+            name: "Day",
+            desc: "One calendar day — 23 or 25 hours where the zone crosses a DST boundary.",
+        },
+        CaseDoc {
+            name: "Week",
+            desc: "Seven calendar days; `startOf(Unit::Week)` is the Monday, ISO 8601's first day.",
+        },
+        CaseDoc {
+            name: "Month",
+            desc: "One calendar month, with the day-of-month clamped to the target month's \
+                   length.",
+        },
+        CaseDoc {
+            name: "Quarter",
+            desc: "Three calendar months, so `plus(1, Unit::Quarter)` is `plus(3, Unit::Month)` \
+                   and `startOf` lands on January, April, July or October.",
+        },
+        CaseDoc {
+            name: "Year",
+            desc: "One calendar year, with 29 February clamped to the 28th where the target has \
+                   none.",
+        },
+    ],
 };
 
 /// Spec § 4's `Core\Weekday`, Monday-first — ISO-8601's own order, which is
@@ -947,7 +1449,43 @@ pub const WEEKDAY: CoreEnum = CoreEnum {
         ("Saturday", 5),
         ("Sunday", 6),
     ],
-    doc: None,
+    doc: Some(&WEEKDAY_DOC),
+};
+
+/// [`WEEKDAY`]'s reference card — ADR 0117.
+const WEEKDAY_DOC: EnumDoc = EnumDoc {
+    short: "A day of the week, Monday first as ISO 8601 and `date(\"N\")` order them — what \
+            `$d->weekday()` answers and `next`/`previous` take.",
+    cases: &[
+        CaseDoc {
+            name: "Monday",
+            desc: "The first day of the ISO week.",
+        },
+        CaseDoc {
+            name: "Tuesday",
+            desc: "The second day of the ISO week.",
+        },
+        CaseDoc {
+            name: "Wednesday",
+            desc: "The third day of the ISO week.",
+        },
+        CaseDoc {
+            name: "Thursday",
+            desc: "The fourth day of the ISO week.",
+        },
+        CaseDoc {
+            name: "Friday",
+            desc: "The fifth day of the ISO week.",
+        },
+        CaseDoc {
+            name: "Saturday",
+            desc: "The sixth day of the ISO week.",
+        },
+        CaseDoc {
+            name: "Sunday",
+            desc: "The seventh and last day of the ISO week.",
+        },
+    ],
 };
 
 /// The `{year?, month?, day?, hour?, minute?, second?, nanos?}` bag
@@ -1023,7 +1561,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_time_datetime_format",
-            doc: None,
+            doc: Some(&DATETIME_FORMAT_DOC),
         },
         CoreMethod {
             name: "plus",
@@ -1032,7 +1570,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
             symbol: "nvs_core_time_datetime_plus",
-            doc: None,
+            doc: Some(&DATETIME_PLUS_DOC),
         },
         CoreMethod {
             name: "minus",
@@ -1041,7 +1579,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
             symbol: "nvs_core_time_datetime_minus",
-            doc: None,
+            doc: Some(&DATETIME_MINUS_DOC),
         },
         CoreMethod {
             name: "next",
@@ -1050,7 +1588,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
             symbol: "nvs_core_time_datetime_next",
-            doc: None,
+            doc: Some(&DATETIME_NEXT_DOC),
         },
         CoreMethod {
             name: "previous",
@@ -1059,7 +1597,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
             symbol: "nvs_core_time_datetime_previous",
-            doc: None,
+            doc: Some(&DATETIME_PREVIOUS_DOC),
         },
         CoreMethod {
             name: "with",
@@ -1068,7 +1606,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
             symbol: "nvs_core_time_datetime_with",
-            doc: None,
+            doc: Some(&DATETIME_WITH_DOC),
         },
         CoreMethod {
             name: "withTime",
@@ -1077,7 +1615,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
             symbol: "nvs_core_time_datetime_with_time",
-            doc: None,
+            doc: Some(&DATETIME_WITH_TIME_DOC),
         },
         CoreMethod {
             name: "startOf",
@@ -1086,7 +1624,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
             symbol: "nvs_core_time_datetime_start_of",
-            doc: None,
+            doc: Some(&DATETIME_START_OF_DOC),
         },
         CoreMethod {
             name: "endOf",
@@ -1095,7 +1633,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
             symbol: "nvs_core_time_datetime_end_of",
-            doc: None,
+            doc: Some(&DATETIME_END_OF_DOC),
         },
         CoreMethod {
             name: "difference",
@@ -1104,7 +1642,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_time_datetime_difference",
-            doc: None,
+            doc: Some(&DATETIME_DIFFERENCE_DOC),
         },
         CoreMethod {
             name: "toInstant",
@@ -1113,7 +1651,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(INSTANT_NAME),
             symbol: "nvs_core_time_datetime_to_instant",
-            doc: None,
+            doc: Some(&DATETIME_TO_INSTANT_DOC),
         },
         CoreMethod {
             name: "date",
@@ -1122,7 +1660,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATE_NAME),
             symbol: "nvs_core_time_datetime_date",
-            doc: None,
+            doc: Some(&DATETIME_DATE_DOC),
         },
         CoreMethod {
             name: "timeOfDay",
@@ -1131,7 +1669,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(TIME_OF_DAY_NAME),
             symbol: "nvs_core_time_datetime_time_of_day",
-            doc: None,
+            doc: Some(&DATETIME_TIME_OF_DAY_DOC),
         },
         CoreMethod {
             name: "zone",
@@ -1140,7 +1678,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(ZONE_NAME),
             symbol: "nvs_core_time_datetime_zone",
-            doc: None,
+            doc: Some(&DATETIME_ZONE_DOC),
         },
         CoreMethod {
             name: "weekday",
@@ -1149,7 +1687,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Enum(WEEKDAY.name),
             symbol: "nvs_core_time_datetime_weekday",
-            doc: None,
+            doc: Some(&DATETIME_WEEKDAY_DOC),
         },
         CoreMethod {
             name: "dayOfYear",
@@ -1158,7 +1696,7 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Uint,
             symbol: "nvs_core_time_datetime_day_of_year",
-            doc: None,
+            doc: Some(&DATETIME_DAY_OF_YEAR_DOC),
         },
         CoreMethod {
             name: "isLeapYear",
@@ -1167,11 +1705,310 @@ pub const DATETIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_time_datetime_is_leap_year",
-            doc: None,
+            doc: Some(&DATETIME_IS_LEAP_YEAR_DOC),
         },
     ],
     slots: &["seconds", "nanos", "zone"],
     constants: &[],
+};
+
+/// `Core\Time\DateTime::format`'s reference card — ADR 0117.
+const DATETIME_FORMAT_DOC: MethodDoc = MethodDoc {
+    short: "Renders the civil date and time through a CLDR pattern — `yyyy-MM-dd HH:mm:ss`, \
+            `EEEE, d MMMM yyyy` — replacing `date`, `gmdate`, `idate`, `strftime` and \
+            `date_format`; names render in CLDR's root locale, since there is no `setlocale`.",
+    params: &[ParamDoc {
+        name: "pattern",
+        desc: "A CLDR pattern in the subset `crates/nvs-stdlib/src/cldr.rs` implements — a \
+               grammar, so a `tainted` one is refused before it runs.",
+        shape: &[],
+    }],
+    ret: "The rendered text.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$pattern` does not compile — a field letter outside the implemented subset, or \
+               an unterminated quote.",
+    }],
+};
+
+/// `Core\Time\DateTime::plus`'s reference card — ADR 0117.
+const DATETIME_PLUS_DOC: MethodDoc = MethodDoc {
+    short: "Moves the value forward by `$count` calendar steps of `$unit`, replacing `date_add`, \
+            `modify` and `strtotime`'s relative half: `1, Unit::Month` lands on the same \
+            day-of-month clamped to the month's length, and a day across a DST boundary is 23 \
+            or 25 hours. The exact half is `$d->toInstant()->plus(24h)`.",
+    params: &[
+        ParamDoc {
+            name: "count",
+            desc: "How many steps; negative moves back.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "unit",
+            desc: "The calendar unit of each step.",
+            shape: &[],
+        },
+    ],
+    ret: "A new `DateTime` in the same zone; the receiver is unchanged.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$count` is past what a calendar span can hold, or the result lies outside the \
+               representable range, about ±9999 years.",
+    }],
+};
+
+/// `Core\Time\DateTime::minus`'s reference card — ADR 0117.
+const DATETIME_MINUS_DOC: MethodDoc = MethodDoc {
+    short: "Moves the value back by `$count` calendar steps of `$unit`, replacing `date_sub` — \
+            `plus` with the count negated, so the two agree at a month end and a DST boundary.",
+    params: &[
+        ParamDoc {
+            name: "count",
+            desc: "How many steps; negative moves forward.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "unit",
+            desc: "The calendar unit of each step.",
+            shape: &[],
+        },
+    ],
+    ret: "A new `DateTime` in the same zone; the receiver is unchanged.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$count` is past what a calendar span can hold, or the result lies outside the \
+               representable range, about ±9999 years.",
+    }],
+};
+
+/// `Core\Time\DateTime::next`'s reference card — ADR 0117.
+const DATETIME_NEXT_DOC: MethodDoc = MethodDoc {
+    short: "Finds the nearest strictly later day that falls on `$w`, with the time of day \
+            preserved — `strtotime(\"next monday\")` as a typed call.",
+    params: &[ParamDoc {
+        name: "w",
+        desc: "The weekday to move to.",
+        shape: &[],
+    }],
+    ret: "A new `DateTime` one to seven days later — a full week when the receiver already \
+          falls on `$w`; the receiver is unchanged.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The result lies outside the representable range.",
+    }],
+};
+
+/// `Core\Time\DateTime::previous`'s reference card — ADR 0117.
+const DATETIME_PREVIOUS_DOC: MethodDoc = MethodDoc {
+    short: "Finds the nearest strictly earlier day that falls on `$w`, with the time of day \
+            preserved — `strtotime(\"last monday\")` as a typed call.",
+    params: &[ParamDoc {
+        name: "w",
+        desc: "The weekday to move to.",
+        shape: &[],
+    }],
+    ret: "A new `DateTime` one to seven days earlier — a full week when the receiver already \
+          falls on `$w`; the receiver is unchanged.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The result lies outside the representable range.",
+    }],
+};
+
+/// `Core\Time\DateTime::with`'s reference card — ADR 0117.
+const DATETIME_WITH_DOC: MethodDoc = MethodDoc {
+    short: "Replaces any of the seven civil fields and leaves the rest, replacing `setDate`, \
+            `setTime` and `setISODate`; a civil time the zone skips resolves forward past the \
+            gap.",
+    params: &[
+        ParamDoc {
+            name: "year",
+            desc: "The new year, within `-9999..=9999`; omitted leaves the field alone.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "month",
+            desc: "The new month, `1` to `12`; omitted leaves the field alone.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "day",
+            desc: "The new day of the month; omitted leaves the field alone.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "hour",
+            desc: "The new hour, `0` to `23`; omitted leaves the field alone.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "minute",
+            desc: "The new minute, `0` to `59`; omitted leaves the field alone.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "second",
+            desc: "The new second, `0` to `59`; omitted leaves the field alone.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "nanos",
+            desc: "The new subsecond nanoseconds, below `1000000000`; omitted leaves the field \
+                   alone.",
+            shape: &[],
+        },
+    ],
+    ret: "A new `DateTime` in the same zone; the receiver is unchanged.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "An option is outside its field's range, or the fields together are not a date \
+               that exists — `{day: 31}` on a June value.",
+    }],
+};
+
+/// `Core\Time\DateTime::withTime`'s reference card — ADR 0117.
+const DATETIME_WITH_TIME_DOC: MethodDoc = MethodDoc {
+    short: "Replaces all four clock fields from a `TimeOfDay` and keeps the date and the zone — \
+            the common half of `with`, spelled as the operation it is; a civil time the zone \
+            skips resolves forward past the gap.",
+    params: &[ParamDoc {
+        name: "t",
+        desc: "The time of day to set, hour through nanosecond.",
+        shape: &[],
+    }],
+    ret: "A new `DateTime` on the same date in the same zone; the receiver is unchanged.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The result lies outside the representable range.",
+    }],
+};
+
+/// `Core\Time\DateTime::startOf`'s reference card — ADR 0117.
+const DATETIME_START_OF_DOC: MethodDoc = MethodDoc {
+    short: "Truncates the value down to the first instant of the enclosing `$u` — \
+            `startOf(Unit::Day)` is the local midnight, `strtotime(\"today\")`, and \
+            `startOf(Unit::Month)` its first day — computed on the civil fields and then placed \
+            back in the zone.",
+    params: &[ParamDoc {
+        name: "u",
+        desc: "The unit to truncate to; `Unit::Week` starts on Monday and `Unit::Quarter` on \
+               its first month.",
+        shape: &[],
+    }],
+    ret: "A new `DateTime` in the same zone, at or before the receiver.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The result lies outside the representable range.",
+    }],
+};
+
+/// `Core\Time\DateTime::endOf`'s reference card — ADR 0117.
+const DATETIME_END_OF_DOC: MethodDoc = MethodDoc {
+    short: "Moves the value to the last instant of the enclosing `$u`, one nanosecond before \
+            the next one starts — `endOf(Unit::Month)` is `strtotime(\"last day of this \
+            month\")`; a distinct operation from `startOf` on a day a DST boundary lengthens \
+            or shortens.",
+    params: &[ParamDoc {
+        name: "u",
+        desc: "The unit whose last instant to find.",
+        shape: &[],
+    }],
+    ret: "A new `DateTime` in the same zone, at or after the receiver.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The result lies outside the representable range.",
+    }],
+};
+
+/// `Core\Time\DateTime::difference`'s reference card — ADR 0117.
+const DATETIME_DIFFERENCE_DOC: MethodDoc = MethodDoc {
+    short: "Counts whole units of `$unit` from the receiver to `$other`, in the receiver's \
+            zone — an age in years, a term in months — replacing `date_diff` and \
+            `DateInterval`'s `y`/`m`/`d` fields.",
+    params: &[
+        ParamDoc {
+            name: "other",
+            desc: "The value to count to; it is read in the receiver's zone, so the two may \
+                   differ in zone.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "unit",
+            desc: "The calendar unit to count in.",
+            shape: &[],
+        },
+    ],
+    ret: "The whole count, truncated toward zero — negative when `$other` is earlier, `0` \
+          within one unit.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The span between the two lies outside what a calendar span can hold.",
+    }],
+};
+
+/// `Core\Time\DateTime::toInstant`'s reference card — ADR 0117.
+const DATETIME_TO_INSTANT_DOC: MethodDoc = MethodDoc {
+    short: "Answers the absolute point on the timeline this civil value names — free, since a \
+            `DateTime` already holds one.",
+    params: &[],
+    ret: "The `Instant`, with the zone dropped.",
+    errors: &[],
+};
+
+/// `Core\Time\DateTime::date`'s reference card — ADR 0117.
+const DATETIME_DATE_DOC: MethodDoc = MethodDoc {
+    short: "Answers the civil date this value reads as where it is, dropping the time and the \
+            zone — so a conversion first, `$d->toInstant()->in($z)->date()`, can answer a \
+            different day.",
+    params: &[],
+    ret: "The `Date` component.",
+    errors: &[],
+};
+
+/// `Core\Time\DateTime::timeOfDay`'s reference card — ADR 0117.
+const DATETIME_TIME_OF_DAY_DOC: MethodDoc = MethodDoc {
+    short: "Answers the wall-clock reading, dropping the date and the zone — two zones can \
+            read `09:00` at once, which is why it carries neither.",
+    params: &[],
+    ret: "The `TimeOfDay` component, hour through nanosecond.",
+    errors: &[],
+};
+
+/// `Core\Time\DateTime::zone`'s reference card — ADR 0117.
+const DATETIME_ZONE_DOC: MethodDoc = MethodDoc {
+    short: "Answers the zone this civil value is in — always one the program named, since \
+            none is ever ambient.",
+    params: &[],
+    ret: "The `Zone` component.",
+    errors: &[],
+};
+
+/// `Core\Time\DateTime::weekday`'s reference card — ADR 0117.
+const DATETIME_WEEKDAY_DOC: MethodDoc = MethodDoc {
+    short: "Answers the day of the week, replacing `date(\"N\")` — as the enum case rather \
+            than the number.",
+    params: &[],
+    ret: "The `Weekday` case, `Weekday::Monday` through `Weekday::Sunday`.",
+    errors: &[],
+};
+
+/// `Core\Time\DateTime::dayOfYear`'s reference card — ADR 0117.
+const DATETIME_DAY_OF_YEAR_DOC: MethodDoc = MethodDoc {
+    short: "Answers the ordinal day within the year, replacing `date(\"z\")`.",
+    params: &[],
+    ret: "`1` for 1 January through `365` or `366` — one-based where `date(\"z\")` is \
+          zero-based, as every other day count here is.",
+    errors: &[],
+};
+
+/// `Core\Time\DateTime::isLeapYear`'s reference card — ADR 0117.
+const DATETIME_IS_LEAP_YEAR_DOC: MethodDoc = MethodDoc {
+    short: "Answers whether the value's year has a 29 February, replacing `date(\"L\")` and \
+            `checkdate`'s year half; the day half has no equivalent because a date that does \
+            not exist throws where it is built.",
+    params: &[],
+    ret: "`true` in a leap year of the proleptic Gregorian calendar.",
+    errors: &[],
 };
 
 /// [`DATETIME`]'s slots, by index — the first two are [`INSTANT`]'s, in the
@@ -1238,7 +2075,7 @@ pub const TIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(INSTANT_NAME),
             symbol: "nvs_core_time_now",
-            doc: None,
+            doc: Some(&TIME_NOW_DOC),
         },
         CoreMethod {
             name: "monotonic",
@@ -1247,7 +2084,7 @@ pub const TIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
             symbol: "nvs_core_time_monotonic",
-            doc: None,
+            doc: Some(&TIME_MONOTONIC_DOC),
         },
         CoreMethod {
             name: "sleep",
@@ -1256,7 +2093,7 @@ pub const TIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_time_sleep",
-            doc: None,
+            doc: Some(&TIME_SLEEP_DOC),
         },
         CoreMethod {
             name: "fromEpoch",
@@ -1272,7 +2109,7 @@ pub const TIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(INSTANT_NAME),
             symbol: "nvs_core_time_from_epoch",
-            doc: None,
+            doc: Some(&TIME_FROM_EPOCH_DOC),
         },
         CoreMethod {
             name: "fromIso",
@@ -1281,7 +2118,7 @@ pub const TIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(INSTANT_NAME),
             symbol: "nvs_core_time_from_iso",
-            doc: None,
+            doc: Some(&TIME_FROM_ISO_DOC),
         },
         CoreMethod {
             name: "parse",
@@ -1294,7 +2131,7 @@ pub const TIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
             symbol: "nvs_core_time_parse",
-            doc: None,
+            doc: Some(&TIME_PARSE_DOC),
         },
         CoreMethod {
             name: "at",
@@ -1330,12 +2167,189 @@ pub const TIME: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
             symbol: "nvs_core_time_at",
-            doc: None,
+            doc: Some(&TIME_AT_DOC),
         },
     ],
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\Time::now`'s reference card — ADR 0117.
+const TIME_NOW_DOC: MethodDoc = MethodDoc {
+    short: "Reads the wall clock, replacing `time`, `microtime` and `date_create` at once — as \
+            an `Instant`, which a zone turns into a calendar reading with `->in($zone)`.",
+    params: &[],
+    ret: "The current `Instant`, to nanosecond resolution.",
+    errors: &[],
+};
+
+/// `Core\Time::monotonic`'s reference card — ADR 0117.
+const TIME_MONOTONIC_DOC: MethodDoc = MethodDoc {
+    short: "Reads the monotonic clock, replacing `hrtime` — for measuring, never for wall-clock \
+            time, which is why it answers a `Duration`: the value means nothing except against \
+            another reading of the same clock.",
+    params: &[],
+    ret: "The `Duration` since an origin fixed at this process's first reading, which never \
+          goes backwards.",
+    errors: &[],
+};
+
+/// `Core\Time::sleep`'s reference card — ADR 0117.
+const TIME_SLEEP_DOC: MethodDoc = MethodDoc {
+    short: "Waits for `$d`, replacing `sleep`, `usleep`, `time_nanosleep` and \
+            `time_sleep_until` — parking the task rather than blocking the core, so a \
+            neighbour on the same core runs meanwhile; a request cancelled mid-sleep stops \
+            here.",
+    params: &[ParamDoc {
+        name: "d",
+        desc: "How long to wait; zero or negative returns at once.",
+        shape: &[],
+    }],
+    ret: "Nothing.",
+    errors: &[],
+};
+
+/// `Core\Time::fromEpoch`'s reference card — ADR 0117.
+const TIME_FROM_EPOCH_DOC: MethodDoc = MethodDoc {
+    short: "Builds the instant at a Unix timestamp, replacing `DateTime::setTimestamp`; the \
+            `nanos` option is added after the second, so `-1` with `{nanos: 1}` is one \
+            nanosecond after `-1`, not before it.",
+    params: &[
+        ParamDoc {
+            name: "seconds",
+            desc: "Whole seconds since `1970-01-01T00:00:00Z`; negative before it.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "nanos",
+            desc: "Nanoseconds to add on top of the second, below `1000000000`; the default is \
+                   `0`.",
+            shape: &[],
+        },
+    ],
+    ret: "The `Instant`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`nanos` is not below `1000000000`, or `$seconds` lies outside the representable \
+               range, about ±9999 years.",
+    }],
+};
+
+/// `Core\Time::fromIso`'s reference card — ADR 0117.
+const TIME_FROM_ISO_DOC: MethodDoc = MethodDoc {
+    short: "Reads an ISO-8601 / RFC 3339 timestamp that carries its own offset — \
+            `2024-03-01T12:00:00Z`, `2024-03-01T13:00:00+01:00` — which is all of `strtotime` \
+            and `DateTime::__construct` that survives: a civil time with no offset is \
+            `Time::parse` with a zone, and a relative expression is a typed call.",
+    params: &[ParamDoc {
+        name: "text",
+        desc: "The timestamp text, with a date, a time and a `Z` or `±HH:MM` offset.",
+        shape: &[],
+    }],
+    ret: "The `Instant` the text names.",
+    errors: &[ErrorDoc {
+        error: "ParseError",
+        desc: "`$text` is not such a timestamp, with the component it stopped at named.",
+    }],
+};
+
+/// `Core\Time::parse`'s reference card — ADR 0117.
+const TIME_PARSE_DOC: MethodDoc = MethodDoc {
+    short: "Reads a civil date and time through a CLDR pattern and places it in `$zone`, \
+            replacing `DateTime::createFromFormat` and `strptime`; a literal pattern is \
+            validated and planned at compile time (ADR 0057). A field the pattern does not \
+            name is left at the start of its range.",
+    params: &[
+        ParamDoc {
+            name: "text",
+            desc: "The text to read; it stays data, so nothing of it carries a qualifier into \
+                   the answer.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "format",
+            desc: "A CLDR pattern of civil fields only — `yyyy-MM-dd HH:mm` — since the zone is \
+                   `$zone`; a grammar, so a `tainted` one is refused.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "zone",
+            desc: "The zone the civil fields are read in; a time the zone skips resolves \
+                   forward past the gap.",
+            shape: &[],
+        },
+    ],
+    ret: "The `DateTime` in `$zone`.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`$format` does not compile — a field letter outside the implemented subset, \
+                   an unterminated quote — or names a zone or offset field, which `$zone` \
+                   already answers.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "`$text` does not match `$format`: a literal that differs, a field with no \
+                   digits, trailing text, or fields that together are not a real civil time.",
+        },
+    ],
+};
+
+/// `Core\Time::at`'s reference card — ADR 0117.
+const TIME_AT_DOC: MethodDoc = MethodDoc {
+    short: "Builds a civil date and time in `$zone` from its fields, replacing `mktime`, \
+            `gmmktime` and `DateTime::setDate`; the clock fields default to midnight, and a \
+            time the zone skips — 02:30 on a spring-forward morning — resolves forward rather \
+            than throwing.",
+    params: &[
+        ParamDoc {
+            name: "year",
+            desc: "The year, within `-9999..=9999`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "month",
+            desc: "The month, `1` to `12`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "day",
+            desc: "The day of the month, which must exist in that month.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "zone",
+            desc: "The zone the fields are read in.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "hour",
+            desc: "The hour, `0` to `23`; the default is `0`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "minute",
+            desc: "The minute, `0` to `59`; the default is `0`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "second",
+            desc: "The second, `0` to `59`; the default is `0`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "nanos",
+            desc: "The subsecond nanoseconds, below `1000000000`; the default is `0`.",
+            shape: &[],
+        },
+    ],
+    ret: "The `DateTime` in `$zone`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "A field is outside its range, or the fields together are not a date that \
+               exists — `30` February — which is what `checkdate` used to answer.",
+    }],
 };
 
 /// [`TIME`]'s symbols.
@@ -1412,7 +2426,7 @@ pub const DATE: CoreClass = CoreClass {
         defaults: &[],
         return_ty: CoreTy::Instance(DATE_NAME),
         symbol: "nvs_core_time_date_at",
-        doc: None,
+        doc: Some(&DATE_AT_DOC),
     }],
     instance: &[
         CoreMethod {
@@ -1422,7 +2436,7 @@ pub const DATE: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_time_date_format",
-            doc: None,
+            doc: Some(&DATE_FORMAT_DOC),
         },
         CoreMethod {
             name: "plus",
@@ -1431,7 +2445,7 @@ pub const DATE: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATE_NAME),
             symbol: "nvs_core_time_date_plus",
-            doc: None,
+            doc: Some(&DATE_PLUS_DOC),
         },
         CoreMethod {
             name: "minus",
@@ -1440,7 +2454,7 @@ pub const DATE: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATE_NAME),
             symbol: "nvs_core_time_date_minus",
-            doc: None,
+            doc: Some(&DATE_MINUS_DOC),
         },
         CoreMethod {
             name: "with",
@@ -1449,7 +2463,7 @@ pub const DATE: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DATE_NAME),
             symbol: "nvs_core_time_date_with",
-            doc: None,
+            doc: Some(&DATE_WITH_DOC),
         },
         CoreMethod {
             name: "compareTo",
@@ -1458,11 +2472,162 @@ pub const DATE: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_time_date_compare_to",
-            doc: None,
+            doc: Some(&DATE_COMPARE_TO_DOC),
         },
     ],
     slots: &["year", "month", "day"],
     constants: &[],
+};
+
+/// `Core\Time\Date::at`'s reference card — ADR 0117.
+const DATE_AT_DOC: MethodDoc = MethodDoc {
+    short: "Builds a zone-free civil date from its three fields — the one place a date that \
+            does not exist throws, which is why there is no `checkdate`.",
+    params: &[
+        ParamDoc {
+            name: "y",
+            desc: "The year, within `-9999..=9999`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "m",
+            desc: "The month, `1` to `12`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "d",
+            desc: "The day of the month, which must exist in that month.",
+            shape: &[],
+        },
+    ],
+    ret: "The `Date`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "A field is outside its range, or the three together are not a date that exists.",
+    }],
+};
+
+/// `Core\Time\Date::format`'s reference card — ADR 0117.
+const DATE_FORMAT_DOC: MethodDoc = MethodDoc {
+    short: "Renders the date through a CLDR pattern of date fields — `yyyy-MM-dd`, `EEEE, d \
+            MMMM yyyy` — the same grammar `DateTime::format` takes, narrowed to what a date \
+            carries.",
+    params: &[ParamDoc {
+        name: "pattern",
+        desc: "A CLDR pattern naming only calendar fields; a grammar, so a `tainted` one is \
+               refused.",
+        shape: &[],
+    }],
+    ret: "The rendered text.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$pattern` does not compile, or names a time-of-day or zone field, which a date \
+               would have to invent.",
+    }],
+};
+
+/// `Core\Time\Date::plus`'s reference card — ADR 0117.
+const DATE_PLUS_DOC: MethodDoc = MethodDoc {
+    short: "Moves the date forward by `$count` calendar steps of `$unit`, with the same \
+            clamping `DateTime::plus` applies: the last day of January plus a month is the \
+            last day of February.",
+    params: &[
+        ParamDoc {
+            name: "count",
+            desc: "How many steps; negative moves back.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "unit",
+            desc: "`Unit::Day`, `Unit::Week`, `Unit::Month`, `Unit::Quarter` or `Unit::Year`.",
+            shape: &[],
+        },
+    ],
+    ret: "A new `Date`; the receiver is unchanged.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`$unit` is smaller than `Unit::Day`, which does not move a date.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "`$count` is past what a calendar span can hold, or the result lies outside \
+                   `-9999..=9999`.",
+        },
+    ],
+};
+
+/// `Core\Time\Date::minus`'s reference card — ADR 0117.
+const DATE_MINUS_DOC: MethodDoc = MethodDoc {
+    short: "Moves the date back by `$count` calendar steps of `$unit` — `plus` with the count \
+            negated.",
+    params: &[
+        ParamDoc {
+            name: "count",
+            desc: "How many steps; negative moves forward.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "unit",
+            desc: "`Unit::Day`, `Unit::Week`, `Unit::Month`, `Unit::Quarter` or `Unit::Year`.",
+            shape: &[],
+        },
+    ],
+    ret: "A new `Date`; the receiver is unchanged.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`$unit` is smaller than `Unit::Day`, which does not move a date.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "`$count` is past what a calendar span can hold, or the result lies outside \
+                   `-9999..=9999`.",
+        },
+    ],
+};
+
+/// `Core\Time\Date::with`'s reference card — ADR 0117.
+const DATE_WITH_DOC: MethodDoc = MethodDoc {
+    short: "Replaces any of the three fields and leaves the rest; a combination that is not a \
+            date throws rather than clamps, since `2024-02-29` with `{year: 2023}` has no \
+            answer that is not a guess.",
+    params: &[
+        ParamDoc {
+            name: "year",
+            desc: "The new year, within `-9999..=9999`; omitted leaves the field alone.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "month",
+            desc: "The new month, `1` to `12`; omitted leaves the field alone.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "day",
+            desc: "The new day of the month; omitted leaves the field alone.",
+            shape: &[],
+        },
+    ],
+    ret: "A new `Date`; the receiver is unchanged.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "An option is outside its field's range, or the fields together are not a date \
+               that exists.",
+    }],
+};
+
+/// `Core\Time\Date::compareTo`'s reference card — ADR 0117.
+const DATE_COMPARE_TO_DOC: MethodDoc = MethodDoc {
+    short: "Orders two dates on the calendar, as `Comparable` (ADR 0013) requires.",
+    params: &[ParamDoc {
+        name: "other",
+        desc: "The date to compare against.",
+        shape: &[],
+    }],
+    ret: "`-1` when the receiver is earlier than `$other`, `0` when they are the same day, `1` \
+          when it is later.",
+    errors: &[],
 };
 
 /// [`DATE`]'s slots, by index.
@@ -1557,7 +2722,7 @@ pub const TIME_OF_DAY: CoreClass = CoreClass {
         defaults: &[],
         return_ty: CoreTy::Instance(TIME_OF_DAY_NAME),
         symbol: "nvs_core_time_of_day_at",
-        doc: None,
+        doc: Some(&TIME_OF_DAY_AT_DOC),
     }],
     instance: &[
         CoreMethod {
@@ -1567,7 +2732,7 @@ pub const TIME_OF_DAY: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_time_of_day_format",
-            doc: None,
+            doc: Some(&TIME_OF_DAY_FORMAT_DOC),
         },
         CoreMethod {
             name: "plus",
@@ -1576,7 +2741,7 @@ pub const TIME_OF_DAY: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(TIME_OF_DAY_NAME),
             symbol: "nvs_core_time_of_day_plus",
-            doc: None,
+            doc: Some(&TIME_OF_DAY_PLUS_DOC),
         },
         CoreMethod {
             name: "minus",
@@ -1585,7 +2750,7 @@ pub const TIME_OF_DAY: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(TIME_OF_DAY_NAME),
             symbol: "nvs_core_time_of_day_minus",
-            doc: None,
+            doc: Some(&TIME_OF_DAY_MINUS_DOC),
         },
         CoreMethod {
             name: "with",
@@ -1594,7 +2759,7 @@ pub const TIME_OF_DAY: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(TIME_OF_DAY_NAME),
             symbol: "nvs_core_time_of_day_with",
-            doc: None,
+            doc: Some(&TIME_OF_DAY_WITH_DOC),
         },
         CoreMethod {
             name: "compareTo",
@@ -1603,11 +2768,168 @@ pub const TIME_OF_DAY: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_time_of_day_compare_to",
-            doc: None,
+            doc: Some(&TIME_OF_DAY_COMPARE_TO_DOC),
         },
     ],
     slots: &["hour", "minute", "second", "nanos"],
     constants: &[],
+};
+
+/// `Core\Time\TimeOfDay::at`'s reference card — ADR 0117.
+const TIME_OF_DAY_AT_DOC: MethodDoc = MethodDoc {
+    short: "Builds a zone-free wall-clock reading from its fields, with the two a clock \
+            usually leaves off defaulting to zero.",
+    params: &[
+        ParamDoc {
+            name: "hour",
+            desc: "The hour, `0` to `23`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "minute",
+            desc: "The minute, `0` to `59`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "second",
+            desc: "The second, `0` to `59`; the default is `0`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "nanos",
+            desc: "The subsecond nanoseconds, below `1000000000`; the default is `0`.",
+            shape: &[],
+        },
+    ],
+    ret: "The `TimeOfDay`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "A field is outside its range, so the four are not a time of day.",
+    }],
+};
+
+/// `Core\Time\TimeOfDay::format`'s reference card — ADR 0117.
+const TIME_OF_DAY_FORMAT_DOC: MethodDoc = MethodDoc {
+    short: "Renders the clock reading through a CLDR pattern of time fields — `HH:mm:ss`, \
+            `h:mm a` — the same grammar `DateTime::format` takes, narrowed to what a clock \
+            carries.",
+    params: &[ParamDoc {
+        name: "pattern",
+        desc: "A CLDR pattern naming only time-of-day fields; a grammar, so a `tainted` one \
+               is refused.",
+        shape: &[],
+    }],
+    ret: "The rendered text.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$pattern` does not compile, or names a calendar or zone field, which a clock \
+               reading would have to invent.",
+    }],
+};
+
+/// `Core\Time\TimeOfDay::plus`'s reference card — ADR 0117.
+const TIME_OF_DAY_PLUS_DOC: MethodDoc = MethodDoc {
+    short: "Moves the reading forward by `$count` steps of `$unit`, wrapping within the day: \
+            `23:30` plus an hour is `00:30`, since a time of day has no date for a carry to \
+            go to — a step that carries a day is `DateTime::plus`.",
+    params: &[
+        ParamDoc {
+            name: "count",
+            desc: "How many steps; negative moves back.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "unit",
+            desc: "`Unit::Hour` or smaller.",
+            shape: &[],
+        },
+    ],
+    ret: "A new `TimeOfDay`; the receiver is unchanged.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`$unit` is `Unit::Day` or larger, which does not move a time of day.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "`$count` is past what a span can hold.",
+        },
+    ],
+};
+
+/// `Core\Time\TimeOfDay::minus`'s reference card — ADR 0117.
+const TIME_OF_DAY_MINUS_DOC: MethodDoc = MethodDoc {
+    short: "Moves the reading back by `$count` steps of `$unit`, wrapping within the day — \
+            `plus` with the count negated.",
+    params: &[
+        ParamDoc {
+            name: "count",
+            desc: "How many steps; negative moves forward.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "unit",
+            desc: "`Unit::Hour` or smaller.",
+            shape: &[],
+        },
+    ],
+    ret: "A new `TimeOfDay`; the receiver is unchanged.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`$unit` is `Unit::Day` or larger, which does not move a time of day.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "`$count` is past what a span can hold.",
+        },
+    ],
+};
+
+/// `Core\Time\TimeOfDay::with`'s reference card — ADR 0117.
+const TIME_OF_DAY_WITH_DOC: MethodDoc = MethodDoc {
+    short: "Replaces any of the four clock fields and leaves the rest.",
+    params: &[
+        ParamDoc {
+            name: "hour",
+            desc: "The new hour, `0` to `23`; omitted leaves the field alone.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "minute",
+            desc: "The new minute, `0` to `59`; omitted leaves the field alone.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "second",
+            desc: "The new second, `0` to `59`; omitted leaves the field alone.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "nanos",
+            desc: "The new subsecond nanoseconds, below `1000000000`; omitted leaves the field \
+                   alone.",
+            shape: &[],
+        },
+    ],
+    ret: "A new `TimeOfDay`; the receiver is unchanged.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "An option is outside its field's range.",
+    }],
+};
+
+/// `Core\Time\TimeOfDay::compareTo`'s reference card — ADR 0117.
+const TIME_OF_DAY_COMPARE_TO_DOC: MethodDoc = MethodDoc {
+    short: "Orders two clock readings within the day, as `Comparable` (ADR 0013) requires.",
+    params: &[ParamDoc {
+        name: "other",
+        desc: "The reading to compare against.",
+        shape: &[],
+    }],
+    ret: "`-1` when the receiver is earlier in the day than `$other`, `0` when they are the \
+          same reading, `1` when it is later.",
+    errors: &[],
 };
 
 /// [`TIME_OF_DAY`]'s slots, by index.
