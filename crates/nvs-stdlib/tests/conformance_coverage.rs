@@ -250,6 +250,10 @@ impl Attribution {
 /// The members that were below the floor when the gate was written, and are
 /// the whole of Stage 5 item 10's remaining worklist.
 ///
+/// **It is empty**, so item 10's worklist is closed and what is left here is
+/// the ratchet: every `Core` member is at or above the floor, and the test
+/// below is now only the thing that keeps the next one from arriving thin.
+///
 /// **This list may only shrink.** It is not a permission to be thin: the test
 /// below fails on a member that is *not* here and below the floor, and equally
 /// on one that is here and has reached it, so the list cannot go stale in
@@ -261,7 +265,7 @@ impl Attribution {
 /// `python tools/gaps.py --coverage` ranks these by class and names each one's
 /// anchor; a case that asks one of them a *second question* — not the same
 /// question again — is what removes a line.
-const BELOW_THE_FLOOR: &[&str] = &[r"Core\Router::urlAbsolute"];
+const BELOW_THE_FLOOR: &[&str] = &[];
 
 /// Stage 5's item 10: no `Core` member is asked by fewer than three cases.
 ///

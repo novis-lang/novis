@@ -1,0 +1,119 @@
+--TEST--
+a configured origin's trailing `/` is dropped exactly once, so `Core\Router::urlAbsolute` puts one separator between authority and path on every row — ADR 0102 § 6
+--FILE--
+<?nvs
+// The bound, and it needs both sides to mean anything. An origin is a string a
+// person writes into `nvs.toml`, so half of them end in `/` and half do not,
+// and the join has to answer the same URL either way: one separator, never two
+// and never none. `Ctx::set_origin` is where the trailing `/` is dropped —
+// its doc comment says so — and this is the side of the bound where the drop
+// has to happen. The other side is
+// `router-url-absolute-is-url-with-the-configured-origin-in-front.nvst`, whose
+// origin has no trailing `/` and where the same join has to leave the path's
+// own leading `/` alone.
+//
+// The two failures are not symmetrical, which is why both halves are pinned.
+// `https://example.test:8443//posts/7` is a different URL to a cache, a
+// signature and a router than `/posts/7` is, and it is one a reader skims past.
+// `https://example.test:8443posts/7` is a different *authority*, and it is the
+// one that turns a link into a request to somewhere else entirely.
+class Docs {
+    // ADR 0096 § 1: the decision is a required sibling of every `#[Route]`, and
+    // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
+    #[\Core\Route(path: "/", method: \Core\Http\Method::Get, name: "Docs::home")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function home(): string { return "home"; }
+
+    #[\Core\Route(path: "/files/{rest...}", method: \Core\Http\Method::Get, name: "Docs::file")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function file(string $rest): string { return $rest; }
+}
+
+class Posts {
+    #[\Core\Route(path: "/posts/{page?}", method: \Core\Http\Method::Get, name: "Posts::list")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function list(uint $page = 1): string { return "page " . $page; }
+
+    #[\Core\Route(path: "/posts/{id}", method: \Core\Http\Method::Get, name: "Posts::show")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function show(uint $id, #[\Core\Query] string $sort = ""): string { return "post " . $id; }
+}
+
+// The origin as the file spells it, and the same origin as it has to reach a
+// link: the trailing `/` is the whole difference, and it is written out here
+// rather than trimmed by a member so that the assertion does not depend on the
+// thing it is asserting.
+string $written = "https://example.test:8443/";
+string $joined = "https://example.test:8443";
+
+// The rows where the join is visible: the root, whose relative form is `/` and
+// so is the cell where a doubled separator is the entire path; a `{rest...}`,
+// whose value carries its own `/`s; an optional capture dropped, which shortens
+// the path to a single segment; and a query string, which puts a second
+// non-segment character into the answer.
+array<string> $relative = [
+    Core\Router::url("Docs::home", []),
+    Core\Router::url("Docs::file", ["rest" => "a/b c"]),
+    Core\Router::url("Posts::list", []),
+    Core\Router::url("Posts::list", ["page" => 3]),
+    Core\Router::url("Posts::show", ["id" => 7, "sort" => "new"]),
+];
+
+array<string> $absolute = [
+    Core\Router::urlAbsolute("Docs::home", []),
+    Core\Router::urlAbsolute("Docs::file", ["rest" => "a/b c"]),
+    Core\Router::urlAbsolute("Posts::list", []),
+    Core\Router::urlAbsolute("Posts::list", ["page" => 3]),
+    Core\Router::urlAbsolute("Posts::show", ["id" => 7, "sort" => "new"]),
+];
+
+// One count per way the join can be wrong, over the same table, so a cell that
+// is right by one measure and wrong by another cannot hide inside a single
+// total. ADR 0007 § 5: an `array<T>`'s stored key type is `string`.
+var $rows = 0;
+var $exact = 0;
+var $doubled = 0;
+var $separated = 0;
+foreach ($relative as string $i => string $link) {
+    $rows = $rows + 1;
+    // The trailing `/` was dropped, and the path's own leading `/` was not.
+    if ($absolute[$i] == $joined . $link) {
+        $exact = $exact + 1;
+    }
+    // It was dropped at most once — the `//` a naive concatenation leaves.
+    if (Core\Str::contains($absolute[$i], $joined . "//")) {
+        $doubled = $doubled + 1;
+    }
+    // And at least once — a separator is there at all, so the first path
+    // segment did not fuse onto the authority.
+    if (Core\Str::startsWith($absolute[$i], $joined . "/")) {
+        $separated = $separated + 1;
+    }
+}
+echo "exact=", $exact, "/", $rows, "\n";
+echo "doubled=", $doubled, "\n";
+echo "separated=", $separated, "/", $rows, "\n";
+
+// The origin as configured still ends in the `/` the answers do not double, so
+// the drop is the join's and not something the file was quietly rewritten to
+// avoid needing.
+echo "written=", $written, "\n";
+
+// The two cells worth reading: the root, which is the origin plus the one
+// character its path consists of, and the `{rest...}`, whose own `/` sits
+// inside the path and is not a separator at all.
+echo "root=", $absolute["0"], "\n";
+echo "rest=", $absolute["1"], "\n";
+--FILE nvs.toml--
+# ADR 0102 § 6's configured origin, written the way half of them are written:
+# with a trailing `/`. `Ctx::set_origin` drops it, which is what this case is
+# about.
+[app]
+origin = "https://example.test:8443/"
+--EXPECT--
+exact=5/5
+doubled=0
+separated=5/5
+written=https://example.test:8443/
+root=https://example.test:8443/
+rest=https://example.test:8443/files/a/b%20c
