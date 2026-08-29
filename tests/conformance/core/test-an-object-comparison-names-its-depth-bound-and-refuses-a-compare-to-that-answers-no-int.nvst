@@ -1,0 +1,91 @@
+--TEST--
+`Core\Test`'s two object-comparison error paths: the containment bound `assertEqualsDeep` stops at, named on both sides, and the uncatchable refusal of a `compareTo` that answers something other than an `int` — ADR 0079 § 4, ADR 0013
+--FILE--
+<?nvs
+// An Novis array cannot contain itself (ADR 0090 § 3), so an object graph is
+// the only structure the deep walk can follow forever, and a depth cap is what
+// bounds it. This case asserts the cap from both sides, because a member that
+// stopped one level early — or one late — reads exactly as plausibly against
+// either half on its own.
+
+final class Node {
+    public function constructor(public string $name, public ?Node $next) {}
+}
+
+final class Chain {
+    /// `depth` nodes, each holding the one below it, all named `name`.
+    public static function of(int $depth, string $name): ?Node {
+        ?Node $head = null;
+        for (int $i = 0; $i < $depth; $i = $i + 1) {
+            $head = new Node($name, $head);
+        }
+        return $head;
+    }
+}
+
+// The last depth the walk finishes. Both chains agree everywhere, so the
+// assertion passes and nothing is printed by it.
+try {
+    Core\Test::assertEqualsDeep(Chain::of(63, "a"), Chain::of(63, "a"));
+    echo "63 levels compared\n";
+} catch (Throwable $under) {
+    echo "63 refused: ", $under->message, "\n";
+}
+
+// The first it refuses — and it refuses rather than answering, which is the
+// half that matters: a walk that had quietly compared the first 64 levels and
+// reported agreement would print the same line as the row above. The message
+// carries the whole path it descended, so only its opening is echoed here.
+try {
+    Core\Test::assertEqualsDeep(Chain::of(64, "a"), Chain::of(64, "a"));
+    echo "64 levels compared\n";
+} catch (Throwable $over) {
+    echo Core\Str::slice($over->message, 0, 62), "\n";
+}
+
+// The cap is on how deep the walk *goes*, not on how deep the subject is: two
+// far deeper chains differing at the very top are answered by the difference,
+// because the walk meets it before it has spent any depth.
+try {
+    Core\Test::assertEqualsDeep(Chain::of(200, "a"), Chain::of(200, "z"));
+    echo "200 levels compared\n";
+} catch (Throwable $differs) {
+    echo $differs->message, "\n";
+}
+
+// ADR 0013's `compareTo` answers an ordering, and `assertEquals` reads it as
+// one. A class whose own `compareTo` answers something else is a program the
+// ADR refuses where it is written — this module's known gap 1 — so what is
+// left at run time is the uncatchable backstop below, and the ordinary row
+// first to show the call itself is fine.
+final class Weight {
+    public function constructor(public int $grams) {}
+    public function compareTo(mixed $other): int {
+        return $this->grams <=> ($other as Weight)->grams;
+    }
+}
+
+Core\Test::assertEquals(new Weight(7), new Weight(7));
+echo "an int-answering compareTo is read as an ordering\n";
+
+final class Loose {
+    public function constructor(public string $name) {}
+    public function compareTo(mixed $other): string { return "nope"; }
+}
+
+// Uncatchable on purpose: an assertion that cannot read the answer has nothing
+// true to report, and a `catch` here would let a suite carry on from it.
+try {
+    Core\Test::assertEquals(new Loose("a"), new Loose("a"));
+} catch (Throwable $never) {
+    echo "unreachable: ", $never->message, "\n";
+}
+
+echo "unreachable\n";
+--EXPECT--
+63 levels compared
+Core\Test::assertEqualsDeep walked 64 levels of containment at
+Core\Test::assertEqualsDeep failed: the two differ at `$actual->name`: `$actual` is "a", `$expected` is "z"
+an int-answering compareTo is read as an ordering
+--EXPECT-ERROR--
+FATAL: Core\Test::assertEquals expected an `int` from `compareTo`, got tag 5

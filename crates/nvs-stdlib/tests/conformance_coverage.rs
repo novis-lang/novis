@@ -583,6 +583,13 @@ fn fault_sites() -> Vec<Site> {
 /// The error paths that neither suite reaches and no site declares
 /// unreachable, frozen at the size the gate below landed at.
 ///
+/// **It is empty, and that is the whole of item 11**: every `Fault::` site in
+/// this crate with a findable stem is now either caught by a case or declared
+/// at the site. The list stays here because an empty allowance is what makes
+/// the gate below a ratchet — a site added tomorrow with neither answer fails
+/// the test rather than quietly extending a roster, and the two paragraphs
+/// after this one are the instructions for the session that meets one.
+///
 /// **This list may only shrink**, and it shrinks two ways, because item 11
 /// has two answers and the site is what decides between them. A boundary a
 /// program can reach loses its line here by gaining a case that catches the
@@ -600,31 +607,7 @@ fn fault_sites() -> Vec<Site> {
 /// whole message, which is what a session works from; the key here is the file
 /// and the stem because a line number moves under an unrelated edit and a stem
 /// does not. One line covers every site in its file writing that stem.
-const OWED_A_CASE: &[(&str, &str)] = &[
-    ("debug.rs", "Core\\Debug::dump could not write:"), // debug.rs:147
-    (
-        "debug.rs",
-        "Core\\Debug::dump read an empty slot the array reported as live",
-    ), // debug.rs:187
-    (
-        "math.rs",
-        "Core\\Math::round expected a `Core\\RoundMode` case for `mode`, got tag",
-    ), // math.rs:1302
-    (
-        "path.rs",
-        "Core\\Path::join read an empty slot the array reported as live",
-    ), // path.rs:606
-    (
-        "test.rs",
-        "Core\\Test::assertEquals expected an `int` from `compareTo`, got tag",
-    ), // test.rs:663
-    ("test.rs", "Core\\Test::assertEqualsDeep walked"), // test.rs:692
-    ("validate.rs", "Core\\Validate::isIp received"),   // validate.rs:275
-    (
-        "validate.rs",
-        "Core\\Validate::isIp expected `4`, `6` or nothing for `version`, got tag",
-    ), // validate.rs:280
-];
+const OWED_A_CASE: &[(&str, &str)] = &[];
 
 /// Stage 5's item 11: every error path a `Core` member can take is asserted by
 /// a case, or is declared at the site to be one no source program reaches.

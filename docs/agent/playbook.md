@@ -2273,6 +2273,23 @@ is why" — is this file.
   or keep the whole comment to five lines — and re-run
   `cargo test -p nvs-stdlib --test conformance_coverage every_error_path` after writing a batch,
   which is where both were caught.
+- **A `Fault::fatal` that a case can reach is pinned with `--EXPECT-ERROR--`, and the program's
+  own `try`/`catch` around it is worth writing anyway.** `FATAL:` goes to standard error and the
+  process stops there, so the case's `--EXPECT--` holds only what was printed *before* it and
+  every row of the case has to come first — a fatal in the middle silently truncates the rows
+  under it and the diff reads as "the member stopped answering". Writing the fatal call inside a
+  `try` with an `echo "unreachable"` in the `catch` is what makes the *uncatchable* half an
+  assertion rather than a claim, since a fatal that ever became catchable would print that line.
+  `tests/conformance/core/test-an-object-comparison-names-its-depth-bound-and-refuses-a-compare-to-that-answers-no-int.nvst`
+  is the shape, and `tests/differential/core/arr-count-by-refuses-what-array_count_values-warns-and-skips.nvst`
+  was the only other case in either suite using the section.
+
+- **A stem that has to reach `conformance_coverage.rs`'s corpus needs `Core\Test` spelled with
+  one backslash, which a Novis string literal will not give you.** The gate reads every case
+  file as raw text and looks for the site's message stem, so the stem has to appear literally.
+  An `--EXPECT--` line is plain text and carries it; a `"Core\\Test::…"` written in the program
+  would land as two backslashes and match nothing. Echo the message (or `Core\Str::slice` of its
+  opening, when the message carries a 64-segment path) and let the expectation hold the stem.
 
 ## Splitting a file that got too big
 
