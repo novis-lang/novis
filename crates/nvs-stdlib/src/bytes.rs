@@ -173,6 +173,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "length",
+            names: &["b"],
             params: &[CoreTy::Blob(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Uint,
@@ -181,6 +182,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "at",
+            names: &["b", "index"],
             params: &[CoreTy::Blob(Qual::Contagious), CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Uint,
@@ -189,6 +191,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "slice",
+            names: &["b", "offset", "length"],
             params: &[
                 CoreTy::Blob(Qual::Contagious),
                 CoreTy::Int,
@@ -201,6 +204,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "indexOf",
+            names: &["haystack", "needle"],
             params: &[
                 CoreTy::Blob(Qual::Neutral),
                 CoreTy::Blob(Qual::Neutral),
@@ -213,6 +217,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "compare",
+            names: &["a", "b"],
             params: &[CoreTy::Blob(Qual::Neutral), CoreTy::Blob(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Int,
@@ -221,6 +226,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "contains",
+            names: &["haystack", "needle"],
             params: &[CoreTy::Blob(Qual::Neutral), CoreTy::Blob(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
@@ -229,6 +235,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "startsWith",
+            names: &["b", "prefix"],
             params: &[CoreTy::Blob(Qual::Neutral), CoreTy::Blob(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
@@ -237,6 +244,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "endsWith",
+            names: &["b", "suffix"],
             params: &[CoreTy::Blob(Qual::Neutral), CoreTy::Blob(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
@@ -245,6 +253,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "fill",
+            names: &["length", "byte"],
             params: &[CoreTy::Uint, CoreTy::Uint],
             defaults: &[],
             return_ty: CoreTy::Bytes,
@@ -253,6 +262,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "repeat",
+            names: &["b", "times"],
             params: &[CoreTy::Blob(Qual::Contagious), CoreTy::Uint],
             defaults: &[],
             return_ty: CoreTy::Bytes,
@@ -261,6 +271,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "join",
+            names: &["parts", "separator"],
             params: &[
                 CoreTy::Array(&CoreTy::Bytes),
                 CoreTy::Blob(Qual::Contagious),
@@ -272,6 +283,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "pack",
+            names: &["format", "values"],
             params: &[CoreTy::Text(Qual::Sink), CoreTy::Variadic(&CoreTy::Mixed)],
             defaults: &[],
             return_ty: CoreTy::Bytes,
@@ -280,6 +292,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "unpack",
+            names: &["b", "format"],
             params: &[CoreTy::Blob(Qual::Contagious), CoreTy::Text(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Mixed),

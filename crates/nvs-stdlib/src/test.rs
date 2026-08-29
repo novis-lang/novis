@@ -158,6 +158,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "assertSame",
+            names: &["actual", "expected"],
             params: &[T, T, CoreTy::Options(MESSAGE)],
             defaults: &[],
             return_ty: CoreTy::Void,
@@ -166,6 +167,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "assertEquals",
+            names: &["actual", "expected"],
             params: &[T, T, CoreTy::Options(MESSAGE)],
             defaults: &[],
             return_ty: CoreTy::Void,
@@ -174,6 +176,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "assertEqualsDeep",
+            names: &["actual", "expected"],
             params: &[T, T, CoreTy::Options(MESSAGE)],
             defaults: &[],
             return_ty: CoreTy::Void,
@@ -182,6 +185,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "assertTrue",
+            names: &["actual"],
             params: &[CoreTy::Bool, CoreTy::Options(MESSAGE)],
             defaults: &[],
             return_ty: CoreTy::Void,
@@ -190,6 +194,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "assertNull",
+            names: &["actual"],
             params: &[CoreTy::Mixed, CoreTy::Options(MESSAGE)],
             defaults: &[],
             return_ty: CoreTy::Void,
@@ -198,6 +203,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "assertCount",
+            names: &["actual", "expected"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
                 CoreTy::Uint,
@@ -210,6 +216,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "assertThrows",
+            names: &["body", "expected"],
             params: &[
                 CoreTy::Callable,
                 CoreTy::Text(Qual::Neutral),
@@ -222,6 +229,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "assertDoesNotThrow",
+            names: &["body"],
             params: &[CoreTy::Callable, CoreTy::Options(MESSAGE)],
             defaults: &[],
             return_ty: CoreTy::Void,
@@ -230,6 +238,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "expectFailure",
+            names: &["body"],
             params: &[CoreTy::Callable],
             defaults: &[],
             return_ty: CoreTy::Void,

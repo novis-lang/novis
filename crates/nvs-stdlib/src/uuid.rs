@@ -119,6 +119,7 @@ pub const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "v4",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
@@ -127,6 +128,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "v7",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
@@ -135,6 +137,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "parse",
+            names: &["s"],
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
@@ -143,6 +146,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "tryParse",
+            names: &["s"],
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Instance(NAME)),
@@ -152,6 +156,7 @@ pub const CLASS: CoreClass = CoreClass {
     ],
     instance: &[CoreMethod {
         name: "toString",
+        names: &[],
         params: &[],
         defaults: &[],
         return_ty: CoreTy::Str,

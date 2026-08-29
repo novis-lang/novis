@@ -226,6 +226,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "of",
+            names: &["data", "digest"],
             params: &[CoreTy::Union(DATA), CoreTy::Enum(DIGEST_NAME)],
             defaults: &[],
             return_ty: CoreTy::Bytes,
@@ -234,6 +235,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "hmac",
+            names: &["data", "key", "digest"],
             params: &[CoreTy::Union(DATA), CoreTy::Bytes, CoreTy::Union(STRONG)],
             defaults: &[],
             return_ty: CoreTy::Bytes,
@@ -242,6 +244,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "equals",
+            names: &["a", "b"],
             params: &[CoreTy::Bytes, CoreTy::Bytes],
             defaults: &[],
             return_ty: CoreTy::Bool,
@@ -250,6 +253,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "stream",
+            names: &["digest"],
             params: &[CoreTy::Enum(DIGEST_NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(STREAM_NAME),
@@ -279,6 +283,7 @@ pub(crate) const STREAM: CoreClass = CoreClass {
     instance: &[
         CoreMethod {
             name: "update",
+            names: &["data"],
             params: &[CoreTy::Union(DATA)],
             defaults: &[],
             return_ty: CoreTy::Void,
@@ -287,6 +292,7 @@ pub(crate) const STREAM: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "finish",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bytes,

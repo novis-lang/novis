@@ -93,6 +93,7 @@ const COMPARE_TO: &str = "compareTo";
 /// "a comparator given at construction", which is this.
 pub(crate) const NEW: CoreMethod = CoreMethod {
     name: "constructor",
+    names: &["comparator"],
     params: &[CoreTy::Nullable(&CoreTy::Callable)],
     defaults: &[Const::Null],
     return_ty: CoreTy::Instance(NAME),
@@ -111,6 +112,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     instance: &[
         CoreMethod {
             name: "push",
+            names: &["value"],
             params: &[CoreTy::Var("T")],
             defaults: &[],
             return_ty: CoreTy::Void,
@@ -119,6 +121,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "peek",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Var("T"),
@@ -127,6 +130,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "pop",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Var("T"),
@@ -135,6 +139,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "count",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Uint,
@@ -143,6 +148,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "isEmpty",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bool,

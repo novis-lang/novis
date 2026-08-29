@@ -444,11 +444,24 @@ pub enum CoreTy {
     /// [`CoreTy`] wrapping an ADR 0036 shape.
     ///
     /// Only ever the **last** entry of [`CoreMethod::params`], and never
-    /// listed in [`CoreMethod::defaults`]: every option has a default of its
-    /// own, so the bag itself is optional by construction rather than by
-    /// declaration. `an_options_bag_is_last_and_never_empty` holds both.
+    /// listed in [`CoreMethod::defaults`] or in [`CoreMethod::names`]: every
+    /// option has a default of its own, so the bag itself is optional by
+    /// construction rather than by declaration, and its callable name is
+    /// [`OPTIONS_NAME`] for every member that has one.
+    /// `an_options_bag_is_last_and_never_empty` holds both.
     Options(&'static [CoreOption]),
 }
+
+/// The one name a trailing [`CoreTy::Options`] bag is callable by, for every
+/// member that has one — [ADR 0063](../../../docs/adr/0063-core-api-conventions.md)
+/// R2's "the trailing bag by the one name `options`".
+///
+/// It lives beside the type rather than on the row because it is a property of
+/// *being* a bag: a per-row spelling would be 60 copies of one string and a
+/// question at every call site about which one this member chose. That is also
+/// why [`CoreMethod::names`] carries no entry for it — there is nothing
+/// per-row to record.
+pub const OPTIONS_NAME: &str = "options";
 
 /// One option inside a [`CoreTy::Options`] bag: its name, its type, and the
 /// value a call that leaves it out passes.
@@ -609,12 +622,12 @@ pub struct MethodDoc {
 
 /// One parameter's name and description.
 ///
-/// The first place a parameter's **name** exists in the registry at all —
-/// [`crate`]'s gap 3 records that a row carries types and never names. ADR
-/// 0063 R2 makes every `Core` parameter callable by that name, which is
-/// `docs/agent/loop-goal.md` Stage 0b's open item: names move onto the row
-/// itself, one per positional slot, and this field must equal the row's —
-/// it is the description's key, never the name's home.
+/// A **key**, not the name's home: [`CoreMethod::names`] is where a
+/// parameter's name lives, and this must equal it entry for entry —
+/// `a_documented_rows_param_docs_agree_with_its_names` holds the two
+/// together. The card hangs a description off a name the row already
+/// declares, so a documented member cannot end up with two spellings of one
+/// parameter and no rule about which a caller writes.
 #[derive(Clone, Copy, Debug)]
 pub struct ParamDoc {
     /// The name as the spec writes it, without the `$` — `s`, `pattern`,
@@ -656,6 +669,25 @@ pub struct ErrorDoc {
 pub struct CoreMethod {
     /// The member's own name, `camelCase` per ADR 0029.
     pub name: &'static str,
+    /// The `$name` each positional parameter is callable by — one per entry of
+    /// [`Self::positional`], in the same order, and **the spelling
+    /// [01-core-library.md](../../../docs/spec/01-core-library.md)'s signature
+    /// column writes**.
+    ///
+    /// [ADR 0063](../../../docs/adr/0063-core-api-conventions.md) R2 is the
+    /// rule: every `Core` parameter is callable by name under exactly the
+    /// rules a user-declared method has, so a name is compatibility surface
+    /// and renaming one is a breaking change to the spec. That is what makes
+    /// the spec's column the source rather than a convenience — the guard test
+    /// `every_registry_rows_names_are_the_specs_signature_column` parses the
+    /// same column and holds the two together.
+    ///
+    /// A trailing options bag has no entry here: its one name is
+    /// [`OPTIONS_NAME`], which is why this is aligned to [`Self::positional`]
+    /// rather than to [`Self::params`]. A variadic tail keeps its entry, so
+    /// the alignment holds for every row, but R2 also says a name never
+    /// reaches one — the entry documents the tail, it does not open it.
+    pub names: &'static [&'static str],
     /// Each parameter's declared type, positional. ADR 0063 R1 puts the
     /// subject first, and R2 puts an options bag ([`CoreTy::Options`]) last if
     /// the member has one.
@@ -1282,6 +1314,8 @@ pub fn core_enum(name: &str) -> Option<&'static CoreEnum> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use super::*;
 
     /// ADR 0066 § 3b: a class with a `tryParse` declares no `isValid`,
@@ -1591,6 +1625,7 @@ mod tests {
     fn a_written_type_parameter_is_ordered_and_deduplicated() {
         const METHOD: CoreMethod = CoreMethod {
             name: "sample",
+            names: &["a", "key"],
             params: &[
                 CoreTy::Array(&CoreTy::Written("K")),
                 CoreTy::Written("K"),
@@ -2018,6 +2053,83 @@ mod tests {
                 "{}'s card lists its cases out of declaration order",
                 declared.name
             );
+        }
+    }
+
+    /// ADR 0063 R2's names, structurally: one per positional slot, in that
+    /// order, `camelCase`, distinct within a row, and never the bag's own
+    /// [`OPTIONS_NAME`] — which is not on the row at all.
+    ///
+    /// The alignment is what every consumer relies on, because a name resolves
+    /// to a slot by its *index* here: `nvs_types::core_lib` reads
+    /// [`CoreMethod::names`] the way it reads [`CoreMethod::positional`], and
+    /// the two lists disagreeing would bind an argument to the wrong
+    /// parameter rather than reject it. The spec column is
+    /// `every_registry_rows_names_are_the_specs_signature_column`'s subject;
+    /// this is the half that holds for the rows §§ 1-12 do not write.
+    #[test]
+    fn every_registry_row_names_one_parameter_per_positional_slot() {
+        for class in CLASSES {
+            for method in class.members() {
+                assert_eq!(
+                    method.names.len(),
+                    method.positional().len(),
+                    "{}::{} names {:?} for {} positional parameter(s)",
+                    class.name,
+                    method.name,
+                    method.names,
+                    method.positional().len()
+                );
+                for name in method.names {
+                    assert!(
+                        name.starts_with(|c: char| c.is_ascii_lowercase())
+                            && name.chars().all(|c| c.is_ascii_alphanumeric()),
+                        "{}::{}'s parameter `{name}` is not camelCase",
+                        class.name,
+                        method.name
+                    );
+                    assert_ne!(
+                        *name, OPTIONS_NAME,
+                        "{}::{} gives a positional parameter the trailing bag's own name",
+                        class.name, method.name
+                    );
+                }
+                let distinct: BTreeSet<&str> = method.names.iter().copied().collect();
+                assert_eq!(
+                    distinct.len(),
+                    method.names.len(),
+                    "{}::{} names two parameters the same: {:?}",
+                    class.name,
+                    method.name,
+                    method.names
+                );
+            }
+        }
+    }
+
+    /// ADR 0117's card keys itself by ADR 0063 R2's names, so the two cannot
+    /// be written independently: [`MethodDoc::params`] is one entry per
+    /// positional parameter under the row's own [`CoreMethod::names`], then
+    /// one per option of a trailing bag under the option's name.
+    ///
+    /// Before this, a card's parameter names were the only place a name
+    /// existed and nothing could check them — [`ParamDoc::name`]'s own docs
+    /// record that. Now the row is the name's home and the card is a
+    /// description hung off it, which is a thing a test can hold.
+    #[test]
+    fn a_documented_rows_param_docs_agree_with_its_names() {
+        for class in CLASSES {
+            for method in class.members() {
+                let Some(doc) = method.doc else { continue };
+                let mut want: Vec<&str> = method.names.to_vec();
+                want.extend(method.options().unwrap_or(&[]).iter().map(|o| o.name));
+                let found: Vec<&str> = doc.params.iter().map(|param| param.name).collect();
+                assert_eq!(
+                    found, want,
+                    "{}::{}'s reference card documents {found:?}, but the row declares {want:?}",
+                    class.name, method.name
+                );
+            }
         }
     }
 

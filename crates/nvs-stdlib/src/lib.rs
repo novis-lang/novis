@@ -130,16 +130,20 @@
 //!
 //!    A **named** or `...spread` argument at such a call is no longer a gap
 //!    either: both lower, and a name is refused only where a signature carries
-//!    none — which every `Core` member's does
-//!    (`registry::MethodSig::param_names`), so a `Core` call is positional or
-//!    spread and never by name. Parameter **names** now exist in the registry
-//!    for the first time, as [`registry::ParamDoc::name`] on a row's
-//!    [`registry::MethodDoc`] (ADR 0117) — documentation that `nvs meta
-//!    --json` prints and that `nvs_types::core_lib` does not yet read into
-//!    `param_names`. **That is a gap, and it is decided**: ADR 0063 R2 makes
-//!    every `Core` parameter callable by the spec's `$name` and the bag by
-//!    `options`; `docs/agent/loop-goal.md` Stage 0b lands it, with the names
-//!    on the row itself and a test holding them to the spec.
+//!    none. Every parameter's name is now on the row —
+//!    [`registry::CoreMethod::names`], one per positional slot, the trailing
+//!    bag under [`registry::OPTIONS_NAME`] — taken from the signature column
+//!    of `docs/spec/01-core-library.md` and held there by
+//!    `every_registry_rows_names_are_the_specs_signature_column`, which is
+//!    ADR 0063 R2's "a parameter's name is compatibility surface, versioned
+//!    where its type is". [`registry::ParamDoc::name`] is a *key* into that
+//!    list rather than a second copy of it.
+//!
+//!    What is left of the gap is the **resolution**: `nvs_types::core_lib`
+//!    still seeds `param_names` empty, so a name at a `Core` call site is
+//!    refused where it is written and a call is positional or spread.
+//!    `docs/agent/loop-goal.md` Stage 0b item 29 is that half, and it changes
+//!    no member's shape.
 //!
 //!    A **`Core`-owned instance** is no longer one: [`instance`] is the value
 //!    behind [`registry::CoreTy::Instance`], and that module's own docs own

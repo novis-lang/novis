@@ -47,6 +47,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "encode",
+            names: &["value"],
             params: &[CoreTy::Mixed],
             defaults: &[],
             return_ty: CoreTy::Bytes,
@@ -55,6 +56,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "decode",
+            names: &["payload"],
             params: &[CoreTy::Blob(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Mixed,

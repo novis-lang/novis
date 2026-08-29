@@ -78,6 +78,7 @@ pub const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "int",
+            names: &["min", "max"],
             params: &[CoreTy::Int, CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Int,
@@ -86,6 +87,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "float",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Float,
@@ -94,6 +96,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "bytes",
+            names: &["count"],
             params: &[CoreTy::Uint],
             defaults: &[],
             return_ty: CoreTy::Bytes,
@@ -102,6 +105,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "token",
+            names: &["bytes"],
             params: &[CoreTy::Uint],
             defaults: &[Const::Uint(DEFAULT_TOKEN_BYTES)],
             return_ty: CoreTy::Str,
@@ -110,6 +114,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "pick",
+            names: &["a"],
             params: &[CoreTy::Array(&CoreTy::Var("T"))],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
@@ -118,6 +123,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "sample",
+            names: &["a", "count"],
             params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Uint],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
@@ -126,6 +132,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "shuffle",
+            names: &["a"],
             params: &[CoreTy::Array(&CoreTy::Var("T"))],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),

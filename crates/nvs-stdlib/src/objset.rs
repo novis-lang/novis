@@ -28,6 +28,7 @@ pub(crate) const ITERATE_SYMBOL: &str = "nvs_core_object_set_iterate";
 /// its identity is `nvs_runtime::identity`'s, so there is nothing to give it.
 pub(crate) const NEW: CoreMethod = CoreMethod {
     name: "constructor",
+    names: &[],
     params: &[],
     defaults: &[],
     return_ty: CoreTy::Instance(NAME),
@@ -50,6 +51,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     instance: &[
         CoreMethod {
             name: "add",
+            names: &["value"],
             params: &[CoreTy::Var("T")],
             defaults: &[],
             return_ty: CoreTy::Void,
@@ -58,6 +60,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "has",
+            names: &["value"],
             params: &[CoreTy::Var("T")],
             defaults: &[],
             return_ty: CoreTy::Bool,
@@ -66,6 +69,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "remove",
+            names: &["value"],
             params: &[CoreTy::Var("T")],
             defaults: &[],
             return_ty: CoreTy::Void,
@@ -74,6 +78,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "count",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Uint,
@@ -82,6 +87,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "isEmpty",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bool,
@@ -90,6 +96,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "union",
+            names: &["other"],
             params: &[CoreTy::Instance(NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
@@ -98,6 +105,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "intersect",
+            names: &["other"],
             params: &[CoreTy::Instance(NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
@@ -106,6 +114,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "diff",
+            names: &["other"],
             params: &[CoreTy::Instance(NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
@@ -114,6 +123,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "clear",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Void,

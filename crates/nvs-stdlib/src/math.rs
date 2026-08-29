@@ -54,6 +54,7 @@ pub const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "abs",
+            names: &["n"],
             params: &[CoreTy::Union(NUMBER)],
             defaults: &[],
             return_ty: CoreTy::Union(NUMBER),
@@ -62,6 +63,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "sign",
+            names: &["n"],
             params: &[CoreTy::Union(NUMBER)],
             defaults: &[],
             return_ty: CoreTy::Int,
@@ -70,6 +72,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "min",
+            names: &["a", "b"],
             params: &[CoreTy::Var("T"), CoreTy::Var("T")],
             defaults: &[],
             return_ty: CoreTy::Var("T"),
@@ -78,6 +81,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "max",
+            names: &["a", "b"],
             params: &[CoreTy::Var("T"), CoreTy::Var("T")],
             defaults: &[],
             return_ty: CoreTy::Var("T"),
@@ -86,6 +90,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "clamp",
+            names: &["n", "low", "high"],
             params: &[CoreTy::Var("T"), CoreTy::Var("T"), CoreTy::Var("T")],
             defaults: &[],
             return_ty: CoreTy::Var("T"),
@@ -94,6 +99,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "ceil",
+            names: &["n"],
             params: &[CoreTy::Float],
             defaults: &[],
             return_ty: CoreTy::Float,
@@ -102,6 +108,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "floor",
+            names: &["n"],
             params: &[CoreTy::Float],
             defaults: &[],
             return_ty: CoreTy::Float,
@@ -110,6 +117,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "truncate",
+            names: &["n"],
             params: &[CoreTy::Float],
             defaults: &[],
             return_ty: CoreTy::Float,
@@ -118,6 +126,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "round",
+            names: &["n"],
             params: &[CoreTy::Float, CoreTy::Options(ROUND_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Float,
@@ -126,6 +135,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "intDiv",
+            names: &["a", "b"],
             params: &[CoreTy::Int, CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Int,
@@ -134,6 +144,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "mod",
+            names: &["a", "b"],
             params: &[CoreTy::Float, CoreTy::Float],
             defaults: &[],
             return_ty: CoreTy::Float,
@@ -142,6 +153,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "gcd",
+            names: &["a", "b"],
             params: &[CoreTy::Int, CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Int,
@@ -150,6 +162,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "lcm",
+            names: &["a", "b"],
             params: &[CoreTy::Int, CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Int,
@@ -158,6 +171,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "sqrt",
+            names: &["n"],
             params: &[CoreTy::Float],
             defaults: &[],
             return_ty: CoreTy::Float,
@@ -166,6 +180,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "cbrt",
+            names: &["n"],
             params: &[CoreTy::Float],
             defaults: &[],
             return_ty: CoreTy::Float,
@@ -174,6 +189,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "hypot",
+            names: &["a", "b"],
             params: &[CoreTy::Float, CoreTy::Float],
             defaults: &[],
             return_ty: CoreTy::Float,
@@ -182,6 +198,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "exp",
+            names: &["n"],
             params: &[CoreTy::Float],
             defaults: &[],
             return_ty: CoreTy::Float,
@@ -190,6 +207,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "log",
+            names: &["n"],
             params: &[CoreTy::Float, CoreTy::Options(LOG_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Float,
@@ -198,6 +216,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "sin",
+            names: &["radians"],
             params: &[CoreTy::Float],
             defaults: &[],
             return_ty: CoreTy::Float,
@@ -206,6 +225,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "cos",
+            names: &["radians"],
             params: &[CoreTy::Float],
             defaults: &[],
             return_ty: CoreTy::Float,
@@ -214,6 +234,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "tan",
+            names: &["radians"],
             params: &[CoreTy::Float],
             defaults: &[],
             return_ty: CoreTy::Float,
@@ -222,6 +243,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "asin",
+            names: &["n"],
             params: &[CoreTy::Float],
             defaults: &[],
             return_ty: CoreTy::Float,
@@ -230,6 +252,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "acos",
+            names: &["n"],
             params: &[CoreTy::Float],
             defaults: &[],
             return_ty: CoreTy::Float,
@@ -238,6 +261,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "atan",
+            names: &["n"],
             params: &[CoreTy::Float],
             defaults: &[],
             return_ty: CoreTy::Float,
@@ -246,6 +270,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "atan2",
+            names: &["y", "x"],
             params: &[CoreTy::Float, CoreTy::Float],
             defaults: &[],
             return_ty: CoreTy::Float,
@@ -254,6 +279,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "sinh",
+            names: &["n"],
             params: &[CoreTy::Float],
             defaults: &[],
             return_ty: CoreTy::Float,
@@ -262,6 +288,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "cosh",
+            names: &["n"],
             params: &[CoreTy::Float],
             defaults: &[],
             return_ty: CoreTy::Float,
@@ -270,6 +297,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "tanh",
+            names: &["n"],
             params: &[CoreTy::Float],
             defaults: &[],
             return_ty: CoreTy::Float,
@@ -278,6 +306,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "asinh",
+            names: &["n"],
             params: &[CoreTy::Float],
             defaults: &[],
             return_ty: CoreTy::Float,
@@ -286,6 +315,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "acosh",
+            names: &["n"],
             params: &[CoreTy::Float],
             defaults: &[],
             return_ty: CoreTy::Float,
@@ -294,6 +324,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "atanh",
+            names: &["n"],
             params: &[CoreTy::Float],
             defaults: &[],
             return_ty: CoreTy::Float,
@@ -302,6 +333,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "toRadians",
+            names: &["degrees"],
             params: &[CoreTy::Float],
             defaults: &[],
             return_ty: CoreTy::Float,
@@ -310,6 +342,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "toDegrees",
+            names: &["radians"],
             params: &[CoreTy::Float],
             defaults: &[],
             return_ty: CoreTy::Float,
@@ -318,6 +351,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "isNan",
+            names: &["n"],
             params: &[CoreTy::Float],
             defaults: &[],
             return_ty: CoreTy::Bool,
@@ -326,6 +360,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "isFinite",
+            names: &["n"],
             params: &[CoreTy::Float],
             defaults: &[],
             return_ty: CoreTy::Bool,
@@ -334,6 +369,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "toBase",
+            names: &["n", "base"],
             params: &[CoreTy::Int, CoreTy::Uint],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -342,6 +378,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "fromBase",
+            names: &["s", "base"],
             params: &[CoreTy::Text(Qual::Neutral), CoreTy::Uint],
             defaults: &[],
             return_ty: CoreTy::Int,
@@ -350,6 +387,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "format",
+            names: &["n"],
             params: &[CoreTy::Union(NUMBER), CoreTy::Options(FORMAT_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Str,

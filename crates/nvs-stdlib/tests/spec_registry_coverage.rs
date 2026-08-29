@@ -67,6 +67,103 @@ use std::path::Path;
 
 use nvs_stdlib::registry;
 
+/// A table row's cells, split on the pipes that are *not* escaped.
+///
+/// A union type inside a cell writes `int\|string`, because a bare `|` would
+/// end the cell — so a naive `split('|')` tears exactly the rows that declare
+/// a union into fragments, and a Signature cell torn that way loses its
+/// closing backtick and reads as no signature at all. That is invisible to
+/// [`every_part_one_spec_member_is_registered`], whose Member cell never holds
+/// a union, and was silently dropping a fifth of the rows from
+/// [`every_registry_rows_names_are_the_specs_signature_column`].
+fn cells(line: &str) -> Vec<String> {
+    let mut out = vec![String::new()];
+    let mut escaped = false;
+    for c in line.trim().trim_matches('|').chars() {
+        match c {
+            '|' if !escaped => out.push(String::new()),
+            _ => {
+                if escaped && c != '|' {
+                    out.last_mut().expect("a cell").push('\\');
+                }
+                out.last_mut().expect("a cell").push(c);
+            }
+        }
+        escaped = c == '\\' && !escaped;
+    }
+    out.iter().map(|cell| cell.trim().to_owned()).collect()
+}
+
+/// The `$name` each parameter of a spec signature is written with, in order,
+/// with a trailing options shape folded to the one name
+/// [`registry::OPTIONS_NAME`] — `None` for a span that is not a signature.
+///
+/// This is [`registry::CoreMethod::names`]'s source of truth, read live rather
+/// than copied, which is the whole point of the test below: ADR 0063 R2 makes
+/// a parameter's name compatibility surface versioned in the spec, so the spec
+/// is where it is *written* and the registry only mirrors it.
+fn signature_names(sig: &str) -> Option<Vec<String>> {
+    let open = sig.find('(')?;
+    let mut depth = 0usize;
+    let mut close = None;
+    for (index, c) in sig.char_indices().skip(open) {
+        match c {
+            '(' | '[' | '{' | '<' => depth += 1,
+            ')' | ']' | '}' | '>' => {
+                depth -= 1;
+                if depth == 0 {
+                    close = Some(index);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut names = Vec::new();
+    for item in top_level_items(&sig[open + 1..close?]) {
+        // A shape-typed parameter is written `{name: callable, …} $tasks`, so a
+        // leading `{` does not make an item the trailing bag — having no
+        // `$name` of its own does. `Core\Task::all` is where the two meet.
+        let Some((_, rest)) = item.split_once('$') else {
+            if item.starts_with('{') {
+                names.push(registry::OPTIONS_NAME.to_owned());
+                continue;
+            }
+            return None;
+        };
+        let end = rest
+            .find(|c: char| !c.is_ascii_alphanumeric() && c != '_')
+            .unwrap_or(rest.len());
+        names.push(rest[..end].to_owned());
+    }
+    Some(names)
+}
+
+/// A parameter list split on its top-level commas — a nested one belongs to a
+/// generic argument (`array<int\|string>`) or to an options shape.
+fn top_level_items(args: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut depth = 0usize;
+    let mut cur = String::new();
+    for c in args.chars() {
+        match c {
+            '(' | '[' | '{' | '<' => depth += 1,
+            ')' | ']' | '}' | '>' => depth -= 1,
+            ',' if depth == 0 => {
+                out.push(cur.trim().to_owned());
+                cur = String::new();
+                continue;
+            }
+            _ => {}
+        }
+        cur.push(c);
+    }
+    if !cur.trim().is_empty() {
+        out.push(cur.trim().to_owned());
+    }
+    out
+}
+
 /// Every `` `code` `` span in `text`, in order, without their backticks.
 fn spans(text: &str) -> Vec<&str> {
     let mut found = Vec::new();
@@ -263,5 +360,112 @@ fn every_part_one_spec_member_is_registered() {
             .map(|key| key.as_str())
             .collect::<Vec<_>>()
             .join(", ")
+    );
+}
+
+/// ADR 0063 R2's names, held against the one place they are written.
+///
+/// R2 makes every `Core` parameter callable by "the `$name` the signature in
+/// [01-core-library.md] writes", which makes that column the *source* and
+/// [`registry::CoreMethod::names`] a mirror of it — and a mirror nothing
+/// compares is a copy that drifts. So this walks the same §§ 1-12 tables
+/// [`every_part_one_spec_member_is_registered`] does, parses the **Signature**
+/// cell rather than the Member cell, and asserts that every registered member
+/// the row reaches spells its parameters exactly as the spec does.
+///
+/// # What is compared, and what is skipped
+///
+/// A row is resolved as loosely as the coverage test resolves one — the
+/// section's classes, narrowed by a span's own qualifier — and then narrowed
+/// once more by **arity**, which is what keeps the looseness honest here:
+/// § 4's one `at` row is `Core\Time\DateTime`'s five-parameter constructor,
+/// and `Date::at`/`TimeOfDay::at` take three, so they are not compared against
+/// it rather than compared and failed. A member the spec writes with a
+/// different arity than the registry builds is `docs/agent/handoff.md`'s
+/// Backlog, not a failure here: `docs/agent/loop-goal.md` § *Standing
+/// decisions* says the spec is authoritative for the names and the registry
+/// for what is built, and nothing in Stage 0b changes a member's shape.
+///
+/// The floor on the comparison count is the real assertion about the parser —
+/// it makes 234 comparisons today, and one that stops matching the spec's
+/// shape fails here rather than passing vacuously. [`cells`] is why that
+/// number is not much smaller: splitting a row on every `|` tears the rows
+/// declaring a union type into fragments, and a Signature cell torn that way
+/// has no closing backtick and reads as no signature at all.
+#[test]
+fn every_registry_rows_names_are_the_specs_signature_column() {
+    let spec = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/spec/01-core-library.md");
+    let text = fs::read_to_string(&spec).unwrap_or_else(|err| panic!("{}: {err}", spec.display()));
+
+    let mut section = None;
+    let mut candidates = Vec::new();
+    let mut in_members = false;
+    let mut compared = 0usize;
+    let mut wrong = Vec::new();
+
+    for line in text.lines() {
+        if let Some(number) = section_number(line) {
+            section = (1..=12).contains(&number).then_some(number);
+            candidates = classes_in(line);
+            in_members = false;
+            continue;
+        }
+        let Some(number) = section else { continue };
+        if !line.starts_with('|') {
+            in_members = false;
+            continue;
+        }
+        let row = cells(line);
+        let head = row.first().map_or("", String::as_str);
+        if head == "Member" {
+            in_members = true;
+            continue;
+        }
+        if head.starts_with("---") || !in_members || row.len() < 2 {
+            continue;
+        }
+        for sig in spans(&row[1]) {
+            let Some(want) = signature_names(sig) else {
+                continue;
+            };
+            let Some(name) = member_name(&sig[..sig.find('(').unwrap_or(0)]) else {
+                continue;
+            };
+            for class in scoped(&candidates, sig) {
+                for method in class.members().filter(|m| m.name == name) {
+                    if method.params.len() != want.len() {
+                        continue;
+                    }
+                    let mut found: Vec<String> =
+                        method.names.iter().map(|n| (*n).to_owned()).collect();
+                    if method.options().is_some() {
+                        found.push(registry::OPTIONS_NAME.to_owned());
+                    }
+                    compared += 1;
+                    if found != want {
+                        wrong.push(format!(
+                            "§{number} {}::{name} has {found:?}, the spec writes {want:?}",
+                            class.name
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    assert!(
+        compared > 200,
+        "{} yielded only {compared} comparison(s), which is too few to be §§ 1-12 — \
+         the Signature-column parser has stopped matching the spec's own shape",
+        spec.display()
+    );
+    assert!(
+        wrong.is_empty(),
+        "{} registered member(s) do not spell their parameters as \
+         docs/spec/01-core-library.md does:\n  {}\n\
+         The spec's signature column is the source (ADR 0063 R2) — change the row's `names`, \
+         or change the spec and accept that renaming a parameter is a breaking change.",
+        wrong.len(),
+        wrong.join("\n  ")
     );
 }

@@ -108,6 +108,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "all",
+            names: &["tasks"],
             params: &[CoreTy::CallableShapeTo("S"), CoreTy::Options(OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Var("S"),
@@ -116,6 +117,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "map",
+            names: &["items", "fn"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
                 CoreTy::CallableTo("U"),

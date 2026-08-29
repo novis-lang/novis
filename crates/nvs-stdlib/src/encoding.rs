@@ -320,6 +320,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "encodeText",
+            names: &["s", "charset"],
             params: &[CoreTy::Text(Qual::Contagious), CoreTy::Enum(CHARSET_NAME)],
             defaults: &[],
             return_ty: CoreTy::Bytes,
@@ -328,6 +329,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "decodeText",
+            names: &["b", "charset"],
             params: &[CoreTy::Blob(Qual::Contagious), CoreTy::Enum(CHARSET_NAME)],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -336,6 +338,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "isValidText",
+            names: &["b", "charset"],
             params: &[CoreTy::Blob(Qual::Neutral), CoreTy::Enum(CHARSET_NAME)],
             defaults: &[],
             return_ty: CoreTy::Bool,
@@ -344,6 +347,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "toBase64",
+            names: &["b"],
             params: &[CoreTy::Blob(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -352,6 +356,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "fromBase64",
+            names: &["b"],
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Bytes,
@@ -360,6 +365,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "toBase64Url",
+            names: &["b"],
             params: &[CoreTy::Blob(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -368,6 +374,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "fromBase64Url",
+            names: &["b"],
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Bytes,
@@ -376,6 +383,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "toBase32",
+            names: &["b"],
             params: &[CoreTy::Blob(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -384,6 +392,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "fromBase32",
+            names: &["b"],
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Bytes,
@@ -392,6 +401,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "toHex",
+            names: &["b"],
             params: &[CoreTy::Blob(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -400,6 +410,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "fromHex",
+            names: &["b"],
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Bytes,

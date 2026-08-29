@@ -144,6 +144,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "url",
+            names: &["name", "params"],
             params: &[CoreTy::Str, PARAMS],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -152,6 +153,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "urlAbsolute",
+            names: &["name", "params"],
             params: &[CoreTy::Str, PARAMS],
             defaults: &[],
             return_ty: CoreTy::Str,

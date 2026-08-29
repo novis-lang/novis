@@ -50,6 +50,7 @@ pub(crate) const ITERATE_SYMBOL: &str = "nvs_core_object_map_iterate";
 /// so there is nothing to give it.
 pub(crate) const NEW: CoreMethod = CoreMethod {
     name: "constructor",
+    names: &[],
     params: &[],
     defaults: &[],
     return_ty: CoreTy::Instance(NAME),
@@ -76,6 +77,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     instance: &[
         CoreMethod {
             name: "set",
+            names: &["key", "value"],
             params: &[CoreTy::Var("K"), CoreTy::Var("V")],
             defaults: &[],
             return_ty: CoreTy::Void,
@@ -84,6 +86,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "get",
+            names: &["key"],
             params: &[CoreTy::Var("K")],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Var("V")),
@@ -92,6 +95,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "has",
+            names: &["key"],
             params: &[CoreTy::Var("K")],
             defaults: &[],
             return_ty: CoreTy::Bool,
@@ -100,6 +104,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "remove",
+            names: &["key"],
             params: &[CoreTy::Var("K")],
             defaults: &[],
             return_ty: CoreTy::Void,
@@ -108,6 +113,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "count",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Uint,
@@ -116,6 +122,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "isEmpty",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bool,
@@ -124,6 +131,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "keys",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("K")),
@@ -132,6 +140,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "values",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("V")),
@@ -140,6 +149,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "clear",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Void,

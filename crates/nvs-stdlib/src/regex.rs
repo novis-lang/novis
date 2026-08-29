@@ -104,6 +104,7 @@ pub const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "compile",
+            names: &["pattern"],
             params: &[CoreTy::Text(Qual::Sink), CoreTy::Options(COMPILE_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Instance(PATTERN_NAME),
@@ -112,6 +113,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "matches",
+            names: &["subject", "pattern"],
             params: &[
                 CoreTy::Text(Qual::Neutral),
                 CoreTy::Union(PATTERN_OR_STRING),
@@ -123,6 +125,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "match",
+            names: &["subject", "pattern"],
             params: &[
                 CoreTy::Text(Qual::Contagious),
                 CoreTy::Union(PATTERN_OR_STRING),
@@ -135,6 +138,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "matchAll",
+            names: &["subject", "pattern"],
             params: &[
                 CoreTy::Text(Qual::Contagious),
                 CoreTy::Union(PATTERN_OR_STRING),
@@ -146,6 +150,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "replace",
+            names: &["subject", "pattern", "replacement"],
             params: &[
                 CoreTy::Text(Qual::Contagious),
                 CoreTy::Union(PATTERN_OR_STRING),
@@ -159,6 +164,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "replaceWith",
+            names: &["subject", "pattern", "fn"],
             params: &[
                 CoreTy::Text(Qual::Contagious),
                 CoreTy::Union(PATTERN_OR_STRING),
@@ -172,6 +178,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "split",
+            names: &["subject", "pattern"],
             params: &[
                 CoreTy::Text(Qual::Contagious),
                 CoreTy::Union(PATTERN_OR_STRING),
@@ -184,6 +191,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "quote",
+            names: &["literal"],
             params: &[CoreTy::Text(Qual::Launder)],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -328,6 +336,7 @@ pub const MATCH: CoreClass = CoreClass {
     instance: &[
         CoreMethod {
             name: "group",
+            names: &["group"],
             params: &[CoreTy::Union(&[CoreTy::Int, CoreTy::Text(Qual::Neutral)])],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
@@ -336,6 +345,7 @@ pub const MATCH: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "groups",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Nullable(&CoreTy::Str)),
@@ -344,6 +354,7 @@ pub const MATCH: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "offset",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Int,
@@ -352,6 +363,7 @@ pub const MATCH: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "text",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Str,

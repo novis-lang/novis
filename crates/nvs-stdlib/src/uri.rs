@@ -373,6 +373,7 @@ pub const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "parse",
+            names: &["uri"],
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
@@ -381,6 +382,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "tryParse",
+            names: &["uri"],
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Instance(NAME)),
@@ -389,6 +391,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "encodeComponent",
+            names: &["s"],
             params: &[CoreTy::Text(Qual::Launder)],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -397,6 +400,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "decodeComponent",
+            names: &["s"],
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -405,6 +409,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "encodeFormValue",
+            names: &["s"],
             params: &[CoreTy::Text(Qual::Launder)],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -413,6 +418,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "decodeFormValue",
+            names: &["s"],
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -421,6 +427,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "parseQuery",
+            names: &["query"],
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Mixed),
@@ -429,6 +436,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "buildQuery",
+            names: &["parameters"],
             params: &[CoreTy::Array(&CoreTy::Mixed)],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -439,6 +447,7 @@ pub const CLASS: CoreClass = CoreClass {
     instance: &[
         CoreMethod {
             name: "scheme",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
@@ -447,6 +456,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "userInfo",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
@@ -455,6 +465,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "host",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
@@ -463,6 +474,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "port",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Int),
@@ -471,6 +483,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "path",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -479,6 +492,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "query",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
@@ -487,6 +501,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "fragment",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
@@ -495,6 +510,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "toString",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -503,6 +519,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "with",
+            names: &[],
             params: &[CoreTy::Options(&[
                 CoreOption {
                     name: "scheme",
@@ -542,6 +559,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "resolve",
+            names: &["reference"],
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
@@ -550,6 +568,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "compareTo",
+            names: &["other"],
             params: &[CoreTy::Instance(NAME)],
             defaults: &[],
             return_ty: CoreTy::Int,

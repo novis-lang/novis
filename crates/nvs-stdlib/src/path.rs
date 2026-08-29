@@ -86,6 +86,7 @@ pub const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "basename",
+            names: &["path"],
             params: &[
                 CoreTy::Text(Qual::Contagious),
                 CoreTy::Options(BASENAME_OPTIONS),
@@ -97,6 +98,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "dirname",
+            names: &["path"],
             params: &[
                 CoreTy::Text(Qual::Contagious),
                 CoreTy::Options(DIRNAME_OPTIONS),
@@ -108,6 +110,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "extension",
+            names: &["path"],
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
@@ -116,6 +119,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "withExtension",
+            names: &["path", "extension"],
             params: &[
                 CoreTy::Text(Qual::Contagious),
                 CoreTy::Nullable(&CoreTy::Text(Qual::Contagious)),
@@ -127,6 +131,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "join",
+            names: &["base", "segments"],
             params: &[
                 CoreTy::Text(Qual::Contagious),
                 CoreTy::Variadic(&CoreTy::Text(Qual::Contagious)),
@@ -138,6 +143,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "split",
+            names: &["path"],
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
@@ -146,6 +152,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "normalize",
+            names: &["path"],
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -154,6 +161,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "isAbsolute",
+            names: &["path"],
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
@@ -162,6 +170,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "relativeTo",
+            names: &["path", "base"],
             params: &[
                 CoreTy::Text(Qual::Contagious),
                 CoreTy::Text(Qual::Contagious),

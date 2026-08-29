@@ -95,6 +95,7 @@ pub const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "count",
+            names: &["a"],
             params: &[CoreTy::Array(&CoreTy::Var("T"))],
             defaults: &[],
             return_ty: CoreTy::Uint,
@@ -103,6 +104,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "filter",
+            names: &["a", "predicate"],
             params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Callable],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
@@ -111,6 +113,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "map",
+            names: &["a", "fn"],
             params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::CallableTo("U")],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("U")),
@@ -119,6 +122,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "mapKeys",
+            names: &["a", "fn"],
             params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Callable],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
@@ -127,6 +131,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "groupBy",
+            names: &["a", "key"],
             params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Callable],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Array(&CoreTy::Var("T"))),
@@ -135,6 +140,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "reduce",
+            names: &["a", "fn", "initial"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
                 CoreTy::Callable,
@@ -147,6 +153,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "find",
+            names: &["a", "predicate"],
             params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Callable],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
@@ -155,6 +162,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "findKey",
+            names: &["a", "predicate"],
             params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Callable],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
@@ -163,6 +171,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "any",
+            names: &["a", "predicate"],
             params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Callable],
             defaults: &[],
             return_ty: CoreTy::Bool,
@@ -171,6 +180,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "all",
+            names: &["a", "predicate"],
             params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Callable],
             defaults: &[],
             return_ty: CoreTy::Bool,
@@ -179,6 +189,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "isEmpty",
+            names: &["a"],
             params: &[CoreTy::Array(&CoreTy::Var("T"))],
             defaults: &[],
             return_ty: CoreTy::Bool,
@@ -187,6 +198,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "hasKey",
+            names: &["a", "key"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
                 CoreTy::Union(ARRAY_KEY_NEUTRAL),
@@ -198,6 +210,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "contains",
+            names: &["haystack", "needle"],
             params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Var("T")],
             defaults: &[],
             return_ty: CoreTy::Bool,
@@ -206,6 +219,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "keyOf",
+            names: &["haystack", "needle"],
             params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Var("T")],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
@@ -214,6 +228,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "isList",
+            names: &["a"],
             params: &[CoreTy::Array(&CoreTy::Var("T"))],
             defaults: &[],
             return_ty: CoreTy::Bool,
@@ -222,6 +237,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "keys",
+            names: &["a"],
             params: &[CoreTy::Array(&CoreTy::Var("T"))],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
@@ -230,6 +246,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "values",
+            names: &["a"],
             params: &[CoreTy::Array(&CoreTy::Var("T"))],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
@@ -238,6 +255,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "first",
+            names: &["a"],
             params: &[CoreTy::Array(&CoreTy::Var("T"))],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
@@ -246,6 +264,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "last",
+            names: &["a"],
             params: &[CoreTy::Array(&CoreTy::Var("T"))],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
@@ -254,6 +273,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "firstKey",
+            names: &["a"],
             params: &[CoreTy::Array(&CoreTy::Var("T"))],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
@@ -262,6 +282,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "lastKey",
+            names: &["a"],
             params: &[CoreTy::Array(&CoreTy::Var("T"))],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
@@ -270,6 +291,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "slice",
+            names: &["a", "offset", "length"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
                 CoreTy::Int,
@@ -283,6 +305,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "replaceRange",
+            names: &["a", "offset", "length", "replacement"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
                 CoreTy::Int,
@@ -296,6 +319,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "chunk",
+            names: &["a", "size"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
                 CoreTy::Uint,
@@ -308,6 +332,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "append",
+            names: &["a", "values"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
                 CoreTy::Variadic(&CoreTy::Var("T")),
@@ -319,6 +344,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "prepend",
+            names: &["a", "values"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
                 CoreTy::Variadic(&CoreTy::Var("T")),
@@ -330,6 +356,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "withoutFirst",
+            names: &["a"],
             params: &[CoreTy::Array(&CoreTy::Var("T"))],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
@@ -338,6 +365,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "withoutLast",
+            names: &["a"],
             params: &[CoreTy::Array(&CoreTy::Var("T"))],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
@@ -346,6 +374,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "padStart",
+            names: &["a", "size", "value"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
                 CoreTy::Uint,
@@ -358,6 +387,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "padEnd",
+            names: &["a", "size", "value"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
                 CoreTy::Uint,
@@ -370,6 +400,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "reverse",
+            names: &["a"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
                 CoreTy::Options(PRESERVE_KEYS),
@@ -381,6 +412,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "flip",
+            names: &["a"],
             params: &[CoreTy::Array(&CoreTy::Union(ARRAY_KEY))],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
@@ -389,6 +421,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "flatten",
+            names: &["a"],
             params: &[CoreTy::Array(&CoreTy::Array(&CoreTy::Var("T")))],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
@@ -397,6 +430,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "flattenDeep",
+            names: &["a"],
             params: &[CoreTy::Array(&CoreTy::Mixed)],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Mixed),
@@ -405,6 +439,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "column",
+            names: &["a", "column"],
             params: &[
                 CoreTy::Array(&CoreTy::Array(&CoreTy::Var("T"))),
                 CoreTy::Union(ARRAY_KEY_CONTAGIOUS),
@@ -417,6 +452,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "sort",
+            names: &["a"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
                 CoreTy::Options(SORT_OPTIONS),
@@ -428,6 +464,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "sortByKey",
+            names: &["a"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
                 CoreTy::Options(SORT_BY_KEY_OPTIONS),
@@ -439,6 +476,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "fill",
+            names: &["count", "value"],
             params: &[CoreTy::Uint, CoreTy::Var("T")],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
@@ -447,6 +485,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "fillKeys",
+            names: &["keys", "value"],
             params: &[CoreTy::Array(&CoreTy::Union(ARRAY_KEY)), CoreTy::Var("T")],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
@@ -455,6 +494,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "range",
+            names: &["start", "end"],
             params: &[CoreTy::Int, CoreTy::Int, CoreTy::Options(RANGE_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Int),
@@ -463,6 +503,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "fromKeysAndValues",
+            names: &["keys", "values"],
             params: &[
                 CoreTy::Array(&CoreTy::Union(ARRAY_KEY)),
                 CoreTy::Array(&CoreTy::Var("T")),
@@ -474,6 +515,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "from",
+            names: &["items"],
             params: &[
                 CoreTy::Iterated(&CoreTy::Var("T")),
                 CoreTy::Options(FROM_OPTIONS),
@@ -485,6 +527,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "overlay",
+            names: &["base", "layers"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
                 CoreTy::Variadic(&CoreTy::Array(&CoreTy::Var("U"))),
@@ -496,6 +539,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "overlayDeep",
+            names: &["base", "layers"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
                 CoreTy::Variadic(&CoreTy::Array(&CoreTy::Var("U"))),
@@ -507,6 +551,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "underlay",
+            names: &["base", "layers"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
                 CoreTy::Variadic(&CoreTy::Array(&CoreTy::Var("U"))),
@@ -518,6 +563,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "appendAll",
+            names: &["a", "others"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
                 CoreTy::Variadic(&CoreTy::Array(&CoreTy::Var("U"))),
@@ -529,6 +575,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "diff",
+            names: &["a", "b"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
                 CoreTy::Array(&CoreTy::Var("T")),
@@ -541,6 +588,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "intersect",
+            names: &["a", "b"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
                 CoreTy::Array(&CoreTy::Var("T")),
@@ -553,6 +601,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "countBy",
+            names: &["a"],
             params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Options(BY_OPTION)],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Uint),
@@ -561,6 +610,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "unique",
+            names: &["a"],
             params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Options(BY_OPTION)],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
@@ -569,6 +619,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "min",
+            names: &["a"],
             params: &[CoreTy::Array(&CoreTy::Var("T"))],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
@@ -577,6 +628,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "max",
+            names: &["a"],
             params: &[CoreTy::Array(&CoreTy::Var("T"))],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
@@ -585,6 +637,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "sum",
+            names: &["a"],
             params: &[CoreTy::Array(&CoreTy::Union(crate::math::NUMBER))],
             defaults: &[],
             return_ty: CoreTy::Union(crate::math::NUMBER),
@@ -593,6 +646,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "product",
+            names: &["a"],
             params: &[CoreTy::Array(&CoreTy::Union(crate::math::NUMBER))],
             defaults: &[],
             return_ty: CoreTy::Union(crate::math::NUMBER),
@@ -601,6 +655,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "average",
+            names: &["a"],
             params: &[CoreTy::Array(&CoreTy::Union(crate::math::NUMBER))],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Union(QUOTIENT)),

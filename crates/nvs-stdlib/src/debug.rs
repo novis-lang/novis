@@ -98,6 +98,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "dump",
+            names: &["values"],
             params: &[CoreTy::Variadic(&CoreTy::Mixed)],
             defaults: &[],
             return_ty: CoreTy::Void,
@@ -106,6 +107,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "render",
+            names: &["value"],
             params: &[CoreTy::Mixed],
             defaults: &[],
             return_ty: CoreTy::Instance(crate::cli::NAME),

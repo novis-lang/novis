@@ -131,6 +131,7 @@ pub const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "encode",
+            names: &["value"],
             params: &[CoreTy::Mixed, CoreTy::Options(ENCODE_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -139,6 +140,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "decode",
+            names: &["json"],
             params: &[
                 CoreTy::Text(Qual::Contagious),
                 CoreTy::Options(DECODE_OPTIONS),
@@ -150,6 +152,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "decodeAs",
+            names: &["json"],
             params: &[
                 CoreTy::Text(Qual::Contagious),
                 CoreTy::Options(DECODE_OPTIONS),
@@ -161,6 +164,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "isValid",
+            names: &["json"],
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,

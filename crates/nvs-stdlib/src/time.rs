@@ -171,6 +171,7 @@ pub const DURATION: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "nanoseconds",
+            names: &["n"],
             params: &[CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
@@ -179,6 +180,7 @@ pub const DURATION: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "microseconds",
+            names: &["n"],
             params: &[CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
@@ -187,6 +189,7 @@ pub const DURATION: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "milliseconds",
+            names: &["n"],
             params: &[CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
@@ -195,6 +198,7 @@ pub const DURATION: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "seconds",
+            names: &["n"],
             params: &[CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
@@ -203,6 +207,7 @@ pub const DURATION: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "minutes",
+            names: &["n"],
             params: &[CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
@@ -211,6 +216,7 @@ pub const DURATION: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "hours",
+            names: &["n"],
             params: &[CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
@@ -219,6 +225,7 @@ pub const DURATION: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "days",
+            names: &["n"],
             params: &[CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
@@ -227,6 +234,7 @@ pub const DURATION: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "weeks",
+            names: &["n"],
             params: &[CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
@@ -235,6 +243,7 @@ pub const DURATION: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "parse",
+            names: &["text"],
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
@@ -245,6 +254,7 @@ pub const DURATION: CoreClass = CoreClass {
     instance: &[
         CoreMethod {
             name: "toNanoseconds",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Int,
@@ -253,6 +263,7 @@ pub const DURATION: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "toMicroseconds",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Int,
@@ -261,6 +272,7 @@ pub const DURATION: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "toMilliseconds",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Int,
@@ -269,6 +281,7 @@ pub const DURATION: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "toSeconds",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Int,
@@ -277,6 +290,7 @@ pub const DURATION: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "plus",
+            names: &["d"],
             params: &[CoreTy::Instance(DURATION_NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
@@ -285,6 +299,7 @@ pub const DURATION: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "minus",
+            names: &["d"],
             params: &[CoreTy::Instance(DURATION_NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
@@ -293,6 +308,7 @@ pub const DURATION: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "multipliedBy",
+            names: &["factor"],
             params: &[CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
@@ -301,6 +317,7 @@ pub const DURATION: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "negated",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
@@ -309,6 +326,7 @@ pub const DURATION: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "compareTo",
+            names: &["other"],
             params: &[CoreTy::Instance(DURATION_NAME)],
             defaults: &[],
             return_ty: CoreTy::Int,
@@ -317,6 +335,7 @@ pub const DURATION: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "toString",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -678,6 +697,7 @@ pub const ZONE: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "of",
+            names: &["id"],
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Instance(ZONE_NAME),
@@ -686,6 +706,7 @@ pub const ZONE: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "fixed",
+            names: &["offset"],
             params: &[CoreTy::Instance(DURATION_NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(ZONE_NAME),
@@ -694,6 +715,7 @@ pub const ZONE: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "system",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(ZONE_NAME),
@@ -703,6 +725,7 @@ pub const ZONE: CoreClass = CoreClass {
     ],
     instance: &[CoreMethod {
         name: "offsetAt",
+        names: &["i"],
         params: &[CoreTy::Instance(INSTANT_NAME)],
         defaults: &[],
         return_ty: CoreTy::Instance(DURATION_NAME),
@@ -758,6 +781,7 @@ pub const INSTANT: CoreClass = CoreClass {
     instance: &[
         CoreMethod {
             name: "in",
+            names: &["zone"],
             params: &[CoreTy::Instance(ZONE_NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
@@ -766,6 +790,7 @@ pub const INSTANT: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "toEpochSeconds",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Int,
@@ -774,6 +799,7 @@ pub const INSTANT: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "toEpochMillis",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Int,
@@ -782,6 +808,7 @@ pub const INSTANT: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "toEpochMicros",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Int,
@@ -790,6 +817,7 @@ pub const INSTANT: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "plus",
+            names: &["d"],
             params: &[CoreTy::Instance(DURATION_NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(INSTANT_NAME),
@@ -798,6 +826,7 @@ pub const INSTANT: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "minus",
+            names: &["d"],
             params: &[CoreTy::Instance(DURATION_NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(INSTANT_NAME),
@@ -806,6 +835,7 @@ pub const INSTANT: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "since",
+            names: &["earlier"],
             params: &[CoreTy::Instance(INSTANT_NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
@@ -814,6 +844,7 @@ pub const INSTANT: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "compareTo",
+            names: &["other"],
             params: &[CoreTy::Instance(INSTANT_NAME)],
             defaults: &[],
             return_ty: CoreTy::Int,
@@ -822,6 +853,7 @@ pub const INSTANT: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "toIso",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -986,6 +1018,7 @@ pub const DATETIME: CoreClass = CoreClass {
     instance: &[
         CoreMethod {
             name: "format",
+            names: &["pattern"],
             params: &[CoreTy::Text(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -994,6 +1027,7 @@ pub const DATETIME: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "plus",
+            names: &["count", "unit"],
             params: &[CoreTy::Int, CoreTy::Enum(UNIT.name)],
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
@@ -1002,6 +1036,7 @@ pub const DATETIME: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "minus",
+            names: &["count", "unit"],
             params: &[CoreTy::Int, CoreTy::Enum(UNIT.name)],
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
@@ -1010,6 +1045,7 @@ pub const DATETIME: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "next",
+            names: &["w"],
             params: &[CoreTy::Enum(WEEKDAY.name)],
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
@@ -1018,6 +1054,7 @@ pub const DATETIME: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "previous",
+            names: &["w"],
             params: &[CoreTy::Enum(WEEKDAY.name)],
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
@@ -1026,6 +1063,7 @@ pub const DATETIME: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "with",
+            names: &[],
             params: &[CoreTy::Options(WITH_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
@@ -1034,6 +1072,7 @@ pub const DATETIME: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "withTime",
+            names: &["t"],
             params: &[CoreTy::Instance(TIME_OF_DAY_NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
@@ -1042,6 +1081,7 @@ pub const DATETIME: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "startOf",
+            names: &["u"],
             params: &[CoreTy::Enum(UNIT.name)],
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
@@ -1050,6 +1090,7 @@ pub const DATETIME: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "endOf",
+            names: &["u"],
             params: &[CoreTy::Enum(UNIT.name)],
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
@@ -1058,6 +1099,7 @@ pub const DATETIME: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "difference",
+            names: &["other", "unit"],
             params: &[CoreTy::Instance(DATETIME_NAME), CoreTy::Enum(UNIT.name)],
             defaults: &[],
             return_ty: CoreTy::Int,
@@ -1066,6 +1108,7 @@ pub const DATETIME: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "toInstant",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(INSTANT_NAME),
@@ -1074,6 +1117,7 @@ pub const DATETIME: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "date",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(DATE_NAME),
@@ -1082,6 +1126,7 @@ pub const DATETIME: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "timeOfDay",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(TIME_OF_DAY_NAME),
@@ -1090,6 +1135,7 @@ pub const DATETIME: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "zone",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(ZONE_NAME),
@@ -1098,6 +1144,7 @@ pub const DATETIME: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "weekday",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Enum(WEEKDAY.name),
@@ -1106,6 +1153,7 @@ pub const DATETIME: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "dayOfYear",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Uint,
@@ -1114,6 +1162,7 @@ pub const DATETIME: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "isLeapYear",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bool,
@@ -1184,6 +1233,7 @@ pub const TIME: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "now",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(INSTANT_NAME),
@@ -1192,6 +1242,7 @@ pub const TIME: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "monotonic",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
@@ -1200,6 +1251,7 @@ pub const TIME: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "sleep",
+            names: &["d"],
             params: &[CoreTy::Instance(DURATION_NAME)],
             defaults: &[],
             return_ty: CoreTy::Void,
@@ -1208,6 +1260,7 @@ pub const TIME: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "fromEpoch",
+            names: &["seconds"],
             params: &[
                 CoreTy::Int,
                 CoreTy::Options(&[CoreOption {
@@ -1223,6 +1276,7 @@ pub const TIME: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "fromIso",
+            names: &["text"],
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Instance(INSTANT_NAME),
@@ -1231,6 +1285,7 @@ pub const TIME: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "parse",
+            names: &["text", "format", "zone"],
             params: &[
                 CoreTy::Text(Qual::Neutral),
                 CoreTy::Text(Qual::Sink),
@@ -1243,6 +1298,7 @@ pub const TIME: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "at",
+            names: &["year", "month", "day", "zone"],
             params: &[
                 CoreTy::Int,
                 CoreTy::Uint,
@@ -1351,6 +1407,7 @@ pub const DATE: CoreClass = CoreClass {
     name: DATE_NAME,
     methods: &[CoreMethod {
         name: "at",
+        names: &["y", "m", "d"],
         params: &[CoreTy::Int, CoreTy::Uint, CoreTy::Uint],
         defaults: &[],
         return_ty: CoreTy::Instance(DATE_NAME),
@@ -1360,6 +1417,7 @@ pub const DATE: CoreClass = CoreClass {
     instance: &[
         CoreMethod {
             name: "format",
+            names: &["pattern"],
             params: &[CoreTy::Text(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -1368,6 +1426,7 @@ pub const DATE: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "plus",
+            names: &["count", "unit"],
             params: &[CoreTy::Int, CoreTy::Enum(UNIT.name)],
             defaults: &[],
             return_ty: CoreTy::Instance(DATE_NAME),
@@ -1376,6 +1435,7 @@ pub const DATE: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "minus",
+            names: &["count", "unit"],
             params: &[CoreTy::Int, CoreTy::Enum(UNIT.name)],
             defaults: &[],
             return_ty: CoreTy::Instance(DATE_NAME),
@@ -1384,6 +1444,7 @@ pub const DATE: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "with",
+            names: &[],
             params: &[CoreTy::Options(DATE_WITH_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Instance(DATE_NAME),
@@ -1392,6 +1453,7 @@ pub const DATE: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "compareTo",
+            names: &["other"],
             params: &[CoreTy::Instance(DATE_NAME)],
             defaults: &[],
             return_ty: CoreTy::Int,
@@ -1490,6 +1552,7 @@ pub const TIME_OF_DAY: CoreClass = CoreClass {
     name: TIME_OF_DAY_NAME,
     methods: &[CoreMethod {
         name: "at",
+        names: &["hour", "minute"],
         params: &[CoreTy::Uint, CoreTy::Uint, CoreTy::Options(AT_OPTIONS)],
         defaults: &[],
         return_ty: CoreTy::Instance(TIME_OF_DAY_NAME),
@@ -1499,6 +1562,7 @@ pub const TIME_OF_DAY: CoreClass = CoreClass {
     instance: &[
         CoreMethod {
             name: "format",
+            names: &["pattern"],
             params: &[CoreTy::Text(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -1507,6 +1571,7 @@ pub const TIME_OF_DAY: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "plus",
+            names: &["count", "unit"],
             params: &[CoreTy::Int, CoreTy::Enum(UNIT.name)],
             defaults: &[],
             return_ty: CoreTy::Instance(TIME_OF_DAY_NAME),
@@ -1515,6 +1580,7 @@ pub const TIME_OF_DAY: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "minus",
+            names: &["count", "unit"],
             params: &[CoreTy::Int, CoreTy::Enum(UNIT.name)],
             defaults: &[],
             return_ty: CoreTy::Instance(TIME_OF_DAY_NAME),
@@ -1523,6 +1589,7 @@ pub const TIME_OF_DAY: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "with",
+            names: &[],
             params: &[CoreTy::Options(TIME_OF_DAY_WITH_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Instance(TIME_OF_DAY_NAME),
@@ -1531,6 +1598,7 @@ pub const TIME_OF_DAY: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "compareTo",
+            names: &["other"],
             params: &[CoreTy::Instance(TIME_OF_DAY_NAME)],
             defaults: &[],
             return_ty: CoreTy::Int,

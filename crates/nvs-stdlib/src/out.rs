@@ -65,6 +65,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[CoreMethod {
         name: "capture",
+        names: &["fn"],
         params: &[CoreTy::Callable, CoreTy::Options(CAPTURE_OPTIONS)],
         defaults: &[],
         return_ty: CoreTy::Instance(crate::cli::NAME),

@@ -141,6 +141,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "parse",
+            names: &["text"],
             params: &[CoreTy::Str, CoreTy::Options(PARSE_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Array(&CoreTy::Str)),
@@ -149,6 +150,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "format",
+            names: &["rows"],
             params: &[
                 CoreTy::Array(&CoreTy::Array(&CoreTy::Str)),
                 CoreTy::Options(FORMAT_OPTIONS),

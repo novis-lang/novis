@@ -48,6 +48,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[CoreMethod {
         name: "implementing",
+        names: &[],
         params: &[],
         defaults: &[],
         return_ty: CoreTy::Array(&T),

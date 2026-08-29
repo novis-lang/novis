@@ -160,6 +160,7 @@ pub const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "length",
+            names: &["s"],
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Uint,
@@ -168,6 +169,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "at",
+            names: &["s", "index"],
             params: &[CoreTy::Text(Qual::Contagious), CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -176,6 +178,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "isEmpty",
+            names: &["s"],
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
@@ -184,6 +187,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "contains",
+            names: &["haystack", "needle"],
             params: &[CoreTy::Text(Qual::Neutral), CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
@@ -192,6 +196,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "startsWith",
+            names: &["s", "prefix"],
             params: &[CoreTy::Text(Qual::Neutral), CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
@@ -200,6 +205,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "endsWith",
+            names: &["s", "suffix"],
             params: &[CoreTy::Text(Qual::Neutral), CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
@@ -208,6 +214,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "slice",
+            names: &["s", "offset", "length"],
             params: &[
                 CoreTy::Text(Qual::Contagious),
                 CoreTy::Int,
@@ -220,6 +227,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "indexOf",
+            names: &["haystack", "needle"],
             params: &[
                 CoreTy::Text(Qual::Neutral),
                 CoreTy::Text(Qual::Neutral),
@@ -232,6 +240,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "lastIndexOf",
+            names: &["haystack", "needle"],
             params: &[
                 CoreTy::Text(Qual::Neutral),
                 CoreTy::Text(Qual::Neutral),
@@ -244,6 +253,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "countOf",
+            names: &["haystack", "needle"],
             params: &[CoreTy::Text(Qual::Neutral), CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Uint,
@@ -252,6 +262,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "compare",
+            names: &["a", "b"],
             params: &[
                 CoreTy::Text(Qual::Neutral),
                 CoreTy::Text(Qual::Neutral),
@@ -264,6 +275,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "before",
+            names: &["s", "needle"],
             params: &[
                 CoreTy::Text(Qual::Contagious),
                 CoreTy::Text(Qual::Contagious),
@@ -276,6 +288,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "after",
+            names: &["s", "needle"],
             params: &[
                 CoreTy::Text(Qual::Contagious),
                 CoreTy::Text(Qual::Contagious),
@@ -288,6 +301,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "join",
+            names: &["parts", "separator"],
             params: &[CoreTy::Array(&CoreTy::Str), CoreTy::Text(Qual::Contagious)],
             defaults: &[Const::Str("")],
             return_ty: CoreTy::Str,
@@ -296,6 +310,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "split",
+            names: &["s", "separator"],
             params: &[
                 CoreTy::Text(Qual::Contagious),
                 CoreTy::Text(Qual::Contagious),
@@ -308,6 +323,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "chunk",
+            names: &["s", "size"],
             params: &[CoreTy::Text(Qual::Contagious), CoreTy::Uint],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
@@ -316,6 +332,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "lines",
+            names: &["s"],
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
@@ -324,6 +341,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "graphemes",
+            names: &["s"],
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
@@ -332,6 +350,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "codePoints",
+            names: &["s"],
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Uint),
@@ -340,6 +359,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "replace",
+            names: &["s", "search", "replacement"],
             params: &[
                 CoreTy::Text(Qual::Contagious),
                 CoreTy::Text(Qual::Contagious),
@@ -353,6 +373,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "replaceAll",
+            names: &["s", "pairs"],
             params: &[
                 CoreTy::Text(Qual::Contagious),
                 CoreTy::Array(&CoreTy::Str),
@@ -365,6 +386,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "replaceRange",
+            names: &["s", "offset", "length", "replacement"],
             params: &[
                 CoreTy::Text(Qual::Contagious),
                 CoreTy::Int,
@@ -378,6 +400,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "padStart",
+            names: &["s", "length", "padding"],
             params: &[
                 CoreTy::Text(Qual::Contagious),
                 CoreTy::Uint,
@@ -390,6 +413,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "padEnd",
+            names: &["s", "length", "padding"],
             params: &[
                 CoreTy::Text(Qual::Contagious),
                 CoreTy::Uint,
@@ -402,6 +426,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "trim",
+            names: &["s"],
             params: &[
                 CoreTy::Text(Qual::Contagious),
                 CoreTy::Options(TRIM_OPTIONS),
@@ -413,6 +438,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "trimStart",
+            names: &["s"],
             params: &[
                 CoreTy::Text(Qual::Contagious),
                 CoreTy::Options(TRIM_OPTIONS),
@@ -424,6 +450,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "trimEnd",
+            names: &["s"],
             params: &[
                 CoreTy::Text(Qual::Contagious),
                 CoreTy::Options(TRIM_OPTIONS),
@@ -435,6 +462,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "repeat",
+            names: &["s", "times"],
             params: &[CoreTy::Text(Qual::Contagious), CoreTy::Uint],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -443,6 +471,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "reverse",
+            names: &["s"],
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -451,6 +480,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "wrap",
+            names: &["s", "width"],
             params: &[
                 CoreTy::Text(Qual::Contagious),
                 CoreTy::Uint,
@@ -463,6 +493,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "lower",
+            names: &["s"],
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -471,6 +502,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "upper",
+            names: &["s"],
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -479,6 +511,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "upperFirst",
+            names: &["s"],
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -487,6 +520,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "lowerFirst",
+            names: &["s"],
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -495,6 +529,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "fold",
+            names: &["s"],
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -503,6 +538,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "normalize",
+            names: &["s", "form"],
             params: &[
                 CoreTy::Text(Qual::Contagious),
                 CoreTy::Enum(NORMAL_FORM_NAME),
@@ -514,6 +550,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "fromCodePoint",
+            names: &["codePoint"],
             params: &[CoreTy::Uint],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -522,6 +559,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "fromCodePoints",
+            names: &["codePoints"],
             params: &[CoreTy::Array(&CoreTy::Uint)],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -530,6 +568,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "format",
+            names: &["template", "arguments"],
             params: &[CoreTy::Text(Qual::Sink), CoreTy::Variadic(&CoreTy::Mixed)],
             defaults: &[],
             return_ty: CoreTy::Str,

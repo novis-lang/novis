@@ -56,6 +56,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "get",
+            names: &["target", "member"],
             params: &[CoreTy::Callable, MEMBER],
             defaults: &[Const::Str("")],
             return_ty: CoreTy::Nullable(&T),
@@ -64,6 +65,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "all",
+            names: &["target", "member"],
             params: &[CoreTy::Callable, MEMBER],
             defaults: &[Const::Str("")],
             return_ty: CoreTy::Array(&T),

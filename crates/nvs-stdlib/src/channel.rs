@@ -99,6 +99,7 @@ pub(crate) const CURRENT_SYMBOL: &str = "nvs_core_channel_current";
 /// one — the bound *is* the backpressure.
 pub(crate) const NEW: CoreMethod = CoreMethod {
     name: "constructor",
+    names: &["capacity"],
     params: &[CoreTy::Uint],
     defaults: &[],
     return_ty: CoreTy::Instance(NAME),
@@ -119,6 +120,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     instance: &[
         CoreMethod {
             name: "send",
+            names: &["value"],
             params: &[CoreTy::Var("T")],
             defaults: &[],
             return_ty: CoreTy::Void,
@@ -127,6 +129,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "close",
+            names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Void,
