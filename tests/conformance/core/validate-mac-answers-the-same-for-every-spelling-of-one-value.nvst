@@ -1,0 +1,138 @@
+--TEST--
+`Core\Validate::isMac` is one predicate over a value rather than three predicates over three notations: every spelling of the same twelve characters is counted, and the count is unanimous for all 137 values swept — docs/spec/01-core-library.md § 12
+--FILE--
+<?nvs
+// § 12 accepts a MAC three ways — six octets by `:`, six by `-`, or Cisco's
+// three groups of four by `.` — in hex digits of either case. The sibling case
+// `validate-mac-takes-three-spellings-and-refuses-the-nearest-miss.nvst` names
+// each of those bounds beside the spelling just past it. This one asserts what
+// those rows are examples *of*: the notation is not part of the question. A
+// value is twelve characters; the separator and the case decide only how it is
+// written down, so all nine spellings of one value must agree, and a member
+// that grew its own reading of one notation fails on the count here while
+// still answering plausibly on every named line over there.
+//
+// The invariant is counted rather than read off: for each value, how many of
+// its nine spellings are accepted. Only `0` and `9` are agreements, so a single
+// spelling that parted company from its eight siblings shows up as a value
+// missing from the unanimity count — without this case having to know which
+// spelling it was. `crates/nvs-stdlib/src/validate.rs`'s `# isMac` section owns
+// the line itself, and records that it has no divergence from PHP to state.
+final class Mac {
+    // The value in chunks of `$width`, joined by `$sep`. Written as a loop over
+    // the value's own length so that a value of the wrong length renders in the
+    // same three notations as a well-formed one — a short last chunk is exactly
+    // what the member is being asked about.
+    public static function render(string $v, string $sep, int $width): string {
+        string $out = "";
+        int $len = Core\Str::length($v) as int;
+        int $i = 0;
+        for (; $i < $len; $i = $i + $width) {
+            int $take = $width;
+            if ($i + $take > $len) {
+                $take = $len - $i;
+            }
+            if ($i > 0) {
+                $out = $out . $sep;
+            }
+            $out = $out . Core\Str::slice($v, $i, $take);
+        }
+        return $out;
+    }
+
+    public static function hit(string $s): int {
+        return Core\Validate::isMac($s) ? 1 : 0;
+    }
+
+    // The three separator forms of one already-cased value.
+    public static function forms(string $v): int {
+        return Mac::hit(Mac::render($v, ":", 2))
+             + Mac::hit(Mac::render($v, "-", 2))
+             + Mac::hit(Mac::render($v, ".", 4));
+    }
+
+    // All nine spellings: three separators, each of the value as written, lower
+    // cased and upper cased. Hex case is no bound at all, so it belongs on this
+    // side of the count rather than in a row of its own.
+    public static function accepts(string $v): int {
+        return Mac::forms($v)
+             + Mac::forms(Core\Str::lower($v))
+             + Mac::forms(Core\Str::upper($v));
+    }
+}
+
+// What the renderer actually produces, for the one value everybody writes. A
+// unanimity count is satisfied by a member that refuses everything, so the
+// counts below mean nothing unless these three are the addresses § 12 names.
+echo "renders ",
+     Mac::render("001122334455", ":", 2), " ",
+     Mac::render("001122334455", "-", 2), " ",
+     Mac::render("001122334455", ".", 4),
+     "\n";
+
+// The content sweep: every code point below 128 in the last character's place,
+// each value spelled all nine ways. Unanimity must hold for all 128, and the
+// 22 accepted ones are `0`-`9`, `A`-`F` and `a`-`f` — the same 22 the sibling
+// case finds through the colon form alone, here found through three notations
+// at once, which is why the answer count is nine times it. The three separators
+// are themselves in this range: a `:` in the last place makes the hyphen and
+// dot renderings contain a colon too, and all nine still agree.
+int $unanimous = 0;
+int $accepted = 0;
+int $answers = 0;
+int $c = 0;
+for (; $c < 128; $c = $c + 1) {
+    int $n = Mac::accepts("00112233445" . Core\Str::fromCodePoint($c as uint));
+    if ($n == 0 || $n == 9) {
+        $unanimous = $unanimous + 1;
+    }
+    if ($n == 9) {
+        $accepted = $accepted + 1;
+    }
+    $answers = $answers + $n;
+}
+echo "sweep-unanimous ", $unanimous as string, "/128\n";
+echo "sweep-accepted ", $accepted as string, "\n";
+echo "sweep-answers ", $answers as string, "\n";
+
+// The same invariance over the shapes a sweep of one position cannot reach:
+// four well-formed values differing only in hex case, a value too short and one
+// too long, a non-hex digit, an embedded space, and the empty string. Length is
+// where the three notations could most plausibly disagree — ten characters is
+// five octets or two-and-a-half Cisco groups — and they do not.
+array<string> $values = [
+    "001122334455",
+    "aabbccddeeff",
+    "AABBCCDDEEFF",
+    "aAbBcCdDeEfF",
+    "0011223344",
+    "00112233445566",
+    "00112233445g",
+    "0011223344 5",
+    "",
+];
+int $tu = 0;
+int $ta = 0;
+int $tn = 0;
+int $i = 0;
+for (; $i < 9; $i = $i + 1) {
+    int $m = Mac::accepts($values[$i as string]);
+    if ($m == 0 || $m == 9) {
+        $tu = $tu + 1;
+    }
+    if ($m == 9) {
+        $ta = $ta + 1;
+    }
+    $tn = $tn + $m;
+}
+echo "table-unanimous ", $tu as string, "/9\n";
+echo "table-accepted ", $ta as string, "\n";
+echo "table-answers ", $tn as string, "\n";
+--EXPECT--
+renders 00:11:22:33:44:55 00-11-22-33-44-55 0011.2233.4455
+sweep-unanimous 128/128
+sweep-accepted 22
+sweep-answers 198
+table-unanimous 9/9
+table-accepted 4
+table-answers 36
