@@ -849,6 +849,16 @@ is why" — is this file.
   rediscover because the script asserts and changes nothing, which reads like the file having moved
   under you. Anything holding a `\\`, a backtick or an apostrophe goes through Write/Edit or
   `python tools/splice.py --patch`.
+- **`python tools/check-migration.py --seed` is a candidate list, not rows to paste.** It attributes
+  every backticked PHP name on a line to whatever that line is *about*, so a member's own prose drags
+  its neighbours in: it emits `acos` → `Core\Math::asin`, `acosh` → `Core\Math::sinh` and `array_map`
+  → `Core\Str::fromCodePoints`, three wrong answers from three lines where the name appears only as an
+  aside. All 341 seeded rows would move the coverage figure by nine points on guesses, which is what
+  02-php-migration.md's own header ("nothing here is guessed to make a number move") forbids. Fill a
+  domain the other way round: read 01-core-library.md's table for the class once, then write one row
+  per name `--report` still lists. The checker catches a member spelling 01 does not have, so a wrong
+  *name* fails immediately — but a right name against the wrong PHP function passes silently, and that
+  is exactly what `--seed` produces.
 
 ## Running things
 
