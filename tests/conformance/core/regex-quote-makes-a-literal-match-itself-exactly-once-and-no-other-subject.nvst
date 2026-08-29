@@ -1,0 +1,221 @@
+--TEST--
+Core\Regex::quote makes a literal exactly one match, at offset 0, spanning its own subject and reaching no other, wherever a metacharacter sits in it — ADR 0056 §§ 4-5
+--FILE--
+<?nvs
+// Spec § 5's `quote` row, from the side its two siblings leave open.
+// `regex-quote-escapes-eighteen-characters-and-nothing-else` names the escaped
+// set and then asks `matches` — a yes-or-no question — of eight hand-picked
+// rows; the differential case against `preg_quote` counts the property the two
+// launderers share without naming either set. Neither asks *how many times*
+// and *where*, which is what a laundering member is for: a quoted literal is
+// one match, at offset 0, spanning the whole of its own subject, and it is
+// that in every position a metacharacter can sit in.
+
+// The table is the member's own escaped set rather than a copy of it — a
+// character is taken iff quoting changes it, so the rows follow the member if
+// it ever escapes a nineteenth. Each is placed at the start, the middle and
+// the end of an `ab` carrier, because an unquoted metacharacter's damage
+// depends on where it sits: `*ab` is not a pattern at all, `a*b` is one that
+// reads `b`, and `ab*` is one that reads `a`.
+array<int> $codes = Core\Arr::range(32, 126);
+int $subjects = 0;
+int $allRefused = 0;
+int $allCoincide = 0;
+int $allDiffer = 0;
+int $p = 0;
+for (; $p < 3; $p = $p + 1) {
+    string $where = "middle";
+    if ($p == 0) {
+        $where = "start";
+    }
+    if ($p == 2) {
+        $where = "end";
+    }
+    int $rows = 0;
+    int $selfOnce = 0;
+    int $insideOnce = 0;
+    int $refused = 0;
+    int $coincide = 0;
+    int $differ = 0;
+    foreach ($codes as int $code) {
+        string $c = Core\Str::fromCodePoint($code as uint);
+        if (Core\Regex::quote($c) == $c) {
+            continue;
+        }
+        string $subject = "a" . $c . "b";
+        if ($p == 0) {
+            $subject = $c . "ab";
+        }
+        if ($p == 2) {
+            $subject = "ab" . $c;
+        }
+        $rows = $rows + 1;
+        string $quoted = Core\Regex::quote($subject);
+
+        // Three claims, not one. A count alone would pass for a member whose
+        // pattern matched some prefix of the subject; an offset alone for one
+        // whose pattern also matched somewhere else. `matches` can express
+        // none of them, which is why this case reaches for `matchAll`.
+        array<Core\Regex\Match> $ms = Core\Regex::matchAll($subject, $quoted);
+        int $whole = 0;
+        foreach ($ms as Core\Regex\Match $m) {
+            if ($m->offset() == 0 && $m->text() == $subject) {
+                $whole = $whole + 1;
+            }
+        }
+        if (Core\Arr::count($ms) == 1 && $whole == 1) {
+            $selfOnce = $selfOnce + 1;
+        }
+
+        // The same three claims with the subject no longer the whole world.
+        // Quoting produces a search rather than an equality, so the count has
+        // to stay 1 while the offset moves to where the literal actually is —
+        // a member that anchored its output would answer 0 here and 1 above.
+        array<Core\Regex\Match> $in = Core\Regex::matchAll("XX" . $subject . "YY", $quoted);
+        int $at2 = 0;
+        foreach ($in as Core\Regex\Match $m2) {
+            if ($m2->offset() == 2 && $m2->text() == $subject) {
+                $at2 = $at2 + 1;
+            }
+        }
+        if (Core\Arr::count($in) == 1 && $at2 == 1) {
+            $insideOnce = $insideOnce + 1;
+        }
+
+        // What the escaping bought, on the same row. The unquoted spelling
+        // partitions three ways — refused outright, read as something else, or
+        // (a `#`, a `~`, a `.` matching its own dot) coinciding with the
+        // quoted answer by luck of position. Only the first two are rows where
+        // quoting made a difference, and the partition is what stops the
+        // counts above from being a restatement of the engine's behaviour.
+        try {
+            array<Core\Regex\Match> $raw = Core\Regex::matchAll($subject, $subject);
+            int $same = 0;
+            foreach ($raw as Core\Regex\Match $r) {
+                if ($r->offset() == 0 && $r->text() == $subject) {
+                    $same = $same + 1;
+                }
+            }
+            if (Core\Arr::count($raw) == 1 && $same == 1) {
+                $coincide = $coincide + 1;
+            } else {
+                $differ = $differ + 1;
+            }
+        } catch (Throwable $notAPattern) {
+            $refused = $refused + 1;
+        }
+    }
+    $subjects = $subjects + $rows;
+    $allRefused = $allRefused + $refused;
+    $allCoincide = $allCoincide + $coincide;
+    $allDiffer = $allDiffer + $differ;
+    echo $where, ": ", $selfOnce, " of ", $rows, " match themselves once at offset 0, ", $insideOnce, " once inside XX..YY at offset 2; unquoted ", $refused, " refused + ", $coincide, " coincide + ", $differ, " read differently\n";
+}
+echo $subjects, " subjects, and the unquoted partition is ", $allRefused, " + ", $allCoincide, " + ", $allDiffer, "\n";
+
+// "And nothing else", asked of the whole table rather than of a decoy picked
+// per row: every quoted literal is run against every subject. A correct
+// launderer fills the diagonal and nothing but it; one that left a single
+// character unescaped lights cells off it — which is exactly what the unquoted
+// sweep beside it does, and the two columns are the same 2,916 cells.
+int $cells = 0;
+int $qMatch = 0;
+int $qDiag = 0;
+int $compiles = 0;
+int $uMatch = 0;
+int $uDiag = 0;
+int $uOff = 0;
+$p = 0;
+for (; $p < 3; $p = $p + 1) {
+    foreach ($codes as int $code) {
+        string $meta = Core\Str::fromCodePoint($code as uint);
+        if (Core\Regex::quote($meta) == $meta) {
+            continue;
+        }
+        string $literal = "a" . $meta . "b";
+        if ($p == 0) {
+            $literal = $meta . "ab";
+        }
+        if ($p == 2) {
+            $literal = "ab" . $meta;
+        }
+        string $fence = Core\Regex::quote($literal);
+        bool $isPattern = true;
+        try {
+            if (Core\Regex::matches("zz", $literal)) {
+            }
+        } catch (Throwable $notAPattern) {
+            $isPattern = false;
+        }
+        if ($isPattern) {
+            $compiles = $compiles + 1;
+        }
+        int $q = 0;
+        for (; $q < 3; $q = $q + 1) {
+            foreach ($codes as int $code2) {
+                string $other = Core\Str::fromCodePoint($code2 as uint);
+                if (Core\Regex::quote($other) == $other) {
+                    continue;
+                }
+                string $target = "a" . $other . "b";
+                if ($q == 0) {
+                    $target = $other . "ab";
+                }
+                if ($q == 2) {
+                    $target = "ab" . $other;
+                }
+                $cells = $cells + 1;
+                if (Core\Regex::matches($target, $fence)) {
+                    $qMatch = $qMatch + 1;
+                    if ($target == $literal) {
+                        $qDiag = $qDiag + 1;
+                    }
+                }
+                if ($isPattern) {
+                    if (Core\Regex::matches($target, $literal)) {
+                        $uMatch = $uMatch + 1;
+                        if ($target == $literal) {
+                            $uDiag = $uDiag + 1;
+                        } else {
+                            $uOff = $uOff + 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+int $qOff = $qMatch - $qDiag;
+echo $qMatch, " of ", $cells, " cells match once quoted: ", $qDiag, " on the diagonal, ", $qOff, " off it\n";
+echo $compiles, " of ", $subjects, " unquoted spellings compile at all, and reach ", $uMatch, " cells: ", $uDiag, " their own subject, ", $uOff, " someone else's\n";
+
+// The row that holds all 18 at once, which no single-character row reaches:
+// the escaping carries no state between characters, so the count does not
+// change and the offset is still where the literal sits. A second copy in the
+// subject is a second match, which is what makes the 1 above a measurement.
+string $all = "#$&()*+-.?[\\]^{|}~";
+string $allQuoted = Core\Regex::quote($all);
+array<Core\Regex\Match> $found = Core\Regex::matchAll("AA" . $all . "ZZ", $allQuoted);
+echo "the whole meta set: ", Core\Arr::count($found), " match, at ";
+foreach ($found as Core\Regex\Match $one) {
+    echo $one->offset(), " [", $one->text(), "]";
+}
+echo "\n";
+echo Core\Arr::count(Core\Regex::matchAll($all . $all, $allQuoted)), " matches when the subject holds it twice\n";
+
+// The one literal for which "exactly once" is the wrong answer, and it is the
+// empty pattern's own definition rather than anything the laundering did: an
+// empty match sits between every pair of characters, so the count is the
+// subject's length plus one. That is why the table above is built from
+// non-empty subjects, and why this bound is named rather than avoided.
+echo "the empty literal: ", Core\Arr::count(Core\Regex::matchAll("", Core\Regex::quote(""))), " match in the empty subject, ", Core\Arr::count(Core\Regex::matchAll("abc", Core\Regex::quote(""))), " in a three-character one\n";
+--EXPECT--
+start: 18 of 18 match themselves once at offset 0, 18 once inside XX..YY at offset 2; unquoted 6 refused + 8 coincide + 4 read differently
+middle: 18 of 18 match themselves once at offset 0, 18 once inside XX..YY at offset 2; unquoted 3 refused + 8 coincide + 7 read differently
+end: 18 of 18 match themselves once at offset 0, 18 once inside XX..YY at offset 2; unquoted 4 refused + 8 coincide + 6 read differently
+54 subjects, and the unquoted partition is 13 + 24 + 17
+54 of 2916 cells match once quoted: 54 on the diagonal, 0 off it
+41 of 54 unquoted spellings compile at all, and reach 579 cells: 33 their own subject, 546 someone else's
+the whole meta set: 1 match, at 2 [#$&()*+-.?[\]^{|}~]
+2 matches when the subject holds it twice
+the empty literal: 1 match in the empty subject, 4 in a three-character one

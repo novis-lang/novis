@@ -262,7 +262,6 @@ impl Attribution {
 /// anchor; a case that asks one of them a *second question* — not the same
 /// question again — is what removes a line.
 const BELOW_THE_FLOOR: &[&str] = &[
-    r"Core\Regex::quote",
     r"Core\Router::urlAbsolute",
     r"Core\Time\TimeOfDay::compareTo",
 ];
