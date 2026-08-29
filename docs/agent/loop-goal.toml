@@ -1,30 +1,24 @@
-# Goal 1 of the parity program -- `Core`'s pure half, finished. The acceptance test, as data.
+# Goal 2 of the parity program -- the reactor, the scheduler, and isolates. The acceptance test, as data.
 #
-# `tools/loop.py` runs the checks below in order, short-circuiting on the first failure, so the ledger
-# line each iteration writes says exactly how far the loop got. Every check must pass. Nothing else
-# counts as done -- not a passing unit test, not a session claiming DONE.
+# `2-concurrency.md` is the prose. It does not restate this list, and this file does not restate its
+# reasoning. One home each.
 #
-# `1-core-depth.md` is the prose: what the goal is, why, and the standing decisions already settled.
-# It does not restate this list, and this file does not restate its reasoning. One home each.
-#
-# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT. A fixture may be corrected to a
-# spelling the docs already fix -- its author had to write it without being able to compile it. What may
-# never change is the expected output, or a fixture's reason for existing.
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
-# The fixtures this goal adds. `goal-switch.py` unions this with the floor's own list, so the twenty-odd
-# fixtures M4 froze do not appear here and are not missing.
 files = [
-  # ADR 0061 § 3's enumeration and the three tables built from it, as one program each.
+  # The reactor's own surface, as three programs: a suspension that keeps a core busy, the task roster,
+  # and the channel's backpressure.
+  "examples/tasks.nvs",
+  "examples/channel.nvs",
+  # ADR 0006's isolate, and ADR 0023's graph copy reached both ways.
+  "examples/isolate.nvs",
+  "examples/serialize.nvs",
+  # carried from the previous goal by tools/goal-switch.py
   "examples/program.nvs",
   "examples/routes.nvs",
   "examples/commands.nvs",
-  # ADR 0102 § 6's origin has to be configured somewhere for `routes.nvs` to print an absolute link, and
-  # ADR 0103 § 1 step 2 says where: `./nvs.toml`, the working directory and no walk upward. One key.
   "nvs.toml",
-  # ADR 0057's folding: a literal date format, a literal pattern and a literal template, each validated
-  # while checking, beside the same three reached through a variable so the runtime path is exercised too.
   "examples/intrinsics.nvs",
-  # carried from the previous goal by tools/goal-switch.py
   "examples/hello.nvs",
   "examples/calls.nvs",
   "examples/throw.nvs",
@@ -53,96 +47,61 @@ files = [
   "examples/targets.nvs",
 ]
 
-# What a session of this goal READS. `python tools/orient.py` slices exactly these out of the live files
-# and prints nothing else. Nothing below is a copy -- each entry is a *selector*, and a wrong one is a
-# loud warning from orient.py rather than silence. `python tools/orient.py --audit` prints what it costs.
 [context]
 
-# This goal's file set is `nvs-stdlib` plus the two passes above it. `nvs-ir` and `nvs-codegen` are
-# deliberately absent: no item here lowers anything, and M4's manifest named eight of their modules.
-modules = [
-  # The registry is the spine -- items 2, 3, 6 and 12 all ask it a question, and every depth slice
-  # starts at a member row.
-  "crates/nvs-stdlib/src/registry.rs",
-  # The attribute passes. `derive.rs` is the worked example items 3, 4 and 6 copy.
-  "crates/nvs-types/src/derive.rs",
-  "crates/nvs-types/src/attributes.rs",
-  "crates/nvs-types/src/expr/calls.rs",
-  # Stage 0's scan, and the hierarchy walk it already has.
-  "crates/nvs-hir/src/autoload.rs",
-  "crates/nvs-hir/src/hierarchy.rs",
-  # Stage 3's three parsers, named because the folding pass reaches all three and the soundness rule is
-  # that it reaches them rather than copying them.
-  "crates/nvs-stdlib/src/format.rs",
-  "crates/nvs-stdlib/src/time.rs",
-  "crates/nvs-stdlib/src/regex.rs",
-  # The two `time.rs` reaches for and no depth slice over it can avoid: `cldr.rs` owns the pattern
-  # letters every `format` case renders with, and `ordering.rs` is the one order every `compareTo`
-  # case has to show `Core\Arr::sort` agreeing with.
-  "crates/nvs-stdlib/src/cldr.rs",
-  "crates/nvs-stdlib/src/ordering.rs",
-  # Stage 6.
-  "crates/nvs-runtime/src/string.rs",
-  "crates/nvs-stdlib/src/granularity.rs",
-  # Stage 4 adds two subcommands; `info.rs` is the shape a non-running one takes.
-  "crates/nvs-cli/src/main.rs",
-  # `Core\Arr` is the largest class in the depth table and the thinnest members left are its own.
-  "crates/nvs-stdlib/src/arr.rs",
-  # The two a depth session reaches whatever class it is on: `case.rs` is the `.nvst` section list --
-  # which sections exist at all, and so what a case may configure -- and `ctx.rs` is where the
-  # per-request state a `Core` member reads lives, ADR 0102 § 6's origin included.
-  "crates/nvs-test/src/case.rs",
-  "crates/nvs-runtime/src/ctx.rs",
-]
-
-# The decisions this goal's work sits inside. orient.py prints the one-sentence bullet for each out of
-# docs/adr/ground-rules.md -- the index, not the rule.
-rules = ["0063", "0071", "0077", "0102", "0086", "0085", "0057", "0061", "0088", "0089", "0009", "0051"]
-
-# ADR sections sliced live into the pack. Only the ones EVERY session of this goal reads: 0063's shape
-# rules bind every member a depth slice touches, 0088 § 2's classification is item 12 and is asked of
-# every row, and 0061 § 3 is Stage 0 plus three of the four attribute items. A per-item section does NOT
-# belong here -- items 3, 4, 6, 7 and 8 each name their own ADR in the goal file; read it at that heading.
-adrs = [
-  "0063",
-  "0088 §2",
-  "0061 §3",
-  "0096 §1",
-  "0096 §1a",
-  "0096 §4",
-  "0102 §8",
-]
-
-# Headings of docs/agent/conventions.md naming shapes this goal will write.
-shapes = ["A `Core` member — the four edits", "A `.nvst` test case", "A diagnostic", "A commit message"]
-
-# Produced by `python tools/playbook.py --manifest <the modules above> --min 4`, then the process block by
-# hand. Re-run that after the file set changes; `--match <paths>` narrows it to one session's own group.
+# `nvs-host` is new and most of this goal is written into it, so it is globbed rather than listed.
+# ORIENT.PY WILL WARN that the pattern matches no module until the crate exists, and that warning is
+# correct and expected -- creating the crate is item 3. Do not answer it by deleting the selector.
 #
-# The ranker scores by what a bullet MENTIONS, so the process traps -- how a session ends, how it reads,
-# what a commit may not carry -- score zero and are kept by hand. That is loop-authoring.md § 2's rule and
-# the reason this list is not simply the tool's output.
+# The glob is `src/*.rs` and not `src/**/*.rs`: the matcher is `fnmatch`, whose `*` already crosses a
+# `/`, so `**/*.rs` demands a subdirectory and silently misses every top-level module.
+modules = [
+  "crates/nvs-host/src/*.rs",
+  # The containment boundary Stage 0 moves outward, and the ABI it wraps.
+  "crates/nvs-runtime/src/abi.rs",
+  "crates/nvs-runtime/src/ctx.rs",
+  # The graph copy's two carriers reach these: the value representation and the release path.
+  "crates/nvs-runtime/src/value.rs",
+  "crates/nvs-runtime/src/release.rs",
+  # `spawn`/`await` lowering, and the safepoint the cancellation item is the first consumer of.
+  "crates/nvs-ir/src/lower/expr.rs",
+  "crates/nvs-ir/src/lower/generator.rs",
+  # `Core\Task`, `Core\Serialize` and `Core\Script` are registered here.
+  "crates/nvs-stdlib/src/registry.rs",
+]
+# NOT in `modules`, and it cannot be: `benches/abi-probe/src/lib.rs` is the proven coroutine shape this
+# goal moves into `nvs-host`, and orient.py's map covers `crates/` and `editors/` only. Every session of
+# Stage 2 should read it anyway -- the handoff names it, which is the one place that survives.
+
+rules = ["0072", "0006", "0023", "0106", "0033", "0012", "0079", "0099", "0004", "0051"]
+
+# The sections EVERY session of this goal reads. 0072 § 5 is the one most likely to be got wrong in the
+# obliging direction, 0106 § 6 is the rule that decides where every syscall goes, and 0023 § 2 is the one
+# walk two stages share. Per-item sections are named in the goal file; read them at that heading.
+adrs = [
+  "0072 §4",
+  "0072 §5",
+  "0106 §6",
+  "0023 §2",
+]
+
+shapes = ["A `Core` member — the four edits", "A `.nvst` test case", "An ADR", "A commit message"]
+
+# `python tools/playbook.py --manifest crates/nvs-host nvs-runtime nvs-ir corosensei coroutine --min 4`,
+# then the process block by hand. Re-run it once `nvs-host` has modules to name.
 playbook = [
-  # The `Core`-member and stdlib traps, which is this goal's whole file set.
-  'Writing Novis itself > core is',
-  'Tooling > a core class',
-  'Writing a test case > no core',
-  'Running things > adding a',
-  'Writing a test case > a rule',
-  'Writing a test case > a corety::var("t")',
+  'Running things > a #[globalallocator]',
+  'Running things > a fatal',
+  'Running things > a leak whose',
+  'Running things > target/release/nvs.exe is',
+  'Running things > verify.py executes',
+  'Tooling > a value',
+  'Tooling > alloc::pooled recycles',
   'Writing a test case > a test binary',
   'Writing a test case > a -p',
-  "Divergences and refusals already pinned > core\\str's twins",
-  "Divergences and refusals already pinned > core\\test::assertcount's two",
-  'Divergences and refusals already pinned > seven members',
-  "Writing a test case > core\\objectset's union,",
-  'Running things > value::asstrbytes and',
-  'Running things > a fatal',
-  'Divergences and refusals already pinned > --errors names no catchable',
-  'Tooling > alloc::pooled recycles',
-  'Running things > a #[globalallocator]',
+  'Writing Novis itself > a closure held',
 
-  # The process traps, by hand. Every one applies whatever the file set is.
+  # The process traps, by hand.
   'Tooling > the end',
   'Tooling > one call reads',
   'Tooling > a whole adr',
@@ -156,33 +115,45 @@ playbook = [
   'Tooling > another agent',
 ]
 
-# Fields of the plan's status block worth printing.
 plan = ["Open now", "Blocking"]
-
-# M4S's acceptance paragraph alone. The whole milestone is 4k of context restating what this goal's item
-# list already says per item; `:verify` is the paragraph every stage here is measured against.
-milestones = ["M4S:verify"]
+milestones = ["M5:verify"]
 
 [valgrind]
-# Every fixture again under `valgrind --leak-check=full`. These two exit non-zero by design.
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
-
-# ---------------------------------------------------------------------------------------------------
-# Stage 8 -- the digest roster. Item 16 in loop-goal.md.
-#
-# The check is a conformance case per new `Core\Digest` case against that algorithm's own published
-# vector, and it is a `.nvst` rather than a `-p nvs-stdlib` test for one reason: the Rust test at
-# hash.rs:652 already covers the six that ship, so extending it proves the dispatch arm exists but not
-# that a program can name the case. A registered enum case with nothing wired behind it passes every
-# other check in this file.
-# ---------------------------------------------------------------------------------------------------
 
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 0 -- ADR 0106's containment rule, which was accepted after M4 was reported done. It runs in the
+# catch-up class because a scheduler written against the old boundary has its panic path wrong, in the
+# place that is hardest to find later.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "0 containment"
+name = "abi-probe (the outer boundary)"
+args = ["test", "-p", "nvs-abi-probe"]
+tests = [
+  # ADR 0106 §§ 1-3. The inner boundary is ADR 0002's and already green; this is the worker task.
+  "a_panic_in_a_worker_task_is_contained_at_the_task",
+  "a_teardown_path_that_panics_does_not_recurse",
+  # § 4 -- the engine-side counterpart to ADR 0020 § 1's call-stack bound, and the single-helper bound.
+  "engine_recursion_is_bounded_before_the_stack_is",
+]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 80 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
+
 [[check]]
 kind = "nvs-suite"
-stage = "8 digest roster"
+stage = "1 floor"
 name = "conformance (the digest roster)"
 args = ["test", "tests/conformance/core/"]
 cases = [
@@ -190,7 +161,6 @@ cases = [
   "tests/conformance/core/hash-hmac-authenticates-with-every-strong-digest.nvst",
   "tests/conformance/core/hash-blake3-is-outside-the-strong-subset.nvst",
 ]
-
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 0 -- ADR 0061 § 3's enumeration. Its stage name starts with "0", which is what puts it in
@@ -201,10 +171,9 @@ cases = [
 # the OpenAPI emitter all filter this enumeration, and ADR 0077 § 5 says so outright -- writing any of
 # them first means writing the walk three times and then unifying it.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "0 enumeration"
+stage = "1 floor"
 name = "nvs-hir (the program scan)"
 args = ["test", "-p", "nvs-hir"]
 tests = [
@@ -215,7 +184,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "0 enumeration"
+stage = "1 floor"
 name = "nvs-types (the call-site expansion)"
 args = ["test", "-p", "nvs-types"]
 tests = [
@@ -232,10 +201,9 @@ tests = [
 
 [[check]]
 kind = "exact"
-stage = "0 enumeration"
+stage = "1 floor"
 file = "examples/program.nvs"
 want = ["alpha", "beta", "gamma", "count=3"]
-
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -1177,8 +1145,6 @@ name = "nvs-runtime"
 args = ["test", "-p", "nvs-runtime"]
 tests = ["an_acyclic_object_graph_releases_every_allocation"]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the four attribute passes. One file set: a name on `nvs_types::derive::ATTRIBUTES`, a
 # recognizing pass, and a table the compiler carries. `#[Json\Derive]` is already on disk and is the
@@ -1187,10 +1153,9 @@ tests = ["an_acyclic_object_graph_releases_every_allocation"]
 # Every test named below must EXIST and pass. Most do not exist yet; writing one is how the loop finishes
 # its item. Do not rename one to something already green.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 attributes"
+stage = "1 floor"
 name = "nvs-types (the derive gaps)"
 args = ["test", "-p", "nvs-types"]
 tests = [
@@ -1203,7 +1168,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "2 attributes"
+stage = "1 floor"
 name = "nvs-types (the route table)"
 args = ["test", "-p", "nvs-types"]
 tests = [
@@ -1222,7 +1187,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "2 attributes"
+stage = "1 floor"
 name = "nvs-types (the command table)"
 args = ["test", "-p", "nvs-types"]
 tests = [
@@ -1235,7 +1200,7 @@ tests = [
 
 [[check]]
 kind = "exact"
-stage = "2 attributes"
+stage = "1 floor"
 file = "examples/routes.nvs"
 want = [
   "GET /users/{id} -> Users::show",
@@ -1247,10 +1212,9 @@ want = [
 
 [[check]]
 kind = "exact"
-stage = "2 attributes"
+stage = "1 floor"
 file = "examples/commands.nvs"
 want = ["greet <name> [--loud]", "migrate [--pretend]", "commands=2"]
-
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- ADR 0057's intrinsic folding. The soundness rule is the item: the prepared path and the
@@ -1258,10 +1222,9 @@ want = ["greet <name> [--loud]", "migrate [--pretend]", "commands=2"]
 # The pair of cases below is what asserts that -- the same malformed literal, once as a compile error and
 # once, behind a variable, as the identical runtime throw.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 intrinsics"
+stage = "1 floor"
 name = "nvs-types (folding at the call site)"
 args = ["test", "-p", "nvs-types"]
 tests = [
@@ -1275,17 +1238,16 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "3 intrinsics"
+stage = "1 floor"
 name = "nvs-stdlib (one implementation, two entry points)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = ["a_prepared_literal_and_its_runtime_twin_share_one_implementation"]
 
 [[check]]
 kind = "exact"
-stage = "3 intrinsics"
+stage = "1 floor"
 file = "examples/intrinsics.nvs"
 want = ["2026-08-28", "matched", "total: 42", "host=example.test"]
-
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- ADR 0085's emitter. `nvs build --openapi` and `nvs api diff` are one slice: the diff's
@@ -1294,17 +1256,16 @@ want = ["2026-08-28", "matched", "total: 42", "host=example.test"]
 # `kind = "command"` runs an arbitrary argv and checks its exit code and output. `{nvs}` is substituted
 # with the CLI the leg already built, so this does not pay for a second build.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "4 openapi"
+stage = "1 floor"
 name = "nvs build --openapi emits 3.1"
 argv = ["{nvs}", "build", "--openapi", "examples/routes.nvs"]
 want = ['"openapi": "3.1', '"/users/{id}"', '"operationId"']
 
 [[check]]
 kind = "cargo-named"
-stage = "4 openapi"
+stage = "1 floor"
 name = "nvs-cli (determinism and the diff)"
 args = ["test", "-p", "nvs-cli"]
 tests = [
@@ -1317,7 +1278,6 @@ tests = [
   "an_api_diff_classifies_an_added_optional_parameter_as_compatible",
 ]
 
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 5 -- the depth pass and the qualifier classification. This is where the goal spends most of its
 # sessions, and it is the fallback whenever another stage's group is blocked.
@@ -1326,10 +1286,9 @@ tests = [
 # omits the threshold. Both are here because this stage is measured both ways: the floor test says every
 # class is exercised, and the count says the corpus grew with the members rather than around them.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "5 depth"
+stage = "1 floor"
 name = "nvs-stdlib (the coverage gates)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -1349,7 +1308,7 @@ tests = [
 
 [[check]]
 kind = "nvs-suite"
-stage = "5 depth"
+stage = "1 floor"
 name = "conformance"
 args = ["test", "tests/conformance/"]
 min_passing = 950
@@ -1371,7 +1330,7 @@ cases = [
 
 [[check]]
 kind = "nvs-suite"
-stage = "5 depth"
+stage = "1 floor"
 name = "differential"
 args = ["test", "tests/differential/"]
 min_passing = 200
@@ -1383,15 +1342,13 @@ cases = [
   "tests/differential/lang/a-date-format-string-renders-as-phps-does.nvst",
 ]
 
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 6 -- the string header. ADR 0009 § 2's cached grapheme count, and the O(1) boundary correction a
 # concatenation needs at the seam.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "6 string header"
+stage = "1 floor"
 name = "nvs-runtime (the cached count)"
 args = ["test", "-p", "nvs-runtime"]
 tests = [
@@ -1400,7 +1357,6 @@ tests = [
   # The cache may never disagree with a fresh scan -- the failure mode is a wrong index, not a slow one.
   "a_cached_count_equals_a_fresh_scan_over_the_corpus",
 ]
-
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 7 -- the migration rows. The parity program's own measure, raised one goal at a time.
@@ -1426,10 +1382,254 @@ tests = [
 # rather than a prediction -- a boundary guessed wrong must not fail a run. A goal that lands its domains
 # and comes out higher raises the next goal's floor in the same commit, and says so.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "7 migration"
+stage = "1 floor"
 name = "check-migration at 33%"
 argv = ["python", "tools/check-migration.py", "--min", "33"]
+want = ["inventory:", "classified:"]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- THE KEYSTONE. No task, no isolate and no `Core\Task` member is written until this is green.
+# Four goals are written against the stream item 4 builds, so a shape that is wrong here is wrong four
+# times.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 reactor"
+name = "nvs-host (the scheduler)"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  "one_core_runs_one_scheduler_and_a_task_never_migrates",
+  "a_refcount_is_still_non_atomic_under_the_scheduler",
+  "many_tasks_can_be_created_and_driven",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 reactor"
+name = "nvs-host (the parking stream)"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  # The whole program rests on this pair: the caller sees a blocking `read`, and the core does not block.
+  "a_socket_read_that_would_block_parks_its_coroutine",
+  "a_parked_coroutine_resumes_when_its_descriptor_is_ready",
+  "a_core_serves_another_task_while_one_is_parked",
+  # It is a plain `std::io` stream, which is the entire reason goal 5's drivers and rustls compose.
+  "a_stream_satisfies_std_io_read_and_write",
+  "a_rustls_session_streams_over_it_unmodified",
+  # Item 5 -- a sleep and a deadline are one mechanism.
+  "a_timer_and_a_deadline_are_the_same_wheel",
+  # Item 6 -- ADR 0106 § 6's bound is per worker and never grows with requests served.
+  "a_blocking_call_goes_to_a_pool_bounded_at_twice_the_core_count",
+  # Item 7 -- it reads state the deadline mechanism already keeps; a per-request heartbeat is the bug.
+  "the_watchdog_reports_a_wedged_worker_without_a_heartbeat",
+]
+
+# The invariant that must survive the move out of the spike and into the crate. These four are M4's and
+# stay green; the point of naming them here is that Stage 2 is where they would break.
+[[check]]
+kind = "cargo-named"
+stage = "2 reactor"
+name = "abi-probe (coroutine invariants)"
+args = ["test", "-p", "nvs-abi-probe"]
+tests = [
+  "a_helper_can_suspend_with_jit_frames_live_above_it",
+  "repeated_suspends_leave_the_frames_intact",
+  "a_throw_still_propagates_inside_a_coroutine",
+  "many_coroutines_can_be_created_and_driven",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3-4 -- `spawn`/`await`, the task tree, and ADR 0072's roster.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 tasks"
+name = "nvs-ir (spawn and await lower)"
+args = ["test", "-p", "nvs-ir"]
+tests = ["a_spawn_lowers_to_a_task_on_the_current_core", "an_await_suspends_until_its_task_completes"]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 tasks"
+name = "nvs-host (structured concurrency)"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  # ADR 0072 § 4 -- the promise the whole roster is built on.
+  "no_call_returns_with_a_child_still_running",
+  "a_task_tree_dies_with_its_parent_and_leaves_no_orphan",
+  # § 5 -- native teardown runs, user code does not. The intuitive implementation is the wrong one.
+  "a_cancelled_task_runs_no_catch_and_no_cleanup_block",
+  "a_cancelled_tasks_arena_is_released",
+  # Item 11.
+  "a_bounded_channel_send_suspends_rather_than_growing",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 task roster"
+name = "nvs-types (the roster's compile-time half)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  # § 1 -- what makes the heterogeneous typing possible at all, and the easiest thing to leave out.
+  "a_task_all_field_holding_a_callable_variable_is_a_compile_error",
+  "a_task_all_binds_each_fields_own_type",
+  # § 3 -- one options shape, and no `timeout` wrapper to reach for.
+  "a_limit_and_deadline_options_shape_is_the_only_spelling",
+]
+
+[[check]]
+kind = "exact"
+stage = "4 task roster"
+file = "examples/tasks.nvs"
+want = ["all=3", "map=1,4,9,16", "deadline hit", "limit held at 2"]
+
+[[check]]
+kind = "exact"
+stage = "4 task roster"
+file = "examples/channel.nvs"
+want = ["produced=8", "consumed=8", "sender suspended"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- ADR 0023's one graph copy, reached twice. Written once and reached twice is the item; two
+# implementations that agree today is the failure this stage exists to prevent.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 graph copy"
+name = "nvs-runtime (one walk, two carriers)"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "the_boundary_copy_and_serialize_share_one_walk",
+  "a_refcount_one_value_moves_rather_than_copying",
+  "a_cyclic_value_crosses_without_hanging",
+  # § 3 -- the format is closed, versioned and self-describing, and a partial accept is the bug.
+  "bytes_that_are_not_our_format_are_refused_whole",
+  "a_class_whose_declared_properties_no_longer_match_is_refused_whole",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 graph copy"
+name = "nvs-types (the sink and the qualifier)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  # 01-core-library.md § 13: decode is a `tainted` sink, and the danger is type confusion, not RCE.
+  "serialize_decode_refuses_a_tainted_operand",
+  # ADR 0033 -- one check on the same walk, both carriers.
+  "a_secret_value_is_refused_at_the_boundary_unless_revealed",
+]
+
+[[check]]
+kind = "exact"
+stage = "5 graph copy"
+file = "examples/serialize.nvs"
+want = ["round-trip ok", "cycle ok", "refused: not our format", "refused: shape changed"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- ADR 0006's isolate. A task with a heap boundary, which is what Stage 2 built.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "6 isolates"
+name = "nvs-host (the isolate boundary)"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  "a_child_cannot_read_or_write_a_parent_variable_or_static",
+  "a_child_cannot_see_the_parents_output_buffer",
+  "a_closure_a_reference_or_a_resource_is_refused_at_the_boundary",
+  "an_unresolvable_class_is_refused_at_the_boundary",
+  # Failure is a value: three different faults, one `ok = false`, parent still running.
+  "an_uncaught_throw_in_a_child_leaves_the_parent_running",
+  "a_contained_panic_in_a_child_leaves_the_parent_running",
+  "a_cancelled_parent_leaves_no_orphan_and_no_leaked_arena",
+  # Item 24 -- the first consumer of a safepoint that has been emitted since the first backend commit.
+  "a_child_is_cancelled_at_its_next_safepoint",
+]
+
+[[check]]
+kind = "exact"
+stage = "6 isolates"
+file = "examples/isolate.nvs"
+want = ["child said hello", "ok=true", "captured=child stdout", "ok=false", "parent still running"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- the testing surface the isolate unlocks. ADR 0079 §§ 2, 12, 16.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "7 test isolates"
+name = "nvs-test (one isolate per test)"
+args = ["test", "-p", "nvs-test"]
+tests = [
+  "each_test_runs_in_its_own_isolate_sharing_only_compiled_code",
+  "the_runner_owns_the_tests_task_tree",
+  "a_test_at_a_fixed_clock_reads_that_clock",
+  "a_test_with_a_seed_draws_the_same_sequence_twice",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 8 -- the corpus, the numbers, and the migration floor.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "8 corpus and guards"
+name = "conformance"
+args = ["test", "tests/conformance/"]
+min_passing = 1000
+cases = [
+  "tests/conformance/task/a-spawned-task-runs-and-its-value-is-awaited.nvst",
+  "tests/conformance/task/a-task-tree-dies-with-its-parent.nvst",
+  "tests/conformance/task/a-cancelled-task-runs-no-user-code.nvst",
+  "tests/conformance/task/a-bounded-channel-suspends-its-sender.nvst",
+  "tests/conformance/task/a-deadline-is-the-only-spelling-for-a-bounded-wait.nvst",
+  "tests/conformance/reject/a-task-all-field-holding-a-callable-variable-is-refused.nvst",
+  "tests/conformance/core/a-graph-copy-round-trips-a-cyclic-value.nvst",
+  "tests/conformance/reject/serialize-decode-refuses-a-tainted-operand.nvst",
+  "tests/conformance/reject/a-secret-value-does-not-cross-a-boundary.nvst",
+  "tests/conformance/isolate/a-child-shares-nothing-with-its-parent.nvst",
+  "tests/conformance/isolate/a-childs-failure-is-a-value-not-an-exception.nvst",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "8 corpus and guards"
+name = "differential"
+args = ["test", "tests/differential/"]
+min_passing = 205
+
+# The cost claim M5 exists to make, and the one already-green guard it must not regress.
+[[check]]
+kind = "cargo-named"
+stage = "9 guards"
+name = "abi-probe (isolation cost)"
+args = ["test", "--release", "-p", "nvs-abi-probe", "--test", "perf_guards"]
+tests = [
+  "an_os_process_costs_orders_of_magnitude_more_than_a_task",
+  "a_spawn_to_result_round_trip_stays_in_the_microsecond_class",
+  "a_coroutine_round_trip_stays_cheap",
+]
+
+# `serialize`/`unserialize` and a handful of task names is all this goal owns in the inventory, so its
+# floor rises by two points and not by ten. 1-core-depth.toml's Stage 7 comment is where the whole
+# curve is derived; nothing here restates it.
+[[check]]
+kind = "command"
+stage = "9 guards"
+name = "check-migration at 34%"
+argv = ["python", "tools/check-migration.py", "--min", "34"]
 want = ["inventory:", "classified:"]

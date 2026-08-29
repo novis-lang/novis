@@ -1,285 +1,195 @@
-# Loop goal 1 — `Core`'s pure half, finished
+# Loop goal 2 — the reactor, the scheduler, and isolates
 
-Finish **M4S** — [docs/plan/m4s.md](../plan/m4s.md) is the scope and this file does not restate it.
-Every member of [docs/spec/01-core-library.md](../spec/01-core-library.md) §§ 1–13 that does not need a
-capability, a reactor, a driver or an open handle **runs, is cased, and is claimed by a row in the
-migration table.**
+Finish **M5** — [docs/plan/m5.md](../plan/m5.md) is the scope and this file does not restate it. A
+Novis program can **suspend**: on a socket, on a timer, on a child task, on another core's answer — and a
+core that is waiting on one request keeps serving the others.
 
-This is order 1 of the parity program ([goals/README.md](goals/README.md)), and it is first for a reason that
-compounds the way M4's operator table did: **every goal above this one is written against `Core`.** A
-driver returns `Core\Time\Instant`s, the server returns `tainted string` from `Core\Request`, an isolate
-copies a `Core\ObjectMap`. A member that is registered but wrong, or registered and untested, is a defect
-that gets built on five times before anyone trips over it.
+This is order 2 of the parity program ([goals/README.md](goals/README.md)) and it is **the keystone**. Nothing
+above it has a socket, a timer or a task without it: the four database drivers, the outbound HTTP client
+and the listener all reach the network through the one stream this goal builds. Every goal after this is
+written against its shape, so a shape that is wrong here is wrong four times.
 
-## What "finished" means here, and why it is checkable
+## The one design decision every session must hold
 
-M4S Part I is already **registered** — `crates/nvs-stdlib/tests/spec-members-outstanding.txt` holds no
-keys, which is this project's definition of that word. Registered is not finished. Three things separate
-them, and each has a tool that counts it so no session re-derives one:
+**The runtime is ours and it is not `async`.** `corosensei` stackful coroutines on a thread-per-core
+scheduler ([ADR 0072](../adr/0072-core-task-structured-concurrency.md)), and `tokio` appears in
+neither `Cargo.toml` nor `Cargo.lock` ([ADR 0099](../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md)).
+`docs/plan/design.md` § *Thread-per-core, shared-nothing runtime* is the one home for the rule and this
+file does not restate it.
 
-1. **Depth.** `python tools/gaps.py` prints the median conformance cases per member per class, thinnest
-   first, and its `floor` column is the worst member of each. A class whose median is 5 and whose floor is
-   2 has members nothing has ever really exercised. This goal raises the **floor to 3 for every class**,
-   which is deliberately not a median: a median rises by writing more cases for members that already have
-   some, and that is the metric a corpus grows around rather than into.
-2. **The passes that exist only on paper.** Four compiler-recognized attributes, the intrinsic-folding
-   pass, the OpenAPI emitter and ADR 0061 § 3's program enumeration are all specified, none implemented.
-   `nvs_types::derive::ATTRIBUTES` at [derive.rs:77](../../crates/nvs-types/src/derive.rs) is the
-   closed list they join, and it holds five names where the ADRs name twelve.
-3. **The migration rows.** `python tools/check-migration.py` was at **25%** (291 of 1151 functions) when
-   this goal was written. This goal takes the domains M4S owns — strings, arrays, numbers, dates, regex,
-   encoding, JSON, paths — to a row each. That is not a documentation slice: a row is where the audit
-   happens, and three functions reached a full member-by-member review with no home at all precisely
-   because prose was carrying the argument.
+What follows from it is the shape of item 2, and it is worth stating plainly because everything else in
+the program depends on getting it right: **`nvs-host`'s socket implements plain `std::io::Read` and
+`Write`, and parks its coroutine rather than blocking its core.** A read that would block returns to the
+reactor, the coroutine is resumed when the descriptor is ready, and the *caller* sees an ordinary blocking
+`read`. That is what lets every synchronous Rust crate compose with no async at all — `rustls` streams
+over it unmodified, and so do the wire codecs goal 5's drivers use. A design that instead exposes futures
+would put a second concurrency model beside the coroutines, which is exactly what ADR 0072 refuses.
 
-**A member is *done* when it runs, its errors are asserted, and PHP agrees where the spec says PHP is the
-oracle.** A registered signature with a body that throws is not done, and `gaps.py`'s *unasserted error
-paths* list — 68 sites when this was written — is the inventory of the middle one.
+**The proof it works already exists.** `benches/abi-probe`'s coroutine invariants are green and have been
+since M0: a helper suspends with JIT frames live above it, repeated suspends leave the frames intact, a
+throw still propagates inside a coroutine, and many coroutines can be created and driven. This goal moves
+that spike into `nvs-host` and gives it a reactor; it does not re-litigate whether the spike works.
 
-## Stage 0 — the catch-up, and it is one item
+## Stage 0 — the catch-up, and it is the containment rule
 
-1. **ADR 0061 § 3's program enumeration exists.** `Core\Program::implementing<T>()` expands at compile
-   time to an array literal of `new` expressions, one per non-abstract class implementing `T`, **sorted by
-   fully-qualified name** so the order never depends on filesystem enumeration; a class with no
-   no-argument constructor is a diagnostic naming it. `nvs-hir` has §§ 1–2 — `AutoloadMap::build` at
-   [autoload.rs:162](../../crates/nvs-hir/src/autoload.rs) and the `resolve` beside it — and nothing
-   walks the resulting program to answer "which classes implement this interface".
+[ADR 0106](../adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) was accepted after M4
+was reported done and it **amends ADR 0002**: containment moves outward from the helper to the worker
+task. Every mechanism this goal builds sits inside that boundary, so it goes first — a scheduler written
+against the old boundary is a scheduler whose panic path is wrong, and it is wrong in the place that is
+hardest to find later.
 
-   **It is Stage 0 because three later items are the same scan.** `#[Route]`'s table (item 6),
-   `#[Command]`'s table (item 8) and the OpenAPI emitter (item 9) are all "filter ADR 0061 § 3's
-   enumeration", and ADR 0077 § 5 says so outright. Writing any of them first means writing the walk
-   three times and then unifying it. `crates/nvs-hir/src/autoload.rs`,
-   `crates/nvs-hir/src/hierarchy.rs` (`implements_interface` is already there),
-   `crates/nvs-types/src/expr/calls.rs` for the call-site expansion.
+1. **The worker task is the containment boundary, not the helper.** ADR 0106 §§ 1–3: `catch_unwind` wraps
+   the worker task; nothing on a teardown path may panic; teardown stops recursing. `nvs_runtime`'s
+   existing `catch_unwind` at the ABI is the inner boundary and stays — this is the outer one.
+   `crates/nvs-runtime/src/abi.rs:336` is the helper-body macro that owns the inner rule.
+2. **Every depth and duration a request can drive is bounded on the engine's own stack.** § 4. The
+   call-stack bound in ADR 0020 § 1 gains an engine-side counterpart, and a single helper gains one too.
+   This is the item that makes a memory cap mean anything later, and it is cheap now and expensive after
+   there are twenty helpers that can recurse.
 
 ## Stage 1 — the floor
 
-M4's entire acceptance list, inserted mechanically by `goal-switch.py` and **never traded for anything
-above it.** A session that finds it has to change a floor fixture's expected output has found a bug in its
-own slice. Nothing in this goal *writes* `nvs-ir` lowering or `nvs-codegen`, so a failure there is a real
-regression and never a scope question — with one declared exception, which owns what M4 left standing
-there rather than scheduling any of it.
+Goals 1 and M4's whole acceptance lists, inserted mechanically by `goal-switch.py`, **never traded.**
+`Core`'s pure half is finished and this goal does not touch it; a red check there is a regression.
 
-15. **M4's seventeen lowering refusals keep an owner across the goal switch.**
-    The ratchet is what lets them stand.
-    `nvs-ir` type-checks each of these shapes and then refuses it. M4's item list anchored
-    every one, and the switch carried M4's *check* into this stage without carrying the *items* that made
-    it green, so `every_refusal_is_a_diagnostic_or_decided` began failing on sites nothing in this tree
-    had touched. This item is that inventory, so the gate can tell a carried gap from a new one.
-    Numbered fifteenth because the fourteen below keep the numbers this goal's TOML comments and
-    `python tools/holes.py --item N` already use.
+## Stage 2 — the keystone: `nvs-host`, the reactor, and the parking stream
 
-    - `crates/nvs-ir/src/lower/call.rs:773` and `:1104` — an argument list through a `callable` that is
-      not plain positional, and a by-reference argument from something other than a bare local or a
-      compile-time-known property.
-    - `crates/nvs-ir/src/lower/control.rs:744`, `:978` and `:989` — a `switch` label at a representation
-      other than the subject's own, a `foreach` key binding outside ADR 0007 § 5's one stored key type,
-      and a `foreach` over an ADR 0053 `Iterable`/`Iterator` subject.
-    - `crates/nvs-ir/src/lower/convert.rs:574` — a truthy condition over a representation the conversion
-      slice does not carry.
-    - `crates/nvs-ir/src/lower/exception.rs:32` — `throw` on a representation that is not an object.
-    - `crates/nvs-ir/src/lower/expr.rs:1670`, `:2548`, `:2737`, `:3800` and `:3836` — a `match` label at a
-      foreign representation, an instance call and a static call with no resolved target in the
-      typed-expression table, `instanceof` against a subject that cannot hold an object, and `clone` on
-      one.
-    - `crates/nvs-ir/src/lower/mod.rs:2276`, `:2705` and `:2792` — an array-element write through a shape
-      that is not a bare local, a compile-time-known property or a static property, and the two declared
-      type lists that do not yet spell every atom ADR 0007 § 3 allows.
-    - `crates/nvs-ir/src/lower/stmt.rs:269` and `:1465` — a local declaration shape the control-flow
-      slice does not lower, and `unset` on anything but an array element with an explicit subscript.
+**No task, no isolate and no `Core\Task` member is written until this stage is green.** Everything above
+is a consumer of it.
 
-    **This goal does not close them and is not judged on them.** It is `Core`'s pure half, and no `Core`
-    member reaches one of these shapes; a session that finds itself editing a file above has taken the
-    wrong slice. What makes standing acceptable is the second half of the same gate: `CEILING` in
-    `crates/nvs-ir/tests/refusals.rs:66` holds the total at seventeen and **may never rise**, so a
-    refusal added beside a carried one fails the run even though attribution claims its file. Each
-    closes the way M4 required — it lowers, or a diagnostic naming its rule refuses it, never a panic
-    however well worded — in the first goal that writes `nvs-ir` lowering again.
+3. **`crates/nvs-host` exists, and one core runs one scheduler.** A per-core thread pinned to a CPU, a
+   run queue of coroutines, and a `Ctx` carrying the yielder — the shape `benches/abi-probe/src/lib.rs:100`
+   already models and calls "deliberately shaped like the real `Ctx` will be". Value refcounts stay
+   non-atomic because a heap is only ever touched by one thread, which is `design.md`'s decisive
+   structural choice and is what this crate must not break.
+4. **The reactor, and the parking stream.** Readiness for a descriptor, per platform, and a `NvsTcp` (and
+   its Unix-socket sibling) implementing `std::io::Read`/`Write` over it. **This is the item the whole
+   program rests on** — see § *Standing decisions* for its ADR slot, which is the first slice of this
+   stage rather than a follow-up to it.
+5. **Timers.** A timer wheel on the same reactor, because a deadline is what ADR 0072 § 3's
+   `{limit, deadline}` and ADR 0074 § 5's "no spelling for an unbounded wait" both resolve to. One
+   implementation; a sleep and a deadline are the same mechanism seen twice.
+6. **The blocking pool.** ADR 0106 § 6: filesystem calls, name resolution and waiting on a child process
+   go to a pool **bounded at twice the core count**, because they have no readiness to wait on. The bound
+   is per worker and never grows with requests served — that is the ADR's own footprint statement and it
+   is not a number to tune during the run.
+7. **The watchdog.** § 7: a thread reading the in-flight deadline each worker already maintains, reporting
+   a worker whose oldest request has passed it by a configured margin. It costs the hot path nothing
+   because it reads state the deadline mechanism keeps anyway — a heartbeat written per request is the
+   wrong implementation and the reason this item names the mechanism.
 
-    **The recurrence is the switch's bug, not this file's.** `tools/goal-switch.py` carries a goal's
-    `[[check]]` blocks forward and its unclosed items not at all, so a carried check whose green depends
-    on an item list arrives without its basis; until that is fixed, every goal in
-    `docs/agent/goals/chain.toml` inherits this paragraph by hand.
+## Stage 3 — `spawn`, `await`, and the task tree
 
-## Stage 2 — the four attribute passes, which are one pass
+8. **`spawn` and `await` lower.** The grammar has `spawn script` since M1
+   (`nvs_syntax::ast::ExprKind::SpawnScript` at [ast.rs:931](../../crates/nvs-syntax/src/ast.rs)); the
+   task forms and their lowering are this item. A spawned task is a coroutine on the current core's queue.
+9. **Structured concurrency: a task tree dies with its parent.** No orphans, and **no call returns with a
+   child still running** — ADR 0072 § 4, which is the promise the rest of the roster is built on.
+10. **Cancellation runs no user code.** § 5, and it is the item most likely to be got wrong in the
+    obliging direction: native teardown runs, a cancelled task's `catch` and cleanup blocks **do not**, and
+    its arena is released. The guard is a case asserting exactly that, because the intuitive
+    implementation is the wrong one.
+11. **`Core\Task\Channel`, with backpressure.** A bounded channel whose send suspends. Same file set as
+    items 8–10.
 
-Grouped because they are literally one file set: a name on `ATTRIBUTES`, a recognizing pass in
-`nvs-types`, and a table the compiler carries. `#[Json\Derive]` is the worked example already on disk —
-[derive.rs](../../crates/nvs-types/src/derive.rs) is 175 lines to the pass and it is the shape to copy,
-not an example to read for inspiration.
+## Stage 4 — the `Core\Task` roster
 
-2. **`#[Json\Derive]`'s three open gaps close.** Its own module doc lists them: § 2's codec-reachable type
-   test is not applied, § 7's refusal of a class that hand-writes both halves is not applied, and a field
-   whose declared type has no decoder is `CodecTy::Opaque` refused at the `decodeAs<T>` that runs rather
-   than at the declaration that wrote it. All three are diagnostics at the declaration.
-   [derive.rs:40](../../crates/nvs-types/src/derive.rs) is where they are written down.
-   [ADR 0071](../adr/0071-derived-codecs.md) §§ 2, 7.
-3. **`#[Route]` builds a table while compiling.** [ADR 0077](../adr/0077-compile-time-routing.md) §§ 1–3
-   and 5: matched nominally like every other name on `ATTRIBUTES`, the path grammar of § 2, a parameter's
-   type coming from the method and being what launders it, and the table built by Stage 0's scan. Its
-   three compile errors are the whole point of doing it here — a duplicate route, a `{param}` with no
-   matching method parameter, an unknown literal `url()` name.
-4. **`#[Query]` and `#[Access]` join it**, and with them ADR 0102's four further compile errors: a
-   `{name?}` outside the last position or bound to a parameter with no default (§ 4), a capture or
-   `#[Query]` parameter whose type is outside § 3's list, and a `url()` key that is neither a capture nor
-   a declared `#[Query]` parameter (§ 6). Same pass, same file, one group with item 3.
-   [ADR 0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md).
-5. **`Core\Router::url()` and `::urlAbsolute()` are launderers over that table** — and only those two.
-   `::match` and `::methodsFor` are goal 6's, because a match needs a request. Splitting the class this
-   way is [01-core-library.md](../spec/01-core-library.md) § *Milestones*'s own instruction and not this
-   goal's invention.
-6. **`#[Command]`/`#[Option]`/`#[Argument]` build the command table.**
-   [ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md) § 6, with its own three compile errors: a
-   duplicate command name, two options sharing a spelling, an `#[Option]` on a parameter with no
-   conversion from `string`. **The table only** — `Core\Command::run`, the generated `--help` and the
-   completions are goal 4's, since neither argv nor a terminal is reachable before capabilities exist.
+12. **`Core\Task::all` over a shape literal of `fn` literals**, each field keeping its own type — ADR 0072
+    § 1. A field holding a `callable` *variable* rather than an `fn` literal is a **compile error**, which
+    is what makes the heterogeneous typing possible at all and is easy to leave out.
+13. **`Core\Task::map`**, subject-first, which is what `parallel_map` became — § 2.
+14. **`{limit, deadline}` is the one options shape**, in place of a `timeout` wrapper — § 3. `race` is
+    deferred with a named future spelling and is **not** in scope.
+15. **`Core\Task::afterResponse` and the `[deferred]` block** — §§ 6–7. The connection ends, the request
+    tree does not; and what happens when the deferred queue is full is a decision that ADR already took.
+    The `[deferred]` config block's *validation* is goal 3's, since the registry does not exist yet; what
+    lands here is the member and its behaviour under compiled-in defaults.
 
-## Stage 3 — the intrinsic-folding pass
+## Stage 5 — the graph copy, and both things carried by it
 
-7. **[ADR 0057](../adr/0057-intrinsic-literal-folding.md)'s closed list folds.** A short list of `Core`
-   members take an argument that is really a small program — a regex pattern, a URI, a date-format string,
-   a format string — and when that argument is a compile-time constant the compiler validates it during
-   checking and *prepares* what the runtime would have built on first use. Nothing of this exists: three
-   modules mention the ADR in a doc comment ([format.rs:46](../../crates/nvs-stdlib/src/format.rs),
-   [time.rs:73](../../crates/nvs-stdlib/src/time.rs),
-   [regex.rs:29](../../crates/nvs-stdlib/src/regex.rs)) and no pass reads any of them.
+16. **One graph copy, two carriers.** [ADR 0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md)
+    § 2: the deep-copy-or-move walk is written once and reached twice — as the value-crossing operation at
+    a `spawn worker`/`spawn script` boundary, and as `Core\Serialize`. Moving when the refcount is 1 is
+    not an optimisation here, it is the semantics.
+17. **`Core\Serialize::encode`/`decode`** — § 3, Novis's own closed byte format, versioned and
+    self-describing, with **no** `__serialize`/`__wakeup`/`__sleep` hook. `decode` is a **`tainted` sink**;
+    [01-core-library.md](../spec/01-core-library.md) § 13 holds the reasoning and it is not restated in
+    the implementation.
+18. **A `secret`-qualified value is refused at the boundary** unless it went through
+    `Core\Secret::reveal()` — [ADR 0033](../adr/0033-secret-qualifier-for-confidential-values.md).
+    Same walk, one check.
+19. **Bytes that are not Novis's own format are refused rather than partially accepted**, and so are bytes
+    naming a class whose declared properties no longer match. A partially-accepted graph is the type
+    confusion the sink exists to prevent.
 
-   **The soundness rule is absolute and is the item's whole shape**: the prepared path and the runtime
-   path share one implementation, so folding can never produce a different answer, only an earlier one. A
-   fold that needs its own copy of the parser is the wrong design, and the check that says so is a case
-   asserting the same malformed literal is a compile error *and*, behind a non-literal, the identical
-   runtime throw. Its own group, because it is the only item that reaches into `nvs-types`' constant
-   folding and `nvs-stdlib`'s parsers at once.
+## Stage 6 — `spawn script`, and the isolate
 
-## Stage 4 — the emitter
+20. **The `Isolate` type in `nvs-host`**, with its own arena, `Core` accessor backing state and config
+    overlay — [ADR 0006](../adr/0006-isolated-script-execution.md). It belongs in this goal rather
+    than later because an isolate is a task with a heap boundary, which is exactly what Stage 2 built.
+21. **The request tree and its shared budget**, § *Budgets are accounted at the root of the request tree*.
+    Enforcement of the *limits* is goal 3's; the accounting is this item's, and until then it runs under
+    compiled-in defaults.
+22. **`Core\Script::args()`, the top-level `return` contract, and the `ScriptResult` shape** — § *Failure
+    is a value, not an exception*, plus [ADR 0012](../adr/0012-no-superglobals.md). A child's uncaught
+    throw, its limit breach and a contained panic inside it all leave the parent running with `ok = false`.
+23. **The value-crossing refusals**: a closure, a reference and a resource are refused at the boundary, and
+    so is an unresolvable class. A cyclic argument crosses **without hanging**, which is the case that
+    catches a naive walk.
+24. **`output: capture|inherit`, `on: worker`, and cancellation of a child at its next safepoint.**
+    Safepoints are emitted already and have been since the first backend commit; this is the first consumer.
 
-8. **`nvs build --openapi` writes a deterministic 3.1 document.**
-   [ADR 0085](../adr/0085-openapi-is-generated-from-the-route-table.md): § 1's "what supplies what" is
-   the whole design — the route table supplies paths and parameters, `#[Json\Derive]`'s field list
-   supplies schemas, and `#[Api]` supplies **only what the types cannot say**. `Core\Api` joins
-   `ATTRIBUTES` and the four contradiction cases become compile errors.
-9. **`nvs api diff` is the same slice**, not a follow-up. The classification is mechanical over two
-   emitted documents, so it costs a comparison rather than a design — § 4 is the gate it implements.
-   `crates/nvs-cli/src/main.rs:175` is where a subcommand is added and `crates/nvs-cli/src/info.rs` is
-   the shape a non-running subcommand takes.
+## Stage 7 — the testing surface the isolate unlocks
 
-## Stage 5 — the depth pass, and the qualifier classification
+25. **Every `#[Test]` runs in its own isolate**, sharing nothing but compiled code, with the runner owning
+    the test's task tree — [ADR 0079](../adr/0079-testing-is-a-language-feature.md) §§ 2, 12, 16. This
+    is what makes `nvs test` parallel, and it is here rather than at M4 because the isolate is here.
+26. **`#[Test(at:, seed:)]` puts the clock and the generator under the test's control.** Same ADR, same
+    sections. A test that is flaky because it read the wall clock is a test the language should have made
+    impossible.
 
-10. **Every `Core` class's conformance floor reaches 3.** Take the group from `python tools/gaps.py`'s
-    right-hand column, which names the three thinnest members of each class with their anchors; the
-    thinnest classes print first and that is the order. This is the one item in the program that a session
-    may always fall back to when its own group is blocked, and it is the reason the corpus reaches M4's
-    own 1000-case figure without anybody writing cases for their own sake.
-11. **Every `Core` member's error paths are asserted.** `gaps.py`'s *unasserted error paths* section is
-    the list — 68 sites, 65 of them `Fault::fatal`. **Judge before writing**: a `Fault::fatal` may be an
-    internal invariant no program can reach, in which case the answer is a comment saying so at the site
-    rather than a case; a `thrown` is a boundary a case can catch and echo. The two in
-    `crates/nvs-stdlib/src/csv.rs:512` and `crates/nvs-stdlib/src/test.rs:692` are the second kind.
-12. **The per-parameter qualifier classification is complete.**
-    [ADR 0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 2: an unclassified
-    `string`/`bytes` parameter refuses `tainted`, and `nvs-stdlib`'s own suite fails on any member that
-    ships without a classification. m4s.md calls this "part of building §§ 1–12 rather than a separate
-    slice" — it is listed here because the members are built and the pass is what is left.
-    [registry.rs:490](../../crates/nvs-stdlib/src/registry.rs) is what a member's row may say.
+## Stage 8 — the numbers
 
-## Stage 6 — the string header
-
-13. **`Core\Str`'s grapheme count is lazily cached, and a concatenation corrects the boundary in O(1).**
-    [ADR 0009](../adr/0009-string-and-bytes.md) § 2 decided the grapheme cluster is the unit and
-    `nvs_stdlib::granularity` seams it; that ADR's *Consequences* names the cached count as still owed and
-    m4s.md places it here. It belongs in `NvsStr`'s header at
-    [string.rs:250](../../crates/nvs-runtime/src/string.rs), beside the builder at `:311`.
-    `a_grapheme_index_costs_more_than_a_code_point_index` in `benches/abi-probe` is the guard that already
-    exists and must stay green — this item makes the *repeat* index cheap, never the first one.
-
-## Stage 7 — the migration rows
-
-14. **Every PHP name in M4S's domains has a row.** `python tools/check-migration.py --report` lists what
-    is open; the domains this goal owns are strings, arrays, numbers, dates, regex, encoding, JSON and
-    paths. A row is `member`, `language` or `dropped` and each has a rule:
-    [02-php-migration.md](../spec/02-php-migration.md) § *How to read a row* is that rule and this file
-    does not restate it. **A cell that is exactly one `Core` member spelling is the rename `nvs convert`
-    applies**, so a cell naming two members or a rewrite must carry its rule id from
-    [ADR 0089](../adr/0089-convert-is-one-rule-table-with-two-modes.md) § 6.
-
-    **Nothing here is guessed to make a number move.** A name with no home is a finding, not a `dropped`
-    row: three of them turned out to be real gaps last time somebody looked.
-
-## Stage 8 — the digest roster
-
-16. **`Core\Digest` carries the algorithms a program written now actually names.** Six cases ship —
-    `Crc32`, `Md5`, `Sha1`, `Sha256`, `Sha384`, `Sha512` — against PHP's roughly sixty, and the gap that
-    matters is not the long tail. [01-core-library.md](../spec/01-core-library.md) § 11's table is the
-    roster's home and lands first. `crates/nvs-stdlib/src/hash.rs:142` is the enum,
-    `crates/nvs-stdlib/src/hash.rs:386` its dispatch, and `crates/nvs-stdlib/src/hash.rs:318` the ordinal
-    read every stream's slot goes through — bare rather than linked so `python tools/holes.py --item 16`
-    lists them. Numbered sixteenth for item 15's reason: the fifteen below keep the numbers this goal's
-    TOML comments and that tool already use.
-
-    **Three cost no crate at all.** `Sha224`, `Sha512_224` and `Sha512_256` are already in the pinned
-    `sha2 0.10.9` — one `DIGEST` case, one `DigestKind` variant, one `kind_of` arm and one `digest_of`
-    arm each. **`Sha512/256` is the one worth arguing for**: faster than SHA-256 on 64-bit hardware,
-    structurally immune to length-extension, published by NIST, and today unspellable.
-
-    **`Blake3` is already decided and is not yet free.** [Cargo.toml:62](../../Cargo.toml) declares it
-    and [ADR 0042](../adr/0042-on-disk-artifact-cache-format.md) commits the artifact cache to it, but
-    nothing consumes it, so it is absent from `Cargo.lock` and this is the slice that resolves it. It does
-    not implement `digest 0.10`'s traits without `traits-preview`, so it takes its own `digest_of` arm and
-    does **not** ride the `mac!` macro; and HMAC-BLAKE3 is a construction nobody uses, because BLAKE3's
-    keyed mode is native — so it stays outside `STRONG` until a keyed member is designed rather than
-    being bent into `hmac`. It is also the one algorithm PHP cannot compute at all.
-
-    **`sha3` and `crc32c` are the two that earn a crate.** All four SHA-3 cases ride the same `digest`
-    trait set into `digest_of` *and* `hmac_of` with no hand-fitting, and `crc32c` is the checksum S3 and
-    GCS stamp objects with, so it is interop this runtime will meet. **The rest stays out.** `xxh*`,
-    `murmur3*`, `fnv1*`, `adler32` and `joaat` are table hashes, and putting one in the enum that holds
-    `Sha512` is the confusion `StrongDigest` exists to prevent; `md2`, `md4`, `ripemd*`, `whirlpool`,
-    `tiger*`, `snefru*`, `gost*` and `haval*` are dead everywhere but a compatibility matrix.
-
-    **The ordinals are ABI** — `kind_of` at `:318` reads them back out of a stream's slot — so a case is
-    appended at 6 and up and the list is never reordered. Widening `STRONG` is backward compatible and
-    narrowing it is not, which is the only direction this roster grows. `DIGEST`'s doc comment currently
-    claims its cases are "ordered weakest first so that `STRONG` is a contiguous tail"; that stops being
-    true here, and correcting it is part of the same edit rather than a follow-up.
-
-    **What it spends:** nothing per request — a digest state is stack-held and released before the member
-    returns — and binary size for each algorithm's own tables. That is priority 5 for priority 2, the
-    trade AGENTS.md's ordering already authorizes. A new crate owes the three things the standing decision
-    below names, and nothing here needs a capability, a handle or a reactor, which is why it is goal 1's
-    and not goal 4's.
+27. **`benches/isolation.rs`, with the guard beside it.** Spawn-to-result for a trivial child on a warm
+    cache is **single-digit microseconds**, committed next to the process baseline it replaces, and it
+    sits alongside `an_os_process_costs_orders_of_magnitude_more_than_a_task` — which already exists and
+    must stay green. m5.md's *Verify* paragraph is the authority on the rest: 100k concurrent tasks, a
+    deliberate deadlock proving cancellation works, `Core\Task::map` near-linear across cores,
+    ThreadSanitizer clean.
 
 ## Acceptance
 
-**The checks live in [`1-core-depth.toml`](goals/1-core-depth.toml), and only there.** Read it, or
-`python tools/loop.py --list`.
+**The checks live in [`2-concurrency.toml`](goals/2-concurrency.toml), and only there.**
 
 ## Standing decisions — pre-authorized, do not stop the loop for these
 
-- **Decide and record; never `BLOCKED` for a design call.** Settle it under AGENTS.md's priority ordering
-  and record it in the home AGENTS.md already names — a paragraph in `docs/adr/README.md`
-  § *Decisions taken at project start*, or the crate's own module doc.
-- **ADR slots for this goal: none.** Every design this goal reaches is already argued — 0057, 0061, 0071,
-  0077, 0085, 0086, 0088, 0089, 0102. A session that believes it needs a new number has almost certainly
-  found a section of one of those it has not read; the ADR is the answer, and if it genuinely is not,
-  that is a `BLOCKED`.
-- **The four attribute passes extend `ATTRIBUTES`, never widen the matching rule.** A name on that roster
-  is matched *nominally* after `nvs_hir::resolve_ref`, so `#[Core\Route]` and a `use Core;`d `#[Route]`
-  are one attribute and no userland spelling is any of them. Structural matching is ADR 0046's rule for
-  *retrieval* and is a different question.
-- **A fold and its runtime path are one implementation.** If preparing a literal appears to need its own
-  parser, the fold is wrong and the runtime parser is what gets an entry point — never a second copy.
-- **`Core\Router` splits, and `::match` is not in scope.** Neither is `Core\Command::run`, the terminal,
-  or anything that opens a file. A session that reaches one puts it in `## Backlog`.
-- **The conformance floor is per class, not per corpus.** Raising the total case count without moving a
-  class's `floor` column has not closed item 10, and `gaps.py` is what says so.
-- **Picking every dependency but the two the user named** stays pre-authorized under ADR 0051 § 4. A new
-  Rust dependency owes three things: the `[workspace.dependencies]` line with a comment saying why that
-  crate, `cargo deny check`, and `python tools/gen-attribution.py`.
+- **Decide and record; never `BLOCKED` for a design call.** Record it in the home AGENTS.md names — a
+  paragraph in `docs/adr/README.md` § *Decisions taken at project start*, or the crate's own module doc.
+- **Two ADR slots, and no others.** Each is the first slice of the stage that needs it:
+  - **The reactor and the parking stream** (Stage 2, item 4). What readiness mechanism each platform
+    uses, what the parking contract is, what a `WouldBlock` costs, and how a coroutine's stack is
+    accounted. This is the design four goals are written against and it may not live in a module comment.
+  - **The isolate heap boundary** (Stage 6, item 20). What an arena is, what it costs, and how a value
+    crosses — the parts ADR 0006 specifies as behaviour rather than as implementation.
+
+  Anything else is decided-and-recorded. Claim the next free ADR number by creating the file, and
+  **re-check it immediately before you do**: `python tools/brief.py` derives it from the directory.
+- **No `tokio`, and this is not a judgement call.** If a capability appears to require an async runtime,
+  that is a real `BLOCKED` naming the capability. Every other crate choice is yours under ADR 0051 § 4.
+- **A blocking-looking read parks; it never blocks the core.** If a syscall has no readiness to wait on,
+  it goes to item 6's pool. There is no third option, and "just this once" is how a core wedges.
+- **Cancellation runs no user code**, and this is not softened when a fixture looks like it wants a
+  `finally` to run. ADR 0072 § 5 decided it; the abandoned-generator rule M4 landed is a *different*
+  mechanism about a program that suspended itself, and the two are not unified.
+- **`race` does not exist**, and neither does a `timeout` wrapper. `{limit, deadline}` is the spelling.
+- **`Core\Http\Client` is not in this goal.** The transport it will use is — a TCP stream and `rustls`
+  over it — and the member surface, its address policy and its retry rules are goal 4's.
+- **The `[deferred]`, `[limits]` and `script.spawn` enforcement is goal 3's.** This goal runs under
+  compiled-in defaults and says so at each site, exactly as m5.md already does.
 
 ## What this goal does not touch
 
-Anything needing a capability, a reactor, a driver or an open handle — that is goals 2–6. `nvs-ir` and
-`nvs-codegen`, except where an attribute pass emits through the path `#[Json\Derive]` already uses.
-Item 15 *owns* seventeen standing `nvs-ir` refusals without scheduling one of them; owning is not
-touching, and it is there so the floor's own gate has an answer rather than a hole. Doc
-trimming and dependency sweeps, both of which the user fires.
+`Core`'s pure half (goal 1, and it is the floor). Every capability-bearing `Core` member (goal 4) — the
+transport is not the client. The listener (goal 6). ADR 0018's `TRACE`/`PROFILE` safepoint bits, which
+have no consumer until an exporter exists; the three spawn-construct trace events wait with them, and
+m5.md already says so.
