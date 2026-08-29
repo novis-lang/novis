@@ -371,6 +371,70 @@ mod tests {
         );
     }
 
+    /// Item 5's whole claim, asserted with both spellings live on one core: a
+    /// script's `sleep` and a socket's timeout are not two clocks. The table
+    /// holds *both* waits, the reactor holds one registration — the socket's,
+    /// and nothing of its own for the sleeper — and the two come back in
+    /// deadline order rather than in the order they were filed.
+    #[test]
+    fn a_timer_and_a_deadline_are_the_same_wheel() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+        // Held open for the whole test, and never written to: the read below
+        // has to end on its deadline and on nothing else.
+        let _client =
+            std::net::TcpStream::connect(addr).expect("the loopback refused a connection");
+        let (server, _) = listener.accept().expect("the accept failed");
+        let mut stream =
+            crate::net::NvsTcp::from_std(server).expect("the socket refused non-blocking mode");
+        stream.set_deadline(Some(Instant::now() + Duration::from_millis(10)));
+
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+
+        let order = Rc::new(RefCell::new(Vec::new()));
+        let by_reader = Rc::clone(&order);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            use std::io::Read as _;
+            let mut buf = [0_u8; 4];
+            let err = stream
+                .read(&mut buf)
+                .expect_err("a socket nothing was written to returned bytes");
+            assert_eq!(err.kind(), std::io::ErrorKind::TimedOut);
+            by_reader.borrow_mut().push("the socket's deadline");
+        });
+        let by_sleeper = Rc::clone(&order);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            // Filed second and due last, so deadline order and filing order
+            // disagree — which is the only way the ordering assertion says
+            // anything.
+            sleep(Duration::from_millis(40));
+            by_sleeper.borrow_mut().push("the sleep");
+        });
+
+        assert_eq!(sched.run().parked, 2, "one of the two waits did not park");
+        assert_eq!(
+            with_current(|reactor| reactor.timers().len()),
+            Some(2),
+            "a timeout and a sleep were filed in two different tables"
+        );
+        assert_eq!(
+            with_current(|reactor| reactor.registrations()),
+            Some(1),
+            "the sleeper registered a descriptor, or the reader registered none"
+        );
+
+        run_until_idle(&mut sched).expect("the loop failed");
+        assert_eq!(*order.borrow(), ["the socket's deadline", "the sleep"]);
+        assert_eq!(
+            with_current(|reactor| reactor.timers().len()),
+            Some(0),
+            "a served deadline stayed in the table"
+        );
+    }
+
     /// Arming twice replaces, so the table holds one entry per waiting task and
     /// disarming is a removal rather than a sweep.
     #[test]
