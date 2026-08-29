@@ -1083,3 +1083,49 @@ fn a_route_without_a_sibling_access_does_not_compile() {
     );
     assert!(!diags.has_errors(), "{diags:?}");
 }
+
+#[test]
+fn a_query_marker_outside_a_route_method_is_refused() {
+    // ADR 0102 § 3 gives `#[Query]` its meaning on a route method's parameter,
+    // so the same declaration with the `#[Route]` taken away binds nothing —
+    // and it is the pass that walks *every* method, not the route pass, that
+    // can see it: the route pass by construction visits only the methods a
+    // `#[Route]` marks.
+    let stray = "<?nvs\nclass Users {\n  \
+                 public function index(#[\\Core\\Query] string $sort): string { return $sort; }\n}\n";
+    let diags = check_src(stray);
+    assert!(reported(&diags, code::E_QUERY_WITHOUT_ROUTE), "{diags:?}");
+    assert_eq!(diags.error_count(), 1, "{diags:?}");
+
+    // The same parameter under a route is § 3's ordinary case, which is what
+    // makes the refusal above about the *sibling* and not about the marker.
+    let diags = check_src(&with_access(
+        "<?nvs\nclass Users {\n  \
+         #[\\Core\\Route(path: \"/users\", method: \\Core\\Http\\Method::Get)]\n  \
+         public function index(#[\\Core\\Query] string $sort): string { return $sort; }\n}\n",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    // One report per marker rather than one per method: each is its own
+    // mistake with its own span, so an author who wrote two is told about both.
+    let diags = check_src(
+        "<?nvs\nclass Users {\n  \
+         public function index(#[\\Core\\Query] string $sort, #[\\Core\\Query] uint $page): string \
+         { return $sort; }\n}\n",
+    );
+    assert_eq!(count(&diags, code::E_QUERY_WITHOUT_ROUTE), 2, "{diags:?}");
+
+    // Matched nominally like every other name on the closed roster, so the
+    // placed spelling is the same attribute the qualified fixtures write, and
+    // a userland `Query` is not it.
+    let diags = check_src(
+        "<?nvs\nuse Core\\Query;\nclass Users {\n  \
+         public function index(#[Query] string $sort): string { return $sort; }\n}\n",
+    );
+    assert!(reported(&diags, code::E_QUERY_WITHOUT_ROUTE), "{diags:?}");
+    let diags = check_src(
+        "<?nvs\ntype Query = {};\nclass Users {\n  \
+         public function index(#[Query] string $sort): string { return $sort; }\n}\n",
+    );
+    assert!(!reported(&diags, code::E_QUERY_WITHOUT_ROUTE), "{diags:?}");
+}

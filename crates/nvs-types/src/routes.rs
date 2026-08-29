@@ -74,14 +74,10 @@
 //! as the one `tainted string` § 3 says it does, so it binds a `string` and
 //! nothing else.
 //!
-//! # Known gaps
-//!
-//! 1. **A `#[Query]` outside a `#[Route]` method is not refused**, which is
-//!    [`crate::commands`]' gap 2 exactly: [`check_class_routes`] reads only the
-//!    methods § 3 gives the marker a meaning on, so one written anywhere else
-//!    silently binds nothing. It is owed the same refusal, and for the same
-//!    reason — a recognized name that does nothing where it is written is the
-//!    mistake the closed roster exists to prevent.
+//! A `#[Query]` written where no `#[Route]` reads it is [`check_stray_query`],
+//! and it is the one thing here the per-class walk cannot ask: that walk selects
+//! the methods a `#[Route]` marks, so a stray marker is invisible to it by
+//! construction and the question belongs to the walk that visits every method.
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, Span, code};
 use nvs_hir::QName;
@@ -233,6 +229,53 @@ pub(crate) fn check_one_access(groups: &[AttributeGroup], ctx: &Ctx<'_>, env: &m
                 "two decisions are two readings — every one of them, or any one of them — and \
                  ADR 0096 § 1a refuses to choose between them silently: write the one decision \
                  the method makes, and let whatever reads it interpret one name",
+            ),
+        );
+    }
+}
+
+/// ADR 0102 § 3's marker held to the declaration that reads it: a `#[Query]` on
+/// a parameter of a method carrying no `#[Route]`.
+///
+/// Asked from [`crate::attributes`]' per-method walk rather than from
+/// [`check_class_routes`], because that walk cannot see this mistake at all: it
+/// selects the methods a `#[Route]` marks, and a stray `#[Query]` is by
+/// definition on one of the others. [`crate::commands::check_stray_options`]
+/// asks the identical question of `#[Option]`, and the two stay apart because
+/// each belongs beside the pass whose attribute gives its marker a meaning.
+///
+/// Refused rather than ignored for the reason [`crate::derive::ATTRIBUTES`] is a
+/// closed roster: a name the compiler knows, written where the compiler never
+/// looks, reads to its author as a declaration that binds something.
+///
+/// Reported once per parameter, as [`check_one_access`] reports once per extra
+/// attribute: each marker is its own mistake with its own span, so an author who
+/// wrote three is told about all three rather than one per rebuild.
+pub(crate) fn check_stray_query(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    if m.attributes
+        .iter()
+        .flat_map(|group| &group.attributes)
+        .any(|attr| crate::derive::attribute_is(attr, crate::derive::ROUTE, ctx, env))
+    {
+        return;
+    }
+    for param in &m.params {
+        let Some(attr) =
+            crate::testing::attribute_named(&param.attributes, crate::derive::QUERY, ctx, env)
+        else {
+            continue;
+        };
+        let name = crate::strip_sigil(span_text(env.src, param.name)).to_owned();
+        env.diags.report(
+            Diagnostic::error(
+                code::E_QUERY_WITHOUT_ROUTE,
+                format!("`#[Query] ${name}` is on a method that declares no route"),
+            )
+            .with_primary(attr.span, "nothing reads this marker")
+            .with_help(
+                "ADR 0102 § 3 gives `#[Query]` its meaning on a `#[Route]` method's parameter, \
+                 where the key it binds by is the parameter's own name — anywhere else nothing \
+                 binds it: write the `#[Route]` this parameter serves, or delete the marker",
             ),
         );
     }

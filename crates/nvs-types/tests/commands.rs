@@ -7,10 +7,15 @@
 //! names *are* today: recognized after `nvs_hir::resolve_ref`, checked against
 //! a roster of options rather than against a shape, and held to the two of § 6's
 //! three compile errors one parameter list answers on its own.
+//!
+//! The marker's own placement is asserted here too: an `#[Option]` is refused
+//! where no `#[Command]` on the same method reads it, which is a question about
+//! the declaration and needs none of the table gap 1 still owes.
 
 mod common;
 
 use common::check_src;
+use nvs_diagnostics::code;
 
 /// § 6's own example, reduced to the two attributes and the one class member
 /// they attach to. The placing import is per *name* — `use Core\Command;`
@@ -177,4 +182,54 @@ fn an_option_on_a_parameter_with_no_conversion_from_string_is_a_diagnostic() {
          array<string> $targets,\n  ): void {}\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn an_option_marker_outside_a_command_method_is_refused() {
+    // § 6 gives `#[Option]` its meaning on a `#[Command]` method's parameter,
+    // so the same declaration with the `#[Command]` taken away supplies the
+    // argument from nowhere. The refusal is the walk over *every* method's
+    // doing: the command pass visits only the methods a `#[Command]` marks, so
+    // this is the one mistake it cannot see.
+    let diags = check_src(&command_src(
+        "  public static function deploy(\n    #[Option] string $target,\n  ): void {}\n",
+    ));
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_OPTION_WITHOUT_COMMAND)),
+        "{diags:?}"
+    );
+    assert_eq!(diags.error_count(), 1, "{diags:?}");
+
+    // One report per marker, each with its own span, so an author who wrote
+    // two is told about both rather than one per rebuild.
+    let diags = check_src(&command_src(
+        "  public static function deploy(\n    #[Option] string $target,\n    \
+         #[Option] bool $dryRun,\n  ): void {}\n",
+    ));
+    assert_eq!(diags.error_count(), 2, "{diags:?}");
+
+    // A sibling `#[Command]` is what the marker is stray of, and it needs no
+    // payload beyond the one the roster already checks — this is the ordinary
+    // declaration every other test in this file writes.
+    let diags = check_src(&command_src(
+        "  #[Command(name: \"deploy\")]\n  public static function deploy(\n    \
+         #[Option] string $target,\n  ): void {}\n",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    // Nominal, like every other name on the closed roster: a userland `Option`
+    // alias is a different attribute and is nothing this refusal has an
+    // opinion about.
+    let diags = check_src(
+        "<?nvs\ntype Option = {};\nclass Deploy {\n  \
+         public static function deploy(#[Option] string $target): void {}\n}\n",
+    );
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code == Some(code::E_OPTION_WITHOUT_COMMAND)),
+        "{diags:?}"
+    );
 }

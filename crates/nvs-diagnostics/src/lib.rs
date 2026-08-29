@@ -2089,6 +2089,27 @@ pub mod code {
     /// re-derive which of them the runtime was ever going to check.
     pub const E_CSRF_WITHOUT_UNSAFE_VERB: Code = Code::new("E0764");
 
+    /// A `#[Query]` on a parameter of a method carrying no `#[Route]`.
+    ///
+    /// ADR 0102 § 3 gives the marker its whole meaning on a route method's
+    /// parameter — the key it binds by is the parameter's own name — so one
+    /// written anywhere else binds nothing and is read by nothing. Refused
+    /// rather than ignored for the reason the closed roster of recognized
+    /// attributes exists at all: a name the compiler knows, sitting where the
+    /// compiler never looks, reads to its author as a declaration that works.
+    ///
+    /// The sibling of [`E_OPTION_WITHOUT_COMMAND`], which is the same mistake
+    /// made with the other pass's marker.
+    pub const E_QUERY_WITHOUT_ROUTE: Code = Code::new("E0765");
+
+    /// An `#[Option]` on a parameter of a method carrying no `#[Command]`.
+    ///
+    /// ADR 0086 § 6's marker, held to the declaration that reads it, exactly as
+    /// [`E_QUERY_WITHOUT_ROUTE`] holds ADR 0102 § 3's. Reported from the walk
+    /// over every method rather than from the command pass, which by
+    /// construction sees only the methods a `#[Command]` selects.
+    pub const E_OPTION_WITHOUT_COMMAND: Code = Code::new("E0766");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

@@ -36,18 +36,17 @@
 //! be converted into. Neither needs the table, and waiting for it would leave
 //! an author's typo unreported until the pass that assembles rows exists.
 //!
+//! **Every method, from [`crate::attributes`]' own walk:**
+//! [`check_stray_options`], which is the one question the per-class walk cannot
+//! ask, because that walk sees only the methods a `#[Command]` selects.
+//!
 //! # Known gaps
 //!
 //! 1. **The table itself is not built**, so § 6's remaining compile error — a
 //!    duplicate command name — is not reported: it is a question about the
 //!    whole program's enumeration rather than about one declaration, and it
 //!    wants the walk that assembles rows.
-//! 2. **An `#[Option]` on a method carrying no `#[Command]` is not refused.**
-//!    [`check_class_commands`] reads only the methods § 6 gives the marker a
-//!    meaning on, so a marker written anywhere else silently does nothing —
-//!    which is the mistake the recognized roster exists to prevent, and is owed
-//!    a refusal once the table pass names what a stray one is stray of.
-//! 3. **Whether `name` is required on `#[Command]` is not decided here.** § 6
+//! 2. **Whether `name` is required on `#[Command]` is not decided here.** § 6
 //!    writes every example with one and says nothing about leaving it out, and
 //!    ADR 0077 § 1's "optional and never derived" is a rule about *routes*. The
 //!    table pass is what needs a name to build a row, so it is what should
@@ -104,6 +103,48 @@ pub(crate) fn check_class_commands(
             continue;
         }
         check_options(m, class, ctx, env);
+    }
+}
+
+/// ADR 0086 § 6's marker held to the declaration that reads it: an `#[Option]`
+/// on a parameter of a method carrying no `#[Command]`.
+///
+/// Asked from [`crate::attributes`]' per-method walk rather than from
+/// [`check_class_commands`], because that walk cannot see this mistake at all:
+/// it selects the methods a `#[Command]` marks, and a stray `#[Option]` is by
+/// definition on one of the others. This does not wait for the table gap 1 still
+/// owes — what a stray marker is stray of is the sibling attribute on its own
+/// method, which one declaration answers — and it is
+/// [`crate::routes::check_stray_query`]'s question asked of the other pass's
+/// marker, the two written apart so each sits beside the attribute that gives
+/// its marker a meaning.
+///
+/// Refused rather than ignored for the reason [`crate::derive::ATTRIBUTES`] is a
+/// closed roster: a name the compiler knows, written where the compiler never
+/// looks, reads to its author as a declaration that binds an argument.
+pub(crate) fn check_stray_options(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    if crate::testing::attribute_named(&m.attributes, crate::derive::COMMAND, ctx, env).is_some() {
+        return;
+    }
+    for param in &m.params {
+        let Some(attr) =
+            crate::testing::attribute_named(&param.attributes, crate::derive::OPTION, ctx, env)
+        else {
+            continue;
+        };
+        let name = strip_sigil(span_text(env.src, param.name)).to_owned();
+        env.diags.report(
+            Diagnostic::error(
+                code::E_OPTION_WITHOUT_COMMAND,
+                format!("`#[Option] ${name}` is on a method that declares no command"),
+            )
+            .with_primary(attr.span, "nothing reads this marker")
+            .with_help(
+                "ADR 0086 § 6 gives `#[Option]` its meaning on a `#[Command]` method's parameter, \
+                 where it is the spelling an argument arrives by — anywhere else nothing supplies \
+                 it: write the `#[Command]` this parameter serves, or delete the marker",
+            ),
+        );
     }
 }
 
