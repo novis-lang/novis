@@ -145,6 +145,7 @@ so you never have to open this file to route a topic.
 | `Core\Reflect`, `ReflectionClass`-equivalents, `Core\Ast`, runtime introspection or source parsing | [0019](0019-reflection-and-ast-parsing-are-core-features.md) |
 | Uncaught exceptions, memory/CPU-limit fatals, internal panics, `Core\Fatal`, `Core\Log` | [0020](0020-error-escalation-ladder.md) |
 | Whether one request can take the server down; a worker that panics outside a helper, aborts, or is alive but stuck; `abort()`, `SIGSEGV` from the engine's own recursion, `SIGBUS`, W^X; a decoder's depth limit; a helper that never yields a core; blocking syscalls and the blocking pool; what `max_in_flight` really admits; why there are no worker processes | [0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) |
+| epoll/kqueue/IOCP, the reactor, what wakes a parked task, why a socket read looks blocking and is not, `WouldBlock`, how big a coroutine's stack is and who pays for it | [0115](0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md) |
 | XSS, SQL injection, command/header/path injection, taint tracking, `tainted string`, `Core\Html\Markup` | [0024](0024-taint-tracking-for-injection-sinks.md) |
 | Whether a given parameter is a sink, what an unclassified one does, what `echo` writes to in a request / a CLI / an isolate / a scheduled run, how a JSON or plain-text response body is written, `Core\Response::json` | [0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md) |
 | A database — `Core\Db`, `PDO`/`mysqli`/`pgsql`/`sqlite3`, drivers, connections, prepared statements, transactions, result rows, an ORM | [0067](0067-core-db.md) — signatures in [spec § 18](../spec/01-core-library.md) |
@@ -326,6 +327,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0112](0112-authority-is-keyed-on-the-enclosing-namespace.md) | Authority is keyed on the enclosing namespace, and an optional capability degrades where a required one refuses | Accepted |
 | [0113](0113-a-qualified-name-is-absolute.md) | A qualified name is absolute, and the leading `\` does not parse | Accepted |
 | [0114](0114-an-array-literals-own-type-is-synthesized-for-one-code-action.md) | An array literal's own type is synthesized for one code action, and no compile path asks for it | Accepted |
+| [0115](0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md) | The reactor reports readiness, and a stream that would block parks its own task | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

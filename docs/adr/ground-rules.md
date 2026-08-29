@@ -199,6 +199,10 @@ spellings rejected, and the reasoning.
   against the memory budget; the residue is one named class — a memory-safety fault or a miscompile — that
   the process boundary was examined for and rejected
   ([0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)).
+- **Every platform reports readiness, never completion, and a stream tries the syscall before it parks** —
+  one contract over epoll, kqueue and Windows' AFD, a wake is a hint the task re-tries rather than a
+  promise, and a task's 1 MiB stack is reserved wide, resident narrow and pooled per worker
+  ([0115](0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md)).
 
 ## Runtime, tooling and the standard library
 
