@@ -1,0 +1,52 @@
+--TEST--
+`#[Json\Derive]` refuses a field whose declared type has no wire form at the property that declared it, not at the `decodeAs<T>` that would later fail — ADR 0071 §§ 2, 7
+--FILE--
+<?nvs
+// § 2 names the reachable set: "a scalar, an enum, an inline shape, an
+// `array<T>` or `?T` of one of those, or another class that itself carries a
+// codec". `Handle` is none of those, so the contract `Row` would generate has a
+// field nothing can encode — and § 7's rule is that this is said where the
+// property is written, because a class is declared once and decoded from many
+// call sites.
+//
+// Both sides of the bound are the same type in the same class, which is what
+// makes this more than a restatement of the message. `$cache` is also a
+// `Handle`; § 2's own escape hatch takes it off the contract, so it is examined
+// and accepted before `$h` is reached. A rule refusing the *type's appearance*
+// rather than its presence in the contract would name both properties and still
+// look right on the second half alone.
+#[Core\Json\Derive]
+class Row {
+    #[Core\Json\Field(skip: true)]
+    public Handle $cache;
+
+    public Handle $h;
+
+    public function constructor(Handle $cache, Handle $h)
+    {
+        $this->cache = $cache;
+        $this->h = $h;
+    }
+}
+
+// Declared *after* the class that names it: the reachability question is asked
+// once the whole program has been walked, so declaration order cannot change
+// the answer. Giving `Handle` a `#[Core\Json\Derive]` of its own is what makes
+// the same file compile.
+class Handle {
+    public int $n;
+
+    public function constructor(int $n)
+    {
+        $this->n = $n;
+    }
+}
+
+echo "unreachable ", Core\Json::encode(new Row(new Handle(1), new Handle(2))), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0756]: `Row::$h` is declared `Handle`, which has no JSON representation
+   --> case.nvs:20:19
+%A
+error: aborting due to 1 error
