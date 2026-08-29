@@ -1,0 +1,104 @@
+--TEST--
+Core\Regex::replaceWith hands its callback exactly the sequence Core\Regex::matchAll reports — same count, same offsets, same texts — and an identity callback is the identity on the subject — ADR 0056 § 5
+--FILE--
+<?nvs
+// § 5's `replaceWith` row, asked the one question its two siblings cannot.
+// `regex-replace-with-hands-each-match-to-a-callback` pins what the member
+// answers and `...-sees-the-original-subject-and-runs-once-per-replacement`
+// pins what one callback is handed and how often. Both read `replaceWith`
+// alone, so a member that grew its own match iteration — advancing a
+// zero-width match by a byte, or preferring the longest alternative — passes
+// each of them while disagreeing with every other member of the class.
+//
+// The two members share one rule: the sequence of matches in a subject. This
+// case asserts that they *agree* on it rather than what either answered, over
+// a table where the sequence is the interesting part, and counts the
+// agreements so a row that quietly stopped agreeing cannot hide behind nine
+// that did.
+
+final class Log {
+    public string $text = "";
+    public int $calls = 0;
+}
+
+// Ten rows chosen for the ways a match sequence can be got wrong: adjacency,
+// zero width, a zero-width match beside a wide one, alternation order,
+// anchors, a non-ASCII subject where an offset is a grapheme index rather than
+// a byte one, and the empty sequence.
+array<string> $patterns = ["\\d+", "a", "", "(?<w>\\w)(\\d)", "z", "^a|c$", "\\s*", "é|☃", "ab|abc", "a*"];
+array<string> $subjects = ["a1b22c333", "aaaa", "abc", "x1 y2", "abc", "abc", "a b", "héllo ☃", "abcabc", "baaac"];
+
+int $rows = Core\Arr::count($patterns) as int;
+int $agreed = 0;
+int $identity = 0;
+int $calls = 0;
+int $matches = 0;
+int $i = 0;
+for (; $i < $rows; $i = $i + 1) {
+    string $pattern = $patterns[$i as string];
+    string $subject = $subjects[$i as string];
+
+    // What the callback saw, in the order it saw it. Returning the match's own
+    // text makes the answer an identity — every match replaced by itself — so
+    // the member's rebuilding of the subject is asserted on the same call as
+    // its iteration, and a member that dropped or doubled a match fails both
+    // columns rather than only the log.
+    var $log = new Log();
+    string $rebuilt = Core\Regex::replaceWith($subject, $pattern, fn (Core\Regex\Match $m): string => {
+        $log->calls = $log->calls + 1;
+        $log->text = $log->text . "<" . ($m->offset() as string) . ":" . $m->text() . ">";
+        return $m->text();
+    });
+    if ($rebuilt == $subject) {
+        $identity = $identity + 1;
+    }
+
+    // The same sequence, asked of the member whose whole job is to report it.
+    string $reported = "";
+    array<Core\Regex\Match> $all = Core\Regex::matchAll($subject, $pattern);
+    foreach ($all as Core\Regex\Match $one) {
+        $reported = $reported . "<" . ($one->offset() as string) . ":" . $one->text() . ">";
+    }
+    if ($log->text == $reported) {
+        $agreed = $agreed + 1;
+    }
+    $calls = $calls + $log->calls;
+    $matches = $matches + (Core\Arr::count($all) as int);
+
+    echo $pattern, " over ", $subject, ": [", $reported, "]\n";
+}
+echo $agreed, " of ", $rows, " rows agree call for call with matchAll, and ", $identity, " rebuild their subject exactly\n";
+echo $calls, " callback calls against ", $matches, " reported matches\n";
+
+// "Only the matches", from the other side: a callback that answers something
+// no match could have produced. Every character of the output is then either
+// one the member copied between matches or one the callback returned, and the
+// two counts add up to the whole of it — an implementation that handed the
+// callback a span it had already copied would print a longer string.
+var $marks = new Log();
+string $marked = Core\Regex::replaceWith("a1b22c333", "\\d+", fn (Core\Regex\Match $m): string => {
+    $marks->calls = $marks->calls + 1;
+    return "[]";
+});
+echo $marked, ": ", Core\Str::length($marked), " characters from ", $marks->calls, " replacements and 3 copied\n";
+
+// The bound at each end of the table, named rather than left to the rows: a
+// pattern matching nothing calls the callback zero times and agrees with an
+// empty `matchAll`, and the empty pattern matches at every position including
+// past the last character, so both members report length-plus-one of them.
+echo Core\Arr::count(Core\Regex::matchAll("abc", "z")), "|", Core\Arr::count(Core\Regex::matchAll("abc", "")), "|", Core\Arr::count(Core\Regex::matchAll("", "")), "\n";
+--EXPECT--
+\d+ over a1b22c333: [<1:1><3:22><6:333>]
+a over aaaa: [<0:a><1:a><2:a><3:a>]
+ over abc: [<0:><1:><2:><3:>]
+(?<w>\w)(\d) over x1 y2: [<0:x1><3:y2>]
+z over abc: []
+^a|c$ over abc: [<0:a><2:c>]
+\s* over a b: [<0:><1: ><3:>]
+é|☃ over héllo ☃: [<1:é><6:☃>]
+ab|abc over abcabc: [<0:ab><3:ab>]
+a* over baaac: [<0:><1:aaa><5:>]
+10 of 10 rows agree call for call with matchAll, and 10 rebuild their subject exactly
+25 callback calls against 25 reported matches
+a[]b[]c[]: 9 characters from 3 replacements and 3 copied
+0|4|1
