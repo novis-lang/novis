@@ -2,70 +2,71 @@
 
 ## State
 
-**The driver's failing acceptance check is closed.** `valgrind examples/routes.nvs` leaked 292
-bytes in two blocks — one array header per `Core\Router::url` call — because
-`nvs_ir::lower::lower_route_link` builds its two arguments by hand instead of through
-`lower_call_args` and never called `account_for_arg` on either. Both are staged now, and
-`a_resolved_route_link_releases_its_params_array` in `crates/nvs-ir/src/lower/tests.rs` pins it
-over the call's own argument `ValueId`. The playbook bullet under *Writing Novis itself* owns the
-trap. This was not a new-work regression: the sweep is only *reached* now that stage 7 passes.
+**Item 12's roster: 10 members across five classes remain** on `UNCLASSIFIED` at
+`crates/nvs-stdlib/src/registry.rs:1526` — `Core\Uuid` (2), `Core\Hash` (3), `Core\Hash\Stream` (1),
+`Core\Router` (2), `Core\Csv` (2). `Core\Uri`, `Core\Test` and `Core\Validate` joined `Core\Bytes`,
+`Core\Path` and `Core\Time` off the ratchet this session, 23 members in all.
 
-**Item 12's roster: 34 members across seven classes remain.** `Core\Bytes`, `Core\Path` and
-`Core\Time` are off `UNCLASSIFIED` at `crates/nvs-stdlib/src/registry.rs:1526`. `Core\Path`'s nine
-were the two ordinary bullets of the rule at `registry.rs:74` — `isAbsolute` answers a `bool` and
-is `Neutral`, the other eight are `Contagious` — with `normalize`'s **non**-laundering recorded in
-`path.rs`'s module doc, because it is the member most likely to be mistaken for one.
+**`Core\Uri` is the roster's first class to claim `Qual::Launder`**, and the only judgement in it
+worth re-reading is the one against `Core\Time`: a parse here is `Contagious`, not `Neutral`,
+because `host()`/`path()`/`query()` hand the caller's own bytes back component for component. The
+two encoders launder and their doc comments name the sink (the URI grammar; an
+`application/x-www-form-urlencoded` body); the two decoders stay `Contagious`, because a pair that
+shared a mark would launder every string surviving a round trip. `uri.rs`'s module doc
+§ *What these members do with a qualifier* owns all of it.
 
-**`Core\Time`'s seven rows are the roster's first class with no `Contagious` parameter at all**,
-and that judgement is the one to read before classifying `Core\Uri`: every pattern is `Sink`
-(R11's third grammar, at the three `format` members and `Core\Time::parse`'s *second* argument),
-and every parsed text is `Neutral` because an instant, a magnitude and an IANA roster entry are
-**closed spaces** no byte of the argument survives into — ADR 0024 § 2's checked conversion
-reached at a member. `time.rs`'s module doc § *What these members do with a qualifier* owns it,
-including the line it draws against `Core\Bytes::at` and the warning that `Core\Uri::parse` is on
-the *other* side: a `Uri` keeps the host and the path as text.
+**`Core\Test` and `Core\Validate` are the flat case** — every member answers `void` or `bool`, so
+every parameter is `Neutral` by the `Qual` enum's own first bullet at `registry.rs:74`, with no
+judgement to make. The two things that look like more are written down in `test.rs`'s new
+§ *What these members do with a qualifier*: `message` is not a sink (the terminal makes that refusal
+once, where the bytes are written — ADR 0086), and `assertThrows`'s `$expected` is not one either,
+because `Sink` is only ever ADR 0063 R11's four grammars.
 
 **Nothing consumes `Qual` yet** — it is declarative in `nvs-stdlib` and no `nvs-types` code reads
-`classification()`, so a classification pass cannot change what a program does today.
+`classification()`, so a classification slice cannot change what a program does today.
+
+**The driver's failing check is `conformance [5 depth]: 904 passing, wanted 950`, and it is not a
+regression** — it is item 10's corpus floor, 46 cases short, and no classification slice can move it
+because `Qual` is unobservable from a `.nvst` case. It closes by depth cases, which is what the next
+group starts; the goal's own standing decision is that a class's `floor` column moving is what
+counts, not the total.
 
 **Untouched:** `crates/nvs-stdlib/src/router.rs:39`'s *Known gaps* 1 and 2 are stale, a `bytes`
-array key ICEs in `nvs-ir`, and `catch (Core\Error $e)` panics — the last two have playbook
-bullets under *Writing a test case*.
+array key ICEs in `nvs-ir`, and `catch (Core\Error $e)` panics — the last two have playbook bullets
+under *Writing a test case*.
 
-**Orientation gaps.** Still owed from before, none of them added yet: `docs/spec/02-php-migration.md`
-and `tools/check-migration.py` in `[context] docs`, the stage-7 comment header's per-goal floor
-table, a selector that prints the *failing* check's own `cases` block, `[context] modules` naming
-an `nvs-stdlib` class module, a `[context] anchors` entry for `registry.rs`'s `UNCLASSIFIED`, and
-ADR 0088 § 1, 0063 R11, `0085 §§ 1-4`, `0071 §§ 2, 7`. New this session: `[context] modules` needs
-`nvs-ir/src/lower/*` — the failing check routed a whole session into lowering and the pack named
-none of it.
+**Orientation gaps.** Still owed, none added yet: `docs/spec/02-php-migration.md` and
+`tools/check-migration.py` in `[context] docs`, the stage-7 comment header's per-goal floor table, a
+selector that prints the *failing* check's own `cases` block, `[context] modules` naming an
+`nvs-stdlib` class module and `nvs-ir/src/lower/*`, a `[context] anchors` entry for `registry.rs`'s
+`UNCLASSIFIED`, and ADR 0088 § 1, 0063 R11, `0085 §§ 1-4`, `0071 §§ 2, 7`. New this session:
+`[context] shapes` needs conventions.md's *four shapes a depth case takes* whenever the group is
+conformance depth rather than a member — it is printed today only because the `Core` member shape
+selector happens to sit beside it.
 
 ## Next group
 
-**Shared file set:** `crates/nvs-stdlib/src/registry.rs` — every slice deletes its class's lines
-from `UNCLASSIFIED` at `registry.rs:1526` and reads the rule at `registry.rs:74` — plus one class
-module each. Item 12 continues in roster order. `Sink` is only ever R11's four grammars, and
-`time.rs`'s new § *What these members do with a qualifier* is the precedent for a parsed value.
+**Shared file set:** `crates/nvs-stdlib/src/random.rs` and `tests/conformance/core/`. `gaps.py`
+ranks `Core\Random` the second-thinnest class (depth 4.0, floor 3, 13 cases over 7 members) and its
+three thinnest members are one file's worth of reading. Conventions.md's *four shapes a depth case
+takes* is the shape list; a bound asserted on both sides is the one these three want.
 
-- [ ] **`Core\Uri`'s nine rows** (ADR 0088 § 2) — `crates/nvs-stdlib/src/uri.rs:343`. The
-      component encoders are the class's whole point: `encodeComponent`/`encodeFormValue` are
-      **`Launder`** and their doc comments name the sink (the URL path, the form body), while
-      `decodeComponent`/`decodeFormValue` are `Contagious` — decoding gives content back. `parse`
-      and `tryParse` are `Contagious`, not `Neutral`: unlike `Core\Time`'s parses a `Uri` keeps
-      the host and the path as text, which `time.rs`'s module doc says out loud.
-- [ ] **`Core\Test`'s eight rows** (ADR 0088 § 2) — `crates/nvs-stdlib/src/test.rs:365` is
-      `assertCount`'s body; the rows are in that module's `CLASS`. Every assertion answers `void`
-      or throws, so no argument's bytes reach an answer and all eight are `Neutral` — the
-      roster's most mechanical class.
-- [ ] **`Core\Validate`'s six rows** (ADR 0088 § 2) — `crates/nvs-stdlib/src/validate.rs`. Each
-      answers a `bool` about its subject, so `Neutral` throughout by the rule's first bullet; the
-      one to look at twice is any member answering the *value* rather than a verdict.
+- [ ] **`Core\Random::float`'s bounds** (`crates/nvs-stdlib/src/random.rs:285`, 3 cases) — the
+      half-open interval asserted on both ends, and the sweep that says no draw leaves it.
+- [ ] **`Core\Random::int`'s inclusive pair** (`crates/nvs-stdlib/src/random.rs:263`, 4 cases) — the
+      degenerate `int(n, n)`, the inverted pair's refusal, and a sweep counting that every draw is
+      inside.
+- [ ] **`Core\Random::pick` over an empty and a one-entry array**
+      (`crates/nvs-stdlib/src/random.rs:428`, 4 cases) — the boundary where it stops accepting, with
+      `gaps.py --errors` naming the refusal.
 
 ## Backlog
 
-- `Core\Hash` 4, `Core\Uuid` 2, `Core\Router` 2, `Core\Csv` 2 — the rest of item 12's roster.
-- `crates/nvs-stdlib/src/router.rs:39`'s *Known gaps* 1 and 2 are stale now that the table lands.
-- A `bytes` array key ICEs in `nvs-ir` (playbook, *Writing a test case*).
-- `catch (Core\Error $e)` panics rather than diagnosing (playbook, *Writing a test case*).
-- `docs/agent/loop-goal.toml`'s `[context]` gaps, listed under *Orientation gaps* above.
-- `python tools/check-migration.py` stands at 34%; goals 2-6 own the remaining families.
+- The ratchet's last 10 members: `Core\Uuid`, `Core\Hash`, `Core\Hash\Stream`, `Core\Router`,
+  `Core\Csv` — `registry.rs:1526`, ADR 0088 § 2.
+- `Core\Hash`'s three are the roster's remaining judgement: a digest of a `secret` is the `Qual`
+  enum's own "a hash of a secret" example of `Neutral`.
+- Conformance depth for `Core\Router`, `Core\Hash\Stream` and `Core\Csv` — `gaps.py`'s class table.
+- `crates/nvs-stdlib/src/router.rs:39`'s *Known gaps* 1 and 2 are stale.
+- A `bytes` array key ICEs in `nvs-ir` — playbook, *Writing a test case*.
+- `catch (Core\Error $e)` panics rather than diagnosing — playbook, *Writing a test case*.

@@ -3126,6 +3126,15 @@ sibling in the same namespace unqualified.
   gets dropped, and `crates/nvs-ir/src/lower/tests.rs`'s
   `a_resolved_route_link_releases_its_params_array` is the assertion shape that pins one — find
   the call's own argument `ValueId` and require a `Release` of *it*, never a count of releases.
+- **Classifying a `Core` class can break that class's *own* structural unit test, and the ADR 0088
+  ratchet says nothing about it.** `Core\Test`'s nine rows share one `MESSAGE: &[CoreOption]`, so
+  marking the bag is a single edit — and `test::tests::the_only_option_is_a_message_that_defaults_to_absent`
+  asserts `matches!(bag[0].ty, CoreTy::Str)` over every one of them, which
+  `CoreTy::Text(Qual::Neutral)` is not. The registry-wide gate
+  (`every_member_parameter_carries_a_qualifier_classification`) passes cleanly while that one fails,
+  so the failure names a member you did not think you were editing. Grep the class's own `mod tests`
+  for `CoreTy::Str` before classifying it; `Core\Path`, `Core\Time` and `Core\Uri` happened not to
+  have one and `Core\Test` does.
 
 ## Divergences and refusals already pinned
 
