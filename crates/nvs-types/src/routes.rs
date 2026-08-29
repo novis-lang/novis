@@ -68,6 +68,7 @@ use nvs_hir::QName;
 use nvs_syntax::ast::{Attribute, ClassDecl, ClassMemberKind, ExprKind, MethodMember};
 use rustc_hash::FxHashMap;
 
+use crate::expr_table::UrlPiece;
 use crate::testing::OptionTy;
 use crate::{Ctx, Env, span_text};
 
@@ -401,6 +402,34 @@ fn capture_of(segment: &str) -> Result<Option<Capture<'_>>, Refusal> {
         });
     }
     Ok(Some(capture))
+}
+
+/// § 4's reading of a declared `path`, for the link half: one
+/// [`UrlPiece`] per segment, each carrying its own leading `/`, or `None` for a
+/// path § 2's grammar does not admit.
+///
+/// The **only** reading of a path outside [`parse_path`], and deliberately over
+/// [`capture_of`] rather than beside it: `docs/agent/loop-goal.md`
+/// § *Standing decisions* makes a fold and its runtime path one implementation,
+/// so `Core\Router::url`'s substitution is handed a path already split by § 2's
+/// own grammar and never a second parser of it. A row in the table is always
+/// `Some` — [`collect_route`] drops a path that refused — so the option exists
+/// for the caller that has not been through that gate rather than for a state a
+/// table can be in.
+pub(crate) fn link_pieces(path: &str) -> Option<Vec<UrlPiece>> {
+    let mut pieces = Vec::new();
+    // `skip(1)`: a path begins at `/`, so the first split is the empty text
+    // before it and every remaining segment owns the `/` that introduced it.
+    for segment in path.split('/').skip(1) {
+        let piece = match capture_of(segment).ok()? {
+            None => UrlPiece::Literal(format!("/{segment}")),
+            Some(Capture::One(name)) => UrlPiece::Required(name.to_owned()),
+            Some(Capture::Optional(name)) => UrlPiece::Optional(name.to_owned()),
+            Some(Capture::Rest(name)) => UrlPiece::Rest(name.to_owned()),
+        };
+        pieces.push(piece);
+    }
+    Some(pieces)
 }
 
 /// § 3's two questions about the method the attribute is attached to — every

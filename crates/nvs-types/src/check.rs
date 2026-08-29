@@ -108,6 +108,10 @@ pub fn check_program(
     // `crate::routes::check_table` reports collisions between declarations,
     // and § 5's scan is what brings two files' routes into one program.
     let mut routes = crate::routes::RouteTable::default();
+    // § 4's links accumulate beside the rows and are resolved after the loop,
+    // never inside it: a `Core\Router::url` in the entry file routinely names a
+    // route § 5's scan finds in a later one. See `crate::links`.
+    let mut links = Vec::new();
     for file in files {
         let mut env = Env {
             symbols: &module.symbols,
@@ -121,6 +125,7 @@ pub fn check_program(
             interner: &mut *interner,
             exprs: &mut *exprs,
             routes: &mut routes,
+            links: &mut links,
             diags: &mut *diags,
             closure_seq,
             exit_targets: Vec::new(),
@@ -139,8 +144,12 @@ pub fn check_program(
         closure_seq = env.closure_seq;
     }
     crate::routes::check_table(&routes, diags);
-    // § 5's table crosses to `nvs-ir` here rather than being dropped: § 4's
-    // `url` is a fold over it, and the fold runs in lowering.
+    // § 4's fold, which is the second pass over the same table and the reason
+    // the table is collected across the files rather than per file.
+    crate::links::resolve(&routes, &links, exprs, diags);
+    // § 5's table crosses to `nvs-ir` here rather than being dropped: ADR 0085
+    // emits the OpenAPI document from it, and it is what `nvs-ir` reads a
+    // handler's declared path back out of.
     exprs.record_routes(routes);
     record_property_types(&signatures, exprs);
     enums

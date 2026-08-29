@@ -220,6 +220,63 @@ pub struct ObserverCalls {
     pub set: Option<String>,
 }
 
+/// One piece of ADR 0077 § 4's resolved link, in path order and each carrying
+/// its own leading `/`: concatenating them left to right rebuilds the route's
+/// declared path with every capture substituted.
+///
+/// The route's `path` is **not** carried beside this. § 2's grammar is read
+/// once, by [`crate::routes::link_pieces`], and what crosses to `nvs-ir` is its
+/// answer — `docs/agent/loop-goal.md` § *Standing decisions* makes a fold and
+/// its runtime path one implementation, and a template the runtime re-parsed
+/// would be the second copy that rule exists to refuse.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum UrlPiece {
+    /// A literal segment, `/` included — compared byte for byte at match time
+    /// ([ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)),
+    /// so it is copied out exactly as declared.
+    Literal(String),
+    /// `{name}`: `/` and then `$params[name]`, percent-encoded — § 4's launder
+    /// for the URL-path sink.
+    Required(String),
+    /// `{name?}`: [`Self::Required`], or nothing at all — its `/` included —
+    /// where `$params` holds no such key.
+    Optional(String),
+    /// `{name...}`: `/` and then `$params[name]`, whose own `/`s are the one
+    /// thing not percent-encoded, because § 2 gives this form every remaining
+    /// segment rather than one.
+    Rest(String),
+}
+
+impl UrlPiece {
+    /// A resolved link written out in the one format
+    /// [`nvs_stdlib::router::link`] reads, which is that module's to define —
+    /// this is the writing end of it and holds no second opinion about the
+    /// spelling.
+    ///
+    /// A string rather than a structure because what carries it is an ordinary
+    /// [`nvs_ir::InstKind::ConstStr`](../nvs_ir/ir/enum.InstKind.html) argument
+    /// into the same `CoreCall` any other `Core` member takes, so the prepared
+    /// artifact costs the instruction a literal would have cost anyway.
+    #[must_use]
+    pub fn prepared(pieces: &[Self]) -> String {
+        let mut out = String::new();
+        for piece in pieces {
+            if !out.is_empty() {
+                out.push(nvs_stdlib::router::link::PIECE_SEPARATOR);
+            }
+            let (tag, text) = match piece {
+                Self::Literal(text) => (nvs_stdlib::router::link::LITERAL, text),
+                Self::Required(name) => (nvs_stdlib::router::link::REQUIRED, name),
+                Self::Optional(name) => (nvs_stdlib::router::link::OPTIONAL, name),
+                Self::Rest(name) => (nvs_stdlib::router::link::REST, name),
+            };
+            out.push(char::from(tag));
+            out.push_str(text);
+        }
+        out
+    }
+}
+
 /// `nvs-ir` widens past what this first slice needed — see the module docs.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -605,6 +662,27 @@ pub enum ExprInfo {
         /// to find the declaring class. One entry per `classes` entry, in the
         /// same order.
         ctors: Vec<Option<String>>,
+    },
+    /// `Core\Router::url`/`urlAbsolute` over a **literal** name that resolved
+    /// to a declared route —
+    /// [ADR 0077](../../../docs/adr/0077-compile-time-routing.md) § 4's link,
+    /// with the lookup already made.
+    ///
+    /// Recorded *over* the [`ExprInfo::Call`] the same span already carries,
+    /// rather than instead of it, and that is the difference from
+    /// [`ExprInfo::ProgramInstances`]: the fold cannot run where the call is
+    /// typed, because the route it names may be declared in a file § 5's scan
+    /// has not reached yet. So [`crate::links`] records the site during the
+    /// walk and resolves it against the finished table afterwards, and the
+    /// later recording wins the span (see [`ExprTypeTable::record`]). A
+    /// *computed* name records nothing here and keeps its `Call`, which is how
+    /// § 4's "a computed `$name` throws" stays true.
+    RouteLink {
+        /// The named route's declared path, already split by § 2's grammar.
+        pieces: Vec<UrlPiece>,
+        /// `true` for `urlAbsolute`, which prepends ADR 0102 § 6's configured
+        /// origin in front of everything `url` builds.
+        absolute: bool,
     },
     /// An [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
     /// `fn` closure literal, keyed by the literal's own span.

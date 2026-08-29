@@ -1972,6 +1972,27 @@ pub mod code {
     /// path.
     pub const E_OPTIONAL_CAPTURE_NEEDS_DEFAULT: Code = Code::new("E0753");
 
+    /// `Core\Router::url`/`urlAbsolute` names a route the table does not hold.
+    ///
+    /// ADR 0077 § 4: a *literal* `$name` that is not a declared route is a
+    /// compile error, and a computed one throws instead — so this is reported
+    /// at the argument rather than at the call, which is where the literal is.
+    /// The table it is checked against is the whole program's, which is why
+    /// the check runs after every file has been walked and not where the call
+    /// is typed: the route may be declared in a file § 5's scan reaches later.
+    pub const E_UNKNOWN_ROUTE_NAME: Code = Code::new("E0754");
+
+    /// A `Core\Router::url` `$params` literal covers none of some capture the
+    /// named route's path declares.
+    ///
+    /// ADR 0077 § 4: a `$params` array that does not cover the route's
+    /// captures is a compile error. Only a `{name?}` may be absent — its
+    /// segment simply is not emitted — so every `{name}` and `{name...}` the
+    /// path writes needs a key of that name. A `$params` that is not an array
+    /// literal is not checked at all: there are no keys to read, and § 4 asks
+    /// nothing of a computed one.
+    pub const E_ROUTE_LINK_MISSING_PARAM: Code = Code::new("E0755");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

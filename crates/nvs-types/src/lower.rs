@@ -677,6 +677,7 @@ mod tests {
             interner: &mut interner,
             exprs: &mut exprs,
             routes: &mut crate::routes::RouteTable::default(),
+            links: &mut Vec::new(),
             diags: &mut diags,
             closure_seq: 0,
             exit_targets: Vec::new(),

@@ -285,6 +285,17 @@ pub(crate) fn infer_static_call(
         call.written_class = written_class_of(qname, name, &written, type_args, expr.span, env);
         env.exprs.record(expr.span, ExprInfo::Call(call));
     }
+    // ADR 0077 § 4's link, and the one fold that is *not* made here: the route
+    // a literal name asks for may be declared in a file § 5's scan has not
+    // reached, so the site is only recorded and the lookup happens after the
+    // whole walk. The `ExprInfo::Call` just above deliberately stands until
+    // then — `crate::links` records over it, and a computed name keeps it.
+    if let Some((qname, name, _)) = &resolved
+        && crate::links::is_link(qname, name)
+    {
+        let name = name.clone();
+        crate::links::record_site(expr, &name, args, env);
+    }
     // The static-call half of the same substitution the instance-call arm
     // above documents — see `MethodSig::returns_static`.
     match &sig {

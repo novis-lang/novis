@@ -213,6 +213,7 @@ pub(crate) mod generics;
 pub mod iter_lib;
 pub mod lateinit;
 pub mod layout;
+pub(crate) mod links;
 pub mod locals;
 pub mod lower;
 pub(crate) mod program;
@@ -229,10 +230,15 @@ pub use core_lib::symbol_of as core_symbol_of;
 pub use defaults::ConstArg;
 pub use derive::{DerivedCodec, DerivedField};
 pub use enums::{EnumBacking, EnumInfo, EnumTable, EnumValue};
-pub use expr_table::{Delegation, ExprId, ExprInfo, ExprTypeTable, ForeachDrive, ResolvedCall};
+pub use expr_table::{
+    Delegation, ExprId, ExprInfo, ExprTypeTable, ForeachDrive, ResolvedCall, UrlPiece,
+};
 pub use layout::{ClassLayout, ClassLayoutTable, build_class_layouts};
 pub use nvs_stdlib::registry::constructor_symbol as core_constructor_symbol;
 pub use nvs_stdlib::registry::takes_written_class as core_takes_written_class;
+pub use nvs_stdlib::router::link::{
+    ABSOLUTE_SYMBOL as CORE_ROUTE_LINK_ABSOLUTE, SYMBOL as CORE_ROUTE_LINK,
+};
 pub use nvs_stdlib::time::FROM_NANOS_SYMBOL as CORE_DURATION_FROM_NANOS;
 pub use nvs_stdlib::{CodecField, CodecTy, FieldDefault};
 pub use routes::{Route, RouteTable};
@@ -351,6 +357,14 @@ pub(crate) struct Env<'a> {
     /// only collects signatures hands it a scratch table, exactly as it does
     /// [`Self::exprs`].
     pub routes: &'a mut crate::routes::RouteTable,
+    /// ADR 0077 § 4's `Core\Router::url`/`urlAbsolute` sites, as the walk
+    /// reaches them and before any of them has been looked up.
+    ///
+    /// Beside [`Self::routes`] and threaded the same way for a stronger form of
+    /// the same reason: a link asks the finished table a question, and the walk
+    /// filling that table is this one. See [`crate::links`] for why the lookup
+    /// cannot be made where the call is written.
+    pub links: &'a mut Vec<crate::links::LinkSite>,
     pub diags: &'a mut nvs_diagnostics::Diagnostics,
     /// How many ADR 0031 `fn` closure literals this run has checked so far —
     /// the suffix that makes each one's synthesized environment class label
