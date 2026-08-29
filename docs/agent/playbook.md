@@ -2108,6 +2108,17 @@ is why" — is this file.
   ordinary undeclared-name refusal, which looks nothing like "this is not on the recognized roster"
   and points at the wrong file. Fully qualified (`#[\Core\Command(...)]`) needs no import and is the
   spelling to reach for when a case is about the match rather than about the import.
+- **A new compile-time refusal can break a green `.nvst` written for the *runtime* half of the
+  same ADR sentence, and the case will read as if it were always wrong.** ADR 0102 § 6 says two
+  things in one breath — a non-capture `$params` key becomes the link's query string, and a key
+  that is neither a capture nor a declared `#[Query]` parameter is a compile error. The previous
+  session landed the first half and wrote
+  `tests/conformance/core/router-url-turns-a-leftover-params-key-into-a-query-string.nvst` for it,
+  whose whole point is `$params` keys the handler does not declare; landing the second half turned
+  every one of its seven lines into `E0759` at the full verify, long after `-p nvs-types` was
+  green. The fix was to declare the keys the case was already relying on, not to weaken the rule.
+  Before adding a refusal, `grep -rl` the corpus for the *feature* it refuses — a case written for
+  the permissive half of a two-half rule is invisible to the crate's own test run.
 
 ## Splitting a file that got too big
 

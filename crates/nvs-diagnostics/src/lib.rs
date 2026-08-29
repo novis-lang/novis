@@ -2021,6 +2021,18 @@ pub mod code {
     /// attribute.
     pub const E_DERIVE_NO_FIELDS: Code = Code::new("E0758");
 
+    /// A `Core\Router::url` `$params` key names neither a capture of the route's
+    /// path nor one of its declared `#[Query]` parameters.
+    ///
+    /// ADR 0102 § 6: keys that are not captures become the link's query string,
+    /// so a key that covers nothing is not inert — it silently ships as
+    /// `?typo=…`. The rule is what makes the query half safe to have at all,
+    /// and it is the mirror of [`E_ROUTE_LINK_MISSING_PARAM`]: that one is a
+    /// capture with no key, this one a key with nothing to be. Only the first
+    /// of the two is reported for one call, because a misspelled key is
+    /// usually both.
+    pub const E_ROUTE_LINK_UNKNOWN_PARAM: Code = Code::new("E0759");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

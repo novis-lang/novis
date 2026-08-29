@@ -4,15 +4,25 @@ a `Core\Router::url` `$params` key that names no capture becomes a percent-encod
 <?nvs
 // § 6's other half. The prepared path names every capture, so a key still in
 // `$params` once they have been substituted is by construction not one, and
-// § 6 makes it a query parameter rather than an error. The *refusal* half —
-// a key that is neither a capture nor a declared `#[Query]` parameter — needs
-// that attribute and is not reachable yet.
+// § 6 makes it a query parameter rather than an error. Every such key is
+// declared with `#[Query]` below, because the refusal half of the same sentence
+// is now applied: a key that is neither a capture nor a declared `#[Query]`
+// parameter is `E0759`, and that is what keeps a typo from silently shipping as
+// a query string. The declared *type* is what a query value arrives at (§ 3),
+// and it says nothing about what a link may be handed — `tag` below is written
+// with an array and still encodes.
 class Posts {
     #[\Core\Route(path: "/posts/{id}", method: \Core\Http\Method::Get, name: "Posts::show")]
-    public function show(uint $id): string { return "post " . $id; }
+    public function show(
+        uint $id,
+        #[\Core\Query] string $sort = "",
+        #[\Core\Query] string $q = "",
+        #[\Core\Query] string $note = "",
+        #[\Core\Query] string $tag = "",
+    ): string { return "post " . $id; }
 
     #[\Core\Route(path: "/posts/{page?}", method: \Core\Http\Method::Get, name: "Posts::list")]
-    public function list(uint $page = 1): string { return "page " . $page; }
+    public function list(uint $page = 1, #[\Core\Query] string $sort = ""): string { return "page " . $page; }
 }
 
 // The complement, asserted on both sides of one call: `id` is the capture and

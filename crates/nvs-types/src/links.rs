@@ -2,6 +2,13 @@
 //! `Core\Router::url` and `::urlAbsolute` over a **literal** route name,
 //! resolved against § 5's finished table while compiling.
 //!
+//! Two of the three refusals here are that ADR's — an unknown name, and a
+//! capture no key supplies. The third is
+//! [ADR 0102](../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+//! § 6's, and it exists because that section gives every *other* key a meaning:
+//! a key covering no capture becomes the link's query string, so a key covering
+//! nothing at all had to stop being one ([`declared`]).
+//!
 //! # Why this is two passes and not one
 //!
 //! The sibling of [`crate::retrieval`] and [`crate::program`] — a `Core` call
@@ -32,14 +39,7 @@
 //!
 //! # Known gaps
 //!
-//! 1. **A `$params` key naming no capture is not refused.** § 4 makes a literal
-//!    key that is neither a capture nor one of the route's declared `#[Query]`
-//!    parameters a compile error, and `#[Query]` does not exist yet — so the
-//!    distinction the rule turns on cannot be made, and refusing every
-//!    non-capture key would refuse the query strings the same sentence
-//!    requires. The keys reach the runtime unrefused and become § 4's
-//!    percent-encoded query string.
-//! 2. **A named argument is not folded.** `Core\Router::url(name: "…")` is
+//! 1. **A named argument is not folded.** `Core\Router::url(name: "…")` is
 //!    legal and records no site, so it throws at run time as a computed name
 //!    would. Reading one needs the slot mapping `check_args_typed` already
 //!    built and this pass is not handed.
@@ -101,7 +101,7 @@ pub(crate) fn record_site(call: &Expr, member: &str, args: &CallArgs, env: &mut 
     let CallArgs::List(list) = args else {
         return;
     };
-    // Gap 2: the positions below are the written ones, so a named or spread
+    // Gap 1: the positions below are the written ones, so a named or spread
     // argument anywhere is left to run time rather than read out of order.
     if list.iter().any(|arg| arg.name.is_some() || arg.spread) {
         return;
@@ -158,7 +158,8 @@ fn folded_str(expr: &Expr, env: &mut Env<'_>) -> Option<ConstArg> {
     crate::defaults::literal_default(expr, declared, env)
 }
 
-/// § 4's two compile errors, and the fold that follows when neither applies.
+/// § 4's two compile errors and ADR 0102 § 6's one, and the fold that follows
+/// when none of them applies.
 ///
 /// Run once, after every file has been walked, so `routes` is the whole
 /// program's table and a name declared in any file resolves from any other.
@@ -191,8 +192,12 @@ pub(crate) fn resolve(
             // Unreachable: a row exists only for a path § 2's grammar admitted.
             continue;
         };
+        // Short-circuiting on purpose: a misspelled key is usually both a
+        // capture with nothing supplying it and a key with nothing to be, and
+        // naming the capture is the half that says what to write.
         if let Some(keys) = &site.keys
-            && !covered(&pieces, keys, site, row, diags)
+            && !(covered(&pieces, keys, site, row, diags)
+                && declared(&pieces, keys, site, row, diags))
         {
             continue;
         }
@@ -204,6 +209,65 @@ pub(crate) fn resolve(
             },
         );
     }
+}
+
+/// ADR 0102 § 6's compile error, which is [`covered`] read the other way round:
+/// every key supplies *something*.
+///
+/// A key names one of the path's captures — any of the three forms, including
+/// the `{name?}` [`covered`] does not require — or one of the route's declared
+/// `#[Query]` parameters ([`crate::routes::Route::query`]). A key that is
+/// neither is not inert: § 6 turns every non-capture key into the link's query
+/// string, so a typo ships as `?typo=…` rather than being dropped, and the
+/// rule is what makes that turn safe to make at all.
+///
+/// The comparison is exact and case-sensitive
+/// ([ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)),
+/// as the capture-to-parameter one in [`crate::routes`] is.
+fn declared(
+    pieces: &[UrlPiece],
+    keys: &[String],
+    site: &LinkSite,
+    row: &crate::routes::Route,
+    diags: &mut Diagnostics,
+) -> bool {
+    let unknown: Vec<&str> = keys
+        .iter()
+        .map(String::as_str)
+        .filter(|key| {
+            !pieces.iter().any(|piece| match piece {
+                UrlPiece::Required(name) | UrlPiece::Optional(name) | UrlPiece::Rest(name) => {
+                    name == key
+                }
+                UrlPiece::Literal(_) => false,
+            }) && !row.query.iter().any(|param| param == key)
+        })
+        .collect();
+    if unknown.is_empty() {
+        return true;
+    }
+    let named = unknown
+        .iter()
+        .map(|key| format!("`{key}`"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    diags.report(
+        Diagnostic::error(
+            code::E_ROUTE_LINK_UNKNOWN_PARAM,
+            format!(
+                "`{}`'s path `{}` has no {named}, and `{}` declares no `#[Query]` parameter of \
+                 that name",
+                row.handler, row.path, row.handler
+            ),
+        )
+        .with_primary(site.span, "this key would become a query string")
+        .with_help(
+            "ADR 0102 § 6: a key that is not a capture becomes the link's query string, so one \
+             that names nothing ships as a query parameter nobody reads — correct the spelling, \
+             or declare the parameter with `#[Query]` on the handler",
+        ),
+    );
+    false
 }
 
 /// § 4's second compile error: every capture that must be substituted has a key

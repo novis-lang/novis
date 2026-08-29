@@ -8,9 +8,10 @@
 //! about the method an attribute is attached to. Those enumeration questions
 //! are asked over **two files** through `common::check_program_table`, which is
 //! the only shape that can tell "the program's table" apart from "this file's".
-//! What it still owes is ADR 0102 § 6's `$params` key that is neither a capture
-//! nor a `#[Query]` parameter, which waits on the attribute — see
-//! `nvs_types::links`' gap 1.
+//!
+//! ADR 0102 § 3's `#[Query]` is here too, and it is asserted from both ends: the
+//! type list it shares with a capture, and § 6's `$params` key that names
+//! neither one nor the other — the refusal the marker exists to make writable.
 
 mod common;
 
@@ -619,9 +620,6 @@ fn a_capture_or_query_parameter_outside_the_type_list_is_a_diagnostic() {
     // guess (ADR 0095). A nullable is the other near miss — `?uint` is not
     // `uint`, and an absent segment is § 4's question rather than this one.
     //
-    // The `#[Query]` half of this rule is item 4's and joins this test when
-    // the attribute exists; `crates/nvs-types/src/links.rs`' gap 1 is why the
-    // parameter it would name cannot be declared yet.
     for ty in ["float", "?uint", "array<int>"] {
         let diags = check_src(&route_src(&format!(
             "  #[Route(path: \"/users/{{id}}\", method: \\Core\\Http\\Method::Get)]\n  \
@@ -638,4 +636,83 @@ fn a_capture_or_query_parameter_outside_the_type_list_is_a_diagnostic() {
          public function show(uint $id): string { return \"\"; }\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
+
+    // The `#[Query]` half of the same rule, and the reason this test is named
+    // for both: § 3 gives a query parameter the *same* list, so the same three
+    // types are refused at the same code. The route below declares no capture
+    // at all, which is what makes this the attribute's question rather than the
+    // path's.
+    for ty in ["float", "?uint", "array<int>"] {
+        let diags = check_src(&route_src(&format!(
+            "  #[Route(path: \"/users\", method: \\Core\\Http\\Method::Get)]\n  \
+             public function index(#[\\Core\\Query] {ty} $page): string {{ return \"\"; }}\n"
+        )));
+        assert!(
+            reported(&diags, code::E_ROUTE_CAPTURE_TYPE_HAS_NO_CONVERSION),
+            "{ty}: {diags:?}"
+        );
+    }
+
+    // § 3's own example, spelled bare: the name is matched nominally after the
+    // `use` that places it, exactly as `#[Route]` is, and both of its declared
+    // types are on the list.
+    let diags = check_src(
+        "<?nvs\nuse Core\\Route;\nuse Core\\Query;\nclass Orders {\n  \
+         #[Route(path: \"/orders\", method: \\Core\\Http\\Method::Get)]\n  \
+         public function index(#[Query] uint $page = 1, #[Query] string $sort = \"asc\"): \
+         string { return \"\"; }\n}\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn a_url_key_that_is_neither_a_capture_nor_a_query_parameter_is_a_diagnostic() {
+    // ADR 0102 § 6: every key that is not a capture *becomes* the link's query
+    // string, so a key naming nothing at all is not inert — it ships as
+    // `?pge=2` and nothing says so. That is the whole reason the refusal exists,
+    // and it is why it could not be written before `#[Query]` did: refusing
+    // every non-capture key would refuse the query strings the same sentence
+    // requires.
+    let src = |params: &str| {
+        format!(
+            "<?nvs\nuse Core\\Query;\nclass Orders {{\n  \
+             #[\\Core\\Route(path: \"/orders/{{id}}\", method: \\Core\\Http\\Method::Get, \
+             name: \"orders.show\")]\n  \
+             public function show(uint $id, #[Query] uint $page = 1, string $sort = \"asc\"): \
+             string {{ return \"\"; }}\n\
+             }}\necho Core\\Router::url(\"orders.show\", {params}), \"\\n\";\n"
+        )
+    };
+    let diags = check_src(&src("[\"id\" => 1, \"pge\" => 2]"));
+    assert!(
+        reported(&diags, code::E_ROUTE_LINK_UNKNOWN_PARAM),
+        "{diags:?}"
+    );
+
+    // The two things a key may be, asked in one link: the capture, and the
+    // declared `#[Query]` parameter that is the whole point of the rule.
+    let diags = check_src(&src("[\"id\" => 1, \"page\" => 2]"));
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    // A key naming a parameter the handler declares but did not mark is not a
+    // query parameter — the marker is the declaration, and nothing is inferred
+    // from the parameter list.
+    let diags = check_src(&src("[\"id\" => 1, \"sort\" => \"asc\"]"));
+    assert!(
+        reported(&diags, code::E_ROUTE_LINK_UNKNOWN_PARAM),
+        "{diags:?}"
+    );
+
+    // Only the first of the two link errors is reported for one call: a
+    // misspelled capture is *both* a capture with no key and a key with nothing
+    // to be, and the missing name is the half that says what to write.
+    let diags = check_src(&src("[\"idd\" => 1]"));
+    assert!(
+        reported(&diags, code::E_ROUTE_LINK_MISSING_PARAM),
+        "{diags:?}"
+    );
+    assert!(
+        !reported(&diags, code::E_ROUTE_LINK_UNKNOWN_PARAM),
+        "{diags:?}"
+    );
 }
