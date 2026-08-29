@@ -1,0 +1,46 @@
+[package]
+name = "nvs-host"
+description = "The thread-per-core host: one pinned OS thread, one scheduler, one run queue of stackful coroutines"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[dependencies]
+nvs-runtime.workspace = true
+# Stackful coroutines, validated on windows-msvc by the M0 spike and modelled
+# end to end in `benches/abi-probe`. The whole reason this crate is not `async`
+# is in `docs/plan/design.md` § *Thread-per-core, shared-nothing runtime*.
+corosensei.workspace = true
+core_affinity.workspace = true
+
+# ---------------------------------------------------------------------------
+# This crate cannot inherit the workspace lint policy: a coroutine yielder
+# reaches a helper through `Ctx` as an opaque pointer (that is what removes
+# async colouring), so the one place that turns it back into a reference owns
+# an `unsafe` block. `deny` rather than the workspace's `forbid`, so that block
+# is a deliberate, reviewable exception with a stated reason — the same shape
+# `nvs-runtime` and `nvs-codegen` already carry, and recorded in
+# docs/adr/README.md.
+# ---------------------------------------------------------------------------
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+cast_possible_truncation = "warn"
+cast_possible_wrap = "warn"
+cast_sign_loss = "warn"
+checked_conversions = "warn"
+todo = "warn"
+unimplemented = "warn"
+dbg_macro = "warn"
+print_stdout = "warn"
+print_stderr = "warn"

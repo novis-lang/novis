@@ -35,6 +35,7 @@ nvs-ir = { path = "crates/nvs-ir", version = "0.0.1" }
 nvs-codegen = { path = "crates/nvs-codegen", version = "0.0.1" }
 nvs-render = { path = "crates/nvs-render", version = "0.0.1" }
 nvs-runtime = { path = "crates/nvs-runtime", version = "0.0.1" }
+nvs-host = { path = "crates/nvs-host", version = "0.0.1" }
 nvs-stdlib = { path = "crates/nvs-stdlib", version = "0.0.1" }
 nvs-test = { path = "crates/nvs-test", version = "0.0.1" }
 
@@ -46,6 +47,20 @@ cranelift-native = "0.135"
 
 # --- coroutines (stackful; validated on windows-msvc by the M0 spike) ---
 corosensei = "0.2"
+
+# --- CPU affinity (ADR 0106 § 6's "one scheduler of our own pinned per core") ---
+# Pinning is three different syscalls — `sched_setaffinity`, `thread_policy_set`,
+# `SetThreadAffinityMask` — and getting the CPU *set* is a fourth per platform.
+# ADR 0051 § 4's first question is "no": nothing attacker-controlled reaches a
+# core id, so what decides this is the pure-Rust default, and `core_affinity` is
+# pure Rust with no C: it declares the bindings itself against `libc` on unix
+# and `winapi` on Windows, both of which are already in this tree's lock file,
+# and adds three crates to it — itself, `num_cpus` and `hermit-abi`, all
+# MIT/Apache-2.0. The alternative was declaring those three externs here, which would put an
+# `unsafe` FFI block per platform in `nvs-host` for code with no Novis-specific
+# content in it. `crates/nvs-host/src/affinity.rs` owns what pinning is allowed
+# to fail at.
+core_affinity = "0.8"
 
 # --- extension sandbox (M9). Built on the same cranelift version above;
 # --- spike #4 confirmed wasmtime 48 and cranelift 0.135 coexist.

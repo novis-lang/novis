@@ -378,6 +378,27 @@ pub struct Ctx {
     /// The class a bare-message failure is promoted to, if one was
     /// installed — see [`Ctx::set_runtime_error_class`].
     runtime_error_class: Option<ErrorClass>,
+    /// The coroutine yielder of the task this request is running inside, or
+    /// null on the main stack — `nvs-host`'s scheduler publishes it on entry
+    /// and clears it before the context leaves the coroutine.
+    ///
+    /// **This is what removes async colouring.** A helper that has to wait
+    /// reaches the yielder through the context it was already handed rather
+    /// than through its own signature, so no caller up the chain is marked
+    /// `async` and Novis needs no such marker at all
+    /// ([ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+    /// § 6, `docs/plan/design.md` § *Thread-per-core, shared-nothing runtime*).
+    ///
+    /// **Opaque on purpose.** It is a `*const ()` rather than a
+    /// `*const corosensei::Yielder<…>` so that the coroutine crate stays out
+    /// of the crate every compiled unit links; `nvs-host` is the only code
+    /// that knows what it points at, and the `unsafe` that dereferences it
+    /// lives there. Writing it here is safe — a stored pointer is inert — and
+    /// [`Ctx::set_yielder`] carries the contract the reader relies on.
+    ///
+    /// Cold as far as compiled code is concerned: nothing loads it inline, so
+    /// it sits below the hot line and costs one word per request.
+    yielder: *const (),
     /// The armed fault-injection site, if any. See [`FaultSite`].
     ///
     /// A request with nothing armed — every request that is not a
@@ -692,6 +713,7 @@ impl Ctx {
             captures: Vec::new(),
             stmt_hits: Vec::new(),
             trace: Vec::new(),
+            yielder: std::ptr::null(),
             fault: None,
             helper_calls: 0,
             statics_store: Vec::new().into_boxed_slice(),
@@ -854,6 +876,31 @@ impl Ctx {
     /// which is exactly the case a `&mut` writer could not serve.
     pub fn expire_deadline(&self) {
         self.deadline.store(1, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// This request's coroutine yielder, or null if it is running on the main
+    /// stack — see the [`Ctx::yielder`] field for why it is opaque.
+    ///
+    /// A helper that means to suspend tests this for null first: a `Core`
+    /// member reached from `nvs run` has no scheduler beneath it, and a member
+    /// that would park has to fail or block rather than pretend.
+    #[must_use]
+    pub fn yielder(&self) -> *const () {
+        self.yielder
+    }
+
+    /// Publishes the coroutine yielder for the task this request runs inside,
+    /// or clears it with a null pointer.
+    ///
+    /// Safe to call, because storing a pointer cannot go wrong; what the
+    /// caller owes is the contract [`Ctx::yielder`]'s *reader* relies on, and
+    /// `nvs-host`'s scheduler is the one place that discharges it — **the
+    /// pointer must outlive every read of it**, which holds exactly while the
+    /// coroutine whose stack the yielder lives on is the one running this
+    /// context, and is why the scheduler nulls it again before the context
+    /// leaves the coroutine.
+    pub fn set_yielder(&mut self, yielder: *const ()) {
+        self.yielder = yielder;
     }
 
     /// Asks the next safepoint poll to act.
