@@ -1,0 +1,151 @@
+--TEST--
+`Core\Router::urlAbsolute` is `Core\Router::url` with the configured origin in front, counted over every row shape `url` builds — ADR 0102 § 6
+--FILE--
+<?nvs
+// The agreement shape over ADR 0102 § 6's two link members. The seven
+// `router-url-*` cases each pin one row shape of `url`; this asks the *same*
+// eleven rows of both members and counts the ones where the absolute answer is
+// exactly the origin concatenated onto the relative one. A `urlAbsolute` that
+// grew its own substitution — a second encoder, a second query-string pass, a
+// second reading of § 2's prepared path — would still look right on any single
+// line and fails here on the row where the two passes part.
+//
+// `urlAbsolute` has one case already and it is the *refusal*
+// (`router-url-absolute-refuses-a-unit-with-no-configured-origin.nvst`): a
+// program run off the command line is mounted nowhere, so § 6's origin has
+// nowhere to come from and the member throws. The `nvs.toml` at the foot of
+// this file is what makes the other half reachable — the working directory's
+// `[app] origin`, which `configured_origin` in `crates/nvs-cli/src/main.rs`
+// reads and `Ctx::set_origin` holds. That is the one source § 6 allows;
+// nothing here sends a header, and there would be nothing to read it if it
+// did.
+class Docs {
+    // ADR 0096 § 1: the decision is a required sibling of every `#[Route]`, and
+    // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
+    #[\Core\Route(path: "/{lang}/docs/{page}", method: \Core\Http\Method::Get, name: "docs.show")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function show("en"|"de"|"fr" $lang, string $page): string { return $lang . "/" . $page; }
+
+    // ADR 0077 § 2's `{rest...}`, whose value keeps its own `/`s — the one
+    // capture form the encoder treats differently, and so the row most likely
+    // to part between two passes.
+    #[\Core\Route(path: "/files/{rest...}", method: \Core\Http\Method::Get, name: "Docs::file")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function file(string $rest): string { return $rest; }
+
+    // The root, whose whole relative form is `/`. It is here because it is
+    // where a join that trimmed one slash too many or too few shows up as a
+    // different URL rather than as a cosmetic difference.
+    #[\Core\Route(path: "/", method: \Core\Http\Method::Get, name: "Docs::home")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function home(): string { return "home"; }
+}
+
+class Posts {
+    #[\Core\Route(path: "/posts/{page?}", method: \Core\Http\Method::Get, name: "Posts::list")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function list(uint $page = 1): string { return "page " . $page; }
+
+    #[\Core\Route(path: "/posts/{id}", method: \Core\Http\Method::Get, name: "Posts::show")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function show(
+        uint $id,
+        #[\Core\Query] string $sort = "",
+        #[\Core\Query] string $tag = "",
+    ): string { return "post " . $id; }
+}
+
+// Written once and compared against, rather than pasted into eleven
+// expectations: the claim is a relation between two members, so the origin
+// appears in the assertion and not in the answers being asserted.
+string $origin = "https://example.test";
+
+// Computed, so § 5's closed set is not consulted and the value reaches the
+// substitution as `router-url-substitutes-a-computed-value-outside-a-closed-set.nvst`
+// pins. Both members have to take the same route through it.
+var $outside = "xx";
+var $hostile = "../../etc";
+
+// Every row shape the seven `router-url-*` cases build, in one table: three
+// values of a closed set, a computed value outside it, a value the encoder has
+// to escape, a `{rest...}`, the root, an optional capture absent and present,
+// a leftover `params` key that becomes a query string, and a nested one beside
+// a `null` that is dropped.
+//
+// The name is a literal at every call site because it has to be: ADR 0077 § 4
+// resolves the link while compiling, and a computed name reaches the helper
+// that throws. So the table is written twice rather than looped over once, and
+// the two halves are the same eleven rows in the same order.
+array<string> $relative = [
+    Core\Router::url("docs.show", ["lang" => "en", "page" => "intro"]),
+    Core\Router::url("docs.show", ["lang" => "de", "page" => "intro"]),
+    Core\Router::url("docs.show", ["lang" => "fr", "page" => "intro"]),
+    Core\Router::url("docs.show", ["lang" => $outside, "page" => "intro"]),
+    Core\Router::url("docs.show", ["lang" => "en", "page" => $hostile]),
+    Core\Router::url("Docs::file", ["rest" => "a/b c/d"]),
+    Core\Router::url("Docs::home", []),
+    Core\Router::url("Posts::list", []),
+    Core\Router::url("Posts::list", ["page" => 3]),
+    Core\Router::url("Posts::show", ["id" => 7, "sort" => "new"]),
+    Core\Router::url("Posts::show", ["id" => 7, "tag" => ["a" => 1], "sort" => null]),
+];
+
+array<string> $absolute = [
+    Core\Router::urlAbsolute("docs.show", ["lang" => "en", "page" => "intro"]),
+    Core\Router::urlAbsolute("docs.show", ["lang" => "de", "page" => "intro"]),
+    Core\Router::urlAbsolute("docs.show", ["lang" => "fr", "page" => "intro"]),
+    Core\Router::urlAbsolute("docs.show", ["lang" => $outside, "page" => "intro"]),
+    Core\Router::urlAbsolute("docs.show", ["lang" => "en", "page" => $hostile]),
+    Core\Router::urlAbsolute("Docs::file", ["rest" => "a/b c/d"]),
+    Core\Router::urlAbsolute("Docs::home", []),
+    Core\Router::urlAbsolute("Posts::list", []),
+    Core\Router::urlAbsolute("Posts::list", ["page" => 3]),
+    Core\Router::urlAbsolute("Posts::show", ["id" => 7, "sort" => "new"]),
+    Core\Router::urlAbsolute("Posts::show", ["id" => 7, "tag" => ["a" => 1], "sort" => null]),
+];
+
+// The count, which is the case. ADR 0007 § 5: an `array<T>`'s stored key type
+// is `string`, so the index binds as one and subscripts the other half as
+// written.
+var $rows = 0;
+var $agree = 0;
+foreach ($relative as string $i => string $link) {
+    $rows = $rows + 1;
+    if ($absolute[$i] == $origin . $link) {
+        $agree = $agree + 1;
+    }
+}
+echo "agree=", $agree, "/", $rows, "\n";
+
+// The complement, which is what stops the count above from being satisfied by
+// two members that both answer an absolute URL: a configured origin changes
+// nothing about `url`, so every relative answer still begins at `/` and none
+// of them carries the origin at all.
+var $rooted = 0;
+foreach ($relative as string $link) {
+    if (Core\Str::startsWith($link, "/") && !Core\Str::contains($link, $origin)) {
+        $rooted = $rooted + 1;
+    }
+}
+echo "rooted=", $rooted, "/", $rows, "\n";
+
+// And three rows written out, so the shape a reader is being told about is on
+// the page rather than only inside the count: a capture, a query string, and
+// the root — the last being the one the concatenation is least obviously right
+// for, since `/` is the whole of what it is joined to.
+echo "capture=", $absolute["0"], "\n";
+echo "query=", $absolute["9"], "\n";
+echo "root=", $absolute["6"], "\n";
+--FILE nvs.toml--
+# ADR 0102 § 6's configured origin — the only source an absolute link may take
+# one from, and in a program run off the command line this file is the whole of
+# it. `configured_origin` in `crates/nvs-cli/src/main.rs` reads this key and no
+# other; `nvs.toml` is not otherwise read until M6 (ADR 0064).
+[app]
+origin = "https://example.test"
+--EXPECT--
+agree=11/11
+rooted=11/11
+capture=https://example.test/en/docs/intro
+query=https://example.test/posts/7?sort=new
+root=https://example.test/
