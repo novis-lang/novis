@@ -192,6 +192,81 @@ pub fn affordable(bytes: Option<usize>, member: &str) -> Result<usize, Fault> {
         })
 }
 
+/// How many iterations of a [`bounded_loop`] pass between two deadline polls.
+///
+/// [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+/// § 5 requires the *amortised* poll to stay under the stack check's own
+/// per-call cost, and this constant is the only thing that number depends on:
+/// a poll is one relaxed load and a compare against a line
+/// [`crate::nvs_stack_check`] has already brought in, so dividing it by 256
+/// leaves it a fraction of a check that itself costs a load and a compare.
+///
+/// Small enough to matter in the other direction too: at 256 iterations a
+/// deadline that fires is observed within a few hundred nanoseconds of work,
+/// not within the whole loop.
+pub const DEADLINE_POLL_BATCH: usize = 256;
+
+/// Runs a helper's O(input) loop and polls the request's deadline *for* it.
+///
+/// [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+/// § 5's first constraint: **the poll is supplied by a bounded-loop
+/// combinator, not remembered per helper.** The safepoint bounds Novis code
+/// because it sits between calls, and a helper is one call — so a member whose
+/// runtime scales with its input is exactly the shape a deadline cannot
+/// otherwise reach inside. This is that shape, and it rests on the same
+/// argument [`crate::nvs_helper!`] does: a member adopts the shape and the
+/// obligation arrives with it, so the next member cannot omit a poll it never
+/// had to know about.
+///
+/// The poll is amortised over [`DEADLINE_POLL_BATCH`] iterations. Per iteration
+/// that is a register decrement and a not-taken branch; once per batch it is
+/// the relaxed load [`Ctx::deadline_expired`] makes. `Ctx`'s module doc
+/// § *The request's deadline* owns why the flag is read rather than a clock.
+///
+/// `body` is handed the context back, so a member that needs it inside the loop
+/// does not have to choose between the poll and its own work.
+///
+/// **A member with no consistent point to abandon at does not reach for this.**
+/// A sort cannot hand back a half-permuted array; where the operation has no
+/// such point the bound belongs on the *input* instead, which is ADR 0106 § 5's
+/// second constraint and what
+/// [ADR 0056](../../../docs/adr/0056-regex-engine-policy.md) already did for
+/// patterns. Between two iterations of *this* loop is such a point by
+/// construction, because `body` has returned.
+///
+/// # Errors
+///
+/// Whatever `body` returns, or a [`Fault::Fatal`] naming `member` when the
+/// deadline has passed. Fatal rather than thrown because a deadline is a
+/// cancellation, and
+/// [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md) § 5
+/// settles that cancellation is not a `Throwable` and runs no user code — the
+/// same standing [`FATAL`] already gives a resource limit, and the same one
+/// [`crate::nvs_safepoint`] gives `SafepointFlags::CANCEL`.
+pub fn bounded_loop<I, F>(ctx: &mut Ctx, member: &str, items: I, mut body: F) -> Result<(), Fault>
+where
+    I: IntoIterator,
+    F: FnMut(&mut Ctx, I::Item) -> Result<(), Fault>,
+{
+    let mut until_poll = DEADLINE_POLL_BATCH;
+    for item in items {
+        until_poll -= 1;
+        if until_poll == 0 {
+            if ctx.deadline_expired() {
+                return Err(deadline_passed(member));
+            }
+            until_poll = DEADLINE_POLL_BATCH;
+        }
+        body(ctx, item)?;
+    }
+    Ok(())
+}
+
+/// What a fired poll reports, in one place so every site says the same thing.
+fn deadline_passed(member: &str) -> Fault {
+    Fault::fatal(format!("{member}: the request's deadline passed"))
+}
+
 /// What a helper body returns: the result value, or a [`Fault`].
 ///
 /// A helper invoked purely for its effect — `nvs_ir::Helper::EchoStr` is the
@@ -721,5 +796,102 @@ mod tests {
         quietly(|| run_task(TaskRoot::Worker, || panic!("first"))).unwrap_err();
         let outcome = run_task(TaskRoot::Worker, || "second");
         assert_eq!(outcome.ok(), Some("second"));
+    }
+
+    #[test]
+    fn a_bounded_loop_visits_every_item_while_the_deadline_holds() {
+        let mut ctx = Ctx::buffered();
+        let items = DEADLINE_POLL_BATCH * 4 + 7;
+        let mut seen = 0usize;
+
+        // Counting the *live* answers rather than the iterations also pins that
+        // the context handed to the body is the request's own.
+        bounded_loop(&mut ctx, "Core\\Test::sweep", 0..items, |ctx, _item| {
+            seen += usize::from(!ctx.deadline_expired());
+            Ok(())
+        })
+        .expect("no deadline was ever set, so no poll can fire");
+
+        assert_eq!(
+            seen, items,
+            "a poll site must not swallow the iteration it guards"
+        );
+    }
+
+    #[test]
+    fn an_expired_deadline_stops_a_bounded_loop_at_the_first_batch_boundary() {
+        let mut ctx = Ctx::buffered();
+        ctx.expire_deadline();
+        let mut seen = 0usize;
+
+        let fault = bounded_loop(
+            &mut ctx,
+            "Core\\Test::sweep",
+            0..DEADLINE_POLL_BATCH * 10,
+            |_ctx, _item| {
+                seen += 1;
+                Ok(())
+            },
+        )
+        .expect_err("the flag was already set when the loop began");
+
+        assert_eq!(
+            seen,
+            DEADLINE_POLL_BATCH - 1,
+            "the poll is amortised over one batch, so it fires on the first \
+             boundary — not per iteration, and not only at the end"
+        );
+        assert!(
+            matches!(&fault, Fault::Fatal(message)
+                if message.contains("Core\\Test::sweep") && message.contains("deadline")),
+            "a deadline is a cancellation, so ADR 0072 § 5 makes it FATAL and \
+             uncatchable, and it names the member it interrupted: {fault:?}"
+        );
+    }
+
+    #[test]
+    fn a_run_shorter_than_one_batch_finishes_under_an_expired_deadline() {
+        // The other side of the same bound, asserted deliberately: amortising
+        // the poll means a loop too short to reach a batch boundary never pays
+        // for one and never stops. ADR 0106 § 5 bounds a helper's *runtime*,
+        // and a run under one batch is already bounded.
+        let mut ctx = Ctx::buffered();
+        ctx.expire_deadline();
+        let mut seen = 0usize;
+
+        bounded_loop(
+            &mut ctx,
+            "Core\\Test::sweep",
+            0..DEADLINE_POLL_BATCH - 1,
+            |_ctx, _item| {
+                seen += 1;
+                Ok(())
+            },
+        )
+        .expect("a run shorter than a batch reaches no poll site");
+
+        assert_eq!(seen, DEADLINE_POLL_BATCH - 1);
+    }
+
+    #[test]
+    fn a_fault_from_the_body_propagates_unchanged() {
+        let mut ctx = Ctx::buffered();
+        let mut seen = 0usize;
+
+        let fault = bounded_loop(&mut ctx, "Core\\Test::sweep", 0..10, |_ctx, item| {
+            seen += 1;
+            if item == 3 {
+                Err(Fault::thrown("element 3 is not an int"))
+            } else {
+                Ok(())
+            }
+        })
+        .expect_err("the body refused an element");
+
+        assert_eq!(seen, 4, "the loop stops at the element that failed");
+        assert!(
+            matches!(&fault, Fault::Thrown(_, message) if message == "element 3 is not an int"),
+            "the combinator guards the deadline and rewrites nothing else: {fault:?}"
+        );
     }
 }

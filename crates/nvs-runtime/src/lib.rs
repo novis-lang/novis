@@ -282,8 +282,8 @@ static COUNTING_ALLOCATOR: counting_alloc::Counting = counting_alloc::Counting;
 static POOLED_ALLOCATOR: alloc::Pooled = alloc::Pooled;
 
 pub use abi::{
-    EXITED, FATAL, Fault, HelperFn, HelperResult, NvsFn, OK, THROWN, TaskPanic, TaskRoot,
-    affordable, call, run_helper, run_task,
+    DEADLINE_POLL_BATCH, EXITED, FATAL, Fault, HelperFn, HelperResult, NvsFn, OK, THROWN,
+    TaskPanic, TaskRoot, affordable, bounded_loop, call, run_helper, run_task,
 };
 pub use arith::nvs_float_pow;
 pub use array::{

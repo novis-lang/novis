@@ -93,8 +93,13 @@
 //!
 //! `Relaxed` on both sides: no data is published behind the flag, and a poll
 //! that observes it one batch late is inside the amortisation window the batch
-//! already grants. What a poll *does* when it fires, and the combinator that
-//! supplies it, are ADR 0106 § 5's other two halves and are not here yet.
+//! already grants.
+//!
+//! **Who reads it is not a member's decision.** ADR 0106 § 5's first constraint
+//! puts the poll in a combinator rather than in every helper that remembers to
+//! ask, and that combinator is [`crate::bounded_loop`] — it owns the batch
+//! ([`crate::DEADLINE_POLL_BATCH`]) and what a fired poll returns. Nothing here
+//! polls on its own.
 //!
 //! # Static properties are request-scoped
 //!
