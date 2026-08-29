@@ -1,0 +1,106 @@
+--TEST--
+Spec § 4: `$d->date()` and `$d->timeOfDay()` are the two halves of a `DateTime` — over a table of moments in four zones they partition the rendering with nothing shared and nothing lost, each is invariant under every change to the other, and either spelling of putting them back together, through text or through values, answers the moment they came from; neither half carries the zone, so one instant read in two zones has two pairs of halves
+--FILE--
+<?nvs
+// § 4 splits a `DateTime` into a zone-free calendar half and a zone-free clock
+// half. What makes them *halves* rather than two more accessors is the pair of
+// properties asserted below: together they are the whole value, and separately
+// neither one moves when the other does. Both are counted over the same table,
+// because a member that quietly folded the zone into one half — or that read
+// the clock in UTC while reading the calendar locally — answers plausibly on
+// any single line and fails the count.
+class Moment {
+    public static function zone(string $name): Core\Time\Zone {
+        return Core\Time\Zone::of($name);
+    }
+}
+
+// Four zones, chosen so a half reading the wrong one is visible: UTC, a zone
+// an hour ahead, a zone hours behind and across a date line from it, and one
+// at a half-hour offset, which is what catches a half that rounded to hours.
+array<string> $zones = [
+    "UTC", "Europe/Berlin", "America/New_York", "Asia/Kolkata",
+    "UTC", "Europe/Berlin", "America/New_York", "Asia/Kolkata",
+];
+array<int> $days = [1, 29, 31, 15, 31, 1, 10, 30];
+array<int> $months = [1, 2, 12, 8, 12, 1, 3, 6];
+array<int> $hours = [0, 12, 23, 5, 23, 0, 3, 18];
+array<int> $minutes = [0, 30, 59, 45, 59, 0, 30, 15];
+array<int> $seconds = [0, 30, 59, 7, 59, 0, 30, 1];
+
+int $row = 0;
+int $partitions = 0;
+int $throughText = 0;
+int $throughValues = 0;
+int $calendarHeld = 0;
+int $clockHeld = 0;
+for (; $row < 8; $row = $row + 1) {
+    string $index = $row as string;
+    var $zone = Moment::zone($zones[$index]);
+    var $moment = Core\Time::at(2024, $months[$index] as uint, $days[$index] as uint, $zone, {
+        hour: $hours[$index] as uint,
+        minute: $minutes[$index] as uint,
+        second: $seconds[$index] as uint,
+    });
+    string $calendar = $moment->date()->format("yyyy-MM-dd");
+    string $clock = $moment->timeOfDay()->format("HH:mm:ss");
+
+    // The two halves partition the rendering: joined in order they are the
+    // whole value's own, so no field is in both halves and none is in neither.
+    if ($calendar . " " . $clock == $moment->format("yyyy-MM-dd HH:mm:ss")) {
+        $partitions = $partitions + 1;
+    }
+
+    // Reassembly, first spelling: through text, which is the only route that
+    // uses nothing but what the two halves printed. The zone has to be handed
+    // back separately, because that is precisely what neither half carries.
+    var $reread = Core\Time::parse($calendar . " " . $clock, "yyyy-MM-dd HH:mm:ss", $zone);
+    if ($reread->format("yyyy-MM-dd HH:mm:ss VV") == $moment->format("yyyy-MM-dd HH:mm:ss VV")) {
+        $throughText = $throughText + 1;
+    }
+
+    // Second spelling: through values, with no rendering in the loop at all —
+    // the day's start is the calendar half as a `DateTime`, and `withTime`
+    // puts the clock half back on it.
+    var $rebuilt = $moment->startOf(Core\Unit::Day)->withTime($moment->timeOfDay());
+    if ($rebuilt->format("yyyy-MM-dd HH:mm:ss VV") == $moment->format("yyyy-MM-dd HH:mm:ss VV")) {
+        $throughValues = $throughValues + 1;
+    }
+
+    // And each half is invariant under every change to the other: moving the
+    // clock leaves the calendar half alone, and moving the calendar leaves the
+    // clock half alone. A half that read the whole value would fail one of
+    // these two on every row.
+    var $laterSameDay = $moment->startOf(Core\Unit::Day)->plus(13, Core\Unit::Hour);
+    if ($laterSameDay->date()->format("yyyy-MM-dd") == $calendar) {
+        $calendarHeld = $calendarHeld + 1;
+    }
+    var $nextWeek = $moment->plus(7, Core\Unit::Day);
+    if ($nextWeek->timeOfDay()->format("HH:mm:ss") == $clock) {
+        $clockHeld = $clockHeld + 1;
+    }
+}
+echo "rows=", $row as string, " partition=", $partitions as string,
+    " text=", $throughText as string, " values=", $throughValues as string, "|\n";
+echo "calendar-held=", $calendarHeld as string, " clock-held=", $clockHeld as string, "|\n";
+
+// Neither half carries the zone, which is why one instant has as many pairs of
+// halves as there are zones to read it in. The same moment, read in two zones
+// that are on opposite sides of midnight from each other: both halves differ,
+// and the instant behind them does not.
+var $utc = Core\Time\Zone::UTC;
+var $tokyo = Core\Time\Zone::of("Asia/Tokyo");
+var $evening = Core\Time::at(2024, 12, 31, $utc, {hour: 23, minute: 30});
+var $elsewhere = $evening->toInstant()->in($tokyo);
+echo "utc=", $evening->date()->format("yyyy-MM-dd"), " ", $evening->timeOfDay()->format("HH:mm"), "|\n";
+echo "tokyo=", $elsewhere->date()->format("yyyy-MM-dd"), " ", $elsewhere->timeOfDay()->format("HH:mm"), "|\n";
+echo "same-instant=", ($evening->toInstant()->compareTo($elsewhere->toInstant()) == 0) as string,
+    " halves-differ=",
+    ($evening->date()->compareTo($elsewhere->date()) != 0) as string,
+    ($evening->timeOfDay()->compareTo($elsewhere->timeOfDay()) != 0) as string, "|\n";
+--EXPECT--
+rows=8 partition=8 text=8 values=8|
+calendar-held=8 clock-held=8|
+utc=2024-12-31 23:30|
+tokyo=2025-01-01 08:30|
+same-instant=1 halves-differ=11|
