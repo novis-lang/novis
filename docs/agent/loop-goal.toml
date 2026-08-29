@@ -68,12 +68,18 @@ modules = [
   "crates/nvs-ir/src/lower/generator.rs",
   # `Core\Task`, `Core\Serialize` and `Core\Script` are registered here.
   "crates/nvs-stdlib/src/registry.rs",
+  # Stage 0b's file set (items 28-30). REMOVE these four when its three checks are green: every later
+  # session pays for them otherwise.
+  "crates/nvs-stdlib/src/lib.rs",
+  "crates/nvs-types/src/core_lib.rs",
+  "crates/nvs-types/src/signatures.rs",
+  "crates/nvs-types/src/expr/args.rs",
 ]
 # NOT in `modules`, and it cannot be: `benches/abi-probe/src/lib.rs` is the proven coroutine shape this
 # goal moves into `nvs-host`, and orient.py's map covers `crates/` and `editors/` only. Every session of
 # Stage 2 should read it anyway -- the handoff names it, which is the one place that survives.
 
-rules = ["0072", "0006", "0023", "0106", "0033", "0012", "0079", "0099", "0004", "0051"]
+rules = ["0072", "0006", "0023", "0106", "0033", "0012", "0079", "0099", "0004", "0051", "0063", "0007"]
 
 # The sections EVERY session of this goal reads. 0072 § 5 is the one most likely to be got wrong in the
 # obliging direction, 0106 § 6 is the rule that decides where every syscall goes, and 0023 § 2 is the one
@@ -83,6 +89,8 @@ adrs = [
   "0072 §5",
   "0106 §6",
   "0023 §2",
+  # Stage 0b: R2's amended row and the reversed alternative. REMOVE with the four modules above.
+  "0063 §1",
 ]
 
 shapes = ["A `Core` member — the four edits", "A `.nvst` test case", "An ADR", "A commit message"]
@@ -142,6 +150,54 @@ tests = [
   "a_teardown_path_that_panics_does_not_recurse",
   # § 4 -- the engine-side counterpart to ADR 0020 § 1's call-stack bound, and the single-helper bound.
   "engine_recursion_is_bounded_before_the_stack_is",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 0b -- ADR 0063 R2, amended 2026-08-29 after this goal opened: every `Core` parameter is callable
+# by the spec's `$name`. Items 28-30 in loop-goal.md. A "0" stage runs in the catch-up class, ahead of
+# the program legs, and after Stage 0 because the run order inside the class is this file's order.
+#
+# Every test and case named below must EXIST and pass, and none of them exists yet -- writing one is how
+# the loop finishes its item. Do not rename one to something already green. REMOVE the four Stage 0b
+# modules and the `0063 §1` section from `[context]` when the three checks are green.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "0b named arguments"
+name = "nvs-stdlib (every row names its parameters)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  # Item 28 -- one name per positional slot, and the names are the spec's signature column.
+  "every_registry_row_names_one_parameter_per_positional_slot",
+  "every_registry_rows_names_are_the_specs_signature_column",
+  # A documented row's `ParamDoc::name` is the row's name, not a second home.
+  "a_documented_rows_param_docs_agree_with_its_names",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "0b named arguments"
+name = "nvs-types (a Core member by name)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  # Item 29 -- the spec's `$name` fills its own slot at a `Core` member, and `options` is the bag.
+  "a_core_member_is_called_by_the_names_the_spec_writes",
+  "a_skipped_defaulted_core_parameter_takes_the_rows_default",
+  # A name never reaches a variadic tail, at `Str::format` as at a user method.
+  "a_name_at_a_core_variadic_tail_is_unknown",
+  # The synthesized constructor: `new Exception(message: ...)`.
+  "a_throwable_is_constructed_by_message",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "0b named arguments"
+name = "conformance (Core by name)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/a-core-member-is-called-by-the-names-the-spec-writes.nvst",
+  "tests/conformance/error/a-throwable-is-constructed-by-name.nvst",
+  "tests/conformance/reject/a-misspelled-name-at-a-core-member-is-unknown.nvst",
 ]
 
 

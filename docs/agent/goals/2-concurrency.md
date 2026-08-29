@@ -47,6 +47,48 @@ hardest to find later.
    This is the item that makes a memory cap mean anything later, and it is cheap now and expensive after
    there are twenty helpers that can recurse.
 
+## Stage 0b — the catch-up, and it is calling a `Core` member by name
+
+[ADR 0063](../../adr/0063-core-api-conventions.md) R2 was amended on 2026-08-29, after this goal opened:
+every `Core` parameter is callable by the `$name` [01-core-library.md](../../spec/01-core-library.md)
+writes, and the trailing options bag by `options`, under exactly the rules a user-declared method already
+has ([ADR 0007](../../adr/0007-explicit-type-system.md) § 5). It is catch-up for the same reason Stage 0 is —
+every case written in the meantime is written positional-only around a surface that is about to exist —
+and it comes *after* Stage 0 in this file because the run order inside the catch-up class is this file's
+order, and the containment rule is the one everything sits inside.
+
+**Nothing about any member changes.** No parameter is added, removed, reordered or renamed; the bag stays
+the bag. The items add a name to slots that already exist, and a check that the names are the spec's.
+
+28. **Every registry row names its parameters.** `pub names: &'static [&'static str]` on
+    `nvs_stdlib::registry::CoreMethod`, one per positional slot in `params` order, never the `$`; the bag
+    slot is not written per row — it is `options` uniformly, stated once on `CoreTy::Options`. The names
+    are the spec's signature column, and a `-p nvs-stdlib` test parses that column and holds every row to
+    it (`crates/nvs-stdlib/src/registry.rs`; the rows are the `params: &[` tables in
+    `crates/nvs-stdlib/src/*.rs`). Filling 341 rows by hand is the wrong spend: a scratch script that
+    reads the spec and emits one `splice.py --patch` is the shape, and the guard test is what reviews it.
+    `ParamDoc::name` stays as the description's key, and the existing doc-consistency test asserts it
+    equals the row's.
+29. **A `Core` member and the two synthesized signatures resolve a `name:`.**
+    `crates/nvs-types/src/core_lib.rs` reads the row's names into `MethodSig::param_names` (plus `options`
+    when the last parameter is a bag); `error_lib.rs`'s `Throwable` constructor becomes
+    `["message", "options"]`; `iter_lib.rs`'s bodiless members take the spec's. After that no producer
+    writes `None`: `param_names` becomes a `Vec`, `named_slot`'s `else` arm in
+    `crates/nvs-types/src/expr/args.rs` goes, and `E_NAMED_ARG_NO_PARAM_NAMES` (E0485) is retired the way
+    `nvs-diagnostics` retires a code — grep `E0485` across `tests/`, `crates/*/tests` and `docs/` first.
+    `crates/nvs-ir/src/lower/call.rs` reads `arg_slots` uniformly already; confirm with a scratch run
+    rather than by reasoning that a reordered name, a skipped defaulted positional (`defaults_of`) and a
+    name at `Str::format`'s variadic tail (`E_UNKNOWN_ARG_NAME`) all behave at a helper call. `nvs meta
+    --json` emits `names` for every row.
+30. **The cases.** One `core` case calling a static and an instance member by name out of order, a
+    defaulted positional skipped and the bag passed as `options:`, evaluation order shown by a
+    side-effecting argument as `tests/conformance/lang/a-named-argument-binds-by-name-and-a-spread-by-position.nvst`
+    does; one `error` case constructing a `Throwable` by `message:` alone and with
+    `options: {previous: …}`; one `reject` case where a misspelled name at a `Core` member and a name at a
+    variadic tail are both `E_UNKNOWN_ARG_NAME`. The docs are already written — ADR 0063 R2, ADR 0117, the
+    spec's *How to read an entry*, and the comments at each site above say "Stage 0b lands it"; landing it
+    means rewriting those comments to the present tense, not adding to them.
+
 ## Stage 1 — the floor
 
 Goals 1 and M4's whole acceptance lists, inserted mechanically by `goal-switch.py`, **never traded.**
@@ -174,6 +216,11 @@ is a consumer of it.
 
   Anything else is decided-and-recorded. Claim the next free ADR number by creating the file, and
   **re-check it immediately before you do**: `python tools/brief.py` derives it from the directory.
+- **Stage 0b opens no ADR and changes no member.** ADR 0063 R2 already carries the rule; the names live
+  on the registry row (`CoreMethod::names`), the bag is `options`, and the guard is the spec's signature
+  column. Where a row's arity disagrees with the spec, the spec is authoritative for the *names* and the
+  registry for what is *built*: give the row the spec's names and leave its `params` alone, and put a
+  member whose shape the two genuinely disagree on in the handoff's Backlog — never a shape change.
 - **No `tokio`, and this is not a judgement call.** If a capability appears to require an async runtime,
   that is a real `BLOCKED` naming the capability. Every other crate choice is yours under ADR 0051 § 4.
 - **A blocking-looking read parks; it never blocks the core.** If a syscall has no readiness to wait on,
@@ -189,7 +236,8 @@ is a consumer of it.
 
 ## What this goal does not touch
 
-`Core`'s pure half (goal 1, and it is the floor). Every capability-bearing `Core` member (goal 4) — the
+`Core`'s pure half (goal 1, and it is the floor) — except that Stage 0b adds a name to every slot it
+already has, and changes no member's shape. Every capability-bearing `Core` member (goal 4) — the
 transport is not the client. The listener (goal 6). ADR 0018's `TRACE`/`PROFILE` safepoint bits, which
 have no consumer until an exporter exists; the three spawn-construct trace events wait with them, and
 m5.md already says so.
