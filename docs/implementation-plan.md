@@ -463,7 +463,19 @@
 > different routes, and which route a child takes is a fact about its stack rather than about the
 > boundary — force-unwound where nothing forbids it, leaving an unfiled slot; *told* where it stands
 > on a helper frame, so it answers with `Ctx::cancel` and `finish` classifies it. `isolate.rs`'s
-> module doc is that fact's one home. The steps the chain took are in
+> module doc is that fact's one home. **Stage 8's corpus now asks the boundary its own questions
+> from the language surface**, in `tests/conformance/isolate/`: a child that declares the same class
+> the parent does writes 99 into its static and the parent still reads back the 7 it put there,
+> which is ADR 0116 § 4's fresh statics base and ADR 0006 § *Decision*'s statics row observed from a
+> program rather than from the host crate; the same case is the output-buffer row, because the child
+> echoes twice while it runs and both lines arrive only where the parent chooses to print them. The
+> other case is § *Failure is a value, not an exception* as a table read on both sides — an uncaught
+> throw arriving as `ok = false` beside the class name, the message and everything the child had
+> already echoed, with a returning sibling in the same file so the success row (`error` null, not an
+> error of some empty shape) is named next to it. Where a child *file* lives needed no decision
+> after all: a `.nvst` writes one as a `--FILE child.nvs--` section, which the runner puts in the
+> workdir the case itself runs from, so a spawned relative path resolves with no fixture directory
+> and no path back into `examples/`. The steps the chain took are in
 > [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's own residue is the 1000-case
 > corpus count, which orders 1–4 meet as the suite grows; nothing else about M4 is open. What the
 > program is measured by is `python tools/check-migration.py` at 100% classified, which stood at 25%

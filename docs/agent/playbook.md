@@ -2687,6 +2687,13 @@ is why" — is this file.
   statement position reads as a type name, so the case reports "`$handle` is already declared" at
   the second mention. Bind it: `var $ignored = await $handle;`. `spawn script …;` as a statement is
   fine, since nothing follows the construct that could start a declaration.
+- **A `.nvst` case that spawns a child script writes the child into the case**, as a `--FILE
+  child.nvs--` section beside `--FILE--`. The runner puts every auxiliary file into the workdir it
+  then runs the case from (`crates/nvs-test/src/run.rs:99`), and `spawn script` resolves a relative
+  path against the working directory (`crates/nvs-cli/src/script.rs`'s module doc), so `spawn script
+  "child.nvs"` finds it — no fixture directory beside the cases, and no `../../examples/` path out
+  of the suite. `--FILE <path>--` may appear any number of times and takes a forward-slash relative
+  path, so a child that needs its own `require` graph is the same mechanism.
 
 ## Splitting a file that got too big
 
@@ -3617,6 +3624,10 @@ sibling in the same namespace unqualified.
   registrations, not one, and the second has no compile-time gate at all.
 - **The live graph carrier keeps the source object's descriptor, so ADR 0023 § 2's *unresolvable class* has no counterpart there until someone hands it a receiving table.** `decode` resolves a class by name and refuses one the program does not declare; `copy_graph` never resolved anything, because both sides of a `clone` are one program. At the isolate boundary they are not — `nvs-cli` compiles one unit per written path — so the rule had to be added rather than found: `copy_graph_into(value, Some(&resolve))` and `Live::admit`. Do not read a refusal in `graph.rs` as covering both carriers; the `Carrier` trait is the list of what they share.
 - **A transferred call argument is released by the *landing block*, not by the normal edge.** `release_temporaries_since` skips a `TemporaryKind::Transferred` entry, so a lowering test asserting "the transferred value is never released" fails on the error path, where the frame still owes it: a callee that returned non-OK never took the reference. Assert per block — the call's own block for what the normal edge does, `inst.on_error`'s for what the throw does — and the pair reads as the bound it is.
+- **`===` and `!==` do not exist**, and reaching for one in a `.nvst` is `E0232` on the operator
+  rather than a type error you can read past: Novis keeps exactly one equality operator, `==`, which
+  never converts either operand, so there is nothing for a second one to distinguish. A null test is
+  `$x == null`.
 
 ## Divergences and refusals already pinned
 
