@@ -779,6 +779,14 @@ is why" — is this file.
   item, the standing decisions and the ADR sections; it does not print the TOML's own comments. When an
   acceptance failure names a test that "did not run", `sed -n` the twenty lines around its `[[check]]`
   block before deciding what the failure means — that block, comment included, is the specification.
+- **Two slices over the same file cannot be split into two commits, so commit the first before
+  starting the second.** `session.py --wrap` stages a `## commit:` by *pathspec*, so if slice 1 and
+  slice 2 both edit `routes.rs`, the first section sweeps both slices' changes and the second
+  commits nothing. The handoff's "next group" is a group precisely because its slices share a file
+  set, so this is the normal case rather than the odd one. Either accept one commit with two
+  clauses — house style already allows it — or `git commit` slice 1 by hand once its own crate's
+  tests are green, and let the wrap commit the rest. What does not work is writing two
+  `## commit:` sections over the same path and hoping git splits them.
 
 ## Running things
 
