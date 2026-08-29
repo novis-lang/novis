@@ -63,6 +63,7 @@ so you never have to open this file to route a topic.
 | `FFI`, `dl()`, native modules, stream wrappers, `php://`/`phar://`, `shmop`/`sysv*`/APCu, `eval`, `putenv`, `setlocale`, or "why can't userland do X at all" | [0052](0052-closed-doors.md) |
 | Whether a `.nvsx` can be an injection sink or source, `tainted`/`secret` at an extension call, what the manifest may declare | [0055](0055-extension-qualifier-declarations.md) |
 | What a `Core` member looks like — argument order, options, failure signalling, naming, mutation, callbacks; whether a PHP built-in survives at all | [0063](0063-core-api-conventions.md) for the shape rules; [docs/spec/01-core-library.md](../spec/01-core-library.md) for every signature |
+| Where an implemented `Core` member's documentation lives — descriptions, parameter names, shape keys, errors; `nvs meta --json`; who wins when the spec and the registry both speak | [0117](0117-an-implemented-core-member-documents-itself-in-the-registry.md) |
 | "What happened to `<php_function>`?" — any PHP built-in by name, and whether it became a member, a construct or nothing | [docs/spec/02-php-migration.md](../spec/02-php-migration.md), one row per name; `python tools/check-migration.py --report` lists what is still undecided |
 | Durations and dates — `30s`/`1h30m` literals, `strtotime`, `DateTime` arithmetic, `sleep`, timeouts, why there is no `shift` | [0070](0070-duration-literals.md) for the literal; [docs/spec/01-core-library.md](../spec/01-core-library.md) § 4 for `Core\Time` |
 | Date *patterns* — `date()`/`strftime` letters, CLDR `yyyy-MM-dd`, which letters exist, quoting, why a month name is English and there is no locale | `crates/nvs-stdlib/src/cldr.rs`'s module docs — the one grammar `DateTime::format` and `Time::parse` share |
@@ -146,6 +147,7 @@ so you never have to open this file to route a topic.
 | Uncaught exceptions, memory/CPU-limit fatals, internal panics, `Core\Fatal`, `Core\Log` | [0020](0020-error-escalation-ladder.md) |
 | Whether one request can take the server down; a worker that panics outside a helper, aborts, or is alive but stuck; `abort()`, `SIGSEGV` from the engine's own recursion, `SIGBUS`, W^X; a decoder's depth limit; a helper that never yields a core; blocking syscalls and the blocking pool; what `max_in_flight` really admits; why there are no worker processes | [0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) |
 | epoll/kqueue/IOCP, the reactor, what wakes a parked task, why a socket read looks blocking and is not, `WouldBlock`, how big a coroutine's stack is and who pays for it | [0115](0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md) |
+| What an isolate's "arena" actually is, whether entering one maps memory, what a wholesale release runs, what one isolate costs, why a crossing may move rather than copy, where a byte cap attaches | [0116](0116-an-isolates-arena-is-an-ownership-root.md) |
 | XSS, SQL injection, command/header/path injection, taint tracking, `tainted string`, `Core\Html\Markup` | [0024](0024-taint-tracking-for-injection-sinks.md) |
 | Whether a given parameter is a sink, what an unclassified one does, what `echo` writes to in a request / a CLI / an isolate / a scheduled run, how a JSON or plain-text response body is written, `Core\Response::json` | [0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md) |
 | A database — `Core\Db`, `PDO`/`mysqli`/`pgsql`/`sqlite3`, drivers, connections, prepared statements, transactions, result rows, an ORM | [0067](0067-core-db.md) — signatures in [spec § 18](../spec/01-core-library.md) |
@@ -328,6 +330,8 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0113](0113-a-qualified-name-is-absolute.md) | A qualified name is absolute, and the leading `\` does not parse | Accepted |
 | [0114](0114-an-array-literals-own-type-is-synthesized-for-one-code-action.md) | An array literal's own type is synthesized for one code action, and no compile path asks for it | Accepted |
 | [0115](0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md) | The reactor reports readiness, and a stream that would block parks its own task | Accepted |
+| [0116](0116-an-isolates-arena-is-an-ownership-root.md) | An isolate's arena is an ownership root, not an address range | Accepted |
+| [0117](0117-an-implemented-core-member-documents-itself-in-the-registry.md) | An implemented Core member documents itself in the registry | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

@@ -5,7 +5,11 @@
 [ADR 0051 § 3](../adr/0051-standard-library-tiers.md) placed. The *shape* rules every entry obeys are
 [ADR 0063](../adr/0063-core-api-conventions.md) — read that first; this file applies it and does not
 re-argue it. Where a class has its own ADR (`Core\Regex`, `Core\Decimal`, `Core\Reflect`, `Core\Process`,
-`Core\Cache`, …) that ADR owns the semantics and this file owns only the signatures.
+`Core\Cache`, …) that ADR owns the semantics and this file owns only the signatures. For an *implemented*
+member, [ADR 0117](../adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md) puts its
+reference documentation in the `nvs-stdlib` registry declaration, exposed by `nvs meta --json`, and a doc
+field the registry carries wins over this file, field by field; this file remains authoritative for every
+member the registry does not yet hold, and for the designed signature of everything.
 
 ## How to read an entry
 

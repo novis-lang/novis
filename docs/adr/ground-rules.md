@@ -324,6 +324,10 @@ spellings rejected, and the reasoning.
   is a candidate, the migration table is the answer, and an item inserts only a member the `Core` registry
   already holds — so a dropped, undecided or not-yet-built destination appears and types nothing**
   ([0111](0111-a-php-builtin-completes-to-its-novis-destination.md)).
+- **An implemented `Core` member's reference documentation lives in its registry declaration and
+  `nvs meta --json` prints it; the spec stays authoritative for the surface, and a doc field the registry
+  carries wins over the spec, field by field**
+  ([0117](0117-an-implemented-core-member-documents-itself-in-the-registry.md)).
 - **An `array<mixed>` annotation narrows to the type of the literal under it through one editor action —
   element types widened to their base and joined, offered only where that literal is right there, never
   where the value arrived from input, and never on save because `array<T>` is invariant — and the synthesis
@@ -343,3 +347,6 @@ spellings rejected, and the reasoning.
 - **An application is its entry file path: `[[app]]` is keyed on a canonicalized `root` prefix or exact
   `entry`, every matching block layers least-specific first, and a block may grant as well as narrow,
   bounded by the global `[limits.hard]`** ([0104](0104-an-application-is-an-entry-file-path.md)).
+- **An isolate's arena is an ownership root, not an address range: entering one maps nothing, releasing one
+  wholesale is a drain of the refcount worklist that runs native teardown, its statics base is its own, and
+  a crossing at refcount 1 is a pointer handoff** ([0116](0116-an-isolates-arena-is-an-ownership-root.md)).
