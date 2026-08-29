@@ -1,6 +1,6 @@
 ---
 title: "Core\\Out::capture"
-description: "Novis's replacement for PHP's ob_start/ob_get_clean, ob_start."
+description: "Runs $fn with this request's output sink redirected into a buffer and answers what it wrote, as the carrier of the sink in force — ob_start/ob_get_clean and ob_start($callback), scoped to one closure so it nests by call nesting and always swallows."
 sidebar:
   label: "capture"
 novis:

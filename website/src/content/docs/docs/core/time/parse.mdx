@@ -1,6 +1,6 @@
 ---
 title: "Core\\Time::parse"
-description: "Novis's replacement for PHP's DateTime::createFromFormat, strptime."
+description: "Reads a civil date and time through a CLDR pattern and places it in $zone, replacing DateTime::createFromFormat and strptime; a literal pattern is validated and planned at compile time (ADR 0057). A field the pattern does not name is left at the start of its range."
 sidebar:
   label: "parse"
 novis:

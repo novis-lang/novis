@@ -1,6 +1,6 @@
 ---
 title: "Core\\Time::monotonic"
-description: "Novis's replacement for PHP's hrtime — for measuring, never for wall-clock."
+description: "Reads the monotonic clock, replacing hrtime — for measuring, never for wall-clock time, which is why it answers a Duration: the value means nothing except against another reading of the same clock."
 sidebar:
   label: "monotonic"
 novis:

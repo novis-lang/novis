@@ -1,6 +1,6 @@
 ---
 title: "Core\\Csv::format"
-description: "Novis's replacement for PHP's fputcsv's formatting half."
+description: "Writes $rows as a CSV document, as fputcsv's formatting half does over a whole document: a field is quoted exactly when it holds the separator, the quote, CR or LF, a quote inside one is doubled, and every record ends with LF, so parse(format($rows)) answers $rows."
 sidebar:
   label: "format"
 novis:

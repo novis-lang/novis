@@ -103,9 +103,10 @@ export function scanRegistry(stdlibSrcDir) {
       if (!className) continue
       const members = implemented[className] ?? (implemented[className] = [])
 
-      // Method names: every `name: "x"` directly followed by `params:` is a
-      // member row (static or instance roster alike).
-      for (const m of block.matchAll(/name:\s*"([A-Za-z0-9_]+)"\s*,\s*\n?\s*params:/g)) {
+      // Method names: every `name: "x"` followed by `params:` — with the row's
+      // `names: &[…]` (ADR 0063 R2) allowed between them — is a member row
+      // (static or instance roster alike).
+      for (const m of block.matchAll(/name:\s*"([A-Za-z0-9_]+)"\s*,\s*(?:names:\s*&\[[^\]]*\]\s*,\s*)?params:/g)) {
         if (!members.includes(m[1])) members.push(m[1])
       }
     }

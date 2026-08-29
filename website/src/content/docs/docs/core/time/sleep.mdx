@@ -1,6 +1,6 @@
 ---
 title: "Core\\Time::sleep"
-description: "Novis's replacement for PHP's sleep, usleep, time_nanosleep, time_sleep_until."
+description: "Waits for $d, replacing sleep, usleep, time_nanosleep and time_sleep_until — parking the task rather than blocking the core, so a neighbour on the same core runs meanwhile; a request cancelled mid-sleep stops here."
 sidebar:
   label: "sleep"
 novis:

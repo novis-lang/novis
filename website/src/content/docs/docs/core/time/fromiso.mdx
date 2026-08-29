@@ -1,6 +1,6 @@
 ---
 title: "Core\\Time::fromIso"
-description: "Novis's replacement for PHP's strtotime on an ISO-8601 string, DateTime::__construct."
+description: "Reads an ISO-8601 / RFC 3339 timestamp that carries its own offset — 2024-03-01T12:00:00Z, 2024-03-01T13:00:00+01:00 — which is all of strtotime and DateTime::__construct that survives: a civil time with no offset is Time::parse with a zone, and a relative expression is a typed call."
 sidebar:
   label: "fromIso"
 novis:

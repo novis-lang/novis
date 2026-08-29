@@ -1,6 +1,6 @@
 ---
 title: "Core\\Csv::parse"
-description: "Novis's replacement for PHP's str_getcsv, the parsing half of fgetcsv."
+description: "Parses the whole CSV document $text into its records, as str_getcsv and the parsing half of fgetcsv do, by RFC 4180's grammar: a field is quoted or it is not, a doubled quote inside a quoted field is one quote, a record ends at LF or CRLF, and a blank line is not a record."
 sidebar:
   label: "parse"
 novis:

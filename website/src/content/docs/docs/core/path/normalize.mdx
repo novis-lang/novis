@@ -1,6 +1,6 @@
 ---
 title: "Core\\Path::normalize"
-description: "Novis's replacement for PHP's the lexical half of realpath — resolves ./.. without touching the disk."
+description: "Resolves . and .. in $path lexically and re-renders it with Path::SEPARATOR — the half of realpath that does not touch the disk. Not a launder: removing ../ is not path-traversal safety, which is Core\\IO::within."
 sidebar:
   label: "normalize"
 novis:

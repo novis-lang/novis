@@ -1,6 +1,6 @@
 ---
 title: "Core\\Encoding::toBase64Url"
-description: "Novis's replacement for PHP's strtr) idiom."
+description: "Spells $b in RFC 4648 § 5's URL-safe base64 alphabet, unpadded — the rtrim(strtr(base64_encode($b), \"+/\", \"-_\"), \"=\") idiom, as a JWT or a query string expects it."
 sidebar:
   label: "toBase64Url"
 novis:
