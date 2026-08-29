@@ -194,11 +194,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// going.
     pub(super) fn check_reserved_core_namespace(&mut self, name: &Name) {
         let text = self.file.span_text(name.span).unwrap_or_default();
-        let first_segment = text
-            .trim_start_matches('\\')
-            .split('\\')
-            .next()
-            .unwrap_or(text);
+        let first_segment = text.split('\\').next().unwrap_or(text);
         if first_segment.eq_ignore_ascii_case("Core") {
             self.diags.report(
                 Diagnostic::error(

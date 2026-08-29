@@ -25,14 +25,13 @@ pub struct QName {
 impl QName {
     /// Parses raw source text into its segments.
     ///
-    /// A leading `\` is stripped rather than rejected, but nothing in a parsed
-    /// program reaches here carrying one: the parser refuses that spelling
-    /// outright
+    /// Nothing arrives here with a leading separator, so nothing strips one.
+    /// The parser refuses that spelling
     /// ([ADR 0113](../../../docs/adr/0113-a-qualified-name-is-absolute.md) § 3,
-    /// `E0240`). The strip stays for the callers that build a `QName` from a
-    /// string this compiler wrote rather than from user source — the stdlib
-    /// registry, and the tests below — so none of them is one stray separator
-    /// away from a different name.
+    /// `E0240`) and, on the recovery path where it reports and keeps going,
+    /// leaves it outside the [`nvs_syntax::ast::Name`]'s span — so a name's
+    /// text is the name. Every other caller builds from a string this compiler
+    /// wrote, and none of those carries one either.
     ///
     /// # Panics
     ///
@@ -41,11 +40,7 @@ impl QName {
     /// character.
     #[must_use]
     pub fn parse(text: &str) -> Self {
-        let segments: Vec<String> = text
-            .trim_start_matches('\\')
-            .split('\\')
-            .map(str::to_owned)
-            .collect();
+        let segments: Vec<String> = text.split('\\').map(str::to_owned).collect();
         assert!(
             !segments.is_empty(),
             "a name must have at least one segment"
@@ -149,11 +144,6 @@ impl fmt::Display for QName {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn parse_strips_a_leading_backslash() {
-        assert_eq!(QName::parse("\\App\\User"), QName::parse("App\\User"));
-    }
 
     #[test]
     fn parse_splits_on_backslash() {

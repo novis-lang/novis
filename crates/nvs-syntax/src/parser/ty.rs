@@ -546,7 +546,11 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// unambiguous — the same reasoning already applied to a member name
     /// after `->`/`::` in [`Self::parse_member_name`].
     pub(super) fn parse_name(&mut self) -> Name {
-        let start = self.peek().span;
+        // Taken *after* the separator below, so a `Name`'s span never covers
+        // one. Excluding it is what lets every downstream reader take the
+        // span text as the name itself: nothing strips a leading separator
+        // anywhere, because on the one path that writes one the span already
+        // starts past it, and on every other path there is none to strip.
         if let Some(slash) = self.eat(TokenKind::Backslash) {
             self.diags.report(
                 Diagnostic::error(
@@ -560,6 +564,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 ),
             );
         }
+        let start = self.peek().span;
         let mut last = self.expect_name_segment();
         while self.at(TokenKind::Backslash) && Self::is_name_segment(self.peek_at(1).kind) {
             self.bump();

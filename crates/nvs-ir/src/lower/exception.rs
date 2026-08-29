@@ -414,10 +414,7 @@ impl<'a> Lowering<'a> {
     /// answer, and the same fix applies — `nvs_types` recording a resolved
     /// `QName` per clause.
     pub(crate) fn catch_clause_type(&self, clause: &CatchClause) -> String {
-        span_text(self.src, clause.ty.span)
-            .trim()
-            .trim_start_matches('\\')
-            .to_owned()
+        span_text(self.src, clause.ty.span).trim().to_owned()
     }
 }
 
