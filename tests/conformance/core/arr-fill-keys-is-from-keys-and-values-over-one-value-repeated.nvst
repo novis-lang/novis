@@ -1,0 +1,105 @@
+--TEST--
+Core\Arr::fillKeys answers what Core\Arr::fromKeysAndValues answers for the same keys paired with one value repeated, over a table of key lists — the empty one and the repeating ones included — and the pairing is over every key, not every distinct one, per spec § 2
+--FILE--
+<?nvs
+// `crates/nvs-stdlib/src/arr.rs:2404`'s doc states the relation in words: the
+// `$keys` array "contributes its *values* and nothing else, exactly as
+// `fromKeysAndValues` takes its keys", each through the same `key_bytes`, with
+// a duplicate collapsing "in its first occurrence's position". The two
+// existing cases — `arr-fill-and-fill-keys-repeat-one-value` and
+// `arr-fill-is-the-shared-run-and-fill-keys-is-its-start-index` — show one row
+// of that each. What is left is the *agreement*: the same key list asked of
+// both members, over a table, so a `fillKeys` that grew its own normalization
+// or its own collapse rule fails here while every line it prints alone still
+// reads correctly.
+
+// Seven key lists: plain, both spellings of one key twice over, empty, an int
+// list out of order with a duplicate, the `"0"`/`0` pair, an empty-string key,
+// and a negative key repeated.
+array<array<string|int>> $lists = [
+    ["a", "b", "c"],
+    ["a", 1, "a", "1"],
+    [],
+    [10, 5, 10],
+    ["0", 0],
+    ["", "x"],
+    [-1, 2, -1],
+];
+
+// Three questions of every list. The first is the agreement itself. The second
+// and third are the second opinion on what the agreement is *about*: the count
+// is the number of distinct keys, and the order is first occurrence — both
+// rebuilt here from the list rather than read off either member, since two
+// members sharing one wrong rule would agree with each other and with nothing
+// else.
+int $asked = 0;
+int $combineAgrees = 0;
+int $distinctAgrees = 0;
+int $orderAgrees = 0;
+array<uint> $sizes = [];
+foreach ($lists as array<string|int> $keys) {
+    $asked = $asked + 1;
+
+    // One value repeated as many times as there are keys — `Core\Arr::fill`
+    // over the raw count, which is the pairing `fromKeysAndValues` demands.
+    array<string> $repeated = Core\Arr::fill(Core\Arr::count($keys), "v");
+    if (Core\Json::encode(Core\Arr::fillKeys($keys, "v")) ==
+        Core\Json::encode(Core\Arr::fromKeysAndValues($keys, $repeated))) {
+        $combineAgrees = $combineAgrees + 1;
+    }
+
+    array<bool> $seen = [];
+    uint $distinct = 0;
+    array<string> $firstOccurrence = [];
+    foreach ($keys as string|int $key) {
+        // A key's own spelling, which is what `Core\Arr::keys` answers with
+        // and what array normalization maps both spellings of an integer onto.
+        string $spelled = $key as string;
+        if (!Core\Arr::hasKey($seen, $spelled)) {
+            $seen[$spelled] = true;
+            $distinct = $distinct + 1;
+            $firstOccurrence = Core\Arr::append($firstOccurrence, $spelled);
+        }
+    }
+    if (Core\Arr::count(Core\Arr::fillKeys($keys, "v")) == $distinct) {
+        $distinctAgrees = $distinctAgrees + 1;
+    }
+    if (Core\Str::join(Core\Arr::keys(Core\Arr::fillKeys($keys, "v")), ",") ==
+        Core\Str::join($firstOccurrence, ",")) {
+        $orderAgrees = $orderAgrees + 1;
+    }
+    $sizes = Core\Arr::append($sizes, $distinct);
+}
+echo $asked as string, " ", $combineAgrees as string, " ", $distinctAgrees as string,
+     " ", $orderAgrees as string, " ", Core\Json::encode($sizes), "\n";
+
+// The two degenerate cells said out loud, since seven agreements over seven
+// empty answers would count the same: the empty list answers an empty array
+// from both members, and the four-key list with two keys in it answers the
+// same two-entry array from both.
+array<string|int> $none = [];
+array<string|int> $dupes = ["a", 1, "a", "1"];
+array<string> $fourValues = Core\Arr::fill(Core\Arr::count($dupes), "v");
+echo Core\Json::encode(Core\Arr::fillKeys($none, "v")), " ",
+     Core\Json::encode(Core\Arr::fromKeysAndValues($none, Core\Arr::fill(0, "v"))), "\n";
+echo Core\Json::encode(Core\Arr::fillKeys($dupes, "v")), " ",
+     Core\Json::encode(Core\Arr::fromKeysAndValues($dupes, $fourValues)), "\n";
+
+// Which count the repetition is over, asserted on both sides rather than left
+// to the reading: four keys pair with four values and collapse to two entries,
+// and pairing with the *two* the answer ends up holding is the length mismatch
+// `fromKeysAndValues` throws on. So the collapse happens after the pairing, in
+// `NvsArray::set`, which is the whole of why the two members agree at all.
+echo Core\Arr::count($dupes) as string, " ", Core\Arr::count($fourValues) as string, " ",
+     Core\Arr::count(Core\Arr::fillKeys($dupes, "v")) as string, "\n";
+try {
+    echo Core\Json::encode(Core\Arr::fromKeysAndValues($dupes, Core\Arr::fill(2, "v"))), "\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+--EXPECT--
+7 7 7 7 [3,2,0,2,1,2,2]
+[] []
+{"a":"v","1":"v"} {"a":"v","1":"v"}
+4 4 2
+Core\Arr::fromKeysAndValues(): the two arrays must be the same length, got 4 against 2
