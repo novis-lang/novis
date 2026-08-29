@@ -1,5 +1,5 @@
-//! The parking TCP stream: a plain `Read` and `Write` that hands the core back
-//! instead of blocking it.
+//! The parking stream: a plain `Read` and `Write` that hands the core back
+//! instead of blocking it, over TCP or over a Unix-domain socket.
 //!
 //! [ADR 0115](../../../docs/adr/0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md)
 //! § 3 is this module's specification, and its one sentence is the whole shape:
@@ -71,27 +71,64 @@
 //! no deadline and one `Instant` for one that does; the reactor-side entry is
 //! `timer.rs`'s, O(tasks currently waiting on one).
 //!
-//! **Still outstanding:** a Unix-domain sibling of this type, for the same
-//! parking contract over a local socket.
+//! # One type over the source, not one type per socket family
+//!
+//! The Unix-domain sibling is `NvsUnix`, and it is *this* type: [`NvsStream`]
+//! is generic over what it parks on and each family is a type alias over it.
+//! Decided and recorded here rather than in an ADR, under the goal's standing
+//! decisions; what it was chosen over is a second concrete type carrying its
+//! own copy of the four functions that do the waiting.
+//!
+//! Those four are `wait_until_ready`, `arm`, `unregister` and
+//! `block_until_ready`, and between them they hold every rule in this module:
+//! register *then* yield, with the reactor borrow already dropped; a wake that
+//! decides nothing, because the tokens are task ids; a registration kept across
+//! parks; a descriptor given up before it can be offered to a second poller.
+//! None of those is looked up when it is needed — each is remembered or it is
+//! not — so a copy is a second place for all four to go stale, and a fix
+//! landing in one of the two is silence in the other. That is priority 2
+//! against priority 4, and `AGENTS.md`'s ordering says how that goes.
+//!
+//! The cost is the type *name*: a mismatch now reads `NvsStream<TcpStream>`
+//! where it read `NvsTcp`. The aliases bound it — no caller writes the generic
+//! form — and it is the whole cost, because a generic monomorphizes and the run
+//! time is unchanged. The alternative that would have cost something is `&mut
+//! dyn Source`: a vtable on the parking path, buying nothing the generic does
+//! not already give. Per stream the footprint is identical; what is spent is
+//! code size, two instantiations of four small functions
+//! ([ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md)).
+//!
+//! What stays per family is what is genuinely per family, and it is only the
+//! *address*: a `SocketAddr` on one side, a path on the other, so `connect` is
+//! the socket constructor plus a call to `connected`, and `peer_addr` returns
+//! two different types. `Read` and `Write` are shared under one added bound,
+//! and so are `finish_connecting` and `connected`, through the private
+//! `Connecting` trait — both families answer `take_error`, and a local connect
+//! is in flight too when the listener's backlog is full.
 
 use std::io::{self, Read, Write};
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
+use mio::event::Source;
 use mio::{Events, Poll, Token};
 
 use crate::reactor::{self, Interest, Reactor};
 use crate::scheduler::{TaskId, Waiting, current_task, suspend_current};
 
-/// A TCP stream whose `Read` and `Write` park the task instead of blocking the
+/// A stream whose `Read` and `Write` park the task instead of blocking the
 /// thread.
 ///
 /// Created from a connected socket — an accept loop's, or a `std` one this
 /// switches to non-blocking. Everything about the waiting is underneath the two
 /// standard traits, so what holds this is ordinary byte-oriented code.
+///
+/// `S` is the thing being waited on, and each socket family is an alias rather
+/// than a type of its own: [`NvsTcp`] is the TCP one. This module's docs § *One
+/// type over the source* own that decision.
 #[derive(Debug)]
-pub struct NvsTcp {
-    inner: mio::net::TcpStream,
+pub struct NvsStream<S: Source> {
+    inner: S,
     /// The task this stream's kernel registration is filed under and what it is
     /// armed for, or `None` while it holds none.
     ///
@@ -108,10 +145,14 @@ pub struct NvsTcp {
     deadline: Option<Instant>,
 }
 
-impl NvsTcp {
+/// The parking stream over TCP — what an accept loop on a listening port and
+/// what [`NvsTcp::connect`] hand back.
+pub type NvsTcp = NvsStream<mio::net::TcpStream>;
+
+impl<S: Source> NvsStream<S> {
     /// Wraps an already non-blocking socket, which is what an accept loop has.
     #[must_use]
-    pub fn new(inner: mio::net::TcpStream) -> Self {
+    pub fn new(inner: S) -> Self {
         Self {
             inner,
             registered: None,
@@ -133,6 +174,19 @@ impl NvsTcp {
         self.deadline
     }
 
+    /// Whether this stream currently holds a registration with its core's
+    /// reactor.
+    ///
+    /// Here because it is what a test asserting § 3's optimistic order has to
+    /// ask: a first read that found buffered bytes must never have touched the
+    /// reactor at all.
+    #[must_use]
+    pub fn is_parked_on(&self) -> bool {
+        self.registered.is_some()
+    }
+}
+
+impl NvsStream<mio::net::TcpStream> {
     /// Takes over a `std` socket, switching it to non-blocking first.
     ///
     /// # Errors
@@ -154,7 +208,7 @@ impl NvsTcp {
     /// what a caller gets back here is a stream that has been *asked* whether
     /// it is connected, and otherwise the connection's own failure —
     /// `ConnectionRefused` — rather than something writable and dead.
-    /// `NvsTcp::finish_connecting` owns which two questions do that and why
+    /// The private `finish_connecting` owns which two questions do that and why
     /// the obvious ones do not.
     ///
     /// This takes no deadline, so a connect to a black hole waits as long as
@@ -167,9 +221,7 @@ impl NvsTcp {
     /// The platform refused the socket or the address, or the connection itself
     /// failed — refused, unreachable, or reset while it was being established.
     pub fn connect(addr: SocketAddr) -> io::Result<Self> {
-        let mut stream = Self::new(mio::net::TcpStream::connect(addr)?);
-        stream.finish_connecting()?;
-        Ok(stream)
+        connected(mio::net::TcpStream::connect(addr)?, None)
     }
 
     /// [`NvsTcp::connect`], giving up with `TimedOut` if the handshake is not
@@ -190,59 +242,10 @@ impl NvsTcp {
     /// Everything [`NvsTcp::connect`] reports, plus `TimedOut` when the
     /// handshake was still in flight at `after`.
     pub fn connect_timeout(addr: SocketAddr, after: Duration) -> io::Result<Self> {
+        // Before the syscall, per the paragraph above: the platform's own time
+        // inside `connect` is the caller's budget too.
         let at = Instant::now() + after;
-        let mut stream = Self::new(mio::net::TcpStream::connect(addr)?);
-        stream.set_deadline(Some(at));
-        let connected = stream.finish_connecting();
-        stream.set_deadline(None);
-        connected?;
-        Ok(stream)
-    }
-
-    /// Waits out an in-flight connect, turning readiness into the answer.
-    ///
-    /// The same optimistic order as [`Read::read`], and it earns it: a loopback
-    /// connect is routinely up before this is first asked, on both platforms
-    /// measured, so the common case pays no registration at all.
-    ///
-    /// The two questions it asks on each turn are the ones that are *sound on
-    /// both platforms*, which the obvious pair is not:
-    ///
-    /// - **`SO_ERROR`**, because a failed connect reports writable exactly as a
-    ///   completed one does, and on Windows this is the only place the refusal
-    ///   ever appears.
-    /// - **A zero-length write**, because it is the portable "is this socket
-    ///   connected yet" question: `Ok` on a connected socket having sent
-    ///   nothing, `NotConnected`/`WouldBlock` while the handshake is still in
-    ///   flight, and on Linux the refusal itself. `peer_addr` is what `mio`'s
-    ///   own example asks and it **cannot be used here**: on Windows it answers
-    ///   `Ok(the target address)` for a socket whose connect has not started
-    ///   succeeding and never will, so a connect built on it reports success
-    ///   for a stream that is dead.
-    ///
-    /// Being sound rather than merely usual matters because [`suspend_current`]
-    /// can return for a reason that is not this stream — the reactor's tokens
-    /// are task ids, so any other descriptor this task holds wakes it here too
-    /// (ADR 0115 § 2 rule 2). A completion test that is only right when the
-    /// wake was ours would hand back an unconnected stream on that path.
-    fn finish_connecting(&mut self) -> io::Result<()> {
-        loop {
-            if let Some(err) = self.inner.take_error()? {
-                return Err(err);
-            }
-            match self.inner.write(&[]) {
-                Ok(_) => return Ok(()),
-                // Not an error, just "not yet" — which is rule 2's shape asked
-                // of a different question.
-                Err(err)
-                    if matches!(
-                        err.kind(),
-                        io::ErrorKind::NotConnected | io::ErrorKind::WouldBlock
-                    ) => {}
-                Err(err) => return Err(err),
-            }
-            self.wait_until_ready(Interest::WRITABLE)?;
-        }
+        connected(mio::net::TcpStream::connect(addr)?, Some(at))
     }
 
     /// The address at the other end.
@@ -253,18 +256,169 @@ impl NvsTcp {
     pub fn peer_addr(&self) -> io::Result<SocketAddr> {
         self.inner.peer_addr()
     }
+}
 
-    /// Whether this stream currently holds a registration with its core's
-    /// reactor.
+/// The parking stream over a Unix-domain socket — the same contract, the same
+/// four functions, a local address.
+///
+/// Unix only, and there is no Windows fallback here on purpose: `AF_UNIX` does
+/// exist on Windows now, but `mio` does not carry it, so a caller that needs a
+/// local transport on both platforms uses [`NvsTcp`] on loopback rather than
+/// getting a type that compiles and cannot be polled.
+#[cfg(unix)]
+pub type NvsUnix = NvsStream<mio::net::UnixStream>;
+
+#[cfg(unix)]
+impl NvsStream<mio::net::UnixStream> {
+    /// Takes over a `std` socket, switching it to non-blocking first.
     ///
-    /// Here because it is what a test asserting § 3's optimistic order has to
-    /// ask: a first read that found buffered bytes must never have touched the
-    /// reactor at all.
-    #[must_use]
-    pub fn is_parked_on(&self) -> bool {
-        self.registered.is_some()
+    /// # Errors
+    ///
+    /// The platform refused the mode change.
+    pub fn from_std(stream: std::os::unix::net::UnixStream) -> io::Result<Self> {
+        stream.set_nonblocking(true)?;
+        Ok(Self::new(mio::net::UnixStream::from_std(stream)))
     }
 
+    /// Connects to the socket bound at `path`, parking rather than blocking
+    /// while the connect is in flight.
+    ///
+    /// A local connect is usually up by the first question — there is no
+    /// handshake to wait for — but it is *not* always: a listener whose backlog
+    /// is full answers "in progress" exactly as a remote one does, which is why
+    /// this waits through the same `finish_connecting` rather than trusting the
+    /// syscall's own answer. [`NvsTcp::connect`] is that reasoning's home.
+    ///
+    /// # Errors
+    ///
+    /// The platform refused the socket or the path — no such file, no
+    /// permission, a path too long for `sun_path` — or nothing is listening.
+    pub fn connect(path: impl AsRef<std::path::Path>) -> io::Result<Self> {
+        connected(mio::net::UnixStream::connect(path)?, None)
+    }
+
+    /// [`NvsUnix::connect`], giving up with `TimedOut` if it is not up within
+    /// `after`.
+    ///
+    /// Here for the backlog-full case above, which is the only way a local
+    /// connect waits on anything. [`NvsTcp::connect_timeout`] owns what the
+    /// bound covers and when it is lifted.
+    ///
+    /// # Errors
+    ///
+    /// Everything [`NvsUnix::connect`] reports, plus `TimedOut`.
+    pub fn connect_timeout(path: impl AsRef<std::path::Path>, after: Duration) -> io::Result<Self> {
+        let at = Instant::now() + after;
+        connected(mio::net::UnixStream::connect(path)?, Some(at))
+    }
+
+    /// The address at the other end, which for a local socket is a path, an
+    /// abstract name, or unnamed.
+    ///
+    /// # Errors
+    ///
+    /// The platform's answer for a socket that is no longer connected.
+    pub fn peer_addr(&self) -> io::Result<std::os::unix::net::SocketAddr> {
+        self.inner.peer_addr()
+    }
+}
+
+/// Wraps a socket whose connect is in flight and waits it out, bounded by `at`.
+///
+/// One function for every family, because only the *address* is per family: a
+/// `connect` here is the socket constructor and this call. The bound is on the
+/// handshake alone and is lifted before the stream is returned, which is
+/// [`NvsTcp::connect_timeout`]'s paragraph and the reason the deadline is set
+/// and cleared here rather than left on the stream.
+fn connected<S: Connecting>(inner: S, at: Option<Instant>) -> io::Result<NvsStream<S>> {
+    let mut stream = NvsStream::new(inner);
+    stream.set_deadline(at);
+    let outcome = finish_connecting(&mut stream);
+    stream.set_deadline(None);
+    outcome?;
+    Ok(stream)
+}
+
+/// A source whose in-flight connect can be waited out by `finish_connecting`.
+///
+/// Two methods rather than a bound on `mio`'s own types, because the pair below
+/// is the whole of what completing a connect needs and every socket family has
+/// it: `take_error` is where a refusal lands, and `Write` is the zero-length
+/// write that asks whether the handshake is up. That is why `connect` is the
+/// only thing left per family — the *address* differs, the waiting does not.
+trait Connecting: Source + Write {
+    /// The pending error on the socket, taken.
+    ///
+    /// # Errors
+    ///
+    /// The platform refused to answer for this descriptor.
+    fn take_error(&self) -> io::Result<Option<io::Error>>;
+}
+
+impl Connecting for mio::net::TcpStream {
+    fn take_error(&self) -> io::Result<Option<io::Error>> {
+        mio::net::TcpStream::take_error(self)
+    }
+}
+
+#[cfg(unix)]
+impl Connecting for mio::net::UnixStream {
+    fn take_error(&self) -> io::Result<Option<io::Error>> {
+        mio::net::UnixStream::take_error(self)
+    }
+}
+
+/// Waits out an in-flight connect, turning readiness into the answer.
+///
+/// A free function rather than a method, because an inherent `impl` bounded by
+/// a private trait makes a public type carry a bound nothing outside this
+/// module can name — `private_bounds`, and the alternative is publishing a
+/// trait that exists only to be these two questions.
+///
+/// The same optimistic order as [`Read::read`], and it earns it: a loopback
+/// connect is routinely up before this is first asked, on both platforms
+/// measured, so the common case pays no registration at all.
+///
+/// The two questions it asks on each turn are the ones that are *sound on both
+/// platforms*, which the obvious pair is not:
+///
+/// - **`SO_ERROR`**, because a failed connect reports writable exactly as a
+///   completed one does, and on Windows this is the only place the refusal
+///   ever appears.
+/// - **A zero-length write**, because it is the portable "is this socket
+///   connected yet" question: `Ok` on a connected socket having sent nothing,
+///   `NotConnected`/`WouldBlock` while the handshake is still in flight, and on
+///   Linux the refusal itself. `peer_addr` is what `mio`'s own example asks and
+///   it **cannot be used here**: on Windows it answers `Ok(the target address)`
+///   for a socket whose connect has not started succeeding and never will, so a
+///   connect built on it reports success for a stream that is dead.
+///
+/// Being sound rather than merely usual matters because [`suspend_current`] can
+/// return for a reason that is not this stream — the reactor's tokens are task
+/// ids, so any other descriptor this task holds wakes it here too (ADR 0115 § 2
+/// rule 2). A completion test that is only right when the wake was ours would
+/// hand back an unconnected stream on that path.
+fn finish_connecting<S: Connecting>(stream: &mut NvsStream<S>) -> io::Result<()> {
+    loop {
+        if let Some(err) = stream.inner.take_error()? {
+            return Err(err);
+        }
+        match stream.inner.write(&[]) {
+            Ok(_) => return Ok(()),
+            // Not an error, just "not yet" — which is rule 2's shape asked of a
+            // different question.
+            Err(err)
+                if matches!(
+                    err.kind(),
+                    io::ErrorKind::NotConnected | io::ErrorKind::WouldBlock
+                ) => {}
+            Err(err) => return Err(err),
+        }
+        stream.wait_until_ready(Interest::WRITABLE)?;
+    }
+}
+
+impl<S: Source> NvsStream<S> {
     /// Waits until `interest` is satisfiable or this stream's deadline has
     /// passed, giving the core back if there is one to give back.
     ///
@@ -407,7 +561,7 @@ fn timed_out() -> io::Error {
     )
 }
 
-impl Drop for NvsTcp {
+impl<S: Source> Drop for NvsStream<S> {
     /// Gives the registration back to the reactor.
     ///
     /// `Reactor::retire` already sweeps the table when the task ends; this is
@@ -419,7 +573,7 @@ impl Drop for NvsTcp {
     }
 }
 
-impl Read for NvsTcp {
+impl<S: Source + Read> Read for NvsStream<S> {
     /// ADR 0115 § 3, in order: try, return, and only then park.
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         loop {
@@ -435,7 +589,7 @@ impl Read for NvsTcp {
     }
 }
 
-impl Write for NvsTcp {
+impl<S: Source + Write> Write for NvsStream<S> {
     /// The same three steps as [`Read::read`], on the other interest.
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         loop {
@@ -862,6 +1016,159 @@ mod tests {
     #[test]
     fn a_read_off_a_core_waits_rather_than_refusing() {
         let (mut server, mut client) = connected_pair();
+        assert!(current_task().is_none(), "this test must run off a core");
+
+        let writer = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(20));
+            client.write_all(b"hi").expect("the write failed");
+        });
+
+        let mut buf = [0_u8; 8];
+        let read = server.read(&mut buf).expect("the read failed");
+        writer.join().expect("the writing thread panicked");
+        assert_eq!(&buf[..read], b"hi");
+        assert!(
+            !server.is_parked_on(),
+            "a blocking wait left a reactor registration behind"
+        );
+    }
+
+    /// A path under the system temporary directory that nothing else in this
+    /// binary will pick.
+    ///
+    /// Short on purpose: `sun_path` is 108 bytes and a bind past it fails with
+    /// `InvalidInput`, which reads like a bug in the stream rather than in the
+    /// name it was handed.
+    #[cfg(unix)]
+    fn socket_path(name: &str) -> std::path::PathBuf {
+        let mut path = std::env::temp_dir();
+        path.push(format!("nvs-{}-{name}.sock", std::process::id()));
+        // A previous run that was killed leaves the node behind, and `bind`
+        // refuses an existing one with `AddrInUse`.
+        let _ = std::fs::remove_file(&path);
+        path
+    }
+
+    /// The parking contract over a local socket is the *same* contract: this is
+    /// the TCP parking test with one type substituted, which is what makes it
+    /// worth having — the four functions it exercises are the same four.
+    #[cfg(unix)]
+    #[test]
+    fn a_unix_read_with_nothing_to_read_parks_and_reuses_its_registration() {
+        let (server, mut client) =
+            std::os::unix::net::UnixStream::pair().expect("the OS refused a socket pair");
+        let mut server = NvsUnix::from_std(server).expect("the socket refused non-blocking mode");
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+
+        let writer = std::thread::spawn(move || {
+            for chunk in [&b"one"[..], &b"two"[..]] {
+                std::thread::sleep(Duration::from_millis(20));
+                client.write_all(chunk).expect("the write failed");
+            }
+        });
+
+        let live = Rc::new(Cell::new(0_usize));
+        let counted = Rc::clone(&live);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            let mut buf = [0_u8; 8];
+            for expected in [&b"one"[..], &b"two"[..]] {
+                let read = server.read(&mut buf).expect("the read failed");
+                assert_eq!(&buf[..read], expected);
+                assert!(server.is_parked_on(), "the park left no registration");
+                counted.set(
+                    counted
+                        .get()
+                        .max(with_current(|reactor| reactor.registrations()).expect("no reactor")),
+                );
+            }
+        });
+
+        let report = run_until_idle(&mut sched).expect("the loop failed");
+        writer.join().expect("the writing thread panicked");
+        assert!(
+            report.resumes > 1,
+            "the read never parked, so nothing about the reactor was exercised"
+        );
+        assert_eq!(
+            live.get(),
+            1,
+            "a repeat park made a second registration instead of keeping one"
+        );
+        assert_eq!(with_current(|reactor| reactor.registrations()), Some(0));
+    }
+
+    /// A local connect goes through the same `finish_connecting`, so what this
+    /// pins is that the completion questions answer for `AF_UNIX` too — and
+    /// that the stream handed back carries bytes.
+    #[cfg(unix)]
+    #[test]
+    fn a_unix_connect_on_a_core_reaches_a_listener() {
+        let path = socket_path("reaches");
+        let listener =
+            std::os::unix::net::UnixListener::bind(&path).expect("the OS refused the path");
+        let accepting = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept()?;
+            let mut buf = [0_u8; 8];
+            let read = stream.read(&mut buf)?;
+            Ok::<_, io::Error>(buf[..read].to_vec())
+        });
+
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+        let target = path.clone();
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            let mut stream = NvsUnix::connect(&target).expect("the connect failed");
+            assert!(stream.peer_addr().is_ok(), "a connected socket had no peer");
+            stream.write_all(b"hi").expect("the write failed");
+        });
+
+        run_until_idle(&mut sched).expect("the loop failed");
+        let accepted = accepting.join().expect("the accepting thread panicked");
+        assert_eq!(
+            accepted.expect("the listener never saw the connection"),
+            b"hi",
+            "the connected stream did not carry bytes"
+        );
+        assert_eq!(with_current(|reactor| reactor.registrations()), Some(0));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The refusal half of the same question: nothing is bound at the path, so
+    /// a stream is exactly what a caller must not get back.
+    #[cfg(unix)]
+    #[test]
+    fn a_unix_connect_to_nothing_reports_the_failure_rather_than_a_stream() {
+        let path = socket_path("refused");
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+        let outcome = Rc::new(Cell::new(None));
+        let reported = Rc::clone(&outcome);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            reported.set(Some(
+                NvsUnix::connect(&path)
+                    .map(|_| ())
+                    .map_err(|err| err.kind()),
+            ));
+        });
+
+        run_until_idle(&mut sched).expect("the loop failed");
+        assert_eq!(
+            outcome.get(),
+            Some(Err(io::ErrorKind::NotFound)),
+            "a connect to an unbound path did not report the failure"
+        );
+        assert_eq!(with_current(|reactor| reactor.registrations()), Some(0));
+    }
+
+    /// Off a core the local socket takes the blocking path like every other
+    /// stream here, and leaves no registration behind.
+    #[cfg(unix)]
+    #[test]
+    fn a_unix_read_off_a_core_waits_rather_than_refusing() {
+        let (server, mut client) =
+            std::os::unix::net::UnixStream::pair().expect("the OS refused a socket pair");
+        let mut server = NvsUnix::from_std(server).expect("the socket refused non-blocking mode");
         assert!(current_task().is_none(), "this test must run off a core");
 
         let writer = std::thread::spawn(move || {

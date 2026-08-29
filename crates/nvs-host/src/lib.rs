@@ -46,7 +46,10 @@
 //!
 //! [`NvsTcp`] is that route's first consumer: a socket whose `Read` and `Write`
 //! are `std::io`'s own and which parks instead of blocking, ADR 0115 § 3. Its
-//! module doc owns the try-then-park order and what a repeat park costs.
+//! module doc owns the try-then-park order and what a repeat park costs. There
+//! is one such type and not one per socket family — [`NvsStream`] is generic
+//! over what it parks on, and `NvsUnix` is the same type over a local socket;
+//! `net`'s docs § *One type over the source* own that call.
 //!
 //! What a task *costs* is [`stack`]: [`TASK_STACK_SIZE`] of reserved address
 //! space per task, resident only in the pages its handler touched, pooled per
@@ -56,8 +59,7 @@
 //! this crate handed it, not asserted from a ceiling.
 //!
 //! **Still outstanding:** the blocking pool ADR 0106 § 6 sends filesystem
-//! calls, name resolution and child processes to, and a Unix-domain sibling of
-//! [`NvsTcp`].
+//! calls, name resolution and child processes to.
 
 pub mod affinity;
 pub mod net;
@@ -67,7 +69,9 @@ pub mod stack;
 pub mod timer;
 
 pub use affinity::{CpuId, cpus, pin_current_thread};
-pub use net::NvsTcp;
+#[cfg(unix)]
+pub use net::NvsUnix;
+pub use net::{NvsStream, NvsTcp};
 pub use reactor::{Installed, Interest, Reactor, run_until_idle};
 pub use scheduler::{
     Finished, RunReport, Scheduler, TaskId, Waiting, current_task, suspend, suspend_current,
