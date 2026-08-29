@@ -826,6 +826,12 @@ nvs_runtime::nvs_helper! {
     /// fail, since `nvs_array_count` counts live entries of an allocation
     /// that fits in memory.
     fn nvs_core_arr_count(_ctx, args: [1]) {
+        // Unreachable from source: parameter 0 is `array<T>` in `CLASS`
+        // above, so a non-container argument is `E0401: expected
+        // array<mixed>, found mixed` at the checker and no program reaches
+        // this guard. It stays because it is what makes `array_ptr`'s answer
+        // safe to unwrap. Every other guard on an `array` parameter in this
+        // module is the same judgement and cites this one.
         let array = args[0].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Arr::count expected {:?}, got tag {}",
@@ -853,6 +859,8 @@ nvs_runtime::nvs_helper! {
     /// "is it empty" is answered without the caller having to know that a
     /// count is `uint` and therefore needs `0` written as one.
     fn nvs_core_arr_is_empty(_ctx, args: [1]) {
+        // Unreachable from source: an `array<T>` parameter, refused at the
+        // checker — [`nvs_core_arr_count`]'s guard states the judgement.
         let array = args[0].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Arr::isEmpty expected {:?}, got tag {}",
@@ -1431,6 +1439,8 @@ nvs_runtime::nvs_helper! {
     /// [`key_bytes`] decodes by tag. `nvs_ir::lower::ArgSig::helper` owns why
     /// that is a property of the helper convention rather than of this member.
     fn nvs_core_arr_has_key(_ctx, args: [2]) {
+        // Unreachable from source: an `array<T>` parameter, refused at the
+        // checker — [`nvs_core_arr_count`]'s guard states the judgement.
         let array = args[0].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Arr::hasKey expected {:?}, got tag {}",
@@ -1455,6 +1465,8 @@ nvs_runtime::nvs_helper! {
     /// is written into one reused buffer rather than a `String` per entry — the
     /// member is O(n) and this keeps it one allocation rather than n.
     fn nvs_core_arr_is_list(_ctx, args: [1]) {
+        // Unreachable from source: an `array<T>` parameter, refused at the
+        // checker — [`nvs_core_arr_count`]'s guard states the judgement.
         let array = args[0].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Arr::isList expected {:?}, got tag {}",
@@ -1512,6 +1524,8 @@ nvs_runtime::nvs_helper! {
     /// `Core\Arr::keyOf` for one and a `filter` for many, and folding two
     /// unrelated questions into one name is what ADR 0063 R20 refuses.
     fn nvs_core_arr_keys(_ctx, args: [1]) {
+        // Unreachable from source: an `array<T>` parameter, refused at the
+        // checker — [`nvs_core_arr_count`]'s guard states the judgement.
         let array = args[0].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Arr::keys expected {:?}, got tag {}",
@@ -1860,6 +1874,8 @@ nvs_runtime::nvs_helper! {
     /// back once a member has thrown them away, so keeping is the direction
     /// that loses nothing.
     fn nvs_core_arr_without_first(_ctx, args: [1]) {
+        // Unreachable from source: an `array<T>` parameter, refused at the
+        // checker — [`nvs_core_arr_count`]'s guard states the judgement.
         let array = args[0].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Arr::withoutFirst expected {:?}, got tag {}",
@@ -1896,6 +1912,8 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_core_arr_reverse`] collects slots for. This one needs no `Vec`:
     /// it copies each entry only once it has seen that another follows.
     fn nvs_core_arr_without_last(_ctx, args: [1]) {
+        // Unreachable from source: an `array<T>` parameter, refused at the
+        // checker — [`nvs_core_arr_count`]'s guard states the judgement.
         let array = args[0].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Arr::withoutLast expected {:?}, got tag {}",
@@ -2011,6 +2029,8 @@ nvs_runtime::nvs_helper! {
     /// and then writes them out in reverse. One `Vec<usize>` of scratch, which
     /// ADR 0004's ordering buys without discussion.
     fn nvs_core_arr_reverse(_ctx, args: [2]) {
+        // Unreachable from source: an `array<T>` parameter, refused at the
+        // checker — [`nvs_core_arr_count`]'s guard states the judgement.
         let array = args[0].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Arr::reverse expected {:?}, got tag {}",
@@ -2073,6 +2093,10 @@ nvs_runtime::nvs_helper! {
     /// `array<int|string>` position take something else, and is reported as
     /// such rather than skipped the way PHP's warning-and-continue does.
     fn nvs_core_arr_flip(_ctx, args: [1]) {
+        // Unreachable from source: an `array<int|string>` parameter, refused
+        // at the checker — [`nvs_core_arr_count`]'s guard states the
+        // judgement. The *element* rule is a different question and the guard
+        // below this one answers it.
         let array = args[0].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Arr::flip expected {:?}, got tag {}",
@@ -2267,6 +2291,8 @@ nvs_runtime::nvs_helper! {
     /// owned. `NvsArray::append` is what assigns the new keys, so this member
     /// states no key rule of its own.
     fn nvs_core_arr_values(_ctx, args: [1]) {
+        // Unreachable from source: an `array<T>` parameter, refused at the
+        // checker — [`nvs_core_arr_count`]'s guard states the judgement.
         let array = args[0].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Arr::values expected {:?}, got tag {}",
