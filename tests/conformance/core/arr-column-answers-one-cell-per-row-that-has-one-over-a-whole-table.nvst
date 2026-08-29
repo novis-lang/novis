@@ -1,0 +1,131 @@
+--TEST--
+Core\Arr::column's answer is one cell per row that has the named key, rebuilt over a whole table rather than read off a line, so a null cell counts and an absent key does not, and {indexBy} leaves one entry per distinct key, per spec § 2
+--FILE--
+<?nvs
+// Spec § 2's row and `crates/nvs-stdlib/src/arr.rs:2278`'s doc both describe
+// `column` one row at a time. What no case asks is whether the description
+// survives a *table*: the sibling cases
+// `arr-column-takes-one-cell-out-of-every-row` and
+// `arr-column-appends-under-the-next-free-integer-and-both-key-spellings-agree`
+// each show one instance of a skip, a duplicate and a spelling. This one
+// rebuilds the whole answer from the rows and counts the agreements, so a
+// member that answers plausibly row by row — dropping a `null` cell, keeping a
+// hole for a missing key, or collapsing one duplicate too many — fails here
+// while every printed line still looks right.
+
+// One table carrying every shape at once: both keys present, the named cell
+// `null`, the named key absent, the row empty, an integer-spelled key, and a
+// value repeated across two rows.
+array<array<?string>> $table = [
+    ["id" => "r1", "name" => "Ada", "note" => "first"],
+    ["id" => "r2", "name" => null],
+    ["id" => "r3"],
+    ["name" => "Bo", "note" => null],
+    [],
+    ["0" => "zero", "id" => "r6", "name" => "Cy"],
+    ["id" => "r7", "name" => "Ada", "note" => "dup"],
+];
+array<string> $cols = ["id", "name", "note", "gone", "0"];
+
+// The invariance: for every column, the answer is exactly the cells of the
+// rows `hasKey` admits, in row order. `hasKey` is the second opinion — it is
+// what separates "the row has no such key", which contributes nothing, from
+// "the cell is null", which contributes a cell — and the member reaches
+// neither through it, so agreeing five times out of five is a real claim.
+int $asked = 0;
+int $agrees = 0;
+array<uint> $sizes = [];
+foreach ($cols as string $col) {
+    array<?string> $expected = [];
+    foreach ($table as array<?string> $row) {
+        if (Core\Arr::hasKey($row, $col)) {
+            $expected = Core\Arr::append($expected, $row[$col]);
+        }
+    }
+    $asked = $asked + 1;
+    if (Core\Json::encode($expected) == Core\Json::encode(Core\Arr::column($table, $col))) {
+        $agrees = $agrees + 1;
+    }
+    $sizes = Core\Arr::append($sizes, Core\Arr::count($expected));
+}
+echo $asked as string, " ", $agrees as string, " ", Core\Json::encode($sizes), "\n";
+
+// What the five agreements are agreements *on*, since five equal emptinesses
+// would count the same: seven rows, five of them carrying `name`, so the
+// answer is five long — shorter than the table and longer than the four rows
+// whose cell is not null. The one `null` cell survives into the answer, which
+// is the whole difference between a skipped row and a present one.
+int $withKey = 0;
+int $nullCells = 0;
+foreach ($table as array<?string> $counted) {
+    if (Core\Arr::hasKey($counted, "name")) {
+        $withKey = $withKey + 1;
+        if ($counted["name"] == null) {
+            $nullCells = $nullCells + 1;
+        }
+    }
+}
+int $nullsOut = 0;
+foreach (Core\Arr::column($table, "name") as ?string $cell) {
+    if ($cell == null) {
+        $nullsOut = $nullsOut + 1;
+    }
+}
+echo Core\Arr::count($table) as string, " ", $withKey as string, " ",
+     Core\Arr::count(Core\Arr::column($table, "name")) as string, " ",
+     $nullCells as string, " ", $nullsOut as string, "\n";
+echo Core\Json::encode(Core\Arr::column($table, "name")), "\n";
+echo Core\Json::encode(Core\Arr::column($table, "note")), "\n";
+
+// The same invariance under `{indexBy}`, where the answer's length is no
+// longer the number of matching rows: the doc's collapse rule makes it the
+// number of *distinct* index cells among them. Every row here carries the
+// index key, so nothing is appended under a fresh integer — that is the
+// sibling case's question — and the count is the collapse alone.
+array<array<string>> $groups = [
+    ["g" => "x", "n" => "1", "extra" => "e1"],
+    ["g" => "x", "n" => "2"],
+    ["g" => "y", "n" => "3", "extra" => "e3"],
+    ["g" => "z"],
+    ["g" => "y", "n" => "5"],
+];
+array<string> $gcols = ["n", "extra", "g", "gone"];
+int $gAsked = 0;
+int $gAgrees = 0;
+array<uint> $gSizes = [];
+foreach ($gcols as string $gcol) {
+    array<bool> $seen = [];
+    uint $distinct = 0;
+    foreach ($groups as array<string> $grow) {
+        if (Core\Arr::hasKey($grow, $gcol)) {
+            ?string $key = $grow["g"];
+            if ($key != null) {
+                if (!Core\Arr::hasKey($seen, $key)) {
+                    $seen[$key] = true;
+                    $distinct = $distinct + 1;
+                }
+            }
+        }
+    }
+    $gAsked = $gAsked + 1;
+    if ($distinct == Core\Arr::count(Core\Arr::column($groups, $gcol, {indexBy: "g"}))) {
+        $gAgrees = $gAgrees + 1;
+    }
+    $gSizes = Core\Arr::append($gSizes, $distinct);
+}
+echo $gAsked as string, " ", $gAgrees as string, " ", Core\Json::encode($gSizes), "\n";
+
+// Four agreements over four columns whose distinct-key counts are 2, 2, 3 and
+// 0 — not four equal zeroes. `n` is carried by four rows and answers two
+// entries, each the last row of its group; without `{indexBy}` the same four
+// rows answer four.
+echo Core\Json::encode(Core\Arr::column($groups, "n", {indexBy: "g"})), "\n";
+echo Core\Json::encode(Core\Arr::column($groups, "n")), "\n";
+--EXPECT--
+5 5 [5,5,3,0,1]
+7 5 5 1 1
+["Ada",null,"Bo","Cy","Ada"]
+["first",null,"dup"]
+4 4 [2,2,3,0]
+{"x":"2","y":"5"}
+["1","2","3","5"]
