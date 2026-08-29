@@ -42,7 +42,9 @@
 
 use nvs_runtime::{Fault, NvsObj, NvsStr, Tag, Value};
 
-use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy};
+use crate::registry::{
+    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
+};
 
 /// The class's fully-qualified name.
 pub(crate) const NAME: &str = r"Core\Out";
@@ -70,11 +72,42 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         defaults: &[],
         return_ty: CoreTy::Instance(crate::cli::NAME),
         symbol: "nvs_core_out_capture",
-        doc: None,
+        doc: Some(&CAPTURE_DOC),
     }],
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\Out::capture`'s reference card — ADR 0117.
+const CAPTURE_DOC: MethodDoc = MethodDoc {
+    short: "Runs `$fn` with this request's output sink redirected into a buffer and answers \
+            what it wrote, as the carrier of the sink in force — `ob_start`/`ob_get_clean` and \
+            `ob_start($callback)`, scoped to one closure so it nests by call nesting and \
+            always swallows.",
+    params: &[
+        ParamDoc {
+            name: "fn",
+            desc: "The closure to run; its own return value is discarded, since the capture \
+                   answers what was written rather than what was computed.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "through",
+            desc: "A `callable(Core\\Cli\\Text): Core\\Cli\\Text` applied to the captured \
+                   carrier before it is answered; the default answers it as captured.",
+            shape: &[],
+        },
+    ],
+    ret: "The captured output as a `Core\\Cli\\Text` — never a plain `string`, since those \
+          bytes have already been through the sink (ADR 0088 § 5) — and an empty carrier when \
+          `$fn` wrote nothing. Nothing `$fn` echoed reaches the sink below; re-emitting is a \
+          visible `echo Core\\Out::capture(…)`, and a `Core\\Debug::dump` inside `$fn` is not \
+          captured.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`through` answered something other than a `Core\\Cli\\Text`.",
+    }],
 };
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that

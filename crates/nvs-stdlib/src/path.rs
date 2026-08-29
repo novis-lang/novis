@@ -73,7 +73,10 @@
 
 use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 
-use crate::registry::{Const, CoreClass, CoreConst, CoreMethod, CoreOption, CoreTy, Qual};
+use crate::registry::{
+    Const, CoreClass, CoreConst, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
+    Qual,
+};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -94,7 +97,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_path_basename",
-            doc: None,
+            doc: Some(&BASENAME_DOC),
         },
         CoreMethod {
             name: "dirname",
@@ -106,7 +109,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_path_dirname",
-            doc: None,
+            doc: Some(&DIRNAME_DOC),
         },
         CoreMethod {
             name: "extension",
@@ -115,7 +118,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_path_extension",
-            doc: None,
+            doc: Some(&EXTENSION_DOC),
         },
         CoreMethod {
             name: "withExtension",
@@ -127,7 +130,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_path_with_extension",
-            doc: None,
+            doc: Some(&WITH_EXTENSION_DOC),
         },
         CoreMethod {
             name: "join",
@@ -139,7 +142,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_path_join",
-            doc: None,
+            doc: Some(&JOIN_DOC),
         },
         CoreMethod {
             name: "split",
@@ -148,7 +151,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
             symbol: "nvs_core_path_split",
-            doc: None,
+            doc: Some(&SPLIT_DOC),
         },
         CoreMethod {
             name: "normalize",
@@ -157,7 +160,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_path_normalize",
-            doc: None,
+            doc: Some(&NORMALIZE_DOC),
         },
         CoreMethod {
             name: "isAbsolute",
@@ -166,7 +169,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_path_is_absolute",
-            doc: None,
+            doc: Some(&IS_ABSOLUTE_DOC),
         },
         CoreMethod {
             name: "relativeTo",
@@ -178,12 +181,198 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_path_relative_to",
-            doc: None,
+            doc: Some(&RELATIVE_TO_DOC),
         },
     ],
     instance: &[],
     slots: &[],
     constants: CONSTANTS,
+};
+
+/// `Core\Path::basename`'s reference card — ADR 0117.
+const BASENAME_DOC: MethodDoc = MethodDoc {
+    short: "Answers the name of `$path`'s last component, as `basename` and \
+            `pathinfo(…, PATHINFO_BASENAME)` do; a trailing separator is ignored, so `/a/b/` \
+            is `b`.",
+    params: &[
+        ParamDoc {
+            name: "path",
+            desc: "The path, with `/` and `\\` both read as separators.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "withoutExtension",
+            desc: "Drop the extension from the name — `pathinfo`'s `PATHINFO_FILENAME`; the \
+                   default keeps it.",
+            shape: &[],
+        },
+    ],
+    ret: "The last component's name; the empty string for a path that is nothing but a root, \
+          such as `/`.",
+    errors: &[],
+};
+
+/// `Core\Path::dirname`'s reference card — ADR 0117.
+const DIRNAME_DOC: MethodDoc = MethodDoc {
+    short: "Answers `$path` with `levels` components dropped from the end, as `dirname` does; \
+            the answer is always a usable directory.",
+    params: &[
+        ParamDoc {
+            name: "path",
+            desc: "The path, with `/` and `\\` both read as separators.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "levels",
+            desc: "How many components to drop; the default is one, `0` is the path itself with \
+                   its separators normalized rather than PHP's `ValueError`, and more than \
+                   there are stops at the root.",
+            shape: &[],
+        },
+    ],
+    ret: "The parent path, rendered with `Path::SEPARATOR`; the root for an absolute path and \
+          `.` for a relative one — including `''`, which is `.` here and `''` in PHP — once \
+          nothing is left.",
+    errors: &[],
+};
+
+/// `Core\Path::extension`'s reference card — ADR 0117.
+const EXTENSION_DOC: MethodDoc = MethodDoc {
+    short: "Answers the text after the last `.` of `$path`'s last component, without the dot, \
+            as `pathinfo(…, PATHINFO_EXTENSION)` does.",
+    params: &[ParamDoc {
+        name: "path",
+        desc: "The path, with `/` and `\\` both read as separators.",
+        shape: &[],
+    }],
+    ret: "The extension, or `null` where there is none — a dotfile such as `.gitignore` and a \
+          trailing dot such as `report.` both have none, where PHP answers `gitignore` and \
+          `''`.",
+    errors: &[],
+};
+
+/// `Core\Path::withExtension`'s reference card — ADR 0117.
+const WITH_EXTENSION_DOC: MethodDoc = MethodDoc {
+    short: "Answers `$path` with its last component's extension replaced by `$extension`, or \
+            removed for `null` — the inverse of `Core\\Path::extension`, replacing the string \
+            surgery PHP leaves this to.",
+    params: &[
+        ParamDoc {
+            name: "path",
+            desc: "The path, with `/` and `\\` both read as separators.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "extension",
+            desc: "The new extension without its dot, exactly as `extension` answers it — an \
+                   interior dot such as `tar.gz` is fine — or `null` to remove the existing \
+                   one.",
+            shape: &[],
+        },
+    ],
+    ret: "The rewritten path, rendered with `Path::SEPARATOR`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$extension` is empty, starts with a `.`, or contains a path separator; or \
+               `$path` names no file — `/` or `''` — so there is no extension to set.",
+    }],
+};
+
+/// `Core\Path::join`'s reference card — ADR 0117.
+const JOIN_DOC: MethodDoc = MethodDoc {
+    short: "Appends each of `$segments` to `$base` with a separator between — the \
+            `$a . \"/\" . $b` every PHP program writes. Only the base decides the root: a \
+            segment's own leading separator or drive is dropped rather than allowed to replace \
+            what came before.",
+    params: &[
+        ParamDoc {
+            name: "base",
+            desc: "The path the segments are appended to; its root, if any, is the result's.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "segments",
+            desc: "Any number of further path pieces, each split into components and appended \
+                   in order.",
+            shape: &[],
+        },
+    ],
+    ret: "The joined path, rendered with `Path::SEPARATOR`; `$base` with its separators \
+          normalized when there are no segments. Not a launder — a `..` segment still walks \
+          up.",
+    errors: &[],
+};
+
+/// `Core\Path::split`'s reference card — ADR 0117.
+const SPLIT_DOC: MethodDoc = MethodDoc {
+    short: "Splits `$path` into its components — `explode(DIRECTORY_SEPARATOR, …)` for both \
+            separators at once, and lossless: `Path::join(...Path::split($p))` is `$p` with \
+            its separators normalized.",
+    params: &[ParamDoc {
+        name: "path",
+        desc: "The path, with `/` and `\\` both read as separators.",
+        shape: &[],
+    }],
+    ret: "The components in order, an absolute path's root (`/` or `C:\\`, rendered with \
+          `Path::SEPARATOR`) first; never an empty element, since a repeated or trailing \
+          separator contributes nothing, and an empty array for `''`.",
+    errors: &[],
+};
+
+/// `Core\Path::normalize`'s reference card — ADR 0117.
+const NORMALIZE_DOC: MethodDoc = MethodDoc {
+    short: "Resolves `.` and `..` in `$path` lexically and re-renders it with \
+            `Path::SEPARATOR` — the half of `realpath` that does not touch the disk. Not a \
+            launder: removing `../` is not path-traversal safety, which is `Core\\IO::within`.",
+    params: &[ParamDoc {
+        name: "path",
+        desc: "The path, with `/` and `\\` both read as separators.",
+        shape: &[],
+    }],
+    ret: "The normal form; a `..` that cannot be cancelled is kept on a relative path and \
+          dropped on an absolute one, and a repeated or trailing separator goes. Every path \
+          has one, so this never fails.",
+    errors: &[],
+};
+
+/// `Core\Path::isAbsolute`'s reference card — ADR 0117.
+const IS_ABSOLUTE_DOC: MethodDoc = MethodDoc {
+    short: "Answers whether `$path` begins at a root — a separator, or a drive letter followed \
+            by a separator — replacing the manual checks PHP leaves this to.",
+    params: &[ParamDoc {
+        name: "path",
+        desc: "The path, with `/` and `\\` both read as separators.",
+        shape: &[],
+    }],
+    ret: "`true` for `/tmp`, `\\tmp` and `C:/log` on every platform — the grammar is the same \
+          everywhere, only the rendered separator differs — and `false` otherwise, `''` \
+          included.",
+    errors: &[],
+};
+
+/// `Core\Path::relativeTo`'s reference card — ADR 0117.
+const RELATIVE_TO_DOC: MethodDoc = MethodDoc {
+    short: "Answers the relative path that leads from `$base` to `$path`, both resolved \
+            lexically first — a member PHP has no equivalent of.",
+    params: &[
+        ParamDoc {
+            name: "path",
+            desc: "The destination.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "base",
+            desc: "The directory the answer is relative to; one `..` is emitted per component \
+                   of it that the two do not share.",
+            shape: &[],
+        },
+    ],
+    ret: "The relative path, rendered with `Path::SEPARATOR` and never carrying a root; `.` \
+          when both name the same place; `null` when no relative path exists — one side is \
+          absolute and the other is not, the two name different drives, or `$base` still \
+          holds a `..` the answer would have to walk back into. Components compare byte for \
+          byte, except a drive letter, which ignores ASCII case.",
+    errors: &[],
 };
 
 /// `Core\Path::basename`'s `{withoutExtension?: bool}` — `pathinfo`'s
@@ -213,7 +402,9 @@ const CONSTANTS: &[CoreConst] = &[CoreConst {
     name: "SEPARATOR",
     ty: CoreTy::Str,
     value: Const::Str(SEPARATOR),
-    desc: "",
+    desc: "The separator this platform's paths are rendered with — `\\` on Windows and `/` \
+           everywhere else, as `DIRECTORY_SEPARATOR` is; every member emits it and accepts \
+           both.",
 }];
 
 /// The separator this platform's paths are written with — `\` on Windows and

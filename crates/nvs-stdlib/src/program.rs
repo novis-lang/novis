@@ -32,7 +32,7 @@
 //! helper to hand anything to. What `T` names here is an interface, which has
 //! no descriptor at all.
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy};
+use crate::registry::{CoreClass, CoreMethod, CoreTy, MethodDoc};
 
 /// This class's fully-qualified name, in one place so the registry row and
 /// every consumer that matches on it cannot drift apart.
@@ -53,11 +53,23 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         defaults: &[],
         return_ty: CoreTy::Array(&T),
         symbol: "nvs_core_program_implementing",
-        doc: None,
+        doc: Some(&IMPLEMENTING_DOC),
     }],
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\Program::implementing`'s reference card — ADR 0117.
+const IMPLEMENTING_DOC: MethodDoc = MethodDoc {
+    short: "Expands, at compile time, to an array literal of `new` expressions — one per \
+            non-abstract class in the program implementing the interface `T` written as the \
+            type argument (ADR 0061 § 3). Nothing runs at run time, and the type argument is \
+            never optional: the call is always `Core\\Program::implementing<T>()`.",
+    params: &[],
+    ret: "One fresh instance per implementing class, as an `array<T>`; an empty array when no \
+          class implements `T`.",
+    errors: &[],
 };
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that

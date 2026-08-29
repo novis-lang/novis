@@ -121,7 +121,9 @@
 
 use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, Value, identity};
 
-use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy, Qual};
+use crate::registry::{
+    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -163,7 +165,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_test_assert_same",
-            doc: None,
+            doc: Some(&ASSERT_SAME_DOC),
         },
         CoreMethod {
             name: "assertEquals",
@@ -172,7 +174,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_test_assert_equals",
-            doc: None,
+            doc: Some(&ASSERT_EQUALS_DOC),
         },
         CoreMethod {
             name: "assertEqualsDeep",
@@ -181,7 +183,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_test_assert_equals_deep",
-            doc: None,
+            doc: Some(&ASSERT_EQUALS_DEEP_DOC),
         },
         CoreMethod {
             name: "assertTrue",
@@ -190,7 +192,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_test_assert_true",
-            doc: None,
+            doc: Some(&ASSERT_TRUE_DOC),
         },
         CoreMethod {
             name: "assertNull",
@@ -199,7 +201,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_test_assert_null",
-            doc: None,
+            doc: Some(&ASSERT_NULL_DOC),
         },
         CoreMethod {
             name: "assertCount",
@@ -212,7 +214,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_test_assert_count",
-            doc: None,
+            doc: Some(&ASSERT_COUNT_DOC),
         },
         CoreMethod {
             name: "assertThrows",
@@ -225,7 +227,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_test_assert_throws",
-            doc: None,
+            doc: Some(&ASSERT_THROWS_DOC),
         },
         CoreMethod {
             name: "assertDoesNotThrow",
@@ -234,7 +236,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_test_assert_does_not_throw",
-            doc: None,
+            doc: Some(&ASSERT_DOES_NOT_THROW_DOC),
         },
         CoreMethod {
             name: "expectFailure",
@@ -243,12 +245,287 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_test_expect_failure",
-            doc: None,
+            doc: Some(&EXPECT_FAILURE_DOC),
         },
     ],
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\Test::assertSame`'s reference card — ADR 0117.
+const ASSERT_SAME_DOC: MethodDoc = MethodDoc {
+    short: "Asserts `$actual` is identical to `$expected` under ADR 0090 § 3's identity — two \
+            objects are the same object and nothing else is — as PHPUnit's `assertSame` does, \
+            subject first.",
+    params: &[
+        ParamDoc {
+            name: "actual",
+            desc: "The value under test.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "expected",
+            desc: "What it must be identical to; `T` is bound from `$actual`, so a type \
+                   mismatch between the two is a compile error.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "message",
+            desc: "A prefix written in front of the failure's own diagnosis; the default is \
+                   none.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing; the assertion is recorded as held in the test's ledger.",
+    errors: &[ErrorDoc {
+        error: "Core\\Test\\Failure",
+        desc: "The two are not identical; the failure is recorded in the ledger before it is \
+               thrown, so a `catch` cannot erase it.",
+    }],
+};
+
+/// `Core\Test::assertEquals`'s reference card — ADR 0117.
+const ASSERT_EQUALS_DOC: MethodDoc = MethodDoc {
+    short: "Asserts `$actual` equals `$expected` — identity everywhere except two objects, \
+            which are compared through `Comparable::compareTo` (ADR 0013) — as PHPUnit's \
+            `assertEquals` does, subject first.",
+    params: &[
+        ParamDoc {
+            name: "actual",
+            desc: "The value under test.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "expected",
+            desc: "What it must equal; `T` is bound from `$actual`, so a type mismatch between \
+                   the two is a compile error.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "message",
+            desc: "A prefix written in front of the failure's own diagnosis; the default is \
+                   none.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing; the assertion is recorded as held in the test's ledger.",
+    errors: &[
+        ErrorDoc {
+            error: "Core\\Test\\Failure",
+            desc: "The two are not equal; the failure is recorded in the ledger before it is \
+                   thrown, so a `catch` cannot erase it.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "Both are objects and `$actual`'s class declares no `compareTo`.",
+        },
+    ],
+};
+
+/// `Core\Test::assertEqualsDeep`'s reference card — ADR 0117.
+const ASSERT_EQUALS_DEEP_DOC: MethodDoc = MethodDoc {
+    short: "Asserts `$actual` and `$expected` agree structurally — arrays entry by entry, \
+            objects property by property, everything else by identity — and reports where \
+            they first differ rather than only that they do.",
+    params: &[
+        ParamDoc {
+            name: "actual",
+            desc: "The value under test.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "expected",
+            desc: "What it must agree with everywhere; `T` is bound from `$actual`, so a type \
+                   mismatch between the two is a compile error.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "message",
+            desc: "A prefix written in front of the failure's own diagnosis; the default is \
+                   none.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing; the assertion is recorded as held in the test's ledger.",
+    errors: &[
+        ErrorDoc {
+            error: "Core\\Test\\Failure",
+            desc: "The two differ somewhere; the diagnosis names the path, written as a \
+                   program would subscript `$actual`, and the failure is recorded in the \
+                   ledger before it is thrown.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The walk passed 64 levels of containment without reaching a scalar.",
+        },
+    ],
+};
+
+/// `Core\Test::assertTrue`'s reference card — ADR 0117.
+const ASSERT_TRUE_DOC: MethodDoc = MethodDoc {
+    short: "Asserts `$actual` is `true`, as PHPUnit's `assertTrue` does; the subject is a \
+            declared `bool`, so anything else is refused at the checker rather than read \
+            through the truthy table.",
+    params: &[
+        ParamDoc {
+            name: "actual",
+            desc: "The `bool` under test.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "message",
+            desc: "A prefix written in front of the failure's own diagnosis; the default is \
+                   none.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing; the assertion is recorded as held in the test's ledger.",
+    errors: &[ErrorDoc {
+        error: "Core\\Test\\Failure",
+        desc: "`$actual` is `false`; the failure is recorded in the ledger before it is thrown, \
+               so a `catch` cannot erase it.",
+    }],
+};
+
+/// `Core\Test::assertNull`'s reference card — ADR 0117.
+const ASSERT_NULL_DOC: MethodDoc = MethodDoc {
+    short: "Asserts `$actual` is `null`, as PHPUnit's `assertNull` does; the subject is \
+            `mixed`, so a value of any type may be asked.",
+    params: &[
+        ParamDoc {
+            name: "actual",
+            desc: "The value under test.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "message",
+            desc: "A prefix written in front of the failure's own diagnosis; the default is \
+                   none.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing; the assertion is recorded as held in the test's ledger.",
+    errors: &[ErrorDoc {
+        error: "Core\\Test\\Failure",
+        desc: "`$actual` is not `null`; the failure is recorded in the ledger before it is \
+               thrown, so a `catch` cannot erase it.",
+    }],
+};
+
+/// `Core\Test::assertCount`'s reference card — ADR 0117.
+const ASSERT_COUNT_DOC: MethodDoc = MethodDoc {
+    short: "Asserts `$actual` holds exactly `$expected` entries — `Core\\Arr::count`'s own \
+            signature — as PHPUnit's `assertCount` does, subject first. A `string`'s length \
+            is asserted through `Core\\Str::length`, which says which length was meant.",
+    params: &[
+        ParamDoc {
+            name: "actual",
+            desc: "The array under test.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "expected",
+            desc: "The number of entries it must hold.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "message",
+            desc: "A prefix written in front of the failure's own diagnosis; the default is \
+                   none.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing; the assertion is recorded as held in the test's ledger.",
+    errors: &[ErrorDoc {
+        error: "Core\\Test\\Failure",
+        desc: "The array holds a different number of entries; the failure is recorded in the \
+               ledger before it is thrown, so a `catch` cannot erase it.",
+    }],
+};
+
+/// `Core\Test::assertThrows`'s reference card — ADR 0117.
+const ASSERT_THROWS_DOC: MethodDoc = MethodDoc {
+    short: "Runs `$body` and asserts it throws `$expected` or a subclass of it, as PHPUnit's \
+            `expectException` does; the throw it judged is consumed, so only the assertion's \
+            own verdict propagates.",
+    params: &[
+        ParamDoc {
+            name: "body",
+            desc: "The closure to run; a value it returns is released.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "expected",
+            desc: "The fully-qualified class name, as `ParseError::class` folds to; the thrown \
+                   class or any ancestor of it matches.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "message",
+            desc: "A prefix written in front of the failure's own diagnosis; the default is \
+                   none.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing; the assertion is recorded as held in the test's ledger. A `FATAL` or an \
+          exit from the body is nobody's assertion to judge and propagates unchanged, and a \
+          failed assertion inside the body keeps its own ledger entry.",
+    errors: &[ErrorDoc {
+        error: "Core\\Test\\Failure",
+        desc: "`$body` returned without throwing, or threw a class that is not `$expected` — \
+               reported with the class it did throw and that throw's message; the failure is \
+               recorded in the ledger before it is thrown.",
+    }],
+};
+
+/// `Core\Test::assertDoesNotThrow`'s reference card — ADR 0117.
+const ASSERT_DOES_NOT_THROW_DOC: MethodDoc = MethodDoc {
+    short: "Runs `$body` and asserts it returns without throwing — the way out of the rule \
+            that a test asserting nothing fails (ADR 0079 § 20); the throw it judged is \
+            consumed, so only the assertion's own verdict propagates.",
+    params: &[
+        ParamDoc {
+            name: "body",
+            desc: "The closure to run; a value it returns is released.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "message",
+            desc: "A prefix written in front of the failure's own diagnosis; the default is \
+                   none.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing; the assertion is recorded as held in the test's ledger. A `FATAL` or an \
+          exit from the body is nobody's assertion to judge and propagates unchanged.",
+    errors: &[ErrorDoc {
+        error: "Core\\Test\\Failure",
+        desc: "`$body` threw — a failed assertion inside it included, which keeps its own \
+               ledger entry — reported with the throw's message; the failure is recorded in \
+               the ledger before it is thrown.",
+    }],
+};
+
+/// `Core\Test::expectFailure`'s reference card — ADR 0117.
+const EXPECT_FAILURE_DOC: MethodDoc = MethodDoc {
+    short: "Runs `$body` and asserts that an assertion inside it failed, then discharges those \
+            failures from the test's ledger — the one greppable spelling for a failure that \
+            was on purpose (ADR 0079 § 5), and the only way an entry ever leaves the ledger.",
+    params: &[ParamDoc {
+        name: "body",
+        desc: "The closure to run; what the ledger records decides the verdict, so a body that \
+               caught its own failed assertion and returned normally still counts as having \
+               failed.",
+        shape: &[],
+    }],
+    ret: "Nothing; the failed assertions inside `$body` are discharged and the throw carrying \
+          one is consumed, while a passing assertion inside it stays counted.",
+    errors: &[ErrorDoc {
+        error: "Core\\Test\\Failure",
+        desc: "`$body` ran without any assertion failing; that failure is recorded in the \
+               ledger before it is thrown, so a `catch` cannot erase it.",
+    }],
 };
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that

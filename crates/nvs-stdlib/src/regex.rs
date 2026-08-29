@@ -109,7 +109,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(PATTERN_NAME),
             symbol: "nvs_core_regex_compile",
-            doc: None,
+            doc: Some(&COMPILE_DOC),
         },
         CoreMethod {
             name: "matches",
@@ -121,7 +121,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_regex_matches",
-            doc: None,
+            doc: Some(&MATCHES_DOC),
         },
         CoreMethod {
             name: "match",
@@ -146,7 +146,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Instance(MATCH_NAME)),
             symbol: "nvs_core_regex_match_all",
-            doc: None,
+            doc: Some(&MATCH_ALL_DOC),
         },
         CoreMethod {
             name: "replace",
@@ -160,7 +160,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_regex_replace",
-            doc: None,
+            doc: Some(&REPLACE_DOC),
         },
         CoreMethod {
             name: "replaceWith",
@@ -174,7 +174,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_regex_replace_with",
-            doc: None,
+            doc: Some(&REPLACE_WITH_DOC),
         },
         CoreMethod {
             name: "split",
@@ -187,7 +187,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
             symbol: "nvs_core_regex_split",
-            doc: None,
+            doc: Some(&SPLIT_DOC),
         },
         CoreMethod {
             name: "quote",
@@ -196,12 +196,241 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_regex_quote",
-            doc: None,
+            doc: Some(&QUOTE_DOC),
         },
     ],
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\Regex::compile`'s reference card — ADR 0117.
+const COMPILE_DOC: MethodDoc = MethodDoc {
+    short: "Compiles `$pattern` under the four flags into a `Pattern` handle every other member \
+            takes in place of a pattern string — PCRE's `/…/imsU` delimiter-and-modifier \
+            syntax, as named options.",
+    params: &[
+        ParamDoc {
+            name: "pattern",
+            desc: "The pattern text; a sink (ADR 0056), so a `tainted` string is refused at the \
+                   call.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "caseInsensitive",
+            desc: "Match letters regardless of case — PCRE's `i`; the default is case-sensitive.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "multiline",
+            desc: "Let `^` and `$` match at every line boundary rather than only at the ends of \
+                   the subject — PCRE's `m`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "dotAll",
+            desc: "Let `.` match a newline too — PCRE's `s`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "ungreedy",
+            desc: "Swap the greediness of every quantifier, so `*` is lazy and `*?` is greedy — \
+                   PCRE's `U`.",
+            shape: &[],
+        },
+    ],
+    ret: "The `Pattern`, compiled eagerly so a malformed pattern fails here rather than at its \
+          first use.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$pattern` does not compile under either of ADR 0056's two engines.",
+    }],
+};
+
+/// `Core\Regex::matches`'s reference card — ADR 0117.
+const MATCHES_DOC: MethodDoc = MethodDoc {
+    short: "Answers whether `$pattern` matches anywhere in `$subject` — `preg_match` used as a \
+            predicate. The pattern is unanchored, so `^` and `$` are how a call asks for more.",
+    params: &[
+        ParamDoc {
+            name: "subject",
+            desc: "The text to search.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "pattern",
+            desc: "A `Pattern` from `Core\\Regex::compile`, or a pattern string compiled with no \
+                   flags; the pattern is a sink (ADR 0056).",
+            shape: &[],
+        },
+    ],
+    ret: "`true` when the subject contains at least one match, `false` otherwise.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$pattern` does not compile under either of ADR 0056's two engines, or the \
+               backtracking engine exhausted its step budget against this subject.",
+    }],
+};
+
+/// `Core\Regex::matchAll`'s reference card — ADR 0117.
+const MATCH_ALL_DOC: MethodDoc = MethodDoc {
+    short: "Finds every non-overlapping match of `$pattern` in `$subject`, one `Match` each in \
+            the order they occur — `preg_match_all` in `PREG_SET_ORDER`'s shape, with each \
+            match's groups and offset on it.",
+    params: &[
+        ParamDoc {
+            name: "subject",
+            desc: "The text to search.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "pattern",
+            desc: "A `Pattern` from `Core\\Regex::compile`, or a pattern string compiled with no \
+                   flags; the pattern is a sink (ADR 0056).",
+            shape: &[],
+        },
+    ],
+    ret: "The matches in subject order; an empty array when the pattern matches nowhere.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$pattern` does not compile under either of ADR 0056's two engines, or the \
+               backtracking engine exhausted its step budget against this subject.",
+    }],
+};
+
+/// `Core\Regex::replace`'s reference card — ADR 0117.
+const REPLACE_DOC: MethodDoc = MethodDoc {
+    short: "Replaces up to `limit` matches of `$pattern` in `$subject` with `$replacement`, as \
+            `preg_replace` does; in the replacement `$1` and `${name}` are group references and \
+            `$$` is a literal `$`.",
+    params: &[
+        ParamDoc {
+            name: "subject",
+            desc: "The text to search.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "pattern",
+            desc: "A `Pattern` from `Core\\Regex::compile`, or a pattern string compiled with no \
+                   flags; the pattern is a sink (ADR 0056).",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "replacement",
+            desc: "The template each match becomes; a reference to a group the pattern does not \
+                   declare expands to the empty string, and PHP's `\\1` spelling is not a \
+                   reference.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "limit",
+            desc: "How many matches to replace, counted from the start of the subject; the \
+                   default is every one, and `0` replaces nothing.",
+            shape: &[],
+        },
+    ],
+    ret: "The subject with its matches replaced — unchanged when the pattern matches nowhere or \
+          `limit` is `0`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$pattern` does not compile under either of ADR 0056's two engines, or the \
+               backtracking engine exhausted its step budget against this subject.",
+    }],
+};
+
+/// `Core\Regex::replaceWith`'s reference card — ADR 0117.
+const REPLACE_WITH_DOC: MethodDoc = MethodDoc {
+    short: "Replaces up to `limit` matches of `$pattern` in `$subject` with what `$fn` answers \
+            for each, as `preg_replace_callback` does; the callback receives one `Match` and \
+            its answer is inserted literally, with no group expansion.",
+    params: &[
+        ParamDoc {
+            name: "subject",
+            desc: "The text to search.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "pattern",
+            desc: "A `Pattern` from `Core\\Regex::compile`, or a pattern string compiled with no \
+                   flags; the pattern is a sink (ADR 0056).",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "fn",
+            desc: "A `callable(Match): string` called once per replaced match, in subject order, \
+                   after every match has been found.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "limit",
+            desc: "How many matches to replace, counted from the start of the subject; the \
+                   default is every one, `0` replaces nothing, and `$fn` is never called for a \
+                   match beyond it.",
+            shape: &[],
+        },
+    ],
+    ret: "The subject with its matches replaced — unchanged when the pattern matches nowhere or \
+          `limit` is `0`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$pattern` does not compile under either of ADR 0056's two engines, or the \
+               backtracking engine exhausted its step budget against this subject.",
+    }],
+};
+
+/// `Core\Regex::split`'s reference card — ADR 0117.
+const SPLIT_DOC: MethodDoc = MethodDoc {
+    short: "Splits `$subject` at every match of `$pattern`, as `preg_split` does, under \
+            `Core\\Str::split`'s reading of `limit`.",
+    params: &[
+        ParamDoc {
+            name: "subject",
+            desc: "The text to split.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "pattern",
+            desc: "A `Pattern` from `Core\\Regex::compile`, or a pattern string compiled with no \
+                   flags; the pattern is a sink (ADR 0056).",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "limit",
+            desc: "`Core\\Str::split`'s three-sign rule: positive is at most that many pieces \
+                   with the last holding the remainder, negative drops that many pieces off the \
+                   end, and `0` yields the subject unsplit — not `preg_split`'s reading of `0` \
+                   and `-1` as no limit.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "keepEmpty",
+            desc: "Whether empty pieces are kept; `false` is `PREG_SPLIT_NO_EMPTY`, and drops \
+                   them after `limit` has been applied.",
+            shape: &[],
+        },
+    ],
+    ret: "The pieces in order; the whole subject as one piece when the pattern matches nowhere.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$pattern` does not compile under either of ADR 0056's two engines, or the \
+               backtracking engine exhausted its step budget against this subject.",
+    }],
+};
+
+/// `Core\Regex::quote`'s reference card — ADR 0117.
+const QUOTE_DOC: MethodDoc = MethodDoc {
+    short: "Escapes every character either engine gives a meaning to in `$literal`, as \
+            `preg_quote` does, so the result is a pattern matching that literal and nothing \
+            else — the launder for the pattern sink (ADR 0056 § 4).",
+    params: &[ParamDoc {
+        name: "literal",
+        desc: "The text to match literally.",
+        shape: &[],
+    }],
+    ret: "The escaped pattern; a string with no meta character comes back unchanged. The escaped \
+          set is not `preg_quote`'s — `&` and `~` are escaped here, `!:<=>` and `/` are not — \
+          so only what each result matches is comparable.",
+    errors: &[],
 };
 
 /// `Core\Regex\Pattern`'s fully-qualified name, written once — see
@@ -341,7 +570,7 @@ pub const MATCH: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_regex_match_group",
-            doc: None,
+            doc: Some(&MATCH_GROUP_DOC),
         },
         CoreMethod {
             name: "groups",
@@ -350,7 +579,7 @@ pub const MATCH: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Nullable(&CoreTy::Str)),
             symbol: "nvs_core_regex_match_groups",
-            doc: None,
+            doc: Some(&MATCH_GROUPS_DOC),
         },
         CoreMethod {
             name: "offset",
@@ -359,7 +588,7 @@ pub const MATCH: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_regex_match_offset",
-            doc: None,
+            doc: Some(&MATCH_OFFSET_DOC),
         },
         CoreMethod {
             name: "text",
@@ -368,11 +597,58 @@ pub const MATCH: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_regex_match_text",
-            doc: None,
+            doc: Some(&MATCH_TEXT_DOC),
         },
     ],
     slots: &["groups", "offset"],
     constants: &[],
+};
+
+/// `Core\Regex\Match::group`'s reference card — ADR 0117.
+const MATCH_GROUP_DOC: MethodDoc = MethodDoc {
+    short: "Answers one group's text by number or by name — `$matches[$group]` read after \
+            `preg_match`.",
+    params: &[ParamDoc {
+        name: "group",
+        desc: "The group's number, `0` for the whole match, or its name.",
+        shape: &[],
+    }],
+    ret: "The group's text, or `null` where the pattern declares the group and this match did \
+          not reach it.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$group` names a group the pattern does not declare.",
+    }],
+};
+
+/// `Core\Regex\Match::groups`'s reference card — ADR 0117.
+const MATCH_GROUPS_DOC: MethodDoc = MethodDoc {
+    short: "Answers every group at once in `preg_match`'s own order — a named group under its \
+            name and then under its number — as `$matches` reads under \
+            `PREG_UNMATCHED_AS_NULL`.",
+    params: &[],
+    ret: "The array, group `0` first; a declared group this match did not reach is present and \
+          `null` rather than absent.",
+    errors: &[],
+};
+
+/// `Core\Regex\Match::offset`'s reference card — ADR 0117.
+const MATCH_OFFSET_DOC: MethodDoc = MethodDoc {
+    short: "Answers where the whole match starts in the subject — `PREG_OFFSET_CAPTURE`'s \
+            position, counted in graphemes rather than bytes.",
+    params: &[],
+    ret: "The grapheme index of the match's first character; `0` for a match at the start of the \
+          subject.",
+    errors: &[],
+};
+
+/// `Core\Regex\Match::text`'s reference card — ADR 0117.
+const MATCH_TEXT_DOC: MethodDoc = MethodDoc {
+    short: "Answers the whole match's text, which is group `0`.",
+    params: &[],
+    ret: "The matched text; never `null`, since the whole match participates in every match an \
+          engine reports.",
+    errors: &[],
 };
 
 /// [`MATCH`]'s `groups` slot, by index — what every member below reads.
@@ -427,16 +703,11 @@ const MATCH_DOC: MethodDoc = MethodDoc {
         },
     ],
     ret: "The first `Match`, or `null` when the pattern matches nowhere at or after `from`.",
-    errors: &[
-        ErrorDoc {
-            error: "RuntimeError",
-            desc: "`$pattern` does not compile under either of ADR 0056's two engines.",
-        },
-        ErrorDoc {
-            error: "RuntimeError",
-            desc: "The backtracking engine exhausted its step budget against this subject.",
-        },
-    ],
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$pattern` does not compile under either of ADR 0056's two engines, or the \
+               backtracking engine exhausted its step budget against this subject.",
+    }],
 };
 
 const MATCH_OPTIONS: &[CoreOption] = &[CoreOption {

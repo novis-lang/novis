@@ -82,7 +82,7 @@
 use nvs_render::{Caps, Elision, Level, Node, Record, Rendered, Scalar};
 use nvs_runtime::{Fault, NvsObj, Tag, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy};
+use crate::registry::{CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc};
 
 /// The class's fully-qualified name.
 pub(crate) const NAME: &str = r"Core\Debug";
@@ -103,7 +103,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_debug_dump",
-            doc: None,
+            doc: Some(&DUMP_DOC),
         },
         CoreMethod {
             name: "render",
@@ -112,12 +112,43 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(crate::cli::NAME),
             symbol: "nvs_core_debug_render",
-            doc: None,
+            doc: Some(&RENDER_DOC),
         },
     ],
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\Debug::dump`'s reference card — ADR 0117.
+const DUMP_DOC: MethodDoc = MethodDoc {
+    short: "Writes one rendered node per argument to the diagnostic channel — stderr in a CLI \
+            program, never stdout — which is what `var_dump` is for, minus its writing to \
+            output.",
+    params: &[ParamDoc {
+        name: "values",
+        desc: "Any number of values, each rendered as ADR 0092's record: control bytes and bidi \
+               made visible, a deep or long structure elided, a cycle marked, and a `secret` \
+               property redacted.",
+        shape: &[],
+    }],
+    ret: "Nothing; a call with no arguments writes nothing at all, and a dump is never \
+          captured by `Core\\Out::capture`.",
+    errors: &[],
+};
+
+/// `Core\Debug::render`'s reference card — ADR 0117.
+const RENDER_DOC: MethodDoc = MethodDoc {
+    short: "Renders `$value` exactly as `dump` would and answers it as the carrier of the sink \
+            in force instead of writing it, so a dump can be embedded in output and stays \
+            singly escaped (ADR 0088 § 5).",
+    params: &[ParamDoc {
+        name: "value",
+        desc: "The value to render, walked as `dump` walks one.",
+        shape: &[],
+    }],
+    ret: "The rendering as a `Core\\Cli\\Text`, without the trailing newline `dump` writes.",
+    errors: &[],
 };
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
