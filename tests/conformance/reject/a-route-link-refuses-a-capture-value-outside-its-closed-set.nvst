@@ -1,0 +1,49 @@
+--TEST--
+`Core\Router::url` refuses a literal `$params` value outside the closed set its parameter declares, for a path capture and for a `#[Query]` alike — ADR 0102 §§ 3 and 5
+--FILE--
+<?nvs
+// The bound named on both sides in one file: the accepted spelling and the
+// first refused one are written at adjacent call sites, and only the second is
+// in the error list below. The accepted half is asserted for its *output* in
+// `core/router-url-builds-every-value-of-a-captures-closed-set.nvst`, which is
+// the half a program that does not compile cannot show.
+class Docs {
+    // § 5's example, plus § 3's `#[Query]`, which declares the same type list a
+    // capture does — so it has a closed set for exactly the same reason.
+    // ADR 0096 § 1: the decision is a required sibling of every `#[Route]`.
+    #[\Core\Route(path: "/{lang}/docs/{page}", method: \Core\Http\Method::Get, name: "docs.show")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function show("en"|"de"|"fr" $lang, string $page, #[\Core\Query] "asc"|"desc" $order): string {
+        return $lang . "/" . $page . "/" . $order;
+    }
+}
+
+// The last accepted: the union's final member, and a `$page` whose type names
+// no set at all, so nothing about it is checked.
+echo Core\Router::url("docs.show", ["lang" => "fr", "page" => "intro"]), "\n";
+
+// The first refused: a segment § 5 says the router answers `404` to, which
+// makes this a link to a route that will not match.
+echo Core\Router::url("docs.show", ["lang" => "xx", "page" => "intro"]), "\n";
+
+// The same refusal on the query half, where the dead link is the handler's own
+// `400` (§ 3) rather than a `404`. One diagnostic per call, not per entry:
+// `$params` written against the wrong route is usually wrong in every entry.
+echo Core\Router::url("docs.show", ["lang" => "en", "page" => "intro", "order" => "up"]), "\n";
+
+// A *computed* value is not read at all, exactly as a computed key is not:
+// there is nothing at the call site to compare against the set.
+var $lang = "xx";
+echo Core\Router::url("docs.show", ["lang" => $lang, "page" => "intro"]), "\n";
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0772]: `Docs::show` admits `en`, `de`, `fr` for `lang`, and this link supplies `xx`
+   --> case.nvs:24:6
+%A
+error[E0772]: `Docs::show` admits `asc`, `desc` for `order`, and this link supplies `up`
+   --> case.nvs:29:6
+%A
+error: aborting due to 2 errors

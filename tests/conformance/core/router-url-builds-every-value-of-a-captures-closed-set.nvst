@@ -1,0 +1,49 @@
+--TEST--
+`Core\Router::url` builds a link for every value of a capture's closed set, and for no other — ADR 0102 §§ 5 and 6, ADR 0077 § 4
+--FILE--
+<?nvs
+// § 5's own example, compiled: a capture narrows to a closed set with a *type*,
+// so `/xx/docs/intro` does not match and falls through to a `404`. The refused
+// half of the bound is a compile error and lives in
+// `reject/a-route-link-refuses-a-capture-value-outside-its-closed-set.nvst`;
+// this is the accepted half, and it is asserted over the *whole* set rather
+// than at one value, because a member that admitted only the union's first
+// entry would print plausibly against any single line.
+class Docs {
+    // ADR 0096 § 1: the decision is a required sibling of every `#[Route]`.
+    #[\Core\Route(path: "/{lang}/docs/{page}", method: \Core\Http\Method::Get, name: "docs.show")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function show("en"|"de"|"fr" $lang, string $page): string { return $lang . "/" . $page; }
+}
+
+// Written out one literal at a time on purpose: § 5's check reads what the call
+// site wrote, so a loop over a variable would be a link the compiler never
+// looked at and would assert nothing about the set.
+array<string> $built = [
+    Core\Router::url("docs.show", ["lang" => "en", "page" => "intro"]),
+    Core\Router::url("docs.show", ["lang" => "de", "page" => "intro"]),
+    Core\Router::url("docs.show", ["lang" => "fr", "page" => "intro"]),
+];
+
+// The invariant, counted rather than read off a line: every value the type
+// admits has exactly one link, and that link is the value in its own segment.
+// A substitution that dropped a value, or one that laundered it into something
+// else, moves this number without moving any single expectation below.
+array<string> $set = ["en", "de", "fr"];
+var $agree = 0;
+foreach ($set as string $lang) {
+    foreach ($built as string $link) {
+        if ($link == "/" . $lang . "/docs/intro") {
+            $agree = $agree + 1;
+        }
+    }
+}
+echo "agree=", $agree as string, "/", Core\Arr::count($set) as string, "\n";
+
+// One of them written out, so the shape the count is over is visible rather
+// than inferred — the closed set narrows which segment may be built, and
+// changes nothing about how it is built (ADR 0102 § 6).
+echo "first=", Core\Router::url("docs.show", ["lang" => "en", "page" => "intro"]), "\n";
+--EXPECT--
+agree=3/3
+first=/en/docs/intro
