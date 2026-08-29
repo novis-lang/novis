@@ -135,10 +135,11 @@
 //!    spread and never by name. Parameter **names** now exist in the registry
 //!    for the first time, as [`registry::ParamDoc::name`] on a row's
 //!    [`registry::MethodDoc`] (ADR 0117) — documentation that `nvs meta
-//!    --json` prints and that `nvs_types::core_lib` never reads into
-//!    `param_names`: ADR 0063 rejected named arguments at a `Core` member in
-//!    favour of R2's options bag, so a positional `Core` call is a decision,
-//!    not a gap.
+//!    --json` prints and that `nvs_types::core_lib` does not yet read into
+//!    `param_names`. **That is a gap, and it is decided**: ADR 0063 R2 makes
+//!    every `Core` parameter callable by the spec's `$name` and the bag by
+//!    `options`; `docs/agent/loop-goal.md` Stage 0b lands it, with the names
+//!    on the row itself and a test holding them to the spec.
 //!
 //!    A **`Core`-owned instance** is no longer one: [`instance`] is the value
 //!    behind [`registry::CoreTy::Instance`], and that module's own docs own

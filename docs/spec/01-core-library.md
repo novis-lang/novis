@@ -15,7 +15,10 @@ member the registry does not yet hold, and for the designed signature of everyth
 
 Every member is `public static` on its domain class unless the entry shows a `$receiver->`, which marks an
 instance method. The `public static function` prefix is omitted throughout; `Core\Str::length` is written
-`length(string $s): uint`.
+`length(string $s): uint`. **The `$name` in a signature is callable**: `Str::length(s: $x)` binds exactly as
+it would at a user-declared method, and a trailing options shape is addressable as `options:` —
+[ADR 0063](../adr/0063-core-api-conventions.md) R2, which is also why a parameter's name is versioned here
+like its type.
 
 The **Replaces** column names the PHP built-ins an entry subsumes. It is one of the two inputs to
 [02-php-migration.md](02-php-migration.md), which is the complete PHP-name → outcome table `nvs convert`

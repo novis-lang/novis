@@ -1018,13 +1018,12 @@ pub mod code {
     pub const E_SPREAD_SUBJECT_NOT_AN_ARRAY: Code = Code::new("E0484");
     /// `name: value` at a call whose target names none of its parameters.
     ///
-    /// A `Core` member's parameters are types in `nvs_stdlib::registry` and
-    /// nothing else — the rows carry no names, deliberately, because ADR 0063
-    /// R2 already gives every `Core` member its by-name surface as a trailing
-    /// options bag (`{limit: 4}`). So there is no name to call one by, and
-    /// inventing one at the registry would be a second spelling of the same
-    /// optional argument. The synthesized `Throwable` constructor is the other
-    /// signature with no names.
+    /// A `Core` member's parameters are types in `nvs_stdlib::registry` and,
+    /// until `docs/agent/loop-goal.md` Stage 0b lands, nothing else — so there
+    /// is no name to call one by yet. ADR 0063 R2 makes every `Core` parameter
+    /// callable by the spec's `$name`, and once the registry carries them no
+    /// signature is nameless (the synthesized `Throwable` constructor gains
+    /// `message` in the same slice), so this code is retired with that work.
     pub const E_NAMED_ARG_NO_PARAM_NAMES: Code = Code::new("E0485");
     /// `name: value` naming no parameter a call can fill by name — either the
     /// callee declares no parameter of that name at all, or the name reaches

@@ -610,10 +610,11 @@ pub struct MethodDoc {
 /// One parameter's name and description.
 ///
 /// The first place a parameter's **name** exists in the registry at all —
-/// [`crate`]'s gap 3 records that a row carries types and never names — and
-/// it is documentation only: ADR 0063 rejected named arguments at a `Core`
-/// member in favour of R2's options bag, so nothing in `nvs-types` reads it
-/// and a `Core` call stays positional by decision.
+/// [`crate`]'s gap 3 records that a row carries types and never names. ADR
+/// 0063 R2 makes every `Core` parameter callable by that name, which is
+/// `docs/agent/loop-goal.md` Stage 0b's open item: names move onto the row
+/// itself, one per positional slot, and this field must equal the row's —
+/// it is the description's key, never the name's home.
 #[derive(Clone, Copy, Debug)]
 pub struct ParamDoc {
     /// The name as the spec writes it, without the `$` — `s`, `pattern`,

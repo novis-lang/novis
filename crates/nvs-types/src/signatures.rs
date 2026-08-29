@@ -55,9 +55,12 @@ pub struct MethodSig {
     /// already diagnosed elsewhere).
     pub params: Vec<TypeId>,
     /// Each parameter's own name without the `$`, positionally — or `None`
-    /// where the signature has no names to be called by at all, which is every
-    /// `Core` member (`nvs_stdlib::registry` records a row's parameter types
-    /// and never its names) and the synthesized `Throwable` constructor.
+    /// where the signature has no names to be called by at all, which is today
+    /// every `Core` member (`nvs_stdlib::registry` does not yet carry a row's
+    /// parameter names) and the synthesized `Throwable` constructor. ADR 0063
+    /// R2 ends both: `docs/agent/loop-goal.md` Stage 0b names every row and
+    /// the constructor, after which no producer writes `None` and the
+    /// `Option` goes with it.
     ///
     /// `None` is not `Some(vec![])`, and the difference is the whole reason
     /// this is an `Option`: a user-declared method that takes no parameters

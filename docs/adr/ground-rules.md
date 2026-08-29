@@ -210,7 +210,8 @@ spellings rejected, and the reasoning.
   no client holding state across calls may be Tier 1, which closes the door on every broker, directory and
   session-bearing protocol as an extension ([0051](0051-standard-library-tiers.md)).
 - **Every `Core` member has the same shape: subject first, one trailing options shape, nothing mutates,
-  failure throws, absence is `?T`** ([0063](0063-core-api-conventions.md)).
+  failure throws, absence is `?T`, and every parameter is callable by the spec's `$name`**
+  ([0063](0063-core-api-conventions.md)).
 - **Arrays combine by the member's name, never by a key's type** — `overlay`/`underlay`/`appendAll`, no
   `merge`, and `array + array` does not compile
   ([0069](0069-array-combination-is-key-type-independent.md)).

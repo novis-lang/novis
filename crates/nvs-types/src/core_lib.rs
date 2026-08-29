@@ -96,11 +96,11 @@ fn method_sig(
         // spelling for it, and a `Core` class is never extended —
         // see `MethodSig::returns_static`.
         returns_static: false,
-        // A registry row records its parameters' *types* and never
-        // their names, so no `Core` member is callable by name —
-        // ADR 0063 R2's options bag is that surface instead, and
-        // `MethodSig::param_names` owns why `None` here is a
-        // decision rather than a gap.
+        // A registry row records its parameters' *types* and not yet
+        // their names, so no `Core` member is callable by name yet.
+        // ADR 0063 R2 says every one is — the spec's `$name`s, and
+        // `options` for the bag — and `docs/agent/loop-goal.md`
+        // Stage 0b puts the names on the row and reads them here.
         param_names: None,
         // ADR 0063 R7: nothing in `Core` mutates its subject, so
         // no `Core` parameter is ever by-reference. Not a gap in

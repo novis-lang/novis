@@ -3,9 +3,9 @@
 - **Status:** Accepted
 - **Date:** 2026-08-29
 - **Scope:** where an *implemented* `Core` member's reference documentation lives, what `nvs meta --json`
-  emits, and how a consumer resolves a field both sources speak about. It does not reopen named-argument
-  call syntax at a `Core` member — [0063](0063-core-api-conventions.md) rejected that in favour of R2's
-  options bag, and a name recorded here is documentation only — nor the website's rendering, which
+  emits, and how a consumer resolves a field both sources speak about. It does not decide named-argument
+  call syntax at a `Core` member — [0063](0063-core-api-conventions.md) R2 does, and the registry's
+  parameter names are that rule's home as much as this one's — nor the website's rendering, which
   [website/README.md](../../website/README.md) owns, nor the spec's role as the member list, which
   [0011](0011-functions-and-constants-are-class-members.md) § 2 deferred and
   [0051](0051-standard-library-tiers.md) § 3 placed, nor the API shape rules, which are
@@ -32,11 +32,12 @@ at all: descriptions live in hand-edited website pages, deeply nested and far fr
 contributor changing a member's behaviour has to remember to update prose somewhere they will never
 otherwise look. That is the exact staleness pattern this repository's one-home rule exists to prevent.
 
-Two facts decide where the home should be. First, gap 3: the registry carries no parameter names, and a
-parameter's name is the key a description is looked up by, so the declaration that documents a parameter
-is the one place its name has to be spelled in Rust — anywhere else is a second spelling of the spec's
-`$name` with nothing to keep it honest. (That name is documentation, not a call surface:
-[0063](0063-core-api-conventions.md) rejected named arguments at a `Core` member.) Second, a
+Two facts decide where the home should be. First, gap 3: [0063](0063-core-api-conventions.md) R2 makes
+every `Core` parameter callable by name, so the registry row must carry its names — one per positional
+slot, on the declaration itself, guarded against the spec's signature column by a test — and a
+[`ParamDoc`](../../crates/nvs-stdlib/src/registry.rs)'s `name` is the same string, looked up by it and
+checked equal to it, never a second home. A documentation scheme that put names anywhere else would be the
+duplicate that guard exists to prevent. Second, a
 registry declaration is the one artifact that provably matches the shipped behaviour, because it is the
 data the runtime dispatches on.
 
