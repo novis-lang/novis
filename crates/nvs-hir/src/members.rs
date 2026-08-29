@@ -932,13 +932,13 @@ fn check_member_ref(
             if resolved.is_core() || env.symbols.contains(&resolved) {
                 Some(resolved)
             } else {
-                env.diags.report(
-                    Diagnostic::error(
-                        code::E_UNDEFINED_CLASS,
-                        format!("`{resolved}` is not declared"),
-                    )
-                    .with_primary(class_name.span, "no matching declaration"),
-                );
+                env.diags.report(crate::hierarchy::undeclared_name(
+                    &resolved,
+                    text,
+                    class_name.span,
+                    ctx.namespace,
+                    env.symbols,
+                ));
                 None
             }
         }

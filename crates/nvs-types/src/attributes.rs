@@ -298,13 +298,13 @@ fn resolve_shape_alias(
         if declared {
             report_not_a_shape(name, &format!("`{qname}` is not a `type` alias"), env);
         } else {
-            env.diags.report(
-                Diagnostic::error(
-                    code::E_UNDEFINED_CLASS,
-                    format!("`{qname}` is not declared"),
-                )
-                .with_primary(name.span, "no matching declaration"),
-            );
+            env.diags.report(nvs_hir::undeclared_name(
+                qname,
+                span_text(env.src, name.span),
+                name.span,
+                ctx.namespace,
+                env.symbols,
+            ));
         }
         return None;
     };

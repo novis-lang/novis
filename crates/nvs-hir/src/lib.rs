@@ -71,8 +71,8 @@ pub mod symbol;
 pub use aliases::{AliasResolver, AliasTable};
 pub use autoload::{AutoloadMap, Probe};
 pub use hierarchy::{
-    ClassGraph, ClassLinks, HierarchyResolver, implementors, implements_interface, resolve_ref,
-    seed_exception_tree,
+    ClassGraph, ClassLinks, HierarchyResolver, implementors, implements_interface,
+    relative_spelling, resolve_ref, seed_exception_tree, undeclared_name,
 };
 pub use members::{ClassMembers, MemberResolver, MemberTable};
 pub use qname::QName;

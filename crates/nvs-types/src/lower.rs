@@ -600,13 +600,13 @@ fn resolve_name_type(
             env.interner.class(qname)
         }
         None => {
-            env.diags.report(
-                Diagnostic::error(
-                    code::E_UNDEFINED_CLASS,
-                    format!("`{qname}` is not declared"),
-                )
-                .with_primary(name.span, "no matching declaration"),
-            );
+            env.diags.report(nvs_hir::undeclared_name(
+                &qname,
+                text,
+                name.span,
+                ctx.namespace,
+                env.symbols,
+            ));
             env.interner.mixed()
         }
     }

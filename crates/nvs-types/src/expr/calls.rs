@@ -999,13 +999,13 @@ pub(crate) fn check_new_target(
                 // most often catches is PHP's `new Exception(…)` — spec § 10
                 // has no such class, so the ordinary undeclared-class
                 // diagnostic is exactly the right answer.
-                env.diags.report(
-                    Diagnostic::error(
-                        code::E_UNDEFINED_CLASS,
-                        format!("`{qname}` is not declared"),
-                    )
-                    .with_primary(name.span, "no matching declaration"),
-                );
+                env.diags.report(nvs_hir::undeclared_name(
+                    &qname,
+                    text,
+                    name.span,
+                    ctx.namespace,
+                    env.symbols,
+                ));
                 env.interner.mixed()
             }
         }

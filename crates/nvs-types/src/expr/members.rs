@@ -295,13 +295,13 @@ pub(crate) fn infer_instanceof(
     } else {
         // Same wording `check_new_target` gives `new Undeclared()`: one
         // mistake, one code, wherever the name is written.
-        env.diags.report(
-            Diagnostic::error(
-                code::E_UNDEFINED_CLASS,
-                format!("`{qname}` is not declared"),
-            )
-            .with_primary(name.span, "no matching declaration"),
-        );
+        env.diags.report(nvs_hir::undeclared_name(
+            &qname,
+            text,
+            name.span,
+            ctx.namespace,
+            env.symbols,
+        ));
     }
     env.interner.bool_ty()
 }
@@ -464,13 +464,13 @@ pub(crate) fn check_class_name_const(
                 && !qname.is_reserved_global_class()
                 && !qname.is_reserved_global_interface()
             {
-                env.diags.report(
-                    Diagnostic::error(
-                        code::E_UNDEFINED_CLASS,
-                        format!("`{qname}` is not declared"),
-                    )
-                    .with_primary(class.span, "no matching declaration"),
-                );
+                env.diags.report(nvs_hir::undeclared_name(
+                    &qname,
+                    span_text(env.src, class.span),
+                    class.span,
+                    ctx.namespace,
+                    env.symbols,
+                ));
             }
             let value = crate::defaults::ConstArg::Str(qname.to_string());
             env.exprs.record(expr.span, ExprInfo::CoreConst { value });

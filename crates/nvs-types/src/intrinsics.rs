@@ -23,7 +23,7 @@
 //!   whenever someone decides a member has earned one.
 //! * **A row is matched nominally**, against the *declaring* class
 //!   [`crate::expr::calls`] resolved — never against what the call site
-//!   spelled. `use Core\Str;` and `\Core\Str::format(...)` are one member, and
+//!   spelled. `use Core\Str;` and `Core\Str::format(...)` are one member, and
 //!   no userland `Str` is any of them, which is the same rule the four
 //!   attribute passes are held to (`docs/agent/loop-goal.md`
 //!   § *Standing decisions*).

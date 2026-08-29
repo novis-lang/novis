@@ -25,7 +25,8 @@ pub struct Import {
     /// Where the imported path was written.
     pub span: Span,
     /// Whether `target` names a real declaration (or is trusted as a `Core`
-    /// reference). `false` means `E_UNRESOLVED_IMPORT` was already reported
+    /// or reserved-global reference). `false` means `E_UNRESOLVED_IMPORT` was
+    /// already reported
     /// for it.
     pub resolved: bool,
 }
@@ -184,14 +185,25 @@ impl Resolver {
 
     /// Checks every `use` import collected so far against the symbol table,
     /// reporting `E_UNRESOLVED_IMPORT` for any that names nothing declared
-    /// and is not trusted as a `Core` reference. Call once, after every file
+    /// and is not trusted. Call once, after every file
     /// sharing this `Module` has run [`Self::collect_declarations`] — an
     /// import may legally name a declaration that appears later in its own
     /// file, or in a different file entirely.
     pub fn resolve_imports(&mut self, diags: &mut Diagnostics) {
         for import in &mut self.module.imports {
-            import.resolved =
-                import.target.is_core() || self.module.symbols.contains(&import.target);
+            // The same trio every other resolver in this crate trusts — see
+            // `hierarchy::resolve_supertype`, which has always taken all
+            // three. Importing a reserved global is not a corner case but the
+            // ordinary way a namespaced file reaches the exception tree:
+            // [ADR 0113](../../../docs/adr/0113-a-qualified-name-is-absolute.md)
+            // § 2 gives a short name no fallback to the root, so `use
+            // Throwable;` is how `catch (Throwable $e)` is written under a
+            // `namespace`, and trusting only `Core` here made that the one
+            // spelling § 2 requires and this function refused.
+            import.resolved = import.target.is_core()
+                || import.target.is_reserved_global_class()
+                || import.target.is_reserved_global_interface()
+                || self.module.symbols.contains(&import.target);
             if !import.resolved {
                 diags.report(
                     Diagnostic::error(

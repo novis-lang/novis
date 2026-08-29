@@ -313,32 +313,99 @@ fn raw_ref(src: &SourceFile, name: &Name) -> RawRef {
     }
 }
 
-/// Resolves an unqualified/qualified/fully-qualified reference the same way
-/// PHP would: a leading `\` is already fully qualified; otherwise the first
-/// segment is checked against `imports`, and failing that the whole
-/// reference is taken as relative to `namespace`.
+/// Resolves a written reference to the name it means, per
+/// [ADR 0113](../../../docs/adr/0113-a-qualified-name-is-absolute.md) § 1:
+/// **a name with a separator in it is absolute** and is returned as written,
+/// consulting neither `namespace` nor `imports`; a name without one is a
+/// short name, looked up in `imports` and failing that joined onto
+/// `namespace`. There is no third step — a short name in neither does not
+/// fall back to the root, because ADR 0011 removed the free functions and
+/// constants PHP's fallback existed for (§ 2).
+///
+/// This is deliberately **not** PHP's rule, which read a qualified name as
+/// relative to the current namespace and gave a leading `\` the job of
+/// escaping that. The leading `\` does not parse at all
+/// ([`nvs_diagnostics::code::E_LEADING_BACKSLASH_UNSUPPORTED`]), so a name
+/// arriving here has none to strip, and
+/// [`relative_spelling`] is what turns the one construct whose meaning
+/// changed into a diagnostic that names its replacement.
 ///
 /// Exported (rather than `pub(crate)`) so `nvs-types` can resolve a type
 /// atom's `Name` the same way every resolver in this crate already resolves
 /// an `extends`/`implements`/alias reference, instead of duplicating this
-/// logic.
+/// logic. **Keep it the only place that decides what a name means** — a
+/// second one is the state ADR 0113 § 6 exists to prevent.
 pub fn resolve_ref(text: &str, namespace: &[String], imports: &FxHashMap<String, QName>) -> QName {
-    if text.starts_with('\\') {
-        return QName::parse(text);
-    }
     let parsed = QName::parse(text);
-    let segments = parsed.segments();
-    if let Some(target) = imports.get(segments[0].as_str()) {
-        if segments.len() == 1 {
-            return target.clone();
-        }
-        let mut combined = target.segments().to_vec();
-        combined.extend(segments[1..].iter().cloned());
-        return QName::from_segments(combined);
+    if parsed.segments().len() > 1 {
+        return parsed;
     }
-    let mut combined = namespace.to_vec();
-    combined.extend(segments.iter().cloned());
-    QName::from_segments(combined)
+    if let Some(target) = imports.get(parsed.segments()[0].as_str()) {
+        return target.clone();
+    }
+    QName::join(namespace, parsed.segments()[0].as_str())
+}
+
+/// The name PHP's rule would have reached for a reference [`resolve_ref`] has
+/// just failed to resolve — `Models\User` inside `namespace App;` meaning
+/// `App\Models\User`. `None` unless the reference is qualified and the
+/// namespace is non-empty, which is exactly the case ADR 0113 § 1 changes the
+/// meaning of.
+///
+/// Callers use it to upgrade an undeclared-name error into
+/// [`nvs_diagnostics::code::E_RELATIVE_QUALIFIED_NAME`], which names the
+/// absolute spelling instead of leaving a generic "not declared" to be worked
+/// backwards from — ADR 0113 § 5.
+#[must_use]
+pub fn relative_spelling(text: &str, namespace: &[String]) -> Option<QName> {
+    if namespace.is_empty() || !text.contains('\\') {
+        return None;
+    }
+    let mut segments = namespace.to_vec();
+    segments.extend_from_slice(QName::parse(text).segments());
+    Some(QName::from_segments(segments))
+}
+
+/// The diagnostic for a class/interface/enum reference that resolved to
+/// nothing — built here, once, so that every site reporting it makes the same
+/// ADR 0113 § 5 distinction rather than seven copies of it drifting apart.
+///
+/// Ordinarily [`nvs_diagnostics::code::E_UNDEFINED_CLASS`]. Where the
+/// reference is the one construct ADR 0113 § 1 changed the meaning of — a
+/// qualified name inside a namespace, which PHP read as relative — **and**
+/// that relative reading names something that *is* declared, it is
+/// [`nvs_diagnostics::code::E_RELATIVE_QUALIFIED_NAME`] instead, naming the
+/// absolute spelling. A converted PHP file hits this on its first such name
+/// and is told what to write, rather than being told a class it can see is
+/// missing.
+#[must_use]
+pub fn undeclared_name(
+    qname: &QName,
+    text: &str,
+    span: Span,
+    namespace: &[String],
+    symbols: &SymbolTable,
+) -> Diagnostic {
+    if let Some(relative) = relative_spelling(text, namespace)
+        && symbols.contains(&relative)
+    {
+        return Diagnostic::error(
+            code::E_RELATIVE_QUALIFIED_NAME,
+            format!("`{qname}` is not declared"),
+        )
+        .with_primary(span, "a qualified name is read from the root")
+        .with_help(format!(
+            "`{relative}` is what is declared. A name with a `\\` in it is absolute in Novis, \
+             where PHP would have read this one as relative to the enclosing namespace \
+             (ADR 0113 § 1) — write `{relative}`, or `use {relative};` and write `{}`",
+            relative.short_name()
+        ));
+    }
+    Diagnostic::error(
+        code::E_UNDEFINED_CLASS,
+        format!("`{qname}` is not declared"),
+    )
+    .with_primary(span, "no matching declaration")
 }
 
 fn describe_kinds(kinds: &[SymbolKind]) -> String {
@@ -377,13 +444,13 @@ fn resolve_supertype(
             None
         }
         None => {
-            diags.report(
-                Diagnostic::error(
-                    code::E_UNDEFINED_CLASS,
-                    format!("`{qname}` is not declared"),
-                )
-                .with_primary(raw.span, "no matching declaration"),
-            );
+            diags.report(undeclared_name(
+                &qname,
+                &raw.text,
+                raw.span,
+                &pending.namespace,
+                symbols,
+            ));
             None
         }
     }
@@ -539,6 +606,150 @@ mod tests {
         (module.graph, diags)
     }
 
+    /// ADR 0113 § 1, as the three cases the rule has and nothing between
+    /// them. A name with a separator is returned as written no matter what
+    /// namespace or imports surround it — the case PHP resolved relative, and
+    /// the whole of what this ADR changed. A name without one is looked up in
+    /// the imports first and the enclosing namespace second. Asserted with a
+    /// namespace *and* an import in force at every call, so a rule that
+    /// consulted either one for a qualified name would have to be wrong in
+    /// two directions at once to pass.
+    #[test]
+    fn a_qualified_name_is_absolute_and_a_short_name_is_not() {
+        let ns = vec!["App".to_owned()];
+        let mut imports = FxHashMap::default();
+        imports.insert("User".to_owned(), QName::parse(r"Vendor\Lib\User"));
+
+        // Qualified: neither the namespace nor the import is consulted, and
+        // the first segment colliding with an import name changes nothing.
+        assert_eq!(
+            resolve_ref(r"Models\User", &ns, &imports),
+            QName::parse(r"Models\User")
+        );
+        assert_eq!(
+            resolve_ref(r"User\Inner", &ns, &imports),
+            QName::parse(r"User\Inner")
+        );
+        assert_eq!(
+            resolve_ref(r"App\Models\User", &ns, &imports),
+            QName::parse(r"App\Models\User")
+        );
+
+        // Short: the import wins where there is one.
+        assert_eq!(
+            resolve_ref("User", &ns, &imports),
+            QName::parse(r"Vendor\Lib\User")
+        );
+        // …and the enclosing namespace where there is not. § 2: no third step,
+        // so a root-level `Throwable` is `App\Throwable` here and reaching the
+        // real one takes a `use`.
+        assert_eq!(
+            resolve_ref("Post", &ns, &imports),
+            QName::parse(r"App\Post")
+        );
+        assert_eq!(
+            resolve_ref("Throwable", &ns, &imports),
+            QName::parse(r"App\Throwable")
+        );
+        // At the root namespace a short name is already the whole name.
+        assert_eq!(
+            resolve_ref("Throwable", &[], &imports),
+            QName::parse("Throwable")
+        );
+    }
+
+    /// The migration diagnostic's input (ADR 0113 § 5): what PHP's rule would
+    /// have reached, offered only for the construct whose meaning changed.
+    #[test]
+    fn a_relative_spelling_exists_only_for_a_qualified_name_inside_a_namespace() {
+        let ns = vec!["App".to_owned()];
+        assert_eq!(
+            relative_spelling(r"Models\User", &ns),
+            Some(QName::parse(r"App\Models\User"))
+        );
+        // A short name is not the changed construct — it still resolves
+        // against the namespace, so there is nothing to suggest.
+        assert_eq!(relative_spelling("User", &ns), None);
+        // At the root there is no relative reading to have meant.
+        assert_eq!(relative_spelling(r"Models\User", &[]), None);
+    }
+
+    /// ADR 0113 § 5's migration diagnostic. `Models\Module` inside
+    /// `namespace App;` is the one construct § 1 changed the meaning of, and
+    /// the thing it named in PHP *is* declared here — so the report names
+    /// `App\Models\Module` rather than saying a class the author can see is
+    /// missing. The second half is what keeps the distinction honest: a
+    /// qualified name that resolves neither way is the ordinary `E0303`, so
+    /// the new code cannot become a synonym for "unresolved".
+    #[test]
+    fn a_relative_qualified_name_is_told_its_absolute_spelling() {
+        let (_, diags) = resolve(concat!(
+            "<?nvs\n",
+            "namespace App\\Models;\n",
+            "interface Module {}\n",
+            "namespace App;\n",
+            "class Thing implements Models\\Module {}\n",
+        ));
+        let relative: Vec<_> = diags
+            .iter()
+            .filter(|d| d.code == Some(code::E_RELATIVE_QUALIFIED_NAME))
+            .collect();
+        assert_eq!(relative.len(), 1, "expected the § 5 report: {diags:?}");
+        assert!(
+            relative[0]
+                .notes
+                .iter()
+                .any(|n| n.contains(r"App\Models\Module")),
+            "the help names the absolute spelling: {:?}",
+            relative[0].notes
+        );
+
+        // Neither reading names anything: the ordinary undeclared-class error.
+        let (_, diags) = resolve(concat!(
+            "<?nvs\n",
+            "namespace App;\n",
+            "class Thing implements Models\\Missing {}\n",
+        ));
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_UNDEFINED_CLASS)),
+            "expected the ordinary error: {diags:?}"
+        );
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code == Some(code::E_RELATIVE_QUALIFIED_NAME)),
+            "nothing to suggest, so nothing suggested: {diags:?}"
+        );
+    }
+
+    /// ADR 0113 § 2: a short name resolves through the imports then the
+    /// enclosing namespace and stops, so the reserved exception tree is
+    /// reached from inside a namespace by importing it — and only by
+    /// importing it. Both halves are asserted, because § 2's price is only
+    /// paid honestly if the import is what buys the name.
+    #[test]
+    fn a_root_level_name_needs_an_import_from_inside_a_namespace() {
+        let (_, diags) = resolve(concat!(
+            "<?nvs\n",
+            "namespace App;\n",
+            "use Throwable;\n",
+            "class Boom implements Throwable {}\n",
+        ));
+        assert!(!diags.has_errors(), "the import reaches it: {diags:?}");
+
+        let (_, diags) = resolve(concat!(
+            "<?nvs\n",
+            "namespace App;\n",
+            "class Boom implements Throwable {}\n",
+        ));
+        assert!(
+            diags.has_errors(),
+            "without the import the short name is `App\\Throwable`: {diags:?}"
+        );
+    }
+
     /// ADR 0061 § 3's three words, one assertion each: *non-abstract*,
     /// *classes*, *implementing `T`*. The fixture declares one of everything
     /// the filter has to drop — an abstract implementor, the interface
@@ -575,8 +786,8 @@ mod tests {
             "interface Module {}\n",
             "class Widget implements Module {}\n",
             "namespace Acme;\n",
-            "class Thing implements \\Vendor\\Module {}\n",
-            "class Gadget implements \\Vendor\\Module {}\n",
+            "class Thing implements Vendor\\Module {}\n",
+            "class Gadget implements Vendor\\Module {}\n",
         ));
         assert!(!diags.has_errors(), "{diags:?}");
         assert_eq!(
@@ -609,7 +820,7 @@ mod tests {
             "class SubA implements Module {}\n",
             "class Beta implements Module {}\n",
             "namespace App\\Sub;\n",
-            "class A implements \\App\\Module {}\n",
+            "class A implements App\\Module {}\n",
         ));
         assert!(!diags.has_errors(), "{diags:?}");
         assert_eq!(
