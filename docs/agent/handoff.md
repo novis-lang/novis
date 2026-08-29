@@ -2,53 +2,55 @@
 
 ## State
 
-**Stage 6's item 20 is three constructs of three, and both types are now on disk.**
-`crates/nvs-stdlib/src/script.rs` registers `Core\Script\Handle` — a `Core` class with no members,
-no slots and no constructor row — and `crates/nvs-types/src/expr/isolate.rs` types both halves
-against it: `spawn script` answers with the handle, `await` takes one and answers with ADR 0006's
-`ScriptResult` shape. Seven `nvs-types` tests pin it. Each module doc is the one home of its own
-half: why the class declares nothing (`script.rs`) and why the handle is a class while the result is
-a shape (`isolate.rs`).
+**Stage 6's item 20 is closed: both of ADR 0006's constructs lower, and `native examples/isolate.nvs
+[6 isolates]` prints all five frozen lines.** `spawn script` and `await` are two
+`InstKind::CoreCall`s against `nvs_stdlib::script`'s two rowless symbols; the handle is a
+`Core\Script\Handle` whose one slot holds the key `Ctx::hold_started_script` filed the running
+isolate under; `await` answers ADR 0036's shape with one field per `Completion` member. `E0703` and
+`E0776` are retired, `E0777` is new for the three options this compiler parses and does not enforce.
 
-**Both refusals still stand, and may not be lifted before the lowering.**
-`crates/nvs-ir/src/lower/expr.rs:422`'s roster comment ends in a `panic!`, so a construct the checker
-accepts and `nvs-ir` has no arm for crashes the compiler rather than reporting anything. That is why
-the acceptance check `native examples/isolate.nvs [6 isolates]` fails on `E0703`, and it is the next
-group's whole subject — the example otherwise parses and checks with exactly three `E0703` and three
-`E0776` and nothing else.
+**The seam is a start and a join now, and that is the load-bearing change.**
+`nvs_runtime::host::Host::start_isolate` answers a `Box<dyn Running>`; `nvs_host::Isolate::run` is
+`start` then `join`, so every existing test over it is untouched. `Output`, `Failure` and
+`Completion` moved down to `nvs_runtime::host` (the seam names them) and `nvs_host::isolate`
+re-exports them. Each module doc is the one home of its own half: why the start is eager
+(`nvs_runtime::host::Host::start_isolate`), why the handle holds a key rather than a table entry
+(`Ctx::hold_started_script`), and why the two symbols have no rows (`nvs_stdlib::script`).
 
-**Orientation gaps, unchanged:** `[context] adrs` prints ADR 0023 § 2 only — ADR 0006's
-`## Decision`, *Failure is a value* and *Output is captured by default* are what a Stage 6 slice is
-written against and none is in the manifest. `[context] modules` has no pattern for
-`nvs-types/src/expr/`, `nvs-stdlib/src/registry.rs` or `nvs-cli/src/`; add one for `nvs-ir/src/lower/`
-before the next group, which lives there.
+**Orientation gaps, unchanged from last session and still real:** `[context] adrs` prints ADR 0023
+§ 2 and ADR 0072 §§ 4-5 only — ADR 0006's `## Decision` is what a Stage 6 slice is written against
+and had to be sliced by hand. `[context] modules` has no pattern for `nvs-types/src/expr/`,
+`nvs-stdlib/src/instance.rs`, `nvs-stdlib/src/registry.rs` or `nvs-ir/src/lower/`.
 
 ## Next group
 
-**The lowering, which is the only thing standing between this goal and its own acceptance check.**
-File set: `crates/nvs-ir/src/lower/expr.rs`, `crates/nvs-ir/src/ir.rs`,
-`crates/nvs-runtime/src/script.rs` and `crates/nvs-host/src/isolate.rs`. Read
-`crates/nvs-cli/src/script.rs` for the resolver already on disk before adding anything.
+**The four Stage 6 `cargo-named` tests with no function on disk.** They share one file:
+`crates/nvs-host/src/isolate.rs`, whose test module opens at `:420` and whose four existing siblings
+(`:494`, `:641`) are the shapes to copy. `crates/nvs-host/src/scheduler.rs:1102` is `cancel_task`,
+which the last two need.
 
-- [ ] **`spawn script` lowers to an instruction that builds a handle** — ADR 0006 § *Decision*.
-      `InstKind` is `crates/nvs-ir/src/ir.rs:328`, the dispatch is
-      `crates/nvs-ir/src/lower/expr.rs:50`, and the roster comment that must lose a line is
-      `crates/nvs-ir/src/lower/expr.rs:422`. The value it produces is an instance of the class
-      `crates/nvs-stdlib/src/script.rs` registers, and **that slice decides the slot** the module doc
-      deliberately left undeclared.
-- [ ] **`await` lowers to the suspend that collects a `Completion`** — same three anchors, plus
-      `nvs_host::Isolate`'s answer (`crates/nvs-host/src/isolate.rs`) and the four-field shape
-      `crates/nvs-types/src/expr/isolate.rs:174`'s `script_result` already fixes, in that order.
-- [ ] **Drop `E0703` and `E0776` in the same slice as the arm that replaces each**, never before —
-      `crates/nvs-types/src/expr/isolate.rs:113` and `:160`. `crates/nvs-types/tests/isolates.rs`
-      asserts both codes and is where the change is visible.
+- [ ] **`an_unresolvable_class_is_refused_at_the_boundary`** — ADR 0023 § 2's third bullet. A child
+      returning an object whose class the parent's table does not have is `ok = false` carrying the
+      walk's message, not a stub; `crates/nvs-runtime/src/graph.rs` is where the refusal is raised
+      and `a_closure_a_reference_or_a_resource_is_refused_at_the_boundary` is the sibling to copy.
+- [ ] **`a_contained_panic_in_a_child_leaves_the_parent_running`** — ADR 0106 § 2. The child's task
+      is torn down and the parent reads `ok = false`; `nvs_runtime::Teardown` is the containment
+      boundary already on disk.
+- [ ] **`a_cancelled_parent_leaves_no_orphan_and_no_leaked_arena`** — ADR 0072 § 5, over
+      `Started::join`'s park loop in `crates/nvs-host/src/isolate.rs`, which cancels the child and
+      keeps parking until it has ended.
+- [ ] **`a_child_is_cancelled_at_its_next_safepoint`** — item 24's first consumer of the
+      function-entry safepoint. `Ctx::cancel` and `SafepointFlags::CANCEL` are the mechanism.
 
 ## Backlog
 
-- Item 21's request-tree budget accounting, under compiled-in defaults — `docs/agent/loop-goal.md` § Stage 6.
-- Item 22's `Core\Script::args()`, the top-level `return` contract and `valueOrThrow($result)` —
-  same file; the static class lands in `crates/nvs-stdlib/src/script.rs` beside its handle.
-- Item 23's value-crossing refusals, including the cyclic argument that must not hang — ADR 0023 § 2.
-- Item 24's `output: capture|inherit`, which owns whether the result's `output` field stays `string`.
-- `Core\Secret::reveal()` is still unregistered, so ADR 0033's escape hatch is open at both ends.
-- M4's residue: the 1000-case conformance corpus count, met as the suite grows.
+- Item 22 — `Core\Script::args()` and `Core\Script::valueOrThrow($result)`, plus `ScriptResult`'s
+  `code`/`trace` fields (`crates/nvs-types/src/expr/isolate.rs`'s module doc).
+- `tests/conformance/isolate/` holds two cases now; the two `docs/agent/loop-goal.toml` names at
+  Stage 8 (`a-child-shares-nothing-with-its-parent`, `a-childs-failure-is-a-value-not-an-exception`)
+  are still unwritten.
+- `output: capture|inherit`'s carrier type is still `string` — item 24 owns it (ADR 0088 §§ 3, 5).
+- `spawn`/`spawn worker` still do not exist; only `spawn script` does (ADR 0006 § *Decision*).
+- `limits:`, `grants:` and `on:` are `E0777` until goal 3 enforces them.
+- No `.nvst` case pins an argument that cannot cross (`GraphError` at the spawn) — the three other
+  sites sharing that stem are covered, so the gate is green and the hole is real.

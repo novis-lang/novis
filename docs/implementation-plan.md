@@ -407,15 +407,37 @@
 > registry for each, so a memberless class is invisible to it, and a row there would demand the very
 > member this class must not have. The concurrency language surface belongs to
 > `docs/spec/00-overview.md` § 2 by `01-core-library.md` § 19's own routing line, and that is where
-> both types are now named and pointed at their module doc. Both refusals stay, for the roster
-> reason above. The steps the chain took are in [goals/README.md](agent/goals/README.md) § *Starting
-> the chain*. M4's own residue is the 1000-case corpus count, which orders 1–4 meet as the suite
-> grows; nothing else about M4 is open. What the program is measured by is `python
-> tools/check-migration.py` at 100% classified, which stood at 25% the day the program was scheduled
-> and reads 34% now that goal 1's own five domains — dates and times, regular expressions, JSON,
-> URLs and paths — carry a row per name. `python tools/gaps.py`, `python tools/holes.py` and `python
-> tools/check-migration.py --report` are the three worklists behind it, and no session re-derives
-> one.
+> both types are now named and pointed at their module doc. **Both constructs now lower, and the
+> acceptance program prints all five of its frozen lines.** Three decisions carry it. The seam is
+> **split into a start and a join**: `nvs_runtime::host::Host` gains `start_isolate`, answering a
+> `Box<dyn Running>` whose `join` collects the `Completion`, and `nvs_host::Isolate::run` is now
+> those two calls in a row so every test over it is unchanged. It is eager on purpose — the child is
+> a runnable task before the spawn expression finishes — because deferring the start to the await
+> would make `spawn`/`await` two names for one blocking call and would buy the language nothing for
+> the second construct it charges a reader for. The refusals stay where they were: an argument that
+> cannot cross is the parent's `Err` at the spawn, the answer's own refusal is `ok = false` at the
+> join, and the `Output::Inherit` hand-over is at the join because that is the one point where the
+> ordering against the parent's output is a fact rather than a race. The handle **carries a key, not
+> the isolate**: `Ctx::hold_started_script` files the running isolate against the *request* and
+> hands back the `int` the class's one slot holds, so the footprint is O(started and not awaited)
+> and is released with the request — a table in `nvs-stdlib` would be O(spawns served), because a
+> `Core` instance has no native drop, which is the same argument `Core\Task\Channel` records for
+> keeping its queue in slots. And both constructs lower to an **`InstKind::CoreCall` against a
+> symbol with no registry row**, the shape `Core\Router::url`'s prepared-path helper already had: a
+> spawn is a native call that can throw, takes three values and answers one, so a variant of its own
+> would buy a second shape in `nvs-codegen` for no behaviour, and the missing row is what keeps
+> `spawn script` syntax rather than a member with a keyword in front of it. `E0703` and `E0776` are
+> retired in the same commits as the arms that replace them, and `E0777` is new: `limits:`,
+> `grants:` and `on:` are refused where they are written rather than accepted and ignored, because a
+> `grants:` narrowing that were silently dropped would hand the child the parent's authority —
+> enforcement is goal 3's and it is what removes the code. The steps the chain took are in
+> [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's own residue is the 1000-case
+> corpus count, which orders 1–4 meet as the suite grows; nothing else about M4 is open. What the
+> program is measured by is `python tools/check-migration.py` at 100% classified, which stood at 25%
+> the day the program was scheduled and reads 34% now that goal 1's own five domains — dates and
+> times, regular expressions, JSON, URLs and paths — carry a row per name. `python tools/gaps.py`,
+> `python tools/holes.py` and `python tools/check-migration.py --report` are the three worklists
+> behind it, and no session re-derives one.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

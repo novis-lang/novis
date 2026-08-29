@@ -2668,6 +2668,17 @@ is why" — is this file.
   `await`. `int $n = 5;` then `await $n` is the spelling that reaches the type checker, and
   `crates/nvs-types/tests/isolates.rs`'s `await_refuses_an_operand_no_spawn_produced` is the worked
   example. The same applies to `spawn script` before anything that is not a string expression.
+- **A `.nvst` case runs in a temp working directory, so a relative path inside one resolves against
+  *that*, not against the repository root.** A case that needs a second file writes it with a
+  `--FILE <name>--` section — `tests/conformance/isolate/a-handle-is-collected-once-and-the-second-await-throws.nvst`
+  is the worked example, and `crates/nvs-test`'s `RESERVED_NAMES` is the list of names it may not
+  claim. The trap is that a case asserting a path *fails* passes either way: the first version of
+  the sibling case spawned `"examples/isolate/capture.nvs"` and was green only because the file was
+  missing there too.
+- **`await $handle;` as a bare statement does not parse as an `await`** — the contextual keyword in
+  statement position reads as a type name, so the case reports "`$handle` is already declared" at
+  the second mention. Bind it: `var $ignored = await $handle;`. `spawn script …;` as a statement is
+  fine, since nothing follows the construct that could start a declaration.
 
 ## Splitting a file that got too big
 
@@ -3589,6 +3600,13 @@ sibling in the same namespace unqualified.
   Adding a row to the spec for such a class is the actual trap: it would demand a member the class
   exists in order not to have. A class's *prose* home is still owed, and § 19's own last line says
   where the concurrency surface's is: `docs/spec/00-overview.md` § 2, not this file.
+- **A `CoreCall` to a symbol with no registry row links only if `nvs_stdlib::symbols()` chains it in** —
+  `address_of` is not enough, and the failure is a Cranelift panic at *run* time reading
+  `can't resolve symbol nvs_core_script_spawn`, long after everything has compiled and every test
+  in the crate has passed. `symbols()` walks `registry::CLASSES` and `CONSTRUCTORS`, so a member with
+  a row is found for free; a rowless symbol — ADR 0077's two prepared link entry points, ADR 0006's
+  `spawn script` and `await` — needs its own `.chain([...])` there beside `address`'s arm. Two
+  registrations, not one, and the second has no compile-time gate at all.
 
 ## Divergences and refusals already pinned
 
