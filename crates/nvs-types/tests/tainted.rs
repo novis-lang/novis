@@ -116,6 +116,38 @@ fn converting_a_tainted_string_to_markup_is_diagnosed() {
 }
 
 #[test]
+fn serialize_decode_refuses_a_tainted_operand() {
+    // ADR 0023 § 3's last bullet and ADR 0088 § 1: `Core\Serialize::decode`'s
+    // parameter is `CoreTy::Blob(Qual::Sink)`, so a payload that came in off
+    // the wire is refused where `Core\Json::decode`'s `Text(Qual::Sink)` is —
+    // and the danger is not the same one. A JSON decode produces `mixed` a
+    // program then has to narrow; this format names *classes* and rebuilds
+    // their declared properties, so an attacker-chosen payload picks which
+    // class the program is handed. There is no launderer for it: the way in
+    // is `Core\Json::decode` plus a checked conversion, not a cast.
+    let diags = check_in_method(
+        "tainted string $wire = \"payload\" as tainted string;\n\
+         mixed $v = Core\\Serialize::decode($wire as bytes);\n",
+    );
+    assert!(
+        diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{diags:?}"
+    );
+}
+
+#[test]
+fn serialize_decode_takes_a_plain_operand() {
+    // The other side of the bound above: the sink refuses the qualifier, not
+    // the type, so bytes the program itself produced cross with nothing
+    // written at the call site.
+    let diags = check_in_method(
+        "bytes $b = Core\\Serialize::encode(1);\n\
+         mixed $v = Core\\Serialize::decode($b);\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
 fn converting_a_runtime_computed_untainted_string_to_markup_is_still_diagnosed() {
     // ADR 0024 § 5: only a literal token qualifies — even an untainted
     // runtime value is refused.
