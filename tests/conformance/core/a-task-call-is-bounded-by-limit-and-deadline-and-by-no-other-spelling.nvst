@@ -1,0 +1,40 @@
+--TEST--
+`{limit, deadline}` is the only way to bound a `Core\Task` call: `timeout` is neither an option nor a member, and `race` is not a member either — ADR 0072 § 3, ADR 0063 R2
+--FILE--
+<?nvs
+// § 3: "The plan's `timeout(...)` is therefore not a member: a timeout on a
+// group of tasks is this option". R2 makes a trailing options shape the form
+// of *every* optioned member, so a wrapper function would be a second way to
+// say one thing — which is what ADR 0063 R20 leaves no room for.
+//
+// `race` is asked for the opposite reason: § 3 does not reject the idea, it
+// defers it under a different spelling (`Core\Task::first`, homogeneous), so
+// naming it here is what stops a `race` arriving by the back door. Both of
+// the three errors below are therefore about a name that must *stay* absent.
+class Bounded {
+    public static function options(): void {
+        var $page = Core\Task::all({rows: fn(): array<int> => [1]}, {timeout: 5s});
+        echo Core\Arr::count($page->rows);
+    }
+
+    public static function members(): void {
+        Core\Task::timeout({rows: fn(): array<int> => [1]});
+        Core\Task::race({rows: fn(): array<int> => [1]});
+    }
+}
+
+Bounded::options();
+Bounded::members();
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0454]: `timeout` is not an option of this member
+   --> case.nvs:13:70
+%A
+error[E0405]: `Core\Task` has no member named `timeout`
+   --> case.nvs:18:9
+%A
+error[E0405]: `Core\Task` has no member named `race`
+   --> case.nvs:19:9
+%A
+error: aborting due to 3 errors

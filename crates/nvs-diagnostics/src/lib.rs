@@ -2194,6 +2194,31 @@ pub mod code {
     /// a literal key — a computed value has nothing to read.
     pub const E_ROUTE_LINK_VALUE_NOT_IN_SET: Code = Code::new("E0772");
 
+    /// A parameter that binds a shape of `fn` literals was given something
+    /// other than a shape literal written at the call site.
+    ///
+    /// `Core\Task::all`'s argument is ADR 0072 § 1's shape of zero-argument
+    /// closures, and the *whole reason* the member exists is that the result
+    /// keeps each field's own type. That type is read off the written `fn`
+    /// literal and from nowhere else, so a variable holding a shape has
+    /// nothing to read — the same shape of restriction
+    /// [`E_OPTIONS_NOT_A_LITERAL`] states for an options bag, and for a
+    /// related reason: the value has to be *seen*, not merely typed.
+    pub const E_CALLABLE_SHAPE_NOT_A_LITERAL: Code = Code::new("E0773");
+
+    /// One field of such a shape holds something other than a written `fn`
+    /// literal.
+    ///
+    /// ADR 0072 § 1: "a field whose value is a `callable`-typed variable
+    /// rather than a literal is a compile error naming the field, because
+    /// there is nothing to bind from". [ADR
+    /// 0031](../../docs/adr/0031-callable-is-the-only-closure-type.md) leaves
+    /// `callable` without a signature, so the field's own result type exists
+    /// only at the literal; ADR 0007 § 3's deferred typed-`callable`
+    /// signatures are what would remove this, and that ADR's *Revisiting* is
+    /// where the case is counted.
+    pub const E_CALLABLE_SHAPE_FIELD_NOT_A_LITERAL: Code = Code::new("E0774");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

@@ -149,6 +149,26 @@ pub enum Ty {
     /// name is a fact about the registry row, and a message quoting it would be
     /// naming something no program can write.
     CallableTo(String),
+    /// A **shape of zero-argument `fn` literals**, plus the name of the type
+    /// variable the shape of their *results* binds — `S` in
+    /// `Core\Task::all({...}): S`.
+    ///
+    /// [`Self::CallableTo`]'s sibling one level up: that one says "this
+    /// argument is a closure, and its result names a variable"; this one says
+    /// "this argument is a shape literal of closures, and the shape of *their*
+    /// results names a variable". ADR 0072 § 1 is the whole reason it exists —
+    /// `Task::all`'s answer keeps each field's own declared return type rather
+    /// than collapsing to `array<mixed>`, and no ordinary type at this position
+    /// could say so, because the argument's own type is a shape of opaque
+    /// `callable`s.
+    ///
+    /// It enters the interner only from `nvs_stdlib::registry`'s
+    /// `CoreTy::CallableShapeTo` through [`crate::core_lib`], and it never
+    /// survives a call site: [`crate::generics::substitute`] rewrites it to
+    /// [`Self::Mixed`], because the position is checked in full by
+    /// `crate::expr::args`' own rule — which reports every field — and a
+    /// second assignability check could only report the same mistake twice.
+    CallableShapeTo(String),
     /// A resolved class or interface name, plus the type arguments it was
     /// written with — the type grammar does not distinguish a class from an
     /// interface (ADR 0007 § 3); which one `QName` names is a question for
@@ -376,6 +396,11 @@ impl TypeInterner {
             // variant's own doc comment for why the bound variable's name is
             // never quoted at a user.
             Ty::Callable | Ty::CallableTo(_) => "callable".to_owned(),
+            // Never actually rendered: this variant is substituted away before
+            // any argument is checked, so nothing has one to describe. The
+            // spelling is what a call site writes rather than a type name,
+            // because there is no type name — see [`Ty::CallableShapeTo`].
+            Ty::CallableShapeTo(_) => "{...: fn}".to_owned(),
             Ty::Enum(q, _) => q.to_string(),
             Ty::Class(q, args) if args.is_empty() => q.to_string(),
             Ty::Class(q, args) => {
@@ -612,6 +637,13 @@ impl TypeInterner {
     /// ever calls this.
     pub fn callable_to(&mut self, name: impl Into<String>) -> TypeId {
         self.intern(Ty::CallableTo(name.into()))
+    }
+
+    /// The interned shape-of-`fn`-literals parameter that binds `name` from
+    /// the shape of its fields' results — see [`Ty::CallableShapeTo`], which
+    /// owns why nothing outside a `Core` signature ever calls this.
+    pub fn callable_shape_to(&mut self, name: impl Into<String>) -> TypeId {
+        self.intern(Ty::CallableShapeTo(name.into()))
     }
 
     /// Interns `array<elem>`.

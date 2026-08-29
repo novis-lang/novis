@@ -53,6 +53,17 @@
 //! `check_generic_args` binds it from the `ExprInfo::Closure { return_ty }`
 //! the checker already recorded at the `fn` literal's own span.
 //!
+//! [`Ty::CallableShapeTo`] is the same answer one level up, and the reason
+//! this section is not about a single variant. `Core\Task::all({...}): S` has
+//! its whole *result* nowhere in its argument's type: the argument is a shape
+//! of opaque `callable`s, and ADR 0072 § 1 wants a shape of what each of them
+//! returns. So `S` binds from the written `fn` literals themselves —
+//! [`callable_shape_var`] reads the name, and [`crate::expr::args`] builds the
+//! shape out of the `ExprInfo::Closure { return_ty }` recorded at each field.
+//! That function is also where a field holding anything *but* a literal is
+//! diagnosed, which is why this one substitutes to `mixed` rather than to a
+//! type: there is nothing left for assignability to add.
+//!
 //! It is a binding site, not a constraint. A `callable` value is still
 //! assignable to it unchanged, because [`substitute`] rewrites it to plain
 //! [`Ty::Callable`] before a single argument is checked — so nothing in
@@ -85,7 +96,7 @@ pub(crate) fn mentions_type_var(id: TypeId, interner: &TypeInterner) -> bool {
     match interner.get(id) {
         // `CallableTo` names a variable rather than being one, but it still has
         // to be rewritten before the signature is used — see [`substitute`].
-        Ty::TypeVar(_) | Ty::CallableTo(_) => true,
+        Ty::TypeVar(_) | Ty::CallableTo(_) | Ty::CallableShapeTo(_) => true,
         Ty::Array(elem) => mentions_type_var(*elem, interner),
         Ty::Class(_, args) => args.iter().any(|arg| mentions_type_var(*arg, interner)),
         Ty::Union(members) | Ty::Intersection(members) => members
@@ -111,6 +122,21 @@ pub(crate) fn mentions_type_var(id: TypeId, interner: &TypeInterner) -> bool {
 pub(crate) fn callback_result_var(id: TypeId, interner: &TypeInterner) -> Option<String> {
     match interner.get(id) {
         Ty::CallableTo(name) => Some(name.clone()),
+        _ => None,
+    }
+}
+
+/// The variable a parameter binds from the *shape* of its fields' results, if
+/// it is [`Ty::CallableShapeTo`] — [`callback_result_var`] one level up, and
+/// shallow for the same reason.
+///
+/// `nvs_stdlib::registry`'s `a_callback_result_type_is_only_ever_a_whole_parameter`
+/// holds that no row writes one anywhere but at a whole parameter, so there is
+/// nothing nested to look for.
+#[must_use]
+pub(crate) fn callable_shape_var(id: TypeId, interner: &TypeInterner) -> Option<String> {
+    match interner.get(id) {
+        Ty::CallableShapeTo(name) => Some(name.clone()),
         _ => None,
     }
 }
@@ -251,6 +277,14 @@ pub(crate) fn substitute(id: TypeId, bindings: &Bindings, interner: &mut TypeInt
         // `is_assignable`, `nvs-ir` and every diagnostic from ever meeting the
         // variant at all.
         Ty::CallableTo(_) => interner.callable(),
+        // The other binding site collapses to `mixed` rather than to the type
+        // it accepted, because there is no such type: what it accepts is a
+        // shape literal whose every field is a written `fn` literal, which is
+        // a fact about the *expression* and not about its type.
+        // `crate::expr::args` checks that position in full and names each
+        // offending field, so anything left here could only report the same
+        // mistake a second time — see [`Ty::CallableShapeTo`].
+        Ty::CallableShapeTo(_) => interner.mixed(),
         Ty::Array(elem) => {
             let elem = substitute(elem, bindings, interner);
             interner.array(elem)

@@ -202,6 +202,32 @@ pub enum CoreTy {
     /// [`Self::Array`], a [`Self::Union`], a [`CoreOption`] or a return type —
     /// `a_callback_result_type_is_only_ever_a_whole_parameter` holds that.
     CallableTo(&'static str),
+    /// A **shape literal of zero-argument `fn` literals**, plus the name of
+    /// the type variable the shape of their *results* binds — `S` in
+    /// `Core\Task::all({...}): S`.
+    ///
+    /// [`Self::CallableTo`] one level up, and it exists for exactly that
+    /// variant's reason at a wider position.
+    /// [ADR 0072](../../../../docs/adr/0072-core-task-structured-concurrency.md)
+    /// § 1 makes `Task::all`'s answer a shape with the argument's own field
+    /// names, each field typed as *that field's* closure returns — which is the
+    /// whole reason the member is worth having, since the uniform alternative
+    /// answers `array<mixed>` and every call site then pays a cast. No type at
+    /// this position can say that: the argument's own type is a shape of
+    /// `callable`s, and ADR 0027 § 2 keeps a `callable` opaque.
+    ///
+    /// **The argument has to be *written* at the call site**, and each field's
+    /// value has to be a written `fn` literal — `E0773` and `E0774` are the two
+    /// diagnostics, and `nvs_types::expr::args` is the one place that reads a
+    /// field. That is ADR 0072 § 1's own restriction rather than an
+    /// implementation limit: `callable` carries no signature, so a variable has
+    /// nothing to bind from, and ADR 0007 § 3's deferred typed-`callable`
+    /// signatures are what would lift it.
+    ///
+    /// **Parameter position only, and never nested**, exactly as
+    /// [`Self::CallableTo`] is, and held by the same
+    /// `a_callback_result_type_is_only_ever_a_whole_parameter`.
+    CallableShapeTo(&'static str),
     /// A type *variable*, named — `T` in `count(array<T> $a): uint`.
     ///
     /// The spec's `Core\Arr` section states the rule this exists for: "`T` is
@@ -839,6 +865,11 @@ pub const CLASSES: &[CoreClass] = &[
     // § 4's assertion surface rather than a spec § of its own: testing is a
     // language feature, and `Core\Test` is the same `QName` `#[Test]` names.
     crate::test::CLASS,
+    // ADR 0072 § 1's `Core\Task`, and no spec § of its own either: structured
+    // concurrency is a language surface over the `nvs-host` scheduler. The
+    // signature is here and the body is a placeholder — [`crate::task`] owns
+    // why, and it is the one row of the three that is not compile-time folded.
+    crate::task::CLASS,
     // § 13, and the second row after `Core\Attributes` whose members never
     // run: ADR 0061 § 3 expands `implementing<T>()` while checking, so
     // [`crate::program`] registers a signature and an aborting body.
@@ -1448,7 +1479,9 @@ mod tests {
     fn a_variable_is_written_or_inferred_but_never_both() {
         fn inferred(ty: &CoreTy, found: &mut Vec<&'static str>) {
             match ty {
-                CoreTy::Var(name) | CoreTy::CallableTo(name) => found.push(name),
+                CoreTy::Var(name) | CoreTy::CallableTo(name) | CoreTy::CallableShapeTo(name) => {
+                    found.push(name);
+                }
                 CoreTy::Array(inner)
                 | CoreTy::Nullable(inner)
                 | CoreTy::Variadic(inner)
@@ -1650,15 +1683,16 @@ mod tests {
         }
     }
 
-    /// [`CoreTy::CallableTo`] is a *binding site*, so it only means anything
-    /// as a whole parameter: nested in an array, a union or an option it would
-    /// name a variable nothing ever binds, and in return position it would name
-    /// one at the moment it is meant to be read.
+    /// [`CoreTy::CallableTo`] and [`CoreTy::CallableShapeTo`] are *binding
+    /// sites*, so each only means anything as a whole parameter: nested in an
+    /// array, a union or an option either would name a variable nothing ever
+    /// binds, and in return position it would name one at the moment it is
+    /// meant to be read.
     #[test]
     fn a_callback_result_type_is_only_ever_a_whole_parameter() {
         fn nests_one(ty: &CoreTy) -> bool {
             match ty {
-                CoreTy::CallableTo(_) => true,
+                CoreTy::CallableTo(_) | CoreTy::CallableShapeTo(_) => true,
                 CoreTy::Array(elem)
                 | CoreTy::Nullable(elem)
                 | CoreTy::Variadic(elem)
@@ -1677,7 +1711,7 @@ mod tests {
                     method.name
                 );
                 for param in method.params {
-                    if matches!(param, CoreTy::CallableTo(_)) {
+                    if matches!(param, CoreTy::CallableTo(_) | CoreTy::CallableShapeTo(_)) {
                         continue;
                     }
                     assert!(
@@ -1691,9 +1725,10 @@ mod tests {
         }
     }
 
-    /// The variable a [`CoreTy::CallableTo`] binds is one the member actually
-    /// reads back — a row naming `U` in the callback and `V` in the result
-    /// would type-check every call to `mixed` with nothing to say why.
+    /// The variable a [`CoreTy::CallableTo`] or a [`CoreTy::CallableShapeTo`]
+    /// binds is one the member actually reads back — a row naming `U` in the
+    /// callback and `V` in the result would type-check every call to `mixed`
+    /// with nothing to say why.
     #[test]
     fn a_callback_result_variable_is_mentioned_by_the_return_type() {
         fn mentions(ty: &CoreTy, name: &str) -> bool {
@@ -1710,7 +1745,7 @@ mod tests {
         for class in CLASSES {
             for method in class.members() {
                 for param in method.params {
-                    let CoreTy::CallableTo(name) = param else {
+                    let (CoreTy::CallableTo(name) | CoreTy::CallableShapeTo(name)) = param else {
                         continue;
                     };
                     assert!(

@@ -1,0 +1,38 @@
+--TEST--
+`Core\Task::all`'s answer is a shape with the argument's own field names, each carrying that field's own declared return type rather than `mixed` — ADR 0072 § 1
+--FILE--
+<?nvs
+// § 1 is written against exactly this: the uniform alternative answers
+// `array<mixed>` and every call site then pays a cast, so what the member is
+// *worth* is that `$page->rows` is an `array<int>` and `$page->label` a
+// `string` with nothing written at the use site.
+//
+// A frozen diagnostic is how that is asserted without running anything: the
+// scheduler half of § 1 is not on disk (`crates/nvs-stdlib/src/task.rs` owns
+// what the body is until it is), so what a case can ask is what the *checker*
+// believes. Each mis-declaration below quotes the field's own type back, and
+// the two quote different types — which a collapsed `mixed` answer could not
+// do, because it has only one type to quote for both.
+class Page {
+    public static function fields(): void {
+        var $page = Core\Task::all({
+            rows:  fn(): array<int> => [1, 2, 3],
+            label: fn(): string     => "all",
+        });
+        string $rows = $page->rows;
+        int $label = $page->label;
+        echo $rows, $label;
+    }
+}
+
+Page::fields();
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `array<int>`
+   --> case.nvs:19:24
+%A
+error[E0401]: expected `int`, found `string`
+   --> case.nvs:20:22
+%A
+error: aborting due to 2 errors

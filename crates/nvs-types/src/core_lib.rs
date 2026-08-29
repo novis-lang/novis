@@ -318,6 +318,7 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
             interner.enum_case(qname, crate::enums::EnumBacking::Int, *case)
         }
         CoreTy::CallableTo(name) => interner.callable_to(*name),
+        CoreTy::CallableShapeTo(name) => interner.callable_shape_to(*name),
         // A `Core`-owned instance is an ordinary class type from here on, for
         // the reason the enum arm above is an ordinary enum type: `seed` has
         // already put the class in this very table, so `resolve_method` finds

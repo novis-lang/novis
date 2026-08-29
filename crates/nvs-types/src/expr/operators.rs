@@ -348,7 +348,10 @@ fn equality_domain(ty: &Ty) -> Option<EqDomain<'_>> {
         | Ty::Union(_)
         | Ty::Intersection(_)
         | Ty::Options(_)
-        | Ty::TypeVar(_) => return None,
+        | Ty::TypeVar(_)
+        // Beside `TypeVar` for its reason: a binding site is substituted away
+        // before any expression is checked, so nothing ever compares one.
+        | Ty::CallableShapeTo(_) => return None,
     })
 }
 

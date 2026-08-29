@@ -745,6 +745,15 @@ pub(crate) fn check_generic_args(
             }
             continue;
         }
+        // The same answer one level up, and the other binding not read out of
+        // a type: ADR 0072 § 1's `Core\Task::all` answers a shape of what each
+        // field's closure returns, and the argument's own type is a shape of
+        // opaque `callable`s. `bind_callable_shape` reads the literals.
+        if let Some(name) = crate::generics::callable_shape_var(declared, env.interner) {
+            let shape = bind_callable_shape(&list[index].value, env);
+            bindings.entry(name).or_insert(shape);
+            continue;
+        }
         crate::generics::bind(
             declared,
             *actual,
@@ -770,6 +779,65 @@ pub(crate) fn check_generic_args(
         }
     }
     (arg_types, Some(sig))
+}
+
+/// The shape a [`Ty::CallableShapeTo`] parameter binds: the argument's own
+/// field names, each carrying the return type of the `fn` literal written
+/// there.
+///
+/// This is the one place ADR 0072 § 1's two restrictions are enforced, and
+/// they are enforced *here* rather than by assignability because both are
+/// facts about the written expression rather than about its type — a variable
+/// holding `{user: $loader}` has exactly the type a literal would have, and
+/// says nothing about what `$loader` returns.
+///
+/// A field this cannot read still appears in the shape, typed `mixed`. That is
+/// the honest answer for "this field's type is unconstrained", and it keeps
+/// the *rest* of the call checking: `$page->orders` past a bad `user` field is
+/// still an `array<Order>`, so one mistake yields one diagnostic rather than a
+/// cascade at every use site.
+fn bind_callable_shape(value: &Expr, env: &mut Env<'_>) -> TypeId {
+    let ExprKind::ObjectLiteral(fields) = &value.kind else {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_CALLABLE_SHAPE_NOT_A_LITERAL,
+                "this argument must be written out as `{...}` at the call site",
+            )
+            .with_primary(value.span, "not a shape literal")
+            .with_help(
+                "the result's type is read off the `fn` literal written in each field, so a \
+                 variable holding the shape has nothing to bind from — write the fields inline",
+            ),
+        );
+        return env.interner.shape(Vec::new());
+    };
+    let mut bound: Vec<(String, TypeId)> = Vec::with_capacity(fields.len());
+    for field in fields {
+        let name = span_text(env.src, field.name).to_owned();
+        // The literal was checked in the first pass over the argument list, so
+        // its return type is already recorded at its own span; nothing here
+        // walks the body a second time.
+        let ty = match env.exprs.lookup(field.value.span) {
+            Some(ExprInfo::Closure { return_ty, .. }) => *return_ty,
+            _ => {
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_CALLABLE_SHAPE_FIELD_NOT_A_LITERAL,
+                        format!("the field `{name}` must be written as an `fn` literal"),
+                    )
+                    .with_primary(field.value.span, "not an `fn` literal")
+                    .with_help(
+                        "`callable` carries no signature (ADR 0031), so this field's own \
+                         result type exists only at the literal — a variable, a parameter or \
+                         a first-class callable has none to read",
+                    ),
+                );
+                env.interner.mixed()
+            }
+        };
+        bound.push((name, ty));
+    }
+    env.interner.shape(bound)
 }
 
 /// The index of `sig`'s trailing options-bag parameter, if it has one — ADR
