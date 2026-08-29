@@ -911,6 +911,17 @@ is why" — is this file.
   `index table is stale` finding stays until you paste the new row into `README.md` yourself, and the
   two *other* index findings (`no bullet in ground-rules.md`, `no row in § Where to look`) are three
   separate edits in two files, not one. Budget four edits per new ADR, then `--check` for `exit=0`.
+- **A `[dev-dependencies]` addition owes `deny.toml` an answer but owes `THIRD-PARTY-LICENSES.txt`
+  nothing, and the two are checked in opposite directions.** `tools/gen-attribution.py` walks normal
+  and build dependencies only — its own docstring is the home of that — so `--check` stays green
+  after one and there is no regeneration to commit. `cargo deny` is the other way round: its
+  `[graph] all-features = true` license-checks every crate that reaches `Cargo.lock`, including the
+  optional ones no target builds, and `cargo deny` is not installed here to tell you so before CI
+  does. Read the new licences yourself in one call — `cargo metadata --format-version 1
+  --all-features` — against `deny.toml`'s `allow` list. Adding `rustls` and `rcgen` on the `ring`
+  provider put twenty crates in the lock file across `Apache-2.0 AND ISC`, `ISC` and
+  `MIT OR Apache-2.0`, every one of them already allowed; `ring` also builds clean on
+  windows-msvc from the pregenerated assembly it ships, with no nasm and no perl on `PATH`.
 
 ## Running things
 
