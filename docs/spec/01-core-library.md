@@ -365,11 +365,11 @@ Eleven sort functions plus `array_multisort` become two members. Descending is `
 key-preservation is an option rather than a letter in the name, and `by` — a key-extractor closure — is
 the thing `usort` callbacks are written to emulate. Both sorts are stable.
 
-`by` and `comparator` are **mutually exclusive**, and so are `by` and `comparator` on `diff`/`intersect`:
-naming both is a compile error, not a precedence rule to remember. Because the options bag is a shape
-literal ([ADR 0036](../adr/0036-anonymous-object-shapes.md)), the checker sees both keys and says so. On
-`diff`/`intersect`, `on` chooses *what* is compared and `by`/`comparator` chooses *how*, so `on` composes
-with either.
+`by` and `comparator` **compose** rather than conflict, on `sort` and on `diff`/`intersect` alike: `by`
+decides *what* is compared and `comparator` decides *how*, so a comparator given beside an extractor sees
+the extracted keys. No combination of the options is refused — one rule fewer to remember, at no cost to
+implement. On `diff`/`intersect`, `on` selects the part of an entry that is compared — the value, the key,
+or both — and `by`/`comparator` apply to the part it selected, so a `by` under `SetOn::Keys` maps the key.
 
 Enums: `Order { Asc, Desc }`, `SetOn { Values, Keys, Both }`.
 

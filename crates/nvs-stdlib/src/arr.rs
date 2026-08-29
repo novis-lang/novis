@@ -30,10 +30,10 @@
 //!
 //! `diff` and `intersect` take `{on?: SetOn, by?: callable, comparator?:
 //! callable}`, and the twelve PHP functions they replace differ only in how
-//! those three interact. The rule, decided here because neither the spec nor
-//! ADR 0069 states it: **`on` selects the part of an entry that is compared —
-//! the value, the key, or both — and `by` and `comparator` apply to the part
-//! it selected.** So a `by` under `SetOn::Keys` replaces the *key*, not the
+//! those three interact. The rule, spec § 2's *Ordering* paragraph: **`on`
+//! selects the part of an entry that is compared — the value, the key, or
+//! both — and `by` and `comparator` apply to the part it selected.** So a
+//! `by` under `SetOn::Keys` replaces the *key*, not the
 //! value; it is never an option that could not change the answer.
 //! [`comparison_subject`] and [`set_member`] hold the mechanics and the cost.
 //!

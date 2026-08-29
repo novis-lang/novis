@@ -38,8 +38,9 @@ itself is custom; a natural sort, for instance, is
 sorts were unstable until 8.0 and never promised it per function; here it is part of
 the contract.
 
-`{by:}` and `{comparator:}` are **mutually exclusive** — naming both is a compile
-error, not a precedence rule to memorize.
+`{by:}` and `{comparator:}` **compose** — `by` decides what is compared and
+`comparator` decides how, so a comparator given beside an extractor sees the
+extracted keys. No combination of the options is refused.
 
 ### Parameters
 
