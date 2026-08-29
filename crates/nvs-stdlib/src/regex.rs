@@ -1038,6 +1038,10 @@ nvs_runtime::nvs_helper! {
     /// a missing slot here is a corrupted instance rather than an absent value.
     fn nvs_core_regex_match_text(_ctx, args: [1]) {
         let groups = group_array(args, "text")?;
+        // Unreachable from source: no program constructs a `Core\Regex\Match`,
+        // and `built_match` — its only builder — appends group `0` first,
+        // because the whole match participates in every capture set an engine
+        // reports. Its own comment says so at the other end of the same rule.
         let whole = groups.get(b"0").ok_or_else(|| {
             Fault::fatal("Core\\Regex\\Match::text() found no group `0` on this match")
         })?;

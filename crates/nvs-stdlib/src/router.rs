@@ -224,6 +224,11 @@ fn segment_text(value: Value, member: &str, key: &str) -> Result<String, Fault> 
              nothing a path segment could be built out of it"
         ))
     })?;
+    // A post-condition of `value_to_string` rather than a boundary, and so
+    // unreachable from source with no diagnostic to name: every `Ok` arm of it
+    // builds a `Value::str`, ADR 0088 § 5's carrier arm included, so this is a
+    // `Tag::Str` or it is the `Err` the `?` above already took — the same
+    // judgement `crate::uri::scalar_text` records at its own copy of this pair.
     let owned = text
         .as_text()
         .ok_or_else(|| Fault::fatal("`value_to_string` answered something that is not a string"))?
@@ -278,9 +283,20 @@ fn substitute(template: &str, params: &Value, member: &str) -> Result<String, Fa
     // the query string below is the complement of.
     let mut captures: Vec<&str> = Vec::new();
     for piece in template.split(link::PIECE_SEPARATOR) {
+        // Unreachable from source, and not through a diagnostic refusing an
+        // argument: `template` is never a program's value. It is
+        // `nvs_types::UrlPiece::prepared`'s output, carried as the `ConstStr`
+        // argument `nvs_ir::lower` writes, and that writer pushes a tag byte
+        // before every piece's text — so a piece is at least one byte, and the
+        // empty template a path with no segments would prepare is `E0750` at
+        // the declaration, which refuses a `path:` not beginning with `/`.
         let (tag, key) = piece.as_bytes().split_first().ok_or_else(|| {
             Fault::fatal("a prepared route link's piece is a tag byte and its text")
         })?;
+        // The same writer, and the same reason it is unreachable from source:
+        // `prepared` builds a Rust `String` out of § 2's capture names and
+        // literal segments, so the bytes it hands over are UTF-8 by
+        // construction rather than by a check anything here could fail.
         let key = std::str::from_utf8(key)
             .map_err(|_| Fault::fatal("a prepared route link is built out of `str`"))?;
         if *tag == link::LITERAL {

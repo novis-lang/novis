@@ -471,6 +471,12 @@ fn rendered(argument: &Value) -> Result<String, Fault> {
     // the same check as reading it at all — `nvs_runtime`'s `string` module owns
     // that argument in its § *Reading the payload as text*. Re-deriving it here
     // was an O(n) pass per rendered argument, on `format`'s own hot path.
+    //
+    // Both halves are a post-condition of the call above rather than a
+    // boundary, and so unreachable from source with no diagnostic to name:
+    // every `Ok` arm of `value_to_string` builds a `Value::str`, ADR 0088 § 5's
+    // carrier arm included, so this is a `Tag::Str` or it is the `Err` the `?`
+    // above already took.
     let (Some(ptr), Some(text)) = (value.str_ptr(), value.as_text()) else {
         return Err(Fault::fatal(
             "`value_to_string` answered something that is not a string",

@@ -251,6 +251,9 @@ fn max_depth(value: &Value) -> Result<u32, Fault> {
             format!("Core\\Json::decode(): a `maxDepth` of {asked} is outside 1..={DEPTH_CEILING}"),
         ));
     }
+    // The `1..=DEPTH_CEILING` refusal above is the boundary and it throws; this
+    // is its post-condition and is unreachable from source, since a value that
+    // got past it is at most 1024 and every `u64` that small is a `u32`.
     u32::try_from(asked)
         .map_err(|_| Fault::fatal("Core\\Json::decode(): a checked `maxDepth` always fits a `u32`"))
 }
@@ -719,6 +722,11 @@ nvs_runtime::nvs_helper! {
     /// declared parameters, and that roster's docs own why. So the arity here
     /// is one more than the registry row's.
     fn nvs_core_json_decode_as(ctx, args: [3]) {
+        // Unreachable from source, because argument 0 is not a program's value:
+        // `crate::registry::WRITTEN_CLASS_MEMBERS` is what puts the resolved
+        // `ClassDesc` in slot 0, and `nvs_ir::lower` writes it out of the type
+        // argument at the call site. A call naming none is `E0442` — `takes 1
+        // type argument(s)` — before any of this runs.
         let class = args[0].as_class_desc().ok_or_else(|| Fault::fatal(
             "internal error: `Core\\Json::decodeAs` was called with no class in argument 0",
         ))?;
@@ -828,6 +836,12 @@ unsafe fn decode_as(
                         value.release();
                         document.release();
                     }
+                    // Unreachable from source with no diagnostic to name:
+                    // `field.param` and `desc.ctor_arity()` are two readings of
+                    // one class's own constructor, both written while compiling
+                    // that class, so a field naming a parameter it does not
+                    // have is a generated table disagreeing with itself rather
+                    // than anything a program can write.
                     return Err(Fault::fatal(format!(
                         "internal error: `{}`'s `{}` field names constructor parameter {} of {}",
                         desc.name(),

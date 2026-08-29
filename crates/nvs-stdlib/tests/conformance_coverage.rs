@@ -607,19 +607,6 @@ const OWED_A_CASE: &[(&str, &str)] = &[
         "Core\\Debug::dump read an empty slot the array reported as live",
     ), // debug.rs:187
     (
-        "format.rs",
-        "`value_to_string` answered something that is not a string",
-    ), // format.rs:475
-    (
-        "json.rs",
-        "Core\\Json::decode(): a checked `maxDepth` always fits a `u32`",
-    ), // json.rs:250
-    (
-        "json.rs",
-        "internal error: `Core\\Json::decodeAs` was called with no class in argument 0",
-    ), // json.rs:714
-    ("json.rs", "internal error: `"),                   // json.rs:823
-    (
         "math.rs",
         "Core\\Math::round expected a `Core\\RoundMode` case for `mode`, got tag",
     ), // math.rs:1302
@@ -627,19 +614,6 @@ const OWED_A_CASE: &[(&str, &str)] = &[
         "path.rs",
         "Core\\Path::join read an empty slot the array reported as live",
     ), // path.rs:606
-    (
-        "regex.rs",
-        "Core\\Regex\\Match::text() found no group `0` on this match",
-    ), // regex.rs:1042
-    (
-        "router.rs",
-        "`value_to_string` answered something that is not a string",
-    ), // router.rs:229
-    (
-        "router.rs",
-        "a prepared route link's piece is a tag byte and its text",
-    ), // router.rs:282
-    ("router.rs", "a prepared route link is built out of `str`"), // router.rs:285
     (
         "test.rs",
         "Core\\Test::assertEquals expected an `int` from `compareTo`, got tag",
