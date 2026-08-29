@@ -138,10 +138,24 @@
 //! Answering it here, under this name, would be precisely the false
 //! confidence ADR 0024 refuses — escaping at the sink is what makes a string
 //! safe to display, and no member in this module launders anything.
+//!
+//! # What these members do with a qualifier
+//!
+//! That last sentence is ADR 0088 § 2's classification already, and the rows
+//! say it: **all six subjects are [`Qual::Neutral`]**, because all six answer
+//! a `bool` and a `bool` carries no byte of what it was asked about. That is
+//! the `Qual` enum's own first bullet, reached without a judgement.
+//!
+//! What the mark does *not* say is the part worth keeping in view: a `tainted`
+//! address that `isEmail` accepts is still tainted, because nothing here
+//! returns it. A validator that answered its own subject back would be
+//! [`Qual::Launder`] by construction and would be exactly the false confidence
+//! this module's docs refuse above — passing a syntax check is not the same
+//! fact as being safe at a sink.
 
 use nvs_runtime::{Fault, Tag, Value};
 
-use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy};
+use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy, Qual};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -161,42 +175,42 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "isEmail",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_validate_is_email",
         },
         CoreMethod {
             name: "isDomain",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_validate_is_domain",
         },
         CoreMethod {
             name: "isIp",
-            params: &[CoreTy::Str, CoreTy::Options(IP_OPTIONS)],
+            params: &[CoreTy::Text(Qual::Neutral), CoreTy::Options(IP_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_validate_is_ip",
         },
         CoreMethod {
             name: "isMac",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_validate_is_mac",
         },
         CoreMethod {
             name: "isAscii",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_validate_is_ascii",
         },
         CoreMethod {
             name: "isPrintable",
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_validate_is_printable",
