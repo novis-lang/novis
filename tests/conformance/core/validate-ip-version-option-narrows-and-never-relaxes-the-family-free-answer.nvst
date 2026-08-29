@@ -1,0 +1,119 @@
+--TEST--
+`Core\Validate::isIp`'s `{version}` option at each of its four edges — absent, empty, `4` and `6` — is a narrowing: over a whole table the un-narrowed answer is exactly the disjunction of the two families, the empty bag is the absent one, and no subject belongs to both — docs/spec/01-core-library.md § 12
+--FILE--
+<?nvs
+// § 12 folds `FILTER_FLAG_IPV4` and `FILTER_FLAG_IPV6` into one `{version?: 4|6}`
+// option, so the option has four edges a caller can write: absent, `{}`, `4`
+// and `6`. `validate-ip-families-and-the-two-byte-classes.nvst` names what each
+// of the two values answers for a v4 and a v6 subject; this case pins the
+// relation between the four, which is the property `family` is written around
+// (`crates/nvs-stdlib/src/validate.rs`) — `null` reads the subject as
+// `std::net::IpAddr`, `4` and `6` as one address type each.
+//
+// The relation is a *narrowing*: asking for a family can only refuse a subject
+// the option-free call accepted, never accept one it refused. That is asserted
+// by counting over a table rather than read off a line, because a member whose
+// un-narrowed call was its own third parser agrees with every named row below
+// and parts company on some subject nobody thought to name.
+final class Ip {
+    public static function yn(bool $b): string {
+        return $b ? "y" : "n";
+    }
+}
+
+// The four edges on one subject of each family. The empty bag is the absent
+// one — an option nobody wrote is not a third answer — and asking for the other
+// family refuses a subject that is a perfectly good address.
+echo "v4-spellings ",
+     Ip::yn(Core\Validate::isIp("192.0.2.1")),
+     Ip::yn(Core\Validate::isIp("192.0.2.1", {})),
+     Ip::yn(Core\Validate::isIp("192.0.2.1", {version: 4})),
+     Ip::yn(Core\Validate::isIp("192.0.2.1", {version: 6})),
+     "\n";
+echo "v6-spellings ",
+     Ip::yn(Core\Validate::isIp("2001:db8::1")),
+     Ip::yn(Core\Validate::isIp("2001:db8::1", {})),
+     Ip::yn(Core\Validate::isIp("2001:db8::1", {version: 4})),
+     Ip::yn(Core\Validate::isIp("2001:db8::1", {version: 6})),
+     "\n";
+
+// The table: the two families' accepted shapes, the refusals the module doc
+// names — a leading zero, a zone identifier, surrounding space, a bracketed
+// form, a prefix length — and the shapes that are nearly one family or the
+// other. Every one is asked all four ways.
+array<string> $subjects = [
+    "192.0.2.1",
+    "0.0.0.0",
+    "255.255.255.255",
+    "192.0.2.256",
+    "192.0.2.01",
+    "192.0.2",
+    "192.0.2.1.5",
+    " 192.0.2.1",
+    "192.0.2.1 ",
+    "2001:db8::1",
+    "::",
+    "::1",
+    "1:2:3:4:5:6:7:8",
+    "1:2:3:4:5:6:7",
+    "1:2:3:4:5:6:7:8:9",
+    "::ffff:192.0.2.1",
+    "fe80::1%eth0",
+    "2001:db8::1::2",
+    "[2001:db8::1]",
+    "",
+    "localhost",
+    "12",
+    "0:0:0:0:0:0:0:1",
+    "192.0.2.1/32",
+];
+
+int $disjunction = 0;   // subjects where the absent option is `4` or `6`
+int $emptyAgrees = 0;   // subjects where `{}` answers as the absent option does
+int $both = 0;          // subjects both families accept — there are none
+int $any = 0;
+int $four = 0;
+int $six = 0;
+int $i = 0;
+for (; $i < 24; $i = $i + 1) {
+    string $s = $subjects[$i as string];
+    bool $free = Core\Validate::isIp($s);
+    bool $bare = Core\Validate::isIp($s, {});
+    bool $v4 = Core\Validate::isIp($s, {version: 4});
+    bool $v6 = Core\Validate::isIp($s, {version: 6});
+    if ($free == ($v4 || $v6)) {
+        $disjunction = $disjunction + 1;
+    }
+    if ($bare == $free) {
+        $emptyAgrees = $emptyAgrees + 1;
+    }
+    if ($v4 && $v6) {
+        $both = $both + 1;
+    }
+    if ($free) {
+        $any = $any + 1;
+    }
+    if ($v4) {
+        $four = $four + 1;
+    }
+    if ($v6) {
+        $six = $six + 1;
+    }
+}
+echo "disjunction ", $disjunction as string, "/24\n";
+echo "empty-bag ", $emptyAgrees as string, "/24\n";
+echo "both-families ", $both as string, "\n";
+
+// And the counts the agreements are over, so that a table every edge refused
+// outright would satisfy the three lines above and fail here. The nine accepted
+// subjects split three to v4 and six to v6 — `::ffff:192.0.2.1` is one of the
+// six, because a v4-mapped address is written and parsed as v6 however familiar
+// its tail looks.
+echo "counts ", $any as string, "|", $four as string, "|", $six as string, "\n";
+--EXPECT--
+v4-spellings yyyn
+v6-spellings yyny
+disjunction 24/24
+empty-bag 24/24
+both-families 0
+counts 9|3|6
