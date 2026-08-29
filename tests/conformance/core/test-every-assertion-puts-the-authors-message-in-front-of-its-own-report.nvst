@@ -1,0 +1,89 @@
+--TEST--
+`Core\Test`'s four single-subject assertions all put ADR 0063 R2's `{message: …}` in front of their own report rather than in place of it — ADR 0079 § 4
+--FILE--
+<?nvs
+// The *agreement* shape over the one option every assertion in § 4 shares.
+// R2 makes the trailing bag the only optional-argument form and `message` is
+// the field an author reaches for first, so the rule worth asserting is not
+// what any one member prints but that all four treat it the same way: the
+// author's sentence first, the member's own report still there behind it.
+// Replacing the report is the shortcut that loses the actual and the expected,
+// and it is invisible on any single member's own line — a member that took it
+// still reads as if the option worked.
+//
+// The four are the ones whose subject is a single value: a bool, an absence, a
+// pair, and a callable. Their reports have nothing else in common, which is
+// what makes the shared prefix a claim rather than a coincidence.
+
+class Body {
+    public static function fails(): void {
+        throw new RuntimeError("the body is empty");
+    }
+}
+
+string $label = "the invariant this case names";
+int $asked = 0;
+int $threw = 0;
+int $inFront = 0;
+int $kept = 0;
+
+$asked = $asked + 1;
+try {
+    Core\Test::assertTrue(false, {message: $label});
+} catch (Throwable $e) {
+    $threw = $threw + 1;
+    if (Core\Str::startsWith($e->message, $label)) { $inFront = $inFront + 1; }
+    if (Core\Str::length($e->message) > Core\Str::length($label)) { $kept = $kept + 1; }
+}
+
+$asked = $asked + 1;
+try {
+    Core\Test::assertNull("present", {message: $label});
+} catch (Throwable $e) {
+    $threw = $threw + 1;
+    if (Core\Str::startsWith($e->message, $label)) { $inFront = $inFront + 1; }
+    if (Core\Str::length($e->message) > Core\Str::length($label)) { $kept = $kept + 1; }
+}
+
+$asked = $asked + 1;
+try {
+    Core\Test::assertEquals(1, 2, {message: $label});
+} catch (Throwable $e) {
+    $threw = $threw + 1;
+    if (Core\Str::startsWith($e->message, $label)) { $inFront = $inFront + 1; }
+    if (Core\Str::length($e->message) > Core\Str::length($label)) { $kept = $kept + 1; }
+}
+
+$asked = $asked + 1;
+try {
+    Core\Test::assertDoesNotThrow(fn (): void => { Body::fails(); }, {message: $label});
+} catch (Throwable $e) {
+    $threw = $threw + 1;
+    if (Core\Str::startsWith($e->message, $label)) { $inFront = $inFront + 1; }
+    if (Core\Str::length($e->message) > Core\Str::length($label)) { $kept = $kept + 1; }
+}
+
+// Three counts rather than four messages: that each member failed at all, that
+// each put the sentence first, and that none of them stopped there.
+echo "threw=", $threw as string, "/", $asked as string, "\n";
+echo "inFront=", $inFront as string, "/", $asked as string, "\n";
+echo "kept=", $kept as string, "/", $asked as string, "\n";
+
+// The other side of the bound: the same four, given a subject they accept,
+// report nothing at all. An assertion that threw on its passing subject would
+// count four above and be wrong about every one of them.
+int $quiet = 0;
+Core\Test::assertTrue(true);
+$quiet = $quiet + 1;
+Core\Test::assertNull(null);
+$quiet = $quiet + 1;
+Core\Test::assertEquals(2, 2);
+$quiet = $quiet + 1;
+Core\Test::assertDoesNotThrow(fn (): void => { Core\Test::assertTrue(true); });
+$quiet = $quiet + 1;
+echo "quiet=", $quiet as string, "/", $asked as string, "\n";
+--EXPECT--
+threw=4/4
+inFront=4/4
+kept=4/4
+quiet=4/4

@@ -1,0 +1,78 @@
+--TEST--
+The six `Core\Arr` members that reshape a list answer the empty array with the empty array rather than refusing it — spec § 2, ADR 0063 R3
+--FILE--
+<?nvs
+// The *agreement* shape over the boundary a reshaping member is most likely to
+// have decided on its own: what it does when there is nothing to reshape.
+// PHP's twins are split down the middle here — `array_shift` and `array_pop`
+// answer `null` on an empty array, `array_combine` used to warn, and
+// `array_column` answers a list — so "every one of them answers the empty
+// array" is a claim about this library rather than a restatement of PHP's.
+//
+// What is counted is the agreement, not each answer: a member that grew its
+// own empty case still prints plausibly on its own line and fails here.
+
+array<array<string>> $rows = [];
+array<mixed> $nested = [];
+array<string> $keys = [];
+array<int> $values = [];
+array<int> $base = [];
+array<int> $layer = [];
+
+int $empty = 0;
+int $asked = 0;
+
+// Selecting a column of no rows.
+$asked = $asked + 1;
+if (Core\Arr::count(Core\Arr::column($rows, "name")) == 0) { $empty = $empty + 1; }
+
+// A recursive walk with no level to descend into. `flattenDeep` is the member
+// whose base case *is* this row.
+$asked = $asked + 1;
+if (Core\Arr::count(Core\Arr::flattenDeep($nested)) == 0) { $empty = $empty + 1; }
+
+// Two empty sides, which is the one length pairing that always agrees —
+// `fromKeysAndValues` refuses a mismatch, and this is the mismatch that is not
+// one.
+$asked = $asked + 1;
+if (Core\Arr::count(Core\Arr::fromKeysAndValues($keys, $values)) == 0) { $empty = $empty + 1; }
+
+// An overlay of nothing onto nothing. The variadic tail is where a member
+// tends to assume at least one layer.
+$asked = $asked + 1;
+if (Core\Arr::count(Core\Arr::overlayDeep($base, $layer)) == 0) { $empty = $empty + 1; }
+
+// The two remainders. `first`/`last` get the element and are allowed to have
+// nothing to answer with; these two answer the *rest*, and the rest of nothing
+// is nothing rather than an absence.
+$asked = $asked + 1;
+if (Core\Arr::count(Core\Arr::withoutFirst($base)) == 0) { $empty = $empty + 1; }
+
+$asked = $asked + 1;
+if (Core\Arr::count(Core\Arr::withoutLast($base)) == 0) { $empty = $empty + 1; }
+
+echo "empty=", $empty as string, "/", $asked as string, "\n";
+
+// The step either side of the boundary for the two remainders, so a member
+// that answers the empty array to *everything* fails the row above as well.
+//
+// And the divergence the two-element row exposes: `withoutFirst` keeps the
+// keys it did not remove, so dropping entry `0` of a list leaves a map at key
+// `1` and not a list at key `0`. PHP's `array_shift` reindexes; this does not,
+// because ADR 0063 R3 makes the member answer a *copy* rather than mutate, and
+// a copy that silently renumbers its own keys is the surprise the whole rule
+// exists to avoid. `Core\Arr::values` is the reindexing this leaves explicit.
+array<int> $one = [7];
+array<int> $two = [7, 8];
+echo Core\Json::encode(Core\Arr::withoutFirst($one)), "\n";
+echo Core\Json::encode(Core\Arr::withoutLast($one)), "\n";
+echo Core\Json::encode(Core\Arr::withoutFirst($two)), "\n";
+echo Core\Json::encode(Core\Arr::withoutLast($two)), "\n";
+echo Core\Json::encode(Core\Arr::values(Core\Arr::withoutFirst($two))), "\n";
+--EXPECT--
+empty=6/6
+[]
+[]
+{"1":8}
+[7]
+[8]

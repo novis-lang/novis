@@ -1,0 +1,64 @@
+--TEST--
+Spec § 4: an `Instant`'s three epoch readings are unchanged by reading it in a zone, including the host's, and they agree either side of the epoch
+--FILE--
+<?nvs
+// ADR 0063 R3 says nothing mutates, and `Instant::in` is the member where that
+// is easiest to get wrong: a zone is the one piece of context an instant does
+// not carry, so an implementation that *attaches* the zone rather than
+// answering a new `DateTime` would still read correctly everywhere except
+// here. What is asserted is that the receiver is the same instant afterwards,
+// counted rather than printed.
+//
+// `Core\Time\Zone::system()` is the host's, so its identity cannot be frozen
+// in an expectation — which is exactly why it belongs in an invariance claim
+// like this one rather than in a value one. The suite's other two cases about
+// it own the reader and the round trip.
+
+var $i = Core\Time::fromEpoch(1700000000, {nanos: 123456789});
+int $seconds = $i->toEpochSeconds();
+int $millis = $i->toEpochMillis();
+int $micros = $i->toEpochMicros();
+
+var $sys = Core\Time\Zone::system();
+var $read = $i->in($sys);
+var $again = $i->in($sys);
+
+int $steady = 0;
+if ($i->toEpochSeconds() == $seconds) { $steady = $steady + 1; }
+if ($i->toEpochMillis() == $millis) { $steady = $steady + 1; }
+if ($i->toEpochMicros() == $micros) { $steady = $steady + 1; }
+echo "steady=", $steady as string, "/3\n";
+
+// The three readings of one instant are one number at three scales, so the
+// coarser two are the finer one divided — asserted here at the microsecond
+// end, which is the reading the other epoch case does not reach.
+int $fromMicros = 0;
+if (Core\Math::intDiv($micros, 1000) == $millis) { $fromMicros = $fromMicros + 1; }
+if (Core\Math::intDiv($micros, 1000000) == $seconds) { $fromMicros = $fromMicros + 1; }
+echo "scaled=", $fromMicros as string, "/2\n";
+
+// Both sides of the epoch, because a reading derived by division parts from
+// one derived by flooring exactly at a negative instant and nowhere else. This
+// instant is 1.5 seconds before the epoch, and the three readings truncate
+// *toward zero* rather than flooring: the second reading is -1, not the -2 a
+// floor would give. That is what keeps `scaled` above true on this side too —
+// the coarse reading stays the fine one divided, at the cost of the second
+// reading not being the second the instant falls inside.
+var $before = Core\Time::fromEpoch(-2, {nanos: 500000000});
+echo $before->toEpochSeconds() as string, " ",
+     $before->toEpochMillis() as string, " ",
+     $before->toEpochMicros() as string, "\n";
+
+int $scaledBefore = 0;
+if (Core\Math::intDiv($before->toEpochMicros(), 1000) == $before->toEpochMillis()) {
+    $scaledBefore = $scaledBefore + 1;
+}
+if (Core\Math::intDiv($before->toEpochMicros(), 1000000) == $before->toEpochSeconds()) {
+    $scaledBefore = $scaledBefore + 1;
+}
+echo "scaledBefore=", $scaledBefore as string, "/2\n";
+--EXPECT--
+steady=3/3
+scaled=2/2
+-1 -1500 -1500000
+scaledBefore=2/2

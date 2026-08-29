@@ -1,0 +1,64 @@
+--TEST--
+The empty subject is a fixed point of every `Core\Str` member that answers a string, and `lines` is the one that has to decide what an empty subject holds — spec § 1, ADR 0009 § 2
+--FILE--
+<?nvs
+// The *agreement* shape over the one boundary every transformation in § 1 is
+// written around. Each member is asked the empty subject and what is counted
+// is how many gave it back, not what each answered — a member that grew its
+// own idea of what an empty subject means (a space, a marker, a one-entry
+// answer) fails here while still reading correctly on its own line.
+//
+// `lines` is held out below rather than counted here: it answers
+// `array<string>`, so "gave the subject back" is not a question that can be
+// asked of it, and the empty subject is exactly where counting lines has to
+// part from PHP's `explode`, which answers a list holding one empty string.
+
+string $empty = "";
+int $fixed = 0;
+int $asked = 0;
+
+$asked = $asked + 1;
+if (Core\Str::lowerFirst($empty) == $empty) { $fixed = $fixed + 1; }
+
+// ADR 0009 § 2's grapheme walk over no graphemes.
+$asked = $asked + 1;
+if (Core\Str::reverse($empty) == $empty) { $fixed = $fixed + 1; }
+
+// The trim family's boundary: nothing to strip is not the same question as
+// everything stripped, and both answer the empty subject.
+$asked = $asked + 1;
+if (Core\Str::trimStart($empty) == $empty) { $fixed = $fixed + 1; }
+
+// UAX #15 over the empty sequence — every normal form of nothing is nothing.
+$asked = $asked + 1;
+if (Core\Str::normalize($empty, Core\NormalForm::Nfc) == $empty) { $fixed = $fixed + 1; }
+
+// A pair table with nowhere to match it.
+$asked = $asked + 1;
+if (Core\Str::replaceAll($empty, ["a" => "b"]) == $empty) { $fixed = $fixed + 1; }
+
+// The one member here that is *given* an offset, so the empty subject is also
+// the only offset it admits.
+$asked = $asked + 1;
+if (Core\Str::replaceRange($empty, 0, null, $empty) == $empty) { $fixed = $fixed + 1; }
+
+// A width nothing can exceed.
+$asked = $asked + 1;
+if (Core\Str::wrap($empty, 8) == $empty) { $fixed = $fixed + 1; }
+
+echo "fixed=", $fixed as string, "/", $asked as string, "\n";
+
+// `lines` at the same boundary and one step either side of it. The trailing
+// terminator is the row that discriminates: a subject ending in a newline has
+// as many lines as one that does not, because a terminator ends a line rather
+// than starting another.
+echo Core\Json::encode(Core\Str::lines($empty)), "\n";
+echo Core\Json::encode(Core\Str::lines("a")), "\n";
+echo Core\Json::encode(Core\Str::lines("a\n")), "\n";
+echo Core\Json::encode(Core\Str::lines("a\n\nb")), "\n";
+--EXPECT--
+fixed=7/7
+[]
+["a"]
+["a"]
+["a","","b"]
