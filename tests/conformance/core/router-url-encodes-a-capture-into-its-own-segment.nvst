@@ -1,0 +1,112 @@
+--TEST--
+`Core\Router::url` percent-encodes each capture's value into its own segment, under RFC 3986's component rules rather than the query's — ADR 0102 § 6, ADR 0077 §§ 2 and 4
+--FILE--
+<?nvs
+// The path half of § 6. `router-url-turns-a-leftover-params-key-into-a-query-
+// string.nvst` pins what a *leftover* key is spelled as, by agreeing with
+// `Core\Uri::buildQuery`; a substituted *capture* is a different rule with a
+// different escaping form, and this is the case that states it.
+//
+// § 4 calls `url` the launderer for the URL-path sink, and the whole content of
+// that claim is below: a value handed to a link cannot leave the one segment
+// the declared path gave it, whatever bytes it holds.
+class Docs {
+    // ADR 0096 § 1: `#[Access]` is a required sibling, and
+    // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
+    #[\Core\Route(path: "/docs/{slug}", method: \Core\Http\Method::Get, name: "Docs::show")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function show(string $slug, #[\Core\Query] string $q = ""): string { return $slug; }
+
+    // ADR 0077 § 2's third capture form, kept here rather than in its own case
+    // because its whole definition is the exception to the rule above.
+    #[\Core\Route(path: "/files/{rest...}", method: \Core\Http\Method::Get, name: "Docs::file")]
+    #[\Core\Access(allow: \Core\Audience::Public)]
+    public function file(string $rest): string { return $rest; }
+}
+
+// The bound, named on both sides. RFC 3986 § 2.1's unreserved set is the ASCII
+// alphanumerics plus `-_.~` and it is written as itself; the gen-delims and
+// sub-delims immediately outside it are every one escaped, upper-case, so no
+// byte a URL gives a meaning to survives as that meaning. A member that escaped
+// one set too few would still print the first line correctly, and a member that
+// escaped one too many would still print the second.
+echo "unreserved=", Core\Router::url("Docs::show", ["slug" => "AZaz09-_.~"]), "\n";
+echo "reserved=", Core\Router::url("Docs::show", ["slug" => ":/?#[]@!$&'()*+,;="]), "\n";
+
+// A non-ASCII cluster is its UTF-8 bytes, one escape each — not its code point,
+// which is what a `\u`-style escape would have written, and not a transliteration.
+echo "utf8=", Core\Router::url("Docs::show", ["slug" => "héllo"]), "\n";
+
+// The `%` of a value that already looks encoded is itself escaped, so encoding
+// is not idempotent and is not meant to be: a link is built out of the text a
+// program holds, never out of a guess about whether that text was encoded once
+// already. Guessing is how a value gets decoded a second time by whoever reads it.
+echo "already=", Core\Router::url("Docs::show", ["slug" => "a%2Fb"]), "\n";
+
+// The empty value is a segment, not an absent one: `{slug}` is required, so an
+// empty string fills it and leaves a trailing `/` rather than dropping the
+// segment the way `{page?}` does (`router-url-drops-an-optional-capture-left-
+// out-of-params.nvst`). Two different URLs, and the difference is the `?`.
+echo "empty=", Core\Router::url("Docs::show", ["slug" => ""]), "\n";
+
+// The invariant behind all of it, asserted by counting rather than read off a
+// line: whatever the value holds, the link has exactly the segments the
+// declared path does. `/docs/{slug}` splits into three (the empty piece before
+// the leading `/`, `docs`, and the capture), and a value that escaped its
+// segment would push that to four. This is the assertion a member answering
+// plausibly one row at a time still fails.
+array<string> $hostile = [
+    "a/b",          // the one the sink exists for
+    "two words",    // a space is `%20` here, and § 6's query would write `+`
+    "héllo",        // multi-byte
+    "",             // empty
+    "..",           // unreserved throughout, so it survives — see below
+    "?q=1",         // would open a query string
+    "#frag",        // would open a fragment
+    "a%2Fb",        // already-escaped
+];
+var $intact = 0;
+foreach ($hostile as string $s) {
+    array<string> $parts = Core\Str::split(Core\Router::url("Docs::show", ["slug" => $s]), "/");
+    if (Core\Arr::count($parts) == 3) {
+        $intact = $intact + 1;
+    }
+}
+echo "segments=", $intact as string, "/", Core\Arr::count($hostile) as string, "\n";
+
+// What that invariant does *not* claim, stated rather than left to be inferred:
+// `.` is unreserved, so a `..` value is written as itself and the link a reader
+// resolves is one segment up. Escaping it would diverge from RFC 3986 § 2.1 and
+// from PHP's `rawurlencode` alike, so this line is the encoding being faithful,
+// not the sink being closed — dot-segment removal is the resolver's rule and
+// belongs wherever a link is resolved rather than built.
+echo "dots=", Core\Router::url("Docs::show", ["slug" => ".."]), "\n";
+
+// The exception, and the reason it is one: ADR 0077 § 2 gives `{rest...}` every
+// remaining segment, so its `/`s are structure rather than content and each
+// segment between them is encoded on its own. The count is the other half —
+// where `{slug}` held its value to one segment, this one spends three.
+echo "rest=", Core\Router::url("Docs::file", ["rest" => "a/b c/d"]), "\n";
+array<string> $restparts = Core\Str::split(Core\Router::url("Docs::file", ["rest" => "a/b c/d"]), "/");
+echo "restsegments=", Core\Arr::count($restparts) as string, "\n";
+
+// And the contrast the case is named for, on one text so the two spellings sit
+// on adjacent lines: in the path `~` is unreserved and a space is `%20`; in the
+// query the same `~` is `%7E` and the same space is `+`, because that half is
+// `application/x-www-form-urlencoded` and this half is not. One member, one
+// call, two escaping forms — a link that used one form throughout would print
+// one of these two lines wrong and the other right.
+echo "path=", Core\Router::url("Docs::show", ["slug" => "a~b c"]), "\n";
+echo "query=", Core\Router::url("Docs::show", ["slug" => "x", "q" => "a~b c"]), "\n";
+--EXPECT--
+unreserved=/docs/AZaz09-_.~
+reserved=/docs/%3A%2F%3F%23%5B%5D%40%21%24%26%27%28%29%2A%2B%2C%3B%3D
+utf8=/docs/h%C3%A9llo
+already=/docs/a%252Fb
+empty=/docs/
+segments=8/8
+dots=/docs/..
+rest=/files/a/b%20c/d
+restsegments=5
+path=/docs/a~b%20c
+query=/docs/x?q=a%7Eb+c
