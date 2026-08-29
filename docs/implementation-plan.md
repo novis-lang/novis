@@ -171,19 +171,40 @@
 > plus § 3's options bag, while `all` needed a whole second binding site because a shape literal
 > carries a different closure in every field. What Stage 4 does **not** have is either body:
 > `crates/nvs-stdlib/src/task.rs` registers two signatures against one placeholder that stops rather
-> than answering plausibly, because running the closures as children of the calling task needs the
-> `nvs-host` scheduler reachable from a `Core` helper and no helper can reach it yet.
-> `examples/tasks.nvs` now compiles *whole* — all four of the blocks its acceptance check freezes
-> type-check, `Core\Time::sleep`, `Core\Arr::range`, the static-property gauge and the
-> `TimeoutError` catch included — and reaches that placeholder rather than a diagnostic, so the
-> scheduler seam is the only thing left between the tree and that check. The steps the chain took
-> are in [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's own residue is the
-> 1000-case corpus count, which orders 1–4 meet as the suite grows; nothing else about M4 is open.
-> What the program is measured by is `python tools/check-migration.py` at 100% classified, which
-> stood at 25% the day the program was scheduled and reads 34% now that goal 1's own five domains —
-> dates and times, regular expressions, JSON, URLs and paths — carry a row per name. `python
-> tools/gaps.py`, `python tools/holes.py` and `python tools/check-migration.py --report` are the
-> three worklists behind it, and no session re-derives one.
+> than answering plausibly, because running the closures as children of the calling task needs a
+> host beneath the helper. **The route to one is now decided and on disk**:
+> `crates/nvs-runtime/src/host.rs` is the seam a `Core` member reaches its host through — a
+> `&'static dyn Host` published in a thread-local — and its module doc is that decision's one home,
+> `scheduler.rs` carrying a pointer to it rather than a copy. Three things were decided there. The
+> edge is **inverted through `nvs-runtime`** rather than added between `nvs-stdlib` and `nvs-host`,
+> because `nvs-types` and `nvs-codegen` both depend on the signature registry and an edge from there
+> to the host would link `mio`, `corosensei` and `core_affinity` into `nvs check` — a type checker
+> carrying a reactor to answer a question about a signature. It is a **thread-local rather than a
+> second opaque pointer in `Ctx`**, for `reactor.rs`'s reason narrowed to the case where the caller
+> does hold a context: a host is per *core* while a `Ctx` is per *request*, so a field there is one
+> copy of the core's identity per in-flight request, and `Ctx` is `#[repr(C)]` with offsets compiled
+> code loads inline, which makes it an ABI change rather than a struct change. And **what crosses is
+> a whole group, not a task API** — one `Host::run_group` taking the jobs and § 3's bounds and
+> answering with ADR 0072 § 4's own table as `Outcome` — rather than a `spawn`/`wait`/`cancel` the
+> member sequences, because § 4's "control does not leave the call with work still running" is a
+> property of the *sequence*, and a seam handing out task ids makes keeping it the caller's
+> diligence again, which is the exact failure `spawn_child` already refuses on the parent link.
+> `Outcome` has three variants and not five: § 4's last row is not a return at all, since a
+> cancelled caller is unwound *through* the call rather than out of it. What is still missing is at
+> both ends of the seam. Nothing implements the trait, and nothing installs one — `nvs-cli` does not
+> depend on `nvs-host` at all, so `nvs run` has no scheduler under it and the acceptance check's own
+> program has nowhere to put children even once the bodies exist. Those are the next things Stage 4
+> owes, in that order. `examples/tasks.nvs` now compiles *whole* — all four of the blocks its
+> acceptance check freezes type-check, `Core\Time::sleep`, `Core\Arr::range`, the static-property
+> gauge and the `TimeoutError` catch included — and reaches that placeholder rather than a
+> diagnostic, so the scheduler seam is the only thing left between the tree and that check. The
+> steps the chain took are in [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's
+> own residue is the 1000-case corpus count, which orders 1–4 meet as the suite grows; nothing else
+> about M4 is open. What the program is measured by is `python tools/check-migration.py` at 100%
+> classified, which stood at 25% the day the program was scheduled and reads 34% now that goal 1's
+> own five domains — dates and times, regular expressions, JSON, URLs and paths — carry a row per
+> name. `python tools/gaps.py`, `python tools/holes.py` and `python tools/check-migration.py
+> --report` are the three worklists behind it, and no session re-derives one.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
