@@ -155,7 +155,9 @@
 
 use nvs_runtime::{Fault, Tag, Value};
 
-use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy, Qual};
+use crate::registry::{
+    Const, CoreClass, CoreMethod, CoreOption, CoreTy, MethodDoc, ParamDoc, Qual,
+};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -180,7 +182,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_validate_is_email",
-            doc: None,
+            doc: Some(&IS_EMAIL_DOC),
         },
         CoreMethod {
             name: "isDomain",
@@ -189,7 +191,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_validate_is_domain",
-            doc: None,
+            doc: Some(&IS_DOMAIN_DOC),
         },
         CoreMethod {
             name: "isIp",
@@ -198,7 +200,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_validate_is_ip",
-            doc: None,
+            doc: Some(&IS_IP_DOC),
         },
         CoreMethod {
             name: "isMac",
@@ -207,7 +209,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_validate_is_mac",
-            doc: None,
+            doc: Some(&IS_MAC_DOC),
         },
         CoreMethod {
             name: "isAscii",
@@ -216,7 +218,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_validate_is_ascii",
-            doc: None,
+            doc: Some(&IS_ASCII_DOC),
         },
         CoreMethod {
             name: "isPrintable",
@@ -225,12 +227,111 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_validate_is_printable",
-            doc: None,
+            doc: Some(&IS_PRINTABLE_DOC),
         },
     ],
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\Validate::isEmail`'s reference card — ADR 0117.
+const IS_EMAIL_DOC: MethodDoc = MethodDoc {
+    short: "Answers whether `$s` is an email address, as `filter_var` with `FILTER_VALIDATE_EMAIL` \
+            does: one `@`, an unquoted dot-atom local part of at most 64 bytes, and a hostname \
+            of at least two labels, at most 254 bytes in all.",
+    params: &[ParamDoc {
+        name: "s",
+        desc: "The text to test.",
+        shape: &[],
+    }],
+    ret: "`true` for an address; `false` for anything else, including a quoted local part, a \
+          domain literal such as `a@[192.0.2.1]`, a bare single-label domain and any non-ASCII \
+          byte. Nothing is looked up in DNS.",
+    errors: &[],
+};
+
+/// `Core\Validate::isDomain`'s reference card — ADR 0117.
+const IS_DOMAIN_DOC: MethodDoc = MethodDoc {
+    short: "Answers whether `$s` is an RFC 1123 hostname, as `filter_var` with \
+            `FILTER_VALIDATE_DOMAIN` and `FILTER_FLAG_HOSTNAME` does: one or more labels of 1 to \
+            63 letters, digits and `-`, joined by single dots, at most 253 bytes in all.",
+    params: &[ParamDoc {
+        name: "s",
+        desc: "The text to test.",
+        shape: &[],
+    }],
+    ret: "`true` for a hostname, `localhost` and an all-numeric name included; `false` for a \
+          label starting or ending with `-`, an empty label, a trailing root dot or a byte \
+          outside ASCII. Syntax only — nothing is resolved.",
+    errors: &[],
+};
+
+/// `Core\Validate::isIp`'s reference card — ADR 0117.
+const IS_IP_DOC: MethodDoc = MethodDoc {
+    short: "Answers whether `$s` is an IP address, as `filter_var` with `FILTER_VALIDATE_IP` \
+            does, with `FILTER_FLAG_IPV4` and `FILTER_FLAG_IPV6` folded into `version`.",
+    params: &[
+        ParamDoc {
+            name: "s",
+            desc: "The text to test.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "version",
+            desc: "`4` or `6` to accept exactly that family; omitted, either family is accepted.",
+            shape: &[],
+        },
+    ],
+    ret: "`true` for an address of the chosen family; `false` otherwise, including an IPv4 octet \
+          with a leading zero (`192.000.002.001`) and an IPv6 address carrying a zone \
+          identifier (`fe80::1%eth0`).",
+    errors: &[],
+};
+
+/// `Core\Validate::isMac`'s reference card — ADR 0117.
+const IS_MAC_DOC: MethodDoc = MethodDoc {
+    short: "Answers whether `$s` is a MAC address, as `filter_var` with `FILTER_VALIDATE_MAC` \
+            does: six hex octets joined by `:` or by `-`, or three groups of four hex digits \
+            joined by `.`.",
+    params: &[ParamDoc {
+        name: "s",
+        desc: "The text to test.",
+        shape: &[],
+    }],
+    ret: "`true` for one of the three spellings in either letter case; `false` otherwise, \
+          including a mix of separators.",
+    errors: &[],
+};
+
+/// `Core\Validate::isAscii`'s reference card — ADR 0117.
+const IS_ASCII_DOC: MethodDoc = MethodDoc {
+    short: "Answers whether every byte of `$s` is ASCII (`0x00`–`0x7F`) — the encoding \
+            question, a byte scan with no decoding.",
+    params: &[ParamDoc {
+        name: "s",
+        desc: "The text to test.",
+        shape: &[],
+    }],
+    ret: "`true` when no byte is above `0x7F`, and `true` for the empty string where `ctype_*` \
+          answers `false`; `false` otherwise.",
+    errors: &[],
+};
+
+/// `Core\Validate::isPrintable`'s reference card — ADR 0117.
+const IS_PRINTABLE_DOC: MethodDoc = MethodDoc {
+    short: "Answers whether `$s` holds no control character — no `char` in Unicode general \
+            category `Cc` — as `ctype_print` does, but over characters rather than ASCII bytes, \
+            so `café` is printable.",
+    params: &[ParamDoc {
+        name: "s",
+        desc: "The text to test.",
+        shape: &[],
+    }],
+    ret: "`true` when no character is a C0 or C1 control or `DEL` — tab, carriage return and \
+          newline are controls and answer `false` — and `true` for the empty string. Not a \
+          spoofing check: bidirectional overrides and zero-width joiners are printable.",
+    errors: &[],
 };
 
 /// `Core\Validate::isIp`'s one option, and the closed pair it admits.

@@ -100,7 +100,7 @@ use uuid::{Builder, Uuid};
 
 use nvs_runtime::{Fault, NvsStr, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy};
+use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -124,7 +124,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             symbol: "nvs_core_uuid_v4",
-            doc: None,
+            doc: Some(&V4_DOC),
         },
         CoreMethod {
             name: "v7",
@@ -133,7 +133,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             symbol: "nvs_core_uuid_v7",
-            doc: None,
+            doc: Some(&V7_DOC),
         },
         CoreMethod {
             name: "parse",
@@ -142,7 +142,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             symbol: "nvs_core_uuid_parse",
-            doc: None,
+            doc: Some(&PARSE_DOC),
         },
         CoreMethod {
             name: "tryParse",
@@ -151,7 +151,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Instance(NAME)),
             symbol: "nvs_core_uuid_try_parse",
-            doc: None,
+            doc: Some(&TRY_PARSE_DOC),
         },
     ],
     instance: &[CoreMethod {
@@ -161,10 +161,73 @@ pub const CLASS: CoreClass = CoreClass {
         defaults: &[],
         return_ty: CoreTy::Str,
         symbol: "nvs_core_uuid_to_string",
-        doc: None,
+        doc: Some(&TO_STRING_DOC),
     }],
     slots: &["high", "low"],
     constants: &[],
+};
+
+/// `Core\Uuid::v4`'s reference card — ADR 0117.
+const V4_DOC: MethodDoc = MethodDoc {
+    short: "Draws a random UUID — 122 bits from the CSPRNG under RFC 9562's version-4 layout — \
+            replacing `uniqid`, `com_create_guid` and the userland libraries around them.",
+    params: &[],
+    ret: "A fresh `Uuid`, unguessable and carrying no clock; the one to hand to a stranger.",
+    errors: &[],
+};
+
+/// `Core\Uuid::v7`'s reference card — ADR 0117.
+const V7_DOC: MethodDoc = MethodDoc {
+    short: "Draws a time-ordered UUID — a 48-bit millisecond timestamp then 74 random bits, RFC \
+            9562's version 7 — for a database key, where an ascending identifier appends to the \
+            index instead of dirtying a random page. PHP has no equivalent.",
+    params: &[],
+    ret: "A fresh `Uuid` that sorts after every one drawn in an earlier millisecond and randomly \
+          against those drawn in the same one; its creation time is readable from it, so it is \
+          the wrong identifier to show a stranger. A host clock before 1970 is pinned to the \
+          epoch.",
+    errors: &[],
+};
+
+/// `Core\Uuid::parse`'s reference card — ADR 0117.
+const PARSE_DOC: MethodDoc = MethodDoc {
+    short: "Reads `$s` as a UUID in RFC 9562's canonical hyphenated `8-4-4-4-12` form, in either \
+            letter case, replacing the hand-written validation PHP programs carried strings \
+            through.",
+    params: &[ParamDoc {
+        name: "s",
+        desc: "The text to read, exactly 36 characters.",
+        shape: &[],
+    }],
+    ret: "The `Uuid` those 128 bits spell; the nil and max UUIDs parse, and the version nibble \
+          is not checked.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$s` is not the canonical form — the 32 unhyphenated digits, a `{…}`-braced \
+               spelling and a `urn:uuid:` prefix are refused too.",
+    }],
+};
+
+/// `Core\Uuid::tryParse`'s reference card — ADR 0117.
+const TRY_PARSE_DOC: MethodDoc = MethodDoc {
+    short: "`Core\\Uuid::parse` with `null` where it throws — the one spelling of \"is this text \
+            a UUID\", replacing `uuid_is_valid` and every userland `isValid`.",
+    params: &[ParamDoc {
+        name: "s",
+        desc: "The text to read.",
+        shape: &[],
+    }],
+    ret: "The `Uuid` for the canonical hyphenated form in either case; `null` for anything else.",
+    errors: &[],
+};
+
+/// `$uuid->toString`'s reference card — ADR 0117.
+const TO_STRING_DOC: MethodDoc = MethodDoc {
+    short: "Renders the receiver in RFC 9562's canonical lower-case hyphenated `8-4-4-4-12` \
+            form — the only way its text comes back out, and what `echo $uuid` writes.",
+    params: &[],
+    ret: "The 36-character text, lower case whatever case `parse` read.",
+    errors: &[],
 };
 
 /// [`CLASS`]'s slots, by index — the big-endian halves of the 128 bits.

@@ -65,7 +65,7 @@ use rand::{Rng, RngExt};
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, Value};
 
-use crate::registry::{Const, CoreClass, CoreMethod, CoreTy};
+use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -83,7 +83,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_random_int",
-            doc: None,
+            doc: Some(&INT_DOC),
         },
         CoreMethod {
             name: "float",
@@ -92,7 +92,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "nvs_core_random_float",
-            doc: None,
+            doc: Some(&FLOAT_DOC),
         },
         CoreMethod {
             name: "bytes",
@@ -101,7 +101,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_random_bytes",
-            doc: None,
+            doc: Some(&BYTES_DOC),
         },
         CoreMethod {
             name: "token",
@@ -110,7 +110,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[Const::Uint(DEFAULT_TOKEN_BYTES)],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_random_token",
-            doc: None,
+            doc: Some(&TOKEN_DOC),
         },
         CoreMethod {
             name: "pick",
@@ -119,7 +119,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
             symbol: "nvs_core_random_pick",
-            doc: None,
+            doc: Some(&PICK_DOC),
         },
         CoreMethod {
             name: "sample",
@@ -128,7 +128,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_random_sample",
-            doc: None,
+            doc: Some(&SAMPLE_DOC),
         },
         CoreMethod {
             name: "shuffle",
@@ -137,12 +137,132 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_random_shuffle",
-            doc: None,
+            doc: Some(&SHUFFLE_DOC),
         },
     ],
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\Random::int`'s reference card — ADR 0117.
+const INT_DOC: MethodDoc = MethodDoc {
+    short: "Draws an integer uniformly from `[$min, $max]`, inclusive at both ends, from the \
+            CSPRNG — as `random_int` does, replacing `rand` and `mt_rand` as well.",
+    params: &[
+        ParamDoc {
+            name: "min",
+            desc: "The lowest value the draw may answer.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "max",
+            desc: "The highest value the draw may answer.",
+            shape: &[],
+        },
+    ],
+    ret: "An `int` in the range, without bias; `$min` itself when the two bounds are equal.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$min` is above `$max` — the range is empty, and the bounds are not swapped.",
+    }],
+};
+
+/// `Core\Random::float`'s reference card — ADR 0117.
+const FLOAT_DOC: MethodDoc = MethodDoc {
+    short: "Draws a float uniformly from the half-open interval `[0, 1)`, replacing `lcg_value` \
+            and the `mt_rand() / mt_getrandmax()` idiom.",
+    params: &[],
+    ret: "A `float` with 53 random bits; `0.0` is drawable and `1.0` is not.",
+    errors: &[],
+};
+
+/// `Core\Random::bytes`'s reference card — ADR 0117.
+const BYTES_DOC: MethodDoc = MethodDoc {
+    short: "Draws `$count` bytes from the CSPRNG as a raw buffer — a key, a nonce or an IV — as \
+            `random_bytes` does, replacing `openssl_random_pseudo_bytes` as well.",
+    params: &[ParamDoc {
+        name: "count",
+        desc: "How many bytes to draw; at least one.",
+        shape: &[],
+    }],
+    ret: "A `bytes` value of exactly `$count` octets, unrendered — `Core\\Random::token` is \
+          the hex spelling.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$count` is `0`, as `random_bytes(0)` is a `ValueError`, or is larger than a \
+               buffer this process can allocate.",
+    }],
+};
+
+/// `Core\Random::token`'s reference card — ADR 0117.
+const TOKEN_DOC: MethodDoc = MethodDoc {
+    short: "Draws `$bytes` bytes from the CSPRNG and renders them as lower-case hex — the \
+            `bin2hex(random_bytes(…))` idiom, for a session identifier or a reset link.",
+    params: &[ParamDoc {
+        name: "bytes",
+        desc: "How many bytes of entropy to draw, `32` by default — the answer is twice as many \
+               characters.",
+        shape: &[],
+    }],
+    ret: "A `string` of `2 * $bytes` hex digits, `0`–`9` and `a`–`f`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$bytes` is `0` — the empty string is a token every other empty token equals — \
+               or the draw or its rendering is larger than a buffer this process can allocate.",
+    }],
+};
+
+/// `Core\Random::pick`'s reference card — ADR 0117.
+const PICK_DOC: MethodDoc = MethodDoc {
+    short: "Draws one entry of `$a` uniformly and answers its value, replacing `array_rand` in \
+            its one-element spelling — the value, where `array_rand` answers the key.",
+    params: &[ParamDoc {
+        name: "a",
+        desc: "The array to draw from.",
+        shape: &[],
+    }],
+    ret: "One entry's value; `null` when `$a` is empty, which over an `array<?T>` is \
+          indistinguishable from drawing a `null` entry.",
+    errors: &[],
+};
+
+/// `Core\Random::sample`'s reference card — ADR 0117.
+const SAMPLE_DOC: MethodDoc = MethodDoc {
+    short: "Draws `$count` distinct entries of `$a` uniformly, replacing `array_rand` with a \
+            count — in random order, where `array_rand` keeps the subject's order.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The array to draw from.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "count",
+            desc: "How many distinct entries to draw; at most the array's size.",
+            shape: &[],
+        },
+    ],
+    ret: "A fresh list of the drawn values under `0, 1, …` keys, in random order; the \
+          subject's keys are discarded, and `$a` is unchanged.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$count` is above the number of entries `$a` holds.",
+    }],
+};
+
+/// `Core\Random::shuffle`'s reference card — ADR 0117.
+const SHUFFLE_DOC: MethodDoc = MethodDoc {
+    short: "Answers every entry of `$a` in a uniformly random order, replacing `shuffle` and \
+            `str_shuffle` — a fresh array rather than a reordering in place.",
+    params: &[ParamDoc {
+        name: "a",
+        desc: "The array to reorder.",
+        shape: &[],
+    }],
+    ret: "A fresh list of all the values under `0, 1, …` keys — the subject's keys are \
+          discarded, as `shuffle` renumbers — and `$a` is unchanged.",
+    errors: &[],
 };
 
 /// `Core\Random::token`'s default draw, which spec § 11 writes as

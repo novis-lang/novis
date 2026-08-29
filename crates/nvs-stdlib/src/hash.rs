@@ -113,7 +113,9 @@ use nvs_runtime::{Fault, NvsArray, NvsStr, ObjHeader, Value};
 use sha2::Digest as _;
 use subtle::ConstantTimeEq as _;
 
-use crate::registry::{CoreClass, CoreEnum, CoreMethod, CoreTy};
+use crate::registry::{
+    CaseDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc, ParamDoc,
+};
 
 // ============================================================================
 // Registration — this class's rows, its enum, and where its symbols live
@@ -167,7 +169,84 @@ pub(crate) const DIGEST: CoreEnum = CoreEnum {
         ("Crc32c", 13),
         ("Blake3", 14),
     ],
-    doc: None,
+    doc: Some(&DIGEST_DOC),
+};
+
+/// [`DIGEST`]'s reference card — ADR 0117. The roster's home is spec § 11's
+/// table; the notes here are that table's, condensed.
+const DIGEST_DOC: EnumDoc = EnumDoc {
+    short: "The algorithm a `Core\\Hash` member computes — every one PHP's `hash()` names that \
+            interop needs, checksums and the two broken digests included, plus BLAKE3. \
+            `StrongDigest`, the subset `Core\\Hash::hmac` accepts, is the ten SHA-2 and SHA-3 \
+            cases.",
+    cases: &[
+        CaseDoc {
+            name: "Crc32",
+            desc: "CRC-32/ISO-HDLC, PHP's `crc32b` — a 4-octet checksum against accidental \
+                   corruption only.",
+        },
+        CaseDoc {
+            name: "Md5",
+            desc: "MD5, 16 octets — collision-broken since 2004, for interop only.",
+        },
+        CaseDoc {
+            name: "Sha1",
+            desc: "SHA-1, 20 octets — collision-broken since 2017, for interop only.",
+        },
+        CaseDoc {
+            name: "Sha256",
+            desc: "SHA-256, 32 octets — the default to reach for; a `StrongDigest`.",
+        },
+        CaseDoc {
+            name: "Sha384",
+            desc: "SHA-384, 48 octets; a `StrongDigest`.",
+        },
+        CaseDoc {
+            name: "Sha512",
+            desc: "SHA-512, 64 octets — faster than SHA-256 on 64-bit hardware; a \
+                   `StrongDigest`.",
+        },
+        CaseDoc {
+            name: "Sha224",
+            desc: "SHA-224, 28 octets; a `StrongDigest`.",
+        },
+        CaseDoc {
+            name: "Sha512_224",
+            desc: "SHA-512/224, 28 octets — SHA-512 truncated with its own IV (FIPS 180-4 \
+                   § 5.3.6), PHP's `sha512/224`; a `StrongDigest`.",
+        },
+        CaseDoc {
+            name: "Sha512_256",
+            desc: "SHA-512/256, 32 octets — SHA-512's speed at SHA-256's width and \
+                   length-extension-proof, PHP's `sha512/256`; a `StrongDigest`.",
+        },
+        CaseDoc {
+            name: "Sha3_224",
+            desc: "SHA3-224, 28 octets — FIPS 202's Keccak sponge, an independent construction \
+                   rather than a wider SHA-2; a `StrongDigest`.",
+        },
+        CaseDoc {
+            name: "Sha3_256",
+            desc: "SHA3-256, 32 octets; a `StrongDigest`.",
+        },
+        CaseDoc {
+            name: "Sha3_384",
+            desc: "SHA3-384, 48 octets; a `StrongDigest`.",
+        },
+        CaseDoc {
+            name: "Sha3_512",
+            desc: "SHA3-512, 64 octets; a `StrongDigest`.",
+        },
+        CaseDoc {
+            name: "Crc32c",
+            desc: "CRC-32C/Castagnoli, 4 octets — the checksum S3 and GCS stamp objects with.",
+        },
+        CaseDoc {
+            name: "Blake3",
+            desc: "BLAKE3, 32 octets — the fastest here and the one PHP cannot compute; outside \
+                   `StrongDigest` because it is keyed natively rather than through HMAC.",
+        },
+    ],
 };
 
 /// Spec § 11's `StrongDigest` — the closed subset [`nvs_core_hash_hmac`]
@@ -231,7 +310,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_hash_of",
-            doc: None,
+            doc: Some(&OF_DOC),
         },
         CoreMethod {
             name: "hmac",
@@ -240,7 +319,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_hash_hmac",
-            doc: None,
+            doc: Some(&HMAC_DOC),
         },
         CoreMethod {
             name: "equals",
@@ -249,7 +328,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_hash_equals",
-            doc: None,
+            doc: Some(&EQUALS_DOC),
         },
         CoreMethod {
             name: "stream",
@@ -258,12 +337,95 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(STREAM_NAME),
             symbol: "nvs_core_hash_stream",
-            doc: None,
+            doc: Some(&STREAM_DOC),
         },
     ],
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\Hash::of`'s reference card — ADR 0117.
+const OF_DOC: MethodDoc = MethodDoc {
+    short: "Computes the digest of `$data` under `$digest`, replacing `hash`, `md5`, `sha1`, \
+            `crc32` and `openssl_digest` at once — raw octets, never hex or an `int`.",
+    params: &[
+        ParamDoc {
+            name: "data",
+            desc: "The octets to hash; a `string` is read as its UTF-8 bytes.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "digest",
+            desc: "The algorithm, any `Core\\Digest` case — the broken ones included, for \
+                   interop.",
+            shape: &[],
+        },
+    ],
+    ret: "The digest as `bytes`, as many octets as the case's width; every case accepts every \
+          input, the empty one included.",
+    errors: &[],
+};
+
+/// `Core\Hash::hmac`'s reference card — ADR 0117.
+const HMAC_DOC: MethodDoc = MethodDoc {
+    short: "Computes RFC 2104's HMAC of `$data` under `$key` and `$digest`, as `hash_hmac` does \
+            without its `raw_output` flag — and only under a `StrongDigest`, so `Digest::Md5` \
+            or `Digest::Sha1` here is a compile error.",
+    params: &[
+        ParamDoc {
+            name: "data",
+            desc: "The octets to authenticate; a `string` is read as its UTF-8 bytes.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "key",
+            desc: "The secret key, of any length — a long one is hashed down and a short one \
+                   zero-padded, as RFC 2104 § 2 says.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "digest",
+            desc: "The algorithm, one of the ten SHA-2 and SHA-3 `Core\\Digest` cases.",
+            shape: &[],
+        },
+    ],
+    ret: "The MAC as `bytes`, as many octets as the case's width.",
+    errors: &[],
+};
+
+/// `Core\Hash::equals`'s reference card — ADR 0117.
+const EQUALS_DOC: MethodDoc = MethodDoc {
+    short: "Compares two digests in constant time, as `hash_equals` does: the running time does \
+            not depend on where two equal-length operands first differ.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "One digest.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "b",
+            desc: "The other digest.",
+            shape: &[],
+        },
+    ],
+    ret: "`true` when the two hold the same octets; `false` at once for two lengths that differ, \
+          since a digest's length is the algorithm's and never a secret.",
+    errors: &[],
+};
+
+/// `Core\Hash::stream`'s reference card — ADR 0117.
+const STREAM_DOC: MethodDoc = MethodDoc {
+    short: "Opens an incremental digest under `$digest`, as `hash_init` does — a \
+            `Core\\Hash\\Stream` fed by `update` and closed by `finish`.",
+    params: &[ParamDoc {
+        name: "digest",
+        desc: "The algorithm, any `Core\\Digest` case.",
+        shape: &[],
+    }],
+    ret: "A fresh, open stream that has been fed nothing yet.",
+    errors: &[],
 };
 
 /// [`STREAM`]'s name, written once — see [`NAME`].
@@ -288,7 +450,7 @@ pub(crate) const STREAM: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_hash_stream_update",
-            doc: None,
+            doc: Some(&STREAM_UPDATE_DOC),
         },
         CoreMethod {
             name: "finish",
@@ -297,11 +459,42 @@ pub(crate) const STREAM: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_hash_stream_finish",
-            doc: None,
+            doc: Some(&STREAM_FINISH_DOC),
         },
     ],
     slots: &["digest", "chunks", "open"],
     constants: &[],
+};
+
+/// `$stream->update`'s reference card — ADR 0117.
+const STREAM_UPDATE_DOC: MethodDoc = MethodDoc {
+    short: "Feeds `$data` to the stream, as `hash_update` does; the chunks are digested in \
+            order at `finish`.",
+    params: &[ParamDoc {
+        name: "data",
+        desc: "The next octets; a `string` is read as its UTF-8 bytes.",
+        shape: &[],
+    }],
+    ret: "Nothing; the stream holds a reference to `$data` until `finish`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The stream has already been finished — a digest is final, so open a new \
+               stream.",
+    }],
+};
+
+/// `$stream->finish`'s reference card — ADR 0117.
+const STREAM_FINISH_DOC: MethodDoc = MethodDoc {
+    short: "Closes the stream and answers the digest of everything `update` fed it, as \
+            `hash_final` does — the same octets `Core\\Hash::of` answers over the \
+            concatenation.",
+    params: &[],
+    ret: "The digest as `bytes`; the stream is finished afterwards and its chunks released.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The stream has already been finished — a second `finish` is refused rather than \
+               continuing from the first.",
+    }],
 };
 
 /// [`STREAM`]'s `digest` slot, by index.

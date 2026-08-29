@@ -351,7 +351,9 @@ use fluent_uri::resolve::ResolveError;
 use fluent_uri::{ParseErrorKind, Uri, UriRef};
 use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 
-use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy, Qual};
+use crate::registry::{
+    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -378,7 +380,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             symbol: "nvs_core_uri_parse",
-            doc: None,
+            doc: Some(&PARSE_DOC),
         },
         CoreMethod {
             name: "tryParse",
@@ -387,7 +389,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Instance(NAME)),
             symbol: "nvs_core_uri_try_parse",
-            doc: None,
+            doc: Some(&TRY_PARSE_DOC),
         },
         CoreMethod {
             name: "encodeComponent",
@@ -396,7 +398,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_uri_encode_component",
-            doc: None,
+            doc: Some(&ENCODE_COMPONENT_DOC),
         },
         CoreMethod {
             name: "decodeComponent",
@@ -405,7 +407,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_uri_decode_component",
-            doc: None,
+            doc: Some(&DECODE_COMPONENT_DOC),
         },
         CoreMethod {
             name: "encodeFormValue",
@@ -414,7 +416,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_uri_encode_form_value",
-            doc: None,
+            doc: Some(&ENCODE_FORM_VALUE_DOC),
         },
         CoreMethod {
             name: "decodeFormValue",
@@ -423,7 +425,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_uri_decode_form_value",
-            doc: None,
+            doc: Some(&DECODE_FORM_VALUE_DOC),
         },
         CoreMethod {
             name: "parseQuery",
@@ -432,7 +434,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Mixed),
             symbol: "nvs_core_uri_parse_query",
-            doc: None,
+            doc: Some(&PARSE_QUERY_DOC),
         },
         CoreMethod {
             name: "buildQuery",
@@ -441,7 +443,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_uri_build_query",
-            doc: None,
+            doc: Some(&BUILD_QUERY_DOC),
         },
     ],
     instance: &[
@@ -452,7 +454,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_uri_scheme",
-            doc: None,
+            doc: Some(&SCHEME_DOC),
         },
         CoreMethod {
             name: "userInfo",
@@ -461,7 +463,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_uri_user_info",
-            doc: None,
+            doc: Some(&USER_INFO_DOC),
         },
         CoreMethod {
             name: "host",
@@ -470,7 +472,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_uri_host",
-            doc: None,
+            doc: Some(&HOST_DOC),
         },
         CoreMethod {
             name: "port",
@@ -479,7 +481,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Int),
             symbol: "nvs_core_uri_port",
-            doc: None,
+            doc: Some(&PORT_DOC),
         },
         CoreMethod {
             name: "path",
@@ -488,7 +490,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_uri_path",
-            doc: None,
+            doc: Some(&PATH_DOC),
         },
         CoreMethod {
             name: "query",
@@ -497,7 +499,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_uri_query",
-            doc: None,
+            doc: Some(&QUERY_DOC),
         },
         CoreMethod {
             name: "fragment",
@@ -506,7 +508,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_uri_fragment",
-            doc: None,
+            doc: Some(&FRAGMENT_DOC),
         },
         CoreMethod {
             name: "toString",
@@ -515,7 +517,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_uri_to_string",
-            doc: None,
+            doc: Some(&TO_STRING_DOC),
         },
         CoreMethod {
             name: "with",
@@ -555,7 +557,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             symbol: "nvs_core_uri_with",
-            doc: None,
+            doc: Some(&WITH_DOC),
         },
         CoreMethod {
             name: "resolve",
@@ -564,7 +566,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             symbol: "nvs_core_uri_resolve",
-            doc: None,
+            doc: Some(&RESOLVE_DOC),
         },
         CoreMethod {
             name: "compareTo",
@@ -573,13 +575,319 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Int,
             symbol: "nvs_core_uri_compare_to",
-            doc: None,
+            doc: Some(&COMPARE_TO_DOC),
         },
     ],
     slots: &[
         "text", "scheme", "userInfo", "host", "port", "path", "query", "fragment",
     ],
     constants: &[],
+};
+
+/// `Core\Uri::parse`'s reference card — ADR 0117.
+const PARSE_DOC: MethodDoc = MethodDoc {
+    short: "Reads `$uri` as an RFC 3986 URI reference, as `parse_url` does — reporting, never \
+            normalizing: every component comes back exactly as written, still percent-encoded \
+            and in its own case.",
+    params: &[ParamDoc {
+        name: "uri",
+        desc: "The text to read; a relative reference such as `/a?b` is accepted and answers a \
+               `null` scheme.",
+        shape: &[],
+    }],
+    ret: "A `Uri` whose readers answer the components as written.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$uri` is text the RFC 3986 grammar does not admit — a space, a control byte, a \
+               non-ASCII byte, a bare `%` or a bracketed host that is no IPv6 address — or its \
+               authority's port is outside `0`–`65535`. The text is not quoted back.",
+    }],
+};
+
+/// `Core\Uri::tryParse`'s reference card — ADR 0117.
+const TRY_PARSE_DOC: MethodDoc = MethodDoc {
+    short: "`Core\\Uri::parse` with `null` where it throws — the one spelling of \"is this text \
+            a URI\", replacing `filter_var` with `FILTER_VALIDATE_URL`; its narrower question, \
+            \"is it absolute\", is `tryParse($s)?->scheme() != null`.",
+    params: &[ParamDoc {
+        name: "uri",
+        desc: "The text to read.",
+        shape: &[],
+    }],
+    ret: "The `Uri`, or `null` for text `parse` would throw on — the grammar's refusals and an \
+          out-of-range port alike.",
+    errors: &[],
+};
+
+/// `Core\Uri::encodeComponent`'s reference card — ADR 0117.
+const ENCODE_COMPONENT_DOC: MethodDoc = MethodDoc {
+    short: "Percent-encodes `$s` for use as one piece of a URI — a path segment, a fragment, one \
+            side of a query pair — as `rawurlencode` does: a space is `%20`, and every byte \
+            outside RFC 3986's unreserved set (letters, digits, `-_.~`) is escaped, the \
+            delimiters `/ ? # & =` included.",
+    params: &[ParamDoc {
+        name: "s",
+        desc: "The text to encode.",
+        shape: &[],
+    }],
+    ret: "The escaped text, with upper-case hex digits; a `tainted` argument comes back plain, \
+          since no byte of it can be read as a delimiter afterwards.",
+    errors: &[],
+};
+
+/// `Core\Uri::decodeComponent`'s reference card — ADR 0117.
+const DECODE_COMPONENT_DOC: MethodDoc = MethodDoc {
+    short: "Reverses `Core\\Uri::encodeComponent`, as `rawurldecode` does: every `%XX` escape \
+            becomes its byte, and a `+` stays a literal `+`.",
+    params: &[ParamDoc {
+        name: "s",
+        desc: "The text to decode.",
+        shape: &[],
+    }],
+    ret: "The decoded text; a malformed escape such as `%G1` or a trailing `%` decodes to \
+          itself.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The escapes decode to octets that are not valid UTF-8, which a `string` cannot \
+               hold.",
+    }],
+};
+
+/// `Core\Uri::encodeFormValue`'s reference card — ADR 0117.
+const ENCODE_FORM_VALUE_DOC: MethodDoc = MethodDoc {
+    short: "Encodes `$s` as one value of an `application/x-www-form-urlencoded` payload — a \
+            query-string pair or a POST body — as `urlencode` does: a space is `+`, and every \
+            byte outside letters, digits and `-_.` is escaped, `~` and the `&` and `=` that \
+            structure a pair included.",
+    params: &[ParamDoc {
+        name: "s",
+        desc: "The text to encode.",
+        shape: &[],
+    }],
+    ret: "The escaped text, with upper-case hex digits; a `tainted` argument comes back plain, \
+          since it can no longer open a pair of its own.",
+    errors: &[],
+};
+
+/// `Core\Uri::decodeFormValue`'s reference card — ADR 0117.
+const DECODE_FORM_VALUE_DOC: MethodDoc = MethodDoc {
+    short: "Reverses `Core\\Uri::encodeFormValue`, as `urldecode` does: a `+` is a space, `%2B` \
+            is a `+`, and every other `%XX` escape becomes its byte.",
+    params: &[ParamDoc {
+        name: "s",
+        desc: "The text to decode.",
+        shape: &[],
+    }],
+    ret: "The decoded text; a malformed escape decodes to itself, and `%20` reads as a space \
+          too.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The escapes decode to octets that are not valid UTF-8, which a `string` cannot \
+               hold.",
+    }],
+};
+
+/// `Core\Uri::parseQuery`'s reference card — ADR 0117.
+const PARSE_QUERY_DOC: MethodDoc = MethodDoc {
+    short: "Reads a query string into an array, as `parse_str` does but returning it rather than \
+            populating variables: pairs split at `&`, each at its first `=`, both halves \
+            form-decoded, and PHP's bracket convention in full — `a[]=1&a[]=2` builds a list, \
+            `a[b]=c` a map, nested to any depth.",
+    params: &[ParamDoc {
+        name: "query",
+        desc: "The query text, without its leading `?`.",
+        shape: &[],
+    }],
+    ret: "An array whose every value is a `string` or a nested `array<mixed>`; a pair without \
+          `=` has the empty string for its value, a pair whose name decodes to nothing is \
+          dropped, and a repeated name without brackets keeps the last value.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "A name's or a value's escapes decode to octets that are not valid UTF-8.",
+    }],
+};
+
+/// `Core\Uri::buildQuery`'s reference card — ADR 0117.
+const BUILD_QUERY_DOC: MethodDoc = MethodDoc {
+    short: "Writes `$parameters` as a query string, as `http_build_query` does — pairs joined by \
+            `&`, both halves form-encoded, and a nested array written under its whole bracket \
+            path with the indexes spelled out, so `Core\\Uri::parseQuery` reads it back to the \
+            same array.",
+    params: &[ParamDoc {
+        name: "parameters",
+        desc: "The parameters: scalars, or arrays nested to any depth.",
+        shape: &[],
+    }],
+    ret: "The query text, without a leading `?`; a `bool` is written as `1` or `0`, and a \
+          `null` value drops its pair entirely.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "A value is neither a scalar nor a nested array — an object or a closure — so \
+               there is no text to write it as.",
+    }],
+};
+
+/// `$uri->scheme`'s reference card — ADR 0117.
+const SCHEME_DOC: MethodDoc = MethodDoc {
+    short: "The scheme as written, never case-folded — `parse_url`'s `scheme` key.",
+    params: &[],
+    ret: "The scheme without its `:`, or `null` for a relative reference.",
+    errors: &[],
+};
+
+/// `$uri->userInfo`'s reference card — ADR 0117.
+const USER_INFO_DOC: MethodDoc = MethodDoc {
+    short: "The whole userinfo subcomponent as written — `parse_url`'s `user` and `pass` keys \
+            as one reader, because RFC 3986 deprecates the `user:password` form and a member \
+            that split it would recommend writing one.",
+    params: &[],
+    ret: "The text before the authority's `@`, still percent-encoded, or `null` where no `@` \
+          was written.",
+    errors: &[],
+};
+
+/// `$uri->host`'s reference card — ADR 0117.
+const HOST_DOC: MethodDoc = MethodDoc {
+    short: "The host as written, never case-folded, an IPv6 literal still inside its brackets — \
+            `parse_url`'s `host` key.",
+    params: &[],
+    ret: "The host; `null` where no authority was written and `\"\"` where an empty one was, \
+          as in `file:///tmp`.",
+    errors: &[],
+};
+
+/// `$uri->port`'s reference card — ADR 0117.
+const PORT_DOC: MethodDoc = MethodDoc {
+    short: "The authority's port as a number — `parse_url`'s `port` key.",
+    params: &[],
+    ret: "The port, `0`–`65535`; `null` where none was written and where an empty one was \
+          (`http://h:/`). No scheme default is ever supplied.",
+    errors: &[],
+};
+
+/// `$uri->path`'s reference card — ADR 0117.
+const PATH_DOC: MethodDoc = MethodDoc {
+    short: "The path as written, still percent-encoded and with its dot segments in place — \
+            `parse_url`'s `path` key.",
+    params: &[],
+    ret: "The path, never `null`: a reference with nothing between its authority and its query \
+          has the empty path, and `\"\"` is that path.",
+    errors: &[],
+};
+
+/// `$uri->query`'s reference card — ADR 0117.
+const QUERY_DOC: MethodDoc = MethodDoc {
+    short: "The raw query as written, still encoded — `parse_url`'s `query` key; \
+            `Core\\Uri::parseQuery` turns it into an array.",
+    params: &[],
+    ret: "The text after the `?`, or `null` where no `?` was written; a `?` with nothing after \
+          it is `\"\"`, not `null`.",
+    errors: &[],
+};
+
+/// `$uri->fragment`'s reference card — ADR 0117.
+const FRAGMENT_DOC: MethodDoc = MethodDoc {
+    short: "The raw fragment as written, still encoded — `parse_url`'s `fragment` key.",
+    params: &[],
+    ret: "The text after the `#`, or `null` where no `#` was written; a `#` with nothing after \
+          it is `\"\"`, not `null`.",
+    errors: &[],
+};
+
+/// `$uri->toString`'s reference card — ADR 0117.
+const TO_STRING_DOC: MethodDoc = MethodDoc {
+    short: "The reference this `Uri` was parsed from, byte for byte — not a recomposition — and \
+            what `echo $uri` writes.",
+    params: &[],
+    ret: "The original text, unchanged.",
+    errors: &[],
+};
+
+/// `$uri->with`'s reference card — ADR 0117.
+const WITH_DOC: MethodDoc = MethodDoc {
+    short: "A fresh `Uri` with the named components replaced and every other one carried over, \
+            replacing reassembly by hand. It replaces and never removes — there is no spelling \
+            that clears a component — and `userInfo` is not on the bag, so it can neither add \
+            nor drop a credential.",
+    params: &[
+        ParamDoc {
+            name: "scheme",
+            desc: "The new scheme, without its `:`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "host",
+            desc: "The new host; an IPv6 literal carries its brackets.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "port",
+            desc: "The new port, `0`–`65535`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "path",
+            desc: "The new path, already percent-encoded; beside a host it must begin with `/`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "query",
+            desc: "The new query, already encoded and without its `?`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "fragment",
+            desc: "The new fragment, already encoded and without its `#`.",
+            shape: &[],
+        },
+    ],
+    ret: "A new `Uri`; the receiver is unchanged. A receiver whose port was written empty \
+          (`h:/`) loses that `:` on the way through.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`port` is outside `0`–`65535`; a component makes the result text the RFC 3986 \
+               grammar does not admit; or the components do not recompose to a URI that still \
+               holds them — a `path` beside a `host` that lacks its leading `/` lands in the \
+               host — and the first component that moved is named.",
+    }],
+};
+
+/// `$uri->resolve`'s reference card — ADR 0117.
+const RESOLVE_DOC: MethodDoc = MethodDoc {
+    short: "Resolves `$reference` against the receiver as a base, RFC 3986 § 5's reference \
+            resolution, which PHP has no function for: the receiver's fragment is dropped \
+            first, and dot segments are removed from the result — the one member here that \
+            rewrites a path.",
+    params: &[ParamDoc {
+        name: "reference",
+        desc: "The URI reference to resolve, relative or absolute.",
+        shape: &[],
+    }],
+    ret: "A fresh absolute `Uri`; the receiver is unchanged.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The receiver is a relative reference and so no base; `$reference` is text the \
+               RFC 3986 grammar does not admit; or the base is opaque — no authority and a \
+               rootless path, as in `mailto:a@b` — so there is no path to merge into.",
+    }],
+};
+
+/// `$uri->compareTo`'s reference card — ADR 0117.
+const COMPARE_TO_DOC: MethodDoc = MethodDoc {
+    short: "Orders the receiver against `$other` over their RFC 3986 § 6.2.2 normal forms — \
+            `Comparable`'s member, and the spelling of \"are these the same URI\": scheme and \
+            host fold to lower case, escapes' hex digits to upper, an escaped unreserved \
+            character becomes itself, and dot segments leave an absolute path. Neither side is \
+            rewritten.",
+    params: &[ParamDoc {
+        name: "other",
+        desc: "The `Uri` to compare against.",
+        shape: &[],
+    }],
+    ret: "`-1`, `0` or `1`: component by component in `scheme`, `userInfo`, `host`, `port`, \
+          `path`, `query`, `fragment` order, an absent component before a present one. \
+          `http://h:80/` and `http://h/` differ — no scheme default is known.",
+    errors: &[],
 };
 
 /// [`CLASS`]'s slots, by index. `TEXT_SLOT` holds the whole reference and the
