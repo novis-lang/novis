@@ -3512,6 +3512,20 @@ sibling in the same namespace unqualified.
   `Ctx::set_runtime_error_class`. Worth knowing before writing the test, not after: the same
   promotion is what a compiled `catch` runs, so this is the existing semantics rather than a
   gap, and a test asserting on `matches!(.., Threw(_))` instead is a weaker test for no reason.
+- **A `Core` member may not park, because a forced unwind cannot cross its
+  `extern "C"` frame.** `nvs_host::Scheduler::tear_down` cancels a *parked* task
+  with `corosensei`'s `force_unwind`, and a member that suspended — `Core\Time::sleep`
+  through `nvs_runtime::host::Host::sleep` is the first that wants to — is a
+  `nvs_helper!` frame on that stack. Two symptoms, in this order, and both are
+  the same cause: `the ForcedUnwind panic was caught and not rethrown` from
+  inside `corosensei`, because `run_helper`'s `catch_unwind` swallowed it; then,
+  once `run_helper` re-raises it (it does now, on `Teardown::in_progress()`),
+  `panic in a function that cannot unwind` naming the helper. `extern "C-unwind"`
+  is not the fix — the frame *below* the helper is JIT code with no landing
+  pads, so an unwind through it would leak every temporary it owns. The fix is
+  the other route Novis already has for exactly this: a cancelled task with
+  script frames dies by ADR 0002's return status at its next safepoint, which is
+  what `nvs_safepoint` gives `SafepointFlags::CANCEL`.
 
 ## Divergences and refusals already pinned
 

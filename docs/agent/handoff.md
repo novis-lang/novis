@@ -2,78 +2,61 @@
 
 ## State
 
-**The host end of ADR 0072's seam is on disk and green; the other end is still empty.**
-`crates/nvs-host/src/group.rs` is the one implementor of `nvs_runtime::host::Host`, and
-`Scheduler::run` installs it beside the task tree's guard (`scheduler.rs:@Scheduler::run`).
-That module's doc is the one home of the two decisions only an implementor can make — what a
-child gets for a `Ctx`, and the four-step sequence that makes § 4's "nothing still running" a
-property of the call. `nvs-host` is 101 tests, up from 93.
+**ADR 0072's two members run end to end.** `nvs run` executes its program inside a task
+(`crates/nvs-cli/src/main.rs:619`) — one `nvs_host::Scheduler`, a reactor installed over it,
+`TaskRoot::Request`, and the `Ctx` read back off `take_finished()` — so § 1's "each is a child
+of the calling task" has a calling task under a CLI program. `crates/nvs-stdlib/src/task.rs`
+holds both bodies; that module's doc is the one home for the three steps they share, for why a
+job's captures are *borrowed* rather than retained, and for the one known gap (a write to a
+field of `all`'s result is checked against the argument's field tag, and the fix is `nvs-ir`
+recording the result shape's representations at the call site).
 
-**A child's context aliases the request's statics** (`nvs_runtime::Ctx::child`, an `unsafe fn`
-whose obligation is discharged by the group runner's structure). Output and the assertion
-ledger are the child's own and are spliced back in **job** order; the origin, debug flags,
-error class and deadline word are copied. `Ctx::statics_base` is new and is how a test asserts
-the alias.
+**`examples/tasks.nvs` prints three of its four frozen lines.** `all=3`, `map=1,4,9,16` and
+`deadline hit` are right; the fourth is `limit held at 1` against a frozen `limit held at 2`.
+That is not a bug in the `limit` — it is `Core\Time::sleep` blocking the thread, so no two
+children ever overlap and the peak gauge cannot exceed 1. **The acceptance check still fails
+there**, and the next group is what closes it.
 
-**Two shapes on the seam changed while filling it in**, both in
-`crates/nvs-runtime/src/host.rs`: `Outcome::Threw` carries a `Thrown` (`:136`) rather than a
-`Value`, because that is what `take_thrown` produces and `raise` takes; and `Job` (`:97`) now
-documents that it **may be dropped without ever being called** — a cancelled or deadline-ended
-group drops its unstarted jobs, so whatever a job captured must be released by that capture's
-own `Drop`. That obligation lands on slices 2 and 3 below.
-
-**`examples/tasks.nvs` still aborts at the placeholder** (`crates/nvs-stdlib/src/task.rs:135`)
-and the acceptance check still fails there. Nothing in `nvs-stdlib` changed this session.
+**The seam grew its second method and it has no caller yet.** `nvs_runtime::host::Host::sleep`
+is right, `nvs_host::group::SchedulerHost` implements it in one line over `crate::timer::sleep`,
+and `Core\Time::sleep` still calls `std::thread::sleep` — because a member that parks is a
+parked task the scheduler tears down with a **forced unwind**, and a `nvs_helper!` frame is
+`extern "C"`, which aborts. Both that method's doc and `nvs_stdlib::time`'s gap 3 carry the
+slice. `nvs_runtime::run_helper` now re-raises a forced unwind instead of reporting it as a
+helper `FATAL` (`crates/nvs-runtime/src/abi.rs:457`), which is what turned a silent corosensei
+panic into a legible one.
 
 **Orientation gaps.** `[context] adrs` still carries ADR 0072 §§ 4 and 5 only; §§ 1, 2 and 3
-specify every remaining Stage 4 item and are still sliced by hand. `[context] modules` has no
-`nvs-cli` pattern, so the `nvs run` execution site — `crates/nvs-cli/src/main.rs:606` — had to
-be grepped for; the handoff's own anchor pointed at `runner.rs:189`, which is `nvs test`'s
-context and not `nvs run`'s. The crate-dependency-graph gap the previous session reported is
-still open.
+were sliced by hand again. `[context] modules` has no `nvs-cli` pattern and none for
+`nvs-runtime/src/host.rs`, `nvs-runtime/src/abi.rs` or `nvs-runtime/src/object.rs`, all of
+which this session had to read for the shape representation and the helper ABI.
 
 ## Next group
 
-**Fill the member end in, from `nvs run` down to the two bodies.** File set:
-`crates/nvs-cli/src/main.rs` (`:606`), `crates/nvs-cli/Cargo.toml:15`,
-`crates/nvs-stdlib/src/task.rs` (`CLASS:81`, `address:118`, the placeholder at `:135`), and
-`crates/nvs-runtime/src/host.rs` (`Job:97`, `Bounds:106`, `Outcome:121`) as the contract both
-ends read.
+**Make a cancelled task with script frames die by status, then let `Core\Time::sleep` park.**
+File set: `crates/nvs-host/src/scheduler.rs` (`tear_down:732`, `Waiting:152`),
+`crates/nvs-host/src/timer.rs` (`park_until:249`), `crates/nvs-runtime/src/ctx.rs`
+(`nvs_safepoint:1593`) and `crates/nvs-stdlib/src/time.rs` (`nvs_core_time_sleep:1722`, gap 3).
 
-- [ ] **`nvs run` runs its program inside a task.** ADR 0072 §§ 1, 3. `nvs-cli` gains
-      `nvs-host.workspace = true` (`Cargo.toml:15`), and `main.rs:606`'s
-      `nvs_runtime::call(entry, &mut ctx, &[])` becomes a `Scheduler::spawn` of that call plus
-      `reactor::install` and `run_until_idle`. Two things have to come back out of the task
-      and neither does today: the call's status (record it in a `Cell` the body captures) and
-      the `Ctx` itself, which arrives in `Scheduler::take_finished()`'s `Finished` rather than
-      staying borrowed — `main.rs:620-660` reads `ctx.flush_output`, `ctx.exit_code` and
-      `ctx.take_thrown` off it afterwards. A `TaskRoot::Request` is the right root: ADR 0106
-      § 2 fails one request rather than retiring the worker.
-- [ ] **`nvs_core_task_all`'s body.** ADR 0072 §§ 1, 3, 4. § 1's shape fields become one
-      `host::Job` each, in field order, calling `nvs_runtime::call_closure`; the answers come
-      back as `Outcome::Completed` and are assembled into the shape. `Threw` is
-      `ctx.raise(thrown)` plus the helper's `THROWN`; `TimedOut` builds `TimeoutError`, which
-      the host deliberately does not know. **Each job captures a `callable` `Value` and must
-      release it from a wrapper's own `Drop`**, per `host.rs:97` — a job dropped unrun is the
-      ordinary cancelled path, not an error. Delete `unimplemented_scheduler_half` only once
-      both rows have a body.
-- [ ] **`nvs_core_task_map`'s body.** ADR 0072 § 2. One `Job` per element over the single
-      shared callback, and the result array **preserves the input's keys and order** — the
-      group already answers in job order, so what is left is carrying the keys alongside the
-      index. Same capture-release obligation, once per element.
-- [ ] **A `.nvst` case per member**, which `conformance_coverage.rs` requires anyway. The
-      shapes worth taking are *a bound asserted on both sides* for `limit` and *agreement*
-      between `all` and `map` on what a deadline does.
+- [ ] **A parked task that cannot be unwound is resumed instead.** ADR 0072 § 5, ADR 0002.
+      `tear_down` is the only `force_unwind` site; a task whose park happened under a helper
+      frame has to be woken and told it is cancelled, and `park_until:249`'s
+      `suspend_current(Waiting::Parked)` is where it learns. What it then answers is
+      `nvs_safepoint`'s own cancel status, so no `catch` can see it (§ 5 runs no user code).
+- [ ] **`Core\Time::sleep` parks.** Two lines — `nvs_runtime::host::with_current(|host|
+      host.sleep(d))` with the `std::thread::sleep` fallback for a thread with no host —
+      plus deleting gap 3. `examples/tasks.nvs`'s last frozen line is the test.
+- [ ] **A `.nvst` case per member**, which is the item this session did not reach.
+      `tests/conformance/core/`, and the six existing cases naming `Core\Task` are all
+      `--EXPECTF-ERROR--`, so these are the first that *run* one. `all` over one field, `map`
+      preserving a string key, and `limit: 0` refused as a `LogicError` are the three shapes.
 
 ## Backlog
 
-- `Scheduler::finished` accumulates a `Finished` per child until `take_finished` drains it; a
-  group of N children leaves N behind. Whoever owns the request boundary has to drain — worth
-  a line in `scheduler.rs`'s module doc if slice 1 above does not force it.
-- `Core\Task\Channel` has no row in `nvs_stdlib::registry`; item 11's language surface.
-- Whether `{limit: 0}` deserves a diagnostic is the member's question — `group.rs`'s module
-  doc clamps it to 1 and says so.
-- § 4's second throw goes to the failing child's diagnostic channel until `Core\Log` exists
-  (`group.rs`, `Child::run`).
-- M4's residue: the 1000-case corpus count, met as the suite grows.
-- `docs/agent/loop-goal.toml` `[context]`: add ADR 0072 §§ 1–3 and an `nvs-cli` module pattern.
+- The shape-tag known gap: `nvs-ir` records the result shape's reprs at the call site —
+  `crates/nvs-stdlib/src/task.rs`'s module doc owns the statement of it.
+- `Core\Task\Channel` has no registry row; `crates/nvs-host/src/channel.rs` is the mechanism.
+- ADR 0072 § 4's second-throw-to-`Core\Log` row is written by nobody —
+  `crates/nvs-host/src/group.rs` drops it instead.
+- Stage 5's graph copy reached twice (`docs/agent/loop-goal.toml`, stage 5).
+- The crate-dependency-graph gap in `[context]`, still open from two sessions back.
