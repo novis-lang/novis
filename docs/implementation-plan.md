@@ -454,7 +454,16 @@
 > inside a child is pinned as well, and it arrives as the cancelled-shaped `ok = false` an unfiled
 > slot produces: `Ended`'s `Drop` is what tells the awaiting side the child is over, half-way
 > through the unwind, and the panic's own message stays the scheduler's rather than reaching a
-> `Failure` a program can read. The steps the chain took are in
+> `Failure` a program can read. **Cancellation is pinned from both sides now, and all eight of Stage
+> 6's `cargo-named` names are green.** A parent parked on the join and then cancelled does not
+> return while its child is still running: the child leaves the tree, nothing it held outlives it,
+> and ADR 0072 § 4's promise holds through a cancellation as well as through a return. A child that
+> is *running* rather than parked dies at the next safepoint it reaches, takes no step past it, and
+> what it echoed before that point still crosses. The two arrive at the same `ok = false` by
+> different routes, and which route a child takes is a fact about its stack rather than about the
+> boundary — force-unwound where nothing forbids it, leaving an unfiled slot; *told* where it stands
+> on a helper frame, so it answers with `Ctx::cancel` and `finish` classifies it. `isolate.rs`'s
+> module doc is that fact's one home. The steps the chain took are in
 > [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's own residue is the 1000-case
 > corpus count, which orders 1–4 meet as the suite grows; nothing else about M4 is open. What the
 > program is measured by is `python tools/check-migration.py` at 100% classified, which stood at 25%

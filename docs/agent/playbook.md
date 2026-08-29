@@ -931,6 +931,14 @@ is why" — is this file.
   Write the new text with Write to a file under `.agent-tmp/`, then have the shell only
   *name* both files — `python -c "open(dst,'a').write(open(src).read())"` — or use Edit,
   which never goes near a shell.
+- **An edit made after `verify.py --start` invalidates the run, and `fmt` is where you find out.**
+  The loop's own step 3 says to start the verification and write the wrap while it runs — which is
+  right, because prose cannot fail — but a source edit in that window is compiled at whatever moment
+  each step happens to read the file. One session added a module-doc paragraph and ran `cargo fmt`
+  after `--start`, and the background run failed at `fmt` (step 2 of 7) against the *pre-format*
+  text: a red verdict describing a tree that no longer existed. There is nothing to debug and
+  nothing to fix — `--start` again once the tree is final, and only then write prose. The rule is
+  simply that `--start` marks the end of editing, not the start of the tail.
 
 ## Running things
 
