@@ -55,15 +55,16 @@
 //! recursion limit's bounds come from — a task's limit is armed from the stack
 //! this crate handed it, not asserted from a ceiling.
 //!
-//! **Still outstanding:** a parking `connect`, which lands with the accept loop
-//! that needs it, and the blocking pool ADR 0106 § 6 sends filesystem calls,
-//! name resolution and child processes to.
+//! **Still outstanding:** the blocking pool ADR 0106 § 6 sends filesystem
+//! calls, name resolution and child processes to, and a Unix-domain sibling of
+//! [`NvsTcp`].
 
 pub mod affinity;
 pub mod net;
 pub mod reactor;
 pub mod scheduler;
 pub mod stack;
+pub mod timer;
 
 pub use affinity::{CpuId, cpus, pin_current_thread};
 pub use net::NvsTcp;
@@ -72,6 +73,7 @@ pub use scheduler::{
     Finished, RunReport, Scheduler, TaskId, Waiting, current_task, suspend, suspend_current,
 };
 pub use stack::{MAX_POOLED_STACKS, TASK_STACK_SIZE};
+pub use timer::{Timers, park_until, sleep};
 
 /// One OS thread, pinned to one CPU, running one [`Scheduler`].
 ///

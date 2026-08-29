@@ -3386,6 +3386,24 @@ sibling in the same namespace unqualified.
   `nvs_runtime::Teardown` (a thread-local depth counter that makes `run_task` re-raise instead of
   contain) held across `Drop for Scheduler`, and not "drain the parked set first". Anything else that
   gains a `catch_unwind` between a coroutine's root and its suspension points owes the same guard.
+- **A non-blocking `connect` cannot be completed by asking `peer_addr`, whatever `mio`'s own example
+  says — on Windows that call answers `Ok(the target address)` for a socket whose connect has not
+  succeeded and never will.** `take_error` is `Ok(None)` there too until the attempt actually ends
+  (about two seconds for a refused loopback port), so a connect built on either question alone
+  reports success and hands back a stream that is writable and dead. The pair that is sound on both
+  platforms is `take_error` plus a **zero-length write**: `Ok(0)` on a connected socket having sent
+  nothing, `NotConnected`/`WouldBlock` while the handshake is in flight, and on Linux the refusal
+  itself. `crates/nvs-host/src/net.rs:155`'s `finish_connecting` is the worked shape and its doc is
+  the home of the reasoning. Cost of finding this by hand: four probe builds across Windows and WSL.
+
+- **A poll asked to wait a bounded time can come back early, so "0 woken" is not "nothing can wake
+  these tasks".** A platform rounds a wait to its own timer granularity and returns a fraction of a
+  millisecond before the deadline it was given; `run_until_idle` breaks out of its loop on
+  `Some(0)`, so the first timer written straight into `Reactor::turn` abandoned a lone sleeping task
+  and the test hung on an assert rather than on the clock. `turn` therefore retries a bounded wait
+  until it has genuinely reached the earliest deadline (`crates/nvs-host/src/reactor.rs:332`). The
+  giveaway that it is this and not a lost wake: the same code with a *second* runnable task passes,
+  because the extra turn hides the early return.
 
 ## Divergences and refusals already pinned
 

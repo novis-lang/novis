@@ -54,8 +54,14 @@
 > second opaque pointer in `Ctx` — and `crates/nvs-host/src/net.rs` is ADR 0115 § 3's stream over
 > it: `NvsTcp` is a plain `std::io::Read`/`Write` that issues the syscall first and registers, parks
 > and loops only on `WouldBlock`, keeps its registration across parks, and waits on a poll of its
-> own when there is no core to hand back. Closing it turned up a latent path to `abort()` — a
-> suspended coroutine dropped under `run_task`'s containment boundary — which
+> own when there is no core to hand back. `NvsTcp::connect` parks the same way and then asks
+> `SO_ERROR` and a zero-length write whether that readiness *meant* success — a refused connection
+> is writable too, and `peer_addr`, which `mio`'s own example uses, answers `Ok(the target)` on
+> Windows for a socket that never connected. Deadlines are on the same reactor:
+> `crates/nvs-host/src/timer.rs` is Stage 2 item 5, one deadline per task, armed by
+> `sleep`/`park_until` and enforced as the timeout of the very poll `Reactor::turn` was about to
+> make, so a sleep and a timeout are one mechanism and not two clocks. Closing it turned up a latent
+> path to `abort()` — a suspended coroutine dropped under `run_task`'s containment boundary — which
 > `nvs_runtime::Teardown` now closes. What a task *costs* is settled too:
 > `crates/nvs-host/src/stack.rs` is ADR 0115 § 4 — 1 MiB of reserved address space per task,
 > resident only in the pages its handler touched, pooled per worker and recycled the moment the task

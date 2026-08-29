@@ -23,7 +23,9 @@
 //! polled with a zero timeout, so readiness is collected without giving the
 //! core up; with nothing ready and something parked it blocks; with nothing
 //! ready and nothing parked there is no work at all and it returns. There is no
-//! fourth state.
+//! fourth state. A deadline does not add one — it only bounds how long the
+//! blocking state blocks, and a task parked on nothing but a timer is a task
+//! this reactor can still wake ([`crate::timer`]).
 //!
 //! # Who owns a registration, and what `retire` frees
 //!
@@ -95,11 +97,12 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io;
 use std::marker::PhantomData;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use mio::{Events, Poll, Token};
 
 use crate::scheduler::{RunReport, Scheduler, TaskId};
+use crate::timer::Timers;
 
 pub use mio::Interest;
 pub use mio::event::Source;
@@ -128,6 +131,10 @@ pub struct Reactor {
     /// The ids the last poll reported, reused across calls so a poll allocates
     /// nothing on the steady path.
     ready: Vec<TaskId>,
+    /// The deadlines this core is holding. Here rather than beside the
+    /// scheduler because a deadline is enforced as a poll timeout, which is
+    /// this type's call to make; [`crate::timer`] owns the rest of the reason.
+    timers: Timers,
     _pinned_to_one_thread: PhantomData<*const ()>,
 }
 
@@ -138,6 +145,7 @@ impl std::fmt::Debug for Reactor {
         f.debug_struct("Reactor")
             .field("registrations", &self.registrations.len())
             .field("ready", &self.ready.len())
+            .field("timers", &self.timers.len())
             .finish()
     }
 }
@@ -155,6 +163,7 @@ impl Reactor {
             events: Events::with_capacity(EVENT_CAPACITY),
             registrations: HashMap::new(),
             ready: Vec::new(),
+            timers: Timers::default(),
             _pinned_to_one_thread: PhantomData,
         })
     }
@@ -236,7 +245,20 @@ impl Reactor {
     /// turn. A later wake for a retired id is already harmless; the table entry
     /// is what would otherwise outlive its request.
     pub fn retire(&mut self, id: TaskId) -> bool {
-        self.registrations.remove(&id).is_some()
+        // A deadline the task never reached goes with it, and for the same
+        // reason: an entry outliving its request is the growth ADR 0004 calls a
+        // leak. `crate::timer` is the home of that argument.
+        let had_timer = self.timers.disarm(id);
+        self.registrations.remove(&id).is_some() || had_timer
+    }
+
+    /// The deadlines this core is holding.
+    ///
+    /// The reactor owns them because a deadline is enforced as the timeout of
+    /// the very poll [`Reactor::turn`] is about to make; [`crate::timer`] is
+    /// where they are armed from and where the rest of the reasoning lives.
+    pub fn timers(&mut self) -> &mut Timers {
+        &mut self.timers
     }
 
     /// How many tasks hold at least one registration.
@@ -296,31 +318,65 @@ impl Reactor {
     /// zero timeout while `sched` has work ready, blocks when nothing is ready
     /// and something parked can still be woken, and returns `0` without a
     /// syscall when there is nothing to wait for — including the case where
-    /// tasks are parked but this reactor holds no registration that could ever
-    /// wake one, which is a bug in the caller rather than a reason to block
-    /// forever.
+    /// tasks are parked but this reactor holds neither a registration nor a
+    /// deadline that could ever wake one, which is a bug in the caller rather
+    /// than a reason to block forever.
+    ///
+    /// The blocking state is bounded by the earliest deadline filed, and every
+    /// timer due when the poll comes back is woken alongside the readiness it
+    /// reported.
     ///
     /// # Errors
     ///
     /// As [`Reactor::poll`].
     pub fn turn(&mut self, sched: &mut Scheduler) -> io::Result<usize> {
-        let timeout = if sched.ready_count() > 0 {
-            Some(Duration::ZERO)
-        } else if sched.parked_count() > 0 && !self.registrations.is_empty() {
-            None
-        } else {
-            return Ok(0);
-        };
+        loop {
+            let timeout = if sched.ready_count() > 0 {
+                Some(Duration::ZERO)
+            } else if sched.parked_count() > 0
+                && !(self.registrations.is_empty() && self.timers.is_empty())
+            {
+                // A filed deadline bounds the wait; with none, only readiness
+                // can end it. Either way this is the blocking state rule 4
+                // names, and the deadline only says how long it lasts.
+                self.timers
+                    .next_due()
+                    .map(|at| at.saturating_duration_since(Instant::now()))
+            } else {
+                return Ok(0);
+            };
 
-        let mut woken = 0;
-        for &id in self.poll(timeout)? {
-            // `false` is ordinary — rule 2's stale or racing wake — so it is
-            // counted out rather than reported.
-            if sched.wake(id) {
-                woken += 1;
+            let mut woken = 0;
+            for &id in self.poll(timeout)? {
+                // `false` is ordinary — rule 2's stale or racing wake — so it
+                // is counted out rather than reported.
+                if sched.wake(id) {
+                    woken += 1;
+                }
             }
+            // The clock is read after the poll and not before it: a poll that
+            // waited longer than it was asked to has more than one timer due,
+            // and this wakes all of them rather than one per turn.
+            let now = Instant::now();
+            while let Some(id) = self.timers.take_due(now) {
+                if sched.wake(id) {
+                    woken += 1;
+                }
+            }
+            if woken > 0 || timeout == Some(Duration::ZERO) || self.timers.is_empty() {
+                return Ok(woken);
+            }
+            // A bounded wait that came back with nothing to show for it, and a
+            // deadline still filed. That is ordinary rather than exceptional —
+            // a platform rounds a wait to its own timer granularity and can
+            // return a fraction of a millisecond early — and returning `0` here
+            // would tell the caller that nothing can wake these tasks any more,
+            // which is exactly the task-abandoned bug. So the wait is retried
+            // until it has genuinely reached the earliest deadline. The retry
+            // is not free if readiness is also arriving for a task that no
+            // longer parks; it is bounded by that deadline, and abandoning a
+            // parked task is the worse of the two.
         }
-        Ok(woken)
     }
 }
 
