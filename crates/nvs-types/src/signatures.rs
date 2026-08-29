@@ -604,6 +604,7 @@ pub fn build_signatures(
     // And the same for ADR 0077 § 5's rows: they are collected by
     // `crate::check`'s per-class walk, which is a later pass than this one.
     let mut placeholder_routes = crate::routes::RouteTable::default();
+    let mut placeholder_commands = crate::commands::CommandTable::default();
     let mut placeholder_links = Vec::new();
     // And again: this pass reaches no `#[Json\Derive]` class body, so the
     // sites it would collect are none and the vector is never read.
@@ -624,6 +625,7 @@ pub fn build_signatures(
             interner: &mut *interner,
             exprs: &mut placeholder_exprs,
             routes: &mut placeholder_routes,
+            commands: &mut placeholder_commands,
             links: &mut placeholder_links,
             codec_sites: &mut placeholder_codec_sites,
             diags: &mut *diags,

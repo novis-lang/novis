@@ -2110,6 +2110,25 @@ pub mod code {
     /// construction sees only the methods a `#[Command]` selects.
     pub const E_OPTION_WITHOUT_COMMAND: Code = Code::new("E0766");
 
+    /// A `#[Command]` that names no command.
+    ///
+    /// ADR 0086 § 6 selects a command by the `name` a command line writes, so
+    /// a row without one is reachable by nothing and the table pass is what
+    /// discovers it — the same reading [`E_ROUTE_INCOMPLETE`] gives a
+    /// `#[Route]` that gave no path, and the answer to that module's own
+    /// question of whether `name` is required.
+    pub const E_COMMAND_WITHOUT_NAME: Code = Code::new("E0767");
+
+    /// Two `#[Command]`s claiming one name — the first of ADR 0086 § 6's three
+    /// compile errors, and the one only the whole program's enumeration can
+    /// answer.
+    ///
+    /// [`E_DUPLICATE_ROUTE_NAME`]'s sibling, reported over the collected table
+    /// for its reason: a command line naming a word two methods answer to has
+    /// no answer, and which of them ran would depend on the order the files
+    /// were walked in.
+    pub const E_DUPLICATE_COMMAND: Code = Code::new("E0768");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

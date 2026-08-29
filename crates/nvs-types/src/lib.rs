@@ -357,6 +357,14 @@ pub(crate) struct Env<'a> {
     /// only collects signatures hands it a scratch table, exactly as it does
     /// [`Self::exprs`].
     pub routes: &'a mut crate::routes::RouteTable,
+    /// ADR 0086 § 6's command table as it is collected — one row per
+    /// `#[Command]` the per-class walk reaches, across every file.
+    ///
+    /// Beside [`Self::routes`] and threaded exactly as it is, for its reason:
+    /// the error [`crate::commands::check_table`] reports is a collision
+    /// *between* declarations, and ADR 0061 § 3's scan is what puts the two
+    /// colliding files in the same program.
+    pub commands: &'a mut crate::commands::CommandTable,
     /// ADR 0077 § 4's `Core\Router::url`/`urlAbsolute` sites, as the walk
     /// reaches them and before any of them has been looked up.
     ///

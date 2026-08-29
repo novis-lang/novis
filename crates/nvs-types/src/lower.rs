@@ -677,6 +677,7 @@ mod tests {
             interner: &mut interner,
             exprs: &mut exprs,
             routes: &mut crate::routes::RouteTable::default(),
+            commands: &mut crate::commands::CommandTable::default(),
             links: &mut Vec::new(),
             codec_sites: &mut Vec::new(),
             diags: &mut diags,

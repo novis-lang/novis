@@ -754,6 +754,7 @@ pub struct ExprTypeTable {
     require_targets: FxHashMap<Span, nvs_diagnostics::SourceId>,
     delegations: Vec<Delegation>,
     routes: crate::routes::RouteTable,
+    commands: crate::commands::CommandTable,
 }
 
 /// One synthesized `implements I by $field;` forward —
@@ -971,6 +972,25 @@ impl ExprTypeTable {
     #[must_use]
     pub fn routes(&self) -> &crate::routes::RouteTable {
         &self.routes
+    }
+
+    /// Records ADR 0086 § 6's finished command table — every `#[Command]` in
+    /// the program, collected across its files and already held to § 6's
+    /// duplicate-name error by [`crate::commands::check_table`].
+    ///
+    /// [`Self::record_routes`]'s arrangement, for its reason: the error that is
+    /// a question about the whole enumeration is reported over the collected
+    /// rows, so a half-built table must not be readable at all.
+    pub(crate) fn record_commands(&mut self, commands: crate::commands::CommandTable) {
+        self.commands = commands;
+    }
+
+    /// ADR 0086 § 6's command table, empty for a program declaring no
+    /// `#[Command]` — which is that section's "a program with no `#[Command]`
+    /// builds no table" as a consumer sees it.
+    #[must_use]
+    pub fn commands(&self) -> &crate::commands::CommandTable {
+        &self.commands
     }
 
     /// Every class that declares at least one `#[Test]`, sorted, so that a
