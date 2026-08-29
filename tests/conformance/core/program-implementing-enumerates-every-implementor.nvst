@@ -1,0 +1,162 @@
+--TEST--
+`Core\Program::implementing<T>()` enumerates every class that reaches the interface — directly, through a class, through an abstract intermediate, through an interface that extends it — and nothing that does not, ADR 0061 § 3
+--FILE--
+<?nvs
+// The companion case pins the *order* and the expansion; this one pins the
+// *membership*, which is the half § 3 states as "one per non-abstract class in
+// the program implementing `T`". `nvs_hir::hierarchy::implements_interface` is
+// recursive over `extends` and `implements` alike, so there are four distinct
+// routes a class can take to the interface and a filter that stopped at the
+// declared `implements` list would still answer plausibly for one of them.
+autoload 'App' from './modules';
+
+var $found = Core\Program::implementing<App\Module>();
+
+array<string> $tags = [];
+foreach ($found as App\Module $module) {
+    $tags = Core\Arr::append($tags, $module->tag());
+}
+
+// Named here rather than read off the output: one tag per route, written down
+// before the enumeration answers. A class reaching the interface any of these
+// four ways is an implementor, and `App\Sub\Nested` is the fifth entry only to
+// say that the scan is over every file under the root and not over the one
+// directory the call site sits beside.
+array<string> $routes = [
+    "direct",
+    "through-a-class",
+    "through-an-abstract",
+    "through-an-interface",
+    "nested",
+];
+
+// Both directions, counted. The first says no route was missed — an
+// implementor the walk failed to reach. The second says nothing was added:
+// `App\Module` and `App\Extended` are interfaces and `App\Base` is abstract,
+// so none of the three is an entry even though `implements_interface` is
+// reflexive, and `App\Unrelated` reaches a different interface entirely.
+// Counting rather than printing the tags is what makes a member that grew a
+// sixth entry fail here instead of printing a plausible list.
+echo "unreached=", Core\Arr::count(Core\Arr::diff($routes, $tags)), "\n";
+echo "unexpected=", Core\Arr::count(Core\Arr::diff($tags, $routes)), "\n";
+echo "enumerated=", Core\Arr::count($found), "\n";
+--FILE modules/Module.nvs--
+<?nvs
+namespace App;
+
+interface Module
+{
+    public function tag(): string;
+}
+--FILE modules/Extended.nvs--
+<?nvs
+namespace App;
+
+// An interface that extends the target. A class implementing this one is an
+// implementor of `Module` too, and the interface itself is not an entry.
+interface Extended extends Module
+{
+    public function extra(): string;
+}
+--FILE modules/Direct.nvs--
+<?nvs
+namespace App;
+
+class Direct implements Module
+{
+    public function tag(): string
+    {
+        return "direct";
+    }
+}
+--FILE modules/Derived.nvs--
+<?nvs
+namespace App;
+
+// Route two: nothing here names `Module`. It is an implementor because its
+// parent is one.
+class Derived extends Direct
+{
+    public function tag(): string
+    {
+        return "through-a-class";
+    }
+}
+--FILE modules/Base.nvs--
+<?nvs
+namespace App;
+
+// The abstract intermediate: filtered out of the answer itself, but the walk
+// through it is not.
+abstract class Base implements Module
+{
+    public function tag(): string
+    {
+        return "base";
+    }
+}
+--FILE modules/Concrete.nvs--
+<?nvs
+namespace App;
+
+class Concrete extends Base
+{
+    public function tag(): string
+    {
+        return "through-an-abstract";
+    }
+}
+--FILE modules/Refined.nvs--
+<?nvs
+namespace App;
+
+class Refined implements Extended
+{
+    public function tag(): string
+    {
+        return "through-an-interface";
+    }
+
+    public function extra(): string
+    {
+        return "extra";
+    }
+}
+--FILE modules/Other.nvs--
+<?nvs
+namespace App;
+
+interface Other
+{
+    public function label(): string;
+}
+--FILE modules/Unrelated.nvs--
+<?nvs
+namespace App;
+
+// Declared under the same autoload root and found by the same scan. It is not
+// an entry, which is what the second count above asserts.
+class Unrelated implements Other
+{
+    public function label(): string
+    {
+        return "unrelated";
+    }
+}
+--FILE modules/Sub/Nested.nvs--
+<?nvs
+namespace App\Sub;
+
+use App\Module;
+
+class Nested implements Module
+{
+    public function tag(): string
+    {
+        return "nested";
+    }
+}
+--EXPECT--
+unreached=0
+unexpected=0
+enumerated=5
