@@ -3951,6 +3951,50 @@
           "url": "/docs/core/encoding/tobase64/"
         },
         {
+          "id": "Encoding.fromBase64",
+          "name": "fromBase64",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "fromBase64(string $s): bytes",
+          "params": [
+            {
+              "kind": "param",
+              "name": "s",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "bytes",
+          "replaces": "`base64_encode`, `base64_decode`",
+          "notes": "",
+          "qualifier": "",
+          "section": "7. `Core\\Encoding` and `Core\\Bytes`",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Reads base64 text <code>$s</code> back to octets, as <code>base64_decode</code> does in strict mode and stricter: § 4's alphabet only, padding required and canonical, and no unread bits in the last symbol. URL-safe text is <code>fromBase64Url</code>'s to read.",
+            "params": [
+              {
+                "name": "s",
+                "descHtml": "The base64 text."
+              }
+            ],
+            "returnHtml": "The decoded octets; the empty buffer for the empty string.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "<code>$s</code> is not strict base64 — a symbol outside the alphabet, <code>-</code> and <code>_</code> included, missing or wrong padding, a truncated final group, or non-canonical trailing bits."
+              }
+            ]
+          },
+          "slug": "frombase64",
+          "url": "/docs/core/encoding/frombase64/"
+        },
+        {
           "id": "Encoding.toBase64Url",
           "name": "toBase64Url",
           "static": true,
@@ -3987,6 +4031,50 @@
           },
           "slug": "tobase64url",
           "url": "/docs/core/encoding/tobase64url/"
+        },
+        {
+          "id": "Encoding.fromBase64Url",
+          "name": "fromBase64Url",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "fromBase64Url(string $s): bytes",
+          "params": [
+            {
+              "kind": "param",
+              "name": "s",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "bytes",
+          "replaces": "`strtr(base64_encode(…))` idiom",
+          "notes": "",
+          "qualifier": "",
+          "section": "7. `Core\\Encoding` and `Core\\Bytes`",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Reads URL-safe base64 text <code>$s</code> back to octets — <code>toBase64Url</code>'s other half, as strict as <code>fromBase64</code> and refusing padding rather than tolerating it.",
+            "params": [
+              {
+                "name": "s",
+                "descHtml": "The URL-safe base64 text, unpadded."
+              }
+            ],
+            "returnHtml": "The decoded octets; the empty buffer for the empty string.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "<code>$s</code> is not unpadded URL-safe base64 — a symbol outside the alphabet, <code>+</code>, <code>/</code> and <code>=</code> included, a truncated final group, or non-canonical trailing bits."
+              }
+            ]
+          },
+          "slug": "frombase64url",
+          "url": "/docs/core/encoding/frombase64url/"
         },
         {
           "id": "Encoding.toHex",
@@ -4027,6 +4115,50 @@
           "url": "/docs/core/encoding/tohex/"
         },
         {
+          "id": "Encoding.fromHex",
+          "name": "fromHex",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "fromHex(string $s): bytes",
+          "params": [
+            {
+              "kind": "param",
+              "name": "s",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "bytes",
+          "replaces": "`bin2hex`, `hex2bin`, `unpack(\"H*\")`",
+          "notes": "",
+          "qualifier": "",
+          "section": "7. `Core\\Encoding` and `Core\\Bytes`",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Reads hexadecimal text <code>$s</code> back to octets, as <code>hex2bin</code> does but throwing where it warned and answered <code>false</code>: either case, two digits per octet, and nothing between the pairs.",
+            "params": [
+              {
+                "name": "s",
+                "descHtml": "The hexadecimal text."
+              }
+            ],
+            "returnHtml": "The decoded octets, half as many as <code>$s</code> has digits; the empty buffer for the empty string.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "<code>$s</code> has an odd number of digits, or a character that is not <code>0</code>-<code>9</code>, <code>a</code>-<code>f</code> or <code>A</code>-<code>F</code> — a space, a colon or a <code>0x</code> prefix included."
+              }
+            ]
+          },
+          "slug": "fromhex",
+          "url": "/docs/core/encoding/fromhex/"
+        },
+        {
           "id": "Encoding.toBase32",
           "name": "toBase32",
           "static": true,
@@ -4065,141 +4197,6 @@
           "url": "/docs/core/encoding/tobase32/"
         },
         {
-          "id": "Encoding.fromBase64",
-          "name": "fromBase64",
-          "static": true,
-          "receiver": null,
-          "generics": null,
-          "signature": "fromBase64(string $s): bytes",
-          "params": [
-            {
-              "kind": "param",
-              "name": "s",
-              "type": "string",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            }
-          ],
-          "options": [],
-          "returnType": "bytes",
-          "replaces": "`base64_decode`",
-          "notes": "",
-          "qualifier": "",
-          "section": "7. `Core\\Encoding` and `Core\\Bytes`",
-          "fromOverride": true,
-          "implemented": true,
-          "notesHtml": "",
-          "doc": {
-            "shortHtml": "Reads base64 text <code>$b</code> back to octets, as <code>base64_decode</code> does in strict mode and stricter: § 4's alphabet only, padding required and canonical, and no unread bits in the last symbol. URL-safe text is <code>fromBase64Url</code>'s to read.",
-            "params": [
-              {
-                "name": "b",
-                "descHtml": "The base64 text."
-              }
-            ],
-            "returnHtml": "The decoded octets; the empty buffer for the empty string.",
-            "errors": [
-              {
-                "error": "RuntimeError",
-                "descHtml": "<code>$b</code> is not strict base64 — a symbol outside the alphabet, <code>-</code> and <code>_</code> included, missing or wrong padding, a truncated final group, or non-canonical trailing bits."
-              }
-            ]
-          },
-          "slug": "frombase64",
-          "url": "/docs/core/encoding/frombase64/"
-        },
-        {
-          "id": "Encoding.fromBase64Url",
-          "name": "fromBase64Url",
-          "static": true,
-          "receiver": null,
-          "generics": null,
-          "signature": "fromBase64Url(string $s): bytes",
-          "params": [
-            {
-              "kind": "param",
-              "name": "s",
-              "type": "string",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            }
-          ],
-          "options": [],
-          "returnType": "bytes",
-          "replaces": "the `strtr(base64_decode(…))` idiom",
-          "notes": "",
-          "qualifier": "",
-          "section": "7. `Core\\Encoding` and `Core\\Bytes`",
-          "fromOverride": true,
-          "implemented": true,
-          "notesHtml": "",
-          "doc": {
-            "shortHtml": "Reads URL-safe base64 text <code>$b</code> back to octets — <code>toBase64Url</code>'s other half, as strict as <code>fromBase64</code> and refusing padding rather than tolerating it.",
-            "params": [
-              {
-                "name": "b",
-                "descHtml": "The URL-safe base64 text, unpadded."
-              }
-            ],
-            "returnHtml": "The decoded octets; the empty buffer for the empty string.",
-            "errors": [
-              {
-                "error": "RuntimeError",
-                "descHtml": "<code>$b</code> is not unpadded URL-safe base64 — a symbol outside the alphabet, <code>+</code>, <code>/</code> and <code>=</code> included, a truncated final group, or non-canonical trailing bits."
-              }
-            ]
-          },
-          "slug": "frombase64url",
-          "url": "/docs/core/encoding/frombase64url/"
-        },
-        {
-          "id": "Encoding.fromHex",
-          "name": "fromHex",
-          "static": true,
-          "receiver": null,
-          "generics": null,
-          "signature": "fromHex(string $s): bytes",
-          "params": [
-            {
-              "kind": "param",
-              "name": "s",
-              "type": "string",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            }
-          ],
-          "options": [],
-          "returnType": "bytes",
-          "replaces": "`hex2bin`",
-          "notes": "",
-          "qualifier": "",
-          "section": "7. `Core\\Encoding` and `Core\\Bytes`",
-          "fromOverride": true,
-          "implemented": true,
-          "notesHtml": "",
-          "doc": {
-            "shortHtml": "Reads hexadecimal text <code>$b</code> back to octets, as <code>hex2bin</code> does but throwing where it warned and answered <code>false</code>: either case, two digits per octet, and nothing between the pairs.",
-            "params": [
-              {
-                "name": "b",
-                "descHtml": "The hexadecimal text."
-              }
-            ],
-            "returnHtml": "The decoded octets, half as many as <code>$b</code> has digits; the empty buffer for the empty string.",
-            "errors": [
-              {
-                "error": "RuntimeError",
-                "descHtml": "<code>$b</code> has an odd number of digits, or a character that is not <code>0</code>-<code>9</code>, <code>a</code>-<code>f</code> or <code>A</code>-<code>F</code> — a space, a colon or a <code>0x</code> prefix included."
-              }
-            ]
-          },
-          "slug": "fromhex",
-          "url": "/docs/core/encoding/fromhex/"
-        },
-        {
           "id": "Encoding.fromBase32",
           "name": "fromBase32",
           "static": true,
@@ -4218,18 +4215,17 @@
           ],
           "options": [],
           "returnType": "bytes",
-          "replaces": "nothing — needed by TOTP",
+          "replaces": "nothing — needed by TOTP ([ADR 0060](../adr/0060-application-security-protocols.md))",
           "notes": "",
           "qualifier": "",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
-          "fromOverride": true,
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Reads base32 text <code>$b</code> back to octets — <code>toBase32</code>'s other half, taking either case and padding that is canonical or absent, since neither changes which octets come out.",
+            "shortHtml": "Reads base32 text <code>$s</code> back to octets — <code>toBase32</code>'s other half, taking either case and padding that is canonical or absent, since neither changes which octets come out.",
             "params": [
               {
-                "name": "b",
+                "name": "s",
                 "descHtml": "The base32 text."
               }
             ],
@@ -4237,7 +4233,7 @@
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "<code>$b</code> holds a symbol outside the alphabet — a space between groups included — a truncated final group, non-canonical trailing bits, or padding that is present but wrong."
+                "descHtml": "<code>$s</code> holds a symbol outside the alphabet — a space between groups included — a truncated final group, non-canonical trailing bits, or padding that is present but wrong."
               }
             ]
           },
@@ -4925,7 +4921,7 @@
             "returnHtml": "<code>$n</code> with its sign dropped, in the type it came in; <code>-0.0</code> becomes <code>0.0</code>.",
             "errors": [
               {
-                "error": "RuntimeError",
+                "error": "ArithmeticError",
                 "descHtml": "When <code>$n</code> is <code>INT_MIN</code>, whose magnitude is one past <code>INT_MAX</code>, or a <code>uint</code> past <code>INT_MAX</code>."
               }
             ]
@@ -4970,7 +4966,11 @@
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "When <code>$n</code> is <code>NaN</code>, which is on neither side of zero, or a <code>uint</code> past <code>INT_MAX</code>."
+                "descHtml": "When <code>$n</code> is <code>NaN</code>, which is on neither side of zero."
+              },
+              {
+                "error": "ArithmeticError",
+                "descHtml": "When <code>$n</code> is a <code>uint</code> past <code>INT_MAX</code>."
               }
             ]
           },
@@ -5374,7 +5374,7 @@
             "returnHtml": "The quotient with any remainder dropped, so <code>intDiv(-7, 2)</code> is <code>-3</code>.",
             "errors": [
               {
-                "error": "RuntimeError",
+                "error": "ArithmeticError",
                 "descHtml": "When <code>$b</code> is zero, or when <code>$a</code> is <code>INT_MIN</code> and <code>$b</code> is <code>-1</code>, whose exact answer is one past <code>INT_MAX</code>."
               }
             ]
@@ -5430,7 +5430,7 @@
             "returnHtml": "<code>$a - $b * truncate($a / $b)</code>, carrying <code>$a</code>'s sign; <code>NaN</code> when <code>$a</code> is an infinity, and <code>$a</code> unchanged when <code>$b</code> is one.",
             "errors": [
               {
-                "error": "RuntimeError",
+                "error": "ArithmeticError",
                 "descHtml": "When <code>$b</code> is zero — a division by zero, which throws here rather than answering <code>NaN</code> as <code>fmod</code> does."
               }
             ]
@@ -5486,7 +5486,7 @@
             "returnHtml": "The largest integer dividing both, at least <code>0</code>; <code>gcd(0, 0)</code> is <code>0</code> and <code>gcd($a, 0)</code> is <code>abs($a)</code>.",
             "errors": [
               {
-                "error": "RuntimeError",
+                "error": "ArithmeticError",
                 "descHtml": "When the answer does not fit an <code>int</code>, which only <code>gcd(INT_MIN, 0)</code> and <code>gcd(INT_MIN, INT_MIN)</code> reach."
               }
             ]
@@ -5542,7 +5542,7 @@
             "returnHtml": "The smallest positive integer both divide, or <code>0</code> when either argument is <code>0</code>.",
             "errors": [
               {
-                "error": "RuntimeError",
+                "error": "ArithmeticError",
                 "descHtml": "When the answer is past <code>INT_MAX</code>, the usual case for two large coprime arguments."
               }
             ]
@@ -6302,7 +6302,11 @@
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "When <code>$base</code> is outside <code>2</code> to <code>36</code>, when <code>$s</code> has no digits, when a character of <code>$s</code> is not a digit of <code>$base</code>, or when the value does not fit an <code>int</code>."
+                "descHtml": "When <code>$base</code> is outside <code>2</code> to <code>36</code>, when <code>$s</code> has no digits, or when a character of <code>$s</code> is not a digit of <code>$base</code>."
+              },
+              {
+                "error": "ArithmeticError",
+                "descHtml": "When the value does not fit an <code>int</code>."
               }
             ]
           },
@@ -6371,7 +6375,11 @@
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "When <code>$n</code> is an infinity or <code>NaN</code>, which have no digits, when <code>$n</code> is a <code>uint</code> past <code>INT_MAX</code>, or when <code>decimals</code> is past <code>100</code>."
+                "descHtml": "When <code>$n</code> is an infinity or <code>NaN</code>, which have no digits, or when <code>decimals</code> is past <code>100</code>."
+              },
+              {
+                "error": "ArithmeticError",
+                "descHtml": "When <code>$n</code> is a <code>uint</code> past <code>INT_MAX</code>."
               }
             ]
           },
@@ -10179,7 +10187,7 @@
             "returnHtml": "The filled-in text; a width or precision counts graphemes, and <code>%f</code> always writes <code>.</code> as the decimal separator.",
             "errors": [
               {
-                "error": "RuntimeError",
+                "error": "LogicError",
                 "descHtml": "The template holds a malformed or unknown placeholder, names more arguments than were passed, leaves an argument no placeholder reads, or reaches a value with no reading for its conversion — an array for <code>%d</code>, or a <code>decimal</code> that is not whole for an integer conversion."
               }
             ]
@@ -10964,7 +10972,7 @@
             "returnHtml": "The rendered text.",
             "errors": [
               {
-                "error": "RuntimeError",
+                "error": "LogicError",
                 "descHtml": "<code>$pattern</code> does not compile — a field letter outside the implemented subset, or an unterminated quote."
               }
             ]
@@ -11741,6 +11749,167 @@
           "url": "/docs/core/time-duration/toseconds/"
         },
         {
+          "id": "Time.Duration.plus",
+          "name": "plus",
+          "static": false,
+          "receiver": "d",
+          "generics": null,
+          "signature": "plus(Duration $d): Duration",
+          "params": [
+            {
+              "kind": "param",
+              "name": "d",
+              "type": "Duration",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Duration",
+          "replaces": "",
+          "notes": "`Duration` is `Comparable` and `Stringable`, emitting the literal grammar so it round-trips through `parse`",
+          "qualifier": "",
+          "section": "4. `Core\\Time`",
+          "implemented": true,
+          "notesHtml": "<code>Duration</code> is <code>Comparable</code> and <code>Stringable</code>, emitting the literal grammar so it round-trips through <code>parse</code>",
+          "doc": {
+            "shortHtml": "Adds <code>$d</code> to the receiver, nanosecond for nanosecond.",
+            "params": [
+              {
+                "name": "d",
+                "descHtml": "The duration to add; a negative one shortens the result."
+              }
+            ],
+            "returnHtml": "A new <code>Duration</code> of the sum; the receiver is unchanged.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The sum is longer than a <code>Duration</code> can hold."
+              }
+            ]
+          },
+          "slug": "plus",
+          "url": "/docs/core/time-duration/plus/"
+        },
+        {
+          "id": "Time.Duration.minus",
+          "name": "minus",
+          "static": false,
+          "receiver": "d",
+          "generics": null,
+          "signature": "minus(Duration $d): Duration",
+          "params": [
+            {
+              "kind": "param",
+              "name": "d",
+              "type": "Duration",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Duration",
+          "replaces": "",
+          "notes": "`Duration` is `Comparable` and `Stringable`, emitting the literal grammar so it round-trips through `parse`",
+          "qualifier": "",
+          "section": "4. `Core\\Time`",
+          "implemented": true,
+          "notesHtml": "<code>Duration</code> is <code>Comparable</code> and <code>Stringable</code>, emitting the literal grammar so it round-trips through <code>parse</code>",
+          "doc": {
+            "shortHtml": "Subtracts <code>$d</code> from the receiver, nanosecond for nanosecond.",
+            "params": [
+              {
+                "name": "d",
+                "descHtml": "The duration to subtract; a negative one lengthens the result."
+              }
+            ],
+            "returnHtml": "A new <code>Duration</code> of the difference, negative where <code>$d</code> is the longer; the receiver is unchanged.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The difference is longer than a <code>Duration</code> can hold."
+              }
+            ]
+          },
+          "slug": "minus",
+          "url": "/docs/core/time-duration/minus/"
+        },
+        {
+          "id": "Time.Duration.multipliedBy",
+          "name": "multipliedBy",
+          "static": false,
+          "receiver": "d",
+          "generics": null,
+          "signature": "multipliedBy(int $factor): Duration",
+          "params": [
+            {
+              "kind": "param",
+              "name": "factor",
+              "type": "int",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Duration",
+          "replaces": "",
+          "notes": "`Duration` is `Comparable` and `Stringable`, emitting the literal grammar so it round-trips through `parse`",
+          "qualifier": "",
+          "section": "4. `Core\\Time`",
+          "implemented": true,
+          "notesHtml": "<code>Duration</code> is <code>Comparable</code> and <code>Stringable</code>, emitting the literal grammar so it round-trips through <code>parse</code>",
+          "doc": {
+            "shortHtml": "Scales the receiver by a whole factor.",
+            "params": [
+              {
+                "name": "factor",
+                "descHtml": "The integer to multiply by; <code>0</code> answers an empty duration and a negative factor reverses the direction."
+              }
+            ],
+            "returnHtml": "A new <code>Duration</code> of <code>$factor</code> times the receiver; the receiver is unchanged.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The product is longer than a <code>Duration</code> can hold."
+              }
+            ]
+          },
+          "slug": "multipliedby",
+          "url": "/docs/core/time-duration/multipliedby/"
+        },
+        {
+          "id": "Time.Duration.negated",
+          "name": "negated",
+          "static": false,
+          "receiver": "d",
+          "generics": null,
+          "signature": "negated(): Duration",
+          "params": [],
+          "options": [],
+          "returnType": "Duration",
+          "replaces": "",
+          "notes": "`Duration` is `Comparable` and `Stringable`, emitting the literal grammar so it round-trips through `parse`",
+          "qualifier": "",
+          "section": "4. `Core\\Time`",
+          "implemented": true,
+          "notesHtml": "<code>Duration</code> is <code>Comparable</code> and <code>Stringable</code>, emitting the literal grammar so it round-trips through <code>parse</code>",
+          "doc": {
+            "shortHtml": "Reverses the receiver's direction: <code>30s</code> becomes <code>-30s</code>.",
+            "returnHtml": "A new <code>Duration</code> of the same length in the opposite direction; the receiver is unchanged.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The receiver is the one duration whose negation does not fit — exactly −2⁶³ nanoseconds."
+              }
+            ]
+          },
+          "slug": "negated",
+          "url": "/docs/core/time-duration/negated/"
+        },
+        {
           "id": "Time.Duration.nanoseconds",
           "name": "nanoseconds",
           "static": true,
@@ -12120,171 +12289,6 @@
           },
           "slug": "tonanoseconds",
           "url": "/docs/core/time-duration/tonanoseconds/"
-        },
-        {
-          "id": "Time.Duration.plus",
-          "name": "plus",
-          "static": false,
-          "receiver": "d",
-          "generics": null,
-          "signature": "plus(Duration $other): Duration",
-          "params": [
-            {
-              "kind": "param",
-              "name": "other",
-              "type": "Duration",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            }
-          ],
-          "options": [],
-          "returnType": "Duration",
-          "replaces": "",
-          "notes": "",
-          "qualifier": "",
-          "section": "4. `Core\\Time`",
-          "fromOverride": true,
-          "implemented": true,
-          "notesHtml": "",
-          "doc": {
-            "shortHtml": "Adds <code>$d</code> to the receiver, nanosecond for nanosecond.",
-            "params": [
-              {
-                "name": "d",
-                "descHtml": "The duration to add; a negative one shortens the result."
-              }
-            ],
-            "returnHtml": "A new <code>Duration</code> of the sum; the receiver is unchanged.",
-            "errors": [
-              {
-                "error": "RuntimeError",
-                "descHtml": "The sum is longer than a <code>Duration</code> can hold."
-              }
-            ]
-          },
-          "slug": "plus",
-          "url": "/docs/core/time-duration/plus/"
-        },
-        {
-          "id": "Time.Duration.minus",
-          "name": "minus",
-          "static": false,
-          "receiver": "d",
-          "generics": null,
-          "signature": "minus(Duration $other): Duration",
-          "params": [
-            {
-              "kind": "param",
-              "name": "other",
-              "type": "Duration",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            }
-          ],
-          "options": [],
-          "returnType": "Duration",
-          "replaces": "",
-          "notes": "",
-          "qualifier": "",
-          "section": "4. `Core\\Time`",
-          "fromOverride": true,
-          "implemented": true,
-          "notesHtml": "",
-          "doc": {
-            "shortHtml": "Subtracts <code>$d</code> from the receiver, nanosecond for nanosecond.",
-            "params": [
-              {
-                "name": "d",
-                "descHtml": "The duration to subtract; a negative one lengthens the result."
-              }
-            ],
-            "returnHtml": "A new <code>Duration</code> of the difference, negative where <code>$d</code> is the longer; the receiver is unchanged.",
-            "errors": [
-              {
-                "error": "RuntimeError",
-                "descHtml": "The difference is longer than a <code>Duration</code> can hold."
-              }
-            ]
-          },
-          "slug": "minus",
-          "url": "/docs/core/time-duration/minus/"
-        },
-        {
-          "id": "Time.Duration.multipliedBy",
-          "name": "multipliedBy",
-          "static": false,
-          "receiver": "d",
-          "generics": null,
-          "signature": "multipliedBy(int $factor): Duration",
-          "params": [
-            {
-              "kind": "param",
-              "name": "factor",
-              "type": "int",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            }
-          ],
-          "options": [],
-          "returnType": "Duration",
-          "replaces": "",
-          "notes": "",
-          "qualifier": "",
-          "section": "4. `Core\\Time`",
-          "fromOverride": true,
-          "implemented": true,
-          "notesHtml": "",
-          "doc": {
-            "shortHtml": "Scales the receiver by a whole factor.",
-            "params": [
-              {
-                "name": "factor",
-                "descHtml": "The integer to multiply by; <code>0</code> answers an empty duration and a negative factor reverses the direction."
-              }
-            ],
-            "returnHtml": "A new <code>Duration</code> of <code>$factor</code> times the receiver; the receiver is unchanged.",
-            "errors": [
-              {
-                "error": "RuntimeError",
-                "descHtml": "The product is longer than a <code>Duration</code> can hold."
-              }
-            ]
-          },
-          "slug": "multipliedby",
-          "url": "/docs/core/time-duration/multipliedby/"
-        },
-        {
-          "id": "Time.Duration.negated",
-          "name": "negated",
-          "static": false,
-          "receiver": "d",
-          "generics": null,
-          "signature": "negated(): Duration",
-          "params": [],
-          "options": [],
-          "returnType": "Duration",
-          "replaces": "",
-          "notes": "",
-          "qualifier": "",
-          "section": "4. `Core\\Time`",
-          "fromOverride": true,
-          "implemented": true,
-          "notesHtml": "",
-          "doc": {
-            "shortHtml": "Reverses the receiver's direction: <code>30s</code> becomes <code>-30s</code>.",
-            "returnHtml": "A new <code>Duration</code> of the same length in the opposite direction; the receiver is unchanged.",
-            "errors": [
-              {
-                "error": "RuntimeError",
-                "descHtml": "The receiver is the one duration whose negation does not fit — exactly −2⁶³ nanoseconds."
-              }
-            ]
-          },
-          "slug": "negated",
-          "url": "/docs/core/time-duration/negated/"
         }
       ],
       "unparsed": [],

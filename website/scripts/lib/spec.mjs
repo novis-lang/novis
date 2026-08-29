@@ -380,7 +380,12 @@ export function parseSpec(specText, overrides) {
       const names = [...memberCellRaw.matchAll(/`([^`]+)`/g)].map((m) => m[1])
       if (names.length === 0) names.push(key)
 
-      const parsed = parseSignature(sigCell)
+      // A combined row (`toBase64` / `fromBase64`) states one signature per
+      // name, each its own code span — the reading
+      // crates/nvs-stdlib/tests/spec_registry_coverage.rs makes of the column.
+      const sigSpans = [...sigCell.matchAll(/`([^`]+)`/g)].map((m) => m[1])
+      const parsedSpans = (sigSpans.length > 0 ? sigSpans : [sigCell]).map((s) => parseSignature(s))
+      const parsed = parsedSpans[0]
       if (!parsed) {
         const target = currentClasses[0] ?? classRecord('Core\\Unknown')
         target.unparsed.push({ memberCell: key, signatureCell: unescapeCell(sigCell), section: currentSection })
@@ -433,9 +438,13 @@ export function parseSpec(specText, overrides) {
       // Further names: clone when the cell is space-separated (`sin` `cos` `tan`)
       // or explicitly allowed; otherwise they need an override member.
       const spaceSeparated = !memberCellRaw.includes('/')
+      const stated = (name) => parsedSpans.find((sig) => sig && sig.name === name) ?? null
       for (const extra of names.slice(1)) {
         const extraBare = bare(extra)
-        if (spaceSeparated || rowOv?.cloneAlso?.includes(extraBare)) {
+        const own = stated(extraBare)
+        if (own) {
+          push(extraBare, own)
+        } else if (spaceSeparated || rowOv?.cloneAlso?.includes(extraBare)) {
           push(extraBare, parsed)
         } else if (!rowOv?.silent && !(overrides.members ?? []).some((om) => om.class === owner.name && om.name === extraBare)) {
           warnings.push(`"${key}" names ${extraBare} but only ${bare(firstName)}'s signature is stated — add an override member or cloneAlso`)

@@ -368,7 +368,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "fromBase64",
-            names: &["b"],
+            names: &["s"],
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Bytes,
@@ -386,7 +386,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "fromBase64Url",
-            names: &["b"],
+            names: &["s"],
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Bytes,
@@ -404,7 +404,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "fromBase32",
-            names: &["b"],
+            names: &["s"],
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Bytes,
@@ -422,7 +422,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "fromHex",
-            names: &["b"],
+            names: &["s"],
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Bytes,
@@ -520,18 +520,18 @@ const TO_BASE64_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Encoding::fromBase64`'s reference card — ADR 0117.
 const FROM_BASE64_DOC: MethodDoc = MethodDoc {
-    short: "Reads base64 text `$b` back to octets, as `base64_decode` does in strict mode and \
+    short: "Reads base64 text `$s` back to octets, as `base64_decode` does in strict mode and \
             stricter: § 4's alphabet only, padding required and canonical, and no unread bits \
             in the last symbol. URL-safe text is `fromBase64Url`'s to read.",
     params: &[ParamDoc {
-        name: "b",
+        name: "s",
         desc: "The base64 text.",
         shape: &[],
     }],
     ret: "The decoded octets; the empty buffer for the empty string.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$b` is not strict base64 — a symbol outside the alphabet, `-` and `_` \
+        desc: "`$s` is not strict base64 — a symbol outside the alphabet, `-` and `_` \
                included, missing or wrong padding, a truncated final group, or non-canonical \
                trailing bits.",
     }],
@@ -553,17 +553,17 @@ const TO_BASE64_URL_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Encoding::fromBase64Url`'s reference card — ADR 0117.
 const FROM_BASE64_URL_DOC: MethodDoc = MethodDoc {
-    short: "Reads URL-safe base64 text `$b` back to octets — `toBase64Url`'s other half, as \
+    short: "Reads URL-safe base64 text `$s` back to octets — `toBase64Url`'s other half, as \
             strict as `fromBase64` and refusing padding rather than tolerating it.",
     params: &[ParamDoc {
-        name: "b",
+        name: "s",
         desc: "The URL-safe base64 text, unpadded.",
         shape: &[],
     }],
     ret: "The decoded octets; the empty buffer for the empty string.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$b` is not unpadded URL-safe base64 — a symbol outside the alphabet, `+`, \
+        desc: "`$s` is not unpadded URL-safe base64 — a symbol outside the alphabet, `+`, \
                `/` and `=` included, a truncated final group, or non-canonical trailing bits.",
     }],
 };
@@ -583,18 +583,18 @@ const TO_BASE32_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Encoding::fromBase32`'s reference card — ADR 0117.
 const FROM_BASE32_DOC: MethodDoc = MethodDoc {
-    short: "Reads base32 text `$b` back to octets — `toBase32`'s other half, taking either \
+    short: "Reads base32 text `$s` back to octets — `toBase32`'s other half, taking either \
             case and padding that is canonical or absent, since neither changes which octets \
             come out.",
     params: &[ParamDoc {
-        name: "b",
+        name: "s",
         desc: "The base32 text.",
         shape: &[],
     }],
     ret: "The decoded octets; the empty buffer for the empty string.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$b` holds a symbol outside the alphabet — a space between groups included — \
+        desc: "`$s` holds a symbol outside the alphabet — a space between groups included — \
                a truncated final group, non-canonical trailing bits, or padding that is \
                present but wrong.",
     }],
@@ -615,19 +615,19 @@ const TO_HEX_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Encoding::fromHex`'s reference card — ADR 0117.
 const FROM_HEX_DOC: MethodDoc = MethodDoc {
-    short: "Reads hexadecimal text `$b` back to octets, as `hex2bin` does but throwing where \
+    short: "Reads hexadecimal text `$s` back to octets, as `hex2bin` does but throwing where \
             it warned and answered `false`: either case, two digits per octet, and nothing \
             between the pairs.",
     params: &[ParamDoc {
-        name: "b",
+        name: "s",
         desc: "The hexadecimal text.",
         shape: &[],
     }],
-    ret: "The decoded octets, half as many as `$b` has digits; the empty buffer for the empty \
+    ret: "The decoded octets, half as many as `$s` has digits; the empty buffer for the empty \
           string.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$b` has an odd number of digits, or a character that is not `0`-`9`, `a`-`f` \
+        desc: "`$s` has an odd number of digits, or a character that is not `0`-`9`, `a`-`f` \
                or `A`-`F` — a space, a colon or a `0x` prefix included.",
     }],
 };

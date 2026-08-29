@@ -522,7 +522,7 @@ because constructing an invalid date throws.
 | `Duration::seconds` | `seconds(int $n): Duration` | plus `nanoseconds`, `microseconds`, `milliseconds`, `minutes`, `hours`, `days`, `weeks` — for a **computed** count; a literal one is [ADR 0070](../adr/0070-duration-literals.md)'s `30s` |
 | `Duration::parse` | `parse(string $text): Duration` | the run-time form of that same literal grammar, one implementation for both. Throws on anything it does not accept, so it **launders** a `tainted` config value |
 | `$d->toSeconds` | `$d->toSeconds(): int` | plus `toMilliseconds`, `toMicroseconds`, `toNanoseconds` |
-| `$d->plus` / `minus` / `multipliedBy` / `negated` | | `Duration` is `Comparable` and `Stringable`, emitting the literal grammar so it round-trips through `parse` |
+| `$d->plus` / `minus` / `multipliedBy` / `negated` | `$d->plus(Duration $d): Duration` / `$d->minus(Duration $d): Duration` / `$d->multipliedBy(int $factor): Duration` / `$d->negated(): Duration` | `Duration` is `Comparable` and `Stringable`, emitting the literal grammar so it round-trips through `parse` |
 | `Zone::of` | `of(string $id): Zone` | IANA identifier; throws on an unknown one. Replaces `DateTimeZone` |
 | `Zone::fixed` | `fixed(Duration $offset): Zone` | a fixed offset from UTC, for a timestamp that carries one instead of a region |
 | `Zone::system` | `system(): Zone` | the host's configured zone, read once at boot. Replaces `date_default_timezone_get` |
@@ -621,10 +621,10 @@ honestly fail ([ADR 0009](../adr/0009-string-and-bytes.md)).
 | `decodeText` | `decodeText(bytes $b, Charset $charset): string` | `iconv`, `mb_convert_encoding`, `utf8_decode` | |
 | `encodeText` | `encodeText(string $s, Charset $charset): bytes` | `iconv`, `mb_convert_encoding`, `utf8_encode` | |
 | `isValidText` | `isValidText(bytes $b, Charset $charset): bool` | `mb_check_encoding` | neutral |
-| `toBase64` / `fromBase64` | `toBase64(bytes $b): string` | `base64_encode`, `base64_decode` | |
-| `toBase64Url` / `fromBase64Url` | `toBase64Url(bytes $b): string` | `strtr(base64_encode(…))` idiom | |
-| `toHex` / `fromHex` | `toHex(bytes $b): string` | `bin2hex`, `hex2bin`, `unpack("H*")` | |
-| `toBase32` / `fromBase32` | `toBase32(bytes $b): string` | nothing — needed by TOTP ([ADR 0060](../adr/0060-application-security-protocols.md)) | |
+| `toBase64` / `fromBase64` | `toBase64(bytes $b): string` / `fromBase64(string $s): bytes` | `base64_encode`, `base64_decode` | |
+| `toBase64Url` / `fromBase64Url` | `toBase64Url(bytes $b): string` / `fromBase64Url(string $s): bytes` | `strtr(base64_encode(…))` idiom | |
+| `toHex` / `fromHex` | `toHex(bytes $b): string` / `fromHex(string $s): bytes` | `bin2hex`, `hex2bin`, `unpack("H*")` | |
+| `toBase32` / `fromBase32` | `toBase32(bytes $b): string` / `fromBase32(string $s): bytes` | nothing — needed by TOTP ([ADR 0060](../adr/0060-application-security-protocols.md)) | |
 
 `quoted_printable_encode`/`_decode` and `convert_uuencode`/`_decode` are dropped; quoted-printable survives
 only inside `Core\Mail`, which is the one thing that ever needed it.

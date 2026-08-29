@@ -41,18 +41,18 @@ export const overrides = {
     'date / timeOfDay / zone': { silent: true },
     // Duration/Zone shared table: receivers disambiguated per row.
     '$d->toSeconds': { class: 'Core\\Time\\Duration' },
-    '$d->plus / minus / multipliedBy / negated': { skip: true },
+    '$d->plus / minus / multipliedBy / negated': { class: 'Core\\Time\\Duration' },
     'Zone::UTC': { skip: true }, // a constant, not a member — see classes below
 
     // ---- § 7: the section heading names two classes, so every row states its
-    // class; the from- halves are stated in encoding.rs (see members below).
+    // class; a combined row states both halves' signatures in its own cell.
     decodeText: { class: 'Core\\Encoding' },
     encodeText: { class: 'Core\\Encoding' },
     isValidText: { class: 'Core\\Encoding' },
-    'toBase64 / fromBase64': { class: 'Core\\Encoding', silent: true },
-    'toBase64Url / fromBase64Url': { class: 'Core\\Encoding', silent: true },
-    'toHex / fromHex': { class: 'Core\\Encoding', silent: true },
-    'toBase32 / fromBase32': { class: 'Core\\Encoding', silent: true },
+    'toBase64 / fromBase64': { class: 'Core\\Encoding' },
+    'toBase64Url / fromBase64Url': { class: 'Core\\Encoding' },
+    'toHex / fromHex': { class: 'Core\\Encoding' },
+    'toBase32 / fromBase32': { class: 'Core\\Encoding' },
 
     // ---- § 12 Core\Uri: reader rows hold several signatures in one cell.
     '$uri->scheme / $uri->userInfo / $uri->host / $uri->port': { skip: true },
@@ -93,21 +93,11 @@ export const overrides = {
     { class: 'Core\\Time\\Duration', signature: '$d->toMilliseconds(): int' },
     { class: 'Core\\Time\\Duration', signature: '$d->toMicroseconds(): int' },
     { class: 'Core\\Time\\Duration', signature: '$d->toNanoseconds(): int' },
-    // From the `$d->plus / minus / multipliedBy / negated` row (Duration is Comparable and Stringable).
-    { class: 'Core\\Time\\Duration', signature: '$d->plus(Duration $other): Duration' },
-    { class: 'Core\\Time\\Duration', signature: '$d->minus(Duration $other): Duration' },
-    { class: 'Core\\Time\\Duration', signature: '$d->multipliedBy(int $factor): Duration' },
-    { class: 'Core\\Time\\Duration', signature: '$d->negated(): Duration' },
 
     // ---- § 4 Core\Time\Date / TimeOfDay constructors, stated in the section prose.
     { class: 'Core\\Time\\Date', signature: 'at(int $y, uint $m, uint $d): Date', notes: 'constructing an invalid date throws' },
     { class: 'Core\\Time\\TimeOfDay', signature: 'at(uint $hour, uint $minute, {second?: uint, nanos?: uint}): TimeOfDay' },
 
-    // ---- § 7 Core\Encoding — signatures from crates/nvs-stdlib/src/encoding.rs.
-    { class: 'Core\\Encoding', signature: 'fromBase64(string $s): bytes', replaces: '`base64_decode`' },
-    { class: 'Core\\Encoding', signature: 'fromBase64Url(string $s): bytes', replaces: 'the `strtr(base64_decode(…))` idiom' },
-    { class: 'Core\\Encoding', signature: 'fromHex(string $s): bytes', replaces: '`hex2bin`' },
-    { class: 'Core\\Encoding', signature: 'fromBase32(string $s): bytes', replaces: 'nothing — needed by TOTP' },
 
     // ---- § 7 Core\Bytes — the roster is prose in the spec; signatures from crates/nvs-stdlib/src/bytes.rs.
     { class: 'Core\\Bytes', signature: 'length(bytes $b): uint', replaces: '`strlen` over binary strings', qualifier: 'neutral' },
