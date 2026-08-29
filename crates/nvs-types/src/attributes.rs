@@ -62,6 +62,10 @@ pub(crate) fn check_declaration(
             ClassMemberKind::Const(c) => check_groups(&c.attributes, ctx, env),
             ClassMemberKind::Method(m) => {
                 check_groups(&m.attributes, ctx, env);
+                // ADR 0096 § 1a's repeat rule is a question about the list
+                // rather than about one payload, and this is the walk that
+                // holds a method's whole list.
+                crate::routes::check_one_access(&m.attributes, ctx, env);
                 check_params(&m.params, ctx, env);
             }
             _ => {}

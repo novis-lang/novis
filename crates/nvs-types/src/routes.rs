@@ -53,11 +53,14 @@
 //! And it reads
 //! [ADR 0096](../../../../docs/adr/0096-a-route-without-a-declared-access-decision-does-not-compile.md)
 //! § 1's `#[Access]`, which is here for `#[Query]`'s reason — it is a
-//! `#[Route]`'s sibling and means nothing away from one. Only its *payload* is
-//! answered so far ([`ACCESS_OPTIONS`] and [`check_access`], from the
-//! per-attribute walk) and § 1's presence rule, which is a question about the
-//! method's attribute list and so is asked by the same walk that finds the
-//! `#[Route]` ([`check_access_declared`]). § 4's `csrf` opt-out is a question
+//! `#[Route]`'s sibling and means nothing away from one. Its *payload* is
+//! [`ACCESS_OPTIONS`] and [`check_access`], from the per-attribute walk; § 1's
+//! presence rule is a question about the method's attribute list and so is
+//! asked by the same walk that finds the `#[Route]` ([`check_access_declared`]);
+//! § 1a's one-per-method rule is a question about that list as a whole and so
+//! is [`check_one_access`], from the walk that visits every method's list. The
+//! decision itself rides on the row as [`Route::access`], because ADR 0102 § 8
+//! leaves enforcement to whoever dispatches. § 4's `csrf` opt-out is a question
 //! about a row's verbs and is not asked yet.
 //!
 //! The conversion roster is [`crate::commands::converts_from_string`], read and
@@ -85,7 +88,9 @@
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, Span, code};
 use nvs_hir::QName;
-use nvs_syntax::ast::{Attribute, ClassDecl, ClassMemberKind, ExprKind, MethodMember};
+use nvs_syntax::ast::{
+    Attribute, AttributeGroup, ClassDecl, ClassMemberKind, ExprKind, MethodMember,
+};
 use rustc_hash::FxHashMap;
 
 use crate::expr_table::UrlPiece;
@@ -152,9 +157,9 @@ pub(crate) const ACCESS_OPTIONS: &[(&str, OptionTy)] =
 /// resolves.
 ///
 /// § 1a's other two rules are not here, because neither is about one payload:
-/// "exactly one `#[Access]` per method" is a question about an attribute list,
-/// and `csrf: false` on a route whose every verb is safe is a question about
-/// that route's verbs.
+/// "exactly one `#[Access]` per method" is a question about an attribute list
+/// and is [`check_one_access`], and `csrf: false` on a route whose every verb is
+/// safe is a question about that route's verbs.
 pub(crate) fn check_access(attr: &Attribute, env: &mut Env<'_>) {
     let Some(field) = written(attr, ALLOW, env) else {
         env.diags.report(
@@ -182,6 +187,48 @@ pub(crate) fn check_access(attr: &Attribute, env: &mut Env<'_>) {
                 "ADR 0096 § 2 never asks what a decision means, so what it asks instead is that \
                  the name resolves: an enum case or a class constant, as `Role::Admin` or \
                  `Audience::Public`",
+            ),
+        );
+    }
+}
+
+/// ADR 0096 § 1a's last rule: exactly one `#[Access]` per method, and a second
+/// one is a compile error naming both.
+///
+/// Asked over a method's whole attribute list, which is why it is not in
+/// [`check_access`] with the other two payload rules: a repeat is a fact about
+/// the *list*, and the walk that checks one payload holds one attribute with no
+/// list around it. Asked of every method rather than only of a `#[Route]`'s,
+/// because § 1a says one per method and an `#[Access]` on a method with no route
+/// is already an attribute that will be read by whoever dispatches — two of them
+/// there are the same two readings.
+///
+/// [ADR 0046](../../../../docs/adr/0046-attributes-shape-literal-metadata.md)
+/// § 3 makes every attribute repeatable in general, and this is the narrowing
+/// § 1a writes over it: a *third* is reported too, each against the first, so an
+/// author deleting the extras is told about all of them at once rather than one
+/// per rebuild.
+pub(crate) fn check_one_access(groups: &[AttributeGroup], ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    let mut first: Option<Span> = None;
+    for attr in groups.iter().flat_map(|group| &group.attributes) {
+        if !crate::derive::attribute_is(attr, crate::derive::ACCESS, ctx, env) {
+            continue;
+        }
+        let Some(declared) = first else {
+            first = Some(attr.span);
+            continue;
+        };
+        env.diags.report(
+            Diagnostic::error(
+                code::E_ACCESS_REPEATED,
+                "this method declares more than one access decision",
+            )
+            .with_primary(attr.span, "a second `#[Access]`")
+            .with_secondary(declared, "the decision this method already declares")
+            .with_help(
+                "two decisions are two readings — every one of them, or any one of them — and \
+                 ADR 0096 § 1a refuses to choose between them silently: write the one decision \
+                 the method makes, and let whatever reads it interpret one name",
             ),
         );
     }
@@ -219,6 +266,22 @@ pub struct Route {
     /// every file has been walked: by then the method that declared them is in
     /// a file the walk has moved past.
     pub query: Vec<String>,
+    /// ADR 0096 § 1's access decision, as the name it resolves to —
+    /// `Core\Audience::Public`, `App\Role::Admin` — because
+    /// [ADR 0102](../../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+    /// § 8 leaves enforcement to whoever dispatches. The decision has to cross
+    /// into `nvs-ir` on the row for that reason, exactly as [`Self::query`]
+    /// does, and it is resolved here rather than left as written because a name
+    /// depends on the file's imports and the row outlives the walk over that
+    /// file.
+    ///
+    /// A string, and nothing structured, is the whole of § 2's promise: this
+    /// compiler never asks what a decision *means*, only that the name
+    /// resolves, so what rides across is the answer to that question and
+    /// nothing else. `None` only where the declaration was already refused —
+    /// no sibling `#[Access]` (§ 1), no `allow`, or an `allow` naming nothing
+    /// (§ 1a) — so every row of a program that compiles carries a decision.
+    pub access: Option<String>,
     /// The whole attribute.
     pub span: Span,
 }
@@ -291,8 +354,8 @@ pub(crate) fn check_class_routes(
         };
         let attr = attr.clone();
         let handler = format!("{class}::{}", span_text(env.src, m.name));
-        check_access_declared(&attr, m, &handler, ctx, env);
-        collect_route(&attr, m, class, handler, ctx, env);
+        let access = check_access_declared(&attr, m, &handler, ctx, env);
+        collect_route(&attr, m, class, handler, access, ctx, env);
     }
 }
 
@@ -310,15 +373,22 @@ pub(crate) fn check_class_routes(
 /// `Audience::Public` in the help is § 1's own wording, and the case it names
 /// is [`nvs_stdlib::router::AUDIENCE`] — the point of naming it in `Core` is
 /// that the fix for this error is a name that already resolves.
-fn check_access_declared(
+///
+/// The sibling it found is handed back rather than dropped, because this is
+/// the one walk that looks for it and [`collect_route`] needs the same
+/// attribute to fill [`Route::access`]; searching the method's attributes a
+/// second time would be the same lookup answered twice.
+fn check_access_declared<'a>(
     attr: &Attribute,
-    m: &MethodMember,
+    m: &'a MethodMember,
     handler: &str,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
-) {
-    if crate::testing::attribute_named(&m.attributes, crate::derive::ACCESS, ctx, env).is_some() {
-        return;
+) -> Option<&'a Attribute> {
+    if let Some(access) =
+        crate::testing::attribute_named(&m.attributes, crate::derive::ACCESS, ctx, env)
+    {
+        return Some(access);
     }
     env.diags.report(
         Diagnostic::error(
@@ -332,6 +402,7 @@ fn check_access_declared(
              `#[Access(allow: Core\\Audience::Public)]` on the method if it is genuinely open",
         ),
     );
+    None
 }
 
 /// One `#[Route]` payload as a row, or the refusal that it is not one.
@@ -347,6 +418,7 @@ fn collect_route(
     m: &MethodMember,
     class: &QName,
     handler: String,
+    access: Option<&Attribute>,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
@@ -398,12 +470,14 @@ fn collect_route(
     check_captures(&captures, path_span, m, class, &handler, env);
     let query = query_params(m, class, ctx, env);
     let name = folded_str(attr, NAME, env);
+    let access = access.and_then(|access| access_name(access, ctx, env));
     env.routes.rows.push(Route {
         verb,
         path,
         name,
         handler,
         query,
+        access,
         span: attr.span,
     });
 }
@@ -775,6 +849,30 @@ fn verb_of(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Option<String>
     }
     env.enums.case(&qname, &case)?;
     Some(case)
+}
+
+/// The `allow:` decision as `Class::MEMBER`, with the class resolved — `Role`
+/// under a `use App\Role;` is `App\Role::Admin` on the row.
+///
+/// Resolved rather than folded, because folding is the one thing this compiler
+/// must not do here: [`check_access`] admits an enum case and a class constant
+/// as one syntactic form precisely so that § 2's promise — the name resolves,
+/// and nothing asks what it means — survives to the dispatcher. So the class
+/// side goes through the resolution every other `Class::…` in this crate gets
+/// and the member side is its own written text, with no lookup of a value
+/// behind it and no requirement that the two together name anything declared.
+///
+/// `None` for a payload [`check_access`] has already refused, and for the
+/// dynamic class side [`crate::expr::resolve_class_expr`] answers `None` to:
+/// both are declarations with no name to carry, and the row says so rather
+/// than carrying a spelling that resolved to nothing.
+fn access_name(attr: &Attribute, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<String> {
+    let field = written(attr, ALLOW, env)?;
+    let ExprKind::ClassConstAccess { class, name } = &field.value.unparenthesized().kind else {
+        return None;
+    };
+    let qname = crate::expr::resolve_class_expr(class, ctx, env)?;
+    Some(format!("{qname}::{}", span_text(env.src, *name)))
 }
 
 /// The two of § 1-§ 3's compile errors that are questions about the whole

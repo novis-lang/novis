@@ -13,11 +13,17 @@
 //! type list it shares with a capture, and § 6's `$params` key that names
 //! neither one nor the other — the refusal the marker exists to make writable.
 //!
-//! ADR 0096 § 1a's `#[Access]` is the newest arrival and is asserted here as a
-//! payload only: the decision is required, and it is a name rather than a
-//! value, wherever the attribute is attached. § 1's *presence* rule — a
-//! `#[Route]` without a sibling `#[Access]` — is not landed yet, which is why
-//! every fixture above declares a route and no decision at all.
+//! ADR 0096's `#[Access]` is asserted here from all three ends: the payload —
+//! the decision is required, and it is a name rather than a value, wherever the
+//! attribute is attached — § 1's *presence* rule, and § 1a's one-per-method
+//! rule. Because presence is landed, every fixture above goes through
+//! `with_access`, which supplies the one line those fixtures do not vary.
+//!
+//! The decision itself is asserted on the row rather than only as a refusal:
+//! ADR 0102 § 8 leaves enforcement to the dispatcher, so what the row carries
+//! is the name the declaration resolved to.
+//!
+//! Not landed yet: § 4's `csrf: false` on a route whose every verb is safe.
 
 mod common;
 
@@ -751,8 +757,9 @@ fn a_url_key_that_is_neither_a_capture_nor_a_query_parameter_is_a_diagnostic() {
 /// that § 4's `csrf` opt-out has something to opt out of.
 ///
 /// The decisions are a userland enum and a userland class constant, which is
-/// what § 1a says every application writes — `Core\Audience`, the one decision
-/// `Core` names, is not on `nvs_stdlib::registry::ENUMS` yet.
+/// what § 1a says every application writes. `Core\Audience::Public` — the one
+/// decision `Core` names, and the fixture `with_access` supplies — is the other
+/// half, and it resolves like any other name.
 fn access_src(payload: &str) -> String {
     format!(
         "<?nvs\nenum Role {{ Admin, Owner }}\nclass Policy {{\n  \
@@ -793,6 +800,113 @@ fn an_access_decision_is_required_and_is_a_name() {
         reported(&diags, code::E_ACCESS_ALLOW_NOT_A_NAME),
         "{diags:?}"
     );
+}
+
+#[test]
+fn a_second_access_on_one_method_is_refused_naming_both() {
+    // § 1a's last rule, over ADR 0046 § 3's general repeatability: two
+    // decisions are two readings — every one of them, or any one of them — and
+    // the compiler refuses to pick one silently.
+    let two = |members: &str| {
+        format!("<?nvs\nenum Role {{ Admin, Owner }}\nclass Users {{\n{members}}}\n")
+    };
+    let route = "  #[\\Core\\Route(path: \"/admin\", method: \\Core\\Http\\Method::Get)]\n  \
+                 #[\\Core\\Access(allow: Role::Admin)]\n  \
+                 #[\\Core\\Access(allow: Role::Owner)]\n  \
+                 public function admin(): string { return \"\"; }\n";
+    let diags = check_src(&two(route));
+    assert!(reported(&diags, code::E_ACCESS_REPEATED), "{diags:?}");
+    assert_eq!(diags.error_count(), 1, "{diags:?}");
+
+    // ADR 0046 § 1's group form is the same two attributes written with one
+    // pair of brackets, so the rule is read off the flattened list rather than
+    // off the groups.
+    let diags = check_src(&two(
+        "  #[\\Core\\Route(path: \"/admin\", method: \\Core\\Http\\Method::Get)]\n  \
+         #[\\Core\\Access(allow: Role::Admin), \\Core\\Access(allow: Role::Owner)]\n  \
+         public function admin(): string { return \"\"; }\n",
+    ));
+    assert!(reported(&diags, code::E_ACCESS_REPEATED), "{diags:?}");
+
+    // A third is reported too, each against the first, so an author deleting
+    // the extras is told about all of them in one build.
+    let diags = check_src(&two(
+        "  #[\\Core\\Route(path: \"/admin\", method: \\Core\\Http\\Method::Get)]\n  \
+         #[\\Core\\Access(allow: Role::Admin)]\n  \
+         #[\\Core\\Access(allow: Role::Owner)]\n  \
+         #[\\Core\\Access(allow: Role::Admin)]\n  \
+         public function admin(): string { return \"\"; }\n",
+    ));
+    assert_eq!(diags.error_count(), 2, "{diags:?}");
+
+    // The rule is per method, not per class: two methods each declaring one
+    // decision is the ordinary program § 1 asks for.
+    let diags = check_src(&two(&format!(
+        "{route_one}{route_two}",
+        route_one = "  #[\\Core\\Route(path: \"/admin\", method: \\Core\\Http\\Method::Get)]\n  \
+                     #[\\Core\\Access(allow: Role::Admin)]\n  \
+                     public function admin(): string { return \"\"; }\n",
+        route_two = "  #[\\Core\\Route(path: \"/owner\", method: \\Core\\Http\\Method::Get)]\n  \
+                     #[\\Core\\Access(allow: Role::Owner)]\n  \
+                     public function owner(): string { return \"\"; }\n",
+    )));
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    // And it is asked of every method rather than only of a route's: an
+    // `#[Access]` on a method with no `#[Route]` is still a decision something
+    // will read, so two of them there are the same two readings.
+    let diags = check_src(&two("  #[\\Core\\Access(allow: Role::Admin)]\n  \
+         #[\\Core\\Access(allow: Role::Owner)]\n  \
+         public function plain(): string { return \"\"; }\n"));
+    assert!(reported(&diags, code::E_ACCESS_REPEATED), "{diags:?}");
+}
+
+#[test]
+fn the_access_decision_rides_on_the_row_as_the_name_it_resolves_to() {
+    // ADR 0102 § 8 puts enforcement in the dispatcher, so the decision the
+    // compiler guarantees was *written* has to reach it — on the row, the way
+    // `query` does, because by the time anything dispatches, the attribute is
+    // in a file this walk has long moved past.
+    let (diags, exprs) = check_src_table(&access_src("allow: Role::Admin"));
+    assert!(!diags.has_errors(), "{diags:?}");
+    assert_eq!(
+        exprs.routes().rows()[0].access.as_deref(),
+        Some("Role::Admin")
+    );
+
+    // A class constant is the other half of § 1a's narrowing and rides
+    // identically, because § 2 never asks which of the two forms a name is.
+    let (diags, exprs) = check_src_table(&access_src("allow: Policy::ADMIN"));
+    assert!(!diags.has_errors(), "{diags:?}");
+    assert_eq!(
+        exprs.routes().rows()[0].access.as_deref(),
+        Some("Policy::ADMIN")
+    );
+
+    // Resolved rather than as written: `Audience` is the `use`d spelling, and
+    // a consumer holding rows from several files cannot re-read the imports
+    // each of them was written under.
+    let (diags, exprs) = check_src_table(
+        "<?nvs\nuse Core\\Audience;\nclass Home {\n  \
+         #[\\Core\\Route(path: \"/\", method: \\Core\\Http\\Method::Get)]\n  \
+         #[\\Core\\Access(allow: Audience::Public)]\n  \
+         public function home(): string { return \"\"; }\n}\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+    assert_eq!(
+        exprs.routes().rows()[0].access.as_deref(),
+        Some("Core\\Audience::Public")
+    );
+
+    // A decision that was refused leaves the row carrying none: `None` is the
+    // shape of "already reported", and a program that compiles has no row in
+    // it.
+    let (diags, exprs) = check_src_table(&access_src("allow: \"admin\""));
+    assert!(
+        reported(&diags, code::E_ACCESS_ALLOW_NOT_A_NAME),
+        "{diags:?}"
+    );
+    assert!(exprs.routes().rows()[0].access.is_none());
 }
 
 #[test]

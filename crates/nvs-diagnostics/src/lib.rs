@@ -2067,6 +2067,17 @@ pub mod code {
     /// declares nothing, this one a route that declares no decision.
     pub const E_ROUTE_WITHOUT_ACCESS: Code = Code::new("E0762");
 
+    /// One method carries two `#[Access]` attributes.
+    ///
+    /// ADR 0096 § 1a's last rule. [ADR 0046](../../../docs/adr/0046-attributes-shape-literal-metadata.md)
+    /// § 3 makes every attribute repeatable and leaves the ambiguity to
+    /// retrieval, which is exactly what cannot happen here: two decisions are
+    /// two readings — every one of them, or any one of them — and choosing
+    /// between them silently is the failure ADR 0096 § 3 exists to prevent.
+    /// Reported at the second, naming the first, because the first is the one
+    /// an author reading the error is deciding whether to keep.
+    pub const E_ACCESS_REPEATED: Code = Code::new("E0763");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");
