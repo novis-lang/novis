@@ -3,74 +3,67 @@
 ## State
 
 **The failing acceptance check is closed.**
-`tests/conformance/reject/a-derive-field-with-no-codec-is-refused-at-its-declaration.nvst` is
-written and passes. ADR 0071 § 2's reachable-set refusal is pinned with both sides of the bound
-in one refusing file: `Row::$cache` and `Row::$h` are both `Handle`, a class with no codec, and
-§ 2's own `#[Json\Field(skip: true)]` takes the first off the contract — so it is examined and
-accepted before `$h` is reached, and `E0756` names exactly one property. `Handle` is declared
-*after* the class that names it, which is what pins the reachability question being asked over
-the whole program rather than at the property walk.
+`tests/conformance/core/a-route-table-answers-a-url-for-every-route-it-holds.nvst` is written and
+passes. Eight routes over three classes spell every form of ADR 0077 § 2's grammar; completeness is
+the *compilation* — an unknown literal name is a compile error, so a route the table never grew a
+row for cannot reach the runtime and the file would not build — and correctness is counted over the
+sweep, with the labelled lines catching the one failure the counters cannot see, a permutation.
 
-**Item 11's four biggest remaining modules are finished.** Sixteen sites left `OWED_A_CASE`,
-each probed with `nvs check` on a scratch file before the comment was written:
-
-- `arr.rs` (7): `chunk`'s `size` and `fill`'s `count` (`CoreTy::Uint`, probed with `mixed` and
-  with the literal `-1`, which is `E0401: expected 'uint', found 'int'` rather than a guard),
-  `fillKeys`' key array, `sort`'s `order` and `preserveKeys`, `sortByKey`'s `order` (the
-  `CoreTy::Enum` shape `Core\Str::normalize` states in full), and `average`'s `usize`→`u64`
-  counter.
-- `uri.rs` (7): `written`'s five `with` string options, `with`'s `port`, `resolve`'s `string`
-  parameter, `buildQuery`'s array, plus three that are **post-conditions rather than
-  boundaries** and say so — `scalar_text`'s `value_to_string` answer (every `Ok` arm of that
-  helper builds a `Value::str`, carrier arm included), `resolve`'s null `text` slot
-  (`Core\Uri` declares no `constructor`, so every instance came from `built`, whose slot 0 is
-  unconditional), and `resolve`'s re-parse of `fluent-uri`'s own output.
-- `hash.rs` (2): `hmac`'s `CoreTy::Union(STRONG)` parameter, and `Stream::finish`'s chunk tag —
-  `update` is the slot's only writer and its parameter is `bytes|string`.
-- `bytes.rs` (3): `pack`'s format and its `CoreTy::Variadic` value list (the judgement
-  `Core\Path::join` states in full), and `unpack`'s format.
-
-**Sixteen lines are left in `OWED_A_CASE`**, across nine files, and it is still the worklist.
+**Item 11 is down to eight lines in `OWED_A_CASE`**, across five files. Seven sites were declared
+unreachable this session, each judged at the site: `router.rs`'s three (the `value_to_string`
+post-condition `crate::uri::scalar_text` already records, and the two prepared-link guards, whose
+`template` is never a program's value at all — it is `nvs_types::UrlPiece::prepared`'s output
+carried as the `ConstStr` `nvs_ir::lower` writes), `format.rs`'s `rendered` (the same
+post-condition), `json.rs`'s three (the `u32` conversion behind the `1..=1024` throw three lines
+above it, `decodeAs`'s slot-0 `ClassDesc`, which `E0442` refuses before any of it runs, and a
+derive field naming a constructor parameter its own class does not have) and `regex.rs`'s group
+`0` (no program constructs a `Core\Regex\Match`, and `built_match` — its only builder — appends
+group `0` first).
 
 **Untouched:** item 12's classification (`UNCLASSIFIED`, `crates/nvs-stdlib/src/registry.rs`).
 
-**Found, not fixed:** a `bytes` array key ICEs in `nvs-ir` rather than being diagnosed, and
-`catch (Core\Error $e)` panics — both have playbook bullets under *Writing a test case*.
+**Found, not fixed:** `crates/nvs-stdlib/src/router.rs:39`'s *Known gaps* 1 and 2 are stale — the
+table is built and both members are folded, which is what the new case exercises. Also carried: a
+`bytes` array key ICEs in `nvs-ir` and `catch (Core\Error $e)` panics, both with playbook bullets
+under *Writing a test case*.
 
-**Orientation gap, fifteenth session running:** `[context] adrs` still does not carry
-`0085 §§ 1-4`, and now also owes **`0071 §§ 2, 7`** — this session wrote a case pinning § 2 and
-had to reconstruct the rule from `nvs_types::derive`'s module doc and
-`crates/nvs-types/tests/derive.rs`. Nothing in the pack still names the stage-5 `[[check]]`
-blocks' `cases`/`tests` lists, so an acceptance failure naming a `.nvst` is triaged by
-`grep`ping `loop-goal.toml`.
+**Orientation gaps.** `[context] adrs` still owes `0085 §§ 1-4` and `0071 §§ 2, 7`. New: the
+playbook is filtered to the paths the *item* names, so an item-11 slice naming only its
+`src/<class>.rs` never sees the three declaration-window bullets (`playbook.md:835`, `:2264`,
+`:3013`) — whose rule is the one every such slice needs, since `unreachable from source` must sit
+whole on **one** line within the eight above the `Fault::` line. Naming
+`crates/nvs-stdlib/tests/conformance_coverage.rs` in each slice's own anchors pulls them in.
 
 ## Next group
 
-**Item 11's tail, then item 12's next class. Shared file set:**
-`crates/nvs-stdlib/tests/conformance_coverage.rs:603` — `OWED_A_CASE` is the worklist and a
-slice is done when its lines are gone — plus one `crates/nvs-stdlib/src/<class>.rs` per slice.
+**Item 11's last three slices, then item 12's first class. Shared file set:**
+`crates/nvs-stdlib/tests/conformance_coverage.rs:603` — `OWED_A_CASE` is the worklist and a slice
+is done when its lines are gone — plus one `crates/nvs-stdlib/src/<class>.rs` per slice. Probe each
+site with `nvs check`/`nvs run` on a scratch file before writing the comment; the judgement is
+which diagnostic refuses the call first, or that the guard is a post-condition of the call above it.
 
-- [ ] **`router.rs`'s three stems and `format.rs`'s one, goal § item 11.** Two of the four carry
-      the same `value_to_string` post-condition this session judged at
-      `crates/nvs-stdlib/src/uri.rs`'s `scalar_text`, so they are a citation rather than a fresh
-      judgement — read that comment first. Sites: `router.rs:229`, `:282`, `:285`,
-      `format.rs:475`.
-- [ ] **`json.rs`'s three stems and `regex.rs`'s one, goal § item 11.** All four are internal
-      contracts rather than argument guards, so expect the `uri.rs` post-condition shape and not
-      the `E0401` one. Sites: `json.rs:250` (`maxDepth` fits a `u32`), `:714`, `:823`,
-      `regex.rs:1042`.
-- [ ] **`validate.rs`'s two and `math.rs`'s one, goal § item 11.** `Core\Validate::isIp`'s
-      `version` option and `Core\Math::round`'s `mode` are both the `CoreTy::Enum` shape
-      `arr.rs`'s `sort` now states — probe each with a `mixed` binding and with the bare `int`
-      literal. Sites: `validate.rs:275`, `:280`, `math.rs:1302`.
+- [ ] **`validate.rs`'s two and `math.rs`'s one, goal § item 11.** Sites: `validate.rs:276`,
+      `validate.rs:281`, `math.rs:1303`. Both `isIp` guards are behind a declared `4|6` literal
+      union and `Core\Math::round`'s is behind a `Core\RoundMode` enum parameter, so all three are
+      the argument-type shape the playbook's `Core\Test::assertCount` bullet works: three `E0401`
+      probes settle them. Anchors: `crates/nvs-stdlib/tests/conformance_coverage.rs:603`.
+- [ ] **`debug.rs`'s two and `path.rs`'s one, goal § item 11.** Sites: `debug.rs:147` (the
+      writer's own `io::Error`, which is the terminal sink and may be a *boundary* rather than
+      unreachable — judge it before declaring it), `debug.rs:191` and `path.rs:612` (the same
+      "empty slot the array reported as live" invariant, twice).
+- [ ] **`test.rs`'s two, goal § item 11.** Sites: `test.rs:678` (`compareTo` answering a non-`int`,
+      a post-condition of a declared return type) and `test.rs:707` (`assertEqualsDeep` past
+      `MAX_DEPTH`, which a program *can* reach and so wants a case rather than a declaration).
+- [ ] **Item 12's next class**, `crates/nvs-stdlib/src/registry.rs`'s `UNCLASSIFIED` roster, ADR
+      0088 § 2. Only once `OWED_A_CASE` is empty — it is the goal's own acceptance ratchet.
 
 ## Backlog
 
-- `debug.rs:147` and `:187`, and `path.rs:606` — the last three of `OWED_A_CASE` after the group
-  above, plus `test.rs:663` and `:692`. `crates/nvs-stdlib/tests/conformance_coverage.rs`.
-- Item 12's `Core\Validate` (6) and `Core\Uuid` (2) qualifier rows, all `Qual::Neutral` —
-  `docs/agent/loop-goal.md` § item 12.
-- `catch (Core\Error $e)` panics in `nvs-ir` instead of diagnosing — `docs/agent/playbook.md`.
-- A `bytes` array key ICEs in `nvs-ir` rather than being refused — `docs/agent/playbook.md`.
-- `[context] adrs` owes `0071 §§ 2, 7` and `0085 §§ 1-4`; no `[context]` field names the stage-5
-  `[[check]]` case lists — `docs/agent/loop-goal.toml`.
+- Item 12's per-parameter qualifier classification, the whole remaining roster — ADR 0088 § 2.
+- `crates/nvs-stdlib/src/router.rs:39`'s *Known gaps* 1 and 2 no longer describe the tree.
+- `Core\Router::match`/`methodsFor` stay out of scope — `docs/agent/loop-goal.md` § *Standing
+  decisions*.
+- A `bytes` array key ICEs in `nvs-ir` rather than being diagnosed — `docs/agent/playbook.md`.
+- `catch (Core\Error $e)` panics in `nvs-ir` — `docs/agent/playbook.md`.
+- The stage-5 `[[check]]` blocks' `cases` lists are in no orientation field, so an acceptance
+  failure naming a `.nvst` is still triaged by grepping `docs/agent/loop-goal.toml`.
