@@ -3527,6 +3527,14 @@ sibling in the same namespace unqualified.
   script frames dies by ADR 0002's return status at its next safepoint, which is
   what `nvs_safepoint` gives `SafepointFlags::CANCEL`.
 - **A task that dies by ADR 0002's return status leaves a *pending* message on its context, and whatever collects that context must not read it as a throw.** The symptom is a program whose deadline works perfectly printing `uncaught in a cancelled sibling: the request was cancelled` and then an uncaught exception at the `Core\Task::map` call site — a cancelled child, collected by `nvs_host::group::Child::run`, whose `ctx.pending()` was the safepoint's own record of the teardown rather than anything the script threw. `Ctx::cancelled()` is the discriminator and it is asked *before* `pending()`; a cancelled child's slot stays empty, exactly as it does for one a forced unwind tore down. The same trap is waiting for every future collector of a child context — the request boundary under `nvs serve`, and whatever reports a `spawn script`.
+- **A `CoreTy::Uint` parameter arrives tagged `Tag::Uint` (3), not `Tag::Int` (2), so `Value::as_int()`
+  on one answers `None`.** `uint` is a tag of its own by ADR 0007 § 4, and the two are not interchangeable
+  at the ABI however interchangeable they look in a signature. The failure is not a compile error and not
+  a wrong number — it is the member's *own* "expected an int, got tag 3" fatal, which reads as a caller
+  bug and is not one. `Value::as_uint()` is the reader, `Value::uint(…)` is what a `-p nvs-stdlib` test
+  has to hand such a member, and `crates/nvs-stdlib/src/arr.rs:1792` is the shape to copy. Worth the
+  bullet because the row and the body are written in the same minute and nothing between them says which
+  tag a `CoreTy` lands as.
 
 ## Divergences and refusals already pinned
 

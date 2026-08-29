@@ -148,107 +148,133 @@
 > registration is an RAII guard on the waiting task's own stack, so a cancelled task takes itself
 > off the waiter queue under the forced unwind and a `send`'s single wake is never spent on a task
 > that can never be resumed — which is what makes waking one waiter rather than all of them correct.
-> `channel.rs`'s module doc is that design's only home, as no ADR slot was free. What is left of
-> item 11 is its language surface: no `Core\Task\Channel` row exists in `nvs_stdlib::registry` yet.
-> 93 tests in the crate on Windows, up from 83. Stage 4 has now begun from the other end, in the
-> compiler rather than the host: `Core\Task` is a registered class and `Core\Task::all` type-checks,
-> which is ADR 0072 § 1's heterogeneous typing and the three `nvs-types` names the stage's
-> `cargo-named` check asks for. It needed a **second binding site** beside `CoreTy::CallableTo`, and
-> that is the whole design: `CoreTy::CallableShapeTo("S")` says "this parameter is a shape literal
-> whose every field is a written `fn` literal, and the shape of *their* results binds `S`", because
-> the argument's own type is a shape of opaque `callable`s and can therefore say nothing about what
-> any of them returns — which is exactly the `array<mixed>`-plus-a-cast that § 1 exists to avoid.
-> `nvs_types::expr::args`' `bind_callable_shape` is the one place a field is read and the one place
-> `E0773` (the argument is not written out) and `E0774` (a field is not an `fn` literal) are
-> reported; `Ty::CallableShapeTo` then substitutes to `mixed` rather than to a type, because that
-> position is checked in full there and a second assignability pass could only repeat the same
-> mistake. § 3's `{limit?: uint, deadline?: Duration}` is the row's options bag, both options
-> defaulting to `Const::Null` because neither type has an "unbounded" value in it, and there is no
-> `timeout` member and no `race`. § 2's `map` is the second row, and what it cost is the section's
-> own argument for two members rather than one: `map(array<T>, callable, {limit?, deadline?}):
-> array<U>` needed no new machinery at all — an ordinary `CoreTy::CallableTo` binds `U` from the one
-> callback the whole call shares, so the row is the three-line shape `Core\Arr::map` already had
-> plus § 3's options bag, while `all` needed a whole second binding site because a shape literal
-> carries a different closure in every field. Stage 4 now has **both bodies**, and
-> `crates/nvs-stdlib/src/task.rs` is three steps each: build one `nvs_runtime::host::Job` per shape
-> field or per array element, hand the group and § 3's `Bounds` to the host, and put the answers
-> back under the field names `all` promised or the keys and order `map` promised. **The route to one
-> is now decided and on disk**: `crates/nvs-runtime/src/host.rs` is the seam a `Core` member reaches
-> its host through — a `&'static dyn Host` published in a thread-local — and its module doc is that
-> decision's one home, `scheduler.rs` carrying a pointer to it rather than a copy. Three things were
-> decided there. The edge is **inverted through `nvs-runtime`** rather than added between
-> `nvs-stdlib` and `nvs-host`, because `nvs-types` and `nvs-codegen` both depend on the signature
-> registry and an edge from there to the host would link `mio`, `corosensei` and `core_affinity`
-> into `nvs check` — a type checker carrying a reactor to answer a question about a signature. It is
-> a **thread-local rather than a second opaque pointer in `Ctx`**, for `reactor.rs`'s reason
-> narrowed to the case where the caller does hold a context: a host is per *core* while a `Ctx` is
-> per *request*, so a field there is one copy of the core's identity per in-flight request, and
-> `Ctx` is `#[repr(C)]` with offsets compiled code loads inline, which makes it an ABI change rather
-> than a struct change. And **what crosses is a whole group, not a task API** — one
-> `Host::run_group` taking the jobs and § 3's bounds and answering with ADR 0072 § 4's own table as
-> `Outcome` — rather than a `spawn`/`wait`/`cancel` the member sequences, because § 4's "control
-> does not leave the call with work still running" is a property of the *sequence*, and a seam
-> handing out task ids makes keeping it the caller's diligence again, which is the exact failure
-> `spawn_child` already refuses on the parent link. `Outcome` has three variants and not five: § 4's
-> last row is not a return at all, since a cancelled caller is unwound *through* the call rather
-> than out of it. The host end of that seam is now filled in. `crates/nvs-host/src/group.rs` is the
-> one implementor: `SchedulerHost` is a unit struct — every scrap of a scheduler's state is already
-> a thread-local of that crate, so a host carrying a pointer to any of it would be a second, staler
-> route — and `Scheduler::run` installs it beside the task tree's own guard, so a `Core` member can
-> reach a host exactly when it can reach a tree to put children in. Its module doc holds the two
-> decisions only an implementor can make. The first is **what a child gets for a `Ctx`**, which
-> `spawn_child` forces to be an owned one while § 1's children share the request: `Ctx::child`
-> builds a fresh context that **aliases the request's static-property base** and owns everything
-> else, because compiled code loads a static inline through that word and a child with a store of
-> its own would give one request two copies of every static — which is exactly what the acceptance
-> program's `limit` block measures a peak through. The origin, the debug flags, the error class and
-> the deadline word are copied; the output buffer and the assertion ledger are the child's own and
-> are spliced back **in job order** when the group ends, so a child's `echo` cannot make a
-> `Task::map`'s output depend on which child finished first. The alias obliges the parent to outlive
-> the child, and that is discharged twice: the call does not return while a child is still running,
-> and a parent torn down first cancels its children, which the scheduler unwinds without resuming.
-> The second decision is the **sequence**, which is the whole of § 4: start what the `limit` allows,
-> park, cancel every sibling on the first throw or on the deadline, and **keep parking until the
-> count reaches zero** — a per-child guard whose `Drop` counts it out and wakes the parent, rather
-> than a line at the end of a body a cancelled child never reaches. `Outcome::Threw` carries a
-> `Thrown` rather than a `Value` now, since that is what `Ctx::take_thrown` produces and what
-> `Ctx::raise` takes, and a `Job` may be dropped without ever being called — the doc on that type is
-> the one home of the release obligation that puts on whoever builds one. Eight tests pin it, 101 in
-> the crate against 93. The other end is filled in too: `nvs-cli` depends on `nvs-host`, and `nvs
-> run` runs its program **inside a task** — one `Scheduler`, a reactor installed over it,
-> `TaskRoot::Request` as the root, and the `Ctx` read back out of `take_finished()` rather than
-> stayed borrowed — so a `Core\Task::all` in a CLI program has a calling task to be a child of,
-> which is what ADR 0072 § 1 makes a property of the call rather than of the caller. A job's
-> captures are deliberately **borrowed**: the closure a field holds and the element `map` passes
-> belong to the member's own arguments, which outlive the group, so the release obligation a dropped
-> `Job` carries falls only on `map`'s rendered `$key` — held as a Rust `String` so that dropping the
-> job releases it. `examples/tasks.nvs` prints all four of its frozen lines — `all=3`,
-> `map=1,4,9,16`, `deadline hit` and `limit held at 2` — because `Core\Time::sleep` parks its task
-> rather than blocking the thread, so two children under a `limit` of 2 genuinely overlap and the
-> peak the program gauges is the one § 3 describes. What that took was not the member: it was that
-> **a cancelled task standing on script frames is resumed rather than unwound**. A forced unwind is
-> a panic and an Novis stack is not one it may cross — a `Core` member's entry point is `extern "C"`
-> and the compiled frames beneath it carry no unwind tables — so `nvs_runtime::HelperFrame` counts a
-> helper frame for as long as one runs, `nvs_host`'s `yield_on` reads that count at each suspension,
-> and a cancelled task whose stack is not clear of them is handed `Resume::Cancelled` in place of
-> what it was waiting for. The member it is inside answers with `Ctx::cancel`, which sets
-> `SafepointFlags::CANCEL` and returns `nvs_safepoint`'s own status, so the task dies by ADR 0002's
-> return status with no `catch` and no cleanup on the way out — ADR 0072 § 5 reached the only way
-> that stack allows. The notice is delivered **once**, so a park site that ignores it is left parked
-> rather than spinning the sweep, and `Drop for Scheduler` leaks such a task rather than aborting on
-> it, which is ADR 0106's no-`abort()` rule bought for one stack mapping at the death of a worker. §
-> 4's last row is now a variant rather than an unwind through the call: `Outcome::Cancelled` is what
-> a group whose *caller* was cancelled returns, and both `Core\Task` members turn it into the same
-> `Ctx::cancel`. `nvs_host::group::Child::run` asks `Ctx::cancelled()` before it reads a pending
-> message, because a child that stopped by status leaves one behind and it is not a throw. Stage 4's
-> acceptance is closed. The steps the chain took are in [goals/README.md](agent/goals/README.md) §
-> *Starting the chain*. M4's own residue is the 1000-case corpus count, which orders 1–4 meet as the
-> suite grows; nothing else about M4 is open. What the program is measured by is `python
-> tools/check-migration.py` at 100% classified, which stood at 25% the day the program was scheduled
-> and reads 34% now that goal 1's own five domains — dates and times, regular expressions, JSON,
-> URLs and paths — carry a row per name. `python tools/gaps.py`, `python tools/holes.py` and `python
-> tools/check-migration.py --report` are the three worklists behind it, and no session re-derives
-> one.
+> `channel.rs`'s module doc is that design's only home, as no ADR slot was free. Item 11 is closed
+> at its language surface too, and the acceptance program that names it — `examples/channel.nvs` —
+> prints `produced=8`, `consumed=8` and `sender suspended`. `Core\Task\Channel<T>` is a registered,
+> constructible, iterable `Core` class with two members, `send` and `close`, because every other
+> question a program could ask one (`count`, `isFull`) has an answer that is stale before the caller
+> reads it. Three decisions are behind it and `crates/nvs-stdlib/src/channel.rs`'s module doc is
+> their one home. The **queue is Novis values in the instance's own slots** rather than a handle
+> into a table the host keeps: a `Core` instance has no native drop, so nothing would ever tell a
+> host-side table that the last reference to a channel had gone, and its footprint would be
+> O(channels created) for the life of a worker — a leak rather than a trade-off. Keeping it in slots
+> costs the duplication of about thirty lines of "wait when full, wait when empty" against
+> `nvs_host::channel` and buys the whole lifetime question, releasing the object releasing every
+> value still queued and charging it to the request that made it. The **object is its own
+> iterator**, because a `foreach` over a channel may not take a snapshot — the values are not there
+> yet — so `iterate()` answers with the receiver itself and `advance()` is where a consumer waits,
+> ending the walk the moment the channel is empty *and* closed. And a state change **wakes every
+> waiter on the channel rather than one**: `nvs-host`'s own channel wakes one and says why, but that
+> argument is about many producers, and here the list is almost always length one and a wrong pick
+> is a hang rather than a slow path. What all of that needed from the seam is a park a `Core` member
+> can reach, so `nvs_runtime::host::Host` gains `waker()` and `park()` beside `run_group` and
+> `sleep`. A `Waker` is a one-shot boxed closure because the host's own wake is a task id plus the
+> tree it belongs to and neither is a thing `nvs-runtime` can spell; it is a hint by contract, so
+> every member that parks re-checks the state it parked for. The two are separate methods rather
+> than one so that a member learns there is **no task beneath it** before it commits to waiting — a
+> park with nothing under it can only block the core, which ADR 0106 § 6 forbids outright, and
+> `Core\Task\Channel::send` reports that rather than parking. `SchedulerHost` implements both over
+> `Wake::current` and `suspend_current(Waiting::Parked)`, and a cancelled waiter takes its own
+> registration off the list on the way out, so a wake is never held for a task that cannot be
+> resumed. 93 tests in the crate on Windows, up from 83. Stage 4 has now begun from the other end,
+> in the compiler rather than the host: `Core\Task` is a registered class and `Core\Task::all`
+> type-checks, which is ADR 0072 § 1's heterogeneous typing and the three `nvs-types` names the
+> stage's `cargo-named` check asks for. It needed a **second binding site** beside
+> `CoreTy::CallableTo`, and that is the whole design: `CoreTy::CallableShapeTo("S")` says "this
+> parameter is a shape literal whose every field is a written `fn` literal, and the shape of *their*
+> results binds `S`", because the argument's own type is a shape of opaque `callable`s and can
+> therefore say nothing about what any of them returns — which is exactly the
+> `array<mixed>`-plus-a-cast that § 1 exists to avoid. `nvs_types::expr::args`'
+> `bind_callable_shape` is the one place a field is read and the one place `E0773` (the argument is
+> not written out) and `E0774` (a field is not an `fn` literal) are reported; `Ty::CallableShapeTo`
+> then substitutes to `mixed` rather than to a type, because that position is checked in full there
+> and a second assignability pass could only repeat the same mistake. § 3's `{limit?: uint,
+> deadline?: Duration}` is the row's options bag, both options defaulting to `Const::Null` because
+> neither type has an "unbounded" value in it, and there is no `timeout` member and no `race`. § 2's
+> `map` is the second row, and what it cost is the section's own argument for two members rather
+> than one: `map(array<T>, callable, {limit?, deadline?}): array<U>` needed no new machinery at all
+> — an ordinary `CoreTy::CallableTo` binds `U` from the one callback the whole call shares, so the
+> row is the three-line shape `Core\Arr::map` already had plus § 3's options bag, while `all` needed
+> a whole second binding site because a shape literal carries a different closure in every field.
+> Stage 4 now has **both bodies**, and `crates/nvs-stdlib/src/task.rs` is three steps each: build
+> one `nvs_runtime::host::Job` per shape field or per array element, hand the group and § 3's
+> `Bounds` to the host, and put the answers back under the field names `all` promised or the keys
+> and order `map` promised. **The route to one is now decided and on disk**:
+> `crates/nvs-runtime/src/host.rs` is the seam a `Core` member reaches its host through — a
+> `&'static dyn Host` published in a thread-local — and its module doc is that decision's one home,
+> `scheduler.rs` carrying a pointer to it rather than a copy. Three things were decided there. The
+> edge is **inverted through `nvs-runtime`** rather than added between `nvs-stdlib` and `nvs-host`,
+> because `nvs-types` and `nvs-codegen` both depend on the signature registry and an edge from there
+> to the host would link `mio`, `corosensei` and `core_affinity` into `nvs check` — a type checker
+> carrying a reactor to answer a question about a signature. It is a **thread-local rather than a
+> second opaque pointer in `Ctx`**, for `reactor.rs`'s reason narrowed to the case where the caller
+> does hold a context: a host is per *core* while a `Ctx` is per *request*, so a field there is one
+> copy of the core's identity per in-flight request, and `Ctx` is `#[repr(C)]` with offsets compiled
+> code loads inline, which makes it an ABI change rather than a struct change. And **what crosses is
+> a whole group, not a task API** — one `Host::run_group` taking the jobs and § 3's bounds and
+> answering with ADR 0072 § 4's own table as `Outcome` — rather than a `spawn`/`wait`/`cancel` the
+> member sequences, because § 4's "control does not leave the call with work still running" is a
+> property of the *sequence*, and a seam handing out task ids makes keeping it the caller's
+> diligence again, which is the exact failure `spawn_child` already refuses on the parent link.
+> `Outcome` has three variants and not five: § 4's last row is not a return at all, since a
+> cancelled caller is unwound *through* the call rather than out of it. The host end of that seam is
+> now filled in. `crates/nvs-host/src/group.rs` is the one implementor: `SchedulerHost` is a unit
+> struct — every scrap of a scheduler's state is already a thread-local of that crate, so a host
+> carrying a pointer to any of it would be a second, staler route — and `Scheduler::run` installs it
+> beside the task tree's own guard, so a `Core` member can reach a host exactly when it can reach a
+> tree to put children in. Its module doc holds the two decisions only an implementor can make. The
+> first is **what a child gets for a `Ctx`**, which `spawn_child` forces to be an owned one while §
+> 1's children share the request: `Ctx::child` builds a fresh context that **aliases the request's
+> static-property base** and owns everything else, because compiled code loads a static inline
+> through that word and a child with a store of its own would give one request two copies of every
+> static — which is exactly what the acceptance program's `limit` block measures a peak through. The
+> origin, the debug flags, the error class and the deadline word are copied; the output buffer and
+> the assertion ledger are the child's own and are spliced back **in job order** when the group
+> ends, so a child's `echo` cannot make a `Task::map`'s output depend on which child finished first.
+> The alias obliges the parent to outlive the child, and that is discharged twice: the call does not
+> return while a child is still running, and a parent torn down first cancels its children, which
+> the scheduler unwinds without resuming. The second decision is the **sequence**, which is the
+> whole of § 4: start what the `limit` allows, park, cancel every sibling on the first throw or on
+> the deadline, and **keep parking until the count reaches zero** — a per-child guard whose `Drop`
+> counts it out and wakes the parent, rather than a line at the end of a body a cancelled child
+> never reaches. `Outcome::Threw` carries a `Thrown` rather than a `Value` now, since that is what
+> `Ctx::take_thrown` produces and what `Ctx::raise` takes, and a `Job` may be dropped without ever
+> being called — the doc on that type is the one home of the release obligation that puts on whoever
+> builds one. Eight tests pin it, 101 in the crate against 93. The other end is filled in too:
+> `nvs-cli` depends on `nvs-host`, and `nvs run` runs its program **inside a task** — one
+> `Scheduler`, a reactor installed over it, `TaskRoot::Request` as the root, and the `Ctx` read back
+> out of `take_finished()` rather than stayed borrowed — so a `Core\Task::all` in a CLI program has
+> a calling task to be a child of, which is what ADR 0072 § 1 makes a property of the call rather
+> than of the caller. A job's captures are deliberately **borrowed**: the closure a field holds and
+> the element `map` passes belong to the member's own arguments, which outlive the group, so the
+> release obligation a dropped `Job` carries falls only on `map`'s rendered `$key` — held as a Rust
+> `String` so that dropping the job releases it. `examples/tasks.nvs` prints all four of its frozen
+> lines — `all=3`, `map=1,4,9,16`, `deadline hit` and `limit held at 2` — because `Core\Time::sleep`
+> parks its task rather than blocking the thread, so two children under a `limit` of 2 genuinely
+> overlap and the peak the program gauges is the one § 3 describes. What that took was not the
+> member: it was that **a cancelled task standing on script frames is resumed rather than unwound**.
+> A forced unwind is a panic and an Novis stack is not one it may cross — a `Core` member's entry
+> point is `extern "C"` and the compiled frames beneath it carry no unwind tables — so
+> `nvs_runtime::HelperFrame` counts a helper frame for as long as one runs, `nvs_host`'s `yield_on`
+> reads that count at each suspension, and a cancelled task whose stack is not clear of them is
+> handed `Resume::Cancelled` in place of what it was waiting for. The member it is inside answers
+> with `Ctx::cancel`, which sets `SafepointFlags::CANCEL` and returns `nvs_safepoint`'s own status,
+> so the task dies by ADR 0002's return status with no `catch` and no cleanup on the way out — ADR
+> 0072 § 5 reached the only way that stack allows. The notice is delivered **once**, so a park site
+> that ignores it is left parked rather than spinning the sweep, and `Drop for Scheduler` leaks such
+> a task rather than aborting on it, which is ADR 0106's no-`abort()` rule bought for one stack
+> mapping at the death of a worker. § 4's last row is now a variant rather than an unwind through
+> the call: `Outcome::Cancelled` is what a group whose *caller* was cancelled returns, and both
+> `Core\Task` members turn it into the same `Ctx::cancel`. `nvs_host::group::Child::run` asks
+> `Ctx::cancelled()` before it reads a pending message, because a child that stopped by status
+> leaves one behind and it is not a throw. Stage 4's acceptance is closed. The steps the chain took
+> are in [goals/README.md](agent/goals/README.md) § *Starting the chain*. M4's own residue is the
+> 1000-case corpus count, which orders 1–4 meet as the suite grows; nothing else about M4 is open.
+> What the program is measured by is `python tools/check-migration.py` at 100% classified, which
+> stood at 25% the day the program was scheduled and reads 34% now that goal 1's own five domains —
+> dates and times, regular expressions, JSON, URLs and paths — carry a row per name. `python
+> tools/gaps.py`, `python tools/holes.py` and `python tools/check-migration.py --report` are the
+> three worklists behind it, and no session re-derives one.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
