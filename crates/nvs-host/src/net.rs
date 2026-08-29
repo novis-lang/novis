@@ -39,10 +39,18 @@
 //! is not the `Read` this module promises. That path creates one poll per wait
 //! and is deliberately not optimized: it is the path with no throughput target.
 //!
-//! **Still outstanding:** connecting. [`NvsTcp::from_std`] and
-//! [`NvsTcp::new`] take a socket that is already connected, which is what an
-//! accept loop hands over; a parking `connect` is one `WRITABLE` wait plus a
-//! `take_error` check, and it lands with the accept loop that needs it.
+//! # Connecting is the same shape, with one extra question
+//!
+//! [`NvsTcp::connect`] parks on `WRITABLE` like everything else here, and then
+//! asks what the readiness *meant*: a refused connection is writable too, so a
+//! connect that only waited would hand back a stream that is dead and looks
+//! fine. The two questions that answer that soundly on both platforms — and
+//! why `peer_addr`, which is the obvious one, is not among them — are the
+//! private `finish_connecting`'s doc. It carries no deadline; bounding it is
+//! the reactor's timer wait, which does not exist yet.
+//!
+//! **Still outstanding:** a Unix-domain sibling of this type, for the same
+//! parking contract over a local socket.
 
 use std::io::{self, Read, Write};
 use std::net::SocketAddr;
@@ -89,6 +97,79 @@ impl NvsTcp {
     pub fn from_std(stream: std::net::TcpStream) -> io::Result<Self> {
         stream.set_nonblocking(true)?;
         Ok(Self::new(mio::net::TcpStream::from_std(stream)))
+    }
+
+    /// Connects to `addr`, parking rather than blocking while the handshake is
+    /// in flight.
+    ///
+    /// The socket is non-blocking from its first syscall, so the platform
+    /// answers "in progress" and it is *readiness*, not the `connect` call, that
+    /// says how it ended. **Readiness alone does not mean it succeeded**: a
+    /// refused connection reports writable exactly as a completed one does, so
+    /// what a caller gets back here is a stream that has been *asked* whether
+    /// it is connected, and otherwise the connection's own failure —
+    /// `ConnectionRefused` — rather than something writable and dead.
+    /// `NvsTcp::finish_connecting` owns which two questions do that and why
+    /// the obvious ones do not.
+    ///
+    /// This takes no deadline. A connect to a black hole waits as long as the
+    /// platform's own connect timeout, which is minutes; bounding it is the
+    /// reactor's timer wait, and until that exists no caller can ask for less.
+    ///
+    /// # Errors
+    ///
+    /// The platform refused the socket or the address, or the connection itself
+    /// failed — refused, unreachable, or reset while it was being established.
+    pub fn connect(addr: SocketAddr) -> io::Result<Self> {
+        let mut stream = Self::new(mio::net::TcpStream::connect(addr)?);
+        stream.finish_connecting()?;
+        Ok(stream)
+    }
+
+    /// Waits out an in-flight connect, turning readiness into the answer.
+    ///
+    /// The same optimistic order as [`Read::read`], and it earns it: a loopback
+    /// connect is routinely up before this is first asked, on both platforms
+    /// measured, so the common case pays no registration at all.
+    ///
+    /// The two questions it asks on each turn are the ones that are *sound on
+    /// both platforms*, which the obvious pair is not:
+    ///
+    /// - **`SO_ERROR`**, because a failed connect reports writable exactly as a
+    ///   completed one does, and on Windows this is the only place the refusal
+    ///   ever appears.
+    /// - **A zero-length write**, because it is the portable "is this socket
+    ///   connected yet" question: `Ok` on a connected socket having sent
+    ///   nothing, `NotConnected`/`WouldBlock` while the handshake is still in
+    ///   flight, and on Linux the refusal itself. `peer_addr` is what `mio`'s
+    ///   own example asks and it **cannot be used here**: on Windows it answers
+    ///   `Ok(the target address)` for a socket whose connect has not started
+    ///   succeeding and never will, so a connect built on it reports success
+    ///   for a stream that is dead.
+    ///
+    /// Being sound rather than merely usual matters because [`suspend_current`]
+    /// can return for a reason that is not this stream — the reactor's tokens
+    /// are task ids, so any other descriptor this task holds wakes it here too
+    /// (ADR 0115 § 2 rule 2). A completion test that is only right when the
+    /// wake was ours would hand back an unconnected stream on that path.
+    fn finish_connecting(&mut self) -> io::Result<()> {
+        loop {
+            if let Some(err) = self.inner.take_error()? {
+                return Err(err);
+            }
+            match self.inner.write(&[]) {
+                Ok(_) => return Ok(()),
+                // Not an error, just "not yet" — which is rule 2's shape asked
+                // of a different question.
+                Err(err)
+                    if matches!(
+                        err.kind(),
+                        io::ErrorKind::NotConnected | io::ErrorKind::WouldBlock
+                    ) => {}
+                Err(err) => return Err(err),
+            }
+            self.wait_until_ready(Interest::WRITABLE)?;
+        }
     }
 
     /// The address at the other end.
@@ -397,6 +478,105 @@ mod tests {
             0,
             "dropping the stream left its registration behind"
         );
+    }
+
+    /// A connect on a core reaches a listener, and what comes back is a stream
+    /// that knows who it is talking to.
+    #[test]
+    fn a_connect_on_a_core_reaches_a_listener() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+        let accepting = std::thread::spawn(move || {
+            // Deliberately late: the connect is expected to complete against
+            // the backlog, so this is here to keep the socket alive, not to be
+            // what completes it.
+            std::thread::sleep(Duration::from_millis(20));
+            let (mut stream, _) = listener.accept()?;
+            // Read rather than just accept, so that what the task got back is
+            // asserted to be a *usable* connection and not merely a value.
+            let mut buf = [0_u8; 8];
+            let read = stream.read(&mut buf)?;
+            Ok::<_, io::Error>(buf[..read].to_vec())
+        });
+
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+        let peer = Rc::new(Cell::new(None));
+        let reported = Rc::clone(&peer);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            let mut stream = NvsTcp::connect(addr).expect("the connect failed");
+            reported.set(stream.peer_addr().ok());
+            stream.write_all(b"hi").expect("the write failed");
+        });
+
+        run_until_idle(&mut sched).expect("the loop failed");
+        let accepted = accepting.join().expect("the accepting thread panicked");
+        assert_eq!(
+            accepted.expect("the listener never saw the connection"),
+            b"hi",
+            "the connected stream did not carry bytes"
+        );
+        assert_eq!(peer.get(), Some(addr));
+        // Rule 3 again: whatever the connect parked on was retired with the
+        // task, so a connect leaves the reactor exactly as it found it.
+        assert_eq!(with_current(|reactor| reactor.registrations()), Some(0));
+    }
+
+    /// Readiness is not success. A refused connection is writable too, so a
+    /// `connect` that took the wake as its answer would hand back a dead
+    /// stream; the `SO_ERROR` read is what makes this the caller's error.
+    #[test]
+    fn a_refused_connect_reports_the_refusal_rather_than_a_stream() {
+        let addr = {
+            let listener =
+                std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
+            listener
+                .local_addr()
+                .expect("a bound listener had no address")
+            // Dropped here: the port is bound by nothing, so the loopback
+            // answers the SYN with a reset.
+        };
+
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+        // `Option<Result<..>>`, so that a connect still parked when the loop
+        // went idle is a different answer from one that succeeded.
+        let outcome = Rc::new(Cell::new(None));
+        let reported = Rc::clone(&outcome);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            reported.set(Some(
+                NvsTcp::connect(addr).map(|_| ()).map_err(|err| err.kind()),
+            ));
+        });
+
+        run_until_idle(&mut sched).expect("the loop failed");
+        assert_eq!(
+            outcome.get(),
+            Some(Err(io::ErrorKind::ConnectionRefused)),
+            "a connect to an unbound port did not report the refusal"
+        );
+        assert_eq!(with_current(|reactor| reactor.registrations()), Some(0));
+    }
+
+    /// Off a core there is nothing to hand back, so the connect waits on its
+    /// own poll — the same path the reads already take.
+    #[test]
+    fn a_connect_off_a_core_waits_rather_than_refusing() {
+        assert!(current_task().is_none(), "this test must run off a core");
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let stream = NvsTcp::connect(addr).expect("the connect failed");
+        assert_eq!(stream.peer_addr().expect("no peer address"), addr);
+        assert!(
+            !stream.is_parked_on(),
+            "a blocking wait left a reactor registration behind"
+        );
+        drop(listener);
     }
 
     /// Off a core there is nothing to hand back, so the read waits on its own
