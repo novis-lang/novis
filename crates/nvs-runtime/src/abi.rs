@@ -302,6 +302,27 @@ where
     // return, a task standing on this stack is one a host may not force-unwind.
     // See [`HelperFrame`].
     let _frame = HelperFrame::enter();
+    // ADR 0020 § 1's memory limit, asked *before* the body rather than after
+    // it: a member that has already run holds a `Value` this frame would then
+    // have to release on a path nothing else takes, and refusing in front of
+    // the allocation is what [`affordable`]'s own doc comment says this seam is
+    // for. The breach is therefore observed at the first member call after it
+    // happens, which is at most one member's work later.
+    //
+    // What it costs an uncapped request — every context with no configuration,
+    // which is every test's — is one compare against a zero field: see
+    // [`Ctx::over_memory_limit`].
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees `ctx` is valid for this call; this \
+                  borrow ends before the closure below takes its own"
+    )]
+    let breach = unsafe { &*ctx }.memory_breach();
+    if let Some(fault) = breach {
+        #[expect(unsafe_code, reason = "same contract, and the borrow above has ended")]
+        let ctx = unsafe { &mut *ctx };
+        return record_fault(ctx, fault);
+    }
     let outcome = panic::catch_unwind(AssertUnwindSafe(|| {
         #[expect(
             unsafe_code,
