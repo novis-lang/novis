@@ -383,3 +383,34 @@ fn a_boot_key_a_reload_added_is_reported_and_left_unset() {
     );
     assert_eq!(reload.snapshot.config.cache, None);
 }
+
+/// ADR 0078 § 1's validate-then-publish, and m6.md's *Verify*: a reload whose tree does not parse
+/// never reaches [`Current::publish`] at all, so the snapshot serving is the one that was already
+/// serving, and the refusal names the line an operator has to fix rather than a byte offset.
+#[test]
+fn a_malformed_file_leaves_the_previous_snapshot_serving_and_names_the_line() {
+    let before = Fake::with(&[("nvs.toml", "[limits]\nmemory = \"128M\"\n")]);
+    let current = Current::new(snapshot_of(&before, "nvs.toml"));
+
+    // The `[limits]` block above it is well formed and would have raised the ceiling, so what the
+    // case measures is the refusal and not a reload that had nothing to say.
+    let broken = "[limits]\nmemory = \"512M\"\n\n[server\nlisten = [\"127.0.0.1:8080\"]\n";
+    let after = Fake::with(&[("nvs.toml", broken)]);
+    let mut sources = SourceMap::new();
+    let refusal = resolve(&Roots::Files(vec![p("nvs.toml")]), &mut sources, &after)
+        .expect_err("an unclosed table header is refused");
+
+    let span = refusal
+        .primary_span()
+        .expect("a refusal carries the line that caused it");
+    let file = sources.file(span.file);
+    let (line, _) = file.line_col(span.start);
+    assert_eq!(
+        file.line_text(line),
+        Some("[server"),
+        "the refusal points at the unclosed header, not at the file",
+    );
+
+    // Nothing was published, so the request starting now reads what the request before it read.
+    assert_eq!(limits(&current.load()).memory, text("128M"));
+}
