@@ -51,18 +51,17 @@
 > file that holds it — `crates/nvs-host/src/*.rs`, `crates/nvs-runtime/src/{host,script,graph}.rs`,
 > `crates/nvs-stdlib/src/{task,channel,serialize, script}.rs`,
 > `crates/nvs-cli/src/{script,runner}.rs` — or in ADRs 0115–0117. Goal 3's first rows are on disk:
-> `crates/nvs-config` holds the directive registry — three fields, ADRs 0005 and 0078 § 2 — and one
-> file's parse with ADR 0064 § 3's duplicate refusal. **Stage 8 is closed at both counts**:
-> conformance is 1000, differential is 206 over its 205 floor with six `Core\Serialize` round-trips
-> against PHP's own pair, and `isolation.rs` measures `nvs_host::Isolate` itself with a guard beside
-> it. Three known gaps, each recorded where its code is: item 18's `Core\Secret::reveal()` is not in
-> the registry, though how a `secret` parameter is spelled on a row is decided (`Qual::Reveal`);
-> `Live::admit`'s same-class check is asked of the answer and not of the argument
-> (`crates/nvs-runtime/src/graph.rs` § *Known gaps*); item 22's `Core\Script` members are unwritten
-> (`crates/nvs-stdlib/src/script.rs`). The program is measured by `python tools/check-migration.py`
-> at 100% classified — 25% when it was scheduled, 34% now — and `gaps.py`, `holes.py` and
-> `check-migration.py --report` are the worklists no session re-derives. M4's residue, the 1000-case
-> corpus count, is met.
+> `crates/nvs-config` holds the directive registry (ADRs 0005, 0078 § 2) and one file's parse with
+> 0064 § 3's duplicate refusal; its three acceptance fixtures exist, so the driver's check runs
+> again. **Stage 8 is closed at both counts**: conformance is 1000, differential is 206 over its 205
+> floor with six `Core\Serialize` round-trips against PHP's own pair, and `isolation.rs` measures
+> `nvs_host::Isolate` itself with a guard beside it. Three known gaps, each recorded where its code
+> is: item 18's `Core\Secret::reveal()` is not in the registry, though how a `secret` parameter is
+> spelled on a row is decided (`Qual::Reveal`); `Live::admit`'s same-class check is asked of the
+> answer and not of the argument (`crates/nvs-runtime/src/graph.rs` § *Known gaps*); item 22's
+> `Core\Script` members are unwritten (`crates/nvs-stdlib/src/script.rs`). The program is measured
+> by `python tools/check-migration.py` at 100% classified — 25% when it was scheduled, 34% now — and
+> `gaps.py`, `holes.py` and `check-migration.py --report` are the worklists no session re-derives.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

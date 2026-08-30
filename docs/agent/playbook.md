@@ -994,6 +994,16 @@ is why" — is this file.
   anchors and *silently drops both read targets* — `--locate` takes the rest of argv, so the questions you
   batched with it are never answered, and a symbol it cannot find exits 1 on top of that. Ask for anchors
   in their own call, and keep the reads in another.
+- **A missing entry in `loop-goal.toml`'s `files` aborts the whole acceptance check, not one fixture.**
+  `tools/loop.py:1779`'s `begin` walks that list before anything is built and returns on the first path
+  that is not on disk, so `check()` never reaches the build, the stages or a single `[[check]]`. The
+  driver reports one line — `examples/config.nvs is missing` — which reads like one fixture failing and
+  is in fact the run producing **no measurement at all**; it stayed that way for ten sessions, each of
+  which saw a green tree and an acceptance line about a file it had no reason to open. A goal whose
+  `files` names a fixture a later stage will write needs that file to exist from the first session, even
+  as a program that cannot compile yet: the source is not frozen and only the expected output is, so an
+  early stand-in costs nothing and buys back every earlier stage's check. `python tools/loop.py --list`
+  does not show this, because the list is checked before the plan is.
 
 ## Running things
 

@@ -2,57 +2,60 @@
 
 ## State
 
-**Goal 3, Stage 2 has started landing.** `crates/nvs-config` now exists with two modules and seven
-green tests: `directive.rs` is the registry — a directive is three fields, `key`, `class` (ADR 0005)
-and `apply` (ADR 0078 § 2's `Reload`/`Boot`, orthogonal to the class) — and `file.rs` reads one file
-through `toml`+`serde`, refusing a duplicate key as `E0604` with the offending line as a span.
+**Goal 3, Stage 2 is part-landed and the driver is measuring again.** `crates/nvs-config` holds the
+directive registry (`directive.rs`) and one file's parse with ADR 0064 § 3's duplicate refusal
+(`file.rs`), seven tests green.
 
-**A registry row governs the keys beneath it**, longest-prefix on dot boundaries, so `limits` is one
-row and `limits.hard` overrides it. That is how the ADRs state the classes ("every `[[schedule]]`
-key", "`[server]` — Boot"), and `directive.rs`'s module doc is its only home. The registry is
-therefore **not** the list of legal keys: refusing an unknown one is `serde`'s
-`deny_unknown_fields` over a typed tree that does not exist yet, which is the next slice.
+**The acceptance check had been aborting before any check ran.** Three of `loop-goal.toml`'s `files`
+were missing, and `tools/loop.py:1779` returns on the first one — see the playbook bullet. All three
+now exist: `examples/{config,limits,capability}.nvs`, plus `examples/capability/greeting.txt`, and
+`nvs.toml` carries the `[limits] memory = "256M"` / `[limits.hard] memory = "512M"` pair that
+`config.nvs`'s frozen output is derived from. All three call APIs Stages 3–4 have not written, so they
+fail their own checks — that is the ordinary open-item state, and what changed is that every Stage 0–2
+check now runs at all.
 
-Nothing is blocked. Goals 1 and 2 and M4 remain the floor; the acceptance set claim for Stage 6 is
-unchanged.
+**Item 1 of the old group is blocked on a three-ADR contradiction, and resolving it is now slice 1.**
+The typed block tree cannot be written until `[app]` has one spelling: ADR 0064 § 2a's table
+(`docs/adr/0064-configuration-file-format.md:129`) lists only `[[app]]`, owned by ADR 0104, which gives
+it no `origin` key; ADR 0097 § 6 (`docs/adr/0097-development-server-and-proxied-origin.md:169`) makes a
+mount's `origin` fall back to `[app] origin`; and this repository's own `nvs.toml:18` writes `[app]
+origin`, read by `configured_origin` (`crates/nvs-cli/src/main.rs:551`), with `examples/routes.nvs`'s
+frozen output depending on it. **TOML forbids one file defining `app` as both a table and an array of
+tables**, so the tree must pick one. Recommended: `origin` becomes an `[[app]]` field — 0104's unit is
+exactly "an application" and 0097 § 6 wants a per-application fallback — with 0097 § 6 amended to name
+it, `nvs.toml` migrated to `[[app]] root = "."`, and `configured_origin` following.
+
+Nothing is blocked on the user. Goals 1 and 2 and M4 remain the floor.
 
 ## Next group
 
-**The typed block tree, then the tree of files** — Stage 2's remainder. One file set:
-`crates/nvs-config/src/{file.rs,directive.rs}` plus new modules beside them, and their `tests/`.
+**`[app]` gets one spelling, then the typed tree over it.** One file set: `docs/adr/{0064,0097,0104}`,
+`nvs.toml`, `crates/nvs-cli/src/main.rs`, `crates/nvs-config/src/`.
 
-- [ ] **The typed block tree, and an unknown key refused naming its block.** ADR 0064 §§ 2a, 3 —
-      § 2a's table (`docs/adr/0064-configuration-file-format.md:129`) names the owning ADR of every
-      block, and each block's fields have to come from that ADR rather than be invented, which is
-      the whole cost of this slice. `crates/nvs-config/src/file.rs:38`'s `parse` is already generic
-      over the tree type with `toml::Table` as the stand-in, so nothing above it changes. Two
-      blocks are already transcribed: `[server]` in ADR 0097 § 5 and `[limits]`/`[limits.hard]` in
-      ADR 0005. Needs `derive` on the workspace `serde` (`Cargo.toml:199`, currently featureless).
-- [ ] **The tree resolves.** ADR 0103 §§ 1–5: a root named by repeatable `--config`, else
-      `./nvs.toml`, else the shipped defaults; includes depth-first in list order; later wins with
-      **both** origins recorded; a value array replaces where a `[[table]]` appends; a relative path
-      resolves against the file it is written in. `file.rs:38` returns the `SourceId` for exactly
-      this — an override has to be able to name where the value it kept came from.
-- [ ] **Ownership is the trust boundary.** ADR 0103 § 6, printed in full in this goal's orientation
-      pack: owner-or-root and not group/world-writable, for every file *and* its directory, and for
-      the directory that *would* hold an absent `optional` include. `E0604` is taken; next free in
-      the band is `E0605` (`crates/nvs-diagnostics/src/lib.rs:1179`).
-- [ ] **`nvs config check <file>` prints the refusal.** Stage 2's one `command` check runs it over
-      `tests/config/duplicate-key.toml`, which is on disk. `nvs-cli` is a file set this group has
-      not loaded — take it last or leave it to the next session.
+- [ ] **`[app]` resolves to `[[app]]`, carrying `origin`.** ADR 0104 gains the key and the `Amends:`
+      pair with ADR 0097 § 6 (`docs/adr/0097-development-server-and-proxied-origin.md:169`); 0064 § 2a's
+      table (`docs/adr/0064-configuration-file-format.md:129`) already says `[[app]]` and needs nothing.
+      Then `nvs.toml:18` and `configured_origin` (`crates/nvs-cli/src/main.rs:551`), whose naive
+      line-scanner tracks `[table]` headers and must learn `[[app]]`. `examples/routes.nvs`'s frozen
+      output must not move.
+- [ ] **The typed block tree, and an unknown key refused naming its block.** ADR 0064 §§ 2a, 3 — § 2a's
+      table names the owning ADR of all sixteen blocks and each block's fields come from that ADR rather
+      than being invented, which is this slice's whole cost. `crates/nvs-config/src/file.rs:38`'s
+      `parse` is already generic over the tree type with `toml::Table` as the stand-in, so nothing above
+      it changes. Needs `derive` on the workspace `serde` (`Cargo.toml:199`, currently featureless).
+- [ ] **The tree resolves.** ADR 0103 §§ 1–5: a root named by repeatable `--config`, else the search
+      order; includes depth-first in list order; later wins with both origins recorded.
+- [ ] **Ownership is the trust boundary.** ADR 0103 § 6 — owner-or-root, not group- or world-writable,
+      and an absent `optional` include puts the check on the directory that would hold it.
 
 ## Backlog
 
-- ADR 0091 § 3a's table spells `Boot` in a **Class** column, which ADR 0078 § 2 split into two
-  fields; the registry reads those two rows as `System` + `Boot`. One ADR edit, owned by 0091.
-- ADR 0042 (~line 170) spells the artifact-cache directory `opcache.file_cache_dir` where ADRs 0005
-  and 0078 § 2 spell it `cache.dir`. One of the two is the home; the registry took `cache.dir`.
-- ADR 0078 § 2's `Boot` set names "the thread-per-core count" and no ADR spells it as a key, so it
-  has no registry row. ADR 0106's is the block it would live in.
-- `[debug]`, `[db.<name>]` and `[http.errors]` have no registry row: their owning ADRs state fields,
-  not a changeability class. Whoever transcribes the typed tree can settle all three at once.
-- `orient.py` warned that `[context] modules` pattern `crates/nvs-host/src/budget.rs` matches
-  nothing — it moved or the glob is wrong. The `crates/nvs-config/src/*.rs` warning is now stale and
-  will clear by itself.
-- Item 18's `Core\Secret::reveal()`, `Live::admit`'s same-class check and item 22's `Core\Script`
-  members are goal 2's three recorded gaps, each in its own crate's module doc.
+- `loop-goal.toml`'s `[context] modules` names `crates/nvs-host/src/budget.rs`, which matches nothing;
+  `orient.py` warns every session. Fix or drop the selector.
+- `examples/capability.nvs` catches `Throwable`; narrow it once Stage 4's ADR slot decides what class a
+  capability denial throws.
+- `examples/capability.nvs` needs an `[[app]]` grant block in `nvs.toml` — an `fs.read` root, no
+  `fs.write`, no `script.spawn` — which is Stage 4's (ADR 0104).
+- `Core\File::read`/`::write` are goal 4's and are what `capability.nvs` calls; it cannot compile first.
+- The three known gaps, each recorded where its code is: `Core\Secret::reveal()`, `Live::admit`'s
+  same-class check, `Core\Script`'s members.
