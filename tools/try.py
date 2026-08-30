@@ -4,6 +4,7 @@
     python tools/try.py .agent-tmp/promo.nvst .agent-tmp/div.nvst .agent-tmp/shift.nvst
     python tools/try.py .agent-tmp/*.nvst              # the whole scratch pad
     python tools/try.py --keep .agent-tmp/promo.nvst   # leave the generated .nvs/.php behind
+    python tools/try.py --bundle examples/hello.nvs --expect "Hello, World!"
 
 Each argument is a file in the `.nvst` shape -- `--TEST--`, `--FILE--`, and optionally
 `--ORACLE--` -- or, when it holds no markers at all, a bare `<?nvs` snippet. For each one this
@@ -37,6 +38,20 @@ two programs the same way -- no second translation step, which is where the twin
 Nothing here judges. A snippet that fails to compile prints its diagnostic, a twin that diverges
 prints both outputs, and the exit status is 0 unless a snippet could not be *read* -- because
 "Novis and PHP disagree" is the finding, not an error.
+
+## `--bundle`: the other twin
+
+`--bundle FILE...` swaps the twin. Each argument is a `.nvs` entry point rather than a `.nvst`
+snippet; each is built with `nvs build --compile`, and the executable that comes out is run beside
+`nvs run` over the same source. That pair *is*
+[ADR 0048](../docs/adr/0048-portable-single-file-executables.md)'s own verification list -- "a
+bundled executable runs identically to `nvs run` against the same source" -- asked the same way a
+`--ORACLE--` asks PHP, and for the same reason: a hand-written expectation about a bundle is a
+translation, and the executable is right there to ask instead.
+
+`--expect LINE` is the one place this file judges, and it exists because
+`docs/agent/loop-goal.toml`'s acceptance check needs a verdict rather than a report: every `LINE`
+given must appear in the bundle's own output, and the exit status is 1 when one does not.
 """
 
 from __future__ import annotations
@@ -171,6 +186,58 @@ def one(path: Path, keep: bool, php: str, stem: str) -> tuple[bool, list[str]]:
     return agree, out
 
 
+def bundled(path: Path, keep: bool, expect: list[str], stem: str) -> tuple[bool, list[str]]:
+    """Build `path` with `nvs build --compile`, run it, and hold it against `nvs run`.
+
+    True when the bundle built, ran, agreed with `nvs run` line for line, and printed every
+    `--expect` line. Returns its output for the same reason `one` does: several of these run at
+    once and interleaved blocks would be unreadable.
+    """
+    out: list[str] = [f"===== {path.name}  -- bundled"]
+    if not path.exists():
+        return False, out + [f"  cannot read {path}"]
+
+    TMP.mkdir(parents=True, exist_ok=True)
+    exe = TMP / (f"bundle-{stem}.exe" if os.name == "nt" else f"bundle-{stem}")
+    build_out, build_code = run(
+        [str(BINARY), "build", "--compile", str(path), "-o", str(exe)], ROOT
+    )
+    out.append(f"  build  exit {build_code}")
+    out.extend(f"    | {line}" for line in build_out.rstrip("\n").split("\n"))
+    if build_code != 0 or not exe.exists():
+        return False, out
+
+    bundle_out, bundle_code = run([str(exe)], ROOT)
+    out.append(f"  bundle exit {bundle_code}")
+    out.extend(f"    | {line}" for line in bundle_out.rstrip("\n").split("\n"))
+
+    run_out, run_code = run([str(BINARY), "run", str(path)], ROOT)
+    out.append(f"  nvs run exit {run_code}")
+
+    if not keep:
+        try:
+            exe.unlink()
+        except OSError:
+            pass
+
+    ok = True
+    if bundle_out == run_out and bundle_code == run_code:
+        out.append("  MATCH -- the bundle runs identically to `nvs run` (ADR 0048 Verification)")
+    else:
+        ok = False
+        out.append("  DIFFER -- the bundle and `nvs run` do not agree")
+        out.append(
+            first_difference(bundle_out, run_out)
+            .replace("nvs:", "bundle:")
+            .replace("php:", "nvs run:")
+        )
+    for line in expect:
+        if line not in bundle_out:
+            ok = False
+            out.append(f"  MISSING -- the bundle never printed {line!r}")
+    return ok, out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -180,7 +247,15 @@ def main() -> int:
     ap.add_argument("--keep", action="store_true",
                     help="leave the generated .nvs/.php under .agent-tmp/ instead of removing them")
     ap.add_argument("--php", default="php", help="the PHP executable (default `php`)")
+    ap.add_argument("--bundle", action="store_true",
+                    help="treat each FILE as a `.nvs` entry point: build it with "
+                         "`nvs build --compile` and run the result beside `nvs run`")
+    ap.add_argument("--expect", action="append", default=[], metavar="LINE",
+                    help="with --bundle: a line the bundle's output must contain; "
+                         "a miss is a non-zero exit. Repeatable")
     opts = ap.parse_args()
+    if opts.expect and not opts.bundle:
+        ap.error("--expect is only meaningful with --bundle")
 
     try:
         sys.stdout.reconfigure(encoding="utf-8", newline="\n")
@@ -206,12 +281,16 @@ def main() -> int:
     # written, and stops being nine sequential runs here.
     jobs = machine.jobs("local", ceiling=len(paths), envs=("NVS_TRY_JOBS",))
 
+    if opts.bundle:
+        work = lambda a: bundled(a[0], opts.keep, opts.expect, a[1])  # noqa: E731
+    else:
+        work = lambda a: one(a[0], opts.keep, opts.php, a[1])  # noqa: E731
+
     agreed = 0
     with ThreadPoolExecutor(max_workers=jobs) as pool:
         # `map` keeps input order: the blocks print in the order they were asked for, whatever
         # order they finished in.
-        for i, (agree, block) in enumerate(pool.map(
-                lambda a: one(a[0], opts.keep, opts.php, a[1]), zip(paths, stems))):
+        for i, (agree, block) in enumerate(pool.map(work, zip(paths, stems))):
             if i:
                 print()
             print("\n".join(block))
@@ -219,10 +298,12 @@ def main() -> int:
 
     print()
     twins = len(opts.files) - agreed
-    print(f"-- try: {len(opts.files)} snippet(s) in one call"
+    noun = "entry point" if opts.bundle else "snippet"
+    print(f"-- try: {len(opts.files)} {noun}(s) in one call"
           + (f", {jobs} at a time" if jobs > 1 else "")
           + (f", {twins} disagreeing with its twin" if twins else ""))
-    return 0
+    # `--bundle` is the one mode that judges: the acceptance check that drives it needs a verdict.
+    return 1 if opts.bundle and twins else 0
 
 
 if __name__ == "__main__":
