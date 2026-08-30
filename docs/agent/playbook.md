@@ -1098,6 +1098,13 @@ is why" — is this file.
   in a *tool* is committable on its own without touching the user's in-flight files — never stage
   them to make a check pass. The tool's own answer is `check-migration.py`'s `AHEAD_OF_THE_BUILD`,
   beside `UNAUDITED`: a named hole rather than a hand-edited inventory.
+- **A handoff item's `file.rs:NN` anchors are inlined by `orient.py` at the top of the pack, so a
+  stale one arrives as code that does not match the item's own prose.** Stage 10 item 37 named
+  `crates/nvs-types/src/expr/calls.rs:1088` for `NewTarget::Expr`, which had drifted to 1194, and the
+  pack dutifully printed a window of unknown-member diagnostics under the heading "the code your item
+  anchors". The line numbers were written before the previous session's own edits moved them. When a
+  printed window does not match the item, do not read around the number: `python tools/peek.py
+  --locate <symbol> ...` or a `:re:` target lands first time and costs one call.
 
 ## Running things
 
@@ -3180,6 +3187,14 @@ is why" — is this file.
   `memory`: under the 16M/1M defaults three 8 MiB slabs overshoot by 14,662 bytes and print nothing,
   while one 16,000,000-byte string prints. The message the `FATAL` carries is identical either way,
   which is why the difference reads as "the handler is not implemented".
+- **A checker fixture whose subclass declares its own constructor must call `parent::constructor(...)`
+  on every path, or `E0410` fails the fixture instead of the rule under test.** A `class Dog extends
+  Animal { public function constructor(string $n, int $age) {} }` written to make ADR 0125 § 5's
+  divergent-constructor case look plausible is *itself* refused, and the report names a rule
+  ("a path through its constructor never calls `parent::constructor(...)`") that has nothing to do
+  with what the test asserts — so an `assert!(!diags.has_errors())` in the same test fails on a
+  diagnostic the author never considered. One `parent::constructor($n);` line fixes it. This bites
+  hardest in a *negative* fixture's control half, where the whole point is that nothing else is wrong.
 
 ## Splitting a file that got too big
 
