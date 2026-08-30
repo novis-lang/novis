@@ -339,12 +339,12 @@ pub(crate) fn call_unwind(
 /// dependencies before dependants always finds what [`Self::build`] asks for
 /// already here.
 ///
-/// **Built once and shared, not copied.** § 8's copy into each test isolate is
-/// ADR 0023's graph copy across the `spawn` boundary, and there are no
-/// isolates yet (§ 2, M5) — so every test of a class sees the same instance,
-/// and a test that mutates a fixture is visible to the next one. That is the
-/// same shape class storage already has here for the same reason, and it is
-/// what M5 closes.
+/// **Built once here and copied into each test**, which is § 8's own bargain:
+/// the expensive half runs once per class, and what a test is handed is
+/// [`CrossedFixtures`] — its own graph copy, sharing no mutable state with
+/// this set or with the test before it. A test that mutates what it was given
+/// therefore mutates a copy, and § 2's isolation holds over a fixture as it
+/// does over a static.
 #[derive(Debug, Default)]
 pub struct Fixtures {
     built: Vec<(String, Value)>,
@@ -523,6 +523,93 @@ impl Drop for RowValues {
         #[expect(
             unsafe_code,
             reason = "this row holds exactly one reference per materialized                       value, made here, and the call that borrowed them has                       returned"
+        )]
+        unsafe {
+            for value in self.built.drain(..) {
+                value.release();
+            }
+        }
+    }
+}
+
+/// One test isolate's own copies of the fixtures it asked for — ADR 0079 § 8's
+/// "built once in the parent, copied into each test", which is
+/// [ADR 0023](../../../docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
+/// § 2's graph copy and nothing else.
+///
+/// It is [`RowValues`]'s shape over a different source, and it is here for that
+/// type's reason: the copy carries one reference each and somebody has to
+/// release it once the call has returned, which `nvs-cli` cannot spell. Where
+/// `Fixtures` is the **per-class** owner, this is the **per-test** one, and
+/// that split is § 2 rather than a convenience — the set outlives the class's
+/// last test, a copy does not outlive the isolate it was made for.
+///
+/// The copy is made on the **parent's** stack, before the isolate exists, and
+/// is moved into it. That is the same ordering `nvs_host::Isolate::start`
+/// gives its argument, and for the same reason ADR 0116 § 1 gives: an arena is
+/// an ownership root and not an address range, so where the walk runs decides
+/// nothing and who releases the result decides everything.
+#[derive(Debug, Default)]
+pub struct CrossedFixtures {
+    built: Vec<Value>,
+}
+
+impl CrossedFixtures {
+    /// Copies the values `needs` names out of `from`, in that order.
+    ///
+    /// `None` when one of them was never built, which is the same internal
+    /// inconsistency [`Fixtures::values`] answers `None` for.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::GraphError`] naming the fixture value that has no meaning on
+    /// the other side — a closure, or an object holding a host handle. That is
+    /// the **parent's** fault in `nvs_host::Isolate`'s own sense: the value was
+    /// built before any test isolate existed, so nothing has run yet and the
+    /// caller reports it against the test that asked for it.
+    pub fn copy(from: &Fixtures, needs: &[String]) -> Option<Result<Self, crate::GraphError>> {
+        let borrowed = from.values(needs)?;
+        let mut built = Vec::with_capacity(borrowed.len());
+        for value in borrowed {
+            #[expect(
+                unsafe_code,
+                reason = "`from` holds a reference to each of these for the whole \
+                          of this call, so the retain the walk then consumes is \
+                          made against a live payload — and the source is left \
+                          with the one it started with, which is what keeps the \
+                          copy a copy rather than an adoption"
+            )]
+            unsafe {
+                value.retain();
+            }
+            match crate::graph::copy_graph(value) {
+                Ok(crossed) => built.push(crossed),
+                // Whatever crossed already is this type's, so the partial copy
+                // is dropped rather than leaked: `built` is moved into a `Self`
+                // that releases it.
+                Err(refused) => {
+                    drop(Self { built });
+                    return Some(Err(refused));
+                }
+            }
+        }
+        Some(Ok(Self { built }))
+    }
+
+    /// The copies, in the order `needs` named them — **borrowed**, exactly as
+    /// [`Fixtures::values`] is: the call retains its own.
+    #[must_use]
+    pub fn values(&self) -> &[Value] {
+        &self.built
+    }
+}
+
+impl Drop for CrossedFixtures {
+    fn drop(&mut self) {
+        #[expect(
+            unsafe_code,
+            reason = "this set holds exactly one reference per copy, made by the \
+                      walk in `copy`, and the call that borrowed them has returned"
         )]
         unsafe {
             for value in self.built.drain(..) {
