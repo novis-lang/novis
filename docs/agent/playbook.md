@@ -959,6 +959,17 @@ is why" — is this file.
   whether a file is mixed; the repository stores LF, so normalizing the whole file is the fix and not a
   reversion. Do **not** reach for `git stash` to bisect this — the loop driver may hold the tree, and a
   stash sweeps its in-flight work into yours.
+- **`rand_core` 0.10 renamed the core trait and inverted which half you implement**, so the shape
+  every guide writes fails twice here, one call apart. `RngCore` is gone (a deprecated stub);
+  `rand::Rng` is now the infallible core trait, `rand::TryRng` the fallible one, and `Rng` is a
+  **blanket** impl over `TryRng<Error = Infallible>`. So a hand-written `impl rand::Rng for T` is
+  `E0119` against that blanket, while writing only `impl rand::Rng` without a `TryRng` half is
+  `E0277` saying `T: TryRng` is unsatisfied — two errors for one mistake. Implement `TryRng`'s
+  three `try_*` methods and take `Rng` and `rand::RngExt`'s drawing methods for free. Second trap
+  in the same corner: `RngExt`'s methods are declared on a `Sized` receiver, so a `&mut dyn
+  rand::Rng` parameter compiles and then offers `next_u64` and nothing else —
+  `crates/nvs-stdlib/src/random.rs`'s `Generator` newtype is the way round it, and its doc says
+  why a generic parameter is not.
 
 ## Running things
 
@@ -2714,6 +2725,19 @@ is why" — is this file.
   "child.nvs"` finds it — no fixture directory beside the cases, and no `../../examples/` path out
   of the suite. `--FILE <path>--` may appear any number of times and takes a forward-slash relative
   path, so a child that needs its own `require` graph is the same mechanism.
+- **A new `Core` member owes `conformance_coverage.rs` three things, and `verify.py` reports them
+  one gate at a time only after `cargo test` is otherwise green** — so budget for the round trips.
+  A member needs (1) a case naming it, (2) **three** cases naming it, because
+  `every_core_class_has_a_conformance_floor_of_three` is a floor per member and not per class, and
+  (3) every `Fault::` message stem in the corpus or declared `unreachable from source` within 8
+  lines of the site. The one that bites is a member whose *accepted* path a `.nvst` cannot reach —
+  `Core\Test::advance` needs a `#[Test(at: ...)]` isolate, so all three of its cases ask about the
+  refusal, and conventions.md's four shapes are what keeps them three different questions rather
+  than one written three times. For an error path reachable only from a runner, give both refusals
+  one `format!("Core\\Member(): {why}")` prefix: the gate keys a site on the literal stem before
+  its first hole, so one case discharges both — and check the judgement is *true* before writing
+  `unreachable from source`, which here it was only for `Core\Time::now`'s fixed-clock guard,
+  both writers of that field validating before they store.
 
 ## Splitting a file that got too big
 

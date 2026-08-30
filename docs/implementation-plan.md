@@ -42,24 +42,26 @@
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
 > **Open now:** **Goal 2 of the parity program — concurrency, M5 — is running**, goal 1 reached and
-> standing as its floor. The chain is `python tools/loop.py --chain docs/agent/goals/chain.toml` over
-> [docs/agent/goals/](agent/goals/README.md), whose README § *Starting the chain* records how it was
-> started. **Stages 0b and 2–6 are closed at their acceptance**: `crates/nvs-host` is on disk whole
-> (scheduler, reactor, parking stream, timers, blocking pool, watchdog, task tree, channel, groups,
-> isolate) with every `cargo-named` name green, `spawn script`/`await` lower, and every decision taken
-> on the way lives in the module doc of the file that holds it — `crates/nvs-host/src/*.rs`,
-> `crates/nvs-runtime/src/{host,script,graph}.rs`, `crates/nvs-stdlib/src/{task,channel,serialize,
-> script}.rs`, `crates/nvs-cli/src/{script,runner}.rs` — or in ADRs 0115–0117. **Stage 7 is half
-> done**: item 25's two names are green in `crates/nvs-cli/src/runner.rs`; item 26's fixed clock and
-> seed (ADR 0079 § 12) are unwritten and are the handoff's next group. **Stage 8's
-> `benches/isolation.rs` is not on disk.** Three known gaps, each recorded where its code is: item
-> 18's `Core\Secret::reveal()` is not in the registry, so the boundary's `secret` refusal has no way
-> out yet (`nvs_types::expr::quals`); `Live::admit`'s same-class check is asked of the answer and not
-> of the argument (`crates/nvs-runtime/src/graph.rs` § *Known gaps*); item 22's `Core\Script` members
-> are unwritten (`crates/nvs-stdlib/src/script.rs`). The program is measured by `python
-> tools/check-migration.py` at 100% classified — 25% when it was scheduled, 34% now — and `gaps.py`,
-> `holes.py` and `check-migration.py --report` are the worklists no session re-derives. M4's residue
-> is the 1000-case corpus count, met as the suite grows.
+> standing as its floor. The chain is `python tools/loop.py --chain docs/agent/goals/chain.toml`
+> over [docs/agent/goals/](agent/goals/README.md), whose README § *Starting the chain* records how
+> it was started. **Stages 0b and 2–6 are closed at their acceptance**: `crates/nvs-host` is on disk
+> whole (scheduler, reactor, parking stream, timers, blocking pool, watchdog, task tree, channel,
+> groups, isolate) with every `cargo-named` name green, `spawn script`/`await` lower, and every
+> decision taken on the way lives in the module doc of the file that holds it —
+> `crates/nvs-host/src/*.rs`, `crates/nvs-runtime/src/{host,script,graph}.rs`,
+> `crates/nvs-stdlib/src/{task,channel,serialize, script}.rs`,
+> `crates/nvs-cli/src/{script,runner}.rs` — or in ADRs 0115–0117. **Stage 7 is closed at its
+> acceptance**: all four `nvs-cli` names are green — item 25's task tree, and item 26's fixed clock
+> and seed (ADR 0079 § 12), whose homes are `nvs_runtime::Ctx`'s two field docs and the one seam per
+> domain they are read through. **Stage 8's `benches/isolation.rs` is not on disk.** Three known
+> gaps, each recorded where its code is: item 18's `Core\Secret::reveal()` is not in the registry,
+> so the boundary's `secret` refusal has no way out yet (`nvs_types::expr::quals`); `Live::admit`'s
+> same-class check is asked of the answer and not of the argument (`crates/nvs-runtime/src/graph.rs`
+> § *Known gaps*); item 22's `Core\Script` members are unwritten
+> (`crates/nvs-stdlib/src/script.rs`). The program is measured by `python tools/check-migration.py`
+> at 100% classified — 25% when it was scheduled, 34% now — and `gaps.py`, `holes.py` and
+> `check-migration.py --report` are the worklists no session re-derives. M4's residue is the
+> 1000-case corpus count, met as the suite grows.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
