@@ -70,19 +70,21 @@
 //!    band that starts at 1.8e19.
 //! 2. **A derived field's type roster is narrower than ADR 0071 § 2's.**
 //!    [`decode_field`] has a case for a `bool`, an `int`, a `uint`, a `float`,
-//!    a `string`, a `mixed`, another derived class and a `?T` of any of them —
-//!    the whole of [`nvs_runtime::CodecTy`] but its last variant. An enum, a
-//!    `decimal`, an `Instant`, an `array<T>` and an inline shape are all
+//!    a `string`, a `mixed`, another derived class, an `array<T>` of any of
+//!    those, and a `?T` of any of them — the whole of
+//!    [`nvs_runtime::CodecTy`] but its last variant. An enum, a `decimal`, an
+//!    `Instant`, an inline shape and an `array<T>` of one of those are all
 //!    codec-reachable by that ADR and all land on `CodecTy::Opaque`, which
 //!    [`decode_as`] refuses **before reading the document** for the class it
 //!    was handed, and [`decode_field`] refuses on reaching it inside a nested
 //!    one. Encoding is unaffected: [`Encodable`] walks the value rather than
 //!    the declared type, so a field this cannot decode still round-trips out.
 //!
-//!    A nested class is the one that came off this list, and it is what makes
-//!    § 5's issue paths dotted: [`decode_nested`] runs the nested class's own
-//!    field list under a `address.` prefix, and its issues join the enclosing
-//!    object's rather than throwing where they were found.
+//!    A nested class came off this list first, and it is what makes § 5's
+//!    issue paths dotted: [`decode_nested`] runs the nested class's own field
+//!    list under a `address.` prefix, and its issues join the enclosing
+//!    object's rather than throwing where they were found. [`decode_list`]
+//!    came off it second, under `tags.3.` — the § 5 example's own spelling.
 //! 3. **A parameter default does not make a key optional.** ADR 0071 § 4's
 //!    two default-bearing rows are unimplemented: an absent key is always
 //!    *required field missing*, and a `#[Json\Field(skip: true)]` property
@@ -102,11 +104,11 @@
 //!    reflection and nothing per object either way — the difference is one
 //!    bounded loop and one `String` compare per field, against a table that is
 //!    O(derived classes) in the artifact.
-//! 6. **An issue's `path` is a field's own wire key, prefixed only by a list
-//!    element's position.** A `decodeAs<array<C>>` reports `2.name`
-//!    ([`path_of`]), which is ADR 0071 § 5's dotted path over the one nesting
-//!    that exists. The § 5 example is `"address.city"` — a nested *class* — and
-//!    that is gap 2's, so there is nothing further to prefix yet.
+//! 6. **An issue's `path` is a field's own wire key, under every nesting that
+//!    encloses it.** A `decodeAs<array<C>>` reports `2.name`, a nested class's
+//!    field `address.city` and a list field's bad element `tags.3` — ADR 0071
+//!    § 5's dotted path, built by [`path_of`] out of a prefix each nesting
+//!    extends by one segment.
 //! 7. **`isValid` decodes and discards.** It answers exactly what [`nvs_core_json_decode`]
 //!    would accept, which is the property that matters, but it allocates the
 //!    document to do it. A second `()`-producing visitor would avoid that; it
@@ -1279,24 +1281,22 @@ unsafe fn decode_field(
             )]
             return unsafe { decode_nested(ctx, owner, index, found, prefix) };
         }
-        // A `mixed` field is exactly as checked as `mixed` ever is (ADR 0071
-        // § 2), so whatever the document held is the value.
-        CodecTy::Mixed => Some(found),
-        CodecTy::Bool => found.as_bool().map(Value::bool),
-        CodecTy::Int => found.as_int().map(Value::int),
-        CodecTy::Uint => found
-            .as_int()
-            .and_then(|number| u64::try_from(number).ok())
-            .map(Value::uint),
-        // A JSON `1` reaching a `float` field widens, which is the one place
-        // Novis does that — ADR 0007 § 2 has no int-to-float widening in the
-        // language, but a wire format has one number type and refusing an
-        // unfractional literal would make `1.0` and `1` different documents.
-        CodecTy::Float => found
-            .as_float()
-            .or_else(|| found.as_int().map(|number| number as f64))
-            .map(Value::float),
-        CodecTy::Str => (found.tag() == Some(Tag::Str)).then_some(found),
+        // ADR 0071 § 2's list field, decoded one element at a time under a
+        // path this key extends — the second nesting § 5's dotted path covers.
+        CodecTy::List => {
+            #[expect(
+                unsafe_code,
+                reason = "the owner is the caller's, and an element class is one \
+                          `nvs-codegen` resolved out of the same class table"
+            )]
+            return unsafe { decode_list(ctx, owner, index, found, prefix) };
+        }
+        CodecTy::Mixed
+        | CodecTy::Bool
+        | CodecTy::Int
+        | CodecTy::Uint
+        | CodecTy::Float
+        | CodecTy::Str => scalar(field.ty, found),
         // Reachable only through a *nested* class, whose own fields
         // [`decode_as`]'s pre-check never saw: an `Opaque` is a decoder this
         // crate has not written yet, so it is an engine fault wherever it is
@@ -1405,6 +1405,206 @@ unsafe fn decode_nested(
     }
 }
 
+/// One JSON value read as a scalar wire type, or `None` when the document held
+/// something else there.
+///
+/// Split out of [`decode_field`] because [`decode_list`] asks the same
+/// question of every element, and a list whose elements converted by their own
+/// rules would be a second answer to "what is an `int` on the wire".
+///
+/// A [`CodecTy::Class`], a [`CodecTy::List`] and a [`CodecTy::Opaque`] are not
+/// scalars and answer `None`; each has a caller that handles it before
+/// reaching here.
+fn scalar(ty: CodecTy, found: Value) -> Option<Value> {
+    match ty {
+        // A `mixed` field is exactly as checked as `mixed` ever is (ADR 0071
+        // § 2), so whatever the document held is the value.
+        CodecTy::Mixed => Some(found),
+        CodecTy::Bool => found.as_bool().map(Value::bool),
+        CodecTy::Int => found.as_int().map(Value::int),
+        CodecTy::Uint => found
+            .as_int()
+            .and_then(|number| u64::try_from(number).ok())
+            .map(Value::uint),
+        // A JSON `1` reaching a `float` field widens, which is the one place
+        // Novis does that — ADR 0007 § 2 has no int-to-float widening in the
+        // language, but a wire format has one number type and refusing an
+        // unfractional literal would make `1.0` and `1` different documents.
+        CodecTy::Float => found
+            .as_float()
+            .or_else(|| found.as_int().map(|number| number as f64))
+            .map(Value::float),
+        CodecTy::Str => (found.tag() == Some(Tag::Str)).then_some(found),
+        CodecTy::Class | CodecTy::List | CodecTy::Opaque => None,
+    }
+}
+
+/// One `array<T>` field decoded — ADR 0071 § 2's list field, every position
+/// read through [`nvs_runtime::CodecField::element`] and **every** bad one
+/// accumulated, so a list reports like an object rather than at its first
+/// failure.
+///
+/// The element's issue path is the field's own path with the position appended
+/// — `tags.3`, which is § 5's own example — and a class element nests once
+/// further, `authors.1.name`.
+///
+/// # Safety
+///
+/// As [`decode_as`]'s, for `owner` and for the element descriptor it names at
+/// `index`.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+unsafe fn decode_list(
+    ctx: &mut nvs_runtime::Ctx,
+    owner: &nvs_runtime::ClassDesc,
+    index: usize,
+    found: Value,
+    prefix: &str,
+) -> Result<Value, DecodeFailure> {
+    let field = &owner.codec()[index];
+    let path = path_of(prefix, Some(&field.key));
+    let Some(element) = field.element else {
+        // Unreachable from source: `nvs_types::derive` writes the element
+        // beside the `List` in one expression, so a list with no element is
+        // that erasure disagreeing with itself.
+        return Err(DecodeFailure::Fault(Fault::fatal(format!(
+            "internal error: `{}`'s `{}` field is a list with no element wire type",
+            owner.name(),
+            field.key
+        ))));
+    };
+    let Some(ptr) = found.array_ptr() else {
+        return Err(DecodeFailure::Issues(vec![(
+            path,
+            format!("expected an array, found {}", describe(found)),
+        )]));
+    };
+    let source = crate::arr::borrowed(ptr);
+    // Dropping `decoded` on any early return releases every element already
+    // built, which is what an error path owes.
+    let mut decoded = NvsArray::new();
+    let mut issues: Vec<(String, String)> = Vec::new();
+    for at in 0..source.count() {
+        let at_path = format!("{path}.{at}");
+        // A JSON object reads back as one `NvsArray` too, so a position that
+        // is not there is `{"a": 1}` arriving where a list was declared —
+        // `decode_each` tells the two apart the same way.
+        let Some(item) = i64::try_from(at)
+            .ok()
+            .and_then(|position| source.get_index(position))
+        else {
+            return Err(DecodeFailure::Issues(vec![(
+                path,
+                format!("expected an array, found {}", describe(found)),
+            )]));
+        };
+        if element == CodecTy::Class {
+            #[expect(
+                unsafe_code,
+                reason = "the element descriptor `nvs-codegen` resolved out of the \
+                          owner's own class table"
+            )]
+            match unsafe { decode_element(ctx, owner, index, item, &at_path) } {
+                Ok(value) => decoded.append(value),
+                Err(DecodeFailure::Issues(mut nested)) => issues.append(&mut nested),
+                Err(fault @ DecodeFailure::Fault(_)) => return Err(fault),
+            }
+            continue;
+        }
+        let Some(value) = scalar(element, item) else {
+            issues.push((
+                at_path,
+                format!("expected {}, found {}", wanted(element), describe(item)),
+            ));
+            continue;
+        };
+        // As [`decode_field`]'s tail: a pass-through arm handed back the
+        // document's own value, and the document is released before the
+        // constructor runs.
+        #[expect(
+            unsafe_code,
+            reason = "the document owns this value for the length of this call, so \
+                      taking a second reference to it is sound"
+        )]
+        unsafe {
+            value.retain();
+        }
+        decoded.append(value);
+    }
+    if !issues.is_empty() {
+        return Err(DecodeFailure::Issues(issues));
+    }
+    Ok(Value::array(decoded))
+}
+
+/// One element of a list whose element type is another derived class, decoded
+/// under `path` — [`decode_nested`] for a position rather than a key.
+///
+/// The descriptor is [`nvs_runtime::ClassDesc::codec_class`]'s answer at the
+/// *field's* index, because a list field's class label is its element's; the
+/// two halves of [`nvs_runtime::CodecField::class`] meet here.
+///
+/// # Safety
+///
+/// As [`decode_as`]'s, for `owner` and for the descriptor it names at `index`.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+unsafe fn decode_element(
+    ctx: &mut nvs_runtime::Ctx,
+    owner: &nvs_runtime::ClassDesc,
+    index: usize,
+    item: Value,
+    path: &str,
+) -> Result<Value, DecodeFailure> {
+    let field = &owner.codec()[index];
+    let Some(class) = owner.codec_class(index) else {
+        // Unreachable from source, as [`decode_nested`]'s twin: the element
+        // type was refused at the declaration if it had no codec, so a label
+        // with no descriptor is `nvs-codegen`'s join disagreeing with the
+        // class table it built.
+        return Err(DecodeFailure::Fault(Fault::fatal(format!(
+            "internal error: `{}`'s `{}` field holds `{}`, which this unit's class table \
+             has no descriptor for",
+            owner.name(),
+            field.key,
+            field.class.as_deref().unwrap_or("<unnamed>")
+        ))));
+    };
+    #[expect(unsafe_code, reason = "the descriptor `nvs-codegen` resolved is live")]
+    let desc = unsafe { &*class };
+    if desc.codec().is_empty() {
+        return Err(DecodeFailure::Fault(Fault::fatal(format!(
+            "Core\\Json::decodeAs(): `{}`'s `{}` field holds `{}`, which carries no derived \
+             codec — ADR 0071 § 7's hand-written half is `nvs_stdlib::json`'s own known gap",
+            owner.name(),
+            field.key,
+            desc.name()
+        ))));
+    }
+    let Some(ptr) = item.array_ptr() else {
+        return Err(DecodeFailure::Issues(vec![(
+            path.to_owned(),
+            format!(
+                "expected an object for `{}`, found {}",
+                desc.name(),
+                describe(item)
+            ),
+        )]));
+    };
+    let source = crate::arr::borrowed(ptr);
+    #[expect(
+        unsafe_code,
+        reason = "the resolved descriptor, and a borrow of the document's own object"
+    )]
+    unsafe {
+        decode_fields(ctx, class, desc, &source, &format!("{path}."))
+    }
+}
+
 /// ADR 0071 § 5's issue path for a field, rooted at whatever encloses it:
 /// `name` alone at the top, `2.name` inside a list's third element,
 /// `2.address.city` inside that element's nested `address`.
@@ -1436,6 +1636,9 @@ const fn wanted(ty: CodecTy) -> &'static str {
         // Never reached through a field: `decode_nested` names the class
         // itself, which is what the reader wrote. Here for the roster.
         CodecTy::Class => "an object",
+        // Likewise: `decode_list` reports the array itself, and an element is
+        // named by its own wire type.
+        CodecTy::List => "an array",
         CodecTy::Opaque => "a decodable type",
     }
 }

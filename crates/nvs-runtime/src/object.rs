@@ -515,10 +515,20 @@ pub enum CodecTy {
     /// [`CodecField::class`] and the descriptor it resolves to on
     /// [`ClassDesc::codec_class`].
     Class,
-    /// A declared type this decoder has no case for yet — an `array<T>`, an
-    /// enum, a `decimal`, an `Instant`. Encoding one still works; decoding
-    /// into one is `nvs_stdlib::json`'s own known gap, and it faults naming
-    /// the field rather than guessing a value.
+    /// An `array<T>` of one of the wire types above — ADR 0071 § 2's list
+    /// field, decoded by running the *element's* wire type once per position.
+    ///
+    /// The element rides on [`CodecField::element`] rather than inside this
+    /// variant for the same reason a class identity does not: this enum is
+    /// `Copy` and a recursive variant is not, and an element that is itself a
+    /// list has nowhere to put its own element. `nvs_types::derive` erases
+    /// `array<array<T>>` to [`Self::Opaque`] on that account, so
+    /// [`CodecField::element`] is never itself a `List`.
+    List,
+    /// A declared type this decoder has no case for yet — an enum, a
+    /// `decimal`, an `Instant`. Encoding one still works; decoding into one is
+    /// `nvs_stdlib::json`'s own known gap, and it faults naming the field
+    /// rather than guessing a value.
     Opaque,
 }
 
@@ -543,8 +553,16 @@ pub struct CodecField {
     pub param: usize,
     /// What a decode has to produce for this field.
     pub ty: CodecTy,
-    /// The nested class's label when [`Self::ty`] is [`CodecTy::Class`], and
-    /// `None` for every other wire type.
+    /// Each element's wire type when [`Self::ty`] is [`CodecTy::List`], and
+    /// `None` for every other one.
+    ///
+    /// Never itself a [`CodecTy::List`] — [`CodecTy::List`]'s own docs say why
+    /// — so a decoder reading this reaches a scalar or a class in one step.
+    pub element: Option<CodecTy>,
+    /// The class's label when a class identity is what the erasure above
+    /// dropped: the field's own class for a [`CodecTy::Class`], the
+    /// *element's* for a [`CodecTy::List`] of one, and `None` for every other
+    /// wire type.
     ///
     /// The *declaration* half of a nested field, which is all a front-end
     /// crate can say: a descriptor does not exist until `nvs-codegen` has
@@ -721,7 +739,7 @@ impl ClassDesc {
     }
 
     /// The descriptor the `index`th codec field decodes into, or `None` where
-    /// that field is not a [`CodecTy::Class`] — see [`Self::codec_classes`].
+    /// that field names no class — see [`Self::codec_classes`].
     ///
     /// Indexed by position in [`Self::codec`] rather than reached through the
     /// [`CodecField`] itself, because the field is shared with three crates

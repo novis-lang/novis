@@ -36,8 +36,8 @@
 //! 1. **A reachable type whose decoder is not written yet is still
 //!    [`CodecTy::Opaque`].** § 2's compile-time refusal is applied — see
 //!    [`resolve_field_types`] — but it names only the types that can never
-//!    have a wire form. A `decimal`, an `Instant`, an enum, an `array<T>` and
-//!    an inline shape are all *reachable* and all erase to `Opaque` here, so a
+//!    have a wire form. A `decimal`, an `Instant`, an enum and an inline shape
+//!    are all *reachable* and all erase to `Opaque` here, so a
 //!    `decodeAs<T>` over one still refuses at run time; the decoders they need
 //!    are `nvs_stdlib::json`'s own gap, and keeping the two apart is why this
 //!    module refuses a type rather than refusing an `Opaque`.
@@ -208,9 +208,14 @@ pub struct DerivedField {
     /// What a decode has to produce for this field — the declared property
     /// type, erased to the closed roster a native decoder branches on.
     pub ty: CodecTy,
-    /// The nested class's label where [`Self::ty`] is [`CodecTy::Class`] —
-    /// the identity the erasure above drops, and the only half a front end can
-    /// state. `nvs-codegen` resolves it to a descriptor.
+    /// Each element's wire type where [`Self::ty`] is [`CodecTy::List`] — see
+    /// [`nvs_stdlib::CodecField::element`], which this is the declaration half
+    /// of.
+    pub element: Option<CodecTy>,
+    /// The class's label where the erasure above dropped one: the field's own
+    /// class for a [`CodecTy::Class`], the element's for a [`CodecTy::List`]
+    /// of one. The only half a front end can state; `nvs-codegen` resolves it
+    /// to a descriptor.
     pub class: Option<String>,
     /// Whether the declared type admits `null` (ADR 0071 § 4's second column).
     pub nullable: bool,
@@ -224,12 +229,11 @@ pub struct DerivedField {
 /// label beside it where the erasure loses one.
 ///
 /// ADR 0071 § 2's codec-reachable set is wider than this: an enum, a
-/// `decimal`, an `Instant`, an `array<T>` and an inline shape are all
-/// reachable and all land on [`CodecTy::Opaque`] today — `nvs_stdlib::json`'s
-/// own gap owns the decoders they still need, and § 2's compile-time refusal
-/// of a genuinely unreachable type is this module's gap 3. Nothing here
-/// narrows what *encodes*, which walks the value rather than the declared
-/// type.
+/// `decimal`, an `Instant` and an inline shape are all reachable and all land
+/// on [`CodecTy::Opaque`] today — `nvs_stdlib::json`'s own gap owns the
+/// decoders they still need, and § 2's compile-time refusal of a genuinely
+/// unreachable type is this module's gap 3. Nothing here narrows what
+/// *encodes*, which walks the value rather than the declared type.
 ///
 /// A class is [`CodecTy::Class`] whether or not it turns out to carry a
 /// codec, because that is a question about the *whole program* — the class may
@@ -237,21 +241,30 @@ pub struct DerivedField {
 /// [`resolve_field_types`] that refuses a class with no codec at all, and
 /// `nvs_stdlib::json` that reports ADR 0071 § 7's hand-written half, which no
 /// derived decoder calls yet.
-fn codec_ty(declared: TypeId, env: &Env<'_>) -> (CodecTy, Option<String>) {
+fn codec_ty(declared: TypeId, env: &Env<'_>) -> (CodecTy, Option<CodecTy>, Option<String>) {
     match env.interner.get(declared) {
-        Ty::Bool => (CodecTy::Bool, None),
-        Ty::Int => (CodecTy::Int, None),
-        Ty::Uint => (CodecTy::Uint, None),
-        Ty::Float => (CodecTy::Float, None),
+        Ty::Bool => (CodecTy::Bool, None, None),
+        Ty::Int => (CodecTy::Int, None, None),
+        Ty::Uint => (CodecTy::Uint, None, None),
+        Ty::Float => (CodecTy::Float, None, None),
         // A `tainted` string is still a string on the wire; ADR 0071 § 6 makes
         // the qualifier a call-site question, not a decoder one.
-        Ty::String | Ty::TaintedString => (CodecTy::Str, None),
-        Ty::Mixed => (CodecTy::Mixed, None),
+        Ty::String | Ty::TaintedString => (CodecTy::Str, None, None),
+        Ty::Mixed => (CodecTy::Mixed, None, None),
         // § 2's "another class that itself has a codec". The label is the one
         // `crate::layout` keys on and `nvs_ir::lower::lower_file` joins
         // through, so `nvs-codegen` can resolve it to a descriptor.
-        Ty::Class(name, _) => (CodecTy::Class, Some(name.to_string())),
-        _ => (CodecTy::Opaque, None),
+        Ty::Class(name, _) => (CodecTy::Class, None, Some(name.to_string())),
+        // § 2's list field. The element goes through this same erasure once,
+        // and a second `List` coming back out is `array<array<T>>` — which
+        // [`nvs_stdlib::CodecField::element`] has no room to describe, so the
+        // whole field stays `Opaque` and refuses at the `decodeAs<T>` rather
+        // than half-decoding. An `Opaque` element is refused the same way.
+        Ty::Array(elem) => match codec_ty(*elem, env) {
+            (CodecTy::List | CodecTy::Opaque, _, _) => (CodecTy::Opaque, None, None),
+            (element, _, class) => (CodecTy::List, Some(element), class),
+        },
+        _ => (CodecTy::Opaque, None, None),
     }
 }
 
@@ -665,11 +678,12 @@ fn codec_field(
         span: p.name,
         declared: carried,
     });
-    let (ty, class) = codec_ty(carried, env);
+    let (ty, element, class) = codec_ty(carried, env);
     FieldOutcome::Kept(DerivedField {
         key: overrides.name.unwrap_or_else(|| name.clone()),
         property: name,
         ty,
+        element,
         class,
         nullable,
         param,

@@ -691,6 +691,7 @@ pub fn lower_program(
                                 // this field's value as another parameter.
                                 param: field.param?,
                                 ty: field.ty,
+                                element: field.element,
                                 // The label rides down untouched; `nvs-codegen`
                                 // is the first place every descriptor exists,
                                 // so it is the one that can resolve it.
