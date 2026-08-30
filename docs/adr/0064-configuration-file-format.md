@@ -128,7 +128,7 @@ that a reader of `nvs.toml` has one place to start:
 
 | Block | Owner |
 |---|---|
-| `[[include]]` | [0102](0103-configuration-is-a-tree-of-files.md) |
+| `[[include]]` | [0103](0103-configuration-is-a-tree-of-files.md) |
 | `[[app]]` | [0104](0104-an-application-is-an-entry-file-path.md) |
 | `[limits]`, `[limits.hard]` | [0005](0005-config-changeability.md) |
 | `[mode]` | [0091](0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md) |
