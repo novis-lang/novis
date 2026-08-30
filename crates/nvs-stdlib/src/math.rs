@@ -7,8 +7,12 @@
 //! # Two rules cover every member here, so no member restates them
 //!
 //! * **A division by zero throws `ArithmeticError`**, in `intDiv` and in `mod`
-//!   alike — spec § 3's opening paragraph, which is why PHP's silently-`INF`
-//!   `fdiv` has no equivalent. So does an operation whose exact answer does
+//!   alike, and in the `/` operator over every operand type (ADR 0007 § 4) —
+//!   spec § 3's opening paragraph. [`nvs_core_math_fdiv`] is the single
+//!   exception and is there to be one: with the operator throwing on a `float`
+//!   divisor too, it is the only way left to ask for IEEE's infinity, which is
+//!   why PHP has the same function for the same reason. So does an operation
+//!   whose exact answer does
 //!   not fit its result type: `intDiv(int::MIN, -1)`, `abs(int::MIN)`, an
 //!   `lcm` past `int`, a `uint` argument past `int` — ADR 0007 § 4's class for
 //!   an overflow, the same one the operators raise. A refusal that is about
@@ -21,7 +25,9 @@
 //!   behaviour — and it is the reason those two members exist at all; a
 //!   library that threw instead would leave them with nothing to answer about.
 //!   A *division* is not a domain error, which is what keeps the two rules
-//!   from meeting.
+//!   from meeting — and [`nvs_core_math_fdiv`] does not blur them either, being
+//!   a member whose whole name is the IEEE answer rather than a division that
+//!   changed its mind.
 //!
 //! # Known gap: `decimal` at the four rounding members
 //!
@@ -151,6 +157,15 @@ pub const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Float,
             symbol: "nvs_core_math_mod",
             doc: Some(&MOD_DOC),
+        },
+        CoreMethod {
+            name: "fdiv",
+            names: &["a", "b"],
+            params: &[CoreTy::Float, CoreTy::Float],
+            defaults: &[],
+            return_ty: CoreTy::Float,
+            symbol: "nvs_core_math_fdiv",
+            doc: Some(&FDIV_DOC),
         },
         CoreMethod {
             name: "gcd",
@@ -632,6 +647,27 @@ const MOD_DOC: MethodDoc = MethodDoc {
         desc: "When `$b` is zero — a division by zero, which throws here rather than answering \
                `NaN` as `fmod` does.",
     }],
+};
+
+/// `Core\Math::fdiv`'s reference card — ADR 0117.
+const FDIV_DOC: MethodDoc = MethodDoc {
+    short: "The IEEE quotient of `$a / $b`, as `fdiv` does — the one member here that answers a \
+            zero divisor instead of throwing, the `/` operator having no such spelling.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The dividend.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "b",
+            desc: "The divisor, which may be zero.",
+            shape: &[],
+        },
+    ],
+    ret: "`$a / $b` under IEEE 754: an infinity signed by both operands when `$b` is zero and \
+          `$a` is not, and `NaN` when both are.",
+    errors: &[],
 };
 
 /// `Core\Math::gcd`'s reference card — ADR 0117.
@@ -1321,6 +1357,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_math_round" => (nvs_core_math_round as *const ()).cast(),
         "nvs_core_math_int_div" => (nvs_core_math_int_div as *const ()).cast(),
         "nvs_core_math_mod" => (nvs_core_math_mod as *const ()).cast(),
+        "nvs_core_math_fdiv" => (nvs_core_math_fdiv as *const ()).cast(),
         "nvs_core_math_gcd" => (nvs_core_math_gcd as *const ()).cast(),
         "nvs_core_math_lcm" => (nvs_core_math_lcm as *const ()).cast(),
         "nvs_core_math_sqrt" => (nvs_core_math_sqrt as *const ()).cast(),
@@ -1766,6 +1803,25 @@ nvs_runtime::nvs_helper! {
             ));
         }
         Ok(Value::float(a % b))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Math::fdiv(float $a, float $b): float` — the IEEE quotient,
+    /// replacing PHP's `fdiv`, and the one division in this module that
+    /// answers a zero divisor rather than throwing on it.
+    ///
+    /// It exists because ADR 0007 § 4 refuses the zero divisor for `/` before
+    /// the operand types are consulted, so an infinity is otherwise
+    /// unreachable through a division — which is the same reason PHP grew this
+    /// function once `/` began throwing. That is a member *named* for the
+    /// answer rather than this module's domain-error rule reaching a division:
+    /// every other division here still throws, and a reader who writes `/`
+    /// still gets the throw.
+    fn nvs_core_math_fdiv(_ctx, args: [2]) {
+        let a = float_at(args, 0, "fdiv")?;
+        let b = float_at(args, 1, "fdiv")?;
+        Ok(Value::float(a / b))
     }
 }
 

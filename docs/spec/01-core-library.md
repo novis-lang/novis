@@ -376,8 +376,10 @@ Enums: `Order { Asc, Desc }`, `SetOn { Values, Keys, Both }`.
 ## 3. `Core\Math`
 
 `**` is exponentiation and `%` is integer modulo, so neither has a member (R17). Division by zero throws
-`ArithmeticError` (R4), which is why `fdiv`'s silent `INF` has no equivalent. Overflow throws rather than
-becoming a `float` ([ADR 0007](../adr/0007-explicit-type-system.md)).
+`ArithmeticError` (R4) — in `intDiv`, in `mod`, and in the `/` operator whatever the operand types, which
+is exactly why `fdiv` *is* a member here: it is the one spelling left for IEEE's `INF`, and PHP has it for
+the same reason. Overflow throws rather than becoming a `float`
+([ADR 0007](../adr/0007-explicit-type-system.md) § 4).
 
 | Member | Signature | Replaces | Q |
 |---|---|---|---|
@@ -392,6 +394,7 @@ becoming a `float` ([ADR 0007](../adr/0007-explicit-type-system.md)).
 | `round` | `round(float\|decimal $n, {precision?: int, mode?: RoundMode}): float\|decimal` | `round` and its four `PHP_ROUND_*` constants | neutral |
 | `intDiv` | `intDiv(int $a, int $b): int` | `intdiv` | neutral |
 | `mod` | `mod(float $a, float $b): float` | `fmod` (integer `%` is the operator) | neutral |
+| `fdiv` | `fdiv(float $a, float $b): float` | `fdiv` | neutral |
 | `gcd` | `gcd(int $a, int $b): int` | `gmp_gcd` | neutral |
 | `lcm` | `lcm(int $a, int $b): int` | `gmp_lcm` | neutral |
 | `sqrt` | `sqrt(float $n): float` | `sqrt` | neutral |
