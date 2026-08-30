@@ -1,0 +1,54 @@
+--TEST--
+A property declaring a `get` hook and no `set` hook is not written, while a `set` hook and the hook's own backing slot still are (ADR 0014 § 1)
+--FILE--
+<?nvs
+class Reading {
+    public int $raw;
+
+    // Both hooks: the write runs `set`, which commits through the backing
+    // slot — the one place `$this->doubled` is the slot and not a call.
+    public int $doubled {
+        get => $this->raw * 2;
+        set(int $v) { $this->raw = $v - 2; }
+    }
+
+    // `get` alone. The accessor is the whole of what this property answers
+    // with, so a write has nothing to commit through: Novis refuses it
+    // rather than storing into a slot the `get` hook may never read.
+    public int $tripled {
+        get => $this->raw * 3;
+    }
+
+    public function constructor(int $raw) {
+        $this->raw = $raw;
+    }
+
+    // Legal: inside the declaring class, `$this->tripled` is the backing
+    // slot every hooked property keeps, which is how a `get`-only property
+    // is given a value at all.
+    public function arm(int $v): void {
+        $this->tripled = $v;
+    }
+}
+
+Reading $r = new Reading(4);
+
+// Legal: `raw` is plain storage and `doubled` has a `set` hook.
+$r->raw = 10;
+$r->doubled = 8;
+echo $r->doubled, ";", $r->tripled, "\n";
+
+// Refused, at every spelling that writes.
+$r->tripled = 9;
+$r->tripled += 1;
+$r->tripled++;
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0787]: `Reading::$tripled` declares a `get` hook and no `set` hook, so only `Reading` writes it
+%A
+error[E0787]: `Reading::$tripled` declares a `get` hook and no `set` hook, so only `Reading` writes it
+%A
+error[E0787]: `Reading::$tripled` declares a `get` hook and no `set` hook, so only `Reading` writes it
+%A
+error: aborting due to 3 errors

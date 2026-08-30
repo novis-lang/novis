@@ -345,10 +345,14 @@ impl MethodSig {
 /// trade; the word is per *instance* of a class that declares a virtual
 /// hooked property, so it is O(in-flight objects), not O(traffic).
 ///
-/// The observable consequence is that ADR 0014 § 1's "same as PHP 8.4" holds
-/// for every program PHP accepts, and Novis additionally accepts one PHP
-/// rejects: writing to a property whose hooks never mention it stores into
-/// that slot instead of being refused.
+/// The observable consequence is that a hooked property always has somewhere
+/// to store: `$this->p = v` inside the declaring class stores into that slot
+/// and a `get` hook reading `$this->p` sees it, whether or not PHP would
+/// have called the property virtual. From *outside* the declaring class a
+/// `get`-only property is read-only — `expr::assign`'s
+/// `reject_get_only_hook_write` owns that rule and why it is scope-shaped
+/// rather than backedness-shaped, which is the one place ADR 0014 § 1's
+/// "same as PHP 8.4" is narrower than PHP.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PropertyHooks {
     /// A `get` hook with a body is declared.

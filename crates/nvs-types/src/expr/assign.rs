@@ -508,6 +508,7 @@ pub(crate) fn check_write_target(target: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>
         return;
     }
     if !through_subscript {
+        reject_get_only_hook_write(root, ctx, env);
         return;
     }
     if !is_a_place(&root.kind) {
@@ -619,6 +620,82 @@ fn reject_readonly_write(root: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> bool 
         ),
     );
     true
+}
+
+/// Refuses a write to a property that declares a `get` hook and no `set`
+/// hook, from outside the class that declares it
+/// (`E_GET_ONLY_HOOK_WRITE`).
+///
+/// The hook half of the question is the [`ExprInfo::HookedProperty`] entry
+/// [`super::members`] already recorded: its `set` label is `None` exactly
+/// when no `set` hook has a body, and a hook block is the only thing that
+/// records the entry at all. Two exemptions come free with reading that
+/// rather than the signature table. A write **inside that property's own
+/// hooks** is the backing slot and records a plain [`ExprInfo::Property`]
+/// instead (that variant's own docs own why), so a `set` hook storing
+/// through `$this->p` is untouched. And a property with only a `set` hook is
+/// a write with somewhere to go, so `get.is_none()` passes it through.
+///
+/// **The declaring class writes it; the world outside reads it.** Novis
+/// keeps a slot for every hooked property, backed or not
+/// ([`crate::signatures::PropertyHooks`]' docs own why), so `$this->p = v`
+/// inside the declaring class stores into that slot and a `get` hook reading
+/// `$this->p` sees it — which is how a `get`-only property is armed at all,
+/// and refusing it would leave the shape with no way to hold a value. From
+/// outside, the accessors *are* the property: a class that declared only a
+/// `get` said what it offers, and a write that reached past it into storage
+/// the `get` may never read is a value lost in silence. Inheritance follows
+/// the same reach `protected` does, since it is the same question about the
+/// same declaration.
+///
+/// **This refuses one shape PHP 8.4 accepts.** PHP splits hooked properties
+/// into backed and virtual and lets an outside write through to a *backed*
+/// one's slot; Novis has no virtual property to tell it from, so the
+/// scope-shaped rule above answers instead —
+/// `docs/reference/tools/30-php-differences.md` carries the row, and the fix
+/// in either language is a `set` hook naming what the write commits.
+fn reject_get_only_hook_write(root: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    let Some(ExprInfo::HookedProperty {
+        class,
+        name,
+        get,
+        set,
+        ..
+    }) = env.exprs.lookup(root.span)
+    else {
+        return;
+    };
+    if set.is_some() || get.is_none() {
+        return;
+    }
+    let (class, name) = (class.clone(), name.clone());
+    let Some((owner, _)) =
+        crate::signatures::resolve_property_owned(&class, &name, env.signatures, env.graph)
+    else {
+        return;
+    };
+    let inside = ctx.current_class.is_some_and(|current| {
+        *current == owner || nvs_hir::implements_interface(current, &owner, env.graph)
+    });
+    if inside {
+        return;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_GET_ONLY_HOOK_WRITE,
+            format!(
+                "`{owner}::${name}` declares a `get` hook and no `set` hook, so only `{owner}` \
+                 writes it"
+            ),
+        )
+        .with_primary(root.span, "there is no `set` hook for this write to run")
+        .with_help(format!(
+            "give `${name}` a `set` hook that commits the value — a write from out here has no \
+             accessor behind it and would store into a slot the `get` hook may never read, \
+             which is a value lost in silence rather than a value stored. Drop the hook block \
+             if `${name}` is plain storage after all"
+        )),
+    );
 }
 
 /// Whether `kind` is a **place**: storage a separated array can be written
