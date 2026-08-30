@@ -90,10 +90,14 @@ in that goal. An item's owner is the row it sits in.
 
 ## Rules stated but not enforced (U)
 
-- [ ] **U1** `readonly` is inert: a property (declared or promoted) is written after construction
-      and reads back the new value. *probes2 `readonly_write`, `readonly_write_method`; r08*
-- [ ] **U2** `final` is inert: `final class A {} class B extends A {}` and an override of a `final`
-      method both compile and run. *probes p09, p10, r07*
+- [x] **U1** `readonly` is inert: a property (declared or promoted) is written after construction
+      and reads back the new value. *probes2 `readonly_write`, `readonly_write_method`; r08* — a write
+      from anywhere but the declaring class's own constructor is `E0782` (ADR 0038 § 1's contract),
+      at all four write spellings; PHP's second half, which admits an initializing write from any
+      method of that class, is the divergence the differences page carries.
+- [x] **U2** `final` is inert: `final class A {} class B extends A {}` and an override of a `final`
+      method both compile and run. *probes p09, p10, r07* — `E0783` refuses the `extends` clause and
+      `E0784` the redeclared method, each where the offending declaration is written, as PHP does.
 - [ ] **U3** `new` on an `abstract` class compiles and runs; calling the bodiless method then dies
       with `FATAL: internal error: a method with no body was called`. `abstract` on a method of a
       non-abstract class is not refused either. *probes p11, p11b, q01*

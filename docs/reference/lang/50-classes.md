@@ -213,8 +213,9 @@ only allowed on a class- or interface-typed property
 
 ## `readonly`
 
-`readonly` parses on a property and on a promoted constructor parameter, and changes nothing: a
-later write is accepted and read back.
+`readonly` promises a property is assigned exactly once, while the object is being built. The
+declaring class's own `constructor` is the one place that assignment may happen — a promoted
+parameter carries the modifier the same way a declaration does.
 
 ```nvs
 <?nvs
@@ -223,11 +224,26 @@ class Id {
 }
 
 var $id = new Id(1);
-$id->value = 2;
 echo $id->value, "\n";
 ```
 ```output
-2
+1
+```
+
+Every other write is refused where it is written, whichever spelling it uses, and that includes a
+write from another method of the same class: by the time one runs, the object is built.
+
+```nvs error
+<?nvs
+class Id {
+    public function constructor(public readonly int $value) {}
+}
+
+var $id = new Id(1);
+$id->value = 2;
+```
+```output
+this write happens after construction
 ```
 
 ## `static` properties
@@ -470,8 +486,23 @@ on that instance is a fatal internal error. Do not write it.
 
 ## `final`
 
-`final` parses on a class and on a method. Neither is enforced: a class extending a `final`
-class, and a method overriding a `final` one, compile and run.
+`final` says a declaration is not specialized further, and both halves are refused where the
+offending declaration is written: no class may name a `final` class as its superclass, and no class
+may redeclare a method an ancestor declared `final`. A `final` method beside an ordinary one
+constrains only itself — the sibling is overridden as usual.
+
+```nvs error
+<?nvs
+final class Sealed {}
+
+class Widened extends Sealed {}
+```
+```output
+so no class extends it
+```
+
+To build on a sealed class, hold one in a property and forward to it — `implements … by $field`
+writes the forwards for you.
 
 ## `instanceof`
 
