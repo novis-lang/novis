@@ -2957,6 +2957,16 @@ is why" — is this file.
   one TOML string (`written.parse::<toml::Table>()`, then `table.clone().try_into()`), which is what
   `crates/nvs-runtime/tests/configured_limits.rs` does; that also needs `toml` as a dev-dependency of
   the crate under test.
+- **A `static` a test handler records into is shared by every test in that binary, and cargo runs
+  them on threads of their own.** `crates/nvs-host/tests/limits.rs`'s `SEEN_LIMIT` was documented as
+  "one test uses it, so nothing here has to survive another running beside it" — which stopped being
+  true the moment a second case registered a handler writing to it, and the failure was a `None`
+  where `Some("max_script_depth")` was expected, in a case that passed on its own under
+  `--test-threads=1`. A `take()` from either reader empties it for the other, so the fix is a slot
+  and a recorder **per test**, not a lock held longer: compiled code is called through a bare
+  `extern "C"` pointer, which captures nothing, so "the same handler aimed at another slot" is not
+  expressible and the recorder has to be copied. The counter at the top of that file is read as a
+  *difference* for exactly this reason, and that note is the one that should have been read first.
 
 ## Splitting a file that got too big
 

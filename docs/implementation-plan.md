@@ -54,7 +54,7 @@
 > `Core\File::read`/`::write` and inside a `spawn script` target's resolution,
 > `registry::CAPABILITIES` names the two, and `nvs.toml` grants the examples. ADR 0020 § 1's memory
 > cap is enforced: `budget` counts in every build, `Ctx` holds both ceilings, a breach is a `FATAL`,
-> and `examples/limits.nvs` exits 1; § 1's tier 1 is handed a report naming the limit, and fires
+> `max_script_depth` refuses the spawn past it; § 1's tier 1 is handed the limit's name, and fires
 > once inside the reserve; ADR 0078 § 4 keys both caches. **Stage 8 is closed at both counts**:
 > conformance is 1011, differential is 206 over its 205 floor , and `isolation.rs` measures
 > `nvs_host::Isolate` itself with a guard beside it. Three known gaps, each recorded where its code
