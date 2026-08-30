@@ -32,7 +32,11 @@ docs are on disk before anything is staged.
     `--- new` pair as many times as the field moved. Each `--- old` must match the field
     exactly once -- quote it as the field READS, which is one single-spaced paragraph
     (`python tools/plan.py --get "Open now"` prints it). THIS IS THE USUAL ONE: a session
-    changes a sentence of a field, not a field.
+    changes a sentence of a field, not a field. A field has a ceiling (the plan's header
+    comment is the home of the number, as of the aim), and an edit that leaves it both
+    over the ceiling AND bigger than it was is refused, naming how much to cut. Replace
+    the sentence that went stale -- an empty `--- new` drops one -- rather than adding
+    after it; a field that shrinks or holds its size is always taken.
 
     ## plan: On disk
     What that field should now say, whole -- it is overwritten, not appended to. For a field
@@ -302,6 +306,37 @@ def verbatim_overlap(new: str, old: str) -> float:
     return len(gn & go) / len(gn)
 
 
+def nbytes(s: str) -> int:
+    """A field's size the way the plan's aim and ceiling state it: UTF-8 bytes, not characters."""
+    return len(s.encode("utf-8"))
+
+
+def growth_refusal(kind: str, field: str, before: str, after: str, ceiling: int) -> str | None:
+    """The one size refusal, and it is a gate on growth rather than on size.
+
+    `Open now` reached 52 KB -- 46% of the orientation pack -- under an advisory note that fired
+    at 4x the aim and was ignored for dozens of sessions, because a note at the end of a session
+    is read by nobody. doc-style.md § *Length targets* records why a size gate is not the
+    answer either: five and ten iterations a session shaving prose to clear a tripwire. This
+    is neither. An edit is refused only when it leaves the field both over the ceiling *and*
+    bigger than it was, so a field that shrinks or holds its size is always taken and there is
+    never prose to shave: the cost of adding a sentence to a full field is dropping one, which
+    is what "overwrite a field in place" meant all along. `--check` and `--template` print the
+    headroom ahead of the wrap, so a session that reads either never meets this at all."""
+    was, now = nbytes(before), nbytes(after)
+    if now <= was or now <= ceiling:
+        return None
+    cut = now - max(ceiling, was)
+    how = ("a `--- old` quoting the stale sentence with an empty `--- new` drops it"
+           if kind == "plan-edit" else "send the replacement shorter")
+    return (f"`## {kind}: {field}` -- leaves the field at {now:,} B, +{now - was} B "
+            f"and past its {ceiling:,} B ceiling. A field is status and is overwritten, not appended "
+            f"to. Cut at least {cut} B of it in this same section ({how}), or take the new text "
+            f"where it belongs -- a per-file gap to that crate's module doc `# Known gaps`, a trap to "
+            f"`## playbook:`, what landed to the commit body. An edit that leaves the field no bigger "
+            f"than it is now is always taken.")
+
+
 def plan_fields() -> list[tuple[str, int, int, str]]:
     _text, lines = planmod.load()
     return planmod.find_fields(lines)
@@ -364,7 +399,7 @@ def validate(sections: list[Section]) -> list[str]:
     # second `## plan-edit:` on the same field quotes the text the first one will have left --
     # which is the text its author was looking at -- rather than the text on disk right now.
     working = {n.lower(): t for n, _a, _b, t in plan_fields()}
-    aim = planmod.field_aim()
+    ceiling = planmod.field_ceiling()
 
     for s in [x for kind in ORDER for x in sections if x.kind == kind]:
         if s.kind == "plan":
@@ -384,6 +419,10 @@ def validate(sections: list[Section]) -> list[str]:
                     f"`## plan-edit: {s.arg}` with `--- old` / `--- new` fragments and send only "
                     f"the sentence that moved. (A real rewrite overlaps less than "
                     f"{RETYPE_OVERLAP * 100:.0f}% and is taken as it stands.)")
+                continue
+            grown = growth_refusal("plan", s.arg, old, new, ceiling)
+            if grown:
+                errors.append(grown)
                 continue
             working[s.arg.lower()] = new
         elif s.kind == "plan-edit":
@@ -408,6 +447,10 @@ def validate(sections: list[Section]) -> list[str]:
                         f"it): {old[:70]!r}")
                     continue
                 text = text.replace(old, new, 1)
+            grown = growth_refusal("plan-edit", s.arg, working[s.arg.lower()], text, ceiling)
+            if grown:
+                errors.append(grown)
+                continue
             working[s.arg.lower()] = text
         elif s.kind == "milestone":
             entry = planmod.resolve(s.arg)
@@ -514,10 +557,10 @@ def apply_plan(s: Section, dry: bool) -> str:
     name, start, end, old = target
     new = " ".join(s.body.split())
     if dry:
-        return f"plan: {name}  {len(old)} -> {len(new)} bytes"
+        return f"plan: {name}  {nbytes(old)} -> {nbytes(new)} bytes"
     rewritten = lines[:start] + ["> " + ln for ln in planmod.render(name, new)] + lines[end:]
     PLAN.write_text("\n".join(rewritten), encoding="utf-8", newline="")
-    return f"plan: {name}  {len(old)} -> {len(new)} bytes"
+    return f"plan: {name}  {nbytes(old)} -> {nbytes(new)} bytes"
 
 
 def apply_plan_edit(s: Section, dry: bool) -> str:
@@ -532,16 +575,17 @@ def apply_plan_edit(s: Section, dry: bool) -> str:
     new = old
     for was, now in pairs:
         new = new.replace(was, now, 1)
-    aim = planmod.field_aim(text)
-    note = f"plan-edit: {name}  {len(pairs)} fragment(s), {len(old)} -> {len(new)} bytes"
-    # Only when the field GREW, and only when it is already well over the aim. A note that fires
-    # on every edit is a note every session learns to skip; growth on an oversized field is the
-    # one thing worth saying, because it is how `Open now` reached 44 KB one session at a time.
-    if len(new) > len(old) and len(new) > aim * 4:
-        note += (f"  (+{len(new) - len(old)} B, and the field is now {len(new) / aim:.0f}x the"
-                 f" ~{aim} B aim -- what is in it that is not status? a finding belongs in a"
-                 " playbook bullet, a per-file gap in that crate's module doc, what landed in"
-                 " `git log`)")
+    ceiling = planmod.field_ceiling(text)
+    was, now = nbytes(old), nbytes(new)
+    note = f"plan-edit: {name}  {len(pairs)} fragment(s), {was} -> {now} bytes"
+    # Only when the field GREW, and only when the growth `validate` refuses is now close. A
+    # note that fires on every edit is a note every session learns to skip; this one says the
+    # next growing edit will be refused, which is the one thing worth knowing ahead of it.
+    headroom = ceiling - now
+    if now > was and headroom < ceiling // 4:
+        note += (f"  (+{now - was} B; {max(headroom, 0)} B left under the {ceiling} B"
+                 f" ceiling -- past it a growing edit is refused, so the next one replaces a"
+                 f" sentence rather than adding one)")
     if dry:
         return note
     rewritten = lines[:start] + ["> " + ln for ln in planmod.render(name, new)] + lines[end:]
@@ -897,7 +941,9 @@ def check() -> int:
 
     say()
     aim = planmod.field_aim()
-    say(f"== PLAN  (fields, any that name a stale count, and what each costs; aim ~{aim} B)")
+    ceiling = planmod.field_ceiling()
+    say(f"== PLAN  (fields, any that name a stale count, and what each costs; aim ~{aim} B, "
+        f"ceiling {ceiling} B)")
     edits = stale_edits()
     stale = len(edits)
     total = 0
@@ -908,12 +954,14 @@ def check() -> int:
             flag = f"   <- {len(mine)} stale count(s); `--template` hands them back ready to apply"
         n = len(body.encode("utf-8"))
         total += n
-        if not flag and n > aim * 1.5:
-            flag = f"   {n / aim:.0f}x the aim"
+        if n > ceiling:
+            flag += f"   OVER the ceiling: an edit that grows it is refused -- replace, do not add"
+        elif not flag and n > aim * 1.5:
+            flag = f"   {n / aim:.0f}x the aim, {ceiling - n} B of headroom"
         say(f"  {name:<18} {n:>5} B{flag}")
-    say(f"  {'':<18} {total:>5} B  shipped into every session. Nothing refuses an oversized")
-    say("                          field -- `python tools/plan.py --check` is the same number,")
-    say("                          beside the milestone table's own state.")
+    say(f"  {'':<18} {total:>5} B  shipped into every session. `--wrap` refuses an edit that")
+    say("                          leaves a field both over the ceiling and bigger than it was;")
+    say("                          a shrink is always taken. `plan.py --check` is the same number.")
 
     say()
     say("== HANDOFF")
@@ -983,6 +1031,7 @@ def template() -> int:
         # a real run of words out of the live field, so the unedited skeleton still validates.
         field = next((t for n, _a, _b, t in plan_fields() if n == "Open now"), "")
         sample = " ".join(field.split()[:9]) or "the run of words that is now wrong"
+        ceiling = planmod.field_ceiling()
         say("## plan-edit: Open now")
         say("--- old")
         say(sample)
@@ -991,6 +1040,9 @@ def template() -> int:
         say(f"The tree's counts are {', '.join(f'{k} {v}' for k, v in c.items())} and no plan field")
         say("names a stale one. `## plan: <Field>` replaces a field WHOLE instead, for a real")
         say("rewrite -- a big replacement mostly already on disk is refused as a retype.")
+        say(f"Open now is {nbytes(field)} B of its {ceiling} B ceiling: an edit that")
+        say("leaves it both bigger than now AND over that is refused, so replace a sentence")
+        say("rather than adding one -- an empty `--- new` drops the one that went stale.")
     say("")
     say("## playbook: Tooling")
     say("- **DELETE THIS SECTION unless a trap cost you time.** A bullet is appended under the")

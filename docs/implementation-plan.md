@@ -2,10 +2,12 @@
 
 <!-- This block has a fixed field set: Status, Done, On disk, Toolchain, ADR slices landed, Open now,
      Blocking. Overwrite a field in place; never add a paragraph or a new field name. That is what
-     keeps it bounded as milestones accumulate. Aim for ~400 bytes a field — guidance for you, not a
-     check: nothing verifies it, and no session should ever be spent trimming to a number. History
-     lives in `git log`, per-crate gaps in each crate's module doc — see AGENTS.md's "Writing docs
-     here" section. -->
+     keeps it bounded as milestones accumulate. Aim for ~400 bytes a field — guidance, and nothing
+     trims to it. What IS checked is growth: `python tools/session.py --wrap` refuses an edit that
+     leaves a field over 5x that and bigger than it was, so past the ceiling a sentence is replaced
+     and never added; a shrink is always taken. This comment is the one home of both numbers.
+     History lives in `git log`, per-crate gaps in each crate's module doc — see AGENTS.md § *Keep
+     each slice small, commit every one of them*. -->
 
 > **Status:** 2026-08-28. **M4's loop goal is reached** — every check in its acceptance list passes, so
 > the language surface is closed and nothing a CLI program reaches for panics below the front end. The

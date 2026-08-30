@@ -22,7 +22,7 @@ The docs are optimised for an agent that reads one file and starts working. Keep
 
 These are the shapes that keep a doc readable at a glance. **Every one is guidance addressed to you, not
 a check.** Nothing in this repository, in `tools/brief.py`, in `tools/orient.py`, or in CI measures a line,
-a field or a file against a number, and nothing ever will:
+a field or a file against a number, with the one exception stated below the table:
 
 | Thing | Aim for |
 |---|---|
@@ -49,6 +49,14 @@ failed CI, and the cost was not the bytes: it was five and ten iterations per se
 to clear a tripwire, at the end of a session, when the real work was already done. The same applies to the
 context budget `tools/orient.py --audit` prints: it is a number to look at when you write a goal, never an
 exit code, and never something to trim prose against mid-run.
+
+The one exception is a gate on **growth**, not on size. `python tools/session.py --wrap` refuses an edit
+that leaves a plan field both over its ceiling — the plan's header comment is the home of that number, as
+of the aim — *and* bigger than it was. A field that shrinks or holds its size is always taken, so there
+is nothing to shave to clear it: adding a sentence to a full field costs dropping one, which is what
+"overwrite a field in place" meant all along. It exists because `Open now` reached 52 KB — 46% of the
+orientation pack — under the advisory note it replaces, and `--check` and `--template` print the headroom
+ahead of the wrap so a session that reads either never meets the refusal at all.
 
 The one structural rule that *does* still matter is not about length: `tools/brief.py` and
 `tools/orient.py` may only print text bounded by a **count of entities** — one line per milestone, per ADR,

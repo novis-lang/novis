@@ -81,6 +81,12 @@ H1_RE = re.compile(r"^#\s+(M\d+[A-Z]?)\s*—\s*(.*)$")
 #: Fallback if the plan's leading comment stops stating one. That comment is the aim's one home.
 FIELD_AIM_FALLBACK = 400
 
+#: Fallback multiple for the ceiling, likewise read from that comment. The ceiling is the one
+#: size that IS enforced -- `session.py --wrap` refuses an edit that leaves a field both over it
+#: and bigger than it was -- and it is a gate on growth rather than on size on purpose: a field
+#: already over it can always be shrunk or held, so there is never prose to shave to clear it.
+FIELD_CEILING_X_FALLBACK = 5
+
 
 def load():
     text = PLAN.read_text(encoding="utf-8")
@@ -129,6 +135,14 @@ def field_aim(text=None):
         text = PLAN.read_text(encoding="utf-8")
     m = re.search(r"Aim for ~(\d+) bytes a field", text)
     return int(m.group(1)) if m else FIELD_AIM_FALLBACK
+
+
+def field_ceiling(text=None):
+    """The per-field byte ceiling a growing edit may not cross, from the same comment."""
+    if text is None:
+        text = PLAN.read_text(encoding="utf-8")
+    m = re.search(r"over (\d+)x that", text)
+    return field_aim(text) * (int(m.group(1)) if m else FIELD_CEILING_X_FALLBACK)
 
 
 # ----------------------------------------------------------------------- milestones
@@ -262,12 +276,19 @@ def run_check(fields, index, aim):
     total = sum(nbytes(b) for _n, _a, _b2, b in fields)
     print(f"status block: {total} bytes across {len(fields)} fields, aim ~{aim} each "
           f"(~{aim * len(fields)})")
+    ceiling = field_ceiling()
     for name, _a, _b, body in fields:
         n = nbytes(body)
-        if n > aim * 1.5:
-            print(f"  {name:<20} {n:>6} bytes   {n / aim:.0f}x the aim")
+        if n > ceiling:
+            print(f"  {name:<20} {n:>6} bytes   OVER the {ceiling} B ceiling -- an edit that "
+                  f"grows it is refused until it is cut")
+        elif n > aim * 1.5:
+            print(f"  {name:<20} {n:>6} bytes   {n / aim:.0f}x the aim, "
+                  f"{ceiling - n} B under the {ceiling} B ceiling")
     print("  Every one of these is shipped into every session by orient.py and brief.py.")
-    print("  Nothing refuses an oversized field -- this is a number to weigh, not a gate.")
+    print(f"  The aim is guidance; the {ceiling} B ceiling is a gate on GROWTH: session.py --wrap")
+    print("  refuses an edit that leaves a field both over it and bigger than it was. A shrink")
+    print("  is always taken, so there is never prose to shave -- a sentence is replaced instead.")
 
     print("\nindex vs disk:")
     seen = set()
