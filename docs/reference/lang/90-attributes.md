@@ -105,8 +105,10 @@ payload, so nothing is reflected on at run time.
 - Matching is width subtyping, so a literal with extra fields satisfies a narrower shape, and the
   empty shape `{}` is satisfied by **every** attached literal — a bare marker `#[Audited]` is
   therefore not distinguishable from any other attribute by retrieval; give a marker a field.
-- A payload holding a class constant or an enum case can be declared but not retrieved: `get`/`all`
-  over it is refused, because the value has no inline form at the call site.
+- A payload may hold a class constant, an enum case or a `Foo::class`, and each is retrieved as the
+  value a read of that same name inlines — folded in the scope the attribute was *written* in, not
+  the one it is read from. A constant whose own declaration folds to nothing is the one refusal
+  left.
 - PHP's `ReflectionClass::getAttributes()` and `ReflectionAttribute::newInstance()` do not exist; a
   retrieved payload is a plain shape value, read with `->`.
 

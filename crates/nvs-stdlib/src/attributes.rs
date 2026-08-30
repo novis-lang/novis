@@ -100,7 +100,10 @@ const GET_DOC: MethodDoc = MethodDoc {
             `nvs check` so that the call is replaced by its answer and nothing runs.",
     params: &[TARGET_DOC, MEMBER_DOC],
     ret: "The matching attribute's payload literal as `T`, or `null` when none satisfies `T`; \
-          more than one is a compile error naming `all<T>` as the fix.",
+          more than one is a compile error naming `all<T>` as the fix. Matching is width \
+          subtyping, so the empty shape `{}` is satisfied by every attached literal: a marker \
+          type with no fields asks for any attribute at all, and beside a second attribute it is \
+          that compile error rather than the marker.",
     errors: &[],
 };
 
@@ -111,7 +114,8 @@ const ALL_DOC: MethodDoc = MethodDoc {
             `nvs check` so that the call is replaced by its answer and nothing runs.",
     params: &[TARGET_DOC, MEMBER_DOC],
     ret: "An `array<T>` of the matching payload literals in declaration order, empty when none \
-          satisfies `T`.",
+          satisfies `T`. Matching is width subtyping, so the empty shape `{}` answers every \
+          attached literal rather than the markers among them.",
     errors: &[],
 };
 
