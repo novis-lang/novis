@@ -88,7 +88,8 @@ pub mod code {
     /// An `<?nvs` open tag in a file that opens with `#!` and is therefore
     /// already in code mode, before any `?>` has left it, per
     /// [ADR 0100](../../../docs/adr/0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md)
-    /// § 3. Reserved by that ADR and reported once its lexer slice lands.
+    /// § 3. Reported by `nvs_syntax`'s lexer, which consumes the tag and keeps
+    /// lexing code rather than leaving `<` `?` `nvs` for the parser.
     pub const E_TAG_IN_SHEBANG_FILE: Code = Code::new("E0009");
 
     // --- E01xx parser ------------------------------------------------------

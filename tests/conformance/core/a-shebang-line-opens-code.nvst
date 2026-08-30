@@ -1,0 +1,19 @@
+--TEST--
+A file whose first two bytes are `#!` starts in code mode, and line 1 is trivia rather than output — ADR 0100 § 3
+--FILE--
+#!/usr/bin/env nvs
+// ADR 0100 § 3: the line above is trivia — not a token, not emitted — so the
+// first byte this program writes is the `o` of `opened`. Before the lexer
+// slice landed the whole shebang line was inline HTML and was copied to
+// stdout (findings.md § Divergences D27).
+echo "opened", "\n";
+
+// Nothing else changes: `?>` still leaves code mode and writes literal bytes,
+// and a later `<?nvs` reopens it, both per ADR 0049.
+?>literal
+<?nvs
+echo "reopened", "\n";
+--EXPECT--
+opened
+literal
+reopened

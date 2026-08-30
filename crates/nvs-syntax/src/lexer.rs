@@ -77,18 +77,49 @@ pub struct Lexer<'a> {
     pos: BytePos,
     modes: Vec<Mode>,
     pending: VecDeque<Token>,
+    /// True while this file opened with `#!` and no `?>` has left code mode
+    /// yet — the exact window in which an `<?nvs` is [`code::E_TAG_IN_SHEBANG_FILE`]
+    /// rather than a tag. See [`Self::new`].
+    shebang_open: bool,
 }
 
 impl<'a> Lexer<'a> {
-    /// Starts lexing `file` from its first byte, in HTML mode.
+    /// Starts lexing `file` from its first byte, in HTML mode — or in code
+    /// mode when the file's first two bytes are `#!`
+    /// ([ADR 0100](../../../docs/adr/0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md)
+    /// § 3).
+    ///
+    /// **The shebang line is not skipped and is not a token: it is lexed as
+    /// the `#` comment it already is.** Starting the outer mode as
+    /// [`Mode::Code`] with `pos` still at 0 is the whole implementation — code
+    /// mode's own trivia rule then consumes line 1 to its `\n`, emits nothing,
+    /// and bidi-checks it exactly as it checks any other `#` comment
+    /// ([ADR 0087](../../../docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)
+    /// § 2). Skipping the bytes before lexing would have been shorter and
+    /// would have opened a hole at the one place in a file where an unbalanced
+    /// override reorders everything after it.
+    ///
+    /// The trigger is exactly the bytes `#!` at offset 0: no lookahead, no
+    /// BOM tolerance, and `#!` anywhere else is ordinary text or an ordinary
+    /// comment.
     #[must_use]
     pub fn new(file: &'a SourceFile) -> Self {
+        let text = file.text();
+        let shebang_open = text.starts_with("#!");
         Self {
             file,
-            text: file.text(),
+            text,
             pos: 0,
-            modes: vec![Mode::Html],
+            modes: vec![if shebang_open {
+                Mode::Code {
+                    interpolation: false,
+                    brace_depth: 0,
+                }
+            } else {
+                Mode::Html
+            }],
             pending: VecDeque::new(),
+            shebang_open,
         }
     }
 
@@ -391,6 +422,10 @@ impl<'a> Lexer<'a> {
             self.pos += 2;
             self.push(TokenKind::CloseTag, self.mk_span(start, self.pos));
             *self.modes.last_mut().expect("mode stack never empty") = Mode::Html;
+            // Past the first `?>` a shebang file is an ordinary template: the
+            // text after it is output and a later `<?nvs` reopens code mode
+            // (ADR 0100 § 3).
+            self.shebang_open = false;
             // One immediately following newline is swallowed, so a template
             // line ending in `?>` does not emit a blank line (spec § 1).
             if self.starts_with("\r\n") {
@@ -398,6 +433,26 @@ impl<'a> Lexer<'a> {
             } else if self.peek() == Some('\n') {
                 self.bump();
             }
+            return;
+        }
+
+        if self.shebang_open
+            && self.peek() == Some('<')
+            && let Some((TokenKind::OpenTagNvs, len)) = self.match_open_tag()
+        {
+            // ADR 0100 § 3: this file is already in code mode, so the tag is
+            // named rather than lexed as `<` `?` `nvs` and reported three
+            // tokens later as something the author did not write. Consuming it
+            // and carrying on is the recovery that matches the intent.
+            let start = self.pos;
+            self.pos += u32::try_from(len).expect("tag length is at most 5 bytes");
+            diags.report(
+                Diagnostic::error(
+                    code::E_TAG_IN_SHEBANG_FILE,
+                    "this file opens with `#!` and is already in code mode",
+                )
+                .with_primary(self.mk_span(start, self.pos), "remove the `<?nvs`"),
+            );
             return;
         }
 
@@ -1286,6 +1341,66 @@ mod tests {
                 Semicolon,
                 CloseTag,
                 InlineHtml,
+                Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn a_shebang_first_line_opens_code_mode_and_is_not_a_token() {
+        // ADR 0100 § 3: the bytes `#!` at offset 0 put the outer mode in code,
+        // and line 1 is trivia — the token stream is what the same file
+        // without it would produce behind a `<?nvs`.
+        assert_eq!(
+            kinds_ok("#!/usr/bin/env nvs\necho 1;"),
+            vec![Keyword(super::Keyword::Echo), IntLiteral, Semicolon, Eof]
+        );
+        // `?>` leaves code mode as it always does, and the text after it is
+        // output rather than a second shebang line.
+        assert_eq!(
+            kinds_ok("#!/usr/bin/env nvs\n?>tail"),
+            vec![CloseTag, InlineHtml, Eof]
+        );
+        // The trigger is offset 0 and nothing else: one leading space and the
+        // file is an ordinary template whose first line is HTML.
+        assert_eq!(kinds_ok(" #!/usr/bin/env nvs\n"), vec![InlineHtml, Eof]);
+    }
+
+    #[test]
+    fn a_shebang_line_is_bidi_checked_like_the_comment_it_is() {
+        // The one line in a file whose unbalanced override would reorder
+        // everything after it (ADR 0087 § 2) — which is why the shebang is
+        // lexed as trivia rather than skipped by `Lexer::new`.
+        assert_eq!(bidi_errors("#!/usr/bin/env nvs \u{202E}x\necho 1;"), 1);
+    }
+
+    #[test]
+    fn an_open_tag_in_a_shebang_file_is_named_until_a_close_tag() {
+        // ADR 0100 § 3: `<?nvs` before any `?>` is E0009 and the tag is
+        // consumed, so the code after it still lexes as code…
+        let (kinds, diags) = kinds("#!/usr/bin/env nvs\n<?nvs echo 1;");
+        assert_eq!(
+            kinds,
+            vec![Keyword(super::Keyword::Echo), IntLiteral, Semicolon, Eof]
+        );
+        assert_eq!(
+            diags
+                .iter()
+                .filter(|d| d.code == Some(code::E_TAG_IN_SHEBANG_FILE))
+                .count(),
+            1
+        );
+        // …and after a `?>` the file is an ordinary template, where the tag is
+        // the reopen it looks like.
+        assert_eq!(
+            kinds_ok("#!/usr/bin/env nvs\n?>text<?nvs echo 1;"),
+            vec![
+                CloseTag,
+                InlineHtml,
+                OpenTagNvs,
+                Keyword(super::Keyword::Echo),
+                IntLiteral,
+                Semicolon,
                 Eof,
             ]
         );
