@@ -91,7 +91,8 @@ T::bump(inout T::one());
 
 /// ADR 0007 § 5's copy-on-write leaves an element no stable address, and
 /// the staged-slot model has no write-back path for one either -- so this
-/// is refused with a message that says which of the two it is.
+/// is refused with a message that says which of the two it is, and refused
+/// permanently (`check_inout_arg`'s own docs, findings.md D22).
 #[test]
 fn an_array_element_passed_by_reference_is_diagnosed() {
     let diags = check_src(

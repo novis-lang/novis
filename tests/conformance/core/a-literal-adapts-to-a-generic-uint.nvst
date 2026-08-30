@@ -1,0 +1,56 @@
+--TEST--
+A literal beside a generic parameter takes the type the bindings gave that parameter, in either argument order -- ADR 0007 §§ 2 and 4, ADR 0047 § 1, ADR 0054 § 3
+--FILE--
+<?nvs
+// findings.md's D33. A generic call binds its type variables before it checks
+// its arguments, so a literal at a position only substitution closes has
+// nothing to be placed against on the first pass -- and `2` beside a `uint`
+// was `E0401: expected uint, found int`. `check_generic_args` in
+// `crates/nvs-types/src/expr/args.rs` owns the rule and why it is placement
+// rather than assignability.
+
+uint $u = 2;
+
+// Both orders, because the two fail differently without the rule: written
+// second the literal is compared against the `uint` the first argument bound,
+// and written first it would bind `T` to `int` and refuse the `uint`.
+Core\Test::assertSame($u, 2);
+Core\Test::assertSame(2, $u);
+
+// The half of `uint`'s range a literal cannot reach on its own: above
+// `i64::MAX` it is legal only where a `uint` is expected, and a parameter
+// that binds to one is such a place.
+uint $big = 18446744073709551615;
+Core\Test::assertSame($big, 18446744073709551615);
+echo "a uint parameter places an integer literal in either order\n";
+
+// The rule is placement, not a `uint` special case, so every other position a
+// literal takes its type from reaches a generic parameter too: ADR 0054 § 3's
+// fractional literal at `decimal`, ADR 0047 § 1's string atom, and ADR 0007
+// § 3's two `bool` singletons.
+decimal $d = 1.50;
+Core\Test::assertSame($d, 1.50);
+string $s = "novis";
+Core\Test::assertSame($s, "novis");
+bool $b = true;
+Core\Test::assertSame($b, true);
+echo "so does a decimal, a string and a bool\n";
+
+// A literal is evidence about a type variable only where nothing written
+// binds it -- and it still is where the literals are all there is: `T` here
+// comes from `7` and from nothing else.
+array<int> $filled = Core\Arr::fill(2, 7);
+Core\Test::assertSame($filled, [7, 7]);
+echo "a literal still binds a variable nothing else binds\n";
+
+// Counted rather than read off the lines above: `assertSame` throws on a
+// mismatch, so what this guards is a placement that stops being reached at
+// all -- each block adds its own rows, and a compile that refuses any one of
+// them never gets here.
+int $placed = 3 + 3 + 1;
+echo "placed=", $placed, "\n";
+--EXPECT--
+a uint parameter places an integer literal in either order
+so does a decimal, a string and a bool
+a literal still binds a variable nothing else binds
+placed=7

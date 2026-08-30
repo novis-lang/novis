@@ -668,6 +668,21 @@ pub(crate) fn option_names(options: &[(String, TypeId)]) -> String {
 ///    are exactly the two `nvs_ir::lower::Lowering::write_back_ref` can
 ///    re-point, and the same two `nvs_ir::lower::is_aliasing_read` already
 ///    recognises as durable storage.
+///
+///    **An array element is not one of them, and that is permanent** —
+///    findings.md's D22, which was filed against the word *yet* this refusal
+///    used to carry. ADR 0007 § 5's copy-on-write leaves an element no
+///    address that survives a call, so the only way to accept
+///    `M::bump(inout $a["k"])` is to copy the element into a temporary at the
+///    call site and copy it back afterwards. That is a reference only for as
+///    long as the callee does not reach the same array: where it does, the
+///    write-back lands after the callee's own writes and silently discards
+///    them, and where it does not, the two are identical. Novis does not
+///    offer a reference that is sometimes not one (priority 2, and ADR 0007
+///    § 5's separation is what buys priority 1), so the refusal names the
+///    rewrite instead — the same copy, written where the reader can see it.
+///    `an_array_element_passed_by_reference_is_diagnosed` in
+///    `crates/nvs-types/tests/by_reference.rs` holds it.
 /// 2. **Its type must be exactly the parameter's.** An ordinary argument may
 ///    widen on the way in (`int` into a `float` parameter); a by-reference one
 ///    may not, because the callee writes back at the *declared* type and the
@@ -713,12 +728,13 @@ pub(crate) fn check_inout_arg(
             env.diags.report(
                 Diagnostic::error(
                     code::E_INOUT_ARG_NOT_A_PLACE,
-                    "an array element cannot be passed to an `inout` parameter yet",
+                    "an array element cannot be passed to an `inout` parameter",
                 )
                 .with_primary(arg.value.span, "passed by reference here")
                 .with_help(
                     "ADR 0007 § 5's copy-on-write separation gives an element no stable \
-                     address — read it into a local, pass that, and write it back",
+                     address — read it into a local, pass that, and write it back, where \
+                     the copy is visible",
                 ),
             );
         }
@@ -783,6 +799,26 @@ pub(crate) fn check_inout_arg(
 /// position's type, and [`crate::generics::bind`] reads nothing out of it, so
 /// knowing it early is free.
 ///
+/// **A literal at a position only the bindings close is *placed* against the
+/// substituted type, not compared to it** — findings.md's D33, decided here.
+/// The alternative, admitting the literal to the binding pass on the strength
+/// of the type it reports with nothing to be placed against, is the wrong one
+/// in both directions: `Core\Test::assertSame($u, 2)` binds `T` to `uint` and
+/// then compares an `int` against it, and `assertSame(2, $u)` binds `T` to
+/// `int` and fails the `uint` instead. Placement is what an expected type
+/// *does* for a literal (ADR 0007 § 2, "untyped until placed"), so the third
+/// pass checks such an argument a second time against the now-known parameter
+/// type rather than testing it for assignability, and
+/// [`super::literals::is_unplaced_literal`] bounds which arguments are worth
+/// that. It runs only where the first pass reported nothing about the
+/// literal's own text, which is what keeps the promise above that nothing is
+/// diagnosed twice.
+///
+/// The binding pass runs in two rounds for the same reason: a literal's
+/// reported type is evidence about a variable only where nothing written
+/// binds it. `Core\Arr::of(1, 2, 3)` still gets `T = int` out of the second
+/// round, because there the literals are all there is.
+///
 /// One binding does not come from an argument's *type* at all: a
 /// [`Ty::CallableTo`] parameter takes its variable from the closure literal's
 /// recorded return type, which the first pass has just produced by checking
@@ -807,6 +843,11 @@ pub(crate) fn check_generic_args(
     // written: with a `name:` or a `...` in the list those two differ.
     let deferred = options_param(&sig, env.interner).map(ArgSlot::Param);
     let mut arg_types: Vec<TypeId> = Vec::with_capacity(list.len());
+    // The literals still waiting for a position, by argument index. Their
+    // entry in `arg_types` is the type they take with nothing to be placed
+    // against, which is what the second round of binding may fall back on;
+    // the third pass places them properly.
+    let mut unplaced = vec![false; list.len()];
     for (index, Arg { value, .. }) in list.iter().enumerate() {
         // A placeholder for the bag: overwritten in the second pass below,
         // and never read in between — `crate::generics::bind` is skipped for
@@ -818,13 +859,36 @@ pub(crate) fn check_generic_args(
         // Only a position still open is checked with no expectation; see this
         // function's own docs for what an expected type carries that
         // assignability alone does not.
-        let expected = declared_for(slots[index], &sig, env.interner)
-            .filter(|id| !crate::generics::mentions_type_var(*id, env.interner));
+        let declared = declared_for(slots[index], &sig, env.interner);
+        let open = declared.is_some_and(|id| crate::generics::mentions_type_var(id, env.interner));
+        let expected = if open {
+            super::literals::unplaced_expectation(value, env)
+        } else {
+            declared
+        };
+        // Every diagnostic and not just the errors: a warning repeated is as
+        // much a second report as an error repeated.
+        let reported = env.diags.iter().len();
         arg_types.push(check_expr(value, expected, live, scope, ctx, env));
+        // A literal that reported anything is left where it is: it has said
+        // its piece already, and checking it again would repeat that.
+        // `unplaced_expectation` is what keeps the one run of digits that
+        // would otherwise land here out of it.
+        unplaced[index] = open
+            && super::literals::is_unplaced_literal(value)
+            && env.diags.iter().len() == reported;
     }
 
     let mut bindings = crate::generics::Bindings::default();
-    for (index, actual) in arg_types.iter().enumerate() {
+    // Two rounds, the literals second — this function's docs own why. One
+    // iterator over indexes rather than a nested loop, so the body below is
+    // the single pass it reads as, and `or_insert` is what makes the second
+    // round a fallback rather than a second opinion.
+    let order = (0..arg_types.len())
+        .filter(|index| !unplaced[*index])
+        .chain((0..arg_types.len()).filter(|index| unplaced[*index]));
+    for index in order {
+        let actual = &arg_types[index];
         if deferred == Some(slots[index]) {
             continue;
         }
@@ -873,6 +937,17 @@ pub(crate) fn check_generic_args(
             continue;
         };
         if deferred == Some(slots[index]) {
+            arg_types[index] = check_arg(&arg.value, Some(declared), live, scope, ctx, env);
+            continue;
+        }
+        // ADR 0007 § 2's untyped literal, finally placeable: the bindings
+        // have produced the type the first pass had none of. Checked rather
+        // than compared, and returning rather than falling into the
+        // assignability test below, for the bag's reason one arm up —
+        // `check_arg` reports its own mismatch. A variable the call left
+        // unbound is the one case where there is still nothing to place
+        // against, and the ordinary path handles it.
+        if unplaced[index] && !crate::generics::mentions_type_var(declared, env.interner) {
             arg_types[index] = check_arg(&arg.value, Some(declared), live, scope, ctx, env);
             continue;
         }

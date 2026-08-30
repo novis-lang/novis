@@ -108,6 +108,67 @@ pub(crate) fn infer_bool_literal(
     placed_bool_literal(value, expected, env).unwrap_or_else(|| env.interner.bool_ty())
 }
 
+/// Whether this expression is one whose type a position can still change —
+/// the question [`super::args::check_generic_args`] asks about an argument it
+/// had no parameter type for yet, and which that function's docs answer for.
+///
+/// The literals of this module's four rules, the negation ADR 0047 § 1 makes
+/// one atom with its operand ([`negated_literal_expectation`]), and ADR 0007
+/// § 5's array literal, whose elements are checked against the target's `T`
+/// rather than inferred and compared afterwards ([`check_array_literal`]) —
+/// so `[7, 7]` at a generic `array<uint>` is as unplaced as the `7` in it,
+/// and leaving it out would have left D33 intact one level down. Checking one
+/// a second time re-walks its elements, which is the price: bounded by the
+/// literal's own size, paid only at a generic call, and only where the first
+/// walk reported nothing.
+///
+/// An object literal is *not* here, and cannot be: [`check_object_literal`]
+/// takes no expected type at all, so a second check would produce the same
+/// shape it produced the first time. Every other expression already has the
+/// type it will keep, so asking is free and answering `false` is exactly
+/// right.
+pub(crate) fn is_unplaced_literal(expr: &Expr) -> bool {
+    match &expr.kind {
+        ExprKind::Int(_)
+        | ExprKind::Float(_)
+        | ExprKind::Str(_)
+        | ExprKind::Bool(_)
+        | ExprKind::ArrayLiteral(_) => true,
+        ExprKind::Unary {
+            op: UnaryOp::Neg,
+            expr: operand,
+        } => matches!(operand.kind, ExprKind::Int(_) | ExprKind::Float(_)),
+        _ => false,
+    }
+}
+
+/// The one thing a position with no type yet can still say to a literal:
+/// `uint` for a digit run no other type can hold, and `None` for every other
+/// literal, whose base type is already the honest answer with nothing to be
+/// placed against.
+///
+/// Worth saying because the alternative is a *diagnostic* rather than a type.
+/// [`infer_int_literal`] reports a digit run above `i64::MAX` as legal only
+/// where a `uint` is expected, and a generic parameter that binds to `uint`
+/// is such a place — but the report is spent by the time the bindings say so,
+/// and [`super::args::check_generic_args`] places a literal a second time
+/// only where the first pass left its text unreported. Handing the
+/// expectation over is therefore what lets
+/// `Core\Test::assertSame($big, 18446744073709551615)` reach that second
+/// check clean; a run too large for 64 bits gets `None` here and keeps its
+/// own one report.
+pub(crate) fn unplaced_expectation(expr: &Expr, env: &mut Env<'_>) -> Option<TypeId> {
+    let ExprKind::Int(span) = expr.kind else {
+        return None;
+    };
+    let (radix, digits) = int_literal_digits(env.src, span);
+    let magnitude = u64::from_str_radix(&digits, radix).ok()?;
+    // `Err` is the answer that continues: a run `int` can hold has nothing
+    // this function needs to say about it.
+    i64::try_from(magnitude).err()?;
+    Some(env.interner.uint())
+}
+
 /// The singleton type this expression names *on its own* — the placement rule
 /// read backwards, for the one caller that needs the value the author wrote
 /// rather than the type the position gave it.

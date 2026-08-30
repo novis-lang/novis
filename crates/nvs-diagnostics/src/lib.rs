@@ -726,7 +726,11 @@ pub mod code {
     /// An argument passed to an `inout $x` parameter that is not a *writable place*
     /// — a bare local or a compile-time-known property. A literal, an
     /// arithmetic result or a call's own result has no storage for the callee
-    /// to write back into, so the reference would have nowhere to land.
+    /// to write back into, so the reference would have nowhere to land. An
+    /// array element is refused for a different reason and permanently:
+    /// copy-on-write leaves it no address that survives the call
+    /// (`nvs_types::expr::args::check_inout_arg` owns why the call-site copy
+    /// that would fake one is not offered).
     pub const E_INOUT_ARG_NOT_A_PLACE: Code = Code::new("E0439");
     /// An argument passed to an `inout $x` parameter whose type is not *exactly*
     /// the parameter's. ADR 0007 § 1 leaves no room for a conversion here:
