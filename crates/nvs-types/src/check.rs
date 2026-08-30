@@ -137,6 +137,7 @@ pub fn check_program(
             codec_sites: &mut codec_sites,
             diags: &mut *diags,
             closure_seq,
+            fn_self: None,
             exit_targets: Vec::new(),
             write_target_levels: FxHashMap::default(),
             coalesce_guarded: FxHashSet::default(),

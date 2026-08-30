@@ -333,7 +333,13 @@
 //!    — `nvs_runtime::call_closure`, the same entry point native `Core` code
 //!    reaches a callback through, so there is one body and not a second
 //!    convention beside it ([`lower::Lowering::lower_closure_call`]). ADR 0031
-//!    § 3's self-name is still parsed and ignored. A `...` argument goes
+//!    § 3's self-name lowers too, and lowers to nothing: the closure it names
+//!    is the invoke's own receiver, already bound under
+//!    [`lower::closure::FN_SELF`], so the recursive call is the same
+//!    `CallClosure` with that binding as its callee and the environment class
+//!    gains no field. What decides *which* bare name is one is
+//!    `nvs_types::expr::calls::check_fn_literal`, whose record this crate
+//!    reads. A `...` argument goes
 //!    through [`ir::Helper::CallClosureArray`] instead — the whole list built
 //!    into one array, because `CallClosure`'s own argument count is a literal
 //!    in the emitted call and a spread's is not — and a `name:` one is refused

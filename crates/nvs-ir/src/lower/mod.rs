@@ -2518,6 +2518,16 @@ impl<'a> Lowering<'a> {
         if self.staged(e.span).is_some() {
             return true;
         }
+        // ADR 0031 § 3's self-name reads the invoke's own receiver, a binding
+        // this frame's `Env` holds for the whole body — so a call through it
+        // borrows exactly as `$f(...)` borrows the local `$f`, and answering
+        // `false` here would have the call release a receiver the rest of the
+        // body still needs. Asked before the syntactic judgment because a bare
+        // name is not one of its shapes, and only the checker's record tells
+        // this one from the `E0319` every other bare name is.
+        if matches!(self.exprs.lookup(e.span), Some(ExprInfo::ClosureSelf)) {
+            return true;
+        }
         if !is_aliasing_read(&e.kind) {
             return false;
         }

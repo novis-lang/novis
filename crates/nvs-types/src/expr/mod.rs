@@ -55,7 +55,7 @@ use crate::signatures::{
     MethodSig, SignatureTable, resolve_method, resolve_property, resolve_property_owned,
 };
 use crate::ty::{Ty, TypeId, TypeInterner};
-use crate::{Ctx, Env, span_text, strip_sigil};
+use crate::{Ctx, Env, FnSelf, span_text, strip_sigil};
 
 // One expression checker split across this directory — see each module's own
 // header for what it owns. A rule reaches its neighbours as `pub(crate)`,
@@ -383,6 +383,24 @@ pub(crate) fn infer(
             infer_instanceof(expr, inner, class, live, scope, ctx, env)
         }
         ExprKind::Call { callee, args } => {
+            // ADR 0031 § 3's self-name, resolved before the callee is checked
+            // as an expression: it is a name this closure's body binds and not
+            // a value, so `check_expr` has nothing to say about it and would
+            // answer `mixed` for an unknown constant instead.
+            // `calls::check_fn_literal` owns the rule.
+            if let ExprKind::ConstFetch(name) = &callee.kind
+                && let Some(fn_self) = &env.fn_self
+                && fn_self.name == span_text(env.src, name.span)
+            {
+                let ret = fn_self.ret;
+                env.exprs.record(callee.span, ExprInfo::ClosureSelf);
+                check_args(args, live, scope, ctx, env);
+                report_args_with_no_parameter_list(args, NoParameterList::Callable, env);
+                if matches!(args, CallArgs::FirstClassCallable) {
+                    return env.interner.callable();
+                }
+                return ret;
+            }
             let callee_ty = check_expr(callee, None, live, scope, ctx, env);
             check_args(args, live, scope, ctx, env);
             report_args_with_no_parameter_list(args, NoParameterList::Callable, env);

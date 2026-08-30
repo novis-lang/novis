@@ -318,6 +318,26 @@ pub(crate) struct Ctx<'a> {
     pub generator_elem: Option<crate::ty::TypeId>,
 }
 
+/// [ADR 0031](../../docs/adr/0031-callable-is-the-only-closure-type.md) § 3's
+/// optional self-name, resolved: what a bare call written inside the closure's
+/// own body has to spell to mean *this* closure, and what such a call answers
+/// with.
+///
+/// Carries the return type rather than a `TypeId` for the closure, because
+/// there is none to carry: § 4 gives every closure the one opaque `callable`,
+/// so the recursive call's own type can only come from what the literal
+/// declared. A literal that declared nothing gets `mixed` here — its body is
+/// mid-check, so its inferred type is not a fact yet, and `mixed` is the same
+/// answer every other call through a `callable` gives.
+pub(crate) struct FnSelf {
+    /// The name as written, which a callee spelling must equal exactly:
+    /// § 3's name is lexical and is not resolved through the namespace or the
+    /// `use` table.
+    pub name: String,
+    /// The declared return type, or `mixed`.
+    pub ret: crate::ty::TypeId,
+}
+
 /// The read-only tables, the source text, the type interner and the
 /// diagnostics sink every lowering/checking function needs — bundled so a
 /// recursive call threads one argument instead of seven, same idiom as
@@ -403,6 +423,16 @@ pub(crate) struct Env<'a> {
     /// because a closure nested inside another closure has no enclosing
     /// declaration of its own to be numbered within.
     pub closure_seq: u32,
+    /// [ADR 0031](../../docs/adr/0031-callable-is-the-only-closure-type.md)
+    /// § 3's self-name, for the `fn` literal whose body is being checked —
+    /// `None` outside one, and `None` again inside a nested literal that
+    /// declares no name of its own.
+    ///
+    /// Saved and restored across a closure body exactly as [`Self::exit_targets`]
+    /// is, and for the same reason: § 3's name reaches one body and no other,
+    /// which is the reach `nvs_ir::lower::closure`'s `FN_SELF` receiver has.
+    /// [`crate::expr::calls::check_fn_literal`] owns what it resolves to.
+    pub fn_self: Option<FnSelf>,
     /// One entry per enclosing `break` target the statement being checked
     /// sits inside, outermost first: `true` for a loop, `false` for a
     /// `switch`. PHP's `break N`/`continue N` count these frames, a `switch`

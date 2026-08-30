@@ -1231,13 +1231,37 @@ pub(crate) fn check_new_target(
 /// `generator_elem`, so a `yield` written inside a closure sitting in a
 /// generator's own body reports `E0445` — ADR 0053 § 4's lexical confinement.
 ///
-/// # Known gap
+/// # The self-name resolves, and is not a binding
 ///
-/// ADR 0031 § 3's optional self-name is parsed and ignored: nothing binds it,
-/// so calling it inside the body reports an undefined name. Recursion through
-/// a closure is the one § 3 capability with no other route, but it needs a
-/// call shape that does not exist yet — see `nvs_ir::lower`'s own docs for
-/// which closure call sites lower at all.
+/// ADR 0031 § 3's optional self-name is bound for this body alone, in
+/// [`Env::fn_self`], and it is **not** a local holding the closure. It is
+/// legal in exactly one position — the callee of a call written inside this
+/// body — where [`super::infer`]'s `ExprKind::Call` arm resolves it to *this*
+/// literal and records [`ExprInfo::ClosureSelf`] on the callee's span. A bare
+/// `fact` anywhere else stays `nvs_hir::members`' `E0319`, an unknown
+/// constant.
+///
+/// That is § 3's own wording made concrete: the name is "not a capture, not a
+/// second declared name reachable from anywhere else, and not a runtime slot
+/// … it resolves the same way a method resolves `self::`". A local would be
+/// all three of the things it says the name is not — [`LocalScope`] would
+/// offer it to `isset`, to an assignment and to a nested closure's capture
+/// set, and the environment class would need a field pointing at itself. What
+/// the call needs at run time is already to hand without any of that: the
+/// invoke's own receiver, which `nvs_ir::lower::closure`'s `FN_SELF` binds,
+/// so a literal that does not use its name costs nothing for having one.
+///
+/// The reach follows from that receiver. A closure written *inside* this body
+/// has a receiver of its own, so this name is not visible in it — hence the
+/// save-and-replace below rather than a stack.
+///
+/// **What the call answers with is the declared return type**, not `mixed`,
+/// which is the one place this differs from `$f(...)`. § 4's opacity is a
+/// property of the `callable` *type*, and the self-name is not a value of it:
+/// the literal being checked is right here, so its declared return type is a
+/// fact the checker holds. A literal that declares none is checking its body
+/// to find out, so [`FnSelf`] takes `mixed` there and the recursion is
+/// unchecked rather than circular.
 pub(crate) fn check_fn_literal(
     expr: &Expr,
     f: &FnExpr,
@@ -1293,6 +1317,11 @@ pub(crate) fn check_fn_literal(
         .return_type
         .as_ref()
         .map(|t| lower_type(t, &inner_ctx, env));
+    let self_name = f.name.map(|span| FnSelf {
+        name: span_text(env.src, span).to_owned(),
+        ret: declared.unwrap_or_else(|| env.interner.mixed()),
+    });
+    let outer_self = std::mem::replace(&mut env.fn_self, self_name);
     let return_ty = match (&f.body, declared) {
         (FnBody::Expr(body), Some(ret)) => {
             check_expr(body, Some(ret), &mut inner_live, &inner, &inner_ctx, env);
@@ -1328,6 +1357,7 @@ pub(crate) fn check_fn_literal(
         }
     };
     env.exit_targets = outer_targets;
+    env.fn_self = outer_self;
 
     let captures = inner
         .captures

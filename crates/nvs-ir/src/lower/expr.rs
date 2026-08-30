@@ -394,6 +394,25 @@ impl<'a> Lowering<'a> {
             // ADR 0031 § 1 gives `callable` no parameter list, so there is no
             // resolved target to name. See `Self::lower_closure_call`.
             ExprKind::Call { callee, args } => self.lower_closure_call(callee, args, env, cur),
+            // ADR 0031 § 3's self-name — `fact` inside
+            // `fn fact(int $n): int => … fact($n - 1)`. The closure it names is
+            // the frame's own receiver, which `closure::lower_closure` bound
+            // under `FN_SELF` at entry, so this is a lookup and never a load:
+            // § 3's name is not a slot and the environment class holds no field
+            // for it. Every *other* bare name is `E0319` — see the roster
+            // below — which is why the guard is the checker's own record and
+            // not the syntax.
+            ExprKind::ConstFetch(_)
+                if matches!(self.exprs.lookup(expr.span), Some(ExprInfo::ClosureSelf)) =>
+            {
+                *env.get(closure::FN_SELF).unwrap_or_else(|| {
+                    panic!(
+                        "nvs-ir: `ExprInfo::ClosureSelf` outside a closure body — \
+                         nvs_types::expr::calls::check_fn_literal binds ADR 0031 § 3's \
+                         self-name for one body, whose invoke binds `FN_SELF` at entry"
+                    )
+                })
+            }
             // ADR 0021 § 3's **value** form — `$c = require 'config.nvs';`.
             // The same call to the target's own script frame the statement
             // form emits (`Self::lower_expr_stmt`, which owns the reasoning

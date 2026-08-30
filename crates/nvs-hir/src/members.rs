@@ -292,6 +292,7 @@ impl MemberResolver {
             graph,
             table: &self.table,
             refused_toplevel: refused_toplevel_names(stmts, src),
+            fn_self: None,
             diags,
         };
         check_stmts(stmts, src, None, &[], &FxHashMap::default(), &mut env);
@@ -318,6 +319,17 @@ struct Env<'a> {
     /// reading one is the same mistake seen from its use site, so `E0320` and
     /// `E0319` skip a name in here rather than reporting the cascade.
     refused_toplevel: FxHashSet<String>,
+    /// The self-name of the `fn` literal whose body is being walked
+    /// ([ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
+    /// § 3), or `None` outside one.
+    ///
+    /// Set to *this* closure's own name on entering its body and restored
+    /// afterwards, so it is `None` again inside a nested literal that declares
+    /// no name: § 3's name is visible in one body and not in a closure written
+    /// inside it, which is the same reach `nvs_ir::lower::closure`'s `FN_SELF`
+    /// receiver has. It exists here for one rule — `fact(...)` inside `fact`'s
+    /// own body is not the free function `E0320` refuses.
+    fn_self: Option<String>,
     diags: &'a mut Diagnostics,
 }
 
@@ -672,6 +684,15 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
             match &callee.kind {
                 ExprKind::ConstFetch(name) => {
                     let text = name_text(src, name);
+                    // ADR 0031 § 3: inside `fn fact(...) => … fact(…)`, the
+                    // callee is this closure and not a free function. Only in
+                    // callee position — the name resolves the way `self::`
+                    // does, so it is not a value and a bare `fact` below is
+                    // still `E0319`.
+                    if env.fn_self.as_deref() == Some(text) {
+                        walk_args(args, src, ctx, env);
+                        return;
+                    }
                     if !env.refused_toplevel.contains(text) {
                         env.diags.report(
                             Diagnostic::error(
@@ -784,10 +805,20 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                     e!(default);
                 }
             }
+            // ADR 0031 § 3's self-name covers this body and no other — a
+            // default above is outside it, and a nested literal replaces it
+            // rather than inheriting it. See `Env::fn_self`.
+            let outer = std::mem::replace(
+                &mut env.fn_self,
+                fn_expr
+                    .name
+                    .map(|n| src.span_text(n).unwrap_or_default().to_owned()),
+            );
             match &fn_expr.body {
                 FnBody::Block(block) => walk_block(block, src, ctx, env),
                 FnBody::Expr(body) => e!(body),
             }
+            env.fn_self = outer;
         }
         ExprKind::Match { subject, arms } => {
             e!(subject);

@@ -314,6 +314,24 @@ pub enum ExprInfo {
     /// [`ResolvedCall::static_class`] included — ADR 0027 § 1 makes
     /// `static::helper(...)` late-bound exactly as `static::helper()` is.
     CallableRef(ResolvedCall),
+    /// A bare name in callee position that is
+    /// [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
+    /// § 3's self-name — `fact` inside `fn fact(int $n): int => … fact($n - 1)`.
+    ///
+    /// Recorded on the **callee's** span, not the call's, because it is the
+    /// resolution of that name and nothing else: the call around it is the
+    /// ordinary call through a `callable`, and the enclosing
+    /// [`nvs_syntax::ast::ExprKind::Call`] carries no entry of its own, exactly
+    /// as `$f(...)` carries none.
+    ///
+    /// Carries nothing. The value the name resolves to is the invoke's own
+    /// receiver, which the consumer already holds — `nvs_ir::lower::closure`'s
+    /// `FN_SELF` — so a field naming the closure's class would be a second copy
+    /// of a fact the frame being lowered *is*. A consumer that finds this on a
+    /// span it is not lowering a closure body for is looking at a program that
+    /// did not compile: the checker binds the name for one body only
+    /// ([`crate::expr::calls::check_fn_literal`]).
+    ClosureSelf,
     /// `new Target(...)`. `ctor` is `None` for a class with no explicit
     /// `constructor` — legal per [`crate::expr`]'s own known gaps (no arity
     /// check against zero parameters), so a consumer must handle a `New`
