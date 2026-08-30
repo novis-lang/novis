@@ -3051,6 +3051,13 @@ is why" — is this file.
   asks its question ahead of the body. A handler registered with `Core\Fatal::onLimit` only runs
   when the reading is still under `[limits] memory` *plus* the reserve, so a fixture that overshoots
   the ceiling by 2× sees no handler at all.
+- **A diagnostic's help text is pinned byte for byte by an `--EXPECTF-ERROR--` case in a tree that
+  never names the crate you edited.** Rewording `E0319`'s help in `crates/nvs-hir/src/members.rs`
+  failed `tests/conformance/lang/a-bare-global-name-is-a-compile-error.nvst`, and `cargo test` does
+  not run the `.nvst` trees — so the failure waits for `verify.py` or an explicit
+  `nvs test tests/conformance/`, long after the edit looks finished. `grep -rn` a distinctive phrase
+  of the help under `tests/` before changing it; the pin is one line of the case's expectation and
+  updating it is the whole fix.
 
 ## Splitting a file that got too big
 
