@@ -2,57 +2,67 @@
 
 ## State
 
-**Stage 8's corpus count is 994 of 1000, and the `Qual` gap the last two sessions recorded is closed
-end to end.** A registry row's ADR 0088 § 2 classification now reaches the checker
-(`MethodSig::param_quals`, filled in `nvs_types::core_lib::method_sig`), the call check admits a
-`tainted` argument at a `Contagious`, `Neutral` or `Launder` parameter, and a `Contagious` call's
-answer carries the qualifier back out — through the atom itself, an array's element and every member
-of a union, so a `?string` or an `array<string>` return does not launder. Where the result has
-nowhere to carry the bit, the tainted argument is **still refused**: that conservative half is
-deliberate and `expr::quals::admits_tainted_argument`'s doc comment owns why.
+**Stage 8's corpus count is 1000 and the acceptance check's floor is met** — six cases, all over
+ADR 0088 § 2's admission, which is now pinned end to end in the corpus rather than only in
+`crates/nvs-types`. What they hold: a contagious answer carries the qualifier through a union's
+member and an array's element (`?tainted string`, `array<tainted string>`) and the plain declared
+type is refused; ADR 0063 R11's four grammar sinks **agree** across four classes; the three
+`Qual::Launder` rows each hand their answer to the sink their doc comment names; `secret` is refused
+at the same contagious, neutral and laundering parameters that admit `tainted`; and a tainted
+argument is still refused wherever the answer cannot carry the bit (`Core\Uri::parse`,
+`Core\Json::decode`, `Core\Bytes::unpack`, `Core\Regex::match`).
 
-**Only the `tainted` axis moved.** `secret` is refused at exactly the positions it was refused at
-before; whether a `Neutral` parameter launders `secret` is still ADR 0088's question to answer, and
-nothing in this tree now depends on the answer.
+**The four marks are counted where the sweep they copy lives**, not where the item said. The item
+asked for `crates/nvs-types/tests/tainted.rs`; `method_sig` and `qual_of` are module-private, so an
+integration test cannot ask the question at all, and
+`core_lib::tests::every_mark_a_row_can_write_reaches_a_signature` sits beside
+`every_registered_parameter_carries_its_classification_into_its_signature` instead. It adds the two
+things that one does not ask: `Qual::Launder` reaches a signature, and each of R11's four grammar
+classes carries a sink somewhere in its rows.
 
-**Two new gaps, both narrow, both recorded where the code is.** A **generic** `Core` member
-(`Core\Json::decodeAs<T>`) returns from `check_generic_args` before the admission loop, so it still
-refuses a tainted argument; and a `...` spread carries its qualifier on the array rather than on the
-entries, which the admission deliberately does not ask about
-(`crates/nvs-types/src/expr/args.rs:@check_args_typed`).
+**Four playbook bullets were stale and are corrected in place**, all of them saying that no `Core`
+member accepts a tainted argument. That stopped being true two sessions ago; a session reading them
+would have written its cases against a behaviour the tree no longer has.
 
-**Three known gaps carry forward unchanged**, each recorded where its code is: item 18's
+**Five known gaps carry forward unchanged**, each recorded where its code is: item 18's
 `Core\Secret::reveal()` is not in the registry (`nvs_types::expr::quals`); `Live::admit`'s same-class
-check is asked of the answer and not of the argument (`crates/nvs-runtime/src/graph.rs` § *Known
-gaps*); item 22's `Core\Script` members are unwritten (`crates/nvs-stdlib/src/script.rs`).
+check is asked of the answer, not the argument (`crates/nvs-runtime/src/graph.rs` § *Known gaps*);
+item 22's `Core\Script` members are unwritten (`crates/nvs-stdlib/src/script.rs`); a generic `Core`
+member returns before the admission loop; and a `...` spread carries its qualifier on the array
+(`crates/nvs-types/src/expr/args.rs:@check_args_typed`).
 
 ## Next group
 
-**Spend the closed gap on corpus cases — the acceptance check wants 1000 and the tree is at 994.**
-One file set: `tests/conformance/core/`, `tests/conformance/reject/` and
-`crates/nvs-types/tests/tainted.rs`, with the rows read from `crates/nvs-stdlib/src/str.rs` and
-`crates/nvs-stdlib/src/regex.rs`. Nothing below needs a checker change.
+**Close item 18: `Core\Secret::reveal` is the one named way out of `secret`, and nothing implements
+it.** ADR 0033 § 3 is its whole specification — the spec's § 1 tree has no row for the class. One
+file set: a new `crates/nvs-stdlib/src/secret.rs`, `crates/nvs-stdlib/src/registry.rs:945`
+(`CLASSES`), `crates/nvs-types/src/expr/quals.rs:186` (`admits_tainted_argument`) and
+`tests/conformance/{core,reject}/`.
 
-- [ ] **A union and an array result keep the qualifier** (ADR 0088 § 2). `Core\Str::after` returns
-      `?string` (`crates/nvs-stdlib/src/str.rs:319`) and `Core\Str::split` an `array<string>`
-      (`:341`); both are contagious, so a tainted subject makes each answer tainted through
-      `crates/nvs-types/src/expr/quals.rs:@tainted_result`. Assert the *refusal* of the plain
-      declared type, which is what proves nothing laundered.
-- [ ] **A `Sink` still refuses after the admission landed** (ADR 0088 § 1) — `Core\Regex::compile`'s
-      pattern (`crates/nvs-stdlib/src/regex.rs:106`) is the one to ask, as a `reject/` case beside
-      `bytes-pack-and-unpack-refuse-a-tainted-format.nvst`. Note `compile` is also an
-      `crate::intrinsics` row, so check which diagnostic actually lands before freezing the text.
-- [ ] **Every classification a row can write, asserted by counting** — the four marks over the whole
-      registry, in `crates/nvs-types/tests/tainted.rs`, so a member added later without a mark shows
-      up as a count rather than as nothing. `nvs_types::core_lib`'s
-      `every_registered_parameter_carries_its_classification_into_its_signature` is the sweep to
-      copy.
+- [ ] **Decide how a `secret` parameter is spelled on a row, and record it** (ADR 0033 § 3). There is
+      no `CoreTy` that accepts a qualified argument today — `Qual` describes what a member does with
+      one, and every mark refuses `secret`. Whether `reveal` gets a fifth mark, a `CoreTy::Secret`,
+      or a hard-coded pair in `expr/quals.rs` is this session's call under the goal's standing
+      decisions; the home for the reasoning is `registry.rs`'s `Qual` doc comment.
+- [ ] **Write the class: `reveal(secret string $s, string $reason): string` and its `bytes`
+      overload** (ADR 0033 § 3), as conventions.md's five edits — row, card, body, `address()` arm,
+      `.nvst` case. The `$reason` is required and is not decoration: § 3 wants the call site to say
+      why.
+- [ ] **Two cases: the escape works and it is the only one** (ADR 0033 §§ 3-4). A revealed value is
+      a plain `string` that `echo` accepts, and the sinks § 4 lists still refuse the `secret` value
+      itself — the reject half beside
+      `tests/conformance/reject/a-secret-argument-is-refused-where-a-tainted-one-is-admitted.nvst`.
 
 ## Backlog
 
-- A generic `Core` member does not reach the admission — `crates/nvs-types/src/expr/args.rs`.
-- `Neutral` and `secret`: the laundering decision ADR 0088 owes before that half can be written.
-- Item 18: `Core\Secret::reveal()` is not in the registry — `nvs_types::expr::quals`.
-- Item 22: `Core\Script`'s members are unwritten — `crates/nvs-stdlib/src/script.rs`.
-- `Live::admit` asks its same-class check of the answer — `crates/nvs-runtime/src/graph.rs`.
-- `gaps.py --errors`'s last row is `crates/nvs-stdlib/src/csv.rs:610`, unreachable from source.
+- `Core\Str::format("%s", $tainted)` compiles and answers a plain `string`: a qualifier entering a
+  `Variadic(Mixed)` is lost. ADR 0007's unchecked position, or a hole ADR 0088 should name — the
+  question is ADR 0088's.
+- Item 22's `Core\Script` members are unwritten (`crates/nvs-stdlib/src/script.rs`'s module doc says
+  what the class deliberately does *not* have).
+- `Live::admit`'s same-class check is asked of the answer, not the argument
+  (`crates/nvs-runtime/src/graph.rs` § *Known gaps*).
+- A generic `Core` member (`Core\Json::decodeAs<T>`) returns from `check_generic_args` before the
+  admission loop, so it still refuses a tainted argument.
+- A `...` spread carries its qualifier on the array rather than on the entries
+  (`crates/nvs-types/src/expr/args.rs:@check_args_typed`).

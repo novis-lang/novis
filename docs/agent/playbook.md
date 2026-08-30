@@ -1766,15 +1766,18 @@ is why" — is this file.
   dyadic fractions makes `$x * $x + $y * $y` exact, so both members are computing the correctly rounded
   square root of the *same* double and IEEE 754 requires them to agree — a property of the table, not of
   the host. The same test applies to any "these two spellings answer the same thing" float case.
-- **No `Core` member accepts a `tainted` or `secret` argument today, so a qualifier case is written out
-  of operators alone.** ADR 0088's classification is on no `nvs-stdlib` member row yet, so every
-  `string`/`bytes` parameter is a plain `CoreTy::Str`/`Bytes` and the one-directional widening in
-  `nvs_types::expr::assign` refuses the qualified form at the argument — `Core\Str::length($tainted)` is
-  `E0401: expected 'string', found 'tainted string'`, which reads like a bug in the case and is not one.
-  What a qualified value *can* be asked is concatenation, interpolation, `==`/`!=`, `echo`, and the `as`
-  conversions, and that is enough for the agreement shape: build the plain twin beside it and count the
-  rows where the two answered the same. When the classification lands this bullet stops being true for
-  the non-sink members, and only then.
+- **A `Core` member accepts a `tainted` argument wherever its row's mark says so, and what a case has to
+  get right is the declared type of the *answer*.** ADR 0088 § 2's classification reaches the checker
+  (`MethodSig::param_quals`), so a `Contagious`, `Neutral` or `Launder` parameter takes a tainted
+  argument and only a `Sink` refuses one. A contagious call's answer then carries the qualifier through
+  the atom, an array's element and every member of a union: `Core\Str::after($t, ",")` is
+  `?tainted string` and `Core\Str::split($t, ",")` is `array<tainted string>`, and the plain declared
+  type is `E0401`. The spelling bites — `tainted ?string` is not a type this parser has, and it fails as
+  `E0102: expected an expression` on the line *before* the mismatch, which reads like a broken case and
+  is not one. Two refusals that are also not bugs in the case: `secret` is refused at every one of those
+  positions, and a tainted argument is refused wherever the answer has nowhere to carry it —
+  `Core\Uri::parse`, `Core\Json::decode`, `Core\Bytes::unpack`. `tests/conformance/reject/` has one case
+  per row of this.
 - **`Core\Math::atanh` is not exactly odd, and the two legs disagree about which rows it fails on.**
   Every other member of the family is: `sin`, `tan`, `sinh`, `tanh`, `asin`, `atan`, `asinh`, `cbrt`
   and `sign` satisfy `f(-$x) == 0.0 - f($x)` bit for bit on every row of a swept table, and `cos`/`cosh`
@@ -2803,17 +2806,14 @@ is why" — is this file.
   array literal has no target type to infer from, so it is `array<int> $x = [1, 2, 3];`. Two `catch`
   clauses in one scope may share a variable name while their classes match and are E0406 the moment
   they differ, so a case with a `TimeoutError` arm and a `LogicError` arm needs two names.
-- **A `Qual` classification on a registry row is enforced by nothing, so a qualifier claim has to be
-  probed before a case is written against it.** `nvs_types::core_lib`'s `lower` drops it
-  (`CoreTy::Text(_) => interner.string()`) and is the only place in the checker that reads the enum, so
-  a `Contagious` or a `Neutral` parameter refuses a tainted argument exactly as ADR 0088 § 2's
-  *unclassified* default does: `Core\Bytes::length($taintedBytes)` is `E0401: expected bytes, found
-  tainted bytes`, and `Core\Validate::isEmail` of a tainted address does not compile at all. Only
-  `Sink` behaves as its row says, and it is right for the wrong reason. Two items of one handed group
-  were written against the documented behaviour and neither could be asserted. The probe is one file
-  and one call — a scratch `.nvst` under `.agent-tmp/` whose `--EXPECT--` is `ok`, run with
-  `./target/debug/nvs.exe test <path>`, which on failure prints every diagnostic the case would
-  otherwise have had to predict.
+- **A `Qual` classification is enforced on the `tainted` axis only, so a `secret` claim still has to be
+  probed before a case is written against it.** `nvs_types::expr::quals::admits_tainted_argument` reads
+  the row's mark and lets a tainted argument through a `Contagious`, `Neutral` or `Launder` parameter;
+  nothing reads it for `secret`, which is refused at all four marks exactly as an unclassified parameter
+  refuses it, and that refusal is deliberate rather than pending. The probe is one file and one call —
+  a scratch `.nvs` under `.agent-tmp/`, run with `./target/debug/nvs.exe run <path>`, which prints every
+  diagnostic the case would otherwise have had to predict, and prints them for *every* line at once so
+  one probe answers a whole group of members.
 
 ## Splitting a file that got too big
 
@@ -3547,10 +3547,9 @@ sibling in the same namespace unqualified.
   the nullable check and the enum-case check blind to whatever it wrapped. The landed spelling is
   `CoreTy::Text(Qual)` / `CoreTy::Blob(Qual)` — leaves, so the wildcard arms stay honest — and the
   only two sites that had to change are the ones that name `CoreTy::Str` specifically:
-  `nvs_types::core_lib::lower` and one `matches!` in a registry test. **Landing the data is not
-  landing the enforcement**: `lower` maps `Text(_)` to the same interned `string` as `Str`, so the
-  bullet above about no `Core` member accepting a `tainted` argument is still true for every one of
-  them, classified or not.
+  `nvs_types::core_lib::lower` and one `matches!` in a registry test. **The data landed first and the
+  enforcement followed**: `lower` still maps `Text(_)` to the same interned `string` as `Str`, and the
+  mark travels beside the lowered type in `MethodSig::param_quals`, which is what the call check reads.
 - **`OWED_A_CASE`'s declaration window is eight lines measured from the `Fault::` line, so a
   long comment with the phrase at the top is invisible to the gate.**
   `conformance_coverage.rs`'s scan walks *upward* from the site and stops at the first line
@@ -3716,14 +3715,13 @@ sibling in the same namespace unqualified.
   has to hand such a member, and `crates/nvs-stdlib/src/arr.rs:1792` is the shape to copy. Worth the
   bullet because the row and the body are written in the same minute and nothing between them says which
   tag a `CoreTy` lands as.
-- **`Qual::Sink` has no consumer in `nvs-types`, and that is not the gap it looks like.** A classified
-  `CoreTy::Text(q)`/`Blob(q)` lowers to exactly what its unclassified spelling lowers to
+- **`Qual::Sink` needs no rule of its own in `nvs-types`, and that is not the gap it looks like.** A
+  classified `CoreTy::Text(q)`/`Blob(q)` lowers to exactly what its unclassified spelling lowers to
   (`crates/nvs-types/src/core_lib.rs:286`), so the refusal a sink parameter gets is ordinary
-  assignability: a `tainted bytes` argument does not satisfy a plain `bytes` parameter, and no rule in
-  the checker mentions `Qual` at all. Grepping for the code that reads `Qual::Sink` therefore finds
-  `crates/nvs-stdlib` and nothing else — the classification is data plus that crate's own
-  `every_member_parameter_carries_a_qualifier_classification` self-test. What genuinely needs a checker
-  rule is the *opposite* shape: a sink whose parameter is `mixed` (`Core\Debug::dump`,
+  assignability: a `tainted bytes` argument does not satisfy a plain `bytes` parameter. The checker's
+  only `Qual` rule is the *admission* in `expr/quals.rs`, which lets the other three marks through and
+  leaves a sink to that plain refusal, so grepping for code that reads `Qual::Sink` still finds
+  `crates/nvs-stdlib` and nothing else. What genuinely needs a checker rule is the *opposite* shape: a sink whose parameter is `mixed` (`Core\Debug::dump`,
   `Core\Serialize::encode`), where nothing below the call site can still see the qualifier, which is why
   those three live in `expr/quals.rs` as call-site walks over the written arguments.
 - **The two `Core` coverage gates run in opposite directions, and a class with no members owes

@@ -53,7 +53,7 @@
 > `crates/nvs-cli/src/{script,runner}.rs` — or in ADRs 0115–0117. **Stage 7 is closed at its
 > acceptance**: all four `nvs-cli` names are green, and item 26's two homes are `nvs_runtime::Ctx`'s
 > field docs (ADR 0079 § 12). **Stage 8's corpus half is closed**: all eleven cases the
-> `conformance` check names are written and conformance is 994, and `isolation.rs` measures
+> `conformance` check names are written and conformance is 1000, and `isolation.rs` measures
 > `nvs_host::Isolate` itself with a guard beside it. Three known gaps, each recorded where its code
 > is: item 18's `Core\Secret::reveal()` is not in the registry, so the boundary's `secret` refusal
 > has no way out yet (`nvs_types::expr::quals`); `Live::admit`'s same-class check is asked of the
@@ -61,7 +61,7 @@
 > `Core\Script` members are unwritten (`crates/nvs-stdlib/src/script.rs`). The program is measured
 > by `python tools/check-migration.py` at 100% classified — 25% when it was scheduled, 34% now — and
 > `gaps.py`, `holes.py` and `check-migration.py --report` are the worklists no session re-derives.
-> M4's residue is the 1000-case corpus count, met as the suite grows.
+> M4's residue, the 1000-case corpus count, is met.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
