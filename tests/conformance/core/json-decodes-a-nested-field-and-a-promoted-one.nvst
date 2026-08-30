@@ -1,0 +1,95 @@
+--TEST--
+`Core\Json::decodeAs<T>` decodes a field whose type is another derived class, and a promoted constructor parameter is a field like any other — ADR 0071 §§ 1, 2 and 5
+--FILE--
+<?nvs
+// § 2: a field is "another class that itself has a codec". `Address` is
+// written the long way and `Person` the way § 1's own example is — promoted
+// constructor parameters — so one document exercises both spellings of a
+// declaration, which the derive pass reads through one view.
+#[Core\Json\Derive]
+class Address {
+    public string $city;
+    public uint $zip;
+
+    public function constructor(string $city, uint $zip) {
+        $this->city = $city;
+        $this->zip = $zip;
+    }
+}
+
+#[Core\Json\Derive]
+class Person {
+    public function constructor(
+        public string $name,
+        public Address $address,
+    ) {}
+}
+
+// A decode is an ordinary `new`, twice: the inner object builds an `Address`
+// and that instance is passed to `Person`'s constructor, so nothing here
+// bypasses either one.
+var $p = Core\Json::decodeAs<Person>(
+    "{\"name\":\"ada\",\"address\":{\"city\":\"bath\",\"zip\":42}}"
+);
+echo "name=", $p->name, "\n";
+echo "city=", $p->address->city, "\n";
+echo "zip=", $p->address->zip, "\n";
+
+// Declaration order fixes encode order at both levels, so the document that
+// came in is the document that goes back out.
+echo "round=", Core\Json::encode($p), "\n";
+
+// § 5's dotted issue path is what the nesting is for: the inner object's
+// failures are reported under the field that holds it, and they accumulate
+// with the outer object's rather than throwing at the first one.
+try {
+    Core\Json::decodeAs<Person>("{\"address\":{\"city\":7}}");
+    echo "not reached\n";
+} catch (ParseError $bad) {
+    echo "issues=", Core\Arr::count($bad->issues), "\n";
+    foreach ($bad->issues as {path: string, message: string} $issue) {
+        echo "  ", $issue->path, ": ", $issue->message, "\n";
+    }
+}
+
+// The nested field's own shape bound: the class is the compiler's answer and
+// the document only supplies the object, so a scalar where an object belongs
+// is one issue naming the class rather than every field of it missing.
+try {
+    Core\Json::decodeAs<Person>("{\"name\":\"ada\",\"address\":9}");
+    echo "not reached\n";
+} catch (ParseError $shape) {
+    echo "shape=", $shape->issues["0"]->path, ": ", $shape->issues["0"]->message, "\n";
+}
+
+// A list of them roots the same paths at the element position, so the two
+// prefixes compose: `1.address.zip` is element 1's `address`'s `zip`.
+var $people = Core\Json::decodeAs<array<Person>>(
+    "[{\"name\":\"a\",\"address\":{\"city\":\"x\",\"zip\":1}},{\"name\":\"b\",\"address\":{\"city\":\"y\",\"zip\":2}}]"
+);
+echo "count=", Core\Arr::count($people), "\n";
+foreach ($people as Person $person) {
+    echo "  ", $person->name, "@", $person->address->city, "\n";
+}
+try {
+    Core\Json::decodeAs<array<Person>>(
+        "[{\"name\":\"a\",\"address\":{\"city\":\"x\",\"zip\":1}},{\"name\":\"b\",\"address\":{\"city\":\"y\",\"zip\":\"two\"}}]"
+    );
+    echo "not reached\n";
+} catch (ParseError $deep) {
+    echo "deep=", $deep->issues["0"]->path, "\n";
+}
+--EXPECT--
+name=ada
+city=bath
+zip=42
+round={"name":"ada","address":{"city":"bath","zip":42}}
+issues=3
+  name: required field missing
+  address.city: expected string, found a number
+  address.zip: required field missing
+shape=address: expected an object for `Address`, found a number
+count=2
+  a@x
+  b@y
+deep=1.address.zip
