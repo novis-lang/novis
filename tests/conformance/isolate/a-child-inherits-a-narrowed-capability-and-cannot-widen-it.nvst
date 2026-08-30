@@ -1,0 +1,96 @@
+--TEST--
+A `spawn script` child runs under the capability grant in force where it was spawned: it inherits the narrowing its parent's `[[app]]` block made, and neither an `[[app]]` block naming the child nor a `Core\Config::set` widens it back — ADR 0006 § *Decision*, ADR 0104 § 2, ADR 0118 §§ 1 and 5
+--FILE nvs.toml--
+# ADR 0118 § 2: `spawn script` goes through a door that asks for
+# `script.spawn` first, and deny-by-default means a case with no configuration
+# cannot spawn at all. Granted unscoped so that the only capability this case
+# measures is `fs.read`.
+[capabilities.script]
+spawn = true
+
+# The host's grant, over this whole directory. `secret.txt` is inside it, and
+# the block below is what takes it away again — so a refusal further down is
+# the narrowing's and not the host's.
+[capabilities.fs]
+read = ["."]
+
+# ADR 0104 § 2: the block keyed on the entry file being run. A value array
+# replaces where a `[[table]]` appends, so `fs.read` in force for this run is
+# `./data` alone. This is the narrowing everything below is measured against.
+[[app]]
+entry = "case.nvs"
+
+[app.capabilities.fs]
+read = ["./data"]
+
+# The block keyed on the child, asking for the host's whole grant back. It
+# never takes effect: `Ctx::isolate` hands a child the configuration in force
+# where it was spawned rather than re-resolving the tree for the child's own
+# entry file, and that field's own doc owns why — a child re-reading the
+# snapshot would silently widen back every narrowing its parent made.
+[[app]]
+entry = "child.nvs"
+
+[app.capabilities.fs]
+read = ["."]
+--FILE data/note.txt--
+note
+--FILE secret.txt--
+secret
+--FILE child.nvs--
+<?nvs
+// Inherited, not granted: nothing in the child's own configuration is what
+// makes this read succeed, because the child was handed the parent's snapshot.
+echo "child read ", Core\File::read('./data/note.txt');
+
+// Outside the parent's grant, inside the host's, and named by an `[[app]]`
+// block of the child's own — the widening, asked for in the one place a
+// configuration could still ask for it. Refused, and refused as ADR 0118 § 5's
+// catchable `RuntimeError` naming the capability rather than as a `FATAL`.
+try {
+    echo Core\File::read('./secret.txt');
+} catch (RuntimeError $denied) {
+    echo "child: ", $denied->message, "\n";
+}
+
+// The other way to ask. `[capabilities]` is a `RuntimeTighten` directive and a
+// grant is a list rather than a quantity, so `set` cannot narrow it and will
+// not widen it: `crates/nvs-config/src/request.rs`'s module doc owns why
+// refusing outright is the safe direction. `false`, never a throw.
+echo "child set = ", Core\Config::set('capabilities.fs.read', '.') ? "true" : "false", "\n";
+
+// And the refusal left the grant exactly where it was.
+try {
+    Core\File::read('./secret.txt');
+    echo "unreachable", "\n";
+} catch (RuntimeError $still) {
+    echo "child still refused", "\n";
+}
+--FILE--
+<?nvs
+// M6's *Verify*: a child cannot widen a capability its parent narrowed. The
+// parent's own reading first, so that what the child prints is a comparison
+// against a known grant: `./data` reads, `./secret.txt` does not.
+echo "parent read ", Core\File::read('./data/note.txt');
+try {
+    Core\File::read('./secret.txt');
+    echo "unreachable", "\n";
+} catch (RuntimeError $denied) {
+    echo "parent refused", "\n";
+}
+
+// `output: 'capture'` for the reason a-child-shares-nothing-with-its-parent
+// gives: the child's lines arrive here as a value the parent prints, so their
+// order against the parent's own is a fact rather than a race.
+var $job = spawn script "child.nvs" with(output: "capture");
+var $done = await $job;
+echo "ok=", $done->ok ? "true" : "false", "\n";
+echo $done->output;
+--EXPECT--
+parent read note
+parent refused
+ok=true
+child read note
+child: Core\File::read needs the capability `fs.read` for ./secret.txt, which is not granted
+child set = false
+child still refused
