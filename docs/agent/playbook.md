@@ -346,10 +346,6 @@ is why" — is this file.
   check what it found against the thing it is reading — `registry()` against `grep -c CoreClass` — before
   believing a total, and give an unresolvable name an empty owner rather than letting its members fall
   to the class above it.
-- **`adr.py --index` prints the regenerated index table; it does not write it.** Every other check the
-  tool runs is a report, and so is this one — the name is the only thing that suggests a fix. Paste the
-  new row into `docs/adr/README.md` yourself, or the *index table is stale* finding stays red through
-  however many times you re-run it.
 - **`gaps.py --coverage` attributes a case to a class only when the case *text* names that class,
   so a class whose values are never spelled out reads as zero and its "no case calls" list is a
   false alarm.** `Core\Time\Instant` prints `0.00  0  9 … no case calls compareTo, in, minus` while
@@ -920,6 +916,8 @@ is why" — is this file.
   `index table is stale` finding stays until you paste the new row into `README.md` yourself, and the
   two *other* index findings (`no bullet in ground-rules.md`, `no row in § Where to look`) are three
   separate edits in two files, not one. Budget four edits per new ADR, then `--check` for `exit=0`.
+  Every other check the tool runs is a report, and so is this one — the name is the only thing that
+  suggests a fix.
 - **A `[dev-dependencies]` addition owes `deny.toml` an answer but owes `THIRD-PARTY-LICENSES.txt`
   nothing, and the two are checked in opposite directions.** `tools/gen-attribution.py` walks normal
   and build dependencies only — its own docstring is the home of that — so `--check` stays green
@@ -948,7 +946,7 @@ is why" — is this file.
   text: a red verdict describing a tree that no longer existed. There is nothing to debug and
   nothing to fix — `--start` again once the tree is final, and only then write prose. The rule is
   simply that `--start` marks the end of editing, not the start of the tail.
-- **`Path.write_text` turns every `\n` into `\r\n` on Windows, and a test that reads the tree sees it.** A one-off script that rewrites `.rs` files must open them with `newline=""` (or write bytes): `.gitattributes` says `eol=lf`, git normalizes on commit so `git diff` looks fine, but `tests/conformance_coverage.rs` scans the working copy and reports every multi-line message as "neither asserted nor declared unreachable" with `\r\n` inside the quoted text. That is the signature; the fix is a byte-level `\r\n` → `\n` pass over the files the script touched, and it cost one full `verify.py` run.
+- **`Path.write_text` turns every `\n` into `\r\n` on Windows, and a test that reads the tree sees it.** A one-off script that rewrites `.rs` files must open them with `newline=""` (or write bytes): `.gitattributes` says `eol=lf`, git normalizes on commit so `git diff` looks fine, but `crates/nvs-stdlib/tests/conformance_coverage.rs` scans the working copy and reports every multi-line message as "neither asserted nor declared unreachable" with `\r\n` inside the quoted text. That is the signature; the fix is a byte-level `\r\n` → `\n` pass over the files the script touched, and it cost one full `verify.py` run.
 - **Two sessions in one tree: a file both edit is committed by whichever stages it first, with the other's hunks inside.** ADR 0117's enum-and-constant amendment first landed inside a commit about ADR 0063, because the other session staged the whole file while this one still held it dirty — that session then redid its commit without the foreign hunks, which is the right repair but cost both sessions a turn. `git status --short` a file before editing it; if it is already dirty and the hunks are not yours, either wait for that session's commit or stage your own hunks alone — `git show HEAD:<path>` plus your change through `git hash-object -w --stdin` and `git update-index --cacheinfo 100644,<blob>,<path>` stages a version the working tree never holds, which is also how two slices that touch one file get one commit each.
 - **`splice.py` writes LF, so splicing a CRLF working copy leaves the file mixed — and a gate that
   reads source *bytes* then fails somewhere you did not touch.** Putting a `names:` line on
