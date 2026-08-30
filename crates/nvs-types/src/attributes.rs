@@ -66,14 +66,16 @@ pub(crate) fn check_declaration(
                 // rather than about one payload, and this is the walk that
                 // holds a method's whole list.
                 crate::routes::check_one_access(&m.attributes, ctx, env);
-                // The two per-parameter markers that mean nothing away from the
-                // attribute that reads them — ADR 0102 § 3's `#[Query]` and
-                // ADR 0086 § 6's `#[Option]`. Asked here because each owning
-                // pass walks only the methods its own attribute selects, so a
-                // stray marker is invisible to the pass that would refuse it,
-                // and this is the walk that visits every method.
+                // The markers that mean nothing away from the attribute that
+                // reads them — ADR 0102 § 3's `#[Query]`, ADR 0085 § 2's
+                // `#[Api]`, ADR 0096 § 1's `#[Access]` and ADR 0086 § 6's
+                // `#[Option]`. Asked here because each owning pass walks only
+                // the methods its own attribute selects, so a stray marker is
+                // invisible to the pass that would refuse it, and this is the
+                // walk that visits every method.
                 crate::routes::check_stray_query(m, ctx, env);
                 crate::routes::check_stray_api(m, ctx, env);
+                crate::routes::check_stray_access(m, ctx, env);
                 crate::commands::check_stray_options(m, ctx, env);
                 check_params(&m.params, ctx, env);
             }

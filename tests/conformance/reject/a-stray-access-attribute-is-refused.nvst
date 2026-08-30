@@ -1,0 +1,31 @@
+--TEST--
+An `#[Access]` on a method that declares no route is refused rather than ignored — ADR 0096 §§ 1-2
+--FILE--
+<?nvs
+// § 1 makes `#[Access]` the required sibling of `#[Route]`, and the refusal a
+// route carrying no decision gets is that sentence read in one direction. This
+// is the other one: a decision guarding no route. Nothing can come along later
+// and give it a meaning, because § 2 is a promise that the compiler never
+// interprets what `allow` names — the route table is the only reader there is.
+class Users {
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function index(): string { return "u"; }
+}
+
+// The same attribute on a method that does carry a `#[Route]` is § 1's ordinary
+// case, and the payload is written identically — which is what makes the
+// refusal above a fact about the missing sibling rather than about the decision.
+class Search {
+    #[Core\Route(path: "/search", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function index(): string { return "s"; }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0788]: this `#[Access]` guards no route
+  --> case.nvs:8:7
+%A
+error: aborting due to 1 error

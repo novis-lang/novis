@@ -2477,6 +2477,27 @@ pub mod code {
     /// so a write has nothing to commit through.
     pub const E_GET_ONLY_HOOK_WRITE: Code = Code::new("E0787");
 
+    /// An `#[Access]` on a method carrying no `#[Route]`.
+    ///
+    /// ADR 0096 § 1 makes the attribute a *sibling* of `#[Route]`, and
+    /// [`E_ROUTE_WITHOUT_ACCESS`] is that sentence read in the other
+    /// direction: a route must declare a decision. This one refuses the
+    /// decision that guards no route — § 2 promises the compiler will not
+    /// interpret the `allow` value, so away from the route table there is
+    /// nothing that ever reads it. The sibling of [`E_QUERY_WITHOUT_ROUTE`]
+    /// and [`E_API_CONTRADICTS_THE_CODE`], which are the same mistake made
+    /// with the other markers a `#[Route]` gives meaning to.
+    pub const E_ACCESS_WITHOUT_ROUTE: Code = Code::new("E0788");
+
+    /// A `#[Command]` method that is not `static`, or that returns something
+    /// other than `void` or `uint`.
+    ///
+    /// ADR 0086 § 6's two facts about the declaration the attribute sits on,
+    /// under one code for [`E_TEST_METHOD_SHAPE`]'s reason: they are one
+    /// question — whether this declaration is a command handler — and an
+    /// author fixing either is editing the same line.
+    pub const E_COMMAND_METHOD_SHAPE: Code = Code::new("E0789");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

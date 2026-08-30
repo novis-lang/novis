@@ -96,9 +96,11 @@
 //! trivia — [`doc_comment`]'s own comment owns that, including what replaces it.
 //!
 //! A `#[Query]` written where no `#[Route]` reads it is [`check_stray_query`],
-//! and it is the one thing here the per-class walk cannot ask: that walk selects
-//! the methods a `#[Route]` marks, so a stray marker is invisible to it by
-//! construction and the question belongs to the walk that visits every method.
+//! and an `#[Access]` written there is [`check_stray_access`] — ADR 0096 § 1's
+//! sibling rule asked from the other side. Those are the questions the per-class
+//! walk cannot ask: it selects the methods a `#[Route]` marks, so a stray marker
+//! is invisible to it by construction and the question belongs to the walk that
+//! visits every method.
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use nvs_hir::QName;
@@ -707,6 +709,52 @@ pub(crate) fn check_stray_api(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>
             "ADR 0085 § 2's `#[Api]` supplies what a route's own types cannot say, so away from a \
              `#[Route]` there is nothing for it to say it about — add the `#[Route]`, or move the \
              `#[Api]` to the method that has one",
+        ),
+    );
+}
+
+/// ADR 0096 § 1's sibling rule read from the other side: an `#[Access]` on a
+/// method carrying no `#[Route]`.
+///
+/// § 1 states the rule as a route owing a decision, which is
+/// [`check_class_routes`]' `E_ROUTE_WITHOUT_ACCESS`. The same sentence asked of
+/// a method that declares no route at all is this, and it is a refusal rather
+/// than a silence because § 2 promises the compiler will never interpret what
+/// `allow` names: the route table is the only thing that ever reads one, so an
+/// `#[Access]` away from a `#[Route]` guards nothing and cannot be made to.
+///
+/// Asked from [`crate::attributes`]' per-method walk for [`check_stray_query`]'s
+/// reason — [`check_class_routes`] answers over the methods a `#[Route]` marks,
+/// and a stray `#[Access]` is by definition on one of the others.
+///
+/// Reported for the first `#[Access]` alone, where [`check_stray_query`] reports
+/// per parameter: § 1a admits one per method and a second is
+/// [`check_one_access`]'s own error, so naming every one of them here would
+/// report the author's single mistake once per attribute they are about to
+/// delete together.
+pub(crate) fn check_stray_access(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    if m.attributes
+        .iter()
+        .flat_map(|group| &group.attributes)
+        .any(|attr| crate::derive::attribute_is(attr, crate::derive::ROUTE, ctx, env))
+    {
+        return;
+    }
+    let Some(attr) =
+        crate::testing::attribute_named(&m.attributes, crate::derive::ACCESS, ctx, env)
+    else {
+        return;
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ACCESS_WITHOUT_ROUTE,
+            "this `#[Access]` guards no route",
+        )
+        .with_primary(attr.span, "the method carries no `#[Route]`")
+        .with_help(
+            "ADR 0096 § 1 makes `#[Access]` a `#[Route]`'s required sibling, and § 2 keeps the \
+             compiler from reading what `allow` names — so the route table is the only thing that \
+             ever asks this decision: add the `#[Route]` it guards, or delete it",
         ),
     );
 }
