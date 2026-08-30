@@ -2798,6 +2798,17 @@ is why" — is this file.
   array literal has no target type to infer from, so it is `array<int> $x = [1, 2, 3];`. Two `catch`
   clauses in one scope may share a variable name while their classes match and are E0406 the moment
   they differ, so a case with a `TimeoutError` arm and a `LogicError` arm needs two names.
+- **A `Qual` classification on a registry row is enforced by nothing, so a qualifier claim has to be
+  probed before a case is written against it.** `nvs_types::core_lib`'s `lower` drops it
+  (`CoreTy::Text(_) => interner.string()`) and is the only place in the checker that reads the enum, so
+  a `Contagious` or a `Neutral` parameter refuses a tainted argument exactly as ADR 0088 § 2's
+  *unclassified* default does: `Core\Bytes::length($taintedBytes)` is `E0401: expected bytes, found
+  tainted bytes`, and `Core\Validate::isEmail` of a tainted address does not compile at all. Only
+  `Sink` behaves as its row says, and it is right for the wrong reason. Two items of one handed group
+  were written against the documented behaviour and neither could be asserted. The probe is one file
+  and one call — a scratch `.nvst` under `.agent-tmp/` whose `--EXPECT--` is `ok`, run with
+  `./target/debug/nvs.exe test <path>`, which on failure prints every diagnostic the case would
+  otherwise have had to predict.
 
 ## Splitting a file that got too big
 

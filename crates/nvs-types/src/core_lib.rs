@@ -318,6 +318,25 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // never what the argument is: `nvs_stdlib::registry::Qual` and the
         // interner's own `tainted`/`secret` are different questions, and these
         // two lower to exactly what their unclassified spellings lower to.
+        //
+        // **Known gap: nothing downstream reads the classification back.** This
+        // arm is the only place `Qual` is looked at in this crate, and it drops
+        // it, so a parameter marked `Contagious` or `Neutral` refuses a
+        // qualified argument exactly as an unclassified one does —
+        // `Core\Bytes::length($taintedBytes)` is `E0401: expected bytes, found
+        // tainted bytes`. That is ADR 0088 § 2's *default*, applied to rows
+        // whose author wrote something else: § 2 gives `Contagious` a qualified
+        // result and `Neutral` a plain one, and both are meant to *accept*.
+        // Only `Sink`'s refusal is what the tree actually does, and it is right
+        // for the wrong reason. Being over-strict is safe — a tainted value
+        // cannot launder through a member it cannot reach — so the cost is that
+        // `tainted` is unusable with `Core` rather than that it leaks. Closing
+        // it is a checker slice, not a registry one: `MethodSig` has to carry
+        // the per-parameter classification, the call check has to admit a
+        // qualified argument on the two accepting marks, and a `Contagious`
+        // call's *result* has to gain the union of its arguments' qualifiers.
+        // `Neutral` dropping `secret` is a laundering decision, so that half is
+        // ADR 0088's to answer before it is written.
         CoreTy::Str | CoreTy::Text(_) => interner.string(),
         CoreTy::Bytes | CoreTy::Blob(_) => interner.bytes(),
         CoreTy::Void => interner.void(),

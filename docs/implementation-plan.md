@@ -53,7 +53,7 @@
 > `crates/nvs-cli/src/{script,runner}.rs` — or in ADRs 0115–0117. **Stage 7 is closed at its
 > acceptance**: all four `nvs-cli` names are green, and item 26's two homes are `nvs_runtime::Ctx`'s
 > field docs (ADR 0079 § 12). **Stage 8's corpus half is closed**: all eleven cases the
-> `conformance` check names are written and conformance is 992, and `isolation.rs` measures
+> `conformance` check names are written and conformance is 993, and `isolation.rs` measures
 > `nvs_host::Isolate` itself with a guard beside it. Three known gaps, each recorded where its code
 > is: item 18's `Core\Secret::reveal()` is not in the registry, so the boundary's `secret` refusal
 > has no way out yet (`nvs_types::expr::quals`); `Live::admit`'s same-class check is asked of the
