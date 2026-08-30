@@ -100,12 +100,11 @@ impl<'a> Lowering<'a> {
                 self.lower_match(subject, arms, expected, env, cur)
             }
             // ADR 0119 § 6: the expression `catch` lowers to the block form —
-            // a landing pad per arm over the one guarded expression, joined by
-            // a phi. The front end (§§ 1-3) and the checker (§§ 4-5) land
-            // first, so nothing reaches here yet; the plan's stage 9 item 23
-            // replaces this arm with `self.lower_catch(...)`.
-            ExprKind::Catch { .. } => {
-                panic!("ADR 0119 § 6's lowering is not written yet -- stage 9 item 23")
+            // one protected region over the guarded expression, a landing pad
+            // dispatching the arms, and a phi joining the values every side
+            // produces. `Self::lower_catch` owns it.
+            ExprKind::Catch { guarded, arms } => {
+                self.lower_catch(guarded, arms, expected, env, cur)
             }
             ExprKind::Bool(b) => self.emit(*cur, Ty::Bool, InstKind::ConstBool(*b)),
             // The literal `null`. Its own type, not a tagged one -- see
@@ -1523,10 +1522,12 @@ impl<'a> Lowering<'a> {
     /// tagged non-refcounted payload is a no-op for the runtime's own
     /// tag-dispatched release.
     ///
-    /// An empty set has no value and so no representation; both callers
-    /// refuse that shape before they reach here (a ternary always has two
-    /// branches, and an arm-less `match` is refused in [`Self::lower_match`]).
-    fn join_representations(
+    /// An empty set has no value and so no representation; every caller
+    /// refuses that shape before it reaches here — a ternary always has two
+    /// branches, an arm-less `match` is refused in [`Self::lower_match`], and
+    /// a `catch` expression's guard is a branch of its own whatever its arms
+    /// do ([`Self::lower_catch`]).
+    pub(crate) fn join_representations(
         &mut self,
         branches: &mut [(BlockId, ValueId, Ty)],
         env: &mut Env,

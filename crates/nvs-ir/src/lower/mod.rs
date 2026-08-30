@@ -71,7 +71,7 @@
 
 use nvs_diagnostics::{SourceFile, SourceId, Span};
 use nvs_syntax::ast::{
-    ArrayItem, AssignOp, BinaryOp, Block, CallArgs, CatchClause, ClassMemberKind,
+    ArrayItem, AssignOp, BinaryOp, Block, CallArgs, CatchArm, CatchClause, ClassMemberKind,
     DestructureElement, DestructureTarget, Expr, ExprKind, FnBody, FnExpr, ForInit, ForeachBinding,
     IncDecOp, MatchArm, MethodMember, Modifier, NamespaceDecl, NewTarget, ObjectLiteralField,
     SpawnOption, SpawnOptionKey, Stmt, StmtKind, StringPart, SwitchCase, Type, TypeAtom, TypeKind,

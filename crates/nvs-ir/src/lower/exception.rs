@@ -175,7 +175,7 @@ impl<'a> Lowering<'a> {
     ) {
         let mut test_block = dispatch;
         for clause in catches {
-            let caught = self.catch_clause_type(clause);
+            let caught = self.caught_class_label(&clause.ty);
             let (cond, _) = self.emit(
                 test_block,
                 Ty::Bool,
@@ -395,7 +395,188 @@ impl<'a> Lowering<'a> {
             self.try_stack.push(frame);
         }
     }
-    /// The class label a `catch` clause tests against.
+    /// [ADR 0119](../../../docs/adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)
+    /// § 6: `expr catch (T $e) => value` — the block form's lowering with a
+    /// value on every edge that reaches the join.
+    ///
+    /// Everything structural is [`Self::lower_try`]'s, for the reasons that
+    /// function's own doc comment gives: a [`TryFrame`] brackets the guarded
+    /// expression so each failing call inside it records its own landing
+    /// block, [`InstKind::TakeThrown`] takes the pending exception once at the
+    /// top of the handler, an arm is one [`InstKind::InstanceOf`] against its
+    /// class plus a branch, and what no arm matched is handed straight back to
+    /// a [`Terminator::Throw`] carrying the very same reference. What the
+    /// expression form adds is the join: the guard and every completing arm
+    /// carry a value into one [`InstKind::Phi`], widened into a shared
+    /// representation by the [`Self::join_representations`] a `match` already
+    /// joins its arms through. § 6's "written to one temporary" needs no
+    /// temporary in SSA — the phi *is* it.
+    ///
+    /// Three things differ from the block form, each following from an arm
+    /// being an expression rather than a block:
+    ///
+    /// - **No `finally`.** The expression form has no spelling for one
+    ///   ([ADR 0119](../../../docs/adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)
+    ///   § 2), so no frame pushed here carries one and no exit out of this
+    ///   region owes one. Every place [`Self::lower_catch_clauses`] lowers a
+    ///   copy of a `finally` body is simply absent, which is also why no arm
+    ///   body needs a frame of its own.
+    /// - **A `throw` arm contributes no edge**, so its type never reaches the
+    ///   join. `throw` in expression position hands back a placeholder value
+    ///   out of a fresh unreachable block ([`Self::lower_expr`]'s own arm), and
+    ///   letting that block into the phi would feed the placeholder's
+    ///   representation to [`Self::join_representations`] — a `string` guard
+    ///   beside a `throw` arm would join at [`Ty::Tagged`], which is not the
+    ///   type the checker gave the expression (`nvs_types::expr::check_expr`
+    ///   drops a `never` arm from § 4's union for the same reason). A `throw`
+    ///   body therefore goes through [`Self::lower_throw`] directly, which
+    ///   seals the arm's own block and opens no successor at all.
+    /// - **The binding is released on the arm's completing edge**, exactly
+    ///   where a clause body's is and for [`Self::lower_try`]'s reason: this
+    ///   crate's [`Env`] is flat, so a name still holding a reference at the
+    ///   join would be dropped by [`Self::merge_envs`] and never released. On
+    ///   a `throw` arm the release is the landing block's instead, since that
+    ///   path leaves through [`Self::landing_block`] rather than through the
+    ///   join.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `arms` is empty, which no parse produces — `nvs_syntax`
+    /// builds an [`ExprKind::Catch`] only after reading at least one `catch`.
+    pub(crate) fn lower_catch(
+        &mut self,
+        guarded: &Expr,
+        arms: &[CatchArm],
+        expected: Option<Ty>,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        assert!(
+            !arms.is_empty(),
+            "an arm-less `catch` expression reached lowering — `nvs_syntax`'s `parse_catch` \
+             produces `ExprKind::Catch` only once it has read a `catch` keyword"
+        );
+        let handler_block = self.new_block();
+        let merge_block = self.new_block();
+        let pre_env = env.clone();
+
+        self.try_stack.push(TryFrame {
+            handler: Some(handler_block),
+            edges: Vec::new(),
+            finally: None,
+        });
+        let mut guard_env = pre_env.clone();
+        let mut guard_cur = *cur;
+        let (guard_v, guard_ty) =
+            self.lower_expr(guarded, expected, &mut guard_env, &mut guard_cur);
+        let frame = self
+            .try_stack
+            .pop()
+            .expect("just pushed this expression's own frame above");
+        // The whole expression hands its value to a caller that will treat it
+        // as fresh — `is_aliasing_read` names no `catch` — so a guard that is
+        // itself a borrow owes the retain here, the same one a `match` arm
+        // body owes ([`Self::lower_match`]).
+        if guard_ty.is_refcounted() && self.aliasing_read(guarded) {
+            self.emit_retain(guard_cur, guard_v);
+        }
+        let mut branches: Vec<(BlockId, ValueId, Ty)> = vec![(guard_cur, guard_v, guard_ty)];
+        let mut incoming: Vec<(BlockId, Env)> = vec![(guard_cur, guard_env)];
+
+        // The phis first, then the take: `nvs-codegen` requires a block's phis
+        // to be its leading run, and `merge_envs` appends.
+        let dispatch_env = self.merge_envs(handler_block, &frame.edges, &pre_env);
+        let (thrown_v, _) = self.emit(handler_block, Ty::Object, InstKind::TakeThrown);
+        let mut test_block = handler_block;
+        for arm in arms {
+            let caught = self.caught_class_label(&arm.ty);
+            let (cond, _) = self.emit(
+                test_block,
+                Ty::Bool,
+                InstKind::InstanceOf {
+                    value: thrown_v,
+                    class: caught,
+                },
+            );
+            let taken = self.new_block();
+            let next = self.new_block();
+            let then_edge = self.ids.next_edge(arm.body.span);
+            let else_edge = self.ids.next_edge(arm.body.span);
+            self.seal(
+                test_block,
+                Terminator::Branch {
+                    cond,
+                    then_block: taken,
+                    then_edge,
+                    else_block: next,
+                    else_edge,
+                },
+            );
+            test_block = next;
+
+            let mut arm_env = dispatch_env.clone();
+            let mut arm_cur = taken;
+            let bound = arm
+                .var
+                .map(|span| strip_sigil(span_text(self.src, span)).to_owned());
+            match &bound {
+                Some(name) => {
+                    arm_env.insert(name.clone(), (thrown_v, Ty::Object));
+                }
+                // `catch (IOError) => …` names nothing, so the reference
+                // `TakeThrown` produced has no slot to live in.
+                None => self.emit_release(taken, thrown_v),
+            }
+            if let ExprKind::Throw(inner) = &arm.body.unparenthesized().kind {
+                self.lower_throw(inner, &mut arm_env, &mut arm_cur);
+                continue;
+            }
+            let (v, ty) = self.lower_expr(&arm.body, expected, &mut arm_env, &mut arm_cur);
+            if ty.is_refcounted() && self.aliasing_read(&arm.body) {
+                self.emit_retain(arm_cur, v);
+            }
+            if let Some(name) = &bound
+                && let Some(&(bound_v, _)) = arm_env.get(name)
+            {
+                self.emit_release(arm_cur, bound_v);
+                arm_env.remove(name);
+            }
+            branches.push((arm_cur, v, ty));
+            incoming.push((arm_cur, arm_env));
+        }
+
+        // Nothing matched — the very same reference goes back to the context,
+        // so the exception leaves this frame exactly as it arrived.
+        let landing = self.landing_block(&dispatch_env);
+        self.seal(
+            test_block,
+            Terminator::Throw {
+                value: thrown_v,
+                landing,
+            },
+        );
+
+        // No branch is sealed until every one has a type: a branch that has to
+        // widen into the representation the whole expression joins at needs
+        // that widening in its own block, ahead of its jump.
+        let ty = self.join_representations(&mut branches, env);
+        for &(block, _, _) in &branches {
+            self.seal(block, Terminator::Jump(merge_block));
+        }
+        *env = self.merge_envs(merge_block, &incoming, &pre_env);
+        let (result, _) = self.emit(
+            merge_block,
+            ty,
+            InstKind::Phi {
+                incoming: branches.iter().map(|&(b, v, _)| (b, v)).collect(),
+            },
+        );
+        *cur = merge_block;
+        (result, ty)
+    }
+    /// The class label a `catch` clause or an
+    /// [ADR 0119](../../../docs/adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)
+    /// arm tests against.
     ///
     /// Deliberately the *written* text rather than a resolved `QName`: this
     /// crate never depends on `nvs-hir`, and
@@ -413,8 +594,8 @@ impl<'a> Lowering<'a> {
     /// [`InstKind::InstanceOf`] avoided by having the checker record the
     /// answer, and the same fix applies — `nvs_types` recording a resolved
     /// `QName` per clause.
-    pub(crate) fn catch_clause_type(&self, clause: &CatchClause) -> String {
-        span_text(self.src, clause.ty.span).trim().to_owned()
+    pub(crate) fn caught_class_label(&self, ty: &Type) -> String {
+        span_text(self.src, ty.span).trim().to_owned()
     }
 }
 
