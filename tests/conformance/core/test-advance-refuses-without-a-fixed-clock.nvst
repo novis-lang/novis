@@ -1,0 +1,46 @@
+--TEST--
+`Core\Test::advance` refuses where no `#[Test(at: ...)]` fixed a clock, says so, and moves nothing -- ADR 0079 § 12
+--FILE--
+<?nvs
+// § 12 fixes a clock on the test *declaration* and `advance` is its mutator, so
+// the member's boundary is exactly "there is no clock to move". A `.nvst` case
+// is top-level statements and is therefore never inside a `#[Test]`, which
+// makes this file the one place that boundary is observable from the language.
+//
+// The accepted side of the same bound is `crates/nvs-cli`'s
+// `a_test_at_a_fixed_clock_reads_that_clock`, which needs a runner to observe
+// and so cannot be asked here.
+
+use Core\Test;
+use Core\Time;
+
+// 1. What the refusal says. A call written where there is no clock is a bug at
+// the call site, so it is `LogicError` -- not a fatal, which no `catch` could
+// see, and not a silent no-op.
+try {
+    Core\Test::advance(2h);
+    echo "the clock moved\n";
+} catch (LogicError $refused) {
+    echo $refused->message, "\n";
+}
+
+// 2. The same refusal through the member a test would reach for, by class and
+// by ancestor -- written out in full and through the `use` above, which are one
+// member either way.
+Core\Test::assertThrows(fn (): void => { Test::advance(2h); }, LogicError::class);
+Test::assertThrows(fn (): void => { Test::advance(2h); }, Throwable::class);
+echo "advance without a fixed clock is refused\n";
+
+// 3. The refusal moved nothing. This is the half that a member which quietly
+// advanced *something* -- the host's clock, a process-wide offset -- would
+// still pass parts 1 and 2 while breaking, which is why the bound is asserted
+// on both sides rather than by the throw alone.
+int $before = Time::now()->toEpochSeconds();
+Test::assertThrows(fn (): void => { Test::advance(4000d); }, LogicError::class);
+int $after = Time::now()->toEpochSeconds();
+Test::assertTrue($after - $before < 60);
+echo "the host clock is unmoved\n";
+--EXPECT--
+Core\Test::advance(): this test declared no `at:`, so it has no fixed clock to advance
+advance without a fixed clock is refused
+the host clock is unmoved

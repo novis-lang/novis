@@ -131,7 +131,7 @@ use jiff::civil::{self, Weekday};
 use jiff::tz::{Offset, TimeZone};
 use jiff::{SignedDuration, Timestamp, Zoned};
 use nvs_runtime::host::Woken;
-use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
+use nvs_runtime::{Ctx, Fault, NvsStr, ThrownClass, Value};
 use nvs_syntax::duration;
 
 use crate::registry::{
@@ -3143,12 +3143,79 @@ fn render_offset(seconds: i32) -> String {
 /// synchronisation past the first call.
 static MONOTONIC_ORIGIN: OnceLock<std::time::Instant> = OnceLock::new();
 
+/// ADR 0079 § 12's `at:` reading — an RFC 3339 timestamp such as
+/// `2026-01-01T00:00:00Z` — as nanoseconds since the Unix epoch, or `None` for
+/// text that is not one.
+///
+/// Here rather than in the test runner because this module owns every
+/// conversion between an instant and its text (`jiff` is its dependency and
+/// nobody else's), so the grammar `#[Test(at: …)]` accepts is the grammar
+/// `Instant::toIso` emits, with nothing keeping two readings in step.
+#[must_use]
+pub fn fixed_clock_nanos(text: &str) -> Option<i128> {
+    text.parse::<Timestamp>().ok().map(Timestamp::as_nanosecond)
+}
+
+/// The instant `nanos` nanoseconds after the Unix epoch names, or `None` for a
+/// count outside the representable range of about ±9999 years.
+///
+/// The one place a fixed clock's number becomes an instant again, so
+/// `Core\Time::now` and `Core\Test::advance` cannot disagree about which counts
+/// are readable.
+pub(crate) fn instant_at_nanos(nanos: i128) -> Option<Timestamp> {
+    Timestamp::from_nanosecond(nanos).ok()
+}
+
+/// The wall clock `ctx` reads: ADR 0079 § 12's fixed one where a
+/// `#[Test(at: …)]` armed it, and the host's otherwise.
+///
+/// `None` only for a fixed reading outside the representable range, which
+/// `Core\Test::advance` refuses to store — so it is a state no program can
+/// reach, kept in the signature rather than papered over because the two
+/// callers want different things said about it.
+///
+/// **Every wall-clock reading in `Core` goes through here**, which today is
+/// `Core\Time::now` and `Core\Uuid::v7`'s timestamp half. A clock that some
+/// readings honoured and others did not would make a test's reproducibility
+/// depend on which members it happened to call, which is the same argument
+/// `crate::random::draw` makes for the generator.
+pub(crate) fn wall_clock(ctx: &Ctx) -> Option<Timestamp> {
+    match ctx.fixed_clock() {
+        None => Some(Timestamp::now()),
+        Some(nanos) => instant_at_nanos(nanos),
+    }
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\Time::now(): Instant` — the wall clock, which replaces `time`,
     /// `microtime` and `date_create` at once.
-    fn nvs_core_time_now(_ctx, args: [0]) {
+    ///
+    /// The one member ADR 0079 § 12's fixed clock reaches. A context with one
+    /// armed answers that reading instead of the host's; every context outside
+    /// a `#[Test(at: …)]` has none, so the cost on the ordinary path is one
+    /// predictable not-taken branch and the fixed reading is unreachable from a
+    /// program that is not a test.
+    ///
+    /// `Core\Time::monotonic` is deliberately **not** fixed with it: § 12
+    /// declares a wall clock, and a monotonic reading is for measuring an
+    /// interval that really elapsed. Freezing it would make a test's own
+    /// timing measurements answer zero, which is a different decision and one
+    /// nothing has asked for.
+    fn nvs_core_time_now(ctx, args: [0]) {
         let _ = args;
-        Ok(instant_built(Timestamp::now()))
+        // unreachable from source: both writers of the fixed clock prove the
+        // value representable before storing it — the test runner parses an
+        // RFC 3339 `Timestamp` and reports a malformed `at:` against the test
+        // that declared it, and `Core\Test::advance` refuses a move that would
+        // leave the range rather than making one. This is what keeps those two
+        // the only writers, in the sense a `debug_assert!` is, and there is no
+        // program to write against it.
+        let at = wall_clock(ctx).ok_or_else(|| {
+            Fault::fatal(
+                "Core\\Time::now found a fixed clock outside the representable range".to_owned(),
+            )
+        })?;
+        Ok(instant_built(at))
     }
 }
 

@@ -1,0 +1,71 @@
+--TEST--
+Of the members ADR 0079 § 12 makes deterministic, the readers answer from the host outside a test and only `Core\Test::advance` refuses -- ADR 0079 § 12
+--FILE--
+<?nvs
+// § 12 names `Core\Time::now`, `Core\Uuid::v7` and `Core\Random::int` as what a
+// test's `at:` and `seed:` fix, and `Core\Test::advance` as the mutator. One
+// question asked of all four -- "what happens with nothing fixed?" -- asserting
+// that they *agree* on which of them is the mutator, rather than that each
+// answered something plausible on its own line.
+//
+// The reason this is worth pinning: every one of the three readers was routed
+// through a new seam to make § 12 work (`nvs_stdlib::time::wall_clock` and
+// `nvs_stdlib::random::draw`), and the failure that seam invites is a reader
+// that starts refusing, or answering a frozen value, where no test declared
+// anything.
+
+use Core\Test;
+use Core\Time;
+use Core\Random;
+use Core\Uuid;
+
+int $answered = 0;
+try {
+    Time::now();
+    $answered = $answered + 1;
+} catch (Throwable $a) {
+}
+try {
+    Uuid::v7();
+    $answered = $answered + 1;
+} catch (Throwable $b) {
+}
+try {
+    Random::int(1, 6);
+    $answered = $answered + 1;
+} catch (Throwable $c) {
+}
+echo "answered=", $answered, "/3\n";
+
+int $refused = 0;
+try {
+    Core\Test::advance(2h);
+} catch (LogicError $d) {
+    $refused = $refused + 1;
+}
+echo "refused=", $refused, "/1\n";
+
+// And the readers keep answering afterwards: the refused mutation left nothing
+// half-written on the context it was reaching for, which is the other thing a
+// mutator that failed partway would break.
+$answered = 0;
+try {
+    Time::now();
+    $answered = $answered + 1;
+} catch (Throwable $e) {
+}
+try {
+    Uuid::v7();
+    $answered = $answered + 1;
+} catch (Throwable $f) {
+}
+try {
+    Random::int(1, 6);
+    $answered = $answered + 1;
+} catch (Throwable $g) {
+}
+echo "answered=", $answered, "/3\n";
+--EXPECT--
+answered=3/3
+refused=1/1
+answered=3/3

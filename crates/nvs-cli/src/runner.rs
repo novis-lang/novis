@@ -628,6 +628,49 @@ fn retry_allowance(case: &nvs_types::testing::TestCase) -> usize {
         .unwrap_or(0)
 }
 
+/// ADR 0079 § 12's `at:` option — the instant this test's isolate reads its
+/// wall clock at, in nanoseconds since the Unix epoch — or `None` for a test
+/// that reads the host's clock.
+///
+/// Read back the way [`skip_reason`] and [`retry_allowance`] read theirs, with
+/// the one difference this option has: `nvs_types::testing` admitted it at type
+/// `string` and made no claim about what the text *says*, so unlike those two
+/// there is still a question left to answer here. It is answered by
+/// `nvs_stdlib::time`, which owns every conversion between an instant and its
+/// text, so the grammar a test writes is the grammar `Instant::toIso` emits and
+/// nothing keeps two readings of RFC 3339 in step.
+///
+/// # Errors
+///
+/// The offending text, for an `at:` that is not an RFC 3339 timestamp.
+fn fixed_clock(case: &nvs_types::testing::TestCase) -> Result<Option<i128>, &str> {
+    let Some(at) = case.options.iter().find_map(|(name, value)| match value {
+        ConstArg::Str(at) if name == "at" => Some(at.as_str()),
+        _ => None,
+    }) else {
+        return Ok(None);
+    };
+    nvs_stdlib::time::fixed_clock_nanos(at).map(Some).ok_or(at)
+}
+
+/// ADR 0079 § 12's `seed:` option — the seed this test's isolate puts its
+/// `Core\Random` draws on — or `None` for a test that draws from the operating
+/// system.
+///
+/// Read back the way [`retry_allowance`] reads its own, and with the same
+/// reasoning: `nvs_types::testing` has already refused a `seed` that folded to
+/// anything but an `int`, so answering "absent" for one here would be a second
+/// answer to a settled question. A **negative** seed is a seed like any other —
+/// the generator's state is 64 bits and every one of them is a starting point,
+/// so the two's-complement bits are taken as they lie rather than a sign being
+/// treated as an error the checker did not treat as one.
+fn random_seed(case: &nvs_types::testing::TestCase) -> Option<u64> {
+    case.options.iter().find_map(|(name, value)| match value {
+        ConstArg::Int(seed) if name == "seed" => Some(seed.cast_unsigned()),
+        _ => None,
+    })
+}
+
 /// One `#[Test]` method: skipped for its stated reason, or a fresh instance of
 /// its class with the method called on it.
 ///
@@ -725,6 +768,21 @@ fn run_in_isolate(
     let filed: Rc<RefCell<Option<Outcome>>> = Rc::new(RefCell::new(None));
     let verdict = Rc::clone(&filed);
     let allowance = retry_allowance(case);
+    // § 12's clock, resolved on the parent's side so that a malformed `at:` is
+    // this test's own reported failure rather than something the child has to
+    // carry back across the boundary — nothing has run at this point, which is
+    // what makes the message the whole of what happened.
+    let clock = match fixed_clock(case) {
+        Ok(clock) => clock,
+        Err(at) => {
+            return Outcome::Failed(vec![format!(
+                "`{class}::{}` declares `at: \"{at}\"`, which is not an RFC 3339 timestamp such \
+                 as `2026-01-01T00:00:00Z`",
+                case.method
+            )]);
+        }
+    };
+    let seed = random_seed(case);
     let child_unit = Rc::clone(unit);
     let class_name = class.to_owned();
     let method = case.method.clone();
@@ -733,6 +791,21 @@ fn run_in_isolate(
         // the isolate's context deliberately arrives with none, so this call
         // is the whole of why one test does not read back another's static.
         child_unit.install_in(child);
+        // § 12's fixed clock, armed before a line of the test runs and onto the
+        // *child's* context, which is the only context a test can observe: a
+        // sibling declaring no `at:` still reads the host's clock, because § 2
+        // gave it a context of its own. `Core\Test::advance` moves this same
+        // field and nothing else does (`nvs_runtime::Ctx::fixed_clock`).
+        if let Some(nanos) = clock {
+            child.set_fixed_clock(nanos);
+        }
+        // § 12's other half, and armed the same way and in the same place: the
+        // generator's state lives on the child's own context, so a sibling that
+        // declared no `seed:` still draws from the CSPRNG and one test's draws
+        // cannot move another's (`nvs_stdlib::random::draw`).
+        if let Some(seed) = seed {
+            child.set_random_state(seed);
+        }
         // Null here, and discharged anyway: the seam's contract is that
         // whatever crossed becomes the isolate's own root's, and a test's
         // values crossed as § 8's copies instead.
@@ -1255,6 +1328,63 @@ mod tests {
             vec![
                 ("itWritesAStaticItsSiblingWillNotSee", "passed"),
                 ("itReadsBackTheDeclaredInitialValue", "passed"),
+            ],
+            "failures: {:?}",
+            verdicts
+                .iter()
+                .flat_map(|(_, _, failures)| failures.clone())
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn a_test_at_a_fixed_clock_reads_that_clock() {
+        // ADR 0079 § 12. Three cases in one fixture because the claim is about
+        // the isolate and not about the reading: the clock a test declared is
+        // what `Core\Time::now` answers inside it, `Core\Test::advance` moves
+        // that same reading, and the sibling that declared no `at:` still reads
+        // the host's. A clock fixed anywhere above the isolate — on the
+        // runner's own context, say — passes the first two and fails the third.
+        let verdicts = verdicts("fixed-clock.nvs");
+        assert_eq!(
+            verdicts
+                .iter()
+                .map(|(method, verdict, _)| (method.as_str(), *verdict))
+                .collect::<Vec<_>>(),
+            vec![
+                ("itReadsTheClockItDeclared", "passed"),
+                ("itReadsTheClockItAdvanced", "passed"),
+                ("itReadsTheHostClockWithoutAnAt", "passed"),
+            ],
+            "failures: {:?}",
+            verdicts
+                .iter()
+                .flat_map(|(_, _, failures)| failures.clone())
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn a_test_with_a_seed_draws_the_same_sequence_twice() {
+        // ADR 0079 § 12's other half. Two tests declaring the same seed draw
+        // the same three numbers, which is the promise; a third declaring a
+        // different seed does not, so the assertion is about the seed and not
+        // about a generator that answers one constant; and a fourth declaring
+        // none still draws from the CSPRNG, which is what makes the seed the
+        // *isolate's* rather than the process's. The fixture freezes seed 42's
+        // answer, so changing `nvs_stdlib::random`'s step is meant to fail
+        // here rather than silently rewrite what every seeded test expects.
+        let verdicts = verdicts("seeded.nvs");
+        assert_eq!(
+            verdicts
+                .iter()
+                .map(|(method, verdict, _)| (method.as_str(), *verdict))
+                .collect::<Vec<_>>(),
+            vec![
+                ("itDrawsTheSequenceItsSeedNames", "passed"),
+                ("itDrawsThatSameSequenceAgain", "passed"),
+                ("itDrawsADifferentSequenceUnderADifferentSeed", "passed"),
+                ("itDrawsFromTheCsprngWithoutASeed", "passed"),
             ],
             "failures: {:?}",
             verdicts

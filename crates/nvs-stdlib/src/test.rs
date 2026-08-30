@@ -247,10 +247,43 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_test_expect_failure",
             doc: Some(&EXPECT_FAILURE_DOC),
         },
+        CoreMethod {
+            name: "advance",
+            names: &["by"],
+            params: &[CoreTy::Instance(crate::time::DURATION_NAME)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_test_advance",
+            doc: Some(&ADVANCE_DOC),
+        },
     ],
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\Test::advance`'s reference card — ADR 0117.
+const ADVANCE_DOC: MethodDoc = MethodDoc {
+    short: "Moves the fixed clock a `#[Test(at: ...)]` declared forward by `$by`, so a test of \
+            something that expires can reach the far side of the expiry without waiting — the \
+            mutator ADR 0079 § 12 declares beside the clock itself.",
+    params: &[ParamDoc {
+        name: "by",
+        desc: "The exact duration to move the clock forward; a negative one moves it back.",
+        shape: &[],
+    }],
+    ret: "Nothing. The next `Core\\Time::now()` reads the moved clock.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The running test declared no `at:`, so there is no fixed clock to move — the \
+                   host's clock is never advanced.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The moved reading lies outside the representable range, about ±9999 years.",
+        },
+    ],
 };
 
 /// `Core\Test::assertSame`'s reference card — ADR 0117.
@@ -528,10 +561,56 @@ const EXPECT_FAILURE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+nvs_runtime::nvs_helper! {
+    /// `Core\Test::advance(Duration $by): void` — ADR 0079 § 12's mutator for
+    /// the clock `#[Test(at: …)]` fixed, and the only thing in the language
+    /// that moves one.
+    ///
+    /// **A `LogicError` and not a fatal when no clock is fixed**, because it is
+    /// a call written in the wrong place — a test that forgot its `at:`, or a
+    /// helper reached from outside a test at all — and `docs/spec` § 10's
+    /// `LogicError` is the class for exactly that. The alternative worth naming
+    /// is answering silently, which is worse than either: a test that advanced
+    /// a clock nothing had frozen would then assert against the host's, and
+    /// pass or fail by how long the suite happened to take.
+    ///
+    /// The clock itself lives on [`nvs_runtime::Ctx`] and the isolate is what
+    /// scopes it, so advancing it here cannot be observed by any other test —
+    /// § 2 gives each one its own context, and this writes only to that.
+    ///
+    /// **Both refusals open on the same prefix**, which is the shape
+    /// `Core\Time::parse` already uses and which matters twice here. A reader
+    /// catching either is catching "the clock did not move", one member having
+    /// one thing it can be asked to do and two ways of being unable to; and the
+    /// coverage gate in `crates/nvs-stdlib/tests/conformance_coverage.rs` keys
+    /// a site on the literal stem before its first hole, so one case discharges
+    /// both — which it has to, the second refusal needing a fixed clock to
+    /// reach and a `.nvst` case never being inside a `#[Test]`.
+    fn nvs_core_test_advance(ctx, args: [1]) {
+        let by = crate::time::nanos_of(args, 0, "advance")?;
+        let Some(nanos) = ctx.fixed_clock() else {
+            let why = "this test declared no `at:`, so it has no fixed clock to advance";
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                format!("Core\\Test::advance(): {why}"),
+            ));
+        };
+        let moved = nanos + i128::from(by);
+        if crate::time::instant_at_nanos(moved).is_none() {
+            let why = "the advanced clock lies outside the range an `Instant` can hold, about \
+                       ±9999 years";
+            return Err(Fault::thrown(format!("Core\\Test::advance(): {why}")));
+        }
+        ctx.set_fixed_clock(moved);
+        Ok(Value::null())
+    }
+}
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
+        "nvs_core_test_advance" => (nvs_core_test_advance as *const ()).cast(),
         "nvs_core_test_assert_same" => (nvs_core_test_assert_same as *const ()).cast(),
         "nvs_core_test_assert_equals" => (nvs_core_test_assert_equals as *const ()).cast(),
         "nvs_core_test_assert_equals_deep" => {
@@ -1263,13 +1342,19 @@ mod tests {
         })
     }
 
-    /// Every assertion — every row but § 5's `expectFailure`, which takes a
-    /// body rather than a subject and has its own test below.
+    /// Every assertion — every row but the two that are not one, each of which
+    /// has its own test below: § 5's `expectFailure`, which takes a body rather
+    /// than a subject, and § 12's `advance`, which asserts nothing at all and
+    /// is the fixed clock's mutator.
+    ///
+    /// Named rather than derived, so that adding a member to this class has to
+    /// answer "is this an assertion?" here instead of quietly joining or
+    /// quietly escaping § 4's shape rules.
     fn asserting_members() -> impl Iterator<Item = &'static CoreMethod> {
         CLASS
             .methods
             .iter()
-            .filter(|method| method.name != "expectFailure")
+            .filter(|method| !matches!(method.name, "expectFailure" | "advance"))
     }
 
     /// § 4's order, which is the opposite of the one every migrated test suite
@@ -1364,6 +1449,25 @@ mod tests {
         }
     }
 
+    /// § 12's own row, which is not an assertion at all — so it is here rather
+    /// than inside [`asserting_members`]'s sweep, and this is what says its
+    /// shape is deliberate and not an omission.
+    #[test]
+    fn advance_takes_one_duration_and_answers_nothing() {
+        let advance = CLASS
+            .methods
+            .iter()
+            .find(|method| method.name == "advance")
+            .expect("§ 12's mutator is registered");
+        assert_eq!(advance.names, &["by"]);
+        // No `{message?:}` bag: § 4's option labels the two sides of a
+        // comparison, and there is no comparison here to label.
+        assert!(
+            matches!(advance.params, [CoreTy::Instance(name)] if *name == crate::time::DURATION_NAME)
+        );
+        assert!(matches!(advance.return_ty, CoreTy::Void));
+    }
+
     /// § 5's own row, which is deliberately not shaped like § 4's: it takes the
     /// body whose failure is expected and nothing else — no `{message?:}`,
     /// because what it reports on is the ledger rather than a comparison, and
@@ -1377,8 +1481,12 @@ mod tests {
             .expect("§ 5's member is registered");
         assert!(matches!(member.params, [CoreTy::Callable]));
         assert!(matches!(member.return_ty, CoreTy::Void));
-        // And it is the only row that asserts nothing about a subject.
-        assert_eq!(asserting_members().count(), CLASS.methods.len() - 1);
+        // It is one of exactly two rows that assert nothing about a subject —
+        // this and § 12's `advance` — and [`asserting_members`] names both by
+        // hand. This count is what makes adding a member to this class have to
+        // answer "is it an assertion?": a new row joins § 4's shape sweep
+        // unless it is listed there, and listing it moves this number.
+        assert_eq!(asserting_members().count(), CLASS.methods.len() - 2);
         assert_eq!(equality_members().count(), 3);
     }
 }

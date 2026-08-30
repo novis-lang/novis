@@ -326,6 +326,52 @@ pub struct Ctx {
     /// once — tens of them, not thousands — and nothing at all for a program
     /// that configures none.
     origin: Option<Box<str>>,
+    /// [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
+    /// § 12's fixed clock: the wall-clock reading `Core\Time::now` answers
+    /// with, in nanoseconds since the Unix epoch, or `None` for a context that
+    /// reads the host's clock.
+    ///
+    /// **Isolate configuration, written before the program runs**, exactly as
+    /// [`Self::origin`] is — the test runner reads `#[Test(at: …)]` and writes
+    /// it onto the isolate's own context, and a context nobody wrote it onto
+    /// is every context outside a test. That is why this does not reopen
+    /// [ADR 0008](../../../docs/adr/0008-static-and-global.md)'s "nothing holds
+    /// state behind a function's back": the one thing that moves it afterwards
+    /// is `Core\Test::advance`, which § 12 declares beside the clock and which
+    /// exists nowhere but inside a test.
+    ///
+    /// Nanoseconds since the epoch rather than a `jiff::Timestamp` because this
+    /// crate is the one every compiled unit links and `jiff` is `nvs-stdlib`'s
+    /// dependency, not this one's; `nvs_stdlib::time` owns both conversions and
+    /// is the only reader.
+    ///
+    /// **What it spends:** two words per request, and nothing at all on the
+    /// `Core\Time::now` path beyond one predictable not-taken branch.
+    fixed_clock: Option<i128>,
+    /// [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
+    /// § 12's seeded generator, as its **live state** rather than as the seed
+    /// it started from, or `None` for a context whose draws come from the
+    /// operating system.
+    ///
+    /// The state and not the seed because every draw has to move it: two
+    /// `Core\Random::int` calls in one test are two different numbers, and the
+    /// *sequence* is what a seed reproduces. `nvs_stdlib::random` owns the step
+    /// that turns one state into the next and into a drawn value; this crate
+    /// holds the word and knows nothing about how it is stirred, for the same
+    /// reason [`Self::fixed_clock`] holds a count rather than a timestamp.
+    ///
+    /// **Unreachable outside a test**, which is the whole of why a seedable
+    /// generator does not weaken `Core\Random`: the only writer is the test
+    /// runner arming a `#[Test(seed: …)]` isolate, so every context a request
+    /// or a `nvs run` ever gets has `None` here and draws from the CSPRNG
+    /// `nvs_stdlib::random`'s module docs describe. ADR 0079 § 12 puts
+    /// `Core\Random\Seeded` behind a separate *type* in production for exactly
+    /// this reason, and this field does not reopen that — it adds no spelling a
+    /// program outside a test can write.
+    ///
+    /// **What it spends:** two words per request, and one predictable
+    /// not-taken branch per draw.
+    random_state: Option<u64>,
     /// `Core\Out::capture`'s buffers, innermost last —
     /// [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
     /// § 5.
@@ -726,6 +772,8 @@ impl Ctx {
             output,
             diagnostic: OutputSink::Stderr,
             origin: None,
+            fixed_clock: None,
+            random_state: None,
             captures: Vec::new(),
             stmt_hits: Vec::new(),
             trace: Vec::new(),
@@ -773,6 +821,50 @@ impl Ctx {
     /// rather than of a review.
     pub fn set_origin(&mut self, origin: &str) {
         self.origin = Some(origin.trim_end_matches('/').into());
+    }
+
+    /// ADR 0079 § 12's fixed clock in nanoseconds since the Unix epoch, or
+    /// `None` for a context that reads the host's — see [`Self::fixed_clock`]'s
+    /// field docs.
+    #[must_use]
+    pub fn fixed_clock(&self) -> Option<i128> {
+        self.fixed_clock
+    }
+
+    /// Fixes this context's wall clock at `nanos` nanoseconds since the Unix
+    /// epoch.
+    ///
+    /// Called twice for two reasons that are deliberately one method: the test
+    /// runner arming a `#[Test(at: …)]` isolate before its program runs, and
+    /// `Core\Test::advance` moving that reading forward from inside the test.
+    /// **Neither of them is on a request path** — there is no way to reach this
+    /// from a program that is not a test, because the member that reaches it
+    /// throws without a clock already fixed.
+    ///
+    /// This crate makes no claim about `nanos` being a representable instant:
+    /// the range belongs to the calendar library, which is `nvs-stdlib`'s
+    /// (`nvs_stdlib::time`), and both callers check it there before calling.
+    pub fn set_fixed_clock(&mut self, nanos: i128) {
+        self.fixed_clock = Some(nanos);
+    }
+
+    /// ADR 0079 § 12's seeded generator's live state, or `None` for a context
+    /// that draws from the operating system — see [`Self::random_state`]'s
+    /// field docs for why this is unreachable outside a test.
+    #[must_use]
+    pub fn random_state(&self) -> Option<u64> {
+        self.random_state
+    }
+
+    /// Puts this context's draws on a seeded generator starting at `state`.
+    ///
+    /// Called by the test runner arming a `#[Test(seed: …)]` isolate, and then
+    /// once per draw by `nvs_stdlib::random` writing the advanced state back.
+    /// Those are deliberately one method: a seed *is* a starting state, so a
+    /// second entry point would be a second place for the two to disagree about
+    /// which draw a sequence begins at.
+    pub fn set_random_state(&mut self, state: u64) {
+        self.random_state = Some(state);
     }
 
     /// Arms this request's static-property storage: one slot per entry in
