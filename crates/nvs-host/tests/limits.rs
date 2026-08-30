@@ -1,6 +1,9 @@
 //! What a resource limit does to a request in flight — [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
 //! § 1's ladder, asked at the safepoint poll that is the only place a program
-//! allocating without calling anything can be stopped.
+//! allocating without calling anything can be stopped — and, for the one
+//! ceiling that bounds a *tree* rather than a request, at the `spawn script`
+//! that would pass it, because nothing is over `max_script_depth` until an
+//! isolate is asked for.
 //!
 //! **Why this crate.** The poll and the ladder are `nvs-runtime`'s, but the
 //! thing being pinned is what happens to a *task the host is running*: a
@@ -117,8 +120,13 @@ unsafe extern "C" fn reports_its_time(ctx: *mut Ctx, args: *const Value, out: *m
 }
 
 /// What the handler below read out of § 1's report, or `None` before it has
-/// run. One test uses it, so nothing here has to survive another running beside
-/// it.
+/// run.
+///
+/// **A slot per test, not one shared by all of them**, which is why the spawn
+/// case further down has its own beside this one rather than reusing this
+/// recorder: cargo runs these on threads of its own, and a slot that is read
+/// with `take` empties it for whoever else was about to. The counter at the top
+/// of this file is a *difference* for the same reason.
 static SEEN_LIMIT: Mutex<Option<String>> = Mutex::new(None);
 
 /// A handler that declares § 1's `LimitReport` parameter and records the limit
@@ -146,6 +154,45 @@ unsafe extern "C" fn records_the_report(
         nvs_runtime::nvs_array_get(array, key, &raw mut named);
         *SEEN_LIMIT.lock().expect("no test panics holding this") =
             named.as_text().map(str::to_owned);
+        drop(NvsStr::from_raw(key));
+
+        (*args).release();
+        report.release();
+        *out = Value::null();
+    }
+    nvs_runtime::OK
+}
+
+/// [`SEEN_LIMIT`]'s twin for the spawn-depth case, and its doc owns why there
+/// are two.
+static SEEN_SPAWN_LIMIT: Mutex<Option<String>> = Mutex::new(None);
+
+/// [`records_the_report`] writing into [`SEEN_SPAWN_LIMIT`] instead.
+///
+/// A copy rather than a parameter because compiled code is called through a bare
+/// `extern "C"` pointer, which captures nothing: "the same handler, aimed at
+/// another slot" is not a thing this ABI can express.
+#[expect(
+    unsafe_code,
+    reason = "the same callee contract as `records_the_report`, over the same \
+              two live values"
+)]
+unsafe extern "C" fn records_the_spawn_report(
+    _ctx: *mut Ctx,
+    args: *const Value,
+    out: *mut Value,
+) -> i32 {
+    unsafe {
+        let report = *args.add(1);
+        let array = report
+            .array_ptr()
+            .expect("§ 1's report reaches the handler as one array");
+        let key = NvsStr::new(b"limit").into_raw();
+        let mut named = Value::null();
+        nvs_runtime::nvs_array_get(array, key, &raw mut named);
+        *SEEN_SPAWN_LIMIT
+            .lock()
+            .expect("no test panics holding this") = named.as_text().map(str::to_owned);
         drop(NvsStr::from_raw(key));
 
         (*args).release();
@@ -453,5 +500,63 @@ fn a_fatal_handler_runs_inside_its_reserved_time_slice() {
         ctx.safepoint_flags()
             .contains(nvs_runtime::SafepointFlags::CPU_LIMIT),
         "which is still the request that exceeded its CPU time",
+    );
+}
+
+/// `docs/plan/m6.md`'s *Verify*, and the whole reason `[limits] max_script_depth` has a default at
+/// all: a recursive `spawn script` is stopped by that ceiling and **reported as that ceiling**
+/// rather than as an out-of-memory.
+///
+/// Both halves the name promises are asserted, because either one alone is green against the
+/// failure this replaces. An unbounded recursion of isolates already stopped — it exhausted the
+/// tree's heap — and already stopped as a `FATAL`, so a case asking only whether the spawn was
+/// refused would have passed before any of this was written. What separates the two is the word the
+/// handler is handed, so it is read out of ADR 0020 § 1's report rather than out of the message: a
+/// program branches on `max_script_depth`, never on a sentence.
+///
+/// The refusal is asked of `Isolate::start` directly because that is the single point it lives at —
+/// `Ctx::script_depth_breach`'s doc owns why the question belongs to the parent, and
+/// `Core\Script::spawn` is the one caller that turns the recorded breach into the status a program
+/// sees.
+#[test]
+fn a_recursive_spawn_is_reported_as_max_script_depth_and_not_as_memory() {
+    let mut request = Ctx::new(OutputSink::Sink);
+    request.set_max_script_depth(2);
+    // Depths 0, 1 and 2 under a ceiling of 2, the ceiling carried down by `Ctx::isolate` rather than
+    // re-read: the grandchild is the deepest context allowed to exist, so its own spawn is the first
+    // one refused and this is the bound's far side.
+    let mut deepest = request.isolate(OutputSink::Sink).isolate(OutputSink::Sink);
+    assert_eq!(deepest.script_depth(), 2);
+    deepest.set_limit_handler(closure_taking_the_report(records_the_spawn_report));
+
+    let refused = nvs_host::Isolate::new(
+        Box::new(|_ctx: &mut Ctx, _args: Value| Value::null()),
+        Value::null(),
+        nvs_host::Output::Capture,
+    )
+    .start(&mut deepest)
+    .expect("a depth refusal is the tree's, not the argument's `GraphError`");
+
+    assert_eq!(
+        SEEN_SPAWN_LIMIT
+            .lock()
+            .expect("no test panics holding this")
+            .take()
+            .as_deref(),
+        Some("max_script_depth"),
+        "and not `memory`, which is what the heap filling up would have reported",
+    );
+    assert!(
+        deepest.pending().is_some(),
+        "the request is failing from the refusal onwards — `Core\\Script::spawn` reads this and \
+         answers ADR 0020 § 1's `FATAL`, which no `catch` sees",
+    );
+
+    let completion = refused.join(&mut deepest);
+    assert!(!completion.ok, "no child was built to succeed");
+    let failure = completion.error.expect("a failed completion names why");
+    assert!(
+        failure.message.contains("ceiling of 2"),
+        "the failure names the ceiling the operator wrote: {failure:?}",
     );
 }
