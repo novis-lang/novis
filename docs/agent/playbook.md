@@ -1450,6 +1450,14 @@ is why" — is this file.
   `MSYS_NO_PATHCONV=1` in front of the command is the whole fix, and the same call from PowerShell
   needs nothing. The general shape: any absolute POSIX path handed to a Windows `.exe` through Git
   Bash is a candidate.
+- **`verify.py` in an interactive session fails at build with `failed to remove file … nvs.exe`
+  (os error 5) while the unattended loop is mid-session.** The loop's own test run holds the binary,
+  and cargo cannot replace a running exe on Windows — the error is contention, not a broken tree.
+  Check first (`Get-CimInstance Win32_Process` shows `loop.py` and a `target\debug\nvs.exe`), commit
+  the finished slices *before* verifying so the loop's wrap cannot sweep them, and retry the verify
+  when the binary frees; never kill the loop's `nvs.exe` to win the race. A docs-only session can
+  also lean on `python tools/adr.py` and `python tools/reference.py`, which prove the docs side
+  without touching cargo.
 
 ## Writing a test case
 
