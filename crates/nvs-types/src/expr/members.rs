@@ -48,6 +48,12 @@
 //! `E0496` — while a name resolving to nothing is the ordinary `E0303`,
 //! exactly as `new Undeclared()` reports it.
 //!
+//! The dynamic half of that rule is not `instanceof`'s alone.
+//! [`reject_dynamic_class_name`] is the one report, and the three spellings
+//! that reach a class through a value share it: `$x instanceof $c` here,
+//! `new $c()` and `$c::f()` in [`super::calls`]. One mistake, one code,
+//! wherever it is written.
+//!
 //! Part of [`super`]'s one expression checker, split across this directory so
 //! a session editing one rule does not carry the rest in context. Every item
 //! moved here unchanged; an item is `pub(crate)` where it reaches across these
@@ -240,20 +246,11 @@ pub(crate) fn infer_instanceof(
         );
     }
     let ExprKind::ConstFetch(name) = &class.kind else {
-        // ADR 0007 § 2: a class name is written, never computed — the line
-        // `$$var` and `eval` are already on. Nothing below could resolve one
-        // either: `nvs-codegen` bakes a descriptor address in as a constant.
         check_expr(class, None, live, scope, ctx, env);
-        env.diags.report(
-            Diagnostic::error(
-                code::E_INSTANCEOF_NOT_A_CLASS,
-                "the right-hand side of `instanceof` must be a written class name",
-            )
-            .with_primary(class.span, "not a class name")
-            .with_help(
-                "Novis has no dynamic class names (ADR 0007 § 2, the rule that rejects `$$var` \
-                 and `eval`) — write the class, or branch on the names you accept",
-            ),
+        reject_dynamic_class_name(
+            "the right-hand side of `instanceof` must be a written class name",
+            class.span,
+            env,
         );
         return env.interner.bool_ty();
     };
@@ -447,6 +444,42 @@ pub(crate) fn resolve_class_expr(class_expr: &Expr, ctx: &Ctx<'_>, env: &Env<'_>
         }
         _ => None,
     }
+}
+
+/// Whether a `Class::…`-side expression *names* a class rather than computing
+/// one — the four spellings [`resolve_class_expr`] resolves.
+///
+/// Asked instead of testing that resolution for `None`, because that answers
+/// `None` for two written spellings as well: `self::` outside any class, and
+/// `parent::` in a class with no `extends`. Both are already diagnosed where
+/// the name is resolved, and a second report here would name the wrong rule.
+pub(crate) fn is_written_class_side(class_expr: &Expr) -> bool {
+    matches!(
+        &class_expr.kind,
+        ExprKind::SelfExpr | ExprKind::StaticExpr | ExprKind::ParentExpr | ExprKind::ConstFetch(_)
+    )
+}
+
+/// ADR 0007 § 2's no-computed-names rule, at the three spellings that reach a
+/// class through a *value*: `$x instanceof $c` ([`infer_instanceof`]),
+/// `new $c()` and `$c::f()` ([`super::calls`]). The headline names the
+/// spelling; the label and the help are the rule, which does not vary by site.
+///
+/// Nothing below the checker could resolve such a name either — `nvs-codegen`
+/// bakes a descriptor's address in as a constant — so this is the last place
+/// the mistake can be reported as one. Left unreported, each of the three
+/// records nothing in the typed-expression table and `nvs-ir` panics naming
+/// the table it found no entry in, which is an internal message for an
+/// ordinary mistake.
+pub(crate) fn reject_dynamic_class_name(headline: &str, span: Span, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(code::E_INSTANCEOF_NOT_A_CLASS, headline)
+            .with_primary(span, "not a class name")
+            .with_help(
+                "Novis has no dynamic class names (ADR 0007 § 2, the rule that rejects `$$var` \
+                 and `eval`) — write the class, or branch on the names you accept",
+            ),
+    );
 }
 
 /// `Foo::class` — [`super::infer`]'s `ExprKind::ClassNameConst` arm.

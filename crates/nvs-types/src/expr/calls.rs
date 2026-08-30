@@ -220,6 +220,18 @@ pub(crate) fn infer_static_call(
 ) -> TypeId {
     check_expr(class, None, live, scope, ctx, env);
     check_member_name(method, live, scope, ctx, env);
+    // A class side that is not a written name is the same mistake `new $c()`
+    // and `$x instanceof $c` make, and gets the same report — see
+    // [`super::members::reject_dynamic_class_name`]. Everything below resolves
+    // to nothing for such a side, so it would otherwise reach `nvs-ir` as a
+    // static call with no target recorded, which panics.
+    if !is_written_class_side(class) {
+        reject_dynamic_class_name(
+            "the class side of a `::` call must be a written class name",
+            class.span,
+            env,
+        );
+    }
     let resolved = match method {
         MemberName::Ident(name_span) => resolve_class_expr(class, ctx, env).and_then(|qname| {
             let name = span_text(env.src, *name_span).to_owned();
@@ -1074,7 +1086,17 @@ pub(crate) fn check_new_target(
             }
         }
         NewTarget::Expr(e) => {
+            // The parser produces this arm only for a target that is not a
+            // written name, so it *is* the dynamic form — see
+            // [`super::members::reject_dynamic_class_name`] for why the three
+            // spellings of that mistake share one report, and why `nvs-ir` is
+            // the wrong place to find out.
             check_expr(e, None, live, scope, ctx, env);
+            reject_dynamic_class_name(
+                "the target of `new` must be a written class name",
+                e.span,
+                env,
+            );
             env.interner.mixed()
         }
         NewTarget::AnonClass(_) => env.interner.mixed(),

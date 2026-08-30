@@ -1,0 +1,28 @@
+--TEST--
+`new $c()` and `$c::f()` take a written class name, as `$x instanceof $c` already does (ADR 0007 § 2)
+--FILE--
+<?nvs
+// A class name is written, never computed — the same line `$$var` and `eval`
+// are already on. Nothing below the checker could resolve one either, since
+// `nvs-codegen` bakes a descriptor's address in as a constant, so all three
+// spellings that reach a class through a value are one mistake under one
+// code. `instanceof` was already refused here; these two reached the lowerer
+// and panicked there.
+final class Box {
+    public static function make(): int {
+        return 1;
+    }
+}
+
+string $className = "Box";
+mixed $o = new $className();
+mixed $p = $className::make();
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0496]: the target of `new` must be a written class name
+%A
+error[E0496]: the class side of a `::` call must be a written class name
+%A
+error: aborting due to 2 errors
