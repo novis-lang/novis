@@ -13263,7 +13263,7 @@ Renders `$value` exactly as `dump` would and answers it as the carrier of the si
 <a id="core-core-test"></a>
 ### `Core\Test`
 
-Keywords: PHPUnit, assert(), assertion, unit test, #[Test], #[Core\Test], Core\Test\Failure, nvs test, expectException, assertSame, assertEquals, ledger, fixed clock, assertSame, assertEquals, assertEqualsDeep, assertTrue, assertNull, assertCount, assertThrows, assertDoesNotThrow, expectFailure, advance
+Keywords: PHPUnit, assert(), assertion, unit test, #[Test], #[Core\Test], Core\Test\Failure, nvs test, expectException, assertSame, assertEquals, ledger, fixed clock, assertSame, assertEquals, assertEqualsDeep, assertTrue, assertNull, assertCount, assertContains, assertThrows, assertDoesNotThrow, expectFailure, advance
 
 `Core\Test` is the assertion surface: every member is `static`, takes the subject **first**
 (`assertEquals($actual, $expected)` — the reverse of PHPUnit's order), and is generic, so comparing an
@@ -13328,6 +13328,7 @@ final class CartTest {
 | [`Core\Test::assertTrue`](#core-core-test-asserttrue) | `assertTrue(bool $actual, {message?: string}): void` |
 | [`Core\Test::assertNull`](#core-core-test-assertnull) | `assertNull(mixed $actual, {message?: string}): void` |
 | [`Core\Test::assertCount`](#core-core-test-assertcount) | `assertCount(array<T> $actual, uint $expected, {message?: string}): void` |
+| [`Core\Test::assertContains`](#core-core-test-assertcontains) | `assertContains(array<T> $actual, T $expected, {message?: string}): void` |
 | [`Core\Test::assertThrows`](#core-core-test-assertthrows) | `assertThrows(callable $body, string $expected, {message?: string}): void` |
 | [`Core\Test::assertDoesNotThrow`](#core-core-test-assertdoesnotthrow) | `assertDoesNotThrow(callable $body, {message?: string}): void` |
 | [`Core\Test::expectFailure`](#core-core-test-expectfailure) | `expectFailure(callable $body): void` |
@@ -13444,6 +13445,25 @@ Asserts `$actual` holds exactly `$expected` entries — `Core\Arr::count`'s own 
 **Returns** `void` — Nothing; the assertion is recorded as held in the test's ledger.
 
 **Throws** `Core\Test\Failure` — The array holds a different number of entries; the failure is recorded in the ledger before it is thrown, so a `catch` cannot erase it.
+
+<a id="core-core-test-assertcontains"></a>
+#### `Core\Test::assertContains`
+
+```nvs skip
+Core\Test::assertContains(array<T> $actual, T $expected, {message?: string}): void
+```
+
+Asserts some entry of `$actual` is `$expected` under strict identity — the question `Core\Arr::contains` answers, and the same answer — as PHPUnit's `assertContains` does, subject first. A substring is asserted through `Core\Str::contains`, which says which containment was meant.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$actual` | `array<T>` | The array under test. |
+| `$expected` | `T` | The entry it must hold, compared by identity; `int`, `uint`, `float` and `decimal` are one numeric domain, so `1` finds `1.0`. |
+| `{message: …}` | `string` (default `null`, neutral) | A prefix written in front of the failure's own diagnosis; the default is none. |
+
+**Returns** `void` — Nothing; the assertion is recorded as held in the test's ledger.
+
+**Throws** `Core\Test\Failure` — No entry of the array is identical to `$expected`; the failure is recorded in the ledger before it is thrown, so a `catch` cannot erase it.
 
 <a id="core-core-test-assertthrows"></a>
 #### `Core\Test::assertThrows`
