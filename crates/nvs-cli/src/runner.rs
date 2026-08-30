@@ -1283,7 +1283,9 @@ mod tests {
     fn verdicts(name: &str) -> Vec<(String, &'static str, Vec<String>)> {
         let checked = crate::front_end(&fixture(name)).expect("the fixture is a program");
         let unit = compile(&checked).expect("the fixture compiles");
-        let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Buffer(Vec::new()));
+        // Granting, because one fixture below spawns and ADR 0118 § 1 denies by
+        // default — `crate::script::granting_ctx` owns why that helper exists.
+        let mut ctx = crate::script::granting_ctx();
         unit.install_in(&mut ctx);
         // Through the same entry `run` takes, scheduler and all: a suite run
         // off a bare stack would be a different runner from the one shipped,

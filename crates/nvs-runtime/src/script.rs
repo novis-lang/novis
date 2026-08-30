@@ -43,6 +43,8 @@
 
 use std::cell::Cell;
 
+use nvs_config::capability::{Cap, Scope};
+
 use crate::ctx::Ctx;
 use crate::value::Value;
 
@@ -80,13 +82,24 @@ pub enum ResolveError {
     /// The resolver tried and could not: an unreadable path, or a file that
     /// does not compile. Already rendered for a person to read.
     Refused(String),
+    /// The configuration does not grant `script.spawn` for this path —
+    /// [ADR 0118](../../../docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
+    /// § 5's message, written by `crate::capability` and carried out through
+    /// here rather than re-worded, so every denial reads the same whichever
+    /// door produced it.
+    ///
+    /// A variant rather than a `Fault` in the error type: this enum is plain
+    /// data that `nvs-cli`'s tests match on, and the caller that turns one into
+    /// an exception is the one that already decides which of the other two
+    /// throws and which is fatal.
+    Denied(String),
 }
 
 impl std::fmt::Display for ResolveError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::NoResolver => f.write_str("no script resolver is installed on this thread"),
-            Self::Refused(message) => f.write_str(message),
+            Self::Refused(message) | Self::Denied(message) => f.write_str(message),
         }
     }
 }
@@ -191,17 +204,39 @@ pub fn scoped<R>(resolver: &(dyn Resolver + 'static), run: impl FnOnce() -> R) -
     answer
 }
 
-/// Turns `path` into a [`Program`] through this thread's resolver.
+/// Turns `path` into a [`Program`] through this thread's resolver, once
+/// `script.spawn` has been shown to cover it.
 ///
 /// One call rather than a `with_current` the caller then has to unwrap twice:
-/// there is exactly one thing anybody does with a resolver, and both ways of
-/// not getting a program are [`ResolveError`]'s two variants.
+/// there is exactly one thing anybody does with a resolver, and every way of
+/// not getting a program is a [`ResolveError`] variant.
+///
+/// **This is [ADR 0118](../../../docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
+/// § 2's spawn door**, and it takes a `ctx` for no other reason. The check is
+/// here rather than in the lowered helper that calls it because this function
+/// *is* the effect: a `Program` is the thing a spawn was after, and there is no
+/// second way to obtain one, so a caller that skipped the check would have
+/// nothing to run. `Cap::ScriptSpawn` is asked with the path as its scope, so
+/// § 4's canonicalise-then-prefix rule applies to a spawn target exactly as it
+/// does to a read — being allowed to read a file has never been permission to
+/// run it, which is why this is not implied by `fs.read`.
 ///
 /// # Errors
 ///
-/// [`ResolveError::NoResolver`] when nothing is installed here, and
-/// [`ResolveError::Refused`] carrying the implementor's own message otherwise.
-pub fn resolve(path: &str) -> Result<Program, ResolveError> {
+/// [`ResolveError::Denied`] when the configuration does not grant
+/// `script.spawn` for `path`, [`ResolveError::NoResolver`] when nothing is
+/// installed here, and [`ResolveError::Refused`] carrying the implementor's own
+/// message otherwise. The capability is asked **first**: a path outside the
+/// grant is refused whether or not it names a file that compiles.
+pub fn resolve(ctx: &Ctx, path: &str) -> Result<Program, ResolveError> {
+    if let Some(message) = crate::capability::refusal(
+        ctx,
+        Cap::ScriptSpawn,
+        Scope::Path(std::path::Path::new(path)),
+        "`spawn script`",
+    ) {
+        return Err(ResolveError::Denied(message));
+    }
     let Some(resolver) = CURRENT.with(Cell::get) else {
         return Err(ResolveError::NoResolver);
     };
@@ -259,18 +294,62 @@ mod tests {
         install(&FIXED)
     }
 
+    /// A context granting `script.spawn` for everything — an operator's
+    /// `[capabilities.script] spawn = true`.
+    ///
+    /// Every test below except [`a_spawn_target_is_refused_before_a_resolver_is_asked`]
+    /// is about the *resolver seam* and not about ADR 0118's check, so each
+    /// one clears the door first; a bare `Ctx` grants nothing and would make
+    /// them all assert the denial instead of the routing they are for.
+    fn granting() -> Ctx {
+        let mut snapshot = nvs_config::Snapshot::default();
+        snapshot.config.capabilities = Some(nvs_config::tree::Capabilities {
+            script: Some(nvs_config::tree::CapScript {
+                spawn: Some(nvs_config::tree::Setting::Bool(true)),
+            }),
+            ..nvs_config::tree::Capabilities::default()
+        });
+        let mut ctx = Ctx::new(OutputSink::Buffer(Vec::new()));
+        ctx.set_config(std::sync::Arc::new(snapshot));
+        ctx
+    }
+
+    #[test]
+    fn a_spawn_target_is_refused_before_a_resolver_is_asked() {
+        // ADR 0118 § 2: the check is inside the door, so a context granting
+        // nothing is refused with the resolver that *would* have answered
+        // installed and untouched — the denial names the capability rather
+        // than the path failing to compile.
+        let installed = install_fixed();
+        let ctx = Ctx::new(OutputSink::Buffer(Vec::new()));
+        let Err(ResolveError::Denied(message)) = resolve(&ctx, "child.nvs") else {
+            panic!("an unconfigured context grants no `script.spawn`");
+        };
+        assert!(
+            message.contains("script.spawn") && message.contains("child.nvs"),
+            "§ 5's message names the capability and the target: {message}"
+        );
+        // And the grant is what turns it into the resolver's answer, on the
+        // same path and the same resolver: nothing but the configuration moved.
+        assert!(resolve(&granting(), "child.nvs").is_ok());
+        drop(installed);
+    }
+
     #[test]
     fn with_nothing_installed_a_path_is_refused_without_a_resolver_being_invented() {
         assert!(!is_installed());
-        assert_eq!(resolve("child.nvs").err(), Some(ResolveError::NoResolver));
+        assert_eq!(
+            resolve(&granting(), "child.nvs").err(),
+            Some(ResolveError::NoResolver)
+        );
     }
 
     #[test]
     fn an_installed_resolver_answers_and_its_program_runs_on_a_context() {
         let installed = install_fixed();
         assert!(is_installed());
-        let program = resolve("abc.nvs").expect("the fixed resolver answers");
-        let mut ctx = Ctx::new(OutputSink::Buffer(Vec::new()));
+        let mut ctx = granting();
+        let program = resolve(&ctx, "abc.nvs").expect("the fixed resolver answers");
         let answer = program(&mut ctx, Value::null());
         assert_eq!(answer.as_int(), Some(7));
         drop(installed);
@@ -279,18 +358,19 @@ mod tests {
 
     #[test]
     fn installing_nests_and_restores_rather_than_replacing() {
+        let ctx = granting();
         let outer = install_fixed();
         {
             let inner = install(&REFUSING);
             assert!(matches!(
-                resolve("child.nvs"),
+                resolve(&ctx, "child.nvs"),
                 Err(ResolveError::Refused(_))
             ));
             drop(inner);
         }
         // The outer one is back, which is what a scheduler driven from inside
         // another embedder's task depends on.
-        assert!(resolve("child.nvs").is_ok());
+        assert!(resolve(&ctx, "child.nvs").is_ok());
         drop(outer);
     }
 
@@ -299,10 +379,11 @@ mod tests {
         // The whole point of `scoped`: this resolver is a local, and `install`
         // on its own would oblige a `Box::leak` to widen it to `&'static`.
         let stack = Fixed;
+        let ctx = granting();
         assert!(!is_installed());
         let answered = scoped(&stack, || {
             assert!(is_installed());
-            resolve("abc.nvs").is_ok()
+            resolve(&ctx, "abc.nvs").is_ok()
         });
         assert!(answered);
         assert!(!is_installed());
@@ -310,11 +391,12 @@ mod tests {
 
     #[test]
     fn a_scoped_resolver_puts_back_the_one_it_covered() {
+        let ctx = granting();
         let outer = install(&REFUSING);
         let stack = Fixed;
-        scoped(&stack, || assert!(resolve("child.nvs").is_ok()));
+        scoped(&stack, || assert!(resolve(&ctx, "child.nvs").is_ok()));
         assert!(matches!(
-            resolve("child.nvs"),
+            resolve(&ctx, "child.nvs"),
             Err(ResolveError::Refused(_))
         ));
         drop(outer);
@@ -323,7 +405,7 @@ mod tests {
     #[test]
     fn a_refusal_carries_the_implementors_own_message() {
         let installed = install(&REFUSING);
-        let Err(error) = resolve("notes.txt") else {
+        let Err(error) = resolve(&granting(), "notes.txt") else {
             panic!("the refusing resolver refuses");
         };
         assert_eq!(error.to_string(), "`notes.txt` is not a script");

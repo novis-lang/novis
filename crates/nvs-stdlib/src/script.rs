@@ -152,6 +152,11 @@ nvs_runtime::nvs_helper! {
     /// argument that cannot cross — it was built by the parent before any child
     /// existed. What the boundary turns into a value is only what the *child*
     /// produced.
+    ///
+    /// **`script.spawn` is checked inside `resolve`**, not here — ADR 0118
+    /// § 2. A spawn the parent was never allowed to attempt therefore never
+    /// reaches a child at all, which is what makes it a value on *this* side
+    /// while a child that fails on its own is an `ok = false` on the other.
     fn nvs_core_script_spawn(ctx, args: [3]) {
         // Unreachable from source: the path expression is checked against
         // `string` by `nvs_types::expr::isolate`'s `check_spawn_script`, so a
@@ -163,7 +168,7 @@ nvs_runtime::nvs_helper! {
             ))
         })?;
         let output = output_of(&args[2])?;
-        let program = nvs_runtime::script::resolve(path).map_err(|error| match error {
+        let program = nvs_runtime::script::resolve(ctx, path).map_err(|error| match error {
             // An embedder that installed none. Not the program's mistake, and
             // not something a `catch` should be able to paper over.
             ResolveError::NoResolver => Fault::fatal(format!(
@@ -172,6 +177,10 @@ nvs_runtime::nvs_helper! {
             ResolveError::Refused(message) => {
                 Fault::thrown_as(ThrownClass::Runtime, format!("`spawn script '{path}'`: {message}"))
             }
+            // Already a whole sentence naming the capability and the path —
+            // ADR 0118 § 5 — so it is thrown as written rather than wrapped in
+            // this member's own framing, which would say `spawn script` twice.
+            ResolveError::Denied(message) => Fault::thrown_as(ThrownClass::Runtime, message),
         })?;
         // The argument is handed over here: one reference goes to the isolate
         // and the lowering emitted no release for it.

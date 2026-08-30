@@ -1,5 +1,13 @@
 --TEST--
 `spawn script` reports the parent's own mistakes as throws rather than as a `ScriptResult` — ADR 0006 § *Decision*, § *Failure is a value, not an exception*
+--FILE nvs.toml--
+# ADR 0118 § 2: `spawn script` goes through a door that asks for
+# `script.spawn` first, and deny-by-default means a case with no
+# configuration cannot spawn at all. Granted here so that what the case
+# asserts stays the parent's *own* mistakes — a missing child and a
+# misspelled option — rather than the capability in front of them.
+[capabilities.script]
+spawn = true
 --FILE--
 <?nvs
 // ADR 0006's failure-is-a-value rule is about what the *child* did. A path

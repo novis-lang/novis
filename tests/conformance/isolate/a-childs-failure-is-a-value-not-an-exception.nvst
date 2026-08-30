@@ -1,5 +1,11 @@
 --TEST--
 A child's uncaught throw arrives as data on the parent's result rather than as an exception unwinding into it: `ok` is false, `error` carries the class and the message as copied data, what the child echoed before throwing still crosses, and the parent runs on — ADR 0006 § *Failure is a value, not an exception*
+--FILE nvs.toml--
+# ADR 0118 § 2: `spawn script` goes through a door that asks for
+# `script.spawn` first, and deny-by-default means a case with no
+# configuration cannot spawn at all. This grants it and nothing else.
+[capabilities.script]
+spawn = true
 --FILE thrower.nvs--
 <?nvs
 // Written before the throw, so the parent's `output` carries it: the child's

@@ -1,5 +1,11 @@
 --TEST--
 An isolate's class statics and its output buffer are its own: the child reads a fresh store rather than what the parent wrote, and its `echo` reaches the parent only as a value the parent prints — ADR 0006 § *Decision*, ADR 0116 § 4
+--FILE nvs.toml--
+# ADR 0118 § 2: `spawn script` goes through a door that asks for
+# `script.spawn` first, and deny-by-default means a case with no
+# configuration cannot spawn at all. This grants it and nothing else.
+[capabilities.script]
+spawn = true
 --FILE child.nvs--
 <?nvs
 // The child's own declaration of the same class. ADR 0116 § 4: an isolate's

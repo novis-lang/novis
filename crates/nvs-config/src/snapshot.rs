@@ -43,8 +43,15 @@ use crate::tree::Config;
 
 /// One entry file's effective configuration, immutable once built — [ADR 0078] § 1.
 ///
+/// [`Default`] is the configuration of a host with **no configuration file anywhere**, which
+/// [ADR 0103] § 1 step 3 makes a valid state rather than an error: no directive set, no capability
+/// granted, no entry file named. It is what an embedder that has built no tree holds and what a
+/// test that is about something else asks for, and it grants nothing — every capability question
+/// against it is a refusal, so it cannot be the shape a permission leaks through.
+///
 /// [ADR 0078]: ../../../docs/adr/0078-config-reload-and-control-socket.md
-#[derive(Clone, Debug)]
+/// [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
+#[derive(Clone, Debug, Default)]
 pub struct Snapshot {
     /// The effective tree: the global configuration with every matching `[[app]]` block's
     /// directives folded over it. Its `app` roster is **empty** — the blocks that produced this

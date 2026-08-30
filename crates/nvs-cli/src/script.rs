@@ -121,9 +121,32 @@ fn program_over(unit: Rc<nvs_codegen::Unit>) -> Program {
     })
 }
 
+/// A context granting `script.spawn` for everything, and nothing else.
+///
+/// Every test in this binary that runs a fixture which spawns needs one: ADR
+/// 0118 § 1 denies by default, so a bare `Ctx` refuses at
+/// [`nvs_runtime::script::resolve`]'s door and the test then asserts the denial
+/// instead of whatever it was about. It lives here, beside the resolver, so
+/// that the grant has one spelling in this crate rather than one per test
+/// module — and it is deliberately not a production constructor, because
+/// nothing outside a test should be able to hand itself a capability.
+#[cfg(test)]
+pub(crate) fn granting_ctx() -> nvs_runtime::Ctx {
+    let mut snapshot = nvs_config::Snapshot::default();
+    snapshot.config.capabilities = Some(nvs_config::tree::Capabilities {
+        script: Some(nvs_config::tree::CapScript {
+            spawn: Some(nvs_config::tree::Setting::Bool(true)),
+        }),
+        ..nvs_config::tree::Capabilities::default()
+    });
+    let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Buffer(Vec::new()));
+    ctx.set_config(std::sync::Arc::new(snapshot));
+    ctx
+}
+
 #[cfg(test)]
 mod tests {
-    use super::Compiler;
+    use super::{Compiler, granting_ctx as granting};
     use nvs_runtime::script::{ResolveError, Resolver, resolve, scoped};
     use nvs_runtime::{Ctx, OutputSink, Value};
 
@@ -201,21 +224,21 @@ mod tests {
     fn the_seam_reaches_this_resolver_once_it_is_installed() {
         // The route itself, end to end: what `nvs run` installs is what a
         // lowered `spawn script` will call, and neither names the other.
+        let mut ctx = granting();
         assert_eq!(
-            resolve("examples/isolate/hello.nvs").err(),
+            resolve(&ctx, "examples/isolate/hello.nvs").err(),
             Some(ResolveError::NoResolver)
         );
         let compiler = Compiler::default();
-        let mut ctx = Ctx::new(OutputSink::Buffer(Vec::new()));
         scoped(&compiler, || {
-            let program = resolve(&from_root("examples/isolate/hello.nvs"))
+            let program = resolve(&ctx, &from_root("examples/isolate/hello.nvs"))
                 .expect("the installed resolver answers");
             let _ = program(&mut ctx, Value::null());
         });
         // And gone again the moment the call returned, which is the half a
         // leaked resolver could not have.
         assert_eq!(
-            resolve("examples/isolate/hello.nvs").err(),
+            resolve(&ctx, "examples/isolate/hello.nvs").err(),
             Some(ResolveError::NoResolver)
         );
         assert_eq!(
