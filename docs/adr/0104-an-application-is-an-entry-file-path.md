@@ -13,7 +13,8 @@
   "what a per-app block is keyed on, and how one is spelled, is not stated anywhere yet"; § 1 below states
   it, and its sentence about a per-app block overriding "a ceiling downward" is corrected by § 3.
   [0097](0097-development-server-and-proxied-origin.md) § 10 — the gap it records is closed, and
-  `[[server.mount]]` loses its `mode` key.
+  `[[server.mount]]` loses its `mode` key; and § 3's fallback, written as `[app] origin`, is this
+  block's own `origin` key, since TOML cannot spell both (§ 1).
   [0064](0064-configuration-file-format.md) § 2a — the block list gains `[[app]]`.
   [0091](0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md) § 5 — its mixed-application host
   now has the mechanism its third row assumed.
@@ -66,6 +67,7 @@ process.exec = false                       # deny by default
 
 [[app]]
 root = "/srv/www"                          # every entry file beneath this directory
+origin = "https://example.test"            # what `urlAbsolute` prepends (0097 § 3)
 [app.limits]
 memory = "256M"
 
@@ -88,7 +90,19 @@ of the entry file's path **on path-component boundaries**, so `root = "/srv/www/
 `/srv/www/shop/bin/import.nvs` and does not match `/srv/www/shopfront/index.nvs`. `entry` matches one
 file exactly, and is simply the most specific form of the same test. A block's directives live in
 `[app.limits]`, `[app.limits.hard]` and `[app.capabilities]` sub-tables, which attach to the preceding
-`[[app]]` by ordinary TOML rules; `mode` sits directly on the block.
+`[[app]]` by ordinary TOML rules; `mode` and `origin` sit directly on the block.
+
+**`origin` is one of the block's own keys, and there is no `[app]` table.**
+[0097 § 3](0097-development-server-and-proxied-origin.md) makes `Core\Router::urlAbsolute`'s origin a
+property of the mount, falling back to the application's; the application *is* this block, so that
+fallback reads `origin` off every `[[app]]` matching the entry file, layered by § 2 like any other
+directive. It cannot instead sit in a global `[app]` table beside these, because **TOML forbids one file
+spelling `app` as both a table and an array of tables** — a file holding `[app]` and `[[app]]` fails to
+parse outright, so a global origin would be unspellable in exactly the multi-application deployments
+0097 § 3 wrote the fallback for. A host-wide default is a block with the widest `root`, which § 2 already
+layers under the more specific ones. The key keeps the class 0097 § 3 gave it: `System` in
+[0005](0005-config-changeability.md)'s model, `Reload` in
+[0078 § 2](0078-config-reload-and-control-socket.md)'s orthogonal field.
 
 Both keys are paths, so [0103 § 5](0103-configuration-is-a-tree-of-files.md) applies: a relative one
 resolves against the directory of the file it is written in. `[[app]]` entries accumulate across the

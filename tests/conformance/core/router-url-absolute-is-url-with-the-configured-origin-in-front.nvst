@@ -15,7 +15,7 @@
 // program run off the command line is mounted nowhere, so § 6's origin has
 // nowhere to come from and the member throws. The `nvs.toml` at the foot of
 // this file is what makes the other half reachable — the working directory's
-// `[app] origin`, which `configured_origin` in `crates/nvs-cli/src/main.rs`
+// `[[app]] origin`, which `configured_origin` in `crates/nvs-cli/src/main.rs`
 // reads and `Ctx::set_origin` holds. That is the one source § 6 allows;
 // nothing here sends a header, and there would be nothing to read it if it
 // did.
@@ -140,8 +140,9 @@ echo "root=", $absolute["6"], "\n";
 # ADR 0102 § 6's configured origin — the only source an absolute link may take
 # one from, and in a program run off the command line this file is the whole of
 # it. `configured_origin` in `crates/nvs-cli/src/main.rs` reads this key and no
-# other; `nvs.toml` is not otherwise read until M6 (ADR 0064).
-[app]
+# other; `nvs.toml` is not otherwise read until M6 (ADR 0064). The block is
+# ADR 0104 § 1's array of tables, which is the only spelling of it there is.
+[[app]]
 origin = "https://example.test"
 --EXPECT--
 agree=11/11

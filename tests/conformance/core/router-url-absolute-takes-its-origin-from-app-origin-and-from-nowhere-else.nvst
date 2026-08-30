@@ -1,5 +1,5 @@
 --TEST--
-`Core\Router::urlAbsolute`'s origin is the unit's `[app] origin` and nothing else in the file, let alone anything a request could carry — ADR 0102 § 6
+`Core\Router::urlAbsolute`'s origin is the unit's `[[app]] origin` and nothing else in the file, let alone anything a request could carry — ADR 0102 § 6
 --FILE--
 <?nvs
 // ADR 0102 § 6 states the rule as a prohibition — an absolute link's origin is
@@ -13,7 +13,7 @@
 //
 // So this case surrounds the one key that counts with four that look like it.
 // The `nvs.toml` at the foot holds an `origin` before any table, one under
-// `[server]`, one commented out inside `[app]` itself, and one under
+// `[server]`, one commented out inside `[[app]]` itself, and one under
 // `[app.dev]` — every near miss `configured_origin` in
 // `crates/nvs-cli/src/main.rs` walks past — and the answer below has to be the
 // fifth. A reader that took the first `origin` line, or the last, or any
@@ -75,25 +75,27 @@ echo "leaked=", $leaked, "\n";
 echo "link=", $built["0"], "\n";
 echo "root=", $built["2"], "\n";
 --FILE nvs.toml--
-# `configured_origin` in `crates/nvs-cli/src/main.rs` reads `[app] origin` and
+# `configured_origin` in `crates/nvs-cli/src/main.rs` reads `[[app]] origin` and
 # that key alone; ADR 0102 § 6 is why it may not grow a second source, and this
 # file is four near misses around the one it takes.
 
-# Before any table, so no table is open and this is not `[app]`'s.
+# Before any table, so no block is open and this is not `[[app]]`'s.
 origin = "https://before-any-table.test"
 
 [server]
 # Another table's key of the same name.
 origin = "https://server-table.test"
 
-[app]
+[[app]]
 # Commented out, and a comment runs to the end of the line.
 # origin = "https://commented-out.test"
 name = "conformance"
 origin = "http://app-table.test:8080"
 
 [app.dev]
-# A different table whose name merely starts with `app`.
+# A sub-table attaching to the block above by ordinary TOML rules, exactly as
+# ADR 0104 § 1's `[app.limits]` does — and holding none of the block's own
+# keys, so its `origin` is not the block's either.
 origin = "https://app-dev-table.test"
 --EXPECT--
 configured=3/3

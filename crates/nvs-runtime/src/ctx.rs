@@ -315,7 +315,7 @@ pub struct Ctx {
     /// **Configured, never sniffed.** § 6 refuses `Host` and
     /// `X-Forwarded-Host` outright, which is why this is written *before* the
     /// request runs and nothing during it can move it — `nvs run` reads
-    /// `nvs.toml`'s `[app] origin` today, and the mount that accepted the
+    /// `nvs.toml`'s `[[app]] origin` today, and the mount that accepted the
     /// request will write it once there is a server, since
     /// [ADR 0097](../../../docs/adr/0097-development-server-and-proxied-origin.md)
     /// § 3 makes a mount's own origin win over the application's. `None` is a

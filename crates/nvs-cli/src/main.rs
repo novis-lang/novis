@@ -528,8 +528,8 @@ fn run_build(path: &std::path::Path, openapi: bool) -> ExitCode {
 /// same spelling `nvs-ir`'s own snapshots use.
 const SCRIPT: &str = "<script>";
 
-/// ADR 0102 § 6's configured origin, read out of `./nvs.toml`'s `[app] origin`
-/// — and that key alone.
+/// ADR 0102 § 6's configured origin, read out of `./nvs.toml`'s `[[app]]
+/// origin` — and that key alone.
 ///
 /// **This is not `nvs.toml`'s reader**, and must not grow into one. M6's is,
 /// with ADR 0064's syntax, ADR 0103's include tree and ownership check, and
@@ -544,20 +544,38 @@ const SCRIPT: &str = "<script>";
 /// directory, **exactly one directory and never a walk upward**, and never
 /// beside the entry file. Step 1's `--config` is M6's closed flag list and
 /// step 3's shipped defaults name no origin, so there is one place to look.
-/// A file that is absent, unreadable or holds no `[app] origin` resolves
+/// A file that is absent, unreadable or holds no `[[app]] origin` resolves
 /// `None`, which is not an error here: ADR 0097 § 3's "a unit that resolves
 /// none is an error" is reported at the link site, where the message can name
 /// the route it could not build.
+///
+/// The block is ADR 0104 § 1's array of tables, and this reads `origin` out of
+/// **any** `[[app]]` in the file without matching the entry file against that
+/// block's `root` or `entry` — the matching, the canonicalization it rests on
+/// and the least-specific-first layering of § 2 are all M6's reader, and doing
+/// a third of the job here would be the second configuration format the
+/// paragraph above refuses. One block in the repository's own file gives the
+/// same answer either way; a file with two is out of this stopgap's scope, and
+/// the last one wins by ADR 0103 § 3's ordering rather than by specificity.
 fn configured_origin() -> Option<String> {
     let text = std::fs::read_to_string("nvs.toml").ok()?;
     let mut in_app = false;
+    let mut origin = None;
     for line in text.lines() {
         let line = line.split('#').next().unwrap_or("").trim();
         if let Some(table) = line
-            .strip_prefix('[')
-            .and_then(|rest| rest.strip_suffix(']'))
+            .strip_prefix("[[")
+            .and_then(|rest| rest.strip_suffix("]]"))
         {
             in_app = table.trim() == "app";
+            continue;
+        }
+        if line.starts_with('[') && line.ends_with(']') {
+            // Any ordinary table header ends the block's own keys — including
+            // `[app.limits]`, which attaches to the preceding `[[app]]` by
+            // TOML's rules but holds none of the keys ADR 0104 § 1 puts
+            // directly on the block.
+            in_app = false;
             continue;
         }
         let Some((key, value)) = line.split_once('=') else {
@@ -571,10 +589,10 @@ fn configured_origin() -> Option<String> {
             .strip_prefix('"')
             .and_then(|rest| rest.strip_suffix('"'))
         {
-            return Some(quoted.to_owned());
+            origin = Some(quoted.to_owned());
         }
     }
-    None
+    origin
 }
 
 fn run_run(

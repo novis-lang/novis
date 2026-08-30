@@ -166,12 +166,15 @@ is therefore **relocatable**: the same compiled [0077](0077-compile-time-routing
 `#[Route(path: "/users/{id}")]` serves at `/ModuleA`, at `/ModuleB` or at `/`, with no recompile and no
 base-path setting.
 
-**`origin` is what `Core\Router::urlAbsolute` prepends**, falling back to `[app] origin`. It is
+**`origin` is what `Core\Router::urlAbsolute` prepends**, falling back to the `origin` key of the
+`[[app]]` blocks matching the unit's entry file
+([0104 § 1](0104-an-application-is-an-entry-file-path.md), which owns that spelling: there is no `[app]`
+table, because TOML refuses `app` as a table and an array of tables in one file). It is
 `System`-class in [0005](0005-config-changeability.md)'s classification — a request may not set it, because
 a value a request can choose is one an attacker can influence and this one ends up in outbound mail — and
 `Reload`-able in [0078](0078-config-reload-and-control-socket.md)'s orthogonal field, so onboarding a tenant
 needs no restart. A single global origin would be **wrong** for a host-mounted deployment, emitting one
-tenant's origin in another's email, which is why it lives here rather than only under `[app]`. **A mount
+tenant's origin in another's email, which is why it lives here rather than only under `[[app]]`. **A mount
 whose unit contains a literal `urlAbsolute` call and resolves no origin is a boot error** — checked at
 expansion, per resolved mount, and re-checked when expansion re-runs on reload. Because `url` is already
 that ADR's launderer for the URL-path sink, an application is already required to route link generation

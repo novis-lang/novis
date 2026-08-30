@@ -256,7 +256,7 @@ const URL_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Router::urlAbsolute`'s reference card — ADR 0117.
 const URL_ABSOLUTE_DOC: MethodDoc = MethodDoc {
-    short: "`url` with the mount's configured origin in front — ADR 0102 § 6's `[app] origin`, \
+    short: "`url` with the mount's configured origin in front — ADR 0102 § 6's `[[app]] origin`, \
             resolved before the request ran and never derived from a `Host` or \
             `X-Forwarded-Host` header.",
     params: &[NAME_DOC, PARAMS_DOC],
@@ -501,7 +501,7 @@ nvs_runtime::nvs_helper! {
             return Err(Fault::thrown(format!(
                 "Core\\Router::urlAbsolute(): no origin is configured for this unit, so `{path}` \
                  has no absolute form. ADR 0102 § 6 refuses to derive one from a request header, \
-                 so give `nvs.toml` an `[app] origin`"
+                 so give `nvs.toml` an `[[app]] origin`"
             )));
         };
         produced(&format!("{origin}{path}"))

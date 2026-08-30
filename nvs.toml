@@ -1,7 +1,7 @@
 # The repository's own `nvs.toml` — ADR 0103 § 1 step 2's `./nvs.toml`, found
 # in the working directory and nowhere else.
 #
-# It holds exactly one directive, because exactly one directive is read: ADR
+# Exactly one directive in it is read today: ADR
 # 0102 § 6 makes `Core\Router::urlAbsolute`'s origin *configured* and refuses
 # to derive one from `Host` or `X-Forwarded-Host`, so a program calling that
 # member has no answer it is allowed to give until this key exists.
@@ -15,7 +15,13 @@
 # changes that program's expected output, which `docs/agent/loop-goal.toml`
 # freezes.
 
-[app]
+# ADR 0104 § 1: an application is an entry file path, and the block naming it is
+# `[[app]]` — an array of tables. There is no `[app]` table for a global origin
+# to sit in, because TOML refuses `app` as both spellings in one file. `root`
+# resolves against this file's own directory (ADR 0103 § 5), so this block is
+# every `.nvs` in the repository, `examples/routes.nvs` included.
+[[app]]
+root = "."
 origin = "https://example.test"
 
 # The bound `examples/config.nvs` is written around: ADR 0005's `Runtime`
