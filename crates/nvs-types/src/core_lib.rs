@@ -531,6 +531,55 @@ mod tests {
         );
     }
 
+    /// The same sweep, one mark further. ADR 0088 § 2 has **four**
+    /// classifications and the test above proves only three of them arrive, so
+    /// a [`Qual::Launder`] that stopped being lowered would leave every
+    /// laundering row refusing the argument it exists to accept — and the only
+    /// symptom would be a `Core\Regex::quote` call that no longer compiles.
+    ///
+    /// The second half is ADR 0063 R11's four grammars, asked of the registry
+    /// rather than of one row: each of the classes that owns one has to carry a
+    /// sink somewhere in its rows, so a class whose pattern parameter lost its
+    /// mark fails here while every case over the other three still passes.
+    #[test]
+    fn every_mark_a_row_can_write_reaches_a_signature() {
+        let mut interner = TypeInterner::new();
+        let (mut contagious, mut sink, mut neutral, mut launder) = (0_usize, 0, 0, 0);
+        let mut sinks_by_class: Vec<&'static str> = Vec::new();
+        for class in CLASSES {
+            for method in class.members() {
+                let sig = method_sig(method, true, &mut interner);
+                for qual in sig.param_quals.iter().flatten() {
+                    match qual {
+                        Qual::Contagious => contagious += 1,
+                        Qual::Sink => {
+                            sink += 1;
+                            sinks_by_class.push(class.name);
+                        }
+                        Qual::Neutral => neutral += 1,
+                        Qual::Launder => launder += 1,
+                    }
+                }
+            }
+        }
+        assert!(
+            contagious > 0 && sink > 0 && neutral > 0 && launder > 0,
+            "all four marks reach a signature (contagious {contagious}, sink {sink}, \
+             neutral {neutral}, launder {launder})"
+        );
+
+        // A `Core\Time` pattern is declared on three classes — `DateTime`,
+        // `Date` and `TimeOfDay` — so the grammar is named by its prefix and
+        // not by one of them.
+        for grammar in [r"Core\Regex", r"Core\Str", r"Core\Bytes", r"Core\Time"] {
+            assert!(
+                sinks_by_class.iter().any(|name| name.starts_with(grammar)),
+                "ADR 0063 R11's {grammar} grammar carries a sink somewhere in its rows, \
+                 among {sinks_by_class:?}"
+            );
+        }
+    }
+
     /// The same classification, read the way a call site reads it: through the
     /// seeded table and [`MethodSig::qual_at`], which is the only accessor a
     /// consumer may use.
