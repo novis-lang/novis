@@ -1,0 +1,25 @@
+--TEST--
+A contagious Core parameter accepts a tainted argument and carries the qualifier into the answer, while a neutral one accepts the same argument and answers plain -- ADR 0088 §§ 1-2
+--FILE--
+<?nvs
+// ADR 0088 § 2: an unclassified `string` parameter refuses a tainted
+// argument, so the two marks that *accept* are what this case pins.
+// `Core\Str::join`'s separator is contagious -- its bytes decide which slice
+// comes back -- so the answer carries whatever qualifier the argument had.
+tainted string $t = "b" as tainted string;
+tainted string $joined = Core\Str::join(["a", "c"], $t);
+echo $joined, "\n";
+
+// `Core\Str::length` is neutral: a count carries no byte of its subject, so
+// the same argument is accepted and the answer is a plain `uint`.
+uint $n = Core\Str::length($t);
+echo $n, "\n";
+
+// The contagion is a property of the argument and not of the member: the same
+// call with nothing tainted in it still answers a plain `string`.
+string $plain = Core\Str::join(["a", "c"], "b");
+echo $plain, "\n";
+--EXPECT--
+abc
+1
+abc
