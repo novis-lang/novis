@@ -59,8 +59,8 @@
 > gaps* decides a payload. **Stage 0c — the reference findings — is open and runs ahead of
 > everything else, stage 9 included**: `docs/reference/findings.md` § *Triage* holds the verdicts
 > and items 31–35 the work; items 31–33 are closed, and 34 lowers `(...)`, `never`, D23, D27, D33,
-> D22. **Stage 8 is open**: conformance 1062, differential 206 of 210, six of eight written. **Stage
-> 7 is closed**: `nvs build --compile` appends ADR 0048 §§ 2-5's source payload, and
+> D22, U21. **Stage 8 is open**: conformance 1063, differential 206 of 210, six of eight written.
+> **Stage 7 is closed**: `nvs build --compile` appends ADR 0048 §§ 2-5's source payload, and
 > `nvs_diagnostics::embedded` is the byte source a bundle resolves against.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in

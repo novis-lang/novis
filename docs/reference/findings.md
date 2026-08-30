@@ -185,8 +185,10 @@ in that goal. An item's owner is the row it sits in.
 - [x] **U20** `namespace A { class B {…} echo B::f(); }` (the braced form) parses and resolves. *php-diff*
       The parser reports `E0243` at the `{` and parses the block anyway, so the declarations inside it
       still report their own problems in the same run.
-- [ ] **U21** `Iterator::current()` outside the protocol does not throw on a generator (ADR 0053 § 1
+- [x] **U21** `Iterator::current()` outside the protocol does not throw on a generator (ADR 0053 § 1
       says it does): `0` before the first `advance()`, the last value after exhaustion. *p44*
+      It throws `LogicError` now, guarded on `gen#state >= 1` —
+      `nvs_ir::lower::generator`'s module doc owns which § 10 class and why.
 
 ## Binary and docs disagree on behaviour (D)
 

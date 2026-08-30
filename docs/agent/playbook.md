@@ -1065,6 +1065,15 @@ is why" — is this file.
   of Rust. A `loop-goal.toml` `[[check]]` block's `cases` list is the cheapest probe there is: run the
   ones ahead of the failing case, because the acceptance check names only the *first* thing missing
   and says nothing about what the rest of the list already proves.
+- **`INSTA_FORCE_UPDATE=1` rewrites all 118 of `nvs-ir`'s snapshots, not the three your change
+  moved — use `INSTA_UPDATE=always` alone.** The extra variable makes insta rewrite every snapshot
+  it *passes* as well, and their `source:` headers still say `crates/nvs-ir/src/lower.rs` from
+  before that file was split, so 115 files come back modified with a one-line header diff that has
+  nothing to do with the slice and buries the three that matter. `INSTA_UPDATE=always cargo test -p
+  nvs-ir --lib` touches only what actually differs. If it already happened, `git status --porcelain
+  <snapshot dir>` piped through a `grep -v` of the ones you meant, then `git checkout --`, puts the
+  rest back; do it before the wrap, because `session.py --wrap` stages the paths you name and
+  sweeps everything else into the last commit.
 
 ## Running things
 
@@ -4131,6 +4140,17 @@ sibling in the same namespace unqualified.
   that built it. A scratch that prints the right answer for the ordinary shapes says nothing about
   these, so write one case per *declaration* shape the callee can have — not per call site — and
   read `nvs_types::signatures::MethodSig`'s own field list for what those shapes are.
+- **Hand-built IR that needs a `Ty::Tagged` operand emits the bare constant and *then*
+  `InstKind::Tag`; the `Ty` on the instruction is not a cast, and skipping the `Tag` fails in
+  Cranelift naming nothing you wrote.** `low.emit(b, Ty::Tagged, InstKind::ConstNull)` compiles,
+  lowers, and then aborts the run with `internal error: cranelift rejected the code generated for
+  \`C::current\`: should be implemented in ISLE: inst = \`v25, v26 = isplit.i64 v46\`` — the
+  `isplit` is the 128-bit tagged pair being taken apart, and neither the message nor the
+  instruction it names appears in the lowering that caused it. `convert`'s `(_, Ty::Tagged)` arm is
+  what produces one for every source-level widening, so a synthesized body is the only place the
+  step has to be written by hand; every other `InstKind::ConstNull` under `lower/` is `Ty::Null`
+  for exactly this reason. The first place it bit was a synthesized `new LogicError(…)`, whose
+  `previous` parameter spec § 10 types `Throwable|null`.
 
 ## Divergences and refusals already pinned
 
