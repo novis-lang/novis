@@ -421,6 +421,24 @@ pub mod code {
     /// reason. The rewrite is a named class in the same file, or a closure
     /// ([ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)).
     pub const E_ANONYMOUS_CLASS_UNSUPPORTED: Code = Code::new("E0244");
+    /// `catch (A | B $e)`, PHP's multi-class clause. The binding carries one
+    /// static type ([ADR 0007](../../../docs/adr/0007-type-system-scope.md)
+    /// § 1's `catch` row), so a clause naming two classes has no type to give
+    /// it; the rewrite is one clause per class, each with its own variable
+    /// name, or one clause naming a class they all extend. The expression form
+    /// refuses the same shape with the same words
+    /// ([ADR 0119](../../../docs/adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)
+    /// § 1).
+    pub const E_CATCH_UNION_TYPE_UNSUPPORTED: Code = Code::new("E0245");
+    /// `public const LIMIT = 9;`, PHP's untyped class constant. Every other
+    /// binding in the language writes its type
+    /// ([ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 1) and a
+    /// constant is no different: the type read off the folded value is a
+    /// guess the declaration never made, it is unavailable to an interface
+    /// constant at all, and where the value has no constant form there is
+    /// nothing to guess from. See `docs/adr/README.md` § *Decisions taken at
+    /// project start*.
+    pub const E_CONSTANT_WITHOUT_TYPE: Code = Code::new("E0246");
 
     // --- E03xx name resolution ---------------------------------------------
     /// A variable read before anything was assigned to it.

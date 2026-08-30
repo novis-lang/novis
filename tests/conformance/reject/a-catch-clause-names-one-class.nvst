@@ -1,0 +1,19 @@
+--TEST--
+A `catch` clause naming two classes is refused — the binding carries one static type (ADR 0007 § 1's `catch` row, ADR 0119 § 1)
+--FILE--
+<?nvs
+// PHP's multi-class clause parses here because the ordinary type grammar's
+// union is reused, and it is refused rather than supported: `$e` would have
+// to be two things at once. The rewrite is one clause per class, each with
+// its own variable name, or one clause naming a class they both extend.
+try {
+    throw new LogicError("either one");
+} catch (LogicError | RuntimeError $e) {
+    echo $e->message, "\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0245]: a `catch` clause names one class
+%A
+error: aborting due to 1 error

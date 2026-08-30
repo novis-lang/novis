@@ -174,6 +174,31 @@ fn a_try_without_a_clause_is_e0242() {
     }
 }
 
+/// A clause's binding carries one static type, so the type grammar's union —
+/// which parses here for free — is refused rather than supported. The clause
+/// is still built from its first class, so the block behind it is parsed.
+#[test]
+fn a_catch_clause_naming_two_classes_is_e0245() {
+    let src = "try { $a = 1; } catch (LogicError | RuntimeError $e) { $a = 2; }";
+    let (s, diags) = parse_stmt_with_diags(src);
+    let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+    assert_eq!(
+        codes,
+        vec![code::E_CATCH_UNION_TYPE_UNSUPPORTED],
+        "{diags:?}"
+    );
+    let StmtKind::Try { catches, .. } = s.kind else {
+        panic!("expected a try: {s:?}");
+    };
+    assert_eq!(catches.len(), 1);
+    assert!(
+        matches!(catches[0].ty.kind, TypeKind::Atom(_)),
+        "the clause stands in for the union with its first class: {:?}",
+        catches[0].ty.kind
+    );
+    assert_eq!(catches[0].body.stmts.len(), 1);
+}
+
 #[test]
 fn empty_statement_and_empty_for_body() {
     let s = parse_stmt_ok(";");
@@ -257,10 +282,13 @@ fn break_and_continue_with_level() {
     assert!(matches!(s.kind, StmtKind::Continue(Some(_))));
 }
 
+/// Two classes are two clauses — the union spelling is
+/// [`a_catch_clause_naming_two_classes_is_e0245`] — and each clause carries a
+/// `finally` past all of them.
 #[test]
-fn try_multi_catch_and_finally() {
+fn try_two_catches_and_finally() {
     let s = parse_stmt_ok(
-        "try { risky(); } catch (TypeError|ValueError $e) { } finally { cleanup(); }",
+        "try { risky(); } catch (TypeError $e) { } catch (ValueError $v) { } finally { cleanup(); }",
     );
     let StmtKind::Try {
         catches, finally, ..
@@ -268,8 +296,8 @@ fn try_multi_catch_and_finally() {
     else {
         panic!("expected a try: {s:?}");
     };
-    assert_eq!(catches.len(), 1);
-    assert!(matches!(catches[0].ty.kind, TypeKind::Union(_)));
+    assert_eq!(catches.len(), 2);
+    assert!(matches!(catches[0].ty.kind, TypeKind::Atom(_)));
     assert!(catches[0].var.is_some());
     assert!(finally.is_some());
 }
