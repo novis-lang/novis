@@ -579,30 +579,46 @@ fn a_recursive_spawn_is_reported_as_max_script_depth_and_not_as_memory() {
 /// tell the two apart: read at the end, every context in the tree answers the same number and a
 /// runtime accounting each isolate separately would look identical.
 ///
-/// The row names three budgets and this asks two. CPU is the deadline word, which crosses by value
-/// in that same constructor: a child spawned under an expired deadline is born expired rather than
-/// clocked afresh, which is the direction a spawn could have widened. Output is not asserted
-/// because there is nothing to assert against — `[limits] max_output` is a configuration key
-/// `Ctx` holds no ceiling for, so no isolate can be over it yet.
+/// The row names three budgets and this asks all three. CPU is the deadline word, which crosses as
+/// the *word* in that same constructor: one store expires the whole tree, so a spawn cannot buy the
+/// tree more wall time than the request that started it was given — asked below of a child built
+/// before the timer fired, which is the order a copied flag would have failed. Output is the memory
+/// arrangement one field along — `nvs_runtime::budget`'s output count is per thread too and
+/// `Ctx::new` re-bases it too — so it is built in the same loop and asked with the same two
+/// readings, which is ADR 0006's "child output against the root's `max_output`".
+///
+/// The safepoint at the end can only ever answer for memory, because that is the branch the poll
+/// reaches first. So the output branch of that same poll is pinned below on a context over one
+/// ceiling only, which is the one arrangement that can tell it apart from its neighbour.
 #[test]
 fn n_concurrent_isolates_cannot_together_exceed_the_trees_budget() {
     /// What each isolate holds, well under the ceiling on its own.
     const SHARE: usize = 1 << 20;
     /// The tree's ceiling: over three shares, so no child reaches it and four together pass it.
     const CEILING: usize = 3 << 20;
+    /// What each isolate writes, in the same proportion to its own ceiling as `SHARE` is.
+    const WRITTEN: usize = 1 << 10;
+    /// The tree's output ceiling: over three of those, and under four.
+    const OUT_CEILING: usize = 3 << 10;
     const CHILDREN: usize = 4;
 
     let mut root = Ctx::new(OutputSink::Sink);
     root.set_memory_limit(CEILING);
+    root.set_output_limit(OUT_CEILING);
 
     // Both halves are held to the end of the case: a share freed early is a byte off the root's
     // reading, which is the thing being measured.
     let mut tree: Vec<(Ctx, Vec<u8>)> = Vec::with_capacity(CHILDREN);
     let mut readings: Vec<usize> = Vec::with_capacity(CHILDREN);
+    let mut writings: Vec<usize> = Vec::with_capacity(CHILDREN);
     for _ in 0..CHILDREN {
-        let child = root.isolate(OutputSink::Sink);
+        let mut child = root.isolate(OutputSink::Sink);
         let share = vec![0_u8; SHARE];
+        child
+            .write_output(&[b'.'; WRITTEN])
+            .expect("`OutputSink::Sink` never fails");
         readings.push(child.memory_used());
+        writings.push(child.output_used());
         tree.push((child, share));
     }
 
@@ -623,13 +639,35 @@ fn n_concurrent_isolates_cannot_together_exceed_the_trees_budget() {
         "and is therefore over a ceiling none of its isolates individually reached",
     );
 
-    // ADR 0020 § 1's other half of a tree-wide budget: the clock. A child built after the
-    // deadline passed is born expired, so a spawn cannot buy the tree more CPU time than the
-    // request that started it was given.
+    for (n, written) in writings.iter().enumerate() {
+        assert!(
+            *written < OUT_CEILING,
+            "isolate {n} is under the output ceiling by its own reading — {written} bytes against \
+             {OUT_CEILING} — for the same reason it is under the memory one",
+        );
+    }
+    assert!(
+        root.output_used() >= CHILDREN * WRITTEN,
+        "the root carries every isolate's output: {} bytes against {CHILDREN} × {WRITTEN}",
+        root.output_used(),
+    );
+    assert!(
+        root.output_breach().is_some(),
+        "and is therefore over an output ceiling none of its isolates individually reached",
+    );
+
+    // ADR 0020 § 1's other half of a tree-wide budget: the clock. Both orders, because they fail
+    // differently — a copied flag reaches the second and never the first.
+    let early = root.isolate(OutputSink::Sink);
+    assert!(!early.deadline_expired(), "nothing has fired yet");
     root.expire_deadline();
     assert!(
+        early.deadline_expired(),
+        "an isolate spawned before the timer fired stops with the tree rather than running on",
+    );
+    assert!(
         root.isolate(OutputSink::Sink).deadline_expired(),
-        "an isolate inherits the deadline in force where it was spawned, not a fresh one",
+        "and one spawned after it inherits the deadline in force where it was spawned",
     );
 
     #[expect(
@@ -645,6 +683,27 @@ fn n_concurrent_isolates_cannot_together_exceed_the_trees_budget() {
          ceiling would",
     );
     drop(tree);
+
+    // The output branch of that same poll, asked where memory is not also over — the tree above
+    // could never reach it, since `nvs_safepoint` asks memory first and answers there. This
+    // context's base is taken after everything above wrote, so its reading is its own ten bytes.
+    let mut writer = Ctx::new(OutputSink::Sink);
+    writer.set_output_limit(8);
+    writer
+        .write_output(b"ten bytes.")
+        .expect("`OutputSink::Sink` never fails");
+    #[expect(
+        unsafe_code,
+        reason = "as above: the safepoint's ABI takes a context pointer, and \
+                  this one is a live local"
+    )]
+    let status = unsafe { nvs_safepoint(&raw mut writer) };
+    assert_eq!(
+        status,
+        nvs_runtime::FATAL,
+        "a request past `[limits] max_output` is stopped by the poll, as ADR 0020 § 1's other \
+         resource limits are",
+    );
 }
 
 /// The snapshot `written` resolves to — the typed tree and the table beside it, because a request
