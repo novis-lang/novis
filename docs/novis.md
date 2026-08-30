@@ -2659,11 +2659,20 @@ A class constant is `public const int NAME = …;`, and like every other binding
 (`E0246`). It is reached as `self::NAME` inside the class and `Class::NAME` anywhere. `Class::class` is the
 class's name as a string.
 
+A constant's value is **inlined at every read** — there is no storage a read loads it from — so the
+value has to have a compile-time form. Literals do, and so does an `array<T>` literal of them: each
+element is placed in the declared element type, so `array<float> RATES = [1, 2.5]` holds two floats.
+Because it is inlined, every read builds its own array, and writing to one is invisible to the next
+read. What has no form yet is a *named* constant reaching into another — another class's `const`, an
+enum case, or `Class::class` — written as the value or nested in the array; a read of one is `E0792`
+at the read, while declaring it and never naming it is fine.
+
 ```nvs
 <?nvs
 class Limits {
     public const int MAX = 3;
     public const string NAME = "limits";
+    public const array<int> STEPS = [1, 2, 3];
 
     public static function twice(): int {
         return self::MAX * 2;
@@ -2671,9 +2680,11 @@ class Limits {
 }
 
 echo Limits::MAX, " ", Limits::NAME, " ", Limits::twice(), " ", Limits::class, "\n";
+echo Limits::STEPS[0], Limits::STEPS[2], "\n";
 ```
 ```output
 3 limits 6 Limits
+13
 ```
 
 ### Inheritance
