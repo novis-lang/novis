@@ -59,7 +59,7 @@
 > findings — is open and runs ahead of everything else, stage 9 included**:
 > `docs/reference/findings.md` § *Triage* holds the verdicts and items 31–35 the work; items 31–34
 > are closed; 35's cards cite no ADR, `Core\Test::assertContains` landed, D9/D20 and both `lang/`
-> chapter fixes are closed. **Stage 8 is open**: conformance 1080, differential 206 of 210, six of
+> chapter fixes are closed. **Stage 8 is open**: conformance 1082, differential 206 of 210, eight of
 > eight written. **Stage 7 is closed**: `nvs build --compile` appends ADR 0048 §§ 2-5's source
 > payload, and `nvs_diagnostics::embedded` is the byte source a bundle resolves against.
 >

@@ -3155,6 +3155,15 @@ is why" — is this file.
   along three different shapes (agreement, the boundary it refuses, the row that parts it from its
   neighbour), or `verify.py` spends a full run telling you the member is "asked by 1 case(s)".
   `BELOW_THE_FLOOR` in that file only shrinks and is never where a new member goes.
+- A `Core\Fatal::onLimit` handler only runs when the breach lands *inside* ADR 0020 § 1's reserve, so a
+  case that overshoots by more than `[limits] fatal_reserve_memory` sees no handler output at all and
+  looks like a tier that never fires. `Ctx::run_limit_handler` adds the reserve back to the *reduced*
+  ceiling, so a request holding more than `[limits] memory` itself reaches the ladder again at the
+  handler's first helper call — `echo` is one — and the zero-retry rule abandons it there without a
+  word. Size the ballast to land between the ordinary allowance (`memory` minus the reserve) and
+  `memory`: under the 16M/1M defaults three 8 MiB slabs overshoot by 14,662 bytes and print nothing,
+  while one 16,000,000-byte string prints. The message the `FATAL` carries is identical either way,
+  which is why the difference reads as "the handler is not implemented".
 
 ## Splitting a file that got too big
 
