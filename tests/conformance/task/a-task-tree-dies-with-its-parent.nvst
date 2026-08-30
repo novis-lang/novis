@@ -1,0 +1,53 @@
+--TEST--
+Cancellation reaches a grandchild: when the outer group's deadline expires, a child's own children are torn down with it and none of the tree runs past the point it was parked at — ADR 0072 §§ 4, 5
+--FILE--
+<?nvs
+// ADR 0072 § 4's promise is that control does not leave the call with work
+// still running. A group one level deep is where that is a *tree* rather than
+// a list: the outer call can only keep the promise by cancelling children it
+// never named, because `branch` below is the only child it knows about and
+// three more are parked underneath it.
+//
+// Counted rather than read off a line (`docs/agent/conventions.md`'s invariance
+// shape): a member that cancelled its own children but not theirs still prints
+// a plausible "the deadline was hit" and fails on the second line.
+class Tree {
+    public static int $parked = 0;
+    public static int $resumed = 0;
+}
+
+try {
+    Core\Task::all({
+        // One child that is itself a parent. Its three children are the
+        // grandchildren nothing at the outer call site can see.
+        branch: fn(): int => {
+            Core\Task::map([1, 2, 3], fn (int $n): int => {
+                Tree::$parked += 1;
+                Core\Time::sleep(2s);
+                Tree::$resumed += 1;
+                return $n;
+            });
+            return 3;
+        },
+        // A sibling at the outer level, so the tree has two shapes of leaf and
+        // the count below distinguishes "cancelled the siblings it knew" from
+        // "cancelled the whole tree".
+        leaf: fn(): int => {
+            Tree::$parked += 1;
+            Core\Time::sleep(2s);
+            Tree::$resumed += 1;
+            return 0;
+        },
+    }, {deadline: 20ms});
+    echo "the deadline was missed", "\n";
+} catch (TimeoutError $e) {
+    echo "the deadline was hit", "\n";
+}
+
+// Four tasks parked, none resumed: § 5's "no user code runs on the way out"
+// holds at every depth, so the line after each sleep is unreachable for the
+// grandchildren exactly as it is for the leaf.
+echo Tree::$parked, " parked, ", Tree::$resumed, " resumed", "\n";
+--EXPECT--
+the deadline was hit
+4 parked, 0 resumed

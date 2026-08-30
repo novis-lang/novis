@@ -1,0 +1,52 @@
+--TEST--
+A sibling's throw cancels the rest of the group, and a cancelled task's `catch` and the statements after it never run: the throw propagates as itself with nothing of the group still running — ADR 0072 §§ 4, 5
+--FILE--
+<?nvs
+// § 4's "one child throws" row, and § 5's rule about what a cancelled child may
+// run on its way out — which is nothing. The deadline path is pinned by
+// tests/conformance/core/a-cancelled-task-dies-where-it-sleeps.nvst; this is
+// the other trigger, and the one where the propagating value is a `Throwable`
+// the caller wrote rather than a `TimeoutError` the runtime made.
+class Trace {
+    public static int $caught = 0;
+    public static int $ranOn = 0;
+}
+
+try {
+    Core\Task::all({
+        // Parked long enough that the thrower is certainly first, so the
+        // "first by completion order" tie-break is not what this case rests on.
+        sleeper: fn(): int => {
+            try {
+                Core\Time::sleep(2s);
+            } catch (Throwable $e) {
+                // Cancellation is not a `Throwable` (§ 5, and ADR 0020 § 0 for
+                // the same reason a limit report is not one), so this arm is
+                // unreachable — a runtime that cancelled by throwing would
+                // count here.
+                Trace::$caught += 1;
+            }
+            // Nor does the wait merely end early. A child resumed and left to
+            // continue would count here instead.
+            Trace::$ranOn += 1;
+            return 1;
+        },
+        thrower: fn(): int => {
+            Core\Time::sleep(10ms);
+            throw new RuntimeError("the first throw");
+        },
+    });
+    echo "the group returned", "\n";
+} catch (RuntimeError $e) {
+    // "the **first** throw propagates" — as itself, not wrapped in a group
+    // error and not converted to the `TimeoutError` the deadline row uses.
+    echo "propagated ", $e->message, "\n";
+}
+
+// Read immediately after the `catch`, which is only a meaningful reading
+// because § 4 already waited for the cancellations: at this line there is no
+// sibling left that could still move either counter.
+echo Trace::$caught, " caught, ", Trace::$ranOn, " ran on", "\n";
+--EXPECT--
+propagated the first throw
+0 caught, 0 ran on

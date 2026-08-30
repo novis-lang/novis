@@ -1,0 +1,82 @@
+--TEST--
+`deadline` bounds the whole call and not each child, `all` and `map` agree on that, and `limit` is the other half of the same bag — ADR 0072 §§ 3, 4
+--FILE--
+<?nvs
+// The neighbouring case pins that `timeout` and `race` do not exist as names.
+// This is the other half: what the surviving spelling actually means at run
+// time. Five children of 60ms under a 200ms deadline is the discriminator —
+// run at once they finish inside it, run one at a time they cannot, and the
+// only thing that changed between the two calls below is `limit`. A `deadline`
+// that were per child would return from both.
+
+array<int> $work = [1, 2, 3, 4, 5];
+
+try {
+    Core\Task::map($work, fn (int $n): int => {
+        Core\Time::sleep(60ms);
+        return $n;
+    }, {deadline: 200ms});
+    echo "map returned", "\n";
+} catch (TimeoutError $e) {
+    echo "map hit the deadline", "\n";
+}
+
+// Same children, same deadline, serialized by `limit`. § 3: a child past the
+// limit is scheduled rather than refused, so this is five waits end to end and
+// not four refusals.
+try {
+    Core\Task::map($work, fn (int $n): int => {
+        Core\Time::sleep(60ms);
+        return $n;
+    }, {limit: 1, deadline: 200ms});
+    echo "map returned", "\n";
+} catch (TimeoutError $e) {
+    echo "map hit the deadline", "\n";
+}
+
+// The agreement half: one options bag, two members, and the answer must not
+// depend on which member was asked (`docs/agent/conventions.md`'s agreement
+// shape). A `Core\Task::all` that grew its own reading of `deadline` fails
+// here while still looking right on the `map` lines above.
+try {
+    Core\Task::all({
+        a: fn(): int => {
+            Core\Time::sleep(60ms);
+            return 1;
+        },
+        b: fn(): int => {
+            Core\Time::sleep(60ms);
+            return 2;
+        },
+        c: fn(): int => {
+            Core\Time::sleep(60ms);
+            return 3;
+        },
+        d: fn(): int => {
+            Core\Time::sleep(60ms);
+            return 4;
+        },
+        e: fn(): int => {
+            Core\Time::sleep(60ms);
+            return 5;
+        },
+    }, {limit: 1, deadline: 200ms});
+    echo "all returned", "\n";
+} catch (TimeoutError $e) {
+    echo "all hit the deadline", "\n";
+}
+
+// `limit`'s own boundary, in the same bag: zero admits no child, so the group
+// could never finish and saying so is a `LogicError` rather than a wait that
+// ends at the deadline (`Core\Task`'s reference card, ADR 0117).
+try {
+    Core\Task::map($work, fn (int $n): int => $n, {limit: 0});
+    echo "a limit of zero ran", "\n";
+} catch (LogicError $zero) {
+    echo "a limit of zero is refused", "\n";
+}
+--EXPECT--
+map returned
+map hit the deadline
+all hit the deadline
+a limit of zero is refused

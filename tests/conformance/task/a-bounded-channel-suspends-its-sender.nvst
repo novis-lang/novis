@@ -1,0 +1,65 @@
+--TEST--
+A channel's capacity is a bound on the sender, not a hint: the producer never gets more than capacity-plus-one ahead of the consumer, and it does get ahead, so neither a growing buffer nor a rendezvous passes — ADR 0072 § 4 over `nvs_stdlib::channel`
+--FILE--
+<?nvs
+// The neighbouring case pins that a capacity-one channel loses and reorders
+// nothing. What it cannot see is *why* the sender waited, because at capacity
+// one every send after the first waits and a rendezvous would look identical.
+// This case is the bound asserted on both sides
+// (`docs/agent/conventions.md`): a channel that grew instead of suspending
+// lets the producer finish first and the lead reaches 20; a channel that
+// handed off only to a waiting receiver never lets the lead exceed one.
+class Flow {
+    public static int $sent = 0;
+    public static int $received = 0;
+    public static int $maxLead = 0;
+}
+
+// Capacity two, so the two failures above sit on opposite sides of the
+// answer rather than both above or both below it.
+var $chan = new Core\Task\Channel<int>(2);
+
+Core\Task::all({
+    produce: fn(): int => {
+        foreach (Core\Arr::range(1, 20) as int $n) {
+            $chan->send($n);
+            Flow::$sent += 1;
+            var $lead = Flow::$sent - Flow::$received;
+            if ($lead > Flow::$maxLead) {
+                Flow::$maxLead = $lead;
+            }
+        }
+        // Without this the consumer's `foreach` never ends and the group
+        // cannot return, which is `close` being the only end-of-stream signal.
+        $chan->close();
+        return Flow::$sent;
+    },
+    consume: fn(): int => {
+        foreach ($chan as int $n) {
+            Flow::$received += 1;
+        }
+        return Flow::$received;
+    },
+});
+
+echo Flow::$sent, " sent, ", Flow::$received, " received", "\n";
+
+// Upper side: the sender was suspended by the capacity rather than allowed to
+// run the whole range into a buffer that grew.
+if (Flow::$maxLead <= 3) {
+    echo "bounded by the capacity", "\n";
+} else {
+    echo "the buffer grew to ", Flow::$maxLead, "\n";
+}
+
+// Lower side: it is a buffer and not a rendezvous — the producer really did
+// get ahead of a consumer that had not asked for the value yet.
+if (Flow::$maxLead > 1) {
+    echo "buffered, not a rendezvous", "\n";
+} else {
+    echo "handed off one at a time", "\n";
+}
+--EXPECT--
+20 sent, 20 received
+bounded by the capacity
+buffered, not a rendezvous

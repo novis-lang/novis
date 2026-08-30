@@ -1,0 +1,58 @@
+--TEST--
+A spawned child's own `return` is the value the parent reads off the awaited result, one handle at a time and in whatever order the parent awaits them — ADR 0006 § *Failure is a value, not an exception*, ADR 0072 § 4
+--FILE adder.nvs--
+<?nvs
+// The child's whole job is to answer a value. A file-scope `return` is what
+// crosses (ADR 0021 § 3's value form, read here through the isolate boundary),
+// and it crosses as ADR 0023 § 2's graph copy — so a structured answer arrives
+// whole rather than as a handle onto the child's arena, which no longer exists
+// by the time the parent reads it.
+var $total = 0;
+foreach (Core\Arr::range(1, 10) as int $n) {
+    $total += $n;
+}
+
+return ["sum" => $total, "count" => 10];
+--FILE namer.nvs--
+<?nvs
+// A second child, so the awaits below are two distinct answers rather than one
+// answer read twice.
+return "namer";
+--FILE--
+<?nvs
+// ADR 0006's result shape has four fields and this case is the one no other
+// isolate case reads: `value`. `ok`, `output` and `error` are pinned by
+// tests/conformance/isolate/, and what is left is the ordinary success path —
+// a child that ran, returned, and handed its answer back.
+
+// Both children are spawned before either is awaited, which is what makes the
+// await a *join* rather than a call: the handle outlives the statement that
+// produced it and the value is collected where the parent asks for it.
+var $sum = spawn script "adder.nvs";
+var $name = spawn script "namer.nvs";
+
+// The parent's own work, in between. A spawn that were really a synchronous
+// call would still print this line — what it could not do is print it before
+// either child had been joined, which is the ordering below.
+echo "parent working", "\n";
+
+// Awaited in the opposite order to the spawns, so a result queue that answered
+// in completion order rather than per handle fails here.
+var $named = await $name;
+echo "value=", $named->value as string, "\n";
+
+var $added = await $sum;
+echo "ok=", $added->ok ? "true" : "false", "\n";
+
+// `value` is `mixed` — ADR 0006 cannot know a child's return type statically —
+// so reading a structured answer costs the cast that every `mixed` read costs
+// (ADR 0007 § 3). 1+2+…+10 = 55.
+var $answer = $added->value as array<int>;
+echo "sum=", $answer["sum"], "\n";
+echo "count=", $answer["count"], "\n";
+--EXPECT--
+parent working
+value=namer
+ok=true
+sum=55
+count=10
