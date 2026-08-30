@@ -1,0 +1,7 @@
+<?nvs
+// ADR 0048 § 2's payload is a *graph*, not a file: this entry resolves one
+// `require` at build time and the bundle has to carry both sides of it.
+require "lib/greet.nvs";
+
+echo Greet::line(), "\n";
+echo 6 * 7, "\n";

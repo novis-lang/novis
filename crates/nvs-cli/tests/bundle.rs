@@ -1,0 +1,186 @@
+//! `nvs build --compile` and the executable it writes —
+//! [ADR 0048](../../../docs/adr/0048-portable-single-file-executables.md)'s
+//! *Verification* list, for the two claims that do not need three platforms to
+//! ask.
+//!
+//! Through the built binary rather than by calling `bundle::build`, for the
+//! reason [`openapi`](openapi) already writes down: `nvs-cli` is a binary crate
+//! with no library target, and what ADR 0048 § 5 promises is what the *command*
+//! produces. The round-trip of the manifest itself is a unit test next to the
+//! writer (`src/bundle.rs`); this file asserts the two things only a real
+//! executable can answer — that the payload is on disk in § 2's shape, and that
+//! running it is running the program.
+
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+/// The two-file `require` graph both tests bundle.
+const APP: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/bundle/app.nvs");
+
+/// § 4's footer: `b"NVSB"`, a `u16` and two `u64`s.
+const FOOTER_LEN: usize = 22;
+
+/// Builds the fixture into a private directory and hands back the executable.
+///
+/// One directory per test rather than one shared: the two tests run
+/// concurrently under `cargo test`, and a bundle half-written by one is not
+/// something the other should ever be able to observe.
+fn bundle(name: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("nvs-bundle-{name}"));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("a private directory under the temp dir");
+    let exe = dir.join(if cfg!(windows) { "app.exe" } else { "app" });
+
+    let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .args(["build", "--compile", APP, "-o"])
+        .arg(&exe)
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+    assert!(
+        out.status.success(),
+        "the fixture compiles, so the bundle is written: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    exe
+}
+
+/// A length off the wire, as an index into bytes this host actually holds.
+///
+/// The footer's fields are `u64` because the format is the same on every
+/// target; a value that does not fit this host's `usize` describes a file this
+/// host could not have written, and saying so is better than wrapping into an
+/// index that happens to be in range.
+fn at_most_usize(n: u64) -> usize {
+    usize::try_from(n).expect("a length this host wrote fits its own pointer width")
+}
+
+/// § 2's flat file list, read back out of a finished executable exactly as the
+/// footer describes it: `(relative path, source)` per entry, in payload order.
+///
+/// Written here rather than shared with the writer on purpose — a reader that
+/// is the writer's own code cannot fail to agree with it, and agreement is the
+/// whole claim.
+fn payload(exe: &Path) -> Vec<(String, String)> {
+    let bytes = std::fs::read(exe).expect("the bundle was just written");
+    let footer = &bytes[bytes.len() - FOOTER_LEN..];
+    assert_eq!(&footer[0..4], b"NVSB", "§ 4's magic ends the file");
+    assert_eq!(
+        u16::from_le_bytes([footer[4], footer[5]]),
+        1,
+        "the format version this test knows"
+    );
+    let offset = at_most_usize(u64::from_le_bytes(
+        footer[6..14].try_into().expect("eight bytes"),
+    ));
+    let len = at_most_usize(u64::from_le_bytes(
+        footer[14..22].try_into().expect("eight bytes"),
+    ));
+    assert_eq!(
+        offset + len + FOOTER_LEN,
+        bytes.len(),
+        "the manifest runs from its offset to the footer and no further"
+    );
+
+    let body = &bytes[offset..offset + len];
+    let mut at = 4;
+    let count = u32::from_le_bytes(body[0..4].try_into().expect("four bytes")) as usize;
+    let mut files = Vec::with_capacity(count);
+    for _ in 0..count {
+        let path_len = u32::from_le_bytes(body[at..at + 4].try_into().expect("four")) as usize;
+        at += 4;
+        let name = String::from_utf8(body[at..at + path_len].to_vec()).expect("UTF-8 path");
+        at += path_len;
+        let text_len = at_most_usize(u64::from_le_bytes(
+            body[at..at + 8].try_into().expect("eight"),
+        ));
+        at += 8;
+        let text = String::from_utf8(body[at..at + text_len].to_vec()).expect("UTF-8 source");
+        at += text_len;
+        files.push((name, text));
+    }
+    assert_eq!(at, body.len(), "the manifest is exactly its entries");
+    files
+}
+
+/// §§ 2 and 3: the payload is the entry file **plus every file its `require`
+/// graph statically resolved to**, as plain source, entry first.
+///
+/// Asserted by counting and by content rather than by looking for one name: a
+/// bundler that embedded the entry alone still produces a file whose footer
+/// parses, and the `require`d half is the half that would then fail on the
+/// user's machine instead of at build time.
+#[test]
+fn a_bundle_carries_the_statically_resolved_require_graph_as_source() {
+    let files = payload(&bundle("graph"));
+
+    assert_eq!(
+        files.len(),
+        2,
+        "the entry and the one file it requires, and nothing else: {:?}",
+        files.iter().map(|(n, _)| n).collect::<Vec<_>>()
+    );
+    assert_eq!(files[0].0, "app.nvs", "the entry point is entry zero");
+    assert_eq!(
+        files[1].0, "lib/greet.nvs",
+        "a required file keeps the relative layout it was written with, `/`-separated \
+         whatever platform built it"
+    );
+
+    // Source, not artifacts — § 2's whole trade. Each file's own text is in
+    // there byte for byte, which is also what makes a bundle inspectable.
+    assert!(
+        files[0].1.contains("require \"lib/greet.nvs\";"),
+        "the entry's own source: {:?}",
+        files[0].1
+    );
+    assert!(
+        files[1].1.contains("class Greet"),
+        "the required file's own source: {:?}",
+        files[1].1
+    );
+    for (name, text) in &files {
+        assert!(
+            text.starts_with("<?nvs"),
+            "{name} is source text and not a compiled artifact"
+        );
+    }
+}
+
+/// ADR 0048's *Verification*, first row: a bundled executable runs identically
+/// to `nvs run` against the same source.
+///
+/// Identically means all three of stdout, stderr and exit status — a bundle
+/// that printed the right answer while also complaining about a payload it
+/// could not read would pass on stdout alone.
+#[test]
+fn a_bundled_executable_runs_identically_to_nvs_run() {
+    let exe = bundle("identical");
+
+    let bundled = Command::new(&exe)
+        .output()
+        .expect("the bundle is an executable this host can run");
+    let interpreted = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .args(["run", APP])
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+
+    assert_eq!(
+        String::from_utf8_lossy(&bundled.stdout),
+        String::from_utf8_lossy(&interpreted.stdout),
+        "the same program, so the same standard output"
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&bundled.stderr),
+        String::from_utf8_lossy(&interpreted.stderr),
+        "and nothing extra on standard error"
+    );
+    assert_eq!(
+        bundled.status.code(),
+        interpreted.status.code(),
+        "and the same exit status"
+    );
+    assert!(
+        String::from_utf8_lossy(&bundled.stdout).contains("greeting from the require graph"),
+        "a positive control: both sides ran the program rather than both failing the same way"
+    );
+}
