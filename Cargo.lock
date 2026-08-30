@@ -1492,6 +1492,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvs-config"
+version = "0.0.1"
+dependencies = [
+ "nvs-diagnostics",
+ "serde",
+ "toml",
+]
+
+[[package]]
 name = "nvs-diagnostics"
 version = "0.0.1"
 dependencies = [
