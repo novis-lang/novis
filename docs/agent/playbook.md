@@ -3002,6 +3002,14 @@ is why" — is this file.
   assert on `Untrusted::Breach` and on the directory's own last component — not on the canonical
   path, because `fs::canonicalize` yields `\\?\C:\…` on Windows where the refusal's message does
   not.
+- **A path helper that normalizes `..` defangs the very escape the case was written to assert.** The
+  `p()` in `crates/nvs-config/tests/request.rs` resolves `.` and `..` away so an ADR's `/a/b` spells
+  itself host-natively, and reaching for the same helper in a case about a `..` escape hands
+  `Capabilities::allows` a path that has already escaped — the assertion then passes on the
+  sibling-root rule and never on ADR 0118 § 4's canonicalise-then-prefix. It fails no test and looks
+  right in review. `crates/nvs-config/tests/capability.rs` keeps the two apart: `raw()` is what the
+  caller wrote, `lexical()` is what the filesystem answers, and only the fake `Files` may turn one
+  into the other.
 
 ## Splitting a file that got too big
 

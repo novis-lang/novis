@@ -2,59 +2,59 @@
 
 ## State
 
-**Stage 6's closure test is green and ADR 0074's refusals have landed.**
-`every_capability_bearing_member_declares_its_capability` is in
-`crates/nvs-stdlib/tests/capability.rs` and its frozen allowlist, `NEEDS_NO_CAPABILITY`, is
-**empty** — every member of every capability-bearing class on disk declares what it needs, which is
-the strongest state ADR 0118 § 7 describes. The one capability-bearing class today is `Core\File`
-and both its members are in `registry::CAPABILITIES`. The test asserts that positively, so it cannot
-pass by finding nothing to check.
+**Stage 6's adversarial suite is green, and with it every `-p nvs-config` check the goal names.**
+The three cases the acceptance list names are on disk:
+`a_script_attempting_to_set_a_system_directive_fails` and
+`a_script_attempting_to_widen_a_capability_fails` in `crates/nvs-config/tests/request.rs`, and
+`spawn_script_without_the_capability_fails` in `crates/nvs-config/tests/capability.rs` (new).
 
-**ADR 0074 §§ 2-3's two refusals are `crates/nvs-config/src/http.rs`**, run from `resolve()` after
-`schedule::validate` because which `origins` and `secure` are in force is a question only the merged
-stream has answered. Both are `E0612`. `Inbound` holds the four values the two questions are decided
-from and `Inbound::meaningless` is the only place the condition is written; the boot reads those
-values off the typed tree and `Request::stays_meaningful` reads them off the snapshot, the overlay
-and the proposed assignment. That is the clause needing one implementation rather than two, and
-`the_same_two_refusals_come_from_config_set_as_from_the_boot` holds it by asserting the two
-mechanisms **agree** over six moves rather than asserting what either answered.
+All three are **sweeps with a positive control**, not single-key assertions: the first refuses every
+`System` row of `DIRECTIVES` in both its spellings and then asserts `request.all()` is byte-identical
+to before, so a `set` that returned `false` after writing the overlay fails; the second refuses every
+row of `Cap::ALL` against three values and then asks `Capabilities::allows` — not `get`, which has no
+rendering for a list — that the grant in force is still the file's. Each ends by accepting a
+`Runtime` directive, so a `set` that refused everything cannot pass any of them.
 
-**An absent boolean is its shipped default, not `false`.** § 3 ships `secure = true`, so a tree
-writing `same_site = "None"` and nothing else boots; reading absence as `false` would refuse a
-correct configuration, which is the one direction this check must not fail in.
+**The `RuntimeTighten` refusal has two reasons and the case holds both.** A capability with a grant
+in force is refused because a list cannot be shown to narrow; every other row is refused for having
+nothing to narrow *from*. Neither is the value's doing — `log.level` is the same unquantifiable shape
+under `Runtime` and is accepted — which is what pins the refusal on the class. `request.rs`'s module
+doc owns why refusing is the safe direction here.
 
-Orientation gaps, unchanged from the last session and still worth fixing: `[context] modules` names
-`crates/nvs-host/src/budget.rs`, which never existed, and names no `tools/` file. `[context] adrs`
-should drop **0042 § 3** (landed) and carry **0074 §§ 2-3** and **0118 § 7**, both sliced by hand
-here.
+`crates/nvs-config/tests/capability.rs` asserts the **rule** with no compiler and no request in front
+of it, as `capability.rs`'s module doc asks: a `Capabilities` deserialized from a `[capabilities]`
+block, canonicalized once as the snapshot's build does, and a fake `Files` holding a fixed set of
+paths plus one symlink. That is what lets `-p nvs-config` own the rule while `-p nvs-stdlib` owns the
+diagnostic.
 
 ## Next group
 
-**Stage 6's adversarial suite — item 18, and the last `-p nvs-config` check open.** One file set:
-`crates/nvs-config/tests/request.rs` and `crates/nvs-config/tests/capability.rs` (new), over
-`crates/nvs-config/src/{request.rs,capability.rs}`.
+**Stage 7 — ADR 0048's bundler, items 19 and 20, and the last two acceptance checks before Stage 8's
+counts.** One file set: `crates/nvs-cli/src/main.rs` with a new `crates/nvs-cli/src/bundle.rs`, plus
+`tools/try.py`. **Read ADR 0048 first** — the pack will not print it until `[context] adrs` carries
+it (see `## Backlog`).
 
-- [ ] **`a_script_attempting_to_set_a_system_directive_fails`** — m6.md's *Verify*, over the
-      `Request` harness that already holds the ceiling cases. `a_system_directive_is_not_settable_by_a_request`
-      at `crates/nvs-config/tests/request.rs:159` is the near neighbour; what this adds is the
-      adversarial half — every `System` row refused, asserted by counting over the registry rather
-      than on one key. Anchors: `crates/nvs-config/tests/request.rs:159`,
-      `crates/nvs-config/src/request.rs:146`.
-- [ ] **`a_script_attempting_to_widen_a_capability_fails`** — ADR 0005's `RuntimeTighten` half, which
-      `Request::set` already refuses for a reason the module doc's fourth paragraph owns; the case
-      pins that a grant cannot be widened and says which of the two reasons refused it. Anchors:
-      `crates/nvs-config/src/request.rs:146`, `crates/nvs-config/src/capability.rs:1`.
-- [ ] **`spawn_script_without_the_capability_fails`** — the check names `-p nvs-config`, so it is
-      `Capabilities::allows(Cap::ScriptSpawn, …)` answering `false` for an ungranted tree, beside the
-      roots check `schedule.rs` already runs. Anchors: `crates/nvs-config/src/schedule.rs:67`,
-      `crates/nvs-config/src/capability.rs:1`.
+- [ ] **`nvs build --compile` appends the entry file's statically-resolved `require` graph to the
+      host binary as plain source** — ADR 0048's *Decision*, which is the only copy of the scope and
+      of the source-not-artifacts trade. The `Build` variant takes the flag beside `openapi`, and
+      `run_build` is where it branches. Anchors: `crates/nvs-cli/src/main.rs:208`,
+      `crates/nvs-cli/src/main.rs:583`.
+- [ ] **`python tools/try.py --bundle <FILE> --expect <LINE>`** — the harness the goal owes itself
+      (`docs/agent/loop-goal.md` § *The harness this goal owes*), and item 20's "runs identically to
+      `nvs run`" is a comparison rather than an assertion about one output. It is a flag on the
+      parser that is already there. Anchors: `tools/try.py:178`.
+- [ ] **The two `-p nvs-cli` cases the check names** —
+      `a_bundle_carries_the_statically_resolved_require_graph_as_source` and
+      `a_bundled_executable_runs_identically_to_nvs_run`, over whatever `run_build` ends up calling.
+      Take this only after the first two land. Anchors: `crates/nvs-cli/src/main.rs:583`.
 
 ## Backlog
 
-- § 6's remaining `[[schedule]]` keys — `overlap` is `skip`/`queue`/`kill`, `timezone` is a zone name
-  — ADR 0073 § 6, in `crates/nvs-config/src/schedule.rs`.
-- Stage 8's conformance floor is 1050 and the tree is at 1011; the `[[check]]` names eight cases
-  under `tests/conformance/{config,cap,isolate,error}/` — `docs/agent/loop-goal.toml`.
-- Stage 7's bundler, ADR 0048 — untouched, and last on purpose.
-- `crates/nvs-cli/src/cache.rs` § *Known gaps* still decides a payload, so `Cache::load` is unexercised.
-- `[context]` in `docs/agent/loop-goal.toml` needs the three fixes § *State* names.
+- `[context] adrs` should now drop **0074 §§ 2-3** and **0118 § 7** (both landed) and carry **ADR
+  0048's `Decision`**, which the next group cannot start without (`docs/agent/loop-goal.toml`).
+- `[context] modules` names `crates/nvs-host/src/budget.rs`, which never existed, and names no
+  `tools/` file at all — the next group edits `tools/try.py` (`docs/agent/loop-goal.toml`).
+- Stage 8's checks want conformance ≥ 1050 and differential ≥ 210 against 1011 and 206 on disk; that
+  is the run's last gate and the largest remaining item (`docs/agent/loop-goal.toml`).
+- Item 18's fourth clause, "a child cannot widen a capability its parent narrowed", is a conformance
+  case in Stage 8's own list rather than a `-p nvs-config` test (`docs/agent/loop-goal.md`).
