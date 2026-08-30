@@ -1047,6 +1047,16 @@ is why" — is this file.
   unusable here; the way back is to revert the header-only files by diff shape
   (`git diff -U0 -- <f>` showing exactly two changed lines, both `source:`), which leaves the slice's
   own 19. Check `git status` after any forced snapshot update rather than staging the directory.
+- **A `Resolved`/`Snapshot` field is not enough to make a value reach a reader: `Snapshot::retype`
+  rebuilds the typed tree from the merged *table*, so anything the resolver put on
+  `Resolved::config` and nowhere else is dropped at the snapshot boundary.** That is the whole of
+  finding U11 — `secret::materialize` had been filling `config.db[…].password` since the day it was
+  written, and every reader still saw `None`, because the table it deserializes from holds
+  `password_file` and no content. A reload retypes a second time, so a value put back once, at
+  build, would have been dropped again on the next `Boot` carry. The fix shape that survives both:
+  carry the value beside the table and re-apply it *inside* `retype`, which is the one place every
+  deserialization goes through. Before believing a config value is lost in the resolver, check
+  whether it is in `Snapshot::table` — `nvs config dump --toml` prints exactly that table.
 
 ## Running things
 

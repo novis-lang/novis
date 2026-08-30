@@ -99,9 +99,14 @@ in that goal. An item's owner is the row it sits in.
 - [x] **U10** The config trust rule (a file writable by another account is refused) is applied by
       neither `nvs run` nor `nvs config check` — `crates/nvs-cli/src/config.rs` reserves it for
       `serve`/`ctl reload`, which do not exist. E0607/W1005 are unreachable in this binary.
-- [ ] **U11** `password_file` is not materialized under `nvs run`: `Core\Config::get("db.main.password")`
+- [x] **U11** `password_file` is not materialized under `nvs run`: `Core\Config::get("db.main.password")`
       is `null`, and `config dump` shows the path rather than `<secret>` (secret.rs says `<secret>`).
-      The both-set refusal E0608 does fire.
+      The both-set refusal E0608 does fire. The file *was* read — `Snapshot::retype` then rebuilt the
+      typed tree out of the merged table, which never held the content, so the value was dropped
+      between the resolver and every reader. It is carried beside the table now
+      (`nvs_config::secret::Secret`), put back by `secret::apply` on each retype, and read by name:
+      `Core\Config::get`/`all` answer it and the dump prints ADR 0103 § 9's `<secret>` row naming the
+      file. `dump --toml` still cannot leak it, because the table is still where it never is.
 - [ ] **U12** A write to a get-only hooked property compiles and is silently unobservable. *q03*
 - [ ] **U13** `$e->message = "b"` on a throwable is accepted and reads back — the properties are not
       read-only, though a conformance case calls `location` "readonly". *ref-errors `write_message`*
@@ -159,8 +164,13 @@ in that goal. An item's owner is the row it sits in.
 - [x] **D14** A child with no top-level `return` answers `value = int(1)`, not `null`. *refp/spawn/noret2*
       The finding is right and ADR 0006 § *Decision* already said so; `1` is `require`'s, and the
       entry frame is not a `require` — `nvs_ir::lower::ScriptRole` is where the two now part.
-- [ ] **D15** `Core\Config::get("mode")` answers `null` and `set("mode", …)` returns `false`;
-      `mode.default` works for both — ADR 0091 § 4 spells the bare `mode`.
+- [x] **D15** `Core\Config::get("mode")` answers `null` and `set("mode", …)` returns `false`;
+      `mode.default` works for both — ADR 0091 § 4 spells the bare `mode`. The spelling half is not a
+      bug: § 4 says `mode.default`, and a bare `mode` is a limit's name and nothing else
+      (`nvs_config::request`'s module doc). What was missing is what the flip *does* — § 4's last
+      bullet re-derives § 3's five defaults and § 5's ceiling bounds it, neither of which existed.
+      `nvs_config::mode` is now the one home of that table and of the two-value order, and
+      `Request::flip_mode` applies both.
 - [ ] **D16** `Core\Arr::from` refuses the `Core` collections although they are `Iterable`:
       `from($objectSet)` → E0401 "expected `array<T>|Iterable<T>|Iterator<T>`, found
       `Core\ObjectSet<int>`"; on `ObjectMap` the message leaks the unsubstituted `array<K>`. `foreach`
