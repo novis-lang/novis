@@ -494,7 +494,9 @@ const DURATION_PARSE_DOC: MethodDoc = MethodDoc {
     errors: &[ErrorDoc {
         error: "ParseError",
         desc: "`$text` is not a duration literal — an unknown or repeated unit, a missing \
-               count, trailing text — or spells more than a `Duration` can hold.",
+               count, trailing text — or spells more than a `Duration` can hold. A `$text` \
+               written as a literal is read by this same grammar while checking and refused \
+               there as `E0769`, so only a computed one reaches this throw.",
     }],
 };
 
@@ -595,7 +597,9 @@ const DURATION_NEGATED_DOC: MethodDoc = MethodDoc {
 const DURATION_COMPARE_TO_DOC: MethodDoc = MethodDoc {
     short: "Orders two durations by length and sign, as `Comparable` requires, so a \
             shorter duration compares below a longer one and a negative one below every \
-            positive one.",
+            positive one. This is also how two durations are compared by content: `==` on \
+            two objects is identity, so `90m == 1h30m` is `false` and \
+            `$a->compareTo($b) == 0` is the question it looks like it asks.",
     params: &[ParamDoc {
         name: "other",
         desc: "The duration to compare against.",
@@ -1458,7 +1462,9 @@ pub const WEEKDAY: CoreEnum = CoreEnum {
 /// [`WEEKDAY`]'s reference card — ADR 0117.
 const WEEKDAY_DOC: EnumDoc = EnumDoc {
     short: "A day of the week, Monday first as ISO 8601 and `date(\"N\")` order them — what \
-            `$d->weekday()` answers and `next`/`previous` take.",
+            `$d->weekday()` answers and `next`/`previous` take. The order is theirs and the \
+            numbering is not: the cases are zero-based, `Monday as int` is `0` and `Sunday` \
+            is `6`, where `date(\"N\")` numbers that same order `1` through `7`.",
     cases: &[
         CaseDoc {
             name: "Monday",
@@ -1730,7 +1736,10 @@ const DATETIME_FORMAT_DOC: MethodDoc = MethodDoc {
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "`$pattern` does not compile — a field letter outside the implemented subset, or \
-               an unterminated quote.",
+               an unterminated quote. A `$pattern` written as a literal is read while checking \
+               and refused there as `E0769`, so only a computed one reaches this throw; \
+               `Date::format` and `TimeOfDay::format` read the same patterns and are not \
+               checked that way, so a bad literal throws there.",
     }],
 };
 
@@ -2260,10 +2269,9 @@ const TIME_FROM_ISO_DOC: MethodDoc = MethodDoc {
 /// `Core\Time::parse`'s reference card — ADR 0117.
 const TIME_PARSE_DOC: MethodDoc = MethodDoc {
     short: "Reads a civil date and time through a CLDR pattern and places it in `$zone`, \
-            replacing `DateTime::createFromFormat` and `strptime`; a literal pattern is \
-            validated and planned at compile time, so a malformed one is a compile error \
-            rather than a throw. A field the pattern does not name is left at the start of \
-            its range.",
+            replacing `DateTime::createFromFormat` and `strptime`; a `$format` written as a \
+            literal is read while checking, so a malformed one is `E0769` rather than a \
+            throw. A field the pattern does not name is left at the start of its range.",
     params: &[
         ParamDoc {
             name: "text",
@@ -2290,7 +2298,9 @@ const TIME_PARSE_DOC: MethodDoc = MethodDoc {
             error: "LogicError",
             desc: "`$format` does not compile — a field letter outside the implemented subset, \
                    an unterminated quote — or names a zone or offset field, which `$zone` \
-                   already answers.",
+                   already answers. Only the first half is `E0769` for a written literal: a \
+                   zonal field is a pattern the grammar reads perfectly well and a rule of \
+                   this member's own, so it throws however `$format` arrived.",
         },
         ErrorDoc {
             error: "ParseError",

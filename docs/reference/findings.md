@@ -200,13 +200,19 @@ in that goal. An item's owner is the row it sits in.
       `nvs_stdlib::registry::implements_comparable`, seeded by `nvs_types::core_lib`. `Core\Uri`
       gains it by the same rule (spec § 12). `crates/nvs-stdlib/src/time.rs`'s module doc owns why a
       `Core` class satisfies an interface by member at all.
-- [ ] **D2** `Core\Time\Duration ==` is identity: `90m == 1h30m` is false; `compareTo` answers `0`.
-      *types-probes*
-- [ ] **D3** `Core\Weekday as int` is zero-based (`Friday` → `4`); the enum card says the cases are
-      ordered "as `date("N")`" (Friday = 5). *coretime-probes `t_enum_int`*
-- [ ] **D4** A literal pattern/duration argument is a **compile error** (E0769), not the
+- [x] **D2** `Core\Time\Duration ==` is identity: `90m == 1h30m` is false; `compareTo` answers `0`.
+      Closed: the binary is ADR 0090 § 3's class row, and `Duration::compareTo`'s card now says so,
+      naming `$a->compareTo($b) == 0` as the content comparison. *types-probes*
+- [x] **D3** `Core\Weekday as int` is zero-based (`Friday` → `4`); the enum card says the cases are
+      ordered "as `date("N")`" (Friday = 5). Closed: the card keeps `date("N")` for the **order** and
+      states the numbering is not its — `Monday as int` is `0`. *coretime-probes `t_enum_int`*
+- [x] **D4** A literal pattern/duration argument is a **compile error** (E0769), not the
       `LogicError`/`ParseError` the cards name: `->format("yyyy-QQ")`, `Duration::parse("30 seconds")`.
-      Only a computed argument throws. *coretime-probes `t_format_bad_literal`, `t_parse_errors`*
+      Only a computed argument throws. Closed: the three cards on ADR 0057 § 1's roster —
+      `Duration::parse`, `DateTime::format` and `Core\Time::parse` — name `E0769` and say only a
+      computed argument reaches the throw, and the `DateTime::format` card names `Date::format` and
+      `TimeOfDay::format` as the off-roster half `nvs_types::intrinsics` owns.
+      *coretime-probes `t_format_bad_literal`, `t_parse_errors`*
 - [ ] **D5** `Core\File::read("missing.txt")` under a valid `fs.read` grant throws the **capability**
       `RuntimeError` ("needs the capability fs.read for missing.txt, which is not granted"), not the
       card's `IOError`; `"./missing.txt"` gets the `IOError`. Likewise `write("copy.txt", …)` with
