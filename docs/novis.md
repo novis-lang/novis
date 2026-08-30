@@ -15281,7 +15281,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 
 | PHP | Outcome | Novis |
 |---|---|---|
-| `addcslashes` | dropped | a half-escaper. `Core\Html::escape`, `Core\Db`'s binding, or `Core\Regex::quote` — the sink decides, never the caller ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md)) |
+| `addcslashes` | dropped | a half-escaper. `Core\Html::escape`, `Core\Db`'s binding, or `Core\Regex::quote` — the sink decides, never the caller ([ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md)) |
 | `addslashes` | dropped | same; SQL escaping does not exist because binding is the mechanism |
 | `bin2hex` | member | `Core\Encoding::toHex` |
 | `chop` | member | `Core\Str::trimEnd` |
@@ -15293,7 +15293,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `ctype_alnum` | dropped | `Core\Regex::matches($s, "^[\\p{L}\\p{N}]+$")` — ASCII-only as a member would be wrong on UTF-8 |
 | `ctype_alpha` | dropped | `Core\Regex::matches($s, "^\\p{L}+$")` |
 | `ctype_cntrl` | dropped | `Core\Regex::matches($s, "^\\p{Cc}+$")` |
-| `ctype_digit` | language | `$s as ?uint != null` ([ADR 0066](../adr/0066-nullable-conversion-operator.md)) — a type question, not a character class |
+| `ctype_digit` | language | `$s as ?uint != null` ([ADR 0066](adr/0066-nullable-conversion-operator.md)) — a type question, not a character class |
 | `ctype_graph` | dropped | `Core\Validate::isPrintable` and a space test |
 | `ctype_lower` | dropped | `$s == Core\Str::lower($s)` |
 | `ctype_print` | member | `Core\Validate::isPrintable` |
@@ -15307,7 +15307,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `hex2bin` | member | `Core\Encoding::fromHex` |
 | `iconv` | member | `Core\Encoding::decodeText` / `Core\Encoding::encodeText` |
 | `iconv_get_encoding` | dropped | there is no ambient encoding to read; `string` is UTF-8 by type |
-| `iconv_set_encoding` | dropped | ambient process state, unsound per core ([ADR 0051](../adr/0051-standard-library-tiers.md)) |
+| `iconv_set_encoding` | dropped | ambient process state, unsound per core ([ADR 0051](adr/0051-standard-library-tiers.md)) |
 | `iconv_strlen` | member | `Core\Str::length` — no encoding argument exists (R13) |
 | `iconv_strpos` | member | `Core\Str::indexOf` |
 | `iconv_strrpos` | member | `Core\Str::lastIndexOf` |
@@ -15439,11 +15439,11 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `array_walk_recursive` | language | `foreach` over `Core\Arr::flattenDeep` |
 | `arsort` | member | `Core\Arr::sort` with `{order: Order::Desc, preserveKeys: true}` |
 | `asort` | member | `Core\Arr::sort` with `{preserveKeys: true}` |
-| `compact` | dropped | it builds an array from variable *names* ([ADR 0008](../adr/0008-static-and-global.md)). Write the array |
+| `compact` | dropped | it builds an array from variable *names* ([ADR 0008](adr/0008-static-and-global.md)). Write the array |
 | `count` | member | `Core\Arr::count` |
 | `current` | dropped | the internal array pointer: a mutable cursor inside a copy-on-write value. `Core\Arr::first` or `foreach` |
 | `end` | dropped | as `current`. `Core\Arr::last` |
-| `extract` | dropped | it creates variables from keys ([ADR 0008](../adr/0008-static-and-global.md)); nothing may populate a scope |
+| `extract` | dropped | it creates variables from keys ([ADR 0008](adr/0008-static-and-global.md)); nothing may populate a scope |
 | `in_array` | member | `Core\Arr::contains`, always strict, haystack first (R10) |
 | `iterator_apply` | language | `foreach` |
 | `iterator_count` | member | `Core\Arr::count` over `Core\Arr::from` |
@@ -15542,11 +15542,11 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `date_create_immutable_from_format` | member | `Core\Time::parse` |
 | `date_date_set` | member | `Core\Time\DateTime::with` |
 | `date_default_timezone_get` | member | `Core\Time\Zone::system` — an ordinary value a program asks for and then passes, not a default anything picks up |
-| `date_default_timezone_set` | dropped | nothing installs a zone that a later conversion silently reads; that is the unsoundness [ADR 0051](../adr/0051-standard-library-tiers.md) rejects `setlocale` for |
+| `date_default_timezone_set` | dropped | nothing installs a zone that a later conversion silently reads; that is the unsoundness [ADR 0051](adr/0051-standard-library-tiers.md) rejects `setlocale` for |
 | `date_diff` | member | `Core\Time\DateTime::difference` in whole units, or `Core\Time\Instant::since` for an exact `Duration`. There is no `DateInterval` |
 | `date_format` | member | `Core\Time\DateTime::format` |
 | `date_get_last_errors` | dropped | a parse failure throws rather than recording itself (R4) |
-| `date_interval_create_from_date_string` | dropped | the relative-expression grammar does not exist; `Core\Time\Duration::parse` reads the exact-duration subset ([ADR 0070](../adr/0070-duration-literals.md)) |
+| `date_interval_create_from_date_string` | dropped | the relative-expression grammar does not exist; `Core\Time\Duration::parse` reads the exact-duration subset ([ADR 0070](adr/0070-duration-literals.md)) |
 | `date_interval_format` | dropped | a `Duration` is `Stringable` in that same literal grammar, so it round-trips through `parse` and needs no second one |
 | `date_isodate_set` | member | `Core\Time\DateTime::with` |
 | `date_modify` | member | `Core\Time\DateTime::plus` / `Core\Time\DateTime::minus`, or `Core\Time\DateTime::next` for a weekday |
@@ -15554,7 +15554,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `date_parse` | member | `Core\Time::parse` |
 | `date_parse_from_format` | member | `Core\Time::parse` |
 | `date_sub` | member | `Core\Time\DateTime::minus`, `Core\Time\Instant::minus` — the same split as `date_add` |
-| `date_sun_info` | dropped | solar geometry is not a Tier 0 concern ([ADR 0051](../adr/0051-standard-library-tiers.md)) |
+| `date_sun_info` | dropped | solar geometry is not a Tier 0 concern ([ADR 0051](adr/0051-standard-library-tiers.md)) |
 | `date_sunrise` | dropped | same |
 | `date_sunset` | dropped | same |
 | `date_time_set` | member | `Core\Time\DateTime::withTime` |
@@ -15587,7 +15587,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `mktime` | member | `Core\Time::at`, whose `Zone` is a declared parameter |
 | `sleep` | member | `Core\Time::sleep`, which takes a `Duration` — so seconds, milliseconds and nanoseconds are one member |
 | `strftime` | member | `Core\Time\DateTime::format`, with a CLDR pattern in the root locale |
-| `strtotime` | dropped | there is no relative-expression string. [01 § 4](01-core-library.md) gives the typed call for each expression, and `Core\Time\Duration::parse` covers the exact-duration subset a config value can carry |
+| `strtotime` | dropped | there is no relative-expression string. [01 § 4](spec/01-core-library.md) gives the typed call for each expression, and `Core\Time\Duration::parse` covers the exact-duration subset a config value can carry |
 | `time` | member | `Core\Time::now`, then `Core\Time\Instant::toEpochSeconds` where the integer itself is wanted |
 | `time_nanosleep` | member | `Core\Time::sleep` |
 | `time_sleep_until` | member | `Core\Time::sleep` over `Core\Time\Instant::since` — the wait is a `Duration` computed from the target |
@@ -15614,7 +15614,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `preg_replace_callback_array` | member | `Core\Regex::replaceWith`, once per pattern |
 | `preg_split` | member | `Core\Regex::split` and its two options, replacing four flags |
 | `json_decode` | member | `Core\Json::decode`, or `Core\Json::decodeAs` where the result has a declared type |
-| `json_encode` | member | `Core\Json::encode` — its 15 `JSON_*` flags are two options and a set of decisions taken once ([01 § 6](01-core-library.md)) |
+| `json_encode` | member | `Core\Json::encode` — its 15 `JSON_*` flags are two options and a set of decisions taken once ([01 § 6](spec/01-core-library.md)) |
 | `json_last_error` | dropped | malformed input throws `ParseError`; there is no flag choosing between throwing and `null`, and so nothing to read back (R4) |
 | `json_last_error_msg` | dropped | same |
 | `json_validate` | member | `Core\Json::isValid` |
@@ -15638,5 +15638,5 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `is_null` | language | `$x == null` |
 | `is_numeric` | language | `$s as ?float != null` |
 | `is_resource` | dropped | there is no `resource` type (R14) |
-| `settype` | dropped | a variable's type never changes ([ADR 0007](../adr/0007-explicit-type-system.md)) |
+| `settype` | dropped | a variable's type never changes ([ADR 0007](adr/0007-explicit-type-system.md)) |
 | `strval` | language | `$x as string` |

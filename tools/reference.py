@@ -65,6 +65,8 @@ SRC_RE = re.compile(r"^<!-- src:.*?-->[ \t]*\n?", re.M)
 HEADING_RE = re.compile(r"^(#{1,6}) (.*)$", re.M)
 #: One row of the migration table.
 ROW_RE = re.compile(r"^\| `([^`]+)` \| (member|language|dropped|open) \| (.*) \|$")
+#: A markdown link whose target is a path rather than a URL or an in-page anchor.
+REL_LINK_RE = re.compile(r"(?<=\]\()(?!\w+:|[#/])([^)]+)(?=\))")
 
 TIMEOUT = 60  # seconds per example; a hung example is a bug in the example
 
@@ -136,6 +138,22 @@ def registry() -> dict:
     if p.returncode != 0:
         sys.exit(f"reference.py: `nvs meta --json` failed:\n{p.stderr.decode('utf-8', 'replace')}")
     return json.loads(p.stdout.decode("utf-8"))
+
+
+def reroot_links(text: str, source: Path) -> str:
+    """Rewrite `text`'s relative links from `source`'s directory to `OUT`'s.
+
+    A cell copied out of `docs/spec/` keeps the links it was written with, and those
+    resolve from `docs/spec/` -- not from `docs/novis.md`, one directory up, where the
+    copy ends up. Re-express each one against `OUT`'s directory so it still resolves.
+    """
+    def sub(m: re.Match) -> str:
+        target, _, anchor = m.group(1).partition("#")
+        if not target:                       # a bare `#anchor` is in-page; leave it
+            return m.group(1)
+        moved = os.path.relpath(source.parent / target, OUT.parent).replace(os.sep, "/")
+        return moved + ("#" + anchor if anchor else "")
+    return REL_LINK_RE.sub(sub, text)
 
 
 def migration_rows() -> list[tuple[str, str, str, str]]:
@@ -379,7 +397,7 @@ def table_migration(reg: dict) -> str:
             names = re.findall(r"`(Core\\[A-Za-z\\]+(?:::|->)[a-zA-Z]+)`", novis)
             if not names or not all(n in known for n in names):
                 continue
-        lines.append(f"| `{php}` | {outcome} | {novis} |")
+        lines.append(f"| `{php}` | {outcome} | {reroot_links(novis, MIGRATION)} |")
         kept += 1
     return "\n".join(lines)
 
