@@ -1427,6 +1427,13 @@ is why" — is this file.
   and the call still exits 0, which reads as a clean leak check on a fixture that was never run. Send
   that command through a PowerShell call instead, which is the spelling the script's own header
   already carries. The same rewrite applies to any WSL-side absolute path passed as an argument.
+- **`wsl.exe -- bash /mnt/<drive>/<repo>/...` fails from the Bash tool with a path nobody wrote.** Git
+  Bash's MSYS layer rewrites a `/mnt/...` *argument* before WSL ever sees it, so the leak check
+  reports `bash: C:/Program Files/Git/mnt/<drive>/<repo>/tools/leak-check.sh: No such file or directory`
+  and the two obvious readings — a missing script, a broken distro — are both wrong.
+  `MSYS_NO_PATHCONV=1` in front of the command is the whole fix, and the same call from PowerShell
+  needs nothing. The general shape: any absolute POSIX path handed to a Windows `.exe` through Git
+  Bash is a candidate.
 
 ## Writing a test case
 
@@ -3114,6 +3121,15 @@ is why" — is this file.
   `Core\Script::args()` that was the root's own absence, relaying its answer back through `args:`, and
   asserting that handing a value to a child does not put one on the giver. Three real questions, not
   three spellings of one.
+- **A new `Core` member owes three cases, not one, and one of them has to be an error path.**
+  `conformance_coverage.rs` runs two gates a single case cannot pass:
+  `every_core_class_has_a_conformance_floor_of_three` wants three cases *asking different
+  questions*, and `every_error_path_is_asserted_or_declared_unreachable` wants each `Fault::thrown`
+  message either echoed by a case or declared unreachable at the site — and its `OWED_A_CASE` list
+  is empty and may only shrink, so there is no third answer. Budget for that when the design has a
+  refusal a `.nvst` cannot reach: an `.nvst` case cannot write an `nvs.toml` (there is no config
+  section in the format), so a refusal that only a directive can trigger is unassertable, and the
+  gate is telling you the check belongs where a program can reach it or nowhere yet.
 
 ## Splitting a file that got too big
 

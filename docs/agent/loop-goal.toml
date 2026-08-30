@@ -93,6 +93,10 @@ modules = [
   "crates/nvs-stdlib/src/ordering.rs",
   "crates/nvs-stdlib/src/time.rs",
   "crates/nvs-stdlib/src/objset.rs",
+  # D7 and D9 -- the `#[Json\Derive]` codec, whose decode half is the one still short of its encode
+  # half, and the attribute reader that erases a field's type for it.
+  "crates/nvs-stdlib/src/json.rs",
+  "crates/nvs-types/src/derive.rs",
   "crates/nvs-types/src/expr/calls.rs",
   "crates/nvs-types/src/expr/literals.rs",
   "crates/nvs-types/src/defaults.rs",
@@ -125,6 +129,10 @@ adrs = [
   "0103 §6",
   "0078 §2",
   "0042 §3",
+  # Stage 0c -- ADR 0071's derive: § 1 is the field roster a codec is built from and § 5 the nested
+  # decode D7's remaining halves sit beside.
+  "0071 §1",
+  "0071 §5",
   # Stage 9 -- the grammar and the one-word rule for what an arm holds; §§ 4-6 are per item.
   "0119 §1",
   "0119 §3",
