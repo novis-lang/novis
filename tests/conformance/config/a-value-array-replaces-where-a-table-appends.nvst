@@ -1,0 +1,34 @@
+--TEST--
+a value array set in a later file replaces the earlier one wholesale while `[[table]]` entries accumulate across the tree — ADR 0103 §§ 3, 4, 9
+--RUN--
+config dump --origin
+--FILE--
+<?nvs
+// Not run: `--RUN--` names ADR 0103 § 9's audit. This is the program the tree
+// would govern, written beside `nvs.toml` so the case describes a deployment.
+echo Core\Config::get('capabilities.fs.read'), "\n";
+--FILE nvs.toml--
+# The root file grants one readable root and loads one extension.
+[capabilities.fs]
+read = ["./data"]
+
+[[extension]]
+path = "./ext/metrics.nvsx"
+
+[[include]]
+path = "conf.d/local.toml"
+--FILE conf.d/local.toml--
+# § 4: `read` is one value, so this states the whole grant and `./data` is
+# gone — the last file that mentions a grant states all of it, and no reader
+# has to assemble the effective root list from two files. The `[[extension]]`
+# entry appends instead, because two of them in one file are two extensions.
+[capabilities.fs]
+read = ["./var/cache"]
+
+[[extension]]
+path = "./ext/tracing.nvsx"
+--EXPECTF--
+capabilities.fs.read = ["./var/cache"]         %sconf.d%elocal.toml (overrides %snvs.toml)
+extension.0.path     = "./ext/metrics.nvsx"    %snvs.toml
+extension.1.path     = "./ext/tracing.nvsx"    %sconf.d%elocal.toml
+include.0.path       = "conf.d/local.toml"     %snvs.toml
