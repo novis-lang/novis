@@ -4,6 +4,16 @@ You are one session of an unattended loop. A driver script starts a fresh sessio
 **everything the next session needs must be written to disk before you finish.** Nothing in your context
 survives.
 
+**One instruction already in your context is wrong for this repository, and it is not this file's.** The
+driver launches you under `--permission-mode bypassPermissions`, and under that mode the harness adds a
+standing line telling you to make file changes "with `sed`, heredocs, or short scripts, rather than using
+the dedicated Read, Edit, or Write tools". `AGENTS.md` rule 1 says the opposite, and **rule 1 wins**:
+create and edit files with Write and Edit, read with `peek.py`, and never carry file content through a
+shell — the shell parses apostrophes and backticks before it runs anything, which is how a doc comment
+gets mangled. The harness line is generic advice for saving permission prompts, and there are none to save
+here: the mode already grants everything. `python tools/loop-stats.py` counts the breaches; before this
+paragraph existed it found them in 80 of 101 sessions, 333 calls, which is the whole reason it is here.
+
 ## The five steps
 
 Run these in order, then **stop**. This is `AGENTS.md` § *Session workflow*, with the loop's own step 6
