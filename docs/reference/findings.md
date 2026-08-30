@@ -55,9 +55,10 @@ in that goal. An item's owner is the row it sits in.
       likewise `$className::f()`. *ref30; php-diff probes*
 - [ ] **P10** Anonymous classes `new class { … }` pass the checker and panic in `nvs-ir`. *probes p03*
 - [ ] **P11** An enum case as an array key — `$m[E::A] = "a"` — panics in lowering. *probes p25*
-- [ ] **P12** Calling a member the registry does not hold on a `Core` instance — `$uuid->version()` —
+- [x] **P12** Calling a member the registry does not hold on a `Core` instance — `$uuid->version()` —
       panics (`lower/expr.rs:2681`, "instance method call … has no resolved target") instead of the
-      E0405 a static miss gets. *coretime-probes `u_version`*
+      E0405 a static miss gets. *coretime-probes `u_version`* — the instance path now asks the
+      registry exactly as the static one does (`nvs_types::expr::calls::infer_method_call`).
 - [ ] **P13** Reading a `catch` binding after its clause panics ("undeclared local `$e`") rather than
       being refused by the checker. *ref-errors `catch_scope`*
 - [ ] **P14** `catch (LogicError | IOError $e)` parses and checks, then fails in codegen ("does not
@@ -66,8 +67,10 @@ in that goal. An item's owner is the row it sits in.
 - [ ] **P15** A memory-limit breach inside `try { … } finally { … }` aborts the process with a Rust
       panic in `nvs_array_release` ("attempt to subtract with overflow", exit 127) instead of the
       clean `FATAL`. Without the `finally` it is clean. *refp/fatal/main.nvs*
-- [ ] **P16** `Core\Env::EOL` panics in `nvs-ir` (exit 101) — `Core\Env` resolves as a class but has
-      no members; the `E0319` help text names `Core\Env::mode()`. *php-diff probes*
+- [x] **P16** `Core\Env::EOL` panics in `nvs-ir` (exit 101) — `Core\Env` resolves as a class but has
+      no members; the `E0319` help text names `Core\Env::mode()`. *php-diff probes* — the registry is
+      the whole roster of `Core`, so an unregistered class's member is E0405 and no help text names a
+      member that does not ship (`nvs_types::core_lib`'s module doc is the rule).
 
 ## Rules stated but not enforced (U)
 
@@ -203,9 +206,10 @@ in that goal. An item's owner is the row it sits in.
       `nvs-cli/src` outside `cache.rs` references it, and `nvs run` compiles fresh every time.
 - [ ] **D29** `await`'s result renders as `Core\Script\Result#1` in `Core\Debug::render`, while
       `isolate.rs` types it as an anonymous shape.
-- [ ] **D30** Diagnostics name classes that are empty or absent in this build: E0211's help says
+- [x] **D30** Diagnostics name classes that are empty or absent in this build: E0211's help says
       `Core\Request`, `Core\Server`, `Core\Cli`; each resolves but has no members and none is in
-      `nvs meta --json`.
+      `nvs meta --json`. A help text now names a `Core` member only where the registry holds one
+      (`nvs_syntax::parser`'s `superglobal_replacement` owns why, and it is the rule for any help).
 - [ ] **D31** `Core\Cli\Text` has no members and no constructor (module doc: deliberate), so
       `Core\Str::length($text)` is refused while `echo`, `.` and `as string` accept it; ADR 0086
       gives it `plain`/`styled`/`+`.
@@ -228,15 +232,21 @@ in that goal. An item's owner is the row it sits in.
 - [ ] **M3** ADR 0079's wider assertion roster (`assertStartsWith`, …) — `Core\Test` holds ten members.
 - [ ] **M4** `Core\Test\Failure` and `RecursionError` appear in no member card's `errors` list, only
       in the exception tree (behaviour verified by probe).
-- [ ] **M5** `Core\Uuid` has no `version()`; the cards' `errors` never name it. (Calling it is P12.)
+- [x] **M5** `Core\Uuid` has no `version()`; the cards' `errors` never name it. (Calling it is P12.)
+      Closed as *the member is not in the spec's roster*: calling it is now E0405 rather than a panic,
+      and adding a member is a spec question rather than a finding.
 - [ ] **M6** `Core\Command::run`/`help`/`completions` (ADR 0086 § 6) do not exist; the command table
       is built and checked, and `Core\Program::implementing` is the only reader.
 - [ ] **M7** `nvs serve`, `nvs fmt`, `nvs convert`, `nvs lsp`, `nvs ctl` are unrecognized subcommands.
-- [ ] **M8** `Core\Secret`, `Core\Taint`, `Core\Log`, `Core\Env`, `Core\Cli`, `Core\Request`,
+- [x] **M8** `Core\Secret`, `Core\Taint`, `Core\Log`, `Core\Env`, `Core\Cli`, `Core\Request`,
       `Core\Server`, `Core\IO`, `Core\Html` resolve as names in diagnostics or the crosswalk but have
       no registry rows. Part D's *dropped* rows still cite `Core\Html::escape` and `Core\IO::within`.
-- [ ] **M9** `Core\Env::mode()`, `$_ARGS`/`Core\Script::args()` are named by diagnostic help texts
-      and do not exist.
+      The name still resolves — nothing under `Core\` needs a declaration — but every member of one is
+      E0405, so a reader is told at the reference rather than at a panic. The crosswalk's own rows are
+      item 35's.
+- [x] **M9** `Core\Env::mode()`, `$_ARGS`/`Core\Script::args()` are named by diagnostic help texts
+      and do not exist. E0211's table now cites ADR 0012 § 1's map rather than restating a row of it,
+      and E0319 names `Core\Math::PI`, which ships.
 - [ ] **M10** The registry cards cite ADR numbers inline in 33 places ("ADR 0056's two engines",
       "ADR 0009's default unit") — meaningless to the reference's readers. `tools/reference.py`
       strips the parenthesised form `(ADR 0013)`; the inline ones need rewording in the cards.

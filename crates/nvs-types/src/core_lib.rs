@@ -16,12 +16,16 @@
 //!   `Core\Arr::count($a)` is the only reachable spelling and
 //!   `$a->count()` resolves to nothing, as ADR 0063 R20 ("no operation is
 //!   reachable two ways") requires.
-//! * A name `nvs_stdlib` does not register does not exist. Before this
+//! * A member `nvs_stdlib` does not register does not exist. Before this
 //!   existed, `nvs_hir::QName::is_core` made every `Core\…` reference trusted
-//!   and unchecked; a registered class is now checked like any other, while
-//!   an unregistered one stays trusted so the rest of the spec's §§ 1–12 can
-//!   still be *written* in a fixture before it is implemented. That trust is
-//!   the thing to remove once the registry is complete.
+//!   and unchecked; every class is now checked like any other, and the
+//!   registry being the whole roster of `Core` is what makes an *unregistered*
+//!   class's member knowably wrong too — `Core\Env::EOL` is `E0405` where it
+//!   is written rather than a panic in `nvs-ir`, which is the crate that would
+//!   otherwise have to lower a call with no target. What stays trusted is the
+//!   bare *name*: `nvs_hir` still resolves any `Core\…` without a declaration,
+//!   so a not-yet-implemented class may be named in a type position while no
+//!   member of it can be reached.
 
 use nvs_hir::QName;
 use nvs_hir::interfaces::{ITERABLE, ITERATOR};
@@ -184,9 +188,11 @@ pub(crate) fn constant(
 }
 
 /// Whether `qname` names a class this crate seeded — the question
-/// [`crate::expr`] asks before reporting an unknown *constant*, so an
-/// unregistered `Core` class stays trusted exactly as [`seed`]'s own docs
-/// describe.
+/// [`crate::expr`] asks about a `new` target and about the implicit
+/// constructor's arity, both of which are answered by the registry's own row
+/// rather than by the class's members. A *member* reference asks nothing here:
+/// the registry is the whole roster of `Core`, so a miss is a miss whether or
+/// not the class is registered ([`seed`]'s own docs).
 #[must_use]
 pub(crate) fn is_registered(qname: &QName) -> bool {
     nvs_stdlib::registry::class(&qname.to_string()).is_some()

@@ -152,14 +152,12 @@ pub(crate) fn infer_class_const(
                 }
                 None => {
                     // The third narrowing of `Core`'s blanket trust, on the same
-                    // terms as the two above: a class the registry *states* is
-                    // checked like any other, while one it does not yet know
-                    // stays trusted so the rest of the spec can be written in a
-                    // fixture before it is implemented (`crate::core_lib`'s own
+                    // terms as the two above — and since the registry is the
+                    // whole roster of `Core`, a class it does not hold has no
+                    // constant either: `Core\Env::EOL` is this refusal and not
+                    // the `nvs-ir` panic it used to be (`crate::core_lib`'s own
                     // docs own that rule).
-                    if crate::core_lib::is_registered(&qname) {
-                        report_unknown_member(class.span, &qname, &constant, "constant", env);
-                    }
+                    report_unknown_member(class.span, &qname, &constant, "constant", env);
                     env.interner.mixed()
                 }
             }

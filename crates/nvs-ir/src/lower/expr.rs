@@ -2684,7 +2684,10 @@ impl<'a> Lowering<'a> {
                  nvs_types::check_program with the same table? Every receiver naming \
                  no class is either refused where it is written (`E0477`) or, for the \
                  `mixed` ADR 0007 § 2 makes the one unchecked position, recorded as \
-                 `ExprInfo::ErasedCall` and lowered above. ADR 0027's \
+                 `ExprInfo::ErasedCall` and lowered above; a receiver that does name \
+                 a class and calls a member it has not got is `E0405` there too, \
+                 `Core` included, since the registry is the whole roster of `Core` \
+                 (`nvs_types::core_lib`). ADR 0027's \
                  `$obj->method(...)` is the one shape that resolves and still arrives \
                  here: it records `ExprInfo::CallableRef` instead, because it names \
                  the member rather than calling it, and this crate has no arm for it \

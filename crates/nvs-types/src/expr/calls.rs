@@ -70,7 +70,15 @@ pub(crate) fn infer_method_call(
         (Some(qname), MemberName::Ident(name_span)) => {
             let name = span_text(env.src, *name_span).to_owned();
             let found = resolve_method(&qname, &name, env.signatures, env.graph);
-            if found.is_none() && !qname.is_core() {
+            // A `Core` receiver is held to the registry here for the same reason
+            // the static path holds one at [`infer_static_call`]: the registry
+            // states every member `Core` has, so a name it does not hold is
+            // knowably wrong *here*, and left unreported it reaches `nvs-ir` as
+            // an instance call with no resolved target recorded — which panics
+            // (`nvs_ir::lower::expr`'s own message says so). A receiver's class
+            // is always one the registry named, since the only way to hold a
+            // `Core` instance is to have been given one by a row that returns it.
+            if found.is_none() {
                 if qname.is_reserved_global_class() {
                     report_exception_accessor(object.span, &qname, &name, env);
                 } else {

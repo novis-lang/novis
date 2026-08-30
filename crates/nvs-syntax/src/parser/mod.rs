@@ -412,8 +412,17 @@ impl<'src, 'd> Parser<'src, 'd> {
         );
     }
 
-    /// The `Core` replacement ADR 0012 § 8 names for a PHP superglobal, or
-    /// `None` if `name` (the raw `$…` text) is not one.
+    /// The help ADR 0012 § 1 gives for a PHP superglobal, or `None` if `name`
+    /// (the raw `$…` text) is not one.
+    ///
+    /// **No arm names an accessor class or one of its members.** § 1's table is
+    /// the map from a superglobal to what replaces it, and this build ships
+    /// none of those classes: a help reading *use `Core\Request`* sent the
+    /// reader out of this refusal and straight into `E0405`, since the registry
+    /// is the whole roster of `Core` and holds no such row
+    /// (`nvs_types::core_lib`). Citing the table instead is the answer that is
+    /// true now and still true once they land — the map has one home, and a
+    /// second copy here is a copy that rots in exactly this direction.
     fn superglobal_replacement(name: &str) -> Option<&'static str> {
         Some(match name {
             "$GLOBALS" => {
@@ -421,15 +430,16 @@ impl<'src, 'd> Parser<'src, 'd> {
                  value as a parameter"
             }
             "$_REQUEST" => {
-                "`$_REQUEST` does not exist; read `Core\\Request::query()`, `::post()` or \
-                 `::cookie()` explicitly, so the source is visible at the call site"
+                "`$_REQUEST` does not exist, and neither does anything merging query, body and \
+                 cookie input into one place — read each explicitly, so the source is visible at \
+                 the call site (ADR 0012 § 1)"
             }
-            "$_GET" | "$_POST" | "$_COOKIE" | "$_FILES" => "use `Core\\Request`",
-            "$_SERVER" => "use `Core\\Server`",
-            "$_SESSION" => "use `Core\\Session`, after calling `Core\\Session::start()`",
-            "$_ENV" => "use `Core\\Env`",
-            "$argv" | "$argc" => "use `Core\\Cli`",
-            "$_ARGS" => "use `Core\\Script::args()`",
+            "$_GET" | "$_POST" | "$_COOKIE" | "$_FILES" | "$_SERVER" | "$_SESSION" | "$_ENV"
+            | "$argv" | "$argc" | "$_ARGS" => {
+                "every fact the host has is reached through a `Core` accessor rather than an \
+                 ambient variable; ADR 0012 § 1's table maps this one to the class that replaces \
+                 it, and that class is still to be implemented"
+            }
             _ => return None,
         })
     }

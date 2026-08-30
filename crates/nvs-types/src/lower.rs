@@ -290,9 +290,10 @@ fn lower_class_const_type(
             },
             Some(_) => report_not_const(span, qname, name, env),
             None => {
-                if crate::core_lib::is_registered(qname) {
-                    report_unknown(span, qname, name, "constant", env);
-                }
+                // The registry is the whole roster of `Core`, so a class it
+                // does not hold has no constant either — the same withdrawal of
+                // blanket trust `crate::expr::members` makes one position over.
+                report_unknown(span, qname, name, "constant", env);
                 env.interner.mixed()
             }
         };

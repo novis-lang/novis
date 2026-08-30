@@ -838,8 +838,8 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                     .with_help(
                         "ADR 0011 § 3: a constant always belongs to a class, so there is no \
                          global one to fetch — write `Class::NAME`, and for a PHP built-in the \
-                         `Core` member `docs/spec/02-php-migration.md` maps it to (`PHP_EOL` is \
-                         `Core\\Env::EOL`)",
+                         `Core` member `docs/spec/02-php-migration.md` maps it to (`M_PI` is \
+                         `Core\\Math::PI`)",
                     ),
                 );
             }
