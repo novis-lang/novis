@@ -3146,6 +3146,15 @@ is why" — is this file.
   refusal a `.nvst` cannot reach: an `.nvst` case cannot write an `nvs.toml` (there is no config
   section in the format), so a refusal that only a directive can trigger is unassertable, and the
   gate is telling you the check belongs where a program can reach it or nowhere yet.
+- **A new `Core` member owes *three* conformance cases, not one, and the second gate says so only
+  after the first is green.** `crates/nvs-stdlib/tests/conformance_coverage.rs` has two tests over
+  the same corpus: `every_part_one_member_has_a_conformance_case` wants one case naming the member,
+  and `every_core_class_has_a_conformance_floor_of_three` wants **three distinct case files** asking
+  it — "a case that asks one of these a second question closes it; a case that asks the same
+  question again does not". So budget a member's slice as the four in-module edits plus three cases
+  along three different shapes (agreement, the boundary it refuses, the row that parts it from its
+  neighbour), or `verify.py` spends a full run telling you the member is "asked by 1 case(s)".
+  `BELOW_THE_FLOOR` in that file only shrinks and is never where a new member goes.
 
 ## Splitting a file that got too big
 
