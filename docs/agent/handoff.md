@@ -2,75 +2,62 @@
 
 ## State
 
-**Every `Core` registry entry now carries its ADR 0117 reference card** — 347 members, 11 enums, every
-constant — and `every_registry_row_carries_a_reference_card` in `crates/nvs-stdlib/src/registry.rs`
-refuses a new one without. The rule a future member follows is
-[conventions.md](conventions.md) § *A `Core` member — the five edits*, edit 2; ADR 0117 § 1 records
-that the fields stopped being optional. Every card's `errors` was read from the helper body, not the
-prose, so the cards are honest about the classes the code throws today — mostly `RuntimeError`, since a
-bare `Fault::thrown` is that class — and the disagreements that reading surfaced are in the backlog
-below, unresolved. The website's reference has already taken them: `npm run sync:core` ran after the
-backfill, its scan repaired to read a row that carries `names`, and every draft page and
-`website/src/data/core.json` are regenerated from the cards.
+**Every `#[Test]` runs in an isolate of its own (ADR 0079 § 2), and the first of Stage 7's four
+names is green.** `crates/nvs-cli/src/runner.rs`'s `run_in_isolate` builds one
+`nvs_host::Isolate` per reported case; its module doc § *Every test is its own isolate* is that
+design's one home, and the guard is
+`each_test_runs_in_its_own_isolate_sharing_only_compiled_code`. Two decisions the item did not
+predict, both recorded in the code that makes them: the isolate is per **test**, not per attempt,
+so `run_with_retries` runs on the child's stack and § 20's retry stays usable; and § 8's fixtures
+are built once per class in the parent and **copied** in per test through
+`nvs_runtime::CrossedFixtures`. Each cost one conformance case its old spelling — a `static`
+written on one side of a test boundary and read on the other is exactly what § 2 forbids — so both
+now observe through the value a test is handed. `tools/leak-check.sh --test` over a fixture
+exercising the new retain/copy/release edge reports no definite loss.
 
-**Stage 0b's residue is closed: ADR 0063 R2 holds end to end, including for a parameter whose spec
-name is a reserved word.** `crates/nvs-syntax/src/parser/expr.rs`'s `parse_arg` reads any word before a
-`:` as an argument name, keyword or not, so `Core\Arr::map(fn: …, a: …)` parses and the seven
-`fn`-named rows need no rename. The rule itself lives in `parse_arg`'s doc comment.
+**Stage 7's other three names are unwritten and are the next group.** They are item 25's rest:
+the task tree (§ 16), and the fixed clock and the seed (§ 12). None of them has a line of code
+yet.
 
-**Stage 7 is the open front, and its acceptance check is aimed correctly.** The `7 test isolates` check
-in `docs/agent/loop-goal.toml` runs `-p nvs-cli`, and `docs/agent/goals/2-concurrency.toml` is
-byte-identical to it. All four of its names are still unwritten — that is item 25 itself, and it is the
-next group below.
-
-**Orientation gap, unchanged:** `[context] modules` has no pattern for `crates/nvs-cli/src/runner.rs`,
-which the whole next group is written against, nor for `crates/nvs-syntax/src/parser/expr.rs`. Add both
-selectors before the next session opens this group.
+**Orientation gap, unchanged:** `[context] modules` has no pattern for `crates/nvs-cli/src/`,
+which the whole of Stage 7 is written against — `runner.rs` most of all — so the map block prints
+nothing for the file every remaining slice edits. Add that selector.
 
 ## Next group
 
-**All three slices share `crates/nvs-cli/src/runner.rs` and `crates/nvs-host/src/isolate.rs`; they
-are Stage 7 item 25 and ADR 0079 §§ 2 and 16, and together they turn the goal's `7 test isolates`
-check green.**
+**All three slices share `crates/nvs-cli/src/runner.rs` and `crates/nvs-host/src/isolate.rs`;
+they are Stage 7 item 25's remainder and ADR 0079 §§ 12 and 16, and together they turn the goal's
+`7 test isolates` check green.**
 
-- [ ] **One isolate per `#[Test]`.** `crates/nvs-cli/src/runner.rs:190` builds one `Ctx` for the
-      whole run and `:436` is the per-test entry; `:48` and `:299` are the two comments still saying
-      isolate-per-test is M5's and unbuilt. `crates/nvs-host/src/isolate.rs:90` is `Isolate`, whose
-      program arrives as a closure rather than a path, so the runner — which already holds the
-      compiled unit — is the one place that closure can be built. The guard is
-      `each_test_runs_in_its_own_isolate_sharing_only_compiled_code`, and what it must observe is a
-      static written by one test that the next one does not read back (ADR 0116 § 4's fresh statics
-      base).
-- [ ] **The runner owns the test's task tree.** Same file: a test's isolate is a child task, so a
-      `Core\Task::all` inside a `#[Test]` has a calling task to be a child of, and nothing the test
-      started is still running when its row is reported (ADR 0072 § 4). Guard:
-      `the_runner_owns_the_tests_task_tree`.
-- [ ] **A fixed clock and a seed are per-test.** Guards `a_test_at_a_fixed_clock_reads_that_clock`
-      and `a_test_with_a_seed_draws_the_same_sequence_twice`; both are properties of the child
-      context the slice above builds, so they are cheap once it lands and expensive before it.
+- [ ] **The runner owns the test's task tree.** `crates/nvs-cli/src/runner.rs:632` is the
+      `nvs_host::Isolate::new(...).run(ctx)` that today takes `nvs_host::isolate.rs:189`'s
+      no-scheduler path, because `nvs test` installs none — `Wake::current()` is `None`, so the
+      child runs on the caller's stack and a `Core\Task::spawn` inside a test has no calling task
+      to be a child of. `nvs run` already does the other thing (`crates/nvs-cli/src/main.rs`,
+      § *What `run` executes*): one `Scheduler`, a reactor over it, `TaskRoot::Request`. Do the
+      same in `run` (`runner.rs:188`) so the whole suite runs inside one task. § 16's second half
+      is the guard's own claim — **a task still running when the test returns is a failure, named
+      as such** — and `nvs_host::group`'s "nothing still running when the call returns" is the
+      mechanism to read it off. Guard: `the_runner_owns_the_tests_task_tree`.
+- [ ] **A fixed clock is per test.** § 12 puts the clock under the test's control and § 16 needs
+      it: `#[Test(at: "2026-01-01T00:00:00Z")]`. The option reaches the runner as a
+      `nvs_types::testing::TestCase::options` entry, read exactly as `retry_allowance`
+      (`runner.rs:496`) and `skip_reason` read theirs; where it lands is a word on the child's own
+      `Ctx`, which is the same shape ADR 0116 § 4's statics base has. Guard:
+      `a_test_at_a_fixed_clock_reads_that_clock`.
+- [ ] **A seed is per test.** The sibling option and the same three edits, over whatever
+      `Core\Random` reads. Guard: `a_test_with_a_seed_draws_the_same_sequence_twice`.
 
 ## Backlog
 
-- Item 22's `Core\Script::valueOrThrow` is still unwritten — `docs/plan/m5.md`, Stage 6.
-- `Core\Secret::reveal()` is absent from the registry, so ADR 0033's escape hatch is open at both
-  ends — `crates/nvs-stdlib/src/registry.rs`.
-- The graph copy asks its class-identity question of the answer but not of the argument; closing it
-  means the `nvs_runtime::script` seam answering with a unit's class table
-  (`crates/nvs-runtime/src/graph.rs` module doc).
-- M4's 1000-case conformance floor — `docs/implementation-plan.md`, Stage 8.
-- `python tools/check-migration.py` reads 34% classified against a 100% floor — Stage 8.
-- **Spec versus code, found by the card backfill; each needs one of the two changed.** Spec § 2 says
-  `by` and `comparator` on `Core\Arr::sort`/`diff`/`intersect` are mutually exclusive and a compile
-  error; `nvs_core_arr_sort`'s doc says they compose and the code composes them.
-  `website/src/content/docs/docs/core/str/format.mdx` promises `ParseError` for a malformed run-time
-  template; `crates/nvs-stdlib/src/format.rs` throws `RuntimeError`. `$dt->format`, `$d->format` and
-  `$t->format` throw `RuntimeError` for a bad pattern where `Core\Time::parse` throws `LogicError` for
-  the same failure. Every `Core\Math` throw is `RuntimeError` where spec § 3 and ADR 0007 § 4 say
-  `ArithmeticError` — `math.rs`'s module doc already records that one. The cards follow the code in
-  all four.
-- `npm run sync:core` warns six times that the registry documents a parameter the spec does not
-  declare — `$b` on `Core\Encoding::fromBase64`/`fromBase64Url`/`fromHex`/`fromBase32`, `$d` on
-  `Core\Time\Duration::plus`/`minus`. The spec's combined rows (`toBase64` / `fromBase64`, one
-  signature) carry no signature for the second member, so the website's parser sees no name where
-  the Rust guard already skips the row. Either the spec writes both signatures or
-  `website/scripts/lib/spec.mjs` learns the combined row.
+- The `errors` cards that disagree with the spec's § 10 tree — read from the helper bodies during
+  the ADR 0117 backfill, listed in `docs/adr/0117-*.md` § 1's own note. Unresolved.
+- § 2's **parallelism**: the isolates are built and joined one at a time
+  (`runner.rs`'s module doc § *What is owed*). It is a scheduling question and it waits on the
+  task tree above.
+- ADR 0006's `$result->valueOrThrow()` is owed as `Core\Script::valueOrThrow($result)` — item 22,
+  `docs/plan/m5.md`.
+- `Core\Secret::reveal()` is still unregistered, so ADR 0033's way out of a `secret` boundary
+  refusal is open at both ends — item 18.
+- The isolate boundary asks ADR 0023 § 2's unresolvable-class question of the answer and not of
+  the argument (`crates/nvs-host/src/isolate.rs`'s module doc, the known gap).

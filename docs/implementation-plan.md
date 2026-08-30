@@ -549,8 +549,26 @@
 > the crate that can host it now: `-p nvs-cli`, because the `#[Test]` runner is
 > `crates/nvs-cli/src/runner.rs` — the one crate depending on both `nvs-host`'s `Isolate` and the
 > front end that builds a test's program — while `crates/nvs-test` is the `.nvst` case runner and
-> depends on neither, so "did one test get an isolate of its own" is a question it cannot ask. Its
-> four test names are still unwritten, which is the item-25 work that check reports as open.
+> depends on neither, so "did one test get an isolate of its own" is a question it cannot ask. The
+> first of its four names is green: **every `#[Test]` now runs in an isolate of its own**, and
+> `each_test_runs_in_its_own_isolate_sharing_only_compiled_code` in `crates/nvs-cli/src/runner.rs`
+> runs a two-test program in which one test writes a static and the next reads back its declared
+> initial value. `run_in_isolate` is the boundary — § 9's row and § 8's copies are built on the
+> parent's side, the instance, the ledger, the statics and the `echo` are all the child's, and the
+> verdict comes back as data in a cell the child's program captured, because a `Completion` carries
+> a value, bytes and a failure and none of those is § 5's ledger. Two decisions came with it and
+> each is recorded where its code is. The isolate is per **test** and not per attempt
+> (`run_with_retries` now runs *inside* the child), because § 20's retry exists for a test that
+> succeeds on a second try off what the first left behind, and an isolate per attempt takes exactly
+> that away. And § 8's fixtures are built once per class in the parent and **copied** into each test
+> — `nvs_runtime::CrossedFixtures`, ADR 0023 § 2's graph copy with the retain and the release
+> `nvs-cli` cannot spell — so a test mutating what it was handed is invisible to the next. Both
+> consequences were already-pinned behaviour, so two conformance cases were rewritten to observe
+> through values what they used to read out of a `static` across a test boundary: the retry case
+> drops its tallying class, each test counting its own entries, and the fixture case stamps the
+> build count into the `Schema` and `Repo` it returns, asserted as an invariant across the sweep.
+> The other three names — the task tree, the fixed clock and the seed — are still unwritten, which
+> is the item-25 work that check still reports as open.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
