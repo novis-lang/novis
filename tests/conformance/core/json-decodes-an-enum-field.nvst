@@ -1,0 +1,93 @@
+--TEST--
+`Core\Json::decodeAs<T>` decodes an enum field as a membership test over its declared cases, on both backings and inside an `array<T>`, and refuses every other integer — ADR 0071 §§ 2 and 5, ADR 0010 §§ 2 and 6
+--FILE--
+<?nvs
+// ADR 0010 § 6 reserves an enum tag that nothing writes, so a case *is* the
+// integer behind it: a decode has nothing to construct and no name to resolve,
+// and what it owes instead is the membership test this case pins. `Role`'s
+// values are deliberately neither contiguous nor zero-based, so what is being
+// asserted is a set and never a range.
+enum Role: int {
+    Guest = -2,
+    Member = 0,
+    Admin = 7,
+}
+
+// ADR 0010 § 2's other backing. It decides whether a decoded case is an `int`
+// or a `uint`, and therefore whether it compares equal to a written one.
+enum Weight: uint {
+    Light = 1,
+    Heavy = 900,
+}
+
+#[Core\Json\Derive]
+class Account {
+    public function constructor(
+        public string $name,
+        public Role $role,
+        // ADR 0071 § 4's second column: `?T` is nullable, which is a fact
+        // about the type and says nothing about the case set.
+        public ?Weight $weight,
+        // § 2's list field over an enum element — the roster rides on the
+        // field exactly as a class element's label does.
+        public array<Role> $seen,
+    ) {}
+}
+
+Account $ok = Core\Json::decodeAs<Account>(
+    "{\"name\":\"n\",\"role\":7,\"weight\":900,\"seen\":[-2,0,7]}"
+);
+// A decoded case is the same *value* a written one is, not merely one that
+// prints the same, which is what § 6's erasure has to mean for both backings.
+echo "role=", $ok->role == Role::Admin ? "Admin" : "other", "\n";
+echo "weight=", $ok->weight == Weight::Heavy ? "Heavy" : "other", "\n";
+echo "seen=", Core\Arr::count($ok->seen), " first=", $ok->seen[0] as int, "\n";
+// Encoding was never blocked on any of this — it walks the value rather than
+// the declared type — so the round trip is what says the decode produced the
+// integers it was handed and not some other set.
+echo "round=", Core\Json::encode($ok), "\n";
+
+// The nullable arm is not a case, so it decodes where `?Weight` is declared
+// and the roster is never consulted; an empty list is a decode that succeeds.
+Account $nulled = Core\Json::decodeAs<Account>(
+    "{\"name\":\"n\",\"role\":0,\"weight\":null,\"seen\":[]}"
+);
+echo "nulled=", Core\Json::encode($nulled), "\n";
+
+// The bound, both sides named together: `Admin = 7` is accepted above and `6`
+// is refused here even though it sits inside the declared values' own range. A
+// decoder that checked a range rather than a membership passes everything
+// above this line and fails on this one.
+try {
+    Core\Json::decodeAs<Account>("{\"name\":\"n\",\"role\":6,\"weight\":null,\"seen\":[]}");
+    echo "not reached\n";
+} catch (ParseError $between) {
+    echo "between=", $between->issues["0"]->path, ": ", $between->issues["0"]->message, "\n";
+}
+
+// ADR 0071 § 5 accumulates rather than stopping at the first bad field, and an
+// enum is no exception. A case's *name* is not on the wire either — only its
+// value is — so `"Admin"` is refused exactly as `2` is, and a bad element two
+// positions in reports under § 5's dotted position path.
+try {
+    Core\Json::decodeAs<Account>(
+        "{\"name\":\"n\",\"role\":\"Admin\",\"weight\":2,\"seen\":[0,7,8]}"
+    );
+    echo "not reached\n";
+} catch (ParseError $bad) {
+    echo "issues=", Core\Arr::count($bad->issues), "\n";
+    foreach ($bad->issues as {path: string, message: string} $issue) {
+        echo "  ", $issue->path, ": ", $issue->message, "\n";
+    }
+}
+--EXPECT--
+role=Admin
+weight=Heavy
+seen=3 first=-2
+round={"name":"n","role":7,"weight":900,"seen":[-2,0,7]}
+nulled={"name":"n","role":0,"weight":null,"seen":[]}
+between=role: expected a declared enum case, found a number
+issues=3
+  role: expected a declared enum case, found a string
+  weight: expected a declared enum case, found a number
+  seen.2: expected a declared enum case, found a number
