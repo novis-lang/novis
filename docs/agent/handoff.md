@@ -2,67 +2,57 @@
 
 ## State
 
-**ADR 0042's write path is on disk** as `crates/nvs-cli/src/cache.rs`, closing two of the driver's
-six stage-5 tests: `the_cache_is_a_fan_out_of_immutable_content_addressed_files` and
-`a_concurrent_write_resolves_by_rename_with_no_lock_file`. § 1's `<dir>/<key[0..2]>/<key[2..]>.nvsc`
-fan-out, § 2's 78-byte header (`magic | format_version: u16 | env_hash | payload_len: u64 |
-checksum`, little-endian because `env_hash` already covers the target triple), and § 4's temp-file →
-`fsync` → one `rename` with the exists-check immediately before the rename. `nvs-cli` gained
-`blake3` and `rand`. The module doc owns every one of those choices.
+**ADR 0042's read half is on disk** beside its writer, in `crates/nvs-cli/src/cache.rs`. Four of
+stage 5's six `cargo-named` tests now pass: the two the writer closed, plus
+`an_artifact_is_verified_whole_before_any_page_is_executable` and `a_tampered_artifact_is_rejected`.
+`Cache::load` maps the file read-only through `memmap2` (new in the workspace), checks magic,
+`format_version`, `env_hash` and `payload_len`, hashes the payload, and yields a `Verified` — a type
+constructed on exactly one code path, so § 3's ordering claim is held by the type rather than by a
+caller. Which failures delete the file and which do not is the module doc's § 3 section.
 
-**The tests live in `src/cache.rs`'s own `#[cfg(test)] mod tests`, not in `tests/cache.rs`, because
-`nvs-cli` has no library target** — its `tests/meta.rs` and `tests/openapi.rs` drive the built
-binary, which is right for a command's output and impossible for a module with no command in front
-of it. `cargo test -p nvs-cli` runs them, which is what the acceptance check spells. The module
-carries `#![allow(dead_code)]` for the same reason its next slice exists, stated at the attribute.
+**What a cache payload is, is decided and recorded** in that module's *Known gaps*: a
+`cranelift-object` relocatable image, not a dump of the JIT's pages. Two independent reasons, both
+in the doc — `cranelift_jit::JITModule` has no serialization, and `nvs-codegen`'s `emit.rs` bakes
+class-descriptor and callee addresses in as `iconst` immediates with no relocation record, so a
+byte-perfect dump would be wrong in the next process anyway. ADR 0048 is **not** the other half:
+its § 2 makes a bundle carry source, feeding *into* this cache rather than out of it. The redesign
+that follows — a second `Module` in `nvs-codegen`, and a named symbol for every baked address — is
+in `## Backlog` and was not started, per the goal's standing decision.
 
-**The blocker in front of the read path is not a decoder — it is that nothing can yet produce a
-payload.** `cranelift_jit::JITModule` has no serialization (`crates/nvs-codegen/src/lib.rs:275`
-holds it for the process's lifetime and § 7 of that crate doc says executable memory is never
-freed), and the workspace has no `mmap` dependency at all — `crates/nvs-host/src/stack.rs:11` only
-*mentions* `mmap`, for guard pages. So § 3's "verify fully, then `mprotect`" has neither the bytes
-to map nor the call to make them executable. Writing
-`an_artifact_is_verified_whole_before_any_page_is_executable` over an `fs::read` into a `Vec` would
-pass while asserting nothing, which is the proxy-for-a-gate move the goal file forbids. The next
-session decides what a payload is before it decodes one.
+**`nvs-cli` left the workspace's `unsafe_code = "forbid"`** for its own `deny` plus one
+`#[expect]`, exactly as `nvs-config` did for ADR 0103 § 6; the playbook bullet has the shape and
+the trap. `Cargo.toml`'s lint-policy comment now names all six such crates.
 
-`orient.py`'s `[context] modules` still names `crates/nvs-host/src/budget.rs`, which never existed;
-the pack warns every session and the manifest has not been fixed.
+`orient.py`'s `[context] modules` still names `crates/nvs-host/src/budget.rs`, which never existed,
+and `[context] adrs` should gain **0042 §§ 5-6** for the group below — this session had § 3 only.
 
 ## Next group
 
-**ADR 0042's read half, and the decision in front of it.** File set: `crates/nvs-cli/src/cache.rs`
-(whole, ~395 lines — `Header::encode` is what a decoder inverts), with
-`crates/nvs-codegen/src/lib.rs:275` and `crates/nvs-config/src/trust.rs:110` behind it.
+**ADR 0042's last two sections, which are the last two failing acceptance tests.** File set:
+`crates/nvs-cli/src/cache.rs` (whole, ~530 lines) and `crates/nvs-config/src/trust.rs:110`, whose
+`trust::check(&Path) -> Result<PathBuf, Untrusted>` is already public and already implements
+0103 § 6's Unix *and* Windows halves — this is a call site, not a second implementation.
 
-- [ ] **Decide what a cache payload is, and record it** — the design call the next slice cannot
-      start without. `cranelift_jit` does not serialize a module, so either the payload is
-      `cranelift-object`'s relocatable object plus a relocation pass, or stage 5 ships its
-      verify-and-map half over a payload ADR 0048's bundler already produces. Record it in
-      `crates/nvs-cli/src/cache.rs`'s module doc under a *Known gaps* heading per the goal's
-      standing decision, and put any redesign in `## Backlog` rather than starting one.
-      Anchors: `crates/nvs-cli/src/cache.rs:1`, `crates/nvs-codegen/src/lib.rs:275`.
-- [ ] **The read path, verified whole before a single page is executable** — ADR 0042 § 3, once the
-      item above says what is being mapped: `mmap` `PROT_READ`, check magic / `format_version` /
-      `env_hash`, `BLAKE3` the payload, and only then `mprotect`. A mismatch deletes the file and is
-      a miss, never an error or a `FATAL`. Adding `memmap2` is a dependency call pre-authorized
-      under ADR 0051 § 4. Closes `an_artifact_is_verified_whole_before_any_page_is_executable` and
-      `a_tampered_artifact_is_rejected`.
-      Anchors: `crates/nvs-cli/src/cache.rs:110`, `crates/nvs-cli/src/cache.rs:184`.
-- [ ] **The cache directory's trust check, and eviction off the request path** — ADR 0042 §§ 5-6.
-      `nvs_config::trust::check` is the same check ADR 0103 § 6 applies, so this is a call and not a
-      second implementation; eviction is the probabilistic walk on the miss path only, so a warm hit
-      never lists a directory. Closes `a_world_writable_cache_directory_is_refused` and
-      `eviction_is_piggybacked_and_off_the_request_path`.
-      Anchors: `crates/nvs-config/src/trust.rs:110`, `crates/nvs-cli/src/cache.rs:184`.
+- [ ] **The cache directory's trust check** — ADR 0042 § 5, which is 0103 § 6 applied to
+      `[cache] dir`: refuse the directory rather than the entry, once, before anything is read
+      from it. Decide whether it sits in `Cache::new` (which today deliberately checks nothing —
+      its doc says so) or in the caller that builds one; the test the driver spells is
+      `a_world_writable_cache_directory_is_refused`.
+      Anchors: `crates/nvs-cli/src/cache.rs:267`, `crates/nvs-config/src/trust.rs:110`.
+- [ ] **Eviction, piggybacked and off the request path** — ADR 0042 § 6. The fan-out directory is
+      the only thing there is to walk and § 1's module doc already says eviction is its one
+      caller. Test: `eviction_is_piggybacked_and_off_the_request_path`.
+      Anchors: `crates/nvs-cli/src/cache.rs:276`, `crates/nvs-cli/src/cache.rs:404`.
+- [ ] **The warm-start bench**, once § 5 lands — `tools/bench.py --warm-start --max-ms 10` is
+      stage 5's second check and nothing has run it against a real cache yet.
+      Anchors: `crates/nvs-cli/src/cache.rs:307`.
 
 ## Backlog
 
-- What a serialized compiled unit is — the payload ADR 0042 § 2 carries and § 8 assumes.
-- `[context] modules` names `crates/nvs-host/src/budget.rs`, which does not exist —
-  `docs/agent/loop-goal.toml`.
-- `tools/bench.py --warm-start` is stage 5's other check and has no cache to be warm against yet.
-- Item 18's `Core\Secret::reveal()` is not in the registry — `crates/nvs-config/src/secret.rs`.
+- A relocatable payload: a `cranelift-object` `Module` beside the JIT's, and a symbol for every
+  address `emit.rs` bakes in — `crates/nvs-cli/src/cache.rs`'s *Known gaps* states the whole of it.
+- § 3's `mprotect` step, which that payload is the precondition for — same *Known gaps* entry.
+- The compile-pipeline call sites for `store`/`load`, which `#![allow(dead_code)]` names.
+- Item 18's `Core\Secret::reveal()` is not in the registry — `docs/plan/m6.md`.
 - `Live::admit`'s same-class check is asked of the answer, not the argument —
   `crates/nvs-runtime/src/graph.rs` § *Known gaps*.
-- `gaps.py`, `holes.py` and `check-migration.py --report` are the worklists no session re-derives.

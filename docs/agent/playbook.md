@@ -3945,6 +3945,16 @@ sibling in the same namespace unqualified.
   in `crates/nvs-stdlib/src/fatal.rs`, which enumerates them for the website. Only the enum's own
   `name()` arm is load-bearing, so nothing fails when the other three drift. `grep -rn "cpu_time"`
   over `docs/adr crates/nvs-stdlib/src` finds all of them in one call.
+- **`unsafe_code` is `forbid` at the workspace root, so the first `unsafe` in a crate is a
+  manifest edit before it is a code edit.** `-F unsafe-code` cannot be turned off by any
+  attribute — `#[expect(unsafe_code)]` at the call site still fails with *usage of an unsafe
+  block*, and the error's note names the command line rather than the lint table, which is the
+  part that misleads. The fix is the shape `crates/nvs-config/Cargo.toml`
+  already carries: replace that crate's `[lints] workspace = true` with `[lints.rust]` +
+  `[lints.clippy]` copied verbatim from `Cargo.toml`'s `[workspace.lints.*]`, change the one
+  line to `unsafe_code = "deny"`, and say in a comment above it which call needs it. Copy both
+  tables or the crate silently loses every clippy lint the workspace sets. `nvs-cli` did this
+  for ADR 0042 § 3's one `Mmap::map`.
 
 ## Divergences and refusals already pinned
 

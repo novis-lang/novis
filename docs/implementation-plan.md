@@ -56,11 +56,11 @@
 > output and wall-time caps are enforced: `budget` counts held and written bytes, a breach is a
 > `FATAL`, `max_script_depth` refuses the spawn past it, and one store expires a whole tree; § 1's
 > tier 1 is handed the limit's name, and fires once inside the reserve; ADR 0078 § 4 keys both
-> caches. Stage 5 has its writer: ADR 0042 §§ 1-2 and 4 in `crates/nvs-cli/src/cache.rs`. **Stage 8
-> is closed at both counts**: conformance is 1011, differential is 206 over its 205 floor , and
-> `isolation.rs` measures `nvs_host::Isolate` itself with a guard beside it. Two known gaps, each
-> recorded where its code is: item 18's `Core\Secret::reveal()` is not in the registry;
-> `Live::admit`'s same-class check is asked of the answer and not of the argument
+> caches. Stage 5 has ADR 0042 §§ 1-4 in `crates/nvs-cli/src/cache.rs`, whose *Known gaps* decides a
+> payload. **Stage 8 is closed at both counts**: conformance is 1011, differential is 206 over its
+> 205 floor , and `isolation.rs` measures `nvs_host::Isolate` itself with a guard beside it. Two
+> known gaps, each recorded where its code is: item 18's `Core\Secret::reveal()` is not in the
+> registry; `Live::admit`'s same-class check is asked of the answer and not of the argument
 > (`crates/nvs-runtime/src/graph.rs` § *Known gaps*).
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
