@@ -1579,6 +1579,7 @@ dependencies = [
  "hmac",
  "jiff",
  "md-5",
+ "nvs-config",
  "nvs-render",
  "nvs-runtime",
  "nvs-syntax",

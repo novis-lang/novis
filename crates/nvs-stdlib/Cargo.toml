@@ -10,6 +10,10 @@ repository.workspace = true
 
 [dependencies]
 nvs-runtime.workspace = true
+# ADR 0118 § 3: `Cap` is the one place a capability's `nvs.toml` name maps to the
+# field that grants it, so the registry's capability table names that enum rather
+# than a string this crate would have to compare against the configuration's own.
+nvs-config.workspace = true
 # ADR 0092 § 1: the record model and its renderings live in one crate that both
 # the runtime and the front end can depend on. `Core\Debug::dump` is its first
 # producer -- `crate::debug` builds a record and hands it to the plaintext

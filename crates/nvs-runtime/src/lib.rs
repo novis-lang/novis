@@ -242,6 +242,7 @@ mod abi;
 mod alloc;
 pub mod arith;
 pub mod array;
+pub mod capability;
 pub mod closure;
 #[cfg(test)]
 pub(crate) mod counting_alloc;

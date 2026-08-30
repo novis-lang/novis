@@ -56,6 +56,7 @@
 //! is where those meet.
 
 pub mod app;
+pub mod capability;
 pub mod directive;
 pub mod file;
 pub mod request;
@@ -66,6 +67,7 @@ pub mod tree;
 pub mod trust;
 pub mod value;
 
+pub use capability::{Cap, Scope};
 pub use directive::{Apply, Class, DIRECTIVES, Directive};
 pub use request::Request;
 pub use resolve::{Origin, Override, Resolved, Roots};

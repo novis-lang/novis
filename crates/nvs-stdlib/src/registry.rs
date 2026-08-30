@@ -1058,6 +1058,33 @@ pub const CLASSES: &[CoreClass] = &[
     crate::config::CLASS,
 ];
 
+/// Every `Core` member that needs a capability, and which one —
+/// [ADR 0118](../../../../docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
+/// § 3.
+///
+/// One table rather than a field on 346 rows, because "what can this runtime do
+/// to my machine" is a question whose whole answer should be one screen of one
+/// file. Spread across 41 class literals in 39 modules it is 39 greps and a
+/// judgement about whether you found them all, which is precisely the judgement
+/// a security review is trying not to have to make.
+///
+/// **Nothing reads this at run time.** It is audit data — `nvs meta` renders
+/// it, the reference documentation prints it beside a member's card (ADR 0117),
+/// and § 7's closure test reads it. Enforcement is
+/// `nvs_runtime::capability::require`, called inside the door that performs the
+/// effect, and that function never looks here — so an edit to this table cannot
+/// grant a permission, only misreport one.
+///
+/// Entries are `(class, member, capability)`, by the spellings
+/// [`CoreClass::name`] and [`CoreMethod::name`] use;
+/// `every_capability_entry_names_a_member` fails on one naming neither.
+///
+/// It is empty, and that is the tree's state rather than a placeholder: no
+/// `Core` member reaches the operating system yet, which is exactly what makes
+/// it possible to put the door in front of the first one instead of retrofitting
+/// it behind forty.
+pub const CAPABILITIES: &[(&str, &str, nvs_config::Cap)] = &[];
+
 /// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)
 /// The `Core` classes that declare a `tryParse` beside their `parse` —
 /// [ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md) § 3a's
