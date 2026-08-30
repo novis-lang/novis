@@ -64,3 +64,5 @@ __pycache__/
 # Scratch commit-message file (AGENTS.md: a multi-line message goes through a
 # file, never an inline `-m`); never part of the tree it describes.
 /.agent-tmp/
+
+a.out
