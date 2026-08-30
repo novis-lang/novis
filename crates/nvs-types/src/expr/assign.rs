@@ -383,7 +383,7 @@ pub(crate) fn check_assign(
     } else {
         mark_write_target_levels(target, true, env);
         let target_ty = check_expr(target, None, live, scope, ctx, env);
-        check_write_target(target, env);
+        check_write_target(target, ctx, env);
         check_expr(value, Some(target_ty), live, scope, ctx, env);
         target_ty
     }
@@ -483,12 +483,15 @@ pub(crate) fn mark_write_target_levels(target: &Expr, plain: bool, env: &mut Env
 /// write down to its root holder and writes every level back through that, so
 /// the root is the only level with a holder at all — which is also why
 /// `$obj->hooked[0][1] = v` is this same refusal and not a deeper one.
-pub(crate) fn check_write_target(target: &Expr, env: &mut Env<'_>) {
+pub(crate) fn check_write_target(target: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     let mut root = target.unparenthesized();
     let mut through_subscript = false;
     while let ExprKind::Index { base, .. } = &root.kind {
         root = base.unparenthesized();
         through_subscript = true;
+    }
+    if reject_readonly_write(root, ctx, env) {
+        return;
     }
     if matches!(root.kind, ExprKind::PropertyAccess { nullsafe: true, .. }) {
         env.diags.report(
@@ -563,6 +566,61 @@ pub(crate) fn check_write_target(target: &Expr, env: &mut Env<'_>) {
     }
 }
 
+/// ADR 0038 § 1's contract for `readonly`, at the one place it can be broken:
+/// a write to such a property from anywhere but the declaring class's own
+/// `constructor` is `E0782`. Answers whether it reported, so its caller stops
+/// rather than adding a second diagnostic about the same target.
+///
+/// The **root** of the write is what is examined, so an element write
+/// (`$w->tags[0] = "x"`) is refused alongside the plain one: ADR 0007 § 5
+/// separates the array and `nvs_ir::lower` writes the separated copy back
+/// through the property, which is a write to the property whatever the
+/// spelling suggests. All four write spellings reach this through
+/// [`check_write_target`], so `$w->id++` and `unset($w->id)` answer here too.
+///
+/// Two conditions, not one: the write must be inside the constructor *and*
+/// inside the class that declared the property. A subclass constructor writing
+/// an inherited `readonly` property is refused for the same reason PHP refuses
+/// it — the declaring class's own constructor is the one that promised the
+/// value, and a second writer is a second chance to write.
+///
+/// A hooked property is not reachable here: it records
+/// [`ExprInfo::HookedProperty`] instead, and a hook's `set` accessor is the
+/// write. An erased receiver records [`ExprInfo::ShapeProperty`] and names no
+/// declaring class, so nothing can be asked of it — the same gap every other
+/// rule stated over a class has there.
+fn reject_readonly_write(root: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> bool {
+    let Some(ExprInfo::Property { class, name, .. }) = env.exprs.lookup(root.span) else {
+        return false;
+    };
+    let (class, name) = (class.clone(), name.clone());
+    let Some((owner, _)) =
+        crate::signatures::resolve_property_owned(&class, &name, env.signatures, env.graph)
+    else {
+        return false;
+    };
+    if !crate::signatures::property_is_readonly(&owner, &name, env.signatures) {
+        return false;
+    }
+    if ctx.in_constructor && ctx.current_class == Some(&owner) {
+        return false;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_READONLY_WRITE_AFTER_CONSTRUCTION,
+            format!("`{owner}::${name}` is `readonly`, so only `{owner}`'s constructor writes it"),
+        )
+        .with_primary(root.span, "this write happens after construction")
+        .with_help(
+            "`readonly` promises the value is assigned exactly once, while the object is being \
+             built (ADR 0038 § 1) — assign it in the constructor, take it as a constructor \
+             parameter (`public readonly T $x`), or drop the modifier if the property is meant \
+             to change",
+        ),
+    );
+    true
+}
+
 /// Whether `kind` is a **place**: storage a separated array can be written
 /// back into, rather than a value dropped at the end of the statement.
 ///
@@ -622,7 +680,7 @@ pub(crate) fn check_compound_assign(
     note_write(target, scope, env);
     mark_write_target_levels(target, false, env);
     let target_ty = check_expr(target, None, live, scope, ctx, env);
-    check_write_target(target, env);
+    check_write_target(target, ctx, env);
     // [`infer`] rather than [`check_expr`]: the target's type is a *hint* for
     // an untyped literal here, not a position the value has to satisfy — the
     // operator decides that, and it is the operator's result this function

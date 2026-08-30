@@ -2434,6 +2434,31 @@ pub mod code {
     /// unnecessary.
     pub const E_CLONE_OPERAND_NOT_AN_OBJECT: Code = Code::new("E0781");
 
+    /// A write to a `readonly` property from anywhere but the declaring
+    /// class's own `constructor` — ADR 0038 § 1's contract for the modifier,
+    /// "assigned exactly once, and that assignment happens during
+    /// construction".
+    ///
+    /// Refused where the write is written rather than left to a run-time
+    /// check, which is what makes the modifier mean anything at all: PHP
+    /// admits an initializing write from any method of the declaring class and
+    /// throws only on the second one, so the property is write-once by
+    /// bookkeeping there and by the type system here.
+    pub const E_READONLY_WRITE_AFTER_CONSTRUCTION: Code = Code::new("E0782");
+
+    /// A class names a `final` class as its superclass. PHP refuses the same
+    /// declaration, and for the same reason: `final` is the author's statement
+    /// that the class's behaviour is not extended, so an `extends` naming one
+    /// is a contradiction rather than a widening.
+    pub const E_FINAL_CLASS_EXTENDED: Code = Code::new("E0783");
+
+    /// A class redeclares a method an ancestor declared `final`.
+    ///
+    /// Separate from [`E_FINAL_CLASS_EXTENDED`] because the two are separate
+    /// promises — a class that may be extended can still hold a member that
+    /// may not be replaced — and a reader fixing one is not fixing the other.
+    pub const E_FINAL_METHOD_OVERRIDDEN: Code = Code::new("E0784");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

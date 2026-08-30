@@ -250,6 +250,7 @@ pub(crate) fn check_stmts(
                     current_class: Some(&qname),
                     current_hook: None,
                     generator_elem: None,
+                    in_constructor: false,
                 };
                 check_members(&decl.members, &ctx, env);
                 crate::attributes::check_declaration(
@@ -262,6 +263,7 @@ pub(crate) fn check_stmts(
                 check_class_init(decl, &qname, env);
                 check_class_lateinit_reads(decl, &qname, env);
                 crate::conformance::check_class_conformance(decl, &qname, env);
+                crate::conformance::check_class_finality(decl, &qname, env);
                 crate::derive::check_class_derive(decl, &qname, &ctx, env);
                 crate::testing::check_class_tests(decl, &qname, &ctx, env);
                 crate::commands::check_class_commands(decl, &qname, &ctx, env);
@@ -278,6 +280,7 @@ pub(crate) fn check_stmts(
                     current_class: Some(&qname),
                     current_hook: None,
                     generator_elem: None,
+                    in_constructor: false,
                 };
                 check_members(&decl.members, &ctx, env);
                 crate::attributes::check_declaration(
@@ -296,6 +299,7 @@ pub(crate) fn check_stmts(
                     current_class: Some(&qname),
                     current_hook: None,
                     generator_elem: None,
+                    in_constructor: false,
                 };
                 check_members(&decl.members, &ctx, env);
                 crate::attributes::check_declaration(
@@ -327,6 +331,7 @@ pub(crate) fn check_stmts(
                     current_class: None,
                     current_hook: None,
                     generator_elem: None,
+                    in_constructor: false,
                 };
                 check_stmt(
                     stmt,
@@ -453,6 +458,9 @@ fn check_property_hooks(p: &nvs_syntax::ast::PropertyMember, ctx: &Ctx<'_>, env:
         current_class: ctx.current_class,
         current_hook: Some(&name),
         generator_elem: None,
+        // A hook body is not the constructor's, whichever accessor it is: ADR
+        // 0014 § 1 makes it a member called on a built instance.
+        in_constructor: false,
     };
     for hook in hooks {
         env.exprs.record_method(
@@ -511,6 +519,20 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         return; // abstract method or interface signature — nothing to check
     };
 
+    // ADR 0038 § 1: `readonly` means "assigned exactly once, and that
+    // assignment happens during construction", so the constructor's own body
+    // is the one place `crate::expr::assign::check_write_target` lets a write
+    // to such a property through. Decided once here, from the name this
+    // declaration was written with, rather than re-derived at every write.
+    let ctx = &Ctx {
+        namespace: ctx.namespace,
+        imports: ctx.imports,
+        current_class: ctx.current_class,
+        current_hook: ctx.current_hook,
+        generator_elem: ctx.generator_elem,
+        in_constructor: span_text(env.src, m.name) == "constructor",
+    };
+
     let mut scope = LocalScope::new();
     let mut live: FxHashSet<String> = FxHashSet::default();
     if ctx.current_class.is_some() && !m.modifiers.contains(&Modifier::Static) {
@@ -562,6 +584,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         current_class: ctx.current_class,
         current_hook: ctx.current_hook,
         generator_elem: Some(elem),
+        in_constructor: ctx.in_constructor,
     };
     // A generator's body returns nothing: calling it produced the cursor, and
     // ADR 0053 § 5 leaves no return value to retrieve. So the body is checked

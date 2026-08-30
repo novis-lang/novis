@@ -1046,7 +1046,7 @@ pub(crate) fn check_unset_target(
                 root = base.unparenthesized();
             }
             if is_unset_holder(&root.kind) {
-                check_write_target(expr, env);
+                check_write_target(expr, ctx, env);
             } else {
                 report_unset_not_an_element(expr, true, env);
             }

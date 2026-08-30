@@ -1178,6 +1178,10 @@ pub(crate) fn check_fn_literal(
         current_class: ctx.current_class,
         current_hook: ctx.current_hook,
         generator_elem: None,
+        // Not inherited even inside the constructor: a closure runs when it is
+        // called, which this checker cannot bound, so a `readonly` write it
+        // holds is not proven to happen during construction (ADR 0038 § 1).
+        in_constructor: false,
     };
     // A closure's body is its own function: an enclosing loop's `break`
     // targets are not reachable from inside it, so the two counters

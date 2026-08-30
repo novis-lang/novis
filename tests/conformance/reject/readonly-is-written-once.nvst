@@ -1,0 +1,42 @@
+--TEST--
+A `readonly` property is written by its class's constructor and by nothing else, declared or promoted (ADR 0038 § 1)
+--FILE--
+<?nvs
+// ADR 0038 § 1 states `readonly`'s contract while refusing to combine it with
+// `lateinit`: "assigned exactly once, and that assignment happens during
+// construction". The constructor's own write below is the assignment that
+// contract allows; every other write is refused where it is written, so the
+// promise holds without a run-time check.
+class Widget {
+    public readonly uint $id;
+
+    public function constructor(uint $id) {
+        $this->id = $id;
+    }
+
+    // Inside the declaring class, and still after construction: `bump` is
+    // called on a built instance, so the property has already been written
+    // once. This is the half PHP admits — it allows an initializing write
+    // from any method of the declaring class and throws only on the second
+    // one — and E0782 is where the two part company.
+    public function bump(): void {
+        $this->id = $this->id + 1;
+    }
+}
+
+// A promoted constructor parameter carries the modifier the same way, so the
+// refusal has to read it off the promotion and not only off a declaration.
+class Label {
+    public function constructor(public readonly string $text) {}
+}
+
+var $l = new Label("a");
+$l->text = "b";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0782]: `Widget::$id` is `readonly`, so only `Widget`'s constructor writes it
+%A
+error[E0782]: `Label::$text` is `readonly`, so only `Label`'s constructor writes it
+%A
+error: aborting due to 2 errors

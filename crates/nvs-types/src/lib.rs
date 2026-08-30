@@ -299,6 +299,15 @@ pub(crate) struct Ctx<'a> {
     /// stored value terminate, and it is the only place the checker needs to
     /// know *which* accessor it is inside.
     pub current_hook: Option<&'a str>,
+    /// Whether the body being checked is the `constructor`'s own — the one
+    /// place ADR 0038 § 1 lets a write to a `readonly` property through
+    /// (`crate::expr::assign::check_write_target`).
+    ///
+    /// A `bool` rather than the method's name because that is the whole of
+    /// what any rule asks, and `false` in a closure body written inside the
+    /// constructor: a closure is called at a time this checker cannot bound,
+    /// so the write it holds is not proven to happen during construction.
+    pub in_constructor: bool,
     /// The element type `T` of the `Iterator<T>` the enclosing body is a
     /// generator for (ADR 0053 § 4), or `None` in an ordinary body.
     ///

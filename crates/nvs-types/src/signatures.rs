@@ -456,6 +456,26 @@ pub struct ClassSignature {
     /// by name. Never includes one pulled in from an `extends`/`implements`
     /// ancestor — [`own_lateinit_properties`] flattens those in.
     pub lateinit_properties: FxHashSet<String>,
+    /// This declaration's own properties declared `readonly` (ADR 0038 § 1),
+    /// by name, a promoted constructor parameter's included. Own properties
+    /// only, like every other map here: the modifier is written where the
+    /// property is declared, so [`property_is_readonly`] asks this of the
+    /// declaring class [`resolve_property_owned`] found and never of the class
+    /// a write happened to name.
+    pub readonly_properties: FxHashSet<String>,
+    /// Whether the declaration was written `final` — no class may name it as
+    /// its superclass ([`class_is_final`]).
+    pub is_final: bool,
+    /// This declaration's own methods written `final`, by name — no subclass
+    /// may redeclare one ([`method_is_final`]).
+    ///
+    /// A set beside [`Self::methods`] rather than a flag on [`MethodSig`] for
+    /// the reason [`Self::readonly_properties`] is one: the modifier is a fact
+    /// about the *declaration*, asked only where a subclass's own member is
+    /// being weighed against its ancestors', while a `MethodSig` is what every
+    /// call site matches arguments against and is built by four seeding
+    /// modules that have no modifier to report.
+    pub final_methods: FxHashSet<String>,
     /// This declaration's own `implements` entries, in source order, each
     /// with the concrete type arguments it fixed (ADR 0053 § 2). Empty
     /// arguments for every interface but `Iterable`/`Iterator`, which is
@@ -776,6 +796,7 @@ fn collect_stmts(
                     current_class: Some(&qname),
                     current_hook: None,
                     generator_elem: None,
+                    in_constructor: false,
                 };
                 // Before the members: ADR 0053 § 2's type arguments are part
                 // of the declaration's own shape, not of any one member's.
@@ -785,6 +806,7 @@ fn collect_stmts(
                     .map(|clause| crate::lower::lower_implemented_interface(clause, &ctx, env))
                     .collect();
                 table.entry(qname.clone()).implements = implements;
+                table.entry(qname.clone()).is_final = decl.modifiers.contains(&Modifier::Final);
                 collect_members(&decl.members, &qname, &ctx, table, env);
             }
             StmtKind::InterfaceDecl(decl) => {
@@ -795,6 +817,7 @@ fn collect_stmts(
                     current_class: Some(&qname),
                     current_hook: None,
                     generator_elem: None,
+                    in_constructor: false,
                 };
                 collect_members(&decl.members, &qname, &ctx, table, env);
             }
@@ -806,6 +829,7 @@ fn collect_stmts(
                     current_class: Some(&qname),
                     current_hook: None,
                     generator_elem: None,
+                    in_constructor: false,
                 };
                 collect_members(&decl.members, &qname, &ctx, table, env);
             }
@@ -913,6 +937,9 @@ fn collect_members(
                 } else if required {
                     sig.required_properties.push((name.clone(), p.name));
                 }
+                if p.modifiers.contains(&Modifier::Readonly) {
+                    sig.readonly_properties.insert(name.clone());
+                }
                 if is_lateinit {
                     sig.lateinit_properties.insert(name);
                 }
@@ -953,6 +980,12 @@ fn collect_members(
                 let visibility = declared_visibility(&m.modifiers).unwrap_or(Visibility::Public);
                 let is_static = m.modifiers.contains(&Modifier::Static);
                 let name = span_text(env.src, m.name).to_owned();
+                if m.modifiers.contains(&Modifier::Final) {
+                    table
+                        .entry(qname.clone())
+                        .final_methods
+                        .insert(name.clone());
+                }
                 if name == "constructor" {
                     record_promoted_properties(&m.params, &params, qname, table, env);
                 } else {
@@ -1040,6 +1073,9 @@ fn record_promoted_properties(
         let name = strip_sigil(span_text(env.src, p.name)).to_owned();
         let sig = table.entry(qname.clone());
         sig.properties.insert(name.clone(), ty);
+        if p.modifiers.contains(&Modifier::Readonly) {
+            sig.readonly_properties.insert(name.clone());
+        }
         if let Some(level) = declared_visibility(&p.modifiers) {
             sig.property_visibility.insert(name, level);
         }
@@ -1365,6 +1401,40 @@ pub fn property_visibility(owner: &QName, name: &str, table: &SignatureTable) ->
         .get(owner)
         .and_then(|sig| sig.property_visibility.get(name).copied())
         .unwrap_or(Visibility::Public)
+}
+
+/// Whether `owner::$name` was declared `readonly` — `owner` being the
+/// declaring class [`resolve_property_owned`] returned, for the same reason
+/// [`property_visibility`] wants it: that is where the keyword is written, and
+/// a subclass neither adds the modifier to an inherited property nor takes it
+/// away.
+///
+/// `false` where no entry exists, which is every `Core` class and every
+/// synthesized declaration — only user source can write the modifier at all.
+#[must_use]
+pub fn property_is_readonly(owner: &QName, name: &str, table: &SignatureTable) -> bool {
+    table
+        .get(owner)
+        .is_some_and(|sig| sig.readonly_properties.contains(name))
+}
+
+/// Whether `qname` was declared `final` — the question a subclass's `extends`
+/// clause asks, and the only one the modifier answers on a class.
+#[must_use]
+pub fn class_is_final(qname: &QName, table: &SignatureTable) -> bool {
+    table.get(qname).is_some_and(|sig| sig.is_final)
+}
+
+/// Whether `owner::name` was declared `final` — `owner` being the class
+/// [`resolve_method`] returned, since that is where the keyword is written.
+///
+/// Asked of an *ancestor* only: a class's own `final` method is a promise to
+/// its subclasses and never a constraint on itself.
+#[must_use]
+pub fn method_is_final(owner: &QName, name: &str, table: &SignatureTable) -> bool {
+    table
+        .get(owner)
+        .is_some_and(|sig| sig.final_methods.contains(name))
 }
 
 /// Whether a member declared at `level` on `owner` is reachable from code

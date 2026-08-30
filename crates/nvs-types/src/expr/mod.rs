@@ -302,7 +302,7 @@ pub(crate) fn infer(
             mark_write_target_levels(inner, false, env);
             let inner_ty = check_expr(inner, None, live, scope, ctx, env);
             let before = env.diags.len();
-            check_write_target(inner, env);
+            check_write_target(inner, ctx, env);
             // A target with nowhere to write to is one mistake, not two: the
             // `?int` a refused `$maybe?->n` reads as would otherwise take a
             // second, narrower diagnostic for a nullability the first one is
