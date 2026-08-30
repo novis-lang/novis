@@ -26,6 +26,108 @@ never grow.
 Nothing. Goal 2 landed under compiled-in defaults deliberately, and picking those up is Stage 4's item 12
 rather than a catch-up: it is the *work*, not a debt.
 
+## Stage 0c — the reference findings
+
+Added on 2026-08-30 by the user's decision, and **it runs before everything else in this goal, stage 9
+included**. [docs/reference/findings.md](../reference/findings.md) is every place the binary and the docs
+disagreed while `docs/novis.md` was written; its § *Triage* table is each item's verdict and the item below
+that owns it. Every decision the findings needed is already folded into its ADR — an item names the section
+that is now the rule and does not restate it — so **every item here is a bug against a decision that
+exists**; none opens a design question and none is `BLOCKED`. The order inside the stage is the order
+below: the abort first, then what a working program hits, then the refusals, then the cards. Each fix is a
+`tests/conformance/` case the acceptance check names, and each refusal is also a row in
+[docs/adr/divergences.md](../adr/divergences.md) where that table names it.
+
+31. **The abort, and the wrong answers a working program hits.** P15: a memory-limit breach inside
+    `try { … } finally { … }` panics in `nvs_array_release` (`crates/nvs-runtime/src/release.rs:54`,
+    reached from `array.rs:1247`) — the abort edge must release each value once, and `finally`'s unwind
+    is where it releases twice; this is the one item that touches memory safety and it goes first. D34:
+    `Core\Arr::sort` over `array<decimal>` throws at run time because
+    `crates/nvs-stdlib/src/ordering.rs:107` has no `decimal` arm — the natural ordering covers every type
+    the checker admits. D5: `crates/nvs-stdlib/src/capability.rs:256` `resolved()` — a bare relative
+    path's parent is `""`, which never canonicalises, so `File::read("missing.txt")` under a valid grant
+    is a capability miss and `write("copy.txt")` under `write = ["."]` is refused. D25:
+    `crates/nvs-types/src/defaults.rs:397` `literal_default` has no `ExprKind::Null` arm, so
+    `?int $x = null` is E0472. U15: `nvs test --filter` filters `.nvst` paths only and is dropped for
+    `#[Test]` methods (`crates/nvs-cli/src/main.rs:897-925`). D24: `1.0 / 0` answers `INF`; ADR 0007 § 4
+    now says `/ 0` throws `ArithmeticError` whatever the operand types. D14: a child that ends without
+    `return` hands back `null`, not `1` — ADR 0006 § *Values cross by copy*. U11: under `nvs run` with
+    `password_file` set, `Core\Config::get("db.main.password")` is `null` and `config dump` prints the path
+    in the value column — ADR 0103 § 7, and § 9's example (`<secret>` in the value column, the path in the
+    origin column), are the rule. D15: ADR 0091 § 4 now spells `mode.default`; verify the re-derivation
+    `Core\Config::set("mode.default", …)` performs.
+32. **The panics that are missing refusals — one `nvs-types` slice, with the parser's three.** ADR 0020's
+    rule that nothing below the front end panics, applied to each. P2 an instance method called
+    statically (E0458's user-class sibling, ADR 0008). P3 `$this` in a `static` method. P6 an untyped
+    constant, class or interface — ADR 0007 § 1 makes the type mandatory, so `const X = 1;` is refused,
+    and `docs/reference/lang/` plus every `.nvst` case that omits it are corrected in the same slice. P7
+    `throw` of a non-`Throwable`. P8 `clone` of an array (ADR 0023 § 1). P9 `new $name()` and
+    `$name::f()` reported as E0496 (ADR 0061, ADR 0052 § 4; `crates/nvs-types/src/calls.rs:1056`). P11 an
+    enum case as an array key, under E0434 (`crates/nvs-types/src/literals.rs:856`). P12 a member the
+    registry does not hold on a `Core` *instance* is E0405 like the static miss —
+    `crates/nvs-ir/src/lower/expr.rs:2682` is where it panics today and the refusal belongs in the
+    checker — and with it P16, M5, M8, M9 and D30: an unregistered `Core\…` name is no longer *trusted*
+    (`crates/nvs-types/src/core_lib.rs:20-25`), so `Core\Env::EOL` is E0405 and every help text that names
+    a member which does not ship (`Core\Env::mode()`, `Core\Script::args()`, `Core\Request`, `Core\Server`,
+    `Core\Cli` in E0211/E0319) names what does. P13 a `catch` binding read after its clause is refused
+    rather than bound into the function-wide `Env` (`lower_try`). P10 `new class { … }` is refused — the
+    file-scope paragraph of `docs/adr/README.md` § *Decisions taken at project start*. P14
+    `catch (A | B $e)` and U19 a `try` with no clause are refused — the same section's `try` paragraph.
+    U18 `<>` (ADR 0090 § 1; `crates/nvs-syntax/src/lexer.rs:856`) and U20 the braced `namespace` (the same
+    README section) are parse-time refusals in the rejected-PHP band.
+33. **The modifiers and the attributes that are parsed and not enforced.** U1 `readonly`: a write outside
+    the constructor is refused (ADR 0038 § 1's contract; `crates/nvs-types/src/signatures.rs:1222` is the
+    only consumer today). U2 `final`: extending a `final` class or overriding a `final` method is refused —
+    PHP's rule, priority 2, and no ADR is needed for it. U3 `abstract`: `new` on an abstract class, a
+    bodiless method in a non-abstract class, and a concrete class leaving an abstract method unimplemented
+    are refused through `crates/nvs-types/src/conformance.rs`'s E0449 machinery. U12: a write to a property
+    with a `get` hook and no `set` is refused — ADR 0014 § 1 keeps PHP 8.4's hooks exactly, and PHP refuses
+    it. U14: a stray `#[Access]` is refused beside the three sibling stray checks. U6: `#[Command]` requires
+    a `static` method returning `void` or `uint` (ADR 0086 § 6). U4: `Core\Json::encode` refuses a `secret`
+    anywhere in its value (ADR 0033 § 4's new bullet), and `echo` and interpolation refuse one (its terminal
+    bullet). U5: the E0422/E0724 help texts name `Core\Secret::reveal()`, which is goal 4's — until it ships
+    they name the rewrite that exists. P5: an `array<T>` class constant is folded the way ADR 0057 folds the
+    scalar ones — one shared value per constant per process, a memory cost the folding module's doc states.
+34. **The lowering and library gaps.** P1 `Class::method(...)` / `$obj->method(...)` has a checker record
+    and no lowering arm (`crates/nvs-ir/src/lower/expr.rs:2874`; ADR 0027 keeps the spelling). P4 a
+    `: never` method is a terminator, and the `KNOWN_ICE` row at `crates/nvs-types/src/type_atoms.rs:124`
+    goes with it. D23 a named closure's recursive call (`fn fact(int $n): int => … fact($n - 1)`, ADR 0031
+    § 3) resolves as a free function (`crates/nvs-types/src/calls.rs:1092`). D27 a `#!` first line opens
+    code mode (ADR 0100 § 3; today it is HTML-mode text). D33 an `int` literal beside a generic `uint`
+    parameter (`assertSame($u, 2)`) adapts as a literal does elsewhere (ADR 0007 § 1a). U21
+    `Iterator::current()` outside the protocol throws on a generator (ADR 0053 § 1; admitted at `:189`).
+    D16 `Core\Arr::from` accepts the `Core` collections, which are `Iterable`
+    (`crates/nvs-stdlib/src/objset.rs:21` never registers the interface, and the `ObjectMap` message leaks
+    `array<K>`). D17 `ObjectSet::union`/`intersect`/`diff` keep the element type (`CoreTy` cannot spell the
+    receiver's type argument today). D21 a payload holding a class constant or an enum case is retrievable
+    by `Attributes::get`/`all` (`crates/nvs-stdlib/src/lib.rs:1743`; `crates/nvs-types/src/defaults.rs:281`
+    is the precedent). D22 E0439's text drops "yet" — ADR 0107 § 5 makes the rule permanent. D1 the time
+    types implement `Comparable` (`crates/nvs-stdlib/src/time.rs:87`; the reserved interfaces lack
+    signatures). D35 with D7: `Json::decodeAs<T>` handles an array, enum or nested-class field, and `T` may
+    be `array<U>` (ADR 0071 § 1). D8 a promoted constructor parameter is a derived field (ADR 0071 § 2). D10
+    `#[Api]`'s `tags`, `security`, `errors` and `example` reach the OpenAPI document. D12 `Core\Script::args()`
+    exists — the parser's own hint names it, and goal 2's item 22 never landed. M1 `Core\Task::afterResponse`
+    (spec § 19; goal 2's item 15 never landed).
+35. **The cards, the help texts and the reference chapters.** M10: every card that cites an ADR inline
+    ("ADR 0056's two engines") is reworded to say the fact — the raw card ships through `nvs meta --json`,
+    so `tools/reference.py`'s stripping never reaches that consumer, and a registry test that no card
+    contains `ADR` is the check. D3 `Core\Weekday`'s card says the cases are zero-based
+    (`crates/nvs-stdlib/src/time.rs:1438`). D4 the time cards say a literal pattern or duration is E0769 at
+    check time and only a computed one throws (ADR 0057). D2 `Duration`'s card says `==` is identity (ADR
+    0090 § 3) and `compareTo` is the content comparison. D6 `Router::url`'s message
+    (`crates/nvs-stdlib/src/router.rs:539`) stops naming a table that is built. D9 the `#[Json\Derive]` card
+    says every declared property is a field whatever its visibility (ADR 0071 § 2). D20 the attribute card
+    says an empty shape `{}` is a marker any literal satisfies, so a bare marker beside another attribute is
+    E0728. D29 `Core\Debug::render` names `await`'s result by its shape, not `Core\Script\Result#1`. U13
+    `crates/nvs-stdlib/src/error_lib.rs:133`'s "readonly" goes: a throwable's properties are writable. M2,
+    M6, M7: `Core\Fatal::onUncaughtThrow`, `Core\Command::*` and `nvs serve|fmt|convert|lsp|ctl` are named
+    only as planned, never as present. M3: `Core\Test`'s roster is `assertContains`, `assertCompletes`,
+    `assertMatchesInline` and `request` short of ADR 0079's, and the card says which goal owns each. M4:
+    `Core\Test\Failure` and `RecursionError` appear in the `errors` list of the members that throw them.
+    `docs/reference/lang/20-types.md` § *Literals* gains the escapes that are not escapes (`\v`, `\e`, `\f`
+    print literally) and the decimal `017`; `lang/40-statements.md` names E0406 for two `catch` clauses
+    binding one name.
+
 ## Stage 1 — the floor
 
 M4's, goal 1's and goal 2's whole acceptance lists, inserted mechanically by `goal-switch.py`, **never
@@ -83,10 +185,14 @@ The one file set the next four items share: a directive's declaration, and how a
     or is proven not to need one, and Stage 6's test is what proves the set is closed. Path-bearing
     capabilities resolve **canonicalise-then-prefix**, so a path reaching a granted root through `..` or a
     symlink does not match — item 6 wrote that comparison once.
-11. **Safepoint-driven limit enforcement.** Memory and CPU caps terminate a runaway script as a `FATAL`,
-    reported to `Core\Fatal::onLimit` if registered and **never to an ordinary `catch`** —
+11. **Safepoint-driven limit enforcement — all four `[limits]` a program can breach.** Memory, CPU,
+    `wall_time` and `max_output` caps terminate a runaway script as a `FATAL`, reported to
+    `Core\Fatal::onLimit` if registered and **never to an ordinary `catch`** —
     [ADR 0020](../adr/0020-error-escalation-ladder.md). Safepoints have been emitted since the first
-    backend commit and goal 2's cancellation is their first consumer; this is the second.
+    backend commit and goal 2's cancellation is their first consumer; this is the second. Under `nvs run`
+    a `wall_time = "1s"` loop ran past 60 s and `max_output = "10"` let 28 bytes through (findings U7,
+    `refp/wall`, `refp/out`) whatever the plan's status says is enforced: the fixture is the proof, both
+    caps are this item's, and `Core\Fatal::onLimit`'s card lists all four.
 12. **The isolate's governance, which is goal 2's deferred half.** `script.spawn` with
     canonicalise-then-prefix path resolution, `max_script_depth`, per-tree accounting of every `[limits]`
     value, spawn-site sub-caps, and derivation of a child's overlay from its parent's *effective* config.
@@ -119,7 +225,11 @@ The one file set the next four items share: a directive's declaration, and how a
     malformed `cron`, a `script` outside `script.spawn`'s roots, or `scope = "fleet"` with no shared
     store. [ADR 0074](../adr/0074-http-defaults-safe-and-finite.md): `origins = ["*"]` with
     `credentials = true`, and `same_site = "None"` with `secure = false` — refused at boot **and by
-    `Core\Config::set` alike**, which is the clause that needs one implementation rather than two.
+    `Core\Config::set` alike**, which is the clause that needs one implementation rather than two. **And
+    every `[limits]` value, in every file of the tree:** `Quantity::parse` and `within_ceiling` in
+    `nvs-config` run over the resolved tree, not only over the four blocks above, so `memory = "12 bananas"`
+    and a `[limits]` value above its `[limits.hard]` ceiling are both refused at boot and by `nvs config
+    check` (findings U9 — today neither runs).
 18. **An adversarial suite.** m6.md's *Verify* is the list: a script attempting to widen a capability or
     set a `System` directive fails; `spawn script` without `script.spawn` fails; a path outside the
     granted roots fails including one reaching it through `..` or a symlink; a child cannot widen a

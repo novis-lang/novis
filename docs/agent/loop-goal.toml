@@ -85,6 +85,22 @@ modules = [
   "crates/nvs-types/src/locals.rs",
   "crates/nvs-ir/src/lower/exception.rs",
   "crates/nvs-ir/src/lower/expr.rs",
+  # Stage 0c -- the reference findings, items 31-35. The checker files the refusals land in (item 32-33),
+  # the runtime pair the abort touches (item 31), the library modules with a wrong arm (items 31, 34),
+  # and the lexer for `<>`. `core_lib.rs` is where an unregistered `Core` name is trusted today.
+  "crates/nvs-runtime/src/release.rs",
+  "crates/nvs-runtime/src/array.rs",
+  "crates/nvs-stdlib/src/ordering.rs",
+  "crates/nvs-stdlib/src/capability.rs",
+  "crates/nvs-stdlib/src/time.rs",
+  "crates/nvs-stdlib/src/objset.rs",
+  "crates/nvs-types/src/calls.rs",
+  "crates/nvs-types/src/literals.rs",
+  "crates/nvs-types/src/defaults.rs",
+  "crates/nvs-types/src/conformance.rs",
+  "crates/nvs-types/src/core_lib.rs",
+  "crates/nvs-types/src/signatures.rs",
+  "crates/nvs-syntax/src/lexer.rs",
 ]
 
 rules = ["0005", "0064", "0103", "0104", "0078", "0042", "0020", "0048", "0073", "0074", "0024", "0051", "0119"]
@@ -209,6 +225,114 @@ cases = [
   "tests/conformance/core/a-core-member-is-called-by-the-names-the-spec-writes.nvst",
   "tests/conformance/error/a-throwable-is-constructed-by-name.nvst",
   "tests/conformance/reject/a-misspelled-name-at-a-core-member-is-unknown.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 0c -- the reference findings, added 2026-08-30 by the user's decision: docs/reference/findings.md
+# § Triage, items 31-35 in loop-goal.md. It runs before everything else in this goal, stage 9 included.
+# A "0" stage is the catch-up class, ahead of the program legs, and inside the class this file's order.
+#
+# Every case named below must EXIST and pass. Each is one finding; the item that owns it is in the comment.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "nvs-suite"
+stage = "0c findings"
+name = "conformance (findings: the abort and the wrong answers, item 31)"
+args = ["test", "tests/conformance/"]
+cases = [
+  # P15 -- a memory-limit breach inside try/finally is the clean FATAL, not a Rust panic.
+  "tests/conformance/error/a-limit-breach-inside-finally-is-a-clean-fatal.nvst",
+  # D34, D5, D25, D24, D14 -- one case each.
+  "tests/conformance/core/arr-sort-orders-decimals.nvst",
+  "tests/conformance/core/a-bare-relative-path-resolves-against-its-grant.nvst",
+  "tests/conformance/core/a-nullable-property-defaults-to-null.nvst",
+  "tests/conformance/error/float-division-by-zero-throws.nvst",
+  "tests/conformance/core/a-child-without-return-answers-null.nvst",
+  # U11 -- password_file is read under `nvs run`, and the dump masks the value and shows the path.
+  "tests/conformance/core/password-file-is-read-under-run.nvst",
+  # D15 -- `mode.default` is the key, and setting it re-derives the mode's defaults.
+  "tests/conformance/core/mode-default-is-read-and-set.nvst",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "0c findings"
+name = "nvs-cli (--filter selects #[Test] methods, item 31)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  # U15
+  "test_filter_selects_test_methods_by_name",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "0c findings"
+name = "conformance (findings: the missing refusals, item 32)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/reject/an-instance-method-is-not-called-statically.nvst",
+  "tests/conformance/reject/this-is-not-read-in-a-static-method.nvst",
+  "tests/conformance/reject/a-constant-declares-its-type.nvst",
+  "tests/conformance/reject/throw-takes-a-throwable.nvst",
+  "tests/conformance/reject/clone-takes-an-object.nvst",
+  "tests/conformance/reject/new-takes-a-class-name-not-a-string.nvst",
+  "tests/conformance/reject/an-enum-case-is-not-an-array-key.nvst",
+  "tests/conformance/reject/an-unregistered-core-member-is-unknown.nvst",
+  "tests/conformance/reject/a-catch-binding-ends-with-its-clause.nvst",
+  "tests/conformance/reject/an-anonymous-class-is-refused.nvst",
+  "tests/conformance/reject/a-catch-clause-names-one-class.nvst",
+  "tests/conformance/reject/a-try-has-a-clause.nvst",
+  "tests/conformance/reject/not-equal-is-spelled-bang-equals.nvst",
+  "tests/conformance/reject/a-namespace-statement-is-unbraced.nvst",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "0c findings"
+name = "conformance (findings: modifiers and attributes, item 33)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/reject/readonly-is-written-once.nvst",
+  "tests/conformance/reject/final-is-not-extended.nvst",
+  "tests/conformance/reject/abstract-is-not-instantiated.nvst",
+  "tests/conformance/reject/a-get-only-hook-is-not-written.nvst",
+  "tests/conformance/reject/a-stray-access-attribute-is-refused.nvst",
+  "tests/conformance/reject/a-command-is-static-and-returns-void-or-uint.nvst",
+  "tests/conformance/reject/json-encode-refuses-a-secret.nvst",
+  "tests/conformance/reject/echo-refuses-a-secret.nvst",
+  "tests/conformance/core/an-array-constant-folds.nvst",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "0c findings"
+name = "conformance (findings: the lowering and library gaps, item 34)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/a-first-class-callable-lowers.nvst",
+  "tests/conformance/core/a-never-method-is-a-terminator.nvst",
+  "tests/conformance/core/a-named-closure-recurses.nvst",
+  "tests/conformance/core/a-shebang-line-opens-code.nvst",
+  "tests/conformance/core/a-literal-adapts-to-a-generic-uint.nvst",
+  "tests/conformance/error/iterator-current-outside-the-protocol-throws.nvst",
+  "tests/conformance/core/arr-from-takes-a-core-collection.nvst",
+  "tests/conformance/core/objectset-union-keeps-its-element-type.nvst",
+  "tests/conformance/core/an-attribute-payload-holds-a-constant.nvst",
+  "tests/conformance/core/the-time-types-are-comparable.nvst",
+  "tests/conformance/core/json-decodes-a-typed-list.nvst",
+  "tests/conformance/core/json-decodes-a-nested-field-and-a-promoted-one.nvst",
+  "tests/conformance/core/script-args-are-read.nvst",
+  "tests/conformance/core/task-after-response-runs.nvst",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "0c findings"
+name = "nvs-stdlib (no card cites an ADR, item 35)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  # M10 -- the raw card ships through `nvs meta --json`, so the card itself says the fact.
+  "no_registry_card_cites_an_adr",
 ]
 
 # <<< goal-switch: floor checks are inserted below this line >>>
