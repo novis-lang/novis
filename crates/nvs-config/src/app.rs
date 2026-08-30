@@ -10,6 +10,13 @@
 //! secrets do. What they need from that tree is the merged `toml::Table` and its origins, which is
 //! why [`Resolved`] keeps both.
 //!
+//! **[`layer`] answers what the effective block *is*; it is not how the snapshot is built.**
+//! [`Snapshot::build`](crate::snapshot::Snapshot::build) folds each matching block over the global
+//! tree in [`matching`]'s order instead, by the same [`merge_table`](crate::resolve) — same values,
+//! and every key still named by the file the block that wrote it lives in, which an effective block
+//! folded from three files cannot do with one origin for all of its keys. This function is § 9's
+//! per-app `nvs config dump`.
+//!
 //! **The comparison is canonicalize-then-prefix, and the canonicalization is
 //! [`trust::canonical`](crate::trust::canonical)'s.** That is the whole security content of § 1:
 //! without it `/srv/www/shop/../other/x.nvs` matches `root = "/srv/www/shop"` and a symlink planted
@@ -178,11 +185,6 @@ pub fn layer(resolved: &Resolved, entry: &Path, files: &dyn Files) -> Result<Lay
     let mut origins: BTreeMap<String, Origin> = BTreeMap::new();
     for index in matching(&resolved.config.app, entry, files)? {
         let block = &resolved.config.app[index];
-        let field = if block.root.is_some() {
-            "root"
-        } else {
-            "entry"
-        };
         if let Some(key) = key_of(block) {
             layered.blocks.push(key.to_path_buf());
         }
@@ -194,14 +196,7 @@ pub fn layer(resolved: &Resolved, entry: &Path, files: &dyn Files) -> Result<Lay
         };
         table.remove("root");
         table.remove("entry");
-        // The block's own file, falling back to the array's — a block reached the typed tree by
-        // being claimed or appended, and both of those record an origin, so the last arm is
-        // unreachable rather than a case with an answer.
-        let Some(origin) = resolved
-            .origins
-            .get(&format!("app.{index}.{field}"))
-            .or_else(|| resolved.origins.get("app"))
-        else {
+        let Some(origin) = block_origin(resolved, index) else {
             continue;
         };
         crate::resolve::merge_table(
@@ -225,9 +220,29 @@ pub fn layer(resolved: &Resolved, entry: &Path, files: &dyn Files) -> Result<Lay
     Ok(layered)
 }
 
+/// The file the `index`th `[[app]]` block was written in — its own, falling back to the array's.
+///
+/// A block reached the typed tree by being claimed or appended, and both of those record an origin,
+/// so the `None` arm is unreachable rather than a case with an answer. Which of the two keys it is
+/// keyed on decides which origin names it, because that key is the one [`canonicalize`] resolved
+/// against the file ([ADR 0103] § 5).
+///
+/// [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
+pub(crate) fn block_origin(resolved: &Resolved, index: usize) -> Option<&Origin> {
+    let field = if resolved.config.app.get(index)?.root.is_some() {
+        "root"
+    } else {
+        "entry"
+    };
+    resolved
+        .origins
+        .get(&format!("app.{index}.{field}"))
+        .or_else(|| resolved.origins.get("app"))
+}
+
 /// The `index`th `[[app]]` block as the untyped table it was written as, or `None` when the merged
 /// table has no such entry — which the typed tree having one makes unreachable.
-fn block_table(resolved: &Resolved, index: usize) -> Option<toml::Table> {
+pub(crate) fn block_table(resolved: &Resolved, index: usize) -> Option<toml::Table> {
     Some(
         resolved
             .table
@@ -257,7 +272,7 @@ fn covers(block: &App, entry: &Path) -> bool {
 }
 
 /// The path this block is keyed on, whichever of the two keys spelled it.
-fn key_of(block: &App) -> Option<&Path> {
+pub(crate) fn key_of(block: &App) -> Option<&Path> {
     block
         .root
         .as_deref()

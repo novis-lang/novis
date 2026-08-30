@@ -31,18 +31,26 @@
 //! other refuses — and its fold is [`resolve`]'s own `merge_table`, because § 2 is later-wins in a
 //! different order rather than a second precedence rule.
 //!
-//! What is **not** here yet: the immutable snapshot a request clones at start (ADR 0078 § 1),
-//! which is what will call [`app::layer`] with the entry file `nvs run` was given. Until it lands
-//! `nvs-host` runs on compiled-in defaults and says so at each site.
+//! [`mod@snapshot`] is where all of that arrives: ADR 0078 § 1's immutable per-entry-file value a
+//! request clones at start, and the holder a reload replaces whole. It is the one caller that has
+//! both a [`Resolved`] and an entry file, so it is where [`mod@app`]'s per-app fold happens — over
+//! the global tree, a block at a time, rather than through [`app::layer`], whose own module doc
+//! says why.
+//!
+//! What is **not** here yet: nothing reads a [`snapshot::Current`] — `nvs-host` still runs on
+//! compiled-in defaults and says so at each site, and `Core\Config::get`/`set` (ADR 0064 § 5) are
+//! unwritten.
 
 pub mod app;
 pub mod directive;
 pub mod file;
 pub mod resolve;
 pub mod secret;
+pub mod snapshot;
 pub mod tree;
 pub mod trust;
 
 pub use directive::{Apply, Class, DIRECTIVES, Directive};
 pub use resolve::{Origin, Override, Resolved, Roots};
+pub use snapshot::{Current, Reload, Snapshot};
 pub use tree::{Config, Setting};

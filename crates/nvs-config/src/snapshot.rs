@@ -1,0 +1,330 @@
+//! [ADR 0078] § 1: the immutable snapshot a request clones at start.
+//!
+//! A [`Snapshot`] is one entry file's whole answer — the global tree with that file's `[[app]]`
+//! blocks folded over it ([ADR 0104] § 2) — built once at boot or reload and never mutated
+//! afterwards. [`Current`] holds the published one; a request clones the [`Arc`] when it starts and
+//! reads that clone for its whole life, so a reload landing mid-request is invisible to it and no
+//! request ever sees half of one tree and half of another. `Core\Config::set` writes a per-request
+//! overlay *over* this value and never into it ([ADR 0064] § 5).
+//!
+//! **The per-app fold is [`resolve`](crate::resolve)'s `merge_table`, over the global table, one
+//! block at a time in [`matching`](crate::app::matching)'s order** — not [`app::layer`]'s effective
+//! block folded over the global tree afterwards. The two produce the same values, and this one also
+//! produces the right *origins*: a key that a block overrode has to name the file that block was
+//! written in, and an effective block folded from three files has one origin for all of its keys.
+//! So [`app::layer`] answers "what is the effective `[[app]]` block", which is § 9's per-app
+//! `nvs config dump`, and this module does not go through it.
+//!
+//! **A changed `Boot` directive does not take effect** ([ADR 0078] § 2). [`Current::publish`] is
+//! the only place that can know, because it holds both trees: it carries each changed `Boot` key's
+//! *running* value into the incoming snapshot and names the directive in its [`Reload`]. Reporting
+//! alone would not be enough — the new value would still be sitting in the snapshot everything
+//! reads — so the report and the carry are one operation.
+//!
+//! Cost: one owned `Config` and one owned `toml::Table` per snapshot, shared by every request that
+//! clones the `Arc` and dropped when the last of them finishes. That is O(in-flight snapshots),
+//! which is one plus however many outlived a reload, and never O(requests). Per request it is an
+//! `RwLock` read and an `Arc` clone, once, at start.
+//!
+//! [ADR 0064]: ../../../docs/adr/0064-configuration-file-format.md
+//! [ADR 0078]: ../../../docs/adr/0078-config-reload-and-control-socket.md
+//! [ADR 0104]: ../../../docs/adr/0104-an-application-is-an-entry-file-path.md
+
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, RwLock};
+
+use nvs_diagnostics::{Diagnostic, code};
+
+use crate::app;
+use crate::directive::{Apply, DIRECTIVES, Directive, governs};
+use crate::resolve::{Files, Origin, Override, Resolved};
+use crate::tree::Config;
+
+/// One entry file's effective configuration, immutable once built — [ADR 0078] § 1.
+///
+/// [ADR 0078]: ../../../docs/adr/0078-config-reload-and-control-socket.md
+#[derive(Clone, Debug)]
+pub struct Snapshot {
+    /// The effective tree: the global configuration with every matching `[[app]]` block's
+    /// directives folded over it. Its `app` roster is **empty** — the blocks that produced this
+    /// snapshot are [`blocks`](Snapshot::blocks), and leaving the roster here would read as a list
+    /// of applications this one request has rather than as the host's whole set.
+    pub config: Config,
+    /// The table [`config`](Snapshot::config) was deserialized from, kept for the reason
+    /// [`Resolved::table`](crate::resolve::Resolved::table) is: § 9's `nvs config dump --origin`
+    /// renders keys the typed tree has no field for, and [`Current::publish`] compares two trees
+    /// key by key, which the typed tree cannot be turned back into.
+    pub table: toml::Table,
+    /// The entry file this snapshot is for, canonical.
+    pub entry: PathBuf,
+    /// `[app] mode`, from the most specific block that set one. It sits on the block rather than in
+    /// a sub-table, so it is read off directly instead of merged: the global `[mode]` is a table
+    /// with `default` and `ceiling` in it, and folding a string over that would replace both.
+    pub mode: Option<String>,
+    /// `[app] origin` — what `Core\Router::urlAbsolute` prepends (ADR 0097 § 3), from the most
+    /// specific block that set one, and read off directly for [`mode`](Snapshot::mode)'s reason.
+    /// This is a URL and never a [`struct@Origin`], which is where a value was written.
+    pub origin: Option<String>,
+    /// The `[[app]]` blocks that matched, least-specific first, by the canonical path each is keyed
+    /// on. This is [ADR 0104] § 2's `info: app blocks: …` line, already in order.
+    ///
+    /// [ADR 0104]: ../../../docs/adr/0104-an-application-is-an-entry-file-path.md
+    pub blocks: Vec<PathBuf>,
+    /// Every file the tree was read from, in the order § 3 read them.
+    pub files: Vec<PathBuf>,
+    /// Every override, in the order they happened: the tree's own first ([ADR 0103] § 3), then each
+    /// block's over what it replaced. Both carry both origins, because both came from one merge.
+    ///
+    /// [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
+    pub overrides: Vec<Override>,
+    /// Where every leaf in [`table`](Snapshot::table) was written, by dotted key. A block's key
+    /// names that block's own file, which is the whole reason the fold runs a block at a time.
+    pub origins: BTreeMap<String, Origin>,
+    /// What the tree was only advised about — a readable secret file, `W1005`. Carried so a reload
+    /// can report it again: the file it names may have been re-created between the two reads.
+    pub warnings: Vec<Diagnostic>,
+}
+
+impl Snapshot {
+    /// Builds the snapshot for `entry` out of an already-resolved tree.
+    ///
+    /// `entry` is canonicalized first and kept that way, for [`app`]'s reason: every comparison
+    /// after this line is against a path that has been through
+    /// [`trust::canonical`](crate::trust::canonical), and a `..` or a symlink that has not is how an
+    /// entry file inherits an application's capabilities without being inside it.
+    ///
+    /// # Errors
+    ///
+    /// `E0605` when `entry` cannot be examined, and `E0601` if the folded tree does not deserialize
+    /// — which the global tree and every block having deserialized on their own already makes
+    /// reachable only by two of them writing one key in two shapes.
+    pub fn build(
+        resolved: &Resolved,
+        entry: &Path,
+        files: &dyn Files,
+    ) -> Result<Arc<Self>, Diagnostic> {
+        let entry = files.canonical(entry).map_err(|err| {
+            crate::resolve::unreadable(entry, &err, "it is the entry file being configured")
+        })?;
+        let mut snapshot = Self {
+            config: Config::default(),
+            table: resolved.table.clone(),
+            entry,
+            mode: None,
+            origin: None,
+            blocks: Vec::new(),
+            files: resolved.files.clone(),
+            overrides: resolved.overrides.clone(),
+            origins: resolved.origins.clone(),
+            warnings: resolved.warnings.clone(),
+        };
+        // The roster goes with the blocks it lists: it is what *selected* the directives below, and
+        // a key of it left in the table would deserialize into `config.app` as the host's whole set
+        // of applications sitting inside one application's configuration. Its origins go too — a
+        // key naming a value no longer in the table can never be overridden and so has nothing to
+        // report.
+        snapshot.table.remove("app");
+        snapshot.origins.retain(|key, _| !governs("app", key));
+        for index in app::matching(&resolved.config.app, &snapshot.entry, files)? {
+            let block = &resolved.config.app[index];
+            if let Some(key) = app::key_of(block) {
+                snapshot.blocks.push(key.to_path_buf());
+            }
+            // Least-specific first, so the last block to state one of these wins — which is the
+            // same later-wins the merge below applies to everything else.
+            if block.mode.is_some() {
+                snapshot.mode.clone_from(&block.mode);
+            }
+            if block.origin.is_some() {
+                snapshot.origin.clone_from(&block.origin);
+            }
+            let (Some(mut directives), Some(origin)) = (
+                app::block_table(resolved, index),
+                app::block_origin(resolved, index),
+            ) else {
+                continue;
+            };
+            // `root` and `entry` selected this block and `mode`/`origin` are above; what is left is
+            // `[app.limits]` and `[app.capabilities]`, which are the global blocks' own shapes and
+            // fold straight onto them.
+            for key in ["root", "entry", "mode", "origin"] {
+                directives.remove(key);
+            }
+            crate::resolve::merge_table(
+                &mut snapshot.table,
+                &directives,
+                origin,
+                "",
+                &mut snapshot.origins,
+                &mut snapshot.overrides,
+            );
+        }
+        snapshot.retype()?;
+        Ok(Arc::new(snapshot))
+    }
+
+    /// Deserializes [`table`](Snapshot::table) into [`config`](Snapshot::config).
+    ///
+    /// # Errors
+    ///
+    /// `E0601` when the table does not fit the typed tree.
+    fn retype(&mut self) -> Result<(), Diagnostic> {
+        self.config = toml::Value::Table(self.table.clone())
+            .try_into::<Config>()
+            .map_err(|err| {
+                Diagnostic::error(code::E_BAD_DIRECTIVE, err.message().to_string()).with_note(
+                    "the global tree and every `[[app]]` block were typed on their own before they \
+                     were merged, so this can only be two of them writing one key in two shapes"
+                        .to_string(),
+                )
+            })?;
+        Ok(())
+    }
+
+    /// Carries this snapshot's `Boot` values into `next`, returning the directives that changed.
+    ///
+    /// [ADR 0078] § 2: applying one of these would rebind an OS resource or re-create the runtime,
+    /// so a reload names it in its result instead. The carry is what makes "does not take effect"
+    /// true rather than aspirational — without it the new value is in the snapshot every later
+    /// reader sees, and only the thing already bound disagrees with it.
+    ///
+    /// A row naming a block governs every key beneath it, so the comparison is at the row's own
+    /// path and the whole subtree moves together: a `[server]` with one address changed and one
+    /// added is one `Boot` change, not two.
+    ///
+    /// # Errors
+    ///
+    /// `E0601` if the carried tree does not deserialize, which two trees that each did makes
+    /// unreachable.
+    ///
+    /// [ADR 0078]: ../../../docs/adr/0078-config-reload-and-control-socket.md
+    fn carry_boot(&self, next: &mut Self) -> Result<Vec<&'static Directive>, Diagnostic> {
+        let mut changed = Vec::new();
+        for row in DIRECTIVES.iter().filter(|row| row.apply == Apply::Boot) {
+            let running = value_at(&self.table, row.key);
+            if running == value_at(&next.table, row.key) {
+                continue;
+            }
+            changed.push(row);
+            put_at(&mut next.table, row.key, running);
+            // And the origins with it, so `nvs config dump --origin` names the file the value in
+            // force was written in rather than the one that asked for a change nothing applied.
+            next.origins.retain(|key, _| !governs(row.key, key));
+            for (key, origin) in self.origins.iter().filter(|(key, _)| governs(row.key, key)) {
+                next.origins.insert(key.clone(), origin.clone());
+            }
+        }
+        if !changed.is_empty() {
+            next.retype()?;
+        }
+        Ok(changed)
+    }
+}
+
+/// What publishing a snapshot over a running one produced — [ADR 0078] §§ 1-2.
+///
+/// [ADR 0078]: ../../../docs/adr/0078-config-reload-and-control-socket.md
+#[derive(Clone, Debug)]
+pub struct Reload {
+    /// The snapshot now serving. Requests that started before it still hold the previous one.
+    pub snapshot: Arc<Snapshot>,
+    /// The `Boot` directives the new tree changed. They are reported and **not** applied:
+    /// `snapshot` still carries the running value of each, so the result is the only place the
+    /// change exists until a restart.
+    pub boot: Vec<&'static Directive>,
+}
+
+/// The published snapshot: what a request clones at start, and what a reload replaces whole.
+///
+/// A `RwLock` and not a lock-free cell because the read happens **once per request**, at start,
+/// and is an `Arc` clone under a read guard — the contended case is a reload, which is rare, and
+/// a dependency bought for one uncontended read is not a trade this crate makes ([ADR 0051] § 4).
+///
+/// [ADR 0051]: ../../../docs/adr/0051-standard-library-tiers.md
+#[derive(Debug)]
+pub struct Current(RwLock<Arc<Snapshot>>);
+
+impl Current {
+    /// The holder, serving `snapshot` from the moment it exists.
+    #[must_use]
+    pub fn new(snapshot: Arc<Snapshot>) -> Self {
+        Self(RwLock::new(snapshot))
+    }
+
+    /// The snapshot serving now, for a request to hold for its whole life.
+    ///
+    /// # Panics
+    ///
+    /// If a thread panicked while holding the lock. Nothing between the two `unwrap`s in this
+    /// module can panic — an `Arc` clone and an `Arc` store — so a poisoned lock here would mean
+    /// the process is already unwinding through something else.
+    #[must_use]
+    pub fn load(&self) -> Arc<Snapshot> {
+        Arc::clone(&self.0.read().expect("the snapshot lock is never poisoned"))
+    }
+
+    /// Publishes `next`, after carrying the running snapshot's `Boot` values into it.
+    ///
+    /// This is the last of § 1's validate-then-publish steps and the only one that mutates
+    /// anything: everything that can refuse a tree has already run by the time a [`Snapshot`]
+    /// exists, so a malformed file leaves the previous snapshot serving because it never reached
+    /// here.
+    ///
+    /// # Errors
+    ///
+    /// `E0601` if carrying a `Boot` value produces a tree that does not deserialize.
+    ///
+    /// # Panics
+    ///
+    /// If a thread panicked while holding the lock — see [`load`](Current::load).
+    pub fn publish(&self, next: Snapshot) -> Result<Reload, Diagnostic> {
+        let mut next = next;
+        let boot = self.load().carry_boot(&mut next)?;
+        let snapshot = Arc::new(next);
+        *self.0.write().expect("the snapshot lock is never poisoned") = Arc::clone(&snapshot);
+        Ok(Reload { snapshot, boot })
+    }
+}
+
+/// The value at a dotted key, or `None` when nothing wrote one.
+fn value_at<'t>(table: &'t toml::Table, key: &str) -> Option<&'t toml::Value> {
+    let mut segments = key.split('.');
+    let mut value = table.get(segments.next()?)?;
+    for segment in segments {
+        value = value.as_table()?.get(segment)?;
+    }
+    Some(value)
+}
+
+/// Writes `value` at a dotted key, removing what is there when it is `None`.
+///
+/// Intermediate tables are created on the way down, because a `Boot` value being carried back into
+/// a tree whose new file dropped the whole block still has to land somewhere — and an intermediate
+/// left **empty** by a removal is removed with it. `[cache]` with no `dir` in it is a block the
+/// operator wrote and this one was never written, which is a difference the override record and
+/// `nvs config dump` both report.
+fn put_at(table: &mut toml::Table, key: &str, value: Option<&toml::Value>) {
+    let Some((head, rest)) = key.split_once('.') else {
+        match value {
+            Some(value) => table.insert(key.to_string(), value.clone()),
+            None => table.remove(key),
+        };
+        return;
+    };
+    if value.is_none() && !table.contains_key(head) {
+        return;
+    }
+    let slot = table
+        .entry(head.to_string())
+        .or_insert_with(|| toml::Value::Table(toml::Table::new()));
+    if !slot.is_table() {
+        *slot = toml::Value::Table(toml::Table::new());
+    }
+    if let Some(into) = slot.as_table_mut() {
+        put_at(into, rest, value);
+        if into.is_empty() {
+            table.remove(head);
+        }
+    }
+}

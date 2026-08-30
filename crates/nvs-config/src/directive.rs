@@ -134,6 +134,9 @@ pub fn lookup(key: &str) -> Option<&'static Directive> {
 
 /// Whether `row` is `key` or names a block `key` is written inside. The dot-boundary test is what
 /// keeps `limits` from governing a `limitshard` that was never written.
-fn governs(row: &str, key: &str) -> bool {
+///
+/// Reused by [`snapshot`](crate::snapshot) for the same question asked of a dotted origin key,
+/// because a second dot-boundary test is a second chance to get the boundary wrong.
+pub(crate) fn governs(row: &str, key: &str) -> bool {
     key == row || (key.starts_with(row) && key.as_bytes().get(row.len()) == Some(&b'.'))
 }

@@ -51,17 +51,17 @@
 > `crates/nvs-cli/src/{script,runner}.rs` — or in ADRs 0115–0117. Goal 3's first rows are on disk:
 > `crates/nvs-config` holds the directive registry, 0064 § 2a's block roster as a typed tree with §
 > 3's two per-file refusals, ADR 0103 §§ 1-7's resolver — later-wins recorded, every file trusted,
-> every secret read — and ADR 0104 §§ 1-2's `[[app]]` blocks, keyed on a canonical path and folded
-> least-specific first. **Stage 8 is closed at both counts**: conformance is 1000, differential is
-> 206 over its 205 floor with six `Core\Serialize` round-trips against PHP's own pair, and
-> `isolation.rs` measures `nvs_host::Isolate` itself with a guard beside it. Three known gaps, each
-> recorded where its code is: item 18's `Core\Secret::reveal()` is not in the registry, though how a
-> `secret` parameter is spelled on a row is decided (`Qual::Reveal`); `Live::admit`'s same-class
-> check is asked of the answer and not of the argument (`crates/nvs-runtime/src/graph.rs` § *Known
-> gaps*); item 22's `Core\Script` members are unwritten (`crates/nvs-stdlib/src/script.rs`). The
-> program is measured by `python tools/check-migration.py` at 100% classified — 25% when it was
-> scheduled, 34% now — and `gaps.py`, `holes.py` and `check-migration.py --report` are the worklists
-> no session re-derives.
+> every secret read — ADR 0104 §§ 1-2's `[[app]]` blocks on a canonical key, and ADR 0078 §§ 1-2's
+> snapshot — one per entry file, `Boot` changes reported not applied. **Stage 8 is closed at both
+> counts**: conformance is 1000, differential is 206 over its 205 floor with six `Core\Serialize`
+> round-trips against PHP's own pair, and `isolation.rs` measures `nvs_host::Isolate` itself with a
+> guard beside it. Three known gaps, each recorded where its code is: item 18's
+> `Core\Secret::reveal()` is not in the registry, though how a `secret` parameter is spelled on a
+> row is decided (`Qual::Reveal`); `Live::admit`'s same-class check is asked of the answer and not
+> of the argument (`crates/nvs-runtime/src/graph.rs` § *Known gaps*); item 22's `Core\Script`
+> members are unwritten (`crates/nvs-stdlib/src/script.rs`). The program is measured by `python
+> tools/check-migration.py` at 100% classified — 25% when it was scheduled, 34% now — and `gaps.py`,
+> `holes.py` and `check-migration.py --report` are the worklists no session re-derives.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

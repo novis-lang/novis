@@ -2870,6 +2870,11 @@ is why" — is this file.
   move a spelling that appears in a config file or in a diagnostic, `grep -rl` over `tests/` and
   `examples/` in the same call as `crates/`, and remember the message text is pinned in two places: the
   `Fault` in the crate and the `--EXPECT--` of the case that catches it.
+- **A relative path in an *included* configuration file resolves against that file's own directory**
+  (ADR 0103 § 5), and an `[[app]] root` is the one where it does not look like a path at all. A case
+  writing `root = "srv/www/shop"` into `conf.d/shop.toml` is keyed on `conf.d/srv/www/shop`, and the
+  refusal it gets is `E0605 cannot read` — which reads as a broken fixture rather than as § 5 doing
+  exactly what it says. Write the `..` the operator would have to write.
 
 ## Splitting a file that got too big
 

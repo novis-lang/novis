@@ -1,0 +1,385 @@
+//! ADR 0078 §§ 1-2: the snapshot one entry file gets, and what a reload may and may not change.
+//!
+//! Every case runs against an in-memory [`Files`] for `tests/resolve.rs`'s reason. This reader is
+//! the plain one — no symlinks and no `..` — because whether a path *matches* a block is ADR 0104
+//! § 1's claim and `tests/app.rs` pins it against a reader that resolves both. What is asked here
+//! is what the matching blocks then produce.
+
+use std::collections::BTreeMap;
+use std::path::{Component, Path, PathBuf};
+use std::sync::Arc;
+
+use nvs_config::resolve::{Files, Resolved, Roots, resolve};
+use nvs_config::snapshot::{Current, Snapshot};
+use nvs_config::trust::Untrusted;
+use nvs_config::{Setting, tree};
+use nvs_diagnostics::SourceMap;
+
+/// A path written the way an ADR writes one, as a path the host spells its own way.
+fn p(path: &str) -> PathBuf {
+    path.split('/').collect()
+}
+
+/// The filesystem the cases describe: a name-to-text map with directories implied by it.
+#[derive(Default)]
+struct Fake {
+    files: BTreeMap<PathBuf, String>,
+}
+
+impl Fake {
+    fn with(entries: &[(&str, &str)]) -> Self {
+        Self {
+            files: entries
+                .iter()
+                .map(|(path, text)| (p(path), (*text).to_string()))
+                .collect(),
+        }
+    }
+}
+
+impl Files for Fake {
+    fn trust(&self, path: &Path) -> Result<PathBuf, Untrusted> {
+        if self.exists(path) {
+            Ok(path.to_path_buf())
+        } else {
+            Err(Untrusted::Unreadable("no such file".to_string()))
+        }
+    }
+
+    fn canonical(&self, path: &Path) -> Result<PathBuf, String> {
+        let mut out = PathBuf::new();
+        for component in path.components() {
+            match component {
+                Component::CurDir => {}
+                Component::ParentDir => {
+                    out.pop();
+                }
+                other => out.push(other.as_os_str()),
+            }
+        }
+        if self.exists(&out) {
+            Ok(out)
+        } else {
+            Err("no such file or directory".to_string())
+        }
+    }
+
+    fn read(&self, path: &Path) -> Result<String, String> {
+        self.files
+            .get(path)
+            .cloned()
+            .ok_or_else(|| "no such file".to_string())
+    }
+
+    fn read_bytes(&self, path: &Path) -> Result<Vec<u8>, String> {
+        self.read(path).map(String::into_bytes)
+    }
+
+    fn exposure(&self, _path: &Path) -> Option<String> {
+        None
+    }
+
+    fn list(&self, dir: &Path) -> Result<Vec<PathBuf>, String> {
+        Ok(self
+            .files
+            .keys()
+            .filter(|path| path.parent() == Some(dir))
+            .cloned()
+            .collect())
+    }
+
+    fn exists(&self, path: &Path) -> bool {
+        self.files.contains_key(path) || self.files.keys().any(|file| file.starts_with(path))
+    }
+}
+
+/// Resolves `nvs.toml` in `fs`, panicking with the refusal when it does not.
+fn tree_of(fs: &Fake) -> Resolved {
+    let mut sources = SourceMap::new();
+    resolve(&Roots::Files(vec![p("nvs.toml")]), &mut sources, fs)
+        .unwrap_or_else(|err| panic!("refused: {} [{:?}]", err.message, err.notes))
+}
+
+/// The snapshot `entry` gets out of `fs`, panicking with the refusal when there is none.
+fn snapshot_of(fs: &Fake, entry: &str) -> Arc<Snapshot> {
+    Snapshot::build(&tree_of(fs), &p(entry), fs)
+        .unwrap_or_else(|err| panic!("refused: {} [{:?}]", err.message, err.notes))
+}
+
+/// `[limits]` as the snapshot has it, panicking when the block is absent.
+fn limits(snapshot: &Snapshot) -> &tree::Limits {
+    snapshot
+        .config
+        .limits
+        .as_ref()
+        .expect("this tree writes a `[limits]` block")
+}
+
+/// A text setting, as every size and duration in the file is written.
+fn text(value: &str) -> Option<Setting> {
+    Some(Setting::Text(value.to_string()))
+}
+
+/// ADR 0104 § 2's own example: a host-wide block, a shop beneath it, and one entry file inside the
+/// shop, over a global tree each of them takes something from.
+const SHOP: &str = "\
+[limits]
+memory = \"128M\"
+wall_time = \"30s\"
+
+[capabilities.process]
+exec = false
+
+[[app]]
+root = \"srv/www\"
+mode = \"production\"
+
+[[app]]
+root = \"srv/www/shop\"
+origin = \"https://shop.example\"
+
+[app.limits]
+memory = \"512M\"
+
+[app.capabilities.process]
+exec = true
+
+[[app]]
+entry = \"srv/www/shop/bin/import.nvs\"
+mode = \"development\"
+
+[app.limits]
+wall_time = \"600s\"
+";
+
+fn shop() -> Fake {
+    Fake::with(&[
+        ("nvs.toml", SHOP),
+        ("srv/www/index.nvs", ""),
+        ("srv/www/shop/index.nvs", ""),
+        ("srv/www/shop/bin/import.nvs", ""),
+        ("srv/other/x.nvs", ""),
+    ])
+}
+
+/// § 2's closing sentence: an entry file matched by no block gets the global configuration, which
+/// is the ordinary case and needs no block at all.
+#[test]
+fn an_entry_no_block_matches_gets_the_global_configuration() {
+    let snapshot = snapshot_of(&shop(), "srv/other/x.nvs");
+    assert!(snapshot.blocks.is_empty());
+    assert_eq!(limits(&snapshot).memory, text("128M"));
+    assert_eq!(snapshot.mode, None);
+    assert_eq!(snapshot.origin, None);
+}
+
+/// § 2's worked example, both halves at once: `/srv/www/shop/bin/import.nvs` gets a memory of
+/// `512M` from the `/srv/www/shop` block and a `wall_time` of `600s` from its own, while
+/// inheriting everything neither states.
+#[test]
+fn every_matching_block_layers_least_specific_first() {
+    let snapshot = snapshot_of(&shop(), "srv/www/shop/bin/import.nvs");
+    assert_eq!(
+        snapshot.blocks,
+        vec![
+            p("srv/www"),
+            p("srv/www/shop"),
+            p("srv/www/shop/bin/import.nvs"),
+        ]
+    );
+    assert_eq!(limits(&snapshot).memory, text("512M"));
+    assert_eq!(limits(&snapshot).wall_time, text("600s"));
+}
+
+/// The same tree from one directory up: the innermost block does not apply to a file it does not
+/// cover, so `wall_time` is still the global one. Asserted beside the case above because a fold
+/// that applied every block regardless would pass that one on its own.
+#[test]
+fn a_block_that_does_not_cover_the_entry_contributes_nothing() {
+    let snapshot = snapshot_of(&shop(), "srv/www/shop/index.nvs");
+    assert_eq!(snapshot.blocks, vec![p("srv/www"), p("srv/www/shop")]);
+    assert_eq!(limits(&snapshot).memory, text("512M"));
+    assert_eq!(limits(&snapshot).wall_time, text("30s"));
+}
+
+/// ADR 0104 § 3's widening half, which is what makes a root file that denies workable: the global
+/// block withholds `process.exec` and the shop's block grants it.
+#[test]
+fn a_block_grants_a_capability_the_global_block_withholds() {
+    let global = snapshot_of(&shop(), "srv/other/x.nvs");
+    let shop = snapshot_of(&shop(), "srv/www/shop/index.nvs");
+    let exec = |snapshot: &Snapshot| {
+        snapshot
+            .config
+            .capabilities
+            .as_ref()
+            .and_then(|caps| caps.process.as_ref())
+            .and_then(|process| process.exec.clone())
+    };
+    assert_eq!(exec(&global), Some(Setting::Bool(false)));
+    assert_eq!(exec(&shop), Some(Setting::Bool(true)));
+}
+
+/// `mode` and `origin` sit on the block rather than in a sub-table, and the most specific block to
+/// state one wins — `import.nvs`'s own `development` over the host block's `production`, while
+/// `origin` comes from the middle block because neither of the other two writes one.
+#[test]
+fn mode_and_origin_come_from_the_most_specific_block_that_states_them() {
+    let snapshot = snapshot_of(&shop(), "srv/www/shop/bin/import.nvs");
+    assert_eq!(snapshot.mode.as_deref(), Some("development"));
+    assert_eq!(snapshot.origin.as_deref(), Some("https://shop.example"));
+    // And the global `[mode]` block is untouched by either: a string folded over that table would
+    // have replaced `default` and `ceiling` together.
+    assert_eq!(snapshot.config.mode, None);
+}
+
+/// The roster is what *selected* the directives, not one of them. A snapshot carrying it would
+/// hand one application the host's whole list of applications.
+#[test]
+fn the_app_roster_is_not_in_the_snapshot() {
+    let snapshot = snapshot_of(&shop(), "srv/www/shop/index.nvs");
+    assert!(snapshot.config.app.is_empty());
+    assert!(!snapshot.table.contains_key("app"));
+    assert!(!snapshot.origins.keys().any(|key| key.starts_with("app")));
+}
+
+/// § 2 is [0103 § 3]'s later-wins in a different order, so a block taking a key from the global
+/// tree is reported exactly as a later file taking one is — both origins named, and the origin of
+/// the winner is the file the *block* was written in.
+#[test]
+fn a_block_overriding_a_global_key_is_reported_with_both_origins() {
+    let fs = Fake::with(&[
+        (
+            "nvs.toml",
+            "[limits]\nmemory = \"128M\"\n\n[[include]]\npath = \"conf.d/shop.toml\"\n",
+        ),
+        // The `root` is relative to the file that wrote it (ADR 0103 § 5), and that file is one
+        // directory down — which is the half of § 5 an `[[app]]` key is easiest to get wrong.
+        (
+            "conf.d/shop.toml",
+            "[[app]]\nroot = \"../srv/www/shop\"\n\n[app.limits]\nmemory = \"512M\"\n",
+        ),
+        ("srv/www/shop/index.nvs", ""),
+    ]);
+    let snapshot = snapshot_of(&fs, "srv/www/shop/index.nvs");
+    let record = snapshot
+        .overrides
+        .iter()
+        .find(|record| record.key == "limits.memory")
+        .expect("the block took `limits.memory` from the global tree");
+    assert_eq!(record.replaced.path, p("nvs.toml"));
+    assert_eq!(record.winner.path, p("conf.d/shop.toml"));
+    assert_eq!(
+        snapshot.origins["limits.memory"].path,
+        p("conf.d/shop.toml")
+    );
+}
+
+/// ADR 0078 § 1's whole point: a request clones the `Arc` when it starts and reads that clone for
+/// its whole life, so a reload landing mid-request is invisible to it.
+#[test]
+fn a_request_that_started_before_a_swap_reads_the_old_snapshot_to_completion() {
+    let before = Fake::with(&[("nvs.toml", "[limits]\nmemory = \"128M\"\n")]);
+    let after = Fake::with(&[("nvs.toml", "[limits]\nmemory = \"512M\"\n")]);
+    let current = Current::new(snapshot_of(&before, "nvs.toml"));
+
+    let in_flight = current.load();
+    let reload = current
+        .publish(Arc::unwrap_or_clone(snapshot_of(&after, "nvs.toml")))
+        .expect("this tree deserializes");
+
+    assert_eq!(limits(&in_flight).memory, text("128M"));
+    assert_eq!(limits(&reload.snapshot).memory, text("512M"));
+    assert_eq!(limits(&current.load()).memory, text("512M"));
+    assert!(reload.boot.is_empty());
+}
+
+/// ADR 0078 § 2 and m6.md's *Verify*: a changed `Boot` key is reported in the result **and does not
+/// take effect** — the published snapshot still carries the running value, because a report beside
+/// a snapshot holding the new one would be a report of something that had already happened.
+#[test]
+fn a_changed_boot_key_is_reported_and_does_not_take_effect() {
+    let before = Fake::with(&[(
+        "nvs.toml",
+        "[cache]\ndir = \"/var/cache/nvs\"\n\n[limits]\nmemory = \"128M\"\n",
+    )]);
+    let after = Fake::with(&[(
+        "nvs.toml",
+        "[cache]\ndir = \"/srv/cache\"\n\n[limits]\nmemory = \"512M\"\n",
+    )]);
+    let current = Current::new(snapshot_of(&before, "nvs.toml"));
+
+    let reload = current
+        .publish(Arc::unwrap_or_clone(snapshot_of(&after, "nvs.toml")))
+        .expect("this tree deserializes");
+
+    assert_eq!(
+        reload.boot.iter().map(|row| row.key).collect::<Vec<_>>(),
+        vec!["cache.dir"]
+    );
+    let cache = reload
+        .snapshot
+        .config
+        .cache
+        .as_ref()
+        .expect("the running `[cache]` block was carried forward");
+    assert_eq!(cache.dir.as_deref(), Some("/var/cache/nvs"));
+    // The `Reload` half of the same file did take effect, which is what makes the refusal above a
+    // property of the directive and not of the reload.
+    assert_eq!(limits(&reload.snapshot).memory, text("512M"));
+}
+
+/// A `Boot` row naming a block governs every key beneath it, so a `[server]` the reload rewrote is
+/// one reported directive and the whole block stays as it was bound.
+#[test]
+fn a_boot_row_naming_a_block_carries_the_whole_block() {
+    let before = Fake::with(&[(
+        "nvs.toml",
+        "[server]\nlisten = [\"127.0.0.1:8080\"]\ndispatch = \"path\"\n",
+    )]);
+    let after = Fake::with(&[(
+        "nvs.toml",
+        "[server]\nlisten = [\"0.0.0.0:80\"]\ndispatch = \"entry\"\n",
+    )]);
+    let current = Current::new(snapshot_of(&before, "nvs.toml"));
+
+    let reload = current
+        .publish(Arc::unwrap_or_clone(snapshot_of(&after, "nvs.toml")))
+        .expect("this tree deserializes");
+
+    assert_eq!(
+        reload.boot.iter().map(|row| row.key).collect::<Vec<_>>(),
+        vec!["server"]
+    );
+    let server = reload
+        .snapshot
+        .config
+        .server
+        .as_ref()
+        .expect("the running `[server]` block was carried forward");
+    assert_eq!(
+        server.listen.as_deref(),
+        Some(["127.0.0.1:8080".to_string()].as_slice())
+    );
+    assert_eq!(server.dispatch.as_deref(), Some("path"));
+}
+
+/// The bound's other side: a reload that *adds* a `Boot` key is a change like any other, and the
+/// snapshot goes back to having none of it rather than to an empty block the typed tree would read
+/// as a `[cache]` that was written.
+#[test]
+fn a_boot_key_a_reload_added_is_reported_and_left_unset() {
+    let before = Fake::with(&[("nvs.toml", "[limits]\nmemory = \"128M\"\n")]);
+    let after = Fake::with(&[("nvs.toml", "[cache]\ndir = \"/srv/cache\"\n")]);
+    let current = Current::new(snapshot_of(&before, "nvs.toml"));
+
+    let reload = current
+        .publish(Arc::unwrap_or_clone(snapshot_of(&after, "nvs.toml")))
+        .expect("this tree deserializes");
+
+    assert_eq!(
+        reload.boot.iter().map(|row| row.key).collect::<Vec<_>>(),
+        vec!["cache.dir"]
+    );
+    assert_eq!(reload.snapshot.config.cache, None);
+}
