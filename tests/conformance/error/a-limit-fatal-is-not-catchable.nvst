@@ -1,0 +1,53 @@
+--TEST--
+A resource-limit breach is ADR 0020 § 1's `FATAL` rather than an exception: `catch (Throwable)` — the clause that names every class a program can throw — does not see it, nothing after the guarded region runs, and the one thing that observes it is the tier-1 handler `Core\Fatal::onLimit` registered, which is handed the limit's own name — ADR 0020 § 1, M6's *Verify*
+--FILE--
+<?nvs
+// ADR 0020 § 1's ladder, at its top and its bottom in one program.
+// `a-limit-breach-inside-finally-is-a-clean-fatal.nvst` pins the `finally`
+// half; what this case is written around is the `catch` below and the tier
+// above it. A breach is not a `Throwable`, so no clause can name a class that
+// matches it, and `Throwable` itself is the strongest way to say so.
+Core\Fatal::onLimit(fn (array<string> $report): void => {
+    // § 1's `LimitReport`: one array whose `limit` key names what stopped the
+    // request, in the directive's own spelling. `Ctx::run_limit_handler` owns
+    // why it is an array rather than a class, and this line is the whole of
+    // what a program is allowed to observe about a `FATAL`.
+    echo "onLimit ", $report['limit'], "\n";
+});
+echo "start\n";
+
+try {
+    // The ballast is sized to breach the ceiling by less than the reserve, and
+    // that is what makes the handler observable rather than only registered:
+    // it is entered with the breach still standing and its slice added back,
+    // so a request holding more than `[limits] memory` itself would reach the
+    // ladder again at the handler's first helper call and be abandoned there
+    // by § 1's zero-retry rule. 16,000,000 bytes is past the 15,728,640
+    // ordinary execution may hold and inside the 16,777,216 the handler may.
+    var $ballast = Core\Str::repeat("a", 16000000);
+    // The breach is observed at the next member call, which is this one — so
+    // neither this line nor anything below it prints.
+    echo "held=", Core\Str::length($ballast), "\n";
+} catch (Throwable $never) {
+    // ADR 0020 § 1: a resource limit is not an exception. A ladder that raised
+    // one instead would print this line, and that is the failure worth being
+    // loud about — the program would carry on believing it had handled
+    // something.
+    echo "caught ", $never->message, "\n";
+}
+
+// Nor does control return to the statement after the region: a `FATAL` ends
+// the request where it was reached, and the handler ran before that end rather
+// than in place of it.
+echo "after\n";
+--FILE nvs.toml--
+# The ceiling the ballast above is written to exceed, and nothing else: ADR
+# 0064 § 5 is the unit, and `fatal_reserve_memory` keeps its default so that
+# the slice the handler runs inside is the one the message names.
+[limits]
+memory = "16M"
+--EXPECT--
+start
+onLimit memory
+--EXPECTF-ERROR--
+FATAL: the request exceeded its memory limit — %d bytes held against a ceiling of 16777216, of which 1048576 is reserved for the limit handler
