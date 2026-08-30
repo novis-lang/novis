@@ -50,10 +50,10 @@
 > file trusted, every secret read — ADR 0104 §§ 1-3's `[[app]]` blocks on a canonical key and under
 > the host's ceiling, ADR 0064 § 5's value parser, and ADR 0078 §§ 1-2's snapshot, which `nvs run`
 > now resolves the tree for and a request reads under `Core\Config`. Stage 2 closed with ADR 0103 §
-> 9's `nvs config check`/`dump`. Stage 4 opens: 0118 puts the check inside the door that performs
-> the effect; `nvs_config::capability` and `nvs_runtime::capability::require` hold it, and
-> `registry::CAPABILITIES` is empty until a `Core` member reaches the OS. **Stage 8 is closed at
-> both counts**: conformance is 1003, differential is 206 over its 205 floor with six
+> 9's `nvs config check`/`dump`. Stage 4 has its first doors: 0118's check sits inside
+> `Core\File::read`/`::write` and inside a `spawn script` target's resolution,
+> `registry::CAPABILITIES` names the two, and `nvs.toml` grants the examples. **Stage 8 is closed at
+> both counts**: conformance is 1006, differential is 206 over its 205 floor with six
 > `Core\Serialize` round-trips against PHP's own pair, and `isolation.rs` measures
 > `nvs_host::Isolate` itself with a guard beside it. Three known gaps, each recorded where its code
 > is: item 18's `Core\Secret::reveal()` is not in the registry, though how a `secret` parameter is

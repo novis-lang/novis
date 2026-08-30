@@ -2895,6 +2895,21 @@ is why" — is this file.
   another. The fake asserts the same thing the symlink would — that the comparison is against the
   canonicalizer's *answer*. `crates/nvs-stdlib/tests/capability.rs`'s `Fake` is the shape; six of
   its methods are `unreachable!()` with a sentence saying why that call would be a bug.
+- **A `.nvst` case can carry its own `nvs.toml`, and once a capability guards a construct it has
+  to.** ADR 0103 § 1 step 2 finds the configuration at `./nvs.toml` in the working directory, and
+  the multi-file form writes files into the case's own directory — so `--FILE nvs.toml--` with
+  `[capabilities.script] spawn = true` is how a case that spawns keeps working under ADR 0118's
+  deny-by-default. Putting the check inside `nvs_runtime::script::resolve` broke four cases at once
+  (three under `tests/conformance/isolate/`, one under `task/`) and one `-p nvs-cli` unit test, and
+  every one of them reported the *denial* rather than anything about the case, which reads as
+  "spawn is broken". The inverse is what makes a denial assertable: a case with **no** `nvs.toml`
+  grants nothing, which is what `tests/conformance/core/file-*.nvst` rests on, so the harness must
+  never grant anything by default.
+- **`python tools/try.py` does not reproduce a multi-file case's working directory**, so it reports
+  a spurious failure for one that reads a sibling file — it copies the `--FILE--` body to
+  `.agent-tmp/` and runs that alone. Check a multi-file case with `target/debug/nvs test
+  tests/conformance/<tree>` instead, which is what `verify.py` runs; `try.py` is for the
+  single-file shape it was built for.
 
 ## Splitting a file that got too big
 
