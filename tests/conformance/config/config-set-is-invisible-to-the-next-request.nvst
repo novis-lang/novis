@@ -1,0 +1,58 @@
+--TEST--
+a `Core\Config::set` is in force only for the request that made it, and the next request on the same core reads the configuration file's value again — ADR 0078 § 1, M6's *Verify*
+--FILE nvs.toml--
+# The root file, ADR 0103 § 1 step 2's `./nvs.toml`. `[limits]` is the value
+# every request here starts at, `[limits.hard]` is what makes the setter's `set`
+# land rather than be refused (ADR 0005), and the `script.spawn` grant is what
+# lets this case run more than one request at all (ADR 0118 § 2).
+[capabilities.script]
+spawn = true
+
+[limits]
+memory = "128M"
+
+[limits.hard]
+memory = "512M"
+--FILE setter.nvs--
+<?nvs
+// The request that sets. It starts where the file says, raises `memory` for
+// itself, and reads it back — so what the next request answers is being
+// compared against a `set` that demonstrably took effect somewhere.
+echo "the setter starts at ", Core\Config::get('memory'), "\n";
+Core\Config::set('memory', '256M');
+echo "the setter now reads ", Core\Config::get('memory'), "\n";
+--FILE reader.nvs--
+<?nvs
+// The next request on the same core: this isolate starts after the setter has
+// run to completion, in the same process, and clones the same snapshot. It has
+// to read the file's value — a `set` that had reached a process-wide table
+// would answer `256M` here, and that is the one failure this case exists to
+// catch.
+echo "the next request reads ", Core\Config::get('memory'), "\n";
+--FILE--
+<?nvs
+// ADR 0078 § 1: a request clones the immutable snapshot at start and writes its
+// own overlay over that clone, so a `set` moves one request's view and reaches
+// no process-wide table — `Core\Config`'s module doc says there is none to
+// reach.
+//
+// Two sequential `spawn script` requests are how that becomes observable from a
+// program: `nvs run` is one request and has nothing to compare against, and the
+// second `await` below returns only after the first child has finished, so the
+// two are ordered rather than concurrent. `output: 'capture'` keeps each
+// child's lines out of this one's stream until the parent prints them, which is
+// what makes the order in `--EXPECT--` the order they ran in.
+var $setter = spawn script "setter.nvs" with(output: "capture");
+echo (await $setter)->output;
+
+var $reader = spawn script "reader.nvs" with(output: "capture");
+echo (await $reader)->output;
+
+// And the direction the other way: the parent never set anything, and neither
+// child's overlay reached it.
+echo "the parent reads ", Core\Config::get('memory'), "\n";
+--EXPECT--
+the setter starts at 128M
+the setter now reads 256M
+the next request reads 128M
+the parent reads 128M
