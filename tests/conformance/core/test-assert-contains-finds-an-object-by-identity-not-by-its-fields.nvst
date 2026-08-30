@@ -1,0 +1,62 @@
+--TEST--
+`Core\Test::assertContains` finds an object by identity, so a twin holding the same fields is not in the array and an alias of an entry is — the row that parts it from a field comparison — ADR 0079 § 4, ADR 0090 § 3
+--FILE--
+<?nvs
+// `Core\Arr::contains`'s comparison answers the object row by identity: two
+// objects are the same value when they are the same allocation and never
+// because their properties agree. `assertEquals` is the member that names a
+// comparison of contents, and it names it at the call site -- so a membership
+// question that quietly walked fields would be the silent fallback ADR 0013
+// refused for ordering, arrived at through a different member.
+//
+// A twin and an alias are the two sides of that: same fields, different
+// allocation, and same allocation reached through a second name.
+
+final class Point {
+    public function constructor(public int $x) {}
+}
+
+final class Ask {
+    public static function verdict(array<Point> $subject, Point $needle): string {
+        try {
+            Core\Test::assertContains($subject, $needle);
+        } catch (Core\Test\Failure $byIdentity) {
+            return "failed";
+        }
+        return "held";
+    }
+}
+
+var $first = new Point(1);
+var $second = new Point(2);
+var $twin = new Point(1);
+var $alias = $first;
+
+array<Point> $points = [$first, $second];
+
+// 1. Both sides of the bound: the entry itself is found, a second name for it
+// is the same value, and a twin with identical fields is not in the array.
+echo Ask::verdict($points, $first), " ", Ask::verdict($points, $alias), " ",
+     Ask::verdict($points, $twin), "\n";
+
+// 2. Identity is the allocation and not the field, so mutating the entry does
+// not lose it and mutating the twin into agreement does not find it.
+$first->x = 9;
+echo Ask::verdict($points, $first), " ", Ask::verdict($points, $twin), "\n";
+$twin->x = 9;
+echo Ask::verdict($points, $twin), "\n";
+
+// 3. The array is what is searched, so appending the twin is what puts it in
+// -- the one operation that changes the answer.
+$points[] = $twin;
+echo Ask::verdict($points, $twin), " ", Ask::verdict($points, new Point(9)), "\n";
+
+// 4. An empty roster of the same class holds none of them.
+array<Point> $none = [];
+echo Ask::verdict($none, $first), "\n";
+--EXPECT--
+held held failed
+held failed
+failed
+held failed
+failed

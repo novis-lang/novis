@@ -1,0 +1,67 @@
+--TEST--
+`Core\Test::assertContains` is always strict, so over an `array<mixed>` a `0` finds no `"0"`, `false` or `null` — the boundary `in_array`'s loose default sits on — while `int`, `uint` and `float` stay one numeric domain — ADR 0079 § 4, ADR 0090 § 3
+--FILE--
+<?nvs
+// The comparison this member makes is `Core\Arr::contains`'s, which is
+// `nvs_runtime::value_identical` and never a loose one -- there is no third
+// argument to forget, because there is no loose form to select. What that
+// means is a boundary rather than a preference, so both of its sides are asked
+// here: everything a cross-tag comparison must refuse, and the one place where
+// two different tags really are one value.
+//
+// The subject is an `array<mixed>` throughout, which is the only element type
+// that lets a needle of a *different* tag be written at all -- under any other
+// `array<T>` the needle is that same `T` and a mismatch is a compile error
+// before this question can be asked.
+
+final class Ask {
+    public static function verdict(array<mixed> $subject, mixed $needle): string {
+        try {
+            Core\Test::assertContains($subject, $needle);
+        } catch (Core\Test\Failure $strict) {
+            return "failed";
+        }
+        return "held";
+    }
+}
+
+// 1. The four values PHP's `in_array($needle, [0])` finds without `strict:
+// true`. Exactly one of them is in the array.
+array<mixed> $zero = [0];
+echo Ask::verdict($zero, 0), " ", Ask::verdict($zero, "0"), " ",
+     Ask::verdict($zero, false), " ", Ask::verdict($zero, null), "\n";
+
+// 2. The one row where two tags are one value: `int`, `uint` and `float` are a
+// single numeric domain (ADR 0090 § 3), so `1` and `1.0` find each other in
+// either direction. This is the deliberate divergence from `in_array` with
+// `strict: true`, and taking it here is what keeps this member and the `==`
+// operator one comparison.
+array<mixed> $float = [1.0];
+array<mixed> $int = [1];
+echo Ask::verdict($float, 1), " ", Ask::verdict($int, 1.0), " ",
+     Ask::verdict($int, 1 as uint), "\n";
+
+// 3. A `bool` is not a number on either side of that domain, which is the
+// nearest neighbour of the row above.
+array<mixed> $true = [true];
+echo Ask::verdict($true, 1), " ", Ask::verdict($int, true), " ",
+     Ask::verdict($true, true), "\n";
+
+// 4. `null` is a value here and not an absence: an array holding it contains
+// it, and the empty array contains nothing at all -- including `null`.
+array<mixed> $withNull = [null, "a"];
+array<mixed> $empty = [];
+echo Ask::verdict($withNull, null), " ", Ask::verdict($empty, null), " ",
+     Ask::verdict($empty, ""), "\n";
+
+// 5. The needle is compared against every entry, so where it sits does not
+// change the answer: first, last and middle are one question.
+array<mixed> $row = ["a", 2, null, "b"];
+echo Ask::verdict($row, "a"), " ", Ask::verdict($row, "b"), " ",
+     Ask::verdict($row, 2), " ", Ask::verdict($row, "c"), "\n";
+--EXPECT--
+held failed failed failed
+held held held
+failed failed held
+held failed failed
+held held held failed

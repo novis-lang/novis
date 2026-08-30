@@ -1,0 +1,107 @@
+--TEST--
+`Core\Test::assertContains` holds exactly where `Core\Arr::contains` answers `true` — a haystack-by-needle grid counted rather than read off a row, membership by value and never by key, the numeric domain taken from `Core\Arr` too, and both sides named in the report — ADR 0079 § 4
+--FILE--
+<?nvs
+// `assertContains`'s subject is an `array<T>` and its needle that same `T`,
+// which is `Core\Arr::contains`'s own signature -- `nvs_stdlib::test`'s doc
+// comment owns why, and the consequence worth pinning is that the two members
+// can never disagree about membership. So this counts agreement across a whole
+// grid instead of asserting a verdict per row: a member that grew its own
+// comparison still prints plausibly on any single line and fails here.
+
+use Core\Test;
+
+final class Ask {
+    public static function contained(array<string> $subject, string $needle): string {
+        try {
+            Core\Test::assertContains($subject, $needle);
+        } catch (Core\Test\Failure $fromContains) {
+            return "failed";
+        }
+        return "held";
+    }
+
+    public static function reported(array<string> $subject, string $needle): string {
+        try {
+            Core\Test::assertContains($subject, $needle);
+        } catch (Core\Test\Failure $fromReport) {
+            return $fromReport->message;
+        }
+        return "held";
+    }
+}
+
+// 1. The grid: five haystacks -- the empty one, a single entry, a list, a
+// keyed map and a run of duplicates -- against five needles each. Both counts
+// are asserted, so a member that held everywhere agrees with nothing.
+array<array<string>> $haystacks = [
+    [],
+    ["a"],
+    ["a", "b", "c"],
+    ["x" => "a", "y" => "b"],
+    ["a", "a", "a"],
+];
+array<string> $needles = ["a", "b", "c", "z", ""];
+
+int $agreed = 0;
+int $held = 0;
+int $failed = 0;
+foreach ($haystacks as array<string> $haystack) {
+    foreach ($needles as string $needle) {
+        string $verdict = Ask::contained($haystack, $needle);
+        bool $memberSays = $verdict == "held";
+        bool $arrSays = Core\Arr::contains($haystack, $needle);
+        if ($memberSays) {
+            $held = $held + 1;
+        } else {
+            $failed = $failed + 1;
+        }
+        if ($memberSays == $arrSays) {
+            $agreed = $agreed + 1;
+        }
+    }
+}
+
+echo "agreed=", $agreed, "/25 held=", $held, " failed=", $failed, "\n";
+
+// 2. Membership is over the *values*, so a key that looks like a needle is not
+// one -- the half of the question a list-shaped haystack cannot ask.
+array<string> $map = ["x" => "a", "y" => "b"];
+echo Ask::contained($map, "a"), " ", Ask::contained($map, "x"), "\n";
+
+// 3. The empty array holds nothing at all, including the empty string, and is
+// a row rather than a refusal.
+array<string> $empty = [];
+echo Ask::contained($empty, ""), " ", Ask::contained($empty, "a"), "\n";
+
+// 4. What "is the needle" means is `Core\Arr::contains`'s comparison and not a
+// second one, so ADR 0090 § 3's numeric row reaches here: `int`, `uint`,
+// `float` and `decimal` are one domain, and `[1.0]` therefore contains `1`.
+array<float> $floats = [1.0, 2.5];
+try {
+    Test::assertContains($floats, 1);
+    echo "held ";
+} catch (Core\Test\Failure $numeric) {
+    echo "failed ";
+}
+echo Core\Arr::contains($floats, 1) ? "true" : "false", "\n";
+
+// 5. The report names both sides by name -- the reversed-argument insurance
+// this whole class is written with -- and says how many entries were searched.
+echo Ask::reported(["a", "b", "c"], "z"), "\n";
+echo Ask::reported($empty, ""), "\n";
+
+// 6. ADR 0063 R2's trailing bag sits in front of that report as everywhere.
+try {
+    Test::assertContains($map, "seed", {message: "the fixture loaded its seed row"});
+} catch (Core\Test\Failure $withMessage) {
+    echo $withMessage->message, "\n";
+}
+--EXPECT--
+agreed=25/25 held=7 failed=18
+held failed
+failed failed
+held true
+Core\Test::assertContains failed: `$actual` holds 3 entries and none is `$expected`, which is "z"
+Core\Test::assertContains failed: `$actual` holds 0 entries and none is `$expected`, which is ""
+the fixture loaded its seed row: Core\Test::assertContains failed: `$actual` holds 2 entries and none is `$expected`, which is "seed"
