@@ -1,0 +1,48 @@
+--TEST--
+all four of ADR 0063 R11's grammars refuse a tainted argument, and they agree across four classes rather than each answering for itself — ADR 0088 § 1
+--FILE--
+<?nvs
+// ADR 0088 § 1 classifies a parameter whose content becomes an instruction as
+// a sink, and ADR 0063 R11 names the four grammars that are one: a regex
+// pattern, a `printf` template, a CLDR date pattern and a `Core\Bytes::pack`
+// format. Each already has cases of its own; what this file asks is that they
+// **agree** -- a member that grew its own answer here still reads right on its
+// own line and fails on this one.
+tainted string $t = "a";
+
+// The pattern grammar, at the member that compiles one.
+Core\Regex\Pattern $p = Core\Regex::compile($t);
+
+// And at the `Pattern|string` position every other `Core\Regex` member takes,
+// which is the same sink one union deep.
+array<string> $parts = Core\Regex::split("a-b", $t);
+
+// The `printf` template. Its variadic arguments are `mixed` and are not this
+// row's business; the template itself is.
+string $formatted = Core\Str::format($t, 1);
+
+// The pack format, from a different class entirely.
+bytes $packed = Core\Bytes::pack($t, 1);
+
+// The CLDR date pattern, on an instance member.
+string $rendered = Core\Time\Date::at(2024, 1, 1)->format($t);
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:11:45
+%A
+error[E0401]: expected `string|Core\Regex\Pattern`, found `tainted string`
+   --> case.nvs:15:49
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:19:38
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:22:34
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:25:59
+%A
+error: aborting due to 5 errors

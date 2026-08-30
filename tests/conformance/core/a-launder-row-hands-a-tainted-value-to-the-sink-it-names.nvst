@@ -1,0 +1,43 @@
+--TEST--
+each `Qual::Launder` row answers a plain `string` for a tainted argument and its answer is accepted by the sink its doc comment names, while the contagious row beside it keeps the qualifier — ADR 0088 §§ 1-2
+--FILE--
+<?nvs
+// A sink refuses a tainted argument outright
+// (tests/conformance/reject/every-grammar-sink-refuses-a-tainted-argument.nvst),
+// so laundering is the only route from an untrusted value to one, and ADR 0088
+// § 1 requires each laundering row to name the sink it launders for. This file
+// walks the route end to end: the escape happens, the answer is plain, and the
+// sink the row named accepts it.
+tainted string $t = "a.b c";
+
+// `Core\Regex::quote` launders for the pattern sink, so its answer is a plain
+// `string` -- declaring anything else here is the reject case above.
+string $quoted = Core\Regex::quote($t);
+echo $quoted, "\n";
+
+// And the sink it named takes that answer. The escaping is what earns the
+// laundering: the pattern matches the subject's own dot and nothing else, so a
+// `.` that arrived from outside stayed a `.` instead of becoming the grammar's
+// any-character.
+Core\Regex\Pattern $pattern = Core\Regex::compile($quoted);
+echo Core\Regex::matches("a.b c", $pattern) ? "y" : "n", "\n";
+echo Core\Regex::matches("axb c", $pattern) ? "y" : "n", "\n";
+
+// `Core\Uri`'s two laundering rows, each for its own sink -- a URI component
+// and a form value differ in how they spell a space, which is why they are two
+// rows rather than one.
+string $component = Core\Uri::encodeComponent($t);
+string $formValue = Core\Uri::encodeFormValue($t);
+echo $component, " ", $formValue, "\n";
+
+// The contrast that makes it a classification rather than a class-wide rule:
+// `Core\Uri::decodeComponent` sits in the same class and is contagious, so its
+// answer carries the qualifier and no plain `string` may be declared for it.
+tainted string $decoded = Core\Uri::decodeComponent($t);
+echo $decoded, "\n";
+--EXPECT--
+a\.b c
+y
+n
+a.b%20c a.b+c
+a.b c
