@@ -477,8 +477,11 @@ mod tests {
     }
 
     #[test]
-    fn an_enum_inside_a_namespace_block_is_keyed_by_its_resolved_name() {
-        let (table, diags) = table("<?nvs\nnamespace App { enum Rank { Bronze } }\n");
+    fn an_enum_inside_a_namespace_is_keyed_by_its_resolved_name() {
+        // The statement form, which is the only one: the braced
+        // `namespace App { … }` this fixture used to write is refused by the
+        // parser (`E0243`) and never reaches this table.
+        let (table, diags) = table("<?nvs\nnamespace App;\nenum Rank { Bronze }\n");
         assert!(!diags.has_errors());
         assert_eq!(case(&table, "App\\Rank", "Bronze"), Some(EnumValue::Int(0)));
     }

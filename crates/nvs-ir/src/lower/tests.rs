@@ -248,14 +248,15 @@ fn a_script_body_local_is_an_ordinary_local() {
 }
 
 /// A declaration is skipped by the script frame — `T`'s method is
-/// `lower_method`'s job, not this walk's — while a
-/// `namespace X { ... }` block's own statements are not: a namespace
-/// scopes names, not storage, so they share this one frame.
+/// `lower_method`'s job, not this walk's. The walk still enters a
+/// `namespace X { ... }` block, since a namespace scopes names and not
+/// storage, but no such block reaches this pass any more: the parser refuses
+/// the braced form outright (`E0243`), so that arm is defensive and has no
+/// fixture to pin it.
 #[test]
-fn a_script_body_skips_declarations_and_enters_a_namespace_block() {
-    let (f, map, file) = lower_script_src(
-        "<?nvs\nclass T {\n  function m(): void { }\n}\nnamespace A { echo \"in-ns\"; }\necho \"after\";\n",
-    );
+fn a_script_body_skips_declarations() {
+    let (f, map, file) =
+        lower_script_src("<?nvs\nclass T {\n  function m(): void { }\n}\necho \"after\";\n");
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 

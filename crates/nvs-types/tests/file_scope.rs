@@ -67,12 +67,25 @@ fn this_at_file_scope_has_no_receiver() {
     );
 }
 
-/// A `namespace { ... }` block scopes *names*, not storage: its top-level
-/// statements land in the same synthesized frame as every other one in
-/// the file, so a redeclaration across two blocks still conflicts.
+/// A `namespace { ... }` block is refused by the parser (`E0243`) and parsed
+/// whole anyway, so this pass still sees what is inside it: a namespace scopes
+/// *names*, not storage, and the two blocks' top-level statements land in the
+/// same synthesized frame, where the redeclaration still conflicts. The file
+/// reports both problems in one run, which is the point of parsing a refused
+/// construct rather than abandoning it.
 #[test]
-fn a_namespace_block_shares_the_one_script_frame() {
-    let diags = check_src("<?nvs\nnamespace A { int $n = 1; }\nnamespace B { int $n = 2; }\n");
+fn a_namespace_block_is_refused_and_still_shares_the_one_script_frame() {
+    let diags = check_src_allowing_parse_errors(
+        "<?nvs\nnamespace A { int $n = 1; }\nnamespace B { int $n = 2; }\n",
+    );
+    assert_eq!(
+        diags
+            .iter()
+            .filter(|d| d.code == Some(code::E_BRACED_NAMESPACE_UNSUPPORTED))
+            .count(),
+        2,
+        "{diags:?}"
+    );
     assert!(
         diags
             .iter()

@@ -844,9 +844,10 @@ mod tests {
         diags
     }
 
-    /// [`check`] for a fixture whose diagnostic is the *parser's* — the
-    /// `var` and enum-body shapes, which never reach a well-formed member —
-    /// so it collects both halves rather than asserting the parse was clean.
+    /// [`check`] for a fixture the parser itself reports on — the `var` and
+    /// enum-body shapes, which never reach a well-formed member, and the
+    /// anonymous class, which is refused outright and parsed whole anyway — so
+    /// it collects both halves rather than asserting the parse was clean.
     fn parse_and_check(src: &str) -> Diagnostics {
         let mut map = SourceMap::new();
         let file = map.add("t.nvs", src);
@@ -1110,7 +1111,7 @@ mod tests {
 
     #[test]
     fn an_anonymous_class_bodys_members_are_checked() {
-        let diags = check(
+        let diags = parse_and_check(
             "<?nvs\nclass Foo { public function a(): void { $x = new class { public int $bad_name = 1; }; } }\n",
         );
         assert!(
@@ -1154,11 +1155,23 @@ mod tests {
             "<?nvs\nclass Foo { function run(): void {} }\n",
             "<?nvs\nclass Foo { static function run(): void {} }\n",
             "<?nvs\ninterface Runner { function run(): void; }\n",
-            "<?nvs\nclass Foo { public function a(): void { $x = new class { int $n = 1; }; } }\n",
         ] {
             let diags = check(src);
             assert_eq!(only_code(&diags), code::E_MISSING_VISIBILITY, "{src}");
         }
+
+        // The sixth body: an anonymous class, which the parser refuses and
+        // still builds, so this pass reaches its members exactly as it reaches
+        // a named class's.
+        let diags = parse_and_check(
+            "<?nvs\nclass Foo { public function a(): void { $x = new class { int $n = 1; }; } }\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_MISSING_VISIBILITY)),
+            "{diags:?}"
+        );
     }
 
     #[test]

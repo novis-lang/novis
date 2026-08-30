@@ -1,0 +1,24 @@
+--TEST--
+`new class { … }` is refused at the keyword — a class declaration is not an expression
+--FILE--
+<?nvs
+// An anonymous class is a nested declaration in expression position, with no
+// name for the static class table to hold; `nvs_ir` has nothing to lower it
+// under, which is why the refusal is the parser's rather than a later phase's.
+// The value is discarded here so the one error is the refusal itself: a
+// binding would carry a second one about the type the expression has instead.
+interface Greeter {
+    public function greet(): string;
+}
+
+new class implements Greeter {
+    public function greet(): string {
+        return "hello";
+    }
+};
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0244]: a class declaration is not an expression
+%A
+error: aborting due to 1 error

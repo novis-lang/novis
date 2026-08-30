@@ -15,10 +15,11 @@ class Outer {
 if (true) {
     type Handle = int;
 }
-// A closure body is a body like any other.
+// A closure body is a body like any other. The statement form is the only one
+// — `namespace Inner { … }` is `E0243` wherever it is written — so what this
+// asks about is the position, not the spelling.
 callable $f = fn (): int => {
-    namespace Inner {
-    }
+    namespace Inner;
     return 1;
 };
 echo "unreached\n";
@@ -45,9 +46,9 @@ error[E0233]: a nested `type` declaration is not supported
    = help: move `Handle` out to file scope — every type in Novis is declared before any code runs, so a name's existence never depends on control flow
 
 error[E0233]: a nested `namespace` declaration is not supported
-   --> %s:17:15
+   --> %s:19:15
    |
-17 |     namespace Inner {
+19 |     namespace Inner;
    |               ^^^^^ this `namespace` would only take effect once control reached this statement
    = help: move the `namespace` out to file scope — it applies to the whole file, so what a name resolves to never depends on control flow
 

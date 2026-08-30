@@ -153,6 +153,31 @@ pub(crate) fn captures_of(src: &str) -> Vec<String> {
         .collect()
 }
 
+/// [`check_src`] for a fixture the *parser* itself reports on — a construct
+/// refused at parse time and then parsed whole, so every pass below still sees
+/// what is inside it. Neither of [`check_src`]'s two assertions can hold for
+/// one of those, and the caller asserts on the codes it expects instead.
+pub(crate) fn check_src_allowing_parse_errors(src: &str) -> Diagnostics {
+    let mut map = SourceMap::new();
+    let file = map.add("t.nvs", src);
+    let mut diags = Diagnostics::new();
+    let stmts = parse_file(map.file(file), &mut diags);
+    let module = resolve_file(&stmts, map.file(file), &mut diags);
+    let mut interner = TypeInterner::new();
+    let mut exprs = ExprTypeTable::new();
+    check_program(
+        &[nvs_types::ProgramFile {
+            src: map.file(file),
+            stmts: &stmts,
+        }],
+        &module,
+        &mut interner,
+        &mut exprs,
+        &mut diags,
+    );
+    diags
+}
+
 pub(crate) fn check_src(src: &str) -> Diagnostics {
     let mut map = SourceMap::new();
     let file = map.add("t.nvs", src);

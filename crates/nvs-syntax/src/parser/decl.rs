@@ -221,6 +221,23 @@ impl<'src, 'd> Parser<'src, 'd> {
             self.check_reserved_core_namespace(name);
         }
         let body = if self.at(TokenKind::LBrace) {
+            let brace = self.peek().span;
+            // The braced form is refused and then parsed anyway — the block's
+            // declarations are still the ones the author wrote, so this file
+            // reports what is wrong inside them in the same run. ADR 0112 keys
+            // authority on the enclosing namespace, and a file that is two
+            // namespaces has an authority that depends on the line number.
+            self.diags.report(
+                Diagnostic::error(
+                    code::E_BRACED_NAMESPACE_UNSUPPORTED,
+                    "a `namespace` declaration is a statement, not a block",
+                )
+                .with_primary(brace, "a namespace is not opened here")
+                .with_help(
+                    "write `namespace X;` once, before any declaration, and put a second \
+                     namespace in a second file",
+                ),
+            );
             Some(self.parse_block())
         } else {
             self.expect(TokenKind::Semicolon, "`;`");

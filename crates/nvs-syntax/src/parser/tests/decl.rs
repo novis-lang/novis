@@ -363,19 +363,15 @@ fn asymmetric_visibility_modifier() {
 }
 
 #[test]
-fn namespace_statement_and_block_forms() {
+fn namespace_statement_form() {
+    // The braced form parses to the same node and is refused as it does; that
+    // half is `a_braced_namespace_is_e0243`.
     let s = parse_stmt_ok("namespace App\\Models;");
     let StmtKind::NamespaceDecl(ns) = s.kind else {
         panic!("expected a namespace decl: {s:?}");
     };
     assert!(ns.name.is_some());
     assert!(ns.body.is_none());
-
-    let s = parse_stmt_ok("namespace App { class Foo {} }");
-    let StmtKind::NamespaceDecl(ns) = s.kind else {
-        panic!("expected a namespace decl: {s:?}");
-    };
-    assert!(ns.body.is_some());
 }
 
 #[test]
@@ -446,6 +442,28 @@ fn a_grouped_use_parses_or_names_the_rule_that_refuses_it() {
     );
 }
 
+/// `namespace X;` is the only namespace statement, and the braced form is
+/// still parsed after it is refused so the declarations inside it report
+/// their own problems in the same run. docs/adr/README.md § *Decisions taken
+/// at project start*.
+#[test]
+fn a_braced_namespace_is_e0243() {
+    let (s, diags) = parse_stmt_with_diags("namespace App\\Billing { class Invoice {} }");
+    let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+    assert_eq!(
+        codes,
+        vec![code::E_BRACED_NAMESPACE_UNSUPPORTED],
+        "{diags:?}"
+    );
+    let StmtKind::NamespaceDecl(n) = s.kind else {
+        panic!("expected a namespace decl: {s:?}");
+    };
+    assert!(n.body.is_some(), "the block is still parsed");
+
+    let (_, diags) = parse_stmt_with_diags("namespace App\\Billing;");
+    assert!(!diags.has_errors(), "the statement form: {diags:?}");
+}
+
 /// ADR 0113 § 3: the leading separator is refused in all three positions PHP
 /// gave it three different meanings in — redundant in a `use` path,
 /// load-bearing at a reference, and illegal in a `namespace` declaration. Each
@@ -505,9 +523,20 @@ fn type_alias_declaration() {
     parse_stmt_ok("type Id = SomeClass;");
 }
 
+/// An anonymous class is refused at `new class` and then parsed whole, so the
+/// members inside it are checked in the same run and nothing downstream meets
+/// a half-built declaration. docs/adr/README.md § *Decisions taken at project
+/// start* is the refusal; the shape below is what the parser still builds.
 #[test]
-fn anonymous_class_as_new_target() {
-    let s = parse_stmt_ok("$x = new class (1) implements Comparable { public int $n = 1; };");
+fn anonymous_class_as_new_target_is_e0244() {
+    let (s, diags) =
+        parse_stmt_with_diags("$x = new class (1) implements Comparable { public int $n = 1; };");
+    let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+    assert_eq!(
+        codes,
+        vec![code::E_ANONYMOUS_CLASS_UNSUPPORTED],
+        "{diags:?}"
+    );
     let StmtKind::Expr(e) = s.kind else {
         panic!("expected an expression statement: {s:?}");
     };

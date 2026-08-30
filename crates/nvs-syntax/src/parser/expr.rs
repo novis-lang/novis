@@ -1382,7 +1382,24 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// after `class`, before `extends`/`implements`/the body, so it cannot
     /// reuse [`Self::parse_new`]'s generic post-target `args` parsing.
     pub(super) fn parse_new_anon_class(&mut self, start: Span) -> Expr {
-        self.bump(); // 'class'
+        let class = self.bump().span; // 'class'
+        // Refused at the keyword and then parsed whole: the body's members are
+        // still checked, and `nvs_ir` — which has no name to lower this under —
+        // is never reached, because a parse error stops the pipeline. See
+        // docs/adr/README.md § *Decisions taken at project start*, which
+        // refuses a nested declaration in expression position for the reason it
+        // refuses a conditional one.
+        self.diags.report(
+            Diagnostic::error(
+                code::E_ANONYMOUS_CLASS_UNSUPPORTED,
+                "a class declaration is not an expression",
+            )
+            .with_primary(start.to(class), "this class has no name to be known by")
+            .with_help(
+                "declare a named class in the same file and write `new That(…)`, or use a \
+                 closure where the class is one method (ADR 0031)",
+            ),
+        );
         let args = if self.at(TokenKind::LParen) {
             self.parse_call_args()
         } else {

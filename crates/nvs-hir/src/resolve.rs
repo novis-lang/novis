@@ -322,10 +322,23 @@ mod tests {
         assert!(module.symbols.contains(&QName::parse("App\\Models\\User")));
     }
 
+    /// The braced form is refused by the parser (`E0243`) and still built, so
+    /// this pass keeps the reading it always had for the node it is handed:
+    /// the block scopes its own declarations and nothing after it. The
+    /// fixture therefore carries that one parser diagnostic, which is why it
+    /// does not go through [`resolve`].
     #[test]
     fn block_form_namespace_does_not_leak_into_what_follows() {
-        let (module, diags) = resolve("<?nvs\nnamespace App { class A {} }\nclass B {}\n");
-        assert!(!diags.has_errors());
+        let mut map = SourceMap::new();
+        let file = map.add("t.nvs", "<?nvs\nnamespace App { class A {} }\nclass B {}\n");
+        let mut diags = Diagnostics::new();
+        let stmts = parse_file(map.file(file), &mut diags);
+        assert_eq!(
+            diags.iter().filter_map(|d| d.code).collect::<Vec<_>>(),
+            vec![nvs_diagnostics::code::E_BRACED_NAMESPACE_UNSUPPORTED],
+            "{diags:?}"
+        );
+        let module = resolve_file(&stmts, map.file(file), &mut diags);
         assert!(module.symbols.contains(&QName::parse("App\\A")));
         assert!(module.symbols.contains(&QName::parse("B")));
         assert!(!module.symbols.contains(&QName::parse("App\\B")));
