@@ -36,10 +36,19 @@ modules = [
   # Items 16, 23, 25 are checker work rather than member work.
   "crates/nvs-types/src/expr/quals.rs",
   "crates/nvs-types/src/retrieval.rs",
+  # Item 35 -- the property key: the parser refusal it moves, the type atom, the checker's conversion
+  # rows and member-name split, the name-keyed instructions, and the descriptor's per-field tables.
+  "crates/nvs-syntax/src/parser/expr.rs",
+  "crates/nvs-syntax/src/parser/ty.rs",
+  "crates/nvs-types/src/ty.rs",
+  "crates/nvs-types/src/expr/operators.rs",
+  "crates/nvs-types/src/expr/members.rs",
+  "crates/nvs-ir/src/ir.rs",
+  "crates/nvs-runtime/src/object.rs",
 ]
 
 rules = [
-  "0019", "0020", "0024", "0033", "0044", "0046", "0051", "0052", "0054",
+  "0014", "0019", "0020", "0024", "0033", "0044", "0046", "0051", "0052", "0054",
   "0056", "0058", "0059", "0060", "0063", "0074", "0075", "0076", "0082", "0086", "0105",
 ]
 
@@ -414,6 +423,30 @@ kind = "exact"
 stage = "8 introspection"
 file = "examples/reflect.nvs"
 want = ["class=Point", "members=2", "private refused", "kind=int", "parsed 4 nodes"]
+
+# Item 35 -- the property key, after Core\Reflect. ADR 0014 § Revisiting is the design; the ADR itself is
+# the item's first slice.
+[[check]]
+kind = "cargo-named"
+stage = "8 introspection"
+name = "nvs-types (the property key)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "a_property_key_ranges_over_the_public_properties_and_nothing_else",
+  "a_read_through_a_property_key_types_as_the_union_of_the_set",
+  "a_computed_member_name_without_a_property_key_is_still_e0235",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "8 introspection"
+name = "conformance (the property key)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/class/a-property-key-reads-and-writes-the-field-it-names.nvst",
+  "tests/conformance/class/a-name-outside-the-public-set-throws-at-the-conversion.nvst",
+  "tests/conformance/reject/a-private-property-is-not-a-property-key.nvst",
+]
 
 
 # ---------------------------------------------------------------------------------------------------

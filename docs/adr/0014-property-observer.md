@@ -256,6 +256,26 @@ Deferred deliberately, each needing its own argument:
   logic look like observation, convertible to `PropertyObserver`, or computation, belonging in a per-property
   hook?) and for `__call`/`__callStatic` (no mechanical destination at all). Belongs with M11's own design,
   not this ADR.
+- **A checked property key, `property<T>` — the typed spelling of *5*'s reflection-based get/set, decided
+  in principle on 2026-08-30 and taken up after `Core\Reflect` lands.** *5*'s two late-name paths stay as
+  they are; this is a third that is the same mechanism with a compile-time set. `property<T>` is a type
+  whose values are `T`'s **public** declared properties, obtained only through `as` —
+  `$name as property<User>` throws for any other name, and a literal operand is decided where it is
+  written — and `$obj->$key` with a `property<T>` operand is then admitted where `E0235` refuses a computed
+  name today: the read is typed as the union of those properties' declared types (which widens into
+  `mixed` or any covering union without `as`), and the write is
+  [ADR 0036](0036-anonymous-object-shapes.md) § 4's checked erased write, never a creation. The set is
+  public by construction, so visibility is decided at the conversion, and a request-controlled string
+  selects among the fields the class already exposes — the bound that keeps *5*'s priority-1 reason
+  intact. It takes the shape the class reference `class<T>` gives
+  [ADR 0007](0007-explicit-type-system.md) § 2: one atom, one `as` row, and the refusal moving from the
+  parser to the checker, where it stays for every other operand. Sequenced after `Core\Reflect` so that
+  the run-time visibility and hook check is the one shared implementation
+  [ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md) § 2 demands, not a copy written first.
+  **The one open choice, decided when its ADR is written:** whether the set excludes hooked and `readonly`
+  properties (simpler; adding a hook later turns an existing `as` into a throw) or the descriptor carries
+  a hook entry and a `readonly` flag per field (complete; more in `nvs-runtime` and `nvs-codegen`).
+  `$obj->$m()` is not part of it: *6* rejects the concept, not the spelling.
 
 Verification, in the order it becomes possible:
 

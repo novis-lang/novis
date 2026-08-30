@@ -158,6 +158,21 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
     [ADR 0019](../../adr/0019-reflection-and-ast-parsing-are-core-features.md). Reflective access enforces
     **the same visibility and hook checks ordinary code does**, and a parsed AST is typed, inert data with
     no path back into execution. `Core\Ast::parse()` is fuzzed with M1's own corpus.
+35. **The checked property key, `property<T>` — after item 24, never before it.** The design is
+    [ADR 0014](../../adr/0014-property-observer.md) § *Revisiting*'s entry, and this goal's one ADR slot
+    writes it down — the type, its `as`-only source over `T`'s public properties, the union-typed read, the
+    checked write, and the hooked/`readonly` choice that entry leaves open. Then, in the shape goal 3's
+    stage 10 gave `class<T>`: the atom beside `Array` (`crates/nvs-syntax/src/ast.rs:138`, parsed in
+    `parse_type_atom`, `crates/nvs-syntax/src/parser/ty.rs:361`); `Ty` beside `Array`
+    (`crates/nvs-types/src/ty.rs:64`) and the `string → property<T>` row in `conversion_row_exists`
+    (`crates/nvs-types/src/expr/operators.rs:1732`), a literal operand decided at compile time; `E0235`
+    moving from `parse_member_name` (`crates/nvs-syntax/src/parser/expr.rs:825`) to the checker's
+    member-name split (`crates/nvs-types/src/expr/members.rs:789`), which keeps it for every operand that
+    is not a `property<T>`; the access lowering to the name-keyed `SlotGet`/`SlotSet`
+    (`crates/nvs-ir/src/ir.rs:675`, `:715`), whose write check's four known gaps
+    (`crates/nvs-runtime/src/object.rs:140`) close by carrying the declared type beside
+    `field_tags`/`secret_fields` (`:584`). The write calls item 24's shared visibility-and-hook check —
+    that is why the order. `$obj->$m()` stays refused, ADR 0014 § 6. Its own file set.
 25. **`Core\Attributes`' retrieval body** — [ADR 0046](../../adr/0046-attributes-shape-literal-metadata.md)
     §§ 4–6. `get<T>` on a site with zero matches compiles to a constant `null`, one match compiles to that
     constant value **with no runtime lookup**, and more than one is a compile-time diagnostic naming
@@ -200,7 +215,8 @@ it already does, not a second walk. m8.md names it as CI infrastructure rather t
 ## Standing decisions — pre-authorized, do not stop the loop for these
 
 - **Decide and record; never `BLOCKED` for a design call.**
-- **No ADR slots, and that is unusual enough to say why.** Every subsystem in this goal already has its
+- **One ADR slot — item 35's `property<T>`, its first slice — and otherwise none, which is unusual
+  enough to say why.** Every subsystem in this goal already has its
   own argued ADR — 0019, 0020, 0024, 0033, 0044, 0046, 0052, 0054, 0056, 0058, 0059, 0060, 0074, 0075,
   0076, 0082, 0086, 0105. A session that believes it needs a new number has almost certainly found a
   section it has not read.
