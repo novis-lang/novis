@@ -285,6 +285,27 @@ pub struct Ctx {
     /// it because an `exit` is not a failure and carries no message — see
     /// [`crate::EXITED`] for why it is its own status.
     exit_code: i64,
+    /// The thread's live-byte balance when this context was made — the zero
+    /// point [`Self::memory_used`] measures this request's own allocation
+    /// from. [`crate::budget`] owns why the counter is kept per *thread* and
+    /// read per *request*, and what maintaining it costs.
+    ///
+    /// **Cold, and here rather than beside the stack limit it reads like.**
+    /// Compiled code never loads it: the first five words are an arrangement
+    /// this crate's tests pin by offset, so a field added among them moves
+    /// `statics` and fails them. Nothing below `statics` has that constraint.
+    memory_base: isize,
+    /// `[limits] memory` as a byte count, or `0` for a request under no cap —
+    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's
+    /// first resource limit.
+    ///
+    /// **Cached, not re-derived.** The value on disk is a string with a suffix
+    /// (`"256M"`), and parsing one per poll would put a string parse on the
+    /// path a runaway loop is stopped from. So it is resolved whenever the
+    /// request's configuration changes — [`Self::set_config`] at start, and
+    /// [`Self::refresh_limits`] after `Core\Config::set` or `::restore` moves
+    /// the overlay — and read as a bare integer everywhere else.
+    memory_limit: usize,
     /// What is behind a pending `THROWN` or `FATAL` status — see [`Pending`]
     /// for why one field carries both shapes rather than two sitting beside
     /// each other.
@@ -788,6 +809,8 @@ impl Ctx {
             stack_floor: 0,
             statics: std::ptr::null_mut(),
             exit_code: 0,
+            memory_base: crate::budget::live_bytes(),
+            memory_limit: 0,
             pending: None,
             runtime_error_class: None,
             output,
@@ -866,6 +889,96 @@ impl Ctx {
     /// configuration, or two reads in one request could disagree.
     pub fn set_config(&mut self, snapshot: std::sync::Arc<nvs_config::Snapshot>) {
         self.config = Some(nvs_config::Request::new(snapshot));
+        self.refresh_limits();
+    }
+
+    /// How many bytes this request has allocated and not yet freed.
+    ///
+    /// The difference between the thread's balance now and what it was when
+    /// this context was made, floored at zero: a request that frees more than
+    /// it allocated — because it released what it inherited — has used none of
+    /// its own budget rather than a negative amount of it. [`crate::budget`]
+    /// says why the underlying counter is per thread.
+    #[must_use]
+    pub fn memory_used(&self) -> usize {
+        usize::try_from(crate::budget::live_bytes().saturating_sub(self.memory_base)).unwrap_or(0)
+    }
+
+    /// This request's `[limits] memory` ceiling in bytes, `0` for no cap.
+    #[must_use]
+    pub fn memory_limit(&self) -> usize {
+        self.memory_limit
+    }
+
+    /// Sets the ceiling directly, for a caller holding no configuration —
+    /// `nvs-host`'s isolates and this crate's own tests.
+    ///
+    /// A request with a configuration gets its ceiling from
+    /// [`Self::set_config`] instead, so this is never the way `[limits] memory`
+    /// arrives.
+    pub fn set_memory_limit(&mut self, bytes: usize) {
+        self.memory_limit = bytes;
+    }
+
+    /// Whether this request has allocated past its ceiling.
+    ///
+    /// Two loads and a compare, and the second load is the thread-local
+    /// [`crate::budget::live_bytes`] reads. An uncapped request answers `false`
+    /// on the first compare without reading the counter at all.
+    #[must_use]
+    pub fn over_memory_limit(&self) -> bool {
+        self.memory_limit != 0 && self.memory_used() > self.memory_limit
+    }
+
+    /// The [`crate::Fault`] a request past its memory ceiling owes, or `None`
+    /// while it is inside it.
+    ///
+    /// [`crate::Fault::fatal`] and never a throw:
+    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1 makes
+    /// every resource-limit breach a `FATAL`, so no `catch` sees this and a
+    /// fixture that wraps the loop in one has found the rule rather than a bug.
+    /// The message names the ceiling as well as the reading, because the two
+    /// together are what tells an operator whether to raise the limit or to fix
+    /// the program.
+    #[must_use]
+    pub fn memory_breach(&self) -> Option<crate::Fault> {
+        if !self.over_memory_limit() {
+            return None;
+        }
+        Some(crate::Fault::fatal(format!(
+            "the request exceeded its memory limit — {} bytes held against a ceiling of {}",
+            self.memory_used(),
+            self.memory_limit
+        )))
+    }
+
+    /// Re-reads the resource ceilings this request's configuration states.
+    ///
+    /// Called by [`Self::set_config`], and owed by anything that moves the
+    /// request's own overlay afterwards — `Core\Config::set` and `::restore`,
+    /// which is why [`Self::memory_limit`]'s field doc calls the value cached
+    /// rather than derived.
+    pub fn refresh_limits(&mut self) {
+        self.memory_limit = self.configured_memory_limit();
+    }
+
+    /// `[limits] memory` as bytes, or `0` when there is no configuration, no
+    /// such directive, or a value that is not a size.
+    ///
+    /// A malformed value answers "no cap" rather than refusing here: the
+    /// configuration was already parsed and refused once, at the boundary that
+    /// can name the file and the line ([ADR 0064](../../../docs/adr/0064-configuration-file-format.md)
+    /// § 3), and a second refusal from inside a running request could only be
+    /// a worse-worded copy of it.
+    fn configured_memory_limit(&self) -> usize {
+        let Some(written) = self.config.as_ref().and_then(|config| config.get("memory")) else {
+            return 0;
+        };
+        let setting = nvs_config::Setting::Text(written);
+        match nvs_config::Quantity::parse("memory", nvs_config::Unit::Bytes, &setting) {
+            Ok(nvs_config::Quantity::Bytes(bytes)) => usize::try_from(bytes).unwrap_or(usize::MAX),
+            _ => 0,
+        }
     }
 
     /// ADR 0079 § 12's fixed clock in nanoseconds since the Unix epoch, or
@@ -1948,6 +2061,15 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
         ctx.set_pending("the request exceeded its CPU-time limit");
         return crate::FATAL;
     }
+    // ADR 0020 § 1's memory limit, asked here as well as at every helper
+    // boundary ([`crate::run_helper`]): this poll sits between two Novis
+    // statements, which is the one place a limit can stop a program that is
+    // allocating without calling anything. `crate::budget`'s module doc owns
+    // which allocations that reaches today and which it does not.
+    if let Some(crate::Fault::Fatal(message)) = ctx.memory_breach() {
+        ctx.set_pending(message);
+        return crate::FATAL;
+    }
     if ctx.safepoint.contains(SafepointFlags::CANCEL) {
         ctx.set_pending("the request was cancelled");
         return crate::FATAL;
@@ -2150,6 +2272,33 @@ pub unsafe extern "C" fn nvs_probe_call_exit(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// ADR 0020 § 1's first resource limit, as far as this slice goes: the
+    /// counter follows what the request holds *now*, so a breach that is
+    /// released stops being one. What a breach then becomes is
+    /// [`nvs_safepoint`]'s, not this test's.
+    #[test]
+    fn a_request_is_over_its_ceiling_only_while_it_still_holds_the_bytes() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_memory_limit(1 << 20);
+        assert!(!ctx.over_memory_limit());
+
+        let held = vec![0_u8; 4 << 20];
+        assert!(ctx.memory_used() >= 4 << 20);
+        assert!(ctx.over_memory_limit());
+
+        drop(held);
+        assert!(!ctx.over_memory_limit());
+    }
+
+    /// A context nobody configured is uncapped, which is why every other test
+    /// in this file allocates freely without arranging anything.
+    #[test]
+    fn a_context_with_no_configuration_has_no_ceiling() {
+        let ctx = Ctx::buffered();
+        assert_eq!(ctx.memory_limit(), 0);
+        assert!(!ctx.over_memory_limit());
+    }
 
     /// ADR 0088 § 5's "always swallows": while a capture is open the sink below
     /// it sees nothing at all, and it sees everything again once it closes.

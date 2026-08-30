@@ -193,70 +193,20 @@ echo Core\\Json::encode(Core\\Arr::map($uints, $half)), \"\\n\";
     );
 }
 
-/// An allocator that counts live bytes on the calling thread, so the guard
-/// below measures what the abandoned partial result costs rather than reading
-/// `nvs_stdlib::arr`'s claim that `NvsArray`'s drop frees it.
-///
-/// Thread-local, and `#[cfg(debug_assertions)]`, for the two reasons
-/// `arrays.rs`'s own counter states: a test binary runs its tests
-/// concurrently, and a `#[global_allocator]` is chosen once per binary — an
-/// optimized build of this one already has `nvs-runtime`'s pooled allocator.
-/// `cargo test`, the profile `tools/verify.py` runs, is a debug build.
-#[cfg(debug_assertions)]
-struct Counting;
-
-#[cfg(debug_assertions)]
-thread_local! {
-    static LIVE: std::cell::Cell<isize> = const { std::cell::Cell::new(0) };
-}
-
-#[cfg(debug_assertions)]
-#[expect(
-    unsafe_code,
-    reason = "`GlobalAlloc` is an unsafe trait, and every method forwards its \
-              own contract verbatim to `System`"
-)]
-unsafe impl std::alloc::GlobalAlloc for Counting {
-    unsafe fn alloc(&self, layout: std::alloc::Layout) -> *mut u8 {
-        note(bytes(layout.size()));
-        unsafe { std::alloc::System.alloc(layout) }
-    }
-
-    unsafe fn dealloc(&self, ptr: *mut u8, layout: std::alloc::Layout) {
-        note(-bytes(layout.size()));
-        unsafe { std::alloc::System.dealloc(ptr, layout) }
-    }
-
-    unsafe fn realloc(&self, ptr: *mut u8, layout: std::alloc::Layout, new_size: usize) -> *mut u8 {
-        note(bytes(new_size).wrapping_sub(bytes(layout.size())));
-        unsafe { std::alloc::System.realloc(ptr, layout, new_size) }
-    }
-}
-
-/// A request size as a signed delta. Saturating rather than `as`, which
-/// `cast_possible_wrap` refuses: no allocation this counter sees comes near
-/// `isize::MAX`, and one that did would be a leak either way.
-#[cfg(debug_assertions)]
-fn bytes(size: usize) -> isize {
-    isize::try_from(size).unwrap_or(isize::MAX)
-}
-
-/// Both directions go through one place, so the counter cannot grow a second
-/// convention. Wrapping for the reason `nvs_runtime::counting_alloc` gives:
-/// the count is a balance, and a signed one stays readable if it ever dips.
-#[cfg(debug_assertions)]
-fn note(delta: isize) {
-    LIVE.with(|live| live.set(live.get().wrapping_add(delta)));
-}
-
-#[cfg(debug_assertions)]
-#[global_allocator]
-static COUNTING: Counting = Counting;
-
 /// Compiles `source`, runs it, and answers how many bytes the **run**
 /// allocated and did not free — compilation and `install_in` happen outside
 /// the window on purpose, since what is under test is what compiled code
 /// spends.
+///
+/// The balance is `nvs_runtime::budget`'s, which every build maintains because
+/// the memory limit is read off it; this binary installs no allocator of its
+/// own, and could not, since a `#[global_allocator]` is chosen once per binary
+/// and `nvs-runtime` now registers one in every `not(test)` build.
+///
+/// **Only run in a debug build.** What the gate keeps out is no longer a
+/// missing counter but an optimized one's inlining: the number below is pinned
+/// against what an unoptimized build allocates, and nothing has measured it
+/// under `--release`.
 #[cfg(debug_assertions)]
 fn live_bytes_of_run(source: &str) -> isize {
     let unit = compile(source).expect("the fixture compiles");
@@ -265,9 +215,9 @@ fn live_bytes_of_run(source: &str) -> isize {
     let entry = unit
         .function("<script>")
         .expect("the script frame was compiled");
-    let before = LIVE.with(std::cell::Cell::get);
+    let before = nvs_runtime::budget::live_bytes();
     call(entry, &mut ctx, &[]).expect("the script ran to completion");
-    LIVE.with(std::cell::Cell::get) - before
+    nvs_runtime::budget::live_bytes() - before
 }
 
 #[test]

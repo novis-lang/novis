@@ -242,6 +242,7 @@ mod abi;
 mod alloc;
 pub mod arith;
 pub mod array;
+pub mod budget;
 pub mod capability;
 pub mod closure;
 #[cfg(test)]
@@ -273,17 +274,20 @@ mod value;
 #[global_allocator]
 static COUNTING_ALLOCATOR: counting_alloc::Counting = counting_alloc::Counting;
 
-/// Novis owns its allocator in every optimized build, and every binary that
-/// links this crate gets it: a `#[global_allocator]` is chosen once for the
-/// whole crate graph. See [`alloc`] for what the per-thread cache spends and
-/// why a debug build is deliberately left on the platform heap.
+/// Novis owns its allocator in **every** build that is not a test build, and
+/// every binary that links this crate gets it: a `#[global_allocator]` is
+/// chosen once for the whole crate graph.
 ///
-/// The `sanitizer` feature takes this out too, for the reason
-/// [`counting_alloc`] § *Why a sanitizer needs `Backing` to be the platform
-/// heap* states: a recycled block is a block a checker never sees freed.
-#[cfg(all(not(test), not(debug_assertions), not(feature = "sanitizer")))]
+/// [`budget`] is what makes this unconditional. The pool underneath it is still
+/// optimized-builds-only — a debug build takes the platform heap, and so does a
+/// `sanitizer` one, because a recycled block is a block a checker never sees
+/// freed ([`alloc`] § *Why it is registered only in optimized builds*). What is
+/// registered in every profile is the **counting** in front of that choice,
+/// since a memory cap nothing counts against is not a cap and a debug build is
+/// exactly where the acceptance fixtures run.
+#[cfg(not(test))]
 #[global_allocator]
-static POOLED_ALLOCATOR: alloc::Pooled = alloc::Pooled;
+static ACCOUNTING_ALLOCATOR: budget::Accounting = budget::Accounting;
 
 pub use abi::{
     DEADLINE_POLL_BATCH, EXITED, FATAL, Fault, HelperFn, HelperFrame, HelperResult, NvsFn, OK,

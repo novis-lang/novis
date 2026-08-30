@@ -90,6 +90,10 @@ pub(crate) fn allocated_bytes() -> usize {
 }
 
 fn add(bytes: isize) {
+    // The request budget counts in every build, and a test build registers
+    // `Counting` instead of `budget::Accounting` — so without this line the
+    // one profile the unit tests run in would be the only one not counting.
+    crate::budget::add(bytes);
     LIVE.with(|live| live.set(live.get().wrapping_add(bytes)));
     if bytes > 0 {
         let grew = usize::try_from(bytes).unwrap_or(0);

@@ -128,55 +128,17 @@ fn no_member_revalidates_a_string_argument() {
 // One allocation per result
 // ============================================================================
 
-/// An allocator that counts the requests made on the calling thread, so the
-/// guard below measures allocations rather than trusting a reading of the
-/// member's source.
-///
-/// Thread-local for the reason `nvs_runtime`'s own `counting_alloc` states: a
-/// test binary runs its tests concurrently, and a process-wide counter would
-/// fold a neighbour's allocations into the delta.
-///
-/// **Only installed in a debug build.** A `#[global_allocator]` is chosen once
-/// per binary, and an optimized build already has one: `nvs-runtime` installs
-/// its pooled allocator in every `not(test)` optimized build, which is what
-/// this binary links. `cargo test` — the profile `tools/verify.py` runs — is a
-/// debug build, so the guard runs there; `cargo test --release` compiles it
-/// out rather than failing to link.
-#[cfg(debug_assertions)]
-struct Counting;
-
-#[cfg(debug_assertions)]
-thread_local! {
-    static ALLOCATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-}
-
-#[cfg(debug_assertions)]
-#[expect(
-    unsafe_code,
-    reason = "`GlobalAlloc` is an unsafe trait, and every method forwards its \
-              own contract verbatim to `System`"
-)]
-unsafe impl std::alloc::GlobalAlloc for Counting {
-    unsafe fn alloc(&self, layout: std::alloc::Layout) -> *mut u8 {
-        ALLOCATIONS.with(|count| count.set(count.get() + 1));
-        unsafe { std::alloc::System.alloc(layout) }
-    }
-
-    unsafe fn dealloc(&self, ptr: *mut u8, layout: std::alloc::Layout) {
-        unsafe { std::alloc::System.dealloc(ptr, layout) }
-    }
-
-    unsafe fn realloc(&self, ptr: *mut u8, layout: std::alloc::Layout, new_size: usize) -> *mut u8 {
-        ALLOCATIONS.with(|count| count.set(count.get() + 1));
-        unsafe { std::alloc::System.realloc(ptr, layout, new_size) }
-    }
-}
-
-#[cfg(debug_assertions)]
-#[global_allocator]
-static COUNTING: Counting = Counting;
-
 /// How many allocations `call` makes, and what it answered.
+///
+/// The counter is `nvs_runtime::budget`'s, which every build maintains because
+/// the memory limit is read off it; this binary installs no allocator of its
+/// own, and could not, since a `#[global_allocator]` is chosen once per binary
+/// and `nvs-runtime` now registers one in every `not(test)` build.
+///
+/// **Only run in a debug build.** What the gate keeps out is no longer a
+/// missing counter but an optimized one's inlining: the numbers below are
+/// pinned against what an unoptimized build allocates, and nothing has measured
+/// them under `--release`.
 #[cfg(debug_assertions)]
 fn allocations_of(
     member: nvs_runtime::NvsFn,
@@ -186,9 +148,9 @@ fn allocations_of(
     // Every argument, the context and the message a failure would format are
     // built outside the window on purpose: what is being counted is what the
     // member spends on its *result*.
-    let before = ALLOCATIONS.with(std::cell::Cell::get);
+    let before = nvs_runtime::budget::allocations();
     let answer = nvs_runtime::call(member, &mut ctx, args);
-    let spent = ALLOCATIONS.with(std::cell::Cell::get) - before;
+    let spent = nvs_runtime::budget::allocations() - before;
     (spent, answer.expect("the member answered"))
 }
 

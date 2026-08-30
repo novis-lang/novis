@@ -115,54 +115,19 @@ echo $bag->get(\"a\") . $bag->get(\"b\");
 /// guard below measures what compiled code spends rather than reading the
 /// lowering and believing it.
 ///
-/// Thread-local for the reason `nvs_runtime`'s own `counting_alloc` states: a
-/// test binary runs its tests concurrently, and a process-wide counter would
-/// fold a neighbour's allocations into the delta.
-///
-/// **Only installed in a debug build**, exactly as
-/// `nvs-stdlib/tests/allocation_policy.rs` installs its own and for the same
-/// reason: a `#[global_allocator]` is chosen once per binary, and an optimized
-/// build of this binary already has one — `nvs-runtime` installs its pooled
-/// allocator in every `not(test)` optimized build. `cargo test`, the profile
-/// `tools/verify.py` runs, is a debug build, so the guard runs there;
-/// `cargo test --release` compiles it out rather than failing to link.
-#[cfg(debug_assertions)]
-struct Counting;
-
-#[cfg(debug_assertions)]
-thread_local! {
-    static ALLOCATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-}
-
-#[cfg(debug_assertions)]
-#[expect(
-    unsafe_code,
-    reason = "`GlobalAlloc` is an unsafe trait, and every method forwards its \
-              own contract verbatim to `System`"
-)]
-unsafe impl std::alloc::GlobalAlloc for Counting {
-    unsafe fn alloc(&self, layout: std::alloc::Layout) -> *mut u8 {
-        ALLOCATIONS.with(|count| count.set(count.get() + 1));
-        unsafe { std::alloc::System.alloc(layout) }
-    }
-
-    unsafe fn dealloc(&self, ptr: *mut u8, layout: std::alloc::Layout) {
-        unsafe { std::alloc::System.dealloc(ptr, layout) }
-    }
-
-    unsafe fn realloc(&self, ptr: *mut u8, layout: std::alloc::Layout, new_size: usize) -> *mut u8 {
-        ALLOCATIONS.with(|count| count.set(count.get() + 1));
-        unsafe { std::alloc::System.realloc(ptr, layout, new_size) }
-    }
-}
-
-#[cfg(debug_assertions)]
-#[global_allocator]
-static COUNTING: Counting = Counting;
-
 /// Compiles `source`, runs it, and answers how many allocation requests the
 /// **run** made — compilation happens outside the window on purpose, since
 /// what is under test is what the compiled code spends.
+///
+/// The counter is `nvs_runtime::budget`'s, which every build maintains because
+/// the memory limit is read off it; this binary installs no allocator of its
+/// own, and could not, since a `#[global_allocator]` is chosen once per binary
+/// and `nvs-runtime` now registers one in every `not(test)` build.
+///
+/// **Only run in a debug build.** What the gate keeps out is no longer a
+/// missing counter but an optimized one's inlining: the numbers below are
+/// pinned against what an unoptimized build allocates, and nothing has measured
+/// them under `--release`.
 #[cfg(debug_assertions)]
 fn allocations_of_run(source: &str) -> usize {
     let unit = compile(source).expect("the fixture compiles");
@@ -170,9 +135,9 @@ fn allocations_of_run(source: &str) -> usize {
         .function("<script>")
         .expect("the script frame was compiled");
     let mut ctx = Ctx::buffered();
-    let before = ALLOCATIONS.with(std::cell::Cell::get);
+    let before = nvs_runtime::budget::allocations();
     call(entry, &mut ctx, &[]).expect("the script ran to completion");
-    ALLOCATIONS.with(std::cell::Cell::get) - before
+    nvs_runtime::budget::allocations() - before
 }
 
 /// `rounds` passes over a four-element list, every element read and then
