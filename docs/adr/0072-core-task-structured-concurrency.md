@@ -182,7 +182,13 @@ Task::afterResponse(fn(): void => Receipts::send($order), {deadline: 30s});
 return $response;                     // the client has its bytes; the receipt is still going out
 ```
 
-The closure runs after the response is fully written. **Memory, CPU and tasks stay charged to the request
+The closure runs after the response is fully written. **On a host with no response — `nvs run`, and a
+`spawn script` isolate — that trigger reads as the scheduling task's own frame returning**, which is the
+same moment under a server, the response being what the request frame produced; one rule, and nothing
+about the member's meaning changes with where it was called. A request that ended by a throw, an `exit`
+or a `FATAL` runs none of it: the status the host is about to report is on the context and script running
+over it would lose one of the two. `nvs_runtime::deferred` is the one home for that reading and for
+everything it implies. **Memory, CPU and tasks stay charged to the request
 tree**, so [ADR 0004](0004-memory-for-simplicity.md)'s "attributable, under an enforceable cap,
 O(in-flight)" holds with nothing relaxed — the tree simply stays in flight a little longer than the
 connection does. `[limits] wall_time` is what the client waited for and no longer applies; the deferred
@@ -196,6 +202,11 @@ connection does. `[limits] wall_time` is what the client waited for and no longe
   compile-time diagnostic where the call is statically visible and a throw otherwise. `Core\Request`,
   `Core\Server` and `Core\Session` remain readable — the tree is still the same tree.
 - **`Core\Task::all`/`::map` compose inside it** with no special case, since it is an ordinary task.
+- **Only the request's own task may register, and deferred work may not defer more.** The queue is the
+  request's; a `Core\Task` child, an isolate and a deferred closure have none, so a registration made on
+  one would be dropped when that child ended. It is a `RuntimeError` at the call site instead, while there
+  is still a request to decide what to do. A queue that can extend itself is also a tree that never leaves
+  flight, and the affordability argument above is that the tree outlives the connection only a little.
 - **This is not a queue, and it is not sold as one.** Nothing is durable, nothing retries, and a process
   that dies loses the work with no record. Receipts, webhooks, cache warming, reindexing and audit shipping
   are what it is for. Anything that *must* happen belongs inside the transaction that made it necessary, or

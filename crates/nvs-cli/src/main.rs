@@ -784,7 +784,18 @@ fn run_run(
         move |ctx| {
             // The returned value is discarded exactly as it was when this was a
             // direct call: the script frame answers with null.
-            status.set(Some(nvs_runtime::call(entry, ctx, &[]).map(|_| ())));
+            let outcome = nvs_runtime::call(entry, ctx, &[]).map(|_| ());
+            // ADR 0072 § 6: a CLI run has no response, so the script's own
+            // frame returning is when "after the response" is —
+            // `nvs_runtime::deferred` owns that reading and why a request that
+            // did not return ordinarily runs none of its deferred work. It runs
+            // *inside* the task, because a deferred closure is a task like any
+            // other and a child of one is spawned off the caller the scheduler
+            // is holding.
+            if outcome.is_ok() {
+                nvs_runtime::deferred::run_deferred(ctx);
+            }
+            status.set(Some(outcome));
         }
     });
 

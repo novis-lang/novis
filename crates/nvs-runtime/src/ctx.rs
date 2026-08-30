@@ -455,6 +455,22 @@ pub struct Ctx {
     ///
     /// **What it spends:** one word per request, and one per in-flight isolate.
     script_depth: u32,
+    /// [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md)
+    /// § 6's after-response work, in registration order — `None` once the
+    /// queue has been drained, which is the encoding of
+    /// [`crate::deferred::DeferError::Sealed`].
+    ///
+    /// Request-local for [`Self::limit_handler`]'s reason, and the one thing
+    /// that makes § 6's "memory, CPU and tasks stay charged to the request
+    /// tree" true by construction rather than by remembering to: the
+    /// registrations are the request's, so the request ending is what releases
+    /// them. [`mod@crate::deferred`] is the one home for when the queue runs
+    /// and why the cap beside it counts trees.
+    ///
+    /// **What it spends:** four words per request, and two words plus one
+    /// closure reference per registration — no allocation at all for a request
+    /// that defers nothing.
+    deferred: Option<Vec<crate::deferred::Deferred>>,
     /// What is behind a pending `THROWN` or `FATAL` status — see [`Pending`]
     /// for why one field carries both shapes rather than two sitting beside
     /// each other.
@@ -893,6 +909,23 @@ impl Drop for Ctx {
         // ADR 0020 § 1's handler is request-local, so the request ending is
         // what unregisters it — see `Ctx::set_limit_handler`.
         self.set_limit_handler(Value::null());
+        // ADR 0072 § 6's deferred work is request-local for the same reason,
+        // and a request that never returned ordinarily reaches here with its
+        // registrations unrun — `crate::deferred`'s module doc owns why they
+        // are released rather than run. `take_deferred` also takes this tree
+        // back out of the core's count.
+        for work in self.take_deferred() {
+            // SAFETY: the queue holds exactly one reference per registration
+            // and nothing else points at it.
+            #[expect(
+                unsafe_code,
+                reason = "the queue owned the reference it is handing over as it \
+                          goes down"
+            )]
+            unsafe {
+                work.closure.release();
+            }
+        }
     }
 }
 
@@ -1025,6 +1058,7 @@ impl Ctx {
             fatal_reserve_time: 0,
             max_script_depth: Self::DEFAULT_MAX_SCRIPT_DEPTH,
             script_depth: 0,
+            deferred: Some(Vec::new()),
             pending: None,
             runtime_error_class: None,
             output,
@@ -1256,6 +1290,71 @@ impl Ctx {
     #[must_use]
     pub fn has_limit_handler(&self) -> bool {
         self.limit_handler.tag() != Some(crate::Tag::Null)
+    }
+
+    /// Registers `closure` to run once this request's own frame has returned —
+    /// [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md)
+    /// § 6, and [`mod@crate::deferred`] owns when that is on a host with no
+    /// response.
+    ///
+    /// The caller passes an **owned** reference, exactly as
+    /// [`Self::set_limit_handler`] takes one and for the same reason: a
+    /// helper's arguments are borrowed from the call frame and this one
+    /// outlives it. A refused registration hands the reference back by leaving
+    /// it with the caller, which is then what releases it.
+    ///
+    /// `deadline_nanos` is § 7's `deadline` already resolved — the option the
+    /// call named, or [`Self::deferred_deadline`] — and `0` is no deadline.
+    ///
+    /// **`false` is the one refusal**: the queue is already draining, and
+    /// deferred work may not defer more. The caller turns it into the
+    /// `RuntimeError` § 6's last bullet names and keeps the reference.
+    pub fn defer(&mut self, closure: Value, deadline_nanos: u64) -> bool {
+        let Some(queue) = self.deferred.as_mut() else {
+            return false;
+        };
+        queue.push(crate::deferred::Deferred {
+            closure,
+            deadline_nanos,
+        });
+        true
+    }
+
+    /// Whether this request registered any after-response work.
+    #[must_use]
+    pub fn has_deferred(&self) -> bool {
+        self.deferred
+            .as_ref()
+            .is_some_and(|queue| !queue.is_empty())
+    }
+
+    /// Takes the whole queue and **seals** it, so nothing registered afterwards
+    /// extends the drain — [`mod@crate::deferred`]'s *the queue is a leaf*.
+    ///
+    /// Each entry carries one reference the caller then owes; both callers are
+    /// in this crate, which is why this hands the values out at all rather than
+    /// running them here.
+    pub(crate) fn take_deferred(&mut self) -> Vec<crate::deferred::Deferred> {
+        self.deferred.take().unwrap_or_default()
+    }
+
+    /// `[deferred] deadline` in nanoseconds, or `0` when the tree names none —
+    /// the default a call that names no `deadline` of its own inherits (§ 7).
+    #[must_use]
+    pub fn deferred_deadline(&self) -> u64 {
+        let Some(written) = self
+            .config
+            .as_ref()
+            .and_then(|config| config.get("deferred.deadline"))
+        else {
+            return 0;
+        };
+        let setting = nvs_config::Setting::Text(written);
+        match nvs_config::Quantity::parse("deferred.deadline", nvs_config::Unit::Duration, &setting)
+        {
+            Ok(nvs_config::Quantity::Nanos(nanos)) => nanos,
+            _ => 0,
+        }
     }
 
     /// Runs [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
@@ -1900,6 +1999,11 @@ impl Ctx {
         // The word, not its value: a task of this request is bounded by this
         // request's wall time and by no clock of its own. See the field doc.
         child.deadline = std::sync::Arc::clone(&self.deadline);
+        // Sealed rather than empty: ADR 0072 § 6's queue is the *request's*, and
+        // one on a child would be drained by nobody and released when the child
+        // ended. `crate::deferred` is the one home for that rule and for why a
+        // refusal is the only honest answer to a registration nothing would run.
+        child.deferred = None;
         child
     }
 
@@ -1970,6 +2074,10 @@ impl Ctx {
         isolate.max_script_depth = self.max_script_depth;
         isolate.runtime_error_class = self.runtime_error_class.clone();
         isolate.deadline = std::sync::Arc::clone(&self.deadline);
+        // Sealed for [`Self::child`]'s reason and not for a reason of its own:
+        // nothing drains an isolate's queue, and ADR 0072 § 6's work is the
+        // request's. `crate::deferred`'s known gap is where an isolate gets one.
+        isolate.deferred = None;
         isolate
     }
 

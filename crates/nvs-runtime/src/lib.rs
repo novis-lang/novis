@@ -249,6 +249,7 @@ pub mod closure;
 pub(crate) mod counting_alloc;
 mod ctx;
 pub mod decimal;
+pub mod deferred;
 pub mod dispatch;
 mod fmt;
 pub mod graph;

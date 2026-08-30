@@ -1,5 +1,6 @@
 //! `Core\Task` — [ADR 0072](../../../../docs/adr/0072-core-task-structured-concurrency.md)'s
-//! structured concurrency: two members, and the group each one hands its host.
+//! structured concurrency: two members that hand their host a group, and a
+//! third that hands the request one closure to run once it is over.
 //!
 //! §§ 1 and 2's typing is the half that reaches furthest. `Task::all`
 //! takes a shape literal of zero-argument `fn` literals and answers a shape
@@ -69,11 +70,23 @@
 //! by the request tree's own `wall_time`, which ADR 0005 makes finite. There is
 //! no `timeout` member and no `race`: a timeout on a group *is* the `deadline`
 //! option, and § 3 defers `race` under the future spelling `Task::first`.
+//!
+//! # `afterResponse` is a registration, not a group
+//!
+//! § 6's member shares the class and nothing else: it starts no child, waits
+//! for nothing, and returns while the request is still running. Its whole body
+//! is a retain and a push, and everything that makes it a *task* — when the
+//! closure runs, what a host with no response does about "after the response",
+//! why the queue seals while it drains, where a throw out of it goes, and why
+//! § 7's `max_concurrent` is a gap rather than a count — belongs to
+//! [`nvs_runtime::deferred`], which is that behaviour's one home.
+//! Its options bag is [`DEFERRED_OPTIONS`] rather than [`OPTIONS`] for the same
+//! reason: a single closure has no concurrency for a `limit` to shape.
 
 use std::time::Duration;
 
 use nvs_runtime::host::{Bounds, Job, Outcome};
-use nvs_runtime::{Ctx, Fault, NvsArray, NvsObj, ThrownClass, Value};
+use nvs_runtime::{Ctx, Fault, NvsArray, NvsObj, Tag, ThrownClass, Value};
 
 use crate::registry::{
     Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
@@ -104,6 +117,16 @@ const OPTIONS: &[CoreOption] = &[
     },
 ];
 
+/// § 6's own options bag: one field, because a single deferred closure has no
+/// concurrency for a `limit` to shape. `deadline` means what § 7 says rather
+/// than what [`OPTIONS`] says — omitted, the call inherits `[deferred]
+/// deadline` and not the tree's `wall_time`, which is over by then.
+const DEFERRED_OPTIONS: &[CoreOption] = &[CoreOption {
+    name: "deadline",
+    ty: CoreTy::Instance(DURATION_NAME),
+    default: Const::Null,
+}];
+
 /// The registry row. See [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
@@ -129,6 +152,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Array(&CoreTy::Var("U")),
             symbol: "nvs_core_task_map",
             doc: Some(&MAP_DOC),
+        },
+        CoreMethod {
+            name: "afterResponse",
+            names: &["fn"],
+            params: &[CoreTy::Callable, CoreTy::Options(DEFERRED_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_task_after_response",
+            doc: Some(&AFTER_RESPONSE_DOC),
         },
     ],
     instance: &[],
@@ -214,12 +246,45 @@ const MAP_DOC: MethodDoc = MethodDoc {
     errors: GROUP_ERRORS,
 };
 
+/// `Core\Task::afterResponse`'s reference card — ADR 0117.
+const AFTER_RESPONSE_DOC: MethodDoc = MethodDoc {
+    short: "Runs `$fn` once the request's own execution is over, still charged to the request \
+            tree — for receipts, webhooks, cache warming and audit shipping. **This is not a \
+            queue**: nothing is durable, nothing retries, and a process that dies loses the work \
+            with no record.",
+    params: &[
+        ParamDoc {
+            name: "fn",
+            desc: "What to run. It takes no arguments and its answer is discarded; a throw out of \
+                   it is logged and reaches no `catch`, because the request that registered it is \
+                   over.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "deadline",
+            desc: "A wall-clock bound on this closure; omitted, `[deferred] deadline` is the \
+                   bound. `[limits] wall_time` is what the client waited for and no longer \
+                   applies, while every other `[limits]` value still bounds the tree.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing. Registering is request-local, the registrations run in the order they were \
+          made, and a request that ended by a throw, an `exit` or a `FATAL` runs none of them.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "When the call is not the request's own task — a `Core\\Task` child, a spawned \
+               isolate, or deferred work itself, none of which has a queue anything would drain. \
+               Hand the work back to the request that started you and register it there.",
+    }],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_task_all" => (nvs_core_task_all as *const ()).cast(),
         "nvs_core_task_map" => (nvs_core_task_map as *const ()).cast(),
+        "nvs_core_task_after_response" => (nvs_core_task_after_response as *const ()).cast(),
         _ => return None,
     })
 }
@@ -481,6 +546,69 @@ nvs_runtime::nvs_helper! {
             crate::arr::store_at(&mut out, key, answer);
         }
         Ok(Value::array(out))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Task::afterResponse(callable $fn, {deadline?}): void` — ADR 0072
+    /// § 6's deferred work.
+    ///
+    /// The registration is the whole body, and the two things it does that a
+    /// caller could not are the retain and the cap. `nvs_runtime::deferred` is
+    /// the one home for *when* the closure runs — a host with no response has
+    /// to answer that too — and for why the cap counts request trees rather
+    /// than closures.
+    fn nvs_core_task_after_response(ctx, args: [2]) {
+        // The row's first parameter is `CoreTy::Callable`, so `E0401` refuses a
+        // `null` at the call and this guard is unreachable from source: what it
+        // catches is a lowering bug, and it is here because the slot it would
+        // otherwise write is one nothing looks at again until the request is
+        // over.
+        if args[0].tag() == Some(Tag::Null) {
+            return Err(Fault::fatal(
+                "Core\\Task::afterResponse expected a closure, got null".to_string(),
+            ));
+        }
+        // § 7: the option the call named, or the tree's own default. Both are
+        // nanoseconds by the time the queue sees them, and `0` is neither.
+        let deadline = if args[1].obj_ptr().is_some() {
+            let nanos = crate::time::nanos_of(args, 1, "deadline")?;
+            u64::try_from(nanos).unwrap_or(0)
+        } else {
+            ctx.deferred_deadline()
+        };
+        #[expect(
+            unsafe_code,
+            reason = "the argument is borrowed from the caller's frame and the \
+                      context keeps it past this call, so it needs a reference \
+                      of its own — which `Ctx::defer` then owns, or hands back \
+                      by refusing"
+        )]
+        // SAFETY: the value is owned by the caller's argument slot, which
+        // outlives this call; the reference taken here is the one the queue
+        // releases when the work runs or the request ends.
+        unsafe {
+            args[0].retain();
+        }
+        if ctx.defer(args[0], deadline) {
+            return Ok(Value::null());
+        }
+        #[expect(
+            unsafe_code,
+            reason = "a refused registration kept nothing, so the reference \
+                      retained just above is this frame's to release"
+        )]
+        // SAFETY: `defer` took no ownership on the refusal path, and this is the
+        // reference taken immediately above.
+        unsafe {
+            args[0].release();
+        }
+        Err(Fault::thrown(
+            "Core\\Task::afterResponse: only the request's own task may defer work, and this is a \
+             child task — a `Core\\Task` child, an isolate, or deferred work itself; hand it back \
+             to the request that started you"
+                .to_string(),
+        ))
     }
 }
 

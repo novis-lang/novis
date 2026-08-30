@@ -124,6 +124,10 @@ pub const DIRECTIVES: &[Directive] = &[
     // `System` and `Reload` together: the pairing ADR 0078 § 2 exists to make expressible.
     Directive { key: "opcache", class: Class::System, apply: Apply::Reload },
     Directive { key: "deferred.max_concurrent", class: Class::System, apply: Apply::Reload },
+    // Its sibling is `Runtime`, and ADR 0072 § 7 is explicit that the two halves of `[deferred]`
+    // are different classes: the cap is a host-sizing decision and the deadline is an ordinary
+    // per-request default a call may name its own value for.
+    Directive { key: "deferred.deadline", class: Class::Runtime, apply: Apply::Reload },
     Directive { key: "extension", class: Class::System, apply: Apply::Reload },
     Directive { key: "schedule", class: Class::System, apply: Apply::Reload },
     Directive { key: "app", class: Class::System, apply: Apply::Reload },
