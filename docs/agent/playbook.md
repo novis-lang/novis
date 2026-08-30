@@ -17,6 +17,15 @@ is why" — is this file.
 
 ## Tooling
 
+- **`cargo test -p <crate>` straight after a workspace `cargo test` recompiles the crate, and the
+  workspace run then recompiles it back.** A package selected alone unifies its dependencies' features
+  differently from the whole workspace, so its `-p` artifact is a second one that every source edit
+  stales. Measured: `touch crates/nvs-types/src/lib.rs`, `cargo test --no-run` (11s), then
+  `cargo test -p nvs-types --no-run` — `Compiling nvs-types`, 5s, on a tree cargo had just built. The
+  loop's acceptance check paid this seven times a session, 28s of rebuilds in front of 25s of tests,
+  which is why `Goal.crate_tests` in `tools/loop.py` runs a crate's test executables off one workspace
+  build instead. When you scope by hand, scope `verify.py -p` and every `cargo` call the same way for
+  the whole session, or budget the rebuild each time you switch.
 - **`.agent-tmp/` is shared between concurrent writers, so a fixed scratch filename hands you their
   file.** `git commit -F .agent-tmp/msg.txt` picked up a *stale* message another session had left
   there and committed this tree's handoff under "the handoff says the benchmark material is

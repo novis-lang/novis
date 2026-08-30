@@ -899,9 +899,14 @@ class Result:
         return (self.err.strip().splitlines() or [""])[0]
 
 
-def capture(exe, args, timeout=1800, cwd=None):
+def capture(exe, args, timeout=1800, cwd=None, env=None, log_stdout=True):
     """Run a program with stdout and stderr captured SEPARATELY -- the acceptance list distinguishes
     them (a backtrace and FATAL go to stderr, program output to stdout).
+
+    `env` replaces the environment whole when given -- `Goal.crate_tests` runs a test executable
+    where cargo would, with cargo's variables. `log_stdout=False` keeps stdout out of the console
+    log and is for exactly one caller: a `--message-format=json` build, whose stdout is a line per
+    artifact for every crate in the dependency graph and nothing a person reads back.
 
     `cwd` defaults to the repository root, which is what every cargo and `nvs` invocation wants. A
     `command` check names its own, because an `npm` script only finds its `package.json` from the
@@ -921,6 +926,7 @@ def capture(exe, args, timeout=1800, cwd=None):
             encoding="utf-8",
             errors="replace",
             timeout=timeout,
+            env=env,
         )
     except subprocess.TimeoutExpired:
         r = Result(-1, "", f"timed out after {timeout}s")
@@ -930,7 +936,8 @@ def capture(exe, args, timeout=1800, cwd=None):
         r = Result(p.returncode, p.stdout or "", p.stderr or "")
     where = "" if cwd in (None, ROOT) else f" (in {cwd})"
     head = f"$ {exe} {' '.join(args)}{where} -> exit {r.code} in {mmss(time.monotonic() - began)}"
-    CONSOLE.block(head, "\n".join(s for s in (r.out.rstrip("\n"), r.err.rstrip("\n")) if s.strip()))
+    shown = (r.out.rstrip("\n") if log_stdout else "", r.err.rstrip("\n"))
+    CONSOLE.block(head, "\n".join(s for s in shown if s.strip()))
     return r
 
 
@@ -1054,6 +1061,11 @@ MEMO_NOT_INPUTS = {"target", "node_modules", "out", ".vscode-test"}
 #: they still can, and it is why `machine.py` hands out half a box and not all of it.
 
 
+def plain_crate_test(args):
+    """The crate a check's `args` is exactly `cargo test -p <crate>` for, else None."""
+    return args[2] if len(args) == 3 and args[0] == "test" and args[1] == "-p" else None
+
+
 def rustc_version():
     """The exact compiler, so a toolchain bump invalidates every memoized verdict."""
     p = subprocess.run(["rustc", "-vV"], capture_output=True, encoding="utf-8", errors="replace")
@@ -1172,9 +1184,23 @@ class Goal:
 
     Two things are memoized, and neither of them skips a check:
 
-    * **Within one run**, an identical `args` list runs cargo once. The list holds `nvs-runtime`
-      twice on purpose -- stage 0 and stage 5 name different guard tests on it -- and running the
-      crate's suite a second time cannot answer differently.
+    * **Within one run**, an identical `args` list runs cargo once, and an identical `nvs-suite`
+      `args` list runs the suite once per leg. The list holds `nvs-runtime` twice on purpose --
+      stage 0 and stage 5 name different guard tests on it -- and running the crate's suite a
+      second time cannot answer differently. The suite half is the same argument and was the
+      larger omission: `tests/conformance/` is named by five checks across four stages, and a
+      sweep before this memo paid 16-19s for each of them -- 57s of its 173s re-running a suite
+      whose verdict it already held. What a check reads off the shared result -- its own `cases`,
+      its own `min_passing` -- is still judged per check.
+    * **A plain `cargo test -p <crate>` check runs no cargo of its own.** One warm
+      `cargo test --no-run` over the workspace -- the build `verify.py` already made -- names every
+      test executable with its package (`test_executables`), and the check runs the crate's own
+      binaries directly (`crate_tests`). Measured: `cargo test -p X` straight after a workspace
+      build RECOMPILES X, because a package selected alone unifies its dependencies' features
+      differently from the workspace, so the `-p` artifact is a second one that every source edit
+      stales. A sweep paid that seven times over -- 28s of rebuilds in front of 25s of tests --
+      plus a cargo start per check. What this path does not run is doc-tests, which no `tests`
+      list can name anyway (a doc-test is `path.rs - Item (line N)`); `verify.py` runs them.
     * **Across runs**, the three checks in `EXPENSIVE` are remembered against a content hash of
       *the files they read* -- `crates/`, `examples/`, the manifests, the toolchain and the goal
       file (`inputs_id`). Those inputs being bit-identical is the whole argument: a deterministic
@@ -1196,6 +1222,9 @@ class Goal:
         self.verbose = False  # narrate each check as it starts and what it cost
         self._begun = 0.0  # monotonic start of the current check(), for the elapsed stamp
         self._cargo = {}  # args tuple -> Result, within one check() call
+        self._suite = {}  # (leg name, args tuple) -> Result, likewise
+        self._exes = None  # package -> [(target, exe, dir)] off the workspace build; see test_executables
+        self._crate_runs = {}  # package -> Result of its binaries, within one check() call
         self._tree = ""
         self._inputs = None  # content hash of what the memoizable checks read; see `inputs_id`
         self._green = {}  # check name -> the `inputs_id` it was last green over
@@ -1255,6 +1284,92 @@ class Goal:
         if key not in self._cargo:
             self._cargo[key] = capture("cargo", args)
         return self._cargo[key]
+
+    def suite(self, leg, args):
+        """`nvs test` on a leg, with the result shared by every check that asks for the same
+        argument list there. Keyed on the leg as well as the args because `leg_check()` runs the
+        same lists through the Linux build, and two binaries are two answers."""
+        key = (leg.name, tuple(args))
+        if key not in self._suite:
+            self._suite[key] = leg.suite(args)
+        return self._suite[key]
+
+    # -- the workspace test build, and a crate's binaries run off it ---------------------
+
+    def test_executables(self):
+        """Every test executable in the workspace, by package: `{name: [(target, exe, dir)]}`,
+        and "" -- or `None` and the failure line when the build itself fails, so a tree that
+        does not compile is reported by the first check that asks as a build failure rather
+        than as a test that did not run.
+
+        One `cargo test --no-run --message-format=json`: `verify.py`'s own `cargo test` without
+        the run, so on the tree a session just verified it is a fingerprint scan, and on any
+        other it is the one build every crate then shares. The artifact messages carry the
+        package (`path+file:///…/crates/nvs-types#0.0.1`, or `…/benches/abi-probe#nvs-abi-probe@0.0.1`
+        when directory and package differ), the target, its kind and the executable, and they
+        are emitted for `fresh` units too, which is what makes the warm case free."""
+        if self._exes is not None:
+            return self._exes, ""
+        self.trace("building the workspace's test executables (shared by every cargo check)")
+        r = self.timed("workspace test build",
+                       lambda: capture("cargo", ["test", "--no-run", "--message-format=json"],
+                                       log_stdout=False))
+        if r.code != 0:
+            return None, f"the workspace test build failed -- {r.first_err_line}"
+        exes = {}
+        for line in r.out.splitlines():
+            try:
+                m = json.loads(line)
+            except ValueError:
+                continue
+            if m.get("reason") != "compiler-artifact" or not m.get("executable"):
+                continue
+            if not m.get("profile", {}).get("test"):
+                continue
+            if not set(m.get("target", {}).get("kind", [])) & {"lib", "bin", "test"}:
+                continue
+            pid = m.get("package_id", "")
+            source, _, tail = pid.rpartition("#")
+            name = tail.split("@", 1)[0] if "@" in tail else source.rstrip("/").rsplit("/", 1)[-1]
+            exes.setdefault(name, []).append(
+                (m["target"]["name"], m["executable"], str(Path(m["manifest_path"]).parent)))
+        self._exes = exes
+        return exes, ""
+
+    def crate_tests(self, crate):
+        """`cargo test -p <crate>`'s verdict off the shared build: each of the crate's test
+        executables run in turn, where cargo would run it -- the package's own directory, with
+        `CARGO_MANIFEST_DIR` set -- and the outputs joined so a check reads them as it read the
+        one cargo output. Shared by every check naming the crate, like `cargo()`.
+
+        The exit code is the first non-zero one, and the run stops there as cargo's does. libtest
+        reports a failure on STDOUT, so the stderr the ledger's line is read from is given one
+        naming the failing tests: without it the line would end at `exit 101 --`."""
+        if crate in self._crate_runs:
+            return self._crate_runs[crate]
+        exes, fail = self.test_executables()
+        if exes is None:
+            r = Result(-1, "", fail)
+        elif crate not in exes:
+            r = Result(-1, "", f"no test executable in the workspace build belongs to {crate!r}")
+        else:
+            code, outs, errs = 0, [], []
+            for target, exe, cwd in exes[crate]:
+                TICKER.set(detail=f"{crate}: {target}")
+                one = capture(exe, [], cwd=cwd, env=dict(os.environ, CARGO_MANIFEST_DIR=cwd))
+                outs.append(one.out)
+                errs.append(one.err)
+                if one.code != 0:
+                    code = one.code
+                    failed = [ln.split()[1] for ln in one.out.splitlines()
+                              if ln.startswith("test ") and ln.rstrip().endswith("FAILED")]
+                    errs.insert(0, f"{crate} ({target}): " + (
+                        f"{len(failed)} test(s) failed: {', '.join(failed)}" if failed
+                        else f"exit {one.code} -- {one.first_err_line}"))
+                    break
+            r = Result(code, "\n".join(outs), "\n".join(errs))
+        self._crate_runs[crate] = r
+        return r
 
     # -- the release build, moved off the critical path ---------------------------------
 
@@ -1471,8 +1586,15 @@ class Goal:
             # The suite runner is the CLI the leg already built; `cargo run` here would be one
             # more workspace fingerprint scan to start a binary sitting on disk. Through the leg
             # rather than at the binary, because `--leg-only` runs these on the Linux build, whose
-            # path Windows cannot execute.
-            r = self.timed(label, lambda: leg.suite(c["args"]))
+            # path Windows cannot execute. Shared by every check naming the same args on the same
+            # leg, exactly as `cargo()` shares a cargo run -- see the class doc.
+            r = self.timed(label, lambda: self.suite(leg, c["args"]))
+        elif crate := plain_crate_test(c["args"]):
+            # `cargo test -p <crate>` and nothing else: the crate's binaries off the shared
+            # workspace build rather than a cargo run of its own -- the class doc has the rebuild
+            # a `-p` run pays. Anything more than that -- `--release`, `--test`, a feature -- is
+            # a different build and keeps its own invocation.
+            r = self.timed(label, lambda: self.crate_tests(crate))
         else:
             r = self.timed(label, lambda: self.cargo(c["args"]))
         if r.code != 0:
@@ -1624,6 +1746,9 @@ class Goal:
             return n + (sweep if sweepable else 0)
 
         n += 1 + len(self.catch_up_checks) + programs  # native build, catch-up, native fixtures
+        # The shared workspace test build, paid once by the first plain `cargo test -p` check.
+        if any(plain_crate_test(c.get("args", [])) for c in self.catch_up_checks + self.cargo_checks):
+            n += 1
         n += sum(1 for c in self.cargo_checks if not self.remembered(c["name"]))
         n += sum(1 for c in self.release_checks if not self.remembered(c["name"]))
         # The whole Linux leg -- probe, build and fixtures -- is skipped when its two consumers are
@@ -1639,6 +1764,9 @@ class Goal:
         anything is built. Shared by the two entry points below."""
         self.ran = []
         self._cargo = {}
+        self._suite = {}
+        self._exes = None
+        self._crate_runs = {}
         self.short = []  # thresholds not met yet, judged after everything else
         self._begun = time.monotonic()
         TICKER.set(done=0, total=0)
