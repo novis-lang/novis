@@ -5,85 +5,81 @@
 **Stage 0c — the reference findings — is the open stage and runs ahead of everything else in this
 goal, stage 9 included.** `docs/agent/loop-goal.md` § *Stage 0c* is items 31–35;
 [docs/reference/findings.md](../reference/findings.md) § *Triage* is each item's verdict and owner.
-**Items 31, 32 and 33 are closed, and item 34 is open at P4** — its `[[check]]`'s first named case,
-`tests/conformance/core/a-first-class-callable-lowers.nvst`, is written and green, so the driver's
-acceptance run now fails on a later case in the same block rather than on that one.
+**Items 31, 32 and 33 are closed, and item 34 is open at D23** — P1 and P4 are both ticked, so the
+driver's acceptance run now fails on the item-34 `[[check]]`'s third case,
+`tests/conformance/core/a-named-closure-recurses.nvst`.
 
-**A first-class callable lowers, and it lowers to the closure representation that already existed.**
-`nvs_ir::lower::closure`'s `lower_callable` builds one forwarding thunk per written `(...)` — a
-synthesized class carrying `FN_ARITY`, `FN_PARAM_TAGS` and, for an instance target, `FCC_RECV`, with
-an `invoke` that passes its own parameters straight to the target. That module's doc comment owns
-the whole representation and the reason it is a thunk rather than a second closure shape; ADR 0031
-§ 1 is why it had to be the same object, and it is what lets `Core\Arr::map($xs, Core\Math::abs(...))`
-work with no native change at all. The site half is `Lowering::lower_callable_ref`
-(`crates/nvs-ir/src/lower/expr.rs:2310`), and both `ExprInfo::CallableRef` panics are gone.
+**A `: never` return lowers, and it lowers to `void`'s representation.** ADR 0007 § 3 makes `never`
+return-only, and a frame that cannot come back hands its caller nothing — which is what `void`
+already is. `nvs_ir::lower::erase_checked_ty`'s `CheckedTy::Never` arm is that decision's only home,
+including why the call site keeps its ordinary fall-through instead of gaining a terminator of its
+own: the callee's `throw` is the terminator, ADR 0002's unwind edge already carries it, and a mark
+on the site would turn a checker hole into unreachable code that runs. Pinned by
+`tests/conformance/core/a-never-method-is-a-terminator.nvst`.
+
+**Two refusals the checker owes, found while deciding that and deliberately left open.**
+`check_every_path_returns` (`crates/nvs-types/src/check.rs:701`) exempts `never` beside `void`, so a
+`never` body that falls off its end compiles and comes back; and `nvs_types::returns` walks
+statements syntactically, so a *call* to a `never` member does not count as leaving the frame the way
+a `throw` does. Both are in `## Backlog`, and the erasure above is what makes the first harmless
+rather than undefined. `nvs-ir`'s `KNOWN_ICE` is now **empty** — every atom ADR 0007 § 3 spells
+reaches a diagnostic or an IR in both positions — and the crate's known gap 21 is deleted.
 
 **One divergence is stated rather than hidden: `static::method(...)` binds the declaring class.** The
 checker records `ResolvedCall::static_class` only for a written class name, and a class descriptor is
-not a value a field slot can hold, so the one spelling whose late static binding would have to
-survive past the site is bound early. `self::`/`parent::` mean the declaring class anyway.
-`lower_callable`'s doc comment is that fact's home; the redesign is in `## Backlog`.
-
-**`E0793` refuses the two parameter lists a `callable` cannot carry.** `inout` and a variadic tail
-both reach the callee as a type confusion — ADR 0031 § 4 gives `callable` no parameter list, so
-nothing at a call through one could stage a cell or collect a tail. Refused where the `(...)` is
-written (`nvs_types::expr::calls::reject_unforwardable_first_class_callable`), pinned by
-`tests/conformance/reject/a-first-class-callable-forwards-every-argument.nvst`. The receiver capture
-is a new refcount edge and `tools/leak-check.sh` is clean over it.
+not a value a field slot can hold. `lower_callable`'s doc comment is that fact's home; the redesign
+is in `## Backlog`.
 
 **`E0126` is spoken for and must not be handed out.** ADR 0119 § 3 names it in prose for the
 expression-`catch` arm that refuses `return`, which stage 9 has not written yet. The next free
-`E02xx` is `E0247`, and `E07xx` is now `E0794`.
+`E02xx` is `E0247`, and `E07xx` is `E0794`.
 
 **Stage 9 stands where it stood** — ADR 0119 accepted, items 21–23 written with their anchors,
-nothing implemented — and resumes when stage 0c is green. **Stage 8**: conformance 1058,
+nothing implemented — and resumes when stage 0c is green. **Stage 8**: conformance 1059,
 differential 206.
 
-**`orient.py`'s `[context]` gaps, still costing time.** `[context] adrs` names none of stage 0c's
-own ADRs: this session needed **0027 § 1** and **0031 §§ 1-2, 4** and the pack printed 0103, 0078,
-0042 and 0119 instead — add those two, plus **0033 §§ 3-4**, **0047 § 2**, **0011**, **0086 § 6** and
-**0096 §§ 1-1a** from the sessions before. `[context] modules` still misses
-`crates/nvs-types/src/attributes.rs`, `routes.rs`, `commands.rs`, `derive.rs`, `testing.rs`,
-`defaults.rs`, `consts.rs`, `signatures.rs`, `retrieval.rs`, `crates/nvs-stdlib/src/serialize.rs`
-and `secret.rs`, `crates/nvs-types/src/expr/args.rs`, and — new this session —
-`crates/nvs-ir/src/lower/closure.rs`, `expr.rs` and `call.rs`, which item 34's own anchors name and
-which the map did not print a line for. `orient.py` itself still warns that
+**`orient.py`'s `[context]` gaps, still costing time.** `[context] adrs` names none of stage 0c's own
+ADRs: add **0027 § 1**, **0031 §§ 1-3**, **0033 §§ 3-4**, **0047 § 2**, **0011**, **0086 § 6** and
+**0096 §§ 1-1a**; **0007 § 3** is the one this session needed and did not get. `[context] modules`
+still misses `crates/nvs-types/src/attributes.rs`, `routes.rs`, `commands.rs`, `derive.rs`,
+`testing.rs`, `consts.rs`, `retrieval.rs`, `crates/nvs-stdlib/src/serialize.rs` and `secret.rs`,
+`crates/nvs-types/src/expr/args.rs`, `crates/nvs-types/src/check.rs` and `returns.rs`, and
+`crates/nvs-ir/src/lower/closure.rs`, `expr.rs` and `call.rs`. `orient.py` itself still warns that
 `crates/nvs-host/src/budget.rs` matches nothing.
 
 ## Next group
 
-**The rest of item 34's lowering gaps. P4 is a `nvs-ir` type-translation gap and D23 a `nvs-types`
-resolution one, so they share no file — take P4 first, since it is the next case the acceptance
-check names.**
+**Item 34's two resolution gaps. Both are refusals written in the front end rather than
+representations missing in `nvs-ir`, and they share
+`crates/nvs-types/src/expr/` — take D23 first, since it is the next case the acceptance check
+names.**
 
-- [ ] **P4 a `: never` method is a terminator** — findings.md § *Panics* P4, item 34. A method
-      declared `: never` panics the lowerer even when it is never called: `lower_checked_ty`
-      (`crates/nvs-ir/src/lower/mod.rs:2872`) has no arm for `CheckedTy::Never`, and its own
-      comment at `crates/nvs-ir/src/lower/mod.rs:2860` already names that as what is left. A `never`
-      return means the callee does not come back, so the call site's `Terminator` is the question,
-      not the value's representation. Case:
-      `tests/conformance/core/a-never-method-is-a-terminator.nvst`, named by the item-34 `[[check]]`
-      at `docs/agent/loop-goal.toml:329`.
 - [ ] **D23 a named closure recurses** — findings.md § *Divergences* D23, ADR 0031 § 3. `fn fact(int
-      $n): int => … fact($n - 1)` parses, and the recursive call resolves as a free function
-      (`E0320`): the name is not bound while the body is checked. `check_fn_literal`
-      (`crates/nvs-types/src/expr/calls.rs:1241`) is where the binding would go in, and the
-      lowering's own capture list is `crates/nvs-ir/src/lower/closure.rs:32`'s `PendingClosure`.
-      Case: `tests/conformance/core/a-named-closure-recurses.nvst`, `docs/agent/loop-goal.toml:330`.
-- [ ] **D22 `inout` takes only a local** — findings.md § *Divergences* D22, item 34.
-      `M::bump(inout $a["k"])` is `E0439`, "cannot be passed to an `inout` parameter **yet**" — the
-      staging that would copy an element back is what the word `yet` stands for, and
-      `crates/nvs-ir/src/lower/call.rs:975`'s `forget_transferred_since` sits beside the
-      `pending_refs` window that already does it for a local. Decide whether ADR 0107 § 2 wants the
-      element form at all before writing it; the rest of item 34 is the `[[check]]` block at
-      `docs/agent/loop-goal.toml:322`, in the order it is judged.
+      $n): int => $n <= 1 ? 1 : $n * fact($n - 1)` parses, but the recursive call resolves as a free
+      function and is `E0320` at `crates/nvs-hir/src/members.rs:678`. The closure's own name has to
+      be in scope inside its body, which is checked at
+      `crates/nvs-types/src/expr/calls.rs:1241` (`check_fn_literal`) — decide there whether the name
+      binds a local holding the closure or resolves specially, and say which in that function's doc
+      comment. Case: `tests/conformance/core/a-named-closure-recurses.nvst`, named by the item-34
+      `[[check]]` at `docs/agent/loop-goal.toml:330`.
+- [ ] **D22 `inout` takes only a local** — findings.md § *Divergences* D22. `M::bump(inout $a["k"])`
+      is `E0439` "cannot be passed to an `inout` parameter **yet**" at
+      `crates/nvs-types/src/expr/args.rs:716`; the two neighbouring refusals at
+      `crates/nvs-types/src/expr/args.rs:699` (a hooked property) and
+      `crates/nvs-types/src/expr/args.rs:729` (anything that is not a place) stay whatever this
+      decides. The question is whether an array element can be staged at all — the call site writes
+      back into a copy-on-write array — so decide that before writing code, and record it in
+      `args.rs`'s own doc comment.
 
 ## Backlog
 
-- `static::method(...)` as a first-class callable binds the declaring class rather than the frame's
-  called class — `nvs_ir::lower::closure`'s `lower_callable` doc comment owns the fact; a redesign
-  needs a class descriptor a field slot can hold.
-- Item 35, the reference cards and chapters — `docs/reference/findings.md` § *Triage*.
-- Stage 9's expression `catch`, items 21–23 — ADR 0119, anchors already written.
-- Stage 8's two remaining differential cases — `docs/agent/loop-goal.md` § *Stage 8*.
-- Stage 5's cache payload — `crates/nvs-cli/src/cache.rs` § *Known gaps*.
+- A `never` body that falls off its end is not refused — `crates/nvs-types/src/check.rs:701` exempts
+  it beside `void`; `E0739`'s wording would need a `never` arm.
+- A call to a `never` member does not count as leaving the frame —
+  `crates/nvs-types/src/returns.rs:137` is syntactic and would need the expression table.
+- `static::method(...)` as a first-class callable binds the declaring class —
+  `nvs_ir::lower::closure::lower_callable`'s doc comment.
+- The rest of item 34: D1, D7, D8, D10, D12, D16, D17, D21, D27, D33, D35, U21, M1 — findings.md
+  § *Triage*.
+- Stage 9, ADR 0119's expression `catch` — loop-goal items 21–23, resumes when stage 0c is green.
+- Item 35, the doc-side findings — findings.md § *Triage*'s last open row.

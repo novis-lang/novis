@@ -47,8 +47,12 @@ in that goal. An item's owner is the row it sits in.
 - [x] **P3** `$this` inside a `static` method panics (`lower/expr.rs:138`, "undeclared local `$this`").
       *probes2 `this_in_static`* — `E0779` at the `$this`, pinned by
       `tests/conformance/reject/this-is-not-read-in-a-static-method.nvst`.
-- [ ] **P4** A method declared `: never` panics the lowerer even when never called ("nvs-ir only
-      lowers a resolved call's … return type — got Never"). *types-probes; ref30 `never`*
+- [x] **P4** A method declared `: never` panics the lowerer even when never called ("nvs-ir only
+      lowers a resolved call's … return type — got Never"). *types-probes; ref30 `never`* — it erases
+      to `Ty::Void`, the representation of a caller that receives nothing, and the terminator stays
+      the callee's own `throw` rather than becoming a mark on the call site;
+      `nvs_ir::lower::erase_checked_ty`'s arm owns that choice and names the two refusals it leaves
+      the checker. Pinned by `tests/conformance/core/a-never-method-is-a-terminator.nvst`.
 - [x] **P5** An `array<T>`-typed class constant panics at use: `public const array<int> XS = [1, 2];
       Core\Arr::count(K::XS)` (`lower/expr.rs:286`, "no value recorded"). *types-probes* — it folds:
       `nvs_types::defaults::eval_const_value` places each element in the declared element type and
