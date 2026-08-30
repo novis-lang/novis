@@ -596,3 +596,65 @@ class Limits {
         "{diags:?}"
     );
 }
+
+/// ADR 0125 § 2: `as` is a class reference's only source. A bare `string` does
+/// not reach a `class<T>` position, the conversion does, and a written-out
+/// `Foo::class` operand is decided where it stands rather than at run time --
+/// both ways, so that the "decided" half is not satisfied by accepting
+/// everything.
+#[test]
+fn a_string_becomes_a_class_reference_only_through_as() {
+    let bare = check_src(
+        "<?nvs\n\
+         class Animal {}\n\
+         class T {\n\
+         \x20 function take(class<Animal> $c): void {}\n\
+         \x20 function m(string $s): void { $this->take($s); }\n\
+         }\n",
+    );
+    assert!(
+        bare.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{bare:?}"
+    );
+
+    let converted = check_src(
+        "<?nvs\n\
+         class Animal {}\n\
+         class Dog extends Animal {}\n\
+         class T {\n\
+         \x20 function take(class<Animal> $c): void {}\n\
+         \x20 function m(string $s): void { $this->take($s as class<Animal>); }\n\
+         \x20 function n(): void { $this->take(Dog::class as class<Animal>); }\n\
+         \x20 function o(class<Dog> $d): void { $this->take($d as class<Animal>); }\n\
+         }\n",
+    );
+    assert!(!converted.has_errors(), "{converted:?}");
+
+    // The qualifier strips, as every checked conversion strips one: the
+    // conversion's whole output range is the classes this program declares to
+    // be `Animal`s, which a tainted string cannot widen (ADR 0125 § 2).
+    let laundered = check_src(
+        "<?nvs\n\
+         class Animal {}\n\
+         class T {\n\
+         \x20 function take(class<Animal> $c): void {}\n\
+         \x20 function m(tainted string $s): void { $this->take($s as class<Animal>); }\n\
+         }\n",
+    );
+    assert!(!laundered.has_errors(), "{laundered:?}");
+
+    let outside = check_src(
+        "<?nvs\n\
+         class Animal {}\n\
+         class Rock {}\n\
+         class T {\n\
+         \x20 function m(): void { Rock::class as class<Animal>; }\n\
+         }\n",
+    );
+    assert!(
+        outside
+            .iter()
+            .any(|d| d.code == Some(code::E_NO_CONVERSION)),
+        "{outside:?}"
+    );
+}
