@@ -12,7 +12,7 @@ fn m(object) -> int {
     v2 = call T::inner(this: v1) ! bb3  ; int
     ; stmt s2 @7:7-7:19
     v3 = const.str "done"  ; string
-    helper.echo_str v3 ! bb5
+    helper.echo_str v3 ! bb6
     release v3
     release v0
     return v2
@@ -20,26 +20,28 @@ fn m(object) -> int {
     v4 = take.thrown  ; object
     ; stmt s3 @7:7-7:19
     v5 = const.str "done"  ; string
-    helper.echo_str v5 ! bb6
+    helper.echo_str v5 ! bb7
     release v5
-    throw v4 -> bb7
+    throw v4 -> bb8
   bb2:
     release v0
     return
   bb3:
-    catch -> bb1 else bb4
+    catch -> bb4 else bb5
   bb4:
+    jump bb1
+  bb5:
     release v0
     propagate "m() at t.nvs:5"
-  bb5:
+  bb6:
     release v3
     release v0
     propagate "m() at t.nvs:7"
-  bb6:
+  bb7:
     release v5
     release v0
     propagate "m() at t.nvs:7"
-  bb7:
+  bb8:
     release v0
     propagate "m() at t.nvs:7"
 }

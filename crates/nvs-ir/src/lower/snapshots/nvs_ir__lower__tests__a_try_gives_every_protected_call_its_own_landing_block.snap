@@ -11,37 +11,41 @@ fn <script>() -> tagged {
     v1 = call T::go(this: v0) ! bb3  ; void
     ; stmt s2 @7:3-7:15
     v2 = const.str "fine"  ; string
-    helper.echo_str v2 ! bb5
+    helper.echo_str v2 ! bb6
     release v2
     jump bb2
   bb1:
     v3 = take.thrown  ; object
     v4 = instanceof v3, Throwable  ; bool
-    branch v4 -> bb7 (e0), bb8 (e1)
+    branch v4 -> bb9 (e0), bb10 (e1)
   bb2:
     v6 = const.int 1  ; int
     v7 = tag v6  ; tagged
     return v7
   bb3:
-    catch -> bb1 else bb4
+    catch -> bb4 else bb5
   bb4:
-    propagate "<script>() at t.nvs:6"
+    jump bb1
   bb5:
-    release v2
-    catch -> bb1 else bb6
+    propagate "<script>() at t.nvs:6"
   bb6:
-    propagate "<script>() at t.nvs:7"
+    release v2
+    catch -> bb7 else bb8
   bb7:
+    jump bb1
+  bb8:
+    propagate "<script>() at t.nvs:7"
+  bb9:
     ; stmt s3 @9:3-9:20
     v5 = field.get v3, Throwable::message  ; string
-    helper.echo_str v5 ! bb9
+    helper.echo_str v5 ! bb11
     release v3
     jump bb2
-  bb8:
-    throw v3 -> bb10
-  bb9:
+  bb10:
+    throw v3 -> bb12
+  bb11:
     release v3
     propagate "<script>() at t.nvs:9"
-  bb10:
+  bb12:
     propagate "<script>() at t.nvs:9"
 }

@@ -2276,7 +2276,11 @@ pub enum Terminator {
     /// — so before it existed a `try` region turned every one of them into a
     /// leak of the whole frame.
     Catch {
-        /// The `catch` clause's handler block.
+        /// The catchable exit: a block of this landing site's own that jumps
+        /// to the region's dispatch. It exists so that edge-local code has
+        /// somewhere to sit that the `onward` exit does not also run through
+        /// — `nvs_ir::lower::Lowering::landing_block` owns the reasoning, and
+        /// the region's phis name *this* block as their predecessor.
         handler: BlockId,
         /// The uncatchable-status exit: releases this frame's locals and ends
         /// in [`Terminator::Propagate`]. See above.

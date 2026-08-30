@@ -1,0 +1,50 @@
+--TEST--
+A memory-limit breach inside `try { … } finally { … }` is ADR 0020 § 1's clean `FATAL`, and the `finally` does not run — ADR 0020 § 1, ADR 0002
+--FILE--
+<?nvs
+// ADR 0020 § 1's breach is a `FATAL`, so it reaches no `catch` and no
+// `finally`: every copy of a `finally` body lives behind a landing block's
+// catchable exit, and `nvs_ir::ir::Terminator::Catch` admits a `THROWN` alone.
+// What this case is really written around is the *other* exit — the one that
+// releases the frame on its way out — and a `foreach` inside the region is what
+// makes it interesting. The loop's reserved `foreach#N` binding holds a second
+// reference to the array being walked and exists on only some of the region's
+// landing edges, so the region's dispatch drops it and the drop owes a release
+// on the way into the handler. Emitting that release into the landing block
+// itself put it ahead of a terminator *both* exits leave through, and the
+// uncatchable one then swept the same reference a second time: an
+// "attempt to subtract with overflow" inside `nvs_array_release`, exit 127,
+// instead of the two lines below. `docs/reference/findings.md`'s P15 is the
+// report; `Lowering::landing_block` is where the catchable exit got a block of
+// its own.
+echo "start\n";
+
+// Under the 16M grant on its own, and past it by the third slab: the file's
+// ceiling is 16777216 with 1048576 of it reserved for ADR 0020 § 1's tier-1
+// handler, so two 8 MiB slabs are already over what ordinary execution may
+// hold and the third `Core\Str::repeat` is the member that reports it.
+array<string> $tags = ["a", "b", "c", "d"];
+try {
+    array<string> $ballast = [];
+    foreach ($tags as string $tag) {
+        $ballast[] = Core\Str::repeat($tag, 8388608);
+    }
+    // Only reachable in a tree where the ceiling was never enforced, and here
+    // for that reason: it is also the second landing edge of this region, the
+    // one binding no `foreach#N`, which is what makes the dispatch drop that
+    // name at all.
+    echo "held=", Core\Arr::count($ballast), "\n";
+} finally {
+    // ADR 0020 § 1: a resource limit is not an exception, so this never runs.
+    echo "finally\n";
+}
+echo "after\n";
+--FILE nvs.toml--
+# `[limits] memory` is the whole of what this case configures — the grant the
+# ballast above is written to exceed on its third slab. ADR 0064 § 5 is the unit.
+[limits]
+memory = "16M"
+--EXPECT--
+start
+--EXPECTF-ERROR--
+FATAL: the request exceeded its memory limit — %d bytes held against a ceiling of 16777216, of which 1048576 is reserved for the limit handler

@@ -1821,15 +1821,21 @@ impl<'a> Lowering<'a> {
     ///   here is dropped, exactly the sweep [`Self::release_all_locals`]
     ///   already performs at an ordinary `return`. This is `nvs-codegen`'s
     ///   known gap 3 — a backend that leaks on every throw — closed.
-    /// * **Reaching a `catch` in this same frame** releases nothing: the
-    ///   handler and everything after it still name those locals, and the
-    ///   binding each one has on the exception path travels through this
-    ///   block's own entry in [`TryFrame::edges`] into the handler's phis.
+    /// * **Reaching a `catch` in this same frame** releases nothing the
+    ///   handler still names: it and everything after it name those locals,
+    ///   and the binding each one has on the exception path travels through
+    ///   this site's entry in [`TryFrame::edges`] into the handler's phis.
     ///   That exit is taken on a `THROWN` alone, so it comes with a second
     ///   block for every other non-`OK` status — [`Terminator::Catch`]'s
     ///   `onward` — which performs exactly the sweep the propagating exit
     ///   above does, since such a status leaves the frame without the handler
     ///   ever naming a thing.
+    ///
+    /// **The catchable exit is a block of its own**, and that block rather
+    /// than this one is what goes on [`TryFrame::edges`]. A landing site is
+    /// the one place two exits leave through a single block, so anything
+    /// written into it lands on both — and [`Self::merge_envs`] writes into
+    /// its incoming blocks. See the body for the double release that bought.
     ///
     /// [`Self::owned_temporaries`] is released on **both** exits, ahead of
     /// either, and that is the one thing the asymmetry does not reach: a
@@ -1855,7 +1861,20 @@ impl<'a> Lowering<'a> {
             .rposition(|frame| frame.handler.is_some());
         match innermost.map(|at| (at, self.try_stack[at].handler)) {
             Some((at, Some(handler))) => {
-                self.try_stack[at].edges.push((b, env.clone()));
+                // The catchable exit gets a block of its own, and it is that
+                // one — never `b` — the region records as an incoming edge.
+                // `Self::merge_envs` writes into an incoming block
+                // (`Self::release_merged_away`), and what it writes there is
+                // owed on the way *into* the handler alone: a name the
+                // dispatch drops is still swept by `onward` below on the way
+                // out of the frame. Recording `b` put that release ahead of a
+                // terminator both exits leave through, so a `FATAL` raised
+                // under a `try` holding any conditionally-bound refcounted
+                // name — a `foreach`'s own reserved binding is the one every
+                // program has — released it twice.
+                let caught = self.new_block();
+                self.seal(caught, Terminator::Jump(handler));
+                self.try_stack[at].edges.push((caught, env.clone()));
                 // The uncatchable-status exit, and the one place this frame's
                 // locals are dropped on a path that neither returns nor enters
                 // a handler — see `Terminator::Catch`'s own doc comment.
@@ -1863,7 +1882,13 @@ impl<'a> Lowering<'a> {
                 self.release_all_locals(onward, env, None);
                 let frame = self.frame_label();
                 self.seal(onward, Terminator::Propagate { frame });
-                self.seal(b, Terminator::Catch { handler, onward });
+                self.seal(
+                    b,
+                    Terminator::Catch {
+                        handler: caught,
+                        onward,
+                    },
+                );
             }
             Some((_, None)) => unreachable!("rposition only matches a frame with a handler"),
             None => {
