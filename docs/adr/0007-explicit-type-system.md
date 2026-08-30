@@ -187,7 +187,7 @@ diagnostic saying exactly that. There is no literal suffix, for any numeric type
 | `int ⊕ uint` arithmetic | **compile error** | there is no representable common type; convert one side explicitly |
 | `int` against `uint` in `< <= > >= ==` | `bool`, mathematically exact over the full range of both | — |
 | `int / int`, `uint / uint` | `int\|float`, `uint\|float` — PHP-exact: `6/3` is an integer, `7/2` is a float | `/ 0` throws `ArithmeticError` |
-| either operand a `float` | `float` — for `+ - * ** /`; **`%` is a compile error** | — |
+| either operand a `float` | `float` — for `+ - * ** /`; **`%` is a compile error** | `/ 0` throws `ArithmeticError` here too — the zero divisor is refused before the operand types are consulted, so there is one rule and not two; IEEE division is `Core\Math::fdiv` |
 | `>>` | arithmetic on `int`, **logical on `uint`** | — |
 | `& \| ^ ~ <<` | the operand type, preserved | — |
 | any operation involving `decimal` | [ADR 0054](0054-decimal-scalar-type.md) § 3 owns those rows | — |

@@ -147,6 +147,11 @@ bullets below are that ADR's rules, restated here because this is the boundary a
   not degraded into a stub. PHP's `__PHP_Incomplete_Class` is what silent degradation looks like, and it
   fails later and further from the cause.
 
+A child that runs to its end without a top-level `return` hands back `null` — the value every Novis
+function without a `return` produces. This is deliberately not `require`'s `1`
+([0021](0021-single-file-inclusion-construct.md) § 3): that value is PHP's, kept for the construct PHP has,
+and `spawn script` is not one.
+
 ### Budgets are accounted at the root of the request tree
 
 This is the part that keeps priority 1 intact, and it is the decision most easily got wrong in the other

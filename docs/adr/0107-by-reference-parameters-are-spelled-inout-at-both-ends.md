@@ -149,6 +149,16 @@ it is a separate feature needing its own definite-assignment analysis, which is
 [0022](0022-definite-property-initialization.md)'s machinery pointed at parameters, and nothing in M4 wants
 it. Recorded here so it is not re-opened as a corollary of this decision.
 
+### 5. An `inout` argument is a local, and only a local
+
+`Adder::bump(inout $n)` binds a local; `bump(inout $a["k"])` and `bump(inout $obj->n)` are refused at the
+call (`E0439`), and that is the rule rather than a gap. The mechanism is copy-in/copy-back through a cell
+the call stages (*Context*), and an element or a property has no cell of its own to stage: the write-back
+would have to re-run the whole access path after the callee returns, against an array that may have been
+reallocated meanwhile or through a hook ([0014](0014-property-observer.md)) that would then run a second
+time. The rewrite is the mechanism written out — read into a local, pass the local, store it back — and it
+is what the diagnostic's help says.
+
 ## Diagnostics
 
 | Code | Band | Reported by | Says |
@@ -156,6 +166,7 @@ it. Recorded here so it is not re-opened as a corollary of this decision.
 | `E0237` | rejected PHP constructs | `nvs-syntax` | `&` is not a by-reference marker in Novis — write `inout` before the type |
 | `E0713` | types | `nvs-types` | this argument binds an `inout` parameter and must be written `inout $x` |
 | `E0714` | types | `nvs-types` | `inout` here names a by-value parameter — drop it, or declare the parameter `inout` |
+| `E0439` | types | `nvs-types` | an `inout` argument is a local — read the element or property into one, pass it, store it back |
 
 `E0237` is in the *rejected PHP constructs* band because that is exactly what it is; `E0713`/`E0714` need
 the signature and so belong to the checker.

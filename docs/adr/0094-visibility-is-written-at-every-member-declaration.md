@@ -64,7 +64,6 @@ override, and no suppression annotation — the same terms as ADR 0029.
 | Class constant | yes | `public const int MAX = 10;` |
 | Method, instance or `static` | yes | `protected function normalize(string $s): string` |
 | Method in an `interface` body | yes — `public` and `private` differ (ADR 0043) | `public function encode(): string;` |
-| Member of an anonymous class body | yes | `new class { public int $n = 1; };` |
 | Asymmetric property | yes, **as a pair** (§ 3) | `public private(set) string $name;` |
 | Constructor parameter, unmodified | **no** — it is not a member (§ 2) | `function constructor(int $n)` |
 | Anything in an `enum` body | **no** — an enum declares only cases (`E0220`) | `case Active;` |

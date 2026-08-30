@@ -69,7 +69,8 @@ already use for a rejected PHP spelling. There is no suppression and no dialect 
 [0029](0029-identifier-casing-is-checked.md) gives: a construct that parses in one project and not another
 is two languages.
 
-`==` and `!=` are the whole set. `!=` is exactly `!( … == … )`; there is no third relation.
+`==` and `!=` are the whole set. `!=` is exactly `!( … == … )`; there is no third relation. PHP's `<>` is that
+same relation under a second spelling, and it does not parse either — the diagnostic names `!=`.
 
 ### 2. Both operands must have types that can hold the same value
 

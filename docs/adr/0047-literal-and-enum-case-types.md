@@ -135,6 +135,12 @@ any other heterogeneous union already may (`Mode::Read|Status::Active|int` is un
 nothing about this ADR restricts what a union may contain beyond what [ADR 0007](0007-explicit-type-system.md)
 § 3 already allows).
 
+A binding is narrowed to a case-subset type through `as` and nowhere else: `$m as Mode::Read|Mode::Write` is
+the spelling, and a comparison `$m == Mode::Read` does not narrow `$m` in the branch it guards. Equality
+against a case is not on [ADR 0007](0007-explicit-type-system.md) § 6's narrowing list and this ADR does not
+add it — an equality-driven narrowing would have to be stated again for `!=`, `&&`, `||` and negation, and
+`as` already says the same thing in one place.
+
 ### 4. Assignability and conversion
 
 | direction | behaviour |

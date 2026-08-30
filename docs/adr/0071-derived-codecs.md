@@ -100,6 +100,11 @@ $u = Json::decodeAs<User>($body);   // throws ParseError listing every bad field
 echo Json::encode($u);              // {"id":7,"name":"…","email_address":"…","lastSeenAt":null,"role":2}
 ```
 
+`decodeAs<T>` admits a derived class or an `array<U>` of one — `Json::decodeAs<array<User>>($body)` reads a
+JSON list into a typed array, each element through `User`'s own derived decoder, and a document that is not
+a list, or an element that fails, reports as § 5 says with the element's index in front of the field. Nothing
+else is admitted as `T`: a scalar or an `array<mixed>` is what `decode` already returns.
+
 **A compiler-recognized attribute is matched nominally.** The compiler acts on an attribute only when its
 `Name` **resolves** — through the ordinary namespace and `use` rules, case-sensitively per
 [ADR 0062](0062-case-sensitivity-is-a-compiler-property.md) — to one of a **closed, `Core`-owned list**.

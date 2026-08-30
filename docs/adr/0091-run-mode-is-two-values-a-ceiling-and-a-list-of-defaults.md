@@ -191,13 +191,13 @@ which of the two tables it belongs in, and the ADR says which by the directive's
 
 ```
 Core\Env::mode(): Env\Mode                                  // read
-Core\Config::set("mode", "development"): bool               // flip, per ADR 0005
+Core\Config::set("mode.default", "development"): bool       // flip, per ADR 0005
 ```
 
 - **Reading it is first-class.** Applications legitimately need it — seed data, a null mail transport, a
   development-only route — and a language that denies the honest accessor gets the dishonest one: people
   read a governed directive as a proxy for the mode, which is worse for everybody. `Core\Env::mode()`
-  returns the typed enum; `Core\Config::get("mode")` returns the same fact as a string, the way it does for
+  returns the typed enum; `Core\Config::get("mode.default")` returns the same fact as a string, the way it does for
   every directive, because [0064](0064-configuration-file-format.md) § 5's API is string-in/string-out by
   design.
 - **Flipping it is [0005](0005-config-changeability.md)'s ordinary `Runtime` mechanism, with no new
@@ -207,7 +207,7 @@ Core\Config::set("mode", "development"): bool               // flip, per ADR 000
   application flipping itself is never observable to another request on the same server, and cannot outlive
   the request that did it. **That request-locality is what makes allowing this safe at all**, and it is the
   same property that lets a request raise its own memory limit.
-- **Setting `mode` re-derives § 3's five directives into the request's overlay, except any the request has
+- **Setting `mode.default` re-derives § 3's five directives into the request's overlay, except any the request has
   already set explicitly.** Without the re-derivation the flip does nothing; without the exception it
   silently stomps a deliberate choice made three lines earlier.
 

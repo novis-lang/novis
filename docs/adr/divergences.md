@@ -46,6 +46,7 @@ carries one row per PHP built-in and is the home for those.
 | PHP | Novis | Owner |
 |---|---|---|
 | `==` juggles and `===` escapes it | one operator, `==`; `===`/`!==` do not parse, and two disjoint types do not compile | [0090](0090-one-equality-operator-and-disjoint-types-do-not-compile.md) |
+| `<>` is a second spelling of `!=` | does not parse; `!=` is the only spelling | [0090](0090-one-equality-operator-and-disjoint-types-do-not-compile.md) § 1 |
 | `"1" == "01"` is true; `==` on arrays ignores key order; `==` on objects walks properties | strings compare as text, arrays element-by-element in order, objects by identity | [0090](0090-one-equality-operator-and-disjoint-types-do-not-compile.md) § 3 |
 | `<`/`>` on two objects walks declared properties | requires `Comparable`; otherwise a compile error | [0013](0013-comparable-interface.md) |
 | `and`, `or`, `xor` are lower-precedence connectives | rejected; `&&`/`\|\|` are the only ones, and `xor` has no replacement | [0045](0045-and-or-xor-keyword-operators-rejected.md) |
@@ -73,6 +74,10 @@ carries one row per PHP built-in and is the home for those.
 | `function () use (&$y) {}` and two closure literals | one literal, `fn`, and no `use` clause at all | [0031](0031-callable-is-the-only-closure-type.md) |
 | `callable` accepts strings, arrays and `__invoke` objects | only a closure; `$obj(...)` never resolves to a method | [0027](0027-callable-is-closures-only.md) |
 | `list($a, $b) = $p;` | does not parse; `[...]` is the only destructuring spelling | [0050](0050-list-destructuring-spelling-rejected.md) |
+| `new class { … }` declares an anonymous class | refused; a named class in the same file, or a closure | [README](README.md) § *Decisions taken at project start* |
+| `catch (A \| B $e)` handles two classes in one clause | refused; two clauses, or one on the common ancestor | [README](README.md) § *Decisions taken at project start* |
+| `namespace X { … }` and several namespaces per file | refused; `namespace X;` once, before any declaration | [README](README.md) § *Decisions taken at project start* |
+| an `inout` (`&`) argument may be an element or a property | a local only; read it into one, pass it, store it back | [0107](0107-by-reference-parameters-are-spelled-inout-at-both-ends.md) § 5 |
 | `<?php` opens code; `die` terminates | `<?nvs` and `exit` are the only spellings — and a `#!` first line opens code with no tag | [0049](0049-single-open-tag-and-single-exit-keyword.md), [0100](0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md) § 3 |
 
 ## Scope, names and the standard library

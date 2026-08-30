@@ -657,7 +657,24 @@ scope silently changes the program PHP wrote, and admitting a conditional entry 
 put a run-time question inside every name resolution, layout and dispatch decision below it — priority 4,
 paid for once here rather than at every later lookup. What it costs is PHP's conditional-class idiom,
 whose two real uses — a polyfill and a feature switch — are `require` of one file or the other, which is
-static and already works.
+static and already works. An anonymous class — PHP's `new class { … }` — is the same nested declaration in
+expression position and is refused the same way: it has no name for the static table to hold, and its two
+real uses, a one-off implementation of an interface and a test double, are a named class in the same file
+or a closure ([0031](0031-callable-is-the-only-closure-type.md)).
+
+**A `try` has at least one `catch` or a `finally`, and a `catch` clause names exactly one class.** PHP
+refuses a bare `try { … }` too, and the parser here accepted it only by omission. `catch (A | B $e)` is
+refused: `$e` carries one static type ([0007](0007-explicit-type-system.md) § 1's `catch` row), and a body
+shared by two classes is written as two clauses or as one clause on their common ancestor — the shape
+[0119](0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md) § 4 already requires of
+an expression arm. Both are parse-time refusals in the rejected-PHP band, and each names its rewrite.
+
+**`namespace X;` is the only namespace statement — once per file, before any declaration.** The braced form
+`namespace X { … }`, and with it a file holding two namespaces, is refused at parse time.
+[0112](0112-authority-is-keyed-on-the-enclosing-namespace.md) keys authority on the namespace enclosing the
+code and [0104](0104-an-application-is-an-entry-file-path.md) keys an application on its entry file; a file
+that is two namespaces is a file whose authority is a function of the line number, and nothing below either
+ADR has a reading to give that. The rewrite is one file per namespace.
 
 **One `use` names one import; PHP's group form is refused.** `use App\Models\{User, Post};` is `E0238`
 where the `\{` is written, sibling to [0015](0015-no-name-aliasing.md) § 2's `E0212` on the other half of
