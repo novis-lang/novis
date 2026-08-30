@@ -26,6 +26,13 @@ Two kinds of finding:
            a path is compared to the on-disk entry exactly.
 
 Fragments (`file.md#a-heading`) are checked as far as the file; the heading itself is not verified.
+
+A file carrying the repository's `GENERATED FILE` marker in its head is skipped. `website/`'s ADR
+mirror is written by `npm run sync:adrs` out of `docs/adr/`, and the transform rewrites every relative
+link into a site route (`/docs/adr/0106/`) that resolves in Astro's router and never on disk. Checking
+those cost 2,682 findings, all of them false, and left this gate red in CI's `docs` job for as long as
+the site existed — while the links they are generated *from* are checked here in their source form,
+which is the spelling a human actually edits.
 """
 
 from __future__ import annotations
@@ -99,11 +106,25 @@ def case_exact(base, target):
 CODE_SPAN_RE = re.compile(r"`[^`]*`")
 FENCE_RE = re.compile(r"^\s*(```|~~~)")
 
+# Every generated page in this repository announces itself in its first few lines. See the docstring
+# for why a generated page's links are not this gate's business.
+GENERATED_MARKER = "GENERATED FILE"
+GENERATED_HEAD_LINES = 15
+
 
 def code_spans(line):
     """Character ranges covered by inline `code`. A link written inside one is an *example* —
     `[ADR NNNN](...)` in a sentence about how to write links — not a link to follow."""
     return [(m.start(), m.end()) for m in CODE_SPAN_RE.finditer(line)]
+
+
+def is_generated(md_file):
+    """True when the file announces itself as machine-written in its head. See the docstring."""
+    try:
+        text = md_file.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return False
+    return any(GENERATED_MARKER in line for line in text.split("\n")[:GENERATED_HEAD_LINES])
 
 
 def check(md_file):
@@ -136,11 +157,18 @@ def check(md_file):
 
 
 def main():
+    if any(a in ("-h", "--help") for a in sys.argv[1:]):
+        sys.stdout.write(f"{__doc__}\n")
+        return 0
     paths = [a for a in sys.argv[1:] if not a.startswith("-")]
     files = tracked_markdown(paths)
 
     findings = []
+    generated = 0
     for md_file in sorted(files):
+        if is_generated(md_file):
+            generated += 1
+            continue
         rel = md_file.relative_to(ROOT).as_posix()
         for lineno, target, kind in check(md_file):
             findings.append((rel, lineno, target, kind))
@@ -148,17 +176,20 @@ def main():
     for rel, lineno, target, kind in findings:
         sys.stdout.write(f"  {kind:<8} {rel}:{lineno}  ->  {target}\n")
 
-    checked = len(files)
+    checked = len(files) - generated
+    skipped = f", {generated} generated page(s) skipped" if generated else ""
     if findings:
         missing = sum(1 for f in findings if f[3] == "missing")
         miscased = len(findings) - missing
         sys.stdout.write(
-            f"\n{len(findings)} finding(s) across {checked} file(s): "
+            f"\n{len(findings)} finding(s) across {checked} file(s){skipped}: "
             f"{missing} missing, {miscased} mis-cased.\n"
             "A mis-cased link resolves on Windows and macOS and 404s everywhere else.\n"
         )
     else:
-        sys.stdout.write(f"every link in {checked} markdown file(s) resolves, with matching case\n")
+        sys.stdout.write(
+            f"every link in {checked} markdown file(s) resolves, with matching case{skipped}\n"
+        )
 
     # A finding is a link that does not resolve, which is a defect rather than a
     # preference — so this is an exit status CI can act on. See the docstring.
