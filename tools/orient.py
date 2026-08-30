@@ -822,7 +822,8 @@ def wrap_template() -> str:
     It is generated off the tree -- it carries the live conformance and ADR counts and the
     playbook's current headings -- so it cannot be pasted into this file as a constant. But
     it costs 0.15s to produce and nearly every session spent a whole tool call fetching it,
-    which at the measured 38 calls a session is a fixed 3% for 1.6 KB of text. Empty if the
+    which at the 38 calls a session of the 19-session run `run_closing` cites is a fixed 3% for
+    1.6 KB of text (today's mean is the `fixed cost per session` line of `loop-stats.py`). Empty if the
     call fails, and the three-call wording below then stands as it always did.
     """
     try:
