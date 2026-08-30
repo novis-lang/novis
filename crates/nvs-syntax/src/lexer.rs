@@ -852,8 +852,30 @@ impl<'a> Lexer<'a> {
                 if self.starts_with("<<=") {
                     op!(3, TokenKind::LtLtEquals)
                 }
+                // ADR 0090 § 1: `!=` is the inequality operator, and `<>` is
+                // PHP's inherited second spelling of it. Recognised and then
+                // rejected for the reason `===` and `!==` are above — a
+                // spelling nobody names comes back as `Lt` followed by `Gt`,
+                // which is an error about `>` on a line that has no `>` in the
+                // sense the author meant. The token pushed is the one `<>`
+                // means, so the rest of the file reports its own problems in
+                // this run rather than in the next one.
                 if self.starts_with("<>") {
-                    op!(2, TokenKind::BangEquals)
+                    self.pos += 2;
+                    let span = self.mk_span(start, self.pos);
+                    diags.report(
+                        Diagnostic::error(
+                            code::E_ANGLE_NOT_EQUAL_UNSUPPORTED,
+                            "`<>` is not supported",
+                        )
+                        .with_primary(span, "Novis spells inequality one way")
+                        .with_help(
+                            "use `!=` — it is the same comparison, and `<>` is the second \
+                             spelling PHP inherited from its own predecessors",
+                        ),
+                    );
+                    self.push(TokenKind::BangEquals, span);
+                    return;
                 }
                 if self.starts_with("<<") {
                     op!(2, TokenKind::LtLt)
@@ -1854,7 +1876,10 @@ mod tests {
     #[test]
     fn operators_longest_match_wins() {
         assert_eq!(
-            kinds_ok("<?nvs <=> ??= ?-> **= <<= >>= <> ->"),
+            // `<>` was here until it became a rejected spelling; it is the one
+            // operator whose longest match reports, so it is asserted in
+            // `the_angle_inequality_spelling_is_a_compile_error` instead.
+            kinds_ok("<?nvs <=> ??= ?-> **= <<= >>= ->"),
             vec![
                 OpenTagNvs,
                 Spaceship,
@@ -1863,7 +1888,6 @@ mod tests {
                 StarStarEquals,
                 LtLtEquals,
                 GtGtEquals,
-                BangEquals,
                 Arrow,
                 Eof,
             ]
@@ -1904,6 +1928,42 @@ mod tests {
                 "recovery for {src:?}"
             );
         }
+    }
+
+    /// ADR 0090 § 1: `<>` is the third spelling a *lexical* rule refuses, and
+    /// like the other two it is consumed whole — two characters, one
+    /// diagnostic — so the tokens either side are the ones the author wrote
+    /// and no `Lt`/`Gt` pair reaches the parser to be reported about instead.
+    #[test]
+    fn the_angle_inequality_spelling_is_a_compile_error() {
+        let (kinds, diags) = kinds("<?nvs $a <> $b;");
+        assert!(
+            diags.iter().any(|d| {
+                d.code == Some(nvs_diagnostics::code::E_ANGLE_NOT_EQUAL_UNSUPPORTED)
+                    && d.message == "`<>` is not supported"
+            }),
+            "expected E_ANGLE_NOT_EQUAL_UNSUPPORTED, got {diags:?}"
+        );
+        assert_eq!(
+            kinds,
+            vec![OpenTagNvs, Variable, BangEquals, Variable, Semicolon, Eof,],
+            "recovery"
+        );
+    }
+
+    /// The prefixes `<>` shares its first character with keep their meanings:
+    /// a rejected spelling is recognised, never given a character it does not
+    /// own.
+    #[test]
+    fn the_other_angle_operators_are_untouched() {
+        assert_eq!(
+            kinds_ok("<?nvs $a <=> $b; $a << $b; $a <= $b; $a < $b;"),
+            vec![
+                OpenTagNvs, Variable, Spaceship, Variable, Semicolon, Variable, LtLt, Variable,
+                Semicolon, Variable, LtEquals, Variable, Semicolon, Variable, Lt, Variable,
+                Semicolon, Eof,
+            ]
+        );
     }
 
     #[test]

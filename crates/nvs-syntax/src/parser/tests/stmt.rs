@@ -154,6 +154,26 @@ fn a_for_init_clause_with_two_declarations_is_e0125() {
     assert!(init.decl().is_some());
 }
 
+/// A `try` guards something or it is not a `try`: either clause satisfies the
+/// rule, and the statement is still built either way so the rest of the file
+/// is parsed rather than abandoned at the keyword.
+#[test]
+fn a_try_without_a_clause_is_e0242() {
+    let (s, diags) = parse_stmt_with_diags("try { $a = 1; }");
+    let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+    assert_eq!(codes, vec![code::E_TRY_WITHOUT_CLAUSE], "{diags:?}");
+    assert!(matches!(s.kind, StmtKind::Try { .. }));
+
+    for src in [
+        "try { $a = 1; } catch (Throwable $e) { }",
+        "try { $a = 1; } finally { }",
+        "try { $a = 1; } catch (Throwable $e) { } finally { }",
+    ] {
+        let (_, diags) = parse_stmt_with_diags(src);
+        assert!(!diags.has_errors(), "for {src:?}: {diags:?}");
+    }
+}
+
 #[test]
 fn empty_statement_and_empty_for_body() {
     let s = parse_stmt_ok(";");

@@ -1,0 +1,19 @@
+--TEST--
+`<>` is refused as a second spelling of `!=`, at the lexer and by name — ADR 0090 § 1
+--FILE--
+<?nvs
+// The comparison itself is legitimate; only the spelling is not, so the
+// diagnostic names the operator rather than the operands. The lexer consumes
+// `<>` whole and pushes the token it means, which is why this file has one
+// error and not a second one about `>`.
+int $a = 1;
+int $b = 2;
+if ($a <> $b) {
+    echo "different\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0241]: `<>` is not supported
+%A
+error: aborting due to 1 error

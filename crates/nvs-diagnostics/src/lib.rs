@@ -197,10 +197,14 @@ pub mod code {
     // --- E02xx rejected PHP constructs -------------------------------------
     // Novis accepts PHP 8.5 syntax as a *pragmatic* superset. These constructs
     // are recognised — so the diagnostic can be precise and suggest a
-    // replacement — and are then rejected. Most parse first; the two that a
+    // replacement — and are then rejected. Most parse first; the three that a
     // *lexical* rule refuses (`E_RESERVED_SPELLING_CASE`,
-    // `E_IDENTITY_OPERATOR_UNSUPPORTED`) are named where they are recognised,
-    // which is the lexer. See docs/spec.
+    // `E_IDENTITY_OPERATOR_UNSUPPORTED`, `E_ANGLE_NOT_EQUAL_UNSUPPORTED`) are
+    // named where they are recognised, which is the lexer. A few are shapes
+    // PHP refuses as well and Novis accepted only by omission; they are in
+    // this band because the answer is the band's own — recognise the shape and
+    // name its rewrite — and because docs/adr/README.md § *Decisions taken at
+    // project start* places them here. See docs/spec.
     /// `eval()`: Novis compiles ahead of execution.
     pub const E_EVAL_UNSUPPORTED: Code = Code::new("E0201");
     /// `$$name` and `${$name}`: defeats name resolution and type inference.
@@ -391,6 +395,32 @@ pub mod code {
     /// two it accepts, which is what made the token mean three different
     /// things by position.
     pub const E_LEADING_BACKSLASH_UNSUPPORTED: Code = Code::new("E0240");
+    /// `<>` for inequality, PHP's inherited second spelling of `!=`.
+    /// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+    /// § 1 makes
+    /// `==` and `!=` the whole set, so this is the same decision
+    /// [`E_IDENTITY_OPERATOR_UNSUPPORTED`] reports and not a lexical accident;
+    /// it is separate from that code because the fix is a different edit and
+    /// the reason is spelling rather than semantics — `<>` means exactly what
+    /// `!=` means.
+    pub const E_ANGLE_NOT_EQUAL_UNSUPPORTED: Code = Code::new("E0241");
+    /// A `try` block with neither a `catch` clause nor a `finally` — `try { …
+    /// }` alone, which guards nothing and is the shape a deleted clause leaves
+    /// behind. PHP refuses it too; this parser accepted it only by omission.
+    /// See `docs/adr/README.md` § *Decisions taken at project start*.
+    pub const E_TRY_WITHOUT_CLAUSE: Code = Code::new("E0242");
+    /// The braced `namespace X { … }` form, and with it a file holding two
+    /// namespaces. [ADR 0112](../../../docs/adr/0112-authority-is-keyed-on-the-enclosing-namespace.md)
+    /// keys authority on the enclosing namespace, so a file that is two
+    /// namespaces is a file whose authority is a function of the line number.
+    /// The rewrite is one file per namespace, declared `namespace X;`.
+    pub const E_BRACED_NAMESPACE_UNSUPPORTED: Code = Code::new("E0243");
+    /// `new class { … }`: an anonymous class is a nested declaration in
+    /// expression position, with no name for the static class table to hold —
+    /// the same refusal a conditionally declared class gets, for the same
+    /// reason. The rewrite is a named class in the same file, or a closure
+    /// ([ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)).
+    pub const E_ANONYMOUS_CLASS_UNSUPPORTED: Code = Code::new("E0244");
 
     // --- E03xx name resolution ---------------------------------------------
     /// A variable read before anything was assigned to it.

@@ -1,0 +1,16 @@
+--TEST--
+A `try` with neither `catch` nor `finally` is refused, as it is in PHP — the block would be guarded by nothing
+--FILE--
+<?nvs
+// The shape a deleted clause leaves behind: the block still runs, nothing is
+// caught, and nothing runs on the way out, so the keyword claims a guard the
+// statement does not have.
+try {
+    echo "guarded\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0242]: a `try` needs a `catch` or a `finally`
+%A
+error: aborting due to 1 error

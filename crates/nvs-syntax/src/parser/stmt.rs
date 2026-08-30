@@ -653,6 +653,25 @@ impl<'src, 'd> Parser<'src, 'd> {
             .eat_keyword(Keyword::Finally)
             .map(|_| self.parse_block());
         let span = start.to(self.last_span);
+        // A `try` with neither clause guards nothing: the block runs, nothing
+        // is caught, and nothing runs on the way out. PHP refuses it as a
+        // parse error and so does this, at the keyword rather than at the
+        // block's end, because that is where the missing clause would be
+        // written. The statement is still built with both halves empty, so a
+        // file reports the rest of its problems in the same run.
+        if catches.is_empty() && finally.is_none() {
+            self.diags.report(
+                Diagnostic::error(
+                    code::E_TRY_WITHOUT_CLAUSE,
+                    "a `try` needs a `catch` or a `finally`",
+                )
+                .with_primary(start, "this block is guarded by nothing")
+                .with_help(
+                    "add `catch (Throwable $e) { … }` to handle what it throws, or \
+                     `finally { … }` to run on the way out either way",
+                ),
+            );
+        }
         Stmt {
             span,
             kind: StmtKind::Try {
