@@ -43,13 +43,30 @@
 //! body therefore does not run either, its one caller being the frame that is
 //! not called.)
 //!
+//! # Every test is its own isolate
+//!
+//! § 2's rule is [`run_in_isolate`]'s one call into `nvs_host::Isolate`: a
+//! test's body runs on a context of its own, over the *same* compiled unit, so
+//! a static one test wrote reads its declared initial value in the next and
+//! there is no flag to change it (ADR 0116 § 4's fresh statics base, armed by
+//! the `install_in` inside the child's own program). The isolate is per
+//! **test** and not per attempt, which is § 20's retry left usable:
+//! [`run_with_retries`] runs inside it.
+//!
+//! Two things cross that boundary and both are copies. § 8's fixtures are
+//! built **once per class** in this process's own context and copied into each
+//! test (`nvs_runtime::CrossedFixtures`), which is the whole of what § 8 asks
+//! for: the expensive setup runs once, and what a test can reach is its own
+//! graph. The verdict crosses the other way as data — [`Outcome`] is decided
+//! on the child's stack, off the child's own ledger, and filed into a cell the
+//! child's program captured, because ADR 0006's `Completion` carries a value,
+//! bytes and a failure and none of those is a ledger.
+//!
 //! # What is owed
 //!
-//! § 2's isolate-per-test and parallelism are M5, so this runs every test in
-//! one process on one `Ctx` — which is also what a retry re-enters, class
-//! storage surviving between attempts where an isolate would not, and which is
-//! also why § 8's fixture is *shared* rather than copied into each test
-//! (`nvs_runtime::Fixtures`). A constructor that declares parameters is
+//! § 2's parallelism is not built: the isolates are made and joined one at a
+//! time, which is a scheduling question rather than an isolation one. A
+//! constructor that declares parameters is
 //! reported as that test failing rather than pretended past
 //! (`nvs_runtime::construct_and_call`): § 7 makes the constructor `setUp` and
 //! §§ 8-9 fill the test method's own parameters, which [`build_fixtures`]
@@ -59,7 +76,9 @@
 //! program's files is a fact only that table can grow. Within a class the
 //! order *is* declaration order, which is what a reader of one file sees.
 
+use std::cell::RefCell;
 use std::process::ExitCode;
+use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use nvs_types::defaults::ConstArg;
@@ -167,15 +186,7 @@ struct Case {
 /// Compiles `checked` and runs every `#[Test]` it declares, reporting in
 /// `format`.
 pub(crate) fn run(checked: &crate::Checked, format: Format) -> ExitCode {
-    let program = nvs_ir::lower::lower_program(
-        crate::SCRIPT,
-        &checked.program_files(),
-        &checked.exprs,
-        &checked.interner,
-        &checked.enums,
-        &checked.layouts,
-    );
-    let unit = match nvs_codegen::compile(&program) {
+    let unit = match compile(checked) {
         Ok(unit) => unit,
         Err(error) => {
             eprintln!("error: {error}");
@@ -191,10 +202,86 @@ pub(crate) fn run(checked: &crate::Checked, format: Format) -> ExitCode {
     };
     unit.install_in(&mut ctx);
 
+    let started = Instant::now();
+    let suite = run_suite(&unit, &mut ctx, checked, format);
+    let Suite {
+        cases,
+        counts,
+        exited,
+    } = suite;
+    // Flushed before the summary: a test's own `echo` is buffered on the
+    // context, and printing the counts over the top of it would report a run
+    // whose output had not been written yet.
+    if let Err(error) = ctx.flush_output() {
+        eprintln!("error: could not flush output: {error}");
+        return ExitCode::FAILURE;
+    }
+    match format {
+        Format::Human => println!(
+            "\n  {} failed, {} passed, {} skipped, {} flaky in {:.0} ms",
+            counts.failed,
+            counts.passed,
+            counts.skipped,
+            counts.flaky,
+            started.elapsed().as_secs_f64() * 1000.0
+        ),
+        Format::Json => print!("{}", json_document(&cases, counts, started.elapsed())),
+        Format::Junit => print!("{}", junit_document(&cases, counts, started.elapsed())),
+    }
+
+    if let Some(code) = exited {
+        // `exit(n)` ended the program the way `nvs run` reports one, and the
+        // suite is over whatever the counts say.
+        return ExitCode::from(u8::try_from(code & 0xFF).unwrap_or(0));
+    }
+    if counts.failed == 0 {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    }
+}
+
+/// Lowers and compiles `checked` into the **one** unit every test isolate of
+/// this run shares — ADR 0079 § 2's "shares compiled code with its siblings"
+/// is this `Rc` and the program closure each child holds a clone of.
+///
+/// `Err` is the message to render; a compile that fails ends the run rather
+/// than any one test.
+fn compile(checked: &crate::Checked) -> Result<Rc<nvs_codegen::Unit>, String> {
+    let program = nvs_ir::lower::lower_program(
+        crate::SCRIPT,
+        &checked.program_files(),
+        &checked.exprs,
+        &checked.interner,
+        &checked.enums,
+        &checked.layouts,
+    );
+    nvs_codegen::compile(&program)
+        .map(Rc::new)
+        .map_err(|error| error.to_string())
+}
+
+/// A whole run's verdict, before any of § 22's three renderings has been
+/// chosen — which is also the shape this module's own tests read, a rendering
+/// being the one thing they are not about.
+struct Suite {
+    cases: Vec<Case>,
+    counts: Counts,
+    /// The code an `exit(n)` in a test or a fixture ended the run with.
+    exited: Option<i64>,
+}
+
+/// Runs every `#[Test]` `checked` declares, in § 20's order, reporting each as
+/// it arrives under [`Format::Human`] and only collecting under the other two.
+fn run_suite(
+    unit: &Rc<nvs_codegen::Unit>,
+    ctx: &mut nvs_runtime::Ctx,
+    checked: &crate::Checked,
+    format: Format,
+) -> Suite {
     let (mut passed, mut failed, mut skipped, mut flaky) = (0_usize, 0_usize, 0_usize, 0_usize);
     let mut exited = None;
     let mut cases = Vec::new();
-    let started = Instant::now();
     for class in checked.exprs.test_classes() {
         if format == Format::Human {
             println!("  {class}");
@@ -204,7 +291,7 @@ pub(crate) fn run(checked: &crate::Checked, format: Format) -> ExitCode {
         // built before its first test and dropped after its last, so a fixture
         // is not rebuilt per test and not kept past the class that declared it.
         let mut fixtures = nvs_runtime::Fixtures::new();
-        let unbuilt = build_fixtures(&unit, &mut ctx, class, checked, tests, &mut fixtures);
+        let unbuilt = build_fixtures(unit, ctx, class, checked, tests, &mut fixtures);
         for call in tests.iter().flat_map(invocations) {
             let (case, label, row) = (call.case, call.label, call.row);
             let began = Instant::now();
@@ -217,7 +304,7 @@ pub(crate) fn run(checked: &crate::Checked, format: Format) -> ExitCode {
                 Some(FixtureFailure::Threw(message)) if !fixtures_needed(case).is_empty() => {
                     Outcome::Failed(vec![message.clone()])
                 }
-                _ => run_with_retries(&unit, &mut ctx, class, case, row, &fixtures),
+                _ => run_in_isolate(unit, ctx, class, case, row, &fixtures),
             };
             let elapsed = began.elapsed();
             match &outcome {
@@ -246,37 +333,15 @@ pub(crate) fn run(checked: &crate::Checked, format: Format) -> ExitCode {
             break;
         }
     }
-    // Flushed before the summary: a test's own `echo` is buffered on the
-    // context, and printing the counts over the top of it would report a run
-    // whose output had not been written yet.
-    if let Err(error) = ctx.flush_output() {
-        eprintln!("error: could not flush output: {error}");
-        return ExitCode::FAILURE;
-    }
-    let counts = Counts {
-        passed,
-        failed,
-        skipped,
-        flaky,
-    };
-    match format {
-        Format::Human => println!(
-            "\n  {failed} failed, {passed} passed, {skipped} skipped, {flaky} flaky in {:.0} ms",
-            started.elapsed().as_secs_f64() * 1000.0
-        ),
-        Format::Json => print!("{}", json_document(&cases, counts, started.elapsed())),
-        Format::Junit => print!("{}", junit_document(&cases, counts, started.elapsed())),
-    }
-
-    if let Some(code) = exited {
-        // `exit(n)` ended the program the way `nvs run` reports one, and the
-        // suite is over whatever the counts say.
-        return ExitCode::from(u8::try_from(code & 0xFF).unwrap_or(0));
-    }
-    if failed == 0 {
-        ExitCode::SUCCESS
-    } else {
-        ExitCode::FAILURE
+    Suite {
+        cases,
+        counts: Counts {
+            passed,
+            failed,
+            skipped,
+            flaky,
+        },
+        exited,
     }
 }
 
@@ -295,26 +360,32 @@ pub(crate) fn run(checked: &crate::Checked, format: Format) -> ExitCode {
 /// second attempt could improve on. Each attempt is a fresh instance with the
 /// ledger and any pending exception taken between them ([`run_case`] takes
 /// both on every path), which is what keeps one attempt's failures from being
-/// reported against the next; what does *not* reset is class storage, an
-/// isolate per test being § 2's and waiting on M5.
+/// reported against the next.
+///
+/// **Every attempt is inside the one isolate**, which is why this loop runs on
+/// the child's stack rather than around it. § 2 gives an isolate to a *test*,
+/// and the attempts are that test: a retry that could not see what the attempt
+/// before it wrote to class storage would make the whole option unusable for
+/// the thing it exists for — a test that succeeds on a second try because the
+/// first left something behind.
 ///
 /// **A flaky test does not fail the run.** Its exit code is the passing one,
 /// because retries exist precisely so that a suite can pass in spite of one —
 /// what § 20 takes away is the *silence*, not the green build.
 fn run_with_retries(
-    unit: &nvs_codegen::Unit,
+    unit: &Rc<nvs_codegen::Unit>,
     ctx: &mut nvs_runtime::Ctx,
     class: &str,
-    case: &nvs_types::testing::TestCase,
-    row: Option<&[Option<ConstArg>]>,
-    fixtures: &nvs_runtime::Fixtures,
+    method: &str,
+    args: &[nvs_runtime::Value],
+    allowance: usize,
 ) -> Outcome {
-    let mut failures = match run_case(unit, ctx, class, case, row, fixtures) {
+    let mut failures = match run_case(unit, ctx, class, method, args) {
         Outcome::Failed(failures) => failures,
         settled => return settled,
     };
-    for retry in 0..retry_allowance(case) {
-        match run_case(unit, ctx, class, case, row, fixtures) {
+    for retry in 0..allowance {
+        match run_case(unit, ctx, class, method, args) {
             Outcome::Passed => {
                 return Outcome::Flaky {
                     attempts: retry + 2,
@@ -444,8 +515,15 @@ fn retry_allowance(case: &nvs_types::testing::TestCase) -> usize {
 /// thing consulted rather than the first, and it only ever answers for a test
 /// whose ledger is clean — an exception raised by the code under test rather
 /// than by an assertion about it.
-fn run_case(
-    unit: &nvs_codegen::Unit,
+///
+/// **The instance is constructed inside the isolate, not before it.** § 2's
+/// boundary is around the whole test, so everything the test can observe —
+/// its receiver, its statics, its ledger, its `echo` — is built on the child's
+/// own context and released with it. What this function does on the parent's
+/// side is only what has to happen before the child exists: § 9's row, § 8's
+/// copies, and the closure the two are moved into.
+fn run_in_isolate(
+    unit: &Rc<nvs_codegen::Unit>,
     ctx: &mut nvs_runtime::Ctx,
     class: &str,
     case: &nvs_types::testing::TestCase,
@@ -458,25 +536,41 @@ fn run_case(
     // §§ 8-9's injection: one value per declared parameter, in the order the
     // checker resolved them (`nvs_types::testing::TestCase::params`), so
     // nothing here re-derives which fixture answers which parameter or which
-    // field answered which name. A fixture's value is borrowed from the set
-    // that owns it and a row's from the one materialized just below — the call
-    // retains its own either way, exactly as any other call on a value this
-    // frame holds does.
+    // field answered which name. A fixture's value is this test's own copy and
+    // a row's is materialized just below — the call retains its own either
+    // way, exactly as any other call on a value this frame holds does.
     let needed: Vec<String> = fixtures_needed(case)
         .into_iter()
         .map(str::to_owned)
         .collect();
-    let Some(built) = fixtures.values(&needed) else {
-        return Outcome::Failed(vec![format!(
-            "internal error: `{class}::{}` asks for a `#[Fixture]` that was not built",
-            case.method
-        )]);
+    // § 8's crossing, made here and not in the child: the source is the
+    // parent's set and the walk consumes a reference to each of its values, so
+    // it runs where that set is (`nvs_runtime::CrossedFixtures`).
+    let crossed = match nvs_runtime::CrossedFixtures::copy(fixtures, &needed) {
+        Some(Ok(crossed)) => crossed,
+        // A fixture the parent built that has no meaning inside an isolate —
+        // a closure, an object over a host handle. It is reported against the
+        // test that asked for it, which is where the name in the message
+        // means something, and nothing has run.
+        Some(Err(refused)) => {
+            return Outcome::Failed(vec![format!(
+                "`{class}::{}` asks for a `#[Fixture]` that cannot cross into its isolate: \
+                 {refused}",
+                case.method
+            )]);
+        }
+        None => {
+            return Outcome::Failed(vec![format!(
+                "internal error: `{class}::{}` asks for a `#[Fixture]` that was not built",
+                case.method
+            )]);
+        }
     };
     // Dropped when this call is over and not before: it holds the one
     // reference each materialized value carries, and the call only borrows
     // them (`nvs_runtime::RowValues`).
     let mut materialized = nvs_runtime::RowValues::new();
-    let mut built = built.into_iter();
+    let mut built = crossed.values().iter().copied();
     let mut args = Vec::with_capacity(case.params.len());
     for (position, source) in case.params.iter().enumerate() {
         let value = match source {
@@ -498,7 +592,88 @@ fn run_case(
         };
         args.push(value);
     }
-    let Some(outcome) = unit.call_on_new_instance(ctx, class, &case.method, &args) else {
+    // The verdict is decided on the child's own stack and filed into a cell
+    // its program captured, because a `Completion` carries a value, bytes and
+    // a failure and none of those is § 5's ledger. Nothing about that cell
+    // crosses the heap boundary: an [`Outcome`] is `String`s the runner owns,
+    // built while the child's context is still alive and read after it is
+    // gone.
+    let filed: Rc<RefCell<Option<Outcome>>> = Rc::new(RefCell::new(None));
+    let verdict = Rc::clone(&filed);
+    let allowance = retry_allowance(case);
+    let child_unit = Rc::clone(unit);
+    let class_name = class.to_owned();
+    let method = case.method.clone();
+    let program: nvs_runtime::script::Program = Box::new(move |child, argument| {
+        // ADR 0116 § 4's fresh statics base, armed with *this* unit's tables:
+        // the isolate's context deliberately arrives with none, so this call
+        // is the whole of why one test does not read back another's static.
+        child_unit.install_in(child);
+        // Null here, and discharged anyway: the seam's contract is that
+        // whatever crossed becomes the isolate's own root's, and a test's
+        // values crossed as § 8's copies instead.
+        child.set_isolate_argument(argument);
+        // Both owners go down with the isolate, after the call that borrowed
+        // their values has returned.
+        let (_crossed, _materialized) = (crossed, materialized);
+        *verdict.borrow_mut() = Some(run_with_retries(
+            &child_unit,
+            child,
+            &class_name,
+            &method,
+            &args,
+            allowance,
+        ));
+        nvs_runtime::Value::null()
+    });
+    // `Output::Inherit`: what a test echoed is appended to the runner's own
+    // stream at the join, which is where the ordering against the run's own
+    // report is a fact rather than a race (`nvs_runtime::host::Output`).
+    let completion = match nvs_host::Isolate::new(
+        program,
+        nvs_runtime::Value::null(),
+        nvs_host::Output::Inherit,
+    )
+    .run(ctx)
+    {
+        Ok(completion) => completion,
+        // Not reachable: the only `Err` this boundary has is about the
+        // argument, and the argument is `null`. Reported rather than
+        // unwrapped, because a panic in the runner is the one thing a program
+        // under test may not be able to cause.
+        Err(refused) => {
+            return Outcome::Failed(vec![format!(
+                "internal error: the test's isolate refused its argument: {refused}"
+            )]);
+        }
+    };
+    let taken = filed.borrow_mut().take();
+    taken.unwrap_or_else(|| {
+        // The child never reached its own verdict — it was cancelled, or a
+        // panic inside it was contained (`nvs_host::isolate`'s module doc), so
+        // what the boundary carries is all there is to report.
+        Outcome::Failed(vec![completion.error.map_or_else(
+            || "the test's isolate ended without reaching a verdict".to_owned(),
+            |failure| format!("{}: {}", failure.class, failure.message),
+        )])
+    })
+}
+
+/// One attempt at one test: a fresh instance of `class`, its `method` called
+/// on that instance with `args`, and § 5's verdict read off the ledger.
+///
+/// **Every line of it runs on the isolate's own stack** — the instance, the
+/// ledger and the pending exception are all the child's, and reading any of
+/// them after that context's wholesale release would be reading a context that
+/// is gone. [`run_in_isolate`] is the half that runs before the child exists.
+fn run_case(
+    unit: &Rc<nvs_codegen::Unit>,
+    ctx: &mut nvs_runtime::Ctx,
+    class: &str,
+    method: &str,
+    args: &[nvs_runtime::Value],
+) -> Outcome {
+    let Some(outcome) = unit.call_on_new_instance(ctx, class, method, args) else {
         return Outcome::Failed(vec![format!(
             "internal error: the compiled unit declares no class `{class}`"
         )]);
@@ -885,5 +1060,79 @@ fn xml_text(text: &str, out: &mut String) {
             ch if (ch as u32) < 0x20 => out.push('\u{fffd}'),
             ch => out.push(ch),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Format, Outcome, compile, run_suite};
+
+    /// A program under `tests/fixtures/runner/`, which `cargo test` does not
+    /// run in — hence the manifest directory.
+    fn fixture(name: &str) -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests")
+            .join("fixtures")
+            .join("runner")
+            .join(name)
+    }
+
+    /// Runs one fixture's whole suite and answers with a `(method, verdict)`
+    /// pair per reported case, plus whatever failed.
+    ///
+    /// [`Format::Json`] rather than the plaintext one because a test of the
+    /// runner is not a test of a rendering: it collects rather than printing
+    /// as it goes, and the program's own `echo` lands in a buffer nothing
+    /// reads.
+    fn verdicts(name: &str) -> Vec<(String, &'static str, Vec<String>)> {
+        let checked = crate::front_end(&fixture(name)).expect("the fixture is a program");
+        let unit = compile(&checked).expect("the fixture compiles");
+        let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Buffer(Vec::new()));
+        unit.install_in(&mut ctx);
+        let suite = run_suite(&unit, &mut ctx, &checked, Format::Json);
+        assert_eq!(
+            std::rc::Rc::strong_count(&unit),
+            1,
+            "every isolate's program is dropped with it, so the code it shared \
+             is left with one owner"
+        );
+        suite
+            .cases
+            .into_iter()
+            .map(|case| {
+                let failures = match &case.outcome {
+                    Outcome::Failed(failures) => failures.clone(),
+                    _ => Vec::new(),
+                };
+                (case.method, case.outcome.verdict(), failures)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn each_test_runs_in_its_own_isolate_sharing_only_compiled_code() {
+        // ADR 0079 § 2 and ADR 0116 § 4: the two tests share the one compiled
+        // unit and nothing else, so the second reads its static's *declared*
+        // initial value however hard the first wrote to it. Asserted as a
+        // verdict rather than as a number, because the fixture's own
+        // assertions are what a failing runner would report — and the failure
+        // messages come back with it, so a broken boundary says which side it
+        // broke on.
+        let verdicts = verdicts("statics-are-fresh.nvs");
+        assert_eq!(
+            verdicts
+                .iter()
+                .map(|(method, verdict, _)| (method.as_str(), *verdict))
+                .collect::<Vec<_>>(),
+            vec![
+                ("itWritesAStaticItsSiblingWillNotSee", "passed"),
+                ("itReadsBackTheDeclaredInitialValue", "passed"),
+            ],
+            "failures: {:?}",
+            verdicts
+                .iter()
+                .flat_map(|(_, _, failures)| failures.clone())
+                .collect::<Vec<_>>()
+        );
     }
 }

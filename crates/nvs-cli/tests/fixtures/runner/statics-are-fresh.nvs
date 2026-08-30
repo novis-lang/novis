@@ -1,0 +1,24 @@
+<?nvs
+// ADR 0079 § 2, from the language surface: a static one test writes reads its
+// declared initial value in the next, with no flag to change it. The two tests
+// are declared in the order they have to run in — within a class the order is
+// declaration order — so the second one is asking the question the first one
+// has already answered wrongly if the runner ever shared a context.
+//
+// `crates/nvs-cli/src/runner.rs`'s own tests are the only reader of this file.
+use Core\Test;
+
+final class StaticsTest {
+    public static int $counter = 0;
+
+    #[Test]
+    public function itWritesAStaticItsSiblingWillNotSee(): void {
+        StaticsTest::$counter = StaticsTest::$counter + 7;
+        Test::assertSame(StaticsTest::$counter, 7);
+    }
+
+    #[Test]
+    public function itReadsBackTheDeclaredInitialValue(): void {
+        Test::assertSame(StaticsTest::$counter, 0);
+    }
+}

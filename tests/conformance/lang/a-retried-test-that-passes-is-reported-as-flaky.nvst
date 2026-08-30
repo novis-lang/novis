@@ -5,10 +5,12 @@ test
 --FILE--
 <?nvs
 // § 20: retries exist and are reported as flaky, never as green. How many
-// times a body was entered is observable only in class storage — § 2's
-// isolate per test is M5, so a `static` property survives between attempts —
-// and `TallyTest` below is where those counts are asserted, the roster's
-// sorted order putting it after the class it counts.
+// times a body was entered is observable in class storage, because § 2 gives
+// the isolate to a *test* and its attempts run inside it — so each test below
+// counts its own entries and no other test can read that count. A test's own
+// last attempt, or the `$actual` its failure message quotes, is therefore the
+// whole of the evidence: there is no tallying class, and under § 2 there
+// cannot be one.
 use Core\Test;
 
 final class RetryTest {
@@ -52,23 +54,11 @@ final class RetryTest {
     }
 
     // § 20: a skip never ran, so there is nothing for a second attempt to
-    // improve on — the counter below stays at 0.
+    // improve on. The body asserts nothing, so a skip that had been ignored
+    // would report § 20's empty-ledger failure here rather than the `-` mark.
     #[Test(skip: "skipped rather than retried", retries: 2, because: "the skip is what decides")]
     public function itIsSkippedRatherThanRetried(): void {
         RetryTest::$skippedRuns = RetryTest::$skippedRuns + 1;
-    }
-}
-
-final class TallyTest {
-    // The agreement the marks above cannot assert: how often each body was
-    // actually entered, counted rather than read off a verdict.
-    #[Test]
-    public function eachBodyRanAsOftenAsItsAllowanceAllowed(): void {
-        Test::assertSame(RetryTest::$flakyRuns, 2);
-        Test::assertSame(RetryTest::$stubbornRuns, 3);
-        Test::assertSame(RetryTest::$steadyRuns, 1);
-        Test::assertSame(RetryTest::$unretriedRuns, 1);
-        Test::assertSame(RetryTest::$skippedRuns, 0);
     }
 }
 --EXPECTF--
@@ -83,8 +73,6 @@ final class TallyTest {
       Core\Test::assertSame failed: `$actual` is 1, `$expected` is 99
     - itIsSkippedRatherThanRetried     %f ms
       skipped: skipped rather than retried
-  TallyTest
-    ✓ eachBodyRanAsOftenAsItsAllowanceAllowed %f ms
 
-  2 failed, 2 passed, 1 skipped, 1 flaky in %d ms
+  2 failed, 1 passed, 1 skipped, 1 flaky in %d ms
 --EXPECTF-ERROR--

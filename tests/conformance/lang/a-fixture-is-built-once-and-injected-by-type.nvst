@@ -8,29 +8,45 @@ test
 // injected into each test that declares a parameter of its type — resolution
 // is by type, settled while compiling. So this case is the runner's own report
 // (`--RUN--` above), a fixture's value being observable nowhere else.
+//
+// § 2 is why every count below is *stamped into the value* rather than read
+// out of a `static` inside a test: the fixture bodies run in the parent and
+// each test runs in an isolate of its own, so a counter a body incremented is
+// not something a test can see. What crosses is the fixture's own graph, so
+// what a body knew when it ran travels in a field of what it returned.
 use Core\Test;
 use Core\Test\Fixture;
 
 final class Schema {
     public string $name;
+    // Which build of a `Schema` this one was, across the whole run.
+    public int $build;
+    // How many `Cache` fixtures had been built when this one was.
+    public int $caches;
 
-    public function constructor(string $name): void {
+    public function constructor(string $name, int $build, int $caches): void {
         $this->name = $name;
+        $this->build = $build;
+        $this->caches = $caches;
     }
 }
 
 final class Repo {
     public string $tag;
+    // Which build of a `Repo` this one was, across the whole run.
+    public int $build;
 
-    public function constructor(Schema $schema): void {
+    public function constructor(Schema $schema, int $build): void {
         $this->tag = "repo of " . $schema->name;
+        $this->build = $build;
     }
 }
 
 final class Cache {}
 
-// How many times each fixture body was entered — the one thing a test cannot
-// read off a value it was handed, and the whole of "built **once**".
+// How many times each fixture body was entered. Every one of these is read and
+// written in the *parent*, where the bodies run; a test reads the number off
+// the value it was handed instead.
 final class Ledger {
     public static int $schemas = 0;
     public static int $repos = 0;
@@ -45,7 +61,7 @@ final class OtherTest {
     #[Fixture]
     public static function schema(): Schema {
         Ledger::$schemas = Ledger::$schemas + 1;
-        return new Schema("orders");
+        return new Schema("orders", Ledger::$schemas, Ledger::$caches);
     }
 
     // Nothing that runs asks for a `Cache`, which is what the count below is
@@ -56,23 +72,26 @@ final class OtherTest {
         return new Cache();
     }
 
-    #[Test]
-    public function itIsHandedItsOwnClassesFixture(Schema $schema): void {
-        Test::assertSame($schema->name, "orders");
-    }
-
     // § 20's `skip:` never constructs the test, so the fixture it alone asks
     // for is never built — setup for a test the author asked to skip is work
-    // nobody wanted.
+    // nobody wanted. It is declared **first** so that the stamp two tests down
+    // is evidence: a skip that had been ignored would build this class's
+    // `Cache` ahead of its `Schema`, and that `Schema` would carry a `caches`
+    // of 1.
     #[Test(skip: "the only test asking for a `Cache`")]
     public function itIsSkippedAndItsFixtureWithIt(Cache $cache): void {
         Test::assertSame(1, 2);
     }
 
     #[Test]
-    public function aSkippedTestsFixtureIsNotBuilt(): void {
-        Test::assertSame(Ledger::$caches, 0);
-        Test::assertSame(Ledger::$schemas, 1);
+    public function itIsHandedItsOwnClassesFixture(Schema $schema): void {
+        Test::assertSame($schema->name, "orders");
+    }
+
+    #[Test]
+    public function aSkippedTestsFixtureIsNotBuilt(Schema $schema): void {
+        Test::assertSame($schema->caches, 0);
+        Test::assertSame($schema->build, 1);
     }
 }
 
@@ -81,7 +100,7 @@ final class RepoTest {
     #[Fixture]
     public static function schema(): Schema {
         Ledger::$schemas = Ledger::$schemas + 1;
-        return new Schema("users");
+        return new Schema("users", Ledger::$schemas, Ledger::$caches);
     }
 
     // § 8's last sentence: a fixture may itself declare fixture parameters,
@@ -90,12 +109,13 @@ final class RepoTest {
     #[Fixture]
     public static function repo(Schema $schema): Repo {
         Ledger::$repos = Ledger::$repos + 1;
-        return new Repo($schema);
+        return new Repo($schema, Ledger::$repos);
     }
 
     #[Test]
     public function itIsHandedWhatItsTypeNames(Schema $schema): void {
         Test::assertSame($schema->name, "users");
+        Test::assertSame($schema->build, 2);
     }
 
     // Two parameters, resolved independently and passed in written order —
@@ -104,6 +124,7 @@ final class RepoTest {
     public function itIsHandedEachInOrder(Repo $repo, Schema $schema): void {
         Test::assertSame($repo->tag, "repo of users");
         Test::assertSame($schema->name, "users");
+        Test::assertSame($schema->build, 2);
     }
 
     // A test that declares no parameter is untouched by any of it.
@@ -112,21 +133,23 @@ final class RepoTest {
         Test::assertSame(1, 1);
     }
 
-    // The counts, asserted rather than read off a line: three tests above
-    // reached the same two values, so a fixture rebuilt per test would fail
-    // here while every line above still passed. `$schemas` is two because each
-    // class built its own — one roster per class, one build per roster.
+    // The counts, asserted as an invariant across the sweep rather than read
+    // off one line: every test of this class that asks for a `Schema` is handed
+    // the **second** build in the run, so a fixture rebuilt per test would fail
+    // here and two lines above while every other line still passed. Two rather
+    // than one because each class built its own — one roster per class, one
+    // build per roster.
     #[Test]
-    public function itWasBuiltOnceForItsClass(): void {
-        Test::assertSame(Ledger::$schemas, 2);
-        Test::assertSame(Ledger::$repos, 1);
+    public function itWasBuiltOnceForItsClass(Repo $repo, Schema $schema): void {
+        Test::assertSame($schema->build, 2);
+        Test::assertSame($repo->build, 1);
     }
 }
 --EXPECTF--
   OtherTest
-    ✓ itIsHandedItsOwnClassesFixture   %f ms
     - itIsSkippedAndItsFixtureWithIt   %f ms
       skipped: the only test asking for a `Cache`
+    ✓ itIsHandedItsOwnClassesFixture   %f ms
     ✓ aSkippedTestsFixtureIsNotBuilt   %f ms
   RepoTest
     ✓ itIsHandedWhatItsTypeNames       %f ms
