@@ -1,0 +1,38 @@
+--TEST--
+`Core\Fatal::onLimit` registers a handler, replaces it when called again, and runs neither — ADR 0020 § 1
+--FILE--
+<?nvs
+// ADR 0020 § 1's tier 1 is a *registration*, and the thing worth pinning about
+// a registration is the boundary it does not cross: nothing about handing the
+// closure over is allowed to call it. A ladder that ran the handler eagerly —
+// or one that ran it to "check" it, which is the shape zero retries exists to
+// forbid — prints a line here that the expectation does not have. That is the
+// edge this case asks about; what a breach then does with the handler is the
+// slice that reaches it.
+Core\Fatal::onLimit(fn (): void => {
+    echo "first ran\n";
+});
+echo "registered\n";
+
+// § 1 gives the tier one handler and not a chain, so a second registration
+// replaces the first rather than queueing behind it — asserted here by the
+// same silence, because a queue and a replacement are only told apart when the
+// ladder fires and neither may fire now.
+Core\Fatal::onLimit(fn (): void => {
+    echo "second ran\n";
+});
+echo "replaced\n";
+
+// A handler is a closure like any other, so registering one neither consumes it
+// nor makes it unusable: the value stays a `callable` the program still holds.
+// Calling it directly is a plain call, and it is the one place this case may
+// print from the closure at all.
+var $handler = fn (): void => { echo "called directly\n"; };
+Core\Fatal::onLimit($handler);
+$handler();
+echo "done\n";
+--EXPECT--
+registered
+replaced
+called directly
+done

@@ -1,0 +1,34 @@
+--TEST--
+`Core\Fatal::onLimit` registered a thousand times holds one handler, and the thousand it replaced are released — ADR 0020 § 1
+--FILE--
+<?nvs
+// § 1 gives the tier *one* handler, and the consequence that is measurable
+// before anything fires is a memory one: each registration replaces the last,
+// so the reference the context dropped has to go with it. A registration that
+// only ever retained — the easy half of `Ctx::set_limit_handler` to write —
+// leaks one closure per call and passes every case that counts what ran.
+//
+// Asserted by counting rather than read off a line: the loop registers a fresh
+// capturing closure each turn under a ceiling far below what a thousand leaked
+// ones would hold, so a tree that leaks them does not print a wrong number, it
+// dies at ADR 0020 § 1's `FATAL` partway through.
+int $registered = 0;
+while ($registered < 1000) {
+    var $slab = Core\Str::repeat("x", 16384);
+    Core\Fatal::onLimit(fn (): void => { echo Core\Str::length($slab), "\n"; });
+    $registered++;
+}
+echo "registered=", $registered, "\n";
+
+// Still exactly one handler in force, and still not run: the thousand closures
+// above captured a 16 KiB string each and none of them printed it.
+Core\Fatal::onLimit(fn (): void => { echo "the last one\n"; });
+echo "done\n";
+--FILE nvs.toml--
+# Comfortably above what one request needs and far below the ~16 MiB a thousand
+# leaked captures would hold. ADR 0064 § 5 is the unit.
+[limits]
+memory = "8M"
+--EXPECT--
+registered=1000
+done

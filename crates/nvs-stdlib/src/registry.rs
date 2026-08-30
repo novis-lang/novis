@@ -1061,6 +1061,11 @@ pub const CLASSES: &[CoreClass] = &[
     // format's ADR rather than by the library spec. [`crate::config`] owns why
     // every member of it is four lines long.
     crate::config::CLASS,
+    // ADR 0020 § 1, and no spec § of its own: the escalation ladder's ADR is
+    // where this member is specified, because what it registers is a rung of
+    // that ladder rather than a library facility. [`crate::fatal`] owns why the
+    // closure is held by the request's context and not by the module.
+    crate::fatal::CLASS,
 ];
 
 /// Every `Core` member that needs a capability, and which one —

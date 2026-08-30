@@ -306,6 +306,25 @@ pub struct Ctx {
     /// [`Self::refresh_limits`] after `Core\Config::set` or `::restore` moves
     /// the overlay — and read as a bare integer everywhere else.
     memory_limit: usize,
+    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's
+    /// tier-1 handler: the closure `Core\Fatal::onLimit` registered, owned, or
+    /// `null` for a request that registered none.
+    ///
+    /// **Here, beside the ceiling, because this is where the breach is asked.**
+    /// § 1 makes the registration request-local and puts it next to the pending
+    /// slot for the reason this field is a field at all: it dies with the
+    /// request, exactly as [ADR 0008](../../../docs/adr/0008-static-and-global.md)
+    /// and [ADR 0012](../../../docs/adr/0012-no-superglobals.md) require of
+    /// everything a request holds, so there is no process-wide table for a
+    /// second request to inherit one from.
+    ///
+    /// Cold: nothing loads it inline, and only the slow path that has already
+    /// decided a limit was breached reads it.
+    ///
+    /// **What it spends:** two words per request, and one reference to the
+    /// closure for a request that registers one — O(in-flight requests), per
+    /// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md).
+    limit_handler: Value,
     /// What is behind a pending `THROWN` or `FATAL` status — see [`Pending`]
     /// for why one field carries both shapes rather than two sitting beside
     /// each other.
@@ -741,6 +760,9 @@ impl Drop for Ctx {
         // An isolate's argument is one of its roots and is released with them
         // — `Ctx::set_isolate_argument` owns why it is held here at all.
         self.set_isolate_argument(Value::null());
+        // ADR 0020 § 1's handler is request-local, so the request ending is
+        // what unregisters it — see `Ctx::set_limit_handler`.
+        self.set_limit_handler(Value::null());
     }
 }
 
@@ -811,6 +833,7 @@ impl Ctx {
             exit_code: 0,
             memory_base: crate::budget::live_bytes(),
             memory_limit: 0,
+            limit_handler: Value::null(),
             pending: None,
             runtime_error_class: None,
             output,
@@ -928,6 +951,57 @@ impl Ctx {
     #[must_use]
     pub fn over_memory_limit(&self) -> bool {
         self.memory_limit != 0 && self.memory_used() > self.memory_limit
+    }
+
+    /// Takes ownership of the closure `Core\Fatal::onLimit` registered —
+    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's
+    /// tier 1.
+    ///
+    /// **Last registration wins, and there is no unregister but the request
+    /// ending.** § 1 gives the tier one handler, not a chain: a ladder whose
+    /// first rung ran an unbounded list of handlers out of one reserved slice
+    /// would have to decide what a second handler sees after the first
+    /// exhausted it, and "zero retries" is that section's answer to every such
+    /// question. So a second call releases the first closure here, which is
+    /// also what makes this the one place with both the reference and the
+    /// request's lifetime in hand.
+    ///
+    /// The caller passes an **owned** reference; every `Core` helper's
+    /// arguments are borrowed from the call frame, so the one in
+    /// `nvs_stdlib::fatal` retains before it calls this.
+    #[expect(
+        unsafe_code,
+        reason = "this context owned the reference it is replacing, having \
+                  been handed it by exactly one earlier call"
+    )]
+    pub fn set_limit_handler(&mut self, handler: Value) {
+        let previous = std::mem::replace(&mut self.limit_handler, handler);
+        // SAFETY: `limit_handler` holds one owned reference or null, and
+        // nothing else points at it — the field is private and handed out only
+        // by the borrowing accessor below.
+        unsafe { previous.release() };
+    }
+
+    /// The registered handler, **borrowed** — `null` when nothing registered
+    /// one, which is every request that never called `Core\Fatal::onLimit`.
+    ///
+    /// No reference is handed over, exactly as [`Self::isolate_argument`] hands
+    /// none over. The ladder calls through this rather than taking the value,
+    /// because a breach does not end the registration: it is the request ending
+    /// that does.
+    #[must_use]
+    pub fn limit_handler(&self) -> Value {
+        self.limit_handler
+    }
+
+    /// Whether this request registered a tier-1 handler at all.
+    ///
+    /// The question the ladder asks first, and the reason it is a method rather
+    /// than a comparison at each call site: a `null` slot is the encoding of
+    /// "none", and nothing outside this file should know that.
+    #[must_use]
+    pub fn has_limit_handler(&self) -> bool {
+        self.limit_handler.tag() != Some(crate::Tag::Null)
     }
 
     /// The [`crate::Fault`] a request past its memory ceiling owes, or `None`
