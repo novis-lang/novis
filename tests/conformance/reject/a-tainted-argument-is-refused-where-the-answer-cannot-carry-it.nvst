@@ -1,0 +1,44 @@
+--TEST--
+a contagious parameter still refuses a tainted argument when its answer is an instance, a `mixed` or an `array<mixed>` — the half of the admission that is deliberately conservative, agreed across four classes — ADR 0088 § 2
+--FILE--
+<?nvs
+// `nvs_types::expr::quals::admits_tainted_argument`'s doc comment owns why:
+// admitting an argument the answer cannot carry the qualifier out of would
+// launder it, so the refusal stays until there is somewhere to put the bit.
+// Every member below is `Qual::Contagious` in the parameter that refuses --
+// the classification is not what stops these, the return type is, which is
+// what makes this an agreement between four classes rather than four rows.
+tainted string $t = "a";
+tainted bytes $tb = "ab" as bytes;
+
+// An instance answer: `Core\Uri` has no qualifier to carry.
+Core\Uri $uri = Core\Uri::parse($t);
+
+// A `mixed` answer: ADR 0007's one unchecked position is exactly where a
+// qualifier would be lost.
+mixed $decoded = Core\Json::decode($t);
+
+// An `array<mixed>` answer -- the element is the place a qualifier would go,
+// and `mixed` is not a place.
+array<mixed> $fields = Core\Bytes::unpack($tb, "C2");
+
+// A nullable instance: a union whose members are an instance and `null`, so
+// neither member can carry it either.
+?Core\Regex\Match $matched = Core\Regex::match($t, "a");
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:12:33
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:16:36
+%A
+error[E0401]: expected `bytes`, found `tainted bytes`
+   --> case.nvs:20:43
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:24:48
+%A
+error: aborting due to 4 errors
