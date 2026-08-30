@@ -17,7 +17,7 @@
   `DateTime::format`, per R18; the folded argument is unchanged and so is everything else about it.
   [0051](0051-standard-library-tiers.md) § 3 — the Core roster gains `Core\Path`, `Core\Out`, `Core\Bytes`
   and `Core\Error`, all split out of entries it already lists.
-- **Amended by:** 0066, 0069, 0070, 0071, 0098
+- **Amended by:** 0066, 0069, 0070, 0071, 0098, 0122
 
 > **In short:** PHP's built-ins have no API. Argument order flips between neighbouring functions
 > (`array_map(f, a)` / `array_filter(a, f)`), failure is signalled four different ways in the same
@@ -104,7 +104,7 @@ The twin sets these rules retire, with their replacements:
 | `gzopen` handles, `deflate_init` contexts, `zlib.*` stream filters | `Core\Compress` |
 | `hash()` one-shot, `HashContext` incremental, `openssl_digest` | `Core\Hash::of()` plus a `Core\Hash\Stream` object |
 | `rand`/`mt_rand`/`random_int` **and** `Random\Randomizer`/`Random\Engine` | `Core\Random` |
-| DOM, SimpleXML, XMLReader, XMLWriter, `xml_parser_*`, XSLTProcessor | `Core\Xml`. Its tree API and its streaming reader/writer are **different jobs, not twins**, and the spec says so explicitly so it cannot be read as an exception to R17 |
+| DOM, SimpleXML, XMLReader, XMLWriter, `xml_parser_*`, XSLTProcessor — and the DOM's HTML half, `DOMDocument::loadHTML` with PHP 8.4's `Dom\HTMLDocument` | `Core\Xml` for XML; `Core\Html` for HTML, parsing by the WHATWG algorithm into the same tree ([ADR 0122](0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md)). The tree API and the streaming reader/writer are **different jobs, not twins**, and the spec says so explicitly so it cannot be read as an exception to R17 |
 | ~20 SPL iterator classes, `iterator_to_array`/`iterator_count`/`iterator_apply` | dropped ([ADR 0053](0053-iteration-and-generators.md)) |
 | `Enum::from()` throwing beside `Enum::tryFrom()` returning null; `json_decode` with and without `JSON_THROW_ON_ERROR` | one member each, its behaviour fixed by R4. An enum keeps **no** `tryFrom`: `$s as ?SortMode` is [ADR 0066](0066-nullable-conversion-operator.md) § 3's operator, so the pair is retired by an operator rather than by R5's exception — which is exactly the line that exception is drawn on |
 

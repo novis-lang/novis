@@ -9,7 +9,7 @@
   *how to choose between them*; § 2 below is the missing procedure. Its "fine-grained primitives" rule for
   Tier 0 survives unchanged as test 4. [0011](0011-functions-and-constants-are-class-members.md) — the
   domain-class roster is extended, and § 5 adds a rule about what may claim the `Core` prefix at all.
-- **Amended by:** 0060, 0063, 0067, 0072, 0074, 0075, 0076, 0077, 0081, 0082, 0083, 0084, 0086, 0097, 0120, 0121
+- **Amended by:** 0060, 0063, 0067, 0072, 0074, 0075, 0076, 0077, 0081, 0082, 0083, 0084, 0086, 0097, 0120, 0121, 0122
 
 > **In short:** Novis does not inherit PHP's extension partition. That partition tracks 1997 C build
 > engineering — separate `.so` files, `dl()`, ini load order, per-module globals — not any property worth
@@ -92,7 +92,8 @@
 ([ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md)). `Core\Session`. `Core\Encoding`
 (`iconv`, over `encoding_rs`, sited at the `bytes`/`string` boundary where conversion is naturally
 failable). `Core\Xml`, one API replacing six extensions, and `Core\Html`, whose escaper and sanitizer are
-ADR 0024 launderers. `Core\Uri` (PHP 8.5's `uri`). `Core\Mime` (`fileinfo`, by magic bytes rather than
+ADR 0024 launderers and whose WHATWG parser shares `Core\Xml`'s tree
+([ADR 0122](0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md)). `Core\Uri` (PHP 8.5's `uri`). `Core\Mime` (`fileinfo`, by magic bytes rather than
 libmagic's rule interpreter). `Core\Compress` (`zlib`, plus brotli and zstd — Tier 0 for the same
 reason `Core\Zip` is, that a decompression bomb is *policy* and policy must be non-optional; the built-in
 server compresses nothing itself, per [ADR 0097](0097-development-server-and-proxied-origin.md) § 1).

@@ -369,3 +369,7 @@ spellings rejected, and the reasoning.
   are bytes passed in, an unresolved reference throws, unsupported CSS is dropped and reported, the output
   is inert and byte-reproducible, and the programmatic path is a builder emitting the same HTML**
   ([0121](0121-pdf-generation-is-sandboxed-html-rendering-with-no-io.md)).
+- **HTML parses by the WHATWG algorithm through an entry on `Core\Html` — never a mode of `Core\Xml`,
+  never failing where `Core\Xml` refuses — producing `Core\Xml`'s own tree over the parser the PDF
+  engine shares, and landing in whatever milestone builds `Core\Xml`**
+  ([0122](0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md)).

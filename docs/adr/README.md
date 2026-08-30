@@ -102,6 +102,7 @@ so you never have to open this file to route a topic.
 | A one-line `try`/`catch`, the expression form `expr catch (Class $e) => value`, a fallback value for a call that throws, why an arm may `throw` but not `return`, `catch (Throwable) => …` warning, Swift's `try?`, Zig's `catch`, Go's comma-ok | [0119](0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md) |
 | Images — `gd`, `exif`, `imagick`, `imagecreatefromjpeg`, `imagecopyresampled`, `getimagesize`, `Novis\Image`, `nvs/image`, resizing, cropping, thumbnails, `srcset` variants, WebP/AVIF/JPEG XL, a pixel bomb and `[image] max_pixels`, EXIF orientation, ICC profiles, stripping GPS, comparing two images in a test, perceptual hashes, BlurHash, text on an image, QR codes, rasterising an SVG | [0120](0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md) |
 | PDF — HTML to PDF, `dompdf`, `mpdf`, `tcpdf`, `fpdf`, `wkhtmltopdf`, headless Chromium, invoices and reports, `Novis\Pdf`, `nvs/pdf`, the no-I/O render and its asset map, the CSS subset and the dropped-declarations report, an inert byte-reproducible output, the browser escape hatch | [0121](0121-pdf-generation-is-sandboxed-html-rendering-with-no-io.md) |
+| HTML parsing — `DOMDocument::loadHTML`, PHP 8.4's `Dom\HTMLDocument`, tag soup, scraping, sanitizing rich text, mXSS, `html5ever`, the tree shared with `Core\Xml`, why there is no HTML mode on the XML parser | [0122](0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md) |
 | Whether an `if`/`while`/`?:`/`&&`/`!` condition needs an explicit `as bool`, PHP truthiness | [0035](0035-truthy-boolean-context.md) |
 | PHP's `and`/`or`/`xor` keyword operators, why they don't parse | [0045](0045-and-or-xor-keyword-operators-rejected.md) |
 | `<?php` as an open tag, PHP's `die` keyword | [0049](0049-single-open-tag-and-single-exit-keyword.md) |
@@ -341,6 +342,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0119](0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md) | An expression-level `catch` is a typed arm on one guarded expression, and it lowers to the block form | Accepted |
 | [0120](0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md) | The image component is a pipeline that crosses the boundary once, and gd is not inherited | Accepted |
 | [0121](0121-pdf-generation-is-sandboxed-html-rendering-with-no-io.md) | PDF generation is sandboxed HTML rendering with no I/O | Accepted |
+| [0122](0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md) | HTML parsing is a WHATWG entry on `Core\Html`, over `Core\Xml`'s tree | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

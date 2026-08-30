@@ -1112,8 +1112,8 @@ originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracki
 
 | Class | Surface | Note |
 |---|---|---|
-| `Core\Html` | `escape` (the auto-applied launderer), `sanitize`, `Markup` | [ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) owns both launderers |
-| `Core\Xml` | one API replacing DOM, SimpleXML, XMLReader, XMLWriter, `xml_parser_*` and XSLTProcessor. Its **tree** API and its **streaming** reader/writer are different jobs, not twins — the tree materialises, the stream does not, and no operation is available through both | the one place in this file where two shapes of the same subsystem coexist, stated explicitly so it is not read as an exception to R17 |
+| `Core\Html` | `escape` (the auto-applied launderer), `sanitize`, `Markup`, and the WHATWG HTML parser — never-failing, producing `Core\Xml`'s tree: one node family, two front doors | [ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) owns both launderers; the parser and the shared tree are [ADR 0122](../adr/0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md) |
+| `Core\Xml` | one API replacing DOM, SimpleXML, XMLReader, XMLWriter, `xml_parser_*` and XSLTProcessor. Its **tree** API and its **streaming** reader/writer are different jobs, not twins — the tree materialises, the stream does not, and no operation is available through both | the one place in this file where two shapes of the same subsystem coexist, stated explicitly so it is not read as an exception to R17. The tree is also what `Core\Html`'s parser produces ([ADR 0122](../adr/0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md)), and lands with it |
 | `Core\Compress` | gzip, deflate, brotli, zstd — one API replacing `gzopen` handles, `deflate_init` contexts and `zlib.*` stream filters | |
 | `Core\Zip` | Core rather than an extension because `../` entries, symlink entries and decompression bombs are *policy*, and policy must be non-optional | [ADR 0051 § 3](../adr/0051-standard-library-tiers.md) |
 | `Core\Mime` | type detection by magic bytes, not by libmagic's rule interpreter | |
