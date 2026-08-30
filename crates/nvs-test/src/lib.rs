@@ -42,7 +42,7 @@
 //! | `--EXPECT-ERROR--` | expected standard error, compared literally |
 //! | `--EXPECTF-ERROR--` | expected standard error, with `%` escapes |
 //! | `--FILE <relative/path>--` | another file, written beside `--FILE--`; repeatable |
-//! | `--RUN--` | `run` (the default), `test`, `test --format=json` or `test --format=junit`: the command line `--FILE--` goes through |
+//! | `--RUN--` | `run` (the default), `test`, `test --format=json`, `test --format=junit` or `config dump --origin`: the command line `--FILE--` goes through |
 //!
 //! ## Which subcommand a case is run through
 //!
@@ -62,6 +62,17 @@
 //!
 //! § 22's report carries a per-test duration, so such a case wants
 //! `--EXPECTF--`'s `%f` rather than `--EXPECT--`.
+//!
+//! `--RUN--\nconfig dump --origin` is the one spelling that runs no program.
+//! It names no file on the command line, so `nvs config dump` resolves
+//! [ADR 0103](../../../docs/adr/0103-configuration-is-a-tree-of-files.md)
+//! § 1 step 2's `./nvs.toml` out of the case's own working directory — which
+//! makes a tree written with `--FILE nvs.toml--` and `--FILE conf.d/…--` the
+//! thing under test, and § 9's listing the expectation. That is where § 3's
+//! obligation to record an override with **both** origins is observable at
+//! all: no program can ask where a value was written. Such a case wants
+//! `--EXPECTF--`, because the listing names absolute paths under a temporary
+//! directory.
 //!
 //! ## More than one file
 //!

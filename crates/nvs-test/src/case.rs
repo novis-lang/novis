@@ -44,6 +44,14 @@ pub enum Oracle {
 /// runner's own scaffolding rather than the thing under test, so both are
 /// always `nvs run`.
 ///
+/// [`Subcommand::ConfigDumpOrigin`] is the one spelling that runs no program:
+/// what it observes is the *tree* the case wrote with `--FILE <path>--`, which
+/// is the only place [ADR 0103](../../../docs/adr/0103-configuration-is-a-tree-of-files.md)
+/// § 3's obligation — every override recorded with both origins — is visible
+/// end to end. Such a case still carries a `--FILE--`, and the runner still
+/// writes it: it is the program the tree governs, and dropping the section for
+/// one spelling would make the format's one required section conditional.
+///
 /// The roster is **closed**, and a `--format` spelling is a variant of it
 /// rather than a flag string carried along: § 22's three formats are a closed
 /// list too, so this stays one enum whose every value is a command line this
@@ -59,6 +67,10 @@ pub enum Subcommand {
     TestJson,
     /// `nvs test --format=junit case.nvs` — § 22's JUnit XML is the case.
     TestJunit,
+    /// `nvs config dump --origin` — the configuration tree the case wrote into
+    /// its working directory is the case, and [ADR 0103](../../../docs/adr/0103-configuration-is-a-tree-of-files.md)
+    /// § 9's listing is the expectation.
+    ConfigDumpOrigin,
 }
 
 impl Subcommand {
@@ -71,7 +83,20 @@ impl Subcommand {
             Self::Test => &["test"],
             Self::TestJson => &["test", "--format=json"],
             Self::TestJunit => &["test", "--format=junit"],
+            Self::ConfigDumpOrigin => &["config", "dump", "--origin"],
         }
+    }
+
+    /// Whether the command line ends in the file `--FILE--` was written to.
+    ///
+    /// Every spelling but one runs a program named on argv. `nvs config dump`
+    /// takes configuration roots positionally instead, and naming a `.nvs`
+    /// there would ask it to parse the program as TOML — so it is given none
+    /// and reads ADR 0103 § 1 step 2's `./nvs.toml` out of the working
+    /// directory the case just filled, which is the tree under test.
+    #[must_use]
+    pub fn takes_file(self) -> bool {
+        !matches!(self, Self::ConfigDumpOrigin)
     }
 }
 
@@ -379,11 +404,12 @@ pub fn parse(path: &Path, text: &str) -> Result<Case, ParseError> {
             "test" => Subcommand::Test,
             "test --format=json" => Subcommand::TestJson,
             "test --format=junit" => Subcommand::TestJunit,
+            "config dump --origin" => Subcommand::ConfigDumpOrigin,
             other => {
                 return Err(err(
                     format!(
-                        "`--RUN--` is `run`, `test`, `test --format=json` or \
-                         `test --format=junit`, not `{other}`"
+                        "`--RUN--` is `run`, `test`, `test --format=json`, \
+                         `test --format=junit` or `config dump --origin`, not `{other}`"
                     ),
                     Some(line),
                 ));
@@ -501,6 +527,18 @@ mod tests {
         let parsed = case(&format!("--RUN--\ntest\n{MINIMAL}")).expect("it parses");
         assert_eq!(parsed.run, Subcommand::Test);
         assert_eq!(parsed.run.args(), ["test"]);
+    }
+
+    #[test]
+    fn the_config_dump_spelling_names_no_file_on_its_command_line() {
+        // ADR 0103 § 9's listing is read out of the working directory, so this
+        // is the one spelling whose command line ends at its own arguments —
+        // naming `case.nvs` there would hand a program to a TOML parser.
+        let parsed = case(&format!("--RUN--\nconfig dump --origin\n{MINIMAL}")).expect("it parses");
+        assert_eq!(parsed.run, Subcommand::ConfigDumpOrigin);
+        assert_eq!(parsed.run.args(), ["config", "dump", "--origin"]);
+        assert!(!parsed.run.takes_file());
+        assert!(Subcommand::Run.takes_file());
     }
 
     #[test]

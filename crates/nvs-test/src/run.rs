@@ -223,7 +223,10 @@ fn write_aux(workdir: &Path, relative: &str, body: &str) -> io::Result<()> {
 ///
 /// `sub` is [`Subcommand::args`]'s own list, so the two things that decide it
 /// — a case's `--RUN--` section and the scaffolding's fixed `run` — cannot
-/// spell a command line this binary does not have.
+/// spell a command line this binary does not have. `name` is written either
+/// way; whether it is also *named* on that command line is
+/// [`Subcommand::takes_file`]'s, since `nvs config dump` reads the working
+/// directory rather than a file on argv.
 fn run_nvs(
     opts: &Options,
     workdir: &Path,
@@ -233,7 +236,9 @@ fn run_nvs(
 ) -> io::Result<Output> {
     fs::write(workdir.join(name), source)?;
     let mut args: Vec<&OsStr> = sub.args().iter().map(AsRef::as_ref).collect();
-    args.push(name.as_ref());
+    if sub.takes_file() {
+        args.push(name.as_ref());
+    }
     spawn(&opts.nvs, &args, workdir)
 }
 
