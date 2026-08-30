@@ -234,8 +234,16 @@ in that goal. An item's owner is the row it sits in.
       still said otherwise. *`derive-promoted-ctor`*
 - [ ] **D9** Private properties are JSON fields under `#[Json\Derive]` (`{"name":"a","n":1}` for a
       `private int $n`). *`derive-private-property`*
-- [ ] **D10** `#[Api]` fields `tags`, `security`, `errors`, `example` are checked but absent from the
+- [x] **D10** `#[Api]` fields `tags`, `security`, `errors`, `example` are checked but absent from the
       `nvs build --openapi` document. *ref-probe/api2*
+      A `nvs_types::Route` carries all four: `check_api` hands back what each of its four walks
+      accepted, so a value § 2 refused reaches no row and no document. The emitter writes `tags` as
+      written, `security` as one 3.1 security requirement per name with no scopes, an `errors` entry as
+      a response of its own described by its class, and `example` — folded to its ADR 0046 § 5 constant
+      while the imports are still in reach — beside the schema it is an example of. § 1's `200` outranks
+      an `errors` entry naming it. What is left is `crates/nvs-cli/src/openapi.rs`'s gap 3, which is not
+      this finding: nothing in the tree declares what a named scheme *is*, so the document names schemes
+      it does not define.
 - [ ] **D11** `spawn script Class::method(...)` as the operand is refused (`E0401: expected string,
       found callable`); spec § 2 and ADR 0006 describe it as available. *refp/spawn/method.nvs*
 - [x] **D12** `spawn script … with(args: …)` is accepted but there is no reader: `Core\Script::args()`
