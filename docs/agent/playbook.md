@@ -2886,6 +2886,15 @@ is why" — is this file.
   an entry file path), and two blocks may not carry the same key (§ 2 has no order between them, so
   it refuses rather than picking). `entry = "nvs.toml"` is a legal narrower key that matches no
   program, which is the shape a "this block must not apply" decoy wants.
+- **A path rule cannot be tested against a real symlink on Windows, and `nvs-config`'s `Files` trait
+  is the seam that makes that a non-problem.** Creating one needs a privilege CI does not have, so
+  `a_path_reaching_a_granted_root_through_dotdot_or_a_symlink_does_not_match` splits: the `..` half
+  runs against `resolve::Disk` and the real filesystem, because a canonicalizer resolving `..`
+  textually rather than by asking the OS is the exact bug the rule prevents and a fake would hide
+  it, and the symlink half runs against a seven-method fake whose `canonical` maps one path to
+  another. The fake asserts the same thing the symlink would — that the comparison is against the
+  canonicalizer's *answer*. `crates/nvs-stdlib/tests/capability.rs`'s `Fake` is the shape; six of
+  its methods are `unreachable!()` with a sentence saying why that call would be a bug.
 
 ## Splitting a file that got too big
 

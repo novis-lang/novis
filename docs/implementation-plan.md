@@ -44,24 +44,24 @@
 > **Open now:** **Goal 3 of the parity program — configuration and capabilities, M6 — is running**,
 > goals 1 and 2 reached and standing as its floor.  **Stages 0b and 2–6 are closed at their
 > acceptance**: `crates/nvs-host` is on disk whole with every `cargo-named` name green, `spawn
-> script`/`await` lower, and every decision taken on the way lives in the module doc of the file
-> that holds it — `crates/nvs-host/src/*.rs`, `crates/nvs-runtime/src/{host,script,graph}.rs`,
-> `crates/nvs-cli/src/{script,runner}.rs` — or in ADRs 0115–0117. Goal 3 on disk:
-> `crates/nvs-config` holds the directive registry, 0064 § 2a's block roster as a typed tree with §
-> 3's two per-file refusals, ADR 0103 §§ 1-7's resolver — later-wins recorded, every file trusted,
-> every secret read — ADR 0104 §§ 1-3's `[[app]]` blocks on a canonical key and under the host's
-> ceiling, ADR 0064 § 5's value parser, and ADR 0078 §§ 1-2's snapshot, which `nvs run` now resolves
-> the tree for and a request reads under `Core\Config`. Stage 2 closes with ADR 0103 § 9's offline
-> `nvs config check`/`dump` and § 1's repeatable `--config`. **Stage 8 is closed at both counts**:
-> conformance is 1003, differential is 206 over its 205 floor with six `Core\Serialize` round-trips
-> against PHP's own pair, and `isolation.rs` measures `nvs_host::Isolate` itself with a guard beside
-> it. Three known gaps, each recorded where its code is: item 18's `Core\Secret::reveal()` is not in
-> the registry, though how a `secret` parameter is spelled on a row is decided (`Qual::Reveal`);
-> `Live::admit`'s same-class check is asked of the answer and not of the argument
-> (`crates/nvs-runtime/src/graph.rs` § *Known gaps*); item 22's `Core\Script` members are unwritten
-> (`crates/nvs-stdlib/src/script.rs`). The program is measured by `python tools/check-migration.py`
-> at 100% classified — 25% when it was scheduled, 34% now — and `gaps.py`, `holes.py` and
-> `check-migration.py --report` are the worklists no session re-derives.
+> script`/`await` lower, and each decision lives in its file's module doc or in ADRs 0115–0117. Goal
+> 3 on disk: `crates/nvs-config` holds the directive registry, 0064 § 2a's block roster as a typed
+> tree with § 3's two per-file refusals, ADR 0103 §§ 1-7's resolver — later-wins recorded, every
+> file trusted, every secret read — ADR 0104 §§ 1-3's `[[app]]` blocks on a canonical key and under
+> the host's ceiling, ADR 0064 § 5's value parser, and ADR 0078 §§ 1-2's snapshot, which `nvs run`
+> now resolves the tree for and a request reads under `Core\Config`. Stage 2 closed with ADR 0103 §
+> 9's `nvs config check`/`dump`. Stage 4 opens: 0118 puts the check inside the door that performs
+> the effect; `nvs_config::capability` and `nvs_runtime::capability::require` hold it, and
+> `registry::CAPABILITIES` is empty until a `Core` member reaches the OS. **Stage 8 is closed at
+> both counts**: conformance is 1003, differential is 206 over its 205 floor with six
+> `Core\Serialize` round-trips against PHP's own pair, and `isolation.rs` measures
+> `nvs_host::Isolate` itself with a guard beside it. Three known gaps, each recorded where its code
+> is: item 18's `Core\Secret::reveal()` is not in the registry, though how a `secret` parameter is
+> spelled on a row is decided (`Qual::Reveal`); `Live::admit`'s same-class check is asked of the
+> answer and not of the argument (`crates/nvs-runtime/src/graph.rs` § *Known gaps*); item 22's
+> `Core\Script` members are unwritten (`crates/nvs-stdlib/src/script.rs`). The program is measured
+> by `python tools/check-migration.py` at 100% classified — 25% when it was scheduled, 34% now — and
+> `gaps.py`, `holes.py` and `check-migration.py --report` are the worklists no session re-derives.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

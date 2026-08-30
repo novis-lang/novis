@@ -2,59 +2,68 @@
 
 ## State
 
-**Stage 2 is closed.** ADR 0103 § 9's offline pair is on disk — `nvs config check [<file>...]` and
-`nvs config dump [--origin] [--toml] [<file>...]` — and § 1 step 1's repeatable `--config` is a
-global flag threaded into `nvs run`'s snapshot as well as into both audits. The driver's `command`
-check (`docs/agent/loop-goal.toml:1731`) passes: `nvs config check tests/config/duplicate-key.toml`
-exits 1 naming `duplicate-key.toml:4:1`.
+**Stage 4 is open and its ADR slot is spent.** [ADR 0118](../adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
+decides where a capability check sits: **inside the door that performs the effect**, never beside it,
+so a member that forgets the check is a member that does not perform the effect. What each member
+needs is declared in one table (`nvs_stdlib::registry::CAPABILITIES:1086`), which nothing reads at
+run time; a member needing no capability pays nothing at all. The ADR's body is the rule — do not
+re-derive it from this paragraph.
 
-`crates/nvs-cli/src/config.rs` is the new home of every CLI-side config concern — `LocalFiles`,
-`boot_snapshot`, `check`, `dump` — moved out of `main.rs`, which keeps only the clap surface. Two
-decisions live in its doc comments rather than in an ADR: the audit does **not** apply § 6's
-ownership check (a machine auditing a tree is not the account that will serve it, so the check run
-there refuses trees a server would accept and passes trees it will refuse), and `--origin` names the
-**file** a key was written in and not the line (`Origin` carries a path and a `SourceId`; `toml::Value`
-has no span once the document is parsed, and ADR 0103 § 9's example shows `prod.toml:4`).
+On disk and green: `crates/nvs-config/src/capability.rs` (`Cap`, `Scope`, `Capabilities::allows`,
+and `canonicalize`, which `Snapshot::build` now calls so § 4's grant side is canonical once rather
+than per check), `crates/nvs-runtime/src/capability.rs:34`'s `require`, and
+`crates/nvs-stdlib/tests/capability.rs`, whose four cases include both names
+`docs/agent/loop-goal.toml:1796` requires. `nvs-stdlib` gained a dependency on `nvs-config` for
+`Cap`.
 
-**The driver's failing acceptance check is not a regression.** `native examples/limits.nvs
-[4 capabilities]: exited 0, wanted non-zero` is item 11 unwritten: no memory cap is enforced and
-`[capabilities]` is enforced nowhere, so the fixture holds its 512 slabs and exits 0 by design. It
-closes in the group below, not before it.
+**Two corrections to what the previous handoff said, both found by reading the tree.**
 
-`orient.py` printed neither ADR 0103 § 9 nor § 1, which are the sections this session's item named.
-`[context] adrs` is documented as "the sections EVERY session reads", so a *per-item* section has no
-home in the manifest and the item text naming one does not make the pack slice it — that is the gap,
-and it costs a session one `peek.py` per section. `[context] modules` now names
-`crates/nvs-cli/src/config.rs`, and the comment above it now covers the `budget.rs` warning too
-(item 12's budget has no module yet; the selector is where it will be, exactly as `nvs-config`'s was).
+1. `native examples/limits.nvs [4 capabilities]` — the driver's failing check — is item 11's memory
+   cap and is **not** closed by the capability group; it was handed forward as if it were. It is
+   still an unwritten item and not a regression (the fixture's own header says it exits 0 in a tree
+   not enforcing the cap), but the group that closes it is safepoint-driven limit enforcement, whose
+   file set is `nvs-host`/`nvs-runtime` and shares nothing with this one.
+2. **Item 10's "every syscall-touching stdlib entry point" names an empty set.** There is no
+   filesystem class in `nvs-stdlib` — no `Core\File`, no `Core\Dir`, and zero `std::fs` in the whole
+   crate. So `examples/capability.nvs`'s frozen `granted: read ok` / `denied: fs.write` cannot be
+   written until a `Core\File` exists; that is the next group's first slice, not a fixture edit.
+   `CAPABILITIES` is empty for the same reason, and § 2's
+   `nvs_stdlib_reaches_the_os_only_through_the_gate` locks that state in while it is still free.
+
+ADR 0118 § 3 deviates from item 10's wording — the declaration is a table keyed by `(class, member)`
+rather than a `CoreMethod` field. § 3 is the reason: 346 rows, and a security surface worth reading
+on one screen.
+
+`orient.py`'s pack was accurate; the gap was `docs/agent/loop-goal.md`'s item bodies, which the pack
+prints one line each for the group but not for the *neighbouring* items a group turns out to depend
+on (10 needs 16's shape, and 11 was misattributed above). One `sed -n` on the goal file covers it.
 
 ## Next group
 
-**Stage 4's capability gate — items 10 and 13, and this goal's one ADR slot.** File set:
-`docs/adr/0118-*.md` (new), `crates/nvs-stdlib/src/registry.rs:708` (`CoreMethod`),
-`crates/nvs-config/src/tree.rs:210` (`Capabilities`), `crates/nvs-config/src/snapshot.rs:53`
-(`Snapshot::config`) and `crates/nvs-runtime/src/ctx.rs:867` (`set_config`, which is how a request
-already holds the snapshot a gate must read).
+**Give the gate something to guard — items 10 and 13's fixture.** File set:
+`crates/nvs-runtime/src/capability.rs:34` (`require`, which every slice calls),
+`crates/nvs-stdlib/src/registry.rs:984` (`CLASSES`) and `:1086` (`CAPABILITIES`),
+`crates/nvs-stdlib/src/lib.rs` (`symbols`/`address`), and `examples/capability.nvs`.
 
-- [ ] **ADR 0118 — where a capability check sits.** The goal's § *Standing decisions* reserves it and
-      makes it the stage's first slice: what a capability is at the point of a call, where the check
-      sits so no member can route around it, what it costs on a hot path, and how Stage 6's closure
-      test knows a member needs one. Re-check the next free number before creating the file.
-- [ ] **The gate itself**, per that ADR: a `CoreMethod` declares the capability it needs
-      (`registry.rs:708`), the check reads `Snapshot::config`'s `Capabilities` (`tree.rs:210`) off the
-      request, and an ungranted one throws naming it —
-      `an_ungranted_capability_throws_naming_the_capability`, `loop-goal.toml:1790`.
-- [ ] **`examples/capability.nvs`'s three frozen lines** (`loop-goal.toml:1807`): `granted: read ok`,
-      `denied: fs.write`, `denied: script.spawn`. The path-bearing half is canonicalise-then-prefix,
-      which item 6 already wrote once — do not write a second comparison.
+- [ ] **`Core\File::read` and `::write`, each behind a door** — ADR 0118 §§ 2-3. A new
+      `crates/nvs-stdlib/src/file.rs` with the five edits `conventions.md` § *A `Core` member* lists,
+      plus a new `open_read`/`write` pair in `crates/nvs-runtime/src/capability.rs` that calls
+      `require` before touching `std::fs`, plus the two `CAPABILITIES` rows. The registry test
+      `every_capability_entry_names_a_member` and `conformance_coverage.rs` both fail until the rows
+      and a `.nvst` case exist.
+- [ ] **`spawn script` through the same `require`** — ADR 0006 § 5's `script.spawn`, checked at
+      `crates/nvs-runtime/src/script.rs:204` (`resolve`, the seam a spawn path becomes a `Program`
+      through) or at its caller, which is where the `Ctx` is. `Scope::Path` on the target, so item
+      6's canonicalise-then-prefix applies with no second implementation.
+- [ ] **`examples/capability.nvs`'s three frozen lines** (`docs/agent/loop-goal.toml:1810`):
+      `granted: read ok`, `denied: fs.write`, `denied: script.spawn`. Needs both slices above, and
+      `nvs.toml` must grant `fs.read` and nothing else.
 
 ## Backlog
 
-- **ADR 0103 § 8, "the CLI flag list is closed at the global layer"** — the last unread clause of the
-  goal's stage 2 item 5. `--config` is global; whether anything else may be is § 8's.
-- **Item 11, safepoint-driven limits** — what `examples/limits.nvs` is waiting for; own file set
-  (`crates/nvs-host`, `crates/nvs-codegen/src/emit.rs`), so its own group after the gate.
-- **`dump --origin` prints no line number** — a span per leaf would have to be carried through the
-  merge; `crates/nvs-cli/src/config.rs`'s `dump` doc owns the reason.
-- **`nvs ctl config`** — ADR 0103 § 9's third command, waiting on goal 6's socket.
-- **Item 18's `Core\Secret::reveal()`** is still not in the registry (`Qual::Reveal` is decided).
+- Item 11's memory cap: the driver's one failing check, `examples/limits.nvs` — `docs/agent/loop-goal.md` § Stage 4.
+- Item 16's `every_capability_bearing_member_declares_its_capability` — ADR 0118 § 7 has its shape.
+- Item 12's isolate governance, which needs `Cap::ScriptSpawn` landed first — `docs/plan/m6.md`.
+- Item 18's `Core\Secret::reveal()`, still absent from the registry — `docs/implementation-plan.md`.
+- Item 22's `Core\Script` members — `crates/nvs-stdlib/src/script.rs`.
+- `Live::admit`'s same-class check asks the answer, not the argument — `crates/nvs-runtime/src/graph.rs`.
