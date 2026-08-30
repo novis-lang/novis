@@ -1291,6 +1291,16 @@ is why" — is this file.
   only the second is about the boundary a program crosses. The shape that fixes it is
   `benches/abi-probe/shared/isolate.rs`: build the scheduler and the task outside the clock, run the
   timing loop *inside* the task body, and hand criterion a batch through `iter_custom`.
+- **A refcount cycle that is still live at exit is a `definitely lost` under valgrind and always will
+  be — read the fixture before you read the runtime.** `examples/serialize.nvs` builds a `Ring` whose
+  `$self` points at itself, and does it twice (the original and its decoded copy), so the sweep
+  reported 48 bytes per ring with `graph::Reader::object` and `nvs_object_new` at the top of the two
+  stacks. Nothing in `graph.rs` was wrong: Novis refcounts and has no cycle collector
+  (`crates/nvs-runtime/src/object.rs` § *Decision: no cycle collector*, and ADR 0116's *Consequences*
+  says the same of an isolate's teardown drain), so a self-referential object's last reference is its
+  own field and dropping the local frees nothing. The fixture now breaks both rings by hand before it
+  ends. A leak stack whose top frame is an object allocation is the shape to suspect — grep the `.nvs`
+  for a cycle before opening the Rust.
 
 ## Writing a test case
 
