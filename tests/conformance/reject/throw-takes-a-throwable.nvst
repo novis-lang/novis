@@ -1,0 +1,15 @@
+--TEST--
+`throw` refuses an operand that no `catch` could match — a string here, and by the same rule any class outside the standard library's § 10 tree
+--FILE--
+<?nvs
+// `nvs_ir::lower::exception` builds a landing pad against that tree and lowers
+// no other shape, so the checker refuses the operand rather than leaving the
+// lowerer to meet it.
+string $reason = "the disk went away";
+throw $reason;
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0780]: `throw` takes a `Throwable`, and `string` is not one
+%A
+error: aborting due to 1 error

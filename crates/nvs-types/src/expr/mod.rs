@@ -588,7 +588,15 @@ pub(crate) fn infer(
             type_args,
             args,
         } => infer_new(expr, target, type_args, args, live, scope, ctx, env),
-        ExprKind::Clone(inner) => check_expr(inner, None, live, scope, ctx, env),
+        // ADR 0023 § 1's operand rule, then the operand's own type unchanged:
+        // a clone is a new instance of the same class. See
+        // [`members::reject_non_object_clone`] for why the refusal is asked
+        // of what provably cannot be an object rather than of what is.
+        ExprKind::Clone(inner) => {
+            let ty = check_expr(inner, None, live, scope, ctx, env);
+            reject_non_object_clone(ty, inner.span, env);
+            ty
+        }
         ExprKind::Fn(fn_expr) => check_fn_literal(expr, fn_expr, live, scope, ctx, env),
         ExprKind::Match { subject, arms } => {
             let subject_ty = check_expr(subject, None, live, scope, ctx, env);
@@ -684,8 +692,13 @@ pub(crate) fn infer(
             require_stringable(ty, inner.span, env);
             env.interner.int()
         }
+        // `never` whatever the operand is — the expression does not complete,
+        // which is what ADR 0119 § 3's arm relies on. The operand is still
+        // held to spec § 10's tree: `nvs_ir::lower::exception` builds a
+        // landing pad against it and lowers no other shape.
         ExprKind::Throw(inner) => {
-            check_expr(inner, None, live, scope, ctx, env);
+            let ty = check_expr(inner, None, live, scope, ctx, env);
+            reject_unthrowable(ty, inner.span, env);
             env.interner.never()
         }
         // ADR 0028 § 3: `isset($x)` is `$x != null`, and a list of operands
