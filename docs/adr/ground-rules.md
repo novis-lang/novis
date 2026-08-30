@@ -365,3 +365,7 @@ spellings rejected, and the reasoning.
   per terminal, with one pixel model, a header-read pixel cap, upright colour-correct decoding and
   metadata stripped on encode — and none of gd's palette mode, mode flags, drawing primitives or formats**
   ([0120](0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md)).
+- **PDF generation is a first-party Tier 1 component, unscheduled, that renders HTML with no I/O — assets
+  are bytes passed in, an unresolved reference throws, unsupported CSS is dropped and reported, the output
+  is inert and byte-reproducible, and the programmatic path is a builder emitting the same HTML**
+  ([0121](0121-pdf-generation-is-sandboxed-html-rendering-with-no-io.md)).
