@@ -38,15 +38,17 @@ a claim a module's `//!` doc or a `MethodDoc` card argues for, with no case asse
 set, `tests/conformance/core/`, and no Rust changes, so several fit under the 120k gate. Check each
 with one `grep -rln '<the member>' tests/conformance/core/` before writing; that is the whole triage.
 
-- [ ] **`Core\Bytes` — `unpack` 3 cases, `at` 4, `repeat` 4.** Read the module doc and the
-      `UNPACK_DOC`/`PACK_DOC` cards (`crates/nvs-stdlib/src/bytes.rs:1467` is `pack`'s format
-      refusal) for the format-string claims. *Agreement*: `pack` then `unpack` over a table of every
-      format character the pair accepts, counted — a format that grew its own width fails there and
-      reads plausibly on its own line.
-- [ ] **`Core\Validate` — `isAscii`, `isDomain`, `isEmail` at 5 cases each.** Its members share one
-      rule (a total predicate over any `string`, never a throw). *Agreement*: every subject of one
-      table asked of all three, asserting that a subject `isEmail` accepts has a domain half
-      `isDomain` accepts — the composition, which no single-member case can see.
+- [ ] **`Core\Bytes` — two qualifier claims, both checked to have no case.** `at`
+      (`crates/nvs-stdlib/src/bytes.rs:188`) is the class's one `Contagious` `uint`, so a byte drawn
+      out of a tainted buffer stays tainted where `length`, `indexOf` and `compare` answer plain —
+      *agreement* over those four asked of one tainted subject. And `unpack`'s format (`:603`) is a
+      `Qual::Sink` intrinsic like `pack`'s, so a tainted format is refused **where the call is
+      written**: that half is `--EXPECTF-ERROR--`, so it is its own case.
+- [ ] **`Core\Validate` — `isEmail` (`crates/nvs-stdlib/src/validate.rs:150`), checked to have no
+      case.** All six subjects are `Neutral` and no member returns its subject, so an address
+      `isEmail` *accepted* is still tainted afterwards — validation is not laundering. The *edge* is
+      that assigning the accepted address to a plain `string` still does not compile, which is again
+      `--EXPECTF-ERROR--`.
 - [ ] **`Core\Debug` — `dump` 4 cases, `render` 8, and ADR 0033's refusal.** The two members share
       one renderer; *agreement* is that `dump($x)` writes exactly what `render($x)` returns, over a
       table covering every tag. `crates/nvs-stdlib/src/debug.rs` owns the claim.
