@@ -1,0 +1,77 @@
+--TEST--
+A cycle survives the graph copy as a cycle rather than unrolling or hanging, and the sharing inside it stays sharing rather than becoming two nodes — ADR 0023 § 2
+--FILE--
+<?nvs
+// ADR 0023 § 2's two hardest sentences, as a program: "a cycle (`$a->self =
+// $a`) terminates instead of recursing forever", and "shared substructure
+// inside the source stays shared inside the copy". Terminating is only half of
+// the first one — a walk that ran off the end of an unrolled chain would also
+// terminate — so every assertion below is made by walking the copy rather than
+// by observing that the encode returned.
+//
+// `next` and `alias` are non-nullable and self-referential from the
+// constructor, so every node here is already on a cycle before a copy is asked
+// for and no case below needs a null to stand in for "the end".
+final class Node {
+    public string $name;
+    public Node $next;
+    public Node $alias;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+        $this->next = $this;
+        $this->alias = $this;
+    }
+}
+
+// Two nodes pointing at each other, so a walk of an odd length lands on the
+// other name: a copy that had collapsed the pair into one object lands on the
+// first, and one that unrolled the cycle cannot be walked 101 times at all.
+var $a = new Node("a");
+var $b = new Node("b");
+$a->next = $b;
+$b->next = $a;
+
+var $copy = Core\Serialize::decode(Core\Serialize::encode($a)) as Node;
+
+var $walk = $copy;
+int $steps = 0;
+while ($steps < 101) {
+    $walk = $walk->next;
+    $steps += 1;
+}
+echo $steps, " steps, at ", $walk->name, "\n";
+
+// The self-cycle the ADR spells out by name, which is the one-node case the
+// two-node walk cannot distinguish from a bug.
+var $self = new Node("self");
+var $selfCopy = Core\Serialize::decode(Core\Serialize::encode($self)) as Node;
+echo $selfCopy->next->next->next->name, "\n";
+
+// The copy shares no mutable state with its source: writing through the
+// copy's cycle moves the copy's own node and nothing on this side of it.
+$copy->next->next->name = "rewritten";
+echo $copy->name, " ", $a->name, "\n";
+
+// Sharing inside a cycle. Three nodes round a ring, and `alias` is a second
+// reference to the node `next` already reaches — so the walk arrives at one
+// node by two routes. A copy that duplicated the shared node instead of
+// sharing it prints the original name on the second route while still walking
+// the ring correctly, which is why this is asserted by writing and reading
+// back rather than by counting hops.
+var $one = new Node("one");
+var $two = new Node("two");
+var $three = new Node("three");
+$one->next = $two;
+$two->next = $three;
+$three->next = $one;
+$one->alias = $two;
+
+var $ring = Core\Serialize::decode(Core\Serialize::encode($one)) as Node;
+$ring->alias->name = "shared";
+echo $ring->next->name, " ", $ring->next->next->name, "\n";
+--EXPECT--
+101 steps, at b
+self
+rewritten a
+shared three
