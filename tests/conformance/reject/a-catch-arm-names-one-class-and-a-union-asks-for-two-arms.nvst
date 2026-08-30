@@ -6,7 +6,7 @@ an expression `catch` arm names one class, and a union is refused asking for a s
 // refused the same way — the binding carries one static type, so a union has
 // no type to give it. Only the fix differs: another arm, where the block
 // form asks for another clause.
-mixed $len = Core\Str::length("hi") catch (RuntimeError|LogicError $e) => 0;
+uint $len = Core\Str::length("hi") catch (RuntimeError|LogicError $e) => Core\Str::length("");
 echo $len, "\n";
 --EXPECT--
 

@@ -124,7 +124,8 @@ complete.
 
 ### 5. `catch (Throwable) => value` with no binding warns
 
-**`E0778`**, a warning under `nvs check`: an arm naming `Throwable` **and binding no variable** whose
+**`W1006`**, a warning under `nvs check` — in the `W1xxx` band, where every warning the compiler has
+lives: an arm naming `Throwable` **and binding no variable** whose
 body is not a `throw`. In the block form a `catch (Throwable)` has a body with room to log or
 re-raise; in the expression form the body is the value, so an unbound `Throwable` arm is by
 construction *discard every failure, including the ones not anticipated* — PHP's `@` operator, which
@@ -214,7 +215,7 @@ expression that does not throw is the cost of the block form's: zero on the happ
 - **M2 (checker):** a `nvs-types` fixture typing `f() catch (E) => 0` as `int` when `f(): int`, `=>
   null` as `?int`, and a `throw` arm as the guard's own type; an arm reading a local the guard assigned
   is a read-before-assignment; a class that is not a `Throwable` and [0020](0020-error-escalation-ladder.md)
-  § 0's limit report are refused with the clause's own codes; `catch (Throwable) => 0` warns `E0778`
+  § 0's limit report are refused with the clause's own codes; `catch (Throwable) => 0` warns `W1006`
   and `catch (Throwable $e) => throw new …` does not.
 - **M3 (lowering) and the corpus:** `tests/conformance/lang/` cases for the value where the guard
   threw and the guard's own value where it did not; arms tried in order with a supertype first

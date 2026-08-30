@@ -2604,4 +2604,19 @@ pub mod code {
     /// mode is the norm and on a shared host it is not, and nothing the
     /// runtime can read tells it which it is in.
     pub const W_SECRET_FILE_READABLE: Code = Code::new("W1005");
+    /// `catch (Throwable) => value` — an expression-level arm naming the root
+    /// of the exception tree, binding nothing, whose body is not a `throw`
+    /// ([ADR 0119](../../../docs/adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)
+    /// § 5). In the block form a `catch (Throwable)` has a body with room to
+    /// log or re-raise; in the expression form the body *is* the value, so an
+    /// unbound arm over the root is by construction "discard every failure,
+    /// including the ones this site never anticipated" — PHP's `@` operator,
+    /// which [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 7
+    /// removed, regrown as a one-liner. The two honest spellings are naming
+    /// the class the site expects and binding `$e` to carry the value. A
+    /// warning rather than an error because the hazard is a habit and not a
+    /// type error, the reason
+    /// [ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md) § 6
+    /// gives for its own.
+    pub const W_CATCH_ARM_DISCARDS_EVERY_FAILURE: Code = Code::new("W1006");
 }

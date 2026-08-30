@@ -43,8 +43,8 @@
 use nvs_diagnostics::{Diagnostic, SourceFile, Span, code};
 use nvs_hir::{ClassGraph, QName, SymbolKind};
 use nvs_syntax::ast::{
-    Arg, ArrayItem, AssignOp, BinaryOp, CallArgs, Expr, ExprKind, FnBody, FnExpr, ForeachBinding,
-    MemberName, NewTarget, ObjectLiteralField, StringPart, Type, TypeKind, UnaryOp,
+    Arg, ArrayItem, AssignOp, BinaryOp, CallArgs, CatchArm, Expr, ExprKind, FnBody, FnExpr,
+    ForeachBinding, MemberName, NewTarget, ObjectLiteralField, StringPart, Type, TypeKind, UnaryOp,
 };
 use rustc_hash::FxHashSet;
 
@@ -794,10 +794,104 @@ pub(crate) fn infer(
             check_expr(path, None, live, scope, ctx, env);
             env.interner.mixed()
         }
+        // ADR 0119 §§ 4-5. The result is the union of the guarded expression's
+        // type and every arm's, through the same `make_union` the
+        // `ExprKind::Match` arm above reaches for — it is the same rule, so
+        // neither side is checked against the other and both are checked
+        // against nothing but the position the whole expression sits in.
+        ExprKind::Catch { guarded, arms } => {
+            // § 4: an arm is checked from the **pre-guard** definite-assignment
+            // state, as a block clause is, because an arm runs precisely when
+            // the guard did not complete — so a local the guard assigned cannot
+            // be assumed assigned inside one. What is live afterwards is the
+            // join across the ways the expression can produce a value, the same
+            // shape `crate::locals`' `StmtKind::Try` arm builds.
+            let before = live.clone();
+            let never = env.interner.never();
+            let mut types = vec![check_expr(guarded, None, live, scope, ctx, env)];
+            let mut joins: Vec<FxHashSet<String>> = vec![live.clone()];
+            for arm in arms {
+                let ty = lower_type(&arm.ty, ctx, env);
+                let mut arm_live = before.clone();
+                let mut binding = None;
+                let mut fresh = None;
+                match arm.var {
+                    Some(var) => {
+                        let name = strip_sigil(span_text(env.src, var)).to_owned();
+                        binding = Some(crate::locals::bind_catch_arm(scope, &name, ty, var, env));
+                        // A name the guard could not have assigned is the
+                        // arm's alone, so it leaves with the arm; one that was
+                        // already live reused an existing binding and stays.
+                        if !before.contains(&name) {
+                            fresh = Some(name.clone());
+                        }
+                        arm_live.insert(name);
+                    }
+                    None => warn_discarding_throwable_arm(arm, ty, env),
+                }
+                let arm_ty = check_expr(&arm.body, None, &mut arm_live, scope, ctx, env);
+                if let Some(binding) = binding {
+                    binding.release(scope);
+                }
+                if let Some(name) = fresh {
+                    arm_live.remove(&name);
+                }
+                // § 3: a `throw` arm is typed `never`, so it produces no value
+                // — it contributes nothing to the union and is not a way the
+                // expression finishes, exactly as a terminating clause is left
+                // out of the block form's own join.
+                if arm_ty != never {
+                    types.push(arm_ty);
+                    joins.push(arm_live);
+                }
+            }
+            *live = joins
+                .into_iter()
+                .reduce(|a, b| a.intersection(&b).cloned().collect())
+                .unwrap_or_default();
+            env.interner.make_union(types)
+        }
         ExprKind::Paren(inner) => check_expr(inner, expected, live, scope, ctx, env),
         ExprKind::Error => env.interner.mixed(),
         _ => env.interner.mixed(),
     }
+}
+
+/// ADR 0119 § 5's warning: an arm naming `Throwable` itself, binding nothing,
+/// over a body that is not a `throw`.
+///
+/// All three conditions carry weight. Bound, the value is carried and the site
+/// can do something with it; over a `throw`, the failure leaves; and naming a
+/// class below the root is a site saying which failure it anticipated. Only
+/// the three together spell *discard every failure, including the ones this
+/// site never anticipated* — which is PHP's `@`, removed by
+/// [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 7 and regrown
+/// as a one-liner. `nvs_diagnostics::code::W_CATCH_ARM_DISCARDS_EVERY_FAILURE`
+/// says why it is a warning and not a refusal.
+fn warn_discarding_throwable_arm(arm: &CatchArm, ty: TypeId, env: &mut Env<'_>) {
+    if matches!(arm.body.kind, ExprKind::Throw(_)) {
+        return;
+    }
+    // The root by name, not by reachability: every class in the tree "is a"
+    // `Throwable`, and an arm naming `IOError` is the honest spelling this
+    // warning asks for rather than another instance of the shape it refuses.
+    if class_qname_of(ty, env.interner) != Some(QName::parse(nvs_hir::errors::ROOT)) {
+        return;
+    }
+    env.diags.report(
+        Diagnostic::warning(
+            code::W_CATCH_ARM_DISCARDS_EVERY_FAILURE,
+            "this `catch` arm discards every failure",
+        )
+        .with_primary(
+            arm.span,
+            "`Throwable` matches every class, and nothing here carries the value",
+        )
+        .with_help(
+            "name the class this site expects, or bind the value and carry it — \
+             `catch (Throwable $e) => report($e)`",
+        ),
+    );
 }
 
 /// `self`/`static`/`$this`'s type, resolved against the enclosing

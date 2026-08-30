@@ -2135,7 +2135,7 @@ name = "nvs-types (the expression catch)"
 args = ["test", "-p", "nvs-types"]
 tests = [
   "an_expression_catch_types_as_the_union_of_its_sides",
-  "an_unbound_throwable_arm_warns_e0778",
+  "an_unbound_throwable_arm_warns_w1006",
 ]
 
 [[check]]

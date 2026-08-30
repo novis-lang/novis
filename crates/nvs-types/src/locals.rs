@@ -138,6 +138,16 @@ pub(crate) struct LocalScope {
     /// A write still reaches them ([`LocalScope::overwrite`]), which is what
     /// makes resuming one at the end of the body sound.
     shadowed: std::cell::RefCell<Vec<FxHashMap<String, TypeId>>>,
+    /// The bindings an expression-level `catch` arm has in scope right now —
+    /// ADR 0119 § 1's `catch (T $e) => …`, whose `$e` is a local of the
+    /// enclosing function exactly as a clause's is.
+    ///
+    /// A [`RefCell`](std::cell::RefCell) for the reason `narrowed` is one, and
+    /// a side table rather than an entry in `by_name` for one more: an arm is
+    /// the only place in the language where an *expression* introduces a
+    /// binding, so there is no statement boundary afterwards at which the name
+    /// could be taken back out. [`ArmBinding`] is that boundary.
+    arm_bound: std::cell::RefCell<FxHashMap<String, LocalInfo>>,
 }
 
 /// The outer bindings a closure body may read, and the ones it actually did.
@@ -195,6 +205,9 @@ impl LocalScope {
     pub(crate) fn declared_ty(&self, name: &str) -> Option<TypeId> {
         if let Some(narrowed) = self.narrowed.borrow().get(name) {
             return Some(*narrowed);
+        }
+        if let Some(info) = self.arm_bound.borrow().get(name) {
+            return Some(info.ty);
         }
         if let Some(info) = self.by_name.get(name) {
             return Some(info.ty);
@@ -273,6 +286,12 @@ impl LocalScope {
             .map(|c| c.available.clone())
             .unwrap_or_default();
         for (name, info) in &self.by_name {
+            out.insert(name.clone(), info.ty);
+        }
+        // A closure written inside a `catch` arm may capture the arm's own
+        // binding, which is a local of this body like any other for as long as
+        // the arm lasts.
+        for (name, info) in self.arm_bound.borrow().iter() {
             out.insert(name.clone(), info.ty);
         }
         out
@@ -703,6 +722,75 @@ fn declare_binding(
             declared_span: span,
         },
     );
+}
+
+/// Declares an expression-level `catch` arm's `$e` for the length of that arm
+/// — ADR 0119 § 1's "a local of the enclosing function under the block form's
+/// rule", written against the `&LocalScope` the expression checker threads.
+///
+/// The rule is [`declare_binding`]'s non-strict path: reuse when an existing
+/// declaration's type matches exactly, and `E0406` otherwise. What differs is
+/// only where the binding lives and how it ends — see
+/// [`LocalScope::arm_bound`] and [`ArmBinding`].
+pub(crate) fn bind_catch_arm(
+    scope: &LocalScope,
+    name: &str,
+    ty: TypeId,
+    span: Span,
+    env: &mut Env<'_>,
+) -> ArmBinding {
+    // The binding writes the name, so it drops whatever a dominating condition
+    // proved about it — the module docs' rule that every write path goes
+    // through `overwrite`, which [`declare_binding`] follows for the same
+    // reason.
+    scope.overwrite(name);
+    let existing = {
+        let arms = scope.arm_bound.borrow();
+        arms.get(name)
+            .or_else(|| scope.by_name.get(name))
+            .map(|info| (info.ty, info.declared_span))
+    };
+    if let Some((existing_ty, first)) = existing {
+        if existing_ty != ty {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_REDECLARED_LOCAL,
+                    format!("`${name}` is already declared"),
+                )
+                .with_primary(span, "second declaration")
+                .with_secondary(first, "first declared here"),
+            );
+        }
+        return ArmBinding(None);
+    }
+    scope.arm_bound.borrow_mut().insert(
+        name.to_owned(),
+        LocalInfo {
+            ty,
+            declared_span: span,
+        },
+    );
+    ArmBinding(Some(name.to_owned()))
+}
+
+/// One arm binding, and what it takes to end it — see [`bind_catch_arm`].
+///
+/// Ending it is not tidiness: only the caught value ever assigns the name and
+/// no path out of the guarded expression carries one, so a binding left behind
+/// would reach `nvs-ir` as a readable local instead of the definite-assignment
+/// error a later `$e` is. The block form's `StmtKind::Try` arm removes the
+/// same name from `live` for the same reason.
+#[derive(Debug)]
+pub(crate) struct ArmBinding(Option<String>);
+
+impl ArmBinding {
+    /// Ends the binding. An arm that reused an existing declaration holds
+    /// nothing and this is a no-op, exactly as a clause's own reuse path is.
+    pub(crate) fn release(self, scope: &LocalScope) {
+        if let Some(name) = self.0 {
+            scope.arm_bound.borrow_mut().remove(&name);
+        }
+    }
 }
 
 /// Whether every path through `stmt` ends in a `return` or `throw` — used at

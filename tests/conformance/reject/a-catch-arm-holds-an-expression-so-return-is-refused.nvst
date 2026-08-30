@@ -6,7 +6,7 @@ an expression `catch` arm's body is an expression, so `return` is refused and th
 // rule. `throw` is admitted because `throw expr` already is one; `return`,
 // `break` and `continue` are statements, so they are named here rather than
 // left to a generic expected-expression error.
-mixed $count = Core\Str::length("hi") catch (RuntimeError $e) => return 0;
+uint $count = Core\Str::length("hi") catch (RuntimeError $e) => return Core\Str::length("");
 echo $count, "\n";
 --EXPECT--
 

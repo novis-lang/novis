@@ -264,13 +264,15 @@ whole design and this file does not restate it; each item names the ADR section 
     `crates/nvs-ir/src/lower/control.rs:2272` — and `nvs-ir`'s dispatch (`crates/nvs-ir/src/lower/expr.rs:99`)
     gets a `panic!` naming ADR 0119 § 6 until item 23 replaces it. Parser tests in
     `crates/nvs-syntax/src/parser/tests/expr.rs`. Same file set as item 22.
-22. **The checker — the union, the binding, the pre-guard state, and `E0778`.** ADR 0119 §§ 4–5. The
+22. **The checker — the union, the binding, the pre-guard state, and `W1006`.** ADR 0119 §§ 4–5. The
     result type is `make_union` over the guard and the arms exactly as the `ExprKind::Match` arm does
     it (`crates/nvs-types/src/expr/mod.rs:593`); the arm's class and variable go through the clause's
     own checks and binding rule (`crates/nvs-types/src/locals.rs:1091`, and its `catch`-binding
-    doc at `:654`); each arm is checked from the pre-guard `live` state, as a clause is; `E0778`
-    declared beside `E0777` (`crates/nvs-diagnostics/src/lib.rs:2336`) and reported for an unbound
-    `Throwable` arm whose body is not a `throw`. Fixtures under `crates/nvs-types/tests/`.
+    doc at `:654`); each arm is checked from the pre-guard `live` state, as a clause is; `W1006`
+    declared in the `W1xxx` band (`crates/nvs-diagnostics/src/lib.rs`, after `W1005`) and reported
+    for an unbound `Throwable` arm whose body is not a `throw` — the ADR's own `E0778` was taken by
+    `E_INSTANCE_METHOD_CALLED_STATICALLY`, and a warning belongs in `W1xxx` regardless. Fixtures
+    under `crates/nvs-types/tests/`.
 23. **The lowering, the corpus and the reference.** ADR 0119 § 6 and *Verification*. `lower_try`'s
     region push, handler block, `TakeThrown` and `lower_catch_clauses` dispatch
     (`crates/nvs-ir/src/lower/exception.rs:114`) carried into a value-producing twin that writes the
