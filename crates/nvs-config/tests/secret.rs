@@ -138,7 +138,7 @@ const ROOT: &str = "[db.main]\ndriver = \"postgres\"\npassword_file = \"secrets/
 /// the value, minus one trailing newline, with the leading and trailing spaces a password may
 /// legitimately carry left exactly where they were.
 #[test]
-fn the_files_whole_content_is_the_value_minus_one_trailing_newline() {
+fn a_password_file_yields_its_content_with_one_trailing_newline_stripped() {
     let fs = Fake::with(&[("etc/nvs.toml", ROOT), ("etc/secrets/db", " hunt er2 \n")]);
     let resolved = tree_of(&fs, "etc/nvs.toml");
 

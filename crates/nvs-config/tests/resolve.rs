@@ -24,6 +24,7 @@ fn p(path: &str) -> PathBuf {
 struct Fake {
     files: BTreeMap<PathBuf, String>,
     untrusted: BTreeSet<PathBuf>,
+    unreadable: BTreeSet<PathBuf>,
     links: BTreeMap<PathBuf, PathBuf>,
 }
 
@@ -35,6 +36,7 @@ impl Fake {
                 .map(|(path, text)| (p(path), (*text).to_string()))
                 .collect(),
             untrusted: BTreeSet::new(),
+            unreadable: BTreeSet::new(),
             links: BTreeMap::new(),
         }
     }
@@ -42,6 +44,14 @@ impl Fake {
     /// The paths whose § 6 check fails, the way a group-writable file's does.
     fn untrusting(mut self, paths: &[&str]) -> Self {
         self.untrusted = paths.iter().map(|path| p(path)).collect();
+        self
+    }
+
+    /// The paths that are **there** and still cannot be read, the way a file whose mode denies this
+    /// account is. It has to exist for the distinction to mean anything: `optional` is a statement
+    /// about absence, so only a present file can tell absence and unreadability apart.
+    fn unreadable(mut self, paths: &[&str]) -> Self {
+        self.unreadable = paths.iter().map(|path| p(path)).collect();
         self
     }
 
@@ -92,6 +102,9 @@ impl Files for Fake {
     }
 
     fn read(&self, path: &Path) -> Result<String, String> {
+        if self.unreadable.contains(path) {
+            return Err("permission denied".to_string());
+        }
         self.files
             .get(path)
             .cloned()
@@ -150,11 +163,12 @@ fn memory(resolved: &Resolved) -> Option<&Setting> {
     resolved.config.limits.as_ref()?.memory.as_ref()
 }
 
-/// § 1 steps 1 and 2: `--config` is repeatable and ordered, and **any** explicit `--config` disables
-/// the `./nvs.toml` step entirely — an operator naming files never gets a surprise merge with
-/// whatever is in the working directory.
+/// § 1's whole ladder: `--config` is repeatable and ordered, and **any** explicit `--config`
+/// disables the `./nvs.toml` step entirely — an operator naming files never gets a surprise merge
+/// with whatever is in the working directory — while a directory holding no file falls through to
+/// the shipped defaults rather than to a failure.
 #[test]
-fn the_root_is_every_config_flag_in_order_else_the_local_file() {
+fn a_root_is_named_by_config_else_found_else_defaulted() {
     let fs = Fake::with(&[("app/nvs.toml", ""), ("etc/base.toml", "")]);
 
     assert_eq!(
@@ -172,6 +186,11 @@ fn the_root_is_every_config_flag_in_order_else_the_local_file() {
         Roots::Files(vec![p("app/etc/base.toml")]),
         "a flag disables step 2 even though `app/nvs.toml` is right there — and the flag itself \
          resolves against the working directory, because that is what a shell argument means (§ 5)",
+    );
+    assert_eq!(
+        roots(&[], &p("elsewhere"), &fs),
+        Roots::Defaults,
+        "step 3: no flag and no file here is a configuration, not a refusal",
     );
 }
 
@@ -281,7 +300,7 @@ fn a_dir_include_is_sorted_shallow_and_toml_only() {
 /// wholesale, so the last file that mentions a grant states the whole grant; `[[table]]` entries
 /// accumulate, because two of them in one file already mean two.
 #[test]
-fn a_value_array_replaces_where_an_array_of_tables_appends() {
+fn a_value_array_replaces_where_a_table_appends() {
     let fs = Fake::with(&[
         (
             "etc/nvs.toml",
@@ -317,7 +336,7 @@ fn a_value_array_replaces_where_an_array_of_tables_appends() {
 /// § 5: a relative path resolves against the directory of the file it is written in, which is the
 /// only rule under which a config directory survives being copied or relocated whole.
 #[test]
-fn a_relative_include_resolves_against_the_file_it_is_written_in() {
+fn a_relative_path_resolves_against_the_file_it_is_written_in() {
     let fs = Fake::with(&[
         ("etc/nvs.toml", "[[include]]\npath = \"conf.d/db.toml\"\n"),
         (
@@ -409,10 +428,13 @@ fn nesting_past_the_cap_is_refused() {
     );
 }
 
-/// § 6: `optional = true` covers **absence and nothing else**, and the two halves are asserted
-/// together — a resolver that skipped every failing include would pass on the first half alone.
+/// § 6: `optional = true` covers **absence and nothing else**, and the three halves are asserted
+/// together — a resolver that skipped every failing include would pass on the first alone. The last
+/// is the one a naive implementation gets wrong: a file that is *there* and cannot be read is a
+/// hard refusal even under `optional`, because otherwise a stray `chmod` silently drops half a
+/// configuration and the server comes up looking healthy.
 #[test]
-fn optional_covers_absence_and_a_missing_include_otherwise_refuses() {
+fn optional_covers_absence_and_not_unreadability() {
     let present = Fake::with(&[(
         "etc/nvs.toml",
         "[[include]]\npath = \"gone.toml\"\noptional = true\n\n[limits]\nmemory = \"1M\"\n",
@@ -427,6 +449,24 @@ fn optional_covers_absence_and_a_missing_include_otherwise_refuses() {
     assert!(
         diagnostic.message.contains("gone.toml"),
         "the refusal names the path: {}",
+        diagnostic.message,
+    );
+
+    let denied = Fake::with(&[
+        (
+            "etc/nvs.toml",
+            "[[include]]\npath = \"local.toml\"\noptional = true\n",
+        ),
+        ("etc/local.toml", "[limits]\nmemory = \"128M\"\n"),
+    ])
+    .unreadable(&["etc/local.toml"]);
+    let diagnostic = refusal(&denied, "etc/nvs.toml");
+    assert_eq!(diagnostic.code, Some(code::E_UNREADABLE_CONFIG));
+    assert!(
+        diagnostic
+            .message
+            .contains(&p("etc/local.toml").display().to_string()),
+        "`optional` does not cover a file that is there and unreadable: {}",
         diagnostic.message,
     );
 }
@@ -541,9 +581,12 @@ fn two_files_setting_different_keys_of_one_block_both_survive() {
 
 /// § 6: a file some other account can write refuses the boot rather than being read, and the
 /// refusal is `E0607` naming **that** file — not the `E0605` an unreadable one gets, because an
-/// operator told "cannot read" goes looking for a typo when the answer is a mode.
+/// operator told "cannot read" goes looking for a typo when the answer is a mode. **A directory an
+/// `[[include]]` reads is asked the same question**, and it is asserted here beside the file
+/// because the two are one boundary: a check that held only for files would leave every `dir`
+/// include a slot, and it would still look right on the file half alone.
 #[test]
-fn a_file_outside_the_trust_boundary_refuses_the_boot() {
+fn a_group_writable_file_or_directory_refuses_the_boot() {
     let fs = Fake::with(&[
         ("etc/nvs.toml", "[[include]]\npath = \"local.toml\"\n"),
         ("etc/local.toml", "[limits]\nmemory = \"128M\"\n"),
@@ -558,6 +601,23 @@ fn a_file_outside_the_trust_boundary_refuses_the_boot() {
             .message
             .contains(&p("etc/local.toml").display().to_string()),
         "the refusal names the file that fails the check, not the root that pulled it in: {}",
+        diagnostic.message,
+    );
+
+    let fs = Fake::with(&[
+        ("etc/nvs.toml", "[[include]]\ndir = \"conf.d\"\n"),
+        ("etc/conf.d/host.toml", "[limits]\nmemory = \"128M\"\n"),
+    ])
+    .untrusting(&["etc/conf.d"]);
+
+    let diagnostic = refusal(&fs, "etc/nvs.toml");
+
+    assert_eq!(diagnostic.code, Some(code::E_UNTRUSTED_CONFIG));
+    assert!(
+        diagnostic
+            .message
+            .contains(&p("etc/conf.d").display().to_string()),
+        "the directory is checked before anything in it is read: {}",
         diagnostic.message,
     );
 }
