@@ -9043,16 +9043,16 @@ Parses the JSON text `$json` into a value, as `json_decode` does with `$associat
 Core\Json::decodeAs<T>(string $json, {maxDepth?: uint}): T
 ```
 
-Parses the JSON object `$json` into an instance of `T`, a class carrying `#[Json\Derive]`, reading every declared field and running the constructor only when all of them matched; it replaces hand-written hydration.
+Parses the JSON object `$json` into an instance of `T`, a class carrying `#[Json\Derive]`, reading every declared field and running the constructor only when all of them matched; write `array<T>` to read a JSON array as one instance per element instead. It replaces hand-written hydration.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$json` | `string` | The JSON text to parse, whose top level must be an object. |
+| `$json` | `string` | The JSON text to parse, whose top level must be an object — or an array, where `T` is written `array<C>`. |
 | `{maxDepth: …}` | `uint` (default `512`) | The deepest nesting accepted, counted as PHP's `$depth` is — a scalar document is depth 1, `[1]` is depth 2; `512` by default and at most `1024`. |
 
-**Returns** `T` — A new `T` built from the document's fields.
+**Returns** `T` — A new `T` built from the document's fields, or — for an `array<C>` — one new `C` per element, in the document's own order.
 
-**Throws** `ParseError` — `$json` is not a valid JSON document, nests deeper than `maxDepth`, holds an integer literal too large for `int`, is not an object at the top level, or has fields that are missing or of the wrong type — every failed field is one issue on the error, at its own path, and the message counts them.; `LogicError` — `T` has no JSON codec because it does not carry `#[Json\Derive]`, or `maxDepth` is `0` or above `1024`.
+**Throws** `ParseError` — `$json` is not a valid JSON document, nests deeper than `maxDepth`, holds an integer literal too large for `int`, is not an object at the top level (an array, for an `array<C>`), or has fields that are missing or of the wrong type — every failed field is one issue on the error, at its own path, and the message counts them. A list stops at its first bad element, and each of its paths carries that element's position.; `LogicError` — `T` has no JSON codec because it does not carry `#[Json\Derive]`, or `maxDepth` is `0` or above `1024`.
 
 <a id="core-core-json-isvalid"></a>
 #### `Core\Json::isValid`
