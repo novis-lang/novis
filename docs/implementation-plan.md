@@ -42,27 +42,26 @@
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
 > **Open now:** **Goal 3 of the parity program — configuration and capabilities, M6 — is running**,
-> goals 1 and 2 reached and standing as its floor. The chain is `python tools/loop.py --chain
-> docs/agent/goals/chain.toml` over [docs/agent/goals/](agent/goals/README.md), whose README §
-> *Starting the chain* records how it was started. **Stages 0b and 2–6 are closed at their
-> acceptance**: `crates/nvs-host` is on disk whole (scheduler, reactor, parking stream, timers,
-> blocking pool, watchdog, task tree, channel, groups, isolate) with every `cargo-named` name green,
-> `spawn script`/`await` lower, and every decision taken on the way lives in the module doc of the
-> file that holds it — `crates/nvs-host/src/*.rs`, `crates/nvs-runtime/src/{host,script,graph}.rs`,
-> `crates/nvs-stdlib/src/{task,channel,serialize, script}.rs`,
-> `crates/nvs-cli/src/{script,runner}.rs` — or in ADRs 0115–0117. Goal 3's first rows are on disk:
-> `crates/nvs-config` holds the directive registry, 0064 § 2a's block roster as a typed tree with §
-> 3's two per-file refusals, and ADR 0103 §§ 1-6's resolver, later-wins recorded and every file
-> trusted. **Stage 8 is closed at both counts**: conformance is 1000, differential is 206 over its
-> 205 floor with six `Core\Serialize` round-trips against PHP's own pair, and `isolation.rs`
-> measures `nvs_host::Isolate` itself with a guard beside it. Three known gaps, each recorded where
-> its code is: item 18's `Core\Secret::reveal()` is not in the registry, though how a `secret`
-> parameter is spelled on a row is decided (`Qual::Reveal`); `Live::admit`'s same-class check is
-> asked of the answer and not of the argument (`crates/nvs-runtime/src/graph.rs` § *Known gaps*);
-> item 22's `Core\Script` members are unwritten (`crates/nvs-stdlib/src/script.rs`). The program is
-> measured by `python tools/check-migration.py` at 100% classified — 25% when it was scheduled, 34%
-> now — and `gaps.py`, `holes.py` and `check-migration.py --report` are the worklists no session
-> re-derives.
+> goals 1 and 2 reached and standing as its floor. [docs/agent/goals/](agent/goals/README.md)'s
+> README § *Starting the chain* records how the chain was started. **Stages 0b and 2–6 are closed at
+> their acceptance**: `crates/nvs-host` is on disk whole (scheduler, reactor, parking stream,
+> timers, blocking pool, watchdog, task tree, channel, groups, isolate) with every `cargo-named`
+> name green, `spawn script`/`await` lower, and every decision taken on the way lives in the module
+> doc of the file that holds it — `crates/nvs-host/src/*.rs`,
+> `crates/nvs-runtime/src/{host,script,graph}.rs`, `crates/nvs-stdlib/src/{task,channel,serialize,
+> script}.rs`, `crates/nvs-cli/src/{script,runner}.rs` — or in ADRs 0115–0117. Goal 3's first rows
+> are on disk: `crates/nvs-config` holds the directive registry, 0064 § 2a's block roster as a typed
+> tree with § 3's two per-file refusals, and ADR 0103 §§ 1-7's resolver, later-wins recorded, every
+> file trusted and every secret file read. **Stage 8 is closed at both counts**: conformance is
+> 1000, differential is 206 over its 205 floor with six `Core\Serialize` round-trips against PHP's
+> own pair, and `isolation.rs` measures `nvs_host::Isolate` itself with a guard beside it. Three
+> known gaps, each recorded where its code is: item 18's `Core\Secret::reveal()` is not in the
+> registry, though how a `secret` parameter is spelled on a row is decided (`Qual::Reveal`);
+> `Live::admit`'s same-class check is asked of the answer and not of the argument
+> (`crates/nvs-runtime/src/graph.rs` § *Known gaps*); item 22's `Core\Script` members are unwritten
+> (`crates/nvs-stdlib/src/script.rs`). The program is measured by `python tools/check-migration.py`
+> at 100% classified — 25% when it was scheduled, 34% now — and `gaps.py`, `holes.py` and
+> `check-migration.py --report` are the worklists no session re-derives.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
