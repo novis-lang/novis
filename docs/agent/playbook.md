@@ -3899,6 +3899,15 @@ sibling in the same namespace unqualified.
   only the number was wrong. The full roster a new `[limits]` key owes is the `Limits` field, the
   `DIRECTIVES` row, the `unit_of` arm and the `Ctx` reader; `unit_of`'s own doc calls itself the one
   table, which is the sentence to trust over the three files that look complete without it.
+- **A new `[limits]` key needs four edits, and the one that is easy to miss makes the other three
+  read as a silent default.** `max_script_depth` had its `Limits` field
+  (`crates/nvs-config/src/tree.rs`), its `DIRECTIVES` row (`crates/nvs-config/src/directive.rs`) and
+  its `Ctx` reader, and every written value still came back as the default: `Request::get` resolves a
+  bare name to `limits.<name>` only when `nvs_config::value::unit_of` knows the leaf, so a key
+  missing from that `match` has no block, never reaches `[limits]`, and the reader answers its
+  default instead. The comment above `unit_of`'s `Duration` arm already says exactly this — it is
+  worth reading before adding a key rather than after. The full roster is: the `Limits` field, the
+  `DIRECTIVES` row, the `unit_of` arm, and the reader. Nothing fails to compile without the third.
 
 ## Divergences and refusals already pinned
 

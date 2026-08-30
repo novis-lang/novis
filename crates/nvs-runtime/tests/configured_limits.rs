@@ -3,9 +3,11 @@
 //! everywhere after it.
 //!
 //! The cases here ask only the *reader*: a directive written as a string with a
-//! suffix becomes the number the enforcement path compares against. What each
-//! ceiling then does to a request in flight is `nvs-host`'s `tests/limits.rs`,
-//! which needs a task to stop and a safepoint to stop it at.
+//! suffix becomes the number the enforcement path compares against, and — for
+//! the one ceiling that describes a tree rather than a request — what a child
+//! context inherits of it. What each ceiling then does to a request in flight is
+//! `nvs-host`'s `tests/limits.rs`, which needs a task to stop and a safepoint to
+//! stop it at.
 
 use std::sync::Arc;
 
@@ -119,4 +121,104 @@ fn an_unstated_uncapped_or_malformed_cpu_time_is_no_ceiling() {
         ctx_reading("[limits]\ncpu_time = \"every other tuesday\"\n").cpu_limit(),
         0,
     );
+}
+
+/// `[limits] max_script_depth` is the one ceiling in this block whose *unstated* reading is a
+/// number rather than "no cap", and `Ctx::max_script_depth`'s field doc owns why. Asserted here as
+/// the whole shape it differs in — unstated and malformed both default, and only `false` is off —
+/// because a reader that answered `0` for any of the three would still look right on the one line
+/// that reads a written value back.
+#[test]
+fn an_unstated_or_malformed_max_script_depth_defaults_while_false_removes_the_ceiling() {
+    assert_eq!(
+        Ctx::new(OutputSink::Buffer(Vec::new())).max_script_depth(),
+        Ctx::DEFAULT_MAX_SCRIPT_DEPTH,
+        "a request with no configuration at all is still under the ceiling",
+    );
+    assert_eq!(
+        ctx_reading("[limits]\nmemory = \"128M\"\n").max_script_depth(),
+        Ctx::DEFAULT_MAX_SCRIPT_DEPTH,
+        "a block that states other ceilings and not this one",
+    );
+    assert_eq!(
+        ctx_reading("[limits]\nmax_script_depth = \"as deep as it goes\"\n").max_script_depth(),
+        Ctx::DEFAULT_MAX_SCRIPT_DEPTH,
+        "on is the safe direction for a net, so a malformed value is not read as off",
+    );
+    assert_eq!(
+        ctx_reading("[limits]\nmax_script_depth = false\n").max_script_depth(),
+        0,
+        "the one spelling that turns it off, and an operator had to write it",
+    );
+}
+
+/// A depth written as a bare integer and one written as ADR 0064 § 5's text spelling are the same
+/// reading, and both cross `Core\Config` as text either way. The pair is asserted rather than one
+/// of them because `Quantity::parse` reaches them by two different arms.
+#[test]
+fn max_script_depth_is_read_as_a_count() {
+    assert_eq!(
+        ctx_reading("[limits]\nmax_script_depth = 8\n").max_script_depth(),
+        8
+    );
+    assert_eq!(
+        ctx_reading("[limits]\nmax_script_depth = \"8\"\n").max_script_depth(),
+        8,
+        "the quoted spelling is the same measurement, not a different one",
+    );
+}
+
+/// The directive is `System`, so a request may not raise its own recursion ceiling — which is the
+/// entire reason ADR 0005's class was chosen for it, and the one property a reader test can pin
+/// without a host to spawn in.
+#[test]
+fn a_request_cannot_set_its_own_max_script_depth() {
+    let mut ctx = ctx_reading("[limits]\nmax_script_depth = 8\n");
+    assert!(
+        !ctx.config_mut()
+            .expect("the case set one")
+            .set("max_script_depth", "4096")
+    );
+    ctx.refresh_limits();
+    assert_eq!(
+        ctx.max_script_depth(),
+        8,
+        "the refusal left the file's value in force"
+    );
+}
+
+/// A `spawn script` chain is counted on the contexts it crosses: the request is depth `0` and each
+/// isolate is one deeper than whatever built it, carrying the ceiling down unchanged.
+///
+/// The ceiling is asserted at every level beside the depth, because `Ctx::isolate` clones the
+/// configuration too — a child that re-read the file rather than inheriting the number would answer
+/// the same `8` here while silently widening a ceiling its parent had narrowed, which is the one
+/// failure this propagation exists to prevent.
+#[test]
+fn a_child_context_is_one_deeper_than_its_parent_and_inherits_the_ceiling() {
+    let request = ctx_reading("[limits]\nmax_script_depth = 8\n");
+    assert_eq!(
+        request.script_depth(),
+        0,
+        "the request that started the tree"
+    );
+
+    let child = request.isolate(OutputSink::Buffer(Vec::new()));
+    assert_eq!(child.script_depth(), 1);
+    assert_eq!(child.max_script_depth(), 8);
+
+    let grandchild = child.isolate(OutputSink::Buffer(Vec::new()));
+    assert_eq!(grandchild.script_depth(), 2);
+    assert_eq!(grandchild.max_script_depth(), 8);
+
+    // A parent that narrowed the ceiling for itself narrowed it for everything beneath it. The
+    // direction `Ctx::isolate`'s comment owns, and the reason the number is copied rather than
+    // re-read out of the configuration crossing beside it.
+    let mut narrowed = ctx_reading("[limits]\nmax_script_depth = 8\n");
+    narrowed.set_max_script_depth(2);
+    let under = narrowed
+        .isolate(OutputSink::Buffer(Vec::new()))
+        .isolate(OutputSink::Buffer(Vec::new()));
+    assert_eq!(under.max_script_depth(), 2, "not the 8 the file still says");
+    assert_eq!(under.script_depth(), 2);
 }

@@ -121,7 +121,7 @@ pub fn unit_of(key: &str) -> Option<Unit> {
         // is read here for the same reason: a limit missing from this table has no block, so a
         // bare name never reaches `[limits]` and the reader silently answers its default instead.
         "cpu_time" | "wall_time" | "fatal_reserve_time" => Some(Unit::Duration),
-        "max_tasks" => Some(Unit::Count),
+        "max_tasks" | "max_script_depth" => Some(Unit::Count),
         _ => None,
     }
 }

@@ -99,6 +99,10 @@ pub const DIRECTIVES: &[Directive] = &[
     // are the same net, so they are the same class.
     Directive { key: "limits.fatal_reserve_memory", class: Class::System, apply: Apply::Reload },
     Directive { key: "limits.fatal_reserve_time", class: Class::System, apply: Apply::Reload },
+    // The third, on the same grounds and not under `[limits.hard]` for the same reason: a script
+    // able to raise its own recursion ceiling would exhaust the tree's heap before any depth
+    // stopped it, which is the confusion m6.md's *Verify* asks this key to remove.
+    Directive { key: "limits.max_script_depth", class: Class::System, apply: Apply::Reload },
     // `[mode]` is the second and last block with that same two-halves shape (ADR 0005, ADR 0091).
     Directive { key: "mode.default", class: Class::Runtime, apply: Apply::Reload },
     Directive { key: "mode.ceiling", class: Class::System, apply: Apply::Reload },

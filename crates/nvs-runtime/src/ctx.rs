@@ -376,6 +376,39 @@ pub struct Ctx {
     /// operator's own `[limits] cpu_time`, moved from one side of the ceiling to
     /// the other, so a request's total is unchanged.
     fatal_reserve_time: u64,
+    /// How deep a chain of `spawn script` may nest — `[limits] max_script_depth`,
+    /// [`Self::DEFAULT_MAX_SCRIPT_DEPTH`] where nothing states one, and `0`
+    /// (no ceiling) only where an operator wrote `false`.
+    ///
+    /// **The one ceiling here with a default rather than an unstated "no cap",**
+    /// and the asymmetry is the point. A request left uncapped for CPU or memory
+    /// is a request an operator chose not to bound; a recursion of isolates left
+    /// unbounded does not run on forever, it exhausts the tree's heap, so
+    /// "unstated" would mean the breach is reported as an out-of-memory — the
+    /// confusion `docs/plan/m6.md`'s *Verify* asks this directive to remove. A
+    /// malformed value takes the default for the same reason, where its siblings
+    /// read malformed as no cap: on is the safe direction for a net.
+    ///
+    /// **Counting the depth is the host's, not this crate's**, the same split
+    /// [`Self::cpu_limit`] describes for the clock: `nvs-runtime` has no isolate
+    /// to number, so it holds the ceiling and `nvs_host::Isolate` compares its
+    /// own depth against it.
+    ///
+    /// **What it spends:** one word per request.
+    max_script_depth: u32,
+    /// How many `spawn script` boundaries stand between this context and the
+    /// request that started the tree — `0` for the request itself, and one more
+    /// for each isolate beneath it ([`Self::isolate`] is where it is counted).
+    ///
+    /// Held here rather than on `nvs_host::Isolate` because the depth has to
+    /// survive the crossing, and a [`Ctx`] is the only thing that does: an
+    /// isolate is built, run and dropped, while its context is what its own
+    /// children are built from. That is also why the ceiling beside it is not
+    /// re-read from the configuration by [`Self::isolate`] — see that
+    /// constructor.
+    ///
+    /// **What it spends:** one word per request, and one per in-flight isolate.
+    script_depth: u32,
     /// What is behind a pending `THROWN` or `FATAL` status — see [`Pending`]
     /// for why one field carries both shapes rather than two sitting beside
     /// each other.
@@ -930,6 +963,8 @@ impl Ctx {
             fatal_reserve: 0,
             cpu_limit: 0,
             fatal_reserve_time: 0,
+            max_script_depth: Self::DEFAULT_MAX_SCRIPT_DEPTH,
+            script_depth: 0,
             pending: None,
             runtime_error_class: None,
             output,
@@ -1294,6 +1329,10 @@ impl Ctx {
         self.fatal_reserve_time =
             Self::reserve_time_within(cpu_ceiling, self.configured_fatal_reserve_time());
         self.cpu_limit = cpu_ceiling.saturating_sub(self.fatal_reserve_time);
+        // Read in the same pass and for the same reason, though there is nothing
+        // to carve out of it: a request's ceilings are one reading of one
+        // configuration.
+        self.max_script_depth = self.configured_max_script_depth();
     }
 
     /// `[limits] cpu_time` in nanoseconds, or `0` for a request under no cap.
@@ -1364,6 +1403,69 @@ impl Ctx {
     /// carved out of `[limits] cpu_time`.
     pub fn set_fatal_reserve_time(&mut self, nanos: u64) {
         self.fatal_reserve_time = nanos;
+    }
+
+    /// The nesting a `spawn script` chain is allowed where `[limits]` states no
+    /// `max_script_depth` — **the only home of this number.**
+    ///
+    /// Sixty-four because every level is a whole isolate with its own heap
+    /// rather than a stack frame, so the depth at which a legitimate program
+    /// still works is far below the depth at which recursion is the diagnosis:
+    /// a generator spawning a worker that spawns a helper is three, and nothing
+    /// written on purpose is sixty-four. Chosen well under where the heap would
+    /// notice, so that the refusal that arrives says what is actually wrong —
+    /// [`Self::max_script_depth`]'s field doc owns why that ordering is the
+    /// whole reason the default exists.
+    pub const DEFAULT_MAX_SCRIPT_DEPTH: u32 = 64;
+
+    /// How deep a chain of `spawn script` may nest, or `0` for a tree under no
+    /// ceiling — see [`Self::max_script_depth`]'s field doc, which owns why an
+    /// unstated value is a default here and a `0` everywhere else.
+    #[must_use]
+    pub fn max_script_depth(&self) -> u32 {
+        self.max_script_depth
+    }
+
+    /// Sets the nesting ceiling directly, for the callers
+    /// [`Self::set_cpu_limit`] exists for and with the same division of labour.
+    pub fn set_max_script_depth(&mut self, depth: u32) {
+        self.max_script_depth = depth;
+    }
+
+    /// How deep in a `spawn script` chain this context already is — `0` for the
+    /// request that started the tree, and see [`Self::script_depth`]'s field doc
+    /// for why the number lives on a context rather than on an isolate.
+    #[must_use]
+    pub fn script_depth(&self) -> u32 {
+        self.script_depth
+    }
+
+    /// `[limits] max_script_depth` as a count, or
+    /// [`Self::DEFAULT_MAX_SCRIPT_DEPTH`] where the configuration does not state
+    /// one.
+    ///
+    /// `false` — [ADR 0005]'s spelling of no ceiling at all — is the one value
+    /// that answers `0` and turns the net off. A malformed one takes the default
+    /// instead, which is where this reader parts company with
+    /// [`Self::configured_cpu_time`]; the field doc owns why. Either way the
+    /// file was already parsed and refused at the boundary that could name the
+    /// line, so this is not a second place to refuse it.
+    ///
+    /// [ADR 0005]: ../../../docs/adr/0005-config-changeability.md
+    fn configured_max_script_depth(&self) -> u32 {
+        let Some(written) = self
+            .config
+            .as_ref()
+            .and_then(|config| config.get("max_script_depth"))
+        else {
+            return Self::DEFAULT_MAX_SCRIPT_DEPTH;
+        };
+        let setting = nvs_config::Setting::Text(written);
+        match nvs_config::Quantity::parse("max_script_depth", nvs_config::Unit::Count, &setting) {
+            Ok(nvs_config::Quantity::Count(depth)) => u32::try_from(depth).unwrap_or(u32::MAX),
+            Ok(nvs_config::Quantity::Unbounded) => 0,
+            _ => Self::DEFAULT_MAX_SCRIPT_DEPTH,
+        }
     }
 
     /// `[limits] fatal_reserve_memory` as bytes, or `None` where the
@@ -1657,6 +1759,16 @@ impl Ctx {
         // narrowed a limit for itself has narrowed it for the tree beneath it,
         // and a child re-reading the snapshot would silently widen it back.
         isolate.config = self.config.clone();
+        // One deeper than whatever spawned it, and carrying the same ceiling.
+        // The ceiling is *copied* rather than re-read out of the configuration
+        // this constructor just cloned, for the reason the overlay crosses at
+        // all: a parent that narrowed its own recursion ceiling has narrowed it
+        // for the tree beneath it, and a child re-reading the file would widen
+        // it back. Saturating because a depth that reached `u32::MAX` is past
+        // every ceiling anyone could write, so the arithmetic has no answer the
+        // refusal above it would treat differently.
+        isolate.script_depth = self.script_depth.saturating_add(1);
+        isolate.max_script_depth = self.max_script_depth;
         isolate.runtime_error_class = self.runtime_error_class.clone();
         isolate.deadline = std::sync::atomic::AtomicU64::new(
             self.deadline.load(std::sync::atomic::Ordering::Relaxed),
