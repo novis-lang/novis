@@ -984,7 +984,7 @@ fn a_guard_covers_a_whole_coalesce_chain() {
 }
 
 #[test]
-fn a_following_catch_is_the_next_arm_of_the_same_guard() {
+fn an_expression_catch_is_arms_on_one_guarded_expression() {
     // § 1: arms are clauses of one guard, not guards of each other. The `?:`
     // is the first arm's whole body and the `B` arm does not guard it.
     let e = parse_ok("1 catch (A $e) => $y ?: 2 catch (B) => 3");
@@ -997,6 +997,32 @@ fn a_following_catch_is_the_next_arm_of_the_same_guard() {
     assert!(matches!(arms[0].body.kind, ExprKind::Ternary { .. }));
     assert!(arms[1].var.is_none());
     assert!(matches!(arms[1].body.kind, ExprKind::Int(_)));
+}
+
+/// § 3's refusal, and the reason it is a code of its own: a reader who writes
+/// `return` here is told the block form exists rather than which token was
+/// expected. The keyword is consumed and what follows it becomes the arm's
+/// body, so the file reports the rest of its problems in the same run.
+#[test]
+fn a_statement_keyword_in_a_catch_arm_is_e0126() {
+    for (src, body_is_int) in [
+        ("1 catch (IOError $e) => return 2", true),
+        ("1 catch (IOError $e) => break", false),
+        ("1 catch (IOError $e) => continue", false),
+    ] {
+        let (e, diags) = parse_with_diags(src);
+        let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+        assert_eq!(codes, vec![code::E_CATCH_ARM_NOT_AN_EXPRESSION], "{src}");
+        let ExprKind::Catch { arms, .. } = e.kind else {
+            panic!("expected a top-level `catch`: {e:?}");
+        };
+        assert_eq!(arms.len(), 1, "{src}");
+        assert_eq!(
+            matches!(arms[0].body.kind, ExprKind::Int(_)),
+            body_is_int,
+            "the keyword is consumed and what follows it is the body: {src}"
+        );
+    }
 }
 
 #[test]
