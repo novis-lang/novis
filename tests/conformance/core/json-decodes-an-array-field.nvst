@@ -1,0 +1,84 @@
+--TEST--
+`Core\Json::decodeAs<T>` decodes an `array<T>` field, of a scalar or of another derived class, and reports a bad element at its own position — ADR 0071 §§ 2 and 5
+--FILE--
+<?nvs
+// § 2 admits an `array<T>` field wherever `T` is codec-reachable. `Author`
+// makes the element half a class, so one document exercises both an element
+// that is a scalar and one that runs a whole nested field list.
+#[Core\Json\Derive]
+class Author {
+    public function constructor(public string $name) {}
+}
+
+#[Core\Json\Derive]
+class Post {
+    public function constructor(
+        public string $title,
+        public array<string> $tags,
+        public array<uint> $sizes,
+        public array<Author> $authors,
+    ) {}
+}
+
+var $p = Core\Json::decodeAs<Post>(
+    "{\"title\":\"t\",\"tags\":[\"a\",\"b\"],\"sizes\":[1,2,3],\"authors\":[{\"name\":\"ada\"},{\"name\":\"bob\"}]}"
+);
+echo "title=", $p->title, "\n";
+echo "tags=", Core\Arr::count($p->tags), "\n";
+foreach ($p->tags as string $tag) {
+    echo "  tag=", $tag, "\n";
+}
+echo "sizes=", Core\Arr::count($p->sizes), "\n";
+foreach ($p->authors as Author $author) {
+    echo "  author=", $author->name, "\n";
+}
+
+// The encode half already walked the value, so closing the decode half is what
+// makes the document that came in the document that goes back out.
+echo "round=", Core\Json::encode($p), "\n";
+
+// § 5 accumulates rather than stopping at the first failure, and a list is no
+// exception: both bad elements are reported, each under the position that held
+// it. `tags.3` is § 5's own example path.
+try {
+    Core\Json::decodeAs<Post>(
+        "{\"title\":\"t\",\"tags\":[\"a\",7,\"c\",false],\"sizes\":[1],\"authors\":[]}"
+    );
+    echo "not reached\n";
+} catch (ParseError $bad) {
+    echo "elements=", Core\Arr::count($bad->issues), "\n";
+    foreach ($bad->issues as {path: string, message: string} $issue) {
+        echo "  ", $issue->path, ": ", $issue->message, "\n";
+    }
+}
+
+// The two shape bounds, side by side: a scalar where the whole array belongs is
+// one issue naming the field, while an element that is a class nests one
+// further, so `authors.0.name` is element 0's own `name`. An empty `array<T>`
+// is a decode that succeeds, which is why `authors` above reported nothing.
+try {
+    Core\Json::decodeAs<Post>(
+        "{\"title\":\"t\",\"tags\":9,\"sizes\":[1],\"authors\":[{\"name\":1}]}"
+    );
+    echo "not reached\n";
+} catch (ParseError $shape) {
+    echo "shapes=", Core\Arr::count($shape->issues), "\n";
+    foreach ($shape->issues as {path: string, message: string} $issue) {
+        echo "  ", $issue->path, ": ", $issue->message, "\n";
+    }
+}
+--EXPECT--
+title=t
+tags=2
+  tag=a
+  tag=b
+sizes=3
+  author=ada
+  author=bob
+round={"title":"t","tags":["a","b"],"sizes":[1,2,3],"authors":[{"name":"ada"},{"name":"bob"}]}
+elements=2
+  tags.1: expected string, found a number
+  tags.3: expected string, found a boolean
+shapes=2
+  tags: expected an array, found a number
+  authors.0.name: expected string, found a number

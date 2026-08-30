@@ -216,12 +216,13 @@ in that goal. An item's owner is the row it sits in.
 - [ ] **D6** `Core\Router::url` with a **computed** name throws for every name, declared or not:
       "no route is named 'u'. The compile-time route table is not built yet (ADR 0077 § 5)". The
       card says only an unknown computed name throws. *ref-attr `route-url-computed-name`*
-- [ ] **D7** `Core\Json::decodeAs<T>` is a **FATAL** for an **array or enum** field (encode handles
-      both). The nested-class half is closed: a class field erases to `CodecTy::Class` carrying its
-      label, `nvs-codegen` resolves that to a descriptor once every class of the unit is defined, and
-      `nvs_stdlib::json::decode_nested` runs the nested field list under ADR 0071 § 5's dotted path.
-      What array and enum still need is in that module's gap 2. *ref-attr `derive-array-and-enum-field`,
-      `derive-decode-nested-and-float`*
+- [ ] **D7** `Core\Json::decodeAs<T>` is a **FATAL** for an **enum** field (encode handles it). The
+      nested-class and `array<T>` halves are closed: a class field erases to `CodecTy::Class`
+      carrying its label, an `array<T>` to `CodecTy::List` carrying its element's wire type beside
+      that label, `nvs-codegen` resolves the label to a descriptor once every class of the unit is
+      defined, and `nvs_stdlib::json`'s `decode_nested`/`decode_list` run under ADR 0071 § 5's dotted
+      path — `address.city`, `tags.3`, `authors.0.name`. What an enum still needs is in that module's
+      gap 2. *ref-attr `derive-array-and-enum-field`, `derive-decode-nested-and-float`*
 - [x] **D8** A promoted constructor parameter is not a `#[Json\Derive]` field — a class with only
       promoted state is refused E0758; ADR 0071 § 1's own example uses promotion. `nvs_types::derive`
       now reads both spellings of a declaration through one view, in the members' own order;
