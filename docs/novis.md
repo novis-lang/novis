@@ -95,6 +95,7 @@ Conventions the whole file uses:
 | [`Core\Cli\Text`](#core-core-cli-text) | the value a captured terminal write comes back as — bytes that have already been through the output sink |
 | [`Core\Config`](#core-core-config) | the request-local view of `nvs.toml` — read a directive, move one for this request only, put it back |
 | [`Core\Fatal`](#core-core-fatal) | the one hook that runs after a resource limit has stopped the request — what `register_shutdown_function` was for on a fatal |
+| [`Core\Secret`](#core-core-secret) | the one narrow way a value loses the `secret` qualifier — a call that says so by name and carries a written reason |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
 
 ### Part C — The toolchain
@@ -13979,6 +13980,89 @@ Registers the closure this request runs when a resource limit stops it — memor
 | `$handler` | `callable` | What to run. It is handed one array whose `limit` key names the limit that stopped the request — `memory` or `cpu_time`, the directive's own spelling — and answers nothing; declaring no parameter is allowed. A handler that throws, or that exhausts the reserved slice itself, is abandoned where it stands. |
 
 **Returns** `void` — Nothing. Registering is request-local and a second call replaces the first: the handler is gone when the request ends, and no other request on this core can see it.
+
+<a id="core-core-secret"></a>
+### `Core\Secret`
+
+Keywords: secret, reveal, revealBytes, credential, password, token, api key, redaction, escape hatch, unwrap, expose, reveal, revealBytes
+
+`Core\Secret::reveal` answers its operand with the `secret` qualifier dropped, and `::revealBytes` does the
+same one base over. A `secret` value is refused at every sink that would disclose it — `echo` and `print`,
+an interpolation, `Core\Json::encode`, `Core\Serialize::encode`, a `spawn script` boundary, a `Throwable`
+message, a debug dump — and each of those refusals tells you to call this. That is the whole design: there
+is no generic `unwrap()`, because a catch-all invites false confidence. Disclosure is a line you write, at
+the one call site where handing the secret over is the point, and `grep` finds every one of them.
+
+The second argument is that reason, written for the next reader. Nothing consumes it at run time.
+
+Revealing removes `secret` and nothing else. A value that was also `tainted` still is: where the value came
+from is a different question from who may see it, so `Core\Secret::reveal` over a `secret tainted string`
+answers a `tainted string` and the sinks that refuse untrusted input still refuse it. Revealing a value that
+was never `secret` is the identity and is legal — refusing it would cost a diagnostic and prevent no
+exposure.
+
+```nvs
+<?nvs
+secret string $token = "hunter2";
+secret bytes $key = "raw-key" as bytes;
+
+// Without these two lines, every `echo` below is a compile error naming
+// ADR 0033 § 4's terminal sink.
+string $revealed = Core\Secret::reveal($token, "this command exists to print the token");
+bytes $raw = Core\Secret::revealBytes($key, "the signer takes the key as bytes");
+
+echo $revealed, "\n";
+echo "Bearer {$revealed}\n";
+echo Core\Bytes::length($raw), "\n";
+
+// Nothing is normalized on the way through: the value that comes back is the
+// value that went in.
+secret string $padded = "  spaced  ";
+echo "[", Core\Secret::reveal($padded, "the padding is part of the credential"), "]\n";
+```
+```output
+hunter2
+Bearer hunter2
+7
+[  spaced  ]
+```
+
+| Member | Signature |
+|---|---|
+| [`Core\Secret::reveal`](#core-core-secret-reveal) | `reveal(string $value, string $reason): string` |
+| [`Core\Secret::revealBytes`](#core-core-secret-revealbytes) | `revealBytes(bytes $value, string $reason): bytes` |
+
+<a id="core-core-secret-reveal"></a>
+#### `Core\Secret::reveal`
+
+```nvs skip
+Core\Secret::reveal(string $value, string $reason): string
+```
+
+Answers `$value` with the `secret` qualifier dropped, at the one call site where handing the secret over is the point — ADR 0033 § 3's named escape hatch, and the only way a `secret string` reaches a sink that refuses one.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$value` | `string` (reveal) | The secret to reveal. A plain `string` is accepted and revealing it is the identity. |
+| `$reason` | `string` (neutral) | Why this call site is allowed to see the value, written for the next reader. Nothing reads it at run time. |
+
+**Returns** `string` — The same text, unqualified — still `tainted` if `$value` was, since revealing a secret says nothing about where it came from.
+
+<a id="core-core-secret-revealbytes"></a>
+#### `Core\Secret::revealBytes`
+
+```nvs skip
+Core\Secret::revealBytes(bytes $value, string $reason): bytes
+```
+
+`reveal` over `bytes`: answers `$value` with the `secret` qualifier dropped. A separate name because a `Core` member has one signature, and answering `string|bytes` would put a cast at every call site.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$value` | `bytes` (reveal) | The secret bytes to reveal. |
+| `$reason` | `string` (neutral) | Why this call site is allowed to see the value, written for the next reader. Nothing reads it at run time. |
+
+**Returns** `bytes` — The same bytes, unqualified — still `tainted` if `$value` was.
 
 <a id="core-enums"></a>
 ### `Core` enums
