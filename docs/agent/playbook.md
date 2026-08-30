@@ -1040,6 +1040,13 @@ is why" — is this file.
   and which was the fix here. A new module in a bin crate needs that run: with no caller yet it
   trips `unreachable_pub` on every item under `-D warnings`, and then `dead_code` on all of them
   again once they are `pub(crate)`.
+- **`INSTA_FORCE_UPDATE=1 cargo test` rewrites every snapshot in the crate, not the ones that
+  failed.** A lowering change that moved 19 of `nvs-ir`'s 158 snapshots came back as 134 files
+  modified, because insta also refreshes each file's `source:` header — and those headers have been
+  stale since the tests moved to `lower/tests.rs`. `cargo insta review` is interactive and so is
+  unusable here; the way back is to revert the header-only files by diff shape
+  (`git diff -U0 -- <f>` showing exactly two changed lines, both `source:`), which leaves the slice's
+  own 19. Check `git status` after any forced snapshot update rather than staging the directory.
 
 ## Running things
 

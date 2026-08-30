@@ -107,8 +107,11 @@ in that goal. An item's owner is the row it sits in.
       read-only, though a conformance case calls `location` "readonly". *ref-errors `write_message`*
 - [ ] **U14** `#[Access]` on a method with no `#[Route]` compiles (no stray-marker refusal, unlike
       `#[Query]`/`#[Option]`/`#[Api]`). *ref-attr*
-- [ ] **U15** `nvs test --filter` does not select `#[Test]` methods — `--filter clock` ran all four
-      tests; it filters `.nvst` paths only. *ref-probe/t1*
+- [x] **U15** `nvs test --filter` does not select `#[Test]` methods — `--filter clock` ran all four
+      tests; it filters `.nvst` paths only. *ref-probe/t1* The flag now selects on both sides by one
+      containment rule (`nvs-cli`'s `runner::selected`), over `Class::method` for a program's tests;
+      it is case-sensitive there as it already was over a path, so `clock` selects nothing a class
+      or method spells `Clock`.
 - [ ] **U16** `#[Test(db: …)]` and `#[Test(server: …)]` are accepted and have no reader in the runner.
 - [x] **U17** `array $a = [1, 2];` with no `<T>` is accepted (ground rules: every array declares its
       element type). *php-diff probes*
@@ -153,7 +156,9 @@ in that goal. An item's owner is the row it sits in.
 - [ ] **D12** `spawn script … with(args: …)` is accepted but there is no reader: `Core\Script::args()`
       is E0405, and the parser's own hint (`$_ARGS` → `Core\Script::args()`) names it. *refp/spawn/args.nvs*
 - [x] **D13** `spawn script` default `output` is `'capture'`, not inherit. *refp/spawn/main.nvs*
-- [ ] **D14** A child with no top-level `return` answers `value = int(1)`, not `null`. *refp/spawn/noret2*
+- [x] **D14** A child with no top-level `return` answers `value = int(1)`, not `null`. *refp/spawn/noret2*
+      The finding is right and ADR 0006 § *Decision* already said so; `1` is `require`'s, and the
+      entry frame is not a `require` — `nvs_ir::lower::ScriptRole` is where the two now part.
 - [ ] **D15** `Core\Config::get("mode")` answers `null` and `set("mode", …)` returns `false`;
       `mode.default` works for both — ADR 0091 § 4 spells the bare `mode`.
 - [ ] **D16** `Core\Arr::from` refuses the `Core` collections although they are `Iterable`:
