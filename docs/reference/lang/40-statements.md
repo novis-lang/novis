@@ -300,7 +300,7 @@ finally { … }                   // optional; runs however the try was left
 ```
 
 - A `catch` names **one** class or interface and matches it and every subclass; the first matching clause wins, so a supertype written first shadows the clauses after it. A `catch (A | B $e)` clause is not available; write two clauses.
-- Each `catch` variable is a declared local of the function, so two clauses in one function use two names.
+- Each `catch` variable is a declared local of the function, so two clauses in one function use two names. Reusing one is **`E0406`** — the ordinary declare-once rule of the types chapter, not a `catch`-specific one, because a clause's `$e` is the same kind of name any other declaration makes.
 - `finally` runs on every exit from the `try` and its `catch`es — normal completion, a `return`, a `break` or `continue` out of an enclosing loop, and a throw — and nested `finally` blocks run innermost first.
 - A throw inside a `catch` leaves through `finally` to the next enclosing `try`. A `try` with neither `catch` nor `finally` is accepted and merely runs its body.
 - The exception classes, their properties and `throw new … {previous: $e}` are the errors chapter's.
@@ -330,6 +330,28 @@ echo Parse::run(2), "\n";
 [finally 0] logic:zero
 [finally 1] other:one
 [finally 2] ok
+```
+
+Two clauses of the same `try` reaching for one name is the declare-once rule, reported where the
+second declaration is:
+
+```nvs error
+<?nvs
+class Twice {
+    public static function run(): string {
+        try {
+            throw new LogicError("x");
+        } catch (LogicError $e) {
+            return "a";
+        } catch (Throwable $e) {
+            return "b";
+        }
+    }
+}
+echo Twice::run(), "\n";
+```
+```output
+E0406
 ```
 
 ```nvs

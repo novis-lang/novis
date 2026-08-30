@@ -4839,3 +4839,21 @@ every session. Nothing below was reworded on the way.
   old rule: `parser::tests::stmt::try_multi_catch_and_finally` and
   `an_unannotated_class_constant_reads_at_its_values_type` were each the only thing that failed
   after the parser changed, and each had to be rewritten to the new rule rather than deleted.
+- **A handoff item can assert a divergence that does not exist, and `\v`/`\e`/`\f` were it.** Item 35's
+  `20-types.md` fix said those three "print literally rather than as control characters"; the binary
+  cooks all three to `0x0B`/`0x0C`/`0x1B` and so does PHP, so there is no divergence to write down —
+  `crates/nvs-types/src/string_lit.rs:248-259` are the arms, and `php -r` agrees character for
+  character. The item's other half, the decimal `017`, had been stated correctly in the chapter for
+  some time. What the paragraph actually got wrong was three things nobody had named: a single-quoted
+  literal is not "verbatim" (it has `\\` and `\'`, and must, or an apostrophe is unwritable), `\0` is
+  the head of an octal family running to `\777`, and an unrecognized escape such as `\q` keeps its
+  backslash. The handoff was right that the binary is the only copy that cannot be stale — the trap is
+  that this applies to the item's *premise* and not only to the sentence it asks for. Two probes under
+  `.agent-tmp/`, one `nvs run` and one `php`, settle a whole paragraph before a word of it is written.
+- **A `docs/reference/lang/` example is executed, so a claim can be pinned instead of asserted.**
+  `tools/reference.py` runs every ` ```nvs ` fence against the binary and checks the ` ```output `
+  fence after it, and `verify.py` runs that; ` ```nvs error ` is the fence for a program that must fail
+  `nvs check`, with its `output` block a substring of the diagnostic. So `E0406` for two `catch`
+  clauses on one name went in as a checked example rather than a sentence, and a chapter edit means
+  `python tools/reference.py` to regenerate `docs/novis.md` in the same slice — the generator's
+  `--check` mode is what would otherwise fail the verify.
