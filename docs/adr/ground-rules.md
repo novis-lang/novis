@@ -320,6 +320,11 @@ spellings rejected, and the reasoning.
   like clauses, an arm holds an expression so `throw` is in and `return` is out, the result type is the
   union of the sides, and `finally` stays the block form's alone
   ([0119](0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)).
+- **`class<T>` is a type whose value is the run-time class descriptor, and `as` is its only source** —
+  `new $cls(...)`, `$cls::f()` and `$x instanceof $cls` accept it and nothing else, it widens with its
+  argument and never back, and a `new` over it is refused when an implementor of `T` declares an
+  incompatible constructor
+  ([0125](0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)).
 - **One grammar and one tree: the resilient parse is the AST plus a trivia layer and an offset index,
   `nvs-lsp` is synchronous on `lsp-server`/`lsp-types` so no async runtime enters the workspace, an LSP
   answer is frozen as a `.lspt` case, and syntax highlighting is two layers with two tests**
