@@ -238,8 +238,21 @@ in that goal. An item's owner is the row it sits in.
       now reads both spellings of a declaration through one view, in the members' own order;
       `crate::layout` had given a promoted parameter a slot for some time and only its module doc
       still said otherwise. *`derive-promoted-ctor`*
-- [ ] **D9** Private properties are JSON fields under `#[Json\Derive]` (`{"name":"a","n":1}` for a
+- [x] **D9** Private properties are JSON fields under `#[Json\Derive]` (`{"name":"a","n":1}` for a
       `private int $n`). *`derive-private-property`*
+      Correct, and decided in writing: ADR 0071 § 2's first bullet says the field list is the declared
+      property list, "private ones included", because visibility answers who may *reach* a value and a
+      wire format is not that question. The refusal this finding wondered about is the failure it would
+      cause, not prevent — a codec that dropped a field the day it gained a `private` changes a document
+      every consumer already parses, with nothing at the declaration to say so, and that silent break is
+      what § 1's written opt-in exists to remove. `nvs_types::derive::codec_field` reads a declaration's
+      modifiers for `lateinit` alone and never for a visibility, so encode and decode are blind to it by
+      construction rather than by an omission; decode needs no separate answer, since § 2 makes it an
+      ordinary `new` and a constructor assigns a private property like any other. The docs say it in
+      one place already — `docs/reference/lang/90-attributes.md`'s `#[Core\Json\Derive]` section, whose
+      field bullet reads "whatever their visibility" — and `docs/reference/core/Json.md` now names it on
+      the `decodeAs<T>` sentence a caller actually reads first, where the same page had also outlived
+      ADR 0071 § 1's `array<U>` top level. *`json-derive-encodes-declared-fields`*
 - [x] **D10** `#[Api]` fields `tags`, `security`, `errors`, `example` are checked but absent from the
       `nvs build --openapi` document. *ref-probe/api2*
       A `nvs_types::Route` carries all four: `check_api` hands back what each of its four walks
@@ -287,8 +300,16 @@ in that goal. An item's owner is the row it sits in.
       diagnostic cites ADR 0036 § 4, so this may be intended. *r02, s01*
 - [x] **D19** A comparison (`$e == E::A || $e == E::B`) does not narrow an enum value to the
       case-union type; only `as E::A|E::B` does. *q06, r03b*
-- [ ] **D20** An empty shape `{}` is satisfied by every attached attribute literal, so a bare marker
+- [x] **D20** An empty shape `{}` is satisfied by every attached attribute literal, so a bare marker
       `#[Audited]` (`type Audited = {}`) is ambiguous (E0728) on a class with any other attribute.
+      Correct, and it is the price ADR 0046 § 4 chose knowingly: retrieval is structural so that there
+      is no second namespace of attribute-kind names for unrelated frameworks to collide in, and once
+      the ask is a shape, `{}` asks for *any* attached literal — width subtyping admits no narrower
+      reading of a shape with no fields. E0728 is then the honest answer rather than a gap: `get`
+      promises at most one, two literals satisfy the ask, and the attached list is static, so the
+      question is settled at the call site instead of by whichever attribute a test run happened to see
+      first. A marker meant to be retrieved earns a field of its own. Both `Core\Attributes` cards now
+      say so, beside the chapter bullet that already did.
 - [x] **D21** A payload holding a class constant or enum case can be declared but not retrieved
       (E0731) with `Attributes::get`/`all`. Closed: the payload is folded through the scope it was
       *written* in, so a class constant, an enum case and `Foo::class` each fold to what a read of the

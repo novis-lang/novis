@@ -1074,6 +1074,22 @@ is why" — is this file.
   <snapshot dir>` piped through a `grep -v` of the ones you meant, then `git checkout --`, puts the
   rest back; do it before the wrap, because `session.py --wrap` stages the paths you name and
   sweeps everything else into the last commit.
+- **A `docs/reference/core/<Class>.md` page is hand-written prose, not a render of that class's
+  cards, so the two go stale apart and a finding that says "the card" means three files.** `Json.md`
+  still said `decodeAs<T>` "names a class and nothing else: a document whose top level is a JSON
+  *array* of objects has no typed decode", while `DECODE_AS_DOC` in `crates/nvs-stdlib/src/json.rs`
+  spells `array<T>`, ADR 0071 § 1 spells it, and `target/debug/nvs.exe` runs
+  `Json::decodeAs<array<P>>` today. The fact can be right in the `MethodDoc`, right in the
+  `docs/reference/lang/` chapter and wrong on the class page, so check all three and let the binary
+  break the tie — a probe under `.agent-tmp/` costs one call and is the only one of the four that
+  cannot be out of date.
+- **A `## Next group` item whose work is entirely in `docs/` cannot satisfy `session.py --wrap`, and
+  the refusal does not say why.** `orient.ANCHOR_RE` matches only `crates|tools|tests|benches|
+  examples|fuzz`, so `docs/reference/lang/20-types.md:398` is not an anchor to it and the wrap
+  reports the item as carrying none at all. This is not a hole to work around: stage 0c's items are
+  documentation, and the anchor the gate is asking for is the *code that fixes the fact* — the
+  escape roster, the diagnostic's `Code::new`, the row the card describes. Name that beside the doc
+  path and the next session opens the source of truth rather than the third copy of it.
 
 ## Running things
 
