@@ -1176,6 +1176,10 @@ pub mod code {
     pub const E_CAPABILITY_DENIED: Code = Code::new("E0602");
     /// A per-request limit was exceeded.
     pub const E_LIMIT_EXCEEDED: Code = Code::new("E0603");
+    /// The same directive set twice in one configuration file. ADR 0064 § 3 refuses
+    /// it so that no assignment in a root-owned file is ever silently shadowed;
+    /// across an `[[include]]` the same key is an override instead (ADR 0103 § 3).
+    pub const E_DUPLICATE_DIRECTIVE: Code = Code::new("E0604");
 
     // --- E07xx types, continued --------------------------------------------
     //

@@ -2,44 +2,57 @@
 
 ## State
 
-**Goal 3 of the parity program has just started; nothing of it has landed yet.** Goals 1 and 2 and M4
-reached their whole acceptance lists and all three are now this goal's Stage 1 floor.
+**Goal 3, Stage 2 has started landing.** `crates/nvs-config` now exists with two modules and seven
+green tests: `directive.rs` is the registry — a directive is three fields, `key`, `class` (ADR 0005)
+and `apply` (ADR 0078 § 2's `Reload`/`Boot`, orthogonal to the class) — and `file.rs` reads one file
+through `toml`+`serde`, refusing a duplicate key as `E0604` with the offending line as a span.
 
-**`crates/nvs-config` does not exist yet.** Goal 2's isolates run under compiled-in defaults and say so at
-each site; this goal is where those sites get their real answer, and picking them up is Stage 4's item 12
-rather than a debt to pay off first.
+**A registry row governs the keys beneath it**, longest-prefix on dot boundaries, so `limits` is one
+row and `limits.hard` overrides it. That is how the ADRs state the classes ("every `[[schedule]]`
+key", "`[server]` — Boot"), and `directive.rs`'s module doc is its only home. The registry is
+therefore **not** the list of legal keys: refusing an unknown one is `serde`'s
+`deny_unknown_fields` over a typed tree that does not exist yet, which is the next slice.
 
-**The real acceptance is a set claim, not a case.** "Every syscall-touching entry point is gated" cannot
-be proven by fixtures, so it is proven the way M4 proved its refusal sites: a test over `nvs-stdlib`'s own
-registry that fails naming any member touching the filesystem, the network or a process with no
-capability declared. That is Stage 6's `every_capability_bearing_member_declares_its_capability`, and
-**its allowlist may never grow.**
+Nothing is blocked. Goals 1 and 2 and M4 remain the floor; the acceptance set claim for Stage 6 is
+unchanged.
 
 ## Next group
 
-**The directive registry and the config tree** — Stage 2, items 1–3. One file set, and everything above
-reads what it produces.
+**The typed block tree, then the tree of files** — Stage 2's remainder. One file set:
+`crates/nvs-config/src/{file.rs,directive.rs}` plus new modules beside them, and their `tests/`.
 
-- [ ] **A directive carries three fields, and reloadability is one of them.** The changeability class ADR
-      0005 defines, plus ADR 0078 § 2's `Reload`/`Boot` field **orthogonal to it** — orthogonal is the
-      item, because reloadability is now the only thing that makes a directive boot-only and conflating
-      the two is exactly what that ADR exists to stop.
-- [ ] **`nvs.toml` parses and a duplicate or unknown key is refused.** ADR 0064 §§ 1, 3, TOML via `serde`.
-      § 2a is the block list and names the ADR that argues each block's directives; this goal adds five —
-      `[deferred]`, `[[schedule]]`, `[http.*]`, `[metrics]`, `[trace]` — and their *validation* is Stage
-      6, not this item.
-- [ ] **The tree resolves.** ADR 0103 §§ 1–5: a root named by repeatable `--config`, else `./nvs.toml`,
-      else the shipped defaults; `[[include]]` by `path` and by `dir`; one ordered stream where later
-      wins, with **both origins reported**; a value array replaces where a `[[table]]` appends; a relative
-      path resolves against the file it is written in. § 6's ownership check is the next group, with the
-      `[[app]]` block — it is the trust boundary and deserves its own slice rather than a clause of this
-      one.
+- [ ] **The typed block tree, and an unknown key refused naming its block.** ADR 0064 §§ 2a, 3 —
+      § 2a's table (`docs/adr/0064-configuration-file-format.md:129`) names the owning ADR of every
+      block, and each block's fields have to come from that ADR rather than be invented, which is
+      the whole cost of this slice. `crates/nvs-config/src/file.rs:38`'s `parse` is already generic
+      over the tree type with `toml::Table` as the stand-in, so nothing above it changes. Two
+      blocks are already transcribed: `[server]` in ADR 0097 § 5 and `[limits]`/`[limits.hard]` in
+      ADR 0005. Needs `derive` on the workspace `serde` (`Cargo.toml:199`, currently featureless).
+- [ ] **The tree resolves.** ADR 0103 §§ 1–5: a root named by repeatable `--config`, else
+      `./nvs.toml`, else the shipped defaults; includes depth-first in list order; later wins with
+      **both** origins recorded; a value array replaces where a `[[table]]` appends; a relative path
+      resolves against the file it is written in. `file.rs:38` returns the `SourceId` for exactly
+      this — an override has to be able to name where the value it kept came from.
+- [ ] **Ownership is the trust boundary.** ADR 0103 § 6, printed in full in this goal's orientation
+      pack: owner-or-root and not group/world-writable, for every file *and* its directory, and for
+      the directory that *would* hold an absent `optional` include. `E0604` is taken; next free in
+      the band is `E0605` (`crates/nvs-diagnostics/src/lib.rs:1179`).
+- [ ] **`nvs config check <file>` prints the refusal.** Stage 2's one `command` check runs it over
+      `tests/config/duplicate-key.toml`, which is on disk. `nvs-cli` is a file set this group has
+      not loaded — take it last or leave it to the next session.
 
 ## Backlog
 
-- Item 10 carries this goal's one pre-authorized ADR slot — the capability enforcement points. ADRs 0051
-  and 0024 name capabilities constantly and none says *where* the check sits; that gap is the slot.
-- The canonicalise-then-prefix path comparison is needed by items 6, 10 and 12. Write it once; writing it
-  three times is how one of them ends up accepting a symlink.
-- ADR 0017's freeing of executable memory is carried by m6.md and has no consumer until there is a
-  long-running process to free it in. Off path.
+- ADR 0091 § 3a's table spells `Boot` in a **Class** column, which ADR 0078 § 2 split into two
+  fields; the registry reads those two rows as `System` + `Boot`. One ADR edit, owned by 0091.
+- ADR 0042 (~line 170) spells the artifact-cache directory `opcache.file_cache_dir` where ADRs 0005
+  and 0078 § 2 spell it `cache.dir`. One of the two is the home; the registry took `cache.dir`.
+- ADR 0078 § 2's `Boot` set names "the thread-per-core count" and no ADR spells it as a key, so it
+  has no registry row. ADR 0106's is the block it would live in.
+- `[debug]`, `[db.<name>]` and `[http.errors]` have no registry row: their owning ADRs state fields,
+  not a changeability class. Whoever transcribes the typed tree can settle all three at once.
+- `orient.py` warned that `[context] modules` pattern `crates/nvs-host/src/budget.rs` matches
+  nothing — it moved or the glob is wrong. The `crates/nvs-config/src/*.rs` warning is now stale and
+  will clear by itself.
+- Item 18's `Core\Secret::reveal()`, `Live::admit`'s same-class check and item 22's `Core\Script`
+  members are goal 2's three recorded gaps, each in its own crate's module doc.
