@@ -51,10 +51,10 @@
 > file that holds it — `crates/nvs-host/src/*.rs`, `crates/nvs-runtime/src/{host,script,graph}.rs`,
 > `crates/nvs-stdlib/src/{task,channel,serialize, script}.rs`,
 > `crates/nvs-cli/src/{script,runner}.rs` — or in ADRs 0115–0117. Goal 3's first rows are on disk:
-> `crates/nvs-config` holds the directive registry (ADRs 0005, 0078 § 2) and one file's parse with
-> 0064 § 3's duplicate refusal; its fixtures exist and `[app]` is now `[[app]]`, so the check runs
-> again. **Stage 8 is closed at both counts**: conformance is 1000, differential is 206 over its 205
-> floor with six `Core\Serialize` round-trips against PHP's own pair, and `isolation.rs` measures
+> `crates/nvs-config` holds the directive registry, 0064 § 2a's block roster as a typed tree with §
+> 3's two per-file refusals, and ADR 0103 §§ 1-5's resolver, later-wins with both origins recorded.
+> **Stage 8 is closed at both counts**: conformance is 1000, differential is 206 over its 205 floor
+> with six `Core\Serialize` round-trips against PHP's own pair, and `isolation.rs` measures
 > `nvs_host::Isolate` itself with a guard beside it. Three known gaps, each recorded where its code
 > is: item 18's `Core\Secret::reveal()` is not in the registry, though how a `secret` parameter is
 > spelled on a row is decided (`Qual::Reveal`); `Live::admit`'s same-class check is asked of the

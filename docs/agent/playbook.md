@@ -1004,6 +1004,17 @@ is why" — is this file.
   as a program that cannot compile yet: the source is not frozen and only the expected output is, so an
   early stand-in costs nothing and buys back every earlier stage's check. `python tools/loop.py --list`
   does not show this, because the list is checked before the plan is.
+- **The handoff's own next-group item can contradict a settled ADR, and the ADR still wins — the same
+  rule the `loop-goal.toml` bullet above states, arriving through the other artifact.** An item read
+  "the unknown-key refusal is a new `E06xx` (next free E0605) naming the block", and ADR 0064 § 3 says
+  in as many words that an unknown key is refused "with the existing `E0601`/`E_BAD_DIRECTIVE`
+  diagnostic naming the line". Both artifacts are written by a session; only one of them is a
+  decision. Claiming E0605 for it would have put two codes on one refusal and left `file.rs`'s
+  `code_for` disagreeing with the ADR that named it. What the item was *reaching* for was real and
+  costs six lines: `serde` cannot name the block, because by rejection time the deserializer knows
+  the struct and not what the file called it, so `nvs_config::file::block_at` scans back to the
+  nearest header and adds it as a note. The general shape — an item that asks for a new number is
+  asking a question the ADR has usually already answered, and one `peek.py <adr>:"## 3"` settles it.
 
 ## Running things
 
