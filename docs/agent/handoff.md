@@ -5,68 +5,76 @@
 **Stage 0c — the reference findings — is the open stage and runs ahead of everything else in this
 goal, stage 9 included.** `docs/agent/loop-goal.md` § *Stage 0c* is items 31–35;
 [docs/reference/findings.md](../reference/findings.md) § *Triage* is each item's verdict and owner.
-Items 31 and 32 are closed; **item 33 is open with its first two findings landed** — U1 (`readonly`)
-and U2 (`final`), both green at their `[[check]]` case names.
+Items 31 and 32 are closed; **item 33 is open with four of its findings landed** — U1 (`readonly`),
+U2 (`final`), U3 (`abstract`) and U12 (the `get`-only hook), each green at its `[[check]]` case name.
 
-**A `readonly` property is written by its declaring class's `constructor` and nowhere else** —
-`E0782`, reported from `crates/nvs-types/src/expr/assign.rs`'s `reject_readonly_write`, which every
-one of the four write spellings reaches through `check_write_target`. `nvs_types::Ctx::in_constructor`
-is the flag it asks, and that field's own doc comment is the home of why a closure written inside the
-constructor does not inherit it.
+**`abstract` is enforced from both sides.** `E0785` refuses `new` on a class with no instances —
+`crates/nvs-types/src/expr/calls.rs`'s `reject_abstract_instantiation`, whose whole question is
+`nvs_hir::ClassLinks::concrete`, so an interface is refused by the same lookup and named as one.
+`new static()` is exempt and the case pins it. `E0786` refuses a bodiless method in a class that is
+not `abstract`, from `conformance.rs`'s `check_abstract_members`; the question there is the missing
+*body*, not the modifier, for the reason that function's doc gives.
 
-**`final` is enforced from the declaration side** — `E0783` for an `extends` naming a `final` class,
-`E0784` for a redeclared `final` method, both in `crates/nvs-types/src/conformance.rs`'s
-`check_class_finality`, whose doc comment owns why the class half asks the direct superclass only.
-Both modifiers are recorded per declaration on `ClassSignature` (`readonly_properties`, `is_final`,
-`final_methods`) rather than on `MethodSig`, for the reason `final_methods`' own doc gives.
+**A `get`-only hooked property is read-only from outside its declaring class** — `E0787`, from
+`expr/assign.rs`'s `reject_get_only_hook_write`, reading the `set: None` the
+`ExprInfo::HookedProperty` entry already carries. The rule is **scope-shaped, not
+backedness-shaped**: Novis keeps a slot for every hooked property, so the declaring class's own
+`$this->p = v` is how such a property holds anything, while an outside write would store where the
+`get` may never read. That doc comment owns the reasoning; `signatures::PropertyHooks` no longer
+claims the old acceptance, and `docs/reference/tools/30-php-differences.md` carries the divergence
+row (PHP lets an outside write through to a *backed* one).
 
-**A seeded class carries no modifier, so U13 is untouched by this.** `Throwable`'s four "readonly"
-properties come from `nvs_types::error_lib`, and only user source writes a modifier at all — the
-write to `$e->message` stays accepted until that finding's own slice.
+**`docs/novis.md` is generated, never edited** — `python tools/reference.py --no-examples` rebuilds
+it from the reference pages in under a second. The previous handoff's complaint that a refusal has
+"two tables" was wrong: edit `docs/reference/**` and regenerate.
 
 **`E0126` is spoken for and must not be handed out.** ADR 0119 § 3 names it in prose for the
-expression-`catch` arm that refuses `return`, which stage 9 has not written yet, so `brief.py` still
-reports it as the next free `E01xx`. The next free `E02xx` is `E0247`, the next `E07xx` is `E0785`.
+expression-`catch` arm that refuses `return`, which stage 9 has not written yet. The next free
+`E02xx` is `E0247`, and `E07xx` is now `E0788`.
 
 **Stage 9 stands where it stood** — ADR 0119 accepted, items 21–23 written with their anchors,
-nothing implemented — and resumes when stage 0c is green. **Stage 8**: conformance 1044, six of eight
-named cases written.
+nothing implemented — and resumes when stage 0c is green. **Stage 8**: conformance 1046,
+differential 206.
 
-**`orient.py`'s `[context]` gaps, unchanged and still costing time.** No field names
-`docs/adr/README.md` § *Decisions taken at project start*; `[context] modules` names neither
-`crates/nvs-syntax/src/parser/decl.rs` nor `crates/nvs-types/src/consts.rs`; a refusal's two tables —
-`docs/reference/tools/30-php-differences.md` and its copy in `docs/novis.md` — are named by no field
-at all, and both had to be found by grep again this session. Four dead `modules` patterns remain:
-`crates/nvs-stdlib/src/capability.rs` (it is `crates/nvs-config/src/capability.rs`),
-`crates/nvs-host/src/budget.rs`, `crates/nvs-types/src/calls.rs` and
-`crates/nvs-types/src/literals.rs`.
+**`orient.py`'s `[context]` gaps, still costing time.** `[context] modules` names none of the
+nvs-types files this session actually edited or read: `crates/nvs-types/src/expr/assign.rs`,
+`expr/quals.rs`, `expr_table.rs`, `attributes.rs`, `routes.rs`, `commands.rs` — one
+`crates/nvs-types/src/expr/*.rs` pattern plus those four would cover the whole of item 33's
+remaining work. `[context] adrs` should gain **0014 § 1** (property hooks), which had to be sliced
+by hand to decide U12. Four dead `modules` patterns remain: `crates/nvs-stdlib/src/capability.rs`
+(it is `crates/nvs-config/src/capability.rs`), `crates/nvs-host/src/budget.rs`,
+`crates/nvs-types/src/calls.rs` and `crates/nvs-types/src/literals.rs`.
 
 ## Next group
 
-**Item 33's next two — a modifier and a hook, both refused at a site this session already opened.**
-They share `crates/nvs-types/`'s `conformance.rs` and `expr/` (`assign.rs`, `calls.rs`), plus
-`tests/conformance/reject/`, and each has its case name in `loop-goal.toml`'s item-33 `[[check]]`.
+**Item 33's attribute half — two refusals over the declaration passes, sharing
+`crates/nvs-types/`'s `attributes.rs`, `routes.rs` and `commands.rs` plus
+`tests/conformance/reject/`.** Each has its case name in `loop-goal.toml`'s item-33 `[[check]]`.
 
-- [ ] **U3 `abstract`** — `new` on an abstract class is refused at `crates/nvs-types/src/expr/calls.rs:417`
-      (`infer_new`, which already resolves the class and its constructor), and a bodiless method in a
-      non-`abstract` class is refused beside `crates/nvs-types/src/conformance.rs:120` — that walk
-      already reads `has_body` and `decl.modifiers`. Case:
-      `tests/conformance/reject/abstract-is-not-instantiated.nvst`.
-- [ ] **U12 get-only hook** — a write to a hooked property with no `set` is silently unobservable
-      today. `crates/nvs-types/src/expr/assign.rs:486` is the place: `ExprInfo::HookedProperty`
-      already arrives there carrying `set: Option<label>`, so the refusal is the `None` arm beside
-      `crates/nvs-types/src/expr/assign.rs:592`'s readonly one. Case:
-      `tests/conformance/reject/a-get-only-hook-is-not-written.nvst`.
-- [ ] **U14 `#[Access]` with no `#[Route]`** — a stray marker attribute compiles. Case:
-      `tests/conformance/reject/a-stray-access-attribute-is-refused.nvst`; the roster is
-      `crates/nvs-types/src/derive.rs:77` and the walk is
-      `crates/nvs-types/src/attributes.rs`'s `check_declaration`.
+- [ ] **U14 `#[Access]` with no `#[Route]`** — a stray marker attribute compiles, unlike
+      `#[Query]`/`#[Option]`/`#[Api]`, which already have the refusal to copy. The roster check is
+      `crates/nvs-types/src/attributes.rs:158`; which methods carry a `#[Route]` is what
+      `crates/nvs-types/src/routes.rs:501`'s `check_class_routes` already walks, so the question is
+      answered in the pass that holds both. Case:
+      `tests/conformance/reject/a-stray-access-attribute-is-refused.nvst`.
+- [ ] **A `#[Command]` method is `static` and returns `void` or `uint`** — the shape check belongs
+      beside `crates/nvs-types/src/commands.rs:199`'s `check_class_commands`, which already resolves
+      the attribute and the method it sits on. Case:
+      `tests/conformance/reject/a-command-is-static-and-returns-void-or-uint.nvst`.
+- [ ] **U4 `secret` reaches `echo`, interpolation and `Core\Json::encode`** — a second file set
+      (`crates/nvs-types/src/expr/quals.rs:419` is the `Core\Debug` refusal to model it on, and ADR
+      0033 § 4 lists output among the sinks). Take it only with a fresh context. Cases:
+      `tests/conformance/reject/echo-refuses-a-secret.nvst`,
+      `tests/conformance/reject/json-encode-refuses-a-secret.nvst`.
 
 ## Backlog
 
-- U4–U6, P5: the rest of item 33's modifiers and attributes — `docs/reference/findings.md` § *Triage*.
-- U13: `Throwable`'s four properties are not read-only — needs a modifier on a seeded class.
-- Item 34, the lowering and library gaps — `docs/agent/loop-goal.toml`'s item-34 `[[check]]`.
-- Stage 8: conformance 1044/1050, differential 206/210 — two named cases unwritten.
-- Stage 9: ADR 0119's expression `catch`, items 21–23, resumes when 0c is green.
-- `docs/agent/loop-goal.toml`'s `[context]` gaps named in *State*.
+- ADR 0014 § 1 defers virtual-vs-backed properties to `docs/spec/`, which is unwritten; `E0787`'s
+  scope-shaped rule stands in its place and `reject_get_only_hook_write`'s doc is its only home.
+- `docs/reference/lang/50-classes.md` § *`abstract`* claims a concrete subclass "must declare every
+  one of them, or it is a compile error" — unverified against the tree, where `E0449` covers
+  interface obligations only. If it is false it is a finding, not a doc edit.
+- Item 33's remainder after the group above: U5, U6, P5, and
+  `tests/conformance/core/an-array-constant-folds.nvst`.
+- Item 34 (lowering and library gaps) and item 35 (docs) are untouched — `findings.md` § *Triage*.
+- Stage 8 needs conformance 1050 and differential 210; two of its eight named cases are unwritten.

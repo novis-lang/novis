@@ -4084,6 +4084,15 @@ sibling in the same namespace unqualified.
   anything about the shape they test. Before writing a refusal, grep the crate for the spelling — the
   fix is to move the fixture to the helper that collects both halves (`casing.rs`'s `parse_and_check`)
   or to hand the shape to the new test outright, never to weaken the new refusal.
+- **A new refusal is a hypothesis until the whole conformance tree has run it, and the tree is where
+  the counterexample lives.** `E0787`'s first shape — refuse *every* write to a property with a
+  `get` hook and no `set` — read as obviously right, passed its own new case, and was refuted in one
+  seven-second `./target/debug/nvs.exe test tests/conformance` by
+  `lang/the-inout-marker-is-required-at-both-ends-and-replaces-every-ampersand.nvst`, whose class
+  arms its own `get`-only property from its constructor. That case is the language's own answer to
+  "how does such a property ever hold a value", and it turned the rule scope-shaped (only the
+  declaring class writes it) rather than blanket. So: write the refusal, run the whole tree, *then*
+  write the case that pins it — a case written first only pins the rule you already believed.
 
 ## Divergences and refusals already pinned
 

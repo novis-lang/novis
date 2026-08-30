@@ -440,6 +440,12 @@ An `abstract` class declares `abstract` methods without a body; a concrete subcl
 every one of them, or it is a compile error. A concrete method on the abstract class may call an
 abstract one through `$this`.
 
+An abstract class has no instances: `new` on one is refused (`E0785`), as is `new` on an interface —
+instantiate a subclass instead. `new static()` inside an abstract class is *not* refused, because
+late static binding resolves it to whichever concrete subclass the call arrived through. The rule's
+other half is at the declaration: a class that is not `abstract` may not leave a method without a
+body (`E0786`), because a call to one has no compiled function to reach.
+
 ```nvs
 <?nvs
 abstract class Shape {
@@ -788,8 +794,10 @@ refused: below absolute zero
 
 - `get => expr;` is short for `get { return expr; }`; `set (T $v) { … }` takes the value being
   written. Either hook may stand alone.
-- A property with only a `get` hook is a computed property. A write to it is not refused; the
-  value written is never observed, because every read runs the hook.
+- A property with only a `get` hook is a computed property, and **only the declaring class writes
+  it**. `$this->name = …` in that class's own bodies stores into the backing slot its `get` hook
+  reads, which is how such a property holds anything at all; a write from anywhere else is refused
+  (`E0787`) rather than stored where no read would find it. Add a `set` hook to accept one.
 - An array element cannot be written through a hooked property (`$b->rows[0] = "x"`): read the
   array into a local, write the element there, and assign the local back.
 

@@ -2709,6 +2709,12 @@ An `abstract` class declares `abstract` methods without a body; a concrete subcl
 every one of them, or it is a compile error. A concrete method on the abstract class may call an
 abstract one through `$this`.
 
+An abstract class has no instances: `new` on one is refused (`E0785`), as is `new` on an interface —
+instantiate a subclass instead. `new static()` inside an abstract class is *not* refused, because
+late static binding resolves it to whichever concrete subclass the call arrived through. The rule's
+other half is at the declaration: a class that is not `abstract` may not leave a method without a
+body (`E0786`), because a call to one has no compiled function to reach.
+
 ```nvs
 <?nvs
 abstract class Shape {
@@ -3061,8 +3067,10 @@ refused: below absolute zero
 
 - `get => expr;` is short for `get { return expr; }`; `set (T $v) { … }` takes the value being
   written. Either hook may stand alone.
-- A property with only a `get` hook is a computed property. A write to it is not refused; the
-  value written is never observed, because every read runs the hook.
+- A property with only a `get` hook is a computed property, and **only the declaring class writes
+  it**. `$this->name = …` in that class's own bodies stores into the backing slot its `get` hook
+  reads, which is how such a property holds anything at all; a write from anywhere else is refused
+  (`E0787`) rather than stored where no read would find it. Add a `set` hook to accept one.
 - An array element cannot be written through a hooked property (`$b->rows[0] = "x"`): read the
   array into a local, write the element there, and assign the local back.
 
@@ -14999,6 +15007,7 @@ the end of a file is fine.
 | `new class { … }` | a named class in the same file, or a closure where the class is one method — an anonymous class has no name for the static class table to hold | `E0244` |
 | `readonly class A` | not a class modifier; `readonly` on a property parses | parse error `E0102` |
 | a `readonly` property initialized from any method of the declaring class, the second write throwing at run time | written by that class's `constructor` and nowhere else, refused where the write is written | `E0782` |
+| a write from outside the class to a property with a `get` hook and no `set` hook, which PHP stores when the property is backed | only the declaring class writes it — from outside, the accessors are the property | `E0787` |
 | `enum E: string { case A = "a"; }` | `enum E: int { A = 1 }` or `enum E { A, B }` — cases only, no `case` keyword, no methods or constants inside | `E0219`, `E0220` |
 | `$n instanceof A` on a declared scalar, array or enum | the type already answers; declare the subject `mixed`, `object` or a class | `E0497` |
 | `class order_line`, `function Total_Price()`, `const maxLines` | `PascalCase` class, `camelCase` member, `SCREAMING_SNAKE_CASE` constant — casing is a hard error | `E0110`–`E0113` |

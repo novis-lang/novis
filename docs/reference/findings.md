@@ -98,9 +98,11 @@ in that goal. An item's owner is the row it sits in.
 - [x] **U2** `final` is inert: `final class A {} class B extends A {}` and an override of a `final`
       method both compile and run. *probes p09, p10, r07* — `E0783` refuses the `extends` clause and
       `E0784` the redeclared method, each where the offending declaration is written, as PHP does.
-- [ ] **U3** `new` on an `abstract` class compiles and runs; calling the bodiless method then dies
+- [x] **U3** `new` on an `abstract` class compiles and runs; calling the bodiless method then dies
       with `FATAL: internal error: a method with no body was called`. `abstract` on a method of a
-      non-abstract class is not refused either. *probes p11, p11b, q01*
+      non-abstract class is not refused either. *probes p11, p11b, q01* — `E0785` refuses the `new`
+      (an interface with it, since neither has instances) while `new static()` stays legal, and
+      `E0786` refuses the bodiless method where it is declared.
 - [ ] **U4** `secret` is refused only by a `Throwable` message (E0422), `Core\Debug` (E0724) and any
       unclassified `string`/`bytes` `Core` parameter (E0401). `echo $pw;`, `"{$pw}"` interpolation
       and `Core\Json::encode($pw)` all print the value — ADR 0033 § 4 lists output among the sinks.
@@ -130,7 +132,9 @@ in that goal. An item's owner is the row it sits in.
       (`nvs_config::secret::Secret`), put back by `secret::apply` on each retype, and read by name:
       `Core\Config::get`/`all` answer it and the dump prints ADR 0103 § 9's `<secret>` row naming the
       file. `dump --toml` still cannot leak it, because the table is still where it never is.
-- [ ] **U12** A write to a get-only hooked property compiles and is silently unobservable. *q03*
+- [x] **U12** A write to a get-only hooked property compiles and is silently unobservable. *q03* —
+      `E0787` refuses it from outside the declaring class; inside, it is the backing slot the `get`
+      hook reads, which is how such a property holds a value. The differences page carries the row.
 - [ ] **U13** `$e->message = "b"` on a throwable is accepted and reads back — the properties are not
       read-only, though a conformance case calls `location` "readonly". *ref-errors `write_message`*
 - [ ] **U14** `#[Access]` on a method with no `#[Route]` compiles (no stray-marker refusal, unlike
