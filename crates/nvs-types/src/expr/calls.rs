@@ -109,6 +109,12 @@ pub(crate) fn infer_method_call(
     let (sig, _written) =
         check_written_type_args(type_args, sig, label.as_deref(), expr.span, ctx, env);
     let (arg_types, slots, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
+    // ADR 0088 § 2's contagion, decided here because `resolved_call` below
+    // takes `slots` by value and it is the slots that say which parameter each
+    // tainted argument filled. See [`carries_contagion`].
+    let contagious = sig
+        .as_ref()
+        .is_some_and(|s| carries_contagion(s, &slots, &arg_types, env.interner));
     // ADR 0057 § 1's closed list, at the one point in an instance call where
     // the target is resolved and the arguments are typed — `$when->format("y")`
     // is the shape that reaches it here. See [`crate::intrinsics`], which
@@ -171,6 +177,13 @@ pub(crate) fn infer_method_call(
         }
         Some(s) => s.return_ty,
         None => env.interner.mixed(),
+    };
+    // A contagious member's answer carries its arguments' `tainted` —
+    // [`tainted_result`] owns where in a result the qualifier can land.
+    let returned = if contagious {
+        tainted_result(returned, env.interner)
+    } else {
+        returned
     };
     nullsafe_result(nullsafe, object_ty, returned, env)
 }
@@ -238,6 +251,14 @@ pub(crate) fn infer_static_call(
     let (sig, written) =
         check_written_type_args(type_args, sig, label.as_deref(), expr.span, ctx, env);
     let (arg_types, slots, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
+    // See [`infer_method_call`]: the same question, before the same `slots`
+    // are handed to [`resolved_call`]. The two folds below return ahead of it
+    // deliberately — a retrieval's and an enumeration's arguments are the
+    // literals those folds require, so there is no argument left to carry a
+    // qualifier by the time either answers.
+    let contagious = sig
+        .as_ref()
+        .is_some_and(|s| carries_contagion(s, &slots, &arg_types, env.interner));
     // ADR 0033 § 4's debug-dump sink, at the one end where the qualifier is
     // still visible — both members declare `mixed`, so nothing below this
     // point can tell. See [`reject_secret_debug_argument`].
@@ -314,13 +335,19 @@ pub(crate) fn infer_static_call(
     }
     // The static-call half of the same substitution the instance-call arm
     // above documents — see `MethodSig::returns_static`.
-    match &sig {
+    let returned = match &sig {
         Some(s) if s.returns_static => match called_class_of(class, ctx, env) {
             Some(called) => env.interner.class(called),
             None => s.return_ty,
         },
         Some(s) => s.return_ty,
         None => env.interner.mixed(),
+    };
+    // See [`infer_method_call`]: the static half of the same contagion.
+    if contagious {
+        tainted_result(returned, env.interner)
+    } else {
+        returned
     }
 }
 

@@ -23,6 +23,7 @@
 //! modules, which is the reach it had when `expr` was a single file.
 
 use super::*;
+use nvs_stdlib::registry::Qual;
 
 /// Checks a call's arguments against a resolved [`MethodSig`], when one was
 /// found: works out which parameter each written argument fills, reports
@@ -77,7 +78,19 @@ pub(crate) fn check_args_typed(
     let mut arg_types = Vec::with_capacity(list.len());
     for (arg, &slot) in list.iter().zip(&slots) {
         let expected = declared_for(slot, &sig, env.interner);
-        let actual = check_arg(&arg.value, expected, live, scope, ctx, env);
+        // ADR 0088 § 2's admission, asked at the one position that can answer
+        // it — a parameter a registry row classified. Every other argument in
+        // the language takes `check_arg`'s path unchanged, including a `...`
+        // spread: the qualifier there is on the array rather than on the
+        // entries, which is a question this rule does not ask.
+        let actual = match (expected, slot) {
+            (Some(want), ArgSlot::Param(index))
+                if admits_tainted_argument(sig.qual_at(index), sig.return_ty, env.interner) =>
+            {
+                check_arg_admitting_taint(&arg.value, want, live, scope, ctx, env)
+            }
+            _ => check_arg(&arg.value, expected, live, scope, ctx, env),
+        };
         // Only a whole argument can be written back: a `...` hands over a
         // subject's entries rather than the subject, so there is no one
         // storage location for a by-reference parameter to alias.
@@ -450,6 +463,54 @@ pub(crate) fn check_arg(
         return check_options_arg(value, id, &options, live, scope, ctx, env);
     }
     check_expr(value, expected, live, scope, ctx, env)
+}
+
+/// [`check_arg`] for an argument at a parameter ADR 0088 § 2 says accepts a
+/// `tainted` one — see [`admits_tainted_argument`], which decides that.
+///
+/// The argument is inferred against the parameter's declared type exactly as
+/// anywhere else, because the expectation is what shapes an array literal and
+/// a closure literal; only the *comparison* is made against the laundered
+/// type. So a genuine mismatch here still reads `expected string, found int`
+/// rather than naming a qualified type the member never declared.
+///
+/// [`check_arg`]'s options-bag fork is deliberately not repeated: a bag is a
+/// [`Ty::Options`], never one of the eight qualifiable atoms, so no slot that
+/// reaches here is one.
+fn check_arg_admitting_taint(
+    value: &Expr,
+    expected: TypeId,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    let actual = infer(value, Some(expected), live, scope, ctx, env);
+    let compared = untainted(actual, env.interner);
+    if !is_assignable(compared, expected, env.interner, env.graph, env.signatures) {
+        report_mismatch(value.span, expected, actual, env);
+    }
+    actual
+}
+
+/// Whether this call's result carries `tainted` — ADR 0088 § 2's contagion,
+/// asked of the arguments that actually filled a [`Qual::Contagious`]
+/// parameter.
+///
+/// Answered from the slots rather than from the argument list, because which
+/// parameter an argument filled is the whole question and a `name:` argument
+/// does not fill the one it was written at. A caller reads it before
+/// [`resolved_call`] takes the slots by value.
+pub(crate) fn carries_contagion(
+    sig: &MethodSig,
+    slots: &[ArgSlot],
+    arg_types: &[TypeId],
+    interner: &TypeInterner,
+) -> bool {
+    slots.iter().zip(arg_types).any(|(slot, &ty)| {
+        matches!(slot, ArgSlot::Param(index) if sig.qual_at(*index) == Some(Qual::Contagious))
+            && is_tainted(ty, interner)
+    })
 }
 
 /// ADR 0063 R2's options bag at a call site: it must be written out as an

@@ -75,6 +75,47 @@ fn as_string_does_not_launder_a_tainted_source() {
     assert!(diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)));
 }
 
+// ADR 0088 § 2: what a registry row's parameter classification does at a call.
+// The `Sink` half is pinned by
+// `tests/conformance/reject/bytes-pack-and-unpack-refuse-a-tainted-format.nvst`
+// over five routes, so what is asserted here is the two marks that *accept*.
+
+#[test]
+fn a_neutral_parameter_admits_a_tainted_argument() {
+    // `Core\Str::length` answers a `uint`, which carries no byte of its
+    // subject — so there is nothing for the qualifier to be carried into and
+    // nothing the admission can launder.
+    let diags = check_in_method(
+        "tainted string $t = \"literal\" as tainted string;\n\
+         uint $n = Core\\Str::length($t);\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn a_contagious_parameter_admits_a_tainted_argument_and_taints_the_result() {
+    // `Core\Str::join`'s separator decides which bytes come back, so the
+    // answer is tainted whenever the separator was.
+    let diags = check_in_method(
+        "tainted string $t = \"literal\" as tainted string;\n\
+         tainted string $s = Core\\Str::join([\"a\", \"b\"], $t);\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn a_contagious_call_does_not_launder_its_argument() {
+    // The other half of the same rule, and the half that is a security
+    // property rather than a convenience: admitting the argument without
+    // carrying the qualifier into the answer would make every `Core` member a
+    // laundering hole.
+    let diags = check_in_method(
+        "tainted string $t = \"literal\" as tainted string;\n\
+         string $s = Core\\Str::join([\"a\", \"b\"], $t);\n",
+    );
+    assert!(diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)));
+}
+
 #[test]
 fn converting_a_tainted_string_to_bytes_preserves_the_qualifier() {
     // ADR 0009 § 3, amended by ADR 0024 § 2: `bytes`/`string` conversion

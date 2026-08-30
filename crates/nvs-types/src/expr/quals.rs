@@ -47,6 +47,7 @@
 //! modules, which is the reach it had when `expr` was a single file.
 
 use super::*;
+use nvs_stdlib::registry::Qual;
 
 /// Whether `ty` carries ADR 0024 § 1's `tainted` qualifier — on its own
 /// (`tainted string`/`tainted bytes`) or composed with `secret`
@@ -102,6 +103,95 @@ pub(crate) fn qualified_scalar(
         (true, true, false) => interner.tainted_bytes(),
         (true, false, true) => interner.secret_bytes(),
         (true, true, true) => interner.secret_tainted_bytes(),
+    }
+}
+
+/// The same type with the `tainted` bit cleared, and everything else — the
+/// `secret` axis, the base — left exactly as it was.
+///
+/// ADR 0088 § 2's admission is a **narrowing** of one qualifier at one kind of
+/// position, and it is spelled as clearing the bit on the *argument* before
+/// [`is_assignable`] sees it rather than as widening the parameter's declared
+/// type. That is what keeps the diagnostic honest: the parameter is what a
+/// mismatch names, and `expected tainted string` is a type no member declares
+/// and no reader would recognise.
+pub(crate) fn untainted(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
+    match qualifiable_base(ty, interner) {
+        Some(is_bytes) if is_tainted(ty, interner) => {
+            let secret = is_secret(ty, interner);
+            qualified_scalar(is_bytes, false, secret, interner)
+        }
+        _ => ty,
+    }
+}
+
+/// The same type with `tainted` set wherever the type can carry it — the atom
+/// itself, an array's element, or every member of a union — and unchanged
+/// where it cannot.
+///
+/// It reaches through `array<…>` and a union because that is where a
+/// contagious member's answer actually lands: `Core\Str::split` hands back an
+/// `array<string>` and `Core\Str::after` a `?string`, and a result that
+/// dropped the qualifier on the way through either would be laundering by
+/// return type. Nothing else is reached into — a shape's or an object's own
+/// fields are qualified where they are written, not here — which is exactly
+/// the case [`admits_tainted_argument`] refuses the argument for rather than
+/// laundering it.
+pub(crate) fn tainted_result(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
+    if let Some(is_bytes) = qualifiable_base(ty, interner) {
+        let secret = is_secret(ty, interner);
+        return qualified_scalar(is_bytes, true, secret, interner);
+    }
+    match interner.get(ty).clone() {
+        Ty::Array(elem) => {
+            let elem = tainted_result(elem, interner);
+            interner.array(elem)
+        }
+        Ty::Union(members) => {
+            let members: Vec<TypeId> = members
+                .iter()
+                .map(|&member| tainted_result(member, interner))
+                .collect();
+            interner.make_union(members)
+        }
+        _ => ty,
+    }
+}
+
+/// ADR 0088 § 2's admission as one question: does a parameter the registry
+/// classified `qual` accept an argument carrying `tainted`?
+///
+/// * A [`Qual::Sink`] never does — that is the whole of ADR 0088 § 1 — and
+///   neither does an unclassified parameter, which is § 2's flipped default
+///   and every parameter of a signature that is not a `Core` row
+///   ([`MethodSig::param_quals`]).
+/// * [`Qual::Neutral`] and [`Qual::Launder`] always do, for one reason:
+///   neither puts a byte of the argument into the answer, so there is nothing
+///   for the qualifier to be carried into. `Launder` is not named in § 2's own
+///   sentence and follows from its definition — a member that removes the
+///   qualifier and refused to be handed one would launder nothing.
+/// * [`Qual::Contagious`] does **only where the result can carry the qualifier
+///   back out**, which is what `tainted_result` answering something different
+///   means. That conservative half is deliberate: admitting a tainted argument
+///   into a member whose return type has nowhere to put the bit is laundering,
+///   and AGENTS.md's ordering does not trade priority 1 for a call that
+///   compiles. A member in that position is either mis-classified — an answer
+///   carrying no byte of any argument is `Neutral` — or answers a shape or an
+///   object, whose fields are a slice of their own.
+///
+/// Only the `tainted` axis is admitted. `secret` is refused here exactly as it
+/// is refused today: whether a `Neutral` parameter launders `secret` is a
+/// laundering decision ADR 0088 owes an answer to, and being over-strict costs
+/// a refusal rather than a leak.
+pub(crate) fn admits_tainted_argument(
+    qual: Option<Qual>,
+    return_ty: TypeId,
+    interner: &mut TypeInterner,
+) -> bool {
+    match qual {
+        None | Some(Qual::Sink) => false,
+        Some(Qual::Neutral | Qual::Launder) => true,
+        Some(Qual::Contagious) => tainted_result(return_ty, interner) != return_ty,
     }
 }
 
