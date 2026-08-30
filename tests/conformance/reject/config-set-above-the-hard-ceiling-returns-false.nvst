@@ -1,0 +1,52 @@
+--TEST--
+`Core\Config::set` raises a limit as far as the operator's `[limits.hard]` ceiling and refuses above it as `false` with the previous value intact, throwing neither time — ADR 0005, M6's *Verify*
+--FILE--
+<?nvs
+// ADR 0005: `[limits]` states the value a request starts at and `[limits.hard]`
+// the ceiling it may raise itself to. `memory` is a bare limit name, which
+// `Core\Config` resolves to the `[limits]` entry of the tree below.
+echo Core\Config::get('memory'), "\n";
+
+// Under the ceiling the operator kept: accepted, and in force for the rest of
+// this request.
+try {
+    if (Core\Config::set('memory', '256M')) {
+        echo "raised to ", Core\Config::get('memory'), "\n";
+    } else {
+        echo "refused under the ceiling\n";
+    }
+} catch (Throwable $thrown) {
+    echo "threw under the ceiling: ", $thrown->message, "\n";
+}
+
+// Above `[limits.hard]`: the refusal is the `false` this member answers with,
+// and never an exception. Both halves are the assertion — a version that threw
+// would be a different API, and one that accepted would make the ceiling
+// advisory.
+try {
+    if (Core\Config::set('memory', '1G')) {
+        echo "raised past the ceiling\n";
+    } else {
+        echo "refused above the ceiling\n";
+    }
+} catch (Throwable $thrown) {
+    echo "threw above the ceiling: ", $thrown->message, "\n";
+}
+
+// The previous value intact: what the refused set left in force is the value
+// the accepted one wrote, not the file's and not the one it asked for.
+echo Core\Config::get('memory'), "\n";
+--FILE nvs.toml--
+# The root file, ADR 0103 § 1 step 2's `./nvs.toml`. A `[limits]` entry and the
+# `[limits.hard]` ceiling over it are both needed for the case to have two sides
+# to assert: one set lands between them and one above.
+[limits]
+memory = "128M"
+
+[limits.hard]
+memory = "512M"
+--EXPECT--
+128M
+raised to 256M
+refused above the ceiling
+256M
