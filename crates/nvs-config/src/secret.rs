@@ -29,6 +29,17 @@
 //! renders the value `<secret>` and names the file it came from, and it can only do that if the
 //! file is still recorded.
 //!
+//! **The value never enters the merged table**, and that is what [`Secret`] exists for. The table is
+//! the stream § 9 serializes whole for `nvs config dump --toml` and the one
+//! [`Snapshot::retype`](crate::Snapshot) rebuilds the typed tree out of, so a content put into it
+//! would have to be redacted again by every reader that walks it — and the one that forgets writes a
+//! credential into a file an operator diffs. Carried beside it instead, a secret reaches exactly the
+//! three readers that ask for it by name: [`apply`] puts it back onto a typed tree, `Core\Config`
+//! answers `db.main.password` with it, and the dump renders it `<secret>`. That is also why
+//! [`apply`] is a second function rather than the tail of [`materialize`] — a snapshot deserializes
+//! the table more than once (a reload carries `Boot` values across and retypes), and each of those
+//! rounds has to put the secrets back without re-reading a file.
+//!
 //! Cost: one trust check, one advisory and one whole-file read per secret file, at boot and again
 //! at each `nvs ctl reload`. Nothing here runs per request.
 //!
@@ -38,12 +49,36 @@
 //! [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
 
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use nvs_diagnostics::{Diagnostic, code};
 
 use crate::resolve::{Files, Origin, origin_note};
 use crate::tree::Config;
+
+/// One secret, materialized: the value § 7 read, and the file it came from.
+///
+/// The file is kept because it is half of what § 9's dump prints — `<secret>` says a value is in
+/// force and the path says which file decides it, and an audit that cannot name the file cannot act
+/// on it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Secret {
+    /// The file's whole content, cut to § 7's value.
+    pub value: String,
+    /// The trusted, absolute path it was read from.
+    pub file: PathBuf,
+}
+
+/// What [`materialize`] read out of the tree: every secret, by the dotted key it is the value of.
+#[derive(Clone, Debug, Default)]
+pub struct Materialized {
+    /// Each secret under the key it answers — `db.main.password`, never the `_file` sibling that
+    /// named it, which is still in the table under its own key.
+    pub secrets: BTreeMap<String, Secret>,
+    /// § 7's advisories, `W1005` for a secret file another account can read. Never a refusal: that
+    /// arrives as the `Err` instead.
+    pub warnings: Vec<Diagnostic>,
+}
 
 /// § 7's cap on a secret file, in bytes.
 ///
@@ -51,27 +86,30 @@ use crate::tree::Config;
 /// `password_file` pointed at a log, a database or a device before its content becomes a password.
 pub const MAX_SECRET_BYTES: usize = 64 * 1024;
 
-/// Reads every secret file the flattened tree names, replacing each `_file` sibling's value.
+/// Reads every secret file the flattened tree names, filling each `_file` sibling's value.
 ///
 /// `origins` is the merge's key-to-file record: it says which file each `password_file` was written
 /// in, which is both the directory § 5 resolves a relative path against and the file a refusal has
 /// to name. A key with no origin is one no file set, so it is not read.
+///
+/// `config` comes back with every value filled — [`apply`] does that half, and is called again by
+/// whoever deserializes the tree a second time.
 ///
 /// # Errors
 ///
 /// One [`Diagnostic`]: `E0608` for a pair set twice or a file § 7 will not take a value from,
 /// `E0607` for a secret file outside the trust boundary, `E0605` for one that cannot be read.
 ///
-/// Returns § 7's advisory warnings — `W1005` for a secret file another account can read — which are
-/// never a reason to stop.
+/// Returns § 7's advisory warnings with the values — `W1005` for a secret file another account can
+/// read — which are never a reason to stop.
 pub fn materialize(
     config: &mut Config,
     origins: &BTreeMap<String, Origin>,
     files: &dyn Files,
-) -> Result<Vec<Diagnostic>, Diagnostic> {
-    let mut warnings = Vec::new();
-    for (name, db) in &mut config.db {
-        let Some(named) = db.password_file.clone() else {
+) -> Result<Materialized, Diagnostic> {
+    let mut out = Materialized::default();
+    for (name, db) in &config.db {
+        let Some(named) = db.password_file.as_deref() else {
             continue;
         };
         let key = format!("db.{name}.password_file");
@@ -79,9 +117,29 @@ pub fn materialize(
         if db.password.is_some() {
             return Err(both_set(&format!("db.{name}"), "password", written_in));
         }
-        db.password = Some(read(&named, &key, written_in, files, &mut warnings)?);
+        let secret = read(named, &key, written_in, files, &mut out.warnings)?;
+        out.secrets.insert(format!("db.{name}.password"), secret);
     }
-    Ok(warnings)
+    apply(config, &out.secrets);
+    Ok(out)
+}
+
+/// Puts every materialized secret onto a typed tree, at the key it is the value of.
+///
+/// The pair is spelled out here for the module doc's reason, and this is the *only* place a value
+/// reaches [`Config`]: a tree deserialized from the merged table has `password_file` and no
+/// `password`, so every deserialization is followed by this call — [`materialize`]'s own, and each
+/// one a [`Snapshot`](crate::Snapshot) makes when it retypes.
+///
+/// A key naming a `[db]` block this tree does not have is skipped rather than creating one: the
+/// secrets came from a table this same tree was built from, so that can only be a caller applying
+/// one tree's secrets to another's configuration.
+pub fn apply(config: &mut Config, secrets: &BTreeMap<String, Secret>) {
+    for (name, db) in &mut config.db {
+        if let Some(secret) = secrets.get(&format!("db.{name}.password")) {
+            db.password = Some(secret.value.clone());
+        }
+    }
 }
 
 /// One secret file: trusted, advised on, read, and cut to its value.
@@ -91,7 +149,7 @@ fn read(
     written_in: Option<&Origin>,
     files: &dyn Files,
     warnings: &mut Vec<Diagnostic>,
-) -> Result<String, Diagnostic> {
+) -> Result<Secret, Diagnostic> {
     // § 5: relative to the file it was written in, which is the same rule an `[[include]]` path
     // follows. A key with no origin cannot have been written anywhere, so there is nothing but the
     // path itself to resolve against.
@@ -142,7 +200,10 @@ fn read(
     if value.trim().is_empty() {
         return Err(refusal(&trusted, key, "holds only whitespace", written_in));
     }
-    Ok(value.to_string())
+    Ok(Secret {
+        value: value.to_string(),
+        file: trusted,
+    })
 }
 
 /// One trailing `\n`, and the `\r` before it, and nothing else — § 7's whole trimming rule.

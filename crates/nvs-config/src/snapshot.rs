@@ -39,6 +39,7 @@ use nvs_diagnostics::{Diagnostic, code};
 use crate::app;
 use crate::directive::{Apply, DIRECTIVES, Directive, governs};
 use crate::resolve::{Files, Origin, Override, Resolved};
+use crate::secret::Secret;
 use crate::tree::Config;
 
 /// One entry file's effective configuration, immutable once built — [ADR 0078] § 1.
@@ -91,6 +92,12 @@ pub struct Snapshot {
     /// What the tree was only advised about — a readable secret file, `W1005`. Carried so a reload
     /// can report it again: the file it names may have been re-created between the two reads.
     pub warnings: Vec<Diagnostic>,
+    /// [ADR 0103] § 7's secrets, by the key each is the value of — `db.main.password`. Carried
+    /// rather than folded into [`table`](Snapshot::table) for [`mod@crate::secret`]'s reason, and
+    /// carried rather than dropped because it is where the value *is*: the table this snapshot
+    /// deserializes has the `_file` sibling and no content, so [`retype`](Snapshot::retype) puts
+    /// these back every time it runs and `Core\Config::get` reads them from here.
+    pub secrets: BTreeMap<String, Secret>,
 }
 
 impl Snapshot {
@@ -125,6 +132,7 @@ impl Snapshot {
             overrides: resolved.overrides.clone(),
             origins: resolved.origins.clone(),
             warnings: resolved.warnings.clone(),
+            secrets: resolved.secrets.clone(),
         };
         // The roster goes with the blocks it lists: it is what *selected* the directives below, and
         // a key of it left in the table would deserialize into `config.app` as the host's whole set
@@ -179,7 +187,15 @@ impl Snapshot {
         Ok(Arc::new(snapshot))
     }
 
-    /// Deserializes [`table`](Snapshot::table) into [`config`](Snapshot::config).
+    /// Deserializes [`table`](Snapshot::table) into [`config`](Snapshot::config), and puts
+    /// [`secrets`](Snapshot::secrets) back onto it.
+    ///
+    /// The second half is not an afterthought: [ADR 0103] § 7's value is carried beside the table
+    /// and never in it, so a typed tree deserialized from the table alone has every
+    /// `password_file` and no `password`. Every path that produces a [`Config`] here goes through
+    /// this function for that reason — the build below and the `Boot` carry a reload does — and a
+    /// second deserialization written anywhere else would silently drop the credential the way this
+    /// one used to.
     ///
     /// # Errors
     ///
@@ -194,6 +210,7 @@ impl Snapshot {
                         .to_string(),
                 )
             })?;
+        crate::secret::apply(&mut self.config, &self.secrets);
         Ok(())
     }
 

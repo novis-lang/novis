@@ -200,7 +200,7 @@ pub(crate) fn check(config: &[PathBuf], paths: &[PathBuf]) -> ExitCode {
         render_diagnostics(&mut diags, &sources);
     }
 
-    let set = leaves(&resolved.table).len();
+    let set = listing(&resolved).len();
     println!(
         "ok: {} file{}, {} directive{} set, {} override{}, {} warning{}",
         resolved.files.len(),
@@ -229,12 +229,16 @@ pub(crate) fn check(config: &[PathBuf], paths: &[PathBuf]) -> ExitCode {
 ///   therefore complete — a key no reader has a field for is still in force and
 ///   still printed — which is what an audit needs, and it is the same table
 ///   [ADR 0104] § 2 layers `[[app]]` blocks over.
-/// - **A secret's value is not in it, and not because it is redacted.** ADR 0103
-///   § 7 makes a secret a *file* whose content becomes the value at the point a
-///   reader asks for it, so `db.main.password_file` is what the stream holds and
-///   the content never enters this table. There is nothing here to leak, which
-///   is a stronger property than a `<secret>` placeholder over a value that was
-///   loaded anyway.
+/// - **A secret is a row of its own, rendered `<secret>` and naming its file.**
+///   ADR 0103 § 7's value is read at boot and carried beside the table rather
+///   than in it, so `db.main.password` is not a leaf of the merged table at all
+///   — and § 9's listing would be missing a key that is in force if the dump
+///   printed only what it walks. It is added back here, with the secret file in
+///   the origin column, because that path is what an operator acts on: the
+///   redaction is what the row says, and the file is what makes the row useful.
+///   `--toml` prints the table and therefore carries no content, which is a
+///   property of where the value is kept rather than of a redaction this dump
+///   remembers to apply.
 /// - **`--origin` names the file and not the line.** An [`Origin`] carries the
 ///   path and the `SourceId`, because that is what a refusal needs; a line would
 ///   need a span per leaf, and `toml::Value` carries none once the document is
@@ -279,7 +283,7 @@ pub(crate) fn dump(config: &[PathBuf], paths: &[PathBuf], origin: bool, as_toml:
         };
     }
 
-    let leaves = leaves(&resolved.table);
+    let leaves = listing(&resolved);
     let width = leaves.iter().map(|(key, _)| key.len()).max().unwrap_or(0);
     // The origin is a column rather than a suffix, so a tree assembled from
     // five files reads down that column instead of along each line.
@@ -301,7 +305,13 @@ pub(crate) fn dump(config: &[PathBuf], paths: &[PathBuf], origin: bool, as_toml:
             format!("{key:width$} = {value}")
         };
         if origin {
-            if let Some(written_in) = resolved.origins.get(key) {
+            // A secret's origin is the file its *value* came from, not the file
+            // that named it — the `password_file` row directly below it is where
+            // the naming file is already reported, so printing that one twice
+            // would leave the path § 7 makes the value nowhere in the listing.
+            if let Some(secret) = resolved.secrets.get(key) {
+                line.push_str(&format!("    {}", secret.file.display()));
+            } else if let Some(written_in) = resolved.origins.get(key) {
                 line.push_str(&format!("    {}", written_in.path.display()));
             }
             if let Some(record) = overridden.get(key.as_str()) {
@@ -313,13 +323,36 @@ pub(crate) fn dump(config: &[PathBuf], paths: &[PathBuf], origin: bool, as_toml:
     ExitCode::SUCCESS
 }
 
+/// What ADR 0103 § 9 renders a secret's value as. Never the content, and never
+/// a fixed-width mask that would say how long it is.
+const REDACTED: &str = "<secret>";
+
+/// § 9's listing: every leaf of the merged table, plus one row per secret, in
+/// dotted-key order.
+///
+/// [`check`] counts it and [`dump`] prints it, so the summary line and the
+/// listing cannot disagree about how many directives are set. A secret is
+/// counted because it *is* set — `db.main.password` is a key with a value in
+/// force, and the `password_file` beside it is a second key rather than the same
+/// one spelled differently.
+fn listing(resolved: &nvs_config::resolve::Resolved) -> Vec<(String, String)> {
+    let mut out = leaves(&resolved.table);
+    out.extend(
+        resolved
+            .secrets
+            .keys()
+            .map(|key| (key.clone(), REDACTED.to_owned())),
+    );
+    out.sort_by(|(left, _), (right, _)| left.cmp(right));
+    out
+}
+
 /// Every key in force in `table`, as a dotted key and the TOML spelling of its
 /// value, in dotted-key order.
 ///
-/// [`check`] counts what this returns and [`dump`] prints it, so the summary
-/// line and the listing cannot disagree about how many directives are set —
-/// which they would if one counted `Resolved::origins`, whose keys include the
-/// containers a leaf hangs off.
+/// [`listing`] is what both readers go through, and this is the half of it that
+/// walks the table — counted rather than `Resolved::origins`, whose keys include
+/// the containers a leaf hangs off.
 fn leaves(table: &toml::Table) -> Vec<(String, String)> {
     let mut out = Vec::new();
     flatten(&mut out, String::new(), &toml::Value::Table(table.clone()));

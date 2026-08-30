@@ -9,6 +9,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use nvs_config::resolve::{Files, Resolved, Roots, resolve};
 use nvs_config::secret::MAX_SECRET_BYTES;
@@ -308,4 +309,42 @@ fn only_the_password_file_that_won_the_merge_is_read() {
     .untrusting(&["etc/loser"]);
 
     assert_eq!(password(&tree_of(&fs, "etc/nvs.toml")), Some("hunter2"));
+}
+
+/// § 7 reaches the reader: the value survives into the snapshot a request reads, and does **not**
+/// arrive there through the merged table.
+///
+/// Both halves are the finding this case was written for. The snapshot deserializes its typed tree
+/// out of the table — twice, if a reload carries a `Boot` value across — and the table holds the
+/// `_file` sibling and no content, so a `password` put on the resolved tree and nowhere else is
+/// dropped the moment the snapshot is built. `Snapshot::secrets` is where it survives, which is also
+/// why the second assertion is not merely a redaction check: there is nothing in that table to
+/// redact, so `dump --toml` cannot write a credential into a file an operator diffs.
+#[test]
+fn a_secret_survives_into_the_snapshot_without_entering_the_table() {
+    let fs = Fake::with(&[
+        ("etc/nvs.toml", ROOT),
+        ("etc/secrets/db", "hunter2\n"),
+        ("srv/app.nvs", "<?nvs\n"),
+    ]);
+    let resolved = tree_of(&fs, "etc/nvs.toml");
+    let snapshot = nvs_config::Snapshot::build(&resolved, &p("srv/app.nvs"), &fs)
+        .unwrap_or_else(|err| panic!("refused: {} [{:?}]", err.message, err.notes));
+
+    assert_eq!(
+        snapshot.config.db["main"].password.as_deref(),
+        Some("hunter2"),
+        "the typed tree a driver reads has the value, past the retype that builds it",
+    );
+    assert_eq!(
+        nvs_config::Request::new(Arc::clone(&snapshot)).get("db.main.password"),
+        Some("hunter2".to_string()),
+        "and so does `Core\\Config::get`, which reads the key the value is filed under",
+    );
+    assert!(
+        !toml::to_string(&snapshot.table)
+            .expect("the merged table serializes")
+            .contains("hunter2"),
+        "the content is carried beside the table and never in it — `dump --toml` is that table",
+    );
 }

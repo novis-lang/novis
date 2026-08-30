@@ -17,10 +17,11 @@
 //! **What `set` refuses, it refuses by returning `false`** (ADR 0005, and `m6.md`'s *Verify*): a
 //! name no [`Directive`](crate::directive::Directive) row governs, a `System` one, a value that
 //! does not spell its unit, a value above the `[limits.hard]` ceiling, a
-//! [`RuntimeTighten`](Class::RuntimeTighten) one that does not narrow, and an assignment that would
-//! leave this request holding one of ADR 0074 §§ 2-3's meaningless `[http]` pairs. Nothing on this path
-//! throws, so a program cannot catch a refusal and cannot tell one from another — which is the API
-//! ADR 0064 § 5 states and not an omission.
+//! [`RuntimeTighten`](Class::RuntimeTighten) one that does not narrow, an assignment that would
+//! leave this request holding one of ADR 0074 §§ 2-3's meaningless `[http]` pairs, and a mode
+//! outside ADR 0091 § 5's ceiling — a name that is not one of the two modes being outside every
+//! ceiling. Nothing on this path throws, so a program cannot catch a refusal and cannot tell one
+//! from another — which is the API ADR 0064 § 5 states and not an omission.
 //!
 //! **A `RuntimeTighten` directive that is not a quantity cannot be set at all**, and that is
 //! deliberate. Narrowing is `[value] within [what is in force]`, which [`value::within_ceiling`]
@@ -41,6 +42,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use crate::directive::{Class, lookup};
+use crate::mode;
 use crate::snapshot::{Snapshot, value_at};
 use crate::tree::Setting;
 use crate::value::{self, unit_of};
@@ -79,17 +81,25 @@ impl Request {
     /// Values cross as text (§ 5), so a directive the file wrote as an integer, a float or a
     /// boolean answers with the way TOML spells it — `64`, `0.01`, `true`. A key naming a table or
     /// a list is `None` rather than a rendering nothing could set back.
+    ///
+    /// A secret is read before the table and not out of it (ADR 0103 § 7): `db.main.password` is a
+    /// key in force whose value is a file's content, and the table holds only the `password_file`
+    /// that named it. Nothing here redacts — this is the reader the value exists for, and the
+    /// program asking is the one that will connect with it.
     #[must_use]
     pub fn get(&self, name: &str) -> Option<String> {
         let key = canonical(name);
         if let Some(set) = self.overlay.get(key.as_ref()) {
             return Some(set.clone());
         }
+        if let Some(secret) = self.base.secrets.get(key.as_ref()) {
+            return Some(secret.value.clone());
+        }
         value_at(&self.base.table, &key).and_then(as_text)
     }
 
     /// `Core\Config::set`: `true` when the change was made for this request, `false` when it was
-    /// refused — the module doc lists the six refusals, and none of them throws.
+    /// refused — the module doc lists the seven refusals, and none of them throws.
     pub fn set(&mut self, name: &str, value: &str) -> bool {
         let key = canonical(name);
         let Some(row) = lookup(&key) else {
@@ -97,6 +107,12 @@ impl Request {
         };
         if !row.class.settable_by_a_request() {
             return false;
+        }
+        // ADR 0091 § 4's flip is a `Runtime` set with a bound of its own — `[mode] ceiling` and not
+        // `[limits.hard]` — and an effect beyond its own key, so it leaves the quantity path here
+        // rather than threading two more conditions through it.
+        if key == mode::KEY {
+            return self.flip_mode(value);
         }
         let asked = Setting::Text(value.to_string());
         let bound = match row.class {
@@ -136,6 +152,63 @@ impl Request {
         true
     }
 
+    /// ADR 0091 § 4's mode flip: the mode this request runs in, and § 3's five defaults with it.
+    ///
+    /// Two things make this more than an overlay insert, and both are in that ADR rather than in a
+    /// choice made here:
+    ///
+    /// - **§ 5's ceiling bounds it.** A flip is allowed exactly where the mode asked for is no more
+    ///   permissive than `[mode] ceiling`, which when unset is the mode the host started in — so a
+    ///   production host that wrote no configuration refuses every flip, and the refusal is the
+    ///   ordinary `false` [`set`](Self::set) answers with rather than a new failure shape.
+    /// - **§ 4's last bullet re-derives § 3's rows into the overlay**, because a mode *is* those
+    ///   five defaults and a flip that moved only its own key would change nothing observable. A row
+    ///   already set explicitly is left alone, and "explicitly" covers the file as well as this
+    ///   request: § 3's first property makes `mode = "development"` beside `[log] format = "json"`
+    ///   legal and reads it as the operator overriding the default, which a re-derivation that
+    ///   stomped the written line would silently undo.
+    ///
+    /// The flip is request-local like every other `set`, which is § 4's own answer for why allowing
+    /// it is safe at all: nothing here is visible to another request or outlives this one.
+    fn flip_mode(&mut self, asked: &str) -> bool {
+        if !mode::within(asked, &self.started_ceiling()) {
+            return false;
+        }
+        for row in mode::DERIVED {
+            let Some(derived) = row.value(asked) else {
+                continue;
+            };
+            if self.overlay.contains_key(row.key) || value_at(&self.base.table, row.key).is_some() {
+                continue;
+            }
+            self.overlay
+                .insert(row.key.to_string(), derived.to_string());
+        }
+        self.overlay
+            .insert(mode::KEY.to_string(), asked.to_string());
+        true
+    }
+
+    /// ADR 0091 § 5's ceiling: `[mode] ceiling` where the tree states one, else the mode the host
+    /// started in.
+    ///
+    /// Read off the snapshot and never off the overlay, which is the whole of what makes the ceiling
+    /// unraisable: a request that had flipped itself once would otherwise be measured against what it
+    /// had already asked for. The started mode is the `[[app]]` block's where one matched — an
+    /// application's mode is its own (ADR 0104 § 4) — then the global `mode.default`, then
+    /// `production`, which is § 5's row for a host that wrote nothing.
+    fn started_ceiling(&self) -> String {
+        if let Some(stated) = value_at(&self.base.table, "mode.ceiling").and_then(as_text) {
+            return stated;
+        }
+        if let Some(app) = &self.base.mode {
+            return app.clone();
+        }
+        value_at(&self.base.table, mode::KEY)
+            .and_then(as_text)
+            .unwrap_or_else(|| mode::PRODUCTION.to_string())
+    }
+
     /// ADR 0074 §§ 2-3, asked of what this request would be left holding.
     ///
     /// The same two combinations the boot refuses, refused here as `false` with the value unchanged
@@ -166,11 +239,16 @@ impl Request {
     /// this request set folded over the snapshot.
     ///
     /// One entry per scalar leaf, on [`get`](Self::get)'s rule: a table is not a value and a list
-    /// has no rendering `set` would take back.
+    /// has no rendering `set` would take back. § 7's secrets are folded in for the same reason they
+    /// are in `get` — a key this answers `None` for and `get` answers a value for would be two
+    /// readers disagreeing about what is set — so `all` and `get` are one answer set.
     #[must_use]
     pub fn all(&self) -> BTreeMap<String, String> {
         let mut out = BTreeMap::new();
         flatten(&self.base.table, "", &mut out);
+        for (key, secret) in &self.base.secrets {
+            out.insert(key.clone(), secret.value.clone());
+        }
         for (key, value) in &self.overlay {
             out.insert(key.clone(), value.clone());
         }

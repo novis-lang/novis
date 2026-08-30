@@ -40,6 +40,7 @@ use std::path::{Component, Path, PathBuf};
 
 use nvs_diagnostics::{Diagnostic, SourceId, SourceMap, code};
 
+use crate::secret::Secret;
 use crate::tree::Config;
 use crate::trust::{self, Untrusted};
 
@@ -221,6 +222,11 @@ pub struct Resolved {
     /// Where every leaf in that table was written, by dotted key — `db.main.password_file`, and
     /// `app.1.root` for the second `[[app]]` block, whichever file appended it.
     pub origins: BTreeMap<String, Origin>,
+    /// § 7's secrets, by the key each is the value of — `db.main.password`. Beside the table rather
+    /// than in it, for the reason [`mod@crate::secret`]'s module doc gives: the table is what
+    /// `dump --toml` serializes whole, and a content in it would have to be redacted again by every
+    /// reader that walks it.
+    pub secrets: BTreeMap<String, Secret>,
 }
 
 /// What ADR 0103 § 1's four steps selected.
@@ -288,7 +294,9 @@ pub fn resolve(
     // Lifted out and put back so the two passes can hold `config` mutably while reading the
     // origins they resolve their relative paths against.
     let origins = std::mem::take(&mut resolved.origins);
-    resolved.warnings = crate::secret::materialize(&mut resolved.config, &origins, files)?;
+    let materialized = crate::secret::materialize(&mut resolved.config, &origins, files)?;
+    resolved.warnings = materialized.warnings;
+    resolved.secrets = materialized.secrets;
     // ADR 0104 § 1's keys, for the same reason: `[[app]]` blocks accumulate across the tree (§ 4),
     // so the roster only exists once the merge is done.
     crate::app::canonicalize(&mut resolved.config, &origins, files)?;
@@ -544,6 +552,7 @@ impl Merge {
             warnings: Vec::new(),
             table: self.table,
             origins: self.origins,
+            secrets: BTreeMap::new(),
         })
     }
 }
