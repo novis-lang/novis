@@ -2,58 +2,59 @@
 
 ## State
 
-**ADR 0064 § 5's `Core\Config` is on disk end to end, and the driver's `examples/config.nvs` check
-passes** — `memory=256M / set ok / set refused / still=512M`, off this repository's own `nvs.toml`.
-The chain is four hops and each owns its own rule: `nvs run` resolves the tree in `boot_snapshot`
-(`crates/nvs-cli/src/main.rs:610`), `Snapshot::build` folds the matching `[[app]]` blocks over it,
-`Ctx::set_config` (`crates/nvs-runtime/src/ctx.rs`) gives the request the one `Arc` clone ADR 0078
-§ 1 allows it, and `nvs_config::request::Request` holds that snapshot plus the copy-on-write
-overlay. `crates/nvs-stdlib/src/config.rs`'s four members are marshalling and nothing else — every
-rule about names, classes and ceilings lives in `request.rs`'s module doc.
+**Stage 2 is closed.** ADR 0103 § 9's offline pair is on disk — `nvs config check [<file>...]` and
+`nvs config dump [--origin] [--toml] [<file>...]` — and § 1 step 1's repeatable `--config` is a
+global flag threaded into `nvs run`'s snapshot as well as into both audits. The driver's `command`
+check (`docs/agent/loop-goal.toml:1731`) passes: `nvs config check tests/config/duplicate-key.toml`
+exits 1 naming `duplicate-key.toml:4:1`.
 
-**One decision is recorded in code and not in an ADR, deliberately.** `nvs run` reads the tree
-through `LocalFiles` (`crates/nvs-cli/src/main.rs:560`), which does **not** apply ADR 0103 § 6's
-ownership check; `Disk` still does, and `nvs serve`/`nvs ctl reload` will use it. That type's own
-doc comment carries the three-part argument, the shortest of which is that § 6 itself names the
-Windows default this repository sits on. Nothing is granted out of the unchecked tree today —
-`[capabilities]` is enforced nowhere — so Stage 4's reserved ADR slot is where it is settled rather
-than here.
+`crates/nvs-cli/src/config.rs` is the new home of every CLI-side config concern — `LocalFiles`,
+`boot_snapshot`, `check`, `dump` — moved out of `main.rs`, which keeps only the clap surface. Two
+decisions live in its doc comments rather than in an ADR: the audit does **not** apply § 6's
+ownership check (a machine auditing a tree is not the account that will serve it, so the check run
+there refuses trees a server would accept and passes trees it will refuse), and `--origin` names the
+**file** a key was written in and not the line (`Origin` carries a path and a `SourceId`; `toml::Value`
+has no span once the document is parsed, and ADR 0103 § 9's example shows `prod.toml:4`).
 
-`configured_origin`'s hand-rolled one-key `nvs.toml` scanner is gone: ADR 0102 § 6's origin now
-comes off the snapshot, so it is the origin of the blocks that actually match the entry file.
+**The driver's failing acceptance check is not a regression.** `native examples/limits.nvs
+[4 capabilities]: exited 0, wanted non-zero` is item 11 unwritten: no memory cap is enforced and
+`[capabilities]` is enforced nowhere, so the fixture holds its 512 slabs and exits 0 by design. It
+closes in the group below, not before it.
 
-`orient.py` did not print ADR 0064 § 5, which is this group's own specification — `[context] adrs`
-wants `0064:5`, and `0103:1` for the roots the next group needs.
+`orient.py` printed neither ADR 0103 § 9 nor § 1, which are the sections this session's item named.
+`[context] adrs` is documented as "the sections EVERY session reads", so a *per-item* section has no
+home in the manifest and the item text naming one does not make the pack slice it — that is the gap,
+and it costs a session one `peek.py` per section. `[context] modules` now names
+`crates/nvs-cli/src/config.rs`, and the comment above it now covers the `budget.rs` warning too
+(item 12's budget has no module yet; the selector is where it will be, exactly as `nvs-config`'s was).
 
 ## Next group
 
-**`nvs config` and `--config` — ADR 0103 §§ 1 and 9, the last of Stage 2 still open.** One file
-set: `crates/nvs-cli/src/main.rs` (the `Command` enum at `:107`, `LocalFiles` at `:560`,
-`boot_snapshot` at `:610`), a new `crates/nvs-cli/src/config.rs` for the subcommand's own body, and
-`crates/nvs-config/src/resolve.rs:246` (`roots`) with `crates/nvs-config/src/snapshot.rs:83`
-(`origins`) behind it. Everything the first two need is already there; neither adds a crate.
+**Stage 4's capability gate — items 10 and 13, and this goal's one ADR slot.** File set:
+`docs/adr/0118-*.md` (new), `crates/nvs-stdlib/src/registry.rs:708` (`CoreMethod`),
+`crates/nvs-config/src/tree.rs:210` (`Capabilities`), `crates/nvs-config/src/snapshot.rs:53`
+(`Snapshot::config`) and `crates/nvs-runtime/src/ctx.rs:867` (`set_config`, which is how a request
+already holds the snapshot a gate must read).
 
-- [ ] **`nvs config check <file>...`** — ADR 0103 § 9. `loop-goal.toml:1725`'s `command` check is
-      the acceptance: `nvs config check tests/config/duplicate-key.toml` exits non-zero and prints
-      both `duplicate` and `duplicate-key.toml:`. The fixture exists; the refusal already carries
-      its span, so this is `boot_snapshot`'s resolve half plus `render_diagnostics`.
-- [ ] **`nvs config dump [--origin]`** — the same section's other half: every key in force, and
-      with `--origin` the file each was written in. `Snapshot::origins` is that map by dotted key
-      and `Snapshot::overrides` is § 3's record, both already populated.
-- [ ] **Repeatable `--config <path>`** — § 1 step 1, which `roots` already takes a flag list for
-      and which `boot_snapshot` passes `&[]` to. It belongs on `run`, `check` and `dump` alike, and
-      an explicit one disables step 2 entirely.
+- [ ] **ADR 0118 — where a capability check sits.** The goal's § *Standing decisions* reserves it and
+      makes it the stage's first slice: what a capability is at the point of a call, where the check
+      sits so no member can route around it, what it costs on a hot path, and how Stage 6's closure
+      test knows a member needs one. Re-check the next free number before creating the file.
+- [ ] **The gate itself**, per that ADR: a `CoreMethod` declares the capability it needs
+      (`registry.rs:708`), the check reads `Snapshot::config`'s `Capabilities` (`tree.rs:210`) off the
+      request, and an ungranted one throws naming it —
+      `an_ungranted_capability_throws_naming_the_capability`, `loop-goal.toml:1790`.
+- [ ] **`examples/capability.nvs`'s three frozen lines** (`loop-goal.toml:1807`): `granted: read ok`,
+      `denied: fs.write`, `denied: script.spawn`. The path-bearing half is canonicalise-then-prefix,
+      which item 6 already wrote once — do not write a second comparison.
 
 ## Backlog
 
-- Stage 4 item 10's ADR slot: where a capability check sits — and with it whether a CLI run may be
-  granted anything out of a tree read without § 6 (`crates/nvs-cli/src/main.rs`'s `LocalFiles`).
-- `nvs-host` still runs on compiled-in defaults, so a limit a request moved is visible to
-  `Core\Config::get` and not yet to what enforces it (`crates/nvs-config/src/lib.rs`'s module doc).
-- A `RuntimeTighten` directive that is not a quantity — `[capabilities]` — cannot be set at all;
-  `crates/nvs-config/src/request.rs`'s module doc owns why refusing is the safe direction.
-- `nvs test <program>` and `crates/nvs-cli/src/script.rs` build a `Ctx` with no configuration, so a
-  `#[Test]` method and a spawned script both read an empty one.
-- Item 18's `Core\Secret::reveal()` is still not in the registry, though `Qual::Reveal` is decided.
-- `Live::admit`'s same-class check is asked of the answer and not of the argument
-  (`crates/nvs-runtime/src/graph.rs` § *Known gaps*).
+- **ADR 0103 § 8, "the CLI flag list is closed at the global layer"** — the last unread clause of the
+  goal's stage 2 item 5. `--config` is global; whether anything else may be is § 8's.
+- **Item 11, safepoint-driven limits** — what `examples/limits.nvs` is waiting for; own file set
+  (`crates/nvs-host`, `crates/nvs-codegen/src/emit.rs`), so its own group after the gate.
+- **`dump --origin` prints no line number** — a span per leaf would have to be carried through the
+  merge; `crates/nvs-cli/src/config.rs`'s `dump` doc owns the reason.
+- **`nvs ctl config`** — ADR 0103 § 9's third command, waiting on goal 6's socket.
+- **Item 18's `Core\Secret::reveal()`** is still not in the registry (`Qual::Reveal` is decided).
