@@ -329,8 +329,9 @@ Verification, in the order it becomes possible:
   gap between an OS process and a task ever closes, this ADR's cost argument is gone and should be re-read.
   `benches/isolation.rs` tracks both numbers.
 - **M5**, when the construct lands: the isolate's own end-to-end spawn-to-result figure for a trivial child
-  on a warm cache goes into `benches/isolation.rs` next to the baseline it beats, with a guard test — the
-  target is single-digit microseconds, and anything at millisecond scale means the arena or the globals are
+  on a warm cache sits in `benches/isolation.rs` as the `isolate/spawn_to_result` arm, next to the baseline
+  it beats, guarded by `a_spawn_to_result_round_trip_stays_in_the_microsecond_class` — the target is
+  single-digit microseconds, and anything at millisecond scale means the arena or the globals are
   being built the expensive way. Plus: a child cannot see a parent variable, global or static, and a
   `Core\Request`/`Core\Server`/`Core\Session` call inside it throws rather than seeing the parent's request
   ([ADR 0012](0012-no-superglobals.md)); a closure, reference or handle-holding object is refused at the boundary; a

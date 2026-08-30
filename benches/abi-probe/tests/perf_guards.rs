@@ -20,6 +20,12 @@ use std::time::{Duration, Instant};
 
 use nvs_abi_probe::{Ctx, Helper, Probe, Value, call};
 
+// The same source `benches/isolation.rs` compiles for its `isolate/` arm, so the
+// guard below and the bench cannot drift apart; that file's own doc owns why it
+// lives outside `src/`.
+#[path = "../shared/isolate.rs"]
+mod isolate;
+
 /// How far a measurement sits from the threshold it must stay under, as the
 /// phrase every guard with a numeric bound prints beside its own figure.
 ///
@@ -464,6 +470,44 @@ fn an_os_process_costs_orders_of_magnitude_more_than_a_task() {
         "an OS process now costs only {ratio:.1}x a task ({process_ns:.0} ns vs {task_ns:.0} ns), \
          under the {MIN_RATIO}x guard. ADR 0006 justifies in-process script isolates on that gap; \
          if the gap has really closed, the ADR needs revisiting."
+    );
+}
+
+#[test]
+#[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
+fn a_spawn_to_result_round_trip_stays_in_the_microsecond_class() {
+    // The figure M5's acceptance asks for, and the one the test above only
+    // approximates: that one prices a bare coroutine, this one prices ADR 0006's
+    // boundary itself — the argument's graph copy in, the child's own ownership
+    // root and context, the child task, the answer's copy out, the release.
+    //
+    // The ceiling is M5's own number rather than a multiple of the baseline: at
+    // ten microseconds the guard fails exactly when "single-digit microseconds"
+    // stops being true, which is the claim worth a red build. Measured on
+    // x86_64-pc-windows-msvc: 0.44 us, so there is ~23x of headroom — more than
+    // the module doc's usual ~10x, and deliberately, because a ceiling tightened
+    // from one developer's box is a flaky gate rather than a stricter one. The
+    // measured figure is printed either way, so drift inside the class is
+    // visible without being fatal.
+    const MAX_US: f64 = 10.0;
+    const ITERS: u64 = 20_000;
+
+    // Each batch builds its own scheduler and task and warms inside them; the
+    // shared module owns why the loop cannot simply live here.
+    let mut best = f64::MAX;
+    for _ in 0..5 {
+        let took = isolate::spawn_to_result_batch(ITERS);
+        best = best.min(took.as_secs_f64() * 1e9 / ITERS as f64);
+    }
+    let us = best / 1000.0;
+    println!("isolate spawn to result: {us:.2} us{}", under(us, MAX_US));
+
+    assert!(
+        us < MAX_US,
+        "spawn-to-result now costs {us:.2} us, over the {MAX_US} us guard. ADR 0006 replaces a \
+         child process with this boundary and M5's acceptance puts it in the single-digit \
+         microseconds; at this figure the child is doing something a child should not, or the \
+         boundary has acquired a syscall."
     );
 }
 
