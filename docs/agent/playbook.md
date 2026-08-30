@@ -989,6 +989,11 @@ is why" — is this file.
   than from one literal per row — which is what makes an agreement case over nine dialects one loop
   instead of eighteen pasted calls. Probed with `nvs run` before the three `Core\Csv` cases were
   written.
+- **`peek.py --locate` is a mode, not a flag you can add to a read.** A call written as
+  `python tools/peek.py "docs/adr/0088-*.md:### 2" file.rs:79-120 --locate report_mismatch` prints the
+  anchors and *silently drops both read targets* — `--locate` takes the rest of argv, so the questions you
+  batched with it are never answered, and a symbol it cannot find exits 1 on top of that. Ask for anchors
+  in their own call, and keep the reads in another.
 
 ## Running things
 
