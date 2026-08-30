@@ -49,11 +49,13 @@ files = [
 
 [context]
 
-# `nvs-config` is new and is created by this goal's first slice, so orient.py warns that its pattern
-# matches nothing until it exists. That warning is correct; do not answer it by deleting the selector.
-# `crates/nvs-host/src/budget.rs` is the same shape and warns for the same reason: item 12's budget
-# has no module of its own yet -- `group.rs`, `isolate.rs` and `scheduler.rs` each hold a piece --
-# and the selector is where it will be. Neither warning is a stale anchor.
+# `crates/nvs-host/src/budget.rs` is a selector for a file a later slice creates, so orient.py warns
+# that its pattern matches nothing until it exists. That warning is correct; do not answer it by
+# deleting the selector. Item 12's budget has no module of its own yet -- `group.rs`, `isolate.rs`
+# and `scheduler.rs` each hold a piece -- and the selector is where it will be, so this is a
+# forward anchor rather than a stale one. (`crates/nvs-runtime/src/budget.rs` is a different file:
+# item 11's per-request memory counter, already landed, and not what this names.) `nvs-config`
+# warned the same way until its first slice created it, and no longer does.
 # `src/*.rs` and not `src/**/*.rs` -- fnmatch's `*` crosses a `/` already, so `**` demands a
 # subdirectory and misses every top-level module.
 modules = [
