@@ -79,3 +79,14 @@ try {
 } catch (ParseError $e) {
     echo "refused: shape changed", "\n";
 }
+
+// The fixture's own cleanup, and not a property of `Core\Serialize`: Novis
+// refcounts and has no cycle collector (`crates/nvs-runtime/src/object.rs`
+// § *Decision: no cycle collector*; ADR 0116's *Consequences* says the same for
+// an isolate's teardown drain). Both rings above hold their own last reference
+// through `$self`, so dropping the locals frees nothing and the process exits
+// holding 48 bytes each — which `tools/leak-check.sh` reports as two definite
+// losses, correctly. Breaking the cycle by hand is what a program with a
+// genuinely cyclic structure has to do until the collector exists.
+$ring->self = null;
+$copy->self = null;
