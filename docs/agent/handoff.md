@@ -2,80 +2,67 @@
 
 ## State
 
-**m6's *Verify* row "N concurrent isolates cannot together exceed the tree's memory, CPU or output
-budget" is enforced in all three thirds**, which closes the group the last two sessions were
-working. `[limits] max_output` is now a ceiling `Ctx` answers for, on the memory ceiling's exact
-shape: `nvs_runtime::budget::written_bytes` is a second thread-local counter, `Ctx::output_base`
-re-bases it at `Ctx::new`, and `Ctx::output_used`/`output_limit`/`over_output_limit`/`output_breach`
-mirror their memory siblings. The charge is in `Ctx::write_output` **below the capture and above the
-sink** — the doc comment there owns why a captured byte is not a response byte and is bounded by
-`[limits] memory` instead. `Limit::Output` is the fourth variant and the breach is a branch in
-`nvs_safepoint` beside memory's; `run_helper` deliberately does not ask it.
+**ADR 0042's write path is on disk** as `crates/nvs-cli/src/cache.rs`, closing two of the driver's
+six stage-5 tests: `the_cache_is_a_fan_out_of_immutable_content_addressed_files` and
+`a_concurrent_write_resolves_by_rename_with_no_lock_file`. § 1's `<dir>/<key[0..2]>/<key[2..]>.nvsc`
+fan-out, § 2's 78-byte header (`magic | format_version: u16 | env_hash | payload_len: u64 |
+checksum`, little-endian because `env_hash` already covers the target triple), and § 4's temp-file →
+`fsync` → one `rename` with the exists-check immediately before the rename. `nvs-cli` gained
+`blake3` and `rand`. The module doc owns every one of those choices.
 
-**The deadline is now the tree's own word, not a copy.** `Ctx::deadline` is
-`Arc<AtomicU64>` and `Ctx::child`/`Ctx::isolate` clone the handle, so one `expire_deadline` store
-stops every isolate — including one spawned *before* the timer fired, which the copy could never
-reach, because the timer holds the root and no registry of live children exists to walk. That was
-the design call item 12's doc comment left open; ADR 0006's "one ceiling to divide" decided it. The
-field doc states what it spends: one allocation per request *tree* and one pointer hop on a poll
-already amortised over `bounded_loop`'s batch.
+**The tests live in `src/cache.rs`'s own `#[cfg(test)] mod tests`, not in `tests/cache.rs`, because
+`nvs-cli` has no library target** — its `tests/meta.rs` and `tests/openapi.rs` drive the built
+binary, which is right for a command's output and impossible for a module with no command in front
+of it. `cargo test -p nvs-cli` runs them, which is what the acceptance check spells. The module
+carries `#![allow(dead_code)]` for the same reason its next slice exists, stated at the attribute.
 
-**ADR 0020 § 1 was amended in place** to list `max_output` among the limits that reach the tier-1
-handler, with a paragraph saying why there are two reserved slices and not one per limit. No new
-ADR; the fold is the whole change.
-
-**The driver's failing check is stage 5, the artifact cache, and nothing of ADR 0042 is on disk** —
-no `cache.rs` in `nvs-cli`, no header type, no reader. `nvs-config` holds only the *key*
-(`crates/nvs-config/src/cache.rs:110`) and the `[cache] dir` directive. That is an open item, not a
-regression, and it is the next group.
+**The blocker in front of the read path is not a decoder — it is that nothing can yet produce a
+payload.** `cranelift_jit::JITModule` has no serialization (`crates/nvs-codegen/src/lib.rs:275`
+holds it for the process's lifetime and § 7 of that crate doc says executable memory is never
+freed), and the workspace has no `mmap` dependency at all — `crates/nvs-host/src/stack.rs:11` only
+*mentions* `mmap`, for guard pages. So § 3's "verify fully, then `mprotect`" has neither the bytes
+to map nor the call to make them executable. Writing
+`an_artifact_is_verified_whole_before_any_page_is_executable` over an `fs::read` into a `Vec` would
+pass while asserting nothing, which is the proxy-for-a-gate move the goal file forbids. The next
+session decides what a payload is before it decodes one.
 
 `orient.py`'s `[context] modules` still names `crates/nvs-host/src/budget.rs`, which never existed;
-the accounting this session extended is `crates/nvs-runtime/src/budget.rs`. The pack warns every
-session and the manifest has not been fixed.
+the pack warns every session and the manifest has not been fixed.
 
 ## Next group
 
-**ADR 0042's on-disk artifact cache, which is the driver's outstanding acceptance check.** File set:
-a new `crates/nvs-cli/src/cache.rs` and a new `crates/nvs-cli/tests/cache.rs`, with
-`crates/nvs-config/src/cache.rs:110` (the key `BLAKE3(source_content ‖ env_hash)`),
-`crates/nvs-config/src/tree.rs:581` (`[cache] dir`) and `crates/nvs-config/src/trust.rs:110` (the
-directory check) behind them. Take them in this order — each later slice reads what the earlier one
-wrote.
+**ADR 0042's read half, and the decision in front of it.** File set: `crates/nvs-cli/src/cache.rs`
+(whole, ~395 lines — `Header::encode` is what a decoder inverts), with
+`crates/nvs-codegen/src/lib.rs:275` and `crates/nvs-config/src/trust.rs:110` behind it.
 
-- [ ] **The header and the write path** — ADR 0042 §§ 1, 2 and 4: one immutable content-addressed
-      file per unit under `[cache] dir`, a header carrying `magic`, `format_version`, `env_hash` and
-      a `BLAKE3` of the payload, written to a temporary name in the same directory and published by
-      one atomic rename with **no lock file, ever**. The key is already built —
-      `crates/nvs-config/src/cache.rs:110` — and the directory is
-      `crates/nvs-config/src/tree.rs:581`. Closes
-      `the_cache_is_a_fan_out_of_immutable_content_addressed_files` and
-      `a_concurrent_write_resolves_by_rename_with_no_lock_file`.
-- [ ] **The read path, verified whole before a single page is executable** — ADR 0042 § 3, which
-      `orient.py` already prints in full. `mmap` `PROT_READ`, check magic/version/`env_hash` (a
-      mismatch is a *miss*, never an error), `BLAKE3` the payload, and only then `mprotect` to
-      `PROT_READ | PROT_EXEC`; a bad entry is deleted and invisible to the script. No panic, no
-      `FATAL`, no `Throwable`. The `env_hash` the header carries is
-      `crates/nvs-config/src/cache.rs:96`, and the digest type beside it is
-      `crates/nvs-config/src/cache.rs:47`. Closes
-      `an_artifact_is_verified_whole_before_any_page_is_executable` and
+- [ ] **Decide what a cache payload is, and record it** — the design call the next slice cannot
+      start without. `cranelift_jit` does not serialize a module, so either the payload is
+      `cranelift-object`'s relocatable object plus a relocation pass, or stage 5 ships its
+      verify-and-map half over a payload ADR 0048's bundler already produces. Record it in
+      `crates/nvs-cli/src/cache.rs`'s module doc under a *Known gaps* heading per the goal's
+      standing decision, and put any redesign in `## Backlog` rather than starting one.
+      Anchors: `crates/nvs-cli/src/cache.rs:1`, `crates/nvs-codegen/src/lib.rs:275`.
+- [ ] **The read path, verified whole before a single page is executable** — ADR 0042 § 3, once the
+      item above says what is being mapped: `mmap` `PROT_READ`, check magic / `format_version` /
+      `env_hash`, `BLAKE3` the payload, and only then `mprotect`. A mismatch deletes the file and is
+      a miss, never an error or a `FATAL`. Adding `memmap2` is a dependency call pre-authorized
+      under ADR 0051 § 4. Closes `an_artifact_is_verified_whole_before_any_page_is_executable` and
       `a_tampered_artifact_is_rejected`.
-- [ ] **The cache directory's trust check, and eviction off the request path** — ADR 0042 §§ 5-6,
-      which is the same ownership-and-mode question ADR 0103 § 6 asks of a config file: reuse
-      `nvs_config::trust::check` (`crates/nvs-config/src/trust.rs:110`) rather than writing a second
-      one. Closes `a_world_writable_cache_directory_is_refused` and
+      Anchors: `crates/nvs-cli/src/cache.rs:110`, `crates/nvs-cli/src/cache.rs:184`.
+- [ ] **The cache directory's trust check, and eviction off the request path** — ADR 0042 §§ 5-6.
+      `nvs_config::trust::check` is the same check ADR 0103 § 6 applies, so this is a call and not a
+      second implementation; eviction is the probabilistic walk on the miss path only, so a warm hit
+      never lists a directory. Closes `a_world_writable_cache_directory_is_refused` and
       `eviction_is_piggybacked_and_off_the_request_path`.
-
-`[context]` gaps for `docs/agent/loop-goal.toml`: `adrs` needs ADR 0042 §§ 1, 2, 4, 5 and 6 (only
-§ 3 is listed, and the next group needs all of them); `modules` still needs
-`crates/nvs-host/src/budget.rs` corrected to `crates/nvs-runtime/src/budget.rs`.
+      Anchors: `crates/nvs-config/src/trust.rs:110`, `crates/nvs-cli/src/cache.rs:184`.
 
 ## Backlog
 
-- `[limits] wall_time` has no timer: nothing samples a clock and sets the deadline word except a
-  test — `crates/nvs-runtime/src/ctx.rs`'s *The request's deadline* section owns the gap.
-- `[limits] cpu_time` has the same gap on the host side — `Ctx::cpu_limit`'s field doc.
-- Item 18's `Core\Secret::reveal()` is not in the registry — `docs/plan/m6.md`.
+- What a serialized compiled unit is — the payload ADR 0042 § 2 carries and § 8 assumes.
+- `[context] modules` names `crates/nvs-host/src/budget.rs`, which does not exist —
+  `docs/agent/loop-goal.toml`.
+- `tools/bench.py --warm-start` is stage 5's other check and has no cache to be warm against yet.
+- Item 18's `Core\Secret::reveal()` is not in the registry — `crates/nvs-config/src/secret.rs`.
 - `Live::admit`'s same-class check is asked of the answer, not the argument —
   `crates/nvs-runtime/src/graph.rs` § *Known gaps*.
-- A warm-cache CLI start under 10 ms (`tools/bench.py --warm-start`) needs the cache above first.
-- ADR 0048's portable single-file executable is untouched — `docs/plan/m6.md`'s *Verify*.
+- `gaps.py`, `holes.py` and `check-migration.py --report` are the worklists no session re-derives.

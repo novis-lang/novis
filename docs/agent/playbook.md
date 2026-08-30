@@ -1032,6 +1032,14 @@ is why" — is this file.
   collecting the positional list at the first optional and will not resume — while the same call with
   both targets first works. The failure names only the trailing target, so it reads as a bad target
   spelling rather than as an ordering rule, and the natural fix (drop the target) is the wrong one.
+- **`Edit` strips a trailing space from `new_string`, so a `replace_all` that narrows a keyword eats
+  the space after it.** `pub const ` → `pub(crate) const ` arrived as `pub(crate) constMAGIC`, and
+  the same edit re-applied to repair it is refused as "old and new are identical", because the tool
+  compares the stripped strings. Include the following identifier in both halves, or write the run
+  as one `python tools/splice.py --patch` file — which is the rule for three or more edits anyway,
+  and which was the fix here. A new module in a bin crate needs that run: with no caller yet it
+  trips `unreachable_pub` on every item under `-D warnings`, and then `dead_code` on all of them
+  again once they are `pub(crate)`.
 
 ## Running things
 
