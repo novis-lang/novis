@@ -373,3 +373,7 @@ spellings rejected, and the reasoning.
   never failing where `Core\Xml` refuses — producing `Core\Xml`'s own tree over the parser the PDF
   engine shares, and landing in whatever milestone builds `Core\Xml`**
   ([0122](0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md)).
+- **Spreadsheets are a first-party Tier 1 component, unscheduled — workbooks cross as bytes with nothing
+  fetched and nothing executed, a formula is a typed value so a string is always a text cell, macros are
+  never written, CSV stays `Core\Csv`, and equal input gives byte-equal output**
+  ([0123](0123-spreadsheet-reading-and-generation-are-one-sandboxed-component-with-no-io.md)).

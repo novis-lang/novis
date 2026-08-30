@@ -9,7 +9,7 @@
   *how to choose between them*; § 2 below is the missing procedure. Its "fine-grained primitives" rule for
   Tier 0 survives unchanged as test 4. [0011](0011-functions-and-constants-are-class-members.md) — the
   domain-class roster is extended, and § 5 adds a rule about what may claim the `Core` prefix at all.
-- **Amended by:** 0060, 0063, 0067, 0072, 0074, 0075, 0076, 0077, 0081, 0082, 0083, 0084, 0086, 0097, 0120, 0121, 0122
+- **Amended by:** 0060, 0063, 0067, 0072, 0074, 0075, 0076, 0077, 0081, 0082, 0083, 0084, 0086, 0097, 0120, 0121, 0122, 0123
 
 > **In short:** Novis does not inherit PHP's extension partition. That partition tracks 1997 C build
 > engineering — separate `.so` files, `dl()`, ini load order, per-module globals — not any property worth
@@ -154,7 +154,7 @@ one segment that has it at all. `mongodb` is recorded the same way and for the s
 ever, never Ext — with no commitment beyond that: its query surface resembles `Core\Db`'s in nothing, so it
 would be a second database API rather than a sixth driver.
 
-**Ext — three first-party components, two of them scheduled, and a deferred list.** Internationalization
+**Ext — four first-party components, two of them scheduled, and a deferred list.** Internationalization
 (`intl`) — a component carrying its CLDR data in its own wasm data section, under its own namespace
 (§ 5), with a **batch-shaped API**: collation exposes sort-key generation and whole-array sort, because
 sorting 10,000 strings through a per-comparison boundary would be roughly 130,000 crossings.
@@ -166,7 +166,11 @@ third is **PDF generation** ([ADR 0121](0121-pdf-generation-is-sandboxed-html-re
 HTML rendered to PDF by a component with no I/O — placed and contracted there but **unscheduled**: no
 milestone owns it, and M9 builds the two above. Its
 shape — a Novis builder over a handful of coarse entry points, under `Novis\Image` — is
-[0120](0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md).
+[0120](0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md). The fourth is
+**spreadsheet reading and generation**
+([ADR 0123](0123-spreadsheet-reading-and-generation-are-one-sandboxed-component-with-no-io.md)) —
+workbooks crossing as bytes, nothing fetched and nothing executed, a formula a typed value — likewise
+placed and contracted there and **unscheduled**.
 
 **Deferred indefinitely — Ext when and if demand appears, and not otherwise:** `bz2`, `xsl`, `yaml`, and
 the binary serialization formats `msgpack`, `cbor`, `igbinary`, `protobuf`. Every one is the pure codec
@@ -177,7 +181,7 @@ which Novis does not have. Vendor-C database drivers (`oci8`, `odbc`, `pdo_dblib
 built from source by the operator who needs them, never in a default binary and with no first-party work
 planned; `Core\Db`'s driver interface is what keeps that door open.
 
-**Three is the whole first-party Tier 1 roster**, not its first three entries — what carries the tier is
+**Four is the whole first-party Tier 1 roster**, not its first four entries — what carries the tier is
 the third-party channel this section already named, not a queue of our own work behind these.
 
 **Dropped, with a replacement.** The procedural `mysqli`/`pgsql`/`sqlite3` APIs, by test 6 — one database
@@ -256,9 +260,10 @@ tier is therefore visible at the use site.
 - **Internationalization stops being coupled to runtime releases.** CLDR ships roughly twice a year, and
   PHP's ICU version is pinned to whatever the distribution built against — a chronic operational complaint.
   A new `.nvsx` replaces it.
-- **Tier 1's first-party roster is three components — image decoding, intl, and the unscheduled PDF
-  renderer [ADR 0121](0121-pdf-generation-is-sandboxed-html-rendering-with-no-io.md) admits — and stays
-  three.** M9 still builds the first two, and that is what its verification demonstrates: an image codec
+- **Tier 1's first-party roster is four components — image decoding, intl, and the two unscheduled
+  document generators [ADR 0121](0121-pdf-generation-is-sandboxed-html-rendering-with-no-io.md) and
+  [ADR 0123](0123-spreadsheet-reading-and-generation-are-one-sandboxed-component-with-no-io.md) admit —
+  and stays four.** M9 still builds the first two, and that is what its verification demonstrates: an image codec
   makes the security claim legible in a way a compression
   benchmark does not. It is deliberately not a head start on a longer list. Everything else that was once
   pencilled in at Tier 1 is now either dropped with a named replacement or explicitly deferred, so the tier

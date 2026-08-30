@@ -15,6 +15,7 @@
 - **Amends:** [0051](0051-standard-library-tiers.md) § 3 — the first-party Ext roster gains a third
   component, unscheduled; the "two is the whole roster" sentence and its Consequences bullet now read
   three, with M9's build unchanged at two.
+- **Amended by:** 0123
 
 > **In short:** Novis will own one spelling for HTML-to-PDF, as a first-party Tier 1 `.nvsx` — package
 > `nvs/pdf`, namespace `Novis\Pdf` — because in PHP this job is both fragmented across incompatible
@@ -77,9 +78,9 @@ one-registered-class rule all follow [0120](0120-the-image-component-is-a-pipeli
 § 1. It is not Core: a layout engine, a font parser and image codecs unsandboxed in every binary would
 contradict the reason the image component is Tier 1. It is not Native: nothing in it holds state or
 privilege that test 1 would protect. [0051](0051-standard-library-tiers.md) § 3's first-party Ext roster
-becomes three — image, intl, PDF — with this entry **unscheduled**: no milestone owns it, M9 still builds
-two, and this ADR exists so that when the work is scheduled the placement and the contract are already
-decided rather than improvised.
+gains this entry — that section carries the current roster and its count — **unscheduled**: no milestone
+owns it, M9 still builds two, and this ADR exists so that when the work is scheduled the placement and
+the contract are already decided rather than improvised.
 
 ### 2. The render has no I/O, and an unresolved reference throws
 
@@ -147,9 +148,9 @@ milliseconds for an invoice and seconds for a long report, and a bulk or slow re
 
 ## Consequences
 
-- **[0051](0051-standard-library-tiers.md)'s roster consequence changes shape**: three first-party Tier 1
-  components, not two — with the third unscheduled, so M9's scope and its two-component verification are
-  untouched. The tier's keep is still earned by the third-party channel; this entry is admitted over that
+- **[0051](0051-standard-library-tiers.md)'s roster consequence changes shape**: the first-party Tier 1
+  roster is no longer closed at two — this entry joins it unscheduled, § 3 there carrying the current
+  count, so M9's scope and its two-component verification are untouched. The tier's keep is still earned by the third-party channel; this entry is admitted over that
   bar because the category is a security class and a fragmentation magnet at once, the same pairing that
   pulled the HTTP client into Core.
 - **The genre's defining vulnerability class is absent, not mitigated.** No fetch exists to exploit, and
