@@ -166,6 +166,24 @@ a check being skipped: the inputs are bit-identical. Only green is cached, the e
 hour, and `--no-cache` forces the real thing. A `--fast` or `-p`-scoped verdict never satisfies a wider
 run; a wider one does satisfy a narrower.
 
+## The user-facing reference, and its proof
+
+```sh
+python tools/reference.py                 # regenerate docs/novis.md from the binary + docs/reference/, run every example
+python tools/reference.py --check         # is the committed docs/novis.md current? (CI)
+python tools/reference.py --examples-only --only 20-types   # one chapter's examples while writing it
+python tools/proof.py --run               # hand novis.md to a blind `claude -p` reader, judge what it writes
+python tools/proof.py --prepare           # the same run directory and PROMPT.md, for any other reader
+python tools/proof.py --judge             # score the latest run; report.md beside the tasks
+```
+
+`docs/novis.md` is the one file a language user, a search engine or a language model reads, and it
+is **generated**: Part B and the tables inside chapters come from `nvs meta --json`, the prose from
+one chapter per topic under `docs/reference/`. `verify.py` runs `reference.py` as a step after the
+case trees, so the file follows the registry on every green run and a chapter example the binary no
+longer agrees with fails the run. [docs/reference/README.md](../reference/README.md) is the format
+and the rules; `proof.py`'s module doc is what a failed task means.
+
 ## Trying a snippet against PHP
 
 ```sh

@@ -186,6 +186,31 @@ jobs:
         run: python tools/check-migration.py
 
   # ---------------------------------------------------------------------------
+  # docs/novis.md is generated from the binary's own registry (`nvs meta
+  # --json`) and the chapters under docs/reference/, and every example in it
+  # runs against the binary -- so the check needs a built CLI, which is why
+  # this is not a step of the `docs` job below. A stale committed file, or an
+  # example the compiler no longer agrees with, fails here.
+  # ---------------------------------------------------------------------------
+  reference:
+    name: docs/novis.md is current and its examples run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: none
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: reference
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - run: cargo build -p nvs-cli
+      - name: docs/novis.md matches the binary and the chapters, and every example holds
+        run: python tools/reference.py --check
+
+  # ---------------------------------------------------------------------------
   # The docs have linters of their own and, until this job existed, nothing ran
   # them — six findings had accumulated across four ADRs, including two links
   # citing files by names they were renamed out of. Both scripts are Python

@@ -100,7 +100,7 @@ CACHE_TTL = 3600  # seconds. A tree hash cannot go stale on its own; this is a b
 
 # Everything cargo reads, relative to ROOT. Directories are walked in full -- a `.nvst`
 # fixture, an insta `.snap` and a `Cargo.toml` all change what the steps will answer.
-INPUT_DIRS = ("crates", "benches", "tests", "examples", "editors")
+INPUT_DIRS = ("crates", "benches", "tests", "examples", "editors", "docs/reference")
 INPUT_FILES = ("Cargo.toml", "Cargo.lock", "rustfmt.toml", "rust-toolchain.toml")
 # Directories under an INPUT_DIR that are output or a package cache, never an input. `target` is
 # cargo's; the other three belong to `editors/vscode` and between them hold tens of thousands of
@@ -247,6 +247,12 @@ def summarize_extension(out):
     return f"{m.group(1)} passing" if m else "ran, but printed no `N passing` line -- check the log"
 
 
+def summarize_reference(out):
+    m = re.search(r"(\d+) of (\d+) examples hold", out)
+    return f"{m.group(1)} of {m.group(2)} examples hold" if m else \
+        "ran, but printed no `N of M examples hold` line -- check the log"
+
+
 def steps_for(opts):
     scope = ["-p", opts.package] if opts.package else []
     steps = [Step("build", ["build", *scope], summarize_build)]
@@ -270,6 +276,19 @@ def steps_for(opts):
                 if (ROOT / "tests" / tree).is_dir():
                     steps.append(Step(tree, ["test", f"tests/{tree}"], summarize_cases,
                                       exe=str(exe)))
+        # `docs/novis.md`, regenerated from the binary `build` produced and the chapters under
+        # `docs/reference/`, with every example in it run. It writes the file in place -- that
+        # is how the reference follows the registry without a session remembering to -- and
+        # fails on an example the binary no longer agrees with. `docs/novis.md` itself is not
+        # a hashed input (it is derived), so the write does not invalidate the green cache;
+        # `docs/reference/` is, so a chapter edit is a real change. `tools/reference.py`'s
+        # module doc owns the rest. Scoped and `--fast` runs skip it for the reason the case
+        # trees are skipped: no whole-workspace build, no trustworthy binary.
+        if not opts.package:
+            steps.append(
+                Step("reference", ["tools/reference.py"], summarize_reference,
+                     exe=sys.executable)
+            )
         steps.append(
             Step("clippy", ["clippy", "--all-targets", *scope, "--", "-D", "warnings"],
                  summarize_clippy)
