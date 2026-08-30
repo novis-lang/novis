@@ -17,3 +17,15 @@
 
 [app]
 origin = "https://example.test"
+
+# The bound `examples/config.nvs` is written around: ADR 0005's `Runtime`
+# directive moves freely up to a ceiling the operator keeps, so `512M` is
+# the last value `Core\Config::set("memory", …)` accepts and `1G` is the
+# first it refuses. Nothing reads these yet — Stage 3's snapshot is what
+# makes them load-bearing — but the fixture's frozen output is derived from
+# them, so they belong here rather than in that program's comments.
+[limits]
+memory = "256M"
+
+[limits.hard]
+memory = "512M"

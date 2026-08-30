@@ -1,0 +1,56 @@
+<?nvs
+// Capabilities, as a program: three things a script can try to do, one of
+// which the operator granted and two of which they did not.
+//
+// The grant comes from this entry file's own block in `nvs.toml` — ADR
+// 0104 makes an application an entry-file path, so `[[app]] entry =
+// "examples/capability.nvs"` is where `fs.read` gets a root and where
+// `fs.write` and `script.spawn` are conspicuously absent. That block is
+// Stage 4's to add; see `docs/agent/handoff.md` for the one thing standing
+// in its way today.
+//
+// **A capability denial is catchable and a limit breach is not**, which is
+// the pairing this fixture and `examples/limits.nvs` exist to hold apart.
+// An operator saying "no" is the world refusing a call, so it arrives the
+// way every other refusal does and the script may carry on — the two lines
+// after the first denial are the proof it did. ADR 0020's `FATAL` is for
+// the case where carrying on is what has to stop. The clauses catch
+// `Throwable` rather than a narrower class because *which* class a denial
+// throws is Stage 4's ADR slot to decide, and a fixture is a poor place to
+// guess; once it is decided, narrowing these three is the edit.
+//
+// The three lines this prints are frozen in `docs/agent/loop-goal.toml`
+// (stage 4); the source is not.
+
+// Granted: a read under the root the operator named.
+try {
+    string $greeting = Core\File::read("examples/capability/greeting.txt");
+    echo "granted: " . Core\Str::trim($greeting) . "\n";
+} catch (Throwable $refused) {
+    echo "granted: refused", "\n";
+}
+
+// Denied: the same directory, the other verb. The path is inside the
+// granted root on purpose — what is missing is the capability, not the
+// prefix, so a tree that checked only the path would pass the wrong half.
+try {
+    Core\File::write("examples/capability/denied.txt", "unreachable");
+    echo "allowed: fs.write", "\n";
+} catch (Throwable $refused) {
+    echo "denied: fs.write", "\n";
+}
+
+// Denied: `spawn script` without `script.spawn`. This throws *here*,
+// unlike a child that fails on its own — `examples/isolate.nvs` covers
+// that case and it is a value on this side, because a child may not end
+// its parent. A spawn the parent was never allowed to attempt never
+// reaches a child at all.
+try {
+    var $child = spawn script 'examples/isolate/hello.nvs' with(
+        output: 'capture',
+    );
+    await $child;
+    echo "allowed: script.spawn", "\n";
+} catch (Throwable $refused) {
+    echo "denied: script.spawn", "\n";
+}

@@ -1,0 +1,42 @@
+<?nvs
+// The configuration snapshot, as a program: what an operator wrote in
+// `nvs.toml` read back through `Core\Config::get`, moved by
+// `Core\Config::set` inside this request, and stopped by the ceiling the
+// operator kept for themselves.
+//
+// ADR 0064 § 5 is the API — `get(string): ?string`, `set(string, string):
+// bool`, and `restore`/`all` beside them. ADR 0005 is the rule the two
+// middle lines exist for: a `Runtime` directive moves freely up to the
+// `[limits.hard]` ceiling, and a set above it **returns `false` and leaves
+// the value unchanged** rather than throwing. `m6.md`'s *Verify* says the
+// same in the other direction, so a version of this program wrapping the
+// third call in a `try` has found the rule and not a bug.
+//
+// The two numbers come from this repository's own `nvs.toml` — `[limits]
+// memory = "256M"` is the default and `[limits.hard] memory = "512M"` is
+// the ceiling — so `512M` is the last accepted value and `1G` is the first
+// refused one, named together the way a bound wants to be.
+//
+// The four lines this prints are frozen in `docs/agent/loop-goal.toml`
+// (stage 3); the source is not.
+
+// The operator's default, before this request has touched anything.
+echo "memory=" . (Core\Config::get("memory") ?? "unset") . "\n";
+
+// Up to the ceiling: accepted, and it takes effect.
+if (Core\Config::set("memory", "512M")) {
+    echo "set ok", "\n";
+} else {
+    echo "set failed", "\n";
+}
+
+// Past it: refused. No throw, no `catch`, just `false`.
+if (Core\Config::set("memory", "1G")) {
+    echo "set accepted", "\n";
+} else {
+    echo "set refused", "\n";
+}
+
+// And the half a bare `false` would not prove: the refusal left the value
+// the accepted call put there, not the one it rejected and not the default.
+echo "still=" . (Core\Config::get("memory") ?? "unset") . "\n";

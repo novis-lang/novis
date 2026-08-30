@@ -1,0 +1,38 @@
+<?nvs
+// The memory cap, as a program: a script that asks for more than the
+// operator granted is terminated, and the termination is a `FATAL`.
+//
+// ADR 0020 is why there is no `try` anywhere below. A limit breach never
+// reaches an ordinary `catch` — it goes to `Core\Fatal::onLimit` if one is
+// registered and to the ladder otherwise — so a version of this program
+// wrapping the loop in a `catch` would be asserting the opposite of the
+// rule. The one line on stdout is what proves the process was *running*
+// when the cap fired rather than refused before it started.
+//
+// `[limits] memory = "256M"` in this repository's own `nvs.toml` is the
+// cap, so the loop below asks for twice it.
+//
+// The loop is bounded on purpose, and the bound is the fixture's own
+// safety rather than part of what it pins. An unbounded `while (true)`
+// here would, in a tree where the cap is not yet enforced, allocate until
+// the machine running the acceptance check gave out; bounded, that tree
+// exits 0 with nothing on stderr and the check fails in the ordinary way
+// instead. 512 slabs of 1 MiB is comfortably past a 256M cap and
+// comfortably short of anything a developer machine minds.
+//
+// stdout, exit status and stderr for this program are frozen in
+// `docs/agent/loop-goal.toml` (stage 4); the source is not.
+
+echo "before the cap", "\n";
+
+array<string> $ballast = [];
+int $slabs = 0;
+
+while ($slabs < 512) {
+    $ballast[] = Core\Str::repeat("x", 1048576);
+    $slabs++;
+}
+
+// Only reachable in a tree that is not enforcing the cap, which is what
+// makes the check's `exit = "nonzero"` half worth asserting.
+echo "held " . Core\Arr::count($ballast) . " slabs, uncapped", "\n";
