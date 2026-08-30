@@ -189,6 +189,17 @@ nvs_runtime::nvs_helper! {
             host.start_isolate(ctx, program, crossing, output)
         });
         let running = match started {
+            // A spawn past `[limits] max_script_depth` is refused by
+            // `Isolate::start` before it builds anything, and the refusal is
+            // recorded on *this* context rather than answered as an error:
+            // the ceiling is the tree's and the error below is the argument's,
+            // and ADR 0020 § 1 makes a limit breach a `FATAL` no `catch` sees
+            // while that error is a throw. `Fault::Pending` is how a helper
+            // says the status is already on the context; the handle is dropped
+            // unjoined, which `host::Running`'s own doc allows.
+            Some(Ok(_)) if ctx.pending().is_some() => {
+                return Err(Fault::Pending(nvs_runtime::FATAL));
+            }
             Some(Ok(running)) => running,
             Some(Err(error)) => {
                 return Err(Fault::thrown_as(

@@ -72,7 +72,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use nvs_runtime::graph::{GraphError, copy_graph, copy_graph_into};
-use nvs_runtime::{Ctx, ErrorClass, OutputSink, TaskRoot, Value};
+use nvs_runtime::{Ctx, ErrorClass, Fault, Limit, OutputSink, TaskRoot, Value};
 
 use crate::scheduler::{TaskId, Waiting, Wake, cancel_task, spawn_child, suspend_current};
 
@@ -149,13 +149,43 @@ impl Isolate {
     ///
     /// [`GraphError`] when the *argument* has no meaning on the other side. No
     /// child is started in that case; the module doc owns why the same refusal
-    /// on the way back is an `ok = false` instead.
+    /// on the way back is an `ok = false` instead. A chain already at
+    /// `[limits] max_script_depth` is **not** one of these — see the refusal at
+    /// the top of the body.
     pub fn start(self, ctx: &mut Ctx) -> Result<Box<dyn Running>, GraphError> {
         let Self {
             program,
             args,
             output,
         } = self;
+        // ADR 0020 § 1's ceiling on the tree, ahead of everything else in this
+        // body: `Ctx::script_depth_breach` owns why the question belongs to the
+        // parent and why it is asked once here rather than polled at a
+        // safepoint. Nothing has been built yet at this point, which is the
+        // whole reason the check stands above the crossing below — a refusal
+        // costs one comparison and leaves no half-made isolate behind.
+        if let Some(Fault::Fatal(message)) = ctx.script_depth_breach() {
+            // The safepoint's memory branch, in its order and for its reason
+            // (`nvs_runtime::nvs_safepoint`): § 1's tier 1 runs before the
+            // breach becomes the message the ladder prints, so a throw of the
+            // handler's own is overwritten by `set_pending` rather than
+            // reported in place of the limit that stopped the request. The
+            // report it is handed reads `max_script_depth`, which is the one
+            // thing separating this from the out-of-memory the heap used to
+            // deliver instead (`docs/plan/m6.md`'s *Verify*).
+            ctx.run_limit_handler(Limit::ScriptDepth);
+            ctx.set_pending(message.clone());
+            // Not a `GraphError`: that error is the *argument's* and this
+            // refusal is the tree's, and the module doc holds the argument's to
+            // its own meaning. The parent is fatal from here, so the handle
+            // this answers with carries the failure the child never ran to
+            // produce — a `spawn` whose `await` is never reached sees the
+            // `FATAL` first either way.
+            return Ok(Box::new(Collected {
+                completion: Some(refused_completion(&message)),
+                output,
+            }));
+        }
         // In, at the spawn — before anything is built, so a refusal costs
         // nothing and leaves no half-made isolate behind. No receiving table
         // is named on this side: the child's own is installed by its program's
@@ -412,6 +442,26 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
                 message: refused.to_string(),
             }),
         },
+    }
+}
+
+/// The answer for an isolate that was refused before it was built — today the
+/// `[limits] max_script_depth` ceiling, and whatever else `Isolate::start`
+/// learns to refuse without starting anything.
+///
+/// `Error` for the class rather than a named one, as [`Failure`]'s own field doc
+/// asks: this failure is not a throw, and ADR 0020's rule that a `FATAL` never
+/// reaches a `catch` is the reason there is no class here that a program could
+/// name.
+fn refused_completion(message: &str) -> Completion {
+    Completion {
+        ok: false,
+        value: Value::null(),
+        output: Vec::new(),
+        error: Some(Failure {
+            class: "Error".to_owned(),
+            message: message.to_string(),
+        }),
     }
 }
 
