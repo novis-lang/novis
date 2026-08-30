@@ -278,7 +278,7 @@ fn a_block_overriding_a_global_key_is_reported_with_both_origins() {
 /// ADR 0078 § 1's whole point: a request clones the `Arc` when it starts and reads that clone for
 /// its whole life, so a reload landing mid-request is invisible to it.
 #[test]
-fn a_request_that_started_before_a_swap_reads_the_old_snapshot_to_completion() {
+fn a_request_that_started_before_a_swap_reads_the_old_value_to_completion() {
     let before = Fake::with(&[("nvs.toml", "[limits]\nmemory = \"128M\"\n")]);
     let after = Fake::with(&[("nvs.toml", "[limits]\nmemory = \"512M\"\n")]);
     let current = Current::new(snapshot_of(&before, "nvs.toml"));

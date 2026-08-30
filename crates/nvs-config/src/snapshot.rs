@@ -288,7 +288,10 @@ impl Current {
 }
 
 /// The value at a dotted key, or `None` when nothing wrote one.
-fn value_at<'t>(table: &'t toml::Table, key: &str) -> Option<&'t toml::Value> {
+///
+/// Shared with [`request`](crate::request), which asks the same question of a published snapshot
+/// on behalf of `Core\Config::get`.
+pub(crate) fn value_at<'t>(table: &'t toml::Table, key: &str) -> Option<&'t toml::Value> {
     let mut segments = key.split('.');
     let mut value = table.get(segments.next()?)?;
     for segment in segments {

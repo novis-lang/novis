@@ -211,7 +211,7 @@ fn defaults(limits: &Limits) -> [(&'static str, Option<&Setting>); 5] {
 
 /// The same five keys of a `[limits.hard]`, carrying their names — one table, so a sixth limit is a
 /// row here and not five places to forget.
-fn ceilings(set: &LimitSet) -> [(&'static str, Option<&Setting>); 5] {
+pub(crate) fn ceilings(set: &LimitSet) -> [(&'static str, Option<&Setting>); 5] {
     [
         ("memory", set.memory.as_ref()),
         ("cpu_time", set.cpu_time.as_ref()),

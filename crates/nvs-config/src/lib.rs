@@ -43,14 +43,22 @@
 //! and `Core\Config::set` share it, and it is directed by the unit the key takes because no
 //! spelling can tell mega from minutes on its own.
 //!
+//! [`mod@request`] is the last step: one request's view of a [`Snapshot`], and the copy-on-write
+//! overlay ADR 0064 § 5's `Core\Config::set` writes over it. It is where [`mod@value`] gets the
+//! second of the two callers it exists to keep in agreement — the boot path checks a ceiling out
+//! of the file, this one checks the same ceiling out of the snapshot, and both go through
+//! [`value::within_ceiling`]. `nvs-runtime`'s `Ctx` holds one per request; nothing in this crate
+//! knows that, which is why the type is here and the field is there.
+//!
 //! What is **not** here yet: nothing reads a [`snapshot::Current`] — `nvs-host` still runs on
-//! compiled-in defaults and says so at each site, and `Core\Config::get`/`set` (ADR 0064 § 5) are
-//! unwritten, so [`mod@value`] has neither of the two callers it exists to keep in agreement: the
-//! boot-time ceiling check is the next slice and the request-time one waits on those members.
+//! compiled-in defaults and says so at each site, so a limit a request set through
+//! [`request::Request`] is visible to `Core\Config::get` and not yet to what enforces it. Stage 4
+//! is where those meet.
 
 pub mod app;
 pub mod directive;
 pub mod file;
+pub mod request;
 pub mod resolve;
 pub mod secret;
 pub mod snapshot;
@@ -59,6 +67,7 @@ pub mod trust;
 pub mod value;
 
 pub use directive::{Apply, Class, DIRECTIVES, Directive};
+pub use request::Request;
 pub use resolve::{Origin, Override, Resolved, Roots};
 pub use snapshot::{Current, Reload, Snapshot};
 pub use tree::{Config, Setting};
