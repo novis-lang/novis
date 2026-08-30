@@ -24,6 +24,33 @@
 root = "."
 origin = "https://example.test"
 
+# ADR 0118 § 2 puts a `script.spawn` check inside the door `spawn script`
+# resolves a target through, and ADR 0118 § 1 denies by default — so
+# `examples/isolate.nvs` needs this grant to spawn anything at all. `true`
+# rather than a list of roots: every example in this repository is one the
+# checkout already trusts, and narrowing it here would only be a second
+# spelling of "the repository".
+[app.capabilities.script]
+spawn = true
+
+# `examples/capability.nvs` is the fixture ADR 0118 exists for, so its block is
+# written to be *narrower* than the one above rather than wider: ADR 0104 § 2
+# layers an exact `entry` over the `root = "."` block, and a block may take a
+# capability away as well as grant one. What it demonstrates is a program
+# meeting one grant and two refusals, so `fs.read` is scoped to the one
+# directory holding its data, `fs.write` is never mentioned, and `script.spawn`
+# is switched off again — `false` is `Grant::Nothing` in
+# `nvs_config::capability`, which is how a narrowing block says no to something
+# a broader one allowed.
+[[app]]
+entry = "examples/capability.nvs"
+
+[app.capabilities.fs]
+read = ["examples/capability"]
+
+[app.capabilities.script]
+spawn = false
+
 # The bound `examples/config.nvs` is written around: ADR 0005's `Runtime`
 # directive moves freely up to a ceiling the operator keeps, so `512M` is
 # the last value `Core\Config::set("memory", …)` accepts and `1G` is the

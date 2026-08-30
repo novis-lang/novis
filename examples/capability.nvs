@@ -4,10 +4,10 @@
 //
 // The grant comes from this entry file's own block in `nvs.toml` — ADR
 // 0104 makes an application an entry-file path, so `[[app]] entry =
-// "examples/capability.nvs"` is where `fs.read` gets a root and where
-// `fs.write` and `script.spawn` are conspicuously absent. That block is
-// Stage 4's to add; see `docs/agent/handoff.md` for the one thing standing
-// in its way today.
+// "examples/capability.nvs"` is where `fs.read` gets a root, where
+// `fs.write` is conspicuously absent, and where `script.spawn` is switched
+// back off after the repository-wide block granted it. That block's own
+// comments own why it is written as a narrowing rather than a grant.
 //
 // **A capability denial is catchable and a limit breach is not**, which is
 // the pairing this fixture and `examples/limits.nvs` exist to hold apart.
@@ -15,9 +15,10 @@
 // way every other refusal does and the script may carry on — the two lines
 // after the first denial are the proof it did. ADR 0020's `FATAL` is for
 // the case where carrying on is what has to stop. The clauses catch
-// `Throwable` rather than a narrower class because *which* class a denial
-// throws is Stage 4's ADR slot to decide, and a fixture is a poor place to
-// guess; once it is decided, narrowing these three is the edit.
+// `RuntimeError` and not `Throwable`, which is ADR 0118 § 5's answer to
+// what a denial *is*: the world said no. A narrow clause is what makes the
+// three lines below evidence — a `Throwable` would have caught a compile
+// mistake or a missing file just as quietly.
 //
 // The three lines this prints are frozen in `docs/agent/loop-goal.toml`
 // (stage 4); the source is not.
@@ -26,7 +27,7 @@
 try {
     string $greeting = Core\File::read("examples/capability/greeting.txt");
     echo "granted: " . Core\Str::trim($greeting) . "\n";
-} catch (Throwable $refused) {
+} catch (RuntimeError $refused) {
     echo "granted: refused", "\n";
 }
 
@@ -36,7 +37,7 @@ try {
 try {
     Core\File::write("examples/capability/denied.txt", "unreachable");
     echo "allowed: fs.write", "\n";
-} catch (Throwable $refused) {
+} catch (RuntimeError $refused) {
     echo "denied: fs.write", "\n";
 }
 
@@ -46,11 +47,13 @@ try {
 // its parent. A spawn the parent was never allowed to attempt never
 // reaches a child at all.
 try {
+    // `await` is an expression, so its result is bound rather than discarded:
+    // a bare `await $child;` is not a statement this language has.
     var $child = spawn script 'examples/isolate/hello.nvs' with(
         output: 'capture',
     );
-    await $child;
+    var $done = await $child;
     echo "allowed: script.spawn", "\n";
-} catch (Throwable $refused) {
+} catch (RuntimeError $refused) {
     echo "denied: script.spawn", "\n";
 }
