@@ -3010,6 +3010,11 @@ is why" — is this file.
   right in review. `crates/nvs-config/tests/capability.rs` keeps the two apart: `raw()` is what the
   caller wrote, `lexical()` is what the filesystem answers, and only the fake `Files` may turn one
   into the other.
+- **An array literal is `mixed`, so `foreach (['a', 'b'] as string $path)` does not compile** — the
+  binding's declared type is checked against the element type the literal *has*, and E0401 points at
+  the binding rather than at the literal that produced it. Two `try` blocks written out cost nothing
+  and read the same; a case that genuinely wants the loop has to name the array's type where it is
+  built, not where it is walked.
 
 ## Splitting a file that got too big
 
