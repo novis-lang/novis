@@ -51,15 +51,23 @@
 //! # What a matched payload has to be
 //!
 //! § 5 replaces the call with the payload, so every value in a *matched*
-//! payload needs a constant form ([`ConstArg`]). Every shape § 2 admits has
-//! one but two: a class constant, which `crate::signatures::ConstSig` folds
-//! for a *read* but which this walk cannot ask for, since [`fold_value`] runs
-//! over the written expression and carries none of the namespace context a
-//! class name resolves through; and an enum case, which reaches a program
-//! through `ExprInfo::EnumCase` rather than through a constant. Either in a
-//! matched payload is `E0731` at the retrieval, naming the value; neither is
-//! refused where it is *attached*, because § 2 admits it and an attribute
-//! nobody retrieves costs nothing.
+//! payload needs a constant form ([`ConstArg`]), and **every shape § 2 admits
+//! has one** — a class constant and `Foo::class` through
+//! [`crate::signatures::resolve_const`], which is the same entry a *read* of
+//! the name inlines, and an enum case through [`crate::enums`].
+//!
+//! What that costs is a [`Scope`] per attach site, and it is not optional: a
+//! payload's `Mode::Fast` is resolved through the namespace and the `use` table
+//! of the file it was **written** in, which is the declaration's, while the
+//! retrieval asking for it may sit in another file importing another `Mode`.
+//! The same scope types the payload in [`matching`], so what a name meant when
+//! it was checked and what it folds to here cannot come apart.
+//!
+//! `E0731` is what is left over: a class constant whose *own* declaration
+//! folded to no value (`E0792`'s gap, one position along) has nothing to
+//! compile in. It is reported at the retrieval and never where the attribute is
+//! *attached*, because § 2 admits the spelling and an attribute nobody
+//! retrieves costs nothing.
 
 use nvs_diagnostics::{Diagnostic, SourceFile, code};
 use nvs_hir::QName;
@@ -87,6 +95,43 @@ const OWNER: &str = "Core\\Attributes";
 struct Site<'a> {
     src: &'a SourceFile,
     attr: &'a Attribute,
+    /// Which [`Scope`] in [`AttributeTable::scopes`] this was written under.
+    ///
+    /// An index rather than a reference because the scope is *owned* by the
+    /// table and the sites are copied out of it, and a whole scope per site
+    /// would be one clone of the file's `use` table per attached attribute.
+    scope: usize,
+}
+
+/// The namespace, `use` table and enclosing class one attach site was written
+/// under — everything a class name inside its payload resolves through.
+///
+/// The retrieval's own scope cannot answer that: `#[{mode: Mode::Fast}]` is
+/// written in the file that declares the class, and the `Core\Attributes` call
+/// asking for it may be in another file, in another namespace, importing
+/// another `Mode`. Kept per class declaration rather than per site, since every
+/// attribute on a class and on its members shares one.
+struct Scope {
+    namespace: Vec<String>,
+    imports: FxHashMap<String, QName>,
+    class: QName,
+}
+
+/// The scope a site was written under, as the [`Ctx`] every resolver takes.
+///
+/// `current_class` is the declaration the attribute is attached to, so a
+/// payload may write `self::MAX`; the three body-only fields are what a
+/// payload has no notion of — an attribute is not inside a hook, a constructor
+/// or a generator.
+fn site_ctx(scope: &Scope) -> Ctx<'_> {
+    Ctx {
+        namespace: &scope.namespace,
+        imports: &scope.imports,
+        current_class: Some(&scope.class),
+        current_hook: None,
+        in_constructor: false,
+        generator_elem: None,
+    }
 }
 
 /// Every attach site in the program, indexed by the declaration ADR 0046 § 4's
@@ -100,6 +145,8 @@ struct Site<'a> {
 #[derive(Default)]
 pub(crate) struct AttributeTable<'a> {
     classes: FxHashMap<QName, ClassAttrs<'a>>,
+    /// Every class declaration's own [`Scope`], indexed by [`Site::scope`].
+    scopes: Vec<Scope>,
 }
 
 #[derive(Default)]
@@ -119,18 +166,24 @@ struct ClassAttrs<'a> {
 pub(crate) fn build_attribute_table<'a>(files: &[crate::ProgramFile<'a>]) -> AttributeTable<'a> {
     let mut table = AttributeTable::default();
     for file in files {
-        collect(file.stmts, file.src, &[], &mut table);
+        collect(file.stmts, file.src, &[], &FxHashMap::default(), &mut table);
     }
     table
 }
 
+/// The namespace and `use` walk `crate::check::check_stmts` makes, made a
+/// second time and a whole pass earlier — a braced `namespace {}` opens a fresh
+/// import set and an unbraced one clears it, exactly as it does there, because
+/// what a name meant is a property of the text it was written in.
 fn collect<'a>(
     stmts: &'a [Stmt],
     src: &'a SourceFile,
     namespace: &[String],
+    imports: &FxHashMap<String, QName>,
     table: &mut AttributeTable<'a>,
 ) {
     let mut current_ns = namespace.to_vec();
+    let mut current_imports = imports.clone();
     for stmt in stmts {
         let (name, attributes, members) = match &stmt.kind {
             StmtKind::NamespaceDecl(NamespaceDecl { name, body, .. }) => {
@@ -138,9 +191,19 @@ fn collect<'a>(
                     QName::parse(span_text(src, n.span)).segments().to_vec()
                 });
                 match body {
-                    Some(block) => collect(&block.stmts, src, &new_ns, table),
-                    None => current_ns = new_ns,
+                    Some(block) => {
+                        collect(&block.stmts, src, &new_ns, &FxHashMap::default(), table);
+                    }
+                    None => {
+                        current_ns = new_ns;
+                        current_imports.clear();
+                    }
                 }
+                continue;
+            }
+            StmtKind::UseDecl(use_decl) => {
+                let target = QName::parse(span_text(src, use_decl.path.span));
+                current_imports.insert(target.short_name().to_owned(), target);
                 continue;
             }
             StmtKind::ClassDecl(decl) => (&decl.name, &decl.attributes, &decl.members),
@@ -148,9 +211,15 @@ fn collect<'a>(
             _ => continue,
         };
         let qname = QName::join(&current_ns, span_text(src, name.span));
+        let scope = table.scopes.len();
+        table.scopes.push(Scope {
+            namespace: current_ns.clone(),
+            imports: current_imports.clone(),
+            class: qname.clone(),
+        });
         let entry = table.classes.entry(qname).or_default();
-        push(&mut entry.own, attributes, src);
-        collect_members(entry, members, src);
+        push(&mut entry.own, attributes, src, scope);
+        collect_members(entry, members, src, scope);
     }
 }
 
@@ -158,6 +227,7 @@ fn collect_members<'a>(
     entry: &mut ClassAttrs<'a>,
     members: &'a [ClassMember],
     src: &'a SourceFile,
+    scope: usize,
 ) {
     for member in members {
         match &member.kind {
@@ -167,6 +237,7 @@ fn collect_members<'a>(
                     entry.properties.entry(name).or_default(),
                     &p.attributes,
                     src,
+                    scope,
                 );
             }
             ClassMemberKind::Method(m) => {
@@ -175,6 +246,7 @@ fn collect_members<'a>(
                     entry.methods.entry(method.clone()).or_default(),
                     &m.attributes,
                     src,
+                    scope,
                 );
                 for param in &m.params {
                     let name = crate::strip_sigil(span_text(src, param.name)).to_owned();
@@ -182,6 +254,7 @@ fn collect_members<'a>(
                         entry.params.entry((method.clone(), name)).or_default(),
                         &param.attributes,
                         src,
+                        scope,
                     );
                 }
             }
@@ -190,10 +263,15 @@ fn collect_members<'a>(
     }
 }
 
-fn push<'a>(out: &mut Vec<Site<'a>>, groups: &'a [AttributeGroup], src: &'a SourceFile) {
+fn push<'a>(
+    out: &mut Vec<Site<'a>>,
+    groups: &'a [AttributeGroup],
+    src: &'a SourceFile,
+    scope: usize,
+) {
     for group in groups {
         for attr in &group.attributes {
-            out.push(Site { src, attr });
+            out.push(Site { src, attr, scope });
         }
     }
 }
@@ -267,7 +345,7 @@ pub(crate) fn fold_retrieval(
         _ => None,
     });
     let sites = sites_for(env, &class, &method, member_name.as_deref());
-    let matched = matching(&sites, want, ctx, env);
+    let matched = matching(&sites, want, env);
     let value = match (member, matched.len()) {
         ("get", 0) => ConstArg::Null,
         ("get", 1) => match fold_payload(matched[0], env) {
@@ -362,21 +440,20 @@ fn sites_for<'a>(
 
 /// The sites whose payload satisfies `want`, in attach order.
 ///
-/// Each payload is inferred under **its own** file's source, because a field
-/// name and a string literal are read out of the text they were written in.
-fn matching<'a>(
-    sites: &[Site<'a>],
-    want: TypeId,
-    ctx: &Ctx<'_>,
-    env: &mut Env<'a>,
-) -> Vec<Site<'a>> {
+/// Each payload is inferred under **its own** file's source and its own
+/// [`Scope`], because a field name, a string literal and a `Mode::Fast` are all
+/// read out of the text they were written in — the retrieval's file and
+/// imports have no bearing on what the payload says.
+fn matching<'a>(sites: &[Site<'a>], want: TypeId, env: &mut Env<'a>) -> Vec<Site<'a>> {
     let outer = env.src;
+    let table = env.attributes;
     let mut matched = Vec::new();
     for site in sites {
         env.src = site.src;
         let mut live = FxHashSet::default();
         let scope = LocalScope::new();
-        let actual = check_object_literal(&site.attr.fields, &mut live, &scope, ctx, env);
+        let written = site_ctx(&table.scopes[site.scope]);
+        let actual = check_object_literal(&site.attr.fields, &mut live, &scope, &written, env);
         if is_assignable(actual, want, env.interner, env.graph, env.signatures) {
             matched.push(*site);
         }
@@ -390,11 +467,12 @@ fn matching<'a>(
 fn fold_payload<'a>(site: Site<'a>, env: &mut Env<'a>) -> Option<ConstArg> {
     let outer = env.src;
     env.src = site.src;
+    let written = site_ctx(&env.attributes.scopes[site.scope]);
     let mut fields = Vec::with_capacity(site.attr.fields.len());
     let mut ok = true;
     for field in &site.attr.fields {
         let name = span_text(env.src, field.name).to_owned();
-        match crate::defaults::fold_constant_value(&field.value, env) {
+        match crate::defaults::fold_constant_value(&field.value, Some(&written), env) {
             Some(value) => fields.push((name, value)),
             None => {
                 report_unfoldable(&field.value, env);
@@ -417,8 +495,9 @@ fn report_unfoldable(value: &Expr, env: &mut Env<'_>) {
         .with_primary(value.span, "no constant form")
         .with_help(
             "ADR 0046 § 5 replaces the retrieval with the payload itself, so every value in \
-             it has to be materializable — a user-declared class constant's value and an \
-             enum case are the two ADR 0046 § 2 admits and this compiler cannot yet inline",
+             it has to be materializable — a class constant, `Foo::class` and an enum case \
+             all are, so what is left is a constant whose own declaration folds to nothing \
+             (`E0792`): write the value out here, or give that constant a foldable one",
         ),
     );
 }

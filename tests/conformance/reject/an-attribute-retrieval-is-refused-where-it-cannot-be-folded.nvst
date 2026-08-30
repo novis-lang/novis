@@ -6,12 +6,22 @@ type Route = {path: string};
 
 class Limits {
     public const int MAX = 5;
+    // A constant whose own declaration folds to no value: ADR 0011 inlines a
+    // class constant at every use site, and this compiler does not fold one
+    // constant into another. That gap is `E0792` at a read, and it is the
+    // whole of what `E0731` is left reporting below.
+    public const int RELAY = Limits::MAX;
 }
 
 #[Route(path: "/a")]
 #[Route(path: "/b")]
-#[{code: Limits::MAX}]
 class Twice {}
+
+// Attached to a class of its own, retrieved once: the payload of a site is
+// type-checked once per retrieval that reaches it, so a second retrieval here
+// would be a second copy of both diagnostics rather than a second mistake.
+#[{code: Limits::RELAY}]
+class Relay {}
 
 // Accepted first, so a position that stops being accepted fails here rather
 // than as a missing refusal: `all<T>` is what two matches are for.
@@ -30,37 +40,44 @@ echo Core\Arr::count($ok) as string, "\n";
 callable $fn = fn (): int => 1;
 ?Route $computed = Core\Attributes::get<Route>($fn);
 
-// § 5: the payload satisfies the shape but holds a user-declared class
-// constant, whose value `nvs_types::signatures`' own known gap leaves
-// unmodeled — the same gap that leaves `Foo::CONST` unlowered anywhere else.
-?{code: mixed} $unfoldable = Core\Attributes::get<{code: mixed}>(Twice::constructor(...));
+// § 5: the payload satisfies the shape, and the class constant it holds has no
+// value of its own to compile in — the constant folder's gap surfacing at the
+// one site that needs the value rather than the name.
+?{code: mixed} $unfoldable = Core\Attributes::get<{code: mixed}>(Relay::constructor(...));
 --EXPECTF-ERROR--
-error[E0731]: this attribute satisfies the retrieved shape, but holds a value with no compile-time form
-   --> case.nvs:10:10
+error[E0792]: `Limits::RELAY` has no compile-time value to inline
+   --> case.nvs:20:10
    |
-10 | #[{code: Limits::MAX}]
-   |          ^^^^^^^^^^^ no constant form
-   = help: ADR 0046 § 5 replaces the retrieval with the payload itself, so every value in it has to be materializable — a user-declared class constant's value and an enum case are the two ADR 0046 § 2 admits and this compiler cannot yet inline
+20 | #[{code: Limits::RELAY}]
+   |          ^^^^^^^^^^^^^ this constant's declaration folds to no value
+   = help: ADR 0011 inlines a class constant at every use site, so its value has to have a constant form — a literal, or an array literal of them. Another class's constant, an enum case and `Foo::class` are the three this compiler cannot yet fold into one, written on their own or nested inside a container: write the value out here, or move it to a `static` member the class initializes
+
+error[E0731]: this attribute satisfies the retrieved shape, but holds a value with no compile-time form
+   --> case.nvs:20:10
+   |
+20 | #[{code: Limits::RELAY}]
+   |          ^^^^^^^^^^^^^ no constant form
+   = help: ADR 0046 § 5 replaces the retrieval with the payload itself, so every value in it has to be materializable — a class constant, `Foo::class` and an enum case all are, so what is left is a constant whose own declaration folds to nothing (`E0792`): write the value out here, or give that constant a foldable one
 
 error[E0728]: `Twice::constructor` carries 2 attached literals satisfying this shape
-   --> case.nvs:20:21
+   --> case.nvs:30:21
    |
-20 | ?Route $ambiguous = Core\Attributes::get<Route>(Twice::constructor(...));
+30 | ?Route $ambiguous = Core\Attributes::get<Route>(Twice::constructor(...));
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `get` answers at most one
    = help: ADR 0046 § 5: an attached-attribute list is static, so this is decided here rather than by a test run — write `Core\Attributes::all<T>(…)`, which answers every match
 
 error[E0729]: `Core\Attributes::get` retrieves a shape, and `int` is not one
-   --> case.nvs:23:16
+   --> case.nvs:33:16
    |
-23 | ?int $scalar = Core\Attributes::get<int>(Twice::constructor(...));
+33 | ?int $scalar = Core\Attributes::get<int>(Twice::constructor(...));
    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `int` written here
    = help: ADR 0046 § 4: retrieval is structural — an attached literal is an answer exactly when it satisfies `T` under ADR 0036 § 3's width subtyping, so `T` is an inline `{...}` or a `type` alias naming one
 
 error[E0730]: a `Core\Attributes` retrieval names no declaration
-   --> case.nvs:28:48
+   --> case.nvs:38:48
    |
-28 | ?Route $computed = Core\Attributes::get<Route>($fn);
+38 | ?Route $computed = Core\Attributes::get<Route>($fn);
    |                                                ^^^ this is not a declaration reference
    = help: ADR 0046 § 4: the target is written as a first-class-callable reference and inspected where it is written — `Foo::bar(...)` for a method, and `Foo::constructor(...)` for the class itself, plus a literal member name for one of its properties or parameters
 
-error: aborting due to 4 errors
+error: aborting due to 5 errors

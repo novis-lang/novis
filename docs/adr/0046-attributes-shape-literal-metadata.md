@@ -345,9 +345,12 @@ compile that reports a diagnostic runs nothing after it.
   (*5*) are `E0728`/`E0729`/`E0730`/`E0731`, all four in one compile in
   `tests/conformance/reject/an-attribute-retrieval-is-refused-where-it-cannot-be-folded.nvst`, with the
   accepted `all<T>` spelling written first. `E0731` is the one that is not about the retrieval's own
-  spelling: a matched payload holding a user-declared class constant or an enum case has no form to be
-  compiled in, which is `nvs_types::signatures`' own known gap surfacing at the one site that needs the
-  value rather than the name.
+  spelling: a matched payload is folded through the scope it was *written* in, so every constant *2*
+  admits has a form to compile in — `tests/conformance/core/an-attribute-payload-holds-a-constant.nvst`
+  pins a class constant, an enum case and `Foo::class` against a read of the same name, from a file that
+  imports a *different* enum of that name — and what is left for `E0731` is a class constant whose own
+  declaration folds to no value, ADR 0011's `E0792` surfacing at the one site that needs the value
+  rather than the name.
 - ***6*'s explicit `<T>` needs no case of its own**: every retrieval above is written through it, so a
   parse or resolution that stopped working takes all four cases with it.
 

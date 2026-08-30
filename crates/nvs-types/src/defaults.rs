@@ -359,6 +359,58 @@ fn const_reference_default(
     place_const(folded, declared, env)
 }
 
+/// `Mode::Fast`, `Limits::MAX` or `Foo::class` as the value each already
+/// resolved to elsewhere — ADR 0046 § 2's three *named* constants, folded for
+/// the § 5 payload that has to compile one in.
+///
+/// [`const_reference_default`] is the sibling, and which table each reads is
+/// the whole of the difference. That one runs while signatures are still being
+/// collected, so it asks [`crate::consts`], built early and folding no array;
+/// this one runs in the checking pass, where
+/// [`crate::signatures::resolve_const`] holds the same constant with its whole
+/// value — the very entry a *read* of `Foo::CONST` inlines
+/// ([`crate::expr::members`]), which is what makes a payload and a read agree
+/// on what the name means. A constant whose own declaration folded to nothing
+/// is `None` here, and that residue is the whole of what `E0731` still reports.
+///
+/// There is no `secret` gate, because there is nothing left to launder: ADR
+/// 0033 § 4's fifth sink already refused a `secret` constant where the
+/// attribute was *written* ([`crate::attributes`]), one whole pass earlier.
+pub(crate) fn fold_const_reference(
+    expr: &Expr,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Option<ConstArg> {
+    match &expr.kind {
+        // `static::class` resolves here — to the *declaring* class, which ADR
+        // 0008's late static binding makes the wrong answer, and which
+        // `crate::expr::members::check_class_name_const` refuses to fold for
+        // exactly that reason. Left unfolded rather than answered differently
+        // in two places.
+        ExprKind::ClassNameConst { class } if !matches!(class.kind, ExprKind::StaticExpr) => {
+            let qname = crate::expr::resolve_class_expr(class, ctx, env)?;
+            Some(ConstArg::Str(qname.to_string()))
+        }
+        ExprKind::ClassConstAccess { class, name } => {
+            let qname = crate::expr::resolve_class_expr(class, ctx, env)?;
+            let member = crate::span_text(env.src, *name).to_owned();
+            if let Some(case) = env.enums.case(&qname, &member) {
+                return Some(match case {
+                    crate::enums::EnumValue::Int(value) => ConstArg::Int(value),
+                    crate::enums::EnumValue::Uint(value) => ConstArg::Uint(value),
+                });
+            }
+            if qname.is_core() {
+                return crate::core_lib::constant(&qname, &member, env.interner)
+                    .map(|(_, value)| value);
+            }
+            crate::signatures::resolve_const(&qname, &member, env.signatures, env.graph)
+                .and_then(|sig| sig.value.clone())
+        }
+        _ => None,
+    }
+}
+
 /// One already-folded constant against the property's own declared type —
 /// [`literal_default`]'s grid, with the literal's syntax already gone.
 ///
@@ -504,7 +556,7 @@ pub(crate) fn eval_const_value(
         // `nvs_ir::ir::InstKind::ArrayNew`.
         return Some(ConstArg::EmptyArray);
     }
-    fold_const_array(items, Some(element), env)
+    fold_const_array(items, Some(element), None, env)
 }
 
 /// One array literal's entries under the `string` keys ADR 0007 § 5 gives them,
@@ -519,6 +571,7 @@ pub(crate) fn eval_const_value(
 fn fold_const_array(
     items: &[ArrayItem],
     element: Option<TypeId>,
+    ctx: Option<&Ctx<'_>>,
     env: &mut Env<'_>,
 ) -> Option<ConstArg> {
     let mut out = Vec::with_capacity(items.len());
@@ -531,7 +584,7 @@ fn fold_const_array(
             return None;
         }
         let key = match key {
-            Some(key) => match fold_constant_value(key, env)? {
+            Some(key) => match fold_constant_value(key, ctx, env)? {
                 ConstArg::Str(s) => s,
                 ConstArg::Int(n) => n.to_string(),
                 ConstArg::Uint(n) => n.to_string(),
@@ -545,7 +598,7 @@ fn fold_const_array(
         };
         let value = match element {
             Some(element) => eval_const_value(value, element, env)?,
-            None => fold_constant_value(value, env)?,
+            None => fold_constant_value(value, ctx, env)?,
         };
         out.push((key, value));
     }
@@ -563,7 +616,19 @@ fn fold_const_array(
 /// whole of the evidence: an integer is an `int` where one holds it and a `uint`
 /// above that, which is the same order a written annotation would have narrowed
 /// it in.
-pub(crate) fn fold_constant_value(expr: &Expr, env: &mut Env<'_>) -> Option<ConstArg> {
+///
+/// `ctx` is the scope a **named** constant in this value resolves through, and
+/// `None` says the caller has none to offer: the declaration folds
+/// ([`eval_const_value`]) run before the pass that would answer, so they hand
+/// `None` and a `Mode::Fast` written there is left to
+/// [`const_reference_default`] one position along. ADR 0046 § 5's payload fold
+/// is the caller that does have one — the attach site's own, never the
+/// retrieval's — and [`fold_const_reference`] is what it buys.
+pub(crate) fn fold_constant_value(
+    expr: &Expr,
+    ctx: Option<&Ctx<'_>>,
+    env: &mut Env<'_>,
+) -> Option<ConstArg> {
     let mut negated = false;
     let mut inner = expr;
     loop {
@@ -603,16 +668,24 @@ pub(crate) fn fold_constant_value(expr: &Expr, env: &mut Env<'_>) -> Option<Cons
                 Some(i64::try_from(magnitude).map_or(ConstArg::Uint(magnitude), ConstArg::Int))
             }
         }
-        ExprKind::ArrayLiteral(items) if !negated => fold_const_array(items, None, env),
+        ExprKind::ArrayLiteral(items) if !negated => fold_const_array(items, None, ctx, env),
         ExprKind::ObjectLiteral(fields) if !negated => {
             let mut out = Vec::with_capacity(fields.len());
             for field in fields {
                 out.push((
                     crate::span_text(env.src, field.name).to_owned(),
-                    fold_constant_value(&field.value, env)?,
+                    fold_constant_value(&field.value, ctx, env)?,
                 ));
             }
             Some(ConstArg::Shape(out))
+        }
+        // `Mode::Fast`, `Limits::MAX` and `Foo::class`, for a caller that
+        // carries the scope they were written in. A negated one is not folded:
+        // `-Foo::MAX` is a spelling no position admits today, and inventing an
+        // answer here would be the second constant evaluator ADR 0046 § 2
+        // exists to refuse.
+        ExprKind::ClassConstAccess { .. } | ExprKind::ClassNameConst { .. } if !negated => {
+            fold_const_reference(inner, ctx?, env)
         }
         _ => None,
     }

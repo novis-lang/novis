@@ -1805,12 +1805,14 @@ pub mod code {
     /// asked for, but holds a value this compiler cannot materialize.
     ///
     /// ADR 0046 § 5 replaces the call with the payload itself, so every value
-    /// in a matched payload has to have a constant form, and two shapes § 2
-    /// admits reach this walk without one. A class constant is folded for a
-    /// *read* by `nvs_types::signatures::ConstSig`, but the payload walk is
-    /// its own evaluator over the written expression and carries no namespace
-    /// context to resolve the class name with; and an enum case reaches the
-    /// program through `ExprInfo::EnumCase` rather than through a constant.
+    /// in a matched payload has to have a constant form. Every spelling § 2
+    /// admits now has one — the payload is folded under the scope it was
+    /// *written* in, so a class constant, `Foo::class` and an enum case each
+    /// resolve to the value a read of the same name inlines
+    /// (`nvs_types::retrieval`'s own docs own that). What is left is the
+    /// residue: a class constant whose *own* declaration folded to no value,
+    /// which is [`E_CLASS_CONST_NO_CONSTANT_FORM`]'s gap surfacing at the one
+    /// site that needs the value rather than the name.
     pub const E_ATTRIBUTE_PAYLOAD_UNFOLDABLE: Code = Code::new("E0731");
     /// The first-class callable spelling `$m->method(...)` written on a
     /// `mixed` receiver.

@@ -255,8 +255,11 @@ in that goal. An item's owner is the row it sits in.
       case-union type; only `as E::A|E::B` does. *q06, r03b*
 - [ ] **D20** An empty shape `{}` is satisfied by every attached attribute literal, so a bare marker
       `#[Audited]` (`type Audited = {}`) is ambiguous (E0728) on a class with any other attribute.
-- [ ] **D21** A payload holding a class constant or enum case can be declared but not retrieved
-      (E0731) with `Attributes::get`/`all`.
+- [x] **D21** A payload holding a class constant or enum case can be declared but not retrieved
+      (E0731) with `Attributes::get`/`all`. Closed: the payload is folded through the scope it was
+      *written* in, so a class constant, an enum case and `Foo::class` each fold to what a read of the
+      same name inlines (`nvs_types::retrieval` owns why the attach site's scope and not the
+      retrieval's). `E0731` is left for a constant whose own declaration folds to nothing.
 - [x] **D22** `inout` accepts only a local: `M::bump(inout $a["k"])` is E0439, and the refusal is
       permanent — the `yet` is gone (`nvs_types::expr::args::check_inout_arg` owns why). *ref30*
 - [x] **D23** ADR 0031 § 3's named-closure recursion (`fn fact(int $n): int => … fact($n - 1)`)

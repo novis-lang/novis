@@ -1,0 +1,98 @@
+--TEST--
+A retrieved attribute payload holds a class constant, an enum case and `Foo::class`, each folded through the scope it was written in (ADR 0046 §§ 2, 5)
+--FILE--
+<?nvs
+// ADR 0046 § 2 admits three *named* constants beside the literals — a class
+// constant, an enum case and `Foo::class` — and § 5 replaces the retrieval
+// with the payload itself, so each has to fold to the value a read of that
+// same name inlines. This case asserts the two **agree** rather than reading
+// either off a line of its own: a fold that invented an answer passes neither
+// half.
+require './app.nvs';
+require './other.nvs';
+
+// The retrieval site imports the *other* `Mode`, whose cases carry different
+// numbers. A payload is folded through the scope it was **written** in — the
+// declaring file's — so this import has no bearing on what the `Mode::Fast` in
+// `app.nvs` meant, and a fold reading it here answers a different enum.
+use Other\Mode;
+
+?{code: int, label: string, mode: App\Mode, owner: string} $meta =
+    Core\Attributes::get<{code: int, label: string, mode: App\Mode, owner: string}>(
+        App\Job::constructor(...)
+    );
+echo "meta=", $meta != null ? "some" : "none", "\n";
+if ($meta != null) {
+    echo "code=", $meta->code as string, "\n";
+    echo "label=", $meta->label, "\n";
+    echo "owner=", $meta->owner, "\n";
+}
+
+// § 4's property spelling, over a class constant whose own value is an array:
+// the payload reads the entry a *read* of `App\Limits::ROWS` inlines, so a
+// container folds whole or not at all.
+?{rows: array<int>} $rows = Core\Attributes::get<{rows: array<int>}>(
+    App\Job::constructor(...),
+    "tries"
+);
+echo "rows=", $rows != null ? "some" : "none", "\n";
+if ($rows != null) {
+    foreach ($rows->rows as int $row) { echo "  ", $row as string, "\n"; }
+}
+
+// The agreement this case is written for, counted rather than printed: each
+// retrieved field equals the constant read directly, so a fold answering four
+// of five plausibly still fails here.
+uint $agreed = 0;
+if ($meta != null) { if ($meta->code == App\Limits::MAX) { $agreed = $agreed + 1; } }
+if ($meta != null) { if ($meta->label == App\Limits::LABEL) { $agreed = $agreed + 1; } }
+if ($meta != null) { if ($meta->owner == App\Limits::class) { $agreed = $agreed + 1; } }
+if ($meta != null) { if ($meta->mode == App\Mode::Fast) { $agreed = $agreed + 1; } }
+if ($rows != null) {
+    if (Core\Arr::count($rows->rows) == Core\Arr::count(App\Limits::ROWS)) {
+        $agreed = $agreed + 1;
+    }
+}
+echo "agreed=", $agreed as string, "/5\n";
+
+// The import above is live, and its `Fast` is 41 where `App\Mode::Fast` is 1 —
+// which is what makes the line above an assertion rather than a coincidence.
+echo "other fast=", Mode::Fast == Mode::Fast ? "yes" : "no", "\n";
+--FILE app.nvs--
+<?nvs
+namespace App;
+
+enum Mode: int {
+    Fast = 1,
+    Slow = 2,
+}
+
+class Limits {
+    public const int MAX = 5;
+    public const string LABEL = "limits";
+    public const array<int> ROWS = [1, 2];
+}
+
+#[{code: Limits::MAX, label: Limits::LABEL, mode: Mode::Fast, owner: Limits::class}]
+class Job {
+    #[{rows: Limits::ROWS}]
+    public int $tries = 0;
+}
+--FILE other.nvs--
+<?nvs
+namespace Other;
+
+enum Mode: int {
+    Fast = 41,
+    Slow = 42,
+}
+--EXPECT--
+meta=some
+code=5
+label=limits
+owner=App\Limits
+rows=some
+  1
+  2
+agreed=5/5
+other fast=yes
