@@ -181,6 +181,14 @@ its own kind; there is no `is_int`-style predicate to disagree with, because the
 An integer literal that does not fit `int` is legal only where a `uint` is expected, and is otherwise a
 diagnostic saying exactly that. There is no literal suffix, for any numeric type.
 
+An integer literal is written decimal, `0x`, `0o` or `0b` — either case of the prefix letter, with `_`
+separators allowed between digits. Those four are the closed set, so **a leading zero is not a radix**:
+`017` is decimal seventeen where PHP reads octal fifteen, and `0o17` is the only spelling of that
+fifteen. PHP's legacy form is refused as a *silent* reinterpretation rather than a spelling — it changes
+a value without changing a character, which is the one thing a converted file cannot be checked for, and
+a file-mode constant is where it bites. The escape grammar inside a string literal is unrelated and
+matches PHP's exactly, `\v`, `\f`, `\e` and the octal `\0`–`\777` included.
+
 | operation | result | on overflow / edge |
 |---|---|---|
 | `int ⊕ int`, `uint ⊕ uint` for `+ - * ** %` | the same type | **throws `ArithmeticError`.** No wrap, no promotion to `float` |

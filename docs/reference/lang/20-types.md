@@ -400,11 +400,13 @@ may not name a single class
 **Numbers.** `1_000`, `0x1F`, `0b101`, `0o17`; `1.5`, `.5`, `5.`, `1e3`, `1E-2`, `1_000.5`. A
 leading-zero form `017` is decimal seventeen, not octal. `true`, `false`, `null`.
 
-**Strings.** A single-quoted literal is verbatim: no escapes, no interpolation. A double-quoted
-literal interpolates `$x`, `$a[k]`, `$a[0]`, and in braces any property, offset or method-call
-chain: `{$o->p}`, `{$a["k"]["j"]}`, `{$o->m()}`. Escapes: `\n \t \r \0 \\ \" \$ \xHH \u{HHHH}`.
-An interpolated value takes the same rule as `echo`: scalars and `null` render, `bytes`, arrays,
-enum cases and objects without `Stringable` are refused.
+**Strings.** A single-quoted literal interpolates nothing and has exactly two escapes, `\\` and
+`\'` — every other backslash stands for itself. A double-quoted literal interpolates `$x`, `$a[k]`,
+`$a[0]`, and in braces any property, offset or method-call chain: `{$o->p}`, `{$a["k"]["j"]}`,
+`{$o->m()}`. Its escapes are `\\ \" \$ \n \t \r \v \f \e`, an octal `\0` through `\777`, `\xHH` and
+`\u{HHHH}`; an unrecognized one such as `\q` keeps its backslash. An interpolated value takes the
+same rule as `echo`: scalars and `null` render, `bytes`, arrays, enum cases and objects without
+`Stringable` are refused.
 
 ```nvs
 <?nvs
@@ -419,13 +421,15 @@ array<string> $row = ["name" => "ann"];
 array<int> $n = [10, 20];
 Tag $t = new Tag();
 echo "hi $who, $row[name], $n[1], {$row["name"]}, {$t->name}, {$t->upper()}\n";
-echo 'raw $who \t', "\n";
+echo 'raw $who \t', ' ', 'it\'s', "\n";
 echo "tab[\t] quote[\"] dollar[\$who] backslash[\\] cp[\u{41}]\n";
+echo "oct[\101] hex[\x41] unknown[\q]\n";
 ```
 ```output
 hi world, ann, 20, ann, div, DIV
-raw $who \t
+raw $who \t it's
 tab[	] quote["] dollar[$who] backslash[\] cp[A]
+oct[A] hex[A] unknown[\q]
 ```
 
 **Heredoc and nowdoc.** `<<<TXT … TXT;` interpolates like a double-quoted string; `<<<'TXT'` keeps

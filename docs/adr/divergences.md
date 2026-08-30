@@ -33,6 +33,7 @@ carries one row per PHP built-in and is the home for those.
 | array keys are `int` or `string` | always `string`; `Arr::keys()` returns `array<string>` | [0007](0007-explicit-type-system.md) § 5 |
 | one integer type | `int` and `uint`, reported distinctly, and `int ⊕ uint` does not compile | [0007](0007-explicit-type-system.md) § 4 |
 | `PHP_INT_MAX + 1` becomes a `float` | throws `ArithmeticError` | [0007](0007-explicit-type-system.md) § 4 |
+| a leading zero is octal, so `017` is fifteen | decimal; `017` is seventeen and `0o17` is the octal | [0007](0007-explicit-type-system.md) § 4 |
 | `(int)9.9` is `9`; `$a[1.7]` is `$a[1]` | throws; rounding is `Core\Math::floor`/`round`, said out loud | [0007](0007-explicit-type-system.md) § 2 |
 | `int` → `float` rounds silently above 2^53 | throws | [0007](0007-explicit-type-system.md) § 2 |
 | `(int)"abc"` is `0` | the cast syntax does not parse; `"abc" as int` throws, `as ?int` is `null` | [0034](0034-legacy-cast-syntax-rejected.md), [0066](0066-nullable-conversion-operator.md) |
