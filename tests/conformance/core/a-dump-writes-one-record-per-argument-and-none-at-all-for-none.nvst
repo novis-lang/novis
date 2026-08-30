@@ -1,0 +1,80 @@
+--TEST--
+`Core\Debug::dump`'s variadic asserted on both sides: no arguments writes nothing at all, and every arity above it writes exactly one record per argument, in argument order and agreeing byte for byte with `render` — spec § 16, ADR 0092 §§ 3 and 4
+--FILE--
+<?nvs
+// `dump` is the one `Core` member whose parameter list is a variadic
+// (`nvs_stdlib::debug`'s `CoreTy::Variadic`), and every case beside this one
+// calls it with a fixed, non-empty argument list. The arity none of them asks
+// about is the empty one — the arity only a variadic has. A `dump` that wrote
+// a bare newline, a blank record or an empty container for no arguments would
+// pass all of them, and would put a stray line into the diagnostic channel of
+// every program that ever dumped a spread which happened to come out empty.
+//
+// Both sides, because either half alone reads plausibly: a `dump` that
+// rendered only its first argument satisfies "nothing for none", and one that
+// wrote a newline per call satisfies "one record per argument" at every arity
+// but zero.
+class Subjects {
+    // Distinct per position, so a `dump` that rendered its arguments in the
+    // wrong order, or rendered one of them twice, fails on the sequence rather
+    // than only on the count.
+    public static function at(int $n): string {
+        return Core\Debug::render($n) as string;
+    }
+}
+
+// The six records the four calls below owe, taken through the member that
+// shares `dump`'s walk. Standard output holds them so that the expectation on
+// standard error is the same six lines stated twice rather than one hand-typed
+// belief about what a dump looks like.
+array<string> $rendered = [
+    Subjects::at(1),
+    Subjects::at(2),
+    Subjects::at(3),
+    Subjects::at(4),
+    Subjects::at(5),
+    Subjects::at(6),
+];
+
+echo "records owed ", Core\Arr::count($rendered), "\n";
+
+foreach ($rendered as string $one) {
+    echo $one, "\n";
+}
+
+// The lower side. Nothing is handed over, so nothing is owed: this call must
+// leave the diagnostic channel exactly as it found it, and the first line of
+// the section below is the first record of the *next* call.
+Core\Debug::dump();
+
+// The upper side, over three arities. 1 + 2 + 3 arguments is six records, and
+// the empty call above contributes none — so a stray line from it shifts every
+// remaining line and the byte comparison fails on the first of them.
+Core\Debug::dump(1);
+Core\Debug::dump(2, 3);
+Core\Debug::dump(4, 5, 6);
+
+// The runner reads an error expectation as "this run must fail"
+// (`nvs_test::Case::expects_failure`), and a dump writes nowhere but the
+// diagnostic channel — so a program that exited zero could not state what it
+// wrote there. The throw buys the section below; the report it produces is
+// absorbed by the trailing `%A`. A property of the harness, not of
+// `Core\Debug`.
+throw new RuntimeError("the case ends here, so its standard error can be asserted");
+--EXPECT--
+records owed 6
+int(1)
+int(2)
+int(3)
+int(4)
+int(5)
+int(6)
+--EXPECTF-ERROR--
+int(1)
+int(2)
+int(3)
+int(4)
+int(5)
+int(6)
+Uncaught Exception: the case ends here, so its standard error can be asserted
+%A
