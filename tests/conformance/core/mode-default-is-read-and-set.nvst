@@ -1,0 +1,48 @@
+--TEST--
+`mode.default` is the one key a mode is read and set at, and the flip is what makes the set observable — ADR 0091 §§ 3-5
+--FILE--
+<?nvs
+// § 4: the mode is written and read at the dotted key, and reading it is the
+// same string-in/string-out API every other directive has.
+echo "read=", Core\Config::get("mode.default") ?? "unset", "\n";
+
+// The bare name is not a second spelling of it. A name with no block is a
+// limit's name and nothing else (`nvs_config::request`'s module doc), so `mode`
+// here names the table itself — and § 5 has no text rendering for a table.
+echo "bare=", Core\Config::get("mode") ?? "unset", "\n";
+
+// Nor does the bare name write it: no directive row governs it, which is one of
+// the refusals `set` answers `false` to rather than throwing.
+echo "bare-set=", Core\Config::set("mode", "development") ? "true" : "false", "\n";
+echo "read=", Core\Config::get("mode.default") ?? "unset", "\n";
+
+// § 5's ceiling admits this flip, and § 4's key is what it is asked for at.
+echo "set=", Core\Config::set("mode.default", "development") ? "true" : "false", "\n";
+echo "read=", Core\Config::get("mode.default") ?? "unset", "\n";
+
+// § 4's last bullet is what makes that set observable beyond its own key: a mode
+// *is* § 3's rows, so the flip re-derives them into this request's overlay.
+echo "level=", Core\Config::get("log.level") ?? "unset", "\n";
+echo "inline=", Core\Config::get("debug.inline") ?? "unset", "\n";
+
+// And the overlay is what a later read answers from, for the key itself as much
+// as for the rows it derived.
+echo "back=", Core\Config::set("mode.default", "production") ? "true" : "false", "\n";
+echo "read=", Core\Config::get("mode.default") ?? "unset", "\n";
+--FILE nvs.toml--
+# § 5's third row: a production host whose ceiling lets a request select
+# development for itself.
+[mode]
+default = "production"
+ceiling = "development"
+--EXPECT--
+read=production
+bare=unset
+bare-set=false
+read=production
+set=true
+read=development
+level=Debug
+inline=true
+back=true
+read=production
