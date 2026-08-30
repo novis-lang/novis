@@ -846,3 +846,102 @@ fn a_fleet_scope_with_no_shared_store_refuses_the_boot() {
         "the store is `fleet`'s dependency and nothing else's",
     );
 }
+
+/// A tree whose only content is `block`, for the two `[http]` pairs ADR 0074 refuses.
+fn http(block: &str) -> Fake {
+    Fake::with(&[("etc/nvs.toml", block)])
+}
+
+/// ADR 0074 § 2: `origins = ["*"]` is permitted **only** with `credentials = false`, so the pair is
+/// what refuses and neither half does alone. Asserted on all four combinations, because a check
+/// reading one key would refuse the wildcard public API § 2 explicitly allows and still pass a case
+/// that only tried the bad pair.
+#[test]
+fn cors_star_origins_with_credentials_true_is_refused() {
+    let fs = http("[http.cors]\norigins = [\"*\"]\ncredentials = true\n");
+
+    let diagnostic = refusal(&fs, "etc/nvs.toml");
+
+    assert_eq!(diagnostic.code, Some(code::E_MEANINGLESS_HTTP_PAIR));
+    assert!(
+        diagnostic.message.contains("credentials") && diagnostic.message.contains('*'),
+        "the refusal names both halves, because either one is the one to change: {}",
+        diagnostic.message,
+    );
+
+    let allowed = [
+        // § 2's own sentence: the wildcard is a legitimate public API without credentials.
+        "[http.cors]\norigins = [\"*\"]\ncredentials = false\n",
+        // Credentials are legitimate too, for origins named exactly.
+        "[http.cors]\norigins = [\"https://app.example\"]\ncredentials = true\n",
+        // And the shipped default is closed, which is neither half of the pair.
+        "[http.cors]\ncredentials = true\n",
+    ];
+    let accepted = allowed
+        .iter()
+        .filter(|block| tree_of(&http(block), "etc/nvs.toml").config.http.is_some())
+        .count();
+    assert_eq!(
+        accepted,
+        allowed.len(),
+        "the combination is refused and neither half of it is",
+    );
+
+    // The wildcard among named origins is the same wildcard: a browser reads the list, not its
+    // length, so a check looking only at a single-element `[\"*\"]` would let this through.
+    assert_eq!(
+        refusal(
+            &http("[http.cors]\norigins = [\"https://app.example\", \"*\"]\ncredentials = true\n"),
+            "etc/nvs.toml",
+        )
+        .code,
+        Some(code::E_MEANINGLESS_HTTP_PAIR),
+    );
+}
+
+/// ADR 0074 § 3: `same_site = "None"` needs `secure = true`, refused by § 2's mechanism and for §
+/// 2's reason. The absent-key half is the one that matters most — § 3 ships `secure = true`, so a
+/// tree that never writes the key has it in force, and reading an absent boolean as `false` would
+/// refuse a correct configuration.
+#[test]
+fn same_site_none_without_secure_is_refused() {
+    let fs = http("[http.cookies]\nsame_site = \"None\"\nsecure = false\n");
+
+    let diagnostic = refusal(&fs, "etc/nvs.toml");
+
+    assert_eq!(diagnostic.code, Some(code::E_MEANINGLESS_HTTP_PAIR));
+    assert!(
+        diagnostic.message.contains("same_site") && diagnostic.message.contains("secure"),
+        "the refusal names both halves: {}",
+        diagnostic.message,
+    );
+
+    // The attribute a browser parses is case-insensitive, so `none` configures the same cookie and
+    // must reach the same refusal — otherwise the spelling is the way around the rule.
+    assert_eq!(
+        refusal(
+            &http("[http.cookies]\nsame_site = \"none\"\nsecure = false\n"),
+            "etc/nvs.toml",
+        )
+        .code,
+        Some(code::E_MEANINGLESS_HTTP_PAIR),
+    );
+
+    let allowed = [
+        "[http.cookies]\nsame_site = \"None\"\nsecure = true\n",
+        // § 3's default is `secure = true`, so the key not being written is not `secure = false`.
+        "[http.cookies]\nsame_site = \"None\"\n",
+        // And `secure = false` is a decision an operator may make for a `Lax` cookie.
+        "[http.cookies]\nsame_site = \"Lax\"\nsecure = false\n",
+        "[http.cookies]\nsecure = false\n",
+    ];
+    let accepted = allowed
+        .iter()
+        .filter(|block| tree_of(&http(block), "etc/nvs.toml").config.http.is_some())
+        .count();
+    assert_eq!(
+        accepted,
+        allowed.len(),
+        "the pair is refused, and neither key is refused on its own or by being absent",
+    );
+}

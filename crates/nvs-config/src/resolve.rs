@@ -266,7 +266,8 @@ pub fn roots(flags: &[PathBuf], cwd: &Path, files: &dyn Files) -> Roots {
 /// One [`Diagnostic`]: a file that cannot be read (`E0605`), an include cycle or a nesting deeper
 /// than [`MAX_INCLUDE_DEPTH`] (`E0606`), a file outside § 6's trust boundary (`E0607`), a secret
 /// file § 7 will not take a value from (`E0608`), an `[[app]]` block ADR 0104 § 1 cannot key
-/// (`E0609`), a `[[schedule]]` entry ADR 0073 cannot arm (`E0611`), or anything either of ADR 0064 § 3's per-file
+/// (`E0609`), a `[[schedule]]` entry ADR 0073 cannot arm (`E0611`), an `[http]` pair ADR 0074
+/// refuses (`E0612`), or anything either of ADR 0064 § 3's per-file
 /// refusals catches (`E0601`/`E0604`), which arrives already carrying its own file's line.
 pub fn resolve(
     roots: &Roots,
@@ -297,6 +298,10 @@ pub fn resolve(
     // ADR 0073 §§ 1-3, last because it reads the `[capabilities]` the merge settled: a scheduled
     // script is checked against the `script.spawn` roots, which a later file may have replaced.
     crate::schedule::validate(&resolved.config, &origins, files)?;
+    // ADR 0074 §§ 2-3, over the merged tree for the same reason: which `[http.cors] origins` and
+    // `[http.cookies] secure` are in force is a question only the whole stream has answered, and a
+    // per-file check would refuse a base file an include was about to correct.
+    crate::http::validate(&resolved.config, &origins)?;
     resolved.origins = origins;
     Ok(resolved)
 }

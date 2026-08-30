@@ -19,6 +19,10 @@
   override, and the client's options shape.
   [docs/implementation-plan.md](../implementation-plan.md) — M7 gains the inbound policy, M8 the outbound.
 - **Amended by:** 0083, 0095, 0097
+- **Validated by:** [crates/nvs-config/tests/resolve.rs](../../crates/nvs-config/tests/resolve.rs) —
+  `cors_star_origins_with_credentials_true_is_refused` and `same_site_none_without_secure_is_refused`;
+  [crates/nvs-config/tests/request.rs](../../crates/nvs-config/tests/request.rs) —
+  `the_same_two_refusals_come_from_config_set_as_from_the_boot`.
 
 > **In short:** one decision with two subsystems — **a default that is unsafe or unbounded is a defect, not
 > a neutral starting point**. Inbound: a deployment with **no HTTP configuration written at all** already
@@ -329,9 +333,11 @@ regardless, and refusing it would buy nothing.
   cookie explicitly marked script-readable omits `HttpOnly` and nothing else.
 - **M7:** with `origins = []`, no CORS header is emitted and a preflight is answered `403`; with an origin
   named, a matching origin is echoed and a non-matching one is not.
-- **M6/M7:** `origins = ["*"]` with `credentials = true` refuses to boot naming the line, and
+- **M6/M7:** `origins = ["*"]` with `credentials = true` refuses to boot as `E0612` naming the line, and
   `Core\Config::set` of either half into that combination returns `false` with the previous value intact —
-  the same pair of fixtures for `same_site = "None"` with `secure = false`.
+  the same pair of fixtures for `same_site = "None"` with `secure = false`. The third fixture is the one
+  that matters: it asserts the two mechanisms **agree** over a table of moves rather than asserting what
+  either answered, which is what holds `nvs_config::http` to one implementation of the condition.
 - **M7:** a request disabling `frame_ancestors` for itself affects only its own response, and the next
   request on the same core sees the configured value — the same shape
   [ADR 0005](0005-config-changeability.md)'s own `Core\Config::set` test already uses.

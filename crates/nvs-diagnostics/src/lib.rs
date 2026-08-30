@@ -1245,6 +1245,19 @@ pub mod code {
     /// configuration simply does not say the file may be run.
     pub const E_BAD_SCHEDULE: Code = Code::new("E0611");
 
+    /// An `[http]` pair with no correct meaning: ADR 0074 § 2's `origins =
+    /// ["*"]` with `credentials = true`, or § 3's `same_site = "None"` with
+    /// `secure = false`. Both are refused rather than warned about because
+    /// neither is a weak policy — every browser rejects both outright, so the
+    /// deployment holds an access-control rule that does not run and nothing
+    /// tells it so. This is the boot half; inside a request the same two
+    /// combinations make `Core\Config::set` return `false` and leave the value
+    /// unchanged (ADR 0005's existing rule), and the condition behind both
+    /// halves is written once in `nvs_config::http`. Each half of a pair is
+    /// legitimate alone — a wildcard origin is an ordinary public API — so
+    /// there is no refusal here for a single key.
+    pub const E_MEANINGLESS_HTTP_PAIR: Code = Code::new("E0612");
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose

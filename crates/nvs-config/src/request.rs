@@ -16,8 +16,9 @@
 //!
 //! **What `set` refuses, it refuses by returning `false`** (ADR 0005, and `m6.md`'s *Verify*): a
 //! name no [`Directive`](crate::directive::Directive) row governs, a `System` one, a value that
-//! does not spell its unit, a value above the `[limits.hard]` ceiling, and a
-//! [`RuntimeTighten`](Class::RuntimeTighten) one that does not narrow. Nothing on this path
+//! does not spell its unit, a value above the `[limits.hard]` ceiling, a
+//! [`RuntimeTighten`](Class::RuntimeTighten) one that does not narrow, and an assignment that would
+//! leave this request holding one of ADR 0074 §§ 2-3's meaningless `[http]` pairs. Nothing on this path
 //! throws, so a program cannot catch a refusal and cannot tell one from another — which is the API
 //! ADR 0064 § 5 states and not an omission.
 //!
@@ -88,7 +89,7 @@ impl Request {
     }
 
     /// `Core\Config::set`: `true` when the change was made for this request, `false` when it was
-    /// refused — the module doc lists the five refusals, and none of them throws.
+    /// refused — the module doc lists the six refusals, and none of them throws.
     pub fn set(&mut self, name: &str, value: &str) -> bool {
         let key = canonical(name);
         let Some(row) = lookup(&key) else {
@@ -128,8 +129,30 @@ impl Request {
                 }
             }
         }
+        if !self.stays_meaningful(&key, value) {
+            return false;
+        }
         self.overlay.insert(key.into_owned(), value.to_string());
         true
+    }
+
+    /// ADR 0074 §§ 2-3, asked of what this request would be left holding.
+    ///
+    /// The same two combinations the boot refuses, refused here as `false` with the value unchanged
+    /// — § 2 states both halves and [`http`](crate::http) is the one place the condition is
+    /// written, so this reads the four values off the snapshot, folds this request's overlay and
+    /// then the proposed assignment over them, and asks. A key under neither block returns before
+    /// any of that.
+    fn stays_meaningful(&self, key: &str, value: &str) -> bool {
+        if !key.starts_with("http.cors.") && !key.starts_with("http.cookies.") {
+            return true;
+        }
+        let mut inbound = crate::http::Inbound::of(self.base.config.http.as_ref());
+        for (set, held) in &self.overlay {
+            inbound.assign(set, held);
+        }
+        inbound.assign(key, value);
+        inbound.meaningless().is_none()
     }
 
     /// `Core\Config::restore`: drops what this request set for `name`, leaving the snapshot's own

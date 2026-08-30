@@ -211,3 +211,114 @@ fn a_typed_directive_crosses_as_the_text_it_was_written_as() {
     assert_eq!(request.get("max_tasks").as_deref(), Some("64"));
     assert_eq!(request.get("log.level").as_deref(), Some("warn"));
 }
+
+/// Whether `text` is refused as a whole configuration, without panicking when it is.
+fn boot_refuses(text: &str) -> bool {
+    let files = One(text.to_string());
+    let mut sources = SourceMap::new();
+    resolve(&Roots::Files(vec![p("nvs.toml")]), &mut sources, &files).is_err()
+}
+
+/// ADR 0074 §§ 2-3, as the **agreement** the ADR's own sentence asks for: each pair is refused "at
+/// boot with the line named and at runtime by `Core\Config::set` returning `false`".
+///
+/// This is the case that needs one implementation rather than two. It never asserts what either
+/// mechanism answered — it asserts they answered the **same**, over a table of assignments, so a
+/// second copy of the condition that drifts in either direction fails here while each half still
+/// looks right on its own. Each row is a tree that boots, the key a request then moves, and the
+/// value that makes the pair meaningless; the same value written into the file must refuse the boot
+/// exactly when `set` refuses it.
+#[test]
+fn the_same_two_refusals_come_from_config_set_as_from_the_boot() {
+    // The row's own line is written out twice rather than appended to the block, because ADR 0064
+    // § 3 still refuses a key set twice **in one file**: an appended override would refuse the boot
+    // as a duplicate and the two mechanisms would agree for a reason that has nothing to do with
+    // ADR 0074.
+    //
+    // (the block without the key, the line it starts at, the key, the value moved to, that line)
+    let moves = [
+        // § 2. The wildcard is in the block, because a request cannot set a list.
+        (
+            "[http.cors]\norigins = [\"*\"]\n",
+            "credentials = false",
+            "http.cors.credentials",
+            "true",
+            "credentials = true",
+        ),
+        (
+            "[http.cors]\norigins = [\"https://app.example\"]\n",
+            "credentials = true",
+            "http.cors.credentials",
+            "false",
+            "credentials = false",
+        ),
+        (
+            "[http.cors]\norigins = [\"https://app.example\"]\n",
+            "credentials = false",
+            "http.cors.credentials",
+            "true",
+            "credentials = true",
+        ),
+        // § 3, where the pair breaks from either of its two keys.
+        (
+            "[http.cookies]\nsame_site = \"None\"\n",
+            "secure = true",
+            "http.cookies.secure",
+            "false",
+            "secure = false",
+        ),
+        (
+            "[http.cookies]\nsecure = false\n",
+            "same_site = \"Lax\"",
+            "http.cookies.same_site",
+            "None",
+            "same_site = \"None\"",
+        ),
+        (
+            "[http.cookies]\nsecure = false\n",
+            "same_site = \"Lax\"",
+            "http.cookies.same_site",
+            "Strict",
+            "same_site = \"Strict\"",
+        ),
+    ];
+
+    let mut agreed = 0;
+    let mut refused = 0;
+    for (block, from, key, value, line) in moves {
+        // The starting tree boots, so what either mechanism then refuses is the move and never the
+        // ground it was made from.
+        let mut request = Request::new(snapshot_of(&format!("{block}{from}\n")));
+        let before = request.get(key);
+
+        let by_set = !request.set(key, value);
+        // The same assignment written into the file instead.
+        let by_boot = boot_refuses(&format!("{block}{line}\n"));
+
+        assert_eq!(
+            by_set, by_boot,
+            "`{key} = {value}` over `{block}` is refused by the boot ({by_boot}) and by \
+             `Core\\Config::set` ({by_set}); ADR 0074 §§ 2-3 make those one rule",
+        );
+        agreed += 1;
+        refused += usize::from(by_set);
+
+        if by_set {
+            assert_eq!(
+                request.get(key),
+                before,
+                "a refused `set` leaves the previous value in force (ADR 0005)",
+            );
+        } else {
+            assert_eq!(request.get(key).as_deref(), Some(value));
+        }
+    }
+
+    assert_eq!(agreed, moves.len());
+    // The positive control: without it a `set` that accepted everything and a boot that refused
+    // nothing would agree perfectly and this case would pass having tested nothing.
+    assert_eq!(
+        refused, 3,
+        "three of the six moves land on a meaningless pair; the other three are the controls",
+    );
+}

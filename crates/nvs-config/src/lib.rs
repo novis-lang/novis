@@ -60,6 +60,7 @@ pub mod cache;
 pub mod capability;
 pub mod directive;
 pub mod file;
+pub mod http;
 pub mod request;
 pub mod resolve;
 pub mod schedule;
