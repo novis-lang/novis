@@ -111,7 +111,7 @@ use rustc_hash::FxHashMap;
 
 use crate::expr_table::UrlPiece;
 use crate::testing::OptionTy;
-use crate::{Ctx, Env, span_text};
+use crate::{ConstArg, Ctx, Env, span_text};
 
 /// The enum a `method:` value is a case of, named once: [`OPTIONS`] places the
 /// written value at it, and [`verb_of`] reads the case back out of the same
@@ -388,8 +388,63 @@ pub struct Route {
     /// *code declares*, and a body's inferred type is not something an author
     /// wrote.
     pub returns: Option<String>,
+    /// [ADR 0085](../../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)
+    /// § 2's `tags`, in the order the attribute wrote them.
+    ///
+    /// Empty where the method carries no `#[Api]`, and empty where it carries
+    /// one that named no tags — the same value, because § 2's four are
+    /// *additions* and adding nothing is what both of those do. The emitter
+    /// omits an empty member for that reason rather than writing `[]`.
+    ///
+    /// One `#[Api]` describes the operation however many verbs the method
+    /// serves ([`check_class_routes`] asks for it once, beside `#[Access]`), so
+    /// every row a method produces carries the same four values.
+    pub tags: Vec<String>,
+    /// § 2's `security`: the scheme names, in written order and uninterpreted.
+    /// [`check_api`]'s docs own why a name is carried rather than compared
+    /// against a roster of configured schemes.
+    pub security: Vec<String>,
+    /// § 2's `errors`, in written order: the responses the declared return type
+    /// cannot state.
+    pub errors: Vec<ApiError>,
+    /// § 2's `example`, folded to the constant it is — a [`ConstArg::Shape`]
+    /// whose entries are the fields written, in written order.
+    ///
+    /// Folded here for [`Self::summary`]'s reason: what rides across is a value
+    /// with no resolution left in it, and a payload's constant form is
+    /// [ADR 0046](../../../../docs/adr/0046-attributes-shape-literal-metadata.md)
+    /// § 5's fold — a reading of the source, over that file's own imports, that
+    /// nothing past this pass can still make.
+    pub example: Option<ConstArg>,
     /// The whole attribute.
     pub span: Span,
+}
+
+/// One entry of [ADR 0085](../../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)
+/// § 2's `errors`: a response the declared return type cannot state, as the two
+/// halves § 2 writes it with.
+#[derive(Clone, Debug)]
+pub struct ApiError {
+    /// The response's own status code, which § 2 admits in `100..=599`.
+    pub status: u16,
+    /// The class the handler answers that status with, resolved — the spelling
+    /// [`Route::access`] carries a decision by, and for its reason: a written
+    /// name depends on the declaring file's imports, and the row outlives the
+    /// walk over that file.
+    pub class: String,
+}
+
+/// § 2's four values, read off one `#[Api]`.
+///
+/// Apart from [`Route`] because the attribute is a fact about the *method* and
+/// a row is per verb: [`check_api`] produces one of these, and each row the
+/// method declares takes its own copy of it.
+#[derive(Debug)]
+struct Api {
+    tags: Vec<String>,
+    security: Vec<String>,
+    errors: Vec<ApiError>,
+    example: Option<ConstArg>,
 }
 
 /// Where one of a route's parameters arrives from.
@@ -527,10 +582,11 @@ pub(crate) fn check_class_routes(
         // ADR 0085 § 2's annotation is a fact about the *method* — one
         // `#[Api]` describes the operation however many verbs it serves — so
         // it is asked once here beside `#[Access]`, and not per row.
-        if let Some(api) =
+        let mut api = None;
+        if let Some(attr) =
             crate::testing::attribute_named(&m.attributes, crate::derive::API, ctx, env)
         {
-            check_api(api, m, class, ctx, env);
+            api = Some(check_api(attr, m, class, ctx, env));
         }
         // § 1's summary and description, read once for the method: one doc
         // comment describes the operation however many verbs it serves, which
@@ -543,6 +599,7 @@ pub(crate) fn check_class_routes(
             label: &handler,
             doc: doc.as_ref(),
             returns: returns.as_deref(),
+            api: api.as_ref(),
         };
         for attr in routes {
             collect_route(attr, &handler, access, ctx, env);
@@ -804,20 +861,32 @@ pub(crate) fn check_stray_access(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<
 /// carried uninterpreted, exactly as ADR 0102 § 8 carries an access decision.
 /// The comparison lands in this function, unchanged, on the day a scheme has a
 /// home.
-fn check_api(api: &Attribute, m: &MethodMember, class: &QName, ctx: &Ctx<'_>, env: &mut Env<'_>) {
-    for option in [TAGS, SECURITY] {
-        check_string_list(api, option, env);
+///
+/// Each of the four walks hands back what it read, which is the whole of the
+/// recording half: a value only reaches [`Route`] once the walk that checks it
+/// has accepted it, so a row of a program that compiles never carries a value
+/// § 2 refused, and neither does the document built from one.
+fn check_api(
+    api: &Attribute,
+    m: &MethodMember,
+    class: &QName,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Api {
+    Api {
+        tags: check_string_list(api, TAGS, env),
+        security: check_string_list(api, SECURITY, env),
+        errors: check_api_errors(api, ctx, env),
+        example: check_api_example(api, m, class, ctx, env),
     }
-    check_api_errors(api, ctx, env);
-    check_api_example(api, m, class, env);
 }
 
 /// One `#[Api]` option written as an array of `string`s — [`TAGS`] and
 /// [`SECURITY`], which have the same shape and differ only in what a later
 /// pass will do with the strings.
-fn check_string_list(api: &Attribute, option: &str, env: &mut Env<'_>) {
+fn check_string_list(api: &Attribute, option: &str, env: &mut Env<'_>) -> Vec<String> {
     let Some(field) = written(api, option, env) else {
-        return;
+        return Vec::new();
     };
     let (value, span) = (field.value.clone(), field.span);
     let ExprKind::ArrayLiteral(items) = &value.kind else {
@@ -831,32 +900,32 @@ fn check_string_list(api: &Attribute, option: &str, env: &mut Env<'_>) {
             ),
             env,
         );
-        return;
+        return Vec::new();
     };
     let declared = env.interner.intern(crate::ty::Ty::String);
+    let mut names = Vec::with_capacity(items.len());
     for item in items {
         let entry = item.value.clone();
         let entry_span = entry.span;
-        if !matches!(
-            crate::defaults::literal_default(&entry, declared, env),
-            Some(crate::defaults::ConstArg::Str(_))
-        ) {
-            report_api(
+        match crate::defaults::literal_default(&entry, declared, env) {
+            Some(ConstArg::Str(name)) => names.push(name),
+            _ => report_api(
                 format!("this `{option}` entry is not a string"),
                 entry_span,
                 "not a string",
                 format!("every entry of `{option}` is a name, and a name is written as a string"),
                 env,
-            );
+            ),
         }
     }
+    names
 }
 
 /// § 2's `errors`: each entry a `{status, type}` whose `type` names a class
 /// this program declares.
-fn check_api_errors(api: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+fn check_api_errors(api: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Vec<ApiError> {
     let Some(field) = written(api, ERRORS, env) else {
-        return;
+        return Vec::new();
     };
     let (value, span) = (field.value.clone(), field.span);
     let ExprKind::ArrayLiteral(items) = &value.kind else {
@@ -868,9 +937,10 @@ fn check_api_errors(api: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
              `errors: [{...}]` even for one",
             env,
         );
-        return;
+        return Vec::new();
     };
     let int_ty = env.interner.intern(crate::ty::Ty::Int);
+    let mut recorded = Vec::with_capacity(items.len());
     for item in items {
         let entry = item.value.clone();
         let ExprKind::ObjectLiteral(fields) = &entry.kind else {
@@ -902,13 +972,19 @@ fn check_api_errors(api: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                 }
             }
         }
-        match &status {
+        let status = match &status {
             Some(field) => {
                 let written = field.value.clone();
-                if !matches!(
-                    crate::defaults::literal_default(&written, int_ty, env),
-                    Some(crate::defaults::ConstArg::Int(100..=599))
-                ) {
+                // Narrowed to `u16` here rather than at the row: § 2's range is
+                // what makes a status one, so the value the row carries is the
+                // one this walk accepted and nothing wider.
+                let code = match crate::defaults::literal_default(&written, int_ty, env) {
+                    Some(ConstArg::Int(code)) => u16::try_from(code)
+                        .ok()
+                        .filter(|code| (100..=599).contains(code)),
+                    _ => None,
+                };
+                if code.is_none() {
                     report_api(
                         "this `status` is not an HTTP status code".to_owned(),
                         field.span,
@@ -918,16 +994,20 @@ fn check_api_errors(api: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                         env,
                     );
                 }
+                code
             }
-            None => report_api(
-                "this `errors` entry declares no `status`".to_owned(),
-                entry.span,
-                "no `status`",
-                "§ 2's entry pairs a status with the type returned at it — an entry naming only \
-                 one of the two describes no response",
-                env,
-            ),
-        }
+            None => {
+                report_api(
+                    "this `errors` entry declares no `status`".to_owned(),
+                    entry.span,
+                    "no `status`",
+                    "§ 2's entry pairs a status with the type returned at it — an entry naming \
+                     only one of the two describes no response",
+                    env,
+                );
+                None
+            }
+        };
         let Some(ty) = ty else {
             report_api(
                 "this `errors` entry declares no `type`".to_owned(),
@@ -939,14 +1019,32 @@ fn check_api_errors(api: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
             );
             continue;
         };
-        check_error_type(&ty, ctx, env);
+        // Recorded only where both halves survived their own walk: an entry
+        // this section refused describes no response, and a document built out
+        // of a program that compiles never reaches one.
+        let Some(class) = check_error_type(&ty, ctx, env) else {
+            continue;
+        };
+        if let Some(status) = status {
+            recorded.push(ApiError { status, class });
+        }
     }
+    recorded
 }
 
 /// One `errors` entry's `type`, held to § 2's "a class the handler could
 /// produce" as far as [`check_api`]'s docs say that is askable: it names a
 /// class this program has.
-fn check_error_type(field: &nvs_syntax::ast::ObjectLiteralField, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+///
+/// The resolved name is handed back where the entry is one § 2 accepts, and
+/// `None` everywhere a refusal was reported or already had been — so what a row
+/// carries is exactly the set of responses this walk agreed the handler could
+/// produce.
+fn check_error_type(
+    field: &nvs_syntax::ast::ObjectLiteralField,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Option<String> {
     let (value, span) = (field.value.clone(), field.span);
     let ExprKind::ClassNameConst { class } = &value.kind else {
         report_api(
@@ -957,13 +1055,13 @@ fn check_error_type(field: &nvs_syntax::ast::ObjectLiteralField, ctx: &Ctx<'_>, 
              — a name resolves through ADR 0061's autoload map, which a string would not",
             env,
         );
-        return;
+        return None;
     };
     let Some(qname) = crate::expr::members::resolve_class_expr(class, ctx, env) else {
         // A dynamic class side is already `E_CLASS_NAME_CONST_NOT_STATIC` from
         // the expression walk, and naming it again here would report one
         // mistake twice.
-        return;
+        return None;
     };
     // Declared at all — asked of both tables, because neither holds every
     // kind: an enum has no [`nvs_hir::ClassGraph`] entry by construction, and
@@ -974,10 +1072,10 @@ fn check_error_type(field: &nvs_syntax::ast::ObjectLiteralField, ctx: &Ctx<'_>, 
     // resolves, and asking it again here would name the author's one mistake
     // twice.
     if env.graph.get(&qname).is_none() && env.signatures.get(&qname).is_none() {
-        return;
+        return None;
     }
     if env.graph.get(&qname).is_some_and(|links| links.concrete) {
-        return;
+        return Some(qname.to_string());
     }
     report_api(
         format!("`{qname}` is not a class a handler could produce"),
@@ -987,14 +1085,25 @@ fn check_error_type(field: &nvs_syntax::ast::ObjectLiteralField, ctx: &Ctx<'_>, 
          could ever be — write the concrete class the handler answers this status with",
         env,
     );
+    None
 }
 
 /// § 2's `example`, against the field roster ADR 0071's decoder reads: every
 /// key names a property of the return type.
-fn check_api_example(api: &Attribute, m: &MethodMember, class: &QName, env: &mut Env<'_>) {
-    let Some(field) = written(api, EXAMPLE, env) else {
-        return;
-    };
+///
+/// The fold that records it runs **before** that roster walk and independently
+/// of it: the three ways below to have no roster at all — a handler the
+/// signature table has no row for, a return type that is not a class, a class
+/// with no properties — are silence rather than a refusal, so a `#[Api]` on one
+/// of them still carries its example into the document.
+fn check_api_example(
+    api: &Attribute,
+    m: &MethodMember,
+    class: &QName,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Option<ConstArg> {
+    let field = written(api, EXAMPLE, env)?;
     let (value, span) = (field.value.clone(), field.span);
     let ExprKind::ObjectLiteral(fields) = &value.kind else {
         report_api(
@@ -1005,8 +1114,9 @@ fn check_api_example(api: &Attribute, m: &MethodMember, class: &QName, env: &mut
              `{field: value, …}`",
             env,
         );
-        return;
+        return None;
     };
+    let recorded = fold_example(fields, ctx, env);
     // The return type as the signature table holds it, which is the same
     // annotation ADR 0071's derive reads. Anything that is not a declared
     // class has no field roster to disagree with — see this module's
@@ -1018,17 +1128,17 @@ fn check_api_example(api: &Attribute, m: &MethodMember, class: &QName, env: &mut
         .and_then(|sig| sig.methods.get(method))
         .map(|sig| sig.return_ty)
     else {
-        return;
+        return recorded;
     };
     let crate::ty::Ty::Class(returns, _) = env.interner.get(returns).clone() else {
-        return;
+        return recorded;
     };
     let Some(properties) = env
         .signatures
         .get(&returns)
         .map(|sig| sig.properties.keys().cloned().collect::<Vec<_>>())
     else {
-        return;
+        return recorded;
     };
     for field in fields {
         let name = span_text(env.src, field.name).to_owned();
@@ -1045,6 +1155,37 @@ fn check_api_example(api: &Attribute, m: &MethodMember, class: &QName, env: &mut
             env,
         );
     }
+    recorded
+}
+
+/// § 2's `example` as the constant it is: one entry per written field, in
+/// written order, over the declaring file's own imports.
+///
+/// [ADR 0046](../../../../docs/adr/0046-attributes-shape-literal-metadata.md)
+/// § 5's fold, which is the same one a retrieval's payload goes through — so an
+/// enum case and a `Foo::class` in an example are the values they name rather
+/// than the text that names them, and the emitter is handed a document's worth
+/// of already-decided JSON.
+///
+/// A field with no constant form takes the whole example with it, and silently:
+/// `crate::attributes`' own walk over this payload has already refused a value
+/// that is not constant, and § 2 has four ways to be false without this one
+/// inventing a fifth.
+fn fold_example(
+    fields: &[nvs_syntax::ast::ObjectLiteralField],
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Option<ConstArg> {
+    let mut folded = Vec::with_capacity(fields.len());
+    for field in fields {
+        let name = span_text(env.src, field.name).to_owned();
+        let value = field.value.clone();
+        folded.push((
+            name,
+            crate::defaults::fold_constant_value(&value, Some(ctx), env)?,
+        ));
+    }
+    Some(ConstArg::Shape(folded))
 }
 
 /// One ADR 0085 § 2 contradiction, reported.
@@ -1088,6 +1229,7 @@ fn collect_route(
         label: handler,
         doc,
         returns,
+        api,
     } = *handler;
     let path = folded_str(attr, PATH, env);
     let verb = verb_of(attr, ctx, env);
@@ -1148,6 +1290,12 @@ fn collect_route(
         summary: doc.map(|doc| doc.summary.clone()),
         description: doc.and_then(|doc| doc.description.clone()),
         returns: returns.map(str::to_owned),
+        // § 2's four, copied per row: one `#[Api]` describes the operation
+        // however many verbs the method serves, and a row is per verb.
+        tags: api.map(|api| api.tags.clone()).unwrap_or_default(),
+        security: api.map(|api| api.security.clone()).unwrap_or_default(),
+        errors: api.map(|api| api.errors.clone()).unwrap_or_default(),
+        example: api.and_then(|api| api.example.clone()),
         span: attr.span,
     });
 }
@@ -1174,6 +1322,11 @@ struct Handler<'a> {
     doc: Option<&'a Doc>,
     /// § 1's response body: the declared return type, rendered.
     returns: Option<&'a str>,
+    /// § 2's four values as [`check_api`] read them, or `None` where the method
+    /// carries no `#[Api]` — borrowed rather than owned for this struct's own
+    /// reason: they are a fact about the method, and each row copies out the
+    /// four it needs.
+    api: Option<&'a Api>,
 }
 
 /// [ADR 0085](../../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)
