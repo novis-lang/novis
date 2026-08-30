@@ -1,0 +1,54 @@
+--TEST--
+`Core\Config::set('memory', …)` above the `[limits]` default moves the ceiling the runtime enforces, and `::restore` puts it back — ADR 0005, ADR 0020 § 1
+--FILE--
+<?nvs
+// The half of ADR 0005 a `false`-counting case cannot reach: an accepted set
+// has to *take effect*, not merely be echoed back by `get`. What proves it is
+// the allocation below — 64 MiB held live against a file that grants 16M. In a
+// tree where the request's cached ceiling did not move with the overlay, this
+// case does not print a wrong line, it dies at `Core\Str::repeat` with ADR
+// 0020 § 1's `FATAL`, which is exactly what the sibling case
+// `config-set-memory-above-the-hard-ceiling-is-refused-and-the-ceiling-in-force-stands.nvst`
+// pins deliberately.
+echo "default=", Core\Config::get("memory") ?? "unset", "\n";
+
+// Under the `[limits.hard]` ceiling of 256M, so ADR 0005's bound is not what is
+// being asked about here.
+echo "raised=", (Core\Config::set("memory", "192M") ? "ok" : "refused"), "\n";
+echo "value=", Core\Config::get("memory") ?? "unset", "\n";
+
+// Sixty-four slabs of 1 MiB, retained: the array holds every one, so this is
+// live bytes and not traffic. Four times the file's own grant and a third of
+// what the set asked for.
+array<string> $ballast = [];
+int $slabs = 0;
+while ($slabs < 64) {
+    $ballast[] = Core\Str::repeat("x", 1048576);
+    $slabs++;
+}
+echo "held=", Core\Arr::count($ballast), "\n";
+
+// And the ceiling moves back down, which is the same cache read the other way.
+// The ballast is dropped first because it has to be: `restore` puts 16M back in
+// force while 64 MiB is still live, and the next helper call would then breach a
+// ceiling this request had already been allowed to exceed. That ordering is a
+// property of the feature, not an awkwardness of the fixture — a request cannot
+// un-allocate by lowering its own limit.
+$ballast = [];
+Core\Config::restore("memory");
+echo "restored=", Core\Config::get("memory") ?? "unset", "\n";
+--FILE nvs.toml--
+# The grant this case raises itself above, and the ceiling it stays under. ADR
+# 0064 § 5 is the unit; `[limits] memory` is `Runtime`, so a request may move it
+# freely below `[limits.hard]`.
+[limits]
+memory = "16M"
+
+[limits.hard]
+memory = "256M"
+--EXPECT--
+default=16M
+raised=ok
+value=192M
+held=64
+restored=16M
