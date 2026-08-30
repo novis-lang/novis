@@ -12,6 +12,24 @@ Categories: **P** — a panic or abort (exit 101/127) where a diagnostic or a cl
 registry card disagree on behaviour; **M** — a member, class or feature the docs name that does not
 exist in the registry (or the reverse).
 
+## Triage — 2026-08-30
+
+Every item was decided against the ADR that owns it; the decisions that were open were put to the user
+and are folded into their ADRs (0006, 0007, 0033, 0047, 0071, 0090, 0091, 0094, 0103, 0107,
+`README.md` § *Decisions taken at project start*, `divergences.md`). The code and card work is **stage 0c
+of the running loop goal** — `docs/agent/loop-goal.md` items 31–35 — and it runs ahead of everything else
+in that goal. An item's owner is the row it sits in.
+
+| Verdict | Items | Owner |
+|---|---|---|
+| Code — the abort and the wrong answers a working program hits | P15, D34, D5, D25, U15, D24, D14, U11, D15 | item 31 |
+| Code — a panic or an acceptance where a refusal was owed | P2, P3, P6, P7, P8, P9, P10, P11, P12, P13, P14, P16, U18, U19, U20, M5, M8, M9, D30 | item 32 |
+| Code — modifiers and attributes parsed and not enforced | U1, U2, U3, U4, U5, U6, U12, U14, P5 | item 33 |
+| Code — lowering and library gaps | P1, P4, D1, D7, D8, D10, D12, D16, D17, D21, D22, D23, D27, D33, D35, U21, M1 | item 34 |
+| Docs in the tree — cards, help texts, module docs, reference chapters | M10, D2, D3, D4, D6, D9, D20, D29, U13, M2, M3, M4, M6, M7, and § *Facts worth keeping* | item 35 |
+| Planned, and unchanged by this pass | U7, U8, U9 (goal 3 items 11, 12, 17 — 11 and 17 widened to say so), U16 and D31 (goal 4), D11 (goal 6 item 19b), D28 (goal 3 stage 5) | the goal named |
+| Closed — the binary is right and the doc now says so | U10 (ADR 0103 § 6 states the `run`/`check`/`dump` exemption), U17 (ADR 0007 § 3: a bare `array` is `array<mixed>`), D13 (ADR 0006: capture is the default), D18 (ADR 0036 § 4), D19 (ADR 0047 § 3: `as` is the only narrowing), D26 (`divergences.md`), D32 (a validator does not launder) | — |
+
 ## Panics and aborts (P)
 
 - [ ] **P1** First-class callable syntax `Class::method(...)` / `$obj->method(...)` type-checks and
@@ -67,9 +85,9 @@ exist in the registry (or the reverse).
 - [ ] **U5** `Core\Secret::reveal` does not exist (E0405), yet the E0422/E0724 help texts tell the
       user to call it. No member returns `tainted` or `secret`; a value is qualified only where a
       declaration spells it. *types-probes*
-- [ ] **U6** `#[Command]` does not force `tainted string` on a positional parameter (`string $name`
-      compiles), accepts an instance method and an `int` return — ADR 0086 § 6 says static,
-      `void`/`uint`, tainted. *ref-attr `command-*`*
+- [ ] **U6** `#[Command]` accepts an instance method and an `int` return — ADR 0086 § 6 says static and
+      `void`/`uint`. (A positional parameter is *not* required to be `tainted`; that half of the original
+      finding was wrong.) *ref-attr `command-*`*
 - [ ] **U7** Under `nvs run` only `[limits] memory` is enforced: `wall_time = "1s"` with an infinite
       loop ran past 60 s, `cpu_time = "1s"` completed a 7 s loop, `max_output = "10"` let 28 bytes
       through. `Core\Fatal::onLimit`'s card lists all of them. *refp/cpu, refp/wall, refp/out*
@@ -78,7 +96,7 @@ exist in the registry (or the reverse).
 - [ ] **U9** `nvs config check`/`nvs run` do not validate quantities or ceilings: `memory = "12
       bananas"` and `[limits] memory = "1G"` over `[limits.hard] memory = "512M"` both pass and run.
       `tree.rs` says values are refused where sizes are parsed. *php-diff/config probes*
-- [ ] **U10** The config trust rule (a file writable by another account is refused) is applied by
+- [x] **U10** The config trust rule (a file writable by another account is refused) is applied by
       neither `nvs run` nor `nvs config check` — `crates/nvs-cli/src/config.rs` reserves it for
       `serve`/`ctl reload`, which do not exist. E0607/W1005 are unreachable in this binary.
 - [ ] **U11** `password_file` is not materialized under `nvs run`: `Core\Config::get("db.main.password")`
@@ -92,7 +110,7 @@ exist in the registry (or the reverse).
 - [ ] **U15** `nvs test --filter` does not select `#[Test]` methods — `--filter clock` ran all four
       tests; it filters `.nvst` paths only. *ref-probe/t1*
 - [ ] **U16** `#[Test(db: …)]` and `#[Test(server: …)]` are accepted and have no reader in the runner.
-- [ ] **U17** `array $a = [1, 2];` with no `<T>` is accepted (ground rules: every array declares its
+- [x] **U17** `array $a = [1, 2];` with no `<T>` is accepted (ground rules: every array declares its
       element type). *php-diff probes*
 - [ ] **U18** `<>` parses as `!=` — ADR 0090 § 1 says `==`/`!=` are the whole set. *ref30*
 - [ ] **U19** `try { … }` with neither `catch` nor `finally` is accepted (PHP refuses it). *ref30*
@@ -134,7 +152,7 @@ exist in the registry (or the reverse).
       found callable`); spec § 2 and ADR 0006 describe it as available. *refp/spawn/method.nvs*
 - [ ] **D12** `spawn script … with(args: …)` is accepted but there is no reader: `Core\Script::args()`
       is E0405, and the parser's own hint (`$_ARGS` → `Core\Script::args()`) names it. *refp/spawn/args.nvs*
-- [ ] **D13** `spawn script` default `output` is `'capture'`, not inherit. *refp/spawn/main.nvs*
+- [x] **D13** `spawn script` default `output` is `'capture'`, not inherit. *refp/spawn/main.nvs*
 - [ ] **D14** A child with no top-level `return` answers `value = int(1)`, not `null`. *refp/spawn/noret2*
 - [ ] **D15** `Core\Config::get("mode")` answers `null` and `set("mode", …)` returns `false`;
       `mode.default` works for both — ADR 0091 § 4 spells the bare `mode`.
@@ -144,10 +162,10 @@ exist in the registry (or the reverse).
       over them works. *q09b, r04b*
 - [ ] **D17** `Core\ObjectSet::union`/`intersect`/`diff` lose the element type: the result is a bare
       `Core\ObjectSet` (`foreach … as Tag $t` → "expected Tag, found T"). *ref-core-probes2*
-- [ ] **D18** `object` is not fully opaque: a method call through `object` is refused (E0477) but a
+- [x] **D18** `object` is not fully opaque: a method call through `object` is refused (E0477) but a
       property read compiles and resolves at run time ("`A` has no field `nope`" on a miss); the
       diagnostic cites ADR 0036 § 4, so this may be intended. *r02, s01*
-- [ ] **D19** A comparison (`$e == E::A || $e == E::B`) does not narrow an enum value to the
+- [x] **D19** A comparison (`$e == E::A || $e == E::B`) does not narrow an enum value to the
       case-union type; only `as E::A|E::B` does. *q06, r03b*
 - [ ] **D20** An empty shape `{}` is satisfied by every attached attribute literal, so a bare marker
       `#[Audited]` (`type Audited = {}`) is ambiguous (E0728) on a class with any other attribute.
@@ -162,7 +180,7 @@ exist in the registry (or the reverse).
 - [ ] **D25** A property default of `null` on a `?T` property is refused (E0472, "must be a `int|null`
       constant … not a constant of the declared type") — `null` is exactly such a constant. *probes2
       `nullable_default_int`, `nullable_default_class`*
-- [ ] **D26** `continue` (level 1) inside a `switch` inside a loop continues the enclosing loop — the
+- [x] **D26** `continue` (level 1) inside a `switch` inside a loop continues the enclosing loop — the
       documented Novis choice, but PHP acts as `break`; noted so the crosswalk row stays deliberate.
 - [ ] **D27** A shebang `#!` first line is **not** recognized: the line is HTML-mode text and is
       copied to the output. ADR 0100 says a file opening `#!` starts in code mode. *php-diff probes*
@@ -176,7 +194,7 @@ exist in the registry (or the reverse).
 - [ ] **D31** `Core\Cli\Text` has no members and no constructor (module doc: deliberate), so
       `Core\Str::length($text)` is refused while `echo`, `.` and `as string` accept it; ADR 0086
       gives it `plain`/`styled`/`+`.
-- [ ] **D32** `Core\Validate::isEmail` does not launder — `string $s = $in;` after a `true` answer is
+- [x] **D32** `Core\Validate::isEmail` does not launder — `string $s = $in;` after a `true` answer is
       still E0401 (may be intended; noted because a reader expects a validator to launder).
 - [ ] **D33** `assertSame($uintValue, 2)` is `E0401: expected uint, found int` — a literal beside a
       generic parameter does not adapt.
