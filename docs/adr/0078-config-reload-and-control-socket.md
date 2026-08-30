@@ -138,13 +138,17 @@ socket = "/run/nvs/control.sock"   # \\.\pipe\nvs-control on Windows; `false` di
 ```
 extension_set_hash = BLAKE3(sorted sha256 pins of the [[extension]] array)
 env_hash           = BLAKE3(target_triple ‖ cpu_feature_bitset ‖ compiler_version_hash ‖ extension_set_hash)
+content_hash       = BLAKE3(source_content)
+artifact_key       = BLAKE3(content_hash ‖ env_hash)
 ```
 
 `env_hash` replaces the three environment fields that [0042](0042-on-disk-artifact-cache-format.md) § 2
 carried separately, and is now carried by **both** caches:
 
-- **On disk** — the key becomes `BLAKE3(source_content ‖ env_hash)`, which closes the hole described in
-  *Context* and makes 0042's "never need invalidating for correctness" true rather than nearly true.
+- **On disk** — the key becomes `BLAKE3(content_hash ‖ env_hash)`, which closes the hole described in
+  *Context* and makes 0042's "never need invalidating for correctness" true rather than nearly true. It
+  is derived from the same `content_hash` the in-memory key carries, never from the source a second
+  time, so a unit's bytes are hashed once for both caches.
 - **In memory** — [0017](0017-hot-reload-without-restart.md)'s `UnitKey { path, content_hash }` becomes
   `UnitKey { path, content_hash, env_hash }`.
 

@@ -2,7 +2,7 @@
 //! and the writer that publishes one by a single atomic rename.
 //!
 //! § 1's layout is `<cache_dir>/<key[0..2]>/<key[2..]>.nvsc`, where the key is
-//! [`nvs_config::cache::artifact_key`]'s `BLAKE3(source_content ‖ env_hash)` spelled as 64 lowercase
+//! [`nvs_config::cache::artifact_key`]'s `BLAKE3(content_hash ‖ env_hash)` spelled as 64 lowercase
 //! hex characters. The fan-out exists so that a directory listing stays small enough for the
 //! platform to walk cheaply; nothing reads it on the hit path, and § 6's eviction is the only caller
 //! that ever will.
@@ -621,7 +621,7 @@ mod tests {
     use std::time::{Duration, SystemTime};
 
     use nvs_config::Config;
-    use nvs_config::cache::{artifact_key, env_hash};
+    use nvs_config::cache::{artifact_key, content_hash, env_hash};
 
     use super::*;
 
@@ -742,7 +742,7 @@ mod tests {
         let mut keys = Vec::new();
         for unit in 0..6u8 {
             let payload = vec![unit; 1024];
-            let key = artifact_key(&payload, cold.env());
+            let key = artifact_key(content_hash(&payload), cold.env());
             cold.store(key, &payload).expect("writable");
             age(&cold.path(key), u64::from(60 - unit));
             keys.push(key);
@@ -772,7 +772,7 @@ mod tests {
         // entries go — to the floor rather than to the cap, so the next store does not find work
         // again immediately.
         let payload = vec![0xEE; 1024];
-        let fresh = artifact_key(&payload, hot.env());
+        let fresh = artifact_key(content_hash(&payload), hot.env());
         hot.store(fresh, &payload).expect("writable");
 
         let left = total_size(&dir);
@@ -842,8 +842,8 @@ mod tests {
 
         let first = b"; the first unit's payload".as_slice();
         let second = b"; a second, different unit".as_slice();
-        let first_key = artifact_key(first, cache.env());
-        let second_key = artifact_key(second, cache.env());
+        let first_key = artifact_key(content_hash(first), cache.env());
+        let second_key = artifact_key(content_hash(second), cache.env());
 
         assert_eq!(
             cache.store(first_key, first).expect("writable"),
@@ -882,7 +882,7 @@ mod tests {
         // Content-addressed: the same bytes under the same environment are the same file, and
         // different bytes are a different one.
         assert_ne!(cache.path(first_key), cache.path(second_key));
-        assert_eq!(artifact_key(first, cache.env()), first_key);
+        assert_eq!(artifact_key(content_hash(first), cache.env()), first_key);
 
         // Immutable: a second store of the same key publishes nothing and leaves the bytes alone.
         let before = fs::read(cache.path(first_key)).expect("readable");
@@ -915,7 +915,7 @@ mod tests {
         let dir = scratch("concurrent");
         let cache = Cache::new(&dir, env()).expect("a scratch directory of this test's own");
         let payload = b"; the unit eight threads all compiled at once".as_slice();
-        let key = artifact_key(payload, cache.env());
+        let key = artifact_key(content_hash(payload), cache.env());
 
         let outcomes: Vec<Stored> = std::thread::scope(|scope| {
             let handles: Vec<_> = (0..8)
@@ -973,7 +973,7 @@ mod tests {
         let dir = scratch("verify");
         let cache = Cache::new(&dir, env()).expect("a scratch directory of this test's own");
         let payload = b"; a compiled unit's payload, long enough to have a middle".as_slice();
-        let key = artifact_key(payload, cache.env());
+        let key = artifact_key(content_hash(payload), cache.env());
 
         assert!(
             cache.load(key).is_none(),
@@ -1032,7 +1032,7 @@ mod tests {
         let dir = scratch("tampered");
         let cache = Cache::new(&dir, env()).expect("a scratch directory of this test's own");
         let payload = b"; the unit an attacker would like to replace".as_slice();
-        let key = artifact_key(payload, cache.env());
+        let key = artifact_key(content_hash(payload), cache.env());
         cache.store(key, payload).expect("writable");
 
         let path = cache.path(key);

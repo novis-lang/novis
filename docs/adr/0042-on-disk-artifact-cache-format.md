@@ -11,7 +11,8 @@
 - **Amended by:** 0078
 
 > **In short:** the disk cache is a directory of immutable files, one per compiled unit, addressed by
-> `BLAKE3(source content ‖ env_hash)`, where `env_hash` covers the target triple, the CPU feature bitset,
+> `BLAKE3(content_hash ‖ env_hash)` — the source's own digest, hashed once and shared with the in-memory
+> key, then the environment — where `env_hash` covers the target triple, the CPU feature bitset,
 > the compiler build and the loaded extension set — folding the
 > execution environment into the *address itself* rather than the *header*, so an artifact built for the
 > wrong machine, the wrong compiler build or a different set of extensions is a plain cache miss, never a
@@ -82,12 +83,24 @@
 <cache_dir>/<key[0:2]>/<key[2:]>.nvsc
 ```
 
-where `key = BLAKE3(source_content ‖ env_hash)` — the same
+where `key = BLAKE3(content_hash ‖ env_hash)` and `content_hash = BLAKE3(source_content)` — the same
 git-object/cargo-incremental-cache shape, chosen for the same reason: cheap to compute, no shared index to
 keep consistent, and a lookup miss costs exactly one failed `open`. Folding the environment into the key
 itself (not just the header) means an artifact from a different machine, a different CPU-feature set, a
 different compiler build or a different set of loaded extensions is never opened at all — it simply is not
 the file this process would look for.
+
+`content_hash` is computed **once** per unit and shared with
+[0017](0017-hot-reload-without-restart.md)'s in-memory `UnitKey`, so a unit's bytes cross BLAKE3 one
+time however many caches it lands in; the on-disk key is then a hash over 64 bytes. Both digests are
+cryptographic on purpose, and a faster non-cryptographic hash is not a drop-in here: § 4's "a path that
+already exists holds byte-identical content" is true only of a collision-resistant key, and one `nvs
+serve` shares one `env_hash` across every tenant's source
+([0080](0080-the-audience-nvs-is-built-for.md)), so a key a tenant could collide on purpose would hand
+their artifact to another tenant's request. The cost it would buy back is off the request path and small:
+measured 2026-08-30 on a Ryzen 7 7800X3D, portable BLAKE3 hashes a 16 KB source in 3 µs and verifies a
+256 KB artifact in 50 µs against M6's 10 ms warm-start budget, and XXH3 would save about 3 µs and 44 µs
+of that.
 
 `env_hash` is [0078](0078-config-reload-and-control-socket.md) § 4's single environment digest,
 `BLAKE3(target_triple ‖ cpu_feature_bitset ‖ compiler_version_hash ‖ extension_set_hash)`. The same value

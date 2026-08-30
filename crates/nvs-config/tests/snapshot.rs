@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
-use nvs_config::cache::{UnitKey, artifact_key, env_hash};
+use nvs_config::cache::{UnitKey, artifact_key, content_hash, env_hash};
 use nvs_config::resolve::{Files, Resolved, Roots, resolve};
 use nvs_config::snapshot::{Current, Snapshot};
 use nvs_config::trust::Untrusted;
@@ -430,10 +430,12 @@ fn pinned(pins: &[&str]) -> Arc<Snapshot> {
 }
 
 /// ADR 0078 § 4: one `env_hash` over the extension set, and **both** compiled-unit cache keys carry
-/// it — the on-disk `BLAKE3(source_content ‖ env_hash)` and the in-memory
+/// it — the on-disk `BLAKE3(content_hash ‖ env_hash)` and the in-memory
 /// `UnitKey { path, content_hash, env_hash }`. Asked of both keys together, because § 4's whole
 /// content is that they move as one: a key that kept the pre-§ 4 shape still looks right beside a
-/// case that only asks the other one.
+/// case that only asks the other one. The last block is § 4's "hashed once": both keys take the
+/// source's digest, and the on-disk key is a derivation of it rather than either input passed
+/// through.
 #[test]
 fn env_hash_is_carried_by_both_cache_keys() {
     let one = env_hash(&pinned(&["aa", "bb"]).config);
@@ -450,7 +452,7 @@ fn env_hash_is_carried_by_both_cache_keys() {
         "a dropped extension is one too",
     );
 
-    let source = b"<?nvs\necho 1;\n";
+    let source = content_hash(b"<?nvs\necho 1;\n");
     let path = p("srv/www/index.nvs");
 
     // On disk. Same source, two environments, two entries — which is the hole § 4 closes.
@@ -474,4 +476,15 @@ fn env_hash_is_carried_by_both_cache_keys() {
 
     // And it is the value itself that is carried, not a second derivation of the same inputs.
     assert_eq!(UnitKey::new(&path, source, one).env(), one);
+    assert_eq!(UnitKey::new(&path, source, one).content_hash(), source);
+
+    // The on-disk key is derived from the digest, not either input handed back.
+    let key = artifact_key(source, one);
+    assert_ne!(key, source, "the key is not the content hash");
+    assert_ne!(key, one.digest(), "the key is not the env hash");
+    assert_ne!(
+        key,
+        artifact_key(content_hash(b"<?nvs\necho 2;\n"), one),
+        "a changed source is a changed key",
+    );
 }

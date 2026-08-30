@@ -7,7 +7,14 @@
 //! ```text
 //! extension_set_hash = BLAKE3(sorted sha256 pins of the [[extension]] array)
 //! env_hash           = BLAKE3(target_triple ‖ cpu_feature_bitset ‖ compiler_version_hash ‖ extension_set_hash)
+//! content_hash       = BLAKE3(source)
+//! artifact_key       = BLAKE3(content_hash ‖ env_hash)
 //! ```
+//!
+//! **The source is hashed once.** Both keys carry [`content_hash`], and the on-disk key is derived
+//! from that digest rather than from the source a second time, so a unit's bytes cross BLAKE3 exactly
+//! once however many caches it lands in; [`artifact_key`] itself runs over 64 bytes. Both digests are
+//! cryptographic on purpose — [ADR 0042] § 1 says what a merely fast hash would give up.
 //!
 //! **Both keys are built here, in the crate that holds the extension set**, rather than each in the
 //! cache that uses it. The two caches live in two other crates and answer the same question; § 4's
@@ -21,7 +28,9 @@
 //!
 //! Cost: one BLAKE3 pass over a few dozen bytes plus one per `[[extension]]` entry, per
 //! [`env_hash`] call. It is a snapshot's value, not a unit's — a caller computes it when it
-//! publishes a snapshot and carries it into every key built against that snapshot.
+//! publishes a snapshot and carries it into every key built against that snapshot. [`content_hash`]
+//! is one pass over the source, per unit; [`artifact_key`] and [`UnitKey::new`] then read none of
+//! the source at all.
 //!
 //! **Known gap: `compiler_version_hash` is the release version, so two builds of the same version
 //! share it.** A developer who rebuilds the compiler without bumping [`CARGO_PKG_VERSION`](env)
@@ -107,13 +116,21 @@ pub fn env_hash(config: &Config) -> EnvHash {
     EnvHash(Digest(*hasher.finalize().as_bytes()))
 }
 
-/// [ADR 0042] § 2's on-disk key, as [ADR 0078] § 4 rekeyed it: `BLAKE3(source_content ‖ env_hash)`.
+/// `BLAKE3(source)` — the one pass over a unit's bytes, which both cache keys are then built from.
+pub fn content_hash(source: &[u8]) -> Digest {
+    Digest(*blake3::hash(source).as_bytes())
+}
+
+/// [ADR 0042] § 1's on-disk key, as [ADR 0078] § 4 rekeyed it: `BLAKE3(content_hash ‖ env_hash)`.
+///
+/// Both inputs are fixed 32-byte digests, so neither needs [`feed`]'s length prefix to keep them
+/// apart.
 ///
 /// [ADR 0042]: ../../../docs/adr/0042-on-disk-artifact-cache-format.md
 /// [ADR 0078]: ../../../docs/adr/0078-config-reload-and-control-socket.md
-pub fn artifact_key(source: &[u8], env: EnvHash) -> Digest {
+pub fn artifact_key(content: Digest, env: EnvHash) -> Digest {
     let mut hasher = blake3::Hasher::new();
-    hasher.update(source);
+    hasher.update(content.as_bytes());
     hasher.update(env.0.as_bytes());
     Digest(*hasher.finalize().as_bytes())
 }
@@ -130,11 +147,12 @@ pub struct UnitKey {
 }
 
 impl UnitKey {
-    /// The key `path` holding `source` has under `env`.
-    pub fn new(path: &Path, source: &[u8], env: EnvHash) -> Self {
+    /// The key `path` has under `env` when its source hashes to `content` — [`content_hash`]'s
+    /// value, carried rather than recomputed so the source is read once.
+    pub fn new(path: &Path, content: Digest, env: EnvHash) -> Self {
         Self {
             path: path.to_path_buf(),
-            content_hash: Digest(*blake3::hash(source).as_bytes()),
+            content_hash: content,
             env,
         }
     }
