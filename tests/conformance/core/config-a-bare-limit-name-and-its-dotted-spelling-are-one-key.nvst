@@ -1,0 +1,34 @@
+--TEST--
+A bare limit name and its `[limits]` spelling are one key to every `Core\Config` member — ADR 0064 § 5, ADR 0005
+--FILE--
+<?nvs
+// ADR 0005 writes one limit in five places — `[limits]`, `[limits.hard]`,
+// `[app.limits]`, `[app.limits.hard]` and the bare name a `set` uses — so
+// `Core\Config` resolves a dotless limit name in `[limits]`, the block the
+// request-settable default is stated in. The four members share that one
+// rule, which is what this case asks: a `set` through one spelling is a `get`
+// through the other, and a `restore` through either undoes it.
+
+// Nothing is in force yet: a case runs where there is no `nvs.toml`.
+echo "before=", Core\Arr::count(Core\Config::all()), "\n";
+
+Core\Config::set("memory", "64M");
+echo "bare=", Core\Config::get("memory") ?? "unset", "\n";
+echo "dotted=", Core\Config::get("limits.memory") ?? "unset", "\n";
+
+// One key, so one entry — and it is filed under the dotted name the file
+// would have written, not under the bare one the `set` used.
+echo "all=", Core\Arr::count(Core\Config::all()), "\n";
+
+// `restore` reads the name the same way, so the dotted spelling undoes the
+// bare one's set.
+Core\Config::restore("limits.memory");
+echo "after=", Core\Config::get("memory") ?? "unset", "\n";
+echo "left=", Core\Arr::count(Core\Config::all()), "\n";
+--EXPECT--
+before=0
+bare=64M
+dotted=64M
+all=1
+after=unset
+left=0

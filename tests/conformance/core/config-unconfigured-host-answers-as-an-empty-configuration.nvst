@@ -1,0 +1,46 @@
+--TEST--
+`Core\Config`'s four members on a host with no configuration file at all — ADR 0064 § 5, ADR 0103 § 1 step 3, ADR 0005
+--FILE--
+<?nvs
+// A case runs in a working directory of its own with no `nvs.toml` in it, so
+// this is ADR 0103 § 1 step 3's host: the shipped defaults, which are a
+// complete and valid configuration and not a failure to find one. Every member
+// of ADR 0064 § 5's API has to have an answer on it, and none of them throws —
+// there is nothing in this file to `catch`.
+
+// Nothing states `[limits] memory`, so nothing is in force for it.
+echo "get=", Core\Config::get("memory") ?? "unset", "\n";
+
+// ADR 0005: `[limits]` states the default and `[limits.hard]` the ceiling. With
+// neither stated there is no ceiling to exceed, so a `Runtime` directive moves
+// freely — the same rule that stops the set at `512M` on a host whose operator
+// wrote one.
+if (Core\Config::set("memory", "512M")) {
+    echo "set=ok", "\n";
+} else {
+    echo "set=refused", "\n";
+}
+echo "after=", Core\Config::get("memory") ?? "unset", "\n";
+
+// A `System` directive is refused whatever the tree says, because the class
+// answers *who may set it* before any ceiling is consulted.
+if (Core\Config::set("cache.dir", "/tmp/nvs")) {
+    echo "system=ok", "\n";
+} else {
+    echo "system=refused", "\n";
+}
+
+// `restore` puts the file's own value back — here, nothing.
+Core\Config::restore("memory");
+echo "restored=", Core\Config::get("memory") ?? "unset", "\n";
+
+// And `all` is what the request can see: the overlay it has just emptied, over
+// a tree with nothing in it.
+echo "all=", Core\Arr::count(Core\Config::all()), "\n";
+--EXPECT--
+get=unset
+set=ok
+after=512M
+system=refused
+restored=unset
+all=0

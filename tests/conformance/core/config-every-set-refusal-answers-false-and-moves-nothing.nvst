@@ -1,0 +1,37 @@
+--TEST--
+Every `Core\Config::set` refusal answers `false` and leaves the value in force untouched — ADR 0005, ADR 0064 § 5
+--FILE--
+<?nvs
+// ADR 0005: a set the changeability class or a ceiling refuses returns `false`
+// and leaves the value in place. Both halves are asserted here, because the
+// half a bare `false` does not prove is that nothing moved — a member that
+// refused *and* wrote would print identically on the first three lines.
+Core\Config::set("memory", "128M");
+
+// Not a quantity in the unit `memory` takes. The value has to spell the same
+// thing the boot path would have accepted out of the file.
+echo "unit=", (Core\Config::set("memory", "soon") ? "ok" : "refused"), "\n";
+
+// `System`: `nvs.toml` is the only place it can be set, and the class answers
+// that before any ceiling is consulted.
+echo "system=", (Core\Config::set("opcache.validate", "false") ? "ok" : "refused"), "\n";
+
+// And a name no directive row governs at all: `Core\Config` is the registry's
+// surface, not a per-request string map.
+echo "unknown=", (Core\Config::set("no.such.directive", "1") ? "ok" : "refused"), "\n";
+
+// What survived all three: the one accepted set, and nothing else.
+echo "value=", Core\Config::get("memory") ?? "unset", "\n";
+echo "all=", Core\Arr::count(Core\Config::all()), "\n";
+
+// None of which stops `restore` from putting the file's own value back — here,
+// on a host with no file, nothing.
+Core\Config::restore("memory");
+echo "restored=", Core\Config::get("memory") ?? "unset", "\n";
+--EXPECT--
+unit=refused
+system=refused
+unknown=refused
+value=128M
+all=1
+restored=unset

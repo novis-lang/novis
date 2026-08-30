@@ -2692,8 +2692,8 @@ is why" — is this file.
   legible. Both are invisible until the case runs, and the second one passes review.
 - **A `.nvst` case configures the run it makes through `--FILE <path>--`, and a scratch probe at the
   repo root does not.** `Core\Router::urlAbsolute` reads ADR 0102 § 6's origin out of `[app] origin`
-  in `./nvs.toml` — the *working directory's*, `configured_origin` at
-  `crates/nvs-cli/src/main.rs:520` — and both `router.rs`' gap 2 and the one case that existed read
+  in `./nvs.toml` — the *working directory's*, resolved by `boot_snapshot` at
+  `crates/nvs-cli/src/main.rs:610` — and both `router.rs`' gap 2 and the one case that existed read
   as though that made the answering half unreachable off the command line. It is not:
   `crates/nvs-test/src/run.rs` runs every case in a private temporary directory and writes each
   `--FILE <path>--` section into it before the case, so `--FILE nvs.toml--` is the mount a CLI run
@@ -2875,6 +2875,17 @@ is why" — is this file.
   writing `root = "srv/www/shop"` into `conf.d/shop.toml` is keyed on `conf.d/srv/www/shop`, and the
   refusal it gets is `E0605 cannot read` — which reads as a broken fixture rather than as § 5 doing
   exactly what it says. Write the `..` the operator would have to write.
+- **A `--FILE nvs.toml--` section is now read by the real configuration reader, so an invalid one
+  fails the whole case before the program starts.** The bullet above is still true about *where* it
+  is mounted; what changed is who parses it. Three router-origin cases had been written against the
+  line scanner that preceded `boot_snapshot` and held `[[app]]` blocks with no `root` or `entry`, a
+  root-level `origin`, an `[server] origin` and an `[app.dev]` sub-table — every one of which ADR
+  0064 § 3's typed tree refuses outright. The failure is `E0601`/`E0609` on stderr and an *empty*
+  stdout, so it reads as the program having produced nothing rather than as a fixture problem. Two
+  further rules a fixture has to keep: every `[[app]]` needs `root` or `entry` (§ 1 keys a block on
+  an entry file path), and two blocks may not carry the same key (§ 2 has no order between them, so
+  it refuses rather than picking). `entry = "nvs.toml"` is a legal narrower key that matches no
+  program, which is the shape a "this block must not apply" decoy wants.
 
 ## Splitting a file that got too big
 

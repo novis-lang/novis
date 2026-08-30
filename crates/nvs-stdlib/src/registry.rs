@@ -1051,6 +1051,11 @@ pub const CLASSES: &[CoreClass] = &[
     // ADR 0088 § 5. [`crate::cli`]'s module docs own why the rest of
     // `Core\Cli` is not here.
     crate::cli::TEXT,
+    // ADR 0064 § 5, and no spec § of its own: `ini_get`'s family are free
+    // functions in PHP, so what replaces them is decided by the configuration
+    // format's ADR rather than by the library spec. [`crate::config`] owns why
+    // every member of it is four lines long.
+    crate::config::CLASS,
 ];
 
 /// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)

@@ -212,6 +212,7 @@ mod bytes;
 mod channel;
 pub mod cldr;
 mod cli;
+mod config;
 mod csv;
 mod cursor;
 mod debug;
@@ -309,6 +310,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| attributes::address(symbol))
         .or_else(|| bytes::address(symbol))
         .or_else(|| channel::address(symbol))
+        .or_else(|| config::address(symbol))
         .or_else(|| csv::address(symbol))
         .or_else(|| cursor::address(symbol))
         .or_else(|| debug::address(symbol))

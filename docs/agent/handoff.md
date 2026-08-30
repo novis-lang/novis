@@ -2,65 +2,58 @@
 
 ## State
 
-**ADR 0064 § 5's one parser is landed, and ADR 0104 § 3's bound with it.**
-`crates/nvs-config/src/value.rs` is the parser: `Quantity::parse(key, unit, setting)` reads a
-size, a duration, a count, a ratio or the `false` that removes a ceiling, and `Quantity::within`
-is the comparison. `crates/nvs-config/src/app.rs:137`'s `bound` is its first caller — it runs in
-`resolve` right after `canonicalize`, and refuses `E0610` for an `[app.limits]` value or an
-`[app.limits.hard]` ceiling above the global `[limits.hard]`. 82 tests in the crate, 10 new in
-`tests/value.rs` and 4 in `tests/app.rs`.
+**ADR 0064 § 5's `Core\Config` is on disk end to end, and the driver's `examples/config.nvs` check
+passes** — `memory=256M / set ok / set refused / still=512M`, off this repository's own `nvs.toml`.
+The chain is four hops and each owns its own rule: `nvs run` resolves the tree in `boot_snapshot`
+(`crates/nvs-cli/src/main.rs:610`), `Snapshot::build` folds the matching `[[app]]` blocks over it,
+`Ctx::set_config` (`crates/nvs-runtime/src/ctx.rs`) gives the request the one `Arc` clone ADR 0078
+§ 1 allows it, and `nvs_config::request::Request` holds that snapshot plus the copy-on-write
+overlay. `crates/nvs-stdlib/src/config.rs`'s four members are marshalling and nothing else — every
+rule about names, classes and ceilings lives in `request.rs`'s module doc.
 
-**The parse is directed by the unit, and the unit comes from the key.** `m` is mega under a size
-and minutes under a duration, and a bare `600` is bytes under one and seconds under the other, so
-nothing in the spelling can decide it: `value::unit_of` decides once for both the boot path and
-`Core\Config::set`. It is keyed on the key's **last segment** inside a limits block, because one
-limit is written in five places — `[limits]`, `[limits.hard]`, `[app.limits]`,
-`[app.limits.hard]` and the bare `memory` a `set` names — and a ceiling that parsed differently
-from the value it bounds would compare two different quantities. The module doc owns the rest;
-adding a sixth limit is one row in `unit_of` and one in `app::ceilings`.
+**One decision is recorded in code and not in an ADR, deliberately.** `nvs run` reads the tree
+through `LocalFiles` (`crates/nvs-cli/src/main.rs:560`), which does **not** apply ADR 0103 § 6's
+ownership check; `Disk` still does, and `nvs serve`/`nvs ctl reload` will use it. That type's own
+doc comment carries the three-part argument, the shortest of which is that § 6 itself names the
+Windows default this repository sits on. Nothing is granted out of the unchecked tree today —
+`[capabilities]` is enforced nowhere — so Stage 4's reserved ADR slot is where it is settled rather
+than here.
 
-**Two things § 3 does not state are deliberately unchecked**, recorded in `bound`'s own doc: a
-per-app default above the block's own lowered ceiling, and the same shape globally. Both are
-incoherent rather than unsafe — the value in force is still bounded by the ceiling the request is
-held to — so refusing them would be inventing a rule.
+`configured_origin`'s hand-rolled one-key `nvs.toml` scanner is gone: ADR 0102 § 6's origin now
+comes off the snapshot, so it is the origin of the blocks that actually match the entry file.
 
-**`origin_note` has one home now**, `crates/nvs-config/src/resolve.rs:177`, `pub(crate)` beside
-`Origin`. It was copied in `app.rs` and `secret.rs` and this slice would have been the third.
-
-**The acceptance check still fails on `examples/config.nvs` — `Core\Config` has no `get`.** Still
-an open item and not a regression: the members have never existed, and they are now the only
-thing between this goal and that check. Nothing else blocks.
+`orient.py` did not print ADR 0064 § 5, which is this group's own specification — `[context] adrs`
+wants `0064:5`, and `0103:1` for the roots the next group needs.
 
 ## Next group
 
-**`Core\Config`'s four members — ADR 0064 § 5's API, and the request-local overlay under them.**
-One file set: a new `crates/nvs-stdlib/src/config.rs`, `crates/nvs-stdlib/src/registry.rs:984`
-(`CLASSES`), `crates/nvs-runtime/src/ctx.rs:246` (`Ctx`), and `crates/nvs-stdlib/Cargo.toml`.
-**Read `AGENTS.md`'s *A `Core` member — the five edits* before starting**; `examples/config.nvs`
-is the program the driver's check runs and its four output lines are frozen in `loop-goal.toml`.
+**`nvs config` and `--config` — ADR 0103 §§ 1 and 9, the last of Stage 2 still open.** One file
+set: `crates/nvs-cli/src/main.rs` (the `Command` enum at `:107`, `LocalFiles` at `:560`,
+`boot_snapshot` at `:610`), a new `crates/nvs-cli/src/config.rs` for the subcommand's own body, and
+`crates/nvs-config/src/resolve.rs:246` (`roots`) with `crates/nvs-config/src/snapshot.rs:83`
+(`origins`) behind it. Everything the first two need is already there; neither adds a crate.
 
-- [ ] **A request reaches its snapshot.** No crate outside `nvs-config` depends on it today —
-      that is the first thing to change, and where the `Arc<Snapshot>` a request clones
-      (`crates/nvs-config/src/snapshot.rs:263`'s `Current::load`) is held is the decision:
-      `Ctx` at `crates/nvs-runtime/src/ctx.rs:246` is cold-half material, and ADR 0078 § 1 says
-      the clone happens once at request start, never per read.
-- [ ] **`Core\Config::get` and `all` read it.** ADR 0064 § 5 — values cross as `string` in both
-      directions, so a `Setting` renders back the way it was written
-      (`crates/nvs-config/src/value.rs`'s `as_written` is that, `pub(crate)` today).
-- [ ] **`set` and `restore` write the copy-on-write overlay.** ADR 0005 through
-      `crates/nvs-config/src/directive.rs:128`'s `lookup` for the class, then
-      `crates/nvs-config/src/value.rs:217`'s `within_ceiling` for the ceiling — the same call
-      `bound` makes, which is the whole reason the parser is one implementation. A refused set
-      returns `false` and leaves the value in place; it does not throw (goal § *Standing
-      decisions*).
+- [ ] **`nvs config check <file>...`** — ADR 0103 § 9. `loop-goal.toml:1725`'s `command` check is
+      the acceptance: `nvs config check tests/config/duplicate-key.toml` exits non-zero and prints
+      both `duplicate` and `duplicate-key.toml:`. The fixture exists; the refusal already carries
+      its span, so this is `boot_snapshot`'s resolve half plus `render_diagnostics`.
+- [ ] **`nvs config dump [--origin]`** — the same section's other half: every key in force, and
+      with `--origin` the file each was written in. `Snapshot::origins` is that map by dotted key
+      and `Snapshot::overrides` is § 3's record, both already populated.
+- [ ] **Repeatable `--config <path>`** — § 1 step 1, which `roots` already takes a flag list for
+      and which `boot_snapshot` passes `&[]` to. It belongs on `run`, `check` and `dump` alike, and
+      an explicit one disables step 2 entirely.
 
 ## Backlog
 
-- Item 18's `Core\Secret::reveal()` is not in the registry — `crates/nvs-stdlib/src/registry.rs`.
-- `Live::admit`'s same-class check asks the answer, not the argument — `nvs-runtime/src/graph.rs`.
-- Item 22's `Core\Script` members are unwritten — `crates/nvs-stdlib/src/script.rs`.
-- A `[limits]` default above its own `[limits.hard]` is unchecked, globally and per-app; ADR 0005
-  states no rule for it — decide and record before `Core\Config::set` reads the pair.
-- ADR 0104 has no `Validated by:` field though `tests/app.rs` now holds §§ 1-3's claims.
-- `orient.py` reported `[context] modules` pattern `crates/nvs-host/src/budget.rs` matching no
-  module — the file moved or the glob is wrong, in `docs/agent/loop-goal.toml`.
+- Stage 4 item 10's ADR slot: where a capability check sits — and with it whether a CLI run may be
+  granted anything out of a tree read without § 6 (`crates/nvs-cli/src/main.rs`'s `LocalFiles`).
+- `nvs-host` still runs on compiled-in defaults, so a limit a request moved is visible to
+  `Core\Config::get` and not yet to what enforces it (`crates/nvs-config/src/lib.rs`'s module doc).
+- A `RuntimeTighten` directive that is not a quantity — `[capabilities]` — cannot be set at all;
+  `crates/nvs-config/src/request.rs`'s module doc owns why refusing is the safe direction.
+- `nvs test <program>` and `crates/nvs-cli/src/script.rs` build a `Ctx` with no configuration, so a
+  `#[Test]` method and a spawned script both read an empty one.
+- Item 18's `Core\Secret::reveal()` is still not in the registry, though `Qual::Reveal` is decided.
+- `Live::admit`'s same-class check is asked of the answer and not of the argument
+  (`crates/nvs-runtime/src/graph.rs` § *Known gaps*).
