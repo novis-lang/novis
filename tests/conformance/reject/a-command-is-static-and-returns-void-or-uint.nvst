@@ -1,0 +1,41 @@
+--TEST--
+A `#[Command]` method is `static` and returns `void` or `uint` — ADR 0086 § 6
+--FILE--
+<?nvs
+// § 6's example writes both facts, and its dispatch requires the first: the
+// compiled table holds a `Class::method` string and no constructor arguments
+// anywhere in it, so there is no instance for a handler to be called on.
+class Deploy {
+    #[Core\Command(name: "deploy", about: "push the current build")]
+    public function deploy(string $target): uint { return 0; }
+}
+
+// The second is `Core\Command::run(): uint` read backwards — a handler answers
+// with the process exit status, and `void` is the status 0 it answers with when
+// there is nothing to report.
+class Release {
+    #[Core\Command(name: "release", about: "ship it")]
+    public static function release(string $target): string { return $target; }
+}
+
+// Both shapes § 6 admits, so the refusals above are about those two
+// declarations rather than about the attribute.
+class Build {
+    #[Core\Command(name: "build", about: "compile everything")]
+    public static function build(): uint { return 0; }
+
+    #[Core\Command(name: "clean", about: "delete the artifacts")]
+    public static function clean(): void {}
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0789]: the `#[Command]` method `deploy` is not `static`
+  --> case.nvs:7:21
+%A
+error[E0789]: the `#[Command]` method `release` returns `string`
+   --> case.nvs:15:28
+%A
+error: aborting due to 2 errors

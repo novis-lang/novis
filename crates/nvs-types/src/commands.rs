@@ -216,14 +216,82 @@ pub(crate) fn check_class_commands(
             continue;
         }
         // Once for the method, however many names it answers to: the options
-        // are a fact about the parameter list, so asking per attribute would
-        // report one collision once per alias.
+        // and the declaration's shape are both facts about the method, so
+        // asking either per attribute would report one mistake once per alias.
+        check_command_shape(m, class, env);
         let args = check_options(m, class, ctx, env);
         let handler = format!("{class}::{}", span_text(env.src, m.name));
         for attr in commands {
             collect_command(attr, &handler, &args, env);
         }
     }
+}
+
+/// ADR 0086 § 6's two facts about the *declaration* a `#[Command]` sits on: it
+/// is `static`, and it returns `void` or `uint`.
+///
+/// The return half is § 6 in prose — `Core\Command::run(): uint` is the entry
+/// point and a handler answers with the process status or with nothing, which
+/// is status 0. `static` is the half § 6's example writes and its dispatch
+/// requires: this table's row carries a `Class::method` string and no
+/// constructor arguments anywhere in it, so a handler has no instance to be
+/// called on, and § 6's one deliberate divergence from ADR 0077 is that this
+/// table *dispatches* rather than stopping at the match.
+///
+/// Read off the resolved signature rather than off `m`'s modifier list, and
+/// silent for a method the signature table has no row for, both for
+/// [`crate::testing`]'s `check_method_shape`'s reasons: an omitted visibility
+/// keyword is already its own diagnostic, and a method missing from the table
+/// is a name `nvs_syntax` is already refusing. `m` supplies the span, since a
+/// `Modifier` records none of its own and neither refusal is about the body.
+///
+/// A method that writes **no** return type is left alone here — ADR 0007 § 3
+/// requires one everywhere and its absence is already reported, so naming it
+/// again as a wrong one would tell the author about a `mixed` they never wrote.
+fn check_command_shape(m: &MethodMember, class: &QName, env: &mut Env<'_>) {
+    let method = span_text(env.src, m.name).to_owned();
+    let Some(sig) = env
+        .signatures
+        .get(class)
+        .and_then(|class_sig| class_sig.methods.get(&method))
+    else {
+        return;
+    };
+    let (is_static, return_ty) = (sig.is_static, sig.return_ty);
+    if !is_static {
+        report_command_shape(
+            m,
+            &method,
+            "is not `static`",
+            "a command is dispatched by name off the compiled table, which holds no instance to \
+             call one on, so declare it `static`",
+            env,
+        );
+    }
+    if m.return_type.is_some() && !matches!(env.interner.get(return_ty), Ty::Void | Ty::Uint) {
+        let returned = env.interner.describe(return_ty);
+        report_command_shape(
+            m,
+            &method,
+            &format!("returns `{returned}`"),
+            "a command answers with the process exit status `Core\\Command::run` returns, so \
+             declare `: uint` — or `: void` for one that always succeeds",
+            env,
+        );
+    }
+}
+
+/// One [`code::E_COMMAND_METHOD_SHAPE`], worded from what the declaration did —
+/// [`crate::testing`]'s `report_shape` arrangement, for its reason.
+fn report_command_shape(m: &MethodMember, method: &str, did: &str, help: &str, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_COMMAND_METHOD_SHAPE,
+            format!("the `#[Command]` method `{method}` {did}"),
+        )
+        .with_primary(m.name, did)
+        .with_help(help.to_owned()),
+    );
 }
 
 /// One `#[Command]` payload as a row, or the refusal that it is not one.
