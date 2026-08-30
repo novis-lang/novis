@@ -43,6 +43,10 @@ nvs-runtime.workspace = true
 # (`nvs_stdlib::granularity`), not a re-implementation of it — the same reason
 # the arithmetic guards compile the real fixture.
 nvs-stdlib.workspace = true
+# The isolation bench's third arm measures ADR 0006's boundary itself rather
+# than the coroutine standing in for it, and `nvs_host::Isolate` is that
+# boundary — the same reason the granularity guard above links the real seam.
+nvs-host.workspace = true
 
 [[bench]]
 name = "abi"

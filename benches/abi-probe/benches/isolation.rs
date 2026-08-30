@@ -13,9 +13,19 @@
 //!   isolate is a task with an arena and a fresh set of globals; this is the task
 //!   part, and it is deliberately the same measurement as in `coroutine.rs` so
 //!   that the ratio comes from one bench run rather than from two.
+//! * `isolate/spawn_to_result` — the thing itself, now that M5 and M6 have
+//!   landed it: `nvs_host::Isolate::run`, which copies the argument across the
+//!   heap boundary, builds the child's own ownership root and context, runs it
+//!   as a child task, copies the answer back and releases the root. It is the
+//!   figure [M5's acceptance](../../../docs/plan/m5.md) asks for, and the gap
+//!   between it and `task/create_and_finish` is what the boundary itself costs
+//!   over the coroutine underneath it.
 //!
-//! The arena and globals are not built yet (M5/M6). When they are, the isolate's
-//! own end-to-end figure belongs here next to the baseline it beats.
+//! The child here is a closure rather than a compiled unit, deliberately: a
+//! compiled one would measure `nvs-cli`'s unit cache instead, and the cache is
+//! warm by construction in the shape ADR 0006 sells — one path spawned many
+//! times. What is left is the boundary, plus the one `Box` a resolver allocates
+//! per spawn, which a real `spawn script` pays too.
 
 // `criterion_group!` expands to an undocumented public function.
 #![allow(missing_docs)]
@@ -25,6 +35,12 @@ use std::time::Duration;
 
 use criterion::{Criterion, criterion_group, criterion_main};
 use nvs_abi_probe::{Ctx, in_coroutine, process};
+
+// The same source the guard in `tests/perf_guards.rs` compiles, so the bench and
+// the guard cannot drift apart; that file's own doc owns why it lives outside
+// `src/`.
+#[path = "../shared/isolate.rs"]
+mod isolate;
 
 fn isolation_boundary(c: &mut Criterion) {
     let mut group = c.benchmark_group("isolation");
@@ -43,6 +59,14 @@ fn isolation_boundary(c: &mut Criterion) {
             let run = in_coroutine(Ctx::new(), |_ctx| black_box(7i64));
             black_box(run.value)
         });
+    });
+
+    // `iter_custom` rather than `iter`: the round trip has to happen inside a
+    // task or it takes the boundary's no-scheduler path instead, and the shared
+    // module's doc owns that argument. Criterion asks for a batch and is told
+    // what the batch cost.
+    group.bench_function("isolate/spawn_to_result", |b| {
+        b.iter_custom(isolate::spawn_to_result_batch);
     });
 
     group.finish();

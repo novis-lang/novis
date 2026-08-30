@@ -15,6 +15,7 @@
 //! | `tests/wasm_sandbox.rs` | the sandbox guarantees of [ADR 0003](../../../docs/adr/0003-extension-system.md) |
 //! | `tests/perf_guards.rs` | order-of-magnitude regressions in the quoted costs |
 //! | [`process`] | the cost of the child process that [ADR 0006](../../../docs/adr/0006-isolated-script-execution.md) replaces with an in-process isolate |
+//! | `shared/isolate.rs` | the cost of the in-process isolate it is replaced *with* — the other half of that comparison, outside this library because it needs the compiler crates and those are dev-only |
 //! | `benches/*` | the quoted costs themselves, tracked over time |
 //! | `examples/callgrind_spike.rs` | the callgrind-instruction-count premise of [ADR 0026](../../../docs/adr/0026-performance-measurement-methodology.md)'s historical performance dashboard — Linux/WSL only, see that ADR |
 //!
