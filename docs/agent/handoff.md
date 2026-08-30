@@ -2,65 +2,67 @@
 
 ## State
 
-**The acceptance regression is closed, and it was never a leak.** `valgrind examples/serialize.nvs`
-reported 96 bytes in two blocks; both are the fixture's own reference cycles, which a refcounting
-runtime with no cycle collector cannot reclaim. The fixture breaks its rings before it exits, its four
-frozen lines are unchanged, and the sweep is green. The playbook's *Running things* bullet owns the
-shape so the next session does not re-open `graph.rs` for it.
+**Stage 8's corpus count is 992 of 1000** — 8 cases left, all `min_passing` owes. Three landed this
+session, all under `tests/conformance/core/` and with no Rust change, all on `Core\Csv`: quoting
+minimality (a writer that quoted every field satisfies the existing round-trip case exactly as
+well), the `{header: …}` round trip the module doc names as a *composition* of the two members, and
+the dialect rule asked of `parse` and `format` together with the `escape` byte only the reader has.
+`Core\Csv` has moved from 5 cases to 8.
 
-**Stage 8's corpus count is 989 of 1000** — 11 cases left, all `min_passing` owes. Three landed this
-session, all under `tests/conformance/core/` and with no Rust change: `Core\Task\Channel`'s
-close-boundary refusal (`send` after `close` is a fatal no `catch` sees) and its capacity sweep, and
-`Core\Debug::dump`'s variadic arity boundary (no arguments writes nothing at all). `Core\Task\Channel`
-has moved from the thinnest class in the tree, depth 4.0, to 6.0.
-
-**A handoff's ranking goes stale the moment a case lands, so re-run `python tools/gaps.py` rather than
-taking the group's order on faith.** Last session's item 2, `Core\Serialize`, was already at gaps.py's
-floor before this session opened, and `Core\Arr`, `Core\Math`, `Core\Bytes` and `Core\Uuid` all rank
-above it now. The group below is that tool's current top rows, not last session's.
+**The item this session was handed was already on disk, and so was most of the group.** `Core\Uuid`'s
+*agreement* slice — one sweep asked of `parse` and `tryParse` together, counted rather than read off
+a line — is `uuid-tryparse-and-parse-are-one-reader.nvst`, and
+`uuid-every-draw-round-trips-and-a-refusal-quotes-boundedly.nvst` asserts it a second time beside the
+draw sweep and the 48-character quote bound. The same held for items 3 and 4: `Core\Hash\Stream`'s
+close boundary is in `hash-streams-a-digest-in-chunks.nvst:36-45` and `Core\Math`'s `lcm` and `hypot`
+each have a dedicated identity case. **Do not take another group from `gaps.py`'s depth ranking**
+without checking each row — the playbook's new *Tooling* bullet owns why it stopped working and what
+replaces it.
 
 **Three known gaps carry forward unchanged**, each recorded where its code is: item 18's
 `Core\Secret::reveal()` is not in the registry (`nvs_types::expr::quals`); `Live::admit`'s same-class
 check is asked of the answer and not of the argument (`crates/nvs-runtime/src/graph.rs` § *Known
 gaps*); item 22's `Core\Script` members are unwritten (`crates/nvs-stdlib/src/script.rs`).
 
-**Orientation gaps.** `[context] modules` still has no pattern for `crates/nvs-cli/src/` and none for
-`benches/abi-probe/`, now five sessions old. New this session: nothing selects
-`crates/nvs-stdlib/src/{channel,debug,uuid,csv,hash,math}.rs`, `crates/nvs-test/src/lib.rs` (the
-`.nvst` section table, which a case using `--EXPECTF-ERROR--` needs) or
-`crates/nvs-runtime/src/object.rs` — the last of which owns the decision the acceptance failure turned
-on.
+**Orientation gaps.** `[context] modules` still has no pattern for `crates/nvs-cli/src/` or
+`benches/abi-probe/`, now six sessions old, and none for
+`crates/nvs-stdlib/src/{csv,hash,heap,uuid,math,debug,random,validate,bytes}.rs` — every module this
+session had to read. `[context] shapes` does not print the `.nvst` *runner* invocation
+(`./target/debug/nvs.exe test <path>`), which is in the playbook's *Running things* and is what a
+corpus session uses on every case.
 
 ## Next group
 
-**The corpus count: 989 to 1000, taken as the thinnest classes `gaps.py` ranks *now*.** One file set,
-`tests/conformance/core/`, and no Rust changes — so several fit in one session under the 120k gate.
-Each names the shape from conventions.md's four with the most room left on that class.
+**The corpus count: 992 to 1000, taken by the method the playbook's new *Tooling* bullet names —
+a claim a module's `//!` doc or a `MethodDoc` card argues for, with no case asserting it.** One file
+set, `tests/conformance/core/`, and no Rust changes, so several fit under the 120k gate. Check each
+with one `grep -rln '<the member>' tests/conformance/core/` before writing; that is the whole triage.
 
-- [ ] **`Core\Uuid` — depth 5.0, floor 3, 11 cases over 5 members.** `tryParse`
-      (`crates/nvs-stdlib/src/uuid.rs:148`), `parse` (`:139`), `v7` (`:130`). *Agreement*: one sweep of
-      inputs asked of `parse` and `tryParse` together, asserting the two never disagree about what is a
-      UUID rather than what either answered — a `tryParse` that grew its own validation fails here and
-      looks right on its own line.
-- [ ] **`Core\Csv` — depth 5.0 over 5 cases and two members.** `parse`
-      (`crates/nvs-stdlib/src/csv.rs:145`), `format` (`:154`). *Invariance over a sweep*: every quoting
-      edge — an embedded delimiter, a quote, a newline, a leading space, an empty field — round-trips
-      through `format` then `parse`, counted rather than read off a line.
-- [ ] **`Core\Hash\Stream` — depth 5.0 over 5 cases.** `update`
-      (`crates/nvs-stdlib/src/hash.rs:447`), `finish` (`:456`). *Agreement*: the same bytes fed in one
-      chunk, in two, and byte at a time must all equal the one-shot digest, so a stream that lost or
-      double-counted a boundary fails while every single chunking still hashes plausibly.
-- [ ] **`Core\Math` — depth 5.0, floor 3.** `lcm` (`crates/nvs-stdlib/src/math.rs:165`), `hypot`
-      (`:192`), `atan2` (`:273`). *Edges*: `python tools/gaps.py --errors` lists the boundaries none of
-      these three is asked about.
+- [ ] **`Core\Bytes` — `unpack` 3 cases, `at` 4, `repeat` 4.** Read the module doc and the
+      `UNPACK_DOC`/`PACK_DOC` cards (`crates/nvs-stdlib/src/bytes.rs:1467` is `pack`'s format
+      refusal) for the format-string claims. *Agreement*: `pack` then `unpack` over a table of every
+      format character the pair accepts, counted — a format that grew its own width fails there and
+      reads plausibly on its own line.
+- [ ] **`Core\Validate` — `isAscii`, `isDomain`, `isEmail` at 5 cases each.** Its members share one
+      rule (a total predicate over any `string`, never a throw). *Agreement*: every subject of one
+      table asked of all three, asserting that a subject `isEmail` accepts has a domain half
+      `isDomain` accepts — the composition, which no single-member case can see.
+- [ ] **`Core\Debug` — `dump` 4 cases, `render` 8, and ADR 0033's refusal.** The two members share
+      one renderer; *agreement* is that `dump($x)` writes exactly what `render($x)` returns, over a
+      table covering every tag. `crates/nvs-stdlib/src/debug.rs` owns the claim.
+- [ ] **`Core\Random` — `float` 4, `token` 4, `int` 5.** *A bound asserted on both sides*: `int`'s
+      inclusive endpoints and the empty range, and `float`'s half-open interval — the last value it
+      can answer and the first it cannot, named together.
 
 ## Backlog
 
-- `Core\Serialize` and `Core\Task\Channel` are both at gaps.py's floor now — they come back only if it
-  rises (`python tools/gaps.py`).
+- `gaps.py` could rank by *unasserted module-doc claims* rather than by cases per member; the depth
+  column has stopped finding room (playbook § *Tooling*).
+- `Core\Csv::format` has no `escape` option, so asking for one is a compile error no running case can
+  assert — an `--EXPECTF-ERROR--` case if it is worth one (`crates/nvs-stdlib/src/csv.rs:542`).
 - Item 18: `Core\Secret::reveal()` is not in the registry — `nvs_types::expr::quals`.
 - Item 22: `Core\Script`'s members are unwritten — `crates/nvs-stdlib/src/script.rs`.
 - `Live::admit` checks the answer's class, not the argument's — `crates/nvs-runtime/src/graph.rs`
   § *Known gaps*.
-- `[context] modules` needs patterns for `nvs-cli`, `benches/abi-probe`, the `nvs-stdlib` member
-  modules and `nvs-runtime/src/object.rs` — `docs/agent/loop-goal.toml`.
+- `loop-goal.toml`'s `[context] modules` is missing every `nvs-stdlib` class module a corpus session
+  reads, plus `crates/nvs-cli/src/` and `benches/abi-probe/`.

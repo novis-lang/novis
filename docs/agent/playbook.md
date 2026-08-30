@@ -970,6 +970,25 @@ is why" — is this file.
   rand::Rng` parameter compiles and then offers `next_u64` and nothing else —
   `crates/nvs-stdlib/src/random.rs`'s `Generator` newtype is the way round it, and its doc says
   why a generic parameter is not.
+- **`gaps.py`'s depth column is cases per *member*, so a class with two members looks thin however
+  deeply each one is tested — and the corpus is now dense enough that the ranking's top rows are
+  mostly this artefact.** Every one of its first eight rows was checked this way and `Core\Uuid`,
+  `Core\Hash\Stream`, `Core\Heap`, `Core\Math`, `Core\Arr`'s floor-3 trio and four of `Core\Csv`'s
+  five claims already had the case the item asked for — the *agreement* shape included, which the
+  handoff named as "the shape with the most room left". Four sessions' worth of items have been
+  written off the same ranking, which is how it went stale without anyone noticing. **What still
+  finds room is the opposite direction: read a module's `//!` doc and its `MethodDoc` cards for a
+  claim stated in prose, then `grep -rln` `tests/conformance/core/` for a case that asserts it.**
+  Three of the four claims `crates/nvs-stdlib/src/csv.rs`'s module doc makes had no case at all —
+  quoting *minimality*, the `{header: …}` round trip it names as a composition, and the dialect rule
+  being one rule both members are asked — and each was one case. A claim a module doc bothers to
+  argue for is a claim someone thought could go wrong; that is a better worklist than a median.
+
+- **A variable lowers inside a `Core` options shape.** `{separator: $sep, quote: $quote}` and
+  `{header: $names}` both compile, so a dialect or a header sweep can be driven from a table rather
+  than from one literal per row — which is what makes an agreement case over nine dialects one loop
+  instead of eighteen pasted calls. Probed with `nvs run` before the three `Core\Csv` cases were
+  written.
 
 ## Running things
 
