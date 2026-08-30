@@ -56,12 +56,12 @@
 > output and wall-time caps are enforced: `budget` counts held and written bytes, a breach is a
 > `FATAL`, `max_script_depth` refuses the spawn past it, and one store expires a whole tree; § 1's
 > tier 1 is handed the limit's name, and fires once inside the reserve; ADR 0078 § 4 keys both
-> caches. Stage 5 has ADR 0042 §§ 1-6, bar its warm-start bench, in `crates/nvs-cli/src/cache.rs`,
-> whose *Known gaps* decides a payload. **Stage 8 is closed at both counts**: conformance is 1011,
-> differential is 206 over its 205 floor , and `isolation.rs` measures `nvs_host::Isolate` itself
-> with a guard beside it. Two known gaps, each recorded where its code is: item 18's
-> `Core\Secret::reveal()` is not in the registry; `Live::admit`'s same-class check is asked of the
-> answer and not of the argument (`crates/nvs-runtime/src/graph.rs` § *Known gaps*).
+> caches. Stage 5 has ADR 0042 §§ 1-6,  in `crates/nvs-cli/src/cache.rs`, whose *Known gaps* decides
+> a payload. **Stage 8 is closed at both counts**: conformance is 1011, differential is 206 over its
+> 205 floor , and `isolation.rs` measures `nvs_host::Isolate` itself with a guard beside it. Stage
+> 5's own check passes: `tools/bench.py --warm-start` reports the CLI's floor at 6.7 ms against the
+> 10 ms budget. Stage 6 has ADR 0073 §§ 1-3's six boot refusals in
+> `crates/nvs-config/src/schedule.rs`, all `E0611`.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

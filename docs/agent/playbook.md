@@ -1381,6 +1381,12 @@ is why" — is this file.
   containing directory carries the same rule. Account names are localized — `icacls <path>` prints the
   spelling this machine uses. Ask the user before changing a machine's ACLs; a scratch tree under
   `%TEMP%` passes the check as it is, which is where `crates/nvs-config/tests/trust.rs` works.
+- **`tools/bench.py --warm-start` measures `target/release/nvs.exe`, and nothing builds it.** Stage 5's
+  acceptance check runs the bench with no `--nvs`, so on a machine that has only ever built debug it
+  fails with `no Novis binary at …` rather than with a number — `cargo build --release -p nvs-cli`
+  once is the fix, and the header of `bench.py` says why the harness refuses to build anything itself.
+  A release binary older than `crates/` still measures: the staleness warning goes to stderr and the
+  check stays green, so a start-up regression can hide behind a binary nobody rebuilt.
 
 ## Writing a test case
 
