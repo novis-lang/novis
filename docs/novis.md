@@ -13491,7 +13491,7 @@ Moves the fixed clock a `#[Test(at: ...)]` declared forward by `$by`, so a test 
 <a id="core-core-task"></a>
 ### `Core\Task`
 
-Keywords: curl_multi_*, structured concurrency, parallel, concurrent, child task, fan-out, limit, deadline, TimeoutError, cancellation, all, map, all, map
+Keywords: curl_multi_*, structured concurrency, parallel, concurrent, child task, fan-out, limit, deadline, TimeoutError, cancellation, all, map, all, map, afterResponse
 
 `Core\Task` runs closures as concurrent child tasks and never returns while one is still running.
 `all` takes a shape literal whose fields are written `fn` literals and answers a shape with the same
@@ -13537,6 +13537,7 @@ deadline hit
 |---|---|
 | [`Core\Task::all`](#core-core-task-all) | `all({name: callable, ...} $tasks, {limit?: uint, deadline?: Core\Time\Duration}): S` |
 | [`Core\Task::map`](#core-core-task-map) | `map(array<T> $items, callable $fn, {limit?: uint, deadline?: Core\Time\Duration}): array<U>` |
+| [`Core\Task::afterResponse`](#core-core-task-afterresponse) | `afterResponse(callable $fn, {deadline?: Core\Time\Duration}): void` |
 
 <a id="core-core-task-all"></a>
 #### `Core\Task::all`
@@ -13576,6 +13577,24 @@ Calls `$fn` once per element of `$items`, each call a concurrent child task, and
 **Returns** `array<U>` — An `array<U>` under `$items`'s keys in `$items`'s order, empty for an empty subject; control never leaves the call with a child still running, and the first child to throw cancels every sibling and propagates as itself once they are gone.
 
 **Throws** `LogicError` — When `limit` is `0`, which admits no child and so is a group that could never finish.; `TimeoutError` — When `deadline` expires before every child has returned; every child is cancelled first, and the call waits for those cancellations.
+
+<a id="core-core-task-afterresponse"></a>
+#### `Core\Task::afterResponse`
+
+```nvs skip
+Core\Task::afterResponse(callable $fn, {deadline?: Core\Time\Duration}): void
+```
+
+Runs `$fn` once the request's own execution is over, still charged to the request tree — for receipts, webhooks, cache warming and audit shipping. **This is not a queue**: nothing is durable, nothing retries, and a process that dies loses the work with no record.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$fn` | `callable` | What to run. It takes no arguments and its answer is discarded; a throw out of it is logged and reaches no `catch`, because the request that registered it is over. |
+| `{deadline: …}` | `Core\Time\Duration` (default `null`) | A wall-clock bound on this closure; omitted, `[deferred] deadline` is the bound. `[limits] wall_time` is what the client waited for and no longer applies, while every other `[limits]` value still bounds the tree. |
+
+**Returns** `void` — Nothing. Registering is request-local, the registrations run in the order they were made, and a request that ended by a throw, an `exit` or a `FATAL` runs none of them.
+
+**Throws** `RuntimeError` — When the call is not the request's own task — a `Core\Task` child, a spawned isolate, or deferred work itself, none of which has a queue anything would drain. Hand the work back to the request that started you and register it there.
 
 <a id="core-core-task-channel"></a>
 ### `Core\Task\Channel<T>`
@@ -15008,6 +15027,7 @@ long-running host — at a reload, or only at boot.
 | `server` | operator only — a request cannot change it | at boot only |
 | `opcache` | operator only — a request cannot change it | at reload |
 | `deferred.max_concurrent` | operator only — a request cannot change it | at reload |
+| `deferred.deadline` | a request may retune it, up to the `[limits.hard]` ceiling | at reload |
 | `extension` | operator only — a request cannot change it | at reload |
 | `schedule` | operator only — a request cannot change it | at reload |
 | `app` | operator only — a request cannot change it | at reload |
