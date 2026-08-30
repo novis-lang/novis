@@ -28,7 +28,7 @@
 //!   member of it can be reached.
 
 use nvs_hir::QName;
-use nvs_hir::interfaces::{ITERABLE, ITERATOR};
+use nvs_hir::interfaces::{COMPARABLE, ITERABLE, ITERATOR};
 use nvs_stdlib::registry::{CLASSES, Const, CoreTy, OPTIONS_NAME, Qual};
 use rustc_hash::FxHashMap;
 
@@ -73,6 +73,16 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
         // `$match->groups` is an unknown member and `$match->groups()` is the
         // member. `nvs_stdlib::registry::CoreTy::Instance` owns why.
         table.seed_class(qname.clone(), FxHashMap::default(), methods);
+        // ADR 0013's `Comparable`, which a `Core` class satisfies by carrying
+        // the member rather than by naming the interface —
+        // `nvs_stdlib::registry::implements_comparable` owns why, and seeding
+        // it here is what lets `$a < $b` reach the same
+        // `crate::expr::operators::object_comparison_result` a user class's
+        // `implements Comparable` reaches. No arguments: the interface takes
+        // none (`nvs_hir::interfaces::RESERVED`).
+        if nvs_stdlib::registry::implements_comparable(class.name) {
+            table.seed_implements(qname.clone(), QName::parse(COMPARABLE), Vec::new());
+        }
         // The one thing a `Core` class says about a hierarchy, and it says it
         // to `foreach`: `nvs_stdlib::registry::ITERABLES` is the roster, and a
         // row's element may be one of the class's own type variables, which

@@ -1,0 +1,51 @@
+--TEST--
+`<`, `>`, `<=`, `>=` and `<=>` order two durations, instants, dates or clock readings, and agree with `compareTo` — ADR 0013 §§ 2-4, spec § 4
+--FILE--
+<?nvs
+// ADR 0013 § 2's rule reaches `Core` through the *member*: a `Core` class
+// writes no `implements` clause, so `nvs_stdlib::registry::implements_comparable`
+// reads the `compareTo` row instead and `nvs_types::core_lib` seeds the
+// conformance the operator asks for. Spec § 4 gives all four of these types
+// the member.
+Core\Time\Duration $short = 30s;
+Core\Time\Duration $long = 1h30m;
+echo $short < $long ? "lt" : "ge", "\n";
+echo $long <=> $short, "\n";
+
+Core\Time\Instant $earlier = Core\Time::now();
+Core\Time\Instant $later = $earlier->plus(1s);
+echo $earlier < $later ? "lt" : "ge", "\n";
+
+Core\Time\Date $newYear = Core\Time\Date::at(2026, 1, 1);
+Core\Time\Date $today = Core\Time\Date::at(2026, 8, 30);
+echo $newYear < $today ? "lt" : "ge", "\n";
+echo $today <=> $today, "\n";
+
+Core\Time\TimeOfDay $open = Core\Time\TimeOfDay::at(9, 0);
+Core\Time\TimeOfDay $close = Core\Time\TimeOfDay::at(17, 30);
+echo $close > $open ? "gt" : "le", "\n";
+echo $open >= $close ? "ge" : "lt", "\n";
+
+// Agreement, counted: `$a < $b` and `$a->compareTo($b) < 0` are one question
+// asked two ways, and a type that grew a comparison of its own would still
+// print plausibly on its own row above.
+int $agree = 0;
+if (($short < $long) == ($short->compareTo($long) < 0)) { $agree = $agree + 1; }
+if (($earlier < $later) == ($earlier->compareTo($later) < 0)) { $agree = $agree + 1; }
+if (($newYear < $today) == ($newYear->compareTo($today) < 0)) { $agree = $agree + 1; }
+if (($open < $close) == ($open->compareTo($close) < 0)) { $agree = $agree + 1; }
+echo $agree, "\n";
+
+// A freshly built operand is borrowed by the comparison and released by this
+// frame — `nvs_ir::lower::operator::lower_object_comparison` owns that edge.
+echo Core\Time\Date::at(2026, 1, 1) < $today ? "lt" : "ge", "\n";
+--EXPECT--
+lt
+1
+lt
+lt
+0
+gt
+lt
+4
+lt

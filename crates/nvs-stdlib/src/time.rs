@@ -85,16 +85,19 @@
 //!    an `extern "C"` frame is resumed rather than unwound; `nvs_host`'s
 //!    scheduler module doc owns that decision.
 //! 4. **`Comparable` and `Stringable` are satisfied by member, not by
-//!    declaration.** The spec says a `Duration` implements both and an
-//!    `Instant` implements `Comparable`; `compareTo` and `toString` are
-//!    registered and behave exactly as those interfaces require, but
-//!    `nvs_types`' reserved interfaces carry no member signatures yet, so
-//!    `$a < $b` is still refused and `$d->compareTo($e)` is the spelling that
-//!    works. `"took " . $d` is not: ADR 0028 § 1's rendering is decided by the
-//!    registered `toString` rather than by a declaration, through
-//!    `nvs_types::expr::operators::require_stringable` where the operand's
-//!    type names this class and `nvs_stdlib::instance`'s descriptor renderer
-//!    where it names none.
+//!    declaration** — and the member is the whole of it, because a `Core` class
+//!    writes no `implements` clause anywhere. `Duration`, `Instant`, `Date` and
+//!    `TimeOfDay` each register `compareTo`, which is what
+//!    `nvs_stdlib::registry::implements_comparable` reads and
+//!    `nvs_types::core_lib` seeds ADR 0013 § 2's conformance from, so `$a < $b`
+//!    orders two of them and lowers to that same member —
+//!    `nvs_ir::lower::operator::lower_object_comparison` takes the `Core`
+//!    branch, since a helper symbol has no entry in any compiled method table.
+//!    `"took " . $d` is the same story one interface along: ADR 0028 § 1's
+//!    rendering is decided by the registered `toString` rather than by a
+//!    declaration, through `nvs_types::expr::operators::require_stringable`
+//!    where the operand's type names this class and `nvs_stdlib::instance`'s
+//!    descriptor renderer where it names none.
 //!
 //! # What these members do with a qualifier
 //!

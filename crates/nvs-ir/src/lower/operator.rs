@@ -130,10 +130,11 @@ impl<'a> Lowering<'a> {
     /// releases every refcounted parameter at scope exit, and a fresh one
     /// (`new Point(1) < $p`) simply transfers the reference it already has.
     ///
-    /// It always dispatches on the receiver's runtime class:
+    /// A compiled class dispatches on the receiver's runtime class:
     /// `Comparable::compareTo` is a bodiless interface method, so the resolved
     /// declaration names no compiled function — the same `has_body: false`
-    /// path an interface method call already takes.
+    /// path an interface method call already takes. A `Core`-owned class takes
+    /// the other branch instead, and the comment on it owns why.
     pub(crate) fn lower_object_comparison(
         &mut self,
         op: BinaryOp,
@@ -150,6 +151,8 @@ impl<'a> Lowering<'a> {
             .has_body
             .then(|| format!("{}::{}", call.class, call.method));
         let method = call.method.clone();
+        let core = nvs_types::core_symbol_of(&call.class, &call.method);
+        let mark = self.temporaries_mark();
         let (lv, lty) = self.lower_expr(lhs, None, env, cur);
         let (rv, rty) = self.lower_expr(rhs, None, env, cur);
         assert!(
@@ -157,24 +160,57 @@ impl<'a> Lowering<'a> {
             "nvs-ir: `nvs_types` recorded a `Comparable::compareTo` target for a comparison \
              whose operands lowered to {lty:?}/{rty:?} rather than two objects"
         );
-        for (v, operand) in [(lv, lhs), (rv, rhs)] {
-            if self.aliasing_read(operand) {
-                self.emit_retain(*cur, v);
+        let ordering = if let Some(symbol) = core {
+            // A `Core`-owned class satisfies `Comparable` by carrying the
+            // member (`nvs_stdlib::registry::implements_comparable`), and that
+            // member is native Rust behind a helper symbol with no entry in
+            // any compiled method table — so the dispatch below would find
+            // nothing to call. The same `InstKind::CoreCall`
+            // `Lowering::lower_method_call` emits for `$d->compareTo($e)`
+            // written out, with the receiver in argument slot 0.
+            //
+            // The ownership rule inverts with it: a `Core` member **borrows**
+            // every argument, so an operand read out of a binding is retained
+            // by nobody here, and a freshly built one (`Core\Time::now() <
+            // $deadline`) is this frame's temporary to release — the opposite
+            // of the transferring branch below.
+            for (v, operand) in [(lv, lhs), (rv, rhs)] {
+                if !self.aliasing_read(operand) {
+                    self.own_temporary(v);
+                }
             }
-        }
-        let (desc, _) = self.emit(*cur, Ty::ClassDesc, InstKind::ClassDescOf { object: lv });
-        let (ordering, _) = self.emit_fallible(
-            *cur,
-            Ty::Int,
-            InstKind::CallVirtual {
-                lsb: desc,
-                method,
-                fallback,
-                receiver: Some(lv),
-                args: vec![rv],
-            },
-            env,
-        );
+            let (ordering, _) = self.emit_fallible(
+                *cur,
+                Ty::Int,
+                InstKind::CoreCall {
+                    symbol,
+                    args: vec![lv, rv],
+                },
+                env,
+            );
+            self.release_temporaries_since(mark, *cur);
+            ordering
+        } else {
+            for (v, operand) in [(lv, lhs), (rv, rhs)] {
+                if self.aliasing_read(operand) {
+                    self.emit_retain(*cur, v);
+                }
+            }
+            let (desc, _) = self.emit(*cur, Ty::ClassDesc, InstKind::ClassDescOf { object: lv });
+            let (ordering, _) = self.emit_fallible(
+                *cur,
+                Ty::Int,
+                InstKind::CallVirtual {
+                    lsb: desc,
+                    method,
+                    fallback,
+                    receiver: Some(lv),
+                    args: vec![rv],
+                },
+                env,
+            );
+            ordering
+        };
         if op == BinaryOp::Cmp {
             return (ordering, Ty::Int);
         }

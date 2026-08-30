@@ -414,8 +414,8 @@ pub(crate) fn object_comparison_result(
         );
         return Some(env.interner.mixed());
     }
-    let comparable = QName::parse("Comparable");
-    if !nvs_hir::implements_interface(&lhs_q, &comparable, env.graph) {
+    let comparable = QName::parse(nvs_hir::interfaces::COMPARABLE);
+    if !reaches_comparable(&lhs_q, &comparable, env) {
         report_comparable_diagnostic(
             span,
             format!(
@@ -443,6 +443,21 @@ pub(crate) fn object_comparison_result(
         BinaryOp::Cmp => env.interner.int(),
         _ => env.interner.bool_ty(),
     })
+}
+
+/// Whether `qname` reaches `Comparable` — **two tables, because a `Core` class
+/// declares nothing.** [`nvs_hir::implements_interface`] answers for a written
+/// `implements Comparable` and for the reflexive case (a value typed at the
+/// interface itself), and it is the whole answer for a user class;
+/// [`crate::signatures::resolve_interface_args`] answers for a class whose
+/// conformance was *seeded* rather than written, which is
+/// `crate::core_lib`'s `Core\Time\Duration` and its siblings — a `Core` class
+/// has no [`nvs_hir::ClassGraph`] entry at all, so the first table cannot see
+/// it.
+fn reaches_comparable(qname: &QName, comparable: &QName, env: &Env<'_>) -> bool {
+    nvs_hir::implements_interface(qname, comparable, env.graph)
+        || crate::signatures::resolve_interface_args(qname, comparable, env.signatures, env.graph)
+            .is_some()
 }
 
 pub(crate) fn report_comparable_diagnostic(span: Span, message: String, env: &mut Env<'_>) {

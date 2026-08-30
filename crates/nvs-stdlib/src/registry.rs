@@ -1387,6 +1387,35 @@ pub fn iterable_element(class: &str) -> Option<&'static CoreTy> {
         .map(|(_, elem)| *elem)
 }
 
+/// Whether `class` satisfies [ADR 0013](../../../../docs/adr/0013-comparable-interface.md)'s
+/// `Comparable`, so `<`/`<=`/`>`/`>=`/`<=>` order two of its instances.
+///
+/// **Asked of the member roster, never of a list.** A `Core` class writes no
+/// `implements` clause and `Comparable`'s whole content is one signature, so
+/// the row *is* the declaration: an instance `compareTo` taking one argument
+/// of this same class and answering `int` is exactly what the interface
+/// requires, and a class carrying that row cannot be un-`Comparable`. A roster
+/// beside it would be a second copy of the same fact, wrong the first time a
+/// domain module adds the member without it — which is how the time types
+/// spent this whole gap (`docs/reference/findings.md` D1).
+///
+/// The `self`-typed parameter is load-bearing rather than decoration: ADR 0013
+/// § 2 refuses a comparison across classes, so a `compareTo` taking anything
+/// else answers a different question and is not this interface's member.
+#[must_use]
+pub fn implements_comparable(class: &str) -> bool {
+    CLASSES
+        .iter()
+        .find(|found| found.name == class)
+        .is_some_and(|found| {
+            found.instance.iter().any(|member| {
+                member.name == "compareTo"
+                    && matches!(member.params, [CoreTy::Instance(param)] if *param == class)
+                    && matches!(member.return_ty, CoreTy::Int)
+            })
+        })
+}
+
 /// The type parameters `class` declares, in order — `None` when it is not one
 /// of [`GENERIC_CLASSES`], which is every other name in the program.
 #[must_use]
