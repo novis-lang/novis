@@ -103,10 +103,15 @@ in that goal. An item's owner is the row it sits in.
       non-abstract class is not refused either. *probes p11, p11b, q01* — `E0785` refuses the `new`
       (an interface with it, since neither has instances) while `new static()` stays legal, and
       `E0786` refuses the bodiless method where it is declared.
-- [ ] **U4** `secret` is refused only by a `Throwable` message (E0422), `Core\Debug` (E0724) and any
+- [x] **U4** `secret` is refused only by a `Throwable` message (E0422), `Core\Debug` (E0724) and any
       unclassified `string`/`bytes` `Core` parameter (E0401). `echo $pw;`, `"{$pw}"` interpolation
       and `Core\Json::encode($pw)` all print the value — ADR 0033 § 4 lists output among the sinks.
-      *probes2 `secret_echo`; types-probes*
+      *probes2 `secret_echo`; types-probes* `E0790` refuses the operand at `echo` and `print`, which
+      covers the interpolation because the qualifier spreads to the composed literal, and `E0791`
+      refuses `Core\Json::encode`, walking the argument's type so a declared `array<secret string>`
+      is refused with the bare value. A written `["token" => $pw]` still reaches neither: an array
+      literal with no expectation infers `array<mixed>`, which is ADR 0033's unmodelled container
+      axis and is fixed at the literal rather than at either sink.
 - [ ] **U5** `Core\Secret::reveal` does not exist (E0405), yet the E0422/E0724 help texts tell the
       user to call it. No member returns `tainted` or `secret`; a value is qualified only where a
       declaration spells it. *types-probes*

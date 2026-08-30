@@ -1166,11 +1166,14 @@ expected `string`, found `tainted string`
 **`secret`** marks a confidential value. Nothing grants it: it exists only where a declaration
 spells it. It spreads through concatenation and interpolation the same way, independently of
 `tainted`, and the same checked conversions remove it. What refuses a `secret` value at compile
-time: a `Throwable`'s message, `Core\Debug::dump` and `Core\Debug::render`, and every `Core`
-parameter typed plain `string` or `bytes` — including the ones that admit `tainted`
-(`Core\Str::length($secret)` is refused). `echo`, string interpolation and `Core\Json::encode` do
-not refuse a `secret` value; `==` between two secrets, or a secret and a string, compiles. There is
-no member that removes `secret`; a conversion is the only way out.
+time: `echo` and `print`, a `Throwable`'s message, `Core\Debug::dump` and `Core\Debug::render`,
+`Core\Json::encode`, and every `Core` parameter typed plain `string` or `bytes` — including the
+ones that admit `tainted` (`Core\Str::length($secret)` is refused). Interpolation and `.` spread
+the qualifier to their result, so `echo "Bearer {$token}"` is refused for the same reason the bare
+`echo $token` is. What still compiles: `==` between two secrets, or a secret and a string; and an
+array literal, which infers `array<mixed>` and drops the qualifier, where a declared
+`array<secret string>` keeps it and is refused at `Core\Json::encode` with everything else. There
+is no member that removes `secret`; a conversion is the only way out.
 
 ```nvs
 <?nvs
@@ -1204,6 +1207,24 @@ Core\Debug::dump($token);
 ```
 ```output
 cannot be passed to `Core\Debug::dump`
+```
+
+```nvs error
+<?nvs
+secret string $token = "hunter2";
+echo "Bearer {$token}\n";
+```
+```output
+cannot be written by `echo`
+```
+
+```nvs error
+<?nvs
+secret string $token = "hunter2";
+echo Core\Json::encode($token), "\n";
+```
+```output
+cannot be passed to `Core\Json::encode`
 ```
 
 ### What does not exist

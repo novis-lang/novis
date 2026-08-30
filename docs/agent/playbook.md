@@ -4093,6 +4093,15 @@ sibling in the same namespace unqualified.
   "how does such a property ever hold a value", and it turned the rule scope-shaped (only the
   declaring class writes it) rather than blanket. So: write the refusal, run the whole tree, *then*
   write the case that pins it — a case written first only pins the rule you already believed.
+- **A qualifier written on an element of an array literal is gone before any call-site rule looks at
+  it.** `check_array_literal` (`crates/nvs-types/src/expr/literals.rs:718`) joins nothing: with no
+  expectation on it a literal infers `array<mixed>`, so `Core\Json::encode(["token" => $secret])`
+  compiles while `Core\Json::encode($secret)` and a declared `array<secret string>` are both refused
+  by the same rule. That is ADR 0033's unmodelled container axis, not a hole in the sink — the bit is
+  lost at the literal, and a call-site walk could not recover it one variable later anyway. So a
+  refusal written over the argument's *type* is right and it is not the whole of § 4's "anywhere in
+  the value it walks": probe the container spelling with a scratch `.nvs` before writing the case
+  that claims it, or the case pins a refusal that never fires.
 
 ## Divergences and refusals already pinned
 
