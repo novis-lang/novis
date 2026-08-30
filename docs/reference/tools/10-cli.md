@@ -1,0 +1,341 @@
+---
+id: cli
+title: The nvs command
+summary: every subcommand of the `nvs` binary — run, check, test, build, api, config, info, meta, ast — with its flags, its exit status and what it prints
+keywords: nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, --config, --dump-ir, --dump-asm, --filter, --format, --php, exit status, exit code, .nvs, .php, shebang, cache, single-file executable, bundle, php -l, php -i, php -r, phpunit, composer, phpdbg
+---
+
+# One binary
+
+Everything is one executable, `nvs`. It takes a subcommand, then that subcommand's options, then
+usually one file:
+
+    nvs run hello.nvs
+    nvs check src/app.nvs
+    nvs test tests/
+    nvs --version          # prints `nvs 0.0.1`
+
+| Command | What it does |
+|---|---|
+| `nvs run <file>` | check, compile and run a program |
+| `nvs check <file>` | parse, resolve and type-check, reporting every diagnostic; runs nothing |
+| `nvs test <paths>...` | run a program's `#[Test]` methods, or a tree of `.nvst` cases |
+| `nvs build --compile <file>` | write a single-file executable holding the program's source |
+| `nvs build --openapi <file>` | write the program's OpenAPI 3.1 document to standard output |
+| `nvs api diff <old> <new>` | classify every change between two OpenAPI documents |
+| `nvs config check [files]` | resolve the configuration tree and report what it holds |
+| `nvs config dump [files]` | print every configuration key in force |
+| `nvs info` (also `-i`) | build, host and third-party licensing information |
+| `nvs meta --json` | the whole `Core` registry as JSON |
+| `nvs ast <file>` | parse one file and print its syntax tree |
+
+Every subcommand also takes `--config <PATH>` (see `nvs run`) and `-h`/`--help`.
+
+**Not in this build:** `nvs serve`, `nvs fmt`, `nvs convert`, `nvs lsp`, `nvs ctl` and
+`nvs service` are unrecognized subcommands. There is no built-in web server, formatter, PHP
+converter or language server in this binary.
+
+# Files, extensions and tags
+
+- A program is a `.nvs` file. The extension is a convention, not a rule: `nvs run` accepts any
+  path, and what matters is the content.
+- A `.php` file parses under exactly the same grammar. It must open with `<?nvs` — `<?php` is
+  refused with `E0229` in a `.php` file just as in a `.nvs` one, and `<?` alone is not a tag at all
+  (the file stays in HTML mode and is copied to the output).
+- A `#!` first line is **not** recognized in this build. A file that starts with `#!/usr/bin/env
+  nvs` is treated like any other HTML-mode text: the shebang line is copied to the output, and the
+  program still needs its `<?nvs` tag on the line after it. There is no code-mode-without-a-tag.
+
+```nvs error
+<?php
+echo "old tag";
+```
+```output
+E0229
+```
+
+# nvs run
+
+    nvs run <file> [--config <path>]... [--dump-ir | --dump-asm]
+
+`nvs run` checks the file the way `nvs check` does, stops with the same diagnostics if any, and
+otherwise compiles and runs it with the current directory as its working directory. Before running
+it reads the configuration:
+
+- `./nvs.toml` in the working directory, if there is one. A missing file is not an error — the
+  program runs with an empty configuration.
+- `--config <path>` names a file to read *instead*: naming one disables the `./nvs.toml` lookup
+  entirely. Repeat the flag to read several files in order; a named file that does not exist
+  refuses the run (`E0605`). Relative paths inside a configuration file resolve against that file's
+  own directory. The configuration chapter has the file format.
+
+Two debugging flags replace running with printing: `--dump-ir` prints the lowered intermediate
+representation of every function in the program, and `--dump-asm` prints the generated machine
+code. Both are for reading the compiler's output, not the program's.
+
+## Exit status
+
+| Status | When |
+|---|---|
+| `0` | the program ran to the end, or called `exit`/`exit(0)`/`exit("message")` |
+| `n` | the program called `exit(n)` |
+| `1` | a diagnostic stopped the check, an uncaught throwable ended the program, or a resource limit was breached (`FATAL: …` on standard error) |
+| `2` | the command line itself was wrong (an unknown subcommand or flag) |
+
+`exit("message")` prints the message and exits `0`. An uncaught throwable prints `Uncaught
+Exception: <message>` and a backtrace, one `#n Class::method() at file:line` frame per line, to
+standard error; nothing about it reaches standard output.
+
+```nvs exit=3
+<?nvs
+echo "bye", "\n";
+exit(3);
+```
+```output
+bye
+```
+
+```nvs exit=1
+<?nvs
+echo "before", "\n";
+throw new LogicError("boom");
+```
+```output
+before
+```
+
+# nvs check
+
+    nvs check <file> [--autoload-map]
+
+Prints `no errors` and exits `0` when the file and everything it reaches through `require` and
+`autoload` type-checks; otherwise prints every diagnostic found and exits `1`. Nothing runs, so it
+is the command for an editor, a pre-commit hook or CI. Each diagnostic has one shape:
+
+```text
+error[E0401]: expected `int`, found `string`
+   --> bad.nvs:11:9
+   |
+11 | $o->add("seven");
+   |         ^^^^^^^ this is `string`
+
+error[E0405]: `Order` has no property named `totl`
+   --> bad.nvs:12:6
+   |
+12 | echo $o->totl, "\n";
+   |      ^^ referenced here
+
+error: aborting due to 2 errors
+```
+
+A code is `E` followed by four digits for an error and `W` for a warning; the location is
+`file:line:column`; the caret marks the span; optional `= help:` and `= note:` lines follow. The
+code is stable and is what the tables in this reference cite.
+
+`--autoload-map` prints the resolved `autoload` map instead of `no errors` — every prefix, what a
+`discover` glob skipped, and what was shadowed — so an autoload declaration can be audited without
+running anything.
+
+```nvs error
+<?nvs
+class Counter {
+    public int $n = 0;
+}
+Counter $c = new Counter();
+$c->n = "one";
+```
+```output
+E0401
+```
+
+# nvs test
+
+    nvs test <paths>... [--filter <text>] [--format human|json|junit] [--php <path>]
+
+One subcommand runs two kinds of test, and which one is meant is read off the path:
+
+- **A `.nvs` or `.php` path is a program**, and its `#[Test]` methods are run. Every `public`
+  `void` instance method carrying `#[Test]` is one test; classes are reported in name order and
+  methods in declaration order; a test that asserts nothing fails; `#[Test(skip: "why")]` skips
+  with its reason. The `Core\Test` section has the assertions and the attribute's options.
+- **Anything else is a `.nvst` case file, or a directory walked for `*.nvst`.** A case is one
+  program with its expected output, and the report is a conformance summary
+  (`3 passed, 0 failed, 0 skipped`).
+
+The two are not mixed in one invocation. The exit status is non-zero if any test or case failed;
+a skipped one is not a failure.
+
+```nvs test
+<?nvs
+use Core\Test;
+
+final class MathTest {
+    #[Test]
+    public function addsTwoNumbers(): void {
+        Test::assertSame(2 + 2, 4);
+    }
+
+    #[Test(skip: "not written yet")]
+    public function dividesByZero(): void {
+        Test::assertSame(1, 1);
+    }
+}
+```
+```output
+✓ addsTwoNumbers
+- dividesByZero
+0 failed, 1 passed, 1 skipped
+```
+
+- `--filter <text>` runs only the cases whose path contains the text.
+- `--format` chooses how a *program's* run is reported: `human` (the default — one line per test as
+  it runs, then `N failed, N passed, N skipped, N flaky in N ms`), `json` (one versioned document
+  on standard output at the end: `schemaVersion`, `summary`, and one `tests[]` entry per test with
+  `class`, `method`, `verdict`, `durationMs`, and `reason`/`failures`/`attempts` where they apply),
+  or `junit` (JUnit XML). In the machine formats, what the tests themselves `echo` goes to standard
+  error so that standard output is the document alone. Naming a machine format beside a `.nvst`
+  tree is refused.
+- `--php <path>` names the PHP binary a case with an `--ORACLE--` section is compared against
+  (default `php`).
+
+A `.nvst` case is a sequence of `--SECTION--` headers: `--TEST--` (one line saying what the case
+pins), `--FILE--` (the program, run as `nvs run`), `--EXPECT--` (its exact standard output) or
+`--EXPECTF--` (with `%s`/`%d`/`%f` placeholders), `--EXPECTF-ERROR--` (standard error), an
+optional `--FILE name--` for each extra file written beside it (`nvs.toml` included), and an
+optional `--RUN--` naming another subcommand to run in that directory instead — `test`,
+`config dump --origin`.
+
+```text
+--TEST--
+a read outside the granted roots is refused
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["data"]
+--FILE data/note.txt--
+note
+--FILE--
+<?nvs
+echo Core\File::read("data/note.txt");
+--EXPECT--
+note
+```
+
+# nvs build --compile
+
+    nvs build --compile <file> [-o <path>]
+
+Writes a **portable single-file executable**: a copy of the `nvs` binary itself with the program's
+source appended — the entry file plus every file its `require` graph reaches, as a flat list of
+paths and bytes, followed by a small footer. No compilation result is stored; the bundle compiles
+its source when it starts, exactly as `nvs run` would.
+
+- `-o <path>` says where to write it; the default is the entry file's stem in the current directory
+  (`routes.exe` on Windows, `routes` elsewhere). The command reports `wrote <path> (N source
+  file(s))`.
+- Running the bundle runs the program. **Its whole command line belongs to the program**: a bundle
+  never interprets `run`, `check`, `--help` or any other `nvs` argument, so an application whose
+  first argument happens to be `run` keeps it.
+- A bundle still reads `./nvs.toml` from the directory it is *run in*, exactly like `nvs run`, and
+  a malformed one refuses the run. Ship the configuration beside it or run it from a directory that
+  has none.
+- Files reached only through `autoload` at run time, or opened with `Core\File`, are not in the
+  bundle: it carries the static `require` graph and nothing else.
+
+# nvs build --openapi
+
+    nvs build --openapi <file>
+
+Writes an OpenAPI 3.1 document for the program's `#[Route]` methods to standard output: `openapi:
+"3.1.0"`, an `info` block whose `title` is the entry file's stem, and one `paths` entry per route
+with its method, an `operationId` of `Class::method`, its path parameters with their schemas, and
+its responses. Nothing runs. `nvs build` with neither `--compile` nor `--openapi` is refused rather
+than doing nothing.
+
+# nvs api diff
+
+    nvs api diff <old.json> <new.json>
+
+Reads two OpenAPI documents — typically the last release's and the one `nvs build --openapi` just
+produced — and prints one line per change, classified `breaking`, `additive` or `cosmetic`, then a
+summary; `no change` when they agree. It exits `1` when any change is breaking, so it is a CI gate:
+
+```text
+breaking: paths./users/{id} — path removed, with every operation on it
+additive: paths./users.get.query.q — optional parameter added
+2 change(s): 1 breaking, 1 additive, 0 cosmetic
+```
+
+# nvs config check and nvs config dump
+
+    nvs config check [files]...
+    nvs config dump [files]... [--origin] [--toml]
+
+Both read the configuration tree offline and run nothing, so a tree can be validated in CI before
+it is deployed. With no files named they read `./nvs.toml` (and nothing, successfully, when there
+is none); naming files positionally is the same as `--config`.
+
+- `config check` resolves the whole tree — includes, `[[app]]` blocks, secrets — and prints one
+  line: `ok: 2 files, 4 directives set, 1 override, 0 warnings`. It exits `1` on anything the tree
+  refuses: a TOML syntax error, an unknown key (`E0601`), a missing or cyclic include (`E0605`,
+  `E0606`), an `[[app]]` block naming both `root` and `entry` or neither (`E0609`), a secret with
+  both `password` and `password_file` (`E0608`). It does **not** check whether a value is a valid
+  quantity, or whether a default lies under its own `[limits.hard]` ceiling: `memory = "12
+  bananas"` passes `config check` in this build.
+- `config dump` prints every key in force, one per line in dotted-key order, with array-of-tables
+  blocks numbered (`app.0.root`, `include.1.path`). `--origin` adds the file each key was written
+  in, and the file it overrode; `--toml` prints the resolved tree as one canonical TOML document,
+  for diffing two environments.
+
+```text
+app.0.capabilities.script.spawn = true
+app.0.origin                    = "https://example.test"
+app.0.root                      = "."
+limits.hard.memory              = "512M"
+limits.memory                   = "256M"
+```
+
+# nvs info
+
+    nvs info [--licenses]
+    nvs -i [--licenses]
+
+Prints what this binary is: the version, commit, build profile, target triple, Rust and Cranelift
+versions under **Build**; the operating system, architecture, CPU parallelism and executable path
+under **Host**; and under **Licensing** the `nvs` license (MIT) followed by every third-party
+component with its version and the license Novis takes it under. `--licenses` appends every
+license text in full. `-i` is the same report under the spelling PHP uses.
+
+# nvs meta --json
+
+    nvs meta --json
+
+Prints the `Core` registry as one JSON object — the same data Part B of this reference is
+generated from. `--json` is required. Its six top-level keys:
+
+- `classes`: one object per `Core` class, with `name` and `members`. A member has `name`, `kind`
+  (`static` or `instance`), `signature` (the full spelling, `length(string $s): uint`), `params`
+  (each with `name`, `type` and `qualifier` — `neutral`, or the taint or secret admission), `names`,
+  `returns`, and `doc` (`short`, a `params` list with a `desc` per parameter, `return`, and `errors`
+  where the member throws). A class with constants has a `constants` list.
+- `enums`: `name` plus `doc` with `short` and one `cases` entry per case.
+- `exceptions`: the throwable tree — `name`, `parent`, and the `properties` a class adds.
+- `interfaces`: the global interfaces, with `typeParams` where they have any.
+- `attributes`: the compiler-recognized attribute names.
+- `directives`: every `nvs.toml` directive with its `key`, its `class` (`Runtime`, `RuntimeTighten`,
+  `System`) and when a change applies (`Reload` or `Boot`).
+
+# nvs ast
+
+    nvs ast <file>
+
+Parses one file and prints its syntax tree in a debug notation, one node per line, with spans as
+`file-index:start..end` byte offsets. It parses only — names are not resolved and nothing is
+type-checked, so a file `nvs check` refuses may still print a tree.
+
+# The compile cache
+
+`nvs.toml` accepts a `[cache] dir` directive naming the directory of the on-disk artifact cache,
+where a compiled unit is stored under a name derived from the hash of its source and of the build
+environment — so an entry is never stale and never needs clearing. In this build `nvs run` does not
+read or write that directory: every unit is compiled fresh on each run, and the directive is
+accepted, reported by `nvs config dump`, and read by nothing else.
