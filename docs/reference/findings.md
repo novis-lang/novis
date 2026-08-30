@@ -248,8 +248,8 @@ in that goal. An item's owner is the row it sits in.
       `#[Audited]` (`type Audited = {}`) is ambiguous (E0728) on a class with any other attribute.
 - [ ] **D21** A payload holding a class constant or enum case can be declared but not retrieved
       (E0731) with `Attributes::get`/`all`.
-- [ ] **D22** `inout` accepts only a local: `M::bump(inout $a["k"])` is E0439 "cannot be passed to
-      an `inout` parameter **yet**". *ref30*
+- [x] **D22** `inout` accepts only a local: `M::bump(inout $a["k"])` is E0439, and the refusal is
+      permanent — the `yet` is gone (`nvs_types::expr::args::check_inout_arg` owns why). *ref30*
 - [x] **D23** ADR 0031 § 3's named-closure recursion (`fn fact(int $n): int => … fact($n - 1)`)
       parses, but the recursive call resolves as a free function (E0320). *ref30*
 - [x] **D24** `1.0 / 0` answers `INF` without throwing; ADR 0007 § 4's `/ 0` row is the integer one.
@@ -275,8 +275,9 @@ in that goal. An item's owner is the row it sits in.
       gives it `plain`/`styled`/`+`.
 - [x] **D32** `Core\Validate::isEmail` does not launder — `string $s = $in;` after a `true` answer is
       still E0401 (may be intended; noted because a reader expects a validator to launder).
-- [ ] **D33** `assertSame($uintValue, 2)` is `E0401: expected uint, found int` — a literal beside a
-      generic parameter does not adapt.
+- [x] **D33** `assertSame($uintValue, 2)` is `E0401: expected uint, found int` — a literal beside a
+      generic parameter does not adapt. Closed: it is placed against the substituted parameter type
+      (`nvs_types::expr::args::check_generic_args` owns the rule).
 - [ ] **D34** `Core\Arr::sort` on an `array<decimal>` throws at run time: "no natural order for tag
       10 against tag 10: two numbers, two strings, two bools or two nulls have one" — `decimal` is a
       number and the checker accepted the call. Found by the blind proof's CSV task. *probes4 `sort_decimal`*

@@ -5,71 +5,73 @@
 **Stage 0c — the reference findings — is the open stage and runs ahead of everything else in this
 goal, stage 9 included.** `docs/agent/loop-goal.md` § *Stage 0c* is items 31–35;
 [docs/reference/findings.md](../reference/findings.md) § *Triage* is each item's verdict and owner.
-**Items 31, 32 and 33 are closed, and item 34 is open at D33**: P1, P4, D23 and now D27 are ticked, so
-the driver's acceptance run fails on the item-34 `[[check]]`'s fifth case,
-`tests/conformance/core/a-literal-adapts-to-a-generic-uint.nvst`. The ten cases after it in that block
-are all still unwritten.
+**Items 31, 32 and 33 are closed, and item 34 is open**: P1, P4, D23, D27 and now D33 and D22 are
+ticked, so the item-34 `[[check]]`'s first unwritten case is its sixth,
+`tests/conformance/error/iterator-current-outside-the-protocol-throws.nvst`, with eight after it.
 
-**A `#!` first line opens code mode, and it is lexed rather than skipped.**
-`nvs_syntax::lexer`'s `Lexer::new` doc comment is that decision's only home: the outer mode starts
-`Mode::Code` with `pos` still at 0, so code mode's own trivia rule consumes line 1 as the `#` comment
-it already is — no token, no output, and bidi-checked (ADR 0087 § 2) at the one place in a file where
-an unbalanced override reorders everything after it. `shebang_open` is the window in which an `<?nvs`
-is `E0009` instead of a tag; the first `?>` closes it and the file is an ordinary template again.
-Pinned by `tests/conformance/core/a-shebang-line-opens-code.nvst` and three lexer unit tests.
+**A literal is *placed* against the parameter type substitution produced, not compared to it.**
+`nvs_types::expr::args::check_generic_args`'s doc comment is that decision's only home (findings.md
+D33). Three parts: a literal at a position whose declared type still mentions a variable is checked
+with no expectation and then checked *again*, in the third pass, against the substituted type; it
+binds a variable only in a second binding round, where `or_insert` leaves it a fallback for a
+variable nothing written bound; and the one thing an open position can still say to a literal —
+`uint`, for a digit run above `i64::MAX` — is `literals::unplaced_expectation`. The second check
+runs only where the first reported nothing about that literal, which is what keeps "nothing is
+diagnosed twice" true. `literals::is_unplaced_literal` is the roster, and owns why an array literal
+is on it and an object literal cannot be.
+
+**An array element is not an `inout` place, permanently** — `yet` is out of `E0439`'s message, and
+`check_inout_arg`'s doc comment says why the call-site copy that would fake a reference is not
+offered: it is a reference only for as long as the callee does not reach the same array.
 
 **`E0126` is spoken for and must not be handed out.** ADR 0119 § 3 names it in prose for the
 expression-`catch` arm that refuses `return`, which stage 9 has not written yet. The next free
-`E02xx` is `E0247` and `E07xx` is `E0794`; this session added no diagnostic, it reported the `E0009`
-ADR 0100 had already reserved.
+`E02xx` is `E0247` and `E07xx` is `E0794`; this session added no diagnostic.
 
 **Stage 9 stands where it stood** — ADR 0119 accepted, items 21–23 written with their anchors,
-nothing implemented — and resumes when stage 0c is green. **Stage 8**: conformance 1061,
+nothing implemented — and resumes when stage 0c is green. **Stage 8**: conformance 1062,
 differential 206.
 
 **`orient.py`'s `[context]` gaps, still costing time.** `[context] adrs` names none of stage 0c's own
-ADRs: add **0027 § 1**, **0031 § 3**, **0033 §§ 3-4**, **0047 § 2**, **0011**, **0086 § 6**,
-**0096 §§ 1-1a** and **0007 § 3** — that last one is what D33 needs next, for the generic parameter a
-literal has to adapt to. (**0100 § 3** was this session's and is no longer needed.) `[context] modules`
-still misses `crates/nvs-hir/src/members.rs`, `crates/nvs-types/src/attributes.rs`, `routes.rs`,
-`commands.rs`, `derive.rs`, `testing.rs`, `consts.rs`, `retrieval.rs`, `generics.rs`,
-`crates/nvs-stdlib/src/serialize.rs` and `secret.rs`, `crates/nvs-types/src/expr/args.rs`, `check.rs`,
-`returns.rs`, and `crates/nvs-ir/src/lower/closure.rs` and `call.rs`. `orient.py` itself still warns
-that `crates/nvs-host/src/budget.rs` matches nothing.
+ADRs: add **0053 § 1** (what U21 needs next), **0027 § 1**, **0031 § 3**, **0033 §§ 3-4**,
+**0047 § 2**, **0011**, **0086 § 6** and **0096 §§ 1-1a**. `[context] modules` still misses
+`crates/nvs-ir/src/lower/generator.rs`, `crates/nvs-hir/src/members.rs`,
+`crates/nvs-types/src/attributes.rs`, `routes.rs`, `commands.rs`, `derive.rs`, `testing.rs`,
+`consts.rs`, `retrieval.rs`, `generics.rs`, `crates/nvs-stdlib/src/serialize.rs` and `secret.rs`,
+`crates/nvs-types/src/expr/args.rs`, `check.rs`, `returns.rs`, and
+`crates/nvs-ir/src/lower/closure.rs` and `call.rs`. `orient.py` itself still warns that
+`crates/nvs-host/src/budget.rs` matches nothing.
 
 ## Next group
 
-**Item 34's next two findings, both written in `crates/nvs-types/src/expr/args.rs` — the file set is
-that one file plus `crates/nvs-types/src/expr/literals.rs` and `crates/nvs-types/src/generics.rs`.
-D33 leads because it is the case the acceptance check names.**
+**Item 34's next three findings, in the order the item-34 `[[check]]` names their cases. U21 leads
+because it is the case the acceptance run will report; it is alone in `crates/nvs-ir`, and D16 and
+D17 share the `crates/nvs-stdlib` registry rows, so take those two together.**
 
-- [ ] **D33 a literal adapts to a generic `uint`** — findings.md § *Divergences* D33. `assertSame($u, 2)`
-      against a `T`-typed parameter is `E0401: expected uint, found int`: the binding pass runs before
-      the argument check, and a literal argument is excluded from it, so `2` is checked against the
-      *unsubstituted* declared type. `crates/nvs-types/src/expr/args.rs:783` is the doc comment that
-      already states that order and why; `crates/nvs-types/src/expr/args.rs:826` is the `Bindings` loop
-      that skips the literal, and `crates/nvs-types/src/expr/literals.rs:74` is how a literal takes its
-      type from the position it lands in. Decide there whether a literal is re-checked against the
-      substituted signature or admitted into the binding pass, and say which in that doc comment. Case:
-      `tests/conformance/core/a-literal-adapts-to-a-generic-uint.nvst`, named by the item-34 `[[check]]`
-      at `docs/agent/loop-goal.toml:332`.
-- [ ] **D22 `inout` takes only a local** — findings.md § *Divergences* D22. `M::bump(inout $a["k"])` is
-      `E0439` "cannot be passed to an `inout` parameter **yet**" — the word `yet` is the whole finding,
-      because a refusal that promises a later version is either a gap to close or a sentence to rewrite.
-      The three refusal sites are `crates/nvs-types/src/expr/args.rs:698`, `:715` and `:728`, with the
-      exactness rule beside them at `:749`. Decide whether an index or a property is a place an `inout`
-      accepts, or whether the refusal is permanent and loses the `yet`.
+- [ ] **U21 `Iterator::current()` outside the protocol** — findings.md § *Undocumented* U21. On a
+      generator it answers `0` before the first `advance()` and the last value after exhaustion,
+      where ADR 0053 § 1 says it throws. The synthesized member is
+      `crates/nvs-ir/src/lower/generator.rs:300`'s `GEN_CURRENT_METHOD`; the protocol's own row is
+      `crates/nvs-types/src/iter_lib.rs:124`. Decide which § 10 class it throws and say so in
+      `generator.rs`'s module doc. Case:
+      `tests/conformance/error/iterator-current-outside-the-protocol-throws.nvst`, named at
+      `docs/agent/loop-goal.toml:333`.
+- [ ] **D16 `Core\Arr::from` refuses the `Core` collections** — findings.md § *Divergences* D16.
+      `from($objectSet)` is `E0401 expected array<T>|Iterable<T>|Iterator<T>`, and on `ObjectMap`
+      the message leaks an unsubstituted `array<K>`, although `foreach` over both works. The row is
+      `crates/nvs-stdlib/src/arr.rs:518`. Case:
+      `tests/conformance/core/arr-from-takes-a-core-collection.nvst`, at
+      `docs/agent/loop-goal.toml:334`.
+- [ ] **D17 `Core\ObjectSet::union` loses its element type** — findings.md § *Divergences* D17. The
+      three set members return a bare `Core\ObjectSet`, so `foreach … as Tag $t` is "expected Tag,
+      found T". The rows are `crates/nvs-stdlib/src/objset.rs:98`, `:107` and `:116`. Case:
+      `tests/conformance/core/objectset-union-keeps-its-element-type.nvst`, at
+      `docs/agent/loop-goal.toml:335`.
 
 ## Backlog
 
-- `check_every_path_returns` exempts `never` beside `void`, so a `never` body that falls off its end
-  compiles — `crates/nvs-types/src/check.rs:701`; `nvs_ir::lower::erase_checked_ty` is why it is
-  harmless.
-- `nvs_types::returns` walks statements syntactically, so a *call* to a `never` member does not count
-  as leaving the frame the way a `throw` does — same crate, `returns.rs`.
-- `static::method(...)` binds the declaring class rather than the late-static one;
-  `nvs_ir::lower::lower_callable`'s doc comment owns the divergence, the redesign is unscheduled.
-- D28: the on-disk compile cache is unwired — `nvs run` compiles fresh every time
-  (findings.md § *Divergences*).
-- Stage 9: ADR 0119's expression `catch`, items 21–23, nothing implemented.
-- The `[context]` manifest gaps above, in `docs/agent/loop-goal.toml`.
+- Item 34's remaining findings after these three: D1, D7, D8, D10, D12, D21, D35, M1 —
+  `docs/reference/findings.md` § *Triage*.
+- Item 35, and stage 9's items 21–23 (ADR 0119), both untouched — `docs/agent/loop-goal.md`.
+- A `[1, 2]` beside a generic `array<uint>` costs a second walk of the literal's elements —
+  `nvs_types::expr::literals::is_unplaced_literal` says what that buys.
