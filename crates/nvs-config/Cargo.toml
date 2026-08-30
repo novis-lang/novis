@@ -1,0 +1,20 @@
+[package]
+name = "nvs-config"
+description = "The directive registry and the `nvs.toml` tree behind it"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+# `toml` + `serde` are ADR 0064 § 1's format decision, and both refusals § 3
+# makes are their default behaviour rather than machinery of ours. Both are pure
+# Rust, so ADR 0051 § 4's two questions do not arise.
+[dependencies]
+nvs-diagnostics.workspace = true
+serde.workspace = true
+toml.workspace = true
+
+[lints]
+workspace = true

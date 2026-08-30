@@ -36,6 +36,7 @@ nvs-codegen = { path = "crates/nvs-codegen", version = "0.0.1" }
 nvs-render = { path = "crates/nvs-render", version = "0.0.1" }
 nvs-runtime = { path = "crates/nvs-runtime", version = "0.0.1" }
 nvs-host = { path = "crates/nvs-host", version = "0.0.1" }
+nvs-config = { path = "crates/nvs-config", version = "0.0.1" }
 nvs-stdlib = { path = "crates/nvs-stdlib", version = "0.0.1" }
 nvs-test = { path = "crates/nvs-test", version = "0.0.1" }
 
@@ -197,6 +198,12 @@ jiff = "0.2"
 # keeps an unbounded depth safe.
 serde = "1"
 serde_json = { version = "1", features = ["raw_value", "unbounded_depth"] }
+
+# --- configuration (ADR 0064 § 1: `nvs.toml` is TOML, read through `serde`) ---
+# Pure Rust, and both of ADR 0064 § 3's refusals are its default behaviour: it
+# rejects a duplicate key itself and `deny_unknown_fields` rejects an unknown
+# one, so neither is machinery `nvs-config` writes or can get wrong.
+toml = "0.9"
 
 # --- randomness (spec § 11: `Core\Random` is a CSPRNG, always) ---
 # That section keeps none of PHP's insecure generators, so there is no tier

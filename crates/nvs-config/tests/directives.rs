@@ -1,0 +1,126 @@
+//! The registry's two fields are two fields — ADR 0078 § 2 against ADR 0005 — plus the lookup rule
+//! the module doc states.
+
+use nvs_config::directive::{Apply, Class, DIRECTIVES, Directive, lookup};
+
+/// The row governing `key`, or a failure naming the key, so a census assertion reads as the claim
+/// it is making rather than as an `unwrap` chain.
+fn governing(key: &str) -> &'static Directive {
+    lookup(key).unwrap_or_else(|| panic!("no directive governs `{key}`"))
+}
+
+/// ADR 0078 § 2: reloadability answers *what applying a change requires* and the changeability
+/// class answers *who may set it*. The two are independent, and the failure this pins is a registry
+/// that reads one off the other — which typechecks, looks right row by row, and re-creates the very
+/// reading ("`System` means read once at boot") that ADR replaced.
+#[test]
+fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
+    let census = |class: Class, apply: Apply| {
+        DIRECTIVES
+            .iter()
+            .filter(|row| row.class == class && row.apply == apply)
+            .count()
+    };
+
+    // `System` holds both values, so neither field is a function of the other: knowing a directive
+    // is `System` says nothing about whether applying it takes a restart.
+    assert!(
+        census(Class::System, Apply::Reload) > 0,
+        "no `System` directive reloads, so `System` is being read as \"boot-only\" \
+         (ADR 0078 § 2 names `[limits.hard]` and a capability grant as the counter-examples)",
+    );
+    assert!(
+        census(Class::System, Apply::Boot) > 0,
+        "no `System` directive is `Boot`, so the registry has lost ADR 0078 § 2's narrow set",
+    );
+
+    // The one direction that *is* determined, and by construction rather than by policy: a
+    // `Runtime` or `RuntimeTighten` directive is a value read out of the snapshot, so a new
+    // snapshot is all applying it can require.
+    for row in DIRECTIVES {
+        if row.class.settable_by_a_request() {
+            assert_eq!(
+                row.apply,
+                Apply::Reload,
+                "`{}` is {:?} and `Boot`, which ADR 0078 § 2 says cannot happen: a directive a \
+                 request can set is one the snapshot already holds",
+                row.key,
+                row.class,
+            );
+        }
+    }
+
+    // ADR 0078 § 2's own two lists, key by key. `Boot` first — the narrow set.
+    for key in ["cache.dir", "control.socket", "server.listen"] {
+        assert_eq!(
+            governing(key).apply,
+            Apply::Boot,
+            "`{key}` is one of ADR 0078 § 2's `Boot` set"
+        );
+    }
+    // Then the ones it names as reloading *despite* being `System`, which is the pairing the field
+    // exists to make expressible.
+    for key in [
+        "limits.hard.memory",
+        "extension.sha256",
+        "opcache.validate",
+        "opcache.revalidate_freq",
+        "app.limits.memory",
+        "schedule.scope",
+        "deferred.max_concurrent",
+        "metrics.listen",
+        "trace.sample",
+    ] {
+        let row = governing(key);
+        assert_eq!(row.class, Class::System, "`{key}` is `System` (ADR 0005)");
+        assert_eq!(row.apply, Apply::Reload, "`{key}` reloads (ADR 0078 § 2)");
+    }
+}
+
+/// The longest-prefix rule, and the pair it exists for: `[limits]` and `[limits.hard]` spell the
+/// same five key names under two different classes (ADR 0005), so a registry keyed on the last
+/// segment would answer `Runtime` for a ceiling.
+#[test]
+fn a_more_specific_row_wins_and_a_prefix_must_end_on_a_dot() {
+    assert_eq!(governing("limits.memory").class, Class::Runtime);
+    assert_eq!(governing("limits.hard.memory").class, Class::System);
+    assert_eq!(governing("mode.ceiling").class, Class::System);
+    assert_eq!(governing("mode.default").class, Class::Runtime);
+    assert_eq!(
+        governing("capabilities.script.spawn").class,
+        Class::RuntimeTighten
+    );
+
+    assert!(
+        lookup("limitshard").is_none(),
+        "a prefix that does not end on a dot governs nothing"
+    );
+    assert!(lookup("nosuchblock.key").is_none());
+    assert!(lookup("").is_none());
+}
+
+/// Two rows for one key would make [`lookup`] answer by declaration order, which the module doc
+/// says it does not do.
+#[test]
+fn every_row_names_a_distinct_key() {
+    for (i, row) in DIRECTIVES.iter().enumerate() {
+        assert!(
+            !DIRECTIVES[..i].iter().any(|earlier| earlier.key == row.key),
+            "`{}` has two rows",
+            row.key,
+        );
+        assert!(
+            !row.key.is_empty(),
+            "a row with an empty key would govern every key"
+        );
+    }
+}
+
+/// `block()` is what a diagnostic names when it refuses a key (ADR 0064 § 3), so a row that *is* a
+/// block reports the root and a key inside one reports the table it is written in.
+#[test]
+fn a_key_reports_the_block_it_is_written_in() {
+    assert_eq!(governing("limits.hard.memory").block(), "limits");
+    assert_eq!(governing("deferred.max_concurrent").block(), "deferred");
+    assert_eq!(governing("server.listen").block(), "");
+}
