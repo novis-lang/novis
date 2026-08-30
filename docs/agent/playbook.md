@@ -3928,6 +3928,15 @@ sibling in the same namespace unqualified.
   default instead. The comment above `unit_of`'s `Duration` arm already says exactly this — it is
   worth reading before adding a key rather than after. The full roster is: the `Limits` field, the
   `DIRECTIVES` row, the `unit_of` arm, and the reader. Nothing fails to compile without the third.
+- **ADR 0020 § 1's roster of resource limits is restated in four places, and three of them are
+  prose no test reads.** Adding `max_output` as a limit whose breach reaches the tier-1 handler
+  meant editing the ADR's own list (`docs/adr/0020-error-escalation-ladder.md` § 1, which also
+  carried "call-stack depth is the *fifth* limit" — a running count of the kind
+  `conventions.md` § *An ADR* forbids), `nvs_runtime::Limit`'s enum doc ("Three variants, because
+  three limits are enforced... § 1 lists five"), and `Core\Fatal::onLimit`'s reference card `short`
+  in `crates/nvs-stdlib/src/fatal.rs`, which enumerates them for the website. Only the enum's own
+  `name()` arm is load-bearing, so nothing fails when the other three drift. `grep -rn "cpu_time"`
+  over `docs/adr crates/nvs-stdlib/src` finds all of them in one call.
 
 ## Divergences and refusals already pinned
 

@@ -2,67 +2,80 @@
 
 ## State
 
-**Item 12's roster is complete**, which is what the driver's `nvs-host (limits at a safepoint)`
-check was failing on: all three cases are in `crates/nvs-host/tests/limits.rs` and the binary is
-green. `n_concurrent_isolates_cannot_together_exceed_the_trees_budget` pins the accounting the
-plan states — `Ctx::isolate` re-bases `memory_base` through `Ctx::new`, so each isolate reads back
-only its own share and none is ever over the ceiling, while the root's base predates all of them
-and `nvs_runtime::budget`'s counters are one per thread, so every child's byte is still on the
-root's reading. `a_child_cannot_widen_a_capability_its_parent_narrowed` pins the other direction:
-the grant crosses in the cloned snapshot, `Request::set` refuses the block both ways, and the
-child's snapshot is the parent's `Arc` rather than a re-resolution.
+**m6's *Verify* row "N concurrent isolates cannot together exceed the tree's memory, CPU or output
+budget" is enforced in all three thirds**, which closes the group the last two sessions were
+working. `[limits] max_output` is now a ceiling `Ctx` answers for, on the memory ceiling's exact
+shape: `nvs_runtime::budget::written_bytes` is a second thread-local counter, `Ctx::output_base`
+re-bases it at `Ctx::new`, and `Ctx::output_used`/`output_limit`/`over_output_limit`/`output_breach`
+mirror their memory siblings. The charge is in `Ctx::write_output` **below the capture and above the
+sink** — the doc comment there owns why a captured byte is not a response byte and is bounded by
+`[limits] memory` instead. `Limit::Output` is the fourth variant and the breach is a branch in
+`nvs_safepoint` beside memory's; `run_helper` deliberately does not ask it.
 
-`crates/nvs-host` gained `nvs-config` and `toml` as **dev**-dependencies for that second case;
-nothing in its `src/` resolves a configuration and the Cargo.toml comment says so.
+**The deadline is now the tree's own word, not a copy.** `Ctx::deadline` is
+`Arc<AtomicU64>` and `Ctx::child`/`Ctx::isolate` clone the handle, so one `expire_deadline` store
+stops every isolate — including one spawned *before* the timer fired, which the copy could never
+reach, because the timer holds the root and no registry of live children exists to walk. That was
+the design call item 12's doc comment left open; ADR 0006's "one ceiling to divide" decided it. The
+field doc states what it spends: one allocation per request *tree* and one pointer hop on a poll
+already amortised over `bounded_loop`'s batch.
 
-**Two things m6's *Verify* row names are not enforced anywhere**, both found by writing the case
-above and both stated in its doc comment: `[limits] max_output` exists only as a configuration key
-(`crates/nvs-config/src/tree.rs:166`) — `Ctx` holds no output ceiling, so no isolate can be over
-one — and the deadline word crosses **by value** at `crates/nvs-runtime/src/ctx.rs:1814`, so a
-child built before its parent's deadline expires never observes that expiry. The second is a
-design call nobody has made in writing; it is the next group's second item.
+**ADR 0020 § 1 was amended in place** to list `max_output` among the limits that reach the tier-1
+handler, with a paragraph saying why there are two reserved slices and not one per limit. No new
+ADR; the fold is the whole change.
 
-`orient.py`'s `[context] modules` still names `crates/nvs-host/src/budget.rs`, which never existed
-— the accounting is `crates/nvs-runtime/src/budget.rs`. The pack warns every session.
+**The driver's failing check is stage 5, the artifact cache, and nothing of ADR 0042 is on disk** —
+no `cache.rs` in `nvs-cli`, no header type, no reader. `nvs-config` holds only the *key*
+(`crates/nvs-config/src/cache.rs:110`) and the `[cache] dir` directive. That is an open item, not a
+regression, and it is the next group.
+
+`orient.py`'s `[context] modules` still names `crates/nvs-host/src/budget.rs`, which never existed;
+the accounting this session extended is `crates/nvs-runtime/src/budget.rs`. The pack warns every
+session and the manifest has not been fixed.
 
 ## Next group
 
-**The two unenforced thirds of m6's "memory, CPU or output budget" row.** File set:
-`crates/nvs-runtime/src/ctx.rs` and `crates/nvs-host/tests/limits.rs`, the same pair item 12 was
-written over, with `crates/nvs-config/src/tree.rs` behind them for the directive's spelling.
+**ADR 0042's on-disk artifact cache, which is the driver's outstanding acceptance check.** File set:
+a new `crates/nvs-cli/src/cache.rs` and a new `crates/nvs-cli/tests/cache.rs`, with
+`crates/nvs-config/src/cache.rs:110` (the key `BLAKE3(source_content ‖ env_hash)`),
+`crates/nvs-config/src/tree.rs:581` (`[cache] dir`) and `crates/nvs-config/src/trust.rs:110` (the
+directory check) behind them. Take them in this order — each later slice reads what the earlier one
+wrote.
 
-- [ ] **A `[limits] max_output` ceiling `Ctx` can answer for** — `docs/plan/m6.md`'s *Verify*, "N
-      concurrent isolates cannot together exceed the tree's memory, CPU or **output** budget". The
-      shape is the memory ceiling's, one field further along: `Ctx::memory_limit`
-      (`crates/nvs-runtime/src/ctx.rs:1074`) and `Ctx::over_memory_limit`
-      (`crates/nvs-runtime/src/ctx.rs:1111`) are what to copy, `Ctx::refresh_limits` is where the
-      directive is read (`crates/nvs-config/src/tree.rs:166` is the key, already parsed as bytes by
-      `crates/nvs-config/src/value.rs:119`), and the breach belongs beside the memory branch in
-      `nvs_safepoint` (`crates/nvs-runtime/src/ctx.rs:2697`) as ADR 0020 § 1's third `Limit`
-      variant. Decide first whether an isolate's buffered sink counts against the root: the answer
-      the memory half gives is yes, and `Ctx::isolate`'s doc (`crates/nvs-runtime/src/ctx.rs:1781`)
-      is the sentence to keep true.
-- [ ] **Decide what the deadline copy means, and record it** — `crates/nvs-runtime/src/ctx.rs:1814`
-      snapshots the parent's word into the child rather than sharing it, so a tree whose deadline
-      expires mid-flight stops only the contexts built after it. Either share the atom or write
-      down why the copy is right (the scheduler cancels a running child through ADR 0072 § 5, which
-      may already be the whole answer). One paragraph in that constructor's doc either way; a
-      shared word also wants a case beside
-      `n_concurrent_isolates_cannot_together_exceed_the_trees_budget`
-      (`crates/nvs-host/tests/limits.rs:588`).
-- [ ] **Extend that case with the output third** once the ceiling exists — its doc comment
-      (`crates/nvs-host/tests/limits.rs:588`) currently says why output is not asserted, and that
-      paragraph is what has to stop being true.
+- [ ] **The header and the write path** — ADR 0042 §§ 1, 2 and 4: one immutable content-addressed
+      file per unit under `[cache] dir`, a header carrying `magic`, `format_version`, `env_hash` and
+      a `BLAKE3` of the payload, written to a temporary name in the same directory and published by
+      one atomic rename with **no lock file, ever**. The key is already built —
+      `crates/nvs-config/src/cache.rs:110` — and the directory is
+      `crates/nvs-config/src/tree.rs:581`. Closes
+      `the_cache_is_a_fan_out_of_immutable_content_addressed_files` and
+      `a_concurrent_write_resolves_by_rename_with_no_lock_file`.
+- [ ] **The read path, verified whole before a single page is executable** — ADR 0042 § 3, which
+      `orient.py` already prints in full. `mmap` `PROT_READ`, check magic/version/`env_hash` (a
+      mismatch is a *miss*, never an error), `BLAKE3` the payload, and only then `mprotect` to
+      `PROT_READ | PROT_EXEC`; a bad entry is deleted and invisible to the script. No panic, no
+      `FATAL`, no `Throwable`. The `env_hash` the header carries is
+      `crates/nvs-config/src/cache.rs:96`, and the digest type beside it is
+      `crates/nvs-config/src/cache.rs:47`. Closes
+      `an_artifact_is_verified_whole_before_any_page_is_executable` and
+      `a_tampered_artifact_is_rejected`.
+- [ ] **The cache directory's trust check, and eviction off the request path** — ADR 0042 §§ 5-6,
+      which is the same ownership-and-mode question ADR 0103 § 6 asks of a config file: reuse
+      `nvs_config::trust::check` (`crates/nvs-config/src/trust.rs:110`) rather than writing a second
+      one. Closes `a_world_writable_cache_directory_is_refused` and
+      `eviction_is_piggybacked_and_off_the_request_path`.
+
+`[context]` gaps for `docs/agent/loop-goal.toml`: `adrs` needs ADR 0042 §§ 1, 2, 4, 5 and 6 (only
+§ 3 is listed, and the next group needs all of them); `modules` still needs
+`crates/nvs-host/src/budget.rs` corrected to `crates/nvs-runtime/src/budget.rs`.
 
 ## Backlog
 
-- Item 18's `Core\Secret::reveal()` is not in the registry — no `Core\Secret` class exists at all;
-  the roster is `crates/nvs-stdlib/src/registry.rs:984` and `conventions.md`'s five edits are the
-  shape (`docs/implementation-plan.md`'s *Open now*).
-- `Live::admit`'s same-class check is asked of the answer and not of the argument
-  (`crates/nvs-runtime/src/graph.rs` § *Known gaps*).
-- `[context] modules` in `docs/agent/loop-goal.toml` names a `crates/nvs-host/src/budget.rs` that
-  never existed; the module is `crates/nvs-runtime/src/budget.rs`.
-- `nvs_config::Request::set` cannot express a capability change in either direction; if a request
-  is ever meant to narrow one, that is a decision and an ADR, not an implementation gap
-  (`crates/nvs-config/src/request.rs:106`).
+- `[limits] wall_time` has no timer: nothing samples a clock and sets the deadline word except a
+  test — `crates/nvs-runtime/src/ctx.rs`'s *The request's deadline* section owns the gap.
+- `[limits] cpu_time` has the same gap on the host side — `Ctx::cpu_limit`'s field doc.
+- Item 18's `Core\Secret::reveal()` is not in the registry — `docs/plan/m6.md`.
+- `Live::admit`'s same-class check is asked of the answer, not the argument —
+  `crates/nvs-runtime/src/graph.rs` § *Known gaps*.
+- A warm-cache CLI start under 10 ms (`tools/bench.py --warm-start`) needs the cache above first.
+- ADR 0048's portable single-file executable is untouched — `docs/plan/m6.md`'s *Verify*.
