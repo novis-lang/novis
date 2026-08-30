@@ -58,7 +58,7 @@
 > keys both caches. Stage 5 has ADR 0042 §§ 1-6,  in `crates/nvs-cli/src/cache.rs`, whose *Known
 > gaps* decides a payload. **Stage 0c — the reference findings — is open and runs ahead of
 > everything else, stage 9 included**: `docs/reference/findings.md` § *Triage* holds the verdicts
-> and items 31–35 the work; items 31–33 are closed, and 34 has twelve of its seventeen down, D35
+> and items 31–35 the work; items 31–33 are closed, and 34 has thirteen of its seventeen down, D8
 > last. **Stage 8 is open**: conformance 1068, differential 206 of 210, six of eight written.
 > **Stage 7 is closed**: `nvs build --compile` appends ADR 0048 §§ 2-5's source payload, and
 > `nvs_diagnostics::embedded` is the byte source a bundle resolves against.

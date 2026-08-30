@@ -4165,6 +4165,16 @@ sibling in the same namespace unqualified.
   step has to be written by hand; every other `InstKind::ConstNull` under `lower/` is `Ty::Null`
   for exactly this reason. The first place it bit was a synthesized `new LogicError(…)`, whose
   `previous` parameter spec § 10 types `Throwable|null`.
+- **A crate's own `# Known gaps` list can be stale about that crate's body, and the body is the
+  rule.** `nvs_types::layout`'s module doc said "a promoted constructor parameter claims no slot
+  yet", and `nvs_types::derive`'s gap 1 cited it as half the reason a promoted parameter could not
+  be a `#[Json\Derive]` field — while `own_properties` (`crates/nvs-types/src/layout.rs:313`) had
+  been giving one an ordinary slot, and `signatures::record_promoted_properties` had been recording
+  it as a property, for some time. The whole of D8 turned out to be the derive walk's own
+  `for member in &decl.members` skipping past the constructor; nothing in `layout` or `signatures`
+  needed touching. This is the *doc* twin of the `loop-goal.toml` traps above: a `Known gaps`
+  bullet is status, an ADR is a decision, and status goes stale silently. One scratch `.nvs` under
+  `.agent-tmp/` proving the gap is still there costs one call and is the whole check.
 
 ## Divergences and refusals already pinned
 

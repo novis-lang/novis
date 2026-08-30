@@ -5314,9 +5314,8 @@ echo Json::encode(new User("ada", 36, true, new Address("london"), null)), "\n";
 ```
 
 - **The fields are the class's declared instance properties, in declaration order**, whatever
-  their visibility. A promoted constructor parameter is not a property and is not a field; a class
-  whose only state is promoted derives a codec with no fields and is refused. A `secret` or
-  `lateinit` property is refused on a deriving class.
+  their visibility — written in the class body or promoted in the `constructor`, each in the place
+  it is written. A `secret` or `lateinit` property is refused on a deriving class.
 - **Every field is a constructor parameter of the same name and type** (a decode is an ordinary
   `new`), unless it is `#[Field(skip: true)]`. A field with no matching parameter, or one whose
   parameter has another type, is refused.
@@ -5325,9 +5324,10 @@ echo Json::encode(new User("ada", 36, true, new Address("london"), null)), "\n";
 - A `?T` field always appears in the document, as `null` when it is null; nothing is omitted for
   being null.
 - Encoding reaches into nested deriving classes, arrays and enums (an enum encodes as its backing
-  value). **Decoding, in this build, handles fields of `string`, `int`, `uint`, `float`, `bool` and
-  `?T` of those**; `decodeAs<T>` over a class with an array, enum or nested-class field is a
-  fatal error at run time.
+  value). **Decoding, in this build, handles fields of `string`, `int`, `uint`, `float`, `bool`,
+  another deriving class and `?T` of those**; `decodeAs<T>` over a class with an array or enum
+  field is a fatal error at run time. A nested field's issues carry the path that reaches them —
+  `address.city`, or `1.address.city` inside a list.
 
 A decode checks the whole document before it constructs anything, and one failure carries every
 bad field:
