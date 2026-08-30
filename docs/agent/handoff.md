@@ -2,59 +2,56 @@
 
 ## State
 
-**Stage 8 — the corpus and the guards — is the open stage**, and the plan's *Open now* said it was
-closed because its floors were raised under it: `docs/agent/loop-goal.toml:1930` names eight
-conformance cases and floors of 1050 conformance / 210 differential. Four of the eight are now
-written — `tests/conformance/config/`'s pair and `tests/conformance/cap/`'s pair — and the counts
-stand at 1015 and 206. Every other stage the goal names (0b, 2–7) is closed at its acceptance.
+**Stage 8 — the corpus and the guards — is the open stage.** `docs/agent/loop-goal.toml:1929` names eight
+conformance cases and floors of 1050 conformance / 210 differential. **Six of the eight are written** —
+`tests/conformance/config/`'s three, `cap/`'s two and `reject/config-set-above-the-hard-ceiling-returns-false.nvst`
+— and the counts stand at 1017 and 206. Every other stage the goal names (0b, 2–7) is closed at its
+acceptance.
 
-**The gate is green except for `cargo fmt --check` on `crates/nvs-cli/src/meta.rs`**, a file another
-agent is holding uncommitted in this tree (it changed under this session, and nothing in this work
-touches it). Everything else was run: the workspace build, `-p nvs-test`'s fmt, clippy and 39 tests,
-and both suites end to end. Re-run `python tools/verify.py` once that file is committed or reverted.
+**The gate is red for a file this work does not touch, and that is the driver's acceptance failure.**
+`crates/nvs-cli/src/meta.rs` is uncommitted in this tree: another agent is adding `kind`, `signature`,
+`params`, `returns`, `type` and `value` keys to the `nvs meta --json` document, for the untracked
+`tools/reference.py` and `docs/reference/`. Those keys fail the two goldens at
+`crates/nvs-cli/tests/meta.rs:69` and `:175`, which pin the document's older shape. Updating the goldens
+would commit tests against source no one else has, and reverting the file would throw away another
+agent's work, so both were left alone; the failure clears when that agent commits. It also stops
+`python tools/verify.py` at `fmt`, step 2 of 7, so this session's own verification is the build (green)
+plus `target/debug/nvs test tests/conformance/` run directly: **1017 passed, 0 failed, 0 skipped**. Both
+slices are `.nvst` data and no Rust, so no later step of the gate can see them. **Re-run
+`python tools/verify.py` whole once `meta.rs` is committed or reverted.**
 
-**The `.nvst` format gained one `--RUN--` spelling, `config dump --origin`.** It is the only one that
-runs no program: it names no file on the command line, so `nvs config dump` resolves ADR 0103 § 1
-step 2's `./nvs.toml` out of the case's own working directory, and a tree written with
-`--FILE nvs.toml--` / `--FILE conf.d/…--` becomes the subject. That is the only place § 3's
-obligation — every override recorded with **both** origins — is observable end to end, since no
-program can ask where a value was written. `crates/nvs-test/src/case.rs`'s `Subcommand` doc owns why,
-including why such a case still carries a `--FILE--`.
+**A `#[Test]` cannot read the configuration.** `--RUN-- test` runs each test in its own isolate, but the
+runner resolves no tree (`crates/nvs-cli/src/runner.rs:245`), so `Core\Config` answers empty there. The
+playbook's *Writing a test case* bullet owns the spelling; whether the runner *should* resolve
+`./nvs.toml` is in `## Backlog` and is a real decision, not an oversight this session found time to fix.
 
 ## Next group
 
-**The four remaining named cases of stage 8's conformance check.** One file set: `tests/conformance/`
-under `config/`, `reject/`, `isolate/` and `error/`, with `--FILE nvs.toml--` as the setup mechanism
-in every one of them — the two written this session are the worked examples.
+**The two remaining named cases of stage 8's conformance check.** One file set: `tests/conformance/`
+under `isolate/` and `error/`, with `--FILE nvs.toml--` as the setup mechanism in both, and
+`tests/conformance/config/config-set-is-invisible-to-the-next-request.nvst` as the worked example for a
+case that has to run more than one request.
 
-- [ ] **`tests/conformance/reject/config-set-above-the-hard-ceiling-returns-false.nvst`** — the goal's
-      standing decision and M6's *Verify*: above `[limits]` succeeds, above `[limits.hard]` returns
-      `false` with the previous value intact, and neither throws. Anchors:
-      `crates/nvs-config/src/request.rs:93`, `crates/nvs-stdlib/src/config.rs:189`.
-- [ ] **`tests/conformance/config/config-set-is-invisible-to-the-next-request.nvst`** — ADR 0078 § 1's
-      copy-on-write overlay. Decide first what the *second* observer is: a `.nvst` is one `nvs run`,
-      so either a `spawn script` child reads the snapshot the parent wrote over, or the case belongs
-      in `-p nvs-config` and the check's `cases` list is the half that is wrong (the playbook's bullet
-      on a check naming a test its crate cannot host). Anchors:
-      `crates/nvs-stdlib/src/config.rs:36`, `crates/nvs-config/src/request.rs:93`.
 - [ ] **`tests/conformance/isolate/a-child-inherits-a-narrowed-capability-and-cannot-widen-it.nvst`** —
-      a parent narrows `fs.read`, the child reads inside it and is refused outside it with the same
-      sentence `capability::denial` writes for the parent. Anchors:
-      `crates/nvs-host/src/isolate.rs:90`, `crates/nvs-runtime/src/capability.rs:52`.
-- [ ] **`tests/conformance/error/a-limit-fatal-is-not-catchable.nvst`** — ADR 0020: a `[limits]` breach
-      is a `FATAL` that no `catch` sees, reported to a registered `Core\Fatal::onLimit` instead. The
-      case expects the run to *fail*, so it is `--EXPECTF-ERROR--`. Anchors:
-      `crates/nvs-runtime/src/ctx.rs:1210`, `crates/nvs-host/tests/limits.rs:33`.
+      M6's *Verify* and ADR 0118 § 1. Check the spelling before designing the case: `spawn script`'s
+      `with(grants: …)` is refused at its own site as `E0777`, "not enforced yet"
+      (`tests/conformance/lang/an-uncompiled-construct-is-refused-where-it-is-written.nvst:23`), so the
+      narrowing a child inherits comes from the configuration and not from the spawn expression. The
+      check itself is `crates/nvs-config/src/capability.rs:189`, and a child does inherit the parent's
+      resolved view — a `Core\Config::set` in a parent is visible to a child it spawns, measured this
+      session.
+- [ ] **`tests/conformance/error/a-limit-fatal-is-not-catchable.nvst`** — ADR 0020: a `[limits]` breach is
+      a `FATAL` that no ordinary `catch` sees. `crates/nvs-runtime/src/budget.rs:6` names memory as the
+      first of the five, `crates/nvs-runtime/src/ctx.rs:1128` is the limit the allocator is measured
+      against, and `crates/nvs-config/src/tree.rs:194` is the five keys a `[limits]` block spells.
 
 ## Backlog
 
-- The two counts stage 8 also floors: conformance 1015 of 1050, differential 206 of 210 —
-  `docs/agent/loop-goal.toml:1925`.
-- Route ADR 0061's autoload probing through `nvs_diagnostics::embedded` — this session's item before
-  the acceptance check displaced it — `crates/nvs-hir/src/autoload.rs:402`.
-- A `.nvst`-free regression for a bundle whose `require` escapes the entry's directory —
-  `crates/nvs-cli/tests/bundle.rs`.
-- `[context] adrs` at `docs/agent/loop-goal.toml:85` wants ADR 0048 §§ 2-5 and ADR 0103 §§ 4, 9; both
-  were opened by hand, this session and last.
-- `[context] modules` names `crates/nvs-host/src/budget.rs`, which does not exist — the module is
-  `crates/nvs-runtime/src/budget.rs`, and `orient.py` warns about the dead selector every session.
+- Decide whether `nvs test` resolves the configuration tree the way `nvs run` does — `docs/plan/m6.md`.
+- 33 more conformance cases and 4 more differential ones to reach stage 8's floors — `docs/agent/loop-goal.toml:1928`.
+- `orient.py` warns that `[context] modules`' `crates/nvs-host/src/budget.rs` matches no module; it is
+  `crates/nvs-runtime/src/budget.rs` now — `docs/agent/loop-goal.toml`.
+- `[context] modules` is missing `crates/nvs-test/src/*.rs`: the `--RUN--` subcommand roster
+  (`crates/nvs-test/src/case.rs:60`) is what a stage 8 case has to pick from, and this session paid to
+  find it — `docs/agent/loop-goal.toml`.
+- ADR 0042's cache payload, decided in `crates/nvs-cli/src/cache.rs`'s *Known gaps* — that module doc.

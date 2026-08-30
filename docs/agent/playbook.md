@@ -3015,6 +3015,15 @@ is why" — is this file.
   the binding rather than at the literal that produced it. Two `try` blocks written out cost nothing
   and read the same; a case that genuinely wants the loop has to name the array's type where it is
   built, not where it is walked.
+- **A `--RUN-- test` case resolves no configuration tree, so `Core\Config` answers as the empty
+  configuration inside every `#[Test]`.** The runner does give each test method an isolate of its own —
+  which is the only thing in the CLI that runs two requests in one process — but
+  `crates/nvs-cli/src/runner.rs:245` builds a bare `nvs_runtime::Ctx::stdout()`, and only `nvs run`
+  resolves `./nvs.toml`. So a `--FILE nvs.toml--` beside a `--RUN-- test` case is written to disk and
+  read by nobody, and `Core\Config::get` is `null` rather than the file's value — the stdlib module doc's
+  "a context nobody configured answers as an empty configuration", reached from an unexpected direction.
+  Two sequential `spawn script` children are the shape that does work, and they *do* see the
+  configuration: `tests/conformance/config/config-set-is-invisible-to-the-next-request.nvst`.
 
 ## Splitting a file that got too big
 
