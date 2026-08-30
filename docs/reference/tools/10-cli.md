@@ -187,7 +187,8 @@ final class MathTest {
 0 failed, 1 passed, 1 skipped
 ```
 
-- `--filter <text>` runs only the cases whose path contains the text.
+- `--filter <text>` runs only the tests whose name contains the text: a `.nvst` case's path, or a
+  program's `Class::method` — so `--filter Class::` selects one class's `#[Test]` methods.
 - `--format` chooses how a *program's* run is reported: `human` (the default — one line per test as
   it runs, then `N failed, N passed, N skipped, N flaky in N ms`), `json` (one versioned document
   on standard output at the end: `schemaVersion`, `summary`, and one `tests[]` entry per test with

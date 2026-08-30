@@ -355,7 +355,10 @@ only the `#[Test]` methods it declares.
   one. Under either machine format what the tests themselves `echo` goes to standard error, so
   standard output is the document alone.
 - The exit status is `1` if any test failed, `0` otherwise, in every format.
-- `--filter <text>` selects `.nvst` cases by path (below); it does not select `#[Test]` methods.
+- `--filter <text>` runs only the tests whose name contains that text, case-sensitively: a `#[Test]`
+  method's name is `Class::method` (`Class::method#0` for a data-provider row), so `--filter Class::`
+  is a whole-class selector. A class no filtered test belongs to is not announced and its
+  `#[Fixture]`s are not built. The same containment rule selects a `.nvst` case by its path (below).
 
 `nvs test` given a directory or a `.nvst` file runs conformance cases instead: each `.nvst` is one
 program under `--FILE--` with its expected output under `--EXPECT--` (and a `--TEST--` title), and

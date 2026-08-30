@@ -188,7 +188,8 @@ enum Command {
         /// The case files and directories to run.
         #[arg(required = true)]
         paths: Vec<PathBuf>,
-        /// Run only cases whose path contains this text.
+        /// Run only the tests whose name contains this text — a `.nvst` case's
+        /// path, or a `#[Test]` method's `Class::method`.
         #[arg(long, value_name = "TEXT")]
         filter: Option<String>,
         /// The PHP binary a `--ORACLE--` case is compared against.
@@ -902,8 +903,10 @@ fn run_test(
             eprintln!("error: a program's `#[Test]` methods and `.nvst` cases are run separately");
             return ExitCode::FAILURE;
         };
+        // `--filter` reaches both suites, and means the same thing in each:
+        // `runner::selected` owns the rule and why it is the `.nvst` tree's.
         return match front_end(path) {
-            Ok(checked) => runner::run(checked, format),
+            Ok(checked) => runner::run(checked, format, filter),
             Err(code) => code,
         };
     }

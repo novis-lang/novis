@@ -228,9 +228,9 @@ struct Case {
     elapsed: Duration,
 }
 
-/// Compiles `checked` and runs every `#[Test]` it declares, reporting in
-/// `format`.
-pub(crate) fn run(checked: crate::Checked, format: Format) -> ExitCode {
+/// Compiles `checked` and runs every `#[Test]` it declares that `filter`
+/// selects, reporting in `format`.
+pub(crate) fn run(checked: crate::Checked, format: Format, filter: Option<String>) -> ExitCode {
     let unit = match compile(&checked) {
         Ok(unit) => unit,
         Err(error) => {
@@ -248,7 +248,8 @@ pub(crate) fn run(checked: crate::Checked, format: Format) -> ExitCode {
     unit.install_in(&mut ctx);
 
     let started = Instant::now();
-    let (suite, mut ctx) = match run_suite_in_a_task(&unit, ctx, checked, format) {
+    let (suite, mut ctx) = match run_suite_in_a_task(&unit, ctx, checked, format, filter.as_deref())
+    {
         Ok(both) => both,
         Err(error) => {
             eprintln!("error: {error}");
@@ -318,13 +319,23 @@ fn run_suite_in_a_task(
     ctx: nvs_runtime::Ctx,
     checked: crate::Checked,
     format: Format,
+    filter: Option<&str>,
 ) -> Result<(Suite, nvs_runtime::Ctx), String> {
     let mut sched = nvs_host::Scheduler::new();
     let filed: Rc<RefCell<Option<Suite>>> = Rc::new(RefCell::new(None));
     let collected = Rc::clone(&filed);
     let suite_unit = Rc::clone(unit);
+    // Owned for the same reason `checked` is: the body outlives this call as
+    // far as the scheduler's signature is concerned.
+    let filter = filter.map(ToOwned::to_owned);
     let root = sched.spawn(ctx, nvs_runtime::TaskRoot::Request, move |ctx| {
-        *collected.borrow_mut() = Some(run_suite(&suite_unit, ctx, &checked, format));
+        *collected.borrow_mut() = Some(run_suite(
+            &suite_unit,
+            ctx,
+            &checked,
+            format,
+            filter.as_deref(),
+        ));
     });
 
     // The reactor is what a parked task is woken by, and a test that sleeps or
@@ -394,28 +405,44 @@ struct Suite {
     exited: Option<i64>,
 }
 
-/// Runs every `#[Test]` `checked` declares, in § 20's order, reporting each as
-/// it arrives under [`Format::Human`] and only collecting under the other two.
+/// Runs every `#[Test]` `checked` declares that `filter` selects, in § 20's
+/// order, reporting each as it arrives under [`Format::Human`] and only
+/// collecting under the other two.
 fn run_suite(
     unit: &Rc<nvs_codegen::Unit>,
     ctx: &mut nvs_runtime::Ctx,
     checked: &crate::Checked,
     format: Format,
+    filter: Option<&str>,
 ) -> Suite {
     let (mut passed, mut failed, mut skipped, mut flaky) = (0_usize, 0_usize, 0_usize, 0_usize);
     let mut exited = None;
     let mut cases = Vec::new();
     for class in checked.exprs.test_classes() {
+        let tests = checked.exprs.tests(class).unwrap_or_default();
+        // The selection is made **before** the class is announced or its
+        // fixtures are built: a `--filter` that reaches none of a class's
+        // tests must cost that class's `#[Fixture]` nothing, or filtering down
+        // to one fast test still pays for every expensive setup in the
+        // program. A class with nothing selected is not reported either — the
+        // header would name a class the run said nothing about.
+        let calls: Vec<Invocation<'_>> = tests
+            .iter()
+            .flat_map(invocations)
+            .filter(|call| selected(filter, class, &call.label))
+            .collect();
+        if calls.is_empty() {
+            continue;
+        }
         if format == Format::Human {
             println!("  {class}");
         }
-        let tests = checked.exprs.tests(class).unwrap_or_default();
         // § 8's "built once, in the parent" is this call: one set per class,
         // built before its first test and dropped after its last, so a fixture
         // is not rebuilt per test and not kept past the class that declared it.
         let mut fixtures = nvs_runtime::Fixtures::new();
         let unbuilt = build_fixtures(unit, ctx, class, checked, tests, &mut fixtures);
-        for call in tests.iter().flat_map(invocations) {
+        for call in calls {
             let (case, label, row) = (call.case, call.label, call.row);
             let began = Instant::now();
             let outcome = match &unbuilt {
@@ -922,6 +949,24 @@ fn run_case(
 /// element tell two rows apart without any of the three growing a rendering of
 /// its own, exactly as they read one verdict rather than deciding one each.
 ///
+/// Whether `--filter` selects one test — **the same rule the `.nvst` tree's
+/// own filter uses, asked of the other suite's names.**
+///
+/// `nvs_test::run` keeps a case whose label *contains* the filter, that label
+/// being the case's path; a `#[Test]` method's label is `Class::method`
+/// (`Class::method#row` for a data-provider row, which is the name the report
+/// prints), so the same containment answers both. Case-sensitive, for the
+/// reason it is case-sensitive over a path: one rule that holds for `nvs test
+/// tests/` and `nvs test app.nvs` alike is worth more than a friendlier one
+/// that holds for only half of the subcommand. No filter selects everything —
+/// running the whole suite is what `nvs test` without the flag means.
+///
+/// Matching the class as well as the method is what makes `--filter Timing::`
+/// a whole-class selector without a second flag for it.
+fn selected(filter: Option<&str>, class: &str, label: &str) -> bool {
+    filter.is_none_or(|filter| format!("{class}::{label}").contains(filter))
+}
+
 /// A `skip:`ped method is expanded too and reports one skipped case per row:
 /// what § 20 skips is a *test*, and each row is one.
 fn invocations(case: &nvs_types::testing::TestCase) -> Vec<Invocation<'_>> {
@@ -1281,6 +1326,15 @@ mod tests {
     /// as it goes, and the program's own `echo` lands in a buffer nothing
     /// reads.
     fn verdicts(name: &str) -> Vec<(String, &'static str, Vec<String>)> {
+        verdicts_filtered(name, None)
+    }
+
+    /// [`verdicts`] with `--filter`'s own argument, which is what selects the
+    /// tests that run at all.
+    fn verdicts_filtered(
+        name: &str,
+        filter: Option<&str>,
+    ) -> Vec<(String, &'static str, Vec<String>)> {
         let checked = crate::front_end(&fixture(name)).expect("the fixture is a program");
         let unit = compile(&checked).expect("the fixture compiles");
         // Granting, because one fixture below spawns and ADR 0118 § 1 denies by
@@ -1290,7 +1344,7 @@ mod tests {
         // Through the same entry `run` takes, scheduler and all: a suite run
         // off a bare stack would be a different runner from the one shipped,
         // and § 16 is a claim about the one with a task tree under it.
-        let (suite, _ctx) = run_suite_in_a_task(&unit, ctx, checked, Format::Json)
+        let (suite, _ctx) = run_suite_in_a_task(&unit, ctx, checked, Format::Json, filter)
             .expect("the suite's own task runs");
         assert_eq!(
             std::rc::Rc::strong_count(&unit),
@@ -1363,6 +1417,38 @@ mod tests {
                 .flat_map(|(_, _, failures)| failures.clone())
                 .collect::<Vec<_>>()
         );
+    }
+
+    /// `--filter` selects `#[Test]` methods, by the containment rule
+    /// [`super::selected`] owns — the finding this closes is that the flag
+    /// reached the `.nvst` tree and was dropped for a program's own tests, so
+    /// `--filter` over one ran all of them.
+    ///
+    /// Four filters over the one fixture, because the claim is *selection*
+    /// and a single filter cannot make it: the method name picks one of three,
+    /// the shared substring picks all three, the class name picks the class
+    /// without a flag of its own, and a name nothing carries picks nothing.
+    /// A runner that ignored the filter passes the second of those alone.
+    #[test]
+    fn test_filter_selects_test_methods_by_name() {
+        let selected = |filter: &str| {
+            verdicts_filtered("fixed-clock.nvs", Some(filter))
+                .into_iter()
+                .map(|(method, _, _)| method)
+                .collect::<Vec<_>>()
+        };
+
+        assert_eq!(selected("ItAdvanced"), vec!["itReadsTheClockItAdvanced"]);
+        assert_eq!(
+            selected("Clock"),
+            vec![
+                "itReadsTheClockItDeclared",
+                "itReadsTheClockItAdvanced",
+                "itReadsTheHostClockWithoutAnAt",
+            ]
+        );
+        assert_eq!(selected("FixedClockTest::").len(), 3);
+        assert!(selected("noSuchTest").is_empty());
     }
 
     #[test]
