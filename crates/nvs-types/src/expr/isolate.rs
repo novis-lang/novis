@@ -98,7 +98,7 @@ use crate::locals::LocalScope;
 use crate::ty::TypeId;
 use crate::{Ctx, Env};
 
-use super::check_expr;
+use super::{check_expr, reject_secret_crossing};
 
 /// `spawn script <path> with(<options>)` — ADR 0006's isolate spawn.
 ///
@@ -147,7 +147,21 @@ pub(crate) fn check_spawn_script(
                 None
             }
         };
-        check_expr(&opt.value, expected, live, scope, ctx, env);
+        let ty = check_expr(&opt.value, expected, live, scope, ctx, env);
+        // ADR 0033 § 4's second carrier. The bullet refuses a `secret` value at
+        // the graph copy "for both its callers alike", so this is the same
+        // refusal `Core\Serialize::encode` reports and not a spawn-specific
+        // rule — `super::quals::reject_secret_crossing` owns the sentence, and
+        // only the clause naming where the copy went differs.
+        if opt.key == SpawnOptionKey::Args {
+            reject_secret_crossing(
+                &opt.value,
+                ty,
+                "`spawn script`'s `args:` copies it into a child whose arena this request \
+                 cannot reach into",
+                env,
+            );
+        }
     }
     script_handle(env)
 }

@@ -342,11 +342,12 @@ pub(crate) fn reject_secret_debug_argument(
 /// bullet refuses the value "at the one recursive graph-copy operation ADR
 /// 0023 already defines, for both its callers alike, rather than drawing a new
 /// distinction between crossing to a live isolate and externalizing to bytes."
-/// `Core\Serialize::encode` is the caller that compiles today; when
-/// `spawn`/`spawn worker`/`spawn script` lower, their argument list comes
-/// through here rather than growing a rule of its own, and that is the whole
-/// reason this takes the arguments and their types instead of reading the
-/// member's signature.
+/// `Core\Serialize::encode` is this function's caller; `spawn script`'s `args:`
+/// is the other carrier and it reaches the same refusal through
+/// [`reject_secret_crossing`], from `super::isolate::check_spawn_script`, rather
+/// than growing a rule of its own. That shared tail is the whole reason this
+/// reads the arguments and their types instead of the member's signature —
+/// `args:` has no signature to read.
 ///
 /// A call-site rule rather than a parameter type, exactly as
 /// [`reject_secret_debug_argument`] is: `encode` declares `mixed`, which a
@@ -374,25 +375,48 @@ pub(crate) fn reject_secret_boundary_argument(
         return;
     };
     for (arg, &ty) in list.iter().zip(arg_types) {
-        if !is_secret(ty, env.interner) {
-            continue;
-        }
-        env.diags.report(
-            Diagnostic::error(
-                code::E_SECRET_CROSSES_A_BOUNDARY,
-                "a `secret`-qualified value cannot cross a copy boundary; \
-                 `Core\\Serialize::encode` writes it into bytes that outlive the \
-                 request, where nothing carries the qualifier that was protecting it",
-            )
-            .with_primary(arg.value.span, "secret value copied out here")
-            .with_help(
-                "reveal it explicitly first with `Core\\Secret::reveal(..., \"reason\")`, at \
-                 the one call site where handing the secret over is the point; a \
-                 `secret`-typed *property* of a copied object needs nothing here — the walk \
-                 refuses that one itself",
-            ),
+        reject_secret_crossing(
+            &arg.value,
+            ty,
+            "`Core\\Serialize::encode` writes it into bytes that outlive the request",
+            env,
         );
     }
+}
+
+/// § 4's refusal itself, with the carrier named by the caller.
+///
+/// The sentence around `carrier` is the same for every caller on purpose: § 4
+/// refuses the value **at the graph copy**, not at either carrier's own
+/// surface, so a reader who has seen the message once at
+/// `Core\Serialize::encode` recognizes it unchanged at `spawn script`. Only the
+/// middle clause — where the copy goes and why the qualifier cannot follow it —
+/// differs, and it is a clause rather than a whole message so the two cannot
+/// drift into two different explanations of one rule.
+///
+/// The type is the *argument's* inferred type, never the parameter's: `encode`
+/// declares `mixed` and `args:` declares nothing at all, so the written
+/// expression is the last place the qualifier is still visible.
+pub(crate) fn reject_secret_crossing(at: &Expr, ty: TypeId, carrier: &str, env: &mut Env<'_>) {
+    if !is_secret(ty, env.interner) {
+        return;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_SECRET_CROSSES_A_BOUNDARY,
+            format!(
+                "a `secret`-qualified value cannot cross a copy boundary; {carrier}, \
+                 where nothing carries the qualifier that was protecting it"
+            ),
+        )
+        .with_primary(at.span, "secret value copied out here")
+        .with_help(
+            "reveal it explicitly first with `Core\\Secret::reveal(..., \"reason\")`, at \
+             the one call site where handing the secret over is the point; a \
+             `secret`-typed *property* of a copied object needs nothing here — the walk \
+             refuses that one itself",
+        ),
+    );
 }
 
 /// ADR 0033 § 4's fifth sink: a `secret` class constant reaching an attribute

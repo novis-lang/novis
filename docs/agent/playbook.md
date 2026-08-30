@@ -2738,6 +2738,20 @@ is why" — is this file.
   its first hole, so one case discharges both — and check the judgement is *true* before writing
   `unreachable from source`, which here it was only for `Core\Time::now`'s fixed-clock guard,
   both writers of that field validating before they store.
+- **An object does not cross an isolate boundary today, even when both files declare the identical
+  class.** A child that `return`s an instance comes back as `ok=false` with `` `Node` on the
+  receiving side is a different class, so an instance of this one has no meaning there`` — two
+  identical declarations in two compilation units are two classes. This is the plan's `Live::admit`
+  gap (`crates/nvs-runtime/src/graph.rs` § *Known gaps*) seen from the return-value side, and it cost
+  a whole case its second half: `a-graph-copy-round-trips-a-cyclic-value.nvst` was written with the
+  arena-to-arena carrier alongside the byte one and had to be rewritten around bytes alone. Until it
+  is closed, a cross-boundary case carries a scalar or an array, never an instance.
+- **Three front-end spellings each cost a run while writing `.nvst` cases, and none of them is what
+  PHP would have you write.** The constructor is `constructor`, not `__construct` (E0114, and the
+  follow-on E0409 for every property it would have assigned). `var $x = [1, 2, 3];` is E0414 — an
+  array literal has no target type to infer from, so it is `array<int> $x = [1, 2, 3];`. Two `catch`
+  clauses in one scope may share a variable name while their classes match and are E0406 the moment
+  they differ, so a case with a `TimeoutError` arm and a `LogicError` arm needs two names.
 
 ## Splitting a file that got too big
 
