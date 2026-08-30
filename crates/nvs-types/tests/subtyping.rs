@@ -81,3 +81,56 @@ fn a_cursor_class_is_refused_at_a_different_type_argument() {
         "{diags:?}"
     );
 }
+
+/// ADR 0125 § 3: `class<T>` is covariant in its argument and only upward, so
+/// `class<Dog>` reaches a `class<Animal>` position and `class<Animal>` does not
+/// reach a `class<Dog>` one. Both halves are asserted together, because a rule
+/// that only accepts is satisfied by making the type `mixed`.
+#[test]
+fn a_class_reference_widens_to_its_supertype_and_not_back() {
+    let widening = check_src(
+        "<?nvs\n\
+         class Animal {}\n\
+         class Dog extends Animal {}\n\
+         class T {\n\
+         \x20 function take(class<Animal> $c): void {}\n\
+         \x20 function m(class<Dog> $d): void { $this->take($d); }\n\
+         }\n",
+    );
+    assert!(!widening.has_errors(), "{widening:?}");
+
+    let narrowing = check_src(
+        "<?nvs\n\
+         class Animal {}\n\
+         class Dog extends Animal {}\n\
+         class T {\n\
+         \x20 function take(class<Dog> $c): void {}\n\
+         \x20 function m(class<Animal> $a): void { $this->take($a); }\n\
+         }\n",
+    );
+    assert!(
+        narrowing
+            .iter()
+            .any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{narrowing:?}"
+    );
+}
+
+/// The argument names a class or an interface, and anything else is refused
+/// where it is written -- ADR 0125 § 1, and the half the parser deliberately
+/// left to the checker so the refusal can say what the name resolved *to*.
+#[test]
+fn a_class_reference_over_a_non_class_argument_is_refused() {
+    let diags = check_src(
+        "<?nvs\n\
+         class T {\n\
+         \x20 function m(class<int> $c): void {}\n\
+         }\n",
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_CLASS_REF_ARGUMENT_NOT_A_CLASS)),
+        "{diags:?}"
+    );
+}

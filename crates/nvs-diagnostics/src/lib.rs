@@ -2583,6 +2583,30 @@ pub mod code {
     /// *declares* it, this one refuses naming a member that already has one.
     pub const E_FIRST_CLASS_CALLABLE_UNFORWARDABLE: Code = Code::new("E0793");
 
+    /// ADR 0125 § 5: a `new` through a `class<T>` whose `T` has an implementor
+    /// declaring a constructor incompatible with `T`'s.
+    ///
+    /// The site cannot see which implementor the value holds, so `T`'s own
+    /// constructor is the only signature it can check against — and that check
+    /// is only sound if every implementor accepts what `T` accepts. Refused at
+    /// the `new` rather than at the divergent class's declaration, because a
+    /// subclass never instantiated through a class reference is nobody's
+    /// problem and refusing it at the declaration would make an unrelated
+    /// file's `new` the reason a class cannot be written.
+    pub const E_DYNAMIC_NEW_DIVERGENT_CONSTRUCTOR: Code = Code::new("E0794");
+
+    /// ADR 0125 § 1: a `class<T>` whose argument is not a class or an
+    /// interface — `class<int>`, `class<array<Dog>>`, an enum name.
+    ///
+    /// A class reference's value is a class descriptor, so the argument is the
+    /// hierarchy bound every descriptor it can hold conforms to, and nothing
+    /// but a class or an interface names one. Distinct from
+    /// [`E_UNDEFINED_CLASS`], which is the *other* mistake `class<...>` admits:
+    /// a name that resolves to nothing at all. `crate::lower`'s
+    /// `lower_class_ref` reports this one only when the argument lowered
+    /// without complaint of its own.
+    pub const E_CLASS_REF_ARGUMENT_NOT_A_CLASS: Code = Code::new("E0795");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

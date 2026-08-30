@@ -62,6 +62,25 @@ pub enum Ty {
     /// `array<T>`. A bare `array` is `Array` of the interned `Mixed` id —
     /// ADR 0007 § 3: "`array` with no argument is exactly `array<mixed>`."
     Array(TypeId),
+    /// `class<T>` — ADR 0125 § 1's class reference. Its *value* is a run-time
+    /// class descriptor, and the argument bounds which descriptors it can be:
+    /// `T` itself or any class that is a `T`.
+    ///
+    /// The argument is always a [`Self::Class`] id. `crate::lower`'s atom
+    /// refuses anything else where it is written
+    /// (`E_CLASS_REF_ARGUMENT_NOT_A_CLASS`), so nothing downstream has to ask
+    /// whether a class reference's argument names a class before reading it as
+    /// one.
+    ///
+    /// **Covariant in that argument** (ADR 0125 § 3), which makes it the
+    /// second generic name in the language that is: `class<Dog>` widens to
+    /// `class<Animal>` wherever `Dog` widens to `Animal`, and never back. It
+    /// needs none of the reasoning [`Self::Array`]'s covariance needs, because
+    /// the trap that reasoning answers cannot be set here — a descriptor has
+    /// no write side at all, so the argument is a pure output position and
+    /// there is nothing a widened view could store for a narrow one to read
+    /// back.
+    ClassRef(TypeId),
     /// `object`
     Object,
     /// `mixed` — the one unchecked position.
@@ -382,6 +401,7 @@ impl TypeInterner {
             Ty::SecretTaintedString => "secret tainted string".to_owned(),
             Ty::SecretTaintedBytes => "secret tainted bytes".to_owned(),
             Ty::Array(elem) => format!("array<{}>", self.describe(*elem)),
+            Ty::ClassRef(inner) => format!("class<{}>", self.describe(*inner)),
             Ty::Object => "object".to_owned(),
             Ty::Mixed => "mixed".to_owned(),
             Ty::Void => "void".to_owned(),
@@ -650,6 +670,13 @@ impl TypeInterner {
     #[must_use]
     pub fn array(&mut self, elem: TypeId) -> TypeId {
         self.intern(Ty::Array(elem))
+    }
+
+    /// Interns `class<inner>`, where `inner` is a class or interface id —
+    /// see [`Ty::ClassRef`] for who guarantees that.
+    #[must_use]
+    pub fn class_ref(&mut self, inner: TypeId) -> TypeId {
+        self.intern(Ty::ClassRef(inner))
     }
 
     /// Interns a resolved class/interface name with no type arguments —

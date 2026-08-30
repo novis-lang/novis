@@ -117,7 +117,65 @@ pub(crate) fn infer_conversion(
     reject_secret_markup_conversion(inner_ty, result, expr.span, env);
     reject_non_literal_markup_conversion(inner, result, expr.span, env);
     reject_impossible_literal_conversion(inner, inner_ty, result, expr.span, env);
+    reject_impossible_class_reference_conversion(inner, result, expr.span, ctx, env);
     apply_qualifier_conversion_rule(inner_ty, result, env.interner)
+}
+
+/// ADR 0125 § 2: **a `Foo::class` operand is decided at compile time.**
+/// `Dog::class as class<Animal>` is a compile-time yes when `Dog` is an
+/// `Animal` and a compile-time refusal when it is not — both sides are written
+/// out, so there is no run-time check for the program to reach and no throw for
+/// it to handle. This is the ordinary shape a factory takes, which is why § 2
+/// singles it out: the common case pays nothing at run time.
+///
+/// **Only this operand shape.** A computed `string` is the § 2 row proper,
+/// checked where the value arrives. A plain string *literal* looks equally
+/// foldable and is deliberately left alone: `"Dog"` names a class through no
+/// resolution rule the language has, while `::class` goes through the file's
+/// imports and namespace ([`super::members::check_class_name_const`]), which is
+/// exactly what makes it decidable here.
+///
+/// The refusal is [`code::E_NO_CONVERSION`], the same code
+/// [`reject_unrelated_class_conversion`] gives the same mistake spelled at an
+/// instance — two types that share no value — rather than a code of its own.
+fn reject_impossible_class_reference_conversion(
+    inner: &Expr,
+    to: TypeId,
+    span: Span,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    let ExprKind::ClassNameConst { class } = &inner.kind else {
+        return;
+    };
+    let Ty::ClassRef(arg) = *env.interner.get(to) else {
+        return;
+    };
+    let Ty::Class(target_q, _) = env.interner.get(arg).clone() else {
+        return;
+    };
+    // `None` is a class side already reported by `check_class_name_const`, and
+    // a name that resolves to nothing is its `undeclared_name` — both have said
+    // what is wrong, and a second diagnostic here would only say it vaguer.
+    let Some(from_q) = super::members::resolve_class_expr(class, ctx, env) else {
+        return;
+    };
+    if from_q == target_q || nvs_hir::hierarchy::implements_interface(&from_q, &target_q, env.graph)
+    {
+        return;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_NO_CONVERSION,
+            format!("`{from_q}` is not a `{target_q}`, so this can never be a `class<{target_q}>`"),
+        )
+        .with_primary(span, "converted here")
+        .with_help(
+            "ADR 0125 § 2 decides a written-out `::class` operand at compile time, and this one \
+             names a class outside the hierarchy: convert to `class<T>` at a class the name \
+             actually reaches, or make the class an implementor of the one written here",
+        ),
+    );
 }
 
 /// The binary-operator result-type table, ADR 0007 § 4, amended by ADR 0013
@@ -312,6 +370,15 @@ enum EqDomain<'a> {
     /// `$e == 1` and `$e == $otherEnum` refusals, the first answered by
     /// ADR 0010 § 3's `as int` and the second by an explicit `match`.
     Enum(&'a QName),
+    /// `class<T>` — its own domain, and deliberately not [`Self::Object`]'s
+    /// and not [`Self::Str`]'s. A class reference's value is a descriptor, so
+    /// two of them compare by descriptor identity and nothing else can be
+    /// equal to one: an instance is not its own class, and `$cls == "Dog"` is
+    /// exactly the string-as-a-class confusion ADR 0125 § 2 exists to keep out
+    /// (`Foo::class` stays a `string`, and `as class<T>` is the only door).
+    /// Not parameterised by the argument, because covariance (§ 3) means two
+    /// class references at different arguments can hold the same descriptor.
+    ClassRef,
 }
 
 fn equality_domain(ty: &Ty) -> Option<EqDomain<'_>> {
@@ -335,6 +402,7 @@ fn equality_domain(ty: &Ty) -> Option<EqDomain<'_>> {
         Ty::StringLiteral(_) => EqDomain::Str,
         Ty::IntLiteral(_) => EqDomain::Numeric,
         Ty::Array(_) => EqDomain::Array,
+        Ty::ClassRef(_) => EqDomain::ClassRef,
         Ty::Object | Ty::Class(..) | Ty::Shape(_) => EqDomain::Object,
         Ty::Callable | Ty::CallableTo(_) => EqDomain::Callable,
         // Both spellings of "a value of this enum" — ADR 0047 § 3 keeps a case
@@ -608,9 +676,11 @@ fn reject_unordered_operand(
             EqDomain::Object => Unordered::Object,
             EqDomain::Str => Unordered::Str,
             EqDomain::Enum(_) => Unordered::Enum,
-            EqDomain::Bytes | EqDomain::Array | EqDomain::Callable | EqDomain::Null => {
-                Unordered::Other
-            }
+            EqDomain::Bytes
+            | EqDomain::Array
+            | EqDomain::Callable
+            | EqDomain::Null
+            | EqDomain::ClassRef => Unordered::Other,
         };
         Some((ty, domain))
     })?;
@@ -1696,6 +1766,16 @@ enum ConvKind {
     /// A class, a shape, a `callable` or plain `object`: one pointer
     /// representation, and no row of the table produces one.
     Object,
+    /// `class<T>` — ADR 0125 § 2, and the one target kind that *is* produced by
+    /// rows of its own. Deliberately not [`Self::Object`]: a descriptor is one
+    /// pointer like an instance is, but the two rows that reach it check a
+    /// hierarchy at run time and no row of § 2 reaches an instance at all.
+    ///
+    /// Unparameterised, because the table asks only which rows exist. `class<U>
+    /// → class<T>` is one row whatever `U` and `T` are — a narrowing, checked
+    /// against the descriptor — and where the pair is decidable at compile time
+    /// [`reject_impossible_class_reference_conversion`] is what decides it.
+    ClassRef,
     /// More than one runtime shape — `mixed`, a `?T`, a heterogeneous union,
     /// or a type this table does not model. **Never refused, on either side**:
     /// the row is chosen from the value's tag at run time.
@@ -1720,6 +1800,7 @@ fn conversion_kind(id: TypeId, interner: &TypeInterner) -> ConvKind {
         Ty::Null => ConvKind::Null,
         Ty::Void => ConvKind::Void,
         Ty::Array(_) => ConvKind::Array,
+        Ty::ClassRef(_) => ConvKind::ClassRef,
         Ty::Enum(_, backing) | Ty::EnumCase(_, backing, _) => ConvKind::Enum(*backing),
         Ty::Class(..) | Ty::Object | Ty::Shape(_) | Ty::Callable | Ty::CallableTo(_) => {
             ConvKind::Object
@@ -1746,7 +1827,8 @@ fn conversion_kind(id: TypeId, interner: &TypeInterner) -> ConvKind {
 /// a judgement of its own.
 fn conversion_row_exists(from: ConvKind, to: ConvKind) -> bool {
     use ConvKind::{
-        Array, Bool, Bytes, Decimal, Enum, Float, Int, Null, Object, Str, Uint, Void, Wide,
+        Array, Bool, Bytes, ClassRef, Decimal, Enum, Float, Int, Null, Object, Str, Uint, Void,
+        Wide,
     };
     match (from, to) {
         // A `void` call has no value, so it is neither an operand a row can
@@ -1768,6 +1850,18 @@ fn conversion_row_exists(from: ConvKind, to: ConvKind) -> bool {
         // has an answer for every type the table above did not already
         // exclude.
         (_, Bool) => true,
+        // ADR 0125 § 2's two rows, and the whole of what produces a class
+        // reference — which is what makes `as` its only source. The `string`
+        // row is the door: the text must name `T` or a class that is a `T`, and
+        // it throws where it does not. The `class<U>` row is a narrowing,
+        // checked against the descriptor the same way.
+        //
+        // The refusal below is written out rather than left to this function's
+        // final `_ => false`, because it is a *decision* — every other operand
+        // reaching a `class<T>` target has no row, and that is the sentence
+        // that keeps `Foo::class` an ordinary `string`.
+        (Str | ClassRef, ClassRef) => true,
+        (_, ClassRef) => false,
         // ADR 0007 § 2's "anything → `string`" row: total for scalars, and an
         // object needs `Stringable` — which `require_stringable_object` has
         // already asked at this same span. `null` is in the row for the reason
@@ -1827,8 +1921,18 @@ fn enum_backing_kind(backing: crate::enums::EnumBacking) -> ConvKind {
 /// Ordered operand-first where the operand is the whole reason there is no row,
 /// target-first otherwise.
 fn conversion_help(from: ConvKind, to: ConvKind) -> &'static str {
-    use ConvKind::{Array, Bool, Bytes, Enum, Null, Object, Str, Void};
+    use ConvKind::{Array, Bool, Bytes, ClassRef, Enum, Null, Object, Str, Void};
     match (from, to) {
+        (_, ClassRef) => {
+            "ADR 0125 § 2 gives `class<T>` exactly two sources: a `string` naming a class that \
+             is a `T`, and a narrowing from another class reference — so make the name first \
+             (`Foo::class`, or the text a request carried) and convert that"
+        }
+        (ClassRef, _) => {
+            "a class reference is a class descriptor, not the name it was made from: ADR 0125 \
+             § 4's three sites take the value itself, and `Core\\Reflect` is where a reflective \
+             question about a class belongs (ADR 0011)"
+        }
         (Void, _) => {
             "a call that returns `void` has no value at all, so there is nothing here to convert"
         }

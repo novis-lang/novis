@@ -170,6 +170,20 @@ pub(crate) fn is_assignable(
         let (from_elem, to_elem) = (*from_elem, *to_elem);
         return is_assignable(from_elem, to_elem, interner, graph, signatures);
     }
+    // ADR 0125 § 3: **`class<T>` is covariant in its argument, and only
+    // upward** — `class<Dog>` widens to `class<Animal>` wherever `Dog` widens
+    // to `Animal`, and a narrowing is written `as class<Dog>` and checked
+    // against the descriptor at run time.
+    //
+    // The paragraph above earns `array<T>`'s covariance with copy-on-write.
+    // Nothing of that argument is needed here, because the trap it answers
+    // cannot be set: a class descriptor has no write side, so the argument is a
+    // pure output position and there is nothing a widened view could store for
+    // the narrow one to read back.
+    if let (Ty::ClassRef(from_arg), Ty::ClassRef(to_arg)) = (interner.get(from), interner.get(to)) {
+        let (from_arg, to_arg) = (*from_arg, *to_arg);
+        return is_assignable(from_arg, to_arg, interner, graph, signatures);
+    }
     // ADR 0024 § 2 / ADR 0033 § 2: `tainted` and `secret` are two independent
     // bits on the same `string`/`bytes` base, and each may only ever widen
     // through ordinary assignment — a plain value is always a safe

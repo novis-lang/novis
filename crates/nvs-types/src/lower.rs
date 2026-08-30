@@ -122,6 +122,7 @@ fn lower_atom(atom: &TypeAtom, span: Span, depth: u32, ctx: &Ctx<'_>, env: &mut 
             };
             env.interner.array(elem)
         }
+        TypeAtom::ClassRef(inner) => lower_class_ref(inner, depth, ctx, env),
         TypeAtom::Object => env.interner.object(),
         TypeAtom::Shape(fields) => {
             let mut out = Vec::with_capacity(fields.len());
@@ -151,6 +152,44 @@ fn lower_atom(atom: &TypeAtom, span: Span, depth: u32, ctx: &Ctx<'_>, env: &mut 
         TypeAtom::Member(name, member) => lower_member_type(name, *member, span, ctx, env),
         _ => env.interner.mixed(),
     }
+}
+
+/// ADR 0125 § 1's `class<T>`: the argument names one class or one interface,
+/// and anything else is refused where it is written.
+///
+/// The refusal lives here rather than in the parser because the parser sees
+/// only the spelling, and `class<int>` and `class<Undeclared>` are two
+/// different mistakes ([`TypeAtom::ClassRef`]'s own doc says so). The second is
+/// already `E_UNDEFINED_CLASS`, reported by the recursive lowering below, which
+/// then recovers as `mixed` — so this reports only when that lowering was
+/// itself quiet. Without that guard an unresolvable name would collect a second
+/// diagnostic here saying `mixed` is not a class, which is true and useless.
+///
+/// A refused argument recovers as `mixed` rather than as `class<mixed>`: there
+/// is no such type — [`crate::ty::Ty::ClassRef`] promises its argument is a
+/// class — and `mixed` is the one recovery every other atom in this module
+/// already falls back to.
+fn lower_class_ref(inner: &Type, depth: u32, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
+    let before = env.diags.error_count();
+    let arg = lower_type_at_depth(inner, depth + 1, ctx, env);
+    if matches!(env.interner.get(arg), crate::ty::Ty::Class(..)) {
+        return env.interner.class_ref(arg);
+    }
+    if env.diags.error_count() == before {
+        let described = env.interner.describe(arg);
+        env.diags.report(
+            Diagnostic::error(
+                code::E_CLASS_REF_ARGUMENT_NOT_A_CLASS,
+                format!("`class<{described}>` names something that is not a class"),
+            )
+            .with_primary(inner.span, "a class or interface name is required here")
+            .with_help(
+                "a class reference's value is a class descriptor, so its argument is the class \
+                 or interface every descriptor it can hold conforms to",
+            ),
+        );
+    }
+    env.interner.mixed()
 }
 
 /// ADR 0047 § 1's `int` literal atom.
