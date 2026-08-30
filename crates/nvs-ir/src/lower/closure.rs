@@ -73,9 +73,15 @@ pub(crate) fn param_tags_word(
 }
 
 /// Lowers every pending closure, and every closure *those* bodies contain, to
-/// exhaustion.
+/// exhaustion — then every [`PendingCallable`] met along the way.
+///
+/// The two travel together because a closure body may write a first-class
+/// callable and a thunk body may not write anything at all: draining the
+/// closures first is what makes `callables` complete by the time the second
+/// loop starts, so neither list needs a second pass.
 pub(crate) fn drain_closures(
     mut pending: Vec<PendingClosure>,
+    mut callables: Vec<PendingCallable>,
     src: &SourceFile,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
@@ -84,10 +90,17 @@ pub(crate) fn drain_closures(
     let mut functions = Vec::new();
     let mut classes = Vec::new();
     while let Some(next) = pending.pop() {
-        let (function, synthesized, more) = lower_closure(&next, src, exprs, checked_types, enums);
+        let (function, synthesized, more, more_callables) =
+            lower_closure(&next, src, exprs, checked_types, enums);
         functions.push(function);
         classes.extend(synthesized);
         pending.extend(more);
+        callables.extend(more_callables);
+    }
+    for next in &callables {
+        let (function, synthesized) = lower_callable(next, src, exprs, checked_types, enums);
+        functions.push(function);
+        classes.push(synthesized);
     }
     (functions, classes)
 }
@@ -152,7 +165,12 @@ pub(crate) fn lower_closure(
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
     enums: &EnumTable,
-) -> (Function, Vec<crate::ir::Class>, Vec<PendingClosure>) {
+) -> (
+    Function,
+    Vec<crate::ir::Class>,
+    Vec<PendingClosure>,
+    Vec<PendingCallable>,
+) {
     let PendingClosure {
         class,
         fn_expr,
@@ -241,6 +259,9 @@ pub(crate) fn lower_closure(
     }
 
     let more = std::mem::take(&mut low.closures);
+    // ADR 0027's `(...)` written inside a closure body has the same nowhere
+    // else to go — see `Lowering::callables`.
+    let more_callables = std::mem::take(&mut low.callables);
     // A shape literal written *inside* a closure body synthesizes its class
     // here rather than in the enclosing function, so it rides out beside the
     // environment class — see `Lowering::shapes`.
@@ -282,6 +303,7 @@ pub(crate) fn lower_closure(
         .chain(shapes)
         .collect(),
         more,
+        more_callables,
     )
 }
 
@@ -410,4 +432,294 @@ fn check_param_class(
         },
     );
     body
+}
+
+/// The reserved field an **instance** first-class callable's object holds its
+/// target's receiver under — `$obj->method(...)` and the `self::method(...)`
+/// spelling of a non-`static` member alike
+/// ([ADR 0027](../../../docs/adr/0027-first-class-callable-syntax.md) § 1).
+///
+/// Absent from a static target's class, which has nothing to remember: its
+/// called class is a compile-time constant the thunk materializes for itself.
+/// Named like [`FN_ARITY`] so no declaration can collide with it, and placed
+/// third so a native reader's slot arithmetic over the two reserved fields is
+/// the one [`FN_ARITY`] already states.
+pub(crate) const FCC_RECV: &str = "fcc#recv";
+
+/// One `Class::method(...)`/`$obj->method(...)` met while lowering a body,
+/// waiting for the thunk that forwards it — see [`lower_callable`].
+///
+/// Owns its [`ResolvedCall`] for [`PendingClosure`]'s reason: the borrow would
+/// have to live as long as the source file's lifetime, and a call's resolved
+/// facts are a small clone taken once per written `(...)`.
+pub(crate) struct PendingCallable {
+    /// The synthesized class's label, unique within the compiled unit — the
+    /// enclosing frame's own label plus this site's index, so two files
+    /// naming the same member still get two labels and no `Function` in
+    /// [`crate::ir::Program`] is written twice.
+    pub(crate) class: String,
+    /// The member the `(...)` named.
+    pub(crate) call: ResolvedCall,
+    /// Whether the target takes a receiver — `!ResolvedCall::is_static`,
+    /// decided at the site and recorded so the thunk and the object's field
+    /// list cannot disagree about whether [`FCC_RECV`] exists.
+    pub(crate) takes_receiver: bool,
+    /// Each parameter's representation, positional and already lowered —
+    /// the thunk's own parameter list past its receiver, and the word
+    /// [`FN_PARAM_TAGS`] packs at the site.
+    pub(crate) params: Vec<Ty>,
+    /// Where the `(...)` was written, for the frame label and for the class
+    /// check of a class-declared parameter. A thunk has no statement of its
+    /// own, exactly as a closure literal's body has none.
+    pub(crate) span: Span,
+}
+
+/// Lowers one first-class callable to the `invoke` method of a class
+/// synthesized for that one site — ADR 0027 § 1, on top of
+/// [`lower_closure`]'s representation and adding nothing to it.
+///
+/// # Why a thunk rather than a fourth call shape
+///
+/// ADR 0031 § 1 makes `callable` the only closure type, so the *value* a
+/// `(...)` produces has to be the same object every `fn` literal produces:
+/// [`FN_ARITY`], [`FN_PARAM_TAGS`], and one `invoke` the runtime reaches
+/// through the method table. Given that, the cheapest correct body for that
+/// `invoke` is the forwarding call this builds — every argument passed
+/// straight through, the receiver read back out of [`FCC_RECV`] — and the
+/// alternative, teaching `nvs_runtime::call_closure` to dispatch on a second
+/// closure shape carrying a method row instead of a code pointer, is a second
+/// callable representation for every native caller to know about. The cost is
+/// stated rather than hidden: one extra compiled function per written
+/// `(...)`, and one extra call frame per invocation through one.
+///
+/// # What the thunk captures, and what it does not
+///
+/// An instance target's receiver is stored **by value at the point the
+/// `(...)` is evaluated**, which is ADR 0031 § 2's rule for a capture and the
+/// answer PHP's own first-class callable syntax gives. A static target's
+/// called class is baked in as an [`InstKind::ClassDescConst`] instead.
+///
+/// **`static::method(...)` binds the declaring class, not the frame's called
+/// class.** The checker records `ResolvedCall::static_class` only for a
+/// written class name, and a class descriptor is not a value a field slot can
+/// hold — so the one spelling whose late static binding would have to survive
+/// past the site is bound early. `self::`/`parent::` are unaffected, since
+/// both mean the declaring class already. This is the whole of what this
+/// lowering does not answer; it is a divergence worth a redesign rather than
+/// a bug in the shape.
+///
+/// # Ownership
+///
+/// The thunk owns each of its own parameters, as any callee does, and hands
+/// that ownership straight on: a compiled target is passed transferred
+/// arguments and releases them itself, and a `Core` helper borrows, so the
+/// thunk keeps them as owned temporaries and releases them after the call.
+/// The receiver is a borrowed read out of a field, so it is retained before
+/// it is passed. The closure object itself is bound under [`FN_SELF`], which
+/// is what makes [`Lowering::release_all_locals`] release it at every exit.
+pub(crate) fn lower_callable(
+    pending: &PendingCallable,
+    src: &SourceFile,
+    exprs: &ExprTypeTable,
+    checked_types: &TypeInterner,
+    enums: &EnumTable,
+) -> (Function, crate::ir::Class) {
+    let PendingCallable {
+        class,
+        call,
+        takes_receiver,
+        params,
+        span,
+    } = pending;
+    let ret = lower_checked_ty(call.return_ty, checked_types);
+    let label = format!("{class}::{FN_INVOKE}");
+    let mut low = Lowering::new(&label, src, ret, exprs, checked_types, enums);
+    let entry = low.new_block();
+    let mut cur = entry;
+    low.emit_safepoint(entry);
+    // A thunk has no statement of its own, so the `(...)` is what
+    // `Lowering::frame_label` and a throw location render — the site the
+    // reader wrote, rather than the file's first line.
+    low.cur_stmt_span = *span;
+
+    let (self_v, _) = low.emit(entry, Ty::Object, InstKind::Param(0));
+    let mut env = Env::default();
+    env.insert(FN_SELF.to_owned(), (self_v, Ty::Object));
+    let mut param_tys = vec![Ty::Object];
+
+    // Everything the target is handed is staged as an owned temporary first,
+    // so a class check's refusal below releases the whole argument list
+    // rather than the prefix bound so far. Which way it is *un*staged is what
+    // the two calling conventions differ in, at the bottom.
+    let mark = low.temporaries_mark();
+    let receiver = takes_receiver.then(|| {
+        let (v, _) = low.emit(
+            entry,
+            Ty::Object,
+            InstKind::FieldGet {
+                object: self_v,
+                class: class.clone(),
+                field: FCC_RECV.to_owned(),
+            },
+        );
+        // A field read borrows: the object keeps its own reference, so the
+        // one the callee will release has to be a new one.
+        low.emit_retain(entry, v);
+        low.own_temporary(v);
+        v
+    });
+
+    let mut args = Vec::with_capacity(params.len());
+    let mut class_checks: Vec<(usize, ValueId, String)> = Vec::new();
+    for (i, ty) in params.iter().enumerate() {
+        let index = u32::try_from(i + 1).expect("far more parameters than a call could ever take");
+        let (v, _) = low.emit(entry, *ty, InstKind::Param(index));
+        if let Some(class) = checked_class(call.param_tys[i], checked_types) {
+            class_checks.push((i, v, class));
+        }
+        if ty.is_refcounted() {
+            low.own_temporary(v);
+        }
+        args.push(v);
+        param_tys.push(*ty);
+    }
+    // The same guarantee a closure literal's own parameters get, and for the
+    // same reason: `FN_PARAM_TAGS` has four bits per parameter and no room
+    // for a class label, so a named-class parameter is checked here or not at
+    // all. See `check_param_class`.
+    for (i, value, class) in class_checks {
+        cur = check_param_class(&mut low, cur, i, value, &class, *span, &mut env);
+    }
+
+    let value = if let Some(symbol) = nvs_types::core_symbol_of(&call.class, &call.method) {
+        // A Tier 0 `Core` member borrows every argument, receiver included,
+        // so what this frame staged it also releases — see `InstKind::CoreCall`.
+        let written = call.written_class.as_ref().and_then(|written| {
+            nvs_types::core_takes_written_class(&call.class.to_string(), &call.method).then(|| {
+                let (v, _) = low.emit(
+                    cur,
+                    Ty::ClassDesc,
+                    InstKind::ClassDescConst {
+                        class: written.to_string(),
+                    },
+                );
+                v
+            })
+        });
+        let args = written
+            .into_iter()
+            .chain(receiver)
+            .chain(args)
+            .collect::<Vec<_>>();
+        let (v, _) = low.emit_fallible(cur, ret, InstKind::CoreCall { symbol, args }, &env);
+        low.release_temporaries_since(mark, cur);
+        v
+    } else {
+        let target = format!("{}::{}", call.class, call.method);
+        let kind = match receiver {
+            // An instance target dispatches on the receiver's own class
+            // wherever the label would name the wrong function — the rule
+            // `Lowering::lower_method_call` states in full.
+            Some(receiver) if !call.has_body || call.overridden => {
+                let (lsb, _) = low.emit(
+                    cur,
+                    Ty::ClassDesc,
+                    InstKind::ClassDescOf { object: receiver },
+                );
+                InstKind::CallVirtual {
+                    lsb,
+                    method: call.method.clone(),
+                    fallback: call.has_body.then_some(target),
+                    receiver: Some(receiver),
+                    args,
+                }
+            }
+            Some(receiver) => InstKind::Call {
+                target,
+                receiver: Some(receiver),
+                args,
+            },
+            // A static target's slot 0 carries the called class, as it does
+            // at an ordinary call site. `static_class` is the class the site
+            // *wrote*; the declaring class stands in for the three forwarding
+            // spellings, which is this function's stated divergence.
+            None => {
+                let called = call
+                    .static_class
+                    .as_ref()
+                    .map_or_else(|| call.class.to_string(), ToString::to_string);
+                let (desc, _) = low.emit(
+                    cur,
+                    Ty::ClassDesc,
+                    InstKind::ClassDescConst { class: called },
+                );
+                if call.has_body {
+                    InstKind::Call {
+                        target,
+                        receiver: Some(desc),
+                        args,
+                    }
+                } else {
+                    InstKind::CallVirtual {
+                        lsb: desc,
+                        method: call.method.clone(),
+                        fallback: None,
+                        receiver: None,
+                        args,
+                    }
+                }
+            }
+        };
+        // From here the callee owns every transferred argument and releases
+        // them on its own throwing edge, so they leave this frame's stack
+        // before the call's fault edge is built.
+        low.forget_transferred_since(mark);
+        let (v, _) = low.emit_fallible(cur, ret, kind, &env);
+        v
+    };
+
+    low.release_all_locals(cur, &env, None);
+    low.seal(cur, Terminator::Return(Some(value)));
+
+    let (blocks, stmt_spans, edge_spans) = low.finish();
+    (
+        Function {
+            name: label,
+            params: param_tys,
+            ret,
+            blocks,
+            entry,
+            stmt_spans,
+            edge_spans,
+        },
+        crate::ir::Class {
+            label: class.clone(),
+            // `FN_ARITY` first and `FN_PARAM_TAGS` second, as for every
+            // closure — a native caller reads both by index. See `FCC_RECV`
+            // for why the receiver comes third.
+            fields: [FN_ARITY.to_owned(), FN_PARAM_TAGS.to_owned()]
+                .into_iter()
+                .chain(takes_receiver.then(|| FCC_RECV.to_owned()))
+                .collect(),
+            field_reprs: Vec::new(),
+            secret_fields: Vec::new(),
+            conforms: Vec::new(),
+            methods: vec![(FN_INVOKE.to_owned(), class.clone(), true)],
+            codec: Vec::new(),
+            ctor_arity: 0,
+            defaults: Vec::new(),
+        },
+    )
+}
+
+/// [`declared_class`]'s question asked of an *already-checked* type rather
+/// than of a `Type` AST node — a resolved call's parameter type, which is a
+/// [`TypeId`] out of `nvs_types`' own interner and has no local declaration
+/// this crate could read instead. Same answer, same `Core` exclusion, same
+/// reason.
+fn checked_class(id: TypeId, checked_types: &TypeInterner) -> Option<String> {
+    match checked_types.get(id) {
+        CheckedTy::Class(qname, _) if !qname.is_core() => Some(qname.to_string()),
+        _ => None,
+    }
 }

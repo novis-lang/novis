@@ -68,7 +68,7 @@ const ALLOWLIST: &[(&str, &str)] = &[];
 /// read from the construct that carries it. Nothing was added; thirteen sites
 /// were always there and unseen. A ratchet set from a blind count is not a
 /// ratchet, and this is the last time this number may rise.
-const CEILING: usize = 17;
+const CEILING: usize = 15;
 
 /// The repository root — this crate is `crates/nvs-ir`.
 fn root() -> PathBuf {

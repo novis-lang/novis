@@ -2307,6 +2307,120 @@ impl<'a> Lowering<'a> {
         (obj, Ty::Object)
     }
 
+    /// [ADR 0027](../../../docs/adr/0027-first-class-callable-syntax.md)
+    /// § 1's `Class::method(...)` / `$obj->method(...)`, which *names* the
+    /// resolved member rather than calling it and whose value is a closure
+    /// over it.
+    ///
+    /// The object this builds is byte-for-byte the one a `fn` literal builds
+    /// — [`FN_ARITY`], [`FN_PARAM_TAGS`], and an `invoke` in the method table
+    /// — because ADR 0031 § 1 makes `callable` the only closure type, so a
+    /// native `Core` member handed one of these cannot tell it apart from a
+    /// written closure and has nothing new to learn. The body behind that
+    /// `invoke` is the forwarding thunk `lower_callable` builds, which owns
+    /// the representation and the one divergence it carries.
+    ///
+    /// `receiver` is the written receiver for the `$obj->method(...)`
+    /// spelling and `None` for the `Class::method(...)` one — but *which*
+    /// spelling was written does not decide whether a receiver is stored:
+    /// `ResolvedCall::is_static` does, exactly as it does for a call, so
+    /// `self::helper(...)` over a non-`static` member captures this frame's
+    /// own `$this`.
+    ///
+    /// The arity written into the object is the target's **whole** parameter
+    /// list. A member with a trailing default is therefore reachable through
+    /// its own name and not through a `callable` that omits the argument:
+    /// `callable` carries no parameter list for a call site to read (ADR 0031
+    /// § 4), so the defaults a caller would materialize are ones no caller
+    /// can see. That is a refusal at run time by `nvs_runtime::call_closure`,
+    /// where every other arity mismatch through a `callable` is reported.
+    ///
+    /// # Panics
+    ///
+    /// Panics naming the shape for a non-`static` target reached from a frame
+    /// with no `$this` — which the checker refuses where it is written, as it
+    /// does for the call spelling.
+    fn lower_callable_ref(
+        &mut self,
+        call: &ResolvedCall,
+        receiver: Option<&Expr>,
+        expr: &Expr,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        // The enclosing frame's label plus this site's index. `$` cannot start
+        // an Novis identifier, so no declaration can collide with it — the
+        // same guarantee `shape_class_label` relies on.
+        let class = format!("{}$fcc{}", self.fn_label, self.callables.len());
+        let params: Vec<Ty> = call
+            .param_tys
+            .iter()
+            .map(|&id| lower_checked_ty(id, self.checked_types))
+            .collect();
+        let (obj, _) = self.emit_fallible(
+            *cur,
+            Ty::Object,
+            InstKind::New {
+                class: class.clone(),
+                ctor: None,
+                args: Vec::new(),
+            },
+            env,
+        );
+        let arity = i64::try_from(params.len()).expect("a parameter list fits an i64");
+        let (arity_v, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(arity));
+        self.emit_field_set(*cur, obj, class.clone(), FN_ARITY.to_owned(), arity_v);
+        // The declared parameter types are readable here and nowhere below
+        // this crate, exactly as they are at a `fn` literal — the target's,
+        // this time, rather than the literal's own. See `FN_PARAM_TAGS`.
+        let tags = pack_param_tags(params.iter().copied());
+        let (tags_v, _) = self.emit(
+            *cur,
+            Ty::Int,
+            InstKind::ConstInt(i64::from_ne_bytes(tags.to_ne_bytes())),
+        );
+        self.emit_field_set(*cur, obj, class.clone(), FN_PARAM_TAGS.to_owned(), tags_v);
+        let takes_receiver = !call.is_static;
+        if takes_receiver {
+            // ADR 0031 § 2's "by value at the point the closure literal is
+            // evaluated", which for a first-class callable is the receiver —
+            // and the answer PHP's own `(...)` gives.
+            let (recv, ty, aliasing) = match receiver {
+                Some(object) => {
+                    let (v, ty) = self.lower_expr(object, None, env, cur);
+                    (v, ty, self.aliasing_read(object))
+                }
+                None => {
+                    let &(v, ty) = env.get("this").unwrap_or_else(|| {
+                        panic!(
+                            "nvs-ir: `{}::{}` is named as a callable at {:?} and is not \
+                             static, from a frame with no `$this` — nvs_types is expected \
+                             to have refused that, as it does for the call spelling",
+                            call.class, call.method, expr.span
+                        )
+                    });
+                    (v, ty, true)
+                }
+            };
+            // The object owns one reference for as long as it lives. A
+            // receiver read out of a local or a field is that binding's, so
+            // this is a second one; a freshly built one has no other owner
+            // and this store is what takes it over.
+            if ty.is_refcounted() && aliasing {
+                self.emit_retain(*cur, recv);
+            }
+            self.emit_field_set(*cur, obj, class.clone(), FCC_RECV.to_owned(), recv);
+        }
+        self.callables.push(PendingCallable {
+            class,
+            call: call.clone(),
+            takes_receiver,
+            params,
+            span: expr.span,
+        });
+        (obj, Ty::Object)
+    }
+
     fn lower_new(
         &mut self,
         target: &NewTarget,
@@ -2684,6 +2798,14 @@ impl<'a> Lowering<'a> {
             let name = name.clone();
             return self.lower_erased_method_call(object, nullsafe, &name, args, env, cur);
         }
+        // ADR 0027 § 1's `$obj->method(...)`, which names the member rather
+        // than calling it. Taken before the resolved arm for the erased one's
+        // reason: it is the *variant* that selects it, and both carry the
+        // same `ResolvedCall`.
+        if let Some(ExprInfo::CallableRef(call)) = self.exprs.lookup(expr.span) {
+            let call = call.clone();
+            return self.lower_callable_ref(&call, Some(object), expr, env, cur);
+        }
         let Some(ExprInfo::Call(call)) = self.exprs.lookup(expr.span) else {
             panic!(
                 "nvs-ir: an instance method call at {:?} has no resolved target \
@@ -2695,10 +2817,9 @@ impl<'a> Lowering<'a> {
                  a class and calls a member it has not got is `E0405` there too, \
                  `Core` included, since the registry is the whole roster of `Core` \
                  (`nvs_types::core_lib`). ADR 0027's \
-                 `$obj->method(...)` is the one shape that resolves and still arrives \
-                 here: it records `ExprInfo::CallableRef` instead, because it names \
-                 the member rather than calling it, and this crate has no arm for it \
-                 yet",
+                 `$obj->method(...)` records `ExprInfo::CallableRef` instead, because \
+                 it names the member rather than calling it, and is answered by \
+                 `Lowering::lower_callable_ref` above",
                 expr.span
             );
         };
@@ -2876,14 +2997,20 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
+        // ADR 0027 § 1's `Class::method(...)` — as for an instance call, the
+        // variant is what selects this and the resolved facts are the same.
+        if let Some(ExprInfo::CallableRef(call)) = self.exprs.lookup(expr.span) {
+            let call = call.clone();
+            return self.lower_callable_ref(&call, None, expr, env, cur);
+        }
         let Some(ExprInfo::Call(call)) = self.exprs.lookup(expr.span) else {
             panic!(
                 "nvs-ir: a static call at {:?} has no resolved target recorded in the \
                  typed-expression table — did this program pass \
                  nvs_types::check_program with the same table? ADR 0027's \
                  `Class::method(...)` records `ExprInfo::CallableRef` rather than \
-                 `Call` — it names the member rather than calling it, and this crate \
-                 has no arm for it yet",
+                 `Call` — it names the member rather than calling it, and is answered \
+                 by `Lowering::lower_callable_ref` above",
                 expr.span
             );
         };

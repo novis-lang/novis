@@ -78,7 +78,7 @@ use nvs_syntax::ast::{
     UnaryOp as AstUnaryOp,
 };
 use nvs_types::EnumTable;
-use nvs_types::expr_table::{ArgSlot, ExprInfo, ExprTypeTable, ForeachDrive};
+use nvs_types::expr_table::{ArgSlot, ExprInfo, ExprTypeTable, ForeachDrive, ResolvedCall};
 use nvs_types::layout::ClassLayoutTable;
 use nvs_types::ty::{Ty as CheckedTy, TypeId, TypeInterner};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -923,10 +923,13 @@ pub fn lower_method(
     }
 
     let pending = std::mem::take(&mut low.closures);
+    // Beside the closures, and out the same channel: see `Lowering::callables`.
+    let callables = std::mem::take(&mut low.callables);
     // Beside the closures, and out the same channel: see `Lowering::shapes`.
     let shapes = std::mem::take(&mut low.shapes);
     let (blocks, stmt_spans, edge_spans) = low.finish();
-    let (closures, mut classes) = drain_closures(pending, src, exprs, checked_types, enums);
+    let (closures, mut classes) =
+        drain_closures(pending, callables, src, exprs, checked_types, enums);
     classes.extend(shapes);
     Lowered {
         function: Function {
@@ -1107,10 +1110,13 @@ pub fn lower_property_hook(
     }
 
     let pending = std::mem::take(&mut low.closures);
+    // Beside the closures, and out the same channel: see `Lowering::callables`.
+    let callables = std::mem::take(&mut low.callables);
     // Beside the closures, and out the same channel: see `Lowering::shapes`.
     let shapes = std::mem::take(&mut low.shapes);
     let (blocks, stmt_spans, edge_spans) = low.finish();
-    let (closures, mut classes) = drain_closures(pending, src, exprs, checked_types, enums);
+    let (closures, mut classes) =
+        drain_closures(pending, callables, src, exprs, checked_types, enums);
     classes.extend(shapes);
     Lowered {
         function: Function {
@@ -1219,10 +1225,13 @@ pub fn lower_script(
     }
 
     let pending = std::mem::take(&mut low.closures);
+    // Beside the closures, and out the same channel: see `Lowering::callables`.
+    let callables = std::mem::take(&mut low.callables);
     // Beside the closures, and out the same channel: see `Lowering::shapes`.
     let shapes = std::mem::take(&mut low.shapes);
     let (blocks, stmt_spans, edge_spans) = low.finish();
-    let (closures, mut classes) = drain_closures(pending, src, exprs, checked_types, enums);
+    let (closures, mut classes) =
+        drain_closures(pending, callables, src, exprs, checked_types, enums);
     classes.extend(shapes);
     Lowered {
         function: Function {
@@ -1451,6 +1460,15 @@ pub(crate) struct Lowering<'a> {
     /// by whichever entry point built this frame, since a
     /// [`crate::ir::Function`] has nowhere to carry a second one.
     closures: Vec<PendingClosure>,
+    /// Every ADR 0027 § 1 first-class callable met in this body so far, in
+    /// source order, each awaiting the forwarding thunk that gives it the one
+    /// closure representation there is — see [`lower_callable`]. Travels out
+    /// beside [`Self::closures`], for that field's reason.
+    ///
+    /// Not deduplicated: two sites naming the same member get two labels,
+    /// because a `Function` is keyed on its label across the whole compiled
+    /// unit and two files may each write `Foo::bar(...)`.
+    callables: Vec<PendingCallable>,
     /// One synthesized class per distinct ADR 0036 § 2 shape literal this
     /// body writes — see [`Lowering::lower_object_literal`], which builds
     /// them, and [`shape_class_label`], which names them.
@@ -1698,6 +1716,7 @@ impl<'a> Lowering<'a> {
             pending_refs: Vec::new(),
             generator: None,
             closures: Vec::new(),
+            callables: Vec::new(),
             shapes: Vec::new(),
         }
     }

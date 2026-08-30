@@ -791,8 +791,10 @@ pub(crate) fn lower_generator_advance(
     );
 
     let pending = std::mem::take(&mut low.closures);
+    // Beside the closures, and out the same channel: see `Lowering::callables`.
+    let callables = std::mem::take(&mut low.callables);
     let (blocks, stmt_spans, edge_spans) = low.finish();
-    let (closures, classes) = drain_closures(pending, src, exprs, checked_types, enums);
+    let (closures, classes) = drain_closures(pending, callables, src, exprs, checked_types, enums);
     (
         Lowered {
             function: Function {

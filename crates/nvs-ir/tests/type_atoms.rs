@@ -521,14 +521,7 @@ const SHAPE_TABLES: &[(&[&str], Slot, Outcome)] = &[
 /// **This may never grow**, on [`KNOWN_ICE`]'s terms exactly: every entry is an
 /// open item in `docs/agent/loop-goal.md`, and an entry that has stopped
 /// panicking fails this test until it is deleted.
-const SHAPE_ICE: &[&str] = &[
-    // Item 16, at `crates/nvs-ir/src/lower/expr.rs:2622` — the anchor the item
-    // itself names. ADR 0027's `Class::method(...)` records
-    // `ExprInfo::CallableRef` rather than a call, and this crate has no arm
-    // for it; the panic reads as a checker/lowering mismatch, which is what
-    // made it worth a row rather than a note.
-    "callable $v = Base::make(...);",
-];
+const SHAPE_ICE: &[&str] = &[];
 
 #[test]
 fn every_spellable_expression_reaches_a_diagnostic_or_an_ir() {
