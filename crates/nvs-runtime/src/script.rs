@@ -152,6 +152,45 @@ pub fn install(resolver: &'static dyn Resolver) -> Installed {
     Installed { previous }
 }
 
+/// Publishes `resolver` for the duration of `run`, and takes it back down
+/// however `run` ends.
+///
+/// This is the shape an embedder whose resolver is **not** a `static` wants, and
+/// it exists because the only alternative is `Box::leak`. [`install`] takes a
+/// `&'static` so that an [`Installed`]'s remembered previous can never dangle
+/// whatever order a nest of guards is dropped in, and `nvs_host`'s host
+/// satisfies that by being a
+/// unit struct in a `static` — a resolver cannot, because it holds the unit
+/// cache and a compiled unit is `Rc`-shared, so the whole type is `!Sync`.
+/// Leaking one per process is 56 bytes and well inside
+/// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md)'s bound, but it
+/// is a *definite* loss to a leak checker, and `tools/loop.py`'s valgrind sweep
+/// is worth more than the 56 bytes: a sweep with one known-red fixture is a
+/// sweep nobody reads.
+///
+/// `run`'s own panic unwinds straight through — the guard is a local here, so
+/// the previous resolver is restored on the way past.
+pub fn scoped<R>(resolver: &(dyn Resolver + 'static), run: impl FnOnce() -> R) -> R {
+    #[expect(
+        unsafe_code,
+        reason = "the widened reference is published into `CURRENT` and nowhere \
+                  else, and `installed`'s `Drop` clears it before this function \
+                  returns on either edge -- so it is never readable after \
+                  `resolver`'s own borrow ends. Nothing reachable from `run` can \
+                  carry it back out either: `resolve` hands back a `'static` \
+                  `Program` that borrows nothing from the resolver, and \
+                  `is_installed` answers with a `bool`. A nested `install` inside \
+                  `run` is sound however its guard is dropped or forgotten, \
+                  because putting *this* resolver back is what `installed` does \
+                  regardless"
+    )]
+    let widened: &'static dyn Resolver = unsafe { &*std::ptr::from_ref(resolver) };
+    let installed = install(widened);
+    let answer = run();
+    drop(installed);
+    answer
+}
+
 /// Turns `path` into a [`Program`] through this thread's resolver.
 ///
 /// One call rather than a `with_current` the caller then has to unwrap twice:
@@ -177,7 +216,9 @@ pub fn is_installed() -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{Installed, Program, ResolveError, Resolver, install, is_installed, resolve};
+    use super::{
+        Installed, Program, ResolveError, Resolver, install, is_installed, resolve, scoped,
+    };
     use crate::ctx::{Ctx, OutputSink};
     use crate::value::Value;
 
@@ -208,9 +249,9 @@ mod tests {
         }
     }
 
-    // The trait is `&'static dyn Resolver` and a `static` is the only way to
-    // hand one over; a real implementor holds a unit cache and is leaked once
-    // per process for the same reason.
+    // `install` takes a `&'static dyn Resolver`, so a `static` is the only way
+    // to reach it directly; a real implementor holds a unit cache, is `!Sync`
+    // for that reason and goes through `scoped` instead.
     static FIXED: Fixed = Fixed;
     static REFUSING: Refusing = Refusing;
 
@@ -250,6 +291,32 @@ mod tests {
         // The outer one is back, which is what a scheduler driven from inside
         // another embedder's task depends on.
         assert!(resolve("child.nvs").is_ok());
+        drop(outer);
+    }
+
+    #[test]
+    fn a_stack_resolver_is_installed_only_for_the_length_of_the_scoped_call() {
+        // The whole point of `scoped`: this resolver is a local, and `install`
+        // on its own would oblige a `Box::leak` to widen it to `&'static`.
+        let stack = Fixed;
+        assert!(!is_installed());
+        let answered = scoped(&stack, || {
+            assert!(is_installed());
+            resolve("abc.nvs").is_ok()
+        });
+        assert!(answered);
+        assert!(!is_installed());
+    }
+
+    #[test]
+    fn a_scoped_resolver_puts_back_the_one_it_covered() {
+        let outer = install(&REFUSING);
+        let stack = Fixed;
+        scoped(&stack, || assert!(resolve("child.nvs").is_ok()));
+        assert!(matches!(
+            resolve("child.nvs"),
+            Err(ResolveError::Refused(_))
+        ));
         drop(outer);
     }
 

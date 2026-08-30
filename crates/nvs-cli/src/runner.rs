@@ -337,9 +337,8 @@ fn run_suite_in_a_task(
     // *inside* a test goes through the seam and needs the same resolver
     // `nvs run` installs — one per run, so two tests spawning one path share
     // the compiled unit (`crate::script`).
-    let resolver = nvs_runtime::script::install(crate::script::Compiler::leaked());
-    let ran = nvs_host::run_until_idle(&mut sched);
-    drop(resolver);
+    let compiler = crate::script::Compiler::default();
+    let ran = nvs_runtime::script::scoped(&compiler, || nvs_host::run_until_idle(&mut sched));
     drop(installed);
     ran.map_err(|error| format!("the scheduler stopped: {error}"))?;
 

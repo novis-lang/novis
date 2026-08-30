@@ -32,11 +32,11 @@
 //! program controls is its own text, which is the thing this key already is.
 //!
 //! **What it spends:** one compiled unit per distinct `spawn script` path in
-//! the program, held until the process ends. O(the program's text), never
+//! the program, held for as long as the run is. O(the program's text), never
 //! O(isolates spawned), per
-//! [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md) — a resolver is
-//! leaked once by `nvs run` because the seam takes a `&'static`, and one
-//! process runs one program.
+//! [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md) — and freed with
+//! the resolver, which is a local of `nvs run` published through
+//! [`nvs_runtime::script::scoped`] rather than leaked.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -54,17 +54,6 @@ pub(crate) struct Compiler {
     /// borrows a resolver shared, and a cache that could not be written on a
     /// hit would not be one.
     cache: RefCell<HashMap<PathBuf, Rc<nvs_codegen::Unit>>>,
-}
-
-impl Compiler {
-    /// A resolver leaked for the life of the process, which is the only shape
-    /// [`nvs_runtime::script::install`] takes.
-    ///
-    /// One leak per `nvs run`, of a struct that then holds every child unit the
-    /// program compiles — the module doc's *What it spends*.
-    pub(crate) fn leaked() -> &'static Self {
-        Box::leak(Box::new(Self::default()))
-    }
 }
 
 impl Resolver for Compiler {
@@ -135,7 +124,7 @@ fn program_over(unit: Rc<nvs_codegen::Unit>) -> Program {
 #[cfg(test)]
 mod tests {
     use super::Compiler;
-    use nvs_runtime::script::{ResolveError, Resolver, install, resolve};
+    use nvs_runtime::script::{ResolveError, Resolver, resolve, scoped};
     use nvs_runtime::{Ctx, OutputSink, Value};
 
     /// The repository root, which is what a written path is anchored at — and
@@ -216,15 +205,22 @@ mod tests {
             resolve("examples/isolate/hello.nvs").err(),
             Some(ResolveError::NoResolver)
         );
-        let installed = install(Compiler::leaked());
-        let program = resolve(&from_root("examples/isolate/hello.nvs"))
-            .expect("the installed resolver answers");
+        let compiler = Compiler::default();
         let mut ctx = Ctx::new(OutputSink::Buffer(Vec::new()));
-        let _ = program(&mut ctx, Value::null());
+        scoped(&compiler, || {
+            let program = resolve(&from_root("examples/isolate/hello.nvs"))
+                .expect("the installed resolver answers");
+            let _ = program(&mut ctx, Value::null());
+        });
+        // And gone again the moment the call returned, which is the half a
+        // leaked resolver could not have.
+        assert_eq!(
+            resolve("examples/isolate/hello.nvs").err(),
+            Some(ResolveError::NoResolver)
+        );
         assert_eq!(
             String::from_utf8_lossy(&ctx.take_buffered_output().unwrap_or_default()),
             "child said hello\n"
         );
-        drop(installed);
     }
 }

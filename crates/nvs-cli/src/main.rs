@@ -687,9 +687,11 @@ fn run_run(
     // it, and `nvs_runtime::script` owns why the edge runs this way round.
     // Installed for the whole run rather than per spawn: the unit cache behind
     // it is what makes a second isolate over one path share compiled code.
-    let resolver = nvs_runtime::script::install(script::Compiler::leaked());
-    let ran = nvs_host::run_until_idle(&mut sched);
-    drop(resolver);
+    // Held on this stack for the length of the run rather than leaked: `scoped`
+    // owns why the seam's `&'static` does not oblige a `Box::leak`, and the unit
+    // cache goes down with it here.
+    let compiler = script::Compiler::default();
+    let ran = nvs_runtime::script::scoped(&compiler, || nvs_host::run_until_idle(&mut sched));
     drop(installed);
     if let Err(error) = ran {
         eprintln!("error: the scheduler stopped: {error}");
