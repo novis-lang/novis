@@ -1199,6 +1199,17 @@ pub mod code {
     /// every capability it carries, so this is a refusal to start rather than a
     /// warning, and it is re-run on every `nvs ctl reload`.
     pub const E_UNTRUSTED_CONFIG: Code = Code::new("E0607");
+    /// A `_file` sibling of a secret directive — `[db.<name>] password_file`
+    /// today — names a file the configuration cannot take a value from: it is
+    /// set alongside the directive it stands in for, or its content is empty,
+    /// whitespace-only, larger than ADR 0103 § 7's 64 KiB cap, or not valid
+    /// UTF-8. Every one of those is a refusal to start rather than a value
+    /// carried forward: an empty credential otherwise fails at the first
+    /// request instead of at boot, and the size cap catches a path pointed at
+    /// the wrong thing. A secret file that fails the § 6 trust boundary is
+    /// `E0607` like any other configuration input, and one that cannot be read
+    /// at all is `E0605`.
+    pub const E_BAD_SECRET_FILE: Code = Code::new("E0608");
 
     // --- E07xx types, continued --------------------------------------------
     //
@@ -2290,4 +2301,11 @@ pub mod code {
     /// A construct whose behaviour differs from PHP's, where converted code may
     /// silently change meaning.
     pub const W_PHP_DIVERGENCE: Code = Code::new("W1004");
+    /// A secret file the configuration reads can be read by an account other
+    /// than the one the runtime runs as. ADR 0103 § 7 advises here where it
+    /// refuses on writability: a Compose secret is mounted `0444` and a
+    /// Kubernetes secret volume defaults to `0644`, so inside a container this
+    /// mode is the norm and on a shared host it is not, and nothing the
+    /// runtime can read tells it which it is in.
+    pub const W_SECRET_FILE_READABLE: Code = Code::new("W1005");
 }

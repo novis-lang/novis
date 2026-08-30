@@ -24,6 +24,11 @@
 //! override rather than a duplicate. That is why a file is deserialized twice — once to refuse it,
 //! once to merge it — and the second pass is free next to the read.
 //!
+//! **§ 7's secret files are read last, over the flattened tree.** Which `password_file` is in force
+//! is a question only the merge has answered, so [`mod@crate::secret`] runs once at the end rather
+//! than per file — reading one a later file replaced would be a secret the configuration does not
+//! use, examined for nothing.
+//!
 //! Cost: the whole tree's text and one merged table are held for the length of a boot or a reload,
 //! then dropped once the snapshot is built. Nothing here runs per request.
 //!
@@ -76,6 +81,25 @@ pub trait Files {
     /// Whatever the underlying reader says; the resolver wraps it in `E0605`.
     fn read(&self, path: &Path) -> Result<String, String>;
 
+    /// The file's bytes, unvalidated — what ADR 0103 § 7's secret file is read through.
+    ///
+    /// Separate from [`read`](Files::read) because § 7 makes "not valid UTF-8" a refusal about the
+    /// *content* (`E0608`), and a reader that decoded first could only report it as a failure to
+    /// read at all. A configuration file still goes through `read`: it is TOML, so it has no
+    /// meaning as bytes.
+    ///
+    /// # Errors
+    ///
+    /// Whatever the underlying reader says; [`mod@crate::secret`] wraps it in `E0605`.
+    fn read_bytes(&self, path: &Path) -> Result<Vec<u8>, String>;
+
+    /// ADR 0103 § 7's advisory: how an account other than this one may **read** `path`, or `None`.
+    ///
+    /// On the reader rather than beside [`trust`](Files::trust) for the same reason: whether there
+    /// is a filesystem to ask is the reader's question. [`trust::exposure`] is the answer when
+    /// there is one.
+    fn exposure(&self, path: &Path) -> Option<String>;
+
     /// Every entry directly inside `dir`, in any order and unfiltered.
     ///
     /// # Errors
@@ -99,6 +123,14 @@ impl Files for Disk {
 
     fn read(&self, path: &Path) -> Result<String, String> {
         std::fs::read_to_string(path).map_err(|err| err.to_string())
+    }
+
+    fn read_bytes(&self, path: &Path) -> Result<Vec<u8>, String> {
+        std::fs::read(path).map_err(|err| err.to_string())
+    }
+
+    fn exposure(&self, path: &Path) -> Option<String> {
+        trust::exposure(path)
     }
 
     fn list(&self, dir: &Path) -> Result<Vec<PathBuf>, String> {
@@ -145,6 +177,10 @@ pub struct Resolved {
     /// Every override, in the order they happened. § 9's `nvs config dump --origin` prints these in
     /// full and the boot log summarizes them; dropping them is not an option (see the module doc).
     pub overrides: Vec<Override>,
+    /// What the tree is only *advised* about — today § 7's readable secret file, `W1005`. A
+    /// refusal is never here: it arrives as the `Err` of [`resolve`] instead, so a caller that
+    /// ignores this field has lost a warning and never a boundary.
+    pub warnings: Vec<Diagnostic>,
 }
 
 /// What ADR 0103 § 1's four steps selected.
@@ -188,8 +224,9 @@ pub fn roots(flags: &[PathBuf], cwd: &Path, files: &dyn Files) -> Roots {
 /// # Errors
 ///
 /// One [`Diagnostic`]: a file that cannot be read (`E0605`), an include cycle or a nesting deeper
-/// than [`MAX_INCLUDE_DEPTH`] (`E0606`), or anything either of ADR 0064 § 3's per-file refusals
-/// catches (`E0601`/`E0604`), which arrives already carrying its own file's line.
+/// than [`MAX_INCLUDE_DEPTH`] (`E0606`), a file outside § 6's trust boundary (`E0607`), a secret
+/// file § 7 will not take a value from (`E0608`), or anything either of ADR 0064 § 3's per-file
+/// refusals catches (`E0601`/`E0604`), which arrives already carrying its own file's line.
 pub fn resolve(
     roots: &Roots,
     sources: &mut SourceMap,
@@ -202,7 +239,13 @@ pub fn resolve(
     for path in paths {
         read_into(&mut merge, path, sources, files, &mut Vec::new(), 0)?;
     }
-    merge.finish()
+    // § 7 runs over the flattened tree and not over each file, because which `password_file` is in
+    // force is a question only the merge has answered — a later file may have replaced it, and
+    // reading the loser would be a secret file the configuration does not use.
+    let origins = std::mem::take(&mut merge.origins);
+    let mut resolved = merge.finish()?;
+    resolved.warnings = crate::secret::materialize(&mut resolved.config, &origins, files)?;
+    Ok(resolved)
 }
 
 /// One file: its own keys into the merge, then its includes, depth-first in list order.
@@ -360,7 +403,7 @@ fn trust_slot(target: &Path, files: &dyn Files) -> Result<(), Diagnostic> {
 /// the same "cannot read" every other reader failure gets, and `E0607` when it was examined and the
 /// boundary does not hold. Keeping those apart is the whole point of the split — an operator told
 /// "cannot read" goes looking for a typo, and the answer is a mode.
-fn untrusted(path: &Path, why: &Untrusted, who: &str) -> Diagnostic {
+pub(crate) fn untrusted(path: &Path, why: &Untrusted, who: &str) -> Diagnostic {
     match why {
         Untrusted::Unreadable(message) => unreadable(path, message, who),
         Untrusted::Breach(message) => Diagnostic::error(code::E_UNTRUSTED_CONFIG, message.clone())
@@ -374,7 +417,7 @@ fn untrusted(path: &Path, why: &Untrusted, who: &str) -> Diagnostic {
 }
 
 /// `E0605`, phrased so the message says what could not be read and the note says why anyone tried.
-fn unreadable(path: &Path, why: &str, who: &str) -> Diagnostic {
+pub(crate) fn unreadable(path: &Path, why: &str, who: &str) -> Diagnostic {
     Diagnostic::error(
         code::E_UNREADABLE_CONFIG,
         format!("cannot read `{}`: {why}", path.display()),
@@ -440,6 +483,7 @@ impl Merge {
             config,
             files: self.files,
             overrides: self.overrides,
+            warnings: Vec::new(),
         })
     }
 }
@@ -533,7 +577,7 @@ fn same_file(a: &Path, b: &Path) -> bool {
 }
 
 /// `path` made absolute against `base` when it is relative — ADR 0103 § 5.
-fn absolute(base: &Path, path: &Path) -> PathBuf {
+pub(crate) fn absolute(base: &Path, path: &Path) -> PathBuf {
     if path.is_absolute() {
         normalize(path)
     } else {

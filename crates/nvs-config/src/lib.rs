@@ -20,6 +20,11 @@
 //! the tree through [`resolve::Files::trust`] rather than being called from the resolver, because
 //! whether there is a filesystem to ask is the reader's question and not the tree's.
 //!
+//! [`mod@secret`] is ADR 0103 § 7, which sits on that boundary rather than beside it: a
+//! `password_file` names a file whose whole content is the value, and it is trusted exactly as the
+//! file naming it was. It runs once over the flattened tree, because which of two `password_file`
+//! assignments is in force is a question only the merge has answered.
+//!
 //! What is **not** here yet, in the order the milestone lands them: the per-app block's matching and
 //! layering (ADR 0104 § 2) and the immutable snapshot a request clones at start (ADR 0078 § 1).
 //! Until those land `nvs-host` runs on compiled-in defaults and says so at each site.
@@ -27,6 +32,7 @@
 pub mod directive;
 pub mod file;
 pub mod resolve;
+pub mod secret;
 pub mod tree;
 pub mod trust;
 

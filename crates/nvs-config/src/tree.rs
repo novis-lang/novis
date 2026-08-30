@@ -431,7 +431,9 @@ pub struct Database {
     /// The password, inline.
     pub password: Option<String>,
     /// The file whose whole content is the password, minus one trailing newline
-    /// (ADR 0103 § 7). Exactly one of this and `password` may be set, which is that section's check.
+    /// (ADR 0103 § 7). Exactly one of this and `password` may be set, and it stays set after the
+    /// value is read so § 9's dump can name where the secret came from. [`mod@crate::secret`] is
+    /// every rule about it; this is the only field on this struct another module writes to.
     pub password_file: Option<String>,
     /// The database name.
     pub database: Option<String>,

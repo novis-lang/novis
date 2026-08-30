@@ -26,8 +26,15 @@
 //! the one path comparison ADR 0104 § 2's `[[app]]` matching is built on, so it is written once
 //! here rather than three times.
 //!
+//! **[`exposure`] is the same question asked about reading, and it only ever advises.** § 7 refuses
+//! a secret file another account can write and warns about one another account can read, because a
+//! Compose secret is mounted `0444` and a Kubernetes secret volume defaults to `0644`: the mode
+//! that is a mistake on a shared host is the norm inside a container, and nothing readable from
+//! here says which one this is. Integrity is enforced; confidentiality is advised.
+//!
 //! Cost: two `stat`s per file on Unix, two security-descriptor reads on Windows, at boot and again
-//! at each `nvs ctl reload`. Nothing here runs per request.
+//! at each `nvs ctl reload`, plus one more of either for each secret file's advisory. Nothing here
+//! runs per request.
 //!
 //! [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
 
@@ -91,6 +98,19 @@ pub fn check(path: &Path) -> Result<PathBuf, Untrusted> {
     Ok(canonical)
 }
 
+/// § 7's advisory half: how an account other than this one may **read** `path`, or `None`.
+///
+/// Integrity is enforced and confidentiality is only advised, and the reason is that the two
+/// questions have different answers in a container: Compose mounts a secret `0444` and a Kubernetes
+/// secret volume defaults to `0644`, so refusing a readable secret file would refuse the normal
+/// deployment of every one of them. A path this cannot examine answers `None` — an advisory that
+/// cannot be established is not raised, and [`check`] has already refused anything worth refusing
+/// about a path that cannot be examined.
+#[must_use]
+pub fn exposure(path: &Path) -> Option<String> {
+    platform::exposure(path)
+}
+
 #[cfg(unix)]
 mod platform {
     use std::path::{Path, PathBuf};
@@ -134,6 +154,21 @@ mod platform {
             meta.gid()
         )))
     }
+
+    /// The read half of the same mode bits, as a predicate for the warning to prefix a path onto.
+    pub(super) fn exposure(path: &Path) -> Option<String> {
+        use std::os::unix::fs::MetadataExt;
+
+        let meta = std::fs::metadata(path).ok()?;
+        let mode = meta.mode() & 0o7777;
+        let who = match (mode & 0o040, mode & 0o004) {
+            (0, 0) => return None,
+            (0, _) => "world-readable",
+            (_, 0) => "group-readable",
+            _ => "group- and world-readable",
+        };
+        Some(format!("is {who} (mode {mode:04o}, gid {})", meta.gid()))
+    }
 }
 
 #[cfg(windows)]
@@ -154,8 +189,8 @@ mod platform {
         WinBuiltinUsersSid, WinLocalSystemSid, WinWorldSid,
     };
     use windows_sys::Win32::Storage::FileSystem::{
-        DELETE, FILE_APPEND_DATA, FILE_WRITE_ATTRIBUTES, FILE_WRITE_DATA, FILE_WRITE_EA, WRITE_DAC,
-        WRITE_OWNER,
+        DELETE, FILE_APPEND_DATA, FILE_READ_DATA, FILE_WRITE_ATTRIBUTES, FILE_WRITE_DATA,
+        FILE_WRITE_EA, WRITE_DAC, WRITE_OWNER,
     };
     use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
@@ -210,11 +245,7 @@ mod platform {
                   function, since `examine` copies every SID it keeps"
     )]
     pub(super) fn check(path: &Path) -> Result<(), Untrusted> {
-        let wide: Vec<u16> = path
-            .as_os_str()
-            .encode_wide()
-            .chain(std::iter::once(0))
-            .collect();
+        let wide = wide(path);
         let mut owner: PSID = std::ptr::null_mut();
         let mut dacl: *mut ACL = std::ptr::null_mut();
         let mut descriptor: PSECURITY_DESCRIPTOR = std::ptr::null_mut();
@@ -238,6 +269,64 @@ mod platform {
         let verdict = examine(owner, dacl);
         unsafe { LocalFree(descriptor) };
         verdict
+    }
+
+    /// The path as the null-terminated wide string every `advapi32` entry point takes.
+    fn wide(path: &Path) -> Vec<u16> {
+        path.as_os_str()
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect()
+    }
+
+    /// § 7's advisory: the first untrusted principal with an effective *read* right, if any.
+    ///
+    /// The DACL alone, since the owner is not the question here — an owner outside the boundary has
+    /// already failed [`check`], and nothing is advised about a path this cannot examine.
+    #[expect(
+        unsafe_code,
+        reason = "the same descriptor read as `check`, freed on both paths, with nothing borrowed \
+                  from it outliving the call"
+    )]
+    pub(super) fn exposure(path: &Path) -> Option<String> {
+        let wide = wide(path);
+        let mut dacl: *mut ACL = std::ptr::null_mut();
+        let mut descriptor: PSECURITY_DESCRIPTOR = std::ptr::null_mut();
+        let status = unsafe {
+            GetNamedSecurityInfoW(
+                wide.as_ptr(),
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                &mut dacl,
+                std::ptr::null_mut(),
+                &mut descriptor,
+            )
+        };
+        if status != ERROR_SUCCESS {
+            return None;
+        }
+        let found = readable_by_others(dacl);
+        unsafe { LocalFree(descriptor) };
+        found
+    }
+
+    /// Each of § 6's five principals against `FILE_READ_DATA`, which is the one right that hands
+    /// over the credential itself.
+    fn readable_by_others(dacl: *const ACL) -> Option<String> {
+        if dacl.is_null() {
+            return Some("has a null DACL, which grants every account every right".to_string());
+        }
+        for (kind, name) in UNTRUSTED {
+            let rights = effective_rights(dacl, &well_known(*kind).ok()?).ok()?;
+            if rights & FILE_READ_DATA != 0 {
+                return Some(format!(
+                    "grants read access to `{name}` (rights {rights:#010x})"
+                ));
+            }
+        }
+        None
     }
 
     /// § 6 against one descriptor: the owner first, then each untrusted principal's rights.

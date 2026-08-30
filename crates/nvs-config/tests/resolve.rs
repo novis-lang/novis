@@ -68,6 +68,17 @@ impl Files for Fake {
             .ok_or_else(|| "no such file".to_string())
     }
 
+    /// Whatever `read` says, as bytes: § 7's content refusals are `tests/secret.rs`'s, and a case
+    /// here only ever names configuration files, which are text by construction.
+    fn read_bytes(&self, path: &Path) -> Result<Vec<u8>, String> {
+        self.read(path).map(String::into_bytes)
+    }
+
+    /// Nothing is exposed: § 7's advisory is about a secret file and no case here has one.
+    fn exposure(&self, _path: &Path) -> Option<String> {
+        None
+    }
+
     /// Deliberately **reverse** sorted, so a case that passes is one where the resolver did the
     /// ordering § 2 mandates rather than one where the reader happened to.
     fn list(&self, dir: &Path) -> Result<Vec<PathBuf>, String> {
