@@ -13,7 +13,7 @@ fn <script>() -> tagged {
     v1 = const.str "after"  ; string
     helper.echo_str v1 ! bb2
     release v1
-    v2 = const.int 1  ; int
+    v2 = const.null  ; null
     v3 = tag v2  ; tagged
     return v3
   bb1:

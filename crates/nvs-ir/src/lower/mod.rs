@@ -626,13 +626,22 @@ pub fn lower_program(
         // Position zero is the runtime's entry point and keeps the name it
         // was handed; every other file is entered from the `require` site
         // that named it, under the label that site computes from the same
-        // `SourceId`.
-        let name = if i == 0 {
-            script.to_owned()
+        // `SourceId`. That is also the whole of what [`ScriptRole`] asks, so
+        // the two are decided together rather than re-derived.
+        let (name, role) = if i == 0 {
+            (script.to_owned(), ScriptRole::Entry)
         } else {
-            file_script_label(file.src.id())
+            (file_script_label(file.src.id()), ScriptRole::Required)
         };
-        let lowered = lower_script(&name, file.stmts, file.src, exprs, checked_types, enums);
+        let lowered = lower_script(
+            &name,
+            file.stmts,
+            file.src,
+            exprs,
+            checked_types,
+            enums,
+            role,
+        );
         functions.push(lowered.function);
         functions.extend(lowered.closures);
         synthesized.extend(lowered.classes);
@@ -1118,6 +1127,32 @@ pub fn lower_property_hook(
     }
 }
 
+/// Who enters a script frame — which is the whole of what a file that runs
+/// out of statements answers with.
+///
+/// The two ADRs disagree here on purpose, and neither value is derivable
+/// from the other at run time: by the time a `spawn script` child's answer
+/// reaches `nvs_host::Isolate`'s join it is one `Value`, and an explicit
+/// `return 1` is indistinguishable from a fall-through. So the difference is
+/// spelled once, where the frame is lowered and its caller is still known.
+///
+/// - [`ScriptRole::Required`] — [ADR 0021](../../../docs/adr/0021-single-file-inclusion-construct.md)
+///   § 3's `1`, which is PHP's own answer for an `include` of a file that
+///   never `return`s, kept for the construct PHP has.
+/// - [`ScriptRole::Entry`] — `null`, "the value every Novis function without
+///   a `return` produces"
+///   ([ADR 0006](../../../docs/adr/0006-isolated-script-execution.md)
+///   § *Decision*, which names it *deliberately not* `require`'s `1`). The
+///   entry frame is the one a `spawn script` child is, so this is the child's
+///   answer; under `nvs run` nothing reads it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ScriptRole {
+    /// The program's own entry file — position zero, and what an isolate runs.
+    Entry,
+    /// A file some `require` site named, entered under that site's label.
+    Required,
+}
+
 /// Lowers a file's own top-level statements into one synthesized function
 /// — [ADR 0008](../../../docs/adr/0008-static-and-global.md) § 2's "the
 /// script body is a function, so its variables are locals". `name` is the
@@ -1130,13 +1165,15 @@ pub fn lower_property_hook(
 ///   index 0 is not reserved and `params` is empty — matching
 ///   `nvs_types::check`'s own script frame, which seeds `$this` only when
 ///   there is an enclosing class.
-/// - **The return representation is [`Ty::Tagged`].** A top-level `return`
-///   hands a value back to whatever `require`d the file, and
+/// - **The return representation is [`Ty::Tagged`], and `role` decides what
+///   running out of statements hands back.** A top-level `return` hands a
+///   value back to whatever entered the file, and
 ///   [ADR 0021](../../../docs/adr/0021-single-file-inclusion-construct.md)
-///   types that boundary `mixed`. A file that never returns falls through to
-///   a seal handing back the tagged `1` § 3 names for that case, which is
-///   PHP's own answer — not the `Terminator::Return(None)` `lower_method`
-///   uses, a `Ty::Tagged` frame owing its caller a value on every exit.
+///   types that boundary `mixed`. Where the statements run out instead, the
+///   seal is [`ScriptRole`]'s answer — the tagged `1` for a `require`, `null`
+///   for the entry frame — and never the `Terminator::Return(None)`
+///   `lower_method` uses, a `Ty::Tagged` frame owing its caller a value on
+///   every exit.
 ///
 /// Declarations are skipped rather than lowered: a class's methods are
 /// lowered separately, one [`lower_method`] call each. A
@@ -1151,6 +1188,7 @@ pub fn lower_script(
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
     enums: &EnumTable,
+    role: ScriptRole,
 ) -> Lowered {
     let ret_ty = Ty::Tagged;
     let mut low = Lowering::new(name, src, ret_ty, exprs, checked_types, enums);
@@ -1166,15 +1204,18 @@ pub fn lower_script(
     low.lower_script_stmts(stmts, &mut cur, &mut env);
     if !low.is_terminated(cur) {
         low.release_all_locals(cur, &env, None);
-        // ADR 0021 § 3 names the value of a file that never `return`s: `1`,
-        // which is PHP's own answer for a `require` of such a file. So the
-        // fall-through seal is a tagged integer rather than the
-        // `Terminator::Return(None)` `lower_method` uses — a `Ty::Tagged`
+        // Whoever entered the frame decides what running out of statements
+        // means, and the two ADRs disagree on purpose — see [`ScriptRole`].
+        // Either way the seal is a value rather than the
+        // `Terminator::Return(None)` `lower_method` uses: a `Ty::Tagged`
         // frame always hands a value back, and the one place that would
-        // otherwise be free is exactly the one the ADR pins.
-        let (one, _) = low.emit(cur, Ty::Int, InstKind::ConstInt(1));
-        let one = low.coerce(cur, one, Ty::Int, Ty::Tagged, &mut env);
-        low.seal(cur, Terminator::Return(Some(one)));
+        // otherwise be free is exactly the one those ADRs pin.
+        let (raw, raw_ty) = match role {
+            ScriptRole::Required => (low.emit(cur, Ty::Int, InstKind::ConstInt(1)).0, Ty::Int),
+            ScriptRole::Entry => (low.emit(cur, Ty::Null, InstKind::ConstNull).0, Ty::Null),
+        };
+        let sealed = low.coerce(cur, raw, raw_ty, Ty::Tagged, &mut env);
+        low.seal(cur, Terminator::Return(Some(sealed)));
     }
 
     let pending = std::mem::take(&mut low.closures);

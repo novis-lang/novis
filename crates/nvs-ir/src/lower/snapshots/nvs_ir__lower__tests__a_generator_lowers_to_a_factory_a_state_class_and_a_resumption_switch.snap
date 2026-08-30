@@ -80,7 +80,7 @@ fn G::upTo$gen::current(object) -> int {
 fn <script>() -> tagged {
   bb0:
     safepoint
-    v0 = const.int 1  ; int
+    v0 = const.null  ; null
     v1 = tag v0  ; tagged
     return v1
 }

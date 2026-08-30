@@ -63,10 +63,16 @@ fn lower_first_method(src: &str) -> (Function, SourceMap, SourceId) {
     (f.function, map, file)
 }
 
+/// [`lower_script_src`] as the program's entry frame, which is what every
+/// snapshot below reads.
+fn lower_script_src(src: &str) -> (Function, SourceMap, SourceId) {
+    lower_script_src_as(src, ScriptRole::Entry)
+}
+
 /// Parses, resolves and checks `src` exactly as [`lower_first_method`]
 /// does, then lowers the file's *own* top-level statements through
 /// [`lower_script`] instead of pulling a method out of a class.
-fn lower_script_src(src: &str) -> (Function, SourceMap, SourceId) {
+fn lower_script_src_as(src: &str, role: ScriptRole) -> (Function, SourceMap, SourceId) {
     let mut map = SourceMap::new();
     let file = map.add("t.nvs", src);
     let mut diags = Diagnostics::new();
@@ -91,6 +97,7 @@ fn lower_script_src(src: &str) -> (Function, SourceMap, SourceId) {
         &exprs,
         &checked_types,
         &enums,
+        role,
     );
     (f.function, map, file)
 }
@@ -3822,6 +3829,35 @@ fn a_resolved_route_link_releases_its_params_array() {
         insts().any(|i| matches!(i.kind, InstKind::Release { operand } if operand == params)),
         "nothing released the `$params` array: {}",
         print_function(&f, map.file(file))
+    );
+}
+
+/// A file that runs out of statements seals with `1` when a `require` site
+/// entered it and with `null` when it is the program's entry frame — ADR
+/// 0006 § *Decision*'s "deliberately not `require`'s `1`", against
+/// [ADR 0021](../../../docs/adr/0021-single-file-inclusion-construct.md) § 3.
+///
+/// Both sides in one test, over the *same* source, because they are one
+/// decision with two halves: a lowering that moved both would still read
+/// plausibly against either half alone. The entry frame is what a
+/// `spawn script` child runs, so this line is what the child's `value` is.
+#[test]
+fn a_fall_through_seals_with_one_for_a_require_and_null_for_the_entry_frame() {
+    let src = "<?nvs\necho \"no return\";\n";
+    let (entry, entry_map, entry_file) = lower_script_src_as(src, ScriptRole::Entry);
+    let (required, req_map, req_file) = lower_script_src_as(src, ScriptRole::Required);
+    let entry = print_function(&entry, entry_map.file(entry_file));
+    let required = print_function(&required, req_map.file(req_file));
+
+    assert!(entry.contains("const.null"), "the entry frame: {entry}");
+    assert!(!entry.contains("const.int 1"), "the entry frame: {entry}");
+    assert!(
+        required.contains("const.int 1"),
+        "a required file: {required}"
+    );
+    assert!(
+        !required.contains("const.null"),
+        "a required file: {required}"
     );
 }
 

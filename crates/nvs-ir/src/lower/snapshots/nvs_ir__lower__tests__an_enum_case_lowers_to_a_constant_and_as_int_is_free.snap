@@ -8,7 +8,7 @@ fn <script>() -> tagged {
     ; stmt s0 @3:1-3:28
     v0 = const.int 2  ; enum:int
     v1 = reinterpret v0  ; int
-    v2 = const.int 1  ; int
+    v2 = const.null  ; null
     v3 = tag v2  ; tagged
     return v3
 }

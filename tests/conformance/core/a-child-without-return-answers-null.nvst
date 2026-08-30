@@ -1,0 +1,39 @@
+--TEST--
+A child that runs to its end without a top-level `return` hands its parent back `null`, while a `require` of that very same file is still `1` — ADR 0006 § *Decision*, against ADR 0021 § 3
+--FILE nvs.toml--
+# ADR 0118 § 2: `spawn script` goes through a door that asks for
+# `script.spawn` first, and deny-by-default means a case with no
+# configuration cannot spawn at all. This grants it and nothing else.
+[capabilities.script]
+spawn = true
+--FILE quiet.nvs--
+<?nvs
+// No top-level `return` anywhere in it, which is the whole fixture. It
+// echoes so that both halves below can say the file actually ran, rather
+// than pinning a value a file that never started would also have.
+echo "the file ran\n";
+--FILE--
+<?nvs
+// ADR 0006 § *Decision*: "A child that runs to its end without a top-level
+// `return` hands back `null` — the value every Novis function without a
+// `return` produces. This is deliberately not `require`'s `1`."
+var $job = spawn script "quiet.nvs" with(output: "capture");
+var $result = await $job;
+
+// The child ended by running out of statements, not by failing: `ok` is the
+// success row, so the `value` below is the answer and not the absence of one.
+echo "ok=", $result->ok ? "true" : "false", "\n";
+echo "output=", $result->output;
+echo "value=", Core\Debug::render($result->value), "\n";
+
+// The other half of the same decision, over the *same* file: what ADR 0021
+// § 3 pins for the construct PHP has. Asserting only the child's `null`
+// would still read plausibly if the `1` had simply moved.
+var $required = require "quiet.nvs";
+echo "required=", Core\Debug::render($required), "\n";
+--EXPECT--
+ok=true
+output=the file ran
+value=null
+the file ran
+required=int(1)

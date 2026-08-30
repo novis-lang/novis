@@ -19,7 +19,7 @@ fn <script>() -> tagged {
     v4 = instanceof v3, Throwable  ; bool
     branch v4 -> bb9 (e0), bb10 (e1)
   bb2:
-    v6 = const.int 1  ; int
+    v6 = const.null  ; null
     v7 = tag v6  ; tagged
     return v7
   bb3:

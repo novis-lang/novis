@@ -12,7 +12,7 @@ fn <script>() -> tagged {
     v2 = clone v1  ; object
     release v1
     release v2
-    v3 = const.int 1  ; int
+    v3 = const.null  ; null
     v4 = tag v3  ; tagged
     return v4
   bb1:

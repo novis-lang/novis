@@ -13,7 +13,7 @@ fn <script>() -> tagged {
     ; stmt s2 @7:1-7:9
     helper.echo_str v0 ! bb2
     release v0
-    v3 = const.int 1  ; int
+    v3 = const.null  ; null
     v4 = tag v3  ; tagged
     return v4
   bb1:

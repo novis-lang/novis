@@ -35,7 +35,7 @@ fn <script>() -> tagged {
     release v16
     helper.echo_str v17 ! bb7
     release v17
-    v18 = const.int 1  ; int
+    v18 = const.null  ; null
     v19 = tag v18  ; tagged
     return v19
   bb1:

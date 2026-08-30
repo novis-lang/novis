@@ -9,7 +9,7 @@ fn <script>() -> tagged {
     v0 = const.str "Hello, World!"  ; string
     helper.echo_str v0 ! bb1
     release v0
-    v1 = const.int 1  ; int
+    v1 = const.null  ; null
     v2 = tag v1  ; tagged
     return v2
   bb1:
