@@ -44,7 +44,7 @@ below: the abort first, then what a working program hits, then the refusals, the
     is where it releases twice; this is the one item that touches memory safety and it goes first. D34:
     `Core\Arr::sort` over `array<decimal>` throws at run time because
     `crates/nvs-stdlib/src/ordering.rs:107` has no `decimal` arm — the natural ordering covers every type
-    the checker admits. D5: `crates/nvs-stdlib/src/capability.rs:256` `resolved()` — a bare relative
+    the checker admits. D5: `crates/nvs-config/src/capability.rs:261` `resolved()` — a bare relative
     path's parent is `""`, which never canonicalises, so `File::read("missing.txt")` under a valid grant
     is a capability miss and `write("copy.txt")` under `write = ["."]` is refused. D25:
     `crates/nvs-types/src/defaults.rs:397` `literal_default` has no `ExprKind::Null` arm, so
@@ -62,8 +62,8 @@ below: the abort first, then what a working program hits, then the refusals, the
     constant, class or interface — ADR 0007 § 1 makes the type mandatory, so `const X = 1;` is refused,
     and `docs/reference/lang/` plus every `.nvst` case that omits it are corrected in the same slice. P7
     `throw` of a non-`Throwable`. P8 `clone` of an array (ADR 0023 § 1). P9 `new $name()` and
-    `$name::f()` reported as E0496 (ADR 0061, ADR 0052 § 4; `crates/nvs-types/src/calls.rs:1056`). P11 an
-    enum case as an array key, under E0434 (`crates/nvs-types/src/literals.rs:856`). P12 a member the
+    `$name::f()` reported as E0496 (ADR 0061, ADR 0052 § 4; `crates/nvs-types/src/expr/calls.rs:1056`). P11 an
+    enum case as an array key, under E0434 (`crates/nvs-types/src/expr/literals.rs:859`). P12 a member the
     registry does not hold on a `Core` *instance* is E0405 like the static miss —
     `crates/nvs-ir/src/lower/expr.rs:2682` is where it panics today and the refusal belongs in the
     checker — and with it P16, M5, M8, M9 and D30: an unregistered `Core\…` name is no longer *trusted*
@@ -90,9 +90,9 @@ below: the abort first, then what a working program hits, then the refusals, the
     scalar ones — one shared value per constant per process, a memory cost the folding module's doc states.
 34. **The lowering and library gaps.** P1 `Class::method(...)` / `$obj->method(...)` has a checker record
     and no lowering arm (`crates/nvs-ir/src/lower/expr.rs:2874`; ADR 0027 keeps the spelling). P4 a
-    `: never` method is a terminator, and the `KNOWN_ICE` row at `crates/nvs-types/src/type_atoms.rs:124`
+    `: never` method is a terminator, and the `KNOWN_ICE` row at `crates/nvs-ir/tests/type_atoms.rs:123`
     goes with it. D23 a named closure's recursive call (`fn fact(int $n): int => … fact($n - 1)`, ADR 0031
-    § 3) resolves as a free function (`crates/nvs-types/src/calls.rs:1092`). D27 a `#!` first line opens
+    § 3) resolves as a free function (`crates/nvs-types/src/expr/calls.rs:1092`). D27 a `#!` first line opens
     code mode (ADR 0100 § 3; today it is HTML-mode text). D33 an `int` literal beside a generic `uint`
     parameter (`assertSame($u, 2)`) adapts as a literal does elsewhere (ADR 0007 § 1a). U21
     `Iterator::current()` outside the protocol throws on a generator (ADR 0053 § 1; admitted at `:189`).
@@ -119,7 +119,7 @@ below: the abort first, then what a working program hits, then the refusals, the
     says every declared property is a field whatever its visibility (ADR 0071 § 2). D20 the attribute card
     says an empty shape `{}` is a marker any literal satisfies, so a bare marker beside another attribute is
     E0728. D29 `Core\Debug::render` names `await`'s result by its shape, not `Core\Script\Result#1`. U13
-    `crates/nvs-stdlib/src/error_lib.rs:133`'s "readonly" goes: a throwable's properties are writable. M2,
+    `crates/nvs-types/src/error_lib.rs:133`'s "readonly" goes: a throwable's properties are writable. M2,
     M6, M7: `Core\Fatal::onUncaughtThrow`, `Core\Command::*` and `nvs serve|fmt|convert|lsp|ctl` are named
     only as planned, never as present. M3: `Core\Test`'s roster is `assertContains`, `assertCompletes`,
     `assertMatchesInline` and `request` short of ADR 0079's, and the card says which goal owns each. M4:
