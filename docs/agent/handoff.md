@@ -2,62 +2,62 @@
 
 ## State
 
-**Goal 3, Stage 2 is landed: `crates/nvs-config` reads a configuration tree.** `tree.rs` is ADR 0064
-§ 2a's whole block roster as typed structs with `deny_unknown_fields` on every one — 30 blocks, swept
-by count in `tests/tree.rs` — and `resolve.rs` is ADR 0103 §§ 1-5: root selection, `[[include]]`
-expansion depth-first with a cycle refusal and the depth cap, § 4's replace-vs-append split, § 5's
-relative resolution, and one ordered stream where a later assignment wins **and every override is
-recorded with both origins**. 31 tests green in the crate. The workspace `serde` gained `derive`
-(`Cargo.toml:199`), which the comment above it now explains: `deny_unknown_fields` is an attribute
-rather than machinery, so the macro replaces code here instead of adding any.
+**ADR 0103 § 6 is landed: the configuration tree has a trust boundary.**
+`crates/nvs-config/src/trust.rs` is the check on both platforms — Unix is owner-or-root plus the mode
+bits, Windows is the owner SID plus an effective-write sweep over the five principals § 6 now names — and
+it reaches the tree as `Files::trust` (`crates/nvs-config/src/resolve.rs:51`), which every reader owes and
+which hands back the **canonical** path. Two consequences are already spent: the cycle test sees one file
+through two spellings, so `MAX_INCLUDE_DEPTH` is a nesting cap and no longer the symlink backstop, and
+`[[app]]` matching has its path comparison written once, at `trust.rs:83`. `E0607 E_UNTRUSTED_CONFIG` is
+the refusal; a path that cannot be examined at all stays `E0605`, because an operator told "cannot read"
+goes looking for a typo when the answer is a mode.
 
-**Two new codes, and one that was not needed.** `E0605 E_UNREADABLE_CONFIG` and `E0606
-E_INCLUDE_CYCLE` are in `nvs-diagnostics`. The item asked for an E06xx for the *unknown key* as well;
-ADR 0064 § 3 settles that as the existing `E0601`, so the block name is a note on that diagnostic
-instead (`file.rs`'s `block_at`) and the playbook bullet records why. ADR 0064 § 2a's table gained
-`[cache]`, `[control]` and `[opcache]`, which the tree names and the table did not.
+Three things the ADR now states rather than the code deciding quietly: which ACEs Windows accepts, that
+the containing directory is checked for its **owner** as well as its mode, and that an absent `optional`
+include whose directory is also absent puts the check on the nearest ancestor that exists.
 
-**Two things are deliberately not done yet.** § 6's ownership check belongs on the `Files` reader and
-is the next slice, so `Disk` reads without one today and `resolve.rs`'s module doc says so. Cycle
-detection is *lexical* (`normalize`, not `fs::canonicalize`), so a cycle built out of symlinks is
-caught by `MAX_INCLUDE_DEPTH` rather than by the path comparison — § 6 has to `stat` every file
-anyway, and canonicalization comes with it.
+25 tests in the crate. `verify.py` has no Linux leg, so the two `cfg(unix)` cases in `tests/trust.rs` were
+run under WSL with `CARGO_TARGET_DIR=/tmp/nvs-unix-check cargo test -p nvs-config` — worth repeating for
+any future change to `trust.rs`, since the Windows half is all that CI-on-this-machine can see.
 
-The acceptance check still fails on `examples/config.nvs` — `Core\Config` has no `get`. That is
-Stage 3's snapshot and Stage 4's members, unwritten, not a regression. Nothing is blocked on the user.
+**A machine fact, not a code one:** `<repo>` and its `nvs.toml` grant `Authenticated Users` modify, which
+is exactly what § 6 refuses. Nothing depends on `nvs-config` yet, so nothing refuses today; Stage 3's
+snapshot will. The playbook bullet under *Running things* has the commands and says to ask first.
+
+The acceptance check still fails on `examples/config.nvs` — `Core\Config` has no `get`. That is Stage 3's
+snapshot and Stage 4's members, unwritten, not a regression. Nothing is blocked on the user.
 
 ## Next group
 
-**The trust boundary, then the two indirections that sit on it.** One file set:
-`crates/nvs-config/src/resolve.rs`, `crates/nvs-config/src/tree.rs`, `docs/adr/0103`, `docs/adr/0104`.
+**The two indirections that sit on the boundary, plus the reader they both need.** One file set:
+`crates/nvs-config/src/tree.rs`, `crates/nvs-config/src/resolve.rs`, `crates/nvs-config/src/trust.rs`,
+`docs/adr/0103`, `docs/adr/0104`.
 
-- [ ] **Ownership is the trust boundary.** ADR 0103 § 6 — owner-or-root, not group- or
-      world-writable, on every file *and* its containing directory; an absent `optional` include puts
-      the check on the directory that would hold it. It goes on the reader, not the resolver: `Files`
-      is `crates/nvs-config/src/resolve.rs:51` and `Disk` its impl at `:73`, and the absent-optional
-      branch that owes the directory check is `include_targets` at `:242`. Windows is an ACL check
-      and § 6 says which ACEs it accepts is M6's to state — decide it and record it in that ADR.
-      Canonicalize there and feed `same_file` (`:461`) the result, which is what closes a symlinked
-      cycle properly; the standing decision says one path comparison, so write it once.
 - [ ] **`password_file`.** ADR 0103 § 7 — the named file's whole content is the value, with **one**
-      trailing newline stripped. The field is already on the tree (`crates/nvs-config/src/tree.rs:420`,
-      `Database::password_file`) and exactly one of the pair may be set. It reads a file, so it is the
-      first consumer of the check above and belongs right after it.
+      trailing newline stripped and interior spaces kept; empty, whitespace-only, non-UTF-8 and oversized
+      refuse, and so does setting `password` and `password_file` together. The block is
+      `crates/nvs-config/src/tree.rs:410` (`Database`), with the two fields at `:431` and `:433`; the
+      secret file goes through `Files::trust` like any other config input (`resolve.rs:51`,
+      `trust.rs:83`), which is what makes § 7's "a group-writable secret file refuses" free. Next free
+      code in the band is `E0608`.
 - [ ] **`[[app]]` matches and layers.** ADR 0104 § 2 — the entry path canonicalized, then prefix-matched
-      on **path-component** boundaries, every matching block layered least-specific first, a block may
-      grant as well as narrow, bounded by the global `[limits.hard]`. The struct is
-      `crates/nvs-config/src/tree.rs:138`. Same canonicalise-then-prefix implementation as above.
+      on `root` or matched exactly on `entry`, every matching block layering least-specific first, bounded
+      by `[limits.hard]`. The block is `tree.rs:138` (`App`). **Do not write a second path comparison**:
+      `trust.rs:83`'s `check` already canonicalizes and simplifies, so split that half out as its own
+      function and call it here — an entry file is not a config input and must not be ownership-checked,
+      but it must resolve identically. The goal's standing decisions make this one implementation.
+- [ ] **A `.nvst` or crate case that a symlinked include cycle is refused by name.** `resolve.rs:193`'s
+      chain test now compares canonical paths, and nothing asserts it: the in-memory `Fake` cannot make a
+      symlink, so this belongs in `tests/trust.rs`'s style, `cfg(unix)`-gated, next to the two cases that
+      already run only under WSL.
 
 ## Backlog
 
-- `Core\Config::get`/`set` and the snapshot a request clones — Stage 3, `docs/plan/m6.md`; this is what
-  the failing acceptance check is waiting on.
-- `[[server.mount]]` root containment and the mount's own origin — ADR 0097 § 4.
-- ADR 0067 never writes a `[db.<name>]` block out, so `tree.rs:420`'s roster is prose-derived and its
-  doc comment says so; the fix is an example in that ADR.
-- `orient.py`'s `[context] modules` has a pattern for `crates/nvs-host/src/budget.rs` that matches
-  nothing — the pack printed the warning itself. Fix or drop it in `docs/agent/loop-goal.toml`.
-- `[context] adrs` printed 0103 §§ 3 and 6 only; every config slice needs **0064 §§ 2a and 3**, and
-  this one also needed 0103 §§ 1, 2, 4, 5. Adding those five is worth roughly ten reads a session.
-- ADR 0078 § 2 names "the thread-per-core count" as `Boot` and no ADR spells it as a key, so it is in
-  neither the registry nor the tree — `directive.rs`'s module doc records it.
+- Stage 3's snapshot and `Core\Config::get`/`set` — the acceptance check's only remaining failure
+  (`docs/agent/loop-goal.toml`, stage 3).
+- ADR 0042 § 5's cache directory and ADR 0078 § 3's socket directory want the same check `trust.rs` now
+  holds; neither has one, and neither should grow its own.
+- `nvs config check` / `nvs config dump --origin` (ADR 0103 § 9) — the resolver already carries the
+  origins and overrides those verbs print.
+- `orient.py`'s `[context] modules` names `crates/nvs-host/src/budget.rs`, which matches nothing; the pack
+  prints a warning every session.

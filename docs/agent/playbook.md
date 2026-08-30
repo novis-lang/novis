@@ -1346,6 +1346,16 @@ is why" — is this file.
   own field and dropping the local frees nothing. The fixture now breaks both rings by hand before it
   ends. A leak stack whose top frame is an object allocation is the shape to suspect — grep the `.nvs`
   for a cycle before opening the Rust.
+- **`<repo>` grants `Authenticated Users` modify, so this repository's own `nvs.toml` fails ADR 0103
+  § 6.** The check is right and the drive is what is unusual: a non-system Windows drive's root carries
+  that ACE by default and everything under it inherits it, which is the hole § 6 closes. Nothing reads
+  the tree through `Files::trust` yet — no crate depends on `nvs-config` — so nothing refuses today, but
+  the session that wires the snapshot into `nvs run` will find every run in this checkout stopped by
+  `E0607`. The fix is on the machine, not in the code: `icacls <path> /inheritance:d` then
+  `icacls <path> /remove:g "<the account>"` for `<repo>\nvs.toml` **and** for `<repo>` itself, since the
+  containing directory carries the same rule. Account names are localized — `icacls <path>` prints the
+  spelling this machine uses. Ask the user before changing a machine's ACLs; a scratch tree under
+  `%TEMP%` passes the check as it is, which is where `tests/trust.rs` works.
 
 ## Writing a test case
 
