@@ -1,0 +1,42 @@
+--TEST--
+a contagious answer carries `tainted` through a union's member and through an array's element, so neither the plain `?string` nor the plain `array<string>` may be declared for it — ADR 0088 § 2
+--FILE--
+<?nvs
+// The accepted half of this bound is
+// tests/conformance/core/a-contagious-answer-carries-a-union-and-an-array.nvst,
+// where `?tainted string` and `array<tainted string>` hold these same two
+// answers and print. This file names the first laundering step in each shape,
+// so a checker that qualified only the bare atom fails here while every case
+// over a `string` answer still passes.
+tainted string $t = "a,b";
+
+// ADR 0088 § 2: `Core\Str::after` returns `?string` and its subject is
+// contagious. A nullable is a union, so the qualifier goes on the member that
+// can carry it and `null` is left as it is -- declaring the plain union is the
+// laundering this refuses.
+?string $slice = Core\Str::after($t, ",");
+
+// The same rule one container over. `Core\Str::split`'s `array<string>` takes
+// the qualifier on its *element*, never on the array, because an array is not
+// a qualifiable base.
+array<string> $parts = Core\Str::split($t, ",");
+
+// And the element still carries it after a subscript, which is what proves the
+// contagion reached the element rather than the declaration having laundered
+// on the way in.
+array<tainted string> $kept = Core\Str::split($t, ",");
+string $first = $kept[0];
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string|null`, found `null|tainted string`
+   --> case.nvs:14:18
+%A
+error[E0401]: expected `array<string>`, found `array<tainted string>`
+   --> case.nvs:19:24
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:25:17
+%A
+error: aborting due to 3 errors

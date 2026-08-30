@@ -1,0 +1,38 @@
+--TEST--
+a contagious member's `?string` answer taints the union's string member and leaves `null` alone, its `array<string>` answer taints the element, and a plain subject leaves both plain — ADR 0088 § 2
+--FILE--
+<?nvs
+// The refused half -- declaring the plain `?string` or `array<string>` for
+// either answer -- is
+// tests/conformance/reject/a-union-or-array-answer-cannot-drop-the-qualifier.nvst.
+// This file is the accepting half, and it asks for the values as well as the
+// types: a qualifier that reached the checker but not the answer would print
+// the same, so each row is echoed.
+tainted string $t = "a,b";
+
+// `Core\Str::after` returns `?string`. The qualifier goes on the member that
+// can carry it, so `?tainted string` is the spelling that holds the answer --
+// `tainted ?string` is not a type this language writes.
+?tainted string $slice = Core\Str::after($t, ",");
+echo $slice ?? "<null>", "\n";
+
+// Absence is still absence: the qualifier changes what the members are, not
+// which of them the answer took.
+?tainted string $missing = Core\Str::after($t, ";");
+echo $missing ?? "<null>", "\n";
+
+// `Core\Str::split` returns `array<string>`, and an array is not a qualifiable
+// base -- the element is, so it is the element that comes back tainted.
+array<tainted string> $parts = Core\Str::split($t, ",");
+echo Core\Arr::count($parts), " ", $parts[0], $parts[1], "\n";
+
+// The contagion is the argument's and not the member's: nothing tainted goes
+// into either call here, so both answers keep their declared types.
+?string $plainSlice = Core\Str::after("a,b", ",");
+array<string> $plainParts = Core\Str::split("a,b", ",");
+echo $plainSlice ?? "<null>", " ", Core\Arr::count($plainParts), "\n";
+--EXPECT--
+b
+<null>
+2 ab
+b 2
