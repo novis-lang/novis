@@ -57,11 +57,10 @@
 > `max_script_depth` refuses the spawn past it; § 1's tier 1 is handed the limit's name, and fires
 > once inside the reserve; ADR 0078 § 4 keys both caches. **Stage 8 is closed at both counts**:
 > conformance is 1011, differential is 206 over its 205 floor , and `isolation.rs` measures
-> `nvs_host::Isolate` itself with a guard beside it. Three known gaps, each recorded where its code
+> `nvs_host::Isolate` itself with a guard beside it. Two known gaps, each recorded where its code
 > is: item 18's `Core\Secret::reveal()` is not in the registry; `Live::admit`'s same-class check is
-> asked of the answer and not of the argument (`crates/nvs-runtime/src/graph.rs` § *Known gaps*);
-> item 22's `Core\Script` members are unwritten (`crates/nvs-stdlib/src/script.rs`). `gaps.py`,
-> `holes.py` and `check-migration.py --report` are the worklists no session re-derives.
+> asked of the answer and not of the argument (`crates/nvs-runtime/src/graph.rs` § *Known gaps*).
+> `gaps.py`, `holes.py` and `check-migration.py --report` are the worklists no session re-derives.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

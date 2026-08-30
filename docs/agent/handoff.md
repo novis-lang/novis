@@ -2,61 +2,67 @@
 
 ## State
 
-**`[limits] max_script_depth` is enforced end to end, and a recursive spawn now reports as itself.**
-`Limit::ScriptDepth` (`crates/nvs-runtime/src/ctx.rs:920`) is the third variant and its `name()` is
-the directive spelling, so ADR 0020 § 1's report is branchable on it. `Ctx::script_depth_breach`
-(`crates/nvs-runtime/src/ctx.rs:1310`) is the question, asked of the *child* that does not exist yet
-and owning why in its doc; a ceiling of `0` — only an explicit `false` — answers `None` however deep
-the chain runs.
+**Item 12's roster is complete**, which is what the driver's `nvs-host (limits at a safepoint)`
+check was failing on: all three cases are in `crates/nvs-host/tests/limits.rs` and the binary is
+green. `n_concurrent_isolates_cannot_together_exceed_the_trees_budget` pins the accounting the
+plan states — `Ctx::isolate` re-bases `memory_base` through `Ctx::new`, so each isolate reads back
+only its own share and none is ever over the ceiling, while the root's base predates all of them
+and `nvs_runtime::budget`'s counters are one per thread, so every child's byte is still on the
+root's reading. `a_child_cannot_widen_a_capability_its_parent_narrowed` pins the other direction:
+the grant crosses in the cloned snapshot, `Request::set` refuses the block both ways, and the
+child's snapshot is the parent's `Arc` rather than a re-resolution.
 
-**The refusal has one home and one converter.** `Isolate::start`
-(`crates/nvs-host/src/isolate.rs:159`) asks it ahead of the argument's crossing, runs § 1's tier 1,
-records the message on the parent and answers a `Collected` carrying `refused_completion`. It cannot
-answer a `Fault` — its `Err` is the argument's `GraphError`, which is a *throw* — so
-`Core\Script::spawn` (`crates/nvs-stdlib/src/script.rs:191`) turns a recorded pending into
-`Fault::Pending(FATAL)`, which is ADR 0020's fatal no `catch` sees. That two-step is the one design
-call this group carried; both halves say so in place.
+`crates/nvs-host` gained `nvs-config` and `toml` as **dev**-dependencies for that second case;
+nothing in its `src/` resolves a configuration and the Cargo.toml comment says so.
 
-The driver's failing acceptance check named three tests for item 12 and only the first is now
-written. The other two are the next group and share the file they go in.
+**Two things m6's *Verify* row names are not enforced anywhere**, both found by writing the case
+above and both stated in its doc comment: `[limits] max_output` exists only as a configuration key
+(`crates/nvs-config/src/tree.rs:166`) — `Ctx` holds no output ceiling, so no isolate can be over
+one — and the deadline word crosses **by value** at `crates/nvs-runtime/src/ctx.rs:1814`, so a
+child built before its parent's deadline expires never observes that expiry. The second is a
+design call nobody has made in writing; it is the next group's second item.
 
-`orient.py`'s `[context] modules` still names `crates/nvs-host/src/budget.rs`, which never existed —
-the accounting is `crates/nvs-runtime/src/budget.rs`. The pack warns every session.
+`orient.py`'s `[context] modules` still names `crates/nvs-host/src/budget.rs`, which never existed
+— the accounting is `crates/nvs-runtime/src/budget.rs`. The pack warns every session.
 
 ## Next group
 
-**The rest of `nvs-host (limits at a safepoint)`'s item-12 roster**, which is what still fails the
-driver's check. File set: `crates/nvs-host/tests/limits.rs`, with
-`crates/nvs-runtime/src/ctx.rs`'s `Ctx::isolate` and `crates/nvs-host/src/isolate.rs`'s `start`
-behind it. Both cases are measurements over a *tree* of contexts, which is the shape
-`a_recursive_spawn_is_reported_as_max_script_depth_and_not_as_memory` just landed.
+**The two unenforced thirds of m6's "memory, CPU or output budget" row.** File set:
+`crates/nvs-runtime/src/ctx.rs` and `crates/nvs-host/tests/limits.rs`, the same pair item 12 was
+written over, with `crates/nvs-config/src/tree.rs` behind them for the directive's spelling.
 
-- [ ] **`n_concurrent_isolates_cannot_together_exceed_the_trees_budget`** — `docs/plan/m6.md`'s
-      *Verify*, "N concurrent isolates cannot together exceed the tree's memory, CPU or output
-      budget". `breached()` (`crates/nvs-host/tests/limits.rs:263`) is the shape for putting a
-      context over its ceiling, and the question is whether `Ctx::isolate`
-      (`crates/nvs-runtime/src/ctx.rs:1790`) leaves a child measuring against the *tree's* counters
-      or re-bases it — `crates/nvs-runtime/src/budget.rs`'s counters are process-wide, so read that
-      constructor's `memory_base` line before writing the assertion. If it re-bases, the case fails
-      honestly and the fix is a slice of its own.
-- [ ] **`a_child_cannot_widen_a_capability_its_parent_narrowed`** — the same *Verify* row. The
-      ceiling half of this is already true and pinned
-      (`crates/nvs-runtime/tests/configured_limits.rs:197`'s narrowed-parent block); what is
-      unwritten is the capability half, which crosses at `Ctx::isolate`
-      (`crates/nvs-runtime/src/ctx.rs:1790`) through the cloned snapshot. ADR 0118 § 1 and
-      `crates/nvs-config/src/capability.rs`'s module doc are the rule.
-- [ ] **The plan and `crates/nvs-stdlib/src/script.rs:11` disagree** — the plan's *Open now* calls
-      "item 22's `Core\Script` members" a known gap; that module's `# Registered with no members, on
-      purpose` says there are none to write and gives the argument. One of them is wrong; the module
-      doc is the ADR-backed one, so the plan bullet is the likely loser.
+- [ ] **A `[limits] max_output` ceiling `Ctx` can answer for** — `docs/plan/m6.md`'s *Verify*, "N
+      concurrent isolates cannot together exceed the tree's memory, CPU or **output** budget". The
+      shape is the memory ceiling's, one field further along: `Ctx::memory_limit`
+      (`crates/nvs-runtime/src/ctx.rs:1074`) and `Ctx::over_memory_limit`
+      (`crates/nvs-runtime/src/ctx.rs:1111`) are what to copy, `Ctx::refresh_limits` is where the
+      directive is read (`crates/nvs-config/src/tree.rs:166` is the key, already parsed as bytes by
+      `crates/nvs-config/src/value.rs:119`), and the breach belongs beside the memory branch in
+      `nvs_safepoint` (`crates/nvs-runtime/src/ctx.rs:2697`) as ADR 0020 § 1's third `Limit`
+      variant. Decide first whether an isolate's buffered sink counts against the root: the answer
+      the memory half gives is yes, and `Ctx::isolate`'s doc (`crates/nvs-runtime/src/ctx.rs:1781`)
+      is the sentence to keep true.
+- [ ] **Decide what the deadline copy means, and record it** — `crates/nvs-runtime/src/ctx.rs:1814`
+      snapshots the parent's word into the child rather than sharing it, so a tree whose deadline
+      expires mid-flight stops only the contexts built after it. Either share the atom or write
+      down why the copy is right (the scheduler cancels a running child through ADR 0072 § 5, which
+      may already be the whole answer). One paragraph in that constructor's doc either way; a
+      shared word also wants a case beside
+      `n_concurrent_isolates_cannot_together_exceed_the_trees_budget`
+      (`crates/nvs-host/tests/limits.rs:588`).
+- [ ] **Extend that case with the output third** once the ceiling exists — its doc comment
+      (`crates/nvs-host/tests/limits.rs:588`) currently says why output is not asserted, and that
+      paragraph is what has to stop being true.
 
 ## Backlog
 
-- `examples/limits.nvs` has no depth twin; the `contains` check in `docs/agent/loop-goal.toml` only
-  covers memory.
-- Item 18's `Core\Secret::reveal()` is not in the registry — `crates/nvs-stdlib/src/registry.rs`.
-- `Live::admit`'s same-class check is asked of the answer, not the argument —
-  `crates/nvs-runtime/src/graph.rs` § *Known gaps*.
-- The path rule items 6, 10 and 12 share is still unwritten —
-  `a_path_reaching_a_granted_root_through_dotdot_or_a_symlink_does_not_match` in `nvs-stdlib`.
-- Stage 5's ADR 0042 cache checks (`nvs-cli (the cache)`) are untouched.
+- Item 18's `Core\Secret::reveal()` is not in the registry — no `Core\Secret` class exists at all;
+  the roster is `crates/nvs-stdlib/src/registry.rs:984` and `conventions.md`'s five edits are the
+  shape (`docs/implementation-plan.md`'s *Open now*).
+- `Live::admit`'s same-class check is asked of the answer and not of the argument
+  (`crates/nvs-runtime/src/graph.rs` § *Known gaps*).
+- `[context] modules` in `docs/agent/loop-goal.toml` names a `crates/nvs-host/src/budget.rs` that
+  never existed; the module is `crates/nvs-runtime/src/budget.rs`.
+- `nvs_config::Request::set` cannot express a capability change in either direction; if a request
+  is ever meant to narrow one, that is a decision and an ADR, not an implementation gap
+  (`crates/nvs-config/src/request.rs:106`).

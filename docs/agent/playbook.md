@@ -2967,6 +2967,16 @@ is why" — is this file.
   `extern "C"` pointer, which captures nothing, so "the same handler aimed at another slot" is not
   expressible and the recorder has to be copied. The counter at the top of that file is read as a
   *difference* for exactly this reason, and that note is the one that should have been read first.
+- **A capability is invisible through the request overlay, so a case that "narrows one" through
+  `Core\Config::set` is pinning nothing.** `nvs_runtime::capability::refusal` asks
+  `config.snapshot().config.capabilities` — the typed tree — and never
+  `nvs_config::Request`'s overlay, and `Request::set` refuses the `capabilities` block from either
+  direction anyway: the row is `Class::RuntimeTighten` and a grant is a list, which
+  `value::within_ceiling` answers `Ok(None)` for, so there is nothing to narrow *by*. A request
+  therefore cannot narrow a capability at all; the narrowing in `a_child_cannot_widen_a_capability_its_parent_narrowed`
+  is the operator's, in the snapshot the parent already holds, and what the case asks is the
+  child's side of it. The general shape: a directive that is `RuntimeTighten` in the registry is
+  not thereby settable — the value has to have a quantity for the comparison to mean anything.
 
 ## Splitting a file that got too big
 
