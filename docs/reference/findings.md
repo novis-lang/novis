@@ -233,8 +233,12 @@ in that goal. An item's owner is the row it sits in.
       `nvs build --openapi` document. *ref-probe/api2*
 - [ ] **D11** `spawn script Class::method(...)` as the operand is refused (`E0401: expected string,
       found callable`); spec § 2 and ADR 0006 describe it as available. *refp/spawn/method.nvs*
-- [ ] **D12** `spawn script … with(args: …)` is accepted but there is no reader: `Core\Script::args()`
+- [x] **D12** `spawn script … with(args: …)` is accepted but there is no reader: `Core\Script::args()`
       is E0405, and the parser's own hint (`$_ARGS` → `Core\Script::args()`) names it. *refp/spawn/args.nvs*
+      `Core\Script` is a registered class now and `args()` is its one row. It answers `mixed` rather
+      than ADR 0012 § 6's original `array<mixed>` — `args:` narrows nothing at the call site — and
+      `null` rather than an empty array for a child spawned without the option; § 6 states both, and
+      `nvs_stdlib::script`'s module doc owns why.
 - [x] **D13** `spawn script` default `output` is `'capture'`, not inherit. *refp/spawn/main.nvs*
 - [x] **D14** A child with no top-level `return` answers `value = int(1)`, not `null`. *refp/spawn/noret2*
       The finding is right and ADR 0006 § *Decision* already said so; `1` is `require`'s, and the

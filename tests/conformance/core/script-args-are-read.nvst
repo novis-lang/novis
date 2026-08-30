@@ -1,0 +1,46 @@
+--TEST--
+`Core\Script::args()` is the read half of `spawn script … with(args: …)`: a child sees the value its parent passed, and a child spawned without the option sees `null` — as does the root script, which nothing spawned — ADR 0012 § 6, ADR 0006 § *Decision*
+--FILE nvs.toml--
+# ADR 0118 § 2: `spawn script` goes through a door that asks for
+# `script.spawn` first, and deny-by-default means a case with no
+# configuration cannot spawn at all. This grants it and nothing else.
+[capabilities.script]
+spawn = true
+--FILE reader.nvs--
+<?nvs
+// ADR 0012 § 6: the child asks for its argument rather than finding it in an
+// ambient `$_ARGS`. The answer is typed `mixed`, which is why a plain string
+// is a legal thing to have been passed — `args:` narrows nothing at the call
+// site, so nothing narrower would be true here.
+var $a = Core\Script::args();
+echo "child got ", $a as string, "\n";
+return "read";
+--FILE quiet.nvs--
+<?nvs
+// The same read in a child spawned with no `args:` at all. The lowering hands
+// `null` here rather than an empty array, because a parent that wrote
+// `args: []` said something this one did not.
+echo "quiet got ", Core\Script::args() == null ? "null" : "a value", "\n";
+--FILE--
+<?nvs
+// The root script was not spawned by anything, so there is no argument to
+// read — the same `null`, reached by the same absence.
+echo "root got ", Core\Script::args() == null ? "null" : "a value", "\n";
+
+// The value crossed once, at the spawn (ADR 0006 § *Decision*). Reading it in
+// the child is a read of the child's own arena and copies nothing further.
+var $passed = spawn script "reader.nvs" with(args: "alpha", output: "capture");
+var $done = await $passed;
+echo "ok=", $done->ok ? "true" : "false", "\n";
+echo $done->output;
+
+var $none = spawn script "quiet.nvs" with(output: "capture");
+var $empty = await $none;
+echo "ok=", $empty->ok ? "true" : "false", "\n";
+echo $empty->output;
+--EXPECT--
+root got null
+ok=true
+child got alpha
+ok=true
+quiet got null

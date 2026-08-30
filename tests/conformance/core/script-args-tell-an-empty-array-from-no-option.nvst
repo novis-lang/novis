@@ -1,0 +1,45 @@
+--TEST--
+`Core\Script::args()` keeps the two absences apart: a child spawned with `args: []` reads an array of zero, and one spawned with no option at all reads `null` — ADR 0012 § 6
+--FILE nvs.toml--
+# ADR 0118 § 2: `spawn script` goes through a door that asks for
+# `script.spawn` first, and deny-by-default means a case with no
+# configuration cannot spawn at all. This grants it and nothing else.
+[capabilities.script]
+spawn = true
+--FILE shape.nvs--
+<?nvs
+// One reader for all three spawns below, so the three lines differ only in
+// what the parent wrote. `mixed` is the type, so the answer has to be asked
+// about rather than assumed: `null` is the absence, and anything else is the
+// value in the shape it crossed in.
+var $a = Core\Script::args();
+if ($a == null) {
+    echo "null\n";
+} else {
+    var $list = $a as array<string>;
+    echo "array of ", Core\Arr::count($list), "\n";
+}
+--FILE--
+<?nvs
+// The distinction this case exists for: `args: []` is a value and no `args:`
+// is not one. An empty array for both would collapse them, and a parent that
+// writes `args: []` is saying something a parent that writes nothing did not.
+var $two = spawn script "shape.nvs" with(args: ["alpha", "beta"], output: "capture");
+var $none = spawn script "shape.nvs" with(args: [], output: "capture");
+var $absent = spawn script "shape.nvs" with(output: "capture");
+
+echo "two: ", (await $two)->output;
+echo "empty: ", (await $none)->output;
+echo "absent: ", (await $absent)->output;
+
+// The answer is an ordinary value, so it is a legal thing to hand on: this
+// root's own `null` crosses at `args:` and comes back as the absence it was.
+// A member answering something the option could not carry would fail here
+// rather than at the read.
+var $relay = spawn script "shape.nvs" with(args: Core\Script::args(), output: "capture");
+echo "relayed: ", (await $relay)->output;
+--EXPECT--
+two: array of 2
+empty: array of 0
+absent: null
+relayed: null
