@@ -71,6 +71,47 @@
 //! *Investigation* weighs that against reading into a heap buffer and takes the mapping — the page
 //! cache does the I/O once and the hash runs over it with no copy.
 //!
+//! # § 5's directory check
+//!
+//! [`Cache::new`] refuses a cache directory another local account can write, once, before anything
+//! is read out of it, through [`nvs_config::trust`] — [ADR 0103] § 6's boundary, and the one
+//! implementation of it. § 5 says why no checksum can stand in for this: a principal who can write
+//! the directory computes a perfectly valid header over payload bytes of their own choosing, so a
+//! checksum answers "is this the file I wrote" and never "should I trust whoever wrote it".
+//!
+//! **The check is the constructor's**, so a `Cache` value is itself the evidence that it passed —
+//! the discipline [`Verified`] holds on the read path, one level up. Nothing per entry ever asks
+//! again: § 5 makes this a property of the directory, checked once at process start, and it is
+//! what the `unsafe` mapping in [`load`](Cache::load) rests on.
+//!
+//! Two details § 5 leaves here. A directory that does not exist yet is checked at the nearest
+//! ancestor that does ([`existing_root`]), because that is the shallowest directory an attacker
+//! would have to write in order to fill the slot the first [`store`](Cache::store) will create —
+//! [ADR 0103] § 6's own answer for an absent `optional` include. And the configured spelling is
+//! kept rather than the canonical path the check hands back: there is no path *comparison* here to
+//! protect, unlike the config tree's cycle test, and an absent directory has no canonical spelling
+//! at all, so one rule covers both.
+//!
+//! A refusal is the caller's to report, and it is a refusal to start naming the path rather than a
+//! silent fall back to compiling every time. § 3's "invisible to the script" discipline is about a
+//! bad *entry*; a cache directory anyone can write is a breach of the boundary itself, and
+//! [ADR 0103] § 6 answers that the same way wherever it appears.
+//!
+//! # § 6's eviction
+//!
+//! A content-addressed entry never needs invalidating for correctness — only for growth — so the
+//! whole of eviction is a size question, and § 6 hangs it off the *miss*: after a store, with a
+//! configured probability, walk the directory and, if it is over its cap, delete oldest-by-`mtime`
+//! entries down to a floor below that cap. [`Cache::store`] is the only caller,
+//! [`gc`](Cache::gc) is the same walk without the roll — § 6's `nvs cache gc` — and nothing on the
+//! read path calls either. **A warm hit performs no directory walk, checks no size and pays
+//! nothing beyond § 3's verify-then-map**, which is what keeps M6's warm-start bullet reachable.
+//!
+//! The roll is PHP's `session.gc_probability`/`gc_divisor` shape deliberately, and the floor is
+//! hysteresis: evicting to exactly the cap leaves the next miss's roll finding work again, so a
+//! cache hovering at the boundary would walk on nearly every one. § 7 leaves the three defaults to
+//! the implementation and [`Eviction`] states them with their reasons.
+//!
 //! # Known gaps
 //!
 //! **A payload is a relocatable object image, not a dump of the JIT's finished pages.** ADR 0042's
@@ -114,6 +155,7 @@ use std::path::{Path, PathBuf};
 
 use memmap2::Mmap;
 use nvs_config::cache::{Digest, EnvHash};
+use nvs_config::trust::{self, Untrusted};
 use rand::RngExt;
 
 /// § 2's magic, the first four bytes of every artifact.
@@ -254,21 +296,103 @@ pub(crate) enum Stored {
 pub(crate) struct Cache {
     dir: PathBuf,
     env: EnvHash,
+    eviction: Eviction,
+}
+
+/// § 6's hysteresis floor, as a percentage of the cap: a walk that evicts anything evicts down to
+/// here rather than to the cap itself, so a cache sitting at the boundary does not find work on
+/// every subsequent miss. A fifth of the cap is one walk's worth of headroom — small enough that
+/// the cache stays near its configured size, large enough that the walks stay rare.
+const GC_FLOOR_PERCENT: u64 = 80;
+
+/// § 6's growth policy: the size the cache is kept near, and how often a miss checks.
+///
+/// These are § 7's `opcache.file_cache_max_size` and its
+/// `opcache.file_cache_gc_probability`/`opcache.file_cache_gc_divisor` pair, which
+/// [`nvs_config::tree::Opcache`] holds; § 7 leaves their defaults to the implementation and
+/// [`Eviction::default`] is where they are decided.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Eviction {
+    /// The cap in bytes. A walk finding the cache over this deletes down to [`GC_FLOOR_PERCENT`]
+    /// of it; between two walks the cache may sit above it, which is § 6's accepted trade.
+    pub(crate) max_size: u64,
+    /// The numerator of the chance that one store walks.
+    pub(crate) probability: u32,
+    /// Its denominator. A zero on either side never walks, which is what a test wanting to observe
+    /// the directory growing past the cap asks for.
+    pub(crate) divisor: u32,
+}
+
+impl Default for Eviction {
+    /// 256 MiB, walked on one store in a hundred.
+    ///
+    /// The cap is sized for the artifacts of every application on one host rather than for one of
+    /// them: an artifact is tens of kilobytes, so this is thousands of compiled units, and a host
+    /// that overruns it loses only the oldest of them to a recompile. The rate is PHP's own
+    /// `session.gc_probability`/`gc_divisor` spelling, and one in a hundred is chosen against the
+    /// walk's cost rather than against the clock — the walk is one `readdir` per shard on a path
+    /// where a real compile has just happened, so a hundredth of that is unmeasurable, while a
+    /// rarer roll would let the overshoot grow for no saving worth having.
+    fn default() -> Self {
+        Self {
+            max_size: 256 * 1024 * 1024,
+            probability: 1,
+            divisor: 100,
+        }
+    }
+}
+
+/// The nearest ancestor of `dir` that exists, which is `dir` itself once it does.
+///
+/// § 5's check runs once at process start, and the cache directory is usually created by the first
+/// [`store`](Cache::store) rather than by an operator, so at that moment there is often nothing to
+/// examine. [ADR 0103] § 6 answers the same question for an absent `optional` include and this
+/// takes its answer whole: the check falls on the directory that would hold the thing, and walks up
+/// while that one does not exist either, because the promise is only as strong as the shallowest
+/// directory an attacker would have to write in order to keep it.
+fn existing_root(dir: &Path) -> &Path {
+    let mut candidate = dir;
+    while !candidate.exists() {
+        match candidate.parent() {
+            // A relative path runs out of components at the empty path, which names the working
+            // directory: ask about that rather than about nothing.
+            Some(parent) if parent.as_os_str().is_empty() => return Path::new("."),
+            Some(parent) => candidate = parent,
+            // An absolute path whose own root is absent: let the check say so about that root.
+            None => break,
+        }
+    }
+    candidate
 }
 
 impl Cache {
-    /// The cache rooted at `dir` — `[cache] dir`, which
-    /// [`nvs_config::tree::Cache`] holds — for artifacts compiled against `env`.
+    /// The cache rooted at `dir` — `[cache] dir`, which [`nvs_config::tree::Cache`] holds — for
+    /// artifacts compiled against `env`, once § 5's ownership check has passed on that directory.
     ///
-    /// This does not create, canonicalize or check the directory: § 5's ownership check is the
-    /// caller's, done once at process start, and a directory that does not exist yet is created by
-    /// the first [`store`](Self::store).
-    #[must_use]
-    pub(crate) fn new(dir: impl Into<PathBuf>, env: EnvHash) -> Self {
-        Self {
-            dir: dir.into(),
+    /// It neither creates nor canonicalizes it: the first [`store`](Self::store) creates it, and
+    /// the module doc says why the configured spelling is the one kept.
+    ///
+    /// # Errors
+    ///
+    /// [`Untrusted`], when the directory — or, while it does not exist yet, the nearest ancestor
+    /// that does — is owned by another account or writable by anyone but its owner. There is no
+    /// second answer for a caller to get wrong: without this, there is no `Cache` at all.
+    pub(crate) fn new(dir: impl Into<PathBuf>, env: EnvHash) -> Result<Self, Untrusted> {
+        let dir = dir.into();
+        trust::check(existing_root(&dir))?;
+        Ok(Self {
+            dir,
             env,
-        }
+            eviction: Eviction::default(),
+        })
+    }
+
+    /// The same cache under a different § 6 policy — `[opcache]`'s three keys, once a caller reads
+    /// them out of the configuration rather than taking [`Eviction::default`].
+    #[must_use]
+    pub(crate) fn with_eviction(mut self, eviction: Eviction) -> Self {
+        self.eviction = eviction;
+        self
     }
 
     /// The root this cache writes under.
@@ -354,6 +478,16 @@ impl Cache {
     /// having appeared underneath it. Every one of them means "there is no cache entry", which the
     /// next process handles as an ordinary miss; the module doc says why nothing escalates.
     pub(crate) fn store(&self, key: Digest, payload: &[u8]) -> io::Result<Stored> {
+        let stored = self.publish(key, payload)?;
+        // § 6's roll is here and nowhere else. This line is only reached on a miss, which has just
+        // paid for a real compile on the compile pool, so a directory walk is invisible against
+        // it; the warm-hit path never comes near it.
+        self.maybe_gc();
+        Ok(stored)
+    }
+
+    /// § 4's write itself, split out so § 6's eviction can hang off the one place it completes.
+    fn publish(&self, key: Digest, payload: &[u8]) -> io::Result<Stored> {
         let published = self.path(key);
         let shard = published
             .parent()
@@ -389,6 +523,83 @@ impl Cache {
         }
     }
 
+    /// § 6's probabilistic half: roll `probability` against `divisor`, and walk only on a hit.
+    ///
+    /// Whatever the walk found is dropped. A cache directory that cannot be read is not a failure
+    /// the caller of [`store`](Self::store) hears about — the entry it asked to publish is on disk
+    /// either way, and the module doc says why nothing in here escalates.
+    fn maybe_gc(&self) {
+        let Eviction {
+            probability,
+            divisor,
+            ..
+        } = self.eviction;
+        if probability == 0 || divisor == 0 {
+            return;
+        }
+        // The modulo's bias over a `u64` is immaterial against a divisor an operator writes by
+        // hand: this decides how often a directory is walked, not anything a caller can observe.
+        if u64::from(probability) <= rand::rng().random::<u64>() % u64::from(divisor) {
+            return;
+        }
+        drop(self.gc());
+    }
+
+    /// § 6's walk: delete oldest-by-`mtime` artifacts until the cache is under the hysteresis
+    /// floor, and answer what that freed.
+    ///
+    /// This is the deterministic half of § 6 — what `nvs cache gc` will call, and what
+    /// [`maybe_gc`](Self::maybe_gc) calls with a probability in front of it. **Nothing on the read
+    /// path calls it**: § 6 buys the warm-hit cost by putting every size question here.
+    ///
+    /// Only `.nvsc` files count and only they are deleted. A `.tmp-` file belongs to a writer that
+    /// still has it open, and it is transient by construction — counting it would let a burst of
+    /// concurrent writes evict published entries, and deleting it would break that writer's rename
+    /// for nothing.
+    ///
+    /// # Errors
+    ///
+    /// Whatever reading the cache directory said.
+    pub(crate) fn gc(&self) -> io::Result<u64> {
+        let mut total = 0;
+        let mut artifacts = Vec::new();
+        for shard in fs::read_dir(&self.dir)? {
+            let shard = shard?.path();
+            if !shard.is_dir() {
+                continue;
+            }
+            for entry in fs::read_dir(&shard)? {
+                let entry = entry?;
+                if entry.path().extension().is_none_or(|ext| ext != EXTENSION) {
+                    continue;
+                }
+                let meta = entry.metadata()?;
+                total += meta.len();
+                artifacts.push((meta.modified()?, meta.len(), entry.path()));
+            }
+        }
+        if total <= self.eviction.max_size {
+            return Ok(0);
+        }
+
+        // Oldest first, which is the only order § 6 names.
+        artifacts.sort_unstable_by_key(|(modified, _, _)| *modified);
+        let floor = self.eviction.max_size / 100 * GC_FLOOR_PERCENT;
+        let mut freed = 0;
+        for (_, len, path) in artifacts {
+            if total <= floor {
+                break;
+            }
+            // A file another process is reading refuses to be deleted on Windows. It is the
+            // newest-but-one problem of a moment, and the next walk will find it again.
+            if fs::remove_file(&path).is_ok() {
+                total -= len;
+                freed += len;
+            }
+        }
+        Ok(freed)
+    }
+
     /// The temp file, header then payload, synced and closed.
     fn write_temp(&self, temp: &Path, payload: &[u8]) -> io::Result<()> {
         let mut file = File::create(temp)?;
@@ -407,6 +618,7 @@ mod tests {
 
     use std::collections::BTreeSet;
     use std::sync::atomic::{AtomicU32, Ordering};
+    use std::time::{Duration, SystemTime};
 
     use nvs_config::Config;
     use nvs_config::cache::{artifact_key, env_hash};
@@ -443,12 +655,185 @@ mod tests {
             .collect()
     }
 
+    /// Make `dir` writable by every local account — the state § 5 refuses — in the platform's own
+    /// spelling, because there is no portable one. Unix is a mode; Windows is an ACE for `Everyone`
+    /// (`S-1-1-0`), added through `icacls` rather than through `windows-sys` so that a test helper
+    /// does not cost this crate a dependency and an `unsafe` block. `icacls` is the same command
+    /// `nvs_config::trust::REMEDY` tells an operator to undo such a grant with.
+    fn open_to_the_world(dir: &Path) {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            fs::set_permissions(dir, fs::Permissions::from_mode(0o777))
+                .expect("a world-writable mode");
+        }
+        #[cfg(windows)]
+        {
+            let granted = std::process::Command::new("icacls")
+                .arg(dir)
+                .arg("/grant")
+                .arg("*S-1-1-0:(OI)(CI)(M)")
+                .output()
+                .expect("`icacls` ships with every supported Windows");
+            assert!(
+                granted.status.success(),
+                "`Everyone` could not be granted write on {}: {}",
+                dir.display(),
+                String::from_utf8_lossy(&granted.stderr),
+            );
+        }
+    }
+
+    /// Backdate `path` by `seconds`, which is the only way a case can say which entry is oldest:
+    /// § 6 evicts by `mtime` and seven files written in one loop differ by microseconds.
+    fn age(path: &Path, seconds: u64) {
+        File::options()
+            .write(true)
+            .open(path)
+            .expect("the artifact is writable by the account that wrote it")
+            .set_modified(SystemTime::now() - Duration::from_secs(seconds))
+            .expect("the filesystem records a modification time");
+    }
+
+    /// What every file under the cache root occupies, which is the quantity § 6's cap is about.
+    fn total_size(dir: &Path) -> u64 {
+        let mut total = 0;
+        for shard in fs::read_dir(dir).expect("the cache root is readable") {
+            let shard = shard.expect("the entry is readable").path();
+            if !shard.is_dir() {
+                continue;
+            }
+            for entry in fs::read_dir(&shard).expect("a shard is readable") {
+                total += entry
+                    .expect("the entry is readable")
+                    .metadata()
+                    .expect("an artifact reports its length")
+                    .len();
+            }
+        }
+        total
+    }
+
+    /// ADR 0042 § 6: eviction rides on a store and on nothing else, it is the roll that decides
+    /// whether it happens at all, and it deletes oldest-first down to a floor under the cap. The
+    /// half that is a performance property rather than a policy one is the middle assertion: a
+    /// warm hit over a cache that is *already* over its cap walks nothing.
+    #[test]
+    fn eviction_is_piggybacked_and_off_the_request_path() {
+        let dir = scratch("eviction");
+        let cap = 4 * 1024;
+        let always = Eviction {
+            max_size: cap,
+            probability: 1,
+            divisor: 1,
+        };
+        let never = Eviction {
+            probability: 0,
+            ..always
+        };
+
+        // Six entries of a kilobyte each under a cache that never walks, oldest first. The
+        // directory ends four times over its cap, which is what makes the next two assertions
+        // measurements of the roll rather than of the writes.
+        let cold = Cache::new(&dir, env())
+            .expect("a scratch directory of this test's own")
+            .with_eviction(never);
+        let mut keys = Vec::new();
+        for unit in 0..6u8 {
+            let payload = vec![unit; 1024];
+            let key = artifact_key(&payload, cold.env());
+            cold.store(key, &payload).expect("writable");
+            age(&cold.path(key), u64::from(60 - unit));
+            keys.push(key);
+        }
+        assert!(
+            total_size(&dir) > cap,
+            "a store that does not roll never evicts, whatever the directory holds",
+        );
+
+        // A hit is not a miss. § 6 hangs the roll off `store` alone, so this cannot evict however
+        // the roll would have gone — and this cache's roll always fires.
+        let hot = Cache::new(&dir, env())
+            .expect("a scratch directory of this test's own")
+            .with_eviction(always);
+        let over = total_size(&dir);
+        assert!(
+            hot.load(keys[0]).is_some(),
+            "the oldest entry is there to be hit"
+        );
+        assert_eq!(
+            total_size(&dir),
+            over,
+            "a warm hit walks nothing, checks no size and deletes nothing",
+        );
+
+        // One miss later: the roll fires, the walk finds the cache over its cap, and the oldest
+        // entries go — to the floor rather than to the cap, so the next store does not find work
+        // again immediately.
+        let payload = vec![0xEE; 1024];
+        let fresh = artifact_key(&payload, hot.env());
+        hot.store(fresh, &payload).expect("writable");
+
+        let left = total_size(&dir);
+        assert!(
+            left <= cap / 100 * GC_FLOOR_PERCENT,
+            "the walk evicts past the cap to the hysteresis floor: {left} bytes left",
+        );
+        assert!(
+            hot.path(fresh).exists() && !hot.path(keys[0]).exists(),
+            "oldest-by-mtime goes first, and the entry this very store published stays",
+        );
+        assert!(
+            hot.load(*keys.last().expect("six keys")).is_some(),
+            "and it stops at the floor rather than clearing the cache",
+        );
+
+        drop(fs::remove_dir_all(&dir));
+    }
+
+    /// ADR 0042 § 5, which is ADR 0103 § 6 applied to `[cache] dir`: a directory another local
+    /// account can write is refused once, at construction, rather than entry by entry — that
+    /// principal can compute a valid header and checksum over bytes of their own choosing, so
+    /// there is nothing per entry that could catch them.
+    #[test]
+    fn a_world_writable_cache_directory_is_refused() {
+        let root = scratch("trust");
+        let dir = root.join("artifacts");
+        fs::create_dir_all(&dir).expect("a cache directory to open up");
+
+        Cache::new(&dir, env()).expect("a directory this account owns is inside the boundary");
+        Cache::new(root.join("not-yet"), env())
+            .expect("one the first store creates is checked at its ancestor");
+
+        open_to_the_world(&dir);
+
+        let why = Cache::new(&dir, env())
+            .expect_err("any local account could drop a valid-looking artifact in here");
+        assert!(
+            matches!(why, Untrusted::Breach(_)),
+            "the directory was examined and refused, not merely unreadable: {why:?}",
+        );
+        assert!(
+            why.message().contains("artifacts"),
+            "the refusal names the directory it is about: {}",
+            why.message(),
+        );
+        assert!(
+            Cache::new(dir.join("shard"), env()).is_err(),
+            "a directory that does not exist yet takes the answer of the ancestor that would hold \
+             it, which is the only place that promise can be kept",
+        );
+
+        drop(fs::remove_dir_all(&root));
+    }
+
     /// ADR 0042 §§ 1-2: the address is the content, the layout is a two-character fan-out, and a
     /// published file is never rewritten in place.
     #[test]
     fn the_cache_is_a_fan_out_of_immutable_content_addressed_files() {
         let dir = scratch("fanout");
-        let cache = Cache::new(&dir, env());
+        let cache = Cache::new(&dir, env()).expect("a scratch directory of this test's own");
         assert_eq!(
             cache.dir(),
             dir,
@@ -528,7 +913,7 @@ mod tests {
     #[test]
     fn a_concurrent_write_resolves_by_rename_with_no_lock_file() {
         let dir = scratch("concurrent");
-        let cache = Cache::new(&dir, env());
+        let cache = Cache::new(&dir, env()).expect("a scratch directory of this test's own");
         let payload = b"; the unit eight threads all compiled at once".as_slice();
         let key = artifact_key(payload, cache.env());
 
@@ -586,7 +971,7 @@ mod tests {
     #[test]
     fn an_artifact_is_verified_whole_before_any_page_is_executable() {
         let dir = scratch("verify");
-        let cache = Cache::new(&dir, env());
+        let cache = Cache::new(&dir, env()).expect("a scratch directory of this test's own");
         let payload = b"; a compiled unit's payload, long enough to have a middle".as_slice();
         let key = artifact_key(payload, cache.env());
 
@@ -645,7 +1030,7 @@ mod tests {
     #[test]
     fn a_tampered_artifact_is_rejected() {
         let dir = scratch("tampered");
-        let cache = Cache::new(&dir, env());
+        let cache = Cache::new(&dir, env()).expect("a scratch directory of this test's own");
         let payload = b"; the unit an attacker would like to replace".as_slice();
         let key = artifact_key(payload, cache.env());
         cache.store(key, payload).expect("writable");
