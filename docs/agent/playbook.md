@@ -3103,6 +3103,17 @@ is why" — is this file.
   cheap shape for "the same name means two different things in two scopes". `try.py` cannot run the
   result — the neighbouring bullet says why — but `target/debug/nvs test <path>.nvst` takes a **single
   case path**, not only a tree, and reproduces its working directory.
+- **`conformance_coverage.rs`'s floor of three reads only a case's *main* `--FILE--` section, so a
+  member exercised in an auxiliary file counts for nothing.** `case_sources()` takes
+  `nvs_test::case::parse(…).file` — the last, unnamed section — deliberately, so a member named in a
+  title or in an expected diagnostic is not mistaken for one a case calls. The consequence bites
+  exactly where a multi-file case is unavoidable: a member only a *child* isolate can call, written
+  into three `.nvst` files' `--FILE child.nvs--` sections, still reads as **zero** cases, and
+  `every_core_class_has_a_conformance_floor_of_three` reports "asked by 1 case(s)" with three cases on
+  disk and all three green. What closes it is a question the *parent* asks in its own section — for
+  `Core\Script::args()` that was the root's own absence, relaying its answer back through `args:`, and
+  asserting that handing a value to a child does not put one on the giver. Three real questions, not
+  three spellings of one.
 
 ## Splitting a file that got too big
 
