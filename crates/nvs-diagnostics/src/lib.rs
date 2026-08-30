@@ -2533,6 +2533,25 @@ pub mod code {
     /// the one field that must travel, rather than at the call.
     pub const E_SECRET_ENCODED: Code = Code::new("E0791");
 
+    /// A read of a class constant whose declared value has no compile-time
+    /// form.
+    ///
+    /// ADR 0011 inlines a class constant at every use site — there is no
+    /// storage a read could load it from — so a declaration the constant
+    /// folder cannot reduce to a value has nothing to lower. Reported at the
+    /// **read**, not at the declaration, because the declaration alone is
+    /// harmless: a constant nobody names costs nothing, and the span the
+    /// author can act on is the one that asked for a value.
+    ///
+    /// Distinct from [`E_LITERAL_TYPE_NOT_CONST`], which refuses the same
+    /// declaration in *type* position under ADR 0047 § 2's narrower question
+    /// ("is this a `string` or `int` literal type"). An `array` constant is
+    /// legal here and refused there, and after the array fold this code is
+    /// down to the shapes no constant emitter exists for at all — another
+    /// class's `const`, an enum case, and `Foo::class` nested inside a
+    /// container.
+    pub const E_CLASS_CONST_NO_CONSTANT_FORM: Code = Code::new("E0792");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

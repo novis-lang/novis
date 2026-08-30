@@ -172,10 +172,7 @@ pub(crate) fn infer_class_const(
         // `crate::signatures` records the declared type and the placed value
         // of — see `signatures::ConstSig`. The value is recorded for the two
         // arms above's reason a third time: a constant is inlined at every use
-        // site, so `nvs-ir` has no storage to read it back from. A constant
-        // whose value has no constant form (`public const array<int> ROWS = [1, 2];`) records
-        // none and still reads at its type, which is the one shape left
-        // unlowered.
+        // site, so `nvs-ir` has no storage to read it back from.
         Some(qname) => {
             let constant = span_text(env.src, name).to_owned();
             let found =
@@ -183,8 +180,19 @@ pub(crate) fn infer_class_const(
                     .cloned();
             match found {
                 Some(sig) => {
-                    if let Some(value) = sig.value {
-                        env.exprs.record(expr.span, ExprInfo::CoreConst { value });
+                    match sig.value {
+                        Some(value) => {
+                            env.exprs.record(expr.span, ExprInfo::CoreConst { value });
+                        }
+                        // A declaration the constant folder could not reduce.
+                        // Refused *here* rather than at the declaration
+                        // because a constant nobody names costs nothing and
+                        // has no wrong behaviour to report — and refused at
+                        // all because ADR 0011 leaves `nvs-ir` nothing to
+                        // lower a read to, which was a panic before this.
+                        None => {
+                            report_unfoldable_const(expr, &qname, &constant, sig.ty, env);
+                        }
                     }
                     sig.ty
                 }
@@ -196,6 +204,56 @@ pub(crate) fn infer_class_const(
         }
         None => env.interner.mixed(),
     }
+}
+
+/// The `E0792` half of the arm above, which owns why the read and not the
+/// declaration is the position.
+///
+/// The help names the three shapes that reach it, because after
+/// [`crate::defaults::eval_const_value`]'s array fold they are the whole of
+/// what is left: another class's constant, an enum case, and `Foo::class` —
+/// written as the value itself or nested inside a container, since neither
+/// position folds. Each is a compile-time constant ADR 0046 § 2 already admits
+/// at a *property* default ([`crate::defaults::const_reference_default`]) and
+/// none has a `ConstArg` here, so the refusal is a gap named rather than a
+/// rule: what closes it is that resolver, one position along, which needs the
+/// `Ctx` this table's collection pass does hold.
+fn report_unfoldable_const(
+    expr: &Expr,
+    qname: &QName,
+    constant: &str,
+    declared: TypeId,
+    env: &mut Env<'_>,
+) {
+    // Two declared types name a mistake in the *declaration*, and a read of
+    // one is a second diagnostic about it rather than a mistake of its own —
+    // "one mistake, one diagnostic", the rule the whole `expr` module reports
+    // under. `mixed` is a constant with no written annotation, already `E0246`
+    // where it is declared; `bytes` has no literal to write at all (ADR 0009
+    // § 1, and `ConstArg::Bytes`'s own doc), so no value could have folded and
+    // the read is not where that is worth saying.
+    if declared == env.interner.mixed()
+        || matches!(
+            env.interner.get(declared),
+            Ty::Bytes | Ty::TaintedBytes | Ty::SecretBytes | Ty::SecretTaintedBytes
+        )
+    {
+        return;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_CLASS_CONST_NO_CONSTANT_FORM,
+            format!("`{qname}::{constant}` has no compile-time value to inline"),
+        )
+        .with_primary(expr.span, "this constant's declaration folds to no value")
+        .with_help(
+            "ADR 0011 inlines a class constant at every use site, so its value has to have a \
+             constant form — a literal, or an array literal of them. Another class's \
+             constant, an enum case and `Foo::class` are the three this compiler cannot yet \
+             fold into one, written on their own or nested inside a container: write the value \
+             out here, or move it to a `static` member the class initializes",
+        ),
+    );
 }
 
 /// `expr instanceof ClassOrExpr` — [`super::infer`]'s `ExprKind::InstanceOf`

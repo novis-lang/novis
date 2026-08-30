@@ -80,7 +80,7 @@
 //! not a wrong constant.
 
 use nvs_diagnostics::{Diagnostic, Span, code};
-use nvs_syntax::ast::{Expr, ExprKind, UnaryOp};
+use nvs_syntax::ast::{ArrayItem, Expr, ExprKind, UnaryOp};
 
 use crate::ty::{Ty, TypeId};
 use crate::{Ctx, Env};
@@ -453,6 +453,166 @@ pub(crate) fn literal_default(
         // of the same admission and that question already has one answer.
         (_, ExprKind::Null) if !negated && env.interner.is_nullable(declared) => {
             Some(ConstArg::Null)
+        }
+        _ => None,
+    }
+}
+
+/// A **class constant**'s written value, folded to the [`ConstArg`] ADR 0011's
+/// inlining rule needs: [`literal_default`]'s type-directed grid first, and an
+/// array literal where that grid has nothing to say.
+///
+/// The extra shape is here rather than in [`literal_default`] because the
+/// position is what makes it affordable. A class constant is inlined at its use
+/// sites, exactly as `nvs_ir::lower::emit_const_arg` already materializes
+/// [`ConstArg::Array`] for ADR 0046 § 5's folded retrieval — while a *parameter*
+/// default of `= [1, 2]` would be built afresh at every call site that omitted
+/// it, which is [`ConstArg::EmptyArray`]'s own doc's reason for refusing even
+/// the empty one there.
+///
+/// **The declared type still drives the decoding**, one level at a time: an
+/// `array<float>` constant written `[1, 2]` folds to two [`ConstArg::Float`]s,
+/// because each element is placed by the same [`literal_default`] the whole
+/// value would have been, and an `array<array<float>>` recurses through here
+/// rather than falling to a decoder with no type left to place against. Nothing
+/// is accepted at a *wrong* type on the way: an element the grid refuses is the
+/// whole constant refused, since a half-folded array has no value to inline.
+///
+/// `None` for a value with no constant form, which the *read* refuses with
+/// `E0792` — [`crate::expr::members`] owns why that is the position rather than
+/// this one. Two shapes reach it: the named constants of ADR 0046 § 2 that
+/// [`const_reference_default`] resolves one position along and this pass does
+/// not, and a shape-typed constant, whose fields would each need placing
+/// against the declared shape's own.
+pub(crate) fn eval_const_value(
+    expr: &Expr,
+    declared: TypeId,
+    env: &mut Env<'_>,
+) -> Option<ConstArg> {
+    if let Some(value) = literal_default(expr, declared, env) {
+        return Some(value);
+    }
+    let Ty::Array(element) = *env.interner.get(declared) else {
+        return None;
+    };
+    let ExprKind::ArrayLiteral(items) = &expr.kind else {
+        return None;
+    };
+    if items.is_empty() {
+        // `[]` keeps its one spelling wherever a constant reaches one — see
+        // [`ConstArg::EmptyArray`]. Both lower to the same empty
+        // `nvs_ir::ir::InstKind::ArrayNew`.
+        return Some(ConstArg::EmptyArray);
+    }
+    fold_const_array(items, Some(element), env)
+}
+
+/// One array literal's entries under the `string` keys ADR 0007 § 5 gives them,
+/// with a keyless run taking its position in that run — every value here is
+/// constant, so the auto-index has one answer and this is the last place it is
+/// cheap to compute.
+///
+/// `element` is the declared element type where the position has one, and each
+/// value is placed in it; `None` is the untyped fold ADR 0046 § 5's payload
+/// takes. A spread is refused rather than expanded: `...$rows` names a binding,
+/// and `...[1, 2]` inside a constant is a shape nothing writes.
+fn fold_const_array(
+    items: &[ArrayItem],
+    element: Option<TypeId>,
+    env: &mut Env<'_>,
+) -> Option<ConstArg> {
+    let mut out = Vec::with_capacity(items.len());
+    let mut next = 0_u64;
+    for ArrayItem {
+        key, value, spread, ..
+    } in items
+    {
+        if *spread {
+            return None;
+        }
+        let key = match key {
+            Some(key) => match fold_constant_value(key, env)? {
+                ConstArg::Str(s) => s,
+                ConstArg::Int(n) => n.to_string(),
+                ConstArg::Uint(n) => n.to_string(),
+                _ => return None,
+            },
+            None => {
+                let key = next.to_string();
+                next += 1;
+                key
+            }
+        };
+        let value = match element {
+            Some(element) => eval_const_value(value, element, env)?,
+            None => fold_constant_value(value, env)?,
+        };
+        out.push((key, value));
+    }
+    Some(ConstArg::Array(out))
+}
+
+/// One constant value with **no position to place it in**: the decoder ADR 0046
+/// § 5's payload fold reaches, an attached literal being checked structurally
+/// rather than declared. Reports nothing — each caller names its own position in
+/// its own diagnostic.
+///
+/// [`literal_default`] is the type-directed sibling and is preferred wherever a
+/// declared type exists, because that is what makes `uint`, `float` and the
+/// three qualified `string`s reachable at all. Here the value's own shape is the
+/// whole of the evidence: an integer is an `int` where one holds it and a `uint`
+/// above that, which is the same order a written annotation would have narrowed
+/// it in.
+pub(crate) fn fold_constant_value(expr: &Expr, env: &mut Env<'_>) -> Option<ConstArg> {
+    let mut negated = false;
+    let mut inner = expr;
+    loop {
+        match &inner.kind {
+            ExprKind::Paren(next) => inner = next,
+            ExprKind::Unary {
+                op: UnaryOp::Neg,
+                expr: next,
+            } => {
+                negated = !negated;
+                inner = next;
+            }
+            ExprKind::Unary {
+                op: UnaryOp::Plus,
+                expr: next,
+            } => inner = next,
+            _ => break,
+        }
+    }
+    match &inner.kind {
+        ExprKind::Null if !negated => Some(ConstArg::Null),
+        ExprKind::Bool(b) if !negated => Some(ConstArg::Bool(*b)),
+        ExprKind::Str(span) if !negated => Some(ConstArg::Str(
+            crate::string_lit::cook_string_literal(env.src, *span),
+        )),
+        ExprKind::Float(span) => {
+            float_value(*span, env.src).map(|f| ConstArg::Float(if negated { -f } else { f }))
+        }
+        ExprKind::Int(span) => {
+            let magnitude = int_magnitude(*span, env)?;
+            if negated {
+                i64::try_from(magnitude)
+                    .ok()
+                    .map(|v| ConstArg::Int(-v))
+                    .or_else(|| (magnitude == 1 << 63).then_some(ConstArg::Int(i64::MIN)))
+            } else {
+                Some(i64::try_from(magnitude).map_or(ConstArg::Uint(magnitude), ConstArg::Int))
+            }
+        }
+        ExprKind::ArrayLiteral(items) if !negated => fold_const_array(items, None, env),
+        ExprKind::ObjectLiteral(fields) if !negated => {
+            let mut out = Vec::with_capacity(fields.len());
+            for field in fields {
+                out.push((
+                    crate::span_text(env.src, field.name).to_owned(),
+                    fold_constant_value(&field.value, env)?,
+                ));
+            }
+            Some(ConstArg::Shape(out))
         }
         _ => None,
     }

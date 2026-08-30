@@ -1,0 +1,50 @@
+--TEST--
+An `array<T>` class constant folds to a value and is inlined afresh at every read — ADR 0011, ADR 0007 §§ 2 and 5
+--FILE--
+<?nvs
+use Core\Arr;
+
+// ADR 0011 inlines a class constant at every use site — there is no storage a
+// read loads one from — so an `array<T>` constant has to fold to a value with
+// an instruction behind it, which is the same `ArrayNew` a written array
+// literal lowers to.
+class Limits {
+    public const array<int> STEPS = [1, 2, 3];
+    public const array<string> LABELS = ["lo" => "low", "hi" => "high"];
+    // The declared element type places each value, exactly as it does for a
+    // scalar constant: `1` here is the `float` 1, not the `int`, under ADR
+    // 0007 § 2's one implicit widening.
+    public const array<float> RATES = [1, 2.5];
+    public const array<array<int>> GRID = [[1, 2], [3]];
+    public const array<int> NONE = [];
+}
+
+echo Limits::STEPS[0], Limits::STEPS[1], Limits::STEPS[2], "\n";
+echo Limits::LABELS["lo"], " ", Limits::LABELS["hi"], "\n";
+echo Limits::RATES[0] + 0.5, " ", Limits::RATES[1], "\n";
+// Nesting recurses through the same fold, so the inner literal is placed
+// against `array<int>` rather than against nothing.
+echo Limits::GRID[0][1], Limits::GRID[1][0], "\n";
+echo Arr::count(Limits::NONE), "\n";
+
+// Inlined at *every* read means two reads are two values: writing to one
+// cannot be seen by the next read of the constant.
+array<int> $mine = Limits::STEPS;
+$mine[0] = 9;
+echo $mine[0], Limits::STEPS[0], "\n";
+
+// ADR 0007 § 5: every key is a `string`, and a keyless run takes its position
+// in that run — the same keys the written literal would have had, computed
+// once at the fold rather than at each read.
+foreach (Limits::STEPS as string $key => int $value) {
+    echo $key, "=", $value, ";";
+}
+echo "\n";
+--EXPECT--
+123
+low high
+1.5 2.5
+23
+0
+91
+0=1;1=2;2=3;

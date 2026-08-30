@@ -283,11 +283,18 @@ impl<'a> Lowering<'a> {
                     let value = value.clone();
                     self.emit_const_arg(&value, env, *cur)
                 }
+                // Unreachable since `nvs_types::expr::members` grew `E0792`:
+                // a read of a constant whose declaration folds to no value is
+                // refused there, at the span the author can act on, and a unit
+                // that failed to check never reaches lowering. Kept as a panic
+                // rather than deleted because the arm is what makes that
+                // refusal load-bearing — if it is ever removed, this is where
+                // the missing value surfaces.
                 _ => panic!(
                     "nvs-ir: a `Class::CONST` at {:?} with no value recorded in the \
-                     typed-expression table — every declared constant with a constant form \
-                     records one, so this is a value that has none (an `array` value), \
-                     and there is nothing to lower it to",
+                     typed-expression table — `nvs_types` refuses that read with \
+                     `E0792` before lowering, so this is a checker that did not run \
+                     or a value it recorded under a different span",
                     expr.span
                 ),
             },

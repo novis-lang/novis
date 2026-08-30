@@ -64,8 +64,8 @@
 use nvs_diagnostics::{Diagnostic, SourceFile, code};
 use nvs_hir::QName;
 use nvs_syntax::ast::{
-    ArrayItem, Attribute, AttributeGroup, CallArgs, ClassMember, ClassMemberKind, Expr, ExprKind,
-    MemberName, NamespaceDecl, Stmt, StmtKind, UnaryOp,
+    Attribute, AttributeGroup, CallArgs, ClassMember, ClassMemberKind, Expr, ExprKind, MemberName,
+    NamespaceDecl, Stmt, StmtKind,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -394,7 +394,7 @@ fn fold_payload<'a>(site: Site<'a>, env: &mut Env<'a>) -> Option<ConstArg> {
     let mut ok = true;
     for field in &site.attr.fields {
         let name = span_text(env.src, field.name).to_owned();
-        match fold_value(&field.value, env) {
+        match crate::defaults::fold_constant_value(&field.value, env) {
             Some(value) => fields.push((name, value)),
             None => {
                 report_unfoldable(&field.value, env);
@@ -404,98 +404,6 @@ fn fold_payload<'a>(site: Site<'a>, env: &mut Env<'a>) -> Option<ConstArg> {
     }
     env.src = outer;
     ok.then_some(ConstArg::Shape(fields))
-}
-
-/// One payload value as a [`ConstArg`], or `None` for one with no constant
-/// form. Reports nothing — [`fold_payload`] names the position.
-fn fold_value(expr: &Expr, env: &mut Env<'_>) -> Option<ConstArg> {
-    let mut negated = false;
-    let mut inner = expr;
-    loop {
-        match &inner.kind {
-            ExprKind::Paren(next) => inner = next,
-            ExprKind::Unary {
-                op: UnaryOp::Neg,
-                expr: next,
-            } => {
-                negated = !negated;
-                inner = next;
-            }
-            ExprKind::Unary {
-                op: UnaryOp::Plus,
-                expr: next,
-            } => inner = next,
-            _ => break,
-        }
-    }
-    match &inner.kind {
-        ExprKind::Null if !negated => Some(ConstArg::Null),
-        ExprKind::Bool(b) if !negated => Some(ConstArg::Bool(*b)),
-        ExprKind::Str(span) if !negated => Some(ConstArg::Str(
-            crate::string_lit::cook_string_literal(env.src, *span),
-        )),
-        ExprKind::Float(span) => crate::defaults::float_value(*span, env.src)
-            .map(|f| ConstArg::Float(if negated { -f } else { f })),
-        // ADR 0007 § 2's "untyped until placed" has no target here to place
-        // it against, so the value's own magnitude decides: an `int` where one
-        // holds it, a `uint` above that, which is the same order a written
-        // annotation would have narrowed it in.
-        ExprKind::Int(span) => {
-            let magnitude = crate::defaults::int_magnitude(*span, env)?;
-            if negated {
-                i64::try_from(magnitude)
-                    .ok()
-                    .map(|v| ConstArg::Int(-v))
-                    .or_else(|| (magnitude == 1 << 63).then_some(ConstArg::Int(i64::MIN)))
-            } else {
-                Some(i64::try_from(magnitude).map_or(ConstArg::Uint(magnitude), ConstArg::Int))
-            }
-        }
-        ExprKind::ArrayLiteral(items) if !negated => fold_array(items, env),
-        ExprKind::ObjectLiteral(fields) if !negated => {
-            let mut out = Vec::with_capacity(fields.len());
-            for field in fields {
-                out.push((
-                    span_text(env.src, field.name).to_owned(),
-                    fold_value(&field.value, env)?,
-                ));
-            }
-            Some(ConstArg::Shape(out))
-        }
-        _ => None,
-    }
-}
-
-/// An array literal's entries under the `string` keys ADR 0007 § 5 gives them,
-/// with a keyless run taking its position in that run — every value here is
-/// constant, so the auto-index has one answer and this is the last place it is
-/// cheap to compute.
-fn fold_array(items: &[ArrayItem], env: &mut Env<'_>) -> Option<ConstArg> {
-    let mut out = Vec::with_capacity(items.len());
-    let mut next = 0_u64;
-    for ArrayItem {
-        key, value, spread, ..
-    } in items
-    {
-        if *spread {
-            return None;
-        }
-        let key = match key {
-            Some(key) => match fold_value(key, env)? {
-                ConstArg::Str(s) => s,
-                ConstArg::Int(n) => n.to_string(),
-                ConstArg::Uint(n) => n.to_string(),
-                _ => return None,
-            },
-            None => {
-                let key = next.to_string();
-                next += 1;
-                key
-            }
-        };
-        out.push((key, fold_value(value, env)?));
-    }
-    Some(ConstArg::Array(out))
 }
 
 /// The `E0731` half of [`fold_payload`], which owns why.

@@ -534,15 +534,21 @@ pub struct ConstSig {
     /// constant has no type this table could name.
     pub ty: TypeId,
     /// The constant's value, already placed in [`Self::ty`] by
-    /// [`crate::defaults::literal_default`] — the same routine, in the same
-    /// pass, that places a property default in its own declared type, so
-    /// `const uint MAX = 3;` yields a [`crate::defaults::ConstArg::Uint`] rather than an
-    /// `Int` for `nvs-ir` to emit at the wrong representation.
+    /// [`crate::defaults::eval_const_value`] — which is
+    /// [`crate::defaults::literal_default`], the same routine that places a
+    /// property default in its own declared type, plus the array literal a
+    /// constant may be and a default may not. So `const uint MAX = 3;` yields a
+    /// [`crate::defaults::ConstArg::Uint`] rather than an `Int` for `nvs-ir` to
+    /// emit at the wrong representation, and `const array<int> ROWS = [1, 2];`
+    /// yields the [`crate::defaults::ConstArg::Array`] `nvs-ir` lowers to one
+    /// `nvs_ir::ir::InstKind::ArrayNew`.
     ///
-    /// `None` for a value with no constant form at all
-    /// (`public const array<int> ROWS = [1, 2];`),
-    /// which is what leaves `nvs_ir::lower`'s `ClassConstAccess` arm a panic
-    /// for that one shape rather than for every user-declared constant.
+    /// `None` for a value with no constant form at all — a *nested* reference
+    /// to another class's constant, an enum case, or `Foo::class`, none of
+    /// which has a constant emitter. A read of one is
+    /// `code::E_CLASS_CONST_NO_CONSTANT_FORM`, reported by
+    /// [`crate::expr::members`] so that `nvs-ir`'s `ClassConstAccess` arm is
+    /// never reached with nothing to lower.
     pub value: Option<crate::defaults::ConstArg>,
 }
 
@@ -1031,7 +1037,7 @@ fn collect_members(
                     Some(written) => lower_type(written, ctx, env),
                     None => folded_const_ty(qname, &name, env),
                 };
-                let value = crate::defaults::literal_default(&c.value, ty, env);
+                let value = crate::defaults::eval_const_value(&c.value, ty, env);
                 table
                     .entry(qname.clone())
                     .constants

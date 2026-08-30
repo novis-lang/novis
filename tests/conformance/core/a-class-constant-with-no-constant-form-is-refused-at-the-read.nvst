@@ -1,0 +1,34 @@
+--TEST--
+A class constant whose value folds to nothing is refused where it is read and not where it is declared — ADR 0011, ADR 0046 § 2
+--FILE--
+<?nvs
+// ADR 0011 inlines a class constant at every use site, so a declaration the
+// constant folder cannot reduce to a value leaves a read with nothing to
+// lower. The three shapes ADR 0046 § 2 admits as constants elsewhere — another
+// class's `const`, an enum case and `Foo::class` — have no constant form here
+// yet, written on their own or nested inside an array.
+final class Base {
+    public const int ONE = 1;
+}
+
+final class Cfg {
+    public const string NAME = Cfg::class;
+    public const array<int> DERIVED = [Base::ONE];
+    // Declared and never read, which is legal: a constant nobody names costs
+    // nothing and has no wrong behaviour to report, so the refusal is on the
+    // read alone and this line contributes no diagnostic.
+    public const array<int> UNUSED = [Base::ONE];
+}
+
+echo Cfg::NAME, "\n";
+echo Cfg::DERIVED[0], "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0792]: `Cfg::NAME` has no compile-time value to inline
+   --> case.nvs:20:6
+%A
+error[E0792]: `Cfg::DERIVED` has no compile-time value to inline
+   --> case.nvs:21:6
+%A
+error: aborting due to 2 errors
