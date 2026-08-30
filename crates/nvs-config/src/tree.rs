@@ -170,6 +170,10 @@ pub struct Limits {
     /// the request's own safety net, and it is not under `[limits.hard]` for the same reason —
     /// there is no request-set value for a ceiling to bound.
     pub fatal_reserve_memory: Option<Setting>,
+    /// `System` — the other half of ADR 0020 § 1's reserved slice: the CPU time carved out of
+    /// [`cpu_time`](Self::cpu_time) and left for the same handler, for the same reason and under the
+    /// same class. A duration where its sibling is a size; neither is under `[limits.hard]`.
+    pub fatal_reserve_time: Option<Setting>,
     /// `[limits.hard]` — the same five keys, `System`-class, and `false` removes a ceiling.
     pub hard: Option<LimitSet>,
 }

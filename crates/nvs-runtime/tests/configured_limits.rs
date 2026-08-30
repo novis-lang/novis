@@ -37,16 +37,68 @@ fn ctx_reading(written: &str) -> Ctx {
 /// ADR 0020 § 1 lists CPU time beside memory: `[limits] cpu_time` is a duration, and what the
 /// request holds is nanoseconds — `Ctx::cpu_limit`'s field doc owns why it is cached rather than
 /// re-derived, and what measures the time against it.
+/// The reading is asserted as the two parts it is split into rather than as `cpu_limit` alone,
+/// because the directive is not the ceiling ordinary execution gets: § 1's slice is carved out of it
+/// exactly as the memory half is carved out of `[limits] memory`, and the case below is the one that
+/// pins the split.
 #[test]
 fn cpu_time_is_read_as_nanoseconds() {
+    let plain = ctx_reading("[limits]\ncpu_time = \"2s\"\n");
     assert_eq!(
-        ctx_reading("[limits]\ncpu_time = \"2s\"\n").cpu_limit(),
-        2_000_000_000,
+        plain.cpu_limit() + plain.fatal_reserve_time(),
+        2_000_000_000
     );
+    let suffixed = ctx_reading("[limits]\ncpu_time = \"250ms\"\n");
     assert_eq!(
-        ctx_reading("[limits]\ncpu_time = \"250ms\"\n").cpu_limit(),
+        suffixed.cpu_limit() + suffixed.fatal_reserve_time(),
         250_000_000,
         "a suffixed value is the same measurement, not a different one",
+    );
+}
+
+/// ADR 0020 § 1 names `fatal_reserve_time` beside `fatal_reserve_memory`, and `Ctx`'s
+/// `reserve_time_within` owns the two numbers this asserts: a 50 ms default, and a quarter of the
+/// ceiling wherever a quarter is less.
+///
+/// Every reading is taken as the pair, because "carved out of" is the whole claim and a reserve
+/// that was *added to* the ceiling would answer the same `fatal_reserve_time()` on its own.
+#[test]
+fn the_fatal_reserve_time_is_carved_out_of_the_cpu_ceiling() {
+    let defaulted = ctx_reading("[limits]\ncpu_time = \"2s\"\n");
+    assert_eq!(defaulted.fatal_reserve_time(), 50_000_000);
+    assert_eq!(
+        defaulted.cpu_limit(),
+        1_950_000_000,
+        "the slice comes out of the request's own ceiling, not out of the machine",
+    );
+
+    let asked = ctx_reading("[limits]\ncpu_time = \"2s\"\nfatal_reserve_time = \"300ms\"\n");
+    assert_eq!(asked.fatal_reserve_time(), 300_000_000);
+    assert_eq!(asked.cpu_limit(), 1_700_000_000);
+
+    // The clamp on both sides of where it starts to bite: a quarter of 200ms is exactly the
+    // default, and a quarter of anything shorter is less than it. A reserve that stopped one step
+    // early would read plausibly against either half alone.
+    assert_eq!(
+        ctx_reading("[limits]\ncpu_time = \"200ms\"\n").fatal_reserve_time(),
+        50_000_000,
+        "the shortest ceiling the default still fits inside a quarter of",
+    );
+    assert_eq!(
+        ctx_reading("[limits]\ncpu_time = \"100ms\"\n").fatal_reserve_time(),
+        25_000_000,
+        "shorter, so the quarter wins over the default",
+    );
+
+    // An asked-for reserve is clamped rather than refused, and a request under no cap has nothing
+    // to carve however loudly its configuration asks.
+    let greedy = ctx_reading("[limits]\ncpu_time = \"1s\"\nfatal_reserve_time = \"10s\"\n");
+    assert_eq!(greedy.fatal_reserve_time(), 250_000_000);
+    assert_eq!(greedy.cpu_limit(), 750_000_000);
+    assert_eq!(
+        ctx_reading("[limits]\nfatal_reserve_time = \"1s\"\n").fatal_reserve_time(),
+        0,
+        "no ceiling is no slice: there is no room for a handler to be given past",
     );
 }
 

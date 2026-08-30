@@ -365,6 +365,17 @@ pub struct Ctx {
     ///
     /// **What it spends:** one word per request.
     cpu_limit: u64,
+    /// The nanoseconds carved out of [`Self::cpu_limit`] and left for the tier-1
+    /// handler — [`Self::fatal_reserve`]'s other half, and the same slice.
+    ///
+    /// Held rather than re-derived for the reason its sibling is: the number is
+    /// read once by [`Self::refresh_limits`] and then only by the slow path that
+    /// has already decided a limit was breached.
+    ///
+    /// **What it spends:** one word per request. The time itself is the
+    /// operator's own `[limits] cpu_time`, moved from one side of the ceiling to
+    /// the other, so a request's total is unchanged.
+    fatal_reserve_time: u64,
     /// What is behind a pending `THROWN` or `FATAL` status — see [`Pending`]
     /// for why one field carries both shapes rather than two sitting beside
     /// each other.
@@ -918,6 +929,7 @@ impl Ctx {
             limit_handler: Value::null(),
             fatal_reserve: 0,
             cpu_limit: 0,
+            fatal_reserve_time: 0,
             pending: None,
             runtime_error_class: None,
             output,
@@ -1150,9 +1162,9 @@ impl Ctx {
         // encoding of "nothing registered" [`Self::has_limit_handler`] reads.
         let handler = std::mem::take(&mut self.limit_handler);
         // § 1's reserved slice, added back for exactly the length of the call,
-        // and added back whichever limit got here: a handler stopped by the
-        // CPU-time flag still allocates to say so, and the memory half of the
-        // reserve is the one that has a reader.
+        // and both halves of it are added back whichever limit got here: a
+        // handler stopped by the CPU-time flag still allocates to say so, and
+        // one stopped by the memory cap still takes time to write it.
         // The handler is entered with the ceiling already breached, so without
         // this it could not allocate a byte or reach a single `Core` member —
         // every one of them asks [`crate::run_helper`]'s question first — and a
@@ -1168,6 +1180,32 @@ impl Ctx {
             // should say so rather than name a slice still being held for it.
             self.fatal_reserve = 0;
         }
+        // The CPU half, and the reason it is a *flag* edit as well as a ceiling
+        // edit. A handler entered under [`SafepointFlags::CPU_LIMIT`] would be
+        // stopped again by the very flag it was entered under, at its own first
+        // back edge, before anything raised it a second time — so the slice a
+        // ceiling on its own buys is zero wide however many nanoseconds it
+        // names. Lowering the flag for the length of the call is what makes the
+        // slice `fatal_reserve_time` wide instead: the timer watching this
+        // request re-raises it when the thread's clock passes the widened
+        // ceiling, which is exactly the handler overrunning its slice, and § 1's
+        // zero-retry rule already says what happens to one that does.
+        //
+        // Only what was lowered is raised again. A handler reached by the memory
+        // branch never had the flag set, and setting it on the way out would
+        // stop the *next* poll of a request that never went near its CPU
+        // ceiling.
+        let cpu_ordinary = self.cpu_limit;
+        let cpu_reserve = self.fatal_reserve_time;
+        let stopped_for_cpu = self.safepoint.contains(SafepointFlags::CPU_LIMIT);
+        if cpu_ordinary != 0 {
+            self.cpu_limit = cpu_ordinary.saturating_add(cpu_reserve);
+            // Spent, not merely lent, for [`Self::fatal_reserve`]'s reason.
+            self.fatal_reserve_time = 0;
+        }
+        if stopped_for_cpu {
+            self.safepoint.remove(SafepointFlags::CPU_LIMIT);
+        }
         // Built here rather than by either caller, and *after* the reserve is
         // in force: it allocates, and a report the ladder could not afford to
         // build would be a tier that says nothing for the same reason a handler
@@ -1181,6 +1219,11 @@ impl Ctx {
         let answer = crate::call_closure(self, handler, &[report]);
         self.memory_limit = ordinary;
         self.fatal_reserve = reserve;
+        self.cpu_limit = cpu_ordinary;
+        self.fatal_reserve_time = cpu_reserve;
+        if stopped_for_cpu {
+            self.safepoint.insert(SafepointFlags::CPU_LIMIT);
+        }
         // SAFETY: the slot held one owned reference, which this frame now
         // holds; `call_closure` took its own of every slot for the callee to
         // release, so the report's reference here is still this frame's however
@@ -1242,7 +1285,15 @@ impl Ctx {
         // uncapped request has nothing to carve and reserves nothing: there is
         // no ceiling for a handler to be given room past.
         self.memory_limit = ceiling.saturating_sub(self.fatal_reserve);
-        self.cpu_limit = self.configured_cpu_time();
+        // The CPU half of the same slice, by the same arithmetic and in the same
+        // pass. One pass rather than two because a ceiling and the reserve
+        // carved out of it are one reading of one configuration: set apart, they
+        // could be left disagreeing about which snapshot they came from by any
+        // caller that remembered one of them.
+        let cpu_ceiling = self.configured_cpu_time();
+        self.fatal_reserve_time =
+            Self::reserve_time_within(cpu_ceiling, self.configured_fatal_reserve_time());
+        self.cpu_limit = cpu_ceiling.saturating_sub(self.fatal_reserve_time);
     }
 
     /// `[limits] cpu_time` in nanoseconds, or `0` for a request under no cap.
@@ -1282,6 +1333,39 @@ impl Ctx {
         self.cpu_limit
     }
 
+    /// This request's reserved slice of CPU time in nanoseconds — the time
+    /// [`Self::cpu_limit`] was reduced by, and the room the tier-1 handler is
+    /// meant to run in.
+    ///
+    /// [`Self::fatal_reserve`] is the sibling that has a *spender*: the memory
+    /// half is added back for the length of the call in
+    /// [`Self::run_limit_handler`], because a handler that cannot allocate is a
+    /// tier that says nothing. Nothing hands this half back yet, because nothing
+    /// samples a clock against `cpu_limit` in the first place — the gap
+    /// [`nvs_safepoint`]'s CPU branch describes, and the reason a handler
+    /// entered under [`SafepointFlags::CPU_LIMIT`] still stops at its own first
+    /// back edge.
+    #[must_use]
+    pub fn fatal_reserve_time(&self) -> u64 {
+        self.fatal_reserve_time
+    }
+
+    /// Sets the CPU ceiling directly, for the callers
+    /// [`Self::set_memory_limit`] exists for and with the same division of
+    /// labour: a request holding a configuration gets it from
+    /// [`Self::set_config`] instead.
+    pub fn set_cpu_limit(&mut self, nanos: u64) {
+        self.cpu_limit = nanos;
+    }
+
+    /// Sets the reserved slice of CPU time directly, the way
+    /// [`Self::set_fatal_reserve`] sets the memory half — *on top of* the
+    /// ceiling stated beside it, where a request with a configuration has it
+    /// carved out of `[limits] cpu_time`.
+    pub fn set_fatal_reserve_time(&mut self, nanos: u64) {
+        self.fatal_reserve_time = nanos;
+    }
+
     /// `[limits] fatal_reserve_memory` as bytes, or `None` where the
     /// configuration does not state it.
     ///
@@ -1299,6 +1383,55 @@ impl Ctx {
             Ok(nvs_config::Quantity::Bytes(bytes)) => Some(usize::try_from(bytes).unwrap_or(0)),
             _ => None,
         }
+    }
+
+    /// `[limits] fatal_reserve_time` as nanoseconds, or `None` where the
+    /// configuration does not state it.
+    ///
+    /// Malformed is `None` and takes the default below, for
+    /// [`Self::configured_fatal_reserve`]'s reason.
+    fn configured_fatal_reserve_time(&self) -> Option<u64> {
+        let written = self
+            .config
+            .as_ref()
+            .and_then(|config| config.get("fatal_reserve_time"))?;
+        let setting = nvs_config::Setting::Text(written);
+        match nvs_config::Quantity::parse(
+            "fatal_reserve_time",
+            nvs_config::Unit::Duration,
+            &setting,
+        ) {
+            Ok(nvs_config::Quantity::Nanos(nanos)) => Some(nanos),
+            _ => None,
+        }
+    }
+
+    /// The reserved slice of CPU time a request with this `ceiling` gets, given
+    /// what its configuration asked for.
+    ///
+    /// **The default is 50 ms, and a quarter of the ceiling where a quarter is
+    /// less** — the same shape as [`Self::reserve_within`] and for the same two
+    /// reasons: enough for a handler to format a message and write it, and the
+    /// clamp is what keeps a short ceiling from being mostly reserve rather than
+    /// mostly program. ADR 0020 § 1 names `fatal_reserve_time` and states no
+    /// number; this is the number.
+    ///
+    /// 50 ms rather than the memory half's proportion of a typical ceiling,
+    /// because the two slices are not sized by the same question. A handler's
+    /// memory is bounded by what the message it builds costs, which is small and
+    /// known; its *time* is bounded by what writing that message blocks on,
+    /// which is a log target or a socket and is neither. So this is a wall-clock
+    /// intuition about a slow write, floored well under the shortest ceiling
+    /// anyone would set and clamped for the ones shorter still.
+    ///
+    /// An **asked-for** reserve is clamped the same way rather than refused, for
+    /// [`Self::reserve_within`]'s reason: a reserve larger than the ceiling
+    /// leaves ordinary execution nothing at all.
+    fn reserve_time_within(ceiling: u64, asked: Option<u64>) -> u64 {
+        if ceiling == 0 {
+            return 0;
+        }
+        asked.unwrap_or(50_000_000).min(ceiling / 4)
     }
 
     /// The reserved slice a request with this `ceiling` gets, given what its
@@ -2426,16 +2559,21 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
         // handler runs before the breach becomes the pending message, and
         // `Ctx::run_limit_handler` owns the zero-retry rule.
         //
-        // What differs is the slice. § 1's `fatal_reserve_time` has no reader
-        // yet — [`Ctx::cpu_limit`] holds the ceiling now, but nothing samples a
-        // clock against it, so this flag is still raised only by a caller that
-        // already decided the request is over — so a handler here runs against a
-        // time slice of width zero: it is entered,
-        // and the flag it was entered under stops it again at its own first
-        // back edge. Straight-line work and `Core` calls complete (the helper
-        // boundary asks the memory question, not this one), a loop does not,
-        // and either way the request is abandoned exactly as § 1's zero-retry
-        // rule already says a handler overrunning its slice is.
+        // The slice is the same two halves as well, and both are
+        // [`Ctx::run_limit_handler`]'s to open: it widens
+        // [`Ctx::cpu_limit`] by [`Ctx::fatal_reserve_time`] and lowers this flag
+        // for the length of the call, which is what a handler entered *by* the
+        // flag needs — a ceiling nothing consults would have bought it nothing,
+        // because the flag alone stops it again at its own first back edge.
+        //
+        // What is missing is not the slice but the clock. Nothing samples the
+        // request thread's CPU time against that widened ceiling yet
+        // ([`Ctx::cpu_limit`]'s field doc owns why the sampling is the host's),
+        // so this flag is raised only by a caller that already decided the
+        // request is over, and nothing re-raises it when a handler overruns.
+        // Until a timer exists, a handler here runs to completion and the two
+        // lines below are what abandon the request; once one does, the overrun
+        // is stopped by § 1's zero-retry rule with no further edit here.
         ctx.run_limit_handler(Limit::CpuTime);
         ctx.set_pending("the request exceeded its CPU-time limit");
         return crate::FATAL;

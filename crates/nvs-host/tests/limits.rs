@@ -15,7 +15,7 @@
 //! owns that shape and the reason the table is leaked.
 
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 
 use nvs_runtime::{Ctx, NvsStr, OutputSink, Value, nvs_safepoint};
 
@@ -79,6 +79,36 @@ unsafe extern "C" fn reports_its_budget(ctx: *mut Ctx, args: *const Value, out: 
               release, and the address of a live `Value` for the result"
 )]
 unsafe extern "C" fn answers_nothing(_ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+    unsafe {
+        (*args).release();
+        *out = Value::null();
+    }
+    nvs_runtime::OK
+}
+
+/// What the handler below read off the CPU half of § 1's slice: the ceiling in
+/// force, and whether the flag that stopped the request was still raised.
+/// `u64::MAX` and `true` are the readings of a handler that has not run.
+static SEEN_CPU_CEILING: AtomicU64 = AtomicU64::new(u64::MAX);
+static SEEN_CPU_FLAG: AtomicBool = AtomicBool::new(true);
+
+/// A handler that reports the time slice it was given. The flag is read beside
+/// the ceiling because on this half the two are one mechanism: a ceiling
+/// nothing consults buys a handler nothing while the flag that stopped it is
+/// still up.
+#[expect(
+    unsafe_code,
+    reason = "the same callee contract as `reports_its_budget`, over the same \
+              context pointer"
+)]
+unsafe extern "C" fn reports_its_time(ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+    let ctx = unsafe { &*ctx };
+    SEEN_CPU_CEILING.store(ctx.cpu_limit(), Ordering::SeqCst);
+    SEEN_CPU_FLAG.store(
+        ctx.safepoint_flags()
+            .contains(nvs_runtime::SafepointFlags::CPU_LIMIT),
+        Ordering::SeqCst,
+    );
     unsafe {
         (*args).release();
         *out = Value::null();
@@ -376,4 +406,52 @@ fn a_fatal_handler_runs_inside_its_reserved_slice() {
         "which is still over its own ceiling"
     );
     drop(hog);
+}
+
+/// ADR 0020 § 1's reserved slice has a CPU half, and on that half the ceiling
+/// is only half the mechanism: a handler entered under `CPU_LIMIT` and left
+/// under it is stopped again at its own first back edge, so its slice is zero
+/// wide however many nanoseconds `fatal_reserve_time` names.
+///
+/// Four readings, because the claim is that the widening is *temporary and
+/// exact*. Inside, the ceiling is the ordinary one plus the reserve and the
+/// flag is down; outside, both are back as they were. A ladder that lowered the
+/// flag and left it down would pass the first two on its own while leaving a
+/// request that burned its whole ceiling looking as though it never had one.
+#[test]
+fn a_fatal_handler_runs_inside_its_reserved_time_slice() {
+    let mut ctx = Ctx::new(OutputSink::Sink);
+    ctx.set_cpu_limit(2_000_000_000);
+    ctx.set_fatal_reserve_time(300_000_000);
+    ctx.request_safepoint(nvs_runtime::SafepointFlags::CPU_LIMIT);
+    ctx.set_limit_handler(closure_of(reports_its_time));
+
+    #[expect(
+        unsafe_code,
+        reason = "as above: the safepoint's ABI takes a context pointer, and \
+                  this one is a live local"
+    )]
+    let status = unsafe { nvs_safepoint(&raw mut ctx) };
+
+    assert_eq!(status, nvs_runtime::FATAL);
+    assert_eq!(
+        SEEN_CPU_CEILING.load(Ordering::SeqCst),
+        2_300_000_000,
+        "the handler is entered against the ordinary ceiling plus the reserve",
+    );
+    assert!(
+        !SEEN_CPU_FLAG.load(Ordering::SeqCst),
+        "and with the flag that stopped the request lowered, or the slice it \
+         was given is zero wide",
+    );
+    assert_eq!(
+        ctx.cpu_limit(),
+        2_000_000_000,
+        "the slice is the handler's, not the request's",
+    );
+    assert!(
+        ctx.safepoint_flags()
+            .contains(nvs_runtime::SafepointFlags::CPU_LIMIT),
+        "which is still the request that exceeded its CPU time",
+    );
 }
