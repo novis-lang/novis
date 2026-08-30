@@ -174,6 +174,16 @@ pub struct Origin {
     pub source: SourceId,
 }
 
+/// `, written in ...` when the merge recorded where, and nothing when it did not.
+///
+/// One copy, beside [`Origin`] itself: every refusal that can name a file phrases it this way, and
+/// three modules spelling it three ways is three phrasings an operator has to learn.
+pub(crate) fn origin_note(written_in: Option<&Origin>) -> String {
+    written_in.map_or_else(String::new, |origin| {
+        format!(", written in `{}`", origin.path.display())
+    })
+}
+
 /// One assignment replaced by a later one — ADR 0103 § 3's record, carrying **both** origins.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Override {
@@ -281,6 +291,9 @@ pub fn resolve(
     // ADR 0104 § 1's keys, for the same reason: `[[app]]` blocks accumulate across the tree (§ 4),
     // so the roster only exists once the merge is done.
     crate::app::canonicalize(&mut resolved.config, &origins, files)?;
+    // ADR 0104 § 3's bound, once the roster is keyed: what a block asks for is compared against the
+    // global `[limits.hard]`, which is a property of the merged tree and of nothing smaller.
+    crate::app::bound(&resolved.config, &origins)?;
     resolved.origins = origins;
     Ok(resolved)
 }

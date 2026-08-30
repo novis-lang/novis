@@ -1221,6 +1221,17 @@ pub mod code {
     /// something that cannot be examined at all is `E0605`, like any other
     /// configuration path.
     pub const E_BAD_APP_BLOCK: Code = Code::new("E0609");
+    /// An `[[app]]` block asking for more than the host allows: a value in
+    /// `[app.limits]` above the global `[limits.hard]`, or an `[app.limits.hard]`
+    /// raising its own ceiling above it. ADR 0104 § 3 lets a block widen
+    /// `[app.limits]` and lower its own ceiling, but leaves the bound where ADR
+    /// 0005 put it — `[limits.hard]` is the host's answer and an application
+    /// cannot exceed it. The refusal is at boot and the value is never clamped,
+    /// exactly as a `Core\Config::set` above the ceiling is refused rather than
+    /// reduced: a clamp would leave a block reading as though it got what it
+    /// asked for. A value that is not a quantity at all is `E0601`, from the one
+    /// parser both this check and `Core\Config::set` share (ADR 0064 § 5).
+    pub const E_APP_ABOVE_CEILING: Code = Code::new("E0610");
 
     // --- E07xx types, continued --------------------------------------------
     //

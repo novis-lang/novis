@@ -42,7 +42,7 @@ use std::path::Path;
 
 use nvs_diagnostics::{Diagnostic, code};
 
-use crate::resolve::{Files, Origin};
+use crate::resolve::{Files, Origin, origin_note};
 use crate::tree::Config;
 
 /// § 7's cap on a secret file, in bytes.
@@ -199,13 +199,6 @@ fn exposed(path: &Path, key: &str, how: &str) -> Diagnostic {
          on a shared host it is not, and nothing readable from here says which this is"
             .to_string(),
     )
-}
-
-/// `, written in ...` when the merge recorded where, and nothing when it did not.
-fn origin_note(written_in: Option<&Origin>) -> String {
-    written_in.map_or_else(String::new, |origin| {
-        format!(", written in `{}`", origin.path.display())
-    })
 }
 
 #[cfg(test)]

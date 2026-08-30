@@ -43,15 +43,15 @@
 >
 > **Open now:** **Goal 3 of the parity program — configuration and capabilities, M6 — is running**,
 > goals 1 and 2 reached and standing as its floor.  **Stages 0b and 2–6 are closed at their
-> acceptance**: `crates/nvs-host` is on disk whole (scheduler, reactor, parking stream, timers,
-> blocking pool, watchdog, task tree, channel, groups, isolate) with every `cargo-named` name green,
-> `spawn script`/`await` lower, and every decision taken on the way lives in the module doc of the
-> file that holds it — `crates/nvs-host/src/*.rs`, `crates/nvs-runtime/src/{host,script,graph}.rs`,
+> acceptance**: `crates/nvs-host` is on disk whole with every `cargo-named` name green, `spawn
+> script`/`await` lower, and every decision taken on the way lives in the module doc of the file
+> that holds it — `crates/nvs-host/src/*.rs`, `crates/nvs-runtime/src/{host,script,graph}.rs`,
 > `crates/nvs-stdlib/src/{task,channel,serialize, script}.rs`,
 > `crates/nvs-cli/src/{script,runner}.rs` — or in ADRs 0115–0117. Goal 3's first rows are on disk:
 > `crates/nvs-config` holds the directive registry, 0064 § 2a's block roster as a typed tree with §
 > 3's two per-file refusals, ADR 0103 §§ 1-7's resolver — later-wins recorded, every file trusted,
-> every secret read — ADR 0104 §§ 1-2's `[[app]]` blocks on a canonical key, and ADR 0078 §§ 1-2's
+> every secret read — ADR 0104 §§ 1-3's `[[app]]` blocks on a canonical key and under the host's
+> ceiling, ADR 0064 § 5's one value parser shared with `Core\Config::set`, and ADR 0078 §§ 1-2's
 > snapshot — one per entry file, `Boot` changes reported not applied. **Stage 8 is closed at both
 > counts**: conformance is 1000, differential is 206 over its 205 floor with six `Core\Serialize`
 > round-trips against PHP's own pair, and `isolation.rs` measures `nvs_host::Isolate` itself with a

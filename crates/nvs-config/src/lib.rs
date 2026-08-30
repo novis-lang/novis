@@ -37,9 +37,16 @@
 //! the global tree, a block at a time, rather than through [`app::layer`], whose own module doc
 //! says why.
 //!
+//! [`mod@value`] is the other half of what a directive means: [`mod@tree`] answers which keys
+//! exist, and this one answers what a value *is* — the size, duration or count it spells, and
+//! whether one of them is within another. It is one parser because ADR 0064 § 5 says the boot path
+//! and `Core\Config::set` share it, and it is directed by the unit the key takes because no
+//! spelling can tell mega from minutes on its own.
+//!
 //! What is **not** here yet: nothing reads a [`snapshot::Current`] — `nvs-host` still runs on
 //! compiled-in defaults and says so at each site, and `Core\Config::get`/`set` (ADR 0064 § 5) are
-//! unwritten.
+//! unwritten, so [`mod@value`] has neither of the two callers it exists to keep in agreement: the
+//! boot-time ceiling check is the next slice and the request-time one waits on those members.
 
 pub mod app;
 pub mod directive;
@@ -49,8 +56,10 @@ pub mod secret;
 pub mod snapshot;
 pub mod tree;
 pub mod trust;
+pub mod value;
 
 pub use directive::{Apply, Class, DIRECTIVES, Directive};
 pub use resolve::{Origin, Override, Resolved, Roots};
 pub use snapshot::{Current, Reload, Snapshot};
 pub use tree::{Config, Setting};
+pub use value::{Quantity, Unit};

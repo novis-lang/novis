@@ -2,75 +2,65 @@
 
 ## State
 
-**ADR 0078 §§ 1-2 is landed: the snapshot a request clones at start.**
-`crates/nvs-config/src/snapshot.rs` owns it. `Snapshot::build(resolved, entry, files)` canonicalizes
-the entry file, drops the `[[app]]` roster from the tree, and folds each matching block's
-`[app.limits]`/`[app.capabilities]` over the global table with `resolve::merge_table` — a block at a
-time, in `matching`'s order — then deserializes the result. `mode` and `origin` sit on the block
-rather than in a sub-table, so they are read off directly: folding a string over the global `[mode]`
-table would replace `default` and `ceiling` together. `Current` is the published `Arc`, `load()` is
-what a request clones, and `publish` returns a `Reload`. 71 tests in the crate, 11 new in
-`tests/snapshot.rs`.
+**ADR 0064 § 5's one parser is landed, and ADR 0104 § 3's bound with it.**
+`crates/nvs-config/src/value.rs` is the parser: `Quantity::parse(key, unit, setting)` reads a
+size, a duration, a count, a ratio or the `false` that removes a ceiling, and `Quantity::within`
+is the comparison. `crates/nvs-config/src/app.rs:137`'s `bound` is its first caller — it runs in
+`resolve` right after `canonicalize`, and refuses `E0610` for an `[app.limits]` value or an
+`[app.limits.hard]` ceiling above the global `[limits.hard]`. 82 tests in the crate, 10 new in
+`tests/value.rs` and 4 in `tests/app.rs`.
 
-**The snapshot does not call `app::layer`, and the handoff that planned it that way was wrong.**
-Folding the *effective* block over the global tree gives the right values and the wrong origins: an
-effective block folded from three files has one origin for all its keys, and a key a block overrode
-has to name the file that block was written in. Folding block-by-block gives both, by the same
-merge. `layer` now answers "what is the effective `[[app]]` block" for § 9's per-app `nvs config
-dump` and has no other production caller yet — its own module doc says so.
+**The parse is directed by the unit, and the unit comes from the key.** `m` is mega under a size
+and minutes under a duration, and a bare `600` is bytes under one and seconds under the other, so
+nothing in the spelling can decide it: `value::unit_of` decides once for both the boot path and
+`Core\Config::set`. It is keyed on the key's **last segment** inside a limits block, because one
+limit is written in five places — `[limits]`, `[limits.hard]`, `[app.limits]`,
+`[app.limits.hard]` and the bare `memory` a `set` names — and a ceiling that parsed differently
+from the value it bounds would compare two different quantities. The module doc owns the rest;
+adding a sixth limit is one row in `unit_of` and one in `app::ceilings`.
 
-**A changed `Boot` key is reported *and carried back*.** `Current::publish` is the only place that
-holds both trees, so `carry_boot` writes each changed `Boot` row's running value into the incoming
-snapshot before publishing and names the directive in `Reload::boot`. Reporting alone would have
-left the new value sitting in the snapshot every later reader sees. A `Boot` row naming a block
-(`server`) moves the whole subtree, and its origins move with it.
+**Two things § 3 does not state are deliberately unchecked**, recorded in `bound`'s own doc: a
+per-app default above the block's own lowered ceiling, and the same shape globally. Both are
+incoherent rather than unsafe — the value in force is still bounded by the ceiling the request is
+held to — so refusing them would be inventing a rule.
 
-Three small things this cost, each already spent. `app::block_table`, `app::key_of` and a new
-`app::block_origin` (factored out of `layer`) are `pub(crate)`; `directive::governs` is too, because
-the dot-boundary test the origins map needs is the same one the registry's longest-prefix lookup
-uses and a second one is a second chance to get the boundary wrong. `Snapshot` keeps its
-`toml::Table` for `Resolved::table`'s reason — `publish` compares two trees key by key, which the
-typed tree cannot do.
+**`origin_note` has one home now**, `crates/nvs-config/src/resolve.rs:177`, `pub(crate)` beside
+`Origin`. It was copied in `app.rs` and `secret.rs` and this slice would have been the third.
 
-**The acceptance check still fails on `examples/config.nvs` — `Core\Config` has no `get`.** Still an
-open item and not a regression: the member has never existed. It now needs exactly two things, in
-this order — the value comparator below, then the members themselves in `nvs-stdlib`.
-
-**One finding the next group needs:** there is **no size or duration parser anywhere in the tree**
-(`Setting::Text("512M")` is compared as a string today). ADR 0064 § 5 says the registry parses a
-`Core\Config::set` string "with the same parser the boot path uses", so § 3's boot-time ceiling
-check and `set`'s runtime ceiling check are one implementation, and it does not exist yet. That is
-why the group below starts with it rather than with § 3.
+**The acceptance check still fails on `examples/config.nvs` — `Core\Config` has no `get`.** Still
+an open item and not a regression: the members have never existed, and they are now the only
+thing between this goal and that check. Nothing else blocks.
 
 ## Next group
 
-**The value comparator, and the ceiling checks that are its only reason to exist.** One file set:
-a new `crates/nvs-config/src/value.rs`, `crates/nvs-config/src/tree.rs`,
-`crates/nvs-config/src/app.rs`, `crates/nvs-config/src/resolve.rs`, `docs/adr/0064`.
+**`Core\Config`'s four members — ADR 0064 § 5's API, and the request-local overlay under them.**
+One file set: a new `crates/nvs-stdlib/src/config.rs`, `crates/nvs-stdlib/src/registry.rs:984`
+(`CLASSES`), `crates/nvs-runtime/src/ctx.rs:246` (`Ctx`), and `crates/nvs-stdlib/Cargo.toml`.
+**Read `AGENTS.md`'s *A `Core` member — the five edits* before starting**; `examples/config.nvs`
+is the program the driver's check runs and its four output lines are frozen in `loop-goal.toml`.
 
-- [ ] **A `Setting` compares as the quantity it spells.** ADR 0064 § 5 — one parser for sizes
-      (`512M`), durations (`600s`), counts and the `false` that removes a ceiling, shared by the
-      boot path and `Core\Config::set`. `Setting` is `crates/nvs-config/src/tree.rs:53`; the
-      `[limits]` fields it types are `crates/nvs-config/src/tree.rs:156`.
-- [ ] **`[app.limits.hard]` may only lower, and a block raising its own ceiling is refused at
-      boot.** ADR 0104 § 3 — refused, not clamped, exactly as 0005 refuses a `Core\Config::set`.
-      It needs the global `[limits.hard]`, which exists at resolve time, so it runs beside
-      `crates/nvs-config/src/app.rs:66`'s `canonicalize` from
-      `crates/nvs-config/src/resolve.rs:283`. Next free diagnostic in the band is `E0610`.
-- [ ] **A block widening `[app.limits]` above the global `[limits.hard]` is the same refusal.**
-      Same section, same call site — the widening half of § 3 is already allowed by the fold
-      (`crates/nvs-config/src/snapshot.rs:102`), and this is the only thing bounding it.
+- [ ] **A request reaches its snapshot.** No crate outside `nvs-config` depends on it today —
+      that is the first thing to change, and where the `Arc<Snapshot>` a request clones
+      (`crates/nvs-config/src/snapshot.rs:263`'s `Current::load`) is held is the decision:
+      `Ctx` at `crates/nvs-runtime/src/ctx.rs:246` is cold-half material, and ADR 0078 § 1 says
+      the clone happens once at request start, never per read.
+- [ ] **`Core\Config::get` and `all` read it.** ADR 0064 § 5 — values cross as `string` in both
+      directions, so a `Setting` renders back the way it was written
+      (`crates/nvs-config/src/value.rs`'s `as_written` is that, `pub(crate)` today).
+- [ ] **`set` and `restore` write the copy-on-write overlay.** ADR 0005 through
+      `crates/nvs-config/src/directive.rs:128`'s `lookup` for the class, then
+      `crates/nvs-config/src/value.rs:217`'s `within_ceiling` for the ceiling — the same call
+      `bound` makes, which is the whole reason the parser is one implementation. A refused set
+      returns `false` and leaves the value in place; it does not throw (goal § *Standing
+      decisions*).
 
 ## Backlog
 
-- `Core\Config::get`/`set`/`restore`/`all` — ADR 0064 § 5, and the acceptance check's whole
-  remainder. Needs a `Current` reachable from a request; nothing reads one yet.
-- Nothing constructs a `Current`: `nvs-cli` and `nvs-host` still run on compiled-in defaults and
-  say so at each site (`crates/nvs-config/src/lib.rs` module doc).
-- `app::layer` has no production caller until § 9's `nvs config dump --origin` — its `Layered`
-  is exercised only by `crates/nvs-config/tests/app.rs`.
-- Item 18's `Core\Secret::reveal()` is not in the registry (`docs/plan/m6.md`).
-- `Live::admit`'s same-class check is asked of the answer, not the argument
-  (`crates/nvs-runtime/src/graph.rs` § *Known gaps*).
-- `orient.py` reported it itself: `[context] modules` names `crates/nvs-host/src/budget.rs`, which
-  matches no module — it moved or the glob is wrong.
+- Item 18's `Core\Secret::reveal()` is not in the registry — `crates/nvs-stdlib/src/registry.rs`.
+- `Live::admit`'s same-class check asks the answer, not the argument — `nvs-runtime/src/graph.rs`.
+- Item 22's `Core\Script` members are unwritten — `crates/nvs-stdlib/src/script.rs`.
+- A `[limits]` default above its own `[limits.hard]` is unchecked, globally and per-app; ADR 0005
+  states no rule for it — decide and record before `Core\Config::set` reads the pair.
+- ADR 0104 has no `Validated by:` field though `tests/app.rs` now holds §§ 1-3's claims.
+- `orient.py` reported `[context] modules` pattern `crates/nvs-host/src/budget.rs` matching no
+  module — the file moved or the glob is wrong, in `docs/agent/loop-goal.toml`.

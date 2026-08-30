@@ -1,13 +1,14 @@
-//! [ADR 0104] §§ 1-2: an application is its entry file path.
+//! [ADR 0104] §§ 1-3: an application is its entry file path.
 //!
 //! A `[[app]]` block is keyed on a directory (`root`) or on one file (`entry`), never both and
-//! never neither, an entry file belongs to every block whose key covers it, and those blocks fold
-//! into one effective block least-specific first.
+//! never neither, an entry file belongs to every block whose key covers it, those blocks fold into
+//! one effective block least-specific first, and what any of them asks for is bounded by the global
+//! `[limits.hard]`.
 //!
-//! **Only [`canonicalize`] runs at resolve time.** [`matching`] and [`layer`] need an entry file,
-//! and `nvs run <file>`'s entry is not known when the tree is read, so they are called by whatever
-//! builds the per-app snapshot rather than living in [`resolve`](crate::resolve) the way § 7's
-//! secrets do. What they need from that tree is the merged `toml::Table` and its origins, which is
+//! **[`canonicalize`] and [`bound`] run at resolve time.** [`matching`] and [`layer`] need an
+//! entry file, and `nvs run <file>`'s entry is not known when the tree is read, so they are
+//! called by whatever builds the per-app snapshot rather than living in
+//! [`resolve`](crate::resolve) the way § 7's secrets do. What they need from that tree is the merged `toml::Table` and its origins, which is
 //! why [`Resolved`] keeps both.
 //!
 //! **[`layer`] answers what the effective block *is*; it is not how the snapshot is built.**
@@ -47,8 +48,9 @@ use std::path::{Path, PathBuf};
 
 use nvs_diagnostics::{Diagnostic, code};
 
-use crate::resolve::{Files, Origin, Override, Resolved};
-use crate::tree::{App, Config};
+use crate::resolve::{Files, Origin, Override, Resolved, origin_note};
+use crate::tree::{App, Config, LimitSet, Limits, Setting};
+use crate::value::{Quantity, unit_of};
 
 /// § 1's keys, resolved: each `[[app]]` block's `root` or `entry` made absolute against the file
 /// that wrote it ([ADR 0103] § 5) and canonicalized, written back into the block.
@@ -107,6 +109,116 @@ pub fn canonicalize(
         }
     }
     Ok(())
+}
+
+/// § 3's bound: an `[[app]]` block may widen `[app.limits]` and lower its own `[app.limits.hard]`,
+/// and neither may pass the global `[limits.hard]`.
+///
+/// Runs beside [`canonicalize`] and for the same reason — the global ceiling and the blocks bounded
+/// by it are both properties of the merged tree — but it needs no filesystem, so it takes no
+/// [`Files`]. With no global `[limits.hard]` written there is no bound to apply and every block
+/// passes: § 3 bounds a block by the host's answer, and a host that gave none has not answered.
+///
+/// The refusal is at boot and the value is **not** clamped, which is § 3 citing [ADR 0005]'s
+/// treatment of `Core\Config::set`: a clamped block still reads as though it got what it asked for,
+/// and the operator finds out at the first request that hits the real ceiling.
+///
+/// Two things this deliberately does not check, because § 3 does not state them: a per-app default
+/// above the block's *own* lowered ceiling, and the same shape globally. Both are incoherent rather
+/// than unsafe — the value in force is still bounded by the ceiling the request is held to.
+///
+/// # Errors
+///
+/// `E0610` for a value above the host's ceiling, naming both sides and where each was written, and
+/// `E0601` for a value on either side that is not a quantity at all — [`crate::value`]'s refusal,
+/// which is the same one `Core\Config::set` will hand back for the same text.
+///
+/// [ADR 0005]: ../../../docs/adr/0005-config-changeability.md
+pub fn bound(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
+    let Some(host) = config
+        .limits
+        .as_ref()
+        .and_then(|limits| limits.hard.as_ref())
+    else {
+        return Ok(());
+    };
+    let host = ceilings(host);
+    for (index, block) in config.app.iter().enumerate() {
+        let Some(limits) = block.limits.as_ref() else {
+            continue;
+        };
+        let block_path = format!("app.{index}.limits");
+        for ((name, ceiling), (_, asked)) in host.into_iter().zip(defaults(limits)) {
+            bounded(&block_path, name, asked, ceiling, origins)?;
+        }
+        if let Some(hard) = limits.hard.as_ref() {
+            let hard_path = format!("{block_path}.hard");
+            for ((name, ceiling), (_, asked)) in host.into_iter().zip(ceilings(hard)) {
+                bounded(&hard_path, name, asked, ceiling, origins)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// One key of one block against the host's ceiling for it.
+///
+/// A key with no unit is left alone rather than compared: [`unit_of`] answers for every limit the
+/// tree spells, and a sixth one added to [`Limits`](crate::tree::Limits) without a unit is a gap in
+/// that table rather than a reason to panic here.
+fn bounded(
+    block_path: &str,
+    name: &str,
+    asked: Option<&Setting>,
+    ceiling: Option<&Setting>,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<(), Diagnostic> {
+    let (Some(asked), Some(ceiling)) = (asked, ceiling) else {
+        return Ok(());
+    };
+    let key = format!("{block_path}.{name}");
+    let host_key = format!("limits.hard.{name}");
+    let Some(unit) = unit_of(&key) else {
+        return Ok(());
+    };
+    let wanted = Quantity::parse(&key, unit, asked)
+        .map_err(|invalid| invalid.diagnostic(origins.get(&key)))?;
+    let allowed = Quantity::parse(&host_key, unit, ceiling)
+        .map_err(|invalid| invalid.diagnostic(origins.get(&host_key)))?;
+    if wanted.within(allowed) {
+        return Ok(());
+    }
+    Err(above_ceiling(
+        &key,
+        asked,
+        ceiling,
+        origins.get(&key),
+        origins.get(&host_key),
+    ))
+}
+
+/// The five `[limits]` keys of a per-app block, named and in the tree's own order — the same five
+/// [`ceilings`] returns, so the two zip row for row.
+fn defaults(limits: &Limits) -> [(&'static str, Option<&Setting>); 5] {
+    [
+        ("memory", limits.memory.as_ref()),
+        ("cpu_time", limits.cpu_time.as_ref()),
+        ("wall_time", limits.wall_time.as_ref()),
+        ("max_tasks", limits.max_tasks.as_ref()),
+        ("max_output", limits.max_output.as_ref()),
+    ]
+}
+
+/// The same five keys of a `[limits.hard]`, carrying their names — one table, so a sixth limit is a
+/// row here and not five places to forget.
+fn ceilings(set: &LimitSet) -> [(&'static str, Option<&Setting>); 5] {
+    [
+        ("memory", set.memory.as_ref()),
+        ("cpu_time", set.cpu_time.as_ref()),
+        ("wall_time", set.wall_time.as_ref()),
+        ("max_tasks", set.max_tasks.as_ref()),
+        ("max_output", set.max_output.as_ref()),
+    ]
 }
 
 /// § 2's matching blocks for one entry file, **least-specific first** — shortest `root` first,
@@ -349,6 +461,48 @@ fn duplicate(path: &Path, first: usize, second: usize, written_in: Option<&Origi
     )
 }
 
+/// `E0610` for § 3's bound: a block asking for more than the host's `[limits.hard]` allows, named
+/// on both sides with where each was written.
+///
+/// The message says *what the block asked for* rather than "exceeds the ceiling", because the two
+/// values side by side are what an operator acts on, and the help offers both directions: lower the
+/// block, or raise the host's ceiling if every application may have it.
+///
+/// The block is named by the key's own `app.N` segment rather than by [`ordinal`], which counts
+/// from one: the dotted key is what the origins map and § 9's `nvs config dump` both spell, and two
+/// numberings for one block in one sentence is a worse reading than either alone.
+fn above_ceiling(
+    key: &str,
+    asked: &Setting,
+    ceiling: &Setting,
+    written_in: Option<&Origin>,
+    host_written_in: Option<&Origin>,
+) -> Diagnostic {
+    Diagnostic::error(
+        code::E_APP_ABOVE_CEILING,
+        format!(
+            "`{key}` is `{}`, above the host's ceiling of `{}`",
+            crate::value::as_written(asked),
+            crate::value::as_written(ceiling)
+        ),
+    )
+    .with_note(format!(
+        "ADR 0104 § 3 lets a block widen `[app.limits]` and lower its own `[app.limits.hard]`, but \
+         `[limits.hard]` is the host's answer and an application cannot exceed it{}{}",
+        origin_note(written_in),
+        host_written_in.map_or_else(String::new, |origin| format!(
+            "; the ceiling is set in `{}`",
+            origin.path.display()
+        ))
+    ))
+    .with_help(
+        "lower the block to the host's ceiling or below, or raise `[limits.hard]` if every \
+         application on this host may have it — the value is refused rather than clamped, so that \
+         a block never reads as though it got what it asked for"
+            .to_string(),
+    )
+}
+
 /// `E0609` for a canonical path that is not UTF-8, which is the one shape a `[[app]]` key cannot be
 /// written back as: it arrived from TOML as text and must go back as text.
 fn not_utf8(path: &Path, index: usize, field: &str) -> Diagnostic {
@@ -373,11 +527,4 @@ fn not_utf8(path: &Path, index: usize, field: &str) -> Diagnostic {
 /// [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
 fn ordinal(index: usize) -> String {
     format!("`[[app]]` block {}", index + 1)
-}
-
-/// `, written in ...` when the merge recorded where, and nothing when it did not.
-fn origin_note(written_in: Option<&Origin>) -> String {
-    written_in.map_or_else(String::new, |origin| {
-        format!(", written in `{}`", origin.path.display())
-    })
 }

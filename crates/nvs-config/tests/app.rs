@@ -434,3 +434,101 @@ fn an_entry_matched_by_no_block_layers_to_nothing() {
     assert_eq!(layered.app, App::default());
     assert!(layered.blocks.is_empty() && layered.overrides.is_empty());
 }
+
+/// A tree whose one block asks for `asked` under a host ceiling of 512M, enough to key the block on
+/// something that exists.
+fn bounded(asked: &str) -> Fake {
+    Fake::with(&[
+        (
+            "nvs.toml",
+            &format!(
+                "[limits]\nmemory = \"128M\"\n\n[limits.hard]\nmemory = \"512M\"\n\n\
+                 [[app]]\nroot = \"srv/www\"\n{asked}"
+            ),
+        ),
+        ("srv/www/index.nvs", ""),
+    ])
+}
+
+/// § 3's bound, asserted on both sides: a block may widen `[app.limits]` right up to the host's
+/// `[limits.hard]`, and the first value past it is refused. A check that is off by one prints
+/// plausibly against either half alone, so the two are one case.
+#[test]
+fn a_block_widens_up_to_the_hosts_ceiling_and_no_further() {
+    let at_the_ceiling = bounded("[app.limits]\nmemory = \"512M\"\n");
+    assert_eq!(
+        tree_of(&at_the_ceiling, "nvs.toml").config.app.len(),
+        1,
+        "a block at the ceiling is exactly what § 3 lets a block widen to",
+    );
+
+    let past_it = bounded("[app.limits]\nmemory = \"513M\"\n");
+    let refused = refusal(&past_it, "nvs.toml");
+    assert_eq!(refused.code, Some(code::E_APP_ABOVE_CEILING));
+    assert!(
+        refused.message.contains("`app.0.limits.memory`"),
+        "the refusal names the key: {}",
+        refused.message,
+    );
+}
+
+/// The `[app.limits.hard]` half: lowering an application's own ceiling is the direction § 3 exists
+/// to allow, and raising it above the host's is the same refusal as widening a value past it.
+#[test]
+fn a_block_lowers_its_own_ceiling_and_may_not_raise_it() {
+    let lowered = bounded("[app.limits.hard]\nmemory = \"128M\"\n");
+    assert_eq!(tree_of(&lowered, "nvs.toml").config.app.len(), 1);
+
+    let raised = bounded("[app.limits.hard]\nmemory = \"2G\"\n");
+    let refused = refusal(&raised, "nvs.toml");
+    assert_eq!(refused.code, Some(code::E_APP_ABOVE_CEILING));
+    assert!(
+        refused.message.contains("`2G`") && refused.message.contains("`512M`"),
+        "both sides are named, which is what the operator acts on: {}",
+        refused.message,
+    );
+
+    let removed = bounded("[app.limits.hard]\nmemory = false\n");
+    assert_eq!(
+        refusal(&removed, "nvs.toml").code,
+        Some(code::E_APP_ABOVE_CEILING),
+        "removing a ceiling is the widest raise there is, not an absence of one",
+    );
+}
+
+/// The bound is the host's ceiling and nothing else: with no `[limits.hard]` written there is no
+/// answer to bound a block by, and a key the host did not ceiling is unbounded whatever else is.
+#[test]
+fn a_block_is_bounded_only_by_a_ceiling_the_host_wrote() {
+    let no_ceiling = Fake::with(&[
+        (
+            "nvs.toml",
+            "[limits]\nmemory = \"128M\"\n\n[[app]]\nroot = \"srv/www\"\n\
+             [app.limits]\nmemory = \"64G\"\n",
+        ),
+        ("srv/www/index.nvs", ""),
+    ]);
+    assert_eq!(tree_of(&no_ceiling, "nvs.toml").config.app.len(), 1);
+
+    let other_key = bounded("[app.limits]\nwall_time = \"600s\"\n");
+    assert_eq!(
+        tree_of(&other_key, "nvs.toml").config.app.len(),
+        1,
+        "the host ceilinged `memory` and said nothing about `wall_time`",
+    );
+}
+
+/// A value on either side that is not a quantity at all is ADR 0064 § 5's refusal, from the one
+/// parser `Core\Config::set` will use for the same text — not a comparison that quietly passes.
+#[test]
+fn a_limit_that_is_not_a_quantity_is_refused_before_it_is_compared() {
+    let nonsense = bounded("[app.limits]\nmemory = \"12 bananas\"\n");
+    let refused = refusal(&nonsense, "nvs.toml");
+
+    assert_eq!(refused.code, Some(code::E_BAD_DIRECTIVE));
+    assert!(
+        refused.message.contains("which is not a size"),
+        "the refusal names the unit it wanted: {}",
+        refused.message,
+    );
+}
