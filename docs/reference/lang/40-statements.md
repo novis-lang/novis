@@ -374,6 +374,60 @@ echo "\n";
 body1 fin1 fin2 body3 fin3
 ```
 
+# `catch` as an expression
+
+```nvs skip
+expr catch (SomeError $e) => value          // one guarded expression, one arm
+expr catch (A $a) => x catch (B $b) => y    // arms of the same guard, tried in order
+```
+
+- The arms are clauses of the **one** guard, not guards of each other: `f() catch (A) => x catch (B) => y` tries `A` then `B` against what `f()` threw, and `x` is not guarded by the `B` arm. A supertype written first shadows the arms after it, as in the block form.
+- `catch` binds tighter than assignment and looser than the ternary level, so `$x = $a / $b catch (ArithmeticError) => 0` guards the whole division and assigns the whole guard, and a `??` chain or a `?:` is taken whole by the guard and by an arm body alike.
+- The class, the optional variable and the refusal of `catch (A | B $e)` are the block form's. The binding is a local of the enclosing function and it ends with its arm.
+- The result is the **union** of the guard's type and every arm's, checked against the position the whole expression sits in — neither side against the other. `Repo::get($id) catch (IOError) => null` is a `?int` where `get` returns `int`.
+- An arm holds an **expression**, so `throw` is in and `return`, `break` and `continue` are out: **`E0126`**, which names the block form. A `throw` arm produces no value, so it leaves the union alone and the failure leaves the expression.
+- What no arm matched leaves carrying the same object, to the enclosing `try` or out of the program. There is no `finally` here — that stays the block form's, and an enclosing one runs as it does for any other throw.
+- `catch (Throwable) => value` — the root class, no binding, no `throw` — warns **`W1006`**: it discards every failure, including the ones the site never anticipated. Bind the value, name the class you expected, or write the block form.
+
+```nvs
+<?nvs
+class Repo {
+    public static function get(int $id): int {
+        if ($id < 0) {
+            throw new IOError("no such row");
+        }
+        return $id * 2;
+    }
+}
+echo Repo::get(21) catch (IOError $missing) => 0, "\n";
+echo Repo::get(-1) catch (IOError $missing) => 0, "\n";
+echo Repo::get(-1) catch (IOError $e) => $e->message, "\n";
+mixed $either = Repo::get(-1) catch (LogicError $logic) => "logic" catch (IOError $io) => -1;
+echo $either, "\n";
+```
+```output
+42
+0
+no such row
+-1
+```
+
+An arm that wants a statement has found the block form:
+
+```nvs error
+<?nvs
+class Repo {
+    public static function get(int $id): int {
+        return $id;
+    }
+}
+int $n = Repo::get(1) catch (IOError $e) => return 0;
+echo $n, "\n";
+```
+```output
+E0126
+```
+
 # `throw`
 
 `throw expr;` raises a `Throwable`; it is also an expression (the expressions chapter). Uncaught, it ends the program with status 1 and a backtrace on standard error.

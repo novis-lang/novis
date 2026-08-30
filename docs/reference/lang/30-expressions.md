@@ -30,6 +30,7 @@ Highest first. A row binds tighter than every row below it.
 | `\|\|` | left |
 | `??` | right |
 | `? :` | right |
+| `catch (T $e) => …` | — |
 | `=` `+=` `-=` `*=` `/=` `%=` `**=` `.=` `??=` `&=` `\|=` `^=` `<<=` `>>=` | right |
 | `print`, `throw`, `yield` | take everything to their right |
 
@@ -39,6 +40,7 @@ Highest first. A row binds tighter than every row below it.
 - `.` binds looser than `+`, `-`, `*` and the shifts: `"sum:" . 1 + 2` is `sum:3`.
 - `new C()->m()` needs no parentheses; `clone $a->b` clones `$a->b`.
 - A nested ternary without parentheses groups to the right: `$a ? 1 : $b ? 2 : 3` is `$a ? 1 : ($b ? 2 : 3)`.
+- An expression `catch` sits between the ternary and assignment, so `$x = $a / $b catch (ArithmeticError) => 0` guards the whole division and assigns the whole guard, and a following `catch` is the next **arm of the same guard** rather than a guard over the arm before it. The statements chapter has the form.
 
 ```nvs
 <?nvs

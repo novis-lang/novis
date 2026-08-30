@@ -1296,6 +1296,7 @@ Highest first. A row binds tighter than every row below it.
 | `\|\|` | left |
 | `??` | right |
 | `? :` | right |
+| `catch (T $e) => …` | — |
 | `=` `+=` `-=` `*=` `/=` `%=` `**=` `.=` `??=` `&=` `\|=` `^=` `<<=` `>>=` | right |
 | `print`, `throw`, `yield` | take everything to their right |
 
@@ -1305,6 +1306,7 @@ Highest first. A row binds tighter than every row below it.
 - `.` binds looser than `+`, `-`, `*` and the shifts: `"sum:" . 1 + 2` is `sum:3`.
 - `new C()->m()` needs no parentheses; `clone $a->b` clones `$a->b`.
 - A nested ternary without parentheses groups to the right: `$a ? 1 : $b ? 2 : 3` is `$a ? 1 : ($b ? 2 : 3)`.
+- An expression `catch` sits between the ternary and assignment, so `$x = $a / $b catch (ArithmeticError) => 0` guards the whole division and assigns the whole guard, and a following `catch` is the next **arm of the same guard** rather than a guard over the arm before it. The statements chapter has the form.
 
 ```nvs
 <?nvs
@@ -2251,6 +2253,60 @@ echo "\n";
 ```
 ```output
 body1 fin1 fin2 body3 fin3
+```
+
+### `catch` as an expression
+
+```nvs skip
+expr catch (SomeError $e) => value          // one guarded expression, one arm
+expr catch (A $a) => x catch (B $b) => y    // arms of the same guard, tried in order
+```
+
+- The arms are clauses of the **one** guard, not guards of each other: `f() catch (A) => x catch (B) => y` tries `A` then `B` against what `f()` threw, and `x` is not guarded by the `B` arm. A supertype written first shadows the arms after it, as in the block form.
+- `catch` binds tighter than assignment and looser than the ternary level, so `$x = $a / $b catch (ArithmeticError) => 0` guards the whole division and assigns the whole guard, and a `??` chain or a `?:` is taken whole by the guard and by an arm body alike.
+- The class, the optional variable and the refusal of `catch (A | B $e)` are the block form's. The binding is a local of the enclosing function and it ends with its arm.
+- The result is the **union** of the guard's type and every arm's, checked against the position the whole expression sits in — neither side against the other. `Repo::get($id) catch (IOError) => null` is a `?int` where `get` returns `int`.
+- An arm holds an **expression**, so `throw` is in and `return`, `break` and `continue` are out: **`E0126`**, which names the block form. A `throw` arm produces no value, so it leaves the union alone and the failure leaves the expression.
+- What no arm matched leaves carrying the same object, to the enclosing `try` or out of the program. There is no `finally` here — that stays the block form's, and an enclosing one runs as it does for any other throw.
+- `catch (Throwable) => value` — the root class, no binding, no `throw` — warns **`W1006`**: it discards every failure, including the ones the site never anticipated. Bind the value, name the class you expected, or write the block form.
+
+```nvs
+<?nvs
+class Repo {
+    public static function get(int $id): int {
+        if ($id < 0) {
+            throw new IOError("no such row");
+        }
+        return $id * 2;
+    }
+}
+echo Repo::get(21) catch (IOError $missing) => 0, "\n";
+echo Repo::get(-1) catch (IOError $missing) => 0, "\n";
+echo Repo::get(-1) catch (IOError $e) => $e->message, "\n";
+mixed $either = Repo::get(-1) catch (LogicError $logic) => "logic" catch (IOError $io) => -1;
+echo $either, "\n";
+```
+```output
+42
+0
+no such row
+-1
+```
+
+An arm that wants a statement has found the block form:
+
+```nvs error
+<?nvs
+class Repo {
+    public static function get(int $id): int {
+        return $id;
+    }
+}
+int $n = Repo::get(1) catch (IOError $e) => return 0;
+echo $n, "\n";
+```
+```output
+E0126
 ```
 
 ### `throw`
@@ -15696,3 +15752,34 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `is_resource` | dropped | there is no `resource` type (R14) |
 | `settype` | dropped | a variable's type never changes ([ADR 0007](adr/0007-explicit-type-system.md)) |
 | `strval` | language | `$x as string` |
+| `ini_get` | member | `Core\Config::get` — the snapshot's value with this request's own overlay applied |
+| `ini_set` | member | `Core\Config::set`, which returns `false` where the directive is `System`-class or above the `[limits.hard]` ceiling, leaving the previous value intact ([ADR 0005](adr/0005-config-changeability.md)) |
+| `ini_alter` | member | `Core\Config::set` — `ini_alter` is PHP's own alias for `ini_set` |
+| `ini_restore` | member | `Core\Config::restore` |
+| `ini_get_all` | member | `Core\Config::all`, string keys to string values, never PHP's per-directive `global_value`/`local_value`/`access` array (R11) |
+| `ini_parse_quantity` | dropped | a size or a duration is its own literal ([ADR 0070](adr/0070-duration-literals.md)), so there is no quantity string for a program to parse; a directive's value string is read by `Core\Config::set` itself, with the parser the boot path uses ([ADR 0064](adr/0064-configuration-file-format.md) § 5) |
+| `get_cfg_var` | member | `Core\Config::get`. PHP's split between the file's value and the active one does not exist — the snapshot is the value ([ADR 0078](adr/0078-config-reload-and-control-socket.md) § 1) |
+| `php_ini_loaded_file` | dropped | there is no INI file. The configuration is a tree of TOML files, and which one set a directive is what `nvs config dump --origin` reports ([ADR 0103](adr/0103-configuration-is-a-tree-of-files.md) § 9) rather than something a request reads |
+| `php_ini_scanned_files` | dropped | same — the tree's shape is the operator's to audit, not a request's to introspect |
+| `set_time_limit` | member | `Core\Config::set` on the wall-time directive, bounded by `[limits.hard]` like every other; a breach is a `FATAL` and never reaches a `catch` ([ADR 0020](adr/0020-error-escalation-ladder.md)) |
+| `memory_get_peak_usage` | dropped | `Core\Os::memoryUsage` is the current figure; a peak is only meaningful against the request's budget, which ADR 0020's limit report already carries when one is breached |
+| `memory_reset_peak_usage` | dropped | nothing tracks a resettable peak — a budget is per request and dies with it ([ADR 0020](adr/0020-error-escalation-ladder.md) § 1) |
+| `gc_enable` | dropped | memory is refcounted and released deterministically ([ADR 0116](adr/0116-an-isolates-arena-is-an-ownership-root.md)); there is no collector to turn on |
+| `gc_disable` | dropped | same, in the other direction |
+| `gc_enabled` | dropped | same — the answer would be a constant |
+| `gc_collect_cycles` | dropped | nothing is deferred to collect. A cycle inside an isolate is retained until that isolate ends, which is the bound ADR 0116 states in place of a collector's schedule |
+| `gc_mem_caches` | dropped | the allocator's per-thread caches belong to the runtime, and no program empties them |
+| `gc_status` | dropped | there is no collector to report on; a request's held bytes are `Core\Os::memoryUsage` |
+| `opcache_reset` | dropped | the compiled-unit cache is the runtime's, keyed on `env_hash` ([ADR 0078](adr/0078-config-reload-and-control-socket.md) § 4) and revalidated by `opcache.validate` ([ADR 0017](adr/0017-hot-reload-without-restart.md)). An operator clears it with `nvs cache clear`; a request may not invalidate what other requests are still running against |
+| `opcache_invalidate` | dropped | same, one path at a time — `opcache.validate` is `System`-class for the reason [ADR 0017](adr/0017-hot-reload-without-restart.md) gives, and a per-path reset is that directive reached sideways |
+| `opcache_compile_file` | dropped | compilation happens on first use, and its artifact is verified before a single page becomes executable ([ADR 0042](adr/0042-on-disk-artifact-cache-format.md) § 3); a program does not schedule it |
+| `opcache_is_script_cached` | dropped | a cache hit is invisible by design — a bad entry is exactly as invisible as a cold one ([ADR 0042](adr/0042-on-disk-artifact-cache-format.md) § 3) — so there is no observable state to answer with |
+| `opcache_is_script_cached_in_file_cache` | dropped | same |
+| `opcache_get_status` | dropped | the cache is the operator's: `nvs cache gc` and `nvs cache clear` act on it ([ADR 0042](adr/0042-on-disk-artifact-cache-format.md) § 6), and `nvs config dump` reports the `[opcache]` block it runs under |
+| `opcache_get_configuration` | dropped | `nvs config dump` is that report, and `Core\Config::get` answers for one directive |
+| `opcache_jit_blacklist` | dropped | the JIT is not steerable per function: what gets compiled, and when, is the runtime's decision and no call or directive changes it for one name |
+| `putenv` | dropped | the environment is read-only, because a process-global mutation is unsound across cores (01 § 15). What PHP reached for it to change is a directive, and that is `Core\Config::set` — request-local, and gone when the request ends |
+| `extension_loaded` | dropped | an extension is an `[[extension]]` entry pinned in the configuration and resolved while compiling ([ADR 0078](adr/0078-config-reload-and-control-socket.md) § 2); a program naming a member it does not have fails to compile, so nothing is left to test at run time |
+| `dl` | dropped | nothing is loaded into the process at run time ([ADR 0052](adr/0052-closed-doors.md)) |
+| `php_sapi_name` | dropped | there is one runtime and one execution model; `nvs run` and the server differ in what they are handed, not in an engine to name |
+| `zend_version` | dropped | there is no Zend engine. `Core\Env::VERSION` is the runtime's own version |
