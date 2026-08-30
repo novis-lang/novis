@@ -1458,6 +1458,7 @@ dependencies = [
 name = "nvs-cli"
 version = "0.0.1"
 dependencies = [
+ "blake3",
  "clap",
  "nvs-codegen",
  "nvs-config",
@@ -1470,6 +1471,7 @@ dependencies = [
  "nvs-syntax",
  "nvs-test",
  "nvs-types",
+ "rand",
  "serde_json",
  "toml",
 ]

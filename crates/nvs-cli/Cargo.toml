@@ -33,6 +33,13 @@ nvs-test.workspace = true
 # read directly — ADR 0117 § 2 makes this binary the owner of that contract.
 nvs-stdlib.workspace = true
 clap.workspace = true
+# ADR 0042 § 2's header checksum, over the payload this binary is about to
+# publish. The key beside it is `nvs-config`'s, so this is the only place the
+# cache hashes anything itself.
+blake3.workspace = true
+# § 4's `.tmp-<random>` name. A temp file is in the shard directory a reader
+# lists, so its name has to be unique across processes that never talk.
+rand.workspace = true
 # ADR 0085's document, built and written as JSON rather than as text — the
 # workspace manifest owns why this crate and not another.
 serde_json.workspace = true

@@ -82,6 +82,7 @@ use nvs_diagnostics::{Diagnostics, Renderer, SourceMap};
 use nvs_syntax::{check_declarations, parse_file};
 
 mod api_diff;
+mod cache;
 mod config;
 mod info;
 mod meta;
