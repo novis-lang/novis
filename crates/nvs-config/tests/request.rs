@@ -8,6 +8,8 @@
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
+use nvs_config::capability::{Cap, Scope};
+use nvs_config::directive::{Class, DIRECTIVES};
 use nvs_config::resolve::{Files, Roots, resolve};
 use nvs_config::snapshot::Snapshot;
 use nvs_config::trust::Untrusted;
@@ -321,4 +323,121 @@ fn the_same_two_refusals_come_from_config_set_as_from_the_boot() {
         refused, 3,
         "three of the six moves land on a meaningless pair; the other three are the controls",
     );
+}
+
+/// m6.md's *Verify*, adversarially: **every** `System` row is refused, counted over the registry
+/// rather than asked of one key.
+///
+/// `a_system_directive_is_not_settable_by_a_request` above pins the class rule on two keys, which is
+/// what the rule means. What this adds is that no row escapes it: a directive landing in
+/// [`DIRECTIVES`] as `System` is swept the day it lands, and a `set` that grew a special case for
+/// one block fails here while still passing every case above it. Both spellings of a row are asked
+/// — the key itself and a key beneath it — because `lookup` is longest-prefix and a block row
+/// answers for everything inside it.
+#[test]
+fn a_script_attempting_to_set_a_system_directive_fails() {
+    let mut request = Request::new(snapshot_of(BOUNDED));
+    let before = request.all();
+
+    let system: Vec<&'static str> = DIRECTIVES
+        .iter()
+        .filter(|row| row.class == Class::System)
+        .map(|row| row.key)
+        .collect();
+    // A floor, not a census: `tests/directives.rs` owns which row is which class. What it buys here
+    // is that a sweep which found nothing to sweep cannot pass as a sweep that refused everything.
+    assert!(
+        system.len() > 10,
+        "the sweep is the registry's `System` rows and there are {}",
+        system.len(),
+    );
+
+    let mut accepted: Vec<String> = Vec::new();
+    for key in &system {
+        for spelling in [(*key).to_string(), format!("{key}.memory")] {
+            for value in ["1G", "true", "/"] {
+                if request.set(&spelling, value) {
+                    accepted.push(format!("{spelling} = {value}"));
+                }
+            }
+        }
+    }
+
+    assert!(
+        accepted.is_empty(),
+        "a request set a `System` directive: {accepted:?}",
+    );
+    // Not one of them left anything behind either — a `set` that returned `false` after writing the
+    // overlay would pass every assertion above.
+    assert_eq!(
+        request.all(),
+        before,
+        "a refused `set` changes nothing about what is in force (ADR 0005)",
+    );
+
+    // The control: the `Runtime` row sitting beside them takes the same value. Without it a `set`
+    // that refused everything would pass this case having tested nothing.
+    assert!(request.set("memory", "512M"));
+}
+
+/// ADR 0005's `RuntimeTighten` half, adversarially: a request cannot widen **any** capability, asked
+/// once per row of [`Cap::ALL`] rather than of the one grant this tree happens to hold.
+///
+/// Two reasons refuse, and the fixture holds both. `capabilities.fs.read` has a grant in force and
+/// is refused because a list cannot be shown to narrow — `request.rs`'s module doc owns why that is
+/// the safe direction — while every other row has nothing in force and is refused for having
+/// nothing to narrow *from*. Neither reason is the value's: `log.level` is the same unquantifiable
+/// shape under `Runtime` and is accepted, so what refuses above is the class, which is the claim.
+#[test]
+fn a_script_attempting_to_widen_a_capability_fails() {
+    const GRANTED: &str = "\
+[limits]
+memory = \"256M\"
+
+[capabilities.fs]
+read = [\"nvs.toml\"]
+";
+    let files = One(GRANTED.to_string());
+    let mut request = Request::new(snapshot_of(GRANTED));
+
+    assert!(
+        !Cap::ALL.is_empty(),
+        "the sweep is the capability roster, and an empty roster sweeps nothing",
+    );
+    let mut widened: Vec<String> = Vec::new();
+    for cap in Cap::ALL {
+        // The grant's own key and the block above it, against the widest value ADR 0118 spells and
+        // against two narrower widenings — a root outside what was granted, and the one inside it,
+        // which is not narrowing either once it is the whole grant.
+        for key in [
+            format!("capabilities.{}", cap.name()),
+            "capabilities".to_string(),
+        ] {
+            for value in ["true", "/", "nvs.toml"] {
+                if request.set(&key, value) {
+                    widened.push(format!("{key} = {value}"));
+                }
+            }
+        }
+    }
+    assert!(
+        widened.is_empty(),
+        "a request widened a capability: {widened:?}",
+    );
+
+    // What the file granted is still exactly what is in force, asked of `capability.rs` itself
+    // rather than of `get`: a list has no rendering `get` answers with, so the sweep's effect has to
+    // be read where the runtime reads it.
+    let granted = request
+        .snapshot()
+        .config
+        .capabilities
+        .clone()
+        .unwrap_or_default();
+    let root = p("nvs.toml");
+    assert!(granted.allows(Cap::FsRead, Scope::Path(root.as_path()), &files));
+    assert!(!granted.allows(Cap::FsWrite, Scope::Path(root.as_path()), &files));
+    assert!(!granted.allows(Cap::NetConnect, Scope::Host("evil.example"), &files));
+
+    assert!(request.set("log.level", "debug"));
 }
