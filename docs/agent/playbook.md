@@ -2914,6 +2914,18 @@ is why" — is this file.
   `.agent-tmp/` and runs that alone. Check a multi-file case with `target/debug/nvs test
   tests/conformance/<tree>` instead, which is what `verify.py` runs; `try.py` is for the
   single-file shape it was built for.
+- **A `.nvst` case can ship its own `nvs.toml`, and `Core\Config::restore` inside one can end the
+  case with a `FATAL`.** `--FILE nvs.toml--` writes the file `nvs run` discovers in the working
+  directory — with no `--config`, step 2 is `./nvs.toml` — so a case can state `[limits]` and
+  `[limits.hard]` and then move its own ceiling, which is the only way a case reaches the runtime's
+  cached memory limit at all. Two edges cost a run each. `restore` puts the file's smaller value back
+  **while what the raised ceiling permitted is still live**, and the next helper call breaches it — so
+  a case that raises, allocates, then restores has to drop the ballast first, and that ordering is the
+  feature rather than the fixture (a request cannot un-allocate by lowering its own limit). And a case
+  may carry `--EXPECT--` *and* `--EXPECTF-ERROR--` together: `crates/nvs-test/src/run.rs:147` asks only
+  that a case stating an error expectation exits nonzero, so one case can pin the stdout printed before
+  a `FATAL` and the `FATAL` line itself — which is what makes a refused ceiling provable in the runtime
+  and not only in `Core\Config::get`.
 
 ## Splitting a file that got too big
 
