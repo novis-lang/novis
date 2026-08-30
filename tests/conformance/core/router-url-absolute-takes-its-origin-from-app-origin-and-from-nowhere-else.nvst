@@ -11,13 +11,16 @@
 // is decided before the program starts and no value the program computes, nor
 // any other key in the file it computed it from, can move it.
 //
-// So this case surrounds the one key that counts with four that look like it.
-// The `nvs.toml` at the foot holds an `origin` before any table, one under
-// `[server]`, one commented out inside `[[app]]` itself, and one under
-// `[app.dev]` — every near miss `configured_origin` in
-// `crates/nvs-cli/src/main.rs` walks past — and the answer below has to be the
-// fifth. A reader that took the first `origin` line, or the last, or any
-// `origin` under any table, passes the existing origin cases and fails here.
+// So this case surrounds the one key that counts with two that look like it.
+// Every other near miss a file could once have held — an `origin` before any
+// table, one under `[server]`, one under an `[app.dev]` sub-table — is now
+// refused by the configuration reader itself before any of this runs (ADR 0064
+// § 3's `deny_unknown_fields` over the typed tree), so what is left to get
+// wrong is the two a *valid* file can still spell: a commented-out key, and a
+// block keyed on one exact entry file that is not this program. The
+// answer below has to be the third. A reader that took the first `origin` line
+// it found, or any `origin` in any block whether or not it covers this entry
+// file, passes the existing origin cases and fails here.
 class Docs {
     // ADR 0096 § 1: the decision is a required sibling of every `#[Route]`, and
     // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
@@ -30,14 +33,12 @@ class Docs {
     public function home(): string { return "home"; }
 }
 
-// The four spellings the file also holds. They are values in an array rather
-// than four `if`s so the assertion below is a count over a set, which stays
-// true when a fifth near miss is added to the file and the list beside it.
+// The two spellings the file also holds. They are values in an array rather
+// than two `if`s so the assertion below is a count over a set, which stays
+// true when a third near miss is added to the file and the list beside it.
 array<string> $decoys = [
-    "https://before-any-table.test",
-    "https://server-table.test",
     "https://commented-out.test",
-    "https://app-dev-table.test",
+    "https://other-entry.test",
 ];
 
 array<string> $built = [
@@ -46,8 +47,8 @@ array<string> $built = [
     Core\Router::urlAbsolute("Docs::home", []),
 ];
 
-// Every link carries the configured origin, and not one carries any of the
-// four the file also spells. The second count is what makes the first mean
+// Every link carries the configured origin, and not one carries either of the
+// two the file also spells. The second count is what makes the first mean
 // something: a reader that concatenated *every* `origin` it found would still
 // satisfy the first.
 var $rows = 0;
@@ -75,28 +76,25 @@ echo "leaked=", $leaked, "\n";
 echo "link=", $built["0"], "\n";
 echo "root=", $built["2"], "\n";
 --FILE nvs.toml--
-# `configured_origin` in `crates/nvs-cli/src/main.rs` reads `[[app]] origin` and
-# that key alone; ADR 0102 § 6 is why it may not grow a second source, and this
-# file is four near misses around the one it takes.
+# ADR 0102 § 6 gives an absolute link exactly one source, and ADR 0104 § 2 says
+# which block it is: every block whose key covers the entry file, layered
+# least-specific first, so the last one to state an `origin` wins. This file is
+# two near misses around the one that answers.
 
-# Before any table, so no block is open and this is not `[[app]]`'s.
-origin = "https://before-any-table.test"
-
-[server]
-# Another table's key of the same name.
-origin = "https://server-table.test"
+# A block keyed on one exact file, § 1's narrowest key — and that file is this
+# configuration itself rather than the program, so the block matches nothing
+# here. It is the near miss a reader that took an `origin` out of any `[[app]]`
+# block without asking which entry file the block covers would return, and § 2
+# would layer it *last* if it did match.
+[[app]]
+entry = "nvs.toml"
+origin = "https://other-entry.test"
 
 [[app]]
+root = "."
 # Commented out, and a comment runs to the end of the line.
 # origin = "https://commented-out.test"
-name = "conformance"
 origin = "http://app-table.test:8080"
-
-[app.dev]
-# A sub-table attaching to the block above by ordinary TOML rules, exactly as
-# ADR 0104 § 1's `[app.limits]` does — and holding none of the block's own
-# keys, so its `origin` is not the block's either.
-origin = "https://app-dev-table.test"
 --EXPECT--
 configured=3/3
 leaked=0

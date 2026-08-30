@@ -326,6 +326,27 @@ pub struct Ctx {
     /// once — tens of them, not thousands — and nothing at all for a program
     /// that configures none.
     origin: Option<Box<str>>,
+    /// [ADR 0078](../../../docs/adr/0078-config-reload-and-control-socket.md)
+    /// § 1's configuration, as this request sees it: the snapshot it cloned at
+    /// start and the copy-on-write overlay `Core\Config::set` writes over it.
+    ///
+    /// **The clone happens once, here, and never per read.** `nvs run` builds
+    /// the snapshot before the program starts and hands it over with
+    /// [`Self::set_config`]; every `Core\Config` member then reads this field.
+    /// A reload landing mid-request replaces what `Current::load` would hand
+    /// out next and cannot touch the `Arc` this one already holds, which is the
+    /// whole of § 1's "a request reads one tree to completion".
+    ///
+    /// `None` is a context nobody configured — every test context, and any
+    /// caller that has not built a snapshot. The members answer as they do for
+    /// a directive nothing set, rather than throwing: an unconfigured host is
+    /// ADR 0103 § 1 step 3's shipped defaults and not an error.
+    ///
+    /// **What it spends:** one `Arc` clone per request, plus a `String` pair
+    /// per key that request actually set. O(in-flight requests), per
+    /// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md) — the tree
+    /// itself is shared and is charged to the snapshot, not to the request.
+    config: Option<nvs_config::Request>,
     /// [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
     /// § 12's fixed clock: the wall-clock reading `Core\Time::now` answers
     /// with, in nanoseconds since the Unix epoch, or `None` for a context that
@@ -772,6 +793,7 @@ impl Ctx {
             output,
             diagnostic: OutputSink::Stderr,
             origin: None,
+            config: None,
             fixed_clock: None,
             random_state: None,
             captures: Vec::new(),
@@ -821,6 +843,29 @@ impl Ctx {
     /// rather than of a review.
     pub fn set_origin(&mut self, origin: &str) {
         self.origin = Some(origin.trim_end_matches('/').into());
+    }
+
+    /// This request's configuration, or `None` on a context nobody configured —
+    /// see [`Self::config`]'s field docs.
+    #[must_use]
+    pub fn config(&self) -> Option<&nvs_config::Request> {
+        self.config.as_ref()
+    }
+
+    /// The same, for the two members that write the overlay
+    /// (`Core\Config::set` and `restore`).
+    pub fn config_mut(&mut self) -> Option<&mut nvs_config::Request> {
+        self.config.as_mut()
+    }
+
+    /// Hands this request the snapshot it will read for its whole life —
+    /// ADR 0078 § 1's one clone, taken before the program runs.
+    ///
+    /// Written by whoever resolved the tree, exactly as [`Self::set_origin`] is
+    /// and for the same reason: nothing on the request path may re-read the
+    /// configuration, or two reads in one request could disagree.
+    pub fn set_config(&mut self, snapshot: std::sync::Arc<nvs_config::Snapshot>) {
+        self.config = Some(nvs_config::Request::new(snapshot));
     }
 
     /// ADR 0079 § 12's fixed clock in nanoseconds since the Unix epoch, or
@@ -1000,6 +1045,12 @@ impl Ctx {
         // defaults, which is the difference this constructor exists for.
         isolate.debug = self.debug;
         isolate.origin = self.origin.clone();
+        // The configuration **including the parent's overlay**, so a child
+        // starts from the values in force where it was spawned rather than from
+        // the file. That is the direction ADR 0006's table wants: a parent that
+        // narrowed a limit for itself has narrowed it for the tree beneath it,
+        // and a child re-reading the snapshot would silently widen it back.
+        isolate.config = self.config.clone();
         isolate.runtime_error_class = self.runtime_error_class.clone();
         isolate.deadline = std::sync::atomic::AtomicU64::new(
             self.deadline.load(std::sync::atomic::Ordering::Relaxed),

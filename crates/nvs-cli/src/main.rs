@@ -528,71 +528,101 @@ fn run_build(path: &std::path::Path, openapi: bool) -> ExitCode {
 /// same spelling `nvs-ir`'s own snapshots use.
 const SCRIPT: &str = "<script>";
 
-/// ADR 0102 § 6's configured origin, read out of `./nvs.toml`'s `[[app]]
-/// origin` — and that key alone.
+/// The reader `nvs run` resolves the configuration tree through: the real
+/// filesystem, with ADR 0103 § 6's **ownership check not applied**.
 ///
-/// **This is not `nvs.toml`'s reader**, and must not grow into one. M6's is,
-/// with ADR 0064's syntax, ADR 0103's include tree and ownership check, and
-/// ADR 0005's directive registry behind it; `nvs_syntax`'s module docs name it
-/// as the caller that has not arrived. What is here reads one key, because ADR
-/// 0102 § 6 makes the origin *configured* and refuses every other source
-/// outright: with nowhere to configure it, `Core\Router::urlAbsolute` has no
-/// answer it is allowed to give at all. A second key added here is a second
-/// configuration format, so the next one goes in M6's reader instead.
+/// `nvs_config::resolve::Files` exists for exactly this split — its own doc
+/// says § 6's check belongs on the reader so that "a caller that has one and a
+/// caller that does not are two implementations of one interface rather than a
+/// flag threaded through the resolver". This is the caller that does not, and
+/// it is one of two rather than a weakening of the boundary:
 ///
-/// The location is ADR 0103 § 1 step 2 — `./nvs.toml` in the working
-/// directory, **exactly one directory and never a walk upward**, and never
-/// beside the entry file. Step 1's `--config` is M6's closed flag list and
-/// step 3's shipped defaults name no origin, so there is one place to look.
-/// A file that is absent, unreadable or holds no `[[app]] origin` resolves
-/// `None`, which is not an error here: ADR 0097 § 3's "a unit that resolves
-/// none is an error" is reported at the link site, where the message can name
-/// the route it could not build.
+/// - § 6 defends a runtime that grants **configured capabilities to requests
+///   nobody at the keyboard wrote**. `nvs serve` and `nvs ctl reload` are that
+///   runtime and they use `Disk`, which checks.
+/// - A `nvs run` has no such boundary to defend. The program is named on argv
+///   and executed as the invoking account, and the configuration is `./nvs.toml`
+///   in a working directory that same person chose. Whoever can write that file
+///   is in a position to be writing the program too.
+/// - And the check would refuse nearly every Windows checkout. § 6 names the
+///   reason itself: Windows grants `Authenticated Users` modify rights by
+///   default on a non-system drive's root and on everything inheriting from it,
+///   so a repository on `D:` fails the check until an operator breaks that
+///   inheritance. That is the right price for a served host and the wrong one
+///   for `nvs run examples/hello.nvs`.
 ///
-/// The block is ADR 0104 § 1's array of tables, and this reads `origin` out of
-/// **any** `[[app]]` in the file without matching the entry file against that
-/// block's `root` or `entry` — the matching, the canonicalization it rests on
-/// and the least-specific-first layering of § 2 are all M6's reader, and doing
-/// a third of the job here would be the second configuration format the
-/// paragraph above refuses. One block in the repository's own file gives the
-/// same answer either way; a file with two is out of this stopgap's scope, and
-/// the last one wins by ADR 0103 § 3's ordering rather than by specificity.
-fn configured_origin() -> Option<String> {
-    let text = std::fs::read_to_string("nvs.toml").ok()?;
-    let mut in_app = false;
-    let mut origin = None;
-    for line in text.lines() {
-        let line = line.split('#').next().unwrap_or("").trim();
-        if let Some(table) = line
-            .strip_prefix("[[")
-            .and_then(|rest| rest.strip_suffix("]]"))
-        {
-            in_app = table.trim() == "app";
-            continue;
-        }
-        if line.starts_with('[') && line.ends_with(']') {
-            // Any ordinary table header ends the block's own keys — including
-            // `[app.limits]`, which attaches to the preceding `[[app]]` by
-            // TOML's rules but holds none of the keys ADR 0104 § 1 puts
-            // directly on the block.
-            in_app = false;
-            continue;
-        }
-        let Some((key, value)) = line.split_once('=') else {
-            continue;
-        };
-        if !in_app || key.trim() != "origin" {
-            continue;
-        }
-        if let Some(quoted) = value
-            .trim()
-            .strip_prefix('"')
-            .and_then(|rest| rest.strip_suffix('"'))
-        {
-            origin = Some(quoted.to_owned());
-        }
+/// **This is not the whole answer, and the rest is Stage 4's.** Where a
+/// capability check sits so that no member can route around it is the one ADR
+/// slot this milestone reserved, and whether a CLI run may be granted anything
+/// out of an unchecked file belongs in it. Until then nothing here grants
+/// anything: `Core\Config` reads values and `[capabilities]` is enforced
+/// nowhere, so the split above costs no right that is currently checked.
+struct LocalFiles;
+
+impl nvs_config::resolve::Files for LocalFiles {
+    /// Canonicalization without the ownership check — see the type's own docs.
+    /// The canonical path still comes from `nvs_config::trust::canonical`,
+    /// because the resolver's cycle test compares files rather than spellings
+    /// and a second canonicalizer is how a symlinked cycle gets through.
+    fn trust(&self, path: &std::path::Path) -> Result<PathBuf, nvs_config::trust::Untrusted> {
+        nvs_config::trust::canonical(path)
+            .map_err(|err| nvs_config::trust::Untrusted::Unreadable(err.to_string()))
     }
-    origin
+
+    fn canonical(&self, path: &std::path::Path) -> Result<PathBuf, String> {
+        nvs_config::resolve::Disk.canonical(path)
+    }
+
+    fn read(&self, path: &std::path::Path) -> Result<String, String> {
+        nvs_config::resolve::Disk.read(path)
+    }
+
+    fn read_bytes(&self, path: &std::path::Path) -> Result<Vec<u8>, String> {
+        nvs_config::resolve::Disk.read_bytes(path)
+    }
+
+    fn exposure(&self, path: &std::path::Path) -> Option<String> {
+        nvs_config::resolve::Disk.exposure(path)
+    }
+
+    fn list(&self, dir: &std::path::Path) -> Result<Vec<PathBuf>, String> {
+        nvs_config::resolve::Disk.list(dir)
+    }
+
+    fn exists(&self, path: &std::path::Path) -> bool {
+        nvs_config::resolve::Disk.exists(path)
+    }
+}
+
+/// The snapshot this run's request reads — ADR 0103 § 1's roots, § 3's ordered
+/// stream, ADR 0104 § 2's `[[app]]` fold for `entry`, and ADR 0078 § 1's
+/// immutable result.
+///
+/// It replaces the hand-rolled one-key `nvs.toml` scanner that stood here for
+/// ADR 0102 § 6's origin, which said in its own doc comment that a second key
+/// added to it would be a second configuration format. This is the reader it
+/// was waiting for, so the origin now arrives through `[[app]]` matching rather
+/// than out of any block in the file.
+///
+/// `sources` is the caller's so that a refusal can be rendered with the line it
+/// came from: a `nvs.toml` diagnostic carries a span into a file this map is
+/// the only holder of.
+fn boot_snapshot(
+    entry: &std::path::Path,
+    sources: &mut SourceMap,
+) -> Result<std::sync::Arc<nvs_config::Snapshot>, nvs_diagnostics::Diagnostic> {
+    let files = LocalFiles;
+    let cwd = std::env::current_dir().map_err(|err| {
+        nvs_diagnostics::Diagnostic::error(
+            nvs_diagnostics::code::E_UNREADABLE_CONFIG,
+            format!("the working directory could not be read: {err}"),
+        )
+    })?;
+    // No `--config` yet: ADR 0103 § 1 step 1's flag is its own slice, so every
+    // run takes step 2's `./nvs.toml` or step 3's shipped defaults.
+    let roots = nvs_config::resolve::roots(&[], &cwd, &files);
+    let resolved = nvs_config::resolve::resolve(&roots, sources, &files)?;
+    nvs_config::Snapshot::build(&resolved, entry, &files)
 }
 
 fn run_run(
@@ -650,14 +680,41 @@ fn run_run(
         return ExitCode::FAILURE;
     };
 
+    // ADR 0078 § 1: the tree is resolved and folded into one snapshot **before**
+    // the request exists, and the request then clones it once. A refusal here is
+    // a refusal to start — ADR 0103 § 3's later-wins and § 6's boundary are only
+    // worth anything if a tree that does not resolve stops the run.
+    let mut config_sources = SourceMap::new();
+    let snapshot = match boot_snapshot(path, &mut config_sources) {
+        Ok(snapshot) => snapshot,
+        Err(diagnostic) => {
+            let mut diags = Diagnostics::new();
+            diags.report(diagnostic);
+            render_diagnostics(&mut diags, &config_sources);
+            return ExitCode::FAILURE;
+        }
+    };
+    // ADR 0103 § 7's advisories: a secret file another account can read is
+    // reported and does not stop the run.
+    if !snapshot.warnings.is_empty() {
+        let mut diags = Diagnostics::new();
+        for warning in &snapshot.warnings {
+            diags.report(warning.clone());
+        }
+        render_diagnostics(&mut diags, &config_sources);
+    }
+
     // The script's own frame is the request, for a CLI run: one `Ctx` writing
     // to the process's standard output.
     let mut ctx = nvs_runtime::Ctx::stdout();
     // ADR 0102 § 6's origin is resolved before the program runs and never
-    // during it, which is the whole of what makes it un-sniffable.
-    if let Some(origin) = configured_origin() {
+    // during it, which is the whole of what makes it un-sniffable. It comes off
+    // the snapshot, so it is the origin of the `[[app]]` blocks that actually
+    // match this entry file (ADR 0104 § 2) and not of any block in the file.
+    if let Some(origin) = snapshot.origin.clone() {
         ctx.set_origin(&origin);
     }
+    ctx.set_config(snapshot);
     // Hands the context the unit's class table: the class a helper's
     // bare-message failure is promoted to, and the shared ownership that lets
     // the context outlive the unit. `Unit::install_in` owns both reasons.

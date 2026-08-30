@@ -107,8 +107,10 @@ echo "rest=", $absolute["1"], "\n";
 --FILE nvs.toml--
 # ADR 0102 § 6's configured origin, written the way half of them are written:
 # with a trailing `/`. `Ctx::set_origin` drops it, which is what this case is
-# about.
+# about. `root = "."` is ADR 0104 § 1's key: this working directory, so the
+# program below is the entry file the block covers.
 [[app]]
+root = "."
 origin = "https://example.test:8443/"
 --EXPECT--
 exact=5/5
