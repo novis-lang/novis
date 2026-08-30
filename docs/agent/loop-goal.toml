@@ -1,19 +1,19 @@
-# Goal 2 of the parity program -- the reactor, the scheduler, and isolates. The acceptance test, as data.
+# Goal 3 of the parity program -- config, capabilities, limits, the disk cache. The acceptance test.
 #
-# `2-concurrency.md` is the prose. It does not restate this list, and this file does not restate its
-# reasoning. One home each.
+# `3-governance.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
 files = [
-  # The reactor's own surface, as three programs: a suspension that keeps a core busy, the task roster,
-  # and the channel's backpressure.
+  # The tree, the snapshot and the overlay as one program each.
+  "examples/config.nvs",
+  "examples/limits.nvs",
+  "examples/capability.nvs",
+  # carried from the previous goal by tools/goal-switch.py
   "examples/tasks.nvs",
   "examples/channel.nvs",
-  # ADR 0006's isolate, and ADR 0023's graph copy reached both ways.
   "examples/isolate.nvs",
   "examples/serialize.nvs",
-  # carried from the previous goal by tools/goal-switch.py
   "examples/program.nvs",
   "examples/routes.nvs",
   "examples/commands.nvs",
@@ -49,57 +49,49 @@ files = [
 
 [context]
 
-# `nvs-host` is new and most of this goal is written into it, so it is globbed rather than listed.
-# ORIENT.PY WILL WARN that the pattern matches no module until the crate exists, and that warning is
-# correct and expected -- creating the crate is item 3. Do not answer it by deleting the selector.
-#
-# The glob is `src/*.rs` and not `src/**/*.rs`: the matcher is `fnmatch`, whose `*` already crosses a
-# `/`, so `**/*.rs` demands a subdirectory and silently misses every top-level module.
+# `nvs-config` is new and is created by this goal's first slice, so orient.py warns that its pattern
+# matches nothing until it exists. That warning is correct; do not answer it by deleting the selector.
+# `src/*.rs` and not `src/**/*.rs` -- fnmatch's `*` crosses a `/` already, so `**` demands a
+# subdirectory and misses every top-level module.
 modules = [
-  "crates/nvs-host/src/*.rs",
-  # The containment boundary Stage 0 moves outward, and the ABI it wraps.
-  "crates/nvs-runtime/src/abi.rs",
-  "crates/nvs-runtime/src/ctx.rs",
-  # The graph copy's two carriers reach these: the value representation and the release path.
-  "crates/nvs-runtime/src/value.rs",
-  "crates/nvs-runtime/src/release.rs",
-  # `spawn`/`await` lowering, and the safepoint the cancellation item is the first consumer of.
-  "crates/nvs-ir/src/lower/expr.rs",
-  "crates/nvs-ir/src/lower/generator.rs",
-  # `Core\Task`, `Core\Serialize` and `Core\Script` are registered here.
+  "crates/nvs-config/src/*.rs",
+  # The gate goes on a member's row, so item 10 and item 16 both start here.
   "crates/nvs-stdlib/src/registry.rs",
+  # Item 12 -- the isolate's deferred half, and the budget it is accounted against.
+  "crates/nvs-host/src/isolate.rs",
+  "crates/nvs-host/src/budget.rs",
+  # Item 11 -- safepoints have been emitted since the first backend commit; this is their second
+  # consumer. They live in `emit.rs` rather than a module of their own, which is why this names it.
+  "crates/nvs-codegen/src/emit.rs",
+  # Items 14-15, 19 -- the cache is read on the compile path and written on it.
+  "crates/nvs-cli/src/main.rs",
+  "crates/nvs-cli/src/runner.rs",
 ]
-# NOT in `modules`, and it cannot be: `benches/abi-probe/src/lib.rs` is the proven coroutine shape this
-# goal moves into `nvs-host`, and orient.py's map covers `crates/` and `editors/` only. Every session of
-# Stage 2 should read it anyway -- the handoff names it, which is the one place that survives.
 
-rules = ["0072", "0006", "0023", "0106", "0033", "0012", "0079", "0099", "0004", "0051", "0063", "0007"]
+rules = ["0005", "0064", "0103", "0104", "0078", "0042", "0020", "0048", "0073", "0074", "0024", "0051"]
 
-# The sections EVERY session of this goal reads. 0072 § 5 is the one most likely to be got wrong in the
-# obliging direction, 0106 § 6 is the rule that decides where every syscall goes, and 0023 § 2 is the one
-# walk two stages share. Per-item sections are named in the goal file; read them at that heading.
+# The sections EVERY session reads. 0103 § 3 and § 6 are the merge rule and the trust boundary and half
+# the stages touch one of them; 0078 § 2 is the field that makes a directive boot-only and is the thing
+# most likely to be conflated with the changeability class. Per-item sections are in the goal file.
 adrs = [
-  "0072 §4",
-  "0072 §5",
-  "0106 §6",
-  "0023 §2",
+  "0103 §3",
+  "0103 §6",
+  "0078 §2",
+  "0042 §3",
 ]
 
-shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "An ADR", "A commit message"]
+shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A diagnostic", "An ADR", "A commit message"]
 
-# `python tools/playbook.py --manifest crates/nvs-host nvs-runtime nvs-ir corosensei coroutine --min 4`,
-# then the process block by hand. Re-run it once `nvs-host` has modules to name.
 playbook = [
-  'Running things > a #[globalallocator]',
-  'Running things > a fatal',
-  'Running things > a leak whose',
+  'Running things > a scratch .nvs under',
+  'Running things > a scratch .nvs still',
+  'Running things > adding a',
   'Running things > target/release/nvs.exe is',
   'Running things > verify.py executes',
-  'Tooling > a value',
-  'Tooling > alloc::pooled recycles',
-  'Writing a test case > a test binary',
+  'Tooling > a core class',
+  'Writing a test case > a multi-file',
   'Writing a test case > a -p',
-  'Writing Novis itself > a closure held',
+  'Writing a test case > a test binary',
 
   # The process traps, by hand.
   'Tooling > the end',
@@ -116,7 +108,7 @@ playbook = [
 ]
 
 plan = ["Open now", "Blocking"]
-milestones = ["M5:verify"]
+milestones = ["M6:verify"]
 
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
@@ -125,15 +117,20 @@ skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
 target_dir = "/var/tmp/nvs-target-wsl"
 
 
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 102 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
+
 # ---------------------------------------------------------------------------------------------------
 # Stage 0 -- ADR 0106's containment rule, which was accepted after M4 was reported done. It runs in the
 # catch-up class because a scheduler written against the old boundary has its panic path wrong, in the
 # place that is hardest to find later.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "0 containment"
+stage = "1 floor"
 name = "abi-probe (the outer boundary)"
 args = ["test", "-p", "nvs-abi-probe"]
 tests = [
@@ -155,7 +152,7 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 [[check]]
 kind = "cargo-named"
-stage = "0b named arguments"
+stage = "1 floor"
 name = "nvs-stdlib (every row names its parameters)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -168,7 +165,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "0b named arguments"
+stage = "1 floor"
 name = "nvs-types (a Core member by name)"
 args = ["test", "-p", "nvs-types"]
 tests = [
@@ -183,7 +180,7 @@ tests = [
 
 [[check]]
 kind = "nvs-suite"
-stage = "0b named arguments"
+stage = "1 floor"
 name = "conformance (Core by name)"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -192,13 +189,11 @@ cases = [
   "tests/conformance/reject/a-misspelled-name-at-a-core-member-is-unknown.nvst",
 ]
 
-
 # <<< goal-switch: floor checks are inserted below this line >>>
 
 # 80 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
 # They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
 # Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
 [[check]]
 kind = "nvs-suite"
 stage = "1 floor"
@@ -1437,17 +1432,14 @@ name = "check-migration at 33%"
 argv = ["python", "tools/check-migration.py", "--min", "33"]
 want = ["inventory:", "classified:"]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- THE KEYSTONE. No task, no isolate and no `Core\Task` member is written until this is green.
 # Four goals are written against the stream item 4 builds, so a shape that is wrong here is wrong four
 # times.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 reactor"
+stage = "1 floor"
 name = "nvs-host (the scheduler)"
 args = ["test", "-p", "nvs-host"]
 tests = [
@@ -1458,7 +1450,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "2 reactor"
+stage = "1 floor"
 name = "nvs-host (the parking stream)"
 args = ["test", "-p", "nvs-host"]
 tests = [
@@ -1481,7 +1473,7 @@ tests = [
 # stay green; the point of naming them here is that Stage 2 is where they would break.
 [[check]]
 kind = "cargo-named"
-stage = "2 reactor"
+stage = "1 floor"
 name = "abi-probe (coroutine invariants)"
 args = ["test", "-p", "nvs-abi-probe"]
 tests = [
@@ -1491,21 +1483,19 @@ tests = [
   "many_coroutines_can_be_created_and_driven",
 ]
 
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 3-4 -- `spawn`/`await`, the task tree, and ADR 0072's roster.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 tasks"
+stage = "1 floor"
 name = "nvs-ir (spawn and await lower)"
 args = ["test", "-p", "nvs-ir"]
 tests = ["a_spawn_lowers_to_a_task_on_the_current_core", "an_await_suspends_until_its_task_completes"]
 
 [[check]]
 kind = "cargo-named"
-stage = "3 tasks"
+stage = "1 floor"
 name = "nvs-host (structured concurrency)"
 args = ["test", "-p", "nvs-host"]
 tests = [
@@ -1521,7 +1511,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "4 task roster"
+stage = "1 floor"
 name = "nvs-types (the roster's compile-time half)"
 args = ["test", "-p", "nvs-types"]
 tests = [
@@ -1534,25 +1524,23 @@ tests = [
 
 [[check]]
 kind = "exact"
-stage = "4 task roster"
+stage = "1 floor"
 file = "examples/tasks.nvs"
 want = ["all=3", "map=1,4,9,16", "deadline hit", "limit held at 2"]
 
 [[check]]
 kind = "exact"
-stage = "4 task roster"
+stage = "1 floor"
 file = "examples/channel.nvs"
 want = ["produced=8", "consumed=8", "sender suspended"]
-
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 5 -- ADR 0023's one graph copy, reached twice. Written once and reached twice is the item; two
 # implementations that agree today is the failure this stage exists to prevent.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "5 graph copy"
+stage = "1 floor"
 name = "nvs-runtime (one walk, two carriers)"
 args = ["test", "-p", "nvs-runtime"]
 tests = [
@@ -1566,7 +1554,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "5 graph copy"
+stage = "1 floor"
 name = "nvs-types (the sink and the qualifier)"
 args = ["test", "-p", "nvs-types"]
 tests = [
@@ -1578,18 +1566,16 @@ tests = [
 
 [[check]]
 kind = "exact"
-stage = "5 graph copy"
+stage = "1 floor"
 file = "examples/serialize.nvs"
 want = ["round-trip ok", "cycle ok", "refused: not our format", "refused: shape changed"]
-
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 6 -- ADR 0006's isolate. A task with a heap boundary, which is what Stage 2 built.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "6 isolates"
+stage = "1 floor"
 name = "nvs-host (the isolate boundary)"
 args = ["test", "-p", "nvs-host"]
 tests = [
@@ -1607,18 +1593,16 @@ tests = [
 
 [[check]]
 kind = "exact"
-stage = "6 isolates"
+stage = "1 floor"
 file = "examples/isolate.nvs"
 want = ["child said hello", "ok=true", "captured=child stdout", "ok=false", "parent still running"]
-
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 7 -- the testing surface the isolate unlocks. ADR 0079 §§ 2, 12, 16.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "7 test isolates"
+stage = "1 floor"
 # The `#[Test]` runner is `crates/nvs-cli/src/runner.rs`, which is the only crate that depends on
 # both `nvs-host` (the `Isolate`) and the front end that builds a test's program. `crates/nvs-test`
 # is the `.nvst` case runner and depends on neither, so it cannot ask whether a `#[Test]` method got
@@ -1632,14 +1616,12 @@ tests = [
   "a_test_with_a_seed_draws_the_same_sequence_twice",
 ]
 
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 8 -- the corpus, the numbers, and the migration floor.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "nvs-suite"
-stage = "8 corpus and guards"
+stage = "1 floor"
 name = "conformance"
 args = ["test", "tests/conformance/"]
 min_passing = 1000
@@ -1659,7 +1641,7 @@ cases = [
 
 [[check]]
 kind = "nvs-suite"
-stage = "8 corpus and guards"
+stage = "1 floor"
 name = "differential"
 args = ["test", "tests/differential/"]
 min_passing = 205
@@ -1667,7 +1649,7 @@ min_passing = 205
 # The cost claim M5 exists to make, and the one already-green guard it must not regress.
 [[check]]
 kind = "cargo-named"
-stage = "9 guards"
+stage = "1 floor"
 name = "abi-probe (isolation cost)"
 args = ["test", "--release", "-p", "nvs-abi-probe", "--test", "perf_guards"]
 tests = [
@@ -1681,7 +1663,281 @@ tests = [
 # curve is derived; nothing here restates it.
 [[check]]
 kind = "command"
-stage = "9 guards"
+stage = "1 floor"
 name = "check-migration at 34%"
 argv = ["python", "tools/check-migration.py", "--min", "34"]
+want = ["inventory:", "classified:"]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the registry and the tree. ADR 0103 is the only copy of the resolution order and every one
+# of its rules is a case; ADR 0064 § 3 is what makes a typo an error rather than a silent default.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 config tree"
+name = "nvs-config (parsing and the block list)"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "a_duplicate_key_in_one_file_is_refused",
+  "an_unknown_key_is_refused_naming_the_block_that_has_no_such_directive",
+  # ADR 0078 § 2 -- orthogonal to the changeability class, and conflating them is the bug it prevents.
+  "reloadability_is_a_field_of_its_own_and_not_the_changeability_class",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 config tree"
+name = "nvs-config (the tree)"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  # § 1 -- repeatable --config, else ./nvs.toml, else the shipped defaults.
+  "a_root_is_named_by_config_else_found_else_defaulted",
+  # § 2, § 3 -- include by path and by dir, one ordered stream, later wins, with both origins reported.
+  "an_include_cycle_is_refused_with_the_chain_named",
+  "a_key_set_in_two_files_resolves_to_the_later_one_with_both_origins_reported",
+  # § 4 -- the distinction a merge implementation loses first.
+  "a_value_array_replaces_where_a_table_appends",
+  # § 5.
+  "a_relative_path_resolves_against_the_file_it_is_written_in",
+  # § 6 -- the trust boundary, and the clause a naive `optional` gets wrong.
+  "a_group_writable_file_or_directory_refuses_the_boot",
+  "optional_covers_absence_and_not_unreadability",
+  # § 7.
+  "a_password_file_yields_its_content_with_one_trailing_newline_stripped",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 config tree"
+name = "nvs-config (the app block)"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  # ADR 0104 §§ 1-3.
+  "every_matching_app_block_applies_least_specific_first",
+  "an_app_block_may_widen_bounded_by_the_global_ceiling",
+  # The canonicalise-then-compare rule, written once and needed by three items.
+  "an_entry_path_reaching_an_app_root_through_dotdot_or_a_symlink_does_not_match",
+]
+
+[[check]]
+kind = "command"
+stage = "2 config tree"
+name = "nvs config check names the offending line"
+argv = ["{nvs}", "config", "check", "tests/config/duplicate-key.toml"]
+exit = "nonzero"
+want = ["duplicate", "duplicate-key.toml:"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the snapshot. ADR 0078 § 1: an immutable Arc<Config> a request clones at start.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 snapshot"
+name = "nvs-config (the snapshot and the overlay)"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "a_request_that_started_before_a_swap_reads_the_old_value_to_completion",
+  "a_malformed_file_leaves_the_previous_snapshot_serving_and_names_the_line",
+  # m6.md's Verify, three clauses. The third is the one a shared mutable registry gets wrong.
+  "config_set_above_the_default_takes_effect",
+  "config_set_above_the_hard_ceiling_returns_false_with_the_previous_value_intact",
+  "config_set_is_invisible_to_the_next_request_on_the_same_core",
+  # § 4 -- carried by both compiled-unit cache keys.
+  "env_hash_is_carried_by_both_cache_keys",
+]
+
+[[check]]
+kind = "exact"
+stage = "3 snapshot"
+file = "examples/config.nvs"
+want = ["memory=256M", "set ok", "set refused", "still=512M"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- capabilities and limits. Item 10 carries this goal's one ADR slot, and it is the first
+# slice of the stage rather than a follow-up to it.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 capabilities"
+name = "nvs-host (limits at a safepoint)"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  # ADR 0020 -- a FATAL, reported to onLimit if registered and never to an ordinary catch.
+  "a_memory_cap_terminates_a_runaway_script_as_a_fatal",
+  "a_cpu_cap_terminates_a_runaway_script_as_a_fatal",
+  "a_limit_fatal_reaches_on_limit_and_never_a_catch",
+  # Item 13 -- carved out of the request's own budget at the point the limits are set up.
+  "a_fatal_handler_runs_inside_its_reserved_slice",
+  # Item 12 -- both failures have their own name, and both are easy to report as something else.
+  "a_recursive_spawn_is_reported_as_max_script_depth_and_not_as_memory",
+  "n_concurrent_isolates_cannot_together_exceed_the_trees_budget",
+  "a_child_cannot_widen_a_capability_its_parent_narrowed",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 capabilities"
+name = "nvs-stdlib (the gate)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "an_ungranted_capability_throws_naming_the_capability",
+  # The path rule, written once and needed by items 6, 10 and 12.
+  "a_path_reaching_a_granted_root_through_dotdot_or_a_symlink_does_not_match",
+]
+
+[[check]]
+kind = "contains"
+stage = "4 capabilities"
+file = "examples/limits.nvs"
+exit = "nonzero"
+stderr_contains = ["FATAL", "memory"]
+stdout_contains = ["before the cap"]
+
+[[check]]
+kind = "exact"
+stage = "4 capabilities"
+file = "examples/capability.nvs"
+want = ["granted: read ok", "denied: fs.write", "denied: script.spawn"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- ADR 0042's artifact cache, exactly as specified. That ADR is a finished design and this
+# stage builds what it says rather than a fresh one.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 artifact cache"
+name = "nvs-cli (the cache)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  # § 3 -- the whole point: verify fully BEFORE a single page becomes executable.
+  "an_artifact_is_verified_whole_before_any_page_is_executable",
+  "a_tampered_artifact_is_rejected",
+  # § 4 -- one atomic rename, and no lock file, ever.
+  "a_concurrent_write_resolves_by_rename_with_no_lock_file",
+  # § 1, § 6.
+  "the_cache_is_a_fan_out_of_immutable_content_addressed_files",
+  "eviction_is_piggybacked_and_off_the_request_path",
+  # The refusal that is a security property rather than a nicety.
+  "a_world_writable_cache_directory_is_refused",
+]
+
+[[check]]
+kind = "command"
+stage = "5 artifact cache"
+name = "a warm-cache CLI start stays under 10ms"
+argv = ["python", "tools/bench.py", "--warm-start", "--max-ms", "10"]
+want = ["warm start"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- the closure test, and the boot-time validations the four new blocks owe.
+#
+# THE ALLOWLIST IN `every_capability_bearing_member_declares_its_capability` MAY NEVER GROW. Every entry
+# is a bullet in 3-governance.md § Standing decisions with its reason; adding one to make a run go green
+# is the single move this goal forbids outright. A count of passing fixtures is a proxy for "the gate is
+# closed"; this is not.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "6 the closed set"
+name = "nvs-stdlib (no member escapes the gate)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = ["every_capability_bearing_member_declares_its_capability"]
+
+[[check]]
+kind = "cargo-named"
+stage = "6 the closed set"
+name = "nvs-config (the four blocks refuse a bad boot)"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  # ADR 0073's own Verification list.
+  "a_schedule_entry_with_no_scope_refuses_the_boot",
+  "a_malformed_cron_refuses_the_boot",
+  "a_scheduled_script_outside_the_spawn_roots_refuses_the_boot",
+  "a_fleet_scope_with_no_shared_store_refuses_the_boot",
+  # ADR 0074's, and the clause that needs ONE implementation rather than two.
+  "cors_star_origins_with_credentials_true_is_refused",
+  "same_site_none_without_secure_is_refused",
+  "the_same_two_refusals_come_from_config_set_as_from_the_boot",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "6 the closed set"
+name = "nvs-config (the adversarial suite)"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "a_script_attempting_to_widen_a_capability_fails",
+  "a_script_attempting_to_set_a_system_directive_fails",
+  "spawn_script_without_the_capability_fails",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- ADR 0048's bundler. Last, because it is the cache read back through no new mechanism.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "7 bundler"
+name = "nvs build --compile produces a runnable binary"
+argv = ["python", "tools/try.py", "--bundle", "examples/hello.nvs", "--expect", "Hello, World!"]
+want = ["Hello, World!"]
+
+[[check]]
+kind = "cargo-named"
+stage = "7 bundler"
+name = "nvs-cli (the bundle)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "a_bundle_carries_the_statically_resolved_require_graph_as_source",
+  "a_bundled_executable_runs_identically_to_nvs_run",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 8 -- the corpus and the migration floor. This goal owns the `ini_*` family, `gc_*`,
+# `opcache_*`, `set_time_limit` and the rest of PHP's runtime-configuration surface -- about
+# twenty-five names, so two points. 1-core-depth.toml's Stage 7 comment derives the whole curve.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "8 corpus and guards"
+name = "conformance"
+args = ["test", "tests/conformance/"]
+min_passing = 1050
+cases = [
+  "tests/conformance/config/a-later-file-wins-and-both-origins-are-reported.nvst",
+  "tests/conformance/config/a-value-array-replaces-where-a-table-appends.nvst",
+  "tests/conformance/config/config-set-is-invisible-to-the-next-request.nvst",
+  "tests/conformance/reject/config-set-above-the-hard-ceiling-returns-false.nvst",
+  "tests/conformance/cap/an-ungranted-capability-throws-naming-it.nvst",
+  "tests/conformance/cap/a-path-outside-the-granted-roots-is-refused.nvst",
+  "tests/conformance/isolate/a-child-inherits-a-narrowed-capability-and-cannot-widen-it.nvst",
+  "tests/conformance/error/a-limit-fatal-is-not-catchable.nvst",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "8 corpus and guards"
+name = "differential"
+args = ["test", "tests/differential/"]
+min_passing = 210
+
+[[check]]
+kind = "command"
+stage = "8 corpus and guards"
+name = "check-migration at 36%"
+argv = ["python", "tools/check-migration.py", "--min", "36"]
 want = ["inventory:", "classified:"]

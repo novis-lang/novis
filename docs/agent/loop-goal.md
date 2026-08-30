@@ -1,243 +1,179 @@
-# Loop goal 2 — the reactor, the scheduler, and isolates
+# Loop goal 3 — config, capabilities, limits, and the disk cache
 
-Finish **M5** — [docs/plan/m5.md](../plan/m5.md) is the scope and this file does not restate it. A
-Novis program can **suspend**: on a socket, on a timer, on a child task, on another core's answer — and a
-core that is waiting on one request keeps serving the others.
+Finish **M6** — [docs/plan/m6.md](../plan/m6.md) is the scope and this file does not restate it. An
+operator can **say what a program may do and how much of it**, and the engine enforces both: a capability
+at every syscall-touching entry point, a limit at every safepoint, and a compiled artifact that is
+verified before a single page of it becomes executable.
 
-This is order 2 of the parity program ([goals/README.md](goals/README.md)) and it is **the keystone**. Nothing
-above it has a socket, a timer or a task without it: the four database drivers, the outbound HTTP client
-and the listener all reach the network through the one stream this goal builds. Every goal after this is
-written against its shape, so a shape that is wrong here is wrong four times.
+This is order 3 of the parity program ([goals/README.md](goals/README.md)), and it is here rather than after
+goal 4 for one reason: **every capability-bearing `Core` member in goal 4 is gated on what this goal
+builds.** A member written before its gate exists is a member whose gate gets retrofitted, and a
+retrofitted gate is exactly the kind that has a hole in it. Goal 2's isolates already run under
+compiled-in defaults and say so at each site; this goal is where those sites get their real answer.
 
-## The one design decision every session must hold
+## What "done" means here
 
-**The runtime is ours and it is not `async`.** `corosensei` stackful coroutines on a thread-per-core
-scheduler ([ADR 0072](../adr/0072-core-task-structured-concurrency.md)), and `tokio` appears in
-neither `Cargo.toml` nor `Cargo.lock` ([ADR 0099](../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md)).
-`docs/plan/design.md` § *Thread-per-core, shared-nothing runtime* is the one home for the rule and this
-file does not restate it.
+Two of the three halves are checkable the ordinary way — a config file that must be refused is a fixture,
+and a cache artifact that must be rejected is a test. The third is not, and it is the one that matters:
+**"every syscall-touching entry point is gated" is a claim about a set, not about a case.** So it is
+checked the way M4 checked its refusal sites — a test that reads `nvs-stdlib`'s own registry and fails
+naming any member that touches the filesystem, the network, the clock-with-side-effects or a process and
+carries no capability. That test is Stage 6's, it is this goal's real acceptance, and its allowlist may
+never grow.
 
-What follows from it is the shape of item 2, and it is worth stating plainly because everything else in
-the program depends on getting it right: **`nvs-host`'s socket implements plain `std::io::Read` and
-`Write`, and parks its coroutine rather than blocking its core.** A read that would block returns to the
-reactor, the coroutine is resumed when the descriptor is ready, and the *caller* sees an ordinary blocking
-`read`. That is what lets every synchronous Rust crate compose with no async at all — `rustls` streams
-over it unmodified, and so do the wire codecs goal 5's drivers use. A design that instead exposes futures
-would put a second concurrency model beside the coroutines, which is exactly what ADR 0072 refuses.
+## Stage 0 — the catch-up
 
-**The proof it works already exists.** `benches/abi-probe`'s coroutine invariants are green and have been
-since M0: a helper suspends with JIT frames live above it, repeated suspends leave the frames intact, a
-throw still propagates inside a coroutine, and many coroutines can be created and driven. This goal moves
-that spike into `nvs-host` and gives it a reactor; it does not re-litigate whether the spike works.
-
-## Stage 0 — the catch-up, and it is the containment rule
-
-[ADR 0106](../adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) was accepted after M4
-was reported done and it **amends ADR 0002**: containment moves outward from the helper to the worker
-task. Every mechanism this goal builds sits inside that boundary, so it goes first — a scheduler written
-against the old boundary is a scheduler whose panic path is wrong, and it is wrong in the place that is
-hardest to find later.
-
-1. **The worker task is the containment boundary, not the helper.** ADR 0106 §§ 1–3: `catch_unwind` wraps
-   the worker task; nothing on a teardown path may panic; teardown stops recursing. `nvs_runtime`'s
-   existing `catch_unwind` at the ABI is the inner boundary and stays — this is the outer one.
-   `crates/nvs-runtime/src/abi.rs:336` is the helper-body macro that owns the inner rule.
-2. **Every depth and duration a request can drive is bounded on the engine's own stack.** § 4. The
-   call-stack bound in ADR 0020 § 1 gains an engine-side counterpart, and a single helper gains one too.
-   This is the item that makes a memory cap mean anything later, and it is cheap now and expensive after
-   there are twenty helpers that can recurse.
-
-## Stage 0b — the catch-up, and it is calling a `Core` member by name
-
-[ADR 0063](../adr/0063-core-api-conventions.md) R2 was amended on 2026-08-29, after this goal opened:
-every `Core` parameter is callable by the `$name` [01-core-library.md](../spec/01-core-library.md)
-writes, and the trailing options bag by `options`, under exactly the rules a user-declared method already
-has ([ADR 0007](../adr/0007-explicit-type-system.md) § 5). It is catch-up for the same reason Stage 0 is —
-every case written in the meantime is written positional-only around a surface that is about to exist —
-and it comes *after* Stage 0 in this file because the run order inside the catch-up class is this file's
-order, and the containment rule is the one everything sits inside.
-
-**Nothing about any member changes.** No parameter is added, removed, reordered or renamed; the bag stays
-the bag. The items add a name to slots that already exist, and a check that the names are the spec's.
-
-28. **Every registry row names its parameters.** `pub names: &'static [&'static str]` on
-    `nvs_stdlib::registry::CoreMethod`, one per positional slot in `params` order, never the `$`; the bag
-    slot is not written per row — it is `options` uniformly, stated once on `CoreTy::Options`. The names
-    are the spec's signature column, and a `-p nvs-stdlib` test parses that column and holds every row to
-    it (`crates/nvs-stdlib/src/registry.rs`; the rows are the `params: &[` tables in
-    `crates/nvs-stdlib/src/*.rs`). Filling 341 rows by hand is the wrong spend: a scratch script that
-    reads the spec and emits one `splice.py --patch` is the shape, and the guard test is what reviews it.
-    `ParamDoc::name` stays as the description's key, and the existing doc-consistency test asserts it
-    equals the row's.
-29. **A `Core` member and the two synthesized signatures resolve a `name:`.**
-    `crates/nvs-types/src/core_lib.rs` reads the row's names into `MethodSig::param_names` (plus `options`
-    when the last parameter is a bag); `error_lib.rs`'s `Throwable` constructor becomes
-    `["message", "options"]`; `iter_lib.rs`'s bodiless members take the spec's. After that no producer
-    writes `None`: `param_names` becomes a `Vec`, `named_slot`'s `else` arm in
-    `crates/nvs-types/src/expr/args.rs` goes, and `E_NAMED_ARG_NO_PARAM_NAMES` (E0485) is retired the way
-    `nvs-diagnostics` retires a code — grep `E0485` across `tests/`, `crates/*/tests` and `docs/` first.
-    `crates/nvs-ir/src/lower/call.rs` reads `arg_slots` uniformly already; confirm with a scratch run
-    rather than by reasoning that a reordered name, a skipped defaulted positional (`defaults_of`) and a
-    name at `Str::format`'s variadic tail (`E_UNKNOWN_ARG_NAME`) all behave at a helper call. `nvs meta
-    --json` emits `names` for every row.
-30. **The cases.** One `core` case calling a static and an instance member by name out of order, a
-    defaulted positional skipped and the bag passed as `options:`, evaluation order shown by a
-    side-effecting argument as `tests/conformance/lang/a-named-argument-binds-by-name-and-a-spread-by-position.nvst`
-    does; one `error` case constructing a `Throwable` by `message:` alone and with
-    `options: {previous: …}`; one `reject` case where a misspelled name at a `Core` member and a name at a
-    variadic tail are both `E_UNKNOWN_ARG_NAME`. The docs are already written — ADR 0063 R2, ADR 0117, the
-    spec's *How to read an entry*, and the comments at each site above say "Stage 0b lands it"; landing it
-    means rewriting those comments to the present tense, not adding to them.
+Nothing. Goal 2 landed under compiled-in defaults deliberately, and picking those up is Stage 4's item 12
+rather than a catch-up: it is the *work*, not a debt.
 
 ## Stage 1 — the floor
 
-Goals 1 and M4's whole acceptance lists, inserted mechanically by `goal-switch.py`, **never traded.**
-`Core`'s pure half is finished and this goal does not touch it; a red check there is a regression.
+M4's, goal 1's and goal 2's whole acceptance lists, inserted mechanically by `goal-switch.py`, **never
+traded.**
 
-## Stage 2 — the keystone: `nvs-host`, the reactor, and the parking stream
+## Stage 2 — the registry and the tree
 
-**No task, no isolate and no `Core\Task` member is written until this stage is green.** Everything above
-is a consumer of it.
+The one file set the next four items share: a directive's declaration, and how a file becomes one.
 
-3. **`crates/nvs-host` exists, and one core runs one scheduler.** A per-core thread pinned to a CPU, a
-   run queue of coroutines, and a `Ctx` carrying the yielder — the shape `benches/abi-probe/src/lib.rs:100`
-   already models and calls "deliberately shaped like the real `Ctx` will be". Value refcounts stay
-   non-atomic because a heap is only ever touched by one thread, which is `design.md`'s decisive
-   structural choice and is what this crate must not break.
-4. **The reactor, and the parking stream.** Readiness for a descriptor, per platform, and a `NvsTcp` (and
-   its Unix-socket sibling) implementing `std::io::Read`/`Write` over it. **This is the item the whole
-   program rests on** — see § *Standing decisions* for its ADR slot, which is the first slice of this
-   stage rather than a follow-up to it.
-5. **Timers.** A timer wheel on the same reactor, because a deadline is what ADR 0072 § 3's
-   `{limit, deadline}` and ADR 0074 § 5's "no spelling for an unbounded wait" both resolve to. One
-   implementation; a sleep and a deadline are the same mechanism seen twice.
-6. **The blocking pool.** ADR 0106 § 6: filesystem calls, name resolution and waiting on a child process
-   go to a pool **bounded at twice the core count**, because they have no readiness to wait on. The bound
-   is per worker and never grows with requests served — that is the ADR's own footprint statement and it
-   is not a number to tune during the run.
-7. **The watchdog.** § 7: a thread reading the in-flight deadline each worker already maintains, reporting
-   a worker whose oldest request has passed it by a configured margin. It costs the hot path nothing
-   because it reads state the deadline mechanism keeps anyway — a heartbeat written per request is the
-   wrong implementation and the reason this item names the mechanism.
+1. **The directive registry, with three fields per directive.** The changeability class ADR 0005 already
+   defines, plus [ADR 0078](../adr/0078-config-reload-and-control-socket.md) § 2's **`Reload`/`Boot`
+   field, orthogonal to it** — and orthogonal is the item: reloadability is now the *only* thing that
+   makes a directive boot-only, and conflating the two is what that ADR exists to stop.
+2. **`nvs.toml` parses, and a duplicate or unknown key is refused.**
+   [ADR 0064](../adr/0064-configuration-file-format.md) §§ 1, 3. TOML via `serde`. § 2a is the block
+   list and names the ADR that argues each block's directives — including the four this milestone adds,
+   `[deferred]`, `[[schedule]]`, `[http.*]`, `[metrics]` and `[trace]`.
+3. **The configuration is a tree.** [ADR 0103](../adr/0103-configuration-is-a-tree-of-files.md) is the
+   only copy of the resolution order and the merge rules, and every one of them is a case: a root named by
+   repeatable `--config` else `./nvs.toml` else the shipped defaults (§ 1); `[[include]]` by `path` and by
+   `dir` (§ 2); one ordered stream where later wins (§ 3); a value array **replaces** where a `[[table]]`
+   **appends** (§ 4); a relative path resolves against the file it is written in (§ 5).
+4. **Ownership is the trust boundary.** § 6: any file in the tree that another account can write refuses
+   the boot. That is what makes an `optional` include safe and what makes every file in the tree equally
+   trusted — and `optional` covers *absence*, never unreadability, which is the distinction a naive
+   implementation loses.
+5. **`password_file` yields the file's content with one trailing newline stripped** (§ 7), the CLI flag
+   list is closed at the global layer (§ 8), and `nvs config check`/`nvs config dump` exist (§ 9).
+   `nvs ctl config` waits for goal 6's socket.
+6. **`[[app]]`, keyed on a canonicalized entry-file path.**
+   [ADR 0104](../adr/0104-an-application-is-an-entry-file-path.md): every matching block applies,
+   least-specific first (§ 2); a block may widen, bounded by the global ceiling (§ 3). An entry path
+   reaching an `[[app]]` root through `..` or a symlink **does not match it**, which is the same
+   canonicalise-then-compare rule item 10 needs and is written once.
 
-## Stage 3 — `spawn`, `await`, and the task tree
+## Stage 3 — the snapshot
 
-8. **`spawn` and `await` lower.** The grammar has `spawn script` since M1
-   (`nvs_syntax::ast::ExprKind::SpawnScript` at [ast.rs:931](../../crates/nvs-syntax/src/ast.rs)); the
-   task forms and their lowering are this item. A spawned task is a coroutine on the current core's queue.
-9. **Structured concurrency: a task tree dies with its parent.** No orphans, and **no call returns with a
-   child still running** — ADR 0072 § 4, which is the promise the rest of the roster is built on.
-10. **Cancellation runs no user code.** § 5, and it is the item most likely to be got wrong in the
-    obliging direction: native teardown runs, a cancelled task's `catch` and cleanup blocks **do not**, and
-    its arena is released. The guard is a case asserting exactly that, because the intuitive
-    implementation is the wrong one.
-11. **`Core\Task\Channel`, with backpressure.** A bounded channel whose send suspends. Same file set as
-    items 8–10.
+7. **The registry becomes an immutable `Arc<Config>` a request clones at start and reads for its whole
+   life.** [ADR 0078](../adr/0078-config-reload-and-control-socket.md) § 1. A request that started
+   before a swap reads the old value to completion; one started after reads the new. A malformed file
+   leaves the previous snapshot serving and **names the offending line**.
+8. **`Core\Config::set` is `ini_set`'s replacement, and its three outcomes are one rule.**
+   [ADR 0064](../adr/0064-configuration-file-format.md) § 5 and m6.md's *Verify*: above the `[limits]`
+   default succeeds and takes effect; above the `[limits.hard]` ceiling returns `false` with the previous
+   value intact; and either way it is invisible to the next request on the same core. The third clause is
+   the one an implementation on a shared mutable registry gets wrong.
+9. **`env_hash` lands, carried by both compiled-unit cache keys** — § 4. It is what stops an artifact
+   compiled against one extension set from ever being reused against another, and it is cheap now and a
+   cache-invalidation pass later.
 
-## Stage 4 — the `Core\Task` roster
+## Stage 4 — capabilities and limits
 
-12. **`Core\Task::all` over a shape literal of `fn` literals**, each field keeping its own type — ADR 0072
-    § 1. A field holding a `callable` *variable* rather than an `fn` literal is a **compile error**, which
-    is what makes the heterogeneous typing possible at all and is easy to leave out.
-13. **`Core\Task::map`**, subject-first, which is what `parallel_map` became — § 2.
-14. **`{limit, deadline}` is the one options shape**, in place of a `timeout` wrapper — § 3. `race` is
-    deferred with a named future spelling and is **not** in scope.
-15. **`Core\Task::afterResponse` and the `[deferred]` block** — §§ 6–7. The connection ends, the request
-    tree does not; and what happens when the deferred queue is full is a decision that ADR already took.
-    The `[deferred]` config block's *validation* is goal 3's, since the registry does not exist yet; what
-    lands here is the member and its behaviour under compiled-in defaults.
+10. **Capability enforcement at every syscall-touching stdlib entry point.** The mechanism is this stage's
+    ADR slot (§ *Standing decisions*); the *rule* is that a member either declares the capability it needs
+    or is proven not to need one, and Stage 6's test is what proves the set is closed. Path-bearing
+    capabilities resolve **canonicalise-then-prefix**, so a path reaching a granted root through `..` or a
+    symlink does not match — item 6 wrote that comparison once.
+11. **Safepoint-driven limit enforcement.** Memory and CPU caps terminate a runaway script as a `FATAL`,
+    reported to `Core\Fatal::onLimit` if registered and **never to an ordinary `catch`** —
+    [ADR 0020](../adr/0020-error-escalation-ladder.md). Safepoints have been emitted since the first
+    backend commit and goal 2's cancellation is their first consumer; this is the second.
+12. **The isolate's governance, which is goal 2's deferred half.** `script.spawn` with
+    canonicalise-then-prefix path resolution, `max_script_depth`, per-tree accounting of every `[limits]`
+    value, spawn-site sub-caps, and derivation of a child's overlay from its parent's *effective* config.
+    Two failures have their own names and both are easy to report as something else: a recursive spawn is
+    stopped by `max_script_depth` and reported **as that** rather than as an out-of-memory, and N
+    concurrent isolates cannot *together* exceed the tree's budget.
+13. **`fatal_reserve_memory`/`fatal_reserve_time` and `Core\Fatal::onLimit` registration.** ADR 0020: the
+    reserved slice a resource-limit `FATAL`'s handler runs with is carved out of the request's own budget
+    **at the same point these limits are set up**, which is why it is this item and not goal 4's.
 
-## Stage 5 — the graph copy, and both things carried by it
+## Stage 5 — the artifact cache
 
-16. **One graph copy, two carriers.** [ADR 0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md)
-    § 2: the deep-copy-or-move walk is written once and reached twice — as the value-crossing operation at
-    a `spawn worker`/`spawn script` boundary, and as `Core\Serialize`. Moving when the refcount is 1 is
-    not an optimisation here, it is the semantics.
-17. **`Core\Serialize::encode`/`decode`** — § 3, Novis's own closed byte format, versioned and
-    self-describing, with **no** `__serialize`/`__wakeup`/`__sleep` hook. `decode` is a **`tainted` sink**;
-    [01-core-library.md](../spec/01-core-library.md) § 13 holds the reasoning and it is not restated in
-    the implementation.
-18. **A `secret`-qualified value is refused at the boundary** unless it went through
-    `Core\Secret::reveal()` — [ADR 0033](../adr/0033-secret-qualifier-for-confidential-values.md).
-    Same walk, one check.
-19. **Bytes that are not Novis's own format are refused rather than partially accepted**, and so are bytes
-    naming a class whose declared properties no longer match. A partially-accepted graph is the type
-    confusion the sink exists to prevent.
+14. **[ADR 0042](../adr/0042-on-disk-artifact-cache-format.md), exactly as specified.** That ADR is a
+    finished design, not a starting point: § 1's fan-out directory of immutable content-addressed files,
+    § 2's file shape, § 3's **verify fully before a single page becomes executable**, § 4's one atomic
+    rename and **no lock file, ever**, § 6's piggybacked probabilistic eviction off the request path, and
+    § 7's `System`-class directives. A world-writable cache directory is refused.
+15. **A tampered artifact is rejected**, and § 5 is the one home for what the checksum defends against and
+    what it explicitly does not. Do not widen that claim in a doc comment.
 
-## Stage 6 — `spawn script`, and the isolate
+## Stage 6 — the closure test, and the boot-time validations
 
-20. **The `Isolate` type in `nvs-host`**, with its own arena, `Core` accessor backing state and config
-    overlay — [ADR 0006](../adr/0006-isolated-script-execution.md). It belongs in this goal rather
-    than later because an isolate is a task with a heap boundary, which is exactly what Stage 2 built.
-21. **The request tree and its shared budget**, § *Budgets are accounted at the root of the request tree*.
-    Enforcement of the *limits* is goal 3's; the accounting is this item's, and until then it runs under
-    compiled-in defaults.
-22. **`Core\Script::args()`, the top-level `return` contract, and the `ScriptResult` shape** — § *Failure
-    is a value, not an exception*, plus [ADR 0012](../adr/0012-no-superglobals.md). A child's uncaught
-    throw, its limit breach and a contained panic inside it all leave the parent running with `ok = false`.
-23. **The value-crossing refusals**: a closure, a reference and a resource are refused at the boundary, and
-    so is an unresolvable class. A cyclic argument crosses **without hanging**, which is the case that
-    catches a naive walk.
-24. **`output: capture|inherit`, `on: worker`, and cancellation of a child at its next safepoint.**
-    Safepoints are emitted already and have been since the first backend commit; this is the first consumer.
+16. **`every_capability_bearing_member_declares_its_capability`.** The set claim, checked over
+    `nvs-stdlib`'s own registry. **Its allowlist may never grow**; every entry is a bullet in
+    § *Standing decisions* with its reason, and adding one to make a run go green is the single move this
+    goal forbids outright. `crates/nvs-stdlib/src/registry.rs:490` is what a member's row may say and is
+    where the declaration goes.
+17. **The four new blocks refuse a bad boot, each per its own ADR's *Verification*.**
+    [ADR 0073](../adr/0073-scheduled-work-is-config.md): a `[[schedule]]` entry with no `scope`, a
+    malformed `cron`, a `script` outside `script.spawn`'s roots, or `scope = "fleet"` with no shared
+    store. [ADR 0074](../adr/0074-http-defaults-safe-and-finite.md): `origins = ["*"]` with
+    `credentials = true`, and `same_site = "None"` with `secure = false` — refused at boot **and by
+    `Core\Config::set` alike**, which is the clause that needs one implementation rather than two.
+18. **An adversarial suite.** m6.md's *Verify* is the list: a script attempting to widen a capability or
+    set a `System` directive fails; `spawn script` without `script.spawn` fails; a path outside the
+    granted roots fails including one reaching it through `..` or a symlink; a child cannot widen a
+    capability its parent narrowed.
 
-## Stage 7 — the testing surface the isolate unlocks
+## Stage 7 — the bundler
 
-25. **Every `#[Test]` runs in its own isolate**, sharing nothing but compiled code, with the runner owning
-    the test's task tree — [ADR 0079](../adr/0079-testing-is-a-language-feature.md) §§ 2, 12, 16. This
-    is what makes `nvs test` parallel, and it is here rather than at M4 because the isolate is here.
-26. **`#[Test(at:, seed:)]` puts the clock and the generator under the test's control.** Same ADR, same
-    sections. A test that is flaky because it read the wall clock is a test the language should have made
-    impossible.
+19. **`nvs build --compile`.** [ADR 0048](../adr/0048-portable-single-file-executables.md) is the only
+    copy of the scope, the source-not-precompiled-artifacts trade, and why bundling a web-serving
+    deployment is explicitly out of scope. It appends an entry file's statically-resolved `require` graph
+    to the host `nvs` binary as **plain source**, read back through Stage 5's cache with no new mechanism —
+    which is why it is this goal's last stage rather than its own goal.
+20. **A bundled executable runs identically to `nvs run` against the same source, on all three platforms.**
+    ADR 0048's own verification list.
 
-## Stage 8 — the numbers
+## The harness this goal owes
 
-27. **`benches/isolation.rs`, with the guard beside it.** Spawn-to-result for a trivial child on a warm
-    cache is **single-digit microseconds**, committed next to the process baseline it replaces, and it
-    sits alongside `an_os_process_costs_orders_of_magnitude_more_than_a_task` — which already exists and
-    must stay green. m5.md's *Verify* paragraph is the authority on the rest: 100k concurrent tasks, a
-    deliberate deadlock proving cancellation works, `Core\Task::map` near-linear across cores,
-    ThreadSanitizer clean.
+Two acceptance checks name a tool flag that does not exist yet, and writing it is part of the item
+rather than a follow-up to it. Neither is a new tool:
+
+- **`python tools/bench.py --warm-start --max-ms 10`** — m6.md's *Verify* names "warm-cache CLI startup
+  under 10 ms" and nothing measures it. Item 14's own number, and it belongs beside the cache it measures.
+- **`python tools/try.py --bundle <file> --expect <line>`** — item 20's "runs identically to `nvs run`",
+  which is a comparison rather than an assertion about one output.
 
 ## Acceptance
 
-**The checks live in [`2-concurrency.toml`](goals/2-concurrency.toml), and only there.**
+**The checks live in [`3-governance.toml`](goals/3-governance.toml), and only there.**
 
 ## Standing decisions — pre-authorized, do not stop the loop for these
 
-- **Decide and record; never `BLOCKED` for a design call.** Record it in the home AGENTS.md names — a
-  paragraph in `docs/adr/README.md` § *Decisions taken at project start*, or the crate's own module doc.
-- **Two ADR slots, and no others.** Each is the first slice of the stage that needs it:
-  - **The reactor and the parking stream** (Stage 2, item 4). What readiness mechanism each platform
-    uses, what the parking contract is, what a `WouldBlock` costs, and how a coroutine's stack is
-    accounted. This is the design four goals are written against and it may not live in a module comment.
-  - **The isolate heap boundary** (Stage 6, item 20). What an arena is, what it costs, and how a value
-    crosses — the parts ADR 0006 specifies as behaviour rather than as implementation.
-
-  Anything else is decided-and-recorded. Claim the next free ADR number by creating the file, and
-  **re-check it immediately before you do**: `python tools/brief.py` derives it from the directory.
-- **Stage 0b opens no ADR and changes no member.** ADR 0063 R2 already carries the rule; the names live
-  on the registry row (`CoreMethod::names`), the bag is `options`, and the guard is the spec's signature
-  column. Where a row's arity disagrees with the spec, the spec is authoritative for the *names* and the
-  registry for what is *built*: give the row the spec's names and leave its `params` alone, and put a
-  member whose shape the two genuinely disagree on in the handoff's Backlog — never a shape change.
-- **No `tokio`, and this is not a judgement call.** If a capability appears to require an async runtime,
-  that is a real `BLOCKED` naming the capability. Every other crate choice is yours under ADR 0051 § 4.
-- **A blocking-looking read parks; it never blocks the core.** If a syscall has no readiness to wait on,
-  it goes to item 6's pool. There is no third option, and "just this once" is how a core wedges.
-- **Cancellation runs no user code**, and this is not softened when a fixture looks like it wants a
-  `finally` to run. ADR 0072 § 5 decided it; the abandoned-generator rule M4 landed is a *different*
-  mechanism about a program that suspended itself, and the two are not unified.
-- **`race` does not exist**, and neither does a `timeout` wrapper. `{limit, deadline}` is the spelling.
-- **`Core\Http\Client` is not in this goal.** The transport it will use is — a TCP stream and `rustls`
-  over it — and the member surface, its address policy and its retry rules are goal 4's.
-- **The `[deferred]`, `[limits]` and `script.spawn` enforcement is goal 3's.** This goal runs under
-  compiled-in defaults and says so at each site, exactly as m5.md already does.
+- **Decide and record; never `BLOCKED` for a design call.**
+- **One ADR slot: the capability enforcement points** (Stage 4, item 10), and it is the first slice of
+  that stage. What a capability *is* at the point of a call, where the check sits so that no member can
+  route around it, what it costs on a hot path, and how the closure test in item 16 knows a member needs
+  one. ADRs 0051 and 0024 name capabilities constantly and none of them says where the check is; that gap
+  is why this slot exists. Anything else is decided-and-recorded.
+- **A path comparison is canonicalise-then-prefix, in one implementation.** Items 6, 10 and 12 all need
+  it. Writing it three times is how one of them ends up accepting a symlink.
+- **`Core\Config::set` above the hard ceiling returns `false`; it does not throw.** m6.md's *Verify* says
+  so and an implementation that throws is a different API.
+- **A limit breach is a `FATAL` and never reaches a `catch`.** ADR 0020 decided it. A fixture that wants
+  to catch one has found the rule, not a bug.
+- **The artifact cache is ADR 0042 as written.** If the implementation forces a different shape, record
+  *that* in the crate's module doc with the reason and put the redesign in `## Backlog` — do not start one
+  mid-run.
+- **No socket.** `nvs ctl` needs a long-running server and arrives in goal 6. `nvs config check` and
+  `nvs config dump` are this goal's and read the tree directly.
+- **Picking every dependency but the two the user named** stays pre-authorized under ADR 0051 § 4.
 
 ## What this goal does not touch
 
-`Core`'s pure half (goal 1, and it is the floor) — except that Stage 0b adds a name to every slot it
-already has, and changes no member's shape. Every capability-bearing `Core` member (goal 4) — the
-transport is not the client. The listener (goal 6). ADR 0018's `TRACE`/`PROFILE` safepoint bits, which
-have no consumer until an exporter exists; the three spawn-construct trace events wait with them, and
-m5.md already says so.
+Every capability-bearing `Core` **member** — that is goal 4, and this goal builds the gate rather than
+the thing behind it. The listener, the control socket and `[http.*]`'s *runtime* behaviour (goal 6; only
+its boot-time validation is here). ADR 0017's freeing of executable memory, which m6.md carries and which
+has no consumer until there is a long-running process to free it in — it goes in `## Backlog` if a
+session reaches it.
