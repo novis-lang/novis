@@ -100,8 +100,8 @@ const CAPTURE_DOC: MethodDoc = MethodDoc {
         },
     ],
     ret: "The captured output as a `Core\\Cli\\Text` — never a plain `string`, since those \
-          bytes have already been through the sink (ADR 0088 § 5) — and an empty carrier when \
-          `$fn` wrote nothing. Nothing `$fn` echoed reaches the sink below; re-emitting is a \
+          bytes have already been through the sink — and an empty carrier when `$fn` wrote \
+          nothing. Nothing `$fn` echoed reaches the sink below; re-emitting is a \
           visible `echo Core\\Out::capture(…)`, and a `Core\\Debug::dump` inside `$fn` is not \
           captured.",
     errors: &[ErrorDoc {

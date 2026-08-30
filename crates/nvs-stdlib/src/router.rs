@@ -105,8 +105,8 @@ pub(crate) const METHOD: CoreEnum = CoreEnum {
 /// [`METHOD`]'s reference card — ADR 0117.
 const METHOD_DOC: EnumDoc = EnumDoc {
     short: "The closed set of HTTP verbs a `#[Route]` may be declared under and a request may \
-            carry — ADR 0074's eight, safe ones first so that the four ADR 0096 § 4's CSRF check \
-            covers are the contiguous tail from `Post` on; `CONNECT` is deliberately absent.",
+            carry — eight of them, safe ones first so that the four the CSRF check covers are \
+            the contiguous tail from `Post` on; `CONNECT` is deliberately absent.",
     cases: &[
         CaseDoc {
             name: "Get",
@@ -165,8 +165,8 @@ pub(crate) const AUDIENCE: CoreEnum = CoreEnum {
 const AUDIENCE_DOC: EnumDoc = EnumDoc {
     short: "The one access decision `Core` names for `#[Access(allow: …)]`: a route open to \
             everyone is a name that resolves rather than a magic string, and the enum will not \
-            grow a second case, because a roster of access levels is the interpretation ADR 0096 \
-            refuses to hold.",
+            grow a second case, because a roster of access levels is an interpretation `Core` \
+            does not hold.",
     cases: &[CaseDoc {
         name: "Public",
         desc: "The route is open to every caller; every other decision is the application's own \
@@ -241,8 +241,8 @@ const PARAMS_DOC: ParamDoc = ParamDoc {
 /// `Core\Router::url`'s reference card — ADR 0117.
 const URL_DOC: MethodDoc = MethodDoc {
     short: "Builds the URL path of the route named `$name`, substituting `$params` into its \
-            `{captures}` and writing what is left over as a query string — ADR 0077 § 4's \
-            launderer for the URL-path sink, every value percent-encoded into its own segment.",
+            `{captures}` and writing what is left over as a query string — the launderer for \
+            the URL-path sink, every value percent-encoded into its own segment.",
     params: &[NAME_DOC, PARAMS_DOC],
     ret: "The path, `/users/42?page=2`, with an optional `{name?}` capture dropped when `$params` \
           omits it and a `{name...}` capture's own `/`s kept as structure.",
@@ -256,7 +256,7 @@ const URL_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Router::urlAbsolute`'s reference card — ADR 0117.
 const URL_ABSOLUTE_DOC: MethodDoc = MethodDoc {
-    short: "`url` with the mount's configured origin in front — ADR 0102 § 6's `[[app]] origin`, \
+    short: "`url` with the mount's configured origin in front — the `[[app]] origin` setting, \
             resolved before the request ran and never derived from a `Host` or \
             `X-Forwarded-Host` header.",
     params: &[NAME_DOC, PARAMS_DOC],
@@ -264,7 +264,7 @@ const URL_ABSOLUTE_DOC: MethodDoc = MethodDoc {
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "For everything `url` throws for, and when no origin is configured for the unit, \
-               since ADR 0102 § 6 refuses to derive one from a request header.",
+               since an origin is never derived from a request header.",
     }],
 };
 

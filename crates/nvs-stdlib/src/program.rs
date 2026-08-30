@@ -64,8 +64,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 const IMPLEMENTING_DOC: MethodDoc = MethodDoc {
     short: "Expands, at compile time, to an array literal of `new` expressions — one per \
             non-abstract class in the program implementing the interface `T` written as the \
-            type argument (ADR 0061 § 3). Nothing runs at run time, and the type argument is \
-            never optional: the call is always `Core\\Program::implementing<T>()`.",
+            type argument. Nothing runs at run time, and the type argument is never optional: \
+            the call is always `Core\\Program::implementing<T>()`.",
     params: &[],
     ret: "One fresh instance per implementing class, as an `array<T>`; an empty array when no \
           class implements `T`.",

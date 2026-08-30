@@ -353,9 +353,9 @@ pub const DURATION: CoreClass = CoreClass {
 
 /// `Core\Time\Duration::nanoseconds`'s reference card — ADR 0117.
 const DURATION_NANOSECONDS_DOC: MethodDoc = MethodDoc {
-    short: "Builds a `Duration` of exactly `$n` nanoseconds — the computed-count form of ADR \
-            0070's duration literal, and the member a literal such as `30s` itself reaches a \
-            value through.",
+    short: "Builds a `Duration` of exactly `$n` nanoseconds — the computed-count form of the \
+            duration literal, and the member a literal such as `30s` itself reaches a value \
+            through.",
     params: &[ParamDoc {
         name: "n",
         desc: "The count of nanoseconds; negative for a duration that runs backwards.",
@@ -400,7 +400,7 @@ const DURATION_MILLISECONDS_DOC: MethodDoc = MethodDoc {
 /// `Core\Time\Duration::seconds`'s reference card — ADR 0117.
 const DURATION_SECONDS_DOC: MethodDoc = MethodDoc {
     short: "Builds a `Duration` of `$n` seconds, for a count computed at run time; a constant \
-            one is ADR 0070's literal, `30s`.",
+            one is written as the literal `30s`.",
     params: &[ParamDoc {
         name: "n",
         desc: "The count of seconds; negative for a duration that runs backwards.",
@@ -481,7 +481,7 @@ const DURATION_WEEKS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\Duration::parse`'s reference card — ADR 0117.
 const DURATION_PARSE_DOC: MethodDoc = MethodDoc {
-    short: "Reads ADR 0070's duration literal grammar — `30s`, `1h30m`, `7d` — at run time, \
+    short: "Reads the duration literal grammar — `30s`, `1h30m`, `7d` — at run time, \
             through the one implementation the lexer uses for the source literal: the typed \
             form of `strtotime` for an exact offset arriving in a config value or a flag. It \
             accepts nothing else, so a `tainted` value comes out laundered.",
@@ -593,7 +593,7 @@ const DURATION_NEGATED_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\Duration::compareTo`'s reference card — ADR 0117.
 const DURATION_COMPARE_TO_DOC: MethodDoc = MethodDoc {
-    short: "Orders two durations by length and sign, as `Comparable` (ADR 0013) requires, so a \
+    short: "Orders two durations by length and sign, as `Comparable` requires, so a \
             shorter duration compares below a longer one and a negative one below every \
             positive one.",
     params: &[ParamDoc {
@@ -1293,7 +1293,7 @@ const INSTANT_SINCE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\Instant::compareTo`'s reference card — ADR 0117.
 const INSTANT_COMPARE_TO_DOC: MethodDoc = MethodDoc {
-    short: "Orders two instants on the timeline, as `Comparable` (ADR 0013) requires.",
+    short: "Orders two instants on the timeline, as `Comparable` requires.",
     params: &[ParamDoc {
         name: "other",
         desc: "The instant to compare against.",
@@ -2261,8 +2261,9 @@ const TIME_FROM_ISO_DOC: MethodDoc = MethodDoc {
 const TIME_PARSE_DOC: MethodDoc = MethodDoc {
     short: "Reads a civil date and time through a CLDR pattern and places it in `$zone`, \
             replacing `DateTime::createFromFormat` and `strptime`; a literal pattern is \
-            validated and planned at compile time (ADR 0057). A field the pattern does not \
-            name is left at the start of its range.",
+            validated and planned at compile time, so a malformed one is a compile error \
+            rather than a throw. A field the pattern does not name is left at the start of \
+            its range.",
     params: &[
         ParamDoc {
             name: "text",
@@ -2622,7 +2623,7 @@ const DATE_WITH_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\Date::compareTo`'s reference card — ADR 0117.
 const DATE_COMPARE_TO_DOC: MethodDoc = MethodDoc {
-    short: "Orders two dates on the calendar, as `Comparable` (ADR 0013) requires.",
+    short: "Orders two dates on the calendar, as `Comparable` requires.",
     params: &[ParamDoc {
         name: "other",
         desc: "The date to compare against.",
@@ -2924,7 +2925,7 @@ const TIME_OF_DAY_WITH_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\TimeOfDay::compareTo`'s reference card — ADR 0117.
 const TIME_OF_DAY_COMPARE_TO_DOC: MethodDoc = MethodDoc {
-    short: "Orders two clock readings within the day, as `Comparable` (ADR 0013) requires.",
+    short: "Orders two clock readings within the day, as `Comparable` requires.",
     params: &[ParamDoc {
         name: "other",
         desc: "The reading to compare against.",

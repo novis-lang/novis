@@ -212,8 +212,7 @@ const COMPILE_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "pattern",
-            desc: "The pattern text; a sink (ADR 0056), so a `tainted` string is refused at the \
-                   call.",
+            desc: "The pattern text; a sink, so a `tainted` string is refused at the call.",
             shape: &[],
         },
         ParamDoc {
@@ -243,7 +242,7 @@ const COMPILE_DOC: MethodDoc = MethodDoc {
           first use.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$pattern` does not compile under either of ADR 0056's two engines.",
+        desc: "`$pattern` compiles under neither the linear engine nor the backtracking one.",
     }],
 };
 
@@ -260,15 +259,15 @@ const MATCHES_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "pattern",
             desc: "A `Pattern` from `Core\\Regex::compile`, or a pattern string compiled with no \
-                   flags; the pattern is a sink (ADR 0056).",
+                   flags; the pattern is a sink, so a `tainted` string is refused at the call.",
             shape: &[],
         },
     ],
     ret: "`true` when the subject contains at least one match, `false` otherwise.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$pattern` does not compile under either of ADR 0056's two engines, or the \
-               backtracking engine exhausted its step budget against this subject.",
+        desc: "`$pattern` compiles under neither the linear engine nor the backtracking one, or \
+               the backtracking engine exhausted its step budget against this subject.",
     }],
 };
 
@@ -286,15 +285,15 @@ const MATCH_ALL_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "pattern",
             desc: "A `Pattern` from `Core\\Regex::compile`, or a pattern string compiled with no \
-                   flags; the pattern is a sink (ADR 0056).",
+                   flags; the pattern is a sink, so a `tainted` string is refused at the call.",
             shape: &[],
         },
     ],
     ret: "The matches in subject order; an empty array when the pattern matches nowhere.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$pattern` does not compile under either of ADR 0056's two engines, or the \
-               backtracking engine exhausted its step budget against this subject.",
+        desc: "`$pattern` compiles under neither the linear engine nor the backtracking one, or \
+               the backtracking engine exhausted its step budget against this subject.",
     }],
 };
 
@@ -312,7 +311,7 @@ const REPLACE_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "pattern",
             desc: "A `Pattern` from `Core\\Regex::compile`, or a pattern string compiled with no \
-                   flags; the pattern is a sink (ADR 0056).",
+                   flags; the pattern is a sink, so a `tainted` string is refused at the call.",
             shape: &[],
         },
         ParamDoc {
@@ -333,8 +332,8 @@ const REPLACE_DOC: MethodDoc = MethodDoc {
           `limit` is `0`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$pattern` does not compile under either of ADR 0056's two engines, or the \
-               backtracking engine exhausted its step budget against this subject.",
+        desc: "`$pattern` compiles under neither the linear engine nor the backtracking one, or \
+               the backtracking engine exhausted its step budget against this subject.",
     }],
 };
 
@@ -352,7 +351,7 @@ const REPLACE_WITH_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "pattern",
             desc: "A `Pattern` from `Core\\Regex::compile`, or a pattern string compiled with no \
-                   flags; the pattern is a sink (ADR 0056).",
+                   flags; the pattern is a sink, so a `tainted` string is refused at the call.",
             shape: &[],
         },
         ParamDoc {
@@ -373,8 +372,8 @@ const REPLACE_WITH_DOC: MethodDoc = MethodDoc {
           `limit` is `0`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$pattern` does not compile under either of ADR 0056's two engines, or the \
-               backtracking engine exhausted its step budget against this subject.",
+        desc: "`$pattern` compiles under neither the linear engine nor the backtracking one, or \
+               the backtracking engine exhausted its step budget against this subject.",
     }],
 };
 
@@ -391,7 +390,7 @@ const SPLIT_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "pattern",
             desc: "A `Pattern` from `Core\\Regex::compile`, or a pattern string compiled with no \
-                   flags; the pattern is a sink (ADR 0056).",
+                   flags; the pattern is a sink, so a `tainted` string is refused at the call.",
             shape: &[],
         },
         ParamDoc {
@@ -412,8 +411,8 @@ const SPLIT_DOC: MethodDoc = MethodDoc {
     ret: "The pieces in order; the whole subject as one piece when the pattern matches nowhere.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$pattern` does not compile under either of ADR 0056's two engines, or the \
-               backtracking engine exhausted its step budget against this subject.",
+        desc: "`$pattern` compiles under neither the linear engine nor the backtracking one, or \
+               the backtracking engine exhausted its step budget against this subject.",
     }],
 };
 
@@ -421,7 +420,8 @@ const SPLIT_DOC: MethodDoc = MethodDoc {
 const QUOTE_DOC: MethodDoc = MethodDoc {
     short: "Escapes every character either engine gives a meaning to in `$literal`, as \
             `preg_quote` does, so the result is a pattern matching that literal and nothing \
-            else — the launder for the pattern sink (ADR 0056 § 4).",
+            else — the launder for the pattern sink, so its result is accepted where a \
+            `tainted` string is not.",
     params: &[ParamDoc {
         name: "literal",
         desc: "The text to match literally.",
@@ -692,7 +692,7 @@ const MATCH_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "pattern",
             desc: "A `Pattern` from `Core\\Regex::compile`, or a pattern string compiled with no \
-                   flags; the pattern is a sink (ADR 0056).",
+                   flags; the pattern is a sink, so a `tainted` string is refused at the call.",
             shape: &[],
         },
         ParamDoc {
@@ -705,8 +705,8 @@ const MATCH_DOC: MethodDoc = MethodDoc {
     ret: "The first `Match`, or `null` when the pattern matches nowhere at or after `from`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$pattern` does not compile under either of ADR 0056's two engines, or the \
-               backtracking engine exhausted its step budget against this subject.",
+        desc: "`$pattern` compiles under neither the linear engine nor the backtracking one, or \
+               the backtracking engine exhausted its step budget against this subject.",
     }],
 };
 

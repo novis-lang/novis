@@ -68,8 +68,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// `Core\Secret::reveal`'s reference card — ADR 0117.
 const REVEAL_DOC: MethodDoc = MethodDoc {
     short: "Answers `$value` with the `secret` qualifier dropped, at the one call site where \
-            handing the secret over is the point — ADR 0033 § 3's named escape hatch, and the \
-            only way a `secret string` reaches a sink that refuses one.",
+            handing the secret over is the point — the one named escape hatch, and the only \
+            way a `secret string` reaches a sink that refuses one.",
     params: &[
         ParamDoc {
             name: "value",

@@ -2354,6 +2354,66 @@ mod tests {
         );
     }
 
+    /// A card states the fact, never the decision's file name.
+    ///
+    /// ADR 0117 § 1's card is reference documentation for someone writing
+    /// Novis, and it ships **raw** through `nvs meta --json`: `tools/
+    /// reference.py` rewrites citations on its way to the website, but that
+    /// consumer never sees the rewrite, so "throws as ADR 0056's two engines
+    /// require" reaches a reader who has no ADR tree and cannot follow it.
+    /// The rule is therefore on the card itself rather than on any renderer —
+    /// say *what is true*, and leave the reason to the Rust doc comment
+    /// directly above the card, which is where a contributor looks.
+    #[test]
+    fn no_registry_card_cites_an_adr() {
+        /// The citation as it is written in prose: the bare word, or the
+        /// possessive/section forms a card reaches for.
+        fn cites(text: &str) -> bool {
+            text.contains("ADR")
+        }
+
+        let mut cited = Vec::new();
+        let mut note = |place: String, text: &str| {
+            if cites(text) {
+                cited.push(format!("{place}: {text}"));
+            }
+        };
+        for class in CLASSES {
+            for method in class.members() {
+                let Some(doc) = method.doc else { continue };
+                let member = format!("{}::{}", class.name, method.name);
+                note(format!("{member} short"), doc.short);
+                note(format!("{member} ret"), doc.ret);
+                for param in doc.params {
+                    note(format!("{member} ${}", param.name), param.desc);
+                    for key in param.shape {
+                        note(format!("{member} ${}.{}", param.name, key.key), key.desc);
+                    }
+                }
+                for error in doc.errors {
+                    note(format!("{member} throws {}", error.error), error.desc);
+                }
+            }
+            for constant in class.constants {
+                note(format!("{}::{}", class.name, constant.name), constant.desc);
+            }
+        }
+        for declared in ENUMS {
+            let Some(doc) = declared.doc else { continue };
+            note(format!("{} short", declared.name), doc.short);
+            for case in doc.cases {
+                note(format!("{}::{}", declared.name, case.name), case.desc);
+            }
+        }
+        assert!(
+            cited.is_empty(),
+            "{} card field(s) cite an ADR, which `nvs meta --json` ships verbatim \
+             to a reader who has no ADR tree — state the fact instead:\n  {}",
+            cited.len(),
+            cited.join("\n  ")
+        );
+    }
+
     /// ADR 0117's card keys itself by ADR 0063 R2's names, so the two cannot
     /// be written independently: [`MethodDoc::params`] is one entry per
     /// positional parameter under the row's own [`CoreMethod::names`], then

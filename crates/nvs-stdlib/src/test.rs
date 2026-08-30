@@ -266,7 +266,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 const ADVANCE_DOC: MethodDoc = MethodDoc {
     short: "Moves the fixed clock a `#[Test(at: ...)]` declared forward by `$by`, so a test of \
             something that expires can reach the far side of the expiry without waiting — the \
-            mutator ADR 0079 § 12 declares beside the clock itself.",
+            one mutator that clock has.",
     params: &[ParamDoc {
         name: "by",
         desc: "The exact duration to move the clock forward; a negative one moves it back.",
@@ -288,9 +288,8 @@ const ADVANCE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Test::assertSame`'s reference card — ADR 0117.
 const ASSERT_SAME_DOC: MethodDoc = MethodDoc {
-    short: "Asserts `$actual` is identical to `$expected` under ADR 0090 § 3's identity — two \
-            objects are the same object and nothing else is — as PHPUnit's `assertSame` does, \
-            subject first.",
+    short: "Asserts `$actual` is identical to `$expected` — two objects are the same object \
+            and nothing else is — as PHPUnit's `assertSame` does, subject first.",
     params: &[
         ParamDoc {
             name: "actual",
@@ -321,8 +320,8 @@ const ASSERT_SAME_DOC: MethodDoc = MethodDoc {
 /// `Core\Test::assertEquals`'s reference card — ADR 0117.
 const ASSERT_EQUALS_DOC: MethodDoc = MethodDoc {
     short: "Asserts `$actual` equals `$expected` — identity everywhere except two objects, \
-            which are compared through `Comparable::compareTo` (ADR 0013) — as PHPUnit's \
-            `assertEquals` does, subject first.",
+            which are compared through `Comparable::compareTo` — as PHPUnit's `assertEquals` \
+            does, subject first.",
     params: &[
         ParamDoc {
             name: "actual",
@@ -515,8 +514,8 @@ const ASSERT_THROWS_DOC: MethodDoc = MethodDoc {
 /// `Core\Test::assertDoesNotThrow`'s reference card — ADR 0117.
 const ASSERT_DOES_NOT_THROW_DOC: MethodDoc = MethodDoc {
     short: "Runs `$body` and asserts it returns without throwing — the way out of the rule \
-            that a test asserting nothing fails (ADR 0079 § 20); the throw it judged is \
-            consumed, so only the assertion's own verdict propagates.",
+            that a test asserting nothing fails; the throw it judged is consumed, so only the \
+            assertion's own verdict propagates.",
     params: &[
         ParamDoc {
             name: "body",
@@ -544,7 +543,7 @@ const ASSERT_DOES_NOT_THROW_DOC: MethodDoc = MethodDoc {
 const EXPECT_FAILURE_DOC: MethodDoc = MethodDoc {
     short: "Runs `$body` and asserts that an assertion inside it failed, then discharges those \
             failures from the test's ledger — the one greppable spelling for a failure that \
-            was on purpose (ADR 0079 § 5), and the only way an entry ever leaves the ledger.",
+            was on purpose, and the only way an entry ever leaves the ledger.",
     params: &[ParamDoc {
         name: "body",
         desc: "The closure to run; what the ledger records decides the verdict, so a body that \

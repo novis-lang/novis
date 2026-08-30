@@ -203,7 +203,7 @@ const GROUP_ERRORS: &[ErrorDoc] = &[
 const ALL_DOC: MethodDoc = MethodDoc {
     short: "Runs every closure of the `$tasks` shape literal as a concurrent child task and \
             answers a shape with the same field names, each carrying that closure's own declared \
-            return type — ADR 0072's fixed, heterogeneous set.",
+            return type — a fixed, heterogeneous set decided where the call is written.",
     params: &[
         ParamDoc {
             name: "tasks",

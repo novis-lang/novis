@@ -694,8 +694,8 @@ const FILTER_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "predicate",
-            desc: "Called as `($value, $key)` per entry; a truthy answer, on ADR 0035's table, \
-                   keeps the entry.",
+            desc: "Called as `($value, $key)` per entry; a truthy answer keeps the entry, on \
+                   the same truthiness table `if` reads.",
             shape: &[],
         },
     ],
@@ -1851,8 +1851,8 @@ const AVERAGE_DOC: MethodDoc = MethodDoc {
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "The running total leaves its type's range or meets a `float` and a `decimal` in \
-               one array, as `sum` throws; or a `decimal` quotient falls outside ADR 0054 § 1's \
-               range.",
+               one array, as `sum` throws; or a `decimal` quotient falls outside what a \
+               `decimal` can hold.",
     }],
 };
 

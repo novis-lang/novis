@@ -105,8 +105,9 @@ pub(crate) const NORMAL_FORM_NAME: &str = r"Core\NormalForm";
 /// documented in the registry, and the simplest: one parameter, no options,
 /// nothing thrown.
 const LENGTH_DOC: MethodDoc = MethodDoc {
-    short: "Counts the graphemes in `$s` — user-perceived characters, ADR 0009's default unit — \
-            so a combining sequence counts once and this is never a byte count.",
+    short: "Counts the graphemes in `$s` — user-perceived characters, the unit every \
+            `Core\\Str` member counts in — so a combining sequence counts once and this is \
+            never a byte count.",
     params: &[ParamDoc {
         name: "s",
         desc: "The string to measure.",
@@ -613,7 +614,8 @@ pub const CLASS: CoreClass = CoreClass {
 /// `Core\Str::at`'s reference card — ADR 0117.
 const AT_DOC: MethodDoc = MethodDoc {
     short: "Answers the one character at `$index`, as `$s[$i]` and `mb_substr($s, $i, 1)` do — \
-            counted in graphemes, ADR 0009's default unit, and never a byte.",
+            counted in graphemes, the unit every `Core\\Str` member counts in, and never a \
+            byte.",
     params: &[
         ParamDoc {
             name: "s",

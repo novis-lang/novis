@@ -127,7 +127,7 @@ const DUMP_DOC: MethodDoc = MethodDoc {
             output.",
     params: &[ParamDoc {
         name: "values",
-        desc: "Any number of values, each rendered as ADR 0092's record: control bytes and bidi \
+        desc: "Any number of values, each rendered as a debug record: control bytes and bidi \
                made visible, a deep or long structure elided, a cycle marked, and a `secret` \
                property redacted.",
         shape: &[],
@@ -141,7 +141,7 @@ const DUMP_DOC: MethodDoc = MethodDoc {
 const RENDER_DOC: MethodDoc = MethodDoc {
     short: "Renders `$value` exactly as `dump` would and answers it as the carrier of the sink \
             in force instead of writing it, so a dump can be embedded in output and stays \
-            singly escaped (ADR 0088 § 5).",
+            singly escaped.",
     params: &[ParamDoc {
         name: "value",
         desc: "The value to render, walked as `dump` walks one.",
