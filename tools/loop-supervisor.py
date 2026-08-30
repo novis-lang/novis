@@ -246,12 +246,25 @@ def run_leg(argv) -> tuple[int, dict]:
 
     Stdio is **inherited, never captured**: `s` and `r` are read from the console by the driver,
     the status line is painted on the bottom row, and both stop working the moment anything sits
-    in between. That is the whole of what "the supervisor is invisible" means in practice."""
-    code = subprocess.run(argv, cwd=ROOT).returncode
+    in between. That is the whole of what "the supervisor is invisible" means in practice.
+
+    A Ctrl-C reaches the driver and this process at the same instant. The driver's handler writes
+    its ledger line and `run-end.json` -- with the sessions it served -- and needs more than the
+    quarter second `subprocess.run` would give it before killing the child, so this waits for it
+    and only then lets the interrupt go on up to `supervise`, which reads that file."""
+    proc = subprocess.Popen(argv, cwd=ROOT)
+    try:
+        proc.wait()
+    except KeyboardInterrupt:
+        try:
+            proc.wait(timeout=20)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        raise
     end = read_json(RUNEND, default={}) or {}
     if not end:
         end = {"kind": "unknown", "reason": f"{rel(RUNEND)} was not written", "served": 0}
-    return code, end
+    return proc.returncode, end
 
 
 # ------------------------------------------------------------------------------- the signals
@@ -608,6 +621,28 @@ def checkpoint(opts, since) -> int:
             "carrying them to the next checkpoint", C.GRAY)
         for s in fired:
             say(f"   - {s}", C.GRAY)
+        # Ledgered like the other two outcomes. This branch used to be silent, and a run whose
+        # every checkpoint took it left no trace that the cadence had fired at all.
+        loop.ledger(f"## supervisor checkpoint {datetime.now():%Y-%m-%d %H:%M} -- "
+                    f"{len(fired)} signal(s) after {since} session(s), carried: "
+                    + "; ".join(fired))
+        write_json(OPTSTATE, {**state, "since": since})
+        return since
+
+    dirty = git("status", "--porcelain").strip()
+    if dirty:
+        # Somebody is editing this tree by hand, which the loop allows. A pass over a dirty tree
+        # would mix their edits into its revert range, so it waits -- and the counter waits with
+        # it, so the next leg is one session long and this is asked again straight after. It does
+        # not reset: a pass deferred is not a pass taken. Checked before the baseline measurement
+        # below, which is a full `verify.py` and worth nothing if the pass is not going to run.
+        say(f"{len(fired)} signal(s) and the pass is due, but the tree is not clean -- "
+            "deferring it until the next leg boundary", C.YELLOW)
+        for s in fired:
+            say(f"   - {s}", C.GRAY)
+        loop.ledger(f"## supervisor checkpoint {datetime.now():%Y-%m-%d %H:%M} -- "
+                    f"{len(fired)} signal(s) after {since} session(s), pass DEFERRED: "
+                    f"the tree is not clean ({len(dirty.splitlines())} path(s))")
         write_json(OPTSTATE, {**state, "since": since})
         return since
 
@@ -620,6 +655,8 @@ def checkpoint(opts, since) -> int:
                 f"-- {verdict}")
     if verdict.startswith("BROKEN"):
         raise SystemExit(f"the optimization pass reported {verdict}")
+    if verdict.startswith("SKIPPED"):
+        return since  # not taken, so not spent -- the same deferral as the dirty-tree branch
     return 0
 
 
@@ -632,10 +669,26 @@ def leg_size(opts, remaining, since) -> int:
     return max(1, min(remaining, opts.probe_every, max(1, opts.optimize_every - since)))
 
 
+def credit(since, end) -> int:
+    """Add a leg's served sessions to the count since the last pass, and persist it.
+
+    The one write to `since` that is not a checkpoint's, so a checkpoint that finds nothing and
+    a leg that ends -- either way -- agree on the number the next checkpoint reads."""
+    since += int(end.get("served") or 0)
+    state = read_json(OPTSTATE, default={}) or {}
+    write_json(OPTSTATE, {**state, "since": since})
+    return since
+
+
 def supervise(opts, passthrough) -> int:
     served_total = 0
     since = int((read_json(OPTSTATE, default={}) or {}).get("since") or 0)
     leg = 0
+    # Everything this process says between legs -- the checkpoints above all -- was printed and
+    # kept nowhere: the driver's console log belongs to a leg, and a leg is over by then. One file
+    # per supervised run, on the same tee the driver uses, so "did the cadence fire" has a record.
+    LOGDIR.mkdir(parents=True, exist_ok=True)
+    loop.CONSOLE.open_run(LOGDIR / f"{stamp()}-supervisor.log")
 
     while served_total < opts.max_sessions:
         if STOP.exists():
@@ -647,12 +700,20 @@ def supervise(opts, passthrough) -> int:
         say("")
         say(f"== leg {leg}: up to {size} session(s), {remaining} of {opts.max_sessions} left",
             C.MAGENTA)
-        code, end = run_leg(child_argv(opts, passthrough, size))
+        before = read_json(RUNEND, default={}) or {}
+        try:
+            code, end = run_leg(child_argv(opts, passthrough, size))
+        except KeyboardInterrupt:
+            # The driver clears `run-end.json` when it starts and its Ctrl-C handler rewrites it
+            # with the sessions served, so a file that differs from the one seen going in is this
+            # leg's. Count those, then let the interrupt finish the run as before.
+            end = read_json(RUNEND, default={}) or {}
+            if end and end != before:
+                since = credit(since, end)
+            raise
         served = int(end.get("served") or 0)
         served_total += served
-        since += served
-        state = read_json(OPTSTATE, default={}) or {}
-        write_json(OPTSTATE, {**state, "since": since})
+        since = credit(since, end)
 
         if end.get("kind") != RESTARTABLE:
             say("")

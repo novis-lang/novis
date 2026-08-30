@@ -595,8 +595,10 @@ def main():
     pattern = f"{opts.run}-*.log" if opts.run else "*.log"
     # `<run>-console.log` is the driver's own record of the whole run -- stamped plain text, not
     # NDJSON, and not one session. It lives in the same directory so a run prunes as a unit; it is
-    # not a transcript, so it is not measured as one.
-    paths = sorted(p for p in LOGDIR.glob(pattern) if not p.name.endswith("-console.log"))
+    # not a transcript, so it is not measured as one. `<stamp>-supervisor.log` is the same thing
+    # one level up: what the supervisor said between legs.
+    paths = sorted(p for p in LOGDIR.glob(pattern)
+                   if not p.name.endswith(("-console.log", "-supervisor.log")))
     if not paths:
         sys.exit(f"no transcripts match {pattern} in {LOGDIR.relative_to(ROOT)}")
 

@@ -2141,6 +2141,11 @@ def git(*args):
 #:   blocked         a session wrote BLOCKED
 #:   stalled         --max-stalls sessions in a row produced no commit
 #:   interrupted     Ctrl-C
+#: How far the current run has got, for the one exit path that cannot see `drive`'s locals: the
+#: Ctrl-C handler in `main`. `drive` resets it when a run starts and bumps it per served session.
+PROGRESS = {"served": 0, "run_id": ""}
+
+
 def write_run_end(kind, reason, served=0, run_id=""):
     """Record why this run ended, machine-readably. Best effort: a run that ended for a real
     reason must not also fail on an unwritable `.loop`, so every error here is swallowed. A
@@ -2895,7 +2900,10 @@ def run_cli():
             C.YELLOW,
         )
         ledger(f"## run ended {datetime.now():%Y-%m-%d %H:%M} -- interrupted (Ctrl-C)")
-        write_run_end("interrupted", "interrupted (Ctrl-C)")
+        # With the count, not a bare verdict: the supervisor adds a leg's `served` to the sessions
+        # since the last optimization pass, and a leg cut short by Ctrl-C still served them.
+        write_run_end("interrupted", "interrupted (Ctrl-C)",
+                      PROGRESS["served"], PROGRESS["run_id"])
     finally:
         release_run()
     return 0
@@ -2951,6 +2959,7 @@ def drive(opts, goal, chain=None):
     # is what `--max-sessions` counts, and a session the account refused is not one of them.
     index = 0
     served = 0
+    PROGRESS.update(served=0, run_id=run_id)
     walls = 0
     wall = standing_limit()  # left standing by a driver killed or rebooted during one
     if wall:
@@ -3027,6 +3036,7 @@ def drive(opts, goal, chain=None):
         fails = 0
         walls = 0
         served += 1
+        PROGRESS["served"] = served
 
         line = STATUS.read_text(encoding="utf-8").strip() if STATUS.exists() else ""
         head_after = git("rev-parse", "HEAD")

@@ -55,6 +55,7 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 | `.loop/log.md` | Append-only ledger, one line per session: index, commit count, status. The human-readable run history. |
 | `.loop/logs/<run>-NNNN.log` | Full transcript of session NNNN as `stream-json` NDJSON, for when the ledger line is not enough. One JSON object per line. The `<run>` stamp is in the name because the session index restarts at 1 each run, and a name without it makes two runs' session 3 the same file. It also carries the **driver's** lines for that session — its `loop_console` and `loop_output` events are the acceptance check that judged it, verbatim — so one session's file answers both "what did the agent do" and "why was it not green". |
 | `.loop/logs/<run>-console.log` | The whole run as it appeared, plain text, **every line stamped to the millisecond**: driver phases, the rendered session transcripts, and the full stdout and stderr of every subprocess the driver ran. The console shows a green check as one line and a failed one as its first line; this file has all of it. Open this one first when a run went wrong. Not a transcript — `loop-stats.py` skips it. |
+| `.loop/logs/<stamp>-supervisor.log` | What the supervisor said *between* legs — every checkpoint, what fired, what it decided, and the rendered optimization pass when one ran — stamped the same way. One per supervised run, named by the supervisor's start. It exists because a leg's `console.log` is closed by the time a checkpoint speaks, and a cadence whose every decision went to the screen alone could not be shown to have fired. Not a transcript — `loop-stats.py` skips it. |
 | `.loop/logs/<run>-NNNN.subagents/` | Every subagent that session spawned, copied out of the harness's own transcript directory. A subagent's turns never appear in the parent's stream — only the call and the report it returned do — so without this a delegated read is a session that did a great deal with very few calls. Absent when nothing was delegated. |
 | `.loop/stop` | Create this file to halt the loop cleanly before the next session starts. Pressing `s` at the console does the same thing. |
 | `.loop/retry` | Create this to end a usage-limit wait immediately — the same as pressing `r`. Deleted as it is consumed, and cleared again when a wall goes up, so a request can only ever end the wait it was made during. |
@@ -315,6 +316,16 @@ rate) against the ~4% of the run a pass costs, and not much rests on it. The sig
 enough: a selector `orient.py` warns about, a duplicate `playbook.py --dupes` finds, a playbook bullet
 naming a path that is gone, a dead link, or `orient.py` failing outright. A pack that grew 20 KB since the
 last pass triggers one early, no sooner than `--min-pass-gap` (15) sessions after the last.
+
+Every checkpoint writes one `## supervisor checkpoint` line to `.loop/log.md`, whichever way it went:
+*clean* (nothing fired), *carried* (something fired, the count is not up yet, and the signals are named),
+or *DEFERRED* (the pass is due but the working tree is not clean — somebody is editing by hand, which the
+loop allows, and a pass over their edits would mix them into its revert range). A deferral keeps the
+count rather than resetting it: the next leg is one session long and the question is asked again at its
+end, so the pass runs at the first clean boundary instead of 25 sessions later. A pass that ran writes
+`## optimization pass … -- <verdict>` as well. Sessions a leg served before a Ctrl-C count too — the
+driver's interrupt handler reports them in `run-end.json` — so the cadence does not lose a leg to a hand
+on the keyboard. The line and the numbers are the evidence that the cadence fired; there is no other.
 
 The pass gets the measurements piped in on stdin, exactly as a work session gets its orientation pack and
 for the same measured reason: a result that size costs more fetched than piped. It chooses among findings
