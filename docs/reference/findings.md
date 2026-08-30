@@ -317,7 +317,12 @@ in that goal. An item's owner is the row it sits in.
 
 ## Named in the docs, absent from the registry (M)
 
-- [ ] **M1** `Core\Task::afterResponse` (spec § 19) — only `all` and `map` exist.
+- [x] **M1** `Core\Task::afterResponse` (spec § 19) — only `all` and `map` exist. Closed:
+      `nvs_stdlib::task`'s third row registers the closure and `nvs_runtime::deferred` runs it once
+      the request's own frame has returned, which is ADR 0072 § 6's "after the response" on a host
+      that has no response. Only the request's own task may register — a child's queue would be
+      drained by nobody — and that module's known gaps are § 7's `max_concurrent` and an isolate's
+      own drain, both of which need a host that holds more than one tree.
 - [ ] **M2** `Core\Fatal::onUncaughtThrow` (ADR 0020 § 2) — only `onLimit` exists.
 - [ ] **M3** ADR 0079's wider assertion roster (`assertStartsWith`, …) — `Core\Test` holds ten members.
 - [ ] **M4** `Core\Test\Failure` and `RecursionError` appear in no member card's `errors` list, only

@@ -1,0 +1,47 @@
+--TEST--
+Only the request's own task may `Core\Task::afterResponse`: a `Core\Task::all` child and deferred work itself are refused in the same words — ADR 0072 § 6
+--FILE--
+<?nvs
+// § 6's last bullet. The queue is the *request's*, so a child task has none,
+// and a registration made on one would be dropped where the child ended rather
+// than run — which is the failure a refusal at the call site exists to replace,
+// the request still being there to decide what to do about it.
+//
+// The two children below reach that refusal from opposite directions, one from
+// inside a group and one from inside deferred work, and what the case asserts
+// is that they *agree*: a member that grew a second answer for one of them
+// would still look right on that one's own line.
+var $fromGroup = Core\Task::all({
+    refusal: fn (): string => {
+        try {
+            Core\Task::afterResponse(fn (): void => {
+                echo "never\n";
+            });
+            return "accepted";
+        } catch (RuntimeError $e) {
+            return $e->message;
+        }
+    },
+});
+
+Core\Task::afterResponse(fn (): void => {
+    try {
+        Core\Task::afterResponse(fn (): void => {
+            echo "never either\n";
+        });
+        echo "deferred work was allowed to defer more\n";
+    } catch (RuntimeError $e) {
+        if ($e->message == $fromGroup->refusal) {
+            echo "both children refused, in the same words\n";
+        } else {
+            echo "the two refusals disagree\n";
+        }
+    }
+});
+
+echo "the response\n";
+echo "from a group child: ", $fromGroup->refusal, "\n";
+--EXPECT--
+the response
+from a group child: Core\Task::afterResponse: only the request's own task may defer work, and this is a child task — a `Core\Task` child, an isolate, or deferred work itself; hand it back to the request that started you
+both children refused, in the same words
