@@ -50,15 +50,19 @@ fn a_file_scope_type_mismatch_is_diagnosed() {
     );
 }
 
-/// `$this` has no meaning at file scope — there is no enclosing class,
-/// so it is an ordinary undeclared name rather than a special case.
+/// `$this` has no meaning at file scope — there is no enclosing class, and
+/// no receiver at all. It is `E0779` rather than the undeclared-name
+/// diagnostic for the reason that code's own doc gives: nothing a program
+/// writes declares `$this`, so a message about a missing declaration sends
+/// the reader looking for one to add. A `static` method's body reaches the
+/// same arm, which `tests/conformance/reject` pins.
 #[test]
-fn this_at_file_scope_is_an_undeclared_local() {
+fn this_at_file_scope_has_no_receiver() {
     let diags = check_src("<?nvs\necho $this;\n");
     assert!(
         diags
             .iter()
-            .any(|d| d.code == Some(code::E_UNDEFINED_VARIABLE)),
+            .any(|d| d.code == Some(code::E_THIS_WITHOUT_A_RECEIVER)),
         "{diags:?}"
     );
 }

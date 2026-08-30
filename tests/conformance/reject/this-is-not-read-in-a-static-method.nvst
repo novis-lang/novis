@@ -1,0 +1,25 @@
+--TEST--
+`$this` in a `static` method is refused rather than read, and the same body's own class name is still reachable — ADR 0008 § 1
+--FILE--
+<?nvs
+// A static method is entered with no receiver, so the checker declares no
+// `$this` in one (`crate::check`) and a read of it is E0779 rather than the
+// undeclared-name diagnostic: there is no declaration a program could add.
+class Config {
+    private int $size = 1;
+
+    // Declared `mixed` so that the recovery type `check_read` answers with
+    // satisfies it: the case pins the refusal, not the return-type mismatch a
+    // narrower declaration would cascade into.
+    public static function limit(): mixed {
+        return $this->size;
+    }
+}
+
+Config::limit();
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0779]: `$this` names the receiver of an instance method, and this body has none
+%A
+error: aborting due to 1 error

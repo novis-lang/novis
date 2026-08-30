@@ -31,7 +31,7 @@
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, code};
 use nvs_hir::{Module, QName};
 use nvs_syntax::ast::{
-    Block, ClassMember, ClassMemberKind, Expr, ExprKind, MemberName, MethodMember, Name,
+    Block, ClassMember, ClassMemberKind, Expr, ExprKind, MemberName, MethodMember, Modifier, Name,
     NamespaceDecl, NewTarget, Stmt, StmtKind,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -513,13 +513,16 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
 
     let mut scope = LocalScope::new();
     let mut live: FxHashSet<String> = FxHashSet::default();
-    if ctx.current_class.is_some() {
+    if ctx.current_class.is_some() && !m.modifiers.contains(&Modifier::Static) {
         // Seeded here rather than as an ordinary parameter: `$this` has no
         // `Param` node of its own to read a span from, and property/method
         // access on it (`crate::expr`) needs its type to be `self`'s class
-        // the same way an explicit `new Foo()` result is. Not gated on a
-        // `static` modifier — a static method's own body referencing `$this`
-        // is a distinct, unrelated diagnostic this slice doesn't add.
+        // the same way an explicit `new Foo()` result is. Gated on the
+        // `static` modifier because ADR 0008 § 1 keeps PHP's semantics for
+        // it: a static method is entered with no receiver, so `$this` in one
+        // is `E0779` from `expr::assign::check_read` rather than a binding —
+        // and `nvs_ir::lower::expr` panics on the read if it is not refused
+        // here.
         let this_ty = class_of_ctx(ctx, env);
         scope.declare_param("this".to_owned(), this_ty, m.name);
         live.insert("this".to_owned());

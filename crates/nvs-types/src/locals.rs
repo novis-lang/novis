@@ -208,6 +208,23 @@ impl LocalScope {
         Some(ty)
     }
 
+    /// Whether a receiver is in scope at all — `$this` declared by this body
+    /// (`crate::check` seeds it for a non-`static` method and for a property
+    /// hook) or reachable from an enclosing one.
+    ///
+    /// Deliberately *not* [`Self::declared_ty`], which records a capture as a
+    /// side effect: this question is asked by
+    /// `crate::expr::calls::infer_static_call` about a call that never
+    /// mentions `$this`, and answering it must not make a closure capture one
+    /// it does not use (ADR 0008 § 4).
+    pub(crate) fn holds_receiver(&self) -> bool {
+        self.by_name.contains_key("this")
+            || self
+                .captures
+                .as_ref()
+                .is_some_and(|c| c.available.contains_key("this"))
+    }
+
     /// The narrowed type a dominating `!= null` test proved for `name`, or
     /// `None` where nothing narrowed it.
     ///

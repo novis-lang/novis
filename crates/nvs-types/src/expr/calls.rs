@@ -241,12 +241,24 @@ pub(crate) fn infer_static_call(
                 report_unknown_member(expr.span, &qname, &name, "member", env);
             }
             // ADR 0063 R20's one genuinely reachable two-spellings case — see
-            // `report_core_instance_member`.
+            // `report_core_instance_member`. Its user-class sibling asks the
+            // narrower question `report_instance_method_called_statically`
+            // owns: `self::f()`/`parent::f()` from an instance method forward
+            // that frame's `$this` and are the ordinary spelling, so what is
+            // refused is a non-static target reached where no receiver is in
+            // scope — the frame `nvs_ir::lower::expr` would panic on. ADR
+            // 0027's `Class::method(...)` is not that frame and not a call:
+            // it names the method, and `Core\Attributes::get<T>(C::m(...))`
+            // folds it at check time without ever needing a receiver
+            // (`docs/reference/lang/90-attributes.md`).
             if let Some((owner, _, sig)) = &found
-                && owner.is_core()
                 && !sig.is_static
             {
-                report_core_instance_member(expr.span, owner, &name, env);
+                if owner.is_core() {
+                    report_core_instance_member(expr.span, owner, &name, env);
+                } else if !scope.holds_receiver() && !matches!(args, CallArgs::FirstClassCallable) {
+                    report_instance_method_called_statically(expr.span, owner, &name, env);
+                }
             }
             found
         }),

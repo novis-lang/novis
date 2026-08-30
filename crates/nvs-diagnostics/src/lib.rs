@@ -2335,6 +2335,49 @@ pub mod code {
     /// goal 3's, and it is what removes this code.
     pub const E_SPAWN_OPTION_UNSUPPORTED: Code = Code::new("E0777");
 
+    /// A user-declared class's non-static method reached through the class
+    /// name from a frame that holds no `$this` — `C::f()` at file scope, or
+    /// inside a `static` method of any class.
+    ///
+    /// [`E_CORE_INSTANCE_MEMBER_CALLED_STATICALLY`] is the same mistake
+    /// against a `Core` class, kept separate because its wording is ADR 0063
+    /// R20's one-spelling rule rather than this one's missing receiver. This
+    /// code is the sibling ADR 0008 § 1 asks for: `static` keeps PHP's
+    /// semantics unchanged, so a method without it is called on a value.
+    ///
+    /// `self::f()` and `parent::f()` from an *instance* method are not this —
+    /// they forward the frame's own `$this`, which is why the question asked
+    /// is whether one is in scope rather than how the call is spelled.
+    pub const E_INSTANCE_METHOD_CALLED_STATICALLY: Code = Code::new("E0778");
+
+    /// `$this` written where no receiver is in scope — a `static` method's
+    /// body, a plain function's, or the file scope.
+    ///
+    /// Separate from [`E_UNDEFINED_VARIABLE`] because `$this` is never
+    /// *declared* by anything a program writes: the fix is not an assignment
+    /// but a different method, so a message about a missing declaration would
+    /// send the reader looking for one to add.
+    pub const E_THIS_WITHOUT_A_RECEIVER: Code = Code::new("E0779");
+
+    /// `throw` of a value that is not a `Throwable` — a scalar, an `array<T>`,
+    /// an enum, or a class outside spec § 10's tree.
+    ///
+    /// The tree's root is what `catch` matches against and what
+    /// `nvs_ir::lower::exception` builds a landing pad for, so an operand
+    /// outside it has nothing to be caught by; the lowerer refuses to lower
+    /// one at all.
+    pub const E_THROW_OPERAND_NOT_THROWABLE: Code = Code::new("E0780");
+
+    /// `clone` of a value that can hold no object — ADR 0023 § 1 makes it "a
+    /// new instance of `$x`'s class", and a scalar, an `array<T>` or an enum
+    /// names no class to instantiate.
+    ///
+    /// An `array<T>` is the operand worth naming in the help rather than
+    /// merely refusing: it is already copied by assignment (ADR 0004's
+    /// copy-on-write), so the `clone` a reader reaches for is not missing but
+    /// unnecessary.
+    pub const E_CLONE_OPERAND_NOT_AN_OBJECT: Code = Code::new("E0781");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

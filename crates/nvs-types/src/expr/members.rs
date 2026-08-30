@@ -351,6 +351,63 @@ pub(crate) fn can_hold_an_object(ty: TypeId, interner: &TypeInterner) -> bool {
     }
 }
 
+/// ADR 0023 § 1's operand rule: `clone $x` is "a new instance of `$x`'s
+/// class", so a value that can hold no object names nothing to instantiate
+/// and `nvs_ir::lower::expr` panics rather than lowering one.
+///
+/// Asked through [`can_hold_an_object`] for the reason that predicate's own
+/// doc gives — only the types that provably cannot are refused, so `mixed`,
+/// `object` and a type variable keep the run-time behaviour they have.
+pub(crate) fn reject_non_object_clone(ty: TypeId, span: Span, env: &mut Env<'_>) {
+    if can_hold_an_object(ty, env.interner) {
+        return;
+    }
+    let described = env.interner.describe(ty);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_CLONE_OPERAND_NOT_AN_OBJECT,
+            format!("`clone` makes a new instance of a class, and `{described}` is not an object"),
+        )
+        .with_primary(span, "this value's type names no class to instantiate")
+        .with_help(
+            "an `array<T>` and a scalar are already copied when they are assigned (ADR 0004's \
+             copy-on-write), so there is nothing for `clone` to do — drop it (ADR 0023 § 1)",
+        ),
+    );
+}
+
+/// The same shape for `throw`, over the two ways an operand can fail to be a
+/// `Throwable`: a type that can hold no object at all, and a class outside
+/// spec § 10's tree.
+///
+/// The second half is what [`is_throwable_shaped`] answers for ADR 0033 § 4's
+/// constructor rule, asked here of the thrown value instead. `mixed` and
+/// `object` pass both, deliberately: the tree is what `catch` matches on at
+/// run time, and refusing a type this pass cannot decide would cost the
+/// rethrow shapes that carry one.
+pub(crate) fn reject_unthrowable(ty: TypeId, span: Span, env: &mut Env<'_>) {
+    let outside_the_tree = match class_qname_of(ty, env.interner) {
+        Some(qname) => !is_throwable_shaped(&qname, env.graph),
+        None => false,
+    };
+    if can_hold_an_object(ty, env.interner) && !outside_the_tree {
+        return;
+    }
+    let described = env.interner.describe(ty);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_THROW_OPERAND_NOT_THROWABLE,
+            format!("`throw` takes a `Throwable`, and `{described}` is not one"),
+        )
+        .with_primary(span, "thrown here")
+        .with_help(
+            "every class a `catch` can match descends from `Throwable` (the standard library's \
+             § 10 tree): throw a `RuntimeError`, a `LogicError` or one of your own classes \
+             extending one",
+        ),
+    );
+}
+
 /// The class or enum a resolved type names, if it names one at all — the
 /// receiver-type question every member-access/call arm below needs answered
 /// before it can look anything up in a [`crate::signatures::SignatureTable`].
@@ -1111,9 +1168,9 @@ pub(crate) fn report_unknown_member(
 /// parameter for its receiver — and that one reaches the helper with an empty
 /// argument slice.
 ///
-/// Reported for a `Core` class only. A user-declared class's non-static method
-/// called statically is PHP's own error, and belongs with the visibility rules
-/// this crate still owes rather than here.
+/// Reported for a `Core` class only — a user-declared class's is
+/// [`report_instance_method_called_statically`] beside it, which asks a
+/// different question for a different reason.
 pub(crate) fn report_core_instance_member(
     span: Span,
     qname: &QName,
@@ -1129,6 +1186,45 @@ pub(crate) fn report_core_instance_member(
         .with_help(format!(
             "write `$value->{name}(…)`; ADR 0063 R20 gives every `Core` operation exactly one \
              spelling"
+        )),
+    );
+}
+
+/// The same shape for a user-declared class, and the reason it is a separate
+/// refusal from [`report_core_instance_member`]: a `Core` instance member is
+/// refused *wherever* it is written statically, because ADR 0063 R20 gives it
+/// one spelling and the static one would reach the identical helper. A
+/// declared class's non-static method is refused only where the frame holds no
+/// `$this` — ADR 0008 § 1 keeps PHP's semantics for `static`, so `self::f()`
+/// and `parent::f()` inside an instance method are the ordinary forwarding
+/// spelling and stay legal.
+///
+/// Not a diagnostic the checker may skip: `nvs_ir::lower::expr` reads the
+/// enclosing frame's `$this` for a non-static target and panics when there is
+/// none, naming this function's absence as the cause.
+///
+/// ADR 0027's first-class callable `C::m(...)` is not one of those frames —
+/// it records a `CallableRef` and, as `Core\Attributes::get<T>`'s argument, is
+/// folded while checking — so the call site excludes it rather than this
+/// function testing for it.
+pub(crate) fn report_instance_method_called_statically(
+    span: Span,
+    qname: &QName,
+    name: &str,
+    env: &mut Env<'_>,
+) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_INSTANCE_METHOD_CALLED_STATICALLY,
+            format!("`{qname}::{name}()` is not `static`, so it is called on a value"),
+        )
+        .with_primary(
+            span,
+            "called through the class name, with no `$this` in scope",
+        )
+        .with_help(format!(
+            "call it on an instance — `$value->{name}(…)` — or declare `{name}` `static` if it \
+             needs no receiver"
         )),
     );
 }

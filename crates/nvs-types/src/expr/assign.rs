@@ -660,6 +660,26 @@ pub(crate) fn check_read(
             );
             env.interner.mixed()
         }
+        // `$this` is never declared by anything a program writes, so the
+        // undeclared-name wording below would send the reader looking for a
+        // declaration to add. `crate::check` seeds it for a non-`static`
+        // method and for a property hook; arriving here means the body has no
+        // receiver, which ADR 0008 § 1 makes an ordinary consequence of
+        // `static` rather than a mistake in the name.
+        None if name == "this" => {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_THIS_WITHOUT_A_RECEIVER,
+                    "`$this` names the receiver of an instance method, and this body has none",
+                )
+                .with_primary(span, "no `$this` in scope here")
+                .with_help(
+                    "a `static` method is entered through the class and not through a value: \
+                     drop `static`, or take what it needs as a parameter",
+                ),
+            );
+            env.interner.mixed()
+        }
         None => {
             env.diags.report(
                 Diagnostic::error(
