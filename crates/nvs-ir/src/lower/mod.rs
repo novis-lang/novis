@@ -673,9 +673,9 @@ pub fn lower_program(
                 // ADR 0071's field list, joined to this class's slot order — the
                 // one place both tables are in hand. A field the layout has no
                 // slot for is dropped rather than mis-indexed: `nvs_types::derive`
-                // has already reported the declaration that caused it (a promoted
-                // parameter is that module's gap 2), and guessing a slot here
-                // would write another property's value under this one's key.
+                // has already reported the declaration that caused it, and
+                // guessing a slot here would write another property's value under
+                // this one's key.
                 codec: exprs.codec(label).map_or_else(Vec::new, |codec| {
                     codec
                         .fields
@@ -691,6 +691,10 @@ pub fn lower_program(
                                 // this field's value as another parameter.
                                 param: field.param?,
                                 ty: field.ty,
+                                // The label rides down untouched; `nvs-codegen`
+                                // is the first place every descriptor exists,
+                                // so it is the one that can resolve it.
+                                class: field.class.clone(),
                                 nullable: field.nullable,
                             })
                         })

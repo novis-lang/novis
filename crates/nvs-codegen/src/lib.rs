@@ -610,7 +610,45 @@ impl Classes {
         for class in classes {
             out.define(class, &by_label);
         }
+        // ADR 0071 § 2's nested field names a class that may be defined after
+        // the one holding it — or be that same class, since § 2 makes
+        // recursion the data's problem rather than the table's — so the codec
+        // is joined only once every descriptor above exists.
+        out.link_codecs(classes);
         out
+    }
+
+    /// Fills in every class's ADR 0071 codec, with each nested field's
+    /// descriptor resolved — the pass [`nvs_runtime::ClassTable::set_codec`]'s
+    /// docs describe.
+    ///
+    /// A nested label this unit does not define leaves a null, which
+    /// `nvs_stdlib::json` reports as the internal error it is: the checker
+    /// refused an unreachable field type long before here
+    /// (`nvs_types::derive`'s `resolve_field_types`), so a miss is this join
+    /// disagreeing with itself rather than anything a program wrote.
+    fn link_codecs(&mut self, classes: &[nvs_ir::ir::Class]) {
+        for class in classes {
+            if class.codec.is_empty() {
+                continue;
+            }
+            let Some(id) = self.ids.get(&class.label).copied() else {
+                continue;
+            };
+            let nested: Vec<*const nvs_runtime::ClassDesc> = class
+                .codec
+                .iter()
+                .map(|field| {
+                    field
+                        .class
+                        .as_deref()
+                        .and_then(|label| self.ids.get(label).copied())
+                        .map_or(std::ptr::null(), |nested| self.table.desc(nested))
+                })
+                .collect();
+            self.table
+                .set_codec(id, class.codec.clone(), class.ctor_arity, nested);
+        }
     }
 
     fn define(&mut self, class: &nvs_ir::ir::Class, source: &FxHashMap<&str, &nvs_ir::ir::Class>) {
@@ -633,10 +671,6 @@ impl Classes {
             }
         }
         let id = self.table.define(&class.label, &class.fields, &parents);
-        if !class.codec.is_empty() {
-            self.table
-                .set_codec(id, class.codec.clone(), class.ctor_arity);
-        }
         if !class.defaults.is_empty() {
             self.table.set_defaults(id, class.defaults.clone());
         }

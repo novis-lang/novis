@@ -33,21 +33,27 @@
 //!
 //! # Known gaps
 //!
-//! 1. **A promoted constructor parameter is not a field**, because
-//!    [`crate::layout`] does not give one a slot yet (its own gap 1) and
-//!    [`crate::signatures`] does not record it as a property. ADR 0071 § 1's
-//!    own example is written with promotion, so this is the first thing to
-//!    close — until then a deriving class must declare its properties.
-//! 2. **A reachable type whose decoder is not written yet is still
+//! 1. **A reachable type whose decoder is not written yet is still
 //!    [`CodecTy::Opaque`].** § 2's compile-time refusal is applied — see
 //!    [`resolve_field_types`] — but it names only the types that can never
-//!    have a wire form. A `decimal`, an `Instant`, an enum, an `array<T>`, an
-//!    inline shape and a nested derived class are all *reachable* and all
-//!    erase to `Opaque` here, so a `decodeAs<T>` over one still refuses at run
-//!    time; the decoders they need are `nvs_stdlib::json`'s own gap, and
-//!    keeping the two apart is why this module refuses a type rather than
-//!    refusing an `Opaque`.
-//! 3. **`#[Db\Derive]`/`#[Db\Field]` resolve to nothing.** `Core\Db` is M8's,
+//!    have a wire form. A `decimal`, an `Instant`, an enum, an `array<T>` and
+//!    an inline shape are all *reachable* and all erase to `Opaque` here, so a
+//!    `decodeAs<T>` over one still refuses at run time; the decoders they need
+//!    are `nvs_stdlib::json`'s own gap, and keeping the two apart is why this
+//!    module refuses a type rather than refusing an `Opaque`.
+//!
+//!    **A nested class is no longer one of them.** It erases to
+//!    [`CodecTy::Class`] carrying [`DerivedField::class`], the label the
+//!    *declaration* can state; the descriptor it names is resolved by
+//!    `nvs-codegen`, after every class of the unit is defined, because § 2
+//!    admits a class holding a field of its own type and a table cannot point
+//!    at a descriptor it has not built. That split — a label out of the front
+//!    end, a pointer out of the back end — is what this design call decided,
+//!    against the alternative of a decoder that reads the class name off the
+//!    document; the document is untrusted and the checker has already named
+//!    the class, so asking it again would let the input choose which
+//!    constructor runs.
+//! 2. **`#[Db\Derive]`/`#[Db\Field]` resolve to nothing.** `Core\Db` is M8's,
 //!    so the two names are deliberately not in [`ATTRIBUTES`] yet: a closed
 //!    list that names something with no pass behind it is worse than a short
 //!    one.
@@ -202,6 +208,10 @@ pub struct DerivedField {
     /// What a decode has to produce for this field — the declared property
     /// type, erased to the closed roster a native decoder branches on.
     pub ty: CodecTy,
+    /// The nested class's label where [`Self::ty`] is [`CodecTy::Class`] —
+    /// the identity the erasure above drops, and the only half a front end can
+    /// state. `nvs-codegen` resolves it to a descriptor.
+    pub class: Option<String>,
     /// Whether the declared type admits `null` (ADR 0071 § 4's second column).
     pub nullable: bool,
     /// This field's position in the constructor's parameter list, or `None`
@@ -210,26 +220,38 @@ pub struct DerivedField {
     pub param: Option<usize>,
 }
 
-/// `declared`, erased to what a native decoder branches on.
+/// `declared`, erased to what a native decoder branches on, with the class
+/// label beside it where the erasure loses one.
 ///
 /// ADR 0071 § 2's codec-reachable set is wider than this: an enum, a
-/// `decimal`, an `Instant`, an `array<T>`, a nested derived class and an
-/// inline shape are all reachable and all land on [`CodecTy::Opaque`] today —
-/// `nvs_stdlib::json`'s own gap owns the decoders they still need, and § 2's
-/// compile-time refusal of a genuinely unreachable type is this module's
-/// gap 3. Nothing here narrows what *encodes*, which walks the value rather
-/// than the declared type.
-fn codec_ty(declared: TypeId, env: &Env<'_>) -> CodecTy {
+/// `decimal`, an `Instant`, an `array<T>` and an inline shape are all
+/// reachable and all land on [`CodecTy::Opaque`] today — `nvs_stdlib::json`'s
+/// own gap owns the decoders they still need, and § 2's compile-time refusal
+/// of a genuinely unreachable type is this module's gap 3. Nothing here
+/// narrows what *encodes*, which walks the value rather than the declared
+/// type.
+///
+/// A class is [`CodecTy::Class`] whether or not it turns out to carry a
+/// codec, because that is a question about the *whole program* — the class may
+/// be declared further down the file — and this runs inside the walk. It is
+/// [`resolve_field_types`] that refuses a class with no codec at all, and
+/// `nvs_stdlib::json` that reports ADR 0071 § 7's hand-written half, which no
+/// derived decoder calls yet.
+fn codec_ty(declared: TypeId, env: &Env<'_>) -> (CodecTy, Option<String>) {
     match env.interner.get(declared) {
-        Ty::Bool => CodecTy::Bool,
-        Ty::Int => CodecTy::Int,
-        Ty::Uint => CodecTy::Uint,
-        Ty::Float => CodecTy::Float,
+        Ty::Bool => (CodecTy::Bool, None),
+        Ty::Int => (CodecTy::Int, None),
+        Ty::Uint => (CodecTy::Uint, None),
+        Ty::Float => (CodecTy::Float, None),
         // A `tainted` string is still a string on the wire; ADR 0071 § 6 makes
         // the qualifier a call-site question, not a decoder one.
-        Ty::String | Ty::TaintedString => CodecTy::Str,
-        Ty::Mixed => CodecTy::Mixed,
-        _ => CodecTy::Opaque,
+        Ty::String | Ty::TaintedString => (CodecTy::Str, None),
+        Ty::Mixed => (CodecTy::Mixed, None),
+        // § 2's "another class that itself has a codec". The label is the one
+        // `crate::layout` keys on and `nvs_ir::lower::lower_file` joins
+        // through, so `nvs-codegen` can resolve it to a descriptor.
+        Ty::Class(name, _) => (CodecTy::Class, Some(name.to_string())),
+        _ => (CodecTy::Opaque, None),
     }
 }
 
@@ -418,17 +440,31 @@ pub(crate) fn check_class_derive(
     // Whether any property was *refused* rather than skipped — see the empty
     // contract check below, which a refusal must not also report.
     let mut refused = false;
+    // § 2's declaration order, over both spellings of a declaration: the
+    // members in the order they are written, and the constructor's promoted
+    // parameters at the point the constructor itself appears. Walking the
+    // members rather than concatenating two lists is what keeps the encode
+    // order the one a reader sees in the file.
     for member in &decl.members {
-        let ClassMemberKind::Property(p) = &member.kind else {
-            continue;
+        let fields: Vec<FieldDecl<'_>> = match &member.kind {
+            ClassMemberKind::Property(p) if p.modifiers.contains(&Modifier::Static) => {
+                continue; // ADR 0008: class storage, not instance storage
+            }
+            ClassMemberKind::Property(p) => vec![FieldDecl::property(p)],
+            ClassMemberKind::Method(m) if span_text(env.src, m.name) == CONSTRUCTOR => m
+                .params
+                .iter()
+                .filter(|p| p.is_promoted())
+                .map(FieldDecl::promoted)
+                .collect(),
+            _ => continue,
         };
-        if p.modifiers.contains(&Modifier::Static) {
-            continue; // ADR 0008: class storage, not instance storage
-        }
-        match codec_field(p, class, params, ctx, env) {
-            FieldOutcome::Kept(field) => codec.fields.push(field),
-            FieldOutcome::Skipped => {}
-            FieldOutcome::Refused => refused = true,
+        for field in fields {
+            match codec_field(&field, class, params, ctx, env) {
+                FieldOutcome::Kept(field) => codec.fields.push(field),
+                FieldOutcome::Skipped => {}
+                FieldOutcome::Refused => refused = true,
+            }
         }
     }
     // § 2's field list is the declared property list, so no property is an
@@ -449,9 +485,9 @@ pub(crate) fn check_class_derive(
             )
             .with_primary(attribute, "no declared property reaches the wire contract")
             .with_help(
-                "ADR 0071 § 2: the field list is the class's own declared instance properties \
-                 — declare one, or delete the attribute. A promoted constructor parameter is \
-                 not a property yet (this module's gap 1)",
+                "ADR 0071 § 2: the field list is the class's own declared instance properties, \
+                 written as properties or promoted in the `constructor` — declare one, or \
+                 delete the attribute",
             ),
         );
     }
@@ -511,16 +547,67 @@ enum FieldOutcome {
     Refused,
 }
 
-/// One property's [`DerivedField`], or why it is not one.
+/// One declaration, as ADR 0071 § 2's field list reads it.
+///
+/// A view rather than an enum over the two AST nodes, because § 2 asks a
+/// property and a promoted constructor parameter exactly the same four
+/// questions — what it is called, what it is declared, what modifiers it
+/// carries and what attributes are on it — and every difference between
+/// `public int $n;` and `constructor(public int $n)` is a difference in where
+/// those four were written, not in what they mean. That is ADR 0071 § 2's own
+/// "for a class written with promoted parameters the two lists are literally
+/// the same declaration", made true of this pass rather than assumed by it.
+struct FieldDecl<'a> {
+    /// `#[Json\Field(...)]` and whatever else was written on it.
+    attributes: &'a [AttributeGroup],
+    /// `readonly`, `lateinit`, a visibility — the same roster either way.
+    modifiers: &'a [Modifier],
+    /// The declared type, `None` only where the parser already reported its
+    /// absence.
+    ty: Option<&'a nvs_syntax::ast::Type>,
+    /// The name, `$`-sigil included — and the span every § 2 refusal points
+    /// at.
+    name: Span,
+}
+
+impl<'a> FieldDecl<'a> {
+    /// A property written in the class body.
+    fn property(p: &'a PropertyMember) -> Self {
+        Self {
+            attributes: &p.attributes,
+            modifiers: &p.modifiers,
+            ty: Some(&p.ty),
+            name: p.name,
+        }
+    }
+
+    /// A constructor parameter promoted to a property — ADR 0071 § 1's own
+    /// example, and the normal way a codec class is written.
+    ///
+    /// The position is not carried: [`check_constructor_parameter`] finds the
+    /// parameter by name in the same list this came out of, which is this
+    /// parameter itself, so a promoted field is the one case that check cannot
+    /// fail.
+    fn promoted(p: &'a Param) -> Self {
+        Self {
+            attributes: &p.attributes,
+            modifiers: &p.modifiers,
+            ty: p.ty.as_ref(),
+            name: p.name,
+        }
+    }
+}
+
+/// One declaration's [`DerivedField`], or why it is not one.
 fn codec_field(
-    p: &PropertyMember,
+    p: &FieldDecl<'_>,
     class: &QName,
     params: Option<&[Param]>,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> FieldOutcome {
     let name = strip_sigil(span_text(env.src, p.name)).to_owned();
-    let overrides = field_overrides(&p.attributes, ctx, env);
+    let overrides = field_overrides(p.attributes, ctx, env);
     if overrides.skip {
         return FieldOutcome::Skipped;
     }
@@ -542,7 +629,7 @@ fn codec_field(
         );
         return FieldOutcome::Refused;
     }
-    let declared = crate::lower::lower_type(&p.ty, ctx, env);
+    let declared = crate::lower::lower_optional_type(p.ty, ctx, env);
     // ADR 0071 § 6: ADR 0033's refusal, moved from wherever the value reached
     // the encoder to the declaration that put it on the wire contract.
     if is_secret(declared, env) {
@@ -559,7 +646,7 @@ fn codec_field(
         );
         return FieldOutcome::Refused;
     }
-    let param = check_constructor_parameter(p, &name, declared, params, ctx, env);
+    let param = check_constructor_parameter(p.name, &name, declared, params, ctx, env);
     let nullable = env.interner.is_nullable(declared);
     // The `null` arm is what nullability *is*, so the decode target is the
     // rest of the union — `?int` decodes an `int` or a JSON null, never a
@@ -578,10 +665,12 @@ fn codec_field(
         span: p.name,
         declared: carried,
     });
+    let (ty, class) = codec_ty(carried, env);
     FieldOutcome::Kept(DerivedField {
         key: overrides.name.unwrap_or_else(|| name.clone()),
         property: name,
-        ty: codec_ty(carried, env),
+        ty,
+        class,
         nullable,
         param,
     })
@@ -593,8 +682,15 @@ fn codec_field(
 /// Reports and returns the parameter's *position*, which is what a generated
 /// decoder fills; the field is recorded either way, so one bad property does
 /// not silently drop the rest of the wire contract.
+///
+/// A promoted parameter matches itself here, at its own position and its own
+/// type, so neither refusal below can fire for one — which is § 2's "for a
+/// class written with promoted parameters the two lists are literally the same
+/// declaration" costing nothing, rather than being a case this pass skips.
+///
+/// `at` is the declaration's own name span, which both refusals point at.
 fn check_constructor_parameter(
-    p: &PropertyMember,
+    at: Span,
     name: &str,
     declared: TypeId,
     params: Option<&[Param]>,
@@ -616,7 +712,7 @@ fn check_constructor_parameter(
                 code::E_DERIVE_FIELD_NOT_A_PARAMETER,
                 format!("`${name}` is a `#[Json\\Derive]` field with no constructor parameter"),
             )
-            .with_primary(p.name, "nothing decodes into this")
+            .with_primary(at, "nothing decodes into this")
             .with_help(
                 "ADR 0071 § 2: a decode is an ordinary `new`, so every field needs a \
                  same-named constructor parameter — add one, or write \
@@ -637,7 +733,7 @@ fn check_constructor_parameter(
             format!("`${name}` is declared `{want}` but its constructor parameter is `{got}`"),
         )
         .with_primary(param.name, format!("this is `{got}`"))
-        .with_secondary(p.name, format!("the property is `{want}`"))
+        .with_secondary(at, format!("the property is `{want}`"))
         .with_help(
             "ADR 0071 § 2: the decoder decodes into the property's declared type and passes \
              it to the constructor, so the two have to agree",

@@ -244,6 +244,17 @@ pub struct ClassDesc {
     /// `nvs_stdlib::json`'s encoder and decoder walk it. Filled by
     /// [`ClassTable::set_codec`].
     codec: Vec<CodecField>,
+    /// One entry per [`Self::codec`] field: the descriptor a
+    /// [`CodecTy::Class`] field decodes into, and a null pointer for every
+    /// other wire type.
+    ///
+    /// A parallel vector rather than a pointer inside [`CodecField`] because
+    /// that struct crosses three front-end crates that have no descriptor to
+    /// put there — the label they *can* write is [`CodecField::class`], and
+    /// this is the resolved half, filled by the same
+    /// [`ClassTable::set_codec`] call and on exactly [`Self::conforms`]'
+    /// terms.
+    codec_classes: Vec<*const ClassDesc>,
     /// How many parameters this class's `constructor` declares — what a
     /// derived *decoder* has to fill before it can run one, and zero for
     /// every class with no codec.
@@ -495,10 +506,19 @@ pub enum CodecTy {
     /// `mixed` — whatever the document held, unchecked
     /// ([ADR 0007](../../../docs/adr/0007-explicit-type-system.md)).
     Mixed,
-    /// A declared type this decoder has no case for yet — an `array<T>`, a
-    /// nested class, an enum, a `decimal`, an `Instant`. Encoding one still
-    /// works; decoding into one is `nvs_stdlib::json`'s own known gap, and it
-    /// faults naming the field rather than guessing a value.
+    /// Another class that carries a codec of its own — ADR 0071 § 2's "another
+    /// class that itself has a codec", decoded by running that class's own
+    /// field list over the nested JSON object.
+    ///
+    /// *Which* class is not in this enum, because a wire type is `Copy` and a
+    /// class identity is a pointer somebody has to resolve: the label rides on
+    /// [`CodecField::class`] and the descriptor it resolves to on
+    /// [`ClassDesc::codec_class`].
+    Class,
+    /// A declared type this decoder has no case for yet — an `array<T>`, an
+    /// enum, a `decimal`, an `Instant`. Encoding one still works; decoding
+    /// into one is `nvs_stdlib::json`'s own known gap, and it faults naming
+    /// the field rather than guessing a value.
     Opaque,
 }
 
@@ -523,6 +543,15 @@ pub struct CodecField {
     pub param: usize,
     /// What a decode has to produce for this field.
     pub ty: CodecTy,
+    /// The nested class's label when [`Self::ty`] is [`CodecTy::Class`], and
+    /// `None` for every other wire type.
+    ///
+    /// The *declaration* half of a nested field, which is all a front-end
+    /// crate can say: a descriptor does not exist until `nvs-codegen` has
+    /// defined every class of the unit, and a class may hold a field of its
+    /// own type. [`ClassTable::set_codec`] takes the resolved pointers beside
+    /// this list, and [`ClassDesc::codec_class`] reads one back.
+    pub class: Option<String>,
     /// Whether the declared type admits `null` — ADR 0071 § 4's second
     /// column, which is a property of the *type* and says nothing about
     /// whether the key may be absent.
@@ -691,6 +720,20 @@ impl ClassDesc {
         &self.codec
     }
 
+    /// The descriptor the `index`th codec field decodes into, or `None` where
+    /// that field is not a [`CodecTy::Class`] — see [`Self::codec_classes`].
+    ///
+    /// Indexed by position in [`Self::codec`] rather than reached through the
+    /// [`CodecField`] itself, because the field is shared with three crates
+    /// that hold no descriptor to put in it.
+    #[must_use]
+    pub fn codec_class(&self, index: usize) -> Option<*const ClassDesc> {
+        match self.codec_classes.get(index) {
+            Some(desc) if !desc.is_null() => Some(*desc),
+            _ => None,
+        }
+    }
+
     /// How many parameters this class's `constructor` declares — see
     /// [`Self::codec`]'s companion field.
     #[must_use]
@@ -814,6 +857,7 @@ impl ClassTable {
             conforms,
             methods: Vec::new(),
             codec: Vec::new(),
+            codec_classes: Vec::new(),
             ctor_arity: 0,
             defaults: Vec::new(),
             field_tags: Vec::new(),
@@ -907,20 +951,42 @@ impl ClassTable {
     /// Fills in `id`'s ADR 0071 derived-codec field list — see
     /// [`ClassDesc::codec`].
     ///
-    /// Separate from [`ClassTable::define`] only because the two facts come
-    /// from two different `nvs-ir` tables; unlike [`ClassTable::set_methods`]
-    /// there is no address to wait for, so `nvs-codegen` calls this straight
-    /// after defining the class.
+    /// Separate from [`ClassTable::define`] because the two facts come from
+    /// two different `nvs-ir` tables, and — unlike [`ClassTable::set_defaults`]
+    /// — because `classes` names descriptors this table may not have defined
+    /// yet: ADR 0071 § 2's nested field admits a class of the unit's own
+    /// making, its own type included, so `nvs-codegen` calls this in a second
+    /// pass over classes it has all defined rather than while defining one.
+    ///
+    /// `classes` is one entry per `codec` field, null except where the field's
+    /// [`CodecField::ty`] is [`CodecTy::Class`] — see
+    /// [`ClassDesc::codec_class`].
     ///
     /// # Panics
     ///
-    /// If `id` does not belong to this table.
-    pub fn set_codec(&mut self, id: ClassId, codec: Vec<CodecField>, ctor_arity: usize) {
+    /// If `id` does not belong to this table, or if `classes` is not one entry
+    /// per field — a length disagreement would decode one field into another
+    /// field's class, which builds an object out of the wrong constructor.
+    pub fn set_codec(
+        &mut self,
+        id: ClassId,
+        codec: Vec<CodecField>,
+        ctor_arity: usize,
+        classes: Vec<*const ClassDesc>,
+    ) {
         let desc = self
             .classes
             .get_mut(id.0)
             .expect("a class id always belongs to the table that handed it out");
+        assert!(
+            classes.len() == codec.len(),
+            "`{}` has {} codec field(s) but {} resolved nested class(es)",
+            desc.name,
+            codec.len(),
+            classes.len()
+        );
         desc.codec = codec;
+        desc.codec_classes = classes;
         desc.ctor_arity = ctor_arity;
     }
 

@@ -35,11 +35,6 @@
 //!
 //! # Known gaps
 //!
-//! * **A promoted constructor parameter claims no slot yet.**
-//!   [`crate::signatures`] does not record one as a property either (its own
-//!   known-gaps list), so this table is exactly as complete as the signature
-//!   table it must agree with — making the two disagree would be worse than
-//!   both being narrow.
 //! * **An enum has no entry.** ADR 0010 makes an enum a closed integer value
 //!   type, not an instance with fields.
 //! * **Only the classes declared in the files walked are present.** A `Core`

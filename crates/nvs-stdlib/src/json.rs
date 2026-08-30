@@ -70,18 +70,24 @@
 //!    band that starts at 1.8e19.
 //! 2. **A derived field's type roster is narrower than ADR 0071 § 2's.**
 //!    [`decode_field`] has a case for a `bool`, an `int`, a `uint`, a `float`,
-//!    a `string`, a `mixed` and a `?T` of any of them — the whole of
-//!    [`nvs_runtime::CodecTy`] but its last variant. An enum, a `decimal`, an
-//!    `Instant`, an `array<T>`, an inline shape and a nested derived class are
-//!    all codec-reachable by that ADR and all land on `CodecTy::Opaque`, which
-//!    [`decode_as`] refuses **before reading the document**, naming the field.
-//!    Encoding is unaffected: [`Encodable`] walks the value rather than the
-//!    declared type, so a field this cannot decode still round-trips out.
+//!    a `string`, a `mixed`, another derived class and a `?T` of any of them —
+//!    the whole of [`nvs_runtime::CodecTy`] but its last variant. An enum, a
+//!    `decimal`, an `Instant`, an `array<T>` and an inline shape are all
+//!    codec-reachable by that ADR and all land on `CodecTy::Opaque`, which
+//!    [`decode_as`] refuses **before reading the document** for the class it
+//!    was handed, and [`decode_field`] refuses on reaching it inside a nested
+//!    one. Encoding is unaffected: [`Encodable`] walks the value rather than
+//!    the declared type, so a field this cannot decode still round-trips out.
+//!
+//!    A nested class is the one that came off this list, and it is what makes
+//!    § 5's issue paths dotted: [`decode_nested`] runs the nested class's own
+//!    field list under a `address.` prefix, and its issues join the enclosing
+//!    object's rather than throwing where they were found.
 //! 3. **A parameter default does not make a key optional.** ADR 0071 § 4's
 //!    two default-bearing rows are unimplemented: an absent key is always
 //!    *required field missing*, and a `#[Json\Field(skip: true)]` property
 //!    that is also a constructor parameter leaves a position nothing fills,
-//!    which [`decode_object`] reports as an engine fault rather than passing
+//!    which [`decode_fields`] reports as an engine fault rather than passing
 //!    `null`. `nvs_types::defaults` evaluates a default into a constant the
 //!    *call site* emits, and a native decoder is not a call site — closing
 //!    this means carrying the constant onto `nvs_runtime::CodecField`.
@@ -1059,7 +1065,10 @@ unsafe fn decode_object(
     document: Value,
     at: Option<usize>,
 ) -> Result<Value, Fault> {
-    let fields = desc.codec();
+    let prefix = match at {
+        None => String::new(),
+        Some(index) => format!("{index}."),
+    };
     let Some(ptr) = document.array_ptr() else {
         let message = match at {
             None => format!(
@@ -1072,7 +1081,7 @@ unsafe fn decode_object(
                 desc.name()
             ),
         };
-        let issues = crate::issue::list([(path_of(at, None).as_str(), message.as_str())]);
+        let issues = crate::issue::list([(path_of(&prefix, None).as_str(), message.as_str())]);
         return Err(Fault::thrown_with_issues(
             ThrownClass::Parse,
             message,
@@ -1081,11 +1090,80 @@ unsafe fn decode_object(
     };
 
     let source = crate::arr::borrowed(ptr);
+    #[expect(
+        unsafe_code,
+        reason = "the same live descriptor, and a borrow of the document's own object"
+    )]
+    match unsafe { decode_fields(ctx, class, desc, &source, &prefix) } {
+        Ok(value) => Ok(value),
+        Err(DecodeFailure::Fault(fault)) => Err(fault),
+        Err(DecodeFailure::Issues(issues)) => Err(Fault::thrown_with_issues(
+            ThrownClass::Parse,
+            format!(
+                "Core\\Json::decodeAs(): {} field(s) of `{}` did not match",
+                issues.len(),
+                desc.name()
+            ),
+            crate::issue::list(
+                issues
+                    .iter()
+                    .map(|(path, message)| (path.as_str(), message.as_str())),
+            ),
+        )),
+    }
+}
+
+/// How one field, or one whole nested object, failed.
+///
+/// The two are not the same failure: ADR 0071 § 5 **accumulates** issues
+/// across an object's fields, so a nested object's issues have to travel back
+/// up and join the enclosing object's list rather than throwing where they were
+/// found — while a [`Fault`] is the decoder admitting a gap of its own and ends
+/// the decode wherever it happens.
+enum DecodeFailure {
+    /// ADR 0071 § 5 issues, each an already-rooted path and its message.
+    Issues(Vec<(String, String)>),
+    /// A fault that ends the whole decode — an engine gap, never the
+    /// document's doing.
+    Fault(Fault),
+}
+
+/// One object's fields decoded into its constructor's arguments, and the
+/// constructor run — ADR 0071 § 5's accumulate-then-construct, over an object
+/// whose JSON shape a caller has already checked.
+///
+/// `prefix` is what § 5's issue paths are rooted at: `""` at the top, `2.`
+/// inside a list's third element, `2.address.` inside that element's nested
+/// `address`. It is a string rather than an index because nesting is
+/// unbounded and a list position is only its first level.
+///
+/// # Safety
+///
+/// As [`decode_as`]'s, and `source` must be a borrow the caller keeps alive
+/// across the call.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+unsafe fn decode_fields(
+    ctx: &mut nvs_runtime::Ctx,
+    class: *const nvs_runtime::ClassDesc,
+    desc: &nvs_runtime::ClassDesc,
+    source: &NvsArray,
+    prefix: &str,
+) -> Result<Value, DecodeFailure> {
+    let fields = desc.codec();
     let mut ctor_args = vec![Value::null(); desc.ctor_arity()];
     let mut filled = vec![false; desc.ctor_arity()];
     let mut issues: Vec<(String, String)> = Vec::new();
-    for field in fields {
-        match decode_field(field, &source) {
+    for (index, field) in fields.iter().enumerate() {
+        #[expect(
+            unsafe_code,
+            reason = "the descriptor is the caller's, and a nested field's is one \
+                      `nvs-codegen` resolved out of the same class table"
+        )]
+        let outcome = unsafe { decode_field(ctx, desc, index, source, prefix) };
+        match outcome {
             Ok(value) => match ctor_args.get_mut(field.param) {
                 Some(slot) => {
                     *slot = value;
@@ -1107,35 +1185,29 @@ unsafe fn decode_object(
                     // that class, so a field naming a parameter it does not
                     // have is a generated table disagreeing with itself rather
                     // than anything a program can write.
-                    return Err(Fault::fatal(format!(
+                    return Err(DecodeFailure::Fault(Fault::fatal(format!(
                         "internal error: `{}`'s `{}` field names constructor parameter {} of {}",
                         desc.name(),
                         field.key,
                         field.param,
                         desc.ctor_arity()
-                    )));
+                    ))));
                 }
             },
-            Err(why) => issues.push((path_of(at, Some(&field.key)), why)),
+            // § 5's accumulation, and the one place a nested object's issues
+            // join the enclosing object's: they already carry their own rooted
+            // paths, so this is an append rather than a re-rooting.
+            Err(DecodeFailure::Issues(mut nested)) => issues.append(&mut nested),
+            Err(DecodeFailure::Fault(fault)) => {
+                release_all(&ctor_args);
+                return Err(DecodeFailure::Fault(fault));
+            }
         }
     }
 
     if !issues.is_empty() {
         release_all(&ctor_args);
-        let list = crate::issue::list(
-            issues
-                .iter()
-                .map(|(path, message)| (path.as_str(), message.as_str())),
-        );
-        return Err(Fault::thrown_with_issues(
-            ThrownClass::Parse,
-            format!(
-                "Core\\Json::decodeAs(): {} field(s) of `{}` did not match",
-                issues.len(),
-                desc.name()
-            ),
-            list,
-        ));
+        return Err(DecodeFailure::Issues(issues));
     }
     // ADR 0071 § 3's skipped field with a constructor default is the one shape
     // that leaves a position unfilled, and this crate has no way to
@@ -1145,39 +1217,68 @@ unsafe fn decode_object(
     // silently wrong for everything else.
     if let Some(index) = filled.iter().position(|done| !done) {
         release_all(&ctor_args);
-        return Err(Fault::fatal(format!(
+        return Err(DecodeFailure::Fault(Fault::fatal(format!(
             "Core\\Json::decodeAs(): `{}`'s constructor parameter {index} is not a codec \
              field, and a skipped field's default is `nvs_stdlib::json`'s own known gap",
             desc.name()
-        )));
+        ))));
     }
     #[expect(
         unsafe_code,
         reason = "the same live descriptor, and every argument is one this frame \
                   owns and hands over"
     )]
-    unsafe {
-        nvs_runtime::construct(ctx, class, &ctor_args)
-    }
+    unsafe { nvs_runtime::construct(ctx, class, &ctor_args) }.map_err(DecodeFailure::Fault)
 }
 
-/// One field's value, taken over, or the ADR 0071 § 5 issue message it failed
-/// with.
+/// The `index`th field of `owner`, taken over, or how it failed.
 ///
 /// ADR 0071 § 4's table, minus its two default-bearing rows: a parameter
 /// default is `nvs_types::defaults`' constant and no call site emits one here,
 /// so an absent key is always *required field missing* today.
-fn decode_field(field: &nvs_runtime::CodecField, source: &NvsArray) -> Result<Value, String> {
+///
+/// Takes the owning descriptor and a position rather than the
+/// [`nvs_runtime::CodecField`] alone because a nested field's class is
+/// [`nvs_runtime::ClassDesc::codec_class`]'s answer, indexed the same way —
+/// the field itself carries the label and never the descriptor.
+///
+/// # Safety
+///
+/// As [`decode_as`]'s, for `owner` and for the nested descriptor it hands out.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+unsafe fn decode_field(
+    ctx: &mut nvs_runtime::Ctx,
+    owner: &nvs_runtime::ClassDesc,
+    index: usize,
+    source: &NvsArray,
+    prefix: &str,
+) -> Result<Value, DecodeFailure> {
+    let field = &owner.codec()[index];
+    let issue = |why: String| DecodeFailure::Issues(vec![(path_of(prefix, Some(&field.key)), why)]);
     let Some(found) = source.get(field.key.as_bytes()) else {
-        return Err("required field missing".to_owned());
+        return Err(issue("required field missing".to_owned()));
     };
     if found.tag() == Some(Tag::Null) {
         if field.nullable {
             return Ok(Value::null());
         }
-        return Err("null is not permitted".to_owned());
+        return Err(issue("null is not permitted".to_owned()));
     }
     let converted = match field.ty {
+        // ADR 0071 § 2's nested class, decoded by running that class's own
+        // field list over this key's object — which is why § 5's paths are
+        // dotted in the first place.
+        CodecTy::Class => {
+            #[expect(
+                unsafe_code,
+                reason = "`nvs-codegen` resolved this out of the same class table \
+                          the owner came from, so it lives exactly as long"
+            )]
+            return unsafe { decode_nested(ctx, owner, index, found, prefix) };
+        }
         // A `mixed` field is exactly as checked as `mixed` ever is (ADR 0071
         // § 2), so whatever the document held is the value.
         CodecTy::Mixed => Some(found),
@@ -1196,14 +1297,26 @@ fn decode_field(field: &nvs_runtime::CodecField, source: &NvsArray) -> Result<Va
             .or_else(|| found.as_int().map(|number| number as f64))
             .map(Value::float),
         CodecTy::Str => (found.tag() == Some(Tag::Str)).then_some(found),
-        CodecTy::Opaque => None,
+        // Reachable only through a *nested* class, whose own fields
+        // [`decode_as`]'s pre-check never saw: an `Opaque` is a decoder this
+        // crate has not written yet, so it is an engine fault wherever it is
+        // met and never an issue in a list a program shows a user.
+        CodecTy::Opaque => {
+            return Err(DecodeFailure::Fault(Fault::fatal(format!(
+                "Core\\Json::decodeAs(): `{}`'s `{}` field has a declared type this decoder \
+                 has no case for yet — ADR 0071 § 2's wider codec-reachable set is \
+                 `nvs_stdlib::json`'s own known gap",
+                owner.name(),
+                field.key
+            ))));
+        }
     };
     let Some(value) = converted else {
-        return Err(format!(
+        return Err(issue(format!(
             "expected {}, found {}",
             wanted(field.ty),
             describe(found)
-        ));
+        )));
     };
     // Every arm above either built a fresh scalar or passed the document's own
     // value through; the pass-through arms are the ones that need a reference
@@ -1219,18 +1332,94 @@ fn decode_field(field: &nvs_runtime::CodecField, source: &NvsArray) -> Result<Va
     Ok(value)
 }
 
-/// ADR 0071 § 5's issue path for a field, rooted at the element it belongs to
-/// when the decode was a list's: `name` alone, or `2.name`.
+/// One field of a nested class decoded — ADR 0071 § 2's "another class that
+/// itself has a codec", run over the object this key holds.
+///
+/// The class is the compiler's answer and never the document's: the descriptor
+/// comes out of [`nvs_runtime::ClassDesc::codec_class`], which `nvs-codegen`
+/// resolved from the declared type. A decoder that read a class name out of
+/// the JSON would let untrusted input choose which constructor runs.
+///
+/// # Safety
+///
+/// As [`decode_as`]'s, for `owner` and for the descriptor it names at `index`.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+unsafe fn decode_nested(
+    ctx: &mut nvs_runtime::Ctx,
+    owner: &nvs_runtime::ClassDesc,
+    index: usize,
+    found: Value,
+    prefix: &str,
+) -> Result<Value, DecodeFailure> {
+    let field = &owner.codec()[index];
+    let Some(class) = owner.codec_class(index) else {
+        // Unreachable from source: `nvs_types::derive` refused a field type
+        // with no codec at the declaration, so a label with no descriptor is
+        // `nvs-codegen`'s join disagreeing with the class table it built.
+        return Err(DecodeFailure::Fault(Fault::fatal(format!(
+            "internal error: `{}`'s `{}` field decodes into `{}`, which this unit's class \
+             table has no descriptor for",
+            owner.name(),
+            field.key,
+            field.class.as_deref().unwrap_or("<unnamed>")
+        ))));
+    };
+    #[expect(unsafe_code, reason = "the descriptor `nvs-codegen` resolved is live")]
+    let desc = unsafe { &*class };
+    if desc.codec().is_empty() {
+        return Err(DecodeFailure::Fault(Fault::fatal(format!(
+            "Core\\Json::decodeAs(): `{}`'s `{}` field decodes into `{}`, which carries no \
+             derived codec — ADR 0071 § 7's hand-written half is `nvs_stdlib::json`'s own \
+             known gap",
+            owner.name(),
+            field.key,
+            desc.name()
+        ))));
+    }
+    let Some(ptr) = found.array_ptr() else {
+        return Err(DecodeFailure::Issues(vec![(
+            path_of(prefix, Some(&field.key)),
+            format!(
+                "expected an object for `{}`, found {}",
+                desc.name(),
+                describe(found)
+            ),
+        )]));
+    };
+    let source = crate::arr::borrowed(ptr);
+    #[expect(
+        unsafe_code,
+        reason = "the resolved descriptor, and a borrow of the document's own object"
+    )]
+    unsafe {
+        decode_fields(
+            ctx,
+            class,
+            desc,
+            &source,
+            &format!("{prefix}{}.", field.key),
+        )
+    }
+}
+
+/// ADR 0071 § 5's issue path for a field, rooted at whatever encloses it:
+/// `name` alone at the top, `2.name` inside a list's third element,
+/// `2.address.city` inside that element's nested `address`.
+///
+/// `prefix` is that rooting, dot-terminated where it is not empty, so a field
+/// path is one concatenation. With no field it names the enclosing object
+/// itself, which is the prefix with its trailing dot dropped.
 ///
 /// The dotted spelling is the one the § 5 example already uses for a nested
 /// field, so a caller walking a list's issues reads the same path grammar it
 /// reads for `address.city`.
-fn path_of(at: Option<usize>, field: Option<&str>) -> String {
-    match (at, field) {
-        (None, None) => String::new(),
-        (None, Some(key)) => key.to_owned(),
-        (Some(index), None) => index.to_string(),
-        (Some(index), Some(key)) => format!("{index}.{key}"),
+fn path_of(prefix: &str, field: Option<&str>) -> String {
+    match field {
+        Some(key) => format!("{prefix}{key}"),
+        None => prefix.strip_suffix('.').unwrap_or(prefix).to_owned(),
     }
 }
 
@@ -1244,6 +1433,9 @@ const fn wanted(ty: CodecTy) -> &'static str {
         CodecTy::Float => "float",
         CodecTy::Str => "string",
         CodecTy::Mixed => "mixed",
+        // Never reached through a field: `decode_nested` names the class
+        // itself, which is what the reader wrote. Here for the roster.
+        CodecTy::Class => "an object",
         CodecTy::Opaque => "a decodable type",
     }
 }
