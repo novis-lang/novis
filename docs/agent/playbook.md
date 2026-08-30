@@ -1019,9 +1019,11 @@ is why" — is this file.
   test fakes are where the question actually gets asked.** ADR 0104 § 1 needs a canonical path
   *without* § 6's trust check, so `nvs_config::resolve::Files` gained `canonical` beside `trust`
   and `Disk` routes both to `trust.rs`. The cost that is easy to miss: the two existing fakes in
-  `tests/resolve.rs` and `tests/secret.rs` stop compiling until each grows the method, and a fake
+  `crates/nvs-config/tests/resolve.rs` and `crates/nvs-config/tests/secret.rs` stop compiling until
+  each grows the method, and a fake
   that answers it *lexically* silently makes every case a statement about paths no symlink was
-  involved in — `tests/resolve.rs`'s `Fake::exists` had to follow links too, because the real
+  involved in — `crates/nvs-config/tests/resolve.rs`'s `Fake::exists` had to follow links too,
+  because the real
   `Path::exists` `stat`s rather than `lstat`s and an include naming a symlink was otherwise
   `E0605`. Grep `impl <Trait> for` before adding a method, and give the fake the resolving
   behaviour rather than the identity one.
@@ -1365,7 +1367,7 @@ is why" — is this file.
   `icacls <path> /remove:g "<the account>"` for `<repo>\nvs.toml` **and** for `<repo>` itself, since the
   containing directory carries the same rule. Account names are localized — `icacls <path>` prints the
   spelling this machine uses. Ask the user before changing a machine's ACLs; a scratch tree under
-  `%TEMP%` passes the check as it is, which is where `tests/trust.rs` works.
+  `%TEMP%` passes the check as it is, which is where `crates/nvs-config/tests/trust.rs` works.
 
 ## Writing a test case
 
@@ -1532,7 +1534,8 @@ is why" — is this file.
   rather than duplicating it: `nvs-runtime` registers `budget::Accounting` in every `not(test)` build,
   debug included, and a second global allocator in the test file is
   `error: the #[global_allocator] in this crate conflicts with global allocator in: nvs_runtime`.
-  `crates/nvs-codegen/tests/{arrays,closures,throwing}.rs` and
+  `crates/nvs-codegen/tests/arrays.rs`, `crates/nvs-codegen/tests/closures.rs`,
+  `crates/nvs-codegen/tests/throwing.rs` and
   `crates/nvs-stdlib/tests/allocation_policy.rs` all read the shared counters now; they keep their
   `#[cfg(debug_assertions)]` gates, but only because their numbers are pinned against an unoptimized
   build's inlining, never because a counter is missing.
