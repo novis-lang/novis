@@ -267,10 +267,10 @@ pub fn resolve_program(
                 // on the command line as `tests/main.nvs` has a relative,
                 // as-typed parent; every other file in the graph was already
                 // loaded by its canonical path.
-                let canonical_base = base_dir.canonicalize().ok();
+                let canonical_base = canonicalize(&base_dir);
                 for (literal, span) in targets {
                     let target = base_dir.join(&literal);
-                    let Ok(canonical) = target.canonicalize() else {
+                    let Some(canonical) = canonicalize(&target) else {
                         diags.report(
                             Diagnostic::error(
                                 code::E_REQUIRE_TARGET_NOT_FOUND,
@@ -431,7 +431,24 @@ pub fn resolve_program(
 }
 
 fn canonical_path(src: &SourceFile) -> Option<PathBuf> {
-    src.path().and_then(|p| p.canonicalize().ok())
+    src.path().and_then(canonicalize)
+}
+
+/// The canonical form of a path the graph walk is about to key a file on.
+///
+/// One function rather than a bare `Path::canonicalize` because a bundled
+/// executable has no filesystem to canonicalize against: its payload *is* the
+/// closed world ([ADR 0048](../../../docs/adr/0048-portable-single-file-executables.md)
+/// § 4), so `nvs_diagnostics::embedded` answers first and a path it does not
+/// carry is exactly as unloadable as a missing file — which is § 3's rule, and
+/// it arrives here as the same `E_REQUIRE_TARGET_NOT_FOUND` an ordinary run
+/// would report. Outside a bundle the table is empty and this is the syscall it
+/// always was.
+fn canonicalize(path: &Path) -> Option<PathBuf> {
+    if nvs_diagnostics::embedded::is_active() {
+        return nvs_diagnostics::embedded::canonicalize(path);
+    }
+    path.canonicalize().ok()
 }
 
 /// Reports a `require` whose literal path resolved only because the

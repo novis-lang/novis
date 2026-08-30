@@ -27,6 +27,7 @@
 //! ```
 
 mod diagnostic;
+pub mod embedded;
 mod render;
 mod source;
 mod span;

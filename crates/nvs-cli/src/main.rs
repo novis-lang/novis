@@ -22,6 +22,12 @@
 //!   generates from the compile-time route table, on standard output. A build
 //!   artifact and never a runtime feature; see [`openapi`] for what the table
 //!   supplies and what it does not yet.
+//! * `nvs build --compile` (M6) —
+//!   [ADR 0048](../../../docs/adr/0048-portable-single-file-executables.md)'s
+//!   portable single-file executable: the program's `require` graph as plain
+//!   source, appended to a copy of this binary. Also the one subcommand this
+//!   binary can *be*: a copy carrying that payload runs it instead of parsing
+//!   arguments at all; see [`bundle`].
 //! * `nvs api diff <old.json> <new.json>` — the same ADR's § 4 gate over two
 //!   finished documents: breaking, additive or cosmetic per change, non-zero
 //!   exit on a breaking one. It compiles nothing, because the old side of a
@@ -82,6 +88,7 @@ use nvs_diagnostics::{Diagnostics, Renderer, SourceMap};
 use nvs_syntax::{check_declarations, parse_file};
 
 mod api_diff;
+mod bundle;
 mod cache;
 mod config;
 mod info;
@@ -199,18 +206,29 @@ enum Command {
     },
     /// Produce a build artifact from a checked program.
     ///
-    /// One artifact so far, and `--openapi` is required rather than defaulted:
-    /// `nvs build` with nothing named would be a subcommand that succeeds
-    /// having done nothing, and the flag is how the next artifact joins without
+    /// Two artifacts, and naming one is required rather than defaulted: `nvs
+    /// build` with nothing named would be a subcommand that succeeds having
+    /// done nothing, and the group is how the next artifact joins without
     /// changing what this invocation means
     /// ([ADR 0085](../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)
-    /// § 3 spells the whole command).
+    /// § 3 spells the OpenAPI command,
+    /// [ADR 0048](../../../docs/adr/0048-portable-single-file-executables.md)
+    /// § 5 the bundle).
+    #[command(group = clap::ArgGroup::new("artifact").required(true).args(["openapi", "compile"]))]
     Build {
         /// The entry point of the program to build.
         file: PathBuf,
         /// Write ADR 0085's OpenAPI 3.1 document to standard output.
-        #[arg(long, required = true)]
+        #[arg(long)]
         openapi: bool,
+        /// Write ADR 0048's portable single-file executable: this program's
+        /// `require` graph as source, appended to a copy of the `nvs` host
+        /// binary.
+        #[arg(long)]
+        compile: bool,
+        /// Where to write the executable (default: the entry file's stem).
+        #[arg(short = 'o', long, value_name = "PATH", requires = "compile")]
+        output: Option<PathBuf>,
     },
     /// Work with the API document `nvs build --openapi` produces.
     ///
@@ -340,6 +358,14 @@ impl From<FaultSiteArg> for nvs_runtime::FaultSite {
 }
 
 fn main() -> ExitCode {
+    // ADR 0048 § 4, and it happens before clap sees anything: a bundled
+    // executable's `argv` belongs to the program it carries, so an app whose
+    // first argument is `run` or `--help` must not have it read as one of
+    // ours. An ordinary `nvs` finds no footer and falls straight through.
+    if let Some(payload) = bundle::embedded() {
+        return bundle::run(payload);
+    }
+
     let cli = Cli::parse();
 
     // `-i` and a subcommand are two requests, and guessing which one was
@@ -373,7 +399,18 @@ fn main() -> ExitCode {
             php,
             format,
         } => run_test(&paths, filter, php, format),
-        Command::Build { file, openapi } => run_build(&file, openapi),
+        Command::Build {
+            file,
+            openapi,
+            compile,
+            output,
+        } => {
+            if compile {
+                bundle::build(&file, output.as_deref())
+            } else {
+                run_build(&file, openapi)
+            }
+        }
         Command::Api {
             command: ApiCommand::Diff { old, new },
         } => api_diff::run(&old, &new),
@@ -581,7 +618,10 @@ fn run_check(path: &std::path::Path, autoload_map: bool) -> ExitCode {
 /// writing a document with an empty `paths`: fed to § 4's diff, an empty
 /// document is the claim that every operation was removed.
 fn run_build(path: &std::path::Path, openapi: bool) -> ExitCode {
-    debug_assert!(openapi, "`--openapi` is `required` at the flag");
+    debug_assert!(
+        openapi,
+        "the `artifact` group is `required`, so the other artifact's absence means this one"
+    );
     let checked = match front_end(path) {
         Ok(checked) => checked,
         Err(code) => return code,
@@ -677,7 +717,17 @@ fn run_run(
     // a refusal to start — ADR 0103 § 3's later-wins and § 6's boundary are only
     // worth anything if a tree that does not resolve stops the run.
     let mut config_sources = SourceMap::new();
-    let snapshot = match config::boot_snapshot(config, path, &mut config_sources) {
+    // A bundled program's entry file is a synthetic path inside the payload
+    // (ADR 0048 § 4), and `trust::canonical` has no filesystem entry to
+    // examine for it. The executable itself is what an `[[app]]` block could
+    // legitimately key on, and it is also all § 1's single trust domain
+    // leaves to key on: the only principal here is whoever ran the binary.
+    let config_entry = if nvs_diagnostics::embedded::is_active() {
+        std::env::current_exe().unwrap_or_else(|_| path.to_path_buf())
+    } else {
+        path.to_path_buf()
+    };
+    let snapshot = match config::boot_snapshot(config, &config_entry, &mut config_sources) {
         Ok(snapshot) => snapshot,
         Err(diagnostic) => {
             let mut diags = Diagnostics::new();
