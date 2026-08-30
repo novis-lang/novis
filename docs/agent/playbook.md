@@ -4102,6 +4102,18 @@ sibling in the same namespace unqualified.
   refusal written over the argument's *type* is right and it is not the whole of § 4's "anywhere in
   the value it walks": probe the container spelling with a scratch `.nvs` before writing the case
   that claims it, or the case pins a refusal that never fires.
+- **A diagnostic reported at a *read* fires a second time on a declaration another diagnostic
+  already refused, and the two cases it turns red look unrelated to what you wrote.** `E0792` — a
+  class constant whose value folds to nothing — was written at the read rather than the
+  declaration, deliberately, so that declaring an unfoldable constant and never naming it stays
+  legal. It then reported over the top of `E0246` (`const LIMIT = 9;` has no type, so it folds to
+  nothing *because* it was already refused) and over `E0727` in the secret-payload case (`const
+  secret bytes BLOB = "b";` cannot fold because ADR 0009 § 1 gives the language no `bytes`
+  literal). Neither failure named the constant folder. The rule that falls out: before reporting on
+  a *use* of a declaration, ask which declared types can never have reached this point cleanly —
+  `mixed` here is "already `E0246`" and `bytes` is "no literal exists to write" — and return early
+  for each with the other diagnostic named, because a read is not where either mistake is worth
+  saying twice.
 
 ## Divergences and refusals already pinned
 

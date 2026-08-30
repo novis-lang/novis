@@ -45,8 +45,14 @@ in that goal. An item's owner is the row it sits in.
       `tests/conformance/reject/this-is-not-read-in-a-static-method.nvst`.
 - [ ] **P4** A method declared `: never` panics the lowerer even when never called ("nvs-ir only
       lowers a resolved call's … return type — got Never"). *types-probes; ref30 `never`*
-- [ ] **P5** An `array<T>`-typed class constant panics at use: `public const array<int> XS = [1, 2];
-      Core\Arr::count(K::XS)` (`lower/expr.rs:286`, "no value recorded"). *types-probes*
+- [x] **P5** An `array<T>`-typed class constant panics at use: `public const array<int> XS = [1, 2];
+      Core\Arr::count(K::XS)` (`lower/expr.rs:286`, "no value recorded"). *types-probes* — it folds:
+      `nvs_types::defaults::eval_const_value` places each element in the declared element type and
+      records the array as the same `ConstArg` a folded retrieval already lowers, pinned by
+      `tests/conformance/core/an-array-constant-folds.nvst`. What still has no constant form — a
+      named constant, an enum case or `Foo::class`, on its own or nested — is `E0792` **at the read**
+      rather than a panic, pinned by
+      `tests/conformance/core/a-class-constant-with-no-constant-form-is-refused-at-the-read.nvst`.
 - [x] **P6** An **untyped interface constant** panics at use: `interface I { public const LIMIT = 9; }
       echo I::LIMIT;` — the typed form works, an untyped *class* constant works. *probes q31* — the
       untyped form is now `E0246` where it is written, for a class as much as an interface, so neither
