@@ -685,38 +685,15 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// `catch (Type '$'? identifier?) { ... }`. The ordinary type grammar is
     /// reused, so PHP's `catch (A | B $e)` parses here — and is refused: the
     /// binding carries one static type, so a clause naming two classes has no
-    /// type to give it. See [`code::E_CATCH_UNION_TYPE_UNSUPPORTED`].
+    /// type to give it. See [`Self::parse_caught_type`], which ADR 0119's
+    /// expression arm shares, and [`code::E_CATCH_UNION_TYPE_UNSUPPORTED`].
     pub(super) fn parse_catch_clause(&mut self) -> CatchClause {
         let start = self.bump().span; // 'catch'
         self.expect(TokenKind::LParen, "`(`");
-        let ty = match self.parse_type() {
-            Type {
-                kind: TypeKind::Union(items),
-                span,
-            } => {
-                self.diags.report(
-                    Diagnostic::error(
-                        code::E_CATCH_UNION_TYPE_UNSUPPORTED,
-                        "a `catch` clause names one class",
-                    )
-                    .with_primary(span, "this names two")
-                    .with_help(
-                        "write one `catch` clause per class, each with its own variable \
-                         name, or one clause naming a class they all extend",
-                    ),
-                );
-                // The clause is still built, from the first class alone: the
-                // binding then has the one static type ADR 0007 § 1 gives it,
-                // and the block's own statements are checked rather than
-                // abandoned, so the file reports the rest of its problems in
-                // the same run.
-                items
-                    .into_iter()
-                    .next()
-                    .expect("a union holds at least two members")
-            }
-            ty => ty,
-        };
+        let ty = self.parse_caught_type(
+            "write one `catch` clause per class, each with its own variable \
+             name, or one clause naming a class they all extend",
+        );
         let var = self.eat(TokenKind::Variable);
         self.expect(TokenKind::RParen, "`)`");
         let body = self.parse_block();

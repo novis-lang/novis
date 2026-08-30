@@ -1090,6 +1090,14 @@ is why" — is this file.
   documentation, and the anchor the gate is asking for is the *code that fixes the fact* — the
   escape roster, the diagnostic's `Code::new`, the row the card describes. Name that beside the doc
   path and the next session opens the source of truth rather than the third copy of it.
+- **A `loop-goal.toml` check can fail on a file no session wrote — the user edits this tree too.**
+  Session 5 opened on `check-migration at 33%` failing, and the cause was an uncommitted
+  `docs/spec/02-php-migration.md` row for `clamp` from a by-hand ADR 0124 pass: the row is right and
+  the *inventory* is the PHP 8.5 oracle build, so a name PHP has only announced reads as a typo. Two
+  things follow. `git status --short` before diagnosing says whose change it is, and a fix that lands
+  in a *tool* is committable on its own without touching the user's in-flight files — never stage
+  them to make a check pass. The tool's own answer is `check-migration.py`'s `AHEAD_OF_THE_BUILD`,
+  beside `UNAUDITED`: a named hole rather than a hand-edited inventory.
 
 ## Running things
 
@@ -4255,6 +4263,14 @@ sibling in the same namespace unqualified.
   comment — the message it fails with says so, but only after a full `verify.py`. Both are cheap to
   pre-empt: `grep -rn "<the card's first clause>" crates/nvs-cli/tests/` before rewording, and copy
   the comment shape from the twin site you are modelling the new fatal on.
+- **A new expression level between assignment and the ternary is not one edit — the ternary's `else`
+  branch parses at the assignment level and will swallow it.** ADR 0119's `catch` slotted into
+  `parse_assignment_inner` in one line, and `f() catch (A) => $y ?: 1 catch (B) => 2` still came out
+  with one arm: `parse_ternary`'s else calls `parse_assignment`, which now re-enters `parse_catch`.
+  The fix is `parse_ternary_else`, the same assignment body over `parse_ternary` instead of
+  `parse_catch`, and only for the *else* branch — the `then` branch is delimited by its own `:` and
+  cannot trail. Any future level added above the ternary owes the same check, and a unit test in
+  `crates/nvs-syntax/src/parser/tests/expr.rs` is what caught it, not a `.nvst`.
 
 ## Divergences and refusals already pinned
 

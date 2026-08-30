@@ -194,6 +194,14 @@ pub mod code {
     /// [`E_FOR_INIT_MIXES_DECL_AND_EXPR`] because the fix is different:
     /// the second declaration goes above the loop. ADR 0109 § 3.
     pub const E_FOR_INIT_TWO_DECLARATIONS: Code = Code::new("E0125");
+    /// `return`, `break` or `continue` as the body of an expression-level
+    /// `catch` arm. See
+    /// [ADR 0119](../../../docs/adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)
+    /// § 3: an arm holds an expression, which admits `throw` — already an
+    /// expression — and refuses the three that are statements. Named rather
+    /// than left to the generic expected-expression error, because the fix is
+    /// a different construct and not a different token.
+    pub const E_CATCH_ARM_NOT_AN_EXPRESSION: Code = Code::new("E0126");
 
     // --- E02xx rejected PHP constructs -------------------------------------
     // Novis accepts PHP 8.5 syntax as a *pragmatic* superset. These constructs

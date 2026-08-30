@@ -1,0 +1,18 @@
+--TEST--
+an expression `catch` arm names one class, and a union is refused asking for a second arm — ADR 0119 § 1's E0245
+--FILE--
+<?nvs
+// ADR 0119 § 1: an arm's `( Type $var? )` is the block form's, resolved and
+// refused the same way — the binding carries one static type, so a union has
+// no type to give it. Only the fix differs: another arm, where the block
+// form asks for another clause.
+mixed $len = Core\Str::length("hi") catch (RuntimeError|LogicError $e) => 0;
+echo $len, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0245]: a `catch` clause names one class
+%A
+  = help: write one `catch` arm per class, each with its own variable name, or one arm naming a class they all extend
+%A
+error: aborting due to 1 error

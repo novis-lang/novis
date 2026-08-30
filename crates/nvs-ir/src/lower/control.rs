@@ -2269,6 +2269,12 @@ impl<'a> Lowering<'a> {
                     }
                 }
             }
+            ExprKind::Catch { guarded, arms } => {
+                self.collect_reassigned_in_expr(guarded, seen, out);
+                for arm in arms {
+                    self.collect_reassigned_in_expr(&arm.body, seen, out);
+                }
+            }
             ExprKind::Match { subject, arms } => {
                 self.collect_reassigned_in_expr(subject, seen, out);
                 for arm in arms {

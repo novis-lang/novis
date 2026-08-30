@@ -193,7 +193,29 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     pub(super) fn parse_assignment_inner(&mut self) -> Expr {
-        let target = self.parse_ternary();
+        self.parse_assignment_over(Self::parse_catch)
+    }
+
+    /// The assignment level with ADR 0119's `catch` cut out of its head — what
+    /// a ternary's *else* branch parses at.
+    ///
+    /// That branch trails, so parsing it at the ordinary level would let it
+    /// swallow a `catch` belonging to whatever guards the ternary. § 2's third
+    /// row reads `f() catch (A) => $y ?: 1 catch (B) => 2` as two arms of one
+    /// guard, and by the same rule `$c ? $a : $b catch (E) => 0` guards the
+    /// whole ternary rather than only `$b`. The *then* branch is delimited by
+    /// its own `:` and cannot trail, so a `catch` written there is ordinary
+    /// and parses at the full level.
+    fn parse_ternary_else(&mut self) -> Expr {
+        self.guarded(Self::error_expr_here, |p| {
+            p.parse_assignment_over(Self::parse_ternary)
+        })
+    }
+
+    /// The body [`Self::parse_assignment_inner`] and [`Self::parse_ternary_else`]
+    /// share; they differ only in the level the left-hand side is parsed at.
+    fn parse_assignment_over(&mut self, head: fn(&mut Self) -> Expr) -> Expr {
+        let target = head(self);
         let op = match self.peek().kind {
             TokenKind::Equals => AssignOp::Assign,
             TokenKind::PlusEquals => AssignOp::AddAssign,
@@ -230,13 +252,115 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
+    /// ADR 0119 § 2: `catch` sits between assignment and the ternary.
+    ///
+    /// The guarded expression is everything the ternary level parses, so one
+    /// arm covers a whole `??` chain or a whole `?:`; the arm body is parsed
+    /// at that same level, so a following `catch` starts the next arm of this
+    /// guard rather than nesting under the previous arm's fallback. Both
+    /// readings this rules out are ruled out by construction rather than by a
+    /// check — `try` never appears in the expression form, and a `catch` that
+    /// belongs to the block form follows a `}` the statement parser is already
+    /// inside.
+    pub(super) fn parse_catch(&mut self) -> Expr {
+        let guarded = self.parse_ternary();
+        if !self.at_keyword(Keyword::Catch) {
+            return guarded;
+        }
+        let mut arms = Vec::new();
+        while self.at_keyword(Keyword::Catch) {
+            arms.push(self.parse_catch_arm());
+        }
+        let end = arms.last().expect("the loop ran at least once").span;
+        Expr {
+            span: guarded.span.to(end),
+            kind: ExprKind::Catch {
+                guarded: Box::new(guarded),
+                arms,
+            },
+        }
+    }
+
+    /// One `catch (T $e) => expr` arm. Its `( Type $var? )` half is the block
+    /// form's, through [`Self::parse_caught_type`]; only the body differs.
+    fn parse_catch_arm(&mut self) -> CatchArm {
+        let start = self.bump().span; // `catch`
+        self.expect(TokenKind::LParen, "`(`");
+        let ty = self.parse_caught_type(
+            "write one `catch` arm per class, each with its own variable name, \
+             or one arm naming a class they all extend",
+        );
+        let var = self.eat(TokenKind::Variable);
+        self.expect(TokenKind::RParen, "`)`");
+        self.expect(TokenKind::FatArrow, "`=>`");
+        let body = self.parse_catch_arm_body();
+        CatchArm {
+            span: start.to(body.span),
+            ty,
+            var,
+            body,
+        }
+    }
+
+    /// ADR 0119 § 3: the arm body is parsed as an expression and that is the
+    /// entire rule — `throw` is admitted for free, since `throw expr` is
+    /// already an expression, and `return`, `break` and `continue` are out
+    /// because they are statements.
+    ///
+    /// The three are named rather than left to the generic expected-expression
+    /// error: a reader who writes `return` here wants to be told the block
+    /// form exists, not which token was expected. The keyword is consumed and
+    /// whatever follows it is parsed as the arm's body, so a file reports the
+    /// rest of its problems in the same run.
+    fn parse_catch_arm_body(&mut self) -> Expr {
+        let spelling = match self.peek().kind {
+            TokenKind::Keyword(Keyword::Return) => "return",
+            TokenKind::Keyword(Keyword::Break) => "break",
+            TokenKind::Keyword(Keyword::Continue) => "continue",
+            _ => return self.parse_ternary(),
+        };
+        let span = self.peek().span;
+        self.diags.report(
+            Diagnostic::error(
+                code::E_CATCH_ARM_NOT_AN_EXPRESSION,
+                format!("a `catch` arm is an expression, and `{spelling}` is a statement"),
+            )
+            .with_primary(span, format!("`{spelling}` cannot appear here"))
+            .with_help(
+                "`throw` is an expression, so `catch (E $e) => throw new …` is \
+                 allowed here; for an early return write the block form, \
+                 `try { … } catch (E $e) { return …; }`",
+            ),
+        );
+        self.bump();
+        // What may legitimately follow an arm: the statement's `;`, a
+        // separator in whatever list this expression sits in, a closer, or the
+        // next arm. Anything else is parsed as the body, so `return $x` still
+        // yields `$x` and a bare `return` still yields one error rather than
+        // two.
+        if matches!(
+            self.peek().kind,
+            TokenKind::Semicolon
+                | TokenKind::Comma
+                | TokenKind::RParen
+                | TokenKind::RBracket
+                | TokenKind::RBrace
+                | TokenKind::Eof
+                | TokenKind::Keyword(Keyword::Catch)
+        ) {
+            self.error_expr_here()
+        } else {
+            self.parse_ternary()
+        }
+    }
+
     pub(super) fn parse_ternary(&mut self) -> Expr {
         let cond = self.parse_coalesce();
         if self.eat(TokenKind::Question).is_none() {
             return cond;
         }
         if self.eat(TokenKind::Colon).is_some() {
-            let else_ = self.parse_assignment();
+            let else_ = self.parse_ternary_else();
             let span = cond.span.to(else_.span);
             return Expr {
                 span,
@@ -249,7 +373,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
         let then = self.parse_assignment();
         self.expect(TokenKind::Colon, "`:`");
-        let else_ = self.parse_assignment();
+        let else_ = self.parse_ternary_else();
         let span = cond.span.to(else_.span);
         Expr {
             span,

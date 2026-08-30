@@ -2,66 +2,66 @@
 
 ## State
 
-**Stage 8's two unwritten acceptance cases are on disk, and the driver's standing failure is closed.**
-`tests/conformance/isolate/a-child-inherits-a-narrowed-capability-and-cannot-widen-it.nvst` and
-`tests/conformance/error/a-limit-fatal-is-not-catchable.nvst` both pass; `loop-goal.toml:2090`'s
-eight-case list is complete. Conformance 1082, differential 206.
+**ADR 0119's front end is on disk — stage 9 item 21 is done, item 22 is next.** `ExprKind::Catch`
+and `CatchArm` (`crates/nvs-syntax/src/ast.rs:591`, `:920`), `parse_catch` between assignment and
+the ternary (`crates/nvs-syntax/src/parser/expr.rs:233`), `E0126` for a `return`/`break`/`continue`
+arm body, and every walker's arm. Conformance 1084, differential 206.
 
-**What the isolate case pins is `Ctx::isolate`'s own rule** (`crates/nvs-runtime/src/ctx.rs:2064`): a
-child is handed the configuration in force where it was spawned, so an `[[app]]` block keyed on the
-child's entry file never re-resolves and cannot widen back what the parent's block narrowed. The
-`Core\Config::set` half is refused for `request.rs`'s reason — `[capabilities]` is `RuntimeTighten`
-and a grant is a list rather than a quantity, so `set` returns `false`.
+**The `( Type $var? )` half is now shared** — `Parser::parse_caught_type`
+(`crates/nvs-syntax/src/parser/ty.rs:24`) carries the union refusal for both forms, taking the help
+text from its caller, so the block form's E0245 output is byte-identical and an arm's says *write
+two arms*.
 
-**Stage 0c has no implementable slice left** — item 35's remaining halves are ADR 0079 § 24's M5-to-M8
-schedule, absent on time rather than missing, and `docs/reference/findings.md` § *Triage* holds each
-verdict. Items 31–34 are closed.
+**§ 2's precedence needed one thing the ADR states only by implication**, and it is recorded in
+`parse_ternary_else`'s doc comment rather than in the ADR: a ternary's *else* branch parses at the
+assignment level with `catch` cut out, or it swallows the arm that belongs to the enclosing guard.
+The playbook bullet is the trap; the four tests in
+`crates/nvs-syntax/src/parser/tests/expr.rs:947` are the pin.
 
-**Stage 9 is now the top of the queue**, ADR 0119 accepted and nothing implemented. `E0126` is spoken
-for and must not be handed out: ADR 0119 § 3 names it in prose for the arm that refuses `return`. The
-next free `E02xx` is `E0247` and `E07xx` is `E0794`; this session added no diagnostic.
+**`crates/nvs-ir/src/lower/expr.rs:102` is a `panic!` naming § 6**, so nothing may reach the
+lowering yet. That is why both new `.nvst` cases are `--EXPECTF-ERROR--` and why the passing-case
+side of § 2's table waits on item 23. Two `nvs-types` walkers past the item's list also gained the
+arm — `ctor_init.rs:457` and `lateinit.rs:370` — because their `_ =>` fallback would have skipped
+the guarded expression silently.
 
-**`orient.py`'s `[context]` gaps.** New this session, in `modules`, for the group below:
-**`crates/nvs-syntax/src/casing.rs`**, **`crates/nvs-hir/src/members.rs`**,
-**`crates/nvs-hir/src/requires.rs`** and **`crates/nvs-ir/src/lower/control.rs`** — item 21 edits every
-file that matches on `ExprKind::Match` and these four are not in the map. Standing, each proven
-earlier: no field selects `docs/reference/lang/*.md` or `docs/reference/core/*.md`;
-`docs/adr/divergences.md`; `docs/reference/README.md` § *Examples: the fence grammar*;
-`docs/spec/01-core-library.md`'s Part II class table; and in `modules`
+**The driver's standing failure is closed and was not a regression.** `check-migration at 33%` was
+failing on the user's uncommitted `clamp` row; `tools/check-migration.py`'s new
+`AHEAD_OF_THE_BUILD` names it. Coverage is unchanged at 34% — the list is not in the denominator.
+The user's nine modified docs and ADR 0124 are still uncommitted and were not staged.
+
+**`orient.py`'s `[context]` gaps.** New this session, in `modules`:
+**`crates/nvs-types/src/expr/mod.rs`**, **`crates/nvs-types/src/ctor_init.rs`** and
+**`crates/nvs-types/src/lateinit.rs`** for item 22, and **`crates/nvs-syntax/src/parser/ty.rs`**.
+Standing, each proven earlier: no field selects `docs/reference/lang/*.md` or
+`docs/reference/core/*.md`; `docs/adr/divergences.md`; `docs/reference/README.md` § *Examples: the
+fence grammar*; `docs/spec/01-core-library.md`'s Part II class table; and in `modules`
 `crates/nvs-stdlib/src/arr.rs`. In `adrs`: **0007 §§ 2-4**, **0079 §§ 4 and 24**, **0072 §§ 6-7**,
 **0012 § 6**, **0013 §§ 2-4**, **0046 §§ 2, 5**, **0053 §§ 1-3**, **0027 § 1**, **0031 § 3**,
 **0033 §§ 3-4**, **0047 § 2**, **0011**, **0086 § 6**, **0090 § 3**, **0057 § 1**, **0096 §§ 1-1a**,
-**0117 § 1** and — for the group below — **0119 §§ 2 and 4-6**. `orient.py` still warns that
-`crates/nvs-host/src/budget.rs` matches nothing, the forward anchor its own comment describes.
+**0117 § 1** and **0119 §§ 4-6**. `orient.py` still warns that `crates/nvs-host/src/budget.rs`
+matches nothing, the forward anchor its own comment describes.
 
 ## Next group
 
-**Stage 9's front end and its checker — items 21 and 22, which the goal doc names as one file set:
-`crates/nvs-syntax/` plus the four `ExprKind::Match` matchers, then `crates/nvs-types/`.** ADR 0119 is
-the whole design; neither item invents anything it does not state.
+**Stage 9's checker and its lowering — items 22 and 23, over `crates/nvs-types/` and then
+`crates/nvs-ir/src/lower/`.** ADR 0119 §§ 4-6 is the whole design.
 
-- [ ] **Item 21 — the node, the parser, every walker, and `E0126`.** ADR 0119 §§ 1-3. A `CatchArm`
-      beside `MatchArm` (`crates/nvs-syntax/src/ast.rs:582`) and an `ExprKind` variant beside `Match`
-      (`crates/nvs-syntax/src/ast.rs:907`); `parse_catch` between `parse_assignment` and `parse_ternary`
-      (`crates/nvs-syntax/src/parser/expr.rs:232`), the arm's `( Type $var? )` parsed as
-      `parse_catch_clause` parses a clause's (`crates/nvs-syntax/src/parser/stmt.rs:670`) and the body at
-      the ternary level so a following `catch` is the next arm; `E0126` beside `E0125`
-      (`crates/nvs-diagnostics/src/lib.rs:195`). Every `ExprKind::Match` matcher gains the arm —
-      `crates/nvs-syntax/src/casing.rs`, `crates/nvs-hir/src/members.rs:792`,
-      `crates/nvs-hir/src/requires.rs:1169`, `crates/nvs-ir/src/lower/control.rs:2272` — and
-      `crates/nvs-ir/src/lower/expr.rs:99` gets a `panic!` naming ADR 0119 § 6 until item 23 replaces it.
 - [ ] **Item 22 — the union, the binding, the pre-guard state, and `E0778`.** ADR 0119 §§ 4-5. The
-      result type is `make_union` over the guard and the arms as the `Match` arm does it
-      (`crates/nvs-types/src/expr/mod.rs:593`); the arm's class and variable go through the clause's own
-      checks and binding rule (`crates/nvs-types/src/locals.rs:1091`, its `catch`-binding doc at
-      `crates/nvs-types/src/locals.rs:654`); each arm is checked from the pre-guard `live` state; `E0778`
-      beside `E0777` (`crates/nvs-diagnostics/src/lib.rs:2336`), reported for an unbound `Throwable` arm
-      whose body is not a `throw`. Fixtures under `crates/nvs-types/tests/`.
+      result type is the union of the guarded expression and every arm, with a `throw` arm typed
+      `never` and contributing nothing; the arm's `$e` is a local of the enclosing function under
+      the block form's rule (`crates/nvs-types/src/locals.rs`); a `Throwable` arm warns. Today
+      `crates/nvs-types/src/expr/mod.rs`'s dispatch falls through to `mixed` — the two new `.nvst`
+      cases say `mixed $x =` for exactly that reason and want tightening when this lands.
+      `crates/nvs-diagnostics/src/lib.rs:441` is the E02xx neighbourhood; next free `E07xx` is
+      `E0794`.
+- [ ] **Item 23 — the lowering.** ADR 0119 § 6. Replace the `panic!` at
+      `crates/nvs-ir/src/lower/expr.rs:102` with a landing pad per arm over the one guarded
+      expression, joined by a phi, reusing `crates/nvs-ir/src/lower/exception.rs`'s block-form
+      machinery. Then § 2's table becomes four passing `.nvst` cases rather than parser unit tests.
 
 ## Backlog
 
-- Item 23 — the lowering, the four `.nvst` cases and the reference section; different file set
-  (`crates/nvs-ir/src/lower/exception.rs:114`, `docs/reference/lang/40-statements.md:293`).
-- Stage 10 item 36 — the class reference ADR and front end; `docs/agent/loop-goal.md:295`.
-- Differential 206 of 210; `docs/agent/loop-goal.toml`'s stage 8 check owns the floor.
-- Item 35's M5-to-M8 halves stay parked; `docs/reference/findings.md` § *Triage* owns each verdict.
+- Stage 0c item 35's remainder is ADR 0079 § 24's M5-to-M8 schedule, absent on time — `docs/reference/findings.md` § *Triage*.
+- `E0126` is spoken for by ADR 0119 § 3 and was not handed out elsewhere; next free `E02xx` is `E0247`.
+- ADR 0119 § 2's passing-side table needs `.nvst` cases once item 23 lands — `docs/plan/m6.md`.
+- `crates/nvs-host/src/budget.rs` is a `[context] modules` pattern matching nothing — `docs/agent/loop-goal.toml`.

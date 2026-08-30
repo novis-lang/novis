@@ -22,6 +22,44 @@
 use super::*;
 
 impl<'src, 'd> Parser<'src, 'd> {
+    /// The one class a `catch` names, in either of its two forms.
+    ///
+    /// A union parses — the type grammar has no reason to refuse `A|B` here
+    /// and refusing it in the grammar would cost a worse diagnostic — and is
+    /// then rejected, because ADR 0007 § 1 gives the binding one static type
+    /// and a clause naming two classes has no type to give it. The clause is
+    /// still built, from the first class alone, so the block's or the arm's
+    /// own body is checked rather than abandoned and the file reports the rest
+    /// of its problems in the same run.
+    ///
+    /// `help` is the caller's: the block form's fix is another clause and
+    /// [ADR 0119](../../../../docs/adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)
+    /// § 1's is another arm. The message above it is shared, since § 1 makes
+    /// an arm a clause of one guard and "a `catch` clause names one class" is
+    /// true of both.
+    pub(super) fn parse_caught_type(&mut self, help: &str) -> Type {
+        match self.parse_type() {
+            Type {
+                kind: TypeKind::Union(items),
+                span,
+            } => {
+                self.diags.report(
+                    Diagnostic::error(
+                        code::E_CATCH_UNION_TYPE_UNSUPPORTED,
+                        "a `catch` clause names one class",
+                    )
+                    .with_primary(span, "this names two")
+                    .with_help(help),
+                );
+                items
+                    .into_iter()
+                    .next()
+                    .expect("a union holds at least two members")
+            }
+            ty => ty,
+        }
+    }
+
     /// Whether the current token could begin a type expression — used to
     /// decide, without committing, whether a mandatory type was actually
     /// omitted (e.g. a parameter written without one).

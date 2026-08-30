@@ -1166,6 +1166,13 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Harvest) {
                 FnBody::Expr(body) => e!(body),
             }
         }
+        ExprKind::Catch { guarded, arms } => {
+            e!(guarded);
+            for arm in arms {
+                walk_type(&arm.ty, src, out);
+                e!(&arm.body);
+            }
+        }
         ExprKind::Match { subject, arms } => {
             e!(subject);
             for arm in arms {

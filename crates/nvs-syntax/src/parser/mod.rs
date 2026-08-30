@@ -56,10 +56,10 @@ use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 
 use crate::ast::{
     AnonClassDecl, Arg, ArrayItem, AssignOp, Attribute, AttributeGroup, AutoloadDecl, AutoloadKind,
-    BinaryOp, Block, CallArgs, CatchClause, ClassDecl, ClassMember, ClassMemberKind, ConstMember,
-    DestructureElement, DestructureTarget, EnumCase, EnumDecl, Expr, ExprKind, FnBody, FnExpr,
-    ForInit, ForeachBinding, ImplementsClause, IncDecOp, InterfaceDecl, MatchArm, MemberName,
-    MethodMember, Modifier, Name, NamespaceDecl, NewTarget, ObjectLiteralField, Param,
+    BinaryOp, Block, CallArgs, CatchArm, CatchClause, ClassDecl, ClassMember, ClassMemberKind,
+    ConstMember, DestructureElement, DestructureTarget, EnumCase, EnumDecl, Expr, ExprKind, FnBody,
+    FnExpr, ForInit, ForeachBinding, ImplementsClause, IncDecOp, InterfaceDecl, MatchArm,
+    MemberName, MethodMember, Modifier, Name, NamespaceDecl, NewTarget, ObjectLiteralField, Param,
     PropertyHook, PropertyHookBody, PropertyHookKind, PropertyMember, ShapeField, SpawnOption,
     SpawnOptionKey, StaticVar, Stmt, StmtKind, StringPart, SwitchCase, Type, TypeAliasDecl,
     TypeAtom, TypeKind, UnaryOp, UseDecl, Visibility,

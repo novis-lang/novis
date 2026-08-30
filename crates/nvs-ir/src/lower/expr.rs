@@ -99,6 +99,14 @@ impl<'a> Lowering<'a> {
             ExprKind::Match { subject, arms } => {
                 self.lower_match(subject, arms, expected, env, cur)
             }
+            // ADR 0119 § 6: the expression `catch` lowers to the block form —
+            // a landing pad per arm over the one guarded expression, joined by
+            // a phi. The front end (§§ 1-3) and the checker (§§ 4-5) land
+            // first, so nothing reaches here yet; the plan's stage 9 item 23
+            // replaces this arm with `self.lower_catch(...)`.
+            ExprKind::Catch { .. } => {
+                panic!("ADR 0119 § 6's lowering is not written yet -- stage 9 item 23")
+            }
             ExprKind::Bool(b) => self.emit(*cur, Ty::Bool, InstKind::ConstBool(*b)),
             // The literal `null`. Its own type, not a tagged one -- see
             // `Ty::Null`; `Self::coerce` widens it wherever the position it

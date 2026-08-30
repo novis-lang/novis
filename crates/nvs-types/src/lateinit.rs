@@ -367,6 +367,12 @@ fn scan_expr(
             scan_expr(lhs, written, tracked, env);
             scan_expr(rhs, written, tracked, env);
         }
+        ExprKind::Catch { guarded, arms } => {
+            scan_expr(guarded, written, tracked, env);
+            for arm in arms {
+                scan_expr(&arm.body, written, tracked, env);
+            }
+        }
         ExprKind::Ternary { cond, then, else_ } => {
             scan_expr(cond, written, tracked, env);
             if let Some(then) = then {

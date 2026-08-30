@@ -454,6 +454,12 @@ pub(crate) fn scan_expr(e: &Expr, state: &mut InitState, env: &Env<'_>) {
             scan_expr(lhs, state, env);
             scan_expr(rhs, state, env);
         }
+        ExprKind::Catch { guarded, arms } => {
+            scan_expr(guarded, state, env);
+            for arm in arms {
+                scan_expr(&arm.body, state, env);
+            }
+        }
         ExprKind::Ternary { cond, then, else_ } => {
             scan_expr(cond, state, env);
             if let Some(then) = then {

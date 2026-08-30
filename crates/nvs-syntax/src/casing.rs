@@ -791,6 +791,15 @@ fn check_expr(expr: &Expr, src: &SourceFile, diags: &mut Diagnostics) {
                 check_expr(&arm.body, src, diags);
             }
         }
+        ExprKind::Catch { guarded, arms } => {
+            check_expr(guarded, src, diags);
+            for arm in arms {
+                if let Some(var) = arm.var {
+                    check_local_name(var, src, diags);
+                }
+                check_expr(&arm.body, src, diags);
+            }
+        }
         ExprKind::Yield { key, value } => {
             if let Some(key) = key {
                 check_expr(key, src, diags);

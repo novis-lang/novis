@@ -588,6 +588,25 @@ pub struct MatchArm {
     pub span: Span,
 }
 
+/// One arm of an expression-level `catch` — ADR 0119 § 1.
+///
+/// Deliberately not a [`CatchClause`]: an arm's body is an [`Expr`] where a
+/// clause's is a [`Block`], and that one difference is the whole of ADR 0119
+/// § 3 — `throw` is admitted because it is already an expression, and `return`
+/// is refused because it is not.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CatchArm {
+    /// The caught class, one per arm. A union parses and is refused where a
+    /// clause's is, since the binding still carries one static type.
+    pub ty: Type,
+    /// The bound variable, if named.
+    pub var: Option<Span>,
+    /// The arm's result expression.
+    pub body: Expr,
+    /// The whole arm, `catch` through the end of the body.
+    pub span: Span,
+}
+
 /// What `new` instantiates.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -909,6 +928,15 @@ pub enum ExprKind {
         subject: Box<Expr>,
         /// The arms, in source order.
         arms: Vec<MatchArm>,
+    },
+    /// `expr catch (T $e) => expr`, with any number of arms — ADR 0119.
+    Catch {
+        /// The one guarded expression: everything the ternary level parsed.
+        guarded: Box<Expr>,
+        /// The arms, in source order. They are clauses of this one guard and
+        /// not guards of each other, so the first whose class matches what
+        /// `guarded` threw runs, and no arm guards the arm before it.
+        arms: Vec<CatchArm>,
     },
     /// `yield`, `yield expr`, `yield key => expr`.
     Yield {

@@ -791,6 +791,12 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                 env,
             );
         }
+        ExprKind::Catch { guarded, arms } => {
+            e!(guarded);
+            for arm in arms {
+                e!(&arm.body);
+            }
+        }
         ExprKind::ClassNameConst { class } => walk_class_side(class, src, ctx, env),
         ExprKind::Index { base, index } => {
             e!(base);

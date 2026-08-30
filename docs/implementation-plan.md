@@ -55,13 +55,13 @@
 > `budget` counts held and written bytes, a breach is a `FATAL`, `max_script_depth` refuses the
 > spawn past it, and one store expires a whole tree; § 1's tier 1 is handed the limit's name, and
 > fires once inside the reserve; ADR 0078 § 4 keys both caches. Stage 5 has ADR 0042 §§ 1-6,  in
-> `crates/nvs-cli/src/cache.rs`, whose *Known gaps* decides a payload. **Stage 0c — the reference
-> findings — is open and runs ahead of everything else, stage 9 included**:
-> `docs/reference/findings.md` § *Triage* holds the verdicts and items 31–35 the work; items 31–34
-> are closed; 35's cards cite no ADR, `Core\Test::assertContains` landed, D9/D20 and both `lang/`
-> chapter fixes are closed. **Stage 8 is open**: conformance 1082, differential 206 of 210, eight of
-> eight written. **Stage 7 is closed**: `nvs build --compile` appends ADR 0048 §§ 2-5's source
-> payload, and `nvs_diagnostics::embedded` is the byte source a bundle resolves against.
+> `crates/nvs-cli/src/cache.rs`, whose *Known gaps* decides a payload. **Stage 0c has no
+> implementable slice left**: `docs/reference/findings.md` § *Triage* holds the verdicts, items
+> 31–34 are closed and 35's remainder is absent on time. **Stage 9 has ADR 0119 §§ 1-3's front
+> end**; § 6's lowering is still a `panic!`. **Stage 8 is open**: conformance 1084, differential 206
+> of 210, eight of eight written. **Stage 7 is closed**: `nvs build --compile` appends ADR 0048 §§
+> 2-5's source payload, and `nvs_diagnostics::embedded` is the byte source a bundle resolves
+> against.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

@@ -939,3 +939,74 @@ fn dollar_brace_expr_is_variable_variable() {
     assert!(diags.has_errors());
     assert!(matches!(e.kind, ExprKind::Error));
 }
+
+// --- ADR 0119's expression `catch` ------------------------------------------
+// § 2's table, one test a row. The lowering is not written, so these are the
+// only place the grouping is pinned until stage 9's item 23 lands.
+
+#[test]
+fn catch_is_tighter_than_assignment_and_looser_than_the_ternary_level() {
+    // `$x = (($a / $b) catch (ArithmeticError) => 0)` — the guard covers the
+    // whole division, and the assignment covers the whole guard.
+    let e = parse_ok("$x = 6 / 2 catch (ArithmeticError) => 0");
+    let ExprKind::Assign { value, .. } = e.kind else {
+        panic!("expected a top-level `=`: {e:?}");
+    };
+    let ExprKind::Catch { guarded, arms } = value.kind else {
+        panic!("expected the assigned value to be a `catch`: {value:?}");
+    };
+    assert!(matches!(
+        guarded.kind,
+        ExprKind::Binary {
+            op: BinaryOp::Div,
+            ..
+        }
+    ));
+    assert_eq!(arms.len(), 1);
+    assert!(arms[0].var.is_none());
+}
+
+#[test]
+fn a_guard_covers_a_whole_coalesce_chain() {
+    // `(1 ?? 2) catch (IOError) => 3` — `??` is below the ternary level, so
+    // the guard takes all of it rather than only its right-hand side.
+    let e = parse_ok("1 ?? 2 catch (IOError) => 3");
+    let ExprKind::Catch { guarded, .. } = e.kind else {
+        panic!("expected a top-level `catch`: {e:?}");
+    };
+    assert!(matches!(
+        guarded.kind,
+        ExprKind::Binary {
+            op: BinaryOp::Coalesce,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn a_following_catch_is_the_next_arm_of_the_same_guard() {
+    // § 1: arms are clauses of one guard, not guards of each other. The `?:`
+    // is the first arm's whole body and the `B` arm does not guard it.
+    let e = parse_ok("1 catch (A $e) => $y ?: 2 catch (B) => 3");
+    let ExprKind::Catch { guarded, arms } = e.kind else {
+        panic!("expected a top-level `catch`: {e:?}");
+    };
+    assert!(matches!(guarded.kind, ExprKind::Int(_)));
+    assert_eq!(arms.len(), 2);
+    assert!(arms[0].var.is_some());
+    assert!(matches!(arms[0].body.kind, ExprKind::Ternary { .. }));
+    assert!(arms[1].var.is_none());
+    assert!(matches!(arms[1].body.kind, ExprKind::Int(_)));
+}
+
+#[test]
+fn a_throw_arm_is_an_expression_and_parses() {
+    // § 3: `throw expr` is already an expression, so the arm admits it with no
+    // rule of its own — where `return` is E0126.
+    let e = parse_ok(r#"1 catch (IOError $e) => throw new IOError("no")"#);
+    let ExprKind::Catch { arms, .. } = e.kind else {
+        panic!("expected a top-level `catch`: {e:?}");
+    };
+    assert_eq!(arms.len(), 1);
+    assert!(matches!(arms[0].body.kind, ExprKind::Throw(_)));
+}
