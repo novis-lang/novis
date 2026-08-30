@@ -10010,7 +10010,7 @@ Reads an ISO-8601 / RFC 3339 timestamp that carries its own offset — `2024-03-
 Core\Time::parse(string $text, string $format, Core\Time\Zone $zone): Core\Time\DateTime
 ```
 
-Reads a civil date and time through a CLDR pattern and places it in `$zone`, replacing `DateTime::createFromFormat` and `strptime`; a literal pattern is validated and planned at compile time, so a malformed one is a compile error rather than a throw. A field the pattern does not name is left at the start of its range.
+Reads a civil date and time through a CLDR pattern and places it in `$zone`, replacing `DateTime::createFromFormat` and `strptime`; a `$format` written as a literal is read while checking, so a malformed one is `E0769` rather than a throw. A field the pattern does not name is left at the start of its range.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -10020,7 +10020,7 @@ Reads a civil date and time through a CLDR pattern and places it in `$zone`, rep
 
 **Returns** `Core\Time\DateTime` — The `DateTime` in `$zone`.
 
-**Throws** `LogicError` — `$format` does not compile — a field letter outside the implemented subset, an unterminated quote — or names a zone or offset field, which `$zone` already answers.; `ParseError` — `$text` does not match `$format`: a literal that differs, a field with no digits, trailing text, or fields that together are not a real civil time.
+**Throws** `LogicError` — `$format` does not compile — a field letter outside the implemented subset, an unterminated quote — or names a zone or offset field, which `$zone` already answers. Only the first half is `E0769` for a written literal: a zonal field is a pattern the grammar reads perfectly well and a rule of this member's own, so it throws however `$format` arrived.; `ParseError` — `$text` does not match `$format`: a literal that differs, a field with no digits, trailing text, or fields that together are not a real civil time.
 
 <a id="core-core-time-at"></a>
 #### `Core\Time::at`
@@ -10330,7 +10330,7 @@ Renders the civil date and time through a CLDR pattern — `yyyy-MM-dd HH:mm:ss`
 
 **Returns** `string` — The rendered text.
 
-**Throws** `LogicError` — `$pattern` does not compile — a field letter outside the implemented subset, or an unterminated quote.
+**Throws** `LogicError` — `$pattern` does not compile — a field letter outside the implemented subset, or an unterminated quote. A `$pattern` written as a literal is read while checking and refused there as `E0769`, so only a computed one reaches this throw; `Date::format` and `TimeOfDay::format` read the same patterns and are not checked that way, so a bad literal throws there.
 
 <a id="core-core-time-datetime-plus"></a>
 #### `Core\Time\DateTime->plus`
@@ -11108,7 +11108,7 @@ Reads the duration literal grammar — `30s`, `1h30m`, `7d` — at run time, thr
 
 **Returns** `Core\Time\Duration` — The `Duration` the text spells.
 
-**Throws** `ParseError` — `$text` is not a duration literal — an unknown or repeated unit, a missing count, trailing text — or spells more than a `Duration` can hold.
+**Throws** `ParseError` — `$text` is not a duration literal — an unknown or repeated unit, a missing count, trailing text — or spells more than a `Duration` can hold. A `$text` written as a literal is read by this same grammar while checking and refused there as `E0769`, so only a computed one reaches this throw.
 
 <a id="core-core-time-duration-tonanoseconds"></a>
 #### `Core\Time\Duration->toNanoseconds`
@@ -11225,7 +11225,7 @@ Reverses the receiver's direction: `30s` becomes `-30s`.
 $duration->compareTo(Core\Time\Duration $other): int
 ```
 
-Orders two durations by length and sign, as `Comparable` requires, so a shorter duration compares below a longer one and a negative one below every positive one.
+Orders two durations by length and sign, as `Comparable` requires, so a shorter duration compares below a longer one and a negative one below every positive one. This is also how two durations are compared by content: `==` on two objects is identity, so `90m == 1h30m` is `false` and `$a->compareTo($b) == 0` is the question it looks like it asks.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -14186,7 +14186,7 @@ The calendar step a `DateTime`, `Date` or `TimeOfDay` moves by, and the unit `st
 <a id="enum-core-weekday"></a>
 #### `Core\Weekday`
 
-A day of the week, Monday first as ISO 8601 and `date("N")` order them — what `$d->weekday()` answers and `next`/`previous` take.
+A day of the week, Monday first as ISO 8601 and `date("N")` order them — what `$d->weekday()` answers and `next`/`previous` take. The order is theirs and the numbering is not: the cases are zero-based, `Monday as int` is `0` and `Sunday` is `6`, where `date("N")` numbers that same order `1` through `7`.
 
 | Case | Meaning |
 |---|---|
