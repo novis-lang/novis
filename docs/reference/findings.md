@@ -297,10 +297,12 @@ in that goal. An item's owner is the row it sits in.
 - [ ] **D34** `Core\Arr::sort` on an `array<decimal>` throws at run time: "no natural order for tag
       10 against tag 10: two numbers, two strings, two bools or two nulls have one" — `decimal` is a
       number and the checker accepted the call. Found by the blind proof's CSV task. *probes4 `sort_decimal`*
-- [ ] **D35** There is no typed decode of a JSON **array**: `Core\Json::decodeAs<array<U>>` is E0465
+- [x] **D35** There is no typed decode of a JSON **array**: `Core\Json::decodeAs<array<U>>` is E0465
       ("builds a class, and `array<U>` is not one"), so a list of derived objects is read as
       `array<mixed>` and converted element by element. Found by the blind proof's JSON task.
-      *probes4 `decode_list`*
+      Closed: `array<C>` is the list form — `nvs_types::expr::args::written_class_of` records the
+      element class and a flag, and `nvs_stdlib::json::decode_each` runs the § 5 decode once per
+      element. *probes4 `decode_list`*
 
 ## Named in the docs, absent from the registry (M)
 
