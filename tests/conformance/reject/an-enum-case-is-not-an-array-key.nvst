@@ -1,0 +1,26 @@
+--TEST--
+An enum case is not an array key, at the subscript that writes one and the subscript that reads it back (ADR 0007 § 5, ADR 0010)
+--FILE--
+<?nvs
+// Every key is a `string` and an `int` key normalizes to its own decimal
+// string, so an enum case looks like it should key an array by its backing
+// value. ADR 0010 makes that value a *name*, not a number the program wrote,
+// and two enums can carry the same one — so the normalization is refused
+// where it is written rather than performed. `$case as int` is the spelling
+// for the number, and it keys the array as any `int` does.
+enum Mode: int {
+    Read = 1,
+    Write = 2,
+}
+
+array<string> $m = [];
+$m[Mode::Read] = "a";
+echo $m[Mode::Read], "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0434]: `Mode` is an enum, and an enum case is not an array key
+%A
+error[E0434]: `Mode` is an enum, and an enum case is not an array key
+%A
+error: aborting due to 2 errors

@@ -693,12 +693,14 @@ pub mod code {
     /// so it can be stripped uniformly. A line that is entirely empty is
     /// exempt from this check. See `nvs_types::string_lit::dedent_heredoc_run`.
     pub const E_HEREDOC_INSUFFICIENT_INDENT: Code = Code::new("E0433");
-    /// A `float`, `bool`, or `null` array key — an explicit `key =>` in an
-    /// array literal today, and eventually an `$a[...]` subscript once that
-    /// site gains the identical check. PHP silently truncates a float,
+    /// A `float`, `bool`, `null` or enum array key, at each of the three sites
+    /// that write one: an explicit `key =>` in an array literal, an `$a[...]`
+    /// subscript, and an `$a[...] = v` target. PHP silently truncates a float,
     /// stringifies `true` to `"1"` and `null` to `""`; ADR 0007 § 5 rejects
     /// all three outright since each is a silent conversion at the exact
-    /// place a mistake becomes a missing row. An `int`/`uint`/`string` key is
+    /// place a mistake becomes a missing row. An enum case is refused one step
+    /// further out: ADR 0010 makes it a named integer, so the key would be a
+    /// backing value two enums can share. An `int`/`uint`/`string` key is
     /// fine — an `int`/`uint` key normalizes to its own decimal string, which
     /// needs no `as` and is not a value conversion.
     pub const E_ARRAY_KEY_INVALID_TYPE: Code = Code::new("E0434");
@@ -1155,12 +1157,18 @@ pub mod code {
     /// that keeps PHP's *timing* — ADR 0007 § 2's one unchecked position, so
     /// it defers to ADR 0036 § 4's name-keyed fetch and its catchable throw.
     pub const E_RECEIVER_HAS_NO_PROPERTIES: Code = Code::new("E0495");
-    /// The right-hand side of `instanceof` naming no class or interface this
-    /// program declares — the dynamic form `$x instanceof $name`, a `Core`
-    /// class, or an enum.
+    /// A class named through a value rather than written, and the two
+    /// `instanceof` right-hand sides that name no class at all: the dynamic
+    /// form `$x instanceof $name`, `new $name()` and `$name::f()`, plus a
+    /// `Core` class or an enum on the right of `instanceof`.
     ///
     /// The dynamic form is ADR 0007 § 2's rule: a class name is written, never
-    /// computed, which is the same line `$$var` and `eval` are already on. A
+    /// computed, which is the same line `$$var` and `eval` are already on. Its
+    /// three spellings share one report
+    /// (`nvs_types::expr::members::reject_dynamic_class_name`) because they are
+    /// one mistake — ADR 0007 § 7 row 14 says so of the `instanceof` one, and a
+    /// second code for the same rule at `new` would be a distinction the
+    /// language does not make. A
     /// `Core` class has no descriptor for the test to point at, `Core` classes
     /// being registry signatures rather than declared classes until M7/M8. An
     /// enum is a value type (ADR 0010) and no value of one is ever an object,

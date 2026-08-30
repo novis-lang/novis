@@ -847,7 +847,12 @@ fn report_by_reference_element(item: &ArrayItem, env: &mut Env<'_>) {
 /// conversion, so neither needs a diagnostic here. A `float`, `bool`, or
 /// `null` key is rejected outright: PHP's silent truncate-to-int/stringify-
 /// to-`"1"`/`""` is exactly the kind of implicit conversion that turns a
-/// typo into a missing row rather than a diagnostic. Anything else — `mixed`,
+/// typo into a missing row rather than a diagnostic. An **enum** is rejected
+/// beside them, and for the same reason one step further out: ADR 0010 makes a
+/// case a named integer, so the normalization would silently key the array by
+/// a backing value two enums can share — `E0708` refuses `$case as string` on
+/// that reading already, and this is the position where no `as` was written at
+/// all. Anything else — `mixed`,
 /// a union, an object, ... — isn't statically known to be one of these four,
 /// so it is left alone here, the same "erase to `mixed` rather than guess"
 /// split `division_result`/`bitwise_result` already draw for an operand pair
@@ -863,5 +868,23 @@ pub(crate) fn check_array_key_type(key_ty: TypeId, span: Span, env: &mut Env<'_>
             .with_primary(span, "this key")
             .with_help("array keys are `int`, `uint`, or `string` — convert explicitly with `as`"),
         );
+        return;
     }
+    let Ty::Enum(qname, _) = env.interner.get(key_ty) else {
+        return;
+    };
+    let qname = qname.clone();
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ARRAY_KEY_INVALID_TYPE,
+            format!("`{qname}` is an enum, and an enum case is not an array key"),
+        )
+        .with_primary(span, "this key")
+        .with_help(
+            "ADR 0010 makes an enum case a named integer, so normalizing one would key the \
+             array by a backing value two enums can share — write `$case as int` where that \
+             number is the key you mean, or a member of your own that names the case where \
+             it is not (`as string` is `E0708` for the same reason)",
+        ),
+    );
 }
