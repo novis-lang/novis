@@ -44,19 +44,75 @@
 //! `fsync` and one `rename`, all on a path where a real compile has just happened. A warm hit pays
 //! none of it.
 //!
+//! # § 3's read path
+//!
+//! `mmap` the file read-only — never starting from an executable mapping — then check magic,
+//! `format_version` and `env_hash` against what this process expects, check `payload_len` against
+//! the mapping's own length, and hash the payload. Every failure is a cache miss, and none of them
+//! is visible to the script being run: § 3 is explicit that a bad entry is exactly as invisible as a
+//! cold cache, so nothing here returns a diagnostic, panics or throws.
+//!
+//! **Verification is a property of the type, not of a caller's discipline.** [`Cache::load`] hands
+//! back a [`Verified`], which is constructed on exactly one code path — the far side of the
+//! checksum comparison — and holds the mapping privately. A caller cannot reach the bytes without
+//! going through it, so the step that would make those pages executable cannot be reached from an
+//! unverified mapping even by mistake.
+//!
+//! **Two failures also delete the file; three do not.** A checksum mismatch does, which is § 3's own
+//! instruction: the key is the content hash, so a file at that path whose contents hash differently
+//! can only be corrupt or tampered and can never become a second valid version. A `payload_len` that
+//! disagrees with the mapping is treated the same way, one step earlier — that field exists to catch
+//! a truncation before the checksum does, the entry is corrupt on the same argument, and leaving it
+//! costs a re-open on every future run. A wrong magic, `format_version` or `env_hash` is *not*
+//! deleted: those three mean "not this process's file" rather than "broken", and deleting on them
+//! would let one build of the compiler evict another's entries out of a shared cache directory.
+//!
+//! Cost of a hit: one `open`, one `mmap`, one BLAKE3 pass over the payload. The ADR's
+//! *Investigation* weighs that against reading into a heap buffer and takes the mapping — the page
+//! cache does the I/O once and the hash runs over it with no copy.
+//!
+//! # Known gaps
+//!
+//! **A payload is a relocatable object image, not a dump of the JIT's finished pages.** ADR 0042's
+//! *Investigation* describes a warm hit as mapping "the bytes directly as the pages the JIT would
+//! otherwise have produced", and that is not reachable from this compiler for two independent
+//! reasons. First, `cranelift_jit::JITModule` has no serialization at all: it finalizes into memory
+//! it owns and hands back a code pointer, and there is no API yielding the bytes plus the
+//! relocations another process would need. Second, and the one that would survive such an API, a
+//! byte-perfect page dump would be *wrong* in the next process — `nvs-codegen`'s `emit.rs` bakes
+//! host addresses in as `iconst` immediates carrying no relocation record: a class descriptor's
+//! address in `class_desc` and again in the `instanceof` lowering, and a statically resolved
+//! target's code address through `method_address`. Those are valid only for the process that
+//! allocated the descriptors and compiled the callee.
+//!
+//! So the payload is `cranelift-object`'s `ObjectProduct` — the same `nvs_ir` emitted a second way,
+//! through a `Module` that records relocations instead of resolving them — and a warm hit maps,
+//! verifies, applies those relocations, and only then makes the pages executable. **That last part
+//! amends § 3's letter**, which mapped `PROT_READ` and `mprotect`ed the very same mapping, where a
+//! relocated image needs a private writable one first; the checksum discipline is untouched, since
+//! the hash still covers the file's bytes and the patching happens after it. Per the loop goal's
+//! standing decision the redesign is recorded rather than started: it is a `nvs-codegen` slice — a
+//! second `Module` implementation, and a named symbol for every address the JIT bakes in — and it
+//! is in the handoff's backlog, not in this crate.
+//!
+//! [ADR 0048](../../../docs/adr/0048-portable-single-file-executables.md) is not the other half of
+//! this. Its § 2 decides a bundle carries *source*, not precompiled artifacts, and feeds into this
+//! cache rather than out of it, so there is no already-produced payload for the cache to ship over.
+//!
 //! [ADR 0042]: ../../../docs/adr/0042-on-disk-artifact-cache-format.md
 //! [ADR 0078]: ../../../docs/adr/0078-config-reload-and-control-socket.md
 
-// Nothing outside this module's own tests calls any of it yet, because there is no serialized
-// compiled unit to publish: `cranelift_jit::JITModule` does not serialize, so § 3's reader and the
-// compile-pipeline call sites both wait on that decision. The handoff's next group owns it. Until
-// then `dead_code` is naming a slice that has not happened rather than an item nothing will use.
+// Nothing outside this module's own tests calls either half yet: the *Known gaps* entry above says
+// what has to land in `nvs-codegen` before there is a payload to publish, and the compile-pipeline
+// call sites wait on the same thing. Until then `dead_code` is naming a slice that has not happened
+// rather than an item nothing will use.
 #![allow(dead_code)]
 
 use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
+use memmap2::Mmap;
 use nvs_config::cache::{Digest, EnvHash};
 use rand::RngExt;
 
@@ -116,6 +172,68 @@ impl Header {
         out[46..78].copy_from_slice(&self.checksum);
         out
     }
+
+    /// The header at the front of `bytes`, or [`None`] when there is not one there.
+    ///
+    /// The magic is checked here rather than by the caller because it is the one field with no
+    /// typed home: everything else this returns is compared against what the process expects, and a
+    /// `Header` that got past this function is one whose four bytes said `NVSC`.
+    #[must_use]
+    pub(crate) fn decode(bytes: &[u8]) -> Option<Self> {
+        let head: &[u8; HEADER_LEN] = bytes.get(..HEADER_LEN)?.try_into().ok()?;
+        if head[0..4] != MAGIC {
+            return None;
+        }
+        Some(Self {
+            format_version: u16::from_le_bytes([head[4], head[5]]),
+            env_hash: head[6..38].try_into().expect("32 bytes of env_hash"),
+            payload_len: u64::from_le_bytes(
+                head[38..46].try_into().expect("8 bytes of payload_len"),
+            ),
+            checksum: head[46..78].try_into().expect("32 bytes of checksum"),
+        })
+    }
+}
+
+/// Why [`Cache::load`] is not returning an artifact — and, in the second case, why it is taking the
+/// file with it.
+///
+/// The module doc's § 3 section owns which mismatch is which and why the split is where it is.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Miss {
+    /// Not this process's file: absent, or headed for another format version or environment.
+    Foreign,
+    /// This process's file, and broken. It can never become valid, so it is deleted.
+    Corrupt,
+}
+
+/// One artifact that passed every one of § 3's checks, still mapped read-only.
+///
+/// This type is the whole of "verified before a single page is executable": it is constructed on
+/// exactly one code path, the far side of the checksum comparison in [`Cache::load`], and it owns
+/// the mapping privately, so there is no way to reach an artifact's bytes without having verified
+/// them. The mapping is a [`Mmap`] and not an `MmapMut`, so the pages stay read-only for its whole
+/// life; the step that would change that is the module doc's *Known gaps* entry.
+#[derive(Debug)]
+pub(crate) struct Verified {
+    /// The whole file, header included, as the page cache holds it.
+    map: Mmap,
+    /// The decoded header, already checked against this process.
+    header: Header,
+}
+
+impl Verified {
+    /// The artifact's payload — the bytes the header's checksum covers, and nothing else.
+    #[must_use]
+    pub(crate) fn payload(&self) -> &[u8] {
+        &self.map[HEADER_LEN..]
+    }
+
+    /// § 2's header, as it was read.
+    #[must_use]
+    pub(crate) fn header(&self) -> Header {
+        self.header
+    }
 }
 
 /// What [`Cache::store`] did — § 4's two outcomes, and neither is a failure.
@@ -171,6 +289,60 @@ impl Cache {
         let hex = key.to_string();
         let (shard, rest) = hex.split_at(2);
         self.dir.join(shard).join(format!("{rest}.{EXTENSION}"))
+    }
+
+    /// § 3: the artifact published under `key`, verified whole, or [`None`].
+    ///
+    /// [`None`] covers every failure this can have — a missing file, a foreign one, a corrupt one,
+    /// an unreadable directory — because § 3 makes a bad cache entry exactly as invisible to the
+    /// running script as a cold cache is. Nothing here reports, and the caller's next move is the
+    /// compile it would have done anyway.
+    #[expect(
+        unsafe_code,
+        reason = "`Mmap::map` is unsafe because another process could rewrite the file underneath \
+                  the mapping; § 4 publishes an artifact by rename and never rewrites one, and § 5's \
+                  ownership check on the cache directory is what bounds who could, so this is the \
+                  one call in this crate and the block below states the argument"
+    )]
+    pub(crate) fn load(&self, key: Digest) -> Option<Verified> {
+        let path = self.path(key);
+        let file = File::open(&path).ok()?;
+        // SAFETY: a published artifact is immutable — § 4 writes it under a temp name and publishes
+        // it by one rename, and § 5's ownership check on the cache directory is what keeps any
+        // other principal from replacing or truncating it underneath this mapping. Every byte is
+        // hashed below before any caller sees one.
+        let map = unsafe { Mmap::map(&file) }.ok()?;
+        drop(file);
+
+        match Self::verify(self.env, &map) {
+            Ok(header) => Some(Verified { map, header }),
+            Err(Miss::Foreign) => None,
+            Err(Miss::Corrupt) => {
+                // The unmap comes first: Windows keeps a file open for as long as a mapping over it
+                // is alive, so deleting while mapped fails there and would leave the entry to be
+                // re-read on every future run.
+                drop(map);
+                drop(fs::remove_file(&path));
+                None
+            }
+        }
+    }
+
+    /// § 3's four checks over a mapped artifact, cheapest first, hash last.
+    fn verify(env: EnvHash, bytes: &[u8]) -> Result<Header, Miss> {
+        let header = Header::decode(bytes).ok_or(Miss::Foreign)?;
+        if header.format_version != FORMAT_VERSION || header.env_hash != *env.digest().as_bytes() {
+            return Err(Miss::Foreign);
+        }
+        let payload = &bytes[HEADER_LEN..];
+        let mapped = u64::try_from(payload.len()).expect("a mapping's length fits a u64");
+        if header.payload_len != mapped {
+            return Err(Miss::Corrupt);
+        }
+        if *blake3::hash(payload).as_bytes() != header.checksum {
+            return Err(Miss::Corrupt);
+        }
+        Ok(header)
     }
 
     /// § 4: publish `payload` under `key` by one atomic rename, with no lock file.
@@ -396,6 +568,119 @@ mod tests {
             Header::for_payload(cache.env(), payload)
                 .encode()
                 .as_slice()
+        );
+
+        drop(fs::remove_dir_all(&dir));
+    }
+
+    /// ADR 0042 § 3: an artifact is checked over its whole length before [`Cache::load`] will hand
+    /// back the handle a mapper would take, and the check is the byte-exact one.
+    ///
+    /// What is assertable today is the ordering and the coverage, which is what the ADR's claim
+    /// reduces to: a [`Verified`] exists on exactly one path, so any input that fails any check
+    /// produces no handle at all, and *every* byte position of the payload is covered — a flip in
+    /// the first byte, the last byte or the middle is caught alike, which is what distinguishes a
+    /// whole-payload hash from a prefix check that would pass a doctored tail. The `mprotect` half
+    /// of § 3 does not exist yet and the module doc's *Known gaps* entry says what it waits on; a
+    /// test asserting over a step this crate cannot take would assert nothing.
+    #[test]
+    fn an_artifact_is_verified_whole_before_any_page_is_executable() {
+        let dir = scratch("verify");
+        let cache = Cache::new(&dir, env());
+        let payload = b"; a compiled unit's payload, long enough to have a middle".as_slice();
+        let key = artifact_key(payload, cache.env());
+
+        assert!(
+            cache.load(key).is_none(),
+            "a cold cache is a miss and not an error"
+        );
+        cache.store(key, payload).expect("writable");
+
+        let hit = cache.load(key).expect("a published artifact verifies");
+        assert_eq!(hit.payload(), payload, "the payload is the bytes stored");
+        assert_eq!(hit.header(), Header::for_payload(cache.env(), payload));
+        drop(hit);
+
+        // Whole, not prefixed: every position is inside the hash, including the last one.
+        let path = cache.path(key);
+        let good = fs::read(&path).expect("readable");
+        for at in [
+            HEADER_LEN,
+            HEADER_LEN + payload.len() / 2,
+            HEADER_LEN + payload.len() - 1,
+        ] {
+            let mut doctored = good.clone();
+            doctored[at] ^= 0x01;
+            fs::write(&path, &doctored).expect("writable");
+            assert!(
+                cache.load(key).is_none(),
+                "a flipped byte at {at} is not a hit"
+            );
+            assert!(
+                !path.exists(),
+                "a corrupt entry is deleted, never left to be re-read"
+            );
+        }
+
+        // A truncated payload is caught by `payload_len`, one step before the checksum.
+        fs::create_dir_all(path.parent().expect("a shard")).expect("writable");
+        fs::write(&path, &good[..good.len() - 1]).expect("writable");
+        assert!(cache.load(key).is_none(), "a truncated artifact is a miss");
+        assert!(!path.exists(), "and it is deleted too");
+
+        // A header alone, with no payload behind it, is not a handle either.
+        fs::write(&path, &good[..HEADER_LEN / 2]).expect("writable");
+        assert!(cache.load(key).is_none(), "a partial header is a miss");
+
+        drop(fs::remove_dir_all(&dir));
+    }
+
+    /// ADR 0042 § 3: a tampered artifact is rejected, silently, and the file goes with it — while a
+    /// file that is merely *foreign* is left alone.
+    ///
+    /// The three foreign cases are the ones § 3 calls a cache miss rather than corruption: a wrong
+    /// magic, a wrong `format_version` and a wrong `env_hash`. Deleting on those would let one build
+    /// of the compiler evict another's entries out of a shared cache directory, which the module doc
+    /// states as the reason the split is where it is.
+    #[test]
+    fn a_tampered_artifact_is_rejected() {
+        let dir = scratch("tampered");
+        let cache = Cache::new(&dir, env());
+        let payload = b"; the unit an attacker would like to replace".as_slice();
+        let key = artifact_key(payload, cache.env());
+        cache.store(key, payload).expect("writable");
+
+        let path = cache.path(key);
+        let good = fs::read(&path).expect("readable");
+
+        // Tampered: the payload is not what the header says it is. Nothing is returned, nothing is
+        // reported, and the entry is gone.
+        let mut swapped = good.clone();
+        let chosen = vec![b'x'; payload.len()];
+        swapped[HEADER_LEN..].copy_from_slice(&chosen);
+        assert_eq!(swapped.len(), good.len(), "the same length, other bytes");
+        fs::write(&path, &swapped).expect("writable");
+        assert!(cache.load(key).is_none(), "a tampered payload is rejected");
+        assert!(!path.exists(), "and the entry is deleted");
+
+        // Foreign, three ways: each is a miss, and each file survives.
+        for (label, doctor) in [("magic", 0_usize), ("format_version", 4), ("env_hash", 6)] {
+            let mut foreign = good.clone();
+            foreign[doctor] ^= 0xff;
+            fs::create_dir_all(path.parent().expect("a shard")).expect("writable");
+            fs::write(&path, &foreign).expect("writable");
+            assert!(cache.load(key).is_none(), "a wrong {label} is a miss");
+            assert!(
+                path.exists(),
+                "a wrong {label} means `not mine`, not `broken` — the file stays"
+            );
+        }
+
+        // And the real entry still verifies once it is back.
+        fs::write(&path, &good).expect("writable");
+        assert_eq!(
+            cache.load(key).expect("the original verifies").payload(),
+            payload
         );
 
         drop(fs::remove_dir_all(&dir));

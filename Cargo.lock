@@ -1460,6 +1460,7 @@ version = "0.0.1"
 dependencies = [
  "blake3",
  "clap",
+ "memmap2",
  "nvs-codegen",
  "nvs-config",
  "nvs-diagnostics",

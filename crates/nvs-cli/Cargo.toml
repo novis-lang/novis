@@ -37,6 +37,9 @@ clap.workspace = true
 # publish. The key beside it is `nvs-config`'s, so this is the only place the
 # cache hashes anything itself.
 blake3.workspace = true
+# § 3's read path maps the artifact rather than reading it, so BLAKE3 runs over
+# the page cache's own copy and no page is ever executable before it has.
+memmap2.workspace = true
 # § 4's `.tmp-<random>` name. A temp file is in the shard directory a reader
 # lists, so its name has to be unique across processes that never talk.
 rand.workspace = true
@@ -48,5 +51,26 @@ serde_json.workspace = true
 # format decision itself is ADR 0064 § 1's and belongs to `nvs-config`.
 toml.workspace = true
 
-[lints]
-workspace = true
+# `unsafe_code` is `deny` rather than the workspace's `forbid` because ADR 0042
+# § 3 verifies an artifact where the page cache already put it, and `Mmap::map`
+# has no safe spelling — one call, in `cache.rs`, carrying its own `#[expect]`
+# with the reason it is sound. Everything else here is the workspace table
+# verbatim.
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+cast_possible_truncation = "warn"
+cast_possible_wrap = "warn"
+cast_sign_loss = "warn"
+checked_conversions = "warn"
+todo = "warn"
+unimplemented = "warn"
+dbg_macro = "warn"
+print_stdout = "warn"
+print_stderr = "warn"

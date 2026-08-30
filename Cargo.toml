@@ -148,6 +148,14 @@ rustc-hash = "2"
 # `default-features = false` is what turns the assembly off.
 blake3 = { version = "1", default-features = false, features = ["std", "pure"] }
 
+# --- Memory-mapped files (ADR 0042 § 3's read path) ---
+# The cache verifies an artifact by hashing it where the page cache already put
+# it, rather than by reading it into a buffer first — that ADR's *Investigation*
+# weighs the two and picks this one. Pure Rust over the platform's own calls
+# (`libc`, `windows-sys`), no C and no build script, so ground-rules.md
+# § *Pure-Rust dependencies by default* has nothing to spend here.
+memmap2 = "0.9"
+
 # --- Unicode text segmentation (ADR 0009 § 2's grapheme granularity) ---
 # UAX #29 extended grapheme cluster boundaries, which `string`'s default
 # length/indexing unit is defined by. Pure Rust, no build script, no C.
@@ -399,8 +407,9 @@ criterion = "0.7"
 
 # ---------------------------------------------------------------------------
 # Lint policy. Safe crates opt in wholesale via `lints.workspace = true`.
-# The two crates that need `unsafe` (nvs-runtime, nvs-codegen) declare their
-# own `[lints]` with `unsafe_code = "deny"` and narrow module-level allows,
+# The crates that need `unsafe` (nvs-runtime, nvs-codegen, nvs-host,
+# nvs-stdlib, and nvs-config and nvs-cli for one platform call each) declare
+# their own `[lints]` with `unsafe_code = "deny"` and narrow site-level allows,
 # so every unsafe block is a deliberate, reviewable exception. The policy is
 # recorded in docs/adr/README.md.
 # ---------------------------------------------------------------------------
