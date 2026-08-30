@@ -339,6 +339,32 @@ pub struct Ctx {
     /// themselves are the operator's own `[limits] memory`, moved from one side
     /// of the ceiling to the other, so a request's total is unchanged.
     fatal_reserve: usize,
+    /// `[limits] cpu_time` in nanoseconds, or `0` for a request under no cap —
+    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's
+    /// second resource limit, cached for [`Self::memory_limit`]'s reason.
+    ///
+    /// **What measures it is the request thread's own CPU clock, and never the
+    /// wall clock [`Self::deadline`] is written from.** The two are different
+    /// directives — `[limits] wall_time` is the other one — and they answer
+    /// different questions: wall time bounds how long a client waits, and CPU
+    /// time bounds how much of this machine one request may burn. Charging a
+    /// request for the time it spent descheduled or blocked on a socket would
+    /// make a runaway loop and a slow database indistinguishable, and § 1's
+    /// limits exist to stop the first without touching the second.
+    ///
+    /// **The sampling is the host's, not this crate's.** A thread-per-core host
+    /// runs many requests in one process, so the clock has to be per-thread
+    /// (`CLOCK_THREAD_CPUTIME_ID` on Unix, `GetThreadTimes` on Windows) rather
+    /// than per-process, and reading another thread's is a platform call
+    /// `nvs-runtime` has no dependency to make. So the split is the one
+    /// [`Self::deadline`] already uses: this crate holds the ceiling and the
+    /// flag, and whatever timer watches the request raises
+    /// [`SafepointFlags::CPU_LIMIT`] when the clock passes it. Until that timer
+    /// exists the flag is raised by tests alone, which is the gap
+    /// [`nvs_safepoint`]'s CPU branch describes.
+    ///
+    /// **What it spends:** one word per request.
+    cpu_limit: u64,
     /// What is behind a pending `THROWN` or `FATAL` status — see [`Pending`]
     /// for why one field carries both shapes rather than two sitting beside
     /// each other.
@@ -891,6 +917,7 @@ impl Ctx {
             memory_limit: 0,
             limit_handler: Value::null(),
             fatal_reserve: 0,
+            cpu_limit: 0,
             pending: None,
             runtime_error_class: None,
             output,
@@ -1215,6 +1242,44 @@ impl Ctx {
         // uncapped request has nothing to carve and reserves nothing: there is
         // no ceiling for a handler to be given room past.
         self.memory_limit = ceiling.saturating_sub(self.fatal_reserve);
+        self.cpu_limit = self.configured_cpu_time();
+    }
+
+    /// `[limits] cpu_time` in nanoseconds, or `0` for a request under no cap.
+    ///
+    /// See [`Self::cpu_limit`]'s field doc for what the number measures. A
+    /// malformed value answers "no cap" for the reason
+    /// [`Self::configured_memory_limit`] does, and `false` — [ADR 0005]'s
+    /// spelling of no ceiling at all — answers the same `0`, because a request
+    /// that may burn any amount of CPU and one whose ceiling nothing states are
+    /// the same request to everything downstream.
+    ///
+    /// [ADR 0005]: ../../../docs/adr/0005-config-changeability.md
+    fn configured_cpu_time(&self) -> u64 {
+        let Some(written) = self
+            .config
+            .as_ref()
+            .and_then(|config| config.get("cpu_time"))
+        else {
+            return 0;
+        };
+        let setting = nvs_config::Setting::Text(written);
+        match nvs_config::Quantity::parse("cpu_time", nvs_config::Unit::Duration, &setting) {
+            Ok(nvs_config::Quantity::Nanos(nanos)) => nanos,
+            _ => 0,
+        }
+    }
+
+    /// The CPU time this request may burn, in nanoseconds, or `0` for one under
+    /// no cap — [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
+    /// § 1.
+    ///
+    /// This is the ceiling a timer compares the request thread's CPU clock
+    /// against before it raises [`SafepointFlags::CPU_LIMIT`]; the field doc
+    /// says why the reading is not taken here.
+    #[must_use]
+    pub fn cpu_limit(&self) -> u64 {
+        self.cpu_limit
     }
 
     /// `[limits] fatal_reserve_memory` as bytes, or `None` where the
@@ -2362,9 +2427,10 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
         // `Ctx::run_limit_handler` owns the zero-retry rule.
         //
         // What differs is the slice. § 1's `fatal_reserve_time` has no reader
-        // yet — `[limits] cpu_time` is unread by `Ctx` and this flag is raised
-        // only by a caller that already decided the request is over — so a
-        // handler here runs against a time slice of width zero: it is entered,
+        // yet — [`Ctx::cpu_limit`] holds the ceiling now, but nothing samples a
+        // clock against it, so this flag is still raised only by a caller that
+        // already decided the request is over — so a handler here runs against a
+        // time slice of width zero: it is entered,
         // and the flag it was entered under stops it again at its own first
         // back edge. Straight-line work and `Core` calls complete (the helper
         // boundary asks the memory question, not this one), a loop does not,
