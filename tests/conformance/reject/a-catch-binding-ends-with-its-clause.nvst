@@ -1,0 +1,21 @@
+--TEST--
+A `catch` binding is not readable after its clause — only the thrown value assigns it (ADR 0007 § 1's `catch` row)
+--FILE--
+<?nvs
+// `$e` is a local of the enclosing function, declared by the clause, but the
+// only thing that ever assigns it is the value being caught. No path out of
+// the `try` carries one — not even when the clause is the only way the
+// statement finishes normally — so a read after it is refused here rather
+// than reaching the lowerer as a name it has never been given.
+try {
+    throw new LogicError("inside");
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+echo $e->message, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0301]: `$e` is read before any assignment reaches it
+%A
+error: aborting due to 1 error

@@ -1127,11 +1127,17 @@ pub(crate) fn check_stmt(
             }
             for catch in catches {
                 let mut catch_live = live.clone();
+                let mut bound = None;
                 if let Some(var) = catch.var {
                     let ty = lower_type(&catch.ty, ctx, env);
                     let name = strip_sigil(span_text(env.src, var)).to_owned();
                     declare_binding(scope, &name, ty, var, false, env);
-                    catch_live.insert(name);
+                    catch_live.insert(name.clone());
+                    // Unless the name was already assigned before the `try`,
+                    // in which case the clause reused an existing binding
+                    // (`declare_binding`'s non-strict path) and what was live
+                    // going in is still live coming out.
+                    bound = (!live.contains(&name)).then_some(name);
                 }
                 check_block(
                     &catch.body.stmts,
@@ -1141,6 +1147,15 @@ pub(crate) fn check_stmt(
                     ctx,
                     env,
                 );
+                // The binding ends with its clause. Only the thrown value ever
+                // assigns it, and no path out of the `try` carries one, so it
+                // must not join `live` even when the clause is the only way
+                // the construct finishes normally — that leak is what made a
+                // later read reach the lowerer as an undeclared local instead
+                // of the definite-assignment error it is.
+                if let Some(name) = bound {
+                    catch_live.remove(&name);
+                }
                 if !catch.body.stmts.last().is_some_and(terminates) {
                     candidates.push(catch_live);
                 }

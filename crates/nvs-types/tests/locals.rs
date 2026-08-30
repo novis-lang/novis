@@ -164,6 +164,30 @@ fn a_try_whose_catch_does_not_assign_is_still_diagnosed() {
     );
 }
 
+/// The clause's own binding ends with the clause: only the thrown value
+/// assigns it, and no path out of the `try` carries one — not even when the
+/// clause is the only way the statement finishes normally, which is the shape
+/// that used to leak the name past the checker and panic the lowerer.
+#[test]
+fn a_catch_binding_is_not_live_after_its_clause() {
+    let diags = check_in_method(
+        "try {\n  throw new LogicError(\"x\");\n} catch (LogicError $e) {\n  echo $e->message;\n}\necho $e->message;\n",
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_UNDEFINED_VARIABLE)),
+        "{diags:?}"
+    );
+
+    // A name the body already assigned is a reuse of that binding, not a new
+    // one, so what was live going into the `try` is still live coming out.
+    let diags = check_in_method(
+        "LogicError $e = new LogicError(\"x\");\ntry {\n  echo \"ok\";\n} catch (LogicError $e) {\n}\necho $e->message;\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
 /// `finally` always runs, so its assignment carries forward even though
 /// neither `body` nor any `catch` touches `$n` at all.
 #[test]
