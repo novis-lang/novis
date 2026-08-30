@@ -180,6 +180,7 @@ class StatusLine:
         self.done = 0
         self.total = 0
         self.calls = 0
+        self.verifying = ""  # `verify test 3/7 12s` while verify.py runs; see `VerifyWatch`
         self.since = time.monotonic()
         self._frame = 0
         self._rows = 0  # rows the live block owns right now; 0 when it is not on screen
@@ -217,6 +218,7 @@ class StatusLine:
             # before the ticker's, which is the whole of the argument that neither waits on the
             # other.
             CONTROL.poll()
+            VERIFY.poll()
             with self.lock:
                 self._frame += 1
                 self.draw()
@@ -269,6 +271,12 @@ class StatusLine:
             self.detail = (f"{self.calls} tool call(s){self.sep}" if self.calls else "") + text
             self.draw()
 
+    def verify(self, text):
+        """What `verify.py` is doing right now, or "" when it is not running. Painted by the
+        next tick rather than here: the ticker is the only caller, and it draws right after."""
+        with self.lock:
+            self.verifying = text
+
     # -- painting ----------------------------------------------------------------------
 
     def compose(self):
@@ -276,7 +284,7 @@ class StatusLine:
         if self.total > 0:
             done = min(self.done, self.total)
             head = f"{head} {done}/{self.total} {done * 100 // self.total}%".lstrip()
-        parts = [p for p in (self.scope, head, self.detail) if p]
+        parts = [p for p in (self.scope, head, self.detail, self.verifying) if p]
         parts.append(mmss(time.monotonic() - self.since))
         body = self.sep.join(parts).replace("\n", " ")
         # One column short of the width on purpose: a line that exactly fills the terminal wraps,
@@ -551,8 +559,81 @@ class Control:
         return asked
 
 
+class VerifyWatch:
+    """What `tools/verify.py` is doing inside a session's tool call, on the status line.
+
+    The harness hands the driver a tool call's output only when the call returns, so a session's
+    verification -- one call, a minute and a half at the end of every session -- was a spinner
+    behind `Bash python tools/verify.py` with nothing moving for the whole of it. `verify.py`
+    therefore writes `.agent-tmp/verify-progress.json` at every step boundary (its module doc is
+    the format's home), and this reads it: the step in flight and its clock go on the status line
+    behind the tool call, and each boundary gets one grey line in the scrollback and the session
+    log, so the timeline is still there once the call has returned. A `--start` run shows the
+    same way while the session writes its wrap file beside it.
+
+    Armed for the life of a session and nothing else. A file older than the arming is a previous
+    session's -- `verify.py` rewrites it `finished` at the end, but a run killed mid-step leaves
+    its last entry behind forever -- and so is a step "in flight" for longer than `STALE`, which
+    is `verify.py`'s own `--wait` timeout."""
+
+    FILE = ROOT / ".agent-tmp" / "verify-progress.json"
+    EVERY = 0.5  # seconds between reads; the ticker fires eight times a second
+    STALE = 600.0
+
+    def __init__(self):
+        self.armed = 0.0  # wall clock of the arming; 0 while no session is running
+        self.seen = None  # (index, step) last announced, so a boundary is said once
+        self._next = 0.0
+
+    def arm(self):
+        self.armed = time.time()
+        self.seen = None
+        self._next = 0.0
+        TICKER.verify("")
+
+    def disarm(self):
+        self.armed = 0.0
+        TICKER.verify("")
+
+    def poll(self):
+        """Called by the ticker, outside its lock -- this says things."""
+        if not self.armed:
+            return
+        now = time.monotonic()
+        if now < self._next:
+            return
+        self._next = now + self.EVERY
+        entry = self.read()
+        if entry is None or "finished" in entry or "step" not in entry:
+            TICKER.verify("")
+            return
+        key = (entry.get("index"), entry.get("step"))
+        if key != self.seen:
+            self.seen = key
+            done = entry.get("done") or []
+            before = f"{done[-1]['name']} ok {mmss(done[-1]['seconds'])} -> " if done else ""
+            say(f"     ~ verify: {before}{entry['step']} ({entry['index']}/{entry['total']})",
+                C.GRAY)
+        TICKER.verify(f"verify {entry['step']} {entry['index']}/{entry['total']} "
+                      f"{mmss(time.time() - float(entry.get('at') or 0))}")
+
+    def read(self):
+        try:
+            if self.FILE.stat().st_mtime < self.armed:
+                return None
+            entry = json.loads(self.FILE.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        if not isinstance(entry, dict):
+            return None
+        if time.time() - float(entry.get("at") or 0) > self.STALE:
+            return None
+        return entry
+
+
 TICKER = StatusLine()
 CONTROL = Control()
+VERIFY = VerifyWatch()
 
 
 # --------------------------------------------------------------------------- the console log
@@ -2596,6 +2677,7 @@ def run_session(run_id, index, prompt_text, opts, renderer):
          f"--permission-mode {opts.permission_mode})")
     TICKER.set(phase="launching", detail=f"{exe} --model {opts.model}{effort}")
     launched = time.monotonic()
+    VERIFY.arm()
     proc = subprocess.Popen(
         cmd,
         cwd=ROOT,
@@ -2667,6 +2749,8 @@ def run_session(run_id, index, prompt_text, opts, renderer):
         except subprocess.TimeoutExpired:
             pass
         raise
+    finally:
+        VERIFY.disarm()
     if proc.returncode and said_limit and not (limit and limit.blocked):
         # A limit reported in prose, with no event carrying a deadline. Come back shortly rather
         # than ending the run: the next session's own event will carry the real one.

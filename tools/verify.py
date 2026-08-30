@@ -37,6 +37,14 @@ gate, and the run at the end of the group always does.
 Full output of every step is always written to `.agent-tmp/verify-<step>.log`, whether it
 passed or not, so a truncated failure is one Read away from complete.
 
+While it runs, `.agent-tmp/verify-progress.json` names the step in flight -- `{"step": "test",
+"index": 3, "total": 7, "at": <epoch>, "done": [{"name": "build", "seconds": 8.1}, ...]}` --
+rewritten at every step boundary and once more at the end with `"finished": <exit status>`.
+Nothing in this file reads it. It exists for `tools/loop.py`'s status line: the harness hands the
+driver a tool call's output only when the call returns, so a watcher of the loop otherwise sees a
+spinner for the whole minute and a half a verification takes. Printing more to stdout would not
+reach that watcher any sooner, and would cost the session the context this script exists to save.
+
 This script judges nothing. A step's own exit status is the whole verdict -- there is no
 threshold here, no allowance, and no way to make a red step green from this file.
 
@@ -85,6 +93,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 TMP = ROOT / ".agent-tmp"
 CACHE = TMP / "verify-green.json"
+PROGRESS = TMP / "verify-progress.json"  # the step in flight; see the module doc
 
 TAIL_LINES = 60  # of the failing step only; the full log is always on disk
 CACHE_TTL = 3600  # seconds. A tree hash cannot go stale on its own; this is a belt on braces.
@@ -171,6 +180,27 @@ def run(step):
     TMP.mkdir(exist_ok=True)
     (TMP / f"verify-{step.name}.log").write_text(step.out, encoding="utf-8", newline="\n")
     return step.code == 0
+
+
+def progress(done, step=None, total=0, finished=None):
+    """Rewrite `PROGRESS`: the step about to run, or -- with `finished` -- the verdict.
+
+    Best effort, and silently so: this is a watcher's convenience, and a convenience that could
+    make a verification fail on an unwritable `.agent-tmp` would be the wrong trade."""
+    entry = {
+        "pid": os.getpid(),
+        "at": time.time(),
+        "done": [{"name": s.name, "seconds": round(s.seconds, 1)} for s in done],
+    }
+    if step is not None:
+        entry.update(step=step.name, index=len(done) + 1, total=total)
+    if finished is not None:
+        entry["finished"] = finished
+    try:
+        TMP.mkdir(exist_ok=True)
+        PROGRESS.write_text(json.dumps(entry), encoding="utf-8", newline="\n")
+    except OSError:
+        pass
 
 
 # ------------------------------------------------------------------ summaries
@@ -522,10 +552,12 @@ def main():
     done = []
     failed = None
     for step in steps:
+        progress(done, step, len(steps))
         if not run(step):
             failed = step
             break
         done.append(step)
+    progress(done, finished=1 if failed else 0)
 
     total = sum(s.seconds for s in done) + (failed.seconds if failed else 0)
 
