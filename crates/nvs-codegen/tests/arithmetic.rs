@@ -343,10 +343,13 @@ fn a_spaceship_answers_minus_one_zero_or_one_for_a_scalar() {
     // A mixed numeric pair does not widen: ADR 0007 § 2's implicit `int` into
     // `float` throws above 2^53, and a pair that far apart still orders.
     assert_eq!(output_of("<?nvs\necho 1 <=> 1.5, 2.5 <=> 2;\n"), "-11");
-    // Unordered, in both directions and against itself.
+    // Unordered, in both directions and against itself. The `NaN` comes from
+    // the constant and not from `0.0 / 0.0`, which ADR 0007 § 4 now makes a
+    // throw — the zero divisor is refused before the operand types are
+    // consulted, so there is no float division left that answers one.
     assert_eq!(
         output_of(
-            "<?nvs\nfloat $n = 0.0 / 0.0;\nfloat $x = 1.5;\n\
+            "<?nvs\nfloat $n = Core\\Math::NAN;\nfloat $x = 1.5;\n\
              echo $n <=> $x, $x <=> $n, $n <=> $n;\n"
         ),
         "111"

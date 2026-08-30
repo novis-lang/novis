@@ -2895,17 +2895,19 @@ class T {
     );
 }
 
-/// Integer `%` is the one operator carrying an
-/// [`Inst::on_error`](crate::ir::Inst::on_error) edge: ADR 0007 § 4 makes
-/// a zero divisor throw, and `nvs-codegen` raises that inline rather than
-/// through a helper, so the frame's cleanup path has to exist at the
-/// operator itself. Float division gets none, which is the half of this
-/// worth holding — an error edge that appeared on every `BinOp` would be
-/// a landing block per arithmetic expression, and `0.0 / 0.0` answers
-/// `NAN` rather than throwing. The other operand of `%` was this half's
-/// fixture until `E0717` refused a `float` one where it is written.
+/// A zero divisor throws whatever the operand types are (ADR 0007 § 4), and
+/// `nvs-codegen` raises that inline rather than through a helper, so the
+/// frame's cleanup path has to exist at the operator itself: integer `%` and
+/// **float** `/` both carry an
+/// [`Inst::on_error`](crate::ir::Inst::on_error) edge.
+///
+/// The half worth holding is the float `*` beside them, because the edge is
+/// not free — one on every `BinOp` would be a landing block per arithmetic
+/// expression — and it is `/` alone that earns one on the float row. The
+/// other operand of `%` was that half's fixture until `E0717` refused a
+/// `float` one where it is written.
 #[test]
-fn an_integer_modulo_carries_an_error_edge_and_a_float_division_does_not() {
+fn a_zero_divisor_carries_an_error_edge_on_the_float_row_too() {
     let (f, _, _) = lower_script_src("<?nvs\nint $a = 7;\nint $b = 2;\nint $q = $a % $b;\n");
     let modulo = f
         .blocks
@@ -2923,7 +2925,17 @@ fn an_integer_modulo_carries_an_error_edge_and_a_float_division_does_not() {
         .flat_map(|b| &b.insts)
         .find(|i| matches!(i.kind, InstKind::BinOp { op: BinOp::Div, .. }))
         .expect("the fixture lowers one `/`");
-    assert!(division.on_error.is_none(), "{division:?}");
+    assert!(division.on_error.is_some(), "{division:?}");
+
+    let (f, _, _) =
+        lower_script_src("<?nvs\nfloat $a = 7.0;\nfloat $b = 2.0;\nfloat $p = $a * $b;\n");
+    let product = f
+        .blocks
+        .iter()
+        .flat_map(|b| &b.insts)
+        .find(|i| matches!(i.kind, InstKind::BinOp { op: BinOp::Mul, .. }))
+        .expect("the fixture lowers one `*`");
+    assert!(product.on_error.is_none(), "{product:?}");
 }
 
 /// Every instruction that *returns a status* carries a landing block,

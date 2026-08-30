@@ -1333,7 +1333,7 @@ The operands of `+ - * / % **` are `int`, `uint`, `float` and `decimal`, and not
 | `decimal ⊕ float` | **compile error** — a `float` literal beside a `decimal` is a `float`, so `$d + 0.2` is refused; write `$d + (0.2 as decimal)` |
 | `%` | integers only, sign of the dividend; `Modulo by zero` throws |
 | `**` | an integer result for integer operands — a negative exponent throws unless the base is `1` or `-1`; `2 ** 0.5` is a `float` |
-| `/ 0` | `Division by zero` throws for integer operands; a `float` divided by zero answers `INF` |
+| `/ 0` | `Division by zero` throws, whatever the operand types — the zero divisor is refused before they are consulted, so there is one rule and not two. `Core\Math::fdiv` is IEEE's `INF` where you want it |
 
 ```nvs
 <?nvs
@@ -1364,7 +1364,8 @@ try { echo 1 % 0, "\n"; } catch (ArithmeticError $c) { echo $c->message, "\n"; }
 try { echo 2 ** -1, "\n"; } catch (ArithmeticError $d) { echo $d->message, "\n"; }
 uint $zero = 0;
 try { echo $zero - 1, "\n"; } catch (ArithmeticError $e) { echo $e->message, "\n"; }
-echo 1.0 / 0, "\n";
+try { echo 1.0 / 0, "\n"; } catch (ArithmeticError $f) { echo $f->message, "\n"; }
+echo Core\Math::fdiv(1.0, 0.0), "\n";
 ```
 ```output
 Integer addition overflowed
@@ -1372,6 +1373,7 @@ Division by zero
 Modulo by zero
 Negative exponent has no integer result
 Integer subtraction overflowed
+Division by zero
 INF
 ```
 
@@ -7803,7 +7805,7 @@ Answers every attribute attached to `$target` — or to its member `$member` —
 <a id="core-core-math"></a>
 ### `Core\Math`
 
-Keywords: abs, min, max, ceil, floor, round, intdiv, fmod, sqrt, pow, hypot, exp, log, log10, log2, sin, cos, tan, asin, acos, atan, atan2, sinh, cosh, tanh, deg2rad, rad2deg, is_nan, is_finite, is_infinite, decbin, dechex, decoct, bindec, hexdec, octdec, base_convert, number_format, gmp_gcd, gmp_lcm, M_PI, M_E, PHP_INT_MAX, PHP_INT_MIN, PHP_FLOAT_EPSILON, PHP_FLOAT_MAX, NAN, INF, PHP_ROUND_HALF_UP, PHP_ROUND_HALF_EVEN, abs, sign, min, max, clamp, ceil, floor, truncate, round, intDiv, mod, gcd, lcm, sqrt, cbrt, hypot, exp, log, sin, cos, tan, asin, acos, atan, atan2, sinh, cosh, tanh, asinh, acosh, atanh, toRadians, toDegrees, isNan, isFinite, toBase, fromBase, format
+Keywords: abs, min, max, ceil, floor, round, intdiv, fmod, fdiv, sqrt, pow, hypot, exp, log, log10, log2, sin, cos, tan, asin, acos, atan, atan2, sinh, cosh, tanh, deg2rad, rad2deg, is_nan, is_finite, is_infinite, decbin, dechex, decoct, bindec, hexdec, octdec, base_convert, number_format, gmp_gcd, gmp_lcm, M_PI, M_E, PHP_INT_MAX, PHP_INT_MIN, PHP_FLOAT_EPSILON, PHP_FLOAT_MAX, NAN, INF, PHP_ROUND_HALF_UP, PHP_ROUND_HALF_EVEN, abs, sign, min, max, clamp, ceil, floor, truncate, round, intDiv, mod, fdiv, gcd, lcm, sqrt, cbrt, hypot, exp, log, sin, cos, tan, asin, acos, atan, atan2, sinh, cosh, tanh, asinh, acosh, atanh, toRadians, toDegrees, isNan, isFinite, toBase, fromBase, format
 
 `Core\Math` is the numeric function set; the arithmetic operators `+ - * / % **` and `<=>` are the
 language's and have no member here. `abs`, `sign`, `min`, `max` and `clamp` take an `int`, a
@@ -7858,6 +7860,7 @@ nan 9223372036854775807
 | [`Core\Math::round`](#core-core-math-round) | `round(float $n, {precision?: int, mode?: Core\RoundMode}): float` |
 | [`Core\Math::intDiv`](#core-core-math-intdiv) | `intDiv(int $a, int $b): int` |
 | [`Core\Math::mod`](#core-core-math-mod) | `mod(float $a, float $b): float` |
+| [`Core\Math::fdiv`](#core-core-math-fdiv) | `fdiv(float $a, float $b): float` |
 | [`Core\Math::gcd`](#core-core-math-gcd) | `gcd(int $a, int $b): int` |
 | [`Core\Math::lcm`](#core-core-math-lcm) | `lcm(int $a, int $b): int` |
 | [`Core\Math::sqrt`](#core-core-math-sqrt) | `sqrt(float $n): float` |
@@ -8083,6 +8086,22 @@ The remainder of `$a / $b` over floats, with the sign of `$a`, as `fmod` does; i
 **Returns** `float` — `$a - $b * truncate($a / $b)`, carrying `$a`'s sign; `NaN` when `$a` is an infinity, and `$a` unchanged when `$b` is one.
 
 **Throws** `ArithmeticError` — When `$b` is zero — a division by zero, which throws here rather than answering `NaN` as `fmod` does.
+
+<a id="core-core-math-fdiv"></a>
+#### `Core\Math::fdiv`
+
+```nvs skip
+Core\Math::fdiv(float $a, float $b): float
+```
+
+The IEEE quotient of `$a / $b`, as `fdiv` does — the one member here that answers a zero divisor instead of throwing, the `/` operator having no such spelling.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$a` | `float` | The dividend. |
+| `$b` | `float` | The divisor, which may be zero. |
+
+**Returns** `float` — `$a / $b` under IEEE 754: an infinity signed by both operands when `$b` is zero and `$a` is not, and `NaN` when both are.
 
 <a id="core-core-math-gcd"></a>
 #### `Core\Math::gcd`

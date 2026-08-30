@@ -4025,6 +4025,19 @@ sibling in the same namespace unqualified.
   impossible is the whole check — the same check the *a `loop-goal.toml` comment can be stale
   about the tree* bullet asks for one file up, because a sentence written as a reason is still a
   claim about the tree.
+- **Making an operator throw is four edits, not one, and the codegen guard is the last of them.**
+  Adding the zero-divisor guard to `emit_binop`'s float `/` built and then died at run time with
+  `internal error: an arithmetic throw with no error edge`: `raise_arithmetic_error` leaves the block
+  on `Inst::on_error`'s edge, and `nvs-ir`'s `lower/operator.rs` `fallible` match decides whether the
+  instruction has one — its `BinOp::Div => ty == Ty::Tagged` arm names the *result* representation,
+  so the float row had no edge to leave on. The full roster an operator that starts throwing owes is:
+  the `fallible` arm in `lower/operator.rs`, the guard in `nvs-codegen`, the same rule in
+  `nvs_runtime::helpers` for the tagged path a `mixed` operand takes (the two ends are separate
+  implementations of one ADR sentence, and `float_arith`'s doc comment had written the old answer
+  down as deliberate), and whatever `.nvst` cases used the old answer as an *instrument* rather than
+  as a subject. That last one is the expensive half and no grep for the operator finds it: eight math
+  cases read the sign of a zero with `1.0 / $z`, which is exactly the divisor that now throws, so they
+  all had to move to `Core\Math::fdiv`. Grep for the *shape* — `1.0 /`, `/ 0.0` — not for the feature.
 
 ## Divergences and refusals already pinned
 

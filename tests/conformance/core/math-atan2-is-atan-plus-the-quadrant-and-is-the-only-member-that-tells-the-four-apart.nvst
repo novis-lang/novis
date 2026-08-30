@@ -78,15 +78,17 @@ echo "zero y: ", Core\Math::atan2(0.0, 1.0), "|", Core\Math::atan2(-0.0, 1.0), "
 echo "  is PI: ", (Core\Math::atan2(0.0, -1.0) == Core\Math::PI) as string, "|",
      (Core\Math::atan2(-0.0, -1.0) == 0.0 - Core\Math::PI) as string, "|\n";
 // On the positive x-axis the two answers are the two zeros, which `==` cannot
-// tell apart — the reciprocal is what reads the sign, as the parity case does.
-echo "  1/0: ", 1.0 / Core\Math::atan2(0.0, 1.0), "|",
-     1.0 / Core\Math::atan2(-0.0, 1.0), "|\n";
+// tell apart — the reciprocal is what reads the sign, as the parity case does,
+// through `Core\Math::fdiv` because ADR 0007 § 4 makes `/` throw on a zero
+// divisor whatever the operand types.
+echo "  1/0: ", Core\Math::fdiv(1.0, Core\Math::atan2(0.0, 1.0)), "|",
+     Core\Math::fdiv(1.0, Core\Math::atan2(-0.0, 1.0)), "|\n";
 
 // Second: the origin, where the quotient is `0.0 / 0.0` and so a `NaN`, and
 // `atan2` still answers — four answers, one per pair of signs.
 echo "origin: ", Core\Math::atan2(0.0, 0.0), "|", Core\Math::atan2(0.0, -0.0), "|",
      Core\Math::atan2(-0.0, 0.0), "|", Core\Math::atan2(-0.0, -0.0), "\n";
-echo "  quotient: ", Core\Math::isNan(Core\Math::atan(0.0 / 0.0)) as string, "|\n";
+echo "  quotient: ", Core\Math::isNan(Core\Math::atan(Core\Math::fdiv(0.0, 0.0))) as string, "|\n";
 
 // Third: the four diagonal corners at infinity, where the quotient is again a
 // `NaN` and `atan2` answers the odd multiples of a quarter turn.
@@ -99,10 +101,10 @@ echo "  quarters: ", (Core\Math::atan2($inf, $inf) == Core\Math::PI / 4.0) as st
      Core\Math::isNan(Core\Math::atan($inf / $inf)) as string, "|\n";
 
 // The y-axis is the one row where the two members do meet on an argument the
-// quotient cannot hold: $y / 0.0 is an infinity rather than a `NaN`, and
+// quotient cannot hold: `fdiv($y, 0.0)` is an infinity rather than a `NaN`, and
 // `atan` of an infinity is the same quarter turn `atan2` answers.
 echo "axis: ", Core\Math::atan2(1.0, 0.0), "|", Core\Math::atan2(-1.0, 0.0), "|",
-     (Core\Math::atan2(1.0, 0.0) == Core\Math::atan(1.0 / 0.0)) as string, "|",
+     (Core\Math::atan2(1.0, 0.0) == Core\Math::atan(Core\Math::fdiv(1.0, 0.0))) as string, "|",
      (Core\Math::atan2(1.0, 0.0) == Core\Math::PI / 2.0) as string, "|\n";
 --EXPECT--
 rows=32 agreed=16 half=16

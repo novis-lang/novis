@@ -1248,12 +1248,39 @@ impl Emitter<'_, '_> {
         if matches!(op, BinOp::Pow) && matches!(ty, Ty::Int | Ty::Uint) {
             return self.emit_int_pow(inst, l, r, signed);
         }
+        // And the float `/`, the last row that owns a continuation block. ADR
+        // 0007 § 4 refuses the zero divisor *before* the operand types are
+        // consulted, so there is one rule and not two: `1.0 / 0` throws
+        // exactly where `1 / 0` does rather than handing back IEEE's infinity,
+        // and `Core\Math::fdiv` is the spelling for the IEEE answer.
+        //
+        // The guard is `Div` alone, and neither sibling it could cover has a
+        // row to guard. A `float` operand of `%` never reaches this function —
+        // it is `E0717` where it is written, that section making `%` the
+        // integer operator — and `**` has no divisor at all, so `0.0 ** -1`
+        // stays IEEE's infinity, the row naming `/ 0` and nothing else.
+        if matches!(op, BinOp::Div) && float {
+            // `fcmp Equal` rather than a bit test: `-0.0 == 0.0`, so
+            // `1.0 / -0.0` throws too instead of answering `-INF`. A `NaN`
+            // divisor compares unequal and divides, which is the `NAN` it
+            // would have been either way.
+            let zero = self.b.ins().f64const(0.0);
+            let by_zero = self.b.ins().fcmp(FloatCC::Equal, r, zero);
+            let raise = self.b.create_block();
+            let cont = self.b.create_block();
+            self.b.ins().brif(by_zero, raise, &[], cont, &[]);
+
+            self.b.switch_to_block(raise);
+            self.raise_arithmetic_error(inst, b"Division by zero")?;
+
+            self.b.switch_to_block(cont);
+            return Ok((self.b.ins().fdiv(l, r), cont));
+        }
 
         let value = match op {
             BinOp::Add if float => self.b.ins().fadd(l, r),
             BinOp::Sub if float => self.b.ins().fsub(l, r),
             BinOp::Mul if float => self.b.ins().fmul(l, r),
-            BinOp::Div if float => self.b.ins().fdiv(l, r),
             // The one arm here that is a *call*: there is no `fpow`
             // instruction on any target Cranelift supports and no
             // `LibCall::Pow` to defer to, so ADR 0007 § 4's float `**` row has

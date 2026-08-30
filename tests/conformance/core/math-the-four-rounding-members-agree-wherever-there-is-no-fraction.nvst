@@ -45,11 +45,14 @@ echo "whole: fixed ", $fixed, "/", $rows, ", four agree ", $agree, "/", $rows, "
 //    four keep the sign they were handed.
 float $nz = -0.0;
 int $keptSign = 0;
-if (1.0 / Core\Math::ceil($nz) == 1.0 / $nz) { $keptSign = $keptSign + 1; }
-if (1.0 / Core\Math::floor($nz) == 1.0 / $nz) { $keptSign = $keptSign + 1; }
-if (1.0 / Core\Math::truncate($nz) == 1.0 / $nz) { $keptSign = $keptSign + 1; }
-if (1.0 / Core\Math::round($nz) == 1.0 / $nz) { $keptSign = $keptSign + 1; }
-echo "negative zero kept by ", $keptSign, "/4, reciprocal ", 1.0 / Core\Math::ceil($nz), "\n";
+// The reciprocal is `Core\Math::fdiv` and not `/`: ADR 0007 § 4 makes the
+// operator throw on a zero divisor whatever the operand types, and a zero
+// divisor is the entire question this sweep asks.
+if (Core\Math::fdiv(1.0, Core\Math::ceil($nz)) == Core\Math::fdiv(1.0, $nz)) { $keptSign = $keptSign + 1; }
+if (Core\Math::fdiv(1.0, Core\Math::floor($nz)) == Core\Math::fdiv(1.0, $nz)) { $keptSign = $keptSign + 1; }
+if (Core\Math::fdiv(1.0, Core\Math::truncate($nz)) == Core\Math::fdiv(1.0, $nz)) { $keptSign = $keptSign + 1; }
+if (Core\Math::fdiv(1.0, Core\Math::round($nz)) == Core\Math::fdiv(1.0, $nz)) { $keptSign = $keptSign + 1; }
+echo "negative zero kept by ", $keptSign, "/4, reciprocal ", Core\Math::fdiv(1.0, Core\Math::ceil($nz)), "\n";
 
 // 3. Section 1 is not a table someone chose to be easy: past 2^52 the exponent
 //    makes the spacing 1.0, so no float above it *has* a fraction and the four
@@ -110,7 +113,7 @@ echo "round lands on one of the two: ", $roundIsOneOfThem, "/", $fracRows, "\n";
 //    section 1's side of the rule, for the same reason: there is no fraction to
 //    find, so no member has anything to decide. `NaN` is asserted with `isNan`
 //    rather than `==`, which is false of it in both directions.
-float $inf = 1.0 / 0.0;
+float $inf = Core\Math::fdiv(1.0, 0.0);
 float $ninf = 0.0 - $inf;
 float $nan = Core\Math::sqrt(0.0 - 1.0);
 array<float> $ends = [$inf, $ninf];

@@ -121,8 +121,12 @@ echo "at 2.5:  floor=", Core\Math::floor(2.5), " ceil=", Core\Math::ceil(2.5),
 // sign `==` cannot read, and a *fraction* is what reaches it — the fixed-point
 // case beside this one can only ask about a `-0.0` that was already there. All
 // four members answer the negative zero, read here by its reciprocal.
-echo "zero sign: ", 1.0 / Core\Math::floor(-0.0), "|", 1.0 / Core\Math::ceil(-0.25), "|",
-     1.0 / Core\Math::truncate(-0.25), "|", 1.0 / Core\Math::round(-0.25), "\n";
+// The reciprocal is `Core\Math::fdiv`: ADR 0007 § 4 makes `/` throw on the zero
+// divisor these four rows exist to produce.
+echo "zero sign: ", Core\Math::fdiv(1.0, Core\Math::floor(-0.0)), "|",
+     Core\Math::fdiv(1.0, Core\Math::ceil(-0.25)), "|",
+     Core\Math::fdiv(1.0, Core\Math::truncate(-0.25)), "|",
+     Core\Math::fdiv(1.0, Core\Math::round(-0.25)), "\n";
 --EXPECT--
 rows=28 bracketed=28 gap1=21 gap0=7
 towardZero=28 roundIsAnEnd=28 nearer=28

@@ -88,7 +88,7 @@ echo Ask::cmp(5, 7), Ask::cmp(7, 5), Ask::cmp(5, 5), Ask::cmp(2.5, 5), "\n";
 // A `NaN` operand is unordered against everything including itself, so all
 // four ordering operators are false and `<=>` is `1` — PHP's answers, and the
 // reason these helpers take an ordering rather than a `bool` from the row.
-float $nan = 0.0 / 0.0;
+float $nan = Core\Math::NAN;
 echo Ask::lt($nan, 1), Ask::gt($nan, 1), Ask::ltEq($nan, $nan), Ask::gtEq($nan, 1), "\n";
 echo Ask::cmp($nan, 1), " ", Ask::cmp(1, $nan), "\n";
 

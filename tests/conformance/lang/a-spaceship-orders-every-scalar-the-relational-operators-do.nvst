@@ -44,7 +44,7 @@ echo $quarter <=> 1.25, "\n";
 // spelling: `NAN` is neither below, equal to nor above anything — including
 // itself — and reading "neither less nor greater" as "equal" would be the one
 // answer that is certainly wrong.
-float $nan = 0.0 / 0.0;
+float $nan = Core\Math::NAN;
 echo $nan <=> $lower, " ", $lower <=> $nan, " ", $nan <=> $nan, "\n";
 
 // `<=>` agrees with the relational operators wherever they have an answer, so

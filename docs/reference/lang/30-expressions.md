@@ -94,7 +94,7 @@ The operands of `+ - * / % **` are `int`, `uint`, `float` and `decimal`, and not
 | `decimal ⊕ float` | **compile error** — a `float` literal beside a `decimal` is a `float`, so `$d + 0.2` is refused; write `$d + (0.2 as decimal)` |
 | `%` | integers only, sign of the dividend; `Modulo by zero` throws |
 | `**` | an integer result for integer operands — a negative exponent throws unless the base is `1` or `-1`; `2 ** 0.5` is a `float` |
-| `/ 0` | `Division by zero` throws for integer operands; a `float` divided by zero answers `INF` |
+| `/ 0` | `Division by zero` throws, whatever the operand types — the zero divisor is refused before they are consulted, so there is one rule and not two. `Core\Math::fdiv` is IEEE's `INF` where you want it |
 
 ```nvs
 <?nvs
@@ -125,7 +125,8 @@ try { echo 1 % 0, "\n"; } catch (ArithmeticError $c) { echo $c->message, "\n"; }
 try { echo 2 ** -1, "\n"; } catch (ArithmeticError $d) { echo $d->message, "\n"; }
 uint $zero = 0;
 try { echo $zero - 1, "\n"; } catch (ArithmeticError $e) { echo $e->message, "\n"; }
-echo 1.0 / 0, "\n";
+try { echo 1.0 / 0, "\n"; } catch (ArithmeticError $f) { echo $f->message, "\n"; }
+echo Core\Math::fdiv(1.0, 0.0), "\n";
 ```
 ```output
 Integer addition overflowed
@@ -133,6 +134,7 @@ Division by zero
 Modulo by zero
 Negative exponent has no integer result
 Integer subtraction overflowed
+Division by zero
 INF
 ```
 

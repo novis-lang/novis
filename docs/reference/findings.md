@@ -175,7 +175,7 @@ in that goal. An item's owner is the row it sits in.
       an `inout` parameter **yet**". *ref30*
 - [ ] **D23** ADR 0031 § 3's named-closure recursion (`fn fact(int $n): int => … fact($n - 1)`)
       parses, but the recursive call resolves as a free function (E0320). *ref30*
-- [ ] **D24** `1.0 / 0` answers `INF` without throwing; ADR 0007 § 4's `/ 0` row is the integer one.
+- [x] **D24** `1.0 / 0` answers `INF` without throwing; ADR 0007 § 4's `/ 0` row is the integer one.
       *ref30*
 - [ ] **D25** A property default of `null` on a `?T` property is refused (E0472, "must be a `int|null`
       constant … not a constant of the declared type") — `null` is exactly such a constant. *probes2

@@ -100,15 +100,18 @@ echo "atanh: odd to within a rounding step on ", $nearlyOdd, "/", $atanhRows, " 
 //    definition: they answer 1 for both zeros, having no sign to carry.
 float $nz = -0.0;
 int $signCarried = 0;
-if (1.0 / Core\Math::sin($nz) < 0.0) { $signCarried = $signCarried + 1; }
-if (1.0 / Core\Math::tan($nz) < 0.0) { $signCarried = $signCarried + 1; }
-if (1.0 / Core\Math::sinh($nz) < 0.0) { $signCarried = $signCarried + 1; }
-if (1.0 / Core\Math::tanh($nz) < 0.0) { $signCarried = $signCarried + 1; }
-if (1.0 / Core\Math::asin($nz) < 0.0) { $signCarried = $signCarried + 1; }
-if (1.0 / Core\Math::atan($nz) < 0.0) { $signCarried = $signCarried + 1; }
-if (1.0 / Core\Math::asinh($nz) < 0.0) { $signCarried = $signCarried + 1; }
-if (1.0 / Core\Math::atanh($nz) < 0.0) { $signCarried = $signCarried + 1; }
-if (1.0 / Core\Math::cbrt($nz) < 0.0) { $signCarried = $signCarried + 1; }
+// `Core\Math::fdiv` and not `/`: every one of these nine answers is a zero, and
+// ADR 0007 § 4 makes the operator throw on a zero divisor whatever the operand
+// types — the reciprocal is the instrument, so it has to be the member.
+if (Core\Math::fdiv(1.0, Core\Math::sin($nz)) < 0.0) { $signCarried = $signCarried + 1; }
+if (Core\Math::fdiv(1.0, Core\Math::tan($nz)) < 0.0) { $signCarried = $signCarried + 1; }
+if (Core\Math::fdiv(1.0, Core\Math::sinh($nz)) < 0.0) { $signCarried = $signCarried + 1; }
+if (Core\Math::fdiv(1.0, Core\Math::tanh($nz)) < 0.0) { $signCarried = $signCarried + 1; }
+if (Core\Math::fdiv(1.0, Core\Math::asin($nz)) < 0.0) { $signCarried = $signCarried + 1; }
+if (Core\Math::fdiv(1.0, Core\Math::atan($nz)) < 0.0) { $signCarried = $signCarried + 1; }
+if (Core\Math::fdiv(1.0, Core\Math::asinh($nz)) < 0.0) { $signCarried = $signCarried + 1; }
+if (Core\Math::fdiv(1.0, Core\Math::atanh($nz)) < 0.0) { $signCarried = $signCarried + 1; }
+if (Core\Math::fdiv(1.0, Core\Math::cbrt($nz)) < 0.0) { $signCarried = $signCarried + 1; }
 echo "negative zero: carried by ", $signCarried, "/9 odd members, discarded by both even ones ",
      Core\Math::cos($nz) == 1.0 && Core\Math::cosh($nz) == 1.0 ? "y" : "n",
      "; sign has no zero to carry it, and answers ", Core\Math::sign($nz), "\n";

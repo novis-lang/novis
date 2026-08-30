@@ -937,11 +937,15 @@ impl<'a> Lowering<'a> {
         // rather than wrapping, `%` and `/` throw it on a zero divisor, and
         // `**` throws it on a negative exponent as well.
         // `nvs-codegen` raises all six inline rather than through a helper,
-        // so each needs an error edge exactly the way a call does. `/` is
-        // recognised by its *result* rather than by its operands, since the
-        // integer row is the one that produces a `Ty::Tagged`. Every other
-        // operator — the comparisons, and all five on floats — returns no
-        // status at all, see `Inst::on_error`.
+        // so each needs an error edge exactly the way a call does.
+        //
+        // `/` is the one that is not an integer row: § 4 refuses the zero
+        // divisor *before* the operand types are consulted, so the float row
+        // throws where the integer one does and carries the same edge. It is
+        // recognised by its *result* either way — `Ty::Tagged` is the integer
+        // row, whose quotient is `int|float`, and `Ty::Float` the other. Every
+        // other operator — the comparisons, and the remaining four on floats —
+        // returns no status at all, see `Inst::on_error`.
         let inst = InstKind::BinOp {
             op: bop,
             lhs: lv,
@@ -951,7 +955,7 @@ impl<'a> Lowering<'a> {
             BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Mod | BinOp::Pow => {
                 matches!(ty, Ty::Int | Ty::Uint)
             }
-            BinOp::Div => ty == Ty::Tagged,
+            BinOp::Div => matches!(ty, Ty::Tagged | Ty::Float),
             // A shift throws only on a *negative* count, which is PHP's rule
             // and which a `uint` count cannot produce — so the unsigned row is
             // infallible even though the signed one beside it is not.

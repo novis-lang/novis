@@ -7,64 +7,58 @@ goal, stage 9 included.** `docs/agent/loop-goal.md` § *Stage 0c* is items 31–
 section that is now the rule and the `file.rs:NN` where the binary breaks it;
 [docs/reference/findings.md](../reference/findings.md) § *Triage* is each item's verdict and owner.
 
-**Item 31 has landed P15, D34, D5 and D25**; U15, D24, D14, U11 and D15 are what is left of it.
-D5 is closed at its cause: `Path::parent` of a bare relative name is the empty path, which
-canonicalizes nowhere, so `resolved`'s walk toward the deepest existing ancestor ran out of
-components on its first step and denied every bare name under every grant —
-`crates/nvs-config/src/capability.rs:287` `here` spells that parent `.` and asks the same
-canonicalizer. D25 was one missing match arm: `crates/nvs-types/src/defaults.rs` accepts a written
-`null` wherever `TypeInterner::is_nullable` says the declared type admits one, and that module's doc
-comment owns the rule now that its *Known gap* paragraph is gone.
+**Item 31 has landed P15, D34, D5, D24 and D25**; U15, D14, U11 and D15 are what is left of it. D24
+was four edits and not one — the codegen guard alone dies with `an arithmetic throw with no error
+edge`, and the playbook's new *Writing Novis itself* bullet owns the roster. It also added
+`Core\Math::fdiv`: ADR 0007 § 4 names that member as the IEEE escape hatch and it did not exist, so
+with `/` throwing there was no spelling left for an infinity at all. Eight math cases used `1.0 / $z`
+as an instrument for reading a zero's sign and now call `fdiv`; `crates/nvs-stdlib/src/math.rs`'s
+module doc owns why the one non-throwing division is not a hole in its own rule.
 
 **Stage 9 stands where it stood** — ADR 0119 accepted, items 21–23 written with their anchors,
-nothing implemented — and resumes when stage 0c is green. **Stage 8 is as before**: six of its
-eight named cases written, conformance/differential against floors of 1050 / 210.
+nothing implemented — and resumes when stage 0c is green. **Stage 8**: conformance 1022 against its
+1050 floor, differential 206 against 210, six of eight named cases written.
 
 **A `#[Test]` cannot read the configuration.** `--RUN-- test` runs each test in its own isolate but
 the runner resolves no tree (`crates/nvs-cli/src/runner.rs:245`), so `Core\Config` answers empty
 there. The playbook's *Writing a test case* bullet owns the spelling, and U15 below is in that file.
 
-**`orient.py` printed four dead `[context] modules` patterns**, and one of them mislabelled this
-session's item: `crates/nvs-stdlib/src/capability.rs` is `crates/nvs-config/src/capability.rs`.
+**`orient.py` still prints four dead `[context] modules` patterns** —
+`crates/nvs-stdlib/src/capability.rs` (it is `crates/nvs-config/src/capability.rs`),
 `crates/nvs-host/src/budget.rs`, `crates/nvs-types/src/calls.rs` and
-`crates/nvs-types/src/literals.rs` match nothing either. Fixing that manifest is in `## Backlog`.
+`crates/nvs-types/src/literals.rs`. Fixing that manifest is in `## Backlog`. This session also needed
+`crates/nvs-ir/src/lower/operator.rs` and `crates/nvs-runtime/src/helpers.rs`, neither of which the
+pack names, and `docs/reference/lang/30-expressions.md` — a `[context] modules` and a `[context]
+reference` gap respectively, since an operator's answer is written down in all three places.
 
 ## Next group
 
-**Item 31's three remaining wrong answers, in the order the acceptance check meets them.** There is
-no shared file set — one crate and one wrong arm each — so the 120k gate decides how many fit rather
-than the file test; each is small, and the first is the check's next failure.
+**What is left of item 31, in the order the acceptance check meets them.** There is no shared file
+set — one crate and one wrong arm each — so the 120k gate decides how many fit rather than the file
+test.
 
-- [ ] **D24** — `1.0 / 0` answers `INF`. `crates/nvs-codegen/src/emit.rs:1232` runs the zero-divisor
-      guard only for `Ty::Int | Ty::Uint`, so `crates/nvs-codegen/src/emit.rs:1256`'s
-      `BinOp::Div if float => fdiv` divides and hands back an infinity; ADR 0007 § 4 now says `/ 0`
-      throws `ArithmeticError` whatever the operand types.
-      `crates/nvs-codegen/src/emit.rs:1822` `raise_arithmetic_error` is the raiser to reuse, and
-      `crates/nvs-codegen/src/emit.rs:1458` is the integer call site to copy. Decide `%` and `**`
-      with it — the same guard covers `Mod` and `Pow` — and say in the case which of them it pins.
-      The case is `tests/conformance/error/float-division-by-zero-throws.nvst`.
-- [ ] **D14** — a child that ends without `return` hands back `null`, not `1`;
-      ADR 0006 § *Values cross by copy* is the rule. `crates/nvs-host/src/isolate.rs:404` and
-      `crates/nvs-host/src/isolate.rs:459` are the two `Completion` sites that carry
-      `Value::null()`. **Run it before assuming a code change** — the case name
-      `tests/conformance/core/a-child-without-return-answers-null.nvst` says `null` is the wanted
-      answer, so this may be a document that is wrong rather than a binary.
+- [ ] **D14** — a child that ends without `return` answers `1`; the finding says `null`. **Read the
+      code before writing any**: `crates/nvs-ir/src/lower/mod.rs:1138`'s doc comment says the `1` is
+      deliberate and is *PHP's own answer* — which it is, `include` of a file with no `return` being
+      `1` in PHP — and `crates/nvs-ir/src/lower/mod.rs:1177` is the `Terminator::Return(Some(one))`
+      that emits it. Priority 2 is PHP-compatible observable behaviour, so the likely verdict is that
+      the finding is wrong and `docs/reference/findings.md:156` gets a *not a bug* note rather than a
+      fix. Decide it and record the verdict either way; the fixture is `refp/spawn/noret2`.
 - [ ] **U15** — `nvs test --filter` filters `.nvst` paths only and is dropped for `#[Test]` methods.
-      `crates/nvs-cli/src/main.rs:893` takes it and `crates/nvs-cli/src/main.rs:925` puts it on the
-      options; `crates/nvs-cli/src/runner.rs:245` is the runner that never reads it. The check is
-      `cargo-named` and wants a test called `test_filter_selects_test_methods_by_name` under
-      `-p nvs-cli`; none of `crates/nvs-cli/tests/*.rs` mentions `filter` today, so it needs a home
-      as well as a body.
+      `crates/nvs-cli/src/main.rs:893` is the parameter and `crates/nvs-cli/src/main.rs:925` where it
+      reaches the options; `crates/nvs-cli/src/runner.rs:245` is the `#[Test]` table's own path,
+      which never consults it. ADR 0079 § 22 is the reporting contract a filtered run still owes.
 
 ## Backlog
 
-- **U11** — `password_file` under `nvs run`, and the dump's masked value: ADR 0103 §§ 7, 9; the case
-  is named in `docs/agent/loop-goal.toml:252`.
-- **D15** — `mode.default` is the key ADR 0091 § 4 spells, and setting it re-derives the defaults;
-  case at `docs/agent/loop-goal.toml:254`.
-- **The `[context]` manifest's four dead module patterns**, `docs/agent/loop-goal.toml` — the pack
-  names a `capability.rs` in the wrong crate, which cost this session an anchor.
-- **Items 32–35** — the missing refusals and the rest of the findings: `docs/agent/loop-goal.md`
-  § *Stage 0c*.
-- **Stage 9** — ADR 0119's expression `catch`, items 21–23, nothing implemented yet.
-- **Stage 8** — two of eight named cases unwritten; floors 1050 / 210 in `docs/agent/loop-goal.toml`.
+- **U11** — `password_file` is not materialized under `nvs run`; `crates/nvs-config/src/secret.rs` is
+  ADR 0103 § 7's home. `docs/reference/findings.md:102`.
+- **D15** — `Core\Config::get("mode")` answers `null` and `set("mode", …)` returns `false`.
+  `docs/reference/findings.md:157`.
+- **The `[context]` manifest in `docs/agent/loop-goal.toml`** has four dead `modules` patterns and no
+  selector for `lower/operator.rs`, `nvs-runtime/src/helpers.rs` or `docs/reference/lang/`.
+- **`docs/reference/findings.md` boxes lag the tree** — D5, D25, P15 and D34 landed and are still
+  `- [ ]`. D24 is ticked; the rest want one pass.
+- **Stage 9** — ADR 0119's expression `catch`, items 21–23, anchors already written. Resumes when
+  stage 0c is green.
+- **Stage 8** — two of eight named cases unwritten, and both floors still short.

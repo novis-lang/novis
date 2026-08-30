@@ -1,0 +1,106 @@
+--TEST--
+`/ 0` throws `ArithmeticError` whatever the operand types — the statically typed `float` row and the tagged one alike, with `Core\Math::fdiv` the one spelling left for IEEE's infinity (ADR 0007 § 4)
+--FILE--
+<?nvs
+// ADR 0007 § 4's float row: "the zero divisor is refused before the operand
+// types are consulted, so there is one rule and not two". PHP made the same
+// move, and `fdiv` is the function it grew when it did, so this is priority 2
+// — PHP-compatible observable behaviour — rather than a divergence of ours.
+//
+// The two ends of the row are asserted *together* rather than one at a time.
+// The statically typed spelling is a Cranelift guard in `nvs-codegen`'s
+// `emit_binop` and the tagged one is `nvs_runtime::helpers`' `float_arith`;
+// they are two implementations of one sentence, and a case that asked only one
+// of them would pass while they disagreed — which is the state this case was
+// written to end.
+final class Ask {
+    // Both operands are `float` where they are written, so this is the compiled
+    // guard. `float $quotient` is the declaration the throw never reaches.
+    public static function statically(float $a, float $b): string {
+        try {
+            float $quotient = $a / $b;
+            return $quotient as string;
+        } catch (ArithmeticError $failed) {
+            return $failed->message;
+        }
+    }
+
+    // The integer row, which has thrown since it was written. It is here to be
+    // compared against, not to be re-pinned: `int / int` is `int|float` and the
+    // union is absorbed by the declared `float`, as § 4 says it is.
+    public static function integrally(int $a, int $b): string {
+        try {
+            float $quotient = $a / $b;
+            return $quotient as string;
+        } catch (ArithmeticError $failed) {
+            return $failed->message;
+        }
+    }
+}
+
+// 1. Every zero divisor throws, on both signs of zero and with a zero dividend
+//    too. `-0.0` is the row worth naming: it is the divisor IEEE has the most
+//    to say about — `-INF`, an answer with a sign in it — and it is still not
+//    an answer here. The last column is a divisor that is not a zero, so the
+//    guard is asserted from both sides rather than only where it fires.
+echo "static: ", Ask::statically(1.0, 0.0), "|", Ask::statically(1.0, -0.0), "|",
+     Ask::statically(0.0, 0.0), "|", Ask::statically(1.0, 4.0), "\n";
+
+// 2. The same row reached from the operands' runtime tags instead: a `mixed`
+//    names no row where it is written, so `float_arith` answers it. The third
+//    column is the integer row through the same helper table, because "one
+//    rule" has to hold on the tagged path as well as the compiled one.
+mixed $one = 1.0;
+mixed $zero = 0.0;
+mixed $negZero = -0.0;
+mixed $intOne = 1;
+mixed $intZero = 0;
+echo "tagged: ";
+try { echo $one / $zero; } catch (ArithmeticError $taggedFloat) { echo $taggedFloat->message; }
+echo "|";
+try { echo $one / $negZero; } catch (ArithmeticError $taggedSigned) { echo $taggedSigned->message; }
+echo "|";
+try { echo $intOne / $intZero; } catch (ArithmeticError $taggedInt) { echo $taggedInt->message; }
+echo "\n";
+
+// 3. One rule and not two, asserted as an *agreement* rather than read off the
+//    lines above: a float row that grew its own wording would still print
+//    plausibly there while failing here. The second column keeps the integer
+//    row honest at a divisor that is not zero, so this line cannot pass by
+//    both members refusing everything.
+echo "one rule: ", (Ask::statically(1.0, 0.0) == Ask::integrally(1, 0)) as string, "|",
+     (Ask::integrally(7, 2) == "3.5") as string, "\n";
+
+// 4. And where it is written as a literal, with the divisor an `int` widened
+//    into the float row: the guard sits ahead of the widening, so the operand
+//    types never get to decide.
+try {
+    echo 1.0 / 0, "\n";
+} catch (ArithmeticError $written) {
+    echo "written: ", $written->message, "\n";
+}
+
+// 5. `Core\Math::fdiv` is what is left to ask with, and the reason the throw is
+//    affordable at all — spec § 3's table. It answers all three IEEE cases the
+//    operator now refuses.
+echo "fdiv: ", Core\Math::fdiv(1.0, 0.0), "|", Core\Math::fdiv(1.0, -0.0), "|",
+     Core\Math::isNan(Core\Math::fdiv(0.0, 0.0)) as string, "\n";
+
+// 6. What this guard does *not* cover, pinned so a later reader does not widen
+//    it to the two operators sharing its dispatch. `%` over a `float` never
+//    reaches the guard: § 4 refuses it where it is written (`E0717`), making
+//    `Core\Math::mod` the member that says a floating-point remainder out loud,
+//    so there is no float `%` row for a zero divisor to be part of. And `**`
+//    has no divisor at all — a negative exponent of zero is IEEE's infinity
+//    here, exactly as it was, because § 4's float row names `/ 0` and nothing
+//    else.
+float $zeroBase = 0.0;
+float $minusOne = -1.0;
+echo "pow: ", $zeroBase ** $minusOne, "\n";
+--EXPECT--
+static: Division by zero|Division by zero|Division by zero|0.25
+tagged: Division by zero|Division by zero|Division by zero
+one rule: 1|1
+written: Division by zero
+fdiv: INF|-INF|1
+pow: INF

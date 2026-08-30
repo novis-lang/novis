@@ -49,7 +49,7 @@ echo "int: abs=max ", $absIsMax, "/", $rows, ", abs=-min ", $absIsNegatedMin, "/
 //    `int` arm has no room for. `-0.0` is a row rather than a footnote: it is
 //    the one input on which the derivation and the member could disagree
 //    without `==` ever noticing, since `-0.0 == 0.0`.
-float $inf = 1.0 / 0.0;
+float $inf = Core\Math::fdiv(1.0, 0.0);
 float $ninf = 0.0 - $inf;
 array<float> $floats = [
     $ninf, -1.0e308, -7.5, -1.0, -0.0, 0.0, 1.0, 7.5, 1.0e308, $inf,
@@ -80,9 +80,11 @@ echo "float: abs=max ", $fAbsIsMax, "/", $frows, ", abs=-min ", $fAbsIsNegatedMi
 // 3. What `==` could not have told us about that `-0.0` row: `abs` normalizes
 //    the sign of a zero rather than passing it through, which is the answer a
 //    magnitude owes and the opposite of what the four rounding members do with
-//    the same input. The reciprocal is what separates the two zeros.
+//    the same input. The reciprocal is what separates the two zeros, and it is
+//    spelled `Core\Math::fdiv` because ADR 0007 § 4 makes `/` throw on exactly
+//    the divisor this row is asking about.
 float $nz = -0.0;
-echo "abs(-0.0) reciprocal ", 1.0 / (Core\Math::abs($nz) as float),
+echo "abs(-0.0) reciprocal ", Core\Math::fdiv(1.0, (Core\Math::abs($nz) as float)),
      ", and sign(-0.0) ", Core\Math::sign($nz), "\n";
 
 // 4. At `int`'s smallest value the member and its derivation *agree*, and both

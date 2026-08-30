@@ -278,18 +278,22 @@ pub struct Inst {
     /// [`InstKind::NewDynamic`], [`InstKind::CoreCall`], every
     /// [`InstKind::HelperCall`], [`InstKind::SlotGet`]/[`InstKind::SlotSet`],
     /// [`InstKind::ArrayGet`] in both of [`crate::ir::AbsentKey`]'s shapes,
-    /// [`InstKind::ArrayAppend`], [`InstKind::ArraySpread`], and **every
+    /// [`InstKind::ArrayAppend`], [`InstKind::ArraySpread`], **every
     /// integer arithmetic row** — `+`, `-`, `*`, `/` and `%` over
     /// [`crate::ty::Ty::Int`]/[`crate::ty::Ty::Uint`] as an
     /// [`InstKind::BinOp`], and unary `-` over the same two as an
-    /// [`InstKind::UnOp`]. All six of those throw
+    /// [`InstKind::UnOp`] — and **`/` over
+    /// [`crate::ty::Ty::Float`]**. All of those throw
     /// [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4's
-    /// `ArithmeticError`: the two divisions on a zero divisor, and the other
+    /// `ArithmeticError`: the divisions on a zero divisor, and the other
     /// four on overflow, which that section makes a throw rather than a wrap
-    /// or a promotion to `float`. None of the six is a call at all —
+    /// or a promotion to `float`. The float `/` is on the list because § 4
+    /// refuses the zero divisor before the operand types are consulted, so it
+    /// is one rule and not two; it is the *only* float row here, the other
+    /// four being total. None of these is a call at all —
     /// `nvs-codegen` tests and raises inline, so this edge is the frame's
     /// cleanup path and nothing else. `None` is for the instructions that
-    /// return no status to check: a comparison, a float row, an
+    /// return no status to check: a comparison, the rest of the float rows, an
     /// [`InstKind::Concat`], a constant, a phi, a refcount operation, a
     /// relabelling.
     ///
@@ -2131,6 +2135,11 @@ pub enum BinOp {
     /// `/`. The one operator whose result representation is not its operands':
     /// ADR 0007 § 4 types the integer row as `int|float`, so it produces a
     /// [`crate::ty::Ty::Tagged`] and picks between the two at run time.
+    ///
+    /// It is also the one arithmetic operator that carries [`Inst::on_error`]
+    /// over a **float**: § 4 refuses the zero divisor before the operand types
+    /// are consulted, so `1.0 / 0` throws exactly where `1 / 0` does and
+    /// `Core\Math::fdiv` is the member that answers IEEE's infinity instead.
     Div,
     /// `%`
     Mod,

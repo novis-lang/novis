@@ -987,8 +987,11 @@ fn unsigned_pow(base: u64, exponent: u64) -> Result<u64, Fault> {
 /// same row. A silent `as f64` here would answer a pair one representation
 /// down from the one the compiler would have.
 ///
-/// Division by zero is **not** a throw on this row, for the same reason: the
-/// static row is a bare `fdiv`, so `1.0 / 0.0` is `INF` at both ends.
+/// Division by zero **is** a throw on this row, and for that same reason: ADR
+/// 0007 § 4 refuses the zero divisor before the operand types are consulted, so
+/// `nvs-codegen`'s statically typed `float /` guards it too and the two ends of
+/// the row cannot answer differently. `Core\Math::fdiv` is the member that says
+/// IEEE's infinity out loud.
 fn float_arith(op: ArithRow, left: Value, right: Value) -> Result<Value, Fault> {
     let operand = |value: Value| match value.tag() {
         Some(Tag::Float) => value
@@ -1010,6 +1013,15 @@ fn float_arith(op: ArithRow, left: Value, right: Value) -> Result<Value, Fault> 
         }
     };
     let (left, right) = (operand(left)?, operand(right)?);
+    // `== 0.0` and not a bit test, so a `-0.0` divisor throws as well: the
+    // static guard is an `fcmp Equal` against zero and this is the same
+    // question. A `NaN` divisor is not zero and divides to `NAN`.
+    if matches!(op, ArithRow::Div) && right == 0.0 {
+        return Err(Fault::thrown_as(
+            crate::ThrownClass::Arithmetic,
+            "Division by zero",
+        ));
+    }
     Ok(Value::float(match op {
         ArithRow::Add => left + right,
         ArithRow::Sub => left - right,
