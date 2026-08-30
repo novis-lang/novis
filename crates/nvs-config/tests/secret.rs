@@ -73,6 +73,15 @@ impl Files for Fake {
         Ok(path.to_path_buf())
     }
 
+    /// The path itself: no case here has an `[[app]]` block, and § 7's own paths are absolute.
+    fn canonical(&self, path: &Path) -> Result<PathBuf, String> {
+        if self.exists(path) {
+            Ok(path.to_path_buf())
+        } else {
+            Err("no such file".to_string())
+        }
+    }
+
     fn read(&self, path: &Path) -> Result<String, String> {
         let bytes = self.read_bytes(path)?;
         String::from_utf8(bytes).map_err(|_| "stream did not contain valid UTF-8".to_string())

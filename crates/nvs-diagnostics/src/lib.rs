@@ -1210,6 +1210,17 @@ pub mod code {
     /// `E0607` like any other configuration input, and one that cannot be read
     /// at all is `E0605`.
     pub const E_BAD_SECRET_FILE: Code = Code::new("E0608");
+    /// An `[[app]]` block that cannot be keyed on an entry file path: it names
+    /// both `root` and `entry`, or neither, or it resolves to a path another
+    /// block already claimed. ADR 0104 § 1 makes an application *be* its entry
+    /// file path, so a block with no usable key silently covers nothing and
+    /// hands every application it was meant for the global configuration
+    /// instead — including one it was written to narrow. Two blocks on one path
+    /// are § 2's duplicate rather than a refinement: specificity is what orders
+    /// the layering, and equal paths have no order to decide with. A key naming
+    /// something that cannot be examined at all is `E0605`, like any other
+    /// configuration path.
+    pub const E_BAD_APP_BLOCK: Code = Code::new("E0609");
 
     // --- E07xx types, continued --------------------------------------------
     //

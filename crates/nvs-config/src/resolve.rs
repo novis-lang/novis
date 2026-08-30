@@ -74,6 +74,20 @@ pub trait Files {
     /// the boundary does not hold, which is `E0607`.
     fn trust(&self, path: &Path) -> Result<PathBuf, Untrusted>;
 
+    /// The canonical path `path` names, with **no** trust check — ADR 0104 § 1's half of the
+    /// `[[app]]` comparison.
+    ///
+    /// Separate from [`trust`](Files::trust) because an application's root is not a file the
+    /// configuration reads: it is a web root owned by whoever deploys to it, and demanding § 6's
+    /// ownership of it would refuse the ordinary deployment while buying nothing — nothing here
+    /// reads a byte of it. What is shared is the canonicalization itself ([`trust::canonical`]),
+    /// which is the half a second implementation would get wrong.
+    ///
+    /// # Errors
+    ///
+    /// Whatever the underlying reader says; [`mod@crate::app`] wraps it in `E0605`.
+    fn canonical(&self, path: &Path) -> Result<PathBuf, String>;
+
     /// The file's text, or a message describing why not.
     ///
     /// # Errors
@@ -119,6 +133,10 @@ pub struct Disk;
 impl Files for Disk {
     fn trust(&self, path: &Path) -> Result<PathBuf, Untrusted> {
         trust::check(path)
+    }
+
+    fn canonical(&self, path: &Path) -> Result<PathBuf, String> {
+        trust::canonical(path).map_err(|err| err.to_string())
     }
 
     fn read(&self, path: &Path) -> Result<String, String> {
@@ -181,6 +199,18 @@ pub struct Resolved {
     /// refusal is never here: it arrives as the `Err` of [`resolve`] instead, so a caller that
     /// ignores this field has lost a warning and never a boundary.
     pub warnings: Vec<Diagnostic>,
+    /// The merged table [`config`](Resolved::config) was deserialized from, kept rather than
+    /// dropped because two things still need it. [ADR 0104] § 2 layers `[[app]]` blocks by
+    /// **the same** later-wins merge this one used, reporting overrides the same way, and it
+    /// cannot run at resolve time because it needs an entry file. § 9's `nvs config dump --origin`
+    /// renders keys the typed tree has no field for. Cost: one table for the length of a boot or
+    /// reload, dropped with the rest of this struct.
+    ///
+    /// [ADR 0104]: ../../../docs/adr/0104-an-application-is-an-entry-file-path.md
+    pub table: toml::Table,
+    /// Where every leaf in that table was written, by dotted key — `db.main.password_file`, and
+    /// `app.1.root` for the second `[[app]]` block, whichever file appended it.
+    pub origins: BTreeMap<String, Origin>,
 }
 
 /// What ADR 0103 § 1's four steps selected.
@@ -225,7 +255,8 @@ pub fn roots(flags: &[PathBuf], cwd: &Path, files: &dyn Files) -> Roots {
 ///
 /// One [`Diagnostic`]: a file that cannot be read (`E0605`), an include cycle or a nesting deeper
 /// than [`MAX_INCLUDE_DEPTH`] (`E0606`), a file outside § 6's trust boundary (`E0607`), a secret
-/// file § 7 will not take a value from (`E0608`), or anything either of ADR 0064 § 3's per-file
+/// file § 7 will not take a value from (`E0608`), an `[[app]]` block ADR 0104 § 1 cannot key
+/// (`E0609`), or anything either of ADR 0064 § 3's per-file
 /// refusals catches (`E0601`/`E0604`), which arrives already carrying its own file's line.
 pub fn resolve(
     roots: &Roots,
@@ -242,9 +273,15 @@ pub fn resolve(
     // § 7 runs over the flattened tree and not over each file, because which `password_file` is in
     // force is a question only the merge has answered — a later file may have replaced it, and
     // reading the loser would be a secret file the configuration does not use.
-    let origins = std::mem::take(&mut merge.origins);
     let mut resolved = merge.finish()?;
+    // Lifted out and put back so the two passes can hold `config` mutably while reading the
+    // origins they resolve their relative paths against.
+    let origins = std::mem::take(&mut resolved.origins);
     resolved.warnings = crate::secret::materialize(&mut resolved.config, &origins, files)?;
+    // ADR 0104 § 1's keys, for the same reason: `[[app]]` blocks accumulate across the tree (§ 4),
+    // so the roster only exists once the merge is done.
+    crate::app::canonicalize(&mut resolved.config, &origins, files)?;
+    resolved.origins = origins;
     Ok(resolved)
 }
 
@@ -474,7 +511,7 @@ impl Merge {
 
     /// Deserializes the merged table into the typed tree.
     fn finish(self) -> Result<Resolved, Diagnostic> {
-        let config = toml::Value::Table(self.table)
+        let config = toml::Value::Table(self.table.clone())
             .try_into::<Config>()
             // Every file was typed on its own before it was merged, so nothing new can be unknown
             // here; what can still fail is a key one file wrote as a table and another as a value.
@@ -484,6 +521,8 @@ impl Merge {
             files: self.files,
             overrides: self.overrides,
             warnings: Vec::new(),
+            table: self.table,
+            origins: self.origins,
         })
     }
 }
@@ -497,7 +536,7 @@ impl Merge {
 /// what two `[[schedule]]` blocks already mean inside one file, so a sixth such block added by a
 /// later ADR gets the right behaviour with nothing here to update. An empty array is ambiguous
 /// under that rule and does not need to be: appending nothing and replacing with nothing agree.
-fn merge_table(
+pub(crate) fn merge_table(
     dest: &mut toml::Table,
     src: &toml::Table,
     origin: &Origin,
@@ -518,6 +557,18 @@ fn merge_table(
             (Some(toml::Value::Array(into)), toml::Value::Array(from))
                 if is_array_of_tables(into) && is_array_of_tables(from) =>
             {
+                // By index, and the index is the one in the *destination*: an appended block's
+                // relative path resolves against the file that wrote that block (§ 5), which the
+                // array-level origin cannot say once two files have each contributed one.
+                let base = into.len();
+                for (offset, entry) in from.iter().enumerate() {
+                    claim(
+                        entry,
+                        origin,
+                        &format!("{dotted}.{}", base + offset),
+                        origins,
+                    );
+                }
                 into.extend(from.iter().cloned());
                 origins.insert(dotted, origin.clone());
             }
@@ -554,6 +605,15 @@ fn claim(
             for (key, nested) in table {
                 claim(nested, origin, &format!("{dotted}.{key}"), origins);
             }
+        }
+        // An array of tables is claimed by index as well as whole, so that `app.0.root` names the
+        // file *that block* was written in. The array-level key stays: it is what a later file
+        // appending to the array overwrites.
+        toml::Value::Array(entries) if is_array_of_tables(entries) => {
+            for (index, entry) in entries.iter().enumerate() {
+                claim(entry, origin, &format!("{dotted}.{index}"), origins);
+            }
+            origins.insert(dotted.to_string(), origin.clone());
         }
         _ => {
             origins.insert(dotted.to_string(), origin.clone());

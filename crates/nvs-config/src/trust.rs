@@ -78,6 +78,26 @@ impl Untrusted {
 /// What a [`Untrusted::Breach`] asks the operator to do, in the platform's own spelling.
 pub const REMEDY: &str = platform::REMEDY;
 
+/// The canonical path `path` names: symlinks resolved, `.` and `..` removed, in the platform's
+/// plainest spelling.
+///
+/// **This is the only canonicalization in the configuration**, and that is a rule rather than a
+/// convenience. Two separate questions rest on it — whether a file the tree reads is the one the
+/// boundary was checked against (§ 6, [`check`] below) and whether an entry file is inside an
+/// `[[app]]` root ([ADR 0104] § 1, [`mod@crate::app`]) — and both are decided by comparing paths
+/// afterwards. A second implementation is how one of them ends up accepting a `..` or a symlink
+/// that the other refuses, so the comparison's first half is written once and shared.
+///
+/// # Errors
+///
+/// Whatever `std::fs::canonicalize` says, which for a path that does not exist is a "not found"
+/// every caller reports as `E0605`.
+///
+/// [ADR 0104]: ../../../docs/adr/0104-an-application-is-an-entry-file-path.md
+pub fn canonical(path: &Path) -> std::io::Result<PathBuf> {
+    Ok(platform::simplified(std::fs::canonicalize(path)?))
+}
+
 /// § 6's check on `path` and on the directory that contains it, and the canonical path it names.
 ///
 /// The directory gets the same check as the file rather than only the mode half of it: an entry can
@@ -88,9 +108,7 @@ pub const REMEDY: &str = platform::REMEDY;
 /// [`Untrusted`], which [`resolve`](crate::resolve) turns into `E0605` when the path could not be
 /// examined and `E0607` when it was and failed.
 pub fn check(path: &Path) -> Result<PathBuf, Untrusted> {
-    let canonical = platform::simplified(
-        std::fs::canonicalize(path).map_err(|err| Untrusted::Unreadable(err.to_string()))?,
-    );
+    let canonical = canonical(path).map_err(|err| Untrusted::Unreadable(err.to_string()))?;
     platform::check(&canonical).map_err(|why| why.about(&canonical))?;
     if let Some(parent) = canonical.parent() {
         platform::check(parent).map_err(|why| why.about(parent))?;

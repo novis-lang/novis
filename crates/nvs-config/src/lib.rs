@@ -25,10 +25,17 @@
 //! file naming it was. It runs once over the flattened tree, because which of two `password_file`
 //! assignments is in force is a question only the merge has answered.
 //!
-//! What is **not** here yet, in the order the milestone lands them: the per-app block's matching and
-//! layering (ADR 0104 § 2) and the immutable snapshot a request clones at start (ADR 0078 § 1).
-//! Until those land `nvs-host` runs on compiled-in defaults and says so at each site.
+//! [`mod@app`] is ADR 0104 §§ 1-2: which `[[app]]` blocks an entry file belongs to, and the one
+//! effective block they fold into. It rests on the same canonicalization § 6 does —
+//! [`trust::canonical`] is the only one, because a second would accept a `..` or a symlink the
+//! other refuses — and its fold is [`resolve`]'s own `merge_table`, because § 2 is later-wins in a
+//! different order rather than a second precedence rule.
+//!
+//! What is **not** here yet: the immutable snapshot a request clones at start (ADR 0078 § 1),
+//! which is what will call [`app::layer`] with the entry file `nvs run` was given. Until it lands
+//! `nvs-host` runs on compiled-in defaults and says so at each site.
 
+pub mod app;
 pub mod directive;
 pub mod file;
 pub mod resolve;

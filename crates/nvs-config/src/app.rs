@@ -1,0 +1,368 @@
+//! [ADR 0104] §§ 1-2: an application is its entry file path.
+//!
+//! A `[[app]]` block is keyed on a directory (`root`) or on one file (`entry`), never both and
+//! never neither, an entry file belongs to every block whose key covers it, and those blocks fold
+//! into one effective block least-specific first.
+//!
+//! **Only [`canonicalize`] runs at resolve time.** [`matching`] and [`layer`] need an entry file,
+//! and `nvs run <file>`'s entry is not known when the tree is read, so they are called by whatever
+//! builds the per-app snapshot rather than living in [`resolve`](crate::resolve) the way § 7's
+//! secrets do. What they need from that tree is the merged `toml::Table` and its origins, which is
+//! why [`Resolved`] keeps both.
+//!
+//! **The comparison is canonicalize-then-prefix, and the canonicalization is
+//! [`trust::canonical`](crate::trust::canonical)'s.** That is the whole security content of § 1:
+//! without it `/srv/www/shop/../other/x.nvs` matches `root = "/srv/www/shop"` and a symlink planted
+//! inside an application's tree inherits that application's capabilities. Both sides are
+//! canonicalized — the block's key by [`canonicalize`] once at boot, the entry file by [`matching`]
+//! per run — and the prefix test is `Path::starts_with`, which compares whole components, so
+//! `/srv/www/shopfront` is not under `/srv/www/shop`.
+//!
+//! **A block's key is canonicalized in place**, replacing what the operator wrote, exactly as § 7
+//! writes a secret file's content into `password`. Two reasons: a comparison against a path that has
+//! not been through [`trust::canonical`](crate::trust::canonical) is the bug this module exists to
+//! prevent, and § 9's `nvs config dump` then prints the path the match will actually use rather than
+//! a relative fragment the reader has to resolve by hand.
+//!
+//! **A key that cannot be canonicalized refuses the boot** (`E0605`) rather than never matching.
+//! The ADR does not decide between those, and the reason to refuse is the priority ordering: a
+//! `[[app]]` block that silently matches nothing hands every application under it the *global*
+//! configuration, so a typo in a `root` that narrows limits or grants a capability is a security
+//! change that reports nothing. A missing directory is a loud refusal instead.
+//!
+//! Cost: one canonicalization per block at boot or reload, and one per `nvs run` for the entry file
+//! — a `stat` walk each, on a path already about to be opened. Nothing here runs per request.
+//!
+//! [ADR 0104]: ../../../docs/adr/0104-an-application-is-an-entry-file-path.md
+
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+
+use nvs_diagnostics::{Diagnostic, code};
+
+use crate::resolve::{Files, Origin, Override, Resolved};
+use crate::tree::{App, Config};
+
+/// § 1's keys, resolved: each `[[app]]` block's `root` or `entry` made absolute against the file
+/// that wrote it ([ADR 0103] § 5) and canonicalized, written back into the block.
+///
+/// Runs once over the flattened tree, beside § 7's secrets and for the same reason: `[[app]]`
+/// blocks accumulate across the tree ([ADR 0103] § 4), so the roster is a question only the merge
+/// has answered.
+///
+/// # Errors
+///
+/// One [`Diagnostic`]: `E0609` for a block naming both keys, neither key, or a path another block
+/// already claimed; `E0605` for a key naming something that cannot be examined.
+///
+/// [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
+pub fn canonicalize(
+    config: &mut Config,
+    origins: &BTreeMap<String, Origin>,
+    files: &dyn Files,
+) -> Result<(), Diagnostic> {
+    let mut claimed: BTreeMap<PathBuf, usize> = BTreeMap::new();
+    for (index, block) in config.app.iter_mut().enumerate() {
+        let (field, written) = match (&block.root, &block.entry) {
+            (Some(root), None) => ("root", root.clone()),
+            (None, Some(entry)) => ("entry", entry.clone()),
+            (Some(_), Some(_)) => return Err(both_keys(index, origins)),
+            (None, None) => return Err(no_key(index)),
+        };
+        let written_in = origins.get(&format!("app.{index}.{field}"));
+        // § 5: relative to the file it was written in, which is the same rule an `[[include]]` and
+        // a `password_file` follow. A key with no origin was written nowhere this merge recorded,
+        // so there is nothing but the path itself to resolve against.
+        let base = written_in
+            .and_then(|origin| origin.path.parent())
+            .unwrap_or(Path::new("."));
+        let named = crate::resolve::absolute(base, Path::new(&written));
+
+        let canonical = files.canonical(&named).map_err(|err| {
+            crate::resolve::unreadable(
+                &named,
+                &err,
+                "an `[[app]]` block is keyed on it, and a key that names nothing matches nothing — \
+                 every application it was meant to cover would fall back to the global \
+                 configuration without saying so",
+            )
+        })?;
+        let text = canonical
+            .to_str()
+            .ok_or_else(|| not_utf8(&canonical, index, field))?
+            .to_string();
+        if let Some(first) = claimed.insert(canonical.clone(), index) {
+            return Err(duplicate(&canonical, first, index, written_in));
+        }
+        match field {
+            "root" => block.root = Some(text),
+            _ => block.entry = Some(text),
+        }
+    }
+    Ok(())
+}
+
+/// § 2's matching blocks for one entry file, **least-specific first** — shortest `root` first,
+/// longest last, an `entry` match last of all.
+///
+/// Indices into `apps` rather than references, because [`layer`] needs to reach the block's own
+/// `toml::Table` beside it and a reference cannot say which one it is.
+///
+/// `apps` must have come through [`canonicalize`], which [`resolve`](crate::resolve::resolve) does
+/// for every tree it returns; a block still holding what the operator typed compares against the
+/// wrong thing and is the failure § 1 is written to prevent.
+///
+/// Ordering is by the key path's component count alone, and that already puts an `entry` match
+/// last: an `entry` block matches only the entry file itself, which is longer than every `root`
+/// that can be a proper prefix of it. Two matching blocks cannot tie — equal-length paths that are
+/// both prefixes of one entry are the same path, which [`canonicalize`] has already refused as a
+/// duplicate — so the sort is total and the stable-sort tiebreak is unreachable.
+///
+/// # Errors
+///
+/// `E0605` when `entry` itself cannot be examined.
+pub fn matching(apps: &[App], entry: &Path, files: &dyn Files) -> Result<Vec<usize>, Diagnostic> {
+    let entry = files.canonical(entry).map_err(|err| {
+        crate::resolve::unreadable(
+            entry,
+            &err,
+            "it is the entry file whose `[[app]]` blocks were being looked up",
+        )
+    })?;
+    let mut matched: Vec<usize> = (0..apps.len())
+        .filter(|index| covers(&apps[*index], &entry))
+        .collect();
+    matched.sort_by_key(|index| key_of(&apps[*index]).map_or(0, |key| key.components().count()));
+    Ok(matched)
+}
+
+/// What § 2's layering produced for one entry file.
+#[derive(Clone, Debug, Default)]
+pub struct Layered {
+    /// The effective block: every matching block's directives folded into one, later-wins by
+    /// specificity. Its `root` and `entry` are cleared — the blocks it came from are below, and a
+    /// key carried over from the most specific of them would read as a block that was written.
+    pub app: App,
+    /// The blocks that matched, least-specific first, by the canonical path each is keyed on.
+    /// This is § 2's `info: app blocks: …` line.
+    pub blocks: Vec<PathBuf>,
+    /// Every directive one block took from another, in the order it happened, carrying **both**
+    /// origins exactly as [ADR 0103] § 3's own record does — which is § 2's whole argument for
+    /// being a fourth ordering rather than a third precedence rule.
+    ///
+    /// [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
+    pub overrides: Vec<Override>,
+}
+
+/// § 2: every block matching `entry` applied, least-specific first.
+///
+/// The fold is [`resolve`](crate::resolve)'s own `merge_table` over the blocks' tables, not a
+/// second implementation of later-wins. That is the section's central claim — "this is not a third
+/// precedence rule: it is [ADR 0103] § 3's later wins, ordered by specificity instead of by file
+/// position, and every override is reported the same way" — and it is only true if one function
+/// decides both. It is also why [`Resolved::table`](crate::resolve::Resolved::table) is kept:
+/// `merge_table` folds `toml::Table`s, and the typed tree cannot be turned back into one.
+///
+/// An [`Override`] names the two **files**, because that is what an [`Origin`] holds; which
+/// *blocks* they were is [`Layered::blocks`], in the same order.
+///
+/// # Errors
+///
+/// `E0605` when `entry` cannot be examined, and `E0601` if the folded block does not deserialize —
+/// unreachable, since every block was typed as an [`App`] in its own file before it was merged.
+///
+/// [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
+pub fn layer(resolved: &Resolved, entry: &Path, files: &dyn Files) -> Result<Layered, Diagnostic> {
+    let mut layered = Layered::default();
+    let mut merged = toml::Table::new();
+    let mut origins: BTreeMap<String, Origin> = BTreeMap::new();
+    for index in matching(&resolved.config.app, entry, files)? {
+        let block = &resolved.config.app[index];
+        let field = if block.root.is_some() {
+            "root"
+        } else {
+            "entry"
+        };
+        if let Some(key) = key_of(block) {
+            layered.blocks.push(key.to_path_buf());
+        }
+        // The block as it was written, which is where its untyped `toml` value still is. `root` and
+        // `entry` are dropped rather than merged: they are what selected these blocks, and an
+        // override record about them would report the match rather than a directive.
+        let Some(mut table) = block_table(resolved, index) else {
+            continue;
+        };
+        table.remove("root");
+        table.remove("entry");
+        // The block's own file, falling back to the array's — a block reached the typed tree by
+        // being claimed or appended, and both of those record an origin, so the last arm is
+        // unreachable rather than a case with an answer.
+        let Some(origin) = resolved
+            .origins
+            .get(&format!("app.{index}.{field}"))
+            .or_else(|| resolved.origins.get("app"))
+        else {
+            continue;
+        };
+        crate::resolve::merge_table(
+            &mut merged,
+            &table,
+            origin,
+            "",
+            &mut origins,
+            &mut layered.overrides,
+        );
+    }
+    layered.app = toml::Value::Table(merged)
+        .try_into::<App>()
+        .map_err(|err| {
+            Diagnostic::error(code::E_BAD_DIRECTIVE, err.message().to_string()).with_note(
+            "every `[[app]]` block was typed on its own before it was merged, so this can only be \
+             two blocks writing one key in two shapes"
+                .to_string(),
+        )
+        })?;
+    Ok(layered)
+}
+
+/// The `index`th `[[app]]` block as the untyped table it was written as, or `None` when the merged
+/// table has no such entry — which the typed tree having one makes unreachable.
+fn block_table(resolved: &Resolved, index: usize) -> Option<toml::Table> {
+    Some(
+        resolved
+            .table
+            .get("app")?
+            .as_array()?
+            .get(index)?
+            .as_table()?
+            .clone(),
+    )
+}
+
+/// Whether this block's key covers `entry`, which is canonical.
+///
+/// `root` is a **proper** prefix: a root that equals the entry file would mean a directory used as
+/// a file, and `entry` is the spelling for one file. `Path::starts_with` is the component-wise
+/// test § 1 asks for, so `/srv/www/shopfront/index.nvs` does not match `root = "/srv/www/shop"`.
+fn covers(block: &App, entry: &Path) -> bool {
+    if let Some(root) = &block.root {
+        let root = Path::new(root);
+        entry.starts_with(root) && entry != root
+    } else {
+        block
+            .entry
+            .as_ref()
+            .is_some_and(|exact| entry == Path::new(exact))
+    }
+}
+
+/// The path this block is keyed on, whichever of the two keys spelled it.
+fn key_of(block: &App) -> Option<&Path> {
+    block
+        .root
+        .as_deref()
+        .or(block.entry.as_deref())
+        .map(Path::new)
+}
+
+/// `E0609` for a block naming both keys: § 1 gives one application one key, and a block naming a
+/// directory *and* a file has not said which of the two it means.
+fn both_keys(index: usize, origins: &BTreeMap<String, Origin>) -> Diagnostic {
+    Diagnostic::error(
+        code::E_BAD_APP_BLOCK,
+        format!("{} names both `root` and `entry`", ordinal(index)),
+    )
+    .with_note(format!(
+        "ADR 0104 § 1 keys an application on one or the other: `root` is every entry file beneath \
+         a directory, `entry` is one file exactly{}",
+        origin_note(origins.get(&format!("app.{index}.root")))
+    ))
+    .with_help(
+        "keep `root` and drop `entry` to cover a tree, or split the block in two so the file gets \
+         its own directives"
+            .to_string(),
+    )
+}
+
+/// `E0609` for a block naming neither key: there is no default application, because a block that
+/// matched everything would be the global configuration written twice.
+fn no_key(index: usize) -> Diagnostic {
+    Diagnostic::error(
+        code::E_BAD_APP_BLOCK,
+        format!("{} names neither `root` nor `entry`", ordinal(index)),
+    )
+    .with_note(
+        "ADR 0104 § 1 keys an application on an entry file path, so a block with no key matches no \
+         entry file and its directives would never apply"
+            .to_string(),
+    )
+    .with_help(
+        "add the directory this application lives in as `root`, or the one file as `entry`; a \
+         host-wide default is a block with the widest `root`, which § 2 layers under the others"
+            .to_string(),
+    )
+}
+
+/// `E0609` for two blocks on one path — § 2's duplicate, which is not a refinement.
+///
+/// Keyed on the canonical path rather than on the spelling, so the same directory reached through
+/// two relative paths, or through a symlink, is caught as well: § 2's argument is about which
+/// block's value wins, and two blocks on one path have no order between them to answer with.
+fn duplicate(path: &Path, first: usize, second: usize, written_in: Option<&Origin>) -> Diagnostic {
+    Diagnostic::error(
+        code::E_BAD_APP_BLOCK,
+        format!(
+            "{} and {} are both keyed on `{}`",
+            ordinal(first),
+            ordinal(second),
+            path.display()
+        ),
+    )
+    .with_note(format!(
+        "ADR 0104 § 2 layers matching blocks by specificity, so two blocks on the same path are a \
+         duplicate rather than a refinement and there is no order between them to decide which \
+         value wins{}",
+        written_in.map_or_else(String::new, |origin| format!(
+            "; the second is written in `{}`",
+            origin.path.display()
+        ))
+    ))
+    .with_help(
+        "merge the two blocks, or narrow one of them to the subdirectory or the entry file it was \
+         meant for"
+            .to_string(),
+    )
+}
+
+/// `E0609` for a canonical path that is not UTF-8, which is the one shape a `[[app]]` key cannot be
+/// written back as: it arrived from TOML as text and must go back as text.
+fn not_utf8(path: &Path, index: usize, field: &str) -> Diagnostic {
+    Diagnostic::error(
+        code::E_BAD_APP_BLOCK,
+        format!(
+            "{}'s `{field}` canonicalizes to `{}`, which is not valid UTF-8",
+            ordinal(index),
+            path.display()
+        ),
+    )
+    .with_note(
+        "ADR 0104 § 1 matches on the canonical path, and a configuration file is UTF-8 text, so a \
+         path this process cannot spell back is one no block could be compared against"
+            .to_string(),
+    )
+}
+
+/// `` `[[app]]` block 3 `` — blocks have no names, so they are counted in the order the tree read
+/// them, which is [ADR 0103] § 3's order.
+///
+/// [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
+fn ordinal(index: usize) -> String {
+    format!("`[[app]]` block {}", index + 1)
+}
+
+/// `, written in ...` when the merge recorded where, and nothing when it did not.
+fn origin_note(written_in: Option<&Origin>) -> String {
+    written_in.map_or_else(String::new, |origin| {
+        format!(", written in `{}`", origin.path.display())
+    })
+}
