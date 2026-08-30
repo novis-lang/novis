@@ -1,5 +1,5 @@
 --TEST--
-#[Core\Json\Derive] makes a class encodable from its declared properties, in declaration order, with per-field renaming and skipping — ADR 0071 §§ 1-3
+#[Core\Json\Derive] makes a class encodable from its declared properties, private ones included, in declaration order, with per-field renaming and skipping — ADR 0071 §§ 1-3
 --FILE--
 <?nvs
 use Core\Json;
@@ -56,6 +56,27 @@ echo Json::encode(new User("bob", 7, false, new Address("rome"), 12)), "\n";
 var $grace = new User("grace", 45, false, new Address("nyc"), 1);
 echo Json::encode($grace) == Json::encode($grace) ? "stable" : "varies", "\n";
 
+// § 2: the field list is visibility-blind — a `protected` or `private` property
+// is a field like any other. Visibility is an access-control decision, and a
+// codec that dropped a field the day it gained a `private` would be exactly the
+// silent break § 1's written opt-in is paying to remove. Decode is blind to it
+// for the same reason and by the same route: it is an ordinary `new`, so the
+// constructor assigns a private property as it assigns any other.
+#[Core\Json\Derive]
+class Ledger {
+    public int $id;
+    protected string $owner;
+    private int $balance;
+
+    public function constructor(int $id, string $owner, int $balance) {
+        $this->id = $id;
+        $this->owner = $owner;
+        $this->balance = $balance;
+    }
+}
+echo Json::encode(new Ledger(7, "ada", 42)), "\n";
+echo Json::encode(Json::decodeAs<Ledger>('{"id":8,"owner":"bob","balance":3}')), "\n";
+
 // § 1: a userland `type Derive = {};` is not the compiler's attribute, no
 // matter how it is spelled — so this class gets nothing and stays unencodable.
 type Derive = {};
@@ -77,4 +98,6 @@ try {
 {"name":"ada","age":36,"is_admin":true,"address":{"city":"london"},"score":null}
 {"name":"bob","age":7,"is_admin":false,"address":{"city":"rome"},"score":12}
 stable
+{"id":7,"owner":"ada","balance":42}
+{"id":8,"owner":"bob","balance":3}
 no codec
