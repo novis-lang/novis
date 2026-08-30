@@ -36,11 +36,18 @@
 //! 1. **A reachable type whose decoder is not written yet is still
 //!    [`CodecTy::Opaque`].** § 2's compile-time refusal is applied — see
 //!    [`resolve_field_types`] — but it names only the types that can never
-//!    have a wire form. A `decimal`, an `Instant`, an enum and an inline shape
-//!    are all *reachable* and all erase to `Opaque` here, so a
+//!    have a wire form. A `decimal`, an `Instant` and an inline shape are all
+//!    *reachable* and all erase to `Opaque` here, so a
 //!    `decodeAs<T>` over one still refuses at run time; the decoders they need
 //!    are `nvs_stdlib::json`'s own gap, and keeping the two apart is why this
 //!    module refuses a type rather than refusing an `Opaque`.
+//!
+//!    **An enum is no longer one of them either.** It erases to
+//!    [`CodecTy::Enum`] carrying [`DerivedField::cases`], the roster of
+//!    backing values [`nvs_stdlib::EnumCases`] describes — the enum's *name*
+//!    never travels, because ADR 0010 § 6 leaves a case indistinguishable
+//!    from the integer behind it and a decoder therefore has nothing to look
+//!    the name up in.
 //!
 //!    **A nested class is no longer one of them.** It erases to
 //!    [`CodecTy::Class`] carrying [`DerivedField::class`], the label the
@@ -65,7 +72,7 @@ use nvs_syntax::ast::{
     Param, PropertyMember,
 };
 
-use nvs_stdlib::CodecTy;
+use nvs_stdlib::{CodecTy, EnumCases};
 
 use crate::ty::{Ty, TypeId};
 use crate::{Ctx, Env, span_text, strip_sigil};
@@ -217,6 +224,11 @@ pub struct DerivedField {
     /// of one. The only half a front end can state; `nvs-codegen` resolves it
     /// to a descriptor.
     pub class: Option<String>,
+    /// The accepted backing values where the erasure above produced a
+    /// [`CodecTy::Enum`], for the field itself or for a list's element — see
+    /// [`nvs_stdlib::CodecField::cases`], which this is the declaration half
+    /// of.
+    pub cases: Option<EnumCases>,
     /// Whether the declared type admits `null` (ADR 0071 § 4's second column).
     pub nullable: bool,
     /// This field's position in the constructor's parameter list, or `None`
@@ -226,10 +238,10 @@ pub struct DerivedField {
 }
 
 /// `declared`, erased to what a native decoder branches on, with the class
-/// label beside it where the erasure loses one.
+/// label and the enum roster beside it where the erasure loses one.
 ///
-/// ADR 0071 § 2's codec-reachable set is wider than this: an enum, a
-/// `decimal`, an `Instant` and an inline shape are all reachable and all land
+/// ADR 0071 § 2's codec-reachable set is wider than this: a `decimal`, an
+/// `Instant` and an inline shape are all reachable and all land
 /// on [`CodecTy::Opaque`] today — `nvs_stdlib::json`'s own gap owns the
 /// decoders they still need, and § 2's compile-time refusal of a genuinely
 /// unreachable type is this module's gap 3. Nothing here narrows what
@@ -241,31 +253,75 @@ pub struct DerivedField {
 /// [`resolve_field_types`] that refuses a class with no codec at all, and
 /// `nvs_stdlib::json` that reports ADR 0071 § 7's hand-written half, which no
 /// derived decoder calls yet.
-fn codec_ty(declared: TypeId, env: &Env<'_>) -> (CodecTy, Option<CodecTy>, Option<String>) {
+fn codec_ty(declared: TypeId, env: &Env<'_>) -> Erased {
     match env.interner.get(declared) {
-        Ty::Bool => (CodecTy::Bool, None, None),
-        Ty::Int => (CodecTy::Int, None, None),
-        Ty::Uint => (CodecTy::Uint, None, None),
-        Ty::Float => (CodecTy::Float, None, None),
+        Ty::Bool => (CodecTy::Bool, None, None, None),
+        Ty::Int => (CodecTy::Int, None, None, None),
+        Ty::Uint => (CodecTy::Uint, None, None, None),
+        Ty::Float => (CodecTy::Float, None, None, None),
         // A `tainted` string is still a string on the wire; ADR 0071 § 6 makes
         // the qualifier a call-site question, not a decoder one.
-        Ty::String | Ty::TaintedString => (CodecTy::Str, None, None),
-        Ty::Mixed => (CodecTy::Mixed, None, None),
+        Ty::String | Ty::TaintedString => (CodecTy::Str, None, None, None),
+        Ty::Mixed => (CodecTy::Mixed, None, None, None),
         // § 2's "another class that itself has a codec". The label is the one
         // `crate::layout` keys on and `nvs_ir::lower::lower_file` joins
         // through, so `nvs-codegen` can resolve it to a descriptor.
-        Ty::Class(name, _) => (CodecTy::Class, None, Some(name.to_string())),
+        Ty::Class(name, _) => (CodecTy::Class, None, Some(name.to_string()), None),
+        // § 2's enum. What travels is the roster and not the name: ADR 0010
+        // § 6 reserves an enum tag that nothing writes, so by the time a case
+        // is a value it is the integer behind it, and a decoder has nothing to
+        // resolve a name against. The membership test is therefore the whole
+        // of the decode — see `nvs_stdlib::EnumCases`.
+        Ty::Enum(name, backing) => (CodecTy::Enum, None, None, enum_cases(name, *backing, env)),
         // § 2's list field. The element goes through this same erasure once,
         // and a second `List` coming back out is `array<array<T>>` — which
         // [`nvs_stdlib::CodecField::element`] has no room to describe, so the
         // whole field stays `Opaque` and refuses at the `decodeAs<T>` rather
         // than half-decoding. An `Opaque` element is refused the same way.
         Ty::Array(elem) => match codec_ty(*elem, env) {
-            (CodecTy::List | CodecTy::Opaque, _, _) => (CodecTy::Opaque, None, None),
-            (element, _, class) => (CodecTy::List, Some(element), class),
+            (CodecTy::List | CodecTy::Opaque, _, _, _) => (CodecTy::Opaque, None, None, None),
+            // The element's class label and its case roster both ride up onto
+            // the *field*, which is the one row a decoder has in hand when it
+            // reaches position `n`.
+            (element, _, class, cases) => (CodecTy::List, Some(element), class, cases),
         },
-        _ => (CodecTy::Opaque, None, None),
+        _ => (CodecTy::Opaque, None, None, None),
     }
+}
+
+/// What [`codec_ty`] answers: the wire type, then the three things the erasure
+/// drops — a list's element type, a class label, an enum's case roster — each
+/// present only for the wire type that lost it.
+type Erased = (CodecTy, Option<CodecTy>, Option<String>, Option<EnumCases>);
+
+/// `qname`'s declared cases, ascending — [`CodecTy::Enum`]'s whole decode.
+///
+/// `None` for a name this program declares no enum for. That is a resolution
+/// failure already reported where the annotation is written, and the decoder
+/// treats it as the engine fault it is rather than accepting every integer.
+fn enum_cases(
+    qname: &QName,
+    backing: crate::enums::EnumBacking,
+    env: &Env<'_>,
+) -> Option<EnumCases> {
+    let info = env.enums.get(qname)?;
+    let mut values: Vec<i128> = info
+        .cases
+        .values()
+        .map(|value| match value {
+            crate::enums::EnumValue::Int(number) => i128::from(*number),
+            crate::enums::EnumValue::Uint(number) => i128::from(*number),
+        })
+        .collect();
+    // A `FxHashMap`'s iteration order is not the declaration order and is not
+    // stable between runs, so sorting is what makes this roster — and the
+    // artifact cache key over it — reproducible. A binary search wants it
+    // sorted anyway.
+    values.sort_unstable();
+    Some(EnumCases {
+        unsigned: backing == crate::enums::EnumBacking::Uint,
+        values,
+    })
 }
 
 /// One field ADR 0071 § 2's codec-reachable test still owes an answer,
@@ -678,13 +734,14 @@ fn codec_field(
         span: p.name,
         declared: carried,
     });
-    let (ty, element, class) = codec_ty(carried, env);
+    let (ty, element, class, cases) = codec_ty(carried, env);
     FieldOutcome::Kept(DerivedField {
         key: overrides.name.unwrap_or_else(|| name.clone()),
         property: name,
         ty,
         element,
         class,
+        cases,
         nullable,
         param,
     })

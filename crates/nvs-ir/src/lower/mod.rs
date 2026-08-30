@@ -696,6 +696,10 @@ pub fn lower_program(
                                 // is the first place every descriptor exists,
                                 // so it is the one that can resolve it.
                                 class: field.class.clone(),
+                                // The enum roster rides down untouched too,
+                                // and needs no resolution at all: it is
+                                // already the values themselves.
+                                cases: field.cases.clone(),
                                 nullable: field.nullable,
                             })
                         })

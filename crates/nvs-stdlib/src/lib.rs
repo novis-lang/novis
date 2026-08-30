@@ -257,7 +257,7 @@ mod validate;
 /// and `nvs-ir` each produce a stage of it and neither depends on the runtime
 /// directly, so they reach it through this crate, which they already treat as
 /// the home of the `Core` contract.
-pub use nvs_runtime::{CodecField, CodecTy, FieldDefault};
+pub use nvs_runtime::{CodecField, CodecTy, EnumCases, FieldDefault};
 
 use registry::CoreClass;
 

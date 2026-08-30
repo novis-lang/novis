@@ -70,9 +70,9 @@
 //!    band that starts at 1.8e19.
 //! 2. **A derived field's type roster is narrower than ADR 0071 § 2's.**
 //!    [`decode_field`] has a case for a `bool`, an `int`, a `uint`, a `float`,
-//!    a `string`, a `mixed`, another derived class, an `array<T>` of any of
-//!    those, and a `?T` of any of them — the whole of
-//!    [`nvs_runtime::CodecTy`] but its last variant. An enum, a `decimal`, an
+//!    a `string`, a `mixed`, an enum, another derived class, an `array<T>` of
+//!    any of those, and a `?T` of any of them — the whole of
+//!    [`nvs_runtime::CodecTy`] but its last variant. A `decimal`, an
 //!    `Instant`, an inline shape and an `array<T>` of one of those are all
 //!    codec-reachable by that ADR and all land on `CodecTy::Opaque`, which
 //!    [`decode_as`] refuses **before reading the document** for the class it
@@ -85,6 +85,9 @@
 //!    list under a `address.` prefix, and its issues join the enclosing
 //!    object's rather than throwing where they were found. [`decode_list`]
 //!    came off it second, under `tags.3.` — the § 5 example's own spelling.
+//!    An enum came off it third and cost no nesting at all: a case is its
+//!    backing integer, so [`scalar`] answers it as a membership test against
+//!    the roster [`nvs_runtime::CodecField::cases`] carries.
 //! 3. **A parameter default does not make a key optional.** ADR 0071 § 4's
 //!    two default-bearing rows are unimplemented: an absent key is always
 //!    *required field missing*, and a `#[Json\Field(skip: true)]` property
@@ -117,7 +120,7 @@
 
 use std::fmt;
 
-use nvs_runtime::{CodecTy, Fault, NvsArray, NvsObj, NvsStr, Tag, ThrownClass, Value};
+use nvs_runtime::{CodecTy, EnumCases, Fault, NvsArray, NvsObj, NvsStr, Tag, ThrownClass, Value};
 use serde::de::{DeserializeSeed, Deserializer, MapAccess, SeqAccess, Visitor};
 use serde::ser::{Error as _, Serialize, SerializeMap, SerializeSeq, Serializer};
 
@@ -1296,7 +1299,11 @@ unsafe fn decode_field(
         | CodecTy::Int
         | CodecTy::Uint
         | CodecTy::Float
-        | CodecTy::Str => scalar(field.ty, found),
+        | CodecTy::Str => scalar(field.ty, None, found),
+        // ADR 0071 § 2's enum field: the roster travels with the field and the
+        // decode is a membership test over it, so this is a scalar with one
+        // more thing in hand rather than a nesting of its own.
+        CodecTy::Enum => scalar(field.ty, Some(cases_of(owner, field)?), found),
         // Reachable only through a *nested* class, whose own fields
         // [`decode_as`]'s pre-check never saw: an `Opaque` is a decoder this
         // crate has not written yet, so it is an engine fault wherever it is
@@ -1415,7 +1422,12 @@ unsafe fn decode_nested(
 /// A [`CodecTy::Class`], a [`CodecTy::List`] and a [`CodecTy::Opaque`] are not
 /// scalars and answer `None`; each has a caller that handles it before
 /// reaching here.
-fn scalar(ty: CodecTy, found: Value) -> Option<Value> {
+///
+/// `cases` is [`nvs_runtime::CodecField::cases`], and is read only for a
+/// [`CodecTy::Enum`] — the one wire type whose accepted values are a property
+/// of the field rather than of the type. Both callers resolve it before
+/// asking, so a `None` here is an already-diagnosed program and refuses.
+fn scalar(ty: CodecTy, cases: Option<&EnumCases>, found: Value) -> Option<Value> {
     match ty {
         // A `mixed` field is exactly as checked as `mixed` ever is (ADR 0071
         // § 2), so whatever the document held is the value.
@@ -1435,8 +1447,49 @@ fn scalar(ty: CodecTy, found: Value) -> Option<Value> {
             .or_else(|| found.as_int().map(|number| number as f64))
             .map(Value::float),
         CodecTy::Str => (found.tag() == Some(Tag::Str)).then_some(found),
+        // ADR 0010 § 6 reserves an enum tag and nothing writes one, so a case
+        // is the integer behind it and there is nothing to construct: what a
+        // decode owes is the membership test, and an integer outside the
+        // roster is a bad document rather than a case this build forgot.
+        CodecTy::Enum => {
+            let cases = cases?;
+            let number = found.as_int()?;
+            if cases.values.binary_search(&i128::from(number)).is_err() {
+                return None;
+            }
+            // A `uint`-backed enum's case is a `Value::uint` everywhere else
+            // in the runtime — `nvs_ir::lower::expr` emits one for a written
+            // `Role::Admin` — so a decoded case has to be the same value a
+            // written one is, or the two would compare unequal.
+            if cases.unsigned {
+                u64::try_from(number).ok().map(Value::uint)
+            } else {
+                Some(Value::int(number))
+            }
+        }
         CodecTy::Class | CodecTy::List | CodecTy::Opaque => None,
     }
+}
+
+/// The enum roster `field` carries, or the engine fault a missing one is.
+///
+/// Unreachable from source: `nvs_types::derive` writes the roster beside the
+/// [`CodecTy::Enum`] in one expression, so an enum field without one is that
+/// erasure disagreeing with itself — the same shape [`decode_list`] gives a
+/// list with no element wire type.
+fn cases_of<'a>(
+    owner: &nvs_runtime::ClassDesc,
+    field: &'a nvs_runtime::CodecField,
+) -> Result<&'a EnumCases, DecodeFailure> {
+    // Unreachable from source, as the doc comment above says: the roster is
+    // written beside the `CodecTy::Enum` in one expression.
+    field.cases.as_ref().ok_or_else(|| {
+        DecodeFailure::Fault(Fault::fatal(format!(
+            "internal error: `{}`'s `{}` field is an enum with no case roster",
+            owner.name(),
+            field.key
+        )))
+    })
 }
 
 /// One `array<T>` field decoded — ADR 0071 § 2's list field, every position
@@ -1482,6 +1535,13 @@ unsafe fn decode_list(
         )]));
     };
     let source = crate::arr::borrowed(ptr);
+    // Resolved once rather than per position: an element's roster is the
+    // field's own, as its class label is.
+    let cases = if element == CodecTy::Enum {
+        Some(cases_of(owner, field)?)
+    } else {
+        None
+    };
     // Dropping `decoded` on any early return releases every element already
     // built, which is what an error path owes.
     let mut decoded = NvsArray::new();
@@ -1513,7 +1573,7 @@ unsafe fn decode_list(
             }
             continue;
         }
-        let Some(value) = scalar(element, item) else {
+        let Some(value) = scalar(element, cases, item) else {
             issues.push((
                 at_path,
                 format!("expected {}, found {}", wanted(element), describe(item)),
@@ -1639,6 +1699,10 @@ const fn wanted(ty: CodecTy) -> &'static str {
         // Likewise: `decode_list` reports the array itself, and an element is
         // named by its own wire type.
         CodecTy::List => "an array",
+        // The enum's own name never reaches the runtime — `CodecTy::Enum`'s
+        // docs say why — so the message names the shape rather than the type,
+        // and the issue's path names the field the declaration is written on.
+        CodecTy::Enum => "a declared enum case",
         CodecTy::Opaque => "a decodable type",
     }
 }

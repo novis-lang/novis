@@ -244,7 +244,7 @@ pub use nvs_stdlib::script::{
     AWAIT_SYMBOL as CORE_SCRIPT_AWAIT, SPAWN_SYMBOL as CORE_SCRIPT_SPAWN,
 };
 pub use nvs_stdlib::time::FROM_NANOS_SYMBOL as CORE_DURATION_FROM_NANOS;
-pub use nvs_stdlib::{CodecField, CodecTy, FieldDefault};
+pub use nvs_stdlib::{CodecField, CodecTy, EnumCases, FieldDefault};
 pub use routes::{ParamIn, Route, RouteParam, RouteTable};
 pub use ty::{Ty, TypeId, TypeInterner};
 

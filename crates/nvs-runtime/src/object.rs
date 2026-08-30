@@ -525,11 +525,41 @@ pub enum CodecTy {
     /// `array<array<T>>` to [`Self::Opaque`] on that account, so
     /// [`CodecField::element`] is never itself a `List`.
     List,
-    /// A declared type this decoder has no case for yet — an enum, a
-    /// `decimal`, an `Instant`. Encoding one still works; decoding into one is
-    /// `nvs_stdlib::json`'s own known gap, and it faults naming the field
+    /// An enum — ADR 0071 § 2's enum field, decoded as a membership test
+    /// rather than as a construction: ADR 0010 § 6 reserves an enum tag that
+    /// nothing writes, so a case at run time *is* the integer behind it (see
+    /// [`crate::value_truthy`]'s own note), and what a decode produces is that
+    /// integer in the enum's backing type.
+    ///
+    /// The roster of accepted values rides on [`CodecField::cases`] for
+    /// [`Self::Class`]'s reason: this enum is `Copy` and a case list is not.
+    Enum,
+    /// A declared type this decoder has no case for yet — a `decimal`, an
+    /// `Instant`, an inline shape. Encoding one still works; decoding into one
+    /// is `nvs_stdlib::json`'s own known gap, and it faults naming the field
     /// rather than guessing a value.
     Opaque,
+}
+
+/// The closed set of backing values a [`CodecTy::Enum`] accepts, and which of
+/// ADR 0010 § 2's two integer types they are.
+///
+/// A decode is a membership test against this and nothing else. There is no
+/// object to construct and no case name to look up, because a case is
+/// indistinguishable from its backing integer by the time it is a [`Value`];
+/// a document holding an integer no case declares is a bad document, reported
+/// as one of ADR 0071 § 5's issues rather than as a fault.
+#[derive(Clone, Debug)]
+pub struct EnumCases {
+    /// Whether the enum is `uint`-backed, which is the whole of what decides
+    /// between a [`Value::int`] and a [`Value::uint`] on a hit.
+    pub unsigned: bool,
+    /// Every declared case's value, ascending, so a lookup is a binary search.
+    ///
+    /// Widened to `i128` so one field answers for both backings without a
+    /// lossy cast — `nvs_ir::lower::convert` normalizes an enum's cases the
+    /// same way, for the same reason.
+    pub values: Vec<i128>,
 }
 
 /// One field of a class's derived JSON codec: the wire key, the slot it is
@@ -570,6 +600,11 @@ pub struct CodecField {
     /// own type. [`ClassTable::set_codec`] takes the resolved pointers beside
     /// this list, and [`ClassDesc::codec_class`] reads one back.
     pub class: Option<String>,
+    /// The accepted backing values where [`Self::ty`] is [`CodecTy::Enum`],
+    /// or where [`Self::element`] is — the *element's* roster in that second
+    /// case, exactly as [`Self::class`] holds the element's label. `None` for
+    /// every other wire type.
+    pub cases: Option<EnumCases>,
     /// Whether the declared type admits `null` — ADR 0071 § 4's second
     /// column, which is a property of the *type* and says nothing about
     /// whether the key may be absent.
