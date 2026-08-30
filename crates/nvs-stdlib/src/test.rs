@@ -217,6 +217,19 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&ASSERT_COUNT_DOC),
         },
         CoreMethod {
+            name: "assertContains",
+            names: &["actual", "expected"],
+            params: &[
+                CoreTy::Array(&CoreTy::Var("T")),
+                T,
+                CoreTy::Options(MESSAGE),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_test_assert_contains",
+            doc: Some(&ASSERT_CONTAINS_DOC),
+        },
+        CoreMethod {
             name: "assertThrows",
             names: &["body", "expected"],
             params: &[
@@ -476,6 +489,39 @@ const ASSERT_COUNT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// `Core\Test::assertContains`'s reference card — ADR 0117.
+const ASSERT_CONTAINS_DOC: MethodDoc = MethodDoc {
+    short: "Asserts some entry of `$actual` is `$expected` under strict identity — the question \
+            `Core\\Arr::contains` answers, and the same answer — as PHPUnit's `assertContains` \
+            does, subject first. A substring is asserted through `Core\\Str::contains`, which \
+            says which containment was meant.",
+    params: &[
+        ParamDoc {
+            name: "actual",
+            desc: "The array under test.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "expected",
+            desc: "The entry it must hold, compared by identity; `int`, `uint`, `float` and \
+                   `decimal` are one numeric domain, so `1` finds `1.0`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "message",
+            desc: "A prefix written in front of the failure's own diagnosis; the default is \
+                   none.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing; the assertion is recorded as held in the test's ledger.",
+    errors: &[ErrorDoc {
+        error: "Core\\Test\\Failure",
+        desc: "No entry of the array is identical to `$expected`; the failure is recorded in \
+               the ledger before it is thrown, so a `catch` cannot erase it.",
+    }],
+};
+
 /// `Core\Test::assertThrows`'s reference card — ADR 0117.
 const ASSERT_THROWS_DOC: MethodDoc = MethodDoc {
     short: "Runs `$body` and asserts it throws `$expected` or a subclass of it, as PHPUnit's \
@@ -618,6 +664,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_test_assert_true" => (nvs_core_test_assert_true as *const ()).cast(),
         "nvs_core_test_assert_null" => (nvs_core_test_assert_null as *const ()).cast(),
         "nvs_core_test_assert_count" => (nvs_core_test_assert_count as *const ()).cast(),
+        "nvs_core_test_assert_contains" => (nvs_core_test_assert_contains as *const ()).cast(),
         "nvs_core_test_assert_throws" => (nvs_core_test_assert_throws as *const ()).cast(),
         "nvs_core_test_assert_does_not_throw" => {
             (nvs_core_test_assert_does_not_throw as *const ()).cast()
@@ -800,6 +847,60 @@ nvs_runtime::nvs_helper! {
             ctx,
             "assertCount",
             &format!("`$actual` holds {count} entries, `$expected` is {expected}"),
+            args[2],
+        ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test::assertContains(array<T> $actual, T $expected, {message?: string}): void`
+    /// — § 4's membership row, whose subject and comparison are
+    /// [`crate::arr`]'s `Core\Arr::contains` rather than a second reading of
+    /// either.
+    ///
+    /// The subject is an `array<T>` and the needle is that same `T`, which is
+    /// the signature `Core\Arr::contains` already carries, so
+    /// `Core\Test::assertContains($xs, $x)` holds exactly when
+    /// `Core\Arr::contains($xs, $x)` is `true` and the library asks membership
+    /// once. What "is the needle" means is therefore
+    /// [`identity::value_identical`] — ADR 0090 § 3's numeric row included, so
+    /// `[1.0]` contains `1` — and not ADR 0013's `compareTo`: `assertEquals` is
+    /// the member that names an object comparison, and a membership test whose
+    /// comparison changed with the element type is the silent fallback 0013
+    /// refused.
+    ///
+    /// A `string` subject is refused for `assertCount`'s reason: a substring is
+    /// `Core\Str`'s question, asked as
+    /// `Core\Test::assertTrue(Core\Str::contains($s, "x"))`, which says which
+    /// containment was meant.
+    fn nvs_core_test_assert_contains(ctx, args: [3]) {
+        // Unreachable from source: `array<T>` in `CLASS`, so a `mixed` subject
+        // is `E0401: expected array<mixed>, found mixed` and a `?array<string>`
+        // is the same code over the union — `assertCount`'s subject exactly.
+        let array = crate::arr::borrowed(args[0].array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Test::assertContains expected {:?}, got tag {}",
+                Tag::Array,
+                args[0].tag_byte()
+            ))
+        })?);
+        let mut from = 0usize;
+        let mut count = 0usize;
+        while let Some(slot) = array.next_slot(from) {
+            from = slot + 1;
+            count += 1;
+            let value = array.value_at(slot).unwrap_or_else(Value::null);
+            if identity::value_identical(value, args[1]) {
+                return Ok(held(ctx, "assertContains"));
+            }
+        }
+        Err(failed(
+            ctx,
+            "assertContains",
+            &format!(
+                "`$actual` holds {count} entries and none is `$expected`, which is {}",
+                shown(args[1])
+            ),
             args[2],
         ))
     }
