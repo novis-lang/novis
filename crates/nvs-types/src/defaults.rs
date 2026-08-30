@@ -45,14 +45,15 @@
 //! for an initializer to be spliced into, and a constructor prologue would run
 //! the *declaring* class's defaults rather than the instantiated class's.
 //!
-//! **Known gap:** a *written* `= null` is refused along with the rest. The
-//! constant itself now exists — [`ConstArg::Null`], over
-//! `nvs_ir::ir::InstKind::ConstNull` — but the thing a written one would
-//! declare is a `?T` parameter, and `nvs_ir::ty::Ty`'s own docs record why a
-//! type that admits both `null` and a `T` has no IR representation yet. So
-//! this stays refused until that lands, and the constant is reached only from
-//! [`crate::core_lib`], where the *declared* type is the option's own and
-//! `null` means "not given".
+//! **A written `= null` is accepted exactly where the declared type admits
+//! one** — `?int $rank = null` at a property and at a parameter alike, as
+//! [`ConstArg::Null`] over `nvs_ir::ir::InstKind::ConstNull`. The decoder asks
+//! [`crate::ty::TypeInterner::is_nullable`] rather than naming a shape, so `?T`,
+//! `T|null` and a bare `null` are one rule and a type that admits no `null`
+//! refuses it with every other constant of the wrong type. This is the same
+//! constant [`crate::core_lib`] reaches for a `Core` member's own
+//! `?int $length = null`, so a written default and a registered one are one
+//! mechanism here too.
 //!
 //! **Known gap, and it is the parameter half only:** a named constant — an
 //! enum case (`Mode $m = Mode::Fast`), another class's `const` — is accepted
@@ -446,6 +447,13 @@ pub(crate) fn literal_default(
         ) if !negated => Some(ConstArg::Str(crate::string_lit::cook_string_literal(
             env.src, *span,
         ))),
+        // A written `null` against a type that admits one. The guard asks
+        // [`crate::ty::TypeInterner::is_nullable`] rather than matching `Ty::Union`
+        // here, because `?T`, `A|B|null` and a bare `null` are three spellings
+        // of the same admission and that question already has one answer.
+        (_, ExprKind::Null) if !negated && env.interner.is_nullable(declared) => {
+            Some(ConstArg::Null)
+        }
         _ => None,
     }
 }

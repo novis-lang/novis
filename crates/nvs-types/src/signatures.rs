@@ -1776,13 +1776,24 @@ mod tests {
         );
     }
 
-    /// The known gap `crate::defaults` names first: `= null` has no IR
-    /// constant under it yet, so it is refused rather than silently ignored
-    /// the way every default was before this existed.
+    /// `= null` is a constant of any type that admits a `null` and of no other
+    /// — `crate::defaults`'s own doc owns the rule. Both sides are asserted
+    /// here because the arm was added to a grid: a declared type that admits no
+    /// `null` still refuses it along with every other constant of the wrong
+    /// type.
     #[test]
-    fn a_null_parameter_default_is_refused_for_now() {
+    fn a_null_parameter_default_needs_a_type_that_admits_null() {
         let (_table, _module, _interner, diags) =
             build("<?nvs\nclass Box { function scale(?int $n = null): void {} }\n");
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code == Some(code::E_PARAM_DEFAULT_NOT_LITERAL)),
+            "{diags:?}"
+        );
+
+        let (_table, _module, _interner, diags) =
+            build("<?nvs\nclass Box { function scale(int $n = null): void {} }\n");
         assert!(
             diags
                 .iter()

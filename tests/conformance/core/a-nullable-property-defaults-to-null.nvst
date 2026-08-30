@@ -1,0 +1,50 @@
+--TEST--
+a `?T` property and a `?T` parameter each take a written `null` default — `null` is a constant of a type that admits one, and the decoder is the same for both positions — ADR 0007 § 2, ADR 0022 § 1
+--FILE--
+<?nvs
+class Row {
+    // ADR 0022 § 1 exempts a nullable property from definite assignment,
+    // because nullability already promises "may legitimately hold no value".
+    // A written `= null` states that at the declaration rather than leaving it
+    // to the exemption, and it is the one default such a property obviously
+    // has -- so refusing it refused a constant of the declared type.
+    public ?int $rank = null;
+    public ?string $note = null;
+    public static ?string $last = null;
+
+    // The neighbouring rows, so this case says an arm was added to the grid
+    // rather than the grid being loosened: a non-nullable property still takes
+    // only a constant of its own type, which
+    // `a-property-default-that-is-not-a-literal-is-a-compile-error.nvst` pins
+    // from the refusing side.
+    public int $id = 7;
+    public string $name = "ada";
+}
+
+Row $row = new Row();
+echo $row->id, " ", $row->name, "\n";
+echo $row->rank ?? -1, " ", $row->note ?? "<none>", "\n";
+echo Row::$last ?? "<none>", "\n";
+
+class Ask {
+    // The parameter half of the same decoder. A default is evaluated once at
+    // signature collection and emitted by the *caller*, so `null` has to be a
+    // constant the call site can materialize exactly as `-1` is; both calls
+    // below reach one compiled arity.
+    public static function rank(?int $given = null): int {
+        return $given ?? -1;
+    }
+
+    public static function note(?string $given = null): string {
+        return $given ?? "<none>";
+    }
+}
+
+echo Ask::rank(), " ", Ask::rank(3), "\n";
+echo Ask::note(), " ", Ask::note("hi"), "\n";
+--EXPECT--
+7 ada
+-1 <none>
+<none>
+-1 3
+<none> hi

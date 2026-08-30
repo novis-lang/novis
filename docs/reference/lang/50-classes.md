@@ -130,8 +130,8 @@ not assigned on every path
 
 A property default is a compile-time constant of the declared type: a `bool`, `int`, `uint`,
 `float` or `string` literal (optionally negated), `[]`, an enum case, or a class constant
-(`self::NAME` or `Class::NAME`). Anything else — including `null` on a nullable property — is
-refused; assign it in the constructor instead.
+(`self::NAME` or `Class::NAME`). `null` is one of them wherever the declared type admits it, so a
+`?T` property may be defaulted rather than assigned in the constructor. Anything else is refused.
 
 ```nvs
 <?nvs
@@ -142,11 +142,7 @@ class Config {
     public Mode $mode = Mode::On;
     public int $size = self::DEFAULT_SIZE;
     public array<int> $ports = [];
-    public ?string $label;
-
-    public function constructor() {
-        $this->label = null;
-    }
+    public ?string $label = null;
 }
 
 var $c = new Config();
@@ -159,7 +155,7 @@ echo $c->mode as int, " ", $c->size, " ", Core\Arr::count($c->ports), " ", $c->l
 ```nvs error
 <?nvs
 class Box {
-    public ?string $label = null;
+    public string $label = null;
 }
 ```
 ```output
