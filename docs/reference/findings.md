@@ -235,12 +235,19 @@ in that goal. An item's owner is the row it sits in.
       bullet re-derives § 3's five defaults and § 5's ceiling bounds it, neither of which existed.
       `nvs_config::mode` is now the one home of that table and of the two-value order, and
       `Request::flip_mode` applies both.
-- [ ] **D16** `Core\Arr::from` refuses the `Core` collections although they are `Iterable`:
-      `from($objectSet)` → E0401 "expected `array<T>|Iterable<T>|Iterator<T>`, found
-      `Core\ObjectSet<int>`"; on `ObjectMap` the message leaks the unsubstituted `array<K>`. `foreach`
-      over them works. *q09b, r04b*
-- [ ] **D17** `Core\ObjectSet::union`/`intersect`/`diff` lose the element type: the result is a bare
-      `Core\ObjectSet` (`foreach … as Tag $t` → "expected Tag, found T"). *ref-core-probes2*
+- [x] **D16** `Core\Arr::from` refuses the `Core` collections although they are `Iterable`. Two
+      halves, both in `nvs-types`: the nominal check gated on `nvs_hir`'s class graph, which holds
+      what a *program* declared and never a `Core` class's seeded `implements`
+      (`crate::expr::assign::class_satisfied` owns the two-roster rule); and what a class fixed for
+      an interface is written in its own type variables, which is the `array<K>` leak.
+      `crate::generics::with_class_args` is now that substitution's one home and its three callers
+      say so. *q09b, r04b*
+- [x] **D17** `Core\ObjectSet::union`/`intersect`/`diff` lose the element type. `CoreTy::Instance` of
+      a *generic* class now interns at that class's own type variables, so the receiver's arguments
+      reach the answer through the substitution every other member's `T` already went through
+      (`nvs_types::core_lib`'s `lower`). The parameter tightens with it: `union` on an
+      `ObjectSet<Pin>` receiver refuses an `ObjectSet<Tag>`, as § 9's signature reads.
+      *ref-core-probes2*
 - [x] **D18** `object` is not fully opaque: a method call through `object` is refused (E0477) but a
       property read compiles and resolves at run time ("`A` has no field `nope`" on a miss); the
       diagnostic cites ADR 0036 § 4, so this may be intended. *r02, s01*
