@@ -1,0 +1,76 @@
+--TEST--
+`Core\Serialize::decode`'s operand is a taint sink whatever route the bytes arrived by — a local, a concatenation, a member's return type, an array element, a repeated cast, or taint composed with `secret` — while untainted bytes decode — ADR 0088 § 1, ADR 0023 § 3
+--FILE--
+<?nvs
+// `decode` names classes and rebuilds their declared properties, so an
+// attacker-chosen byte string picks which class the program is handed. ADR 0088
+// § 1 therefore declares the parameter `bytes` under `Qual::Sink`, which makes
+// every refusal below an ordinary assignability failure rather than a rule of
+// the member's own — and that is the point being pinned: there is no launderer
+// in front of this sink, so nothing a caller can write in the argument position
+// gets past it.
+//
+// The agreement shape (`docs/agent/conventions.md`): six routes, one question,
+// so a taint propagation that grew a hole in one of them fails here while the
+// other five still look right.
+class Source {
+    public static function payload(): tainted bytes {
+        return "t" as bytes;
+    }
+}
+
+tainted string $t = "t";
+tainted bytes $tb = "t" as bytes;
+secret tainted bytes $stb = "t" as bytes;
+array<tainted bytes> $bag = [$tb];
+
+// The accepted side first, so the refusals below are a bound with both sides
+// named rather than a member that refuses everything.
+bytes $clean = "n" as bytes;
+mixed $ok = Core\Serialize::decode($clean);
+echo $ok;
+
+// Directly, which is the route the neighbouring `secret` case already has.
+mixed $a = Core\Serialize::decode($tb);
+echo $a;
+
+// Composed: taint travels through concatenation on its own axis, so the
+// argument's inferred type carries it even though nothing here is declared.
+mixed $b = Core\Serialize::decode(("x" . $t) as bytes);
+echo $b;
+
+// Declared one frame away. The call site reads the member's return type, which
+// is where a sink that only looked at variables would miss it.
+mixed $c = Core\Serialize::decode(Source::payload());
+echo $c;
+
+// Out of a container, where the qualifier is on the element type.
+mixed $d = Core\Serialize::decode($bag[0]);
+echo $d;
+
+// Composed with `secret`. Two axes, and neither launders the other: this one
+// is refused for its taint, and the message says so by naming both.
+mixed $e = Core\Serialize::decode($stb);
+echo $e;
+
+// A cast is not a launderer, and repeating it is not either — `as bytes` is a
+// conversion of the type, not of the provenance. The way in is a checked
+// conversion through a parser that produces untainted output.
+mixed $f = Core\Serialize::decode($t as bytes as bytes);
+echo $f;
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `bytes`, found `tainted bytes`
+%A
+error[E0401]: expected `bytes`, found `tainted bytes`
+%A
+error[E0401]: expected `bytes`, found `tainted bytes`
+%A
+error[E0401]: expected `bytes`, found `tainted bytes`
+%A
+error[E0401]: expected `bytes`, found `secret tainted bytes`
+%A
+error[E0401]: expected `bytes`, found `tainted bytes`
+%A
+error: aborting due to 6 errors
