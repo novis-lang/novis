@@ -17,9 +17,11 @@
 //! `extern "C"` function are a whole one. `nvs-stdlib`'s `allocation_policy.rs`
 //! owns that shape and the reason the table is leaked.
 
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
+use nvs_config::Snapshot;
+use nvs_config::capability::{Cap, Scope};
 use nvs_runtime::{Ctx, NvsStr, OutputSink, Value, nvs_safepoint};
 
 /// How many times the handler below has been entered, across every test in
@@ -558,5 +560,180 @@ fn a_recursive_spawn_is_reported_as_max_script_depth_and_not_as_memory() {
     assert!(
         failure.message.contains("ceiling of 2"),
         "the failure names the ceiling the operator wrote: {failure:?}",
+    );
+}
+
+/// `docs/plan/m6.md`'s *Verify*: N concurrent isolates cannot together exceed the tree's budget —
+/// because the budget is the **root's**, and a child is never handed one of its own to spend.
+///
+/// The claim is a comparison and not a threshold, because the threshold half is green against the
+/// shape this pins. `Ctx::isolate` builds the child through `Ctx::new`, which re-bases
+/// `memory_base` off `crate::budget`'s counter as it stands *now*, so a child reads back only what
+/// it allocated itself and no one of four one-megabyte isolates is ever over a three-megabyte
+/// ceiling. What bounds the tree anyway is that the parent's base was taken before any of them
+/// existed and the counter is one per thread, so every byte a child holds is still on the parent's
+/// reading — `Ctx::isolate`'s own "a budget is accounted at the root of the request tree and never
+/// per isolate" (`crates/nvs-runtime/src/ctx.rs:1781`), asserted rather than stated.
+///
+/// Each child's reading is taken **before the next one exists**, which is the only order that can
+/// tell the two apart: read at the end, every context in the tree answers the same number and a
+/// runtime accounting each isolate separately would look identical.
+///
+/// The row names three budgets and this asks two. CPU is the deadline word, which crosses by value
+/// in that same constructor: a child spawned under an expired deadline is born expired rather than
+/// clocked afresh, which is the direction a spawn could have widened. Output is not asserted
+/// because there is nothing to assert against — `[limits] max_output` is a configuration key
+/// `Ctx` holds no ceiling for, so no isolate can be over it yet.
+#[test]
+fn n_concurrent_isolates_cannot_together_exceed_the_trees_budget() {
+    /// What each isolate holds, well under the ceiling on its own.
+    const SHARE: usize = 1 << 20;
+    /// The tree's ceiling: over three shares, so no child reaches it and four together pass it.
+    const CEILING: usize = 3 << 20;
+    const CHILDREN: usize = 4;
+
+    let mut root = Ctx::new(OutputSink::Sink);
+    root.set_memory_limit(CEILING);
+
+    // Both halves are held to the end of the case: a share freed early is a byte off the root's
+    // reading, which is the thing being measured.
+    let mut tree: Vec<(Ctx, Vec<u8>)> = Vec::with_capacity(CHILDREN);
+    let mut readings: Vec<usize> = Vec::with_capacity(CHILDREN);
+    for _ in 0..CHILDREN {
+        let child = root.isolate(OutputSink::Sink);
+        let share = vec![0_u8; SHARE];
+        readings.push(child.memory_used());
+        tree.push((child, share));
+    }
+
+    for (n, reading) in readings.iter().enumerate() {
+        assert!(
+            *reading < CEILING,
+            "isolate {n} is under the ceiling by its own reading — {reading} bytes against \
+             {CEILING} — which is what makes the root's the only reading that bounds the tree",
+        );
+    }
+    assert!(
+        root.memory_used() >= CHILDREN * SHARE,
+        "the root carries every isolate's share: {} bytes against {CHILDREN} × {SHARE}",
+        root.memory_used(),
+    );
+    assert!(
+        root.over_memory_limit(),
+        "and is therefore over a ceiling none of its isolates individually reached",
+    );
+
+    // ADR 0020 § 1's other half of a tree-wide budget: the clock. A child built after the
+    // deadline passed is born expired, so a spawn cannot buy the tree more CPU time than the
+    // request that started it was given.
+    root.expire_deadline();
+    assert!(
+        root.isolate(OutputSink::Sink).deadline_expired(),
+        "an isolate inherits the deadline in force where it was spawned, not a fresh one",
+    );
+
+    #[expect(
+        unsafe_code,
+        reason = "as above: the safepoint's ABI takes a context pointer, and \
+                  this one is a live local"
+    )]
+    let status = unsafe { nvs_safepoint(&raw mut root) };
+    assert_eq!(
+        status,
+        nvs_runtime::FATAL,
+        "the tree's breach stops the request that owns it, as any other breach of the same \
+         ceiling would",
+    );
+    drop(tree);
+}
+
+/// The snapshot `written` resolves to — the typed tree and the table beside it, because a request
+/// reads a directive out of one and a capability out of the other.
+///
+/// The same three lines as `crates/nvs-runtime/tests/configured_limits.rs`'s `snapshot`, which is
+/// where a `[limits]` case wants it. Two test binaries in two crates cannot share a helper without
+/// a crate to put it in, and a shared crate for three lines would cost more than the copy.
+fn snapshot_of(written: &str) -> Arc<Snapshot> {
+    let table: toml::Table = written.parse().expect("the case writes valid TOML");
+    Arc::new(Snapshot {
+        config: table
+            .clone()
+            .try_into()
+            .expect("the case writes a block this tree has"),
+        table,
+        ..Snapshot::default()
+    })
+}
+
+/// `docs/plan/m6.md`'s *Verify*: a child cannot widen a capability its parent narrowed.
+///
+/// A capability is narrowed by the operator and never by the request — `nvs_config::Request::set`
+/// refuses the `capabilities` block whichever way it is asked, because that row is
+/// `Class::RuntimeTighten` and a grant is a list with no quantity to narrow *by*
+/// (`crates/nvs-config/src/request.rs:106`). So the grant in force where the spawn happened is the
+/// whole of what a child has, and this case asks the two ways a child could have got more.
+///
+/// **By inheriting a default.** The grant crosses in the cloned snapshot (`Ctx::isolate`,
+/// `crates/nvs-runtime/src/ctx.rs:1802`), so both answers are asserted rather than the refusal
+/// alone: a child that had crossed with no configuration at all would be refused `script.spawn`
+/// too — `nvs_runtime::capability::refusal` denies by default — and would look right here while
+/// having inherited nothing.
+///
+/// **By setting it.** Both directions are refused, and they fail for different reasons that a case
+/// asking one of them would not separate: widening what is in force is a comparison that cannot be
+/// shown to narrow, and granting what was never granted has nothing in force to narrow *from*.
+///
+/// The snapshot's identity is the third assertion. A child that re-resolved the tree from disk
+/// would answer every question above correctly against an unchanged file and silently widen the
+/// moment the file differed from what the parent was serving — which is the failure ADR 0078 § 1's
+/// one-clone-at-start exists to prevent, asked here of the second context in a tree rather than of
+/// the first.
+#[test]
+fn a_child_cannot_widen_a_capability_its_parent_narrowed() {
+    let mut parent = Ctx::new(OutputSink::Sink);
+    parent.set_config(snapshot_of(
+        "[capabilities.fs]\nread = true\n[capabilities.script]\nspawn = false\n",
+    ));
+    let mut child = parent.isolate(OutputSink::Sink);
+
+    assert!(
+        nvs_runtime::capability::require(&child, Cap::FsRead, Scope::Unscoped, "Core\\File::read")
+            .is_ok(),
+        "the grant itself crossed, not an empty configuration that denies everything",
+    );
+    assert!(
+        nvs_runtime::capability::require(&child, Cap::ScriptSpawn, Scope::Unscoped, "spawn script")
+            .is_err(),
+        "and what the parent may not do, the child may not do",
+    );
+
+    let config = child
+        .config_mut()
+        .expect("a child of a configured request is configured");
+    assert!(
+        !config.set("capabilities.script.spawn", "true"),
+        "a request cannot widen the capability in force for it",
+    );
+    assert!(
+        !config.set("capabilities.net.connect", "example.test"),
+        "nor grant itself one the operator granted nobody",
+    );
+
+    assert!(
+        nvs_runtime::capability::require(&child, Cap::ScriptSpawn, Scope::Unscoped, "spawn script")
+            .is_err(),
+        "the refusal outlives the attempt, which is what makes `set`'s `false` a refusal rather \
+         than a reading",
+    );
+    assert!(
+        Arc::ptr_eq(
+            child.config().expect("as above").snapshot(),
+            parent
+                .config()
+                .expect("the request kept its own")
+                .snapshot(),
+        ),
+        "and the child reads the snapshot in force at the spawn rather than re-resolving the \
+         tree, which is the other direction it could have widened from",
     );
 }

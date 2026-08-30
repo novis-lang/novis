@@ -30,6 +30,12 @@ mio.workspace = true
 # is spent rather than met.
 rustls.workspace = true
 rcgen.workspace = true
+# `tests/limits.rs`'s capability case builds the snapshot a request reads and hands it to
+# `Ctx::set_config`, which is `nvs-config`'s type on `nvs-runtime`'s surface — the crate is already
+# in this binary through that dependency, and these two lines only make the spelling sayable here.
+# A test, never a dependency of the host itself: nothing in `src/` resolves a configuration.
+nvs-config.workspace = true
+toml.workspace = true
 
 # ---------------------------------------------------------------------------
 # This crate cannot inherit the workspace lint policy: a coroutine yielder
