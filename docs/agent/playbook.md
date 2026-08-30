@@ -2814,6 +2814,13 @@ is why" — is this file.
   a scratch `.nvs` under `.agent-tmp/`, run with `./target/debug/nvs.exe run <path>`, which prints every
   diagnostic the case would otherwise have had to predict, and prints them for *every* line at once so
   one probe answers a whole group of members.
+- **`as array<SomeClass>` is refused with `E0711`, and the diagnostic's own help is the fix: convert to
+  `array<mixed>` and convert each element where it is read.** ADR 0007 § 2's `array<T> as array<U>` row
+  checks every element against `U` as it walks, and what checks one element is its runtime tag — which a
+  class is not decided by. `as array<int>` is fine for exactly that reason, so the refusal only shows up
+  once a case rounds a container of *objects* through something answering `mixed`, which
+  `Core\Serialize::decode` is. The spellings that compile are `... as array<mixed>` and then `$copy[0] as
+  Cell`, and a nested one parenthesizes: `($outer[0] as array<mixed>)[0] as Cell`.
 
 ## Splitting a file that got too big
 
