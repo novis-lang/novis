@@ -78,16 +78,26 @@ pub(crate) fn check_args_typed(
     let mut arg_types = Vec::with_capacity(list.len());
     for (arg, &slot) in list.iter().zip(&slots) {
         let expected = declared_for(slot, &sig, env.interner);
-        // ADR 0088 § 2's admission, asked at the one position that can answer
-        // it — a parameter a registry row classified. Every other argument in
+        // ADR 0088 § 2's admission and ADR 0033 § 3's, asked at the one position
+        // that can answer either — a parameter a registry row classified. The
+        // two axes are independent, so the marks are asked separately and a
+        // `Qual::Reveal` parameter answers yes to both. Every other argument in
         // the language takes `check_arg`'s path unchanged, including a `...`
         // spread: the qualifier there is on the array rather than on the
         // entries, which is a question this rule does not ask.
-        let actual = match (expected, slot) {
-            (Some(want), ArgSlot::Param(index))
-                if admits_tainted_argument(sig.qual_at(index), sig.return_ty, env.interner) =>
-            {
-                check_arg_admitting_taint(&arg.value, want, live, scope, ctx, env)
+        let admitted = match slot {
+            ArgSlot::Param(index) => Admitted {
+                tainted: admits_tainted_argument(sig.qual_at(index), sig.return_ty, env.interner),
+                secret: admits_secret_argument(sig.qual_at(index)),
+            },
+            // A `...` hands over a subject's entries rather than the subject,
+            // so the qualifier is on the array and not on what fills the
+            // parameter — the question this rule does not ask.
+            ArgSlot::Spread(_) | ArgSlot::Unresolved => Admitted::NONE,
+        };
+        let actual = match expected {
+            Some(want) if admitted.any() => {
+                check_arg_admitting_quals(&arg.value, want, admitted, live, scope, ctx, env)
             }
             _ => check_arg(&arg.value, expected, live, scope, ctx, env),
         };
@@ -465,28 +475,68 @@ pub(crate) fn check_arg(
     check_expr(value, expected, live, scope, ctx, env)
 }
 
-/// [`check_arg`] for an argument at a parameter ADR 0088 § 2 says accepts a
-/// `tainted` one — see [`admits_tainted_argument`], which decides that.
+/// Which qualifier a parameter's classification admits that its declared type
+/// does not spell — the two independent axes, answered separately.
+///
+/// A struct rather than the [`Qual`] itself so that the two questions stay
+/// asked where they are answered: `admits_tainted_argument` needs the
+/// signature's return type as well as the mark, and folding either answer into
+/// the other is how one axis's rule ends up deciding the other's. Both false
+/// is the ordinary case and takes [`check_arg`]'s unchanged path.
+#[derive(Clone, Copy)]
+struct Admitted {
+    tainted: bool,
+    secret: bool,
+}
+
+impl Admitted {
+    /// Neither axis — every slot that is not a parameter of a classified row.
+    const NONE: Self = Self {
+        tainted: false,
+        secret: false,
+    };
+
+    /// Whether the narrowed comparison is worth making at all.
+    const fn any(self) -> bool {
+        self.tainted || self.secret
+    }
+}
+
+/// [`check_arg`] for an argument at a parameter whose classification admits a
+/// qualifier the declared type does not spell — ADR 0088 § 2's `tainted`
+/// admission ([`admits_tainted_argument`]) or ADR 0033 § 3's `secret` one
+/// ([`admits_secret_argument`]), each cleared only where its own mark says so.
 ///
 /// The argument is inferred against the parameter's declared type exactly as
 /// anywhere else, because the expectation is what shapes an array literal and
-/// a closure literal; only the *comparison* is made against the laundered
+/// a closure literal; only the *comparison* is made against the narrowed
 /// type. So a genuine mismatch here still reads `expected string, found int`
 /// rather than naming a qualified type the member never declared.
+///
+/// The inferred type is what comes back either way, qualifiers intact: what a
+/// call *answers* is decided from the return type plus [`carries_contagion`],
+/// and a caller that read a laundered type here would launder by argument.
 ///
 /// [`check_arg`]'s options-bag fork is deliberately not repeated: a bag is a
 /// [`Ty::Options`], never one of the eight qualifiable atoms, so no slot that
 /// reaches here is one.
-fn check_arg_admitting_taint(
+fn check_arg_admitting_quals(
     value: &Expr,
     expected: TypeId,
+    admitted: Admitted,
     live: &mut FxHashSet<String>,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> TypeId {
     let actual = infer(value, Some(expected), live, scope, ctx, env);
-    let compared = untainted(actual, env.interner);
+    let mut compared = actual;
+    if admitted.tainted {
+        compared = untainted(compared, env.interner);
+    }
+    if admitted.secret {
+        compared = unsecret(compared, env.interner);
+    }
     if !is_assignable(compared, expected, env.interner, env.graph, env.signatures) {
         report_mismatch(value.span, expected, actual, env);
     }
@@ -495,7 +545,14 @@ fn check_arg_admitting_taint(
 
 /// Whether this call's result carries `tainted` — ADR 0088 § 2's contagion,
 /// asked of the arguments that actually filled a [`Qual::Contagious`]
-/// parameter.
+/// parameter, or a [`Qual::Reveal`] one.
+///
+/// `Reveal` is here for `Contagious`'s reason and not for [`Qual::Launder`]'s:
+/// ADR 0033 § 3's mark removes `secret`, which says nothing about where the
+/// value came from, so `Core\Secret::reveal` over a `tainted secret string`
+/// answers a `tainted string`. A `Reveal` that did not carry contagion would
+/// launder the other axis for free, which is the one thing an escape hatch on
+/// this axis must not do.
 ///
 /// Answered from the slots rather than from the argument list, because which
 /// parameter an argument filled is the whole question and a `name:` argument
@@ -508,8 +565,11 @@ pub(crate) fn carries_contagion(
     interner: &TypeInterner,
 ) -> bool {
     slots.iter().zip(arg_types).any(|(slot, &ty)| {
-        matches!(slot, ArgSlot::Param(index) if sig.qual_at(*index) == Some(Qual::Contagious))
-            && is_tainted(ty, interner)
+        matches!(
+            slot,
+            ArgSlot::Param(index)
+                if matches!(sig.qual_at(*index), Some(Qual::Contagious | Qual::Reveal))
+        ) && is_tainted(ty, interner)
     })
 }
 

@@ -537,11 +537,15 @@ mod tests {
         );
     }
 
-    /// The same sweep, one mark further. ADR 0088 § 2 has **four**
+    /// The same sweep, two marks further. ADR 0088 § 2 has **four**
     /// classifications and the test above proves only three of them arrive, so
     /// a [`Qual::Launder`] that stopped being lowered would leave every
     /// laundering row refusing the argument it exists to accept — and the only
     /// symptom would be a `Core\Regex::quote` call that no longer compiles.
+    /// ADR 0033 § 3's [`Qual::Reveal`] is the fifth and answers on the other
+    /// axis, and it is counted here now that `Core\Secret`'s rows write it: a
+    /// mark that stopped being lowered would leave the one escape hatch every
+    /// `secret` refusal's help text names refusing its own argument.
     ///
     /// The second half is ADR 0063 R11's four grammars, asked of the registry
     /// rather than of one row: each of the classes that owns one has to carry a
@@ -550,7 +554,8 @@ mod tests {
     #[test]
     fn every_mark_a_row_can_write_reaches_a_signature() {
         let mut interner = TypeInterner::new();
-        let (mut contagious, mut sink, mut neutral, mut launder) = (0_usize, 0, 0, 0);
+        let (mut contagious, mut sink, mut neutral, mut launder, mut reveal) =
+            (0_usize, 0, 0, 0, 0);
         let mut sinks_by_class: Vec<&'static str> = Vec::new();
         for class in CLASSES {
             for method in class.members() {
@@ -564,21 +569,19 @@ mod tests {
                         }
                         Qual::Neutral => neutral += 1,
                         Qual::Launder => launder += 1,
-                        // The fifth mark is deliberately not counted: it is
-                        // the `secret` axis's, no row writes it until
-                        // `Core\Secret` lands, and asserting it reaches a
-                        // signature would fail on a tree that is correct.
-                        // `nvs_stdlib::registry`'s `Qual` doc comment is the
-                        // home of why it is a mark at all.
-                        Qual::Reveal => {}
+                        // The fifth mark is the `secret` axis's, and
+                        // `nvs_stdlib::secret`'s two rows are the only ones
+                        // that may write it — `nvs_stdlib::registry`'s `Qual`
+                        // doc comment is the home of why.
+                        Qual::Reveal => reveal += 1,
                     }
                 }
             }
         }
         assert!(
-            contagious > 0 && sink > 0 && neutral > 0 && launder > 0,
-            "all four marks reach a signature (contagious {contagious}, sink {sink}, \
-             neutral {neutral}, launder {launder})"
+            contagious > 0 && sink > 0 && neutral > 0 && launder > 0 && reveal > 0,
+            "all five marks reach a signature (contagious {contagious}, sink {sink}, \
+             neutral {neutral}, launder {launder}, reveal {reveal})"
         );
 
         // A `Core\Time` pattern is declared on three classes — `DateTime`,

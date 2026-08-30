@@ -131,6 +131,26 @@ pub(crate) fn untainted(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
     }
 }
 
+/// The same type with the `secret` bit cleared, and everything else — the
+/// `tainted` axis, the base — left exactly as it was. [`untainted`]'s twin one
+/// axis over, spelled the same way and for the same reason.
+///
+/// The one caller is [`Qual::Reveal`]'s argument admission: ADR 0033 § 3's
+/// escape hatch is a *narrowing* at one parameter of one class, so it clears
+/// the bit on the argument before [`is_assignable`] sees it rather than
+/// widening what `Core\Secret::reveal` declares. Nothing else in the checker
+/// removes `secret` — a checked conversion goes through
+/// [`apply_qualifier_conversion_rule`], which decides both axes at once.
+pub(crate) fn unsecret(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
+    match qualifiable_base(ty, interner) {
+        Some(is_bytes) if is_secret(ty, interner) => {
+            let tainted = is_tainted(ty, interner);
+            qualified_scalar(is_bytes, tainted, false, interner)
+        }
+        _ => ty,
+    }
+}
+
 /// The same type with `tainted` set wherever the type can carry it — the atom
 /// itself, an array's element, or every member of a union — and unchanged
 /// where it cannot.
@@ -190,15 +210,14 @@ pub(crate) fn tainted_result(ty: TypeId, interner: &mut TypeInterner) -> TypeId 
 ///   `tainted`, so a `tainted secret string` handed to `Core\Secret::reveal`
 ///   answers a `tainted string` and the bit has somewhere to go.
 ///
-/// Only the `tainted` axis is admitted. `secret` is refused here exactly as it
-/// is refused today: whether a `Neutral` parameter launders `secret` is a
-/// laundering decision ADR 0088 owes an answer to, and being over-strict costs
-/// a refusal rather than a leak. [`Qual::Reveal`] is the one mark that will
-/// answer differently — it is ADR 0033 § 3's named escape hatch and the
-/// spelling decision recorded in `nvs_stdlib::registry`'s [`Qual`] doc comment
-/// — but the admission itself lands with `Core\Secret`'s own rows, so today the
-/// mark is written by no row and this function still refuses every `secret`
-/// argument in the tree.
+/// Only the `tainted` axis is decided here. `secret` is refused at every mark
+/// but one: whether a `Neutral` parameter launders `secret` is a laundering
+/// decision ADR 0088 owes an answer to, and being over-strict costs a refusal
+/// rather than a leak. [`Qual::Reveal`] is the one mark that answers
+/// differently — ADR 0033 § 3's named escape hatch, written by
+/// `nvs_stdlib::secret`'s rows and by no others — and its `secret` admission is
+/// [`admits_secret_argument`]'s, so that one question is asked in one place
+/// rather than folded in here.
 pub(crate) fn admits_tainted_argument(
     qual: Option<Qual>,
     return_ty: TypeId,
@@ -209,6 +228,23 @@ pub(crate) fn admits_tainted_argument(
         Some(Qual::Neutral | Qual::Launder | Qual::Reveal) => true,
         Some(Qual::Contagious) => tainted_result(return_ty, interner) != return_ty,
     }
+}
+
+/// Whether a parameter classified `qual` accepts a `secret` argument — ADR
+/// 0033 § 3, which is one mark and one class wide.
+///
+/// [`admits_tainted_argument`]'s counterpart, and deliberately not a clause
+/// inside it: the two axes are independent bits and a caller asking about one
+/// must not be answered about the other. Every other mark refuses, which is
+/// what makes a reveal greppable — a `secret` value reaches an ordinary `Core`
+/// member only through a call that says so by name.
+///
+/// The answer's own qualifier is not this function's question. The parameter
+/// is declared unqualified, so `secret` drops by not being in the return type;
+/// `tainted` survives because [`Qual::Reveal`] carries contagion exactly as
+/// [`Qual::Contagious`] does (`crate::expr::args`'s `carries_contagion`).
+pub(crate) fn admits_secret_argument(qual: Option<Qual>) -> bool {
+    matches!(qual, Some(Qual::Reveal))
 }
 
 /// ADR 0024 § 2 / ADR 0033 § 2: what an `as` conversion's result carries on

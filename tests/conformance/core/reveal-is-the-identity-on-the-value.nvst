@@ -1,0 +1,31 @@
+--TEST--
+`Core\Secret::reveal` and `::revealBytes` change nothing about the value — the qualifier is a compile-time judgement with no run-time representation, at both bases and at the empty edge — ADR 0033 §§ 1, 3
+--FILE--
+<?nvs
+// `secret` lives in `nvs_types::ty::Ty` and not in `nvs_ir::ty::Ty`, so there
+// is nothing at run time for a reveal to strip: the helper hands back the very
+// value it was given. That is worth a case rather than an assumption, because a
+// member that quietly normalized its operand — trimmed it, re-encoded it — would
+// corrupt exactly the credentials this surface exists to hand over intact.
+secret string $empty = "";
+secret string $spaced = "  two  ";
+secret bytes $noBytes = "" as bytes;
+secret bytes $key = "raw-key" as bytes;
+
+string $revealedEmpty = Core\Secret::reveal($empty, "the empty edge is still a value");
+string $revealedSpaced = Core\Secret::reveal($spaced, "the padding is part of the credential");
+bytes $revealedNone = Core\Secret::revealBytes($noBytes, "the empty edge, one base over");
+bytes $revealedKey = Core\Secret::revealBytes($key, "the signer takes the key as bytes");
+
+// Lengths first: a member that trimmed, padded or re-encoded shows up here
+// whatever the bracketed form below prints.
+echo Core\Str::length($revealedEmpty), " ", Core\Str::length($revealedSpaced), "\n";
+echo Core\Bytes::length($revealedNone), " ", Core\Bytes::length($revealedKey), "\n";
+
+// And the bytes themselves, bracketed so the surrounding whitespace is visible
+// in the expectation rather than swallowed by it.
+echo "[", $revealedEmpty, "][", $revealedSpaced, "]\n";
+--EXPECT--
+0 7
+0 7
+[][  two  ]

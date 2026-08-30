@@ -239,6 +239,7 @@ pub mod regex;
 pub mod registry;
 pub mod router;
 pub mod script;
+mod secret;
 mod serialize;
 pub mod str;
 mod task;
@@ -332,6 +333,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| router::address(symbol))
         .or_else(|| regex::address(symbol))
         .or_else(|| script::address(symbol))
+        .or_else(|| secret::address(symbol))
         .or_else(|| serialize::address(symbol))
         .or_else(|| task::address(symbol))
         .or_else(|| test::address(symbol))

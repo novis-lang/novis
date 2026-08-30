@@ -1066,6 +1066,12 @@ pub const CLASSES: &[CoreClass] = &[
     // that ladder rather than a library facility. [`crate::fatal`] owns why the
     // closure is held by the request's context and not by the module.
     crate::fatal::CLASS,
+    // ADR 0033 § 3, and no spec § of its own: what this class is for is decided
+    // by the qualifier's ADR, because a member that removes `secret` is a rung
+    // of that mechanism rather than a library facility. The only class that may
+    // write [`Qual::Reveal`] — see that variant's own docs — and
+    // [`crate::secret`] owns why the `bytes` half is a second name.
+    crate::secret::CLASS,
 ];
 
 /// Every `Core` member that needs a capability, and which one —
