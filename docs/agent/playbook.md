@@ -3089,6 +3089,14 @@ is why" — is this file.
   writing any case whose subject is the first bytes of a file: if the harness had kept the separator's
   newline, the case would have passed while testing nothing, because the rule it pins (ADR 0100 § 3)
   is exact about the offset and every other position is ordinary text.
+- **A `namespace` in Novis is a statement and not a block, so a case that needs two of them needs two
+  files.** `namespace App { … }` is `E0243`, *"write `namespace X;` once, before any declaration, and
+  put a second namespace in a second file"* — which turns a one-file draft into a `--FILE app.nvs--`
+  plus a `require './app.nvs';` at the top of the root file. Declarations cross a `require` (ADR 0021),
+  so the classes are reachable and only the root file's statements print, which is what makes this the
+  cheap shape for "the same name means two different things in two scopes". `try.py` cannot run the
+  result — the neighbouring bullet says why — but `target/debug/nvs test <path>.nvst` takes a **single
+  case path**, not only a tree, and reproduces its working directory.
 
 ## Splitting a file that got too big
 
