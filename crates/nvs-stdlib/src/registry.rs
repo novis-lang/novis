@@ -78,9 +78,12 @@
 ///
 /// Not to be confused with the qualifier a *value* carries: `tainted` and
 /// `secret` live on `nvs_types::ty::Ty` and describe an argument. This
-/// describes what a member does with one, and there are exactly four answers
+/// describes what a member does with one, and on the `tainted` axis there are
+/// exactly four answers
 /// ([the spec's *How to read an entry*](../../../../docs/spec/01-core-library.md)
-/// renders them as the Q column).
+/// renders them as the Q column). [`Self::Reveal`] is a fifth variant and not
+/// a fifth Q value: it is the `secret` axis's only mark, and § *How a `secret`
+/// parameter is spelled* below is why it lives here rather than in a type.
 ///
 /// **There is no default.** A parameter with no classification is spelled
 /// [`CoreTy::Str`]/[`CoreTy::Bytes`] and *refuses* a qualified argument, which
@@ -105,6 +108,35 @@
 ///   wherever they are declared, by ADR 0088 § 1's own corollary.
 /// * [`Self::Launder`] is the default of nothing. A member claims it, and its
 ///   doc comment names the sink it launders for.
+///
+/// # How a `secret` parameter is spelled
+///
+/// **With a mark, not with a type: [`Self::Reveal`]**, and only
+/// [ADR 0033](../../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
+/// § 3's `Core\Secret` members write it. That ADR spells the member's signature
+/// `reveal(secret string, string $reason): string` and leaves open how a row
+/// says so; this is that decision, and it is recorded here rather than in an
+/// ADR because what it decides is how a *row* is written.
+///
+/// * **Not a [`CoreTy`].** That type is documented as what the spec wrote and
+///   not what the checker interns — `nvs_types::core_lib` lowers
+///   [`CoreTy::Text`] to a plain interned `string` and carries the mark beside
+///   it as `MethodSig::param_quals`, so every qualifier question a row asks is
+///   already asked through [`Qual`]. A `CoreTy::Secret` would be the first
+///   qualifier inside a type description, in exchange for one refusal nobody
+///   wants: revealing a value that is not `secret` is the identity, so
+///   refusing it costs a diagnostic and prevents no exposure.
+/// * **Not a pair hard-coded in `nvs_types::expr::quals`.** The checker could
+///   name `Core\Secret::reveal` and admit its argument by that name, and that
+///   is the one shape AGENTS.md's ordering rules out: an invariant every
+///   future contributor has to remember, held nowhere near the row it is
+///   about.
+/// * **A fifth mark rather than a second meaning for [`Self::Launder`].** The
+///   two remove different qualifiers and must not share a spelling.
+///   `Core\Regex::quote` launders `tainted` for the pattern sink; quoting a
+///   `secret` value into a pattern exposes it exactly as much as not quoting
+///   it did, so a `Launder` row that also admitted `secret` would leak at
+///   every one of the sites that mark exists to make safe.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Qual {
     /// A qualified argument yields a qualified result — the overwhelming
@@ -119,6 +151,13 @@ pub enum Qual {
     /// This member removes the qualifier, and its doc comment names the sink
     /// it launders for — `Core\Regex::quote` launders for the pattern sink.
     Launder,
+    /// The one mark on the `secret` axis: this parameter **accepts** a
+    /// `secret` argument, and the answer does not carry the qualifier —
+    /// ADR 0033 § 3's named escape hatch, which is why the member alongside it
+    /// takes a written `$reason`. [`Self::Launder`]'s twin one axis over, and
+    /// `Core\Secret` is the only class that may write it: every other mark
+    /// refuses `secret`, which is the whole of what makes a reveal greppable.
+    Reveal,
 }
 
 /// One type in a `Core` member's signature.

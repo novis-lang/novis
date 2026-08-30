@@ -558,6 +558,13 @@ mod tests {
                         }
                         Qual::Neutral => neutral += 1,
                         Qual::Launder => launder += 1,
+                        // The fifth mark is deliberately not counted: it is
+                        // the `secret` axis's, no row writes it until
+                        // `Core\Secret` lands, and asserting it reaches a
+                        // signature would fail on a tree that is correct.
+                        // `nvs_stdlib::registry`'s `Qual` doc comment is the
+                        // home of why it is a mark at all.
+                        Qual::Reveal => {}
                     }
                 }
             }

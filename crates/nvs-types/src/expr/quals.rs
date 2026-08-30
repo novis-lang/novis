@@ -179,10 +179,20 @@ pub(crate) fn tainted_result(ty: TypeId, interner: &mut TypeInterner) -> TypeId 
 ///   carrying no byte of any argument is `Neutral` — or answers a shape or an
 ///   object, whose fields are a slice of their own.
 ///
+/// * [`Qual::Reveal`] does, for [`Qual::Contagious`]'s reason and not for
+///   [`Qual::Launder`]'s: the mark removes `secret`, which says nothing about
+///   `tainted`, so a `tainted secret string` handed to `Core\Secret::reveal`
+///   answers a `tainted string` and the bit has somewhere to go.
+///
 /// Only the `tainted` axis is admitted. `secret` is refused here exactly as it
 /// is refused today: whether a `Neutral` parameter launders `secret` is a
 /// laundering decision ADR 0088 owes an answer to, and being over-strict costs
-/// a refusal rather than a leak.
+/// a refusal rather than a leak. [`Qual::Reveal`] is the one mark that will
+/// answer differently — it is ADR 0033 § 3's named escape hatch and the
+/// spelling decision recorded in `nvs_stdlib::registry`'s [`Qual`] doc comment
+/// — but the admission itself lands with `Core\Secret`'s own rows, so today the
+/// mark is written by no row and this function still refuses every `secret`
+/// argument in the tree.
 pub(crate) fn admits_tainted_argument(
     qual: Option<Qual>,
     return_ty: TypeId,
@@ -190,7 +200,7 @@ pub(crate) fn admits_tainted_argument(
 ) -> bool {
     match qual {
         None | Some(Qual::Sink) => false,
-        Some(Qual::Neutral | Qual::Launder) => true,
+        Some(Qual::Neutral | Qual::Launder | Qual::Reveal) => true,
         Some(Qual::Contagious) => tainted_result(return_ty, interner) != return_ty,
     }
 }
