@@ -2,64 +2,58 @@
 
 ## State
 
-**ADR 0020 § 1's tier 1 is wired end to end for memory.** A breach at either seam — the helper
-boundary (`crates/nvs-runtime/src/abi.rs:321`) and the safepoint poll
-(`crates/nvs-runtime/src/ctx.rs:2285`) — calls `Ctx::run_limit_handler` (`ctx.rs:1075`) before it
-records the `FATAL`, so a throw of the handler's own is overwritten by the breach rather than
-reported in its place. **Zero retries is an ownership move, not a flag:** the slot is emptied before
-the call, so the handler's own first helper call finds no registration and falls through.
+**ADR 0020 § 1's tier 1 is reached by both limits that can stop a running program.** The memory
+breach reaches it at the helper boundary (`crates/nvs-runtime/src/abi.rs:321`) and at the safepoint
+poll (`crates/nvs-runtime/src/ctx.rs:2308`); the CPU-time flag now reaches it at the same poll
+(`ctx.rs:2299`), one `run_limit_handler()` above its `set_pending`, so a request stopped for time
+gets the same last word as one stopped for memory. `Ctx::run_limit_handler` (`ctx.rs:1075`) is
+still the only home of the zero-retry rule and of the reserve's lifetime.
 
-**The reserved slice is carved, not added.** `refresh_limits` sets `memory_limit` to `[limits]
-memory` *less* the reserve, and `run_limit_handler` adds it back for exactly the length of the call.
-The size is the new `System`-class `[limits] fatal_reserve_memory` (`nvs-config`'s registry,
-`tree.rs`'s `Limits`, `value.rs`'s `unit_of`), defaulting to **1 MiB clamped to a quarter of the
-ceiling** — `Ctx::reserve_within` (`ctx.rs:1180`) is that decision's only home, since ADR 0020 § 1
-states the slice exists and states no number. The breach message now names the whole budget and the
-reserve inside it. Three tests in the new `crates/nvs-host/tests/limits.rs` pin all of it, under the
-names the goal's Stage 4 check asks for.
+**The CPU half's time slice is zero wide, on purpose.** § 1 names `fatal_reserve_time` beside the
+memory one, and nothing reads `[limits] cpu_time` yet — the flag is raised only by tests today — so
+a handler entered from the CPU branch runs straight-line work and `Core` calls to completion and is
+stopped again at its own first back edge. The `nvs_safepoint` comment at `ctx.rs:2299` is that
+decision's only home; adding the directive before something reads it would be a row with no reader.
 
-The driver's failing check is closed: `a_key_set_in_two_files_resolves_to_the_later_one_with_both_origins_reported`
-was on disk under a paraphrase in `crates/nvs-config/tests/resolve.rs` and already asserted both
-origins, so it was a rename and nothing more.
+The driver's failing check is closed. All three names under `nvs-config (the app block)` were on
+disk as paraphrases in `crates/nvs-config/tests/app.rs`; two were renames, and the third
+(`..`-or-symlink) is now one case asserting both halves, which is how M6's *Verify* states it.
 
 Still unfixed: `orient.py`'s `[context] modules` names `crates/nvs-host/src/budget.rs`, which never
-existed — the accounting is `crates/nvs-runtime/src/budget.rs`. The pack warns about it every
-session.
+existed — the accounting is `crates/nvs-runtime/src/budget.rs`. The pack warns every session.
 
 ## Next group
 
 **The rest of ADR 0020 § 1's ladder.** File set: `crates/nvs-runtime/src/ctx.rs`
-(`run_limit_handler` at :1075, `nvs_safepoint`'s CPU branch at :2285, `fatal_reserve` at :970),
-`crates/nvs-host/tests/limits.rs` (the three cases and the hand-built closure they share), and
-`crates/nvs-stdlib/src/fatal.rs` for the report's class.
+(`run_limit_handler` at :1075, the two poll branches at :2299 and :2308),
+`crates/nvs-runtime/src/closure.rs` (`call_closure` at :132), `crates/nvs-stdlib/src/fatal.rs` (the
+row at :38, the card at :52, the body at :84), and `crates/nvs-host/tests/limits.rs`.
 
-- [ ] **The CPU-time limit reaches the same ladder** — ADR 0020 § 1
-      (`docs/adr/0020-error-escalation-ladder.md:66`). `nvs_safepoint`'s `CPU_LIMIT` branch
-      (`ctx.rs:2285`) sets its pending message and returns without asking `has_limit_handler` at
-      all, so it is one `ctx.run_limit_handler()` above the `set_pending` — the same two lines the
-      memory branch below it already carries. `[limits] cpu_time` still sits unread by `Ctx`; the
-      reserve's time half (`fatal_reserve_time`, which § 1 names beside the memory one) has no
-      directive row yet on purpose, so add it with whatever reads it and not before.
-- [ ] **`LimitReport` is the argument the handler is handed** — § 1 spells the parameter
-      `closure(LimitReport): void`. `run_limit_handler` passes `&[]` today and says so in its doc;
-      a handler declaring a parameter is refused by `call_closure` and abandoned like any other
-      failure of the handler's own, so this slice is what makes such a handler work at all. Decide
-      whether the report is a `Core` instance class or a shape — `crates/nvs-stdlib/src/fatal.rs`
-      module doc records why the registry row is `callable` either way — and it needs at minimum
-      *which* limit was reached, since a handler now cannot tell memory from CPU.
-- [ ] **A `.nvst` case over the whole ladder.** Nothing in `tests/conformance/` registers a handler
-      and breaches: `examples/limits.nvs` exits 1 with no handler in sight. With the reserve in
-      place a handler can now `echo`, so the case is expressible — a tight `[limits] memory` in a
-      per-app block, a handler that prints, and `--EXPECT--` carrying its output before the `FATAL`.
+- [ ] **`LimitReport` is the argument the handler is handed** — ADR 0020 § 1
+      (`docs/adr/0020-error-escalation-ladder.md:66`) spells the parameter `closure(LimitReport)`.
+      `crates/nvs-runtime/src/ctx.rs:1075` calls with `&[]` today, and
+      `crates/nvs-runtime/src/closure.rs:132` refuses a handler that declares one, so a program
+      following the ADR's own signature fails. What the report *is* — a `Core` class, a shape, or a
+      map — is a decision this goal pre-authorizes; whichever it is, it names which limit stopped
+      the request, so both branches at `crates/nvs-runtime/src/ctx.rs:2299` and
+      `crates/nvs-runtime/src/ctx.rs:2308` must pass their own. The
+      card at `crates/nvs-stdlib/src/fatal.rs:52` states the parameter and has to move with it.
+- [ ] **`[limits] cpu_time` gets a reader, and only then `fatal_reserve_time`** —
+      `crates/nvs-runtime/src/ctx.rs:1597` (`request_safepoint`) is the only way `CPU_LIMIT` is
+      raised and nothing outside tests calls it, so the branch at
+      `crates/nvs-runtime/src/ctx.rs:2299` is unreachable in a
+      real run. The reserve's time half follows whatever raises it, not before.
+- [ ] **A `.nvst` case over the whole ladder** — the previous handoff's premise was wrong: three
+      cases under `tests/conformance/core/` already register a handler
+      (`tests/conformance/core/fatal-on-limit-registers-a-handler-without-running-it.nvst:12`).
+      What none of them does is *breach*, and a breaching script exits non-zero
+      (`examples/limits.nvs:6`), which is why `examples/fatal.nvs` sits on the goal's own skip list.
+      Read `crates/nvs-test`'s module doc for whether a case can pin a non-zero exit before writing
+      one; if it cannot, that is the finding, and the `nvs-host` tests stay the pin.
 
 ## Backlog
 
-- Item 18: `Core\Secret::reveal()` is not in the registry — `crates/nvs-stdlib/src/secret.rs`.
-- `Live::admit`'s same-class check is asked of the answer, not the argument —
-  `crates/nvs-runtime/src/graph.rs` § *Known gaps*.
-- Item 22: `Core\Script`'s members are unwritten — `crates/nvs-stdlib/src/script.rs`.
-- `orient.py`'s `[context] modules` glob for `budget.rs` names a crate it never lived in —
-  `docs/agent/loop-goal.toml`.
-- Stage 4's `-p nvs-host` check still wants `a_recursive_spawn_is_reported_as_max_script_depth_and_not_as_memory`,
-  `n_concurrent_isolates_cannot_together_exceed_the_trees_budget` and
-  `a_child_cannot_widen_a_capability_its_parent_narrowed` — `crates/nvs-host/src/isolate.rs`.
+- `Core\Secret::reveal()` is not in the registry — item 18, `crates/nvs-stdlib/src/registry.rs`.
+- `Live::admit`'s same-class check asks the answer, not the argument — `crates/nvs-runtime/src/graph.rs`.
+- Item 22's `Core\Script` members are unwritten — `crates/nvs-stdlib/src/script.rs`.
+- `[context] modules` in `docs/agent/loop-goal.toml` names a `budget.rs` that never existed.

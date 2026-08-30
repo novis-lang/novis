@@ -68,6 +68,23 @@ unsafe extern "C" fn reports_its_budget(ctx: *mut Ctx, args: *const Value, out: 
     nvs_runtime::OK
 }
 
+/// A handler that records nothing at all, for the one test that reads the
+/// emptied slot instead of a counter: a handler sharing `ENTERED` with the test
+/// beside it would land between that test's two reads of it and turn its
+/// difference into two.
+#[expect(
+    unsafe_code,
+    reason = "the same callee contract as `counts_its_entry`: one live value to \
+              release, and the address of a live `Value` for the result"
+)]
+unsafe extern "C" fn answers_nothing(_ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+    unsafe {
+        (*args).release();
+        *out = Value::null();
+    }
+    nvs_runtime::OK
+}
+
 /// A zero-parameter closure calling `invoke`, owned by the caller.
 ///
 /// The table is leaked because a descriptor's address is its identity and it
@@ -139,6 +156,40 @@ fn a_memory_cap_terminates_a_runaway_script_as_a_fatal() {
         "a resource limit is not a `Throwable`",
     );
     drop(hog);
+}
+
+/// ADR 0020 § 1 lists CPU time beside memory: a request the CPU-time flag has
+/// been raised on is stopped at the next poll, stopped as a `FATAL`, and taken
+/// through the same tier-1 ladder on the way out.
+///
+/// The ladder is asserted by the emptied slot rather than by a counter, because
+/// the slot is the mechanism: `Ctx::run_limit_handler` takes the registration
+/// out on the way in, so a slot that is empty afterwards is a handler that was
+/// entered, and reading it needs no state shared with the tests running beside
+/// this one.
+#[test]
+fn a_cpu_cap_terminates_a_runaway_script_as_a_fatal() {
+    let mut ctx = Ctx::new(OutputSink::Sink);
+    ctx.request_safepoint(nvs_runtime::SafepointFlags::CPU_LIMIT);
+    ctx.set_limit_handler(closure_of(answers_nothing));
+
+    #[expect(
+        unsafe_code,
+        reason = "as above: the safepoint's ABI takes a context pointer, and \
+                  this one is a live local"
+    )]
+    let status = unsafe { nvs_safepoint(&raw mut ctx) };
+
+    assert_eq!(status, nvs_runtime::FATAL);
+    assert_ne!(
+        status,
+        nvs_runtime::THROWN,
+        "a resource limit is not a `Throwable`, whichever limit it is",
+    );
+    assert!(
+        !ctx.has_limit_handler(),
+        "the CPU branch reaches § 1's tier 1 rather than returning above it",
+    );
 }
 
 /// ADR 0020 § 1: the registered handler runs, it runs *before* the breach

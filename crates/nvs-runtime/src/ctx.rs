@@ -1079,7 +1079,10 @@ impl Ctx {
         // `Value::default()` is the null this leaves behind, which is the
         // encoding of "nothing registered" [`Self::has_limit_handler`] reads.
         let handler = std::mem::take(&mut self.limit_handler);
-        // § 1's reserved slice, added back for exactly the length of the call.
+        // § 1's reserved slice, added back for exactly the length of the call,
+        // and added back whichever limit got here: a handler stopped by the
+        // CPU-time flag still allocates to say so, and the memory half of the
+        // reserve is the one that has a reader.
         // The handler is entered with the ceiling already breached, so without
         // this it could not allocate a byte or reach a single `Core` member —
         // every one of them asks [`crate::run_helper`]'s question first — and a
@@ -2297,6 +2300,21 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
     let ctx = unsafe { &mut *ctx };
 
     if ctx.safepoint.contains(SafepointFlags::CPU_LIMIT) {
+        // ADR 0020 § 1 lists CPU time beside memory, so the ladder is the same
+        // two lines the memory branch below carries, in the same order: the
+        // handler runs before the breach becomes the pending message, and
+        // `Ctx::run_limit_handler` owns the zero-retry rule.
+        //
+        // What differs is the slice. § 1's `fatal_reserve_time` has no reader
+        // yet — `[limits] cpu_time` is unread by `Ctx` and this flag is raised
+        // only by a caller that already decided the request is over — so a
+        // handler here runs against a time slice of width zero: it is entered,
+        // and the flag it was entered under stops it again at its own first
+        // back edge. Straight-line work and `Core` calls complete (the helper
+        // boundary asks the memory question, not this one), a loop does not,
+        // and either way the request is abandoned exactly as § 1's zero-retry
+        // rule already says a handler overrunning its slice is.
+        ctx.run_limit_handler();
         ctx.set_pending("the request exceeded its CPU-time limit");
         return crate::FATAL;
     }
