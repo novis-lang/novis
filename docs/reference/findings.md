@@ -32,10 +32,14 @@ in that goal. An item's owner is the row it sits in.
 
 ## Panics and aborts (P)
 
-- [ ] **P1** First-class callable syntax `Class::method(...)` / `$obj->method(...)` type-checks and
+- [x] **P1** First-class callable syntax `Class::method(...)` / `$obj->method(...)` type-checks and
       panics in `nvs-ir` (`lower/expr.rs:2870`, "records `ExprInfo::CallableRef` … no arm"). ADR 0027
       keeps the spelling. Works only as the argument of `Core\Attributes::get/all`, where it is
-      folded at check time. *probes1 `fcc`, probes2 `fcc_case`*
+      folded at check time. *probes1 `fcc`, probes2 `fcc_case`* — it lowers to the same closure
+      object a `fn` literal builds, over a forwarding thunk (`nvs_ir::lower::closure`'s
+      `lower_callable`), so a `Core` member handed one cannot tell it from a written closure. Two
+      parameter lists a `callable` cannot forward — `inout` and a variadic tail — are `E0793` where
+      the `(...)` is written, since either reaches the callee as a type confusion.
 - [x] **P2** Calling an instance method statically — `class C { public function f() … } C::f();` —
       panics (`lower/expr.rs:2978`, "is not static but is reached from a frame with no `$this` —
       nvs_types is expected to have refused that"). *probes2 `static_call_instance`* — `E0778` where

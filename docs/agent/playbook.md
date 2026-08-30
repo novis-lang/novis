@@ -4114,6 +4114,16 @@ sibling in the same namespace unqualified.
   `mixed` here is "already `E0246`" and `bytes` is "no literal exists to write" — and return early
   for each with the other diagnostic named, because a read is not where either mistake is worth
   saying twice.
+- **A hand-built forwarding call must forward the whole calling convention, and the two parameter
+  shapes that do not survive one abort inside `nvs-runtime` rather than reporting.** ADR 0027's
+  `(...)` lowers to a thunk that passes its own parameters straight through, which is right for
+  every ordinary parameter and wrong for exactly two: an `inout $x` wants an address where the
+  thunk has an `int`, and a variadic tail wants the collected array where it has the first element.
+  Both compile, both check, and the variadic one then dies as `misaligned pointer dereference` at
+  `nvs-runtime/src/array.rs`, naming a slot dereference with nothing pointing back at the callable
+  that built it. A scratch that prints the right answer for the ordinary shapes says nothing about
+  these, so write one case per *declaration* shape the callee can have — not per call site — and
+  read `nvs_types::signatures::MethodSig`'s own field list for what those shapes are.
 
 ## Divergences and refusals already pinned
 
