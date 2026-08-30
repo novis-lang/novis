@@ -110,11 +110,14 @@ configuration tree like every other array-of-tables
 ([0103 § 4](0103-configuration-is-a-tree-of-files.md)), so a per-host include may add an application
 without restating the ones the base declared.
 
-**The entry file path is canonicalized before it is matched** — symlinks resolved, `.` and `..` removed.
+**Both sides are canonicalized before they are matched** — symlinks resolved, `.` and `..` removed.
 Without that, `/srv/www/shop/../other/x.nvs` matches `root = "/srv/www/shop"` and a symlink planted inside
 an application's tree inherits that application's capabilities. This is the same
 canonicalize-then-prefix rule [0006](0006-isolated-script-execution.md) already applies to
-`script.spawn`'s roots, and for the same reason.
+`script.spawn`'s roots, and for the same reason. **A key naming something that cannot be examined
+refuses the boot** rather than quietly matching nothing: a block that covers no file hands every
+application it was written for the global configuration instead, so a typo in the `root` of a block
+that *narrows* limits or grants a capability would change what runs and report nothing.
 
 ### 2. Every matching block applies, least-specific first
 
@@ -124,8 +127,11 @@ example above gives `/srv/www/shop/bin/import.nvs` a memory of `512M` from the `
 `wall_time` of `600s` from its own, while inheriting everything neither states.
 
 This is not a third precedence rule: it is [0103 § 3](0103-configuration-is-a-tree-of-files.md)'s "later
-wins", ordered by specificity instead of by file position, and every override is reported the same way.
-Two blocks with the *same* `root` are a duplicate rather than a refinement, and are refused.
+wins", ordered by specificity instead of by file position, and every override is reported the same way
+— by the same merge, so that a record naming both origins is not something this section has to ask for
+twice. Two blocks resolving to the *same canonical path* are a duplicate rather than a refinement, and
+are refused: it is the path and not the spelling, so two routes to one directory are caught as well,
+and specificity has no order left to decide which of them wins with.
 
 ```console
 $ nvs run /srv/www/shop/bin/import.nvs

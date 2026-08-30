@@ -1015,6 +1015,16 @@ is why" — is this file.
   the struct and not what the file called it, so `nvs_config::file::block_at` scans back to the
   nearest header and adds it as a note. The general shape — an item that asks for a new number is
   asking a question the ADR has usually already answered, and one `peek.py <adr>:"## 3"` settles it.
+- **A `Files`-style trait in a crate is the seam a new filesystem question goes through, and its
+  test fakes are where the question actually gets asked.** ADR 0104 § 1 needs a canonical path
+  *without* § 6's trust check, so `nvs_config::resolve::Files` gained `canonical` beside `trust`
+  and `Disk` routes both to `trust.rs`. The cost that is easy to miss: the two existing fakes in
+  `tests/resolve.rs` and `tests/secret.rs` stop compiling until each grows the method, and a fake
+  that answers it *lexically* silently makes every case a statement about paths no symlink was
+  involved in — `tests/resolve.rs`'s `Fake::exists` had to follow links too, because the real
+  `Path::exists` `stat`s rather than `lstat`s and an include naming a symlink was otherwise
+  `E0605`. Grep `impl <Trait> for` before adding a method, and give the fake the resolving
+  behaviour rather than the identity one.
 
 ## Running things
 
