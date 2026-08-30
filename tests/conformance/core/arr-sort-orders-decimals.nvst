@@ -1,0 +1,51 @@
+--TEST--
+`Core\Arr::sort` orders `decimal`s exactly and by value rather than by scale, and every member sharing the natural ordering agrees with it — ADR 0054 §§ 3, 4, spec § 2
+--FILE--
+<?nvs
+// The natural ordering covers every type the checker admits, and `decimal` was
+// the one it did not: `Core\Arr::sort` over an `array<decimal>` threw at run
+// time, naming the tag pair, because `nvs_stdlib::ordering` had a row for
+// `int`/`uint`/`float` and none for the exact scalar beside them.
+// `docs/reference/findings.md`'s D34 is the report.
+//
+// Sorted by value and not by scale: ADR 0054 § 4's last paragraph makes `19.90`
+// and `19.9000` equal, so the two sit together and the *input* order between
+// them is what decides which prints first. That is the sort's stability, and it
+// is asserted here because an ordering that answered `Greater` for the pair
+// would still print an ascending list.
+array<decimal> $prices = [19.90, 0.05, 100.00, 19.9000, 0.00, 2.50];
+foreach (Core\Arr::sort($prices) as decimal $price) {
+    echo $price, "\n";
+}
+
+// Agreement, not a second row of the same shape: `min` and `max` read the same
+// `compare_values` the sort does, so a `decimal` row that only reached the sort
+// would fail here while the list above still looked right.
+echo "min=", Core\Arr::min($prices) ?? 0.0 as decimal, "\n";
+echo "max=", Core\Arr::max($prices) ?? 0.0 as decimal, "\n";
+echo "math=", Core\Math::min(19.90 as decimal, 2.50 as decimal), "\n";
+
+// And a `decimal` orders against the other numeric rows rather than only
+// against its own. ADR 0054 § 4's first row makes an `int` exact as a
+// `decimal`, and its § 3 permits the `decimal`/`float` comparison even where
+// `decimal ⊕ float` arithmetic is a compile error — so this array has one
+// order and every pair in it is answered exactly.
+array<mixed> $numbers = [2 as decimal, 1, 3.5, 2.5 as decimal, 0.5];
+foreach (Core\Arr::sort($numbers) as mixed $number) {
+    echo $number, "\n";
+}
+--EXPECT--
+0.00
+0.05
+2.50
+19.90
+19.9000
+100.00
+min=0.00
+max=100.00
+math=2.50
+0.5
+1
+2
+2.5
+3.5

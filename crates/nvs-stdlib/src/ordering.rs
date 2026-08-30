@@ -8,7 +8,7 @@
 //! lives beside [`crate::granularity`] for exactly the reason that module
 //! states: more than one domain reaches for it, so no domain owns it.
 
-use nvs_runtime::{Fault, Tag, Value};
+use nvs_runtime::{Decimal, Fault, Tag, Value};
 
 /// The natural ordering of two values, or a throw for a pair that has none.
 ///
@@ -18,6 +18,13 @@ use nvs_runtime::{Fault, Tag, Value};
 /// * `null` — one value, so always equal.
 /// * `bool` — `false` before `true`.
 /// * `int`/`uint` — exactly, through `i128`, so no large `uint` is rounded.
+/// * `decimal` against anything numeric — exactly, through
+///   [`Decimal::compare`] and [`Decimal::compare_f64`]. It orders against the
+///   other numeric rows rather than only against its own, because
+///   [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md) § 4's first row
+///   makes an `int`/`uint` exact as a `decimal` and its § 3 permits the
+///   `decimal`/`float` comparison even where their *arithmetic* has no common
+///   type. Scale does not enter it: `1.10` and `1.1000` are equal.
 /// * `float` against anything numeric — `f64::total_cmp`, which is a real
 ///   total order (unlike `partial_cmp`, which a `NaN` makes intransitive and
 ///   therefore unusable by any sort at all). Its two visible consequences are
@@ -45,6 +52,18 @@ pub(crate) fn compare_values(
     }
     if let (Some(a), Some(b)) = (left.as_str_bytes(), right.as_str_bytes()) {
         return Ok(a.cmp(b));
+    }
+    // Ahead of the block below rather than inside it: a `decimal` is exact and
+    // the widening that would put it into `Numeric` is not, so the pair is
+    // answered where both sides are still what they are.
+    if let Some(a) = left.as_decimal() {
+        if let Some(order) = against_decimal(a, right) {
+            return Ok(order);
+        }
+    } else if let Some(b) = right.as_decimal()
+        && let Some(order) = against_decimal(b, left)
+    {
+        return Ok(order.reverse());
     }
     if let (Some(a), Some(b)) = (numeric(left), numeric(right)) {
         return Ok(match (a, b) {
@@ -93,6 +112,39 @@ pub(crate) fn comparator_sign(verdict: Value, member: &str) -> Result<std::cmp::
         "{member}'s comparator returned tag {}, not a number",
         verdict.tag_byte()
     )))
+}
+
+/// A `decimal` against any other number, or `None` for a value that is not
+/// one — in which case the pair has no numeric order and
+/// [`compare_values`]'s throw is the answer.
+///
+/// Every row is exact: ADR 0054 § 4 makes an `int`/`uint` exact as a
+/// `decimal`, and [`Decimal::compare_f64`] reads the `float` at the value it
+/// prints as rather than widening either side.
+fn against_decimal(left: Decimal, right: &Value) -> Option<std::cmp::Ordering> {
+    use std::cmp::Ordering;
+
+    if let Some(other) = right.as_decimal() {
+        return Some(left.compare(other));
+    }
+    if let Some(int) = right.as_int() {
+        return Some(left.compare(Decimal::from_i64(int)));
+    }
+    if let Some(uint) = right.as_uint() {
+        return Some(left.compare(Decimal::from_u64(uint)));
+    }
+    let float = right.as_float()?;
+    // The `float` row's own reading of a `NaN`, so a sort over a mixed array
+    // stays total whichever pair it happens to ask about: `f64::total_cmp`
+    // puts a `NaN` at one end by its sign bit, and this puts the `decimal` on
+    // the other side of it.
+    Some(left.compare_f64(float).unwrap_or({
+        if float.is_sign_negative() {
+            Ordering::Greater
+        } else {
+            Ordering::Less
+        }
+    }))
 }
 
 /// One value's numeric content, or `None` for a value that has none.
