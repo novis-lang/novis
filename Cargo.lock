@@ -1460,6 +1460,7 @@ version = "0.0.1"
 dependencies = [
  "clap",
  "nvs-codegen",
+ "nvs-config",
  "nvs-diagnostics",
  "nvs-hir",
  "nvs-host",
@@ -1555,6 +1556,7 @@ name = "nvs-runtime"
 version = "0.0.1"
 dependencies = [
  "bitflags 2.13.1",
+ "nvs-config",
  "subtle",
  "unicode-segmentation",
 ]
