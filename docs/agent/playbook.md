@@ -3024,6 +3024,16 @@ is why" — is this file.
   "a context nobody configured answers as an empty configuration", reached from an unexpected direction.
   Two sequential `spawn script` children are the shape that does work, and they *do* see the
   configuration: `tests/conformance/config/config-set-is-invisible-to-the-next-request.nvst`.
+- **A memory-limit breach is observed at the first `run_helper` member call after it, and an
+  `$a[] = …` is not one.** A fixture that grows an array past `[limits] memory` and expects the
+  `FATAL` there gets it at whatever `Core` member or `echo` runs *next* instead — which is how one
+  session spent six probes reading a clean `FATAL` and concluding a reported abort was already
+  fixed. `nvs_runtime::run_helper`'s own comment owns the rule ("the breach is therefore observed
+  at the first member call after it happens"). Two consequences for authoring: put the member call
+  where you want the breach reported, and expect nothing printed before it, since `run_helper`
+  asks its question ahead of the body. A handler registered with `Core\Fatal::onLimit` only runs
+  when the reading is still under `[limits] memory` *plus* the reserve, so a fixture that overshoots
+  the ceiling by 2× sees no handler at all.
 
 ## Splitting a file that got too big
 

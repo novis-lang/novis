@@ -57,11 +57,11 @@
 > tree; § 1's tier 1 is handed the limit's name, and fires once inside the reserve; ADR 0078 § 4
 > keys both caches. Stage 5 has ADR 0042 §§ 1-6,  in `crates/nvs-cli/src/cache.rs`, whose *Known
 > gaps* decides a payload. **Stage 0c — the reference findings — is open and runs ahead of
-> everything else, stage 9 included**: `docs/reference/findings.md` § *Triage* holds the verdicts,
-> loop-goal items 31–35 the work, none of it started. **Stage 8 is open**: conformance is 1017
-> against its 1050 floor, differential 206 against 210, and six of its eight named cases are
-> written.   **Stage 7 is closed**: `nvs build --compile` appends ADR 0048 §§ 2-5's source payload,
-> and `nvs_diagnostics::embedded` is the byte source a bundle resolves against.
+> everything else, stage 9 included**: `docs/reference/findings.md` § *Triage* holds the verdicts
+> and items 31–35 the work; P15's abort and D34's row are landed. **Stage 8 is open**: conformance
+> 1019 against its 1050 floor, differential 206 against 210, six of eight named cases written.
+> **Stage 7 is closed**: `nvs build --compile` appends ADR 0048 §§ 2-5's source payload, and
+> `nvs_diagnostics::embedded` is the byte source a bundle resolves against.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
