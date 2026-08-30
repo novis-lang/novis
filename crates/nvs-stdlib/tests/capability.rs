@@ -1,6 +1,10 @@
-//! [ADR 0118]'s four claims, as tests: the refusal names the capability, a path escape does not
-//! match a granted root, the declaration table names real members, and no member reaches the
-//! operating system except through the door.
+//! [ADR 0118]'s claims, as tests: the refusal names the capability, a path escape does not match a
+//! granted root, the declaration table names real members, every member of a class that bears one
+//! declares its own, and no member reaches the operating system except through the door.
+//!
+//! The last two are § 7's closure claim and § 2's, and neither subsumes the other: the first catches
+//! a member that goes through a door without being declared as doing so, the second a member that
+//! reaches the operating system with no door at all.
 //!
 //! The path cases split deliberately. The `..` half runs against the **real** filesystem, because a
 //! canonicalizer that resolves `..` textually rather than by asking the OS is exactly the bug the rule
@@ -130,6 +134,67 @@ fn every_capability_entry_names_a_member() {
             class.members().any(|found| found.name == *member),
             "`{class_name}::{member}` is not a member of that class"
         );
+    }
+}
+
+/// The members of a capability-bearing class that genuinely need no capability — ADR 0118 § 7.
+///
+/// **This list may never grow.** Every entry owes a bullet in `docs/agent/loop-goal.md`
+/// § *Standing decisions* saying why the member touches nothing, and adding one to make a run go
+/// green is the single move that design forbids outright: a member that is hard to classify is a
+/// member whose capability has not been thought about. The ADR's own example of what belongs here is
+/// a `Core\File::basename` that splits a string and never opens anything.
+///
+/// It is empty, and that is the strongest state it can be in: every member of every
+/// capability-bearing class on disk today declares what it needs.
+const NEEDS_NO_CAPABILITY: &[(&str, &str)] = &[];
+
+#[test]
+fn every_capability_bearing_member_declares_its_capability() {
+    // ADR 0118 § 7's direction: not "does every entry name a member" — that is
+    // `every_capability_entry_names_a_member` above — but "does every member of a class that reaches
+    // the operating system at all say so". A class is capability-bearing when any one of its members
+    // is declared, because that is the evidence that the class is a door and not a calculator.
+    let bearing: Vec<_> = nvs_stdlib::registry::CLASSES
+        .iter()
+        .filter(|class| {
+            nvs_stdlib::registry::CAPABILITIES
+                .iter()
+                .any(|(declared, _, _)| *declared == class.name)
+        })
+        .collect();
+
+    // The positive control, without which the whole set claim below passes by finding nothing to
+    // check. `Core\File` is the class that made § 3's table necessary.
+    assert!(
+        bearing.iter().any(|class| class.name == "Core\\File"),
+        "`Core\\File` reaches the filesystem, so it is capability-bearing by construction; \
+         a run where it is not means the declaration table has lost its entries"
+    );
+
+    for class in bearing {
+        for member in class.members() {
+            let declared = nvs_stdlib::registry::CAPABILITIES
+                .iter()
+                .any(|(name, found, _)| *name == class.name && *found == member.name);
+            let exempt = NEEDS_NO_CAPABILITY
+                .iter()
+                .any(|(name, found)| *name == class.name && *found == member.name);
+            assert!(
+                declared || exempt,
+                "`{}::{}` is a member of a capability-bearing class and declares no capability; \
+                 declare it in `registry::CAPABILITIES` — the allowlist beside this test is frozen \
+                 and adding to it is the one move ADR 0118 § 7 forbids",
+                class.name,
+                member.name,
+            );
+            assert!(
+                !(declared && exempt),
+                "`{}::{}` is both declared and exempted, so one of the two is a lie",
+                class.name,
+                member.name,
+            );
+        }
     }
 }
 
