@@ -158,7 +158,9 @@ pub(crate) fn infer_method_call(
     // `mixed` receivers are already refused above and reach this with
     // `resolved` at `None`, which records nothing.
     if matches!(args, CallArgs::FirstClassCallable) {
-        if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig) {
+        if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig)
+            && !reject_unforwardable_first_class_callable(qname, name, sig, expr.span, env)
+        {
             let call = resolved_call(qname.clone(), name.clone(), sig, slots, env.signatures);
             env.exprs.record(expr.span, ExprInfo::CallableRef(call));
         }
@@ -315,7 +317,9 @@ pub(crate) fn infer_static_call(
     // than `Call` for the same span. `static_class` is set here exactly as it
     // is for a call — ADR 0027 § 1 keeps `static::helper(...)` late-bound.
     if matches!(args, CallArgs::FirstClassCallable) {
-        if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig) {
+        if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig)
+            && !reject_unforwardable_first_class_callable(qname, name, sig, expr.span, env)
+        {
             let mut call = resolved_call(qname.clone(), name.clone(), sig, slots, env.signatures);
             if matches!(class.kind, ExprKind::ConstFetch(_)) {
                 call.static_class = resolve_class_expr(class, ctx, env);
@@ -551,6 +555,48 @@ fn reject_abstract_instantiation(target: &NewTarget, qname: &QName, span: Span, 
 /// checks, and reported rather than left to `nvs-ir`, which would otherwise
 /// reach `lower_call_args` with a sentinel where an argument list belongs —
 /// this is the one shape that got a resolved `new` there at all.
+/// ADR 0027 § 1's `(...)` over a member a `callable` cannot forward to —
+/// `E_FIRST_CLASS_CALLABLE_UNFORWARDABLE`, whose own docs own the rule.
+/// Answers `true` when it refused, which is when nothing is recorded: the
+/// pipeline stops at the first error, so `nvs-ir` never looks for the entry.
+///
+/// Both halves are the *callee's* declaration rather than anything the site
+/// wrote, so the primary span is the `(...)` and the help names the member.
+/// Reported here rather than left to the lowering because either one is a
+/// type confusion in the callee's own frame — it reads the slot at the
+/// declared representation, so an `inout` gets an `int` where an address
+/// belongs and a variadic tail gets an `int` where the collected array does.
+fn reject_unforwardable_first_class_callable(
+    owner: &QName,
+    name: &str,
+    sig: &MethodSig,
+    span: Span,
+    env: &mut Env<'_>,
+) -> bool {
+    let offending = if sig.inout.iter().any(|&by_ref| by_ref) {
+        "an `inout` parameter"
+    } else if sig.variadic {
+        "a variadic parameter"
+    } else {
+        return false;
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_FIRST_CLASS_CALLABLE_UNFORWARDABLE,
+            format!("`{owner}::{name}` has no first-class callable form"),
+        )
+        .with_primary(span, format!("this names a member declaring {offending}"))
+        .with_help(
+            "ADR 0031 § 4 gives `callable` no parameter list, so a call through one cannot \
+             stage a by-reference cell or collect a variadic tail — the callee would read \
+             the slot at the wrong representation. Write the closure out over the \
+             arguments the caller does pass"
+                .to_owned(),
+        ),
+    );
+    true
+}
+
 fn report_first_class_callable_new(
     args: &CallArgs,
     target: Option<&QName>,

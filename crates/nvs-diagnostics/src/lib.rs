@@ -2552,6 +2552,22 @@ pub mod code {
     /// container.
     pub const E_CLASS_CONST_NO_CONSTANT_FORM: Code = Code::new("E0792");
 
+    /// ADR 0027 § 1's `(...)` naming a member whose parameter list a
+    /// `callable` cannot carry — one declared `inout $x`, or a variadic tail.
+    ///
+    /// [ADR 0031](../../docs/adr/0031-callable-is-the-only-closure-type.md)
+    /// § 4 gives `callable` no parameter list, so a call *through* one passes
+    /// what it was written with and nothing else: there is no site that could
+    /// know to stage a by-reference cell, and none that could know to collect
+    /// a tail into the one array the callee reads that slot as. Both are
+    /// therefore a type confusion in the callee rather than a wrong answer,
+    /// which is why this is a refusal and not a run-time report.
+    ///
+    /// The `inout` half is [`E_CLOSURE_INOUT_PARAM`]'s rule reached by the
+    /// other spelling — that code refuses the parameter where a closure
+    /// *declares* it, this one refuses naming a member that already has one.
+    pub const E_FIRST_CLASS_CALLABLE_UNFORWARDABLE: Code = Code::new("E0793");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

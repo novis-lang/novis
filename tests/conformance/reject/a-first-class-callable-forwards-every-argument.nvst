@@ -1,0 +1,32 @@
+--TEST--
+A first-class callable over a member declaring `inout` or a variadic tail is refused — ADR 0031 § 4 gives `callable` no parameter list, so nothing at the call could stage a cell or collect a tail
+--FILE--
+<?nvs
+// ADR 0027 § 1 gives the `(...)` spelling to a member, and ADR 0031 § 4
+// gives the `callable` it produces no parameter list. So a call through one
+// passes what it was written with: there is no site that could know to hand
+// `bump` an address rather than an `int`, and the callee reads that slot at
+// the declared representation either way. That is a type confusion in the
+// callee's own frame, not a wrong answer, so it is refused where it is
+// written.
+class Adder {
+    public static function bump(inout int $n): void {
+        $n = $n + 1;
+    }
+
+    public static function total(int ...$parts): uint {
+        return Core\Arr::count($parts);
+    }
+}
+
+callable $bump = Adder::bump(...);
+callable $total = Adder::total(...);
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0793]: `Adder::bump` has no first-class callable form
+%A
+error[E0793]: `Adder::total` has no first-class callable form
+%A
+error: aborting due to 2 errors
