@@ -75,6 +75,7 @@ so you never have to open this file to route a topic.
 | The config file's *format* — why TOML, how a list/boolean/hash-pin is spelled, whether `nvs.toml` is a project manifest | [0064](0064-configuration-file-format.md) |
 | Splitting configuration across files — `[[include]]`, `conf.d`, an optional file that may not exist, `--config` more than once, where `nvs.toml` is found, what a relative path in it means, which file wins when two set the same key, config file permissions, a database password out of `/run/secrets`, `nvs config check`/`dump` | [0103](0103-configuration-is-a-tree-of-files.md) |
 | Per-application limits, capabilities or mode; giving one site different rights from another on one host; what "an application" even is when there is no server; `[[app]]` | [0104](0104-an-application-is-an-entry-file-path.md) |
+| Where a capability is actually checked; how a `Core` member declares it needs one; why a denied capability throws rather than escalating; what a check costs; what proves no member routes around it | [0118](0118-a-capability-is-checked-at-the-door-to-the-effect.md) |
 | Changing a running server — `nvs ctl reload`, the control socket, adding or replacing an extension without a restart, which directives still need one, why there is no control port | [0078](0078-config-reload-and-control-socket.md) |
 | Running Novis as a Windows service or a systemd unit — `nvs service install`, NSSM/WinSW, `sc create`, `ImagePath` quoting, which service account, a hardened unit file, `Type=notify`, `ExecReload`, why a bundle cannot install itself | [0093](0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md) |
 | The built-in HTTP server — what `nvs serve` is for and what it is not, mount points and several entry points under one root, serving static files, why there is no TLS listener, h2c, FastCGI or compression, what a proxy in front is trusted to assert, `X-Forwarded-For` and the client IP, connection timeouts, the in-flight ceiling, a health endpoint | [0097](0097-development-server-and-proxied-origin.md) |
@@ -332,6 +333,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0115](0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md) | The reactor reports readiness, and a stream that would block parks its own task | Accepted |
 | [0116](0116-an-isolates-arena-is-an-ownership-root.md) | An isolate's arena is an ownership root, not an address range | Accepted |
 | [0117](0117-an-implemented-core-member-documents-itself-in-the-registry.md) | An implemented Core member documents itself in the registry | Accepted |
+| [0118](0118-a-capability-is-checked-at-the-door-to-the-effect.md) | A capability is checked at the door to the effect, and declared in one table | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

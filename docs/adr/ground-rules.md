@@ -350,6 +350,10 @@ spellings rejected, and the reasoning.
 - **An application is its entry file path: `[[app]]` is keyed on a canonicalized `root` prefix or exact
   `entry`, every matching block layers least-specific first, and a block may grant as well as narrow,
   bounded by the global `[limits.hard]`** ([0104](0104-an-application-is-an-entry-file-path.md)).
+- **A capability is checked inside the one function that performs the effect, never beside it, and what
+  each member needs is declared in one auditable table no execution path reads** — a member needing none
+  pays nothing, and a denial is a catchable `RuntimeError` naming the capability
+  ([0118](0118-a-capability-is-checked-at-the-door-to-the-effect.md)).
 - **An isolate's arena is an ownership root, not an address range: entering one maps nothing, releasing one
   wholesale is a drain of the refcount worklist that runs native teardown, its statics base is its own, and
   a crossing at refcount 1 is a pointer handoff** ([0116](0116-an-isolates-arena-is-an-ownership-root.md)).
