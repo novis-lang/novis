@@ -1,0 +1,35 @@
+--TEST--
+an expression `catch` produces the arm's value where the guard threw and the guard's own where it did not — ADR 0119 §§ 1, 4 and 6
+--FILE--
+<?nvs
+// ADR 0119 § 6: the guarded expression runs inside a protected region and each
+// arm is a landing pad over it, so the whole expression produces either the
+// guard's value or the matching arm's — one phi, never a statement in between.
+class Repo {
+    public static function get(int $id): int {
+        if ($id < 0) {
+            throw new IOError("no such row");
+        }
+        return $id * 2;
+    }
+}
+
+// The guard completes: its own value, and no arm runs.
+echo Repo::get(21) catch (IOError $missing) => 0, "\n";
+// The guard throws: the matching arm's value.
+echo Repo::get(-1) catch (IOError $missing) => 0, "\n";
+// § 1: the binding is the same kind of name a clause's `$e` is, and carries
+// the exception the guard threw.
+echo Repo::get(-1) catch (IOError $e) => $e->message, "\n";
+// § 1: the variable is optional, as it is in the block form.
+echo Repo::get(-1) catch (IOError) => -7, "\n";
+// § 4: the result is the union of the two sides, so a guarded `int` beside a
+// `string` arm is what a `mixed` binding takes.
+mixed $either = Repo::get(-1) catch (IOError $why) => "fell back";
+echo $either, "\n";
+--EXPECT--
+42
+0
+no such row
+-7
+fell back

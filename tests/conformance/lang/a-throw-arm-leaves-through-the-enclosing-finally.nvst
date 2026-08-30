@@ -1,0 +1,39 @@
+--TEST--
+a `throw` arm produces no value, so the failure leaves through the enclosing region and runs its `finally` on the way out — ADR 0119 §§ 2, 3 and 6
+--FILE--
+<?nvs
+// ADR 0119 § 3: the arm body is an expression, and `throw expr` is already
+// one, so an arm may wrap and rethrow with no rule of its own. It is typed
+// `never` (§ 4), which is why it joins neither the union nor the phi § 6
+// builds — the arm has no edge into the join at all.
+//
+// § 2: `finally` stays the block form's alone, so the region that runs one
+// here is the `try` around the whole expression.
+class Fail {
+    public static function io(int $n): int {
+        if ($n < 0) {
+            throw new IOError("io");
+        }
+        return $n;
+    }
+}
+
+try {
+    try {
+        echo Fail::io(-1) catch (IOError $e) => throw new LogicError("wrapped: " . $e->message), "\n";
+        echo "not reached\n";
+    } finally {
+        echo "the inner finally ran\n";
+    }
+} catch (LogicError $wrapped) {
+    echo $wrapped->message, "\n";
+}
+
+// The arm contributing nothing to the union is observable in the type: the
+// whole expression is the guard's own `int`, not a union with a `never` in it.
+int $n = Fail::io(4) catch (IOError $rethrow) => throw $rethrow;
+echo $n, "\n";
+--EXPECT--
+the inner finally ran
+wrapped: io
+4
