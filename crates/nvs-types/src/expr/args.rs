@@ -1104,8 +1104,14 @@ pub(crate) fn check_written_type_args(
 }
 
 /// The class a member on `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS` was
-/// asked to build, reporting `E_TYPE_ARG_NOT_A_CLASS` when what was written is
-/// not a class at all.
+/// asked to build and whether it was written as a **list** of that class,
+/// reporting `E_TYPE_ARG_NOT_A_CLASS` when what was written is neither.
+///
+/// `array<C>` records `C` with `true`: a list decode is the same decode run
+/// once per element, so the class the native member needs is the element's and
+/// the flag is the whole of what distinguishes the two shapes. Nesting stops
+/// there — `array<array<C>>` is not a document shape ADR 0071 § 4 gives a
+/// field, so it is refused here rather than recorded as a class it is not.
 ///
 /// `None` for every member not on that roster, which is all but one of them —
 /// so this is a table lookup on the ordinary path and nothing more.
@@ -1116,25 +1122,32 @@ pub(crate) fn written_class_of(
     type_args: &[Type],
     call_span: Span,
     env: &mut Env<'_>,
-) -> Option<QName> {
+) -> Option<(QName, bool)> {
     if !nvs_stdlib::registry::takes_written_class(&owner.to_string(), method) {
         return None;
     }
     let first = *written.first()?;
-    if let Ty::Class(qname, _) = env.interner.get(first) {
-        return Some(qname.clone());
+    let (element, list) = match env.interner.get(first) {
+        Ty::Array(element) => (*element, true),
+        _ => (first, false),
+    };
+    if let Ty::Class(qname, _) = env.interner.get(element) {
+        return Some((qname.clone(), list));
     }
     let found = env.interner.describe(first);
     let span = type_args.first().map_or(call_span, |ty| ty.span);
     env.diags.report(
         Diagnostic::error(
             code::E_TYPE_ARG_NOT_A_CLASS,
-            format!("`{owner}::{method}` builds a class, and `{found}` is not one"),
+            format!(
+                "`{owner}::{method}` builds a class or a list of one, and `{found}` is neither"
+            ),
         )
         .with_primary(span, format!("`{found}` written here"))
         .with_help(
             "ADR 0071 § 2: a decode is an ordinary `new`, so the type argument names the \
-             class to construct — write a class carrying `#[Json\\Derive]`",
+             class to construct — write a class carrying `#[Json\\Derive]`, or `array<C>` \
+             of one for a document that is a JSON array",
         ),
     );
     None

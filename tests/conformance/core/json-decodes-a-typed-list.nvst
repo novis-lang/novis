@@ -1,0 +1,90 @@
+--TEST--
+`Core\Json::decodeAs<array<T>>` reads a JSON array as one `T` per element, with the element's position on every issue it reports — ADR 0071 §§ 2 and 5, ADR 0007 § 3
+--FILE--
+<?nvs
+#[Core\Json\Derive]
+class Point {
+    public int $x;
+    #[Core\Json\Field(name: "label")]
+    public string $tag;
+
+    public function constructor(int $x, string $tag) {
+        $this->x = $x;
+        $this->tag = $tag;
+    }
+}
+
+// § 2: a decode is an ordinary `new`, so a list decode is that `new` run once
+// per element — the type argument names the element's class and the result is
+// an `array<Point>`, not the `array<mixed>` a plain `decode` answers with.
+var $points = Core\Json::decodeAs<array<Point>>(
+    "[{\"x\":1,\"label\":\"a\"},{\"x\":2,\"label\":\"b\"},{\"x\":3,\"label\":\"c\"}]"
+);
+echo "count=", Core\Arr::count($points), "\n";
+
+// The elements are `Point`s to the checker as well as at run time: a binding
+// declaring the element type is what proves the type argument reached the
+// result, since `array<mixed>` would refuse this loop at compile time.
+var $sum = 0;
+foreach ($points as Point $point) {
+    $sum = $sum + $point->x;
+    echo "  ", $point->tag, "=", $point->x, "\n";
+}
+echo "sum=", $sum, "\n";
+
+// The document's own order, and the same document back: a list that decoded
+// element by element re-encodes to the bytes it came from.
+echo "round=", Core\Json::encode($points), "\n";
+
+// The empty list is the bound on the near side — nothing to construct is not
+// a failure to construct.
+echo "empty=", Core\Arr::count(Core\Json::decodeAs<array<Point>>("[]")), "\n";
+
+// § 5 accumulates within an element and the list stops at the first bad one:
+// element 1 reports both of its own failures, element 2's missing field is
+// never reached, and every path carries the position. A list refused anywhere
+// is refused entirely — a shorter `array<Point>` than the document held would
+// be invisible to the caller.
+try {
+    Core\Json::decodeAs<array<Point>>(
+        "[{\"x\":1,\"label\":\"a\"},{\"x\":\"two\"},{\"x\":3}]"
+    );
+    echo "not reached\n";
+} catch (ParseError $bad) {
+    echo "issues=", Core\Arr::count($bad->issues), "\n";
+    foreach ($bad->issues as {path: string, message: string} $issue) {
+        echo "  bad=", $issue->path, "\n";
+    }
+}
+
+// The far side of the same bound: a JSON *object* is what `decodeAs<T>` reads,
+// so it is not an `array<T>`, and the refusal names the shape rather than
+// reporting every field of the class as missing.
+try {
+    Core\Json::decodeAs<array<Point>>("{\"x\":1,\"label\":\"a\"}");
+    echo "not reached\n";
+} catch (ParseError $object) {
+    echo "object=", $object->issues["0"]->message, "\n";
+}
+
+// An element that is not an object at all is named by its position, which is
+// the one thing a list decode knows that a single decode does not.
+try {
+    Core\Json::decodeAs<array<Point>>("[{\"x\":1,\"label\":\"a\"},7]");
+    echo "not reached\n";
+} catch (ParseError $scalar) {
+    echo "scalar=", $scalar->issues["0"]->message, "\n";
+}
+--EXPECT--
+count=3
+  a=1
+  b=2
+  c=3
+sum=6
+round=[{"x":1,"label":"a"},{"x":2,"label":"b"},{"x":3,"label":"c"}]
+empty=0
+issues=2
+  bad=1.x
+  bad=1.label
+object=Core\Json::decodeAs(): an `array<Point>` decodes from a JSON array
+scalar=Core\Json::decodeAs(): element 1 is not a JSON object, and a `Point` decodes from one

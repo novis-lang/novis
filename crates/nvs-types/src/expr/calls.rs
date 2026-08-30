@@ -359,7 +359,12 @@ pub(crate) fn infer_static_call(
         if matches!(class.kind, ExprKind::ConstFetch(_)) {
             call.static_class = resolve_class_expr(class, ctx, env);
         }
-        call.written_class = written_class_of(qname, name, &written, type_args, expr.span, env);
+        if let Some((class, list)) =
+            written_class_of(qname, name, &written, type_args, expr.span, env)
+        {
+            call.written_class = Some(class);
+            call.written_class_is_list = list;
+        }
         env.exprs.record(expr.span, ExprInfo::Call(call));
     }
     // ADR 0077 § 4's link, and the one fold that is *not* made here: the route
@@ -781,6 +786,7 @@ pub(crate) fn resolved_call(
         // Set only by the `StaticCall` arm, and only for a member on
         // `registry::WRITTEN_CLASS_MEMBERS` — see the field's own doc comment.
         written_class: None,
+        written_class_is_list: false,
     }
 }
 

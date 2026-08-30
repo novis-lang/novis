@@ -150,7 +150,20 @@ pub struct ResolvedCall {
     /// `nvs_runtime::ClassDesc` to build an instance of. `nvs-ir` turns it
     /// into an `InstKind::ClassDescConst` ahead of the call's own arguments;
     /// that roster's docs own the ABI half.
+    ///
+    /// `Core\Json::decodeAs<array<User>>` records `User` too — the class is the
+    /// *element's*, and [`Self::written_class_is_list`] is what tells the two
+    /// apart.
     pub written_class: Option<QName>,
+    /// Whether [`Self::written_class`] was written wrapped in an `array<...>`,
+    /// so the member decodes a JSON array into one instance per element rather
+    /// than the document into one instance.
+    ///
+    /// A separate field rather than a second `QName` because the native member
+    /// needs a descriptor either way: erasure removes which class, and this
+    /// removes nothing further — `array` has no descriptor to build. `nvs-ir`
+    /// emits it as an `InstKind::ConstBool` in the slot after the descriptor.
+    pub written_class_is_list: bool,
     /// Whether some subtype of [`Self::class`] redeclares [`Self::method`],
     /// so a receiver's runtime class can answer it with different code than
     /// the label [`Self::class`] names —

@@ -3045,9 +3045,10 @@ impl<'a> Lowering<'a> {
             let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
             let checked_types = self.checked_types;
             // A member on `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS`
-            // is handed the class its call site wrote, as argument 0 —
-            // that roster owns the ABI. A descriptor is not
-            // refcounted, so it is neither retained nor released here.
+            // is handed the class its call site wrote, as argument 0, and
+            // whether it was written as a list of that class as argument 1 —
+            // that roster owns the ABI. Neither a descriptor nor a bool is
+            // refcounted, so neither is retained or released here.
             let written_class =
                 nvs_types::core_takes_written_class(&call.class.to_string(), &call.method).then(
                     || {
@@ -3059,14 +3060,19 @@ impl<'a> Lowering<'a> {
                                 call.class, call.method
                             )
                         });
-                        let (v, _) = self.emit(
+                        let (desc, _) = self.emit(
                             *cur,
                             Ty::ClassDesc,
                             InstKind::ClassDescConst {
                                 class: label.to_string(),
                             },
                         );
-                        v
+                        let (list, _) = self.emit(
+                            *cur,
+                            Ty::Bool,
+                            InstKind::ConstBool(call.written_class_is_list),
+                        );
+                        [desc, list]
                     },
                 );
             let mark = self.temporaries_mark();
@@ -3074,6 +3080,7 @@ impl<'a> Lowering<'a> {
                 self.lower_call_args(args, &sig, checked_types, ArgOwnership::Borrowed, env, cur);
             let arg_values = written_class
                 .into_iter()
+                .flatten()
                 .chain(lowered.values)
                 .collect::<Vec<_>>();
             let result = self.emit_fallible(

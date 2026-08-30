@@ -596,18 +596,24 @@ pub(crate) fn lower_callable(
         // so what this frame staged it also releases — see `InstKind::CoreCall`.
         let written = call.written_class.as_ref().and_then(|written| {
             nvs_types::core_takes_written_class(&call.class.to_string(), &call.method).then(|| {
-                let (v, _) = low.emit(
+                let (desc, _) = low.emit(
                     cur,
                     Ty::ClassDesc,
                     InstKind::ClassDescConst {
                         class: written.to_string(),
                     },
                 );
-                v
+                let (list, _) = low.emit(
+                    cur,
+                    Ty::Bool,
+                    InstKind::ConstBool(call.written_class_is_list),
+                );
+                [desc, list]
             })
         });
         let args = written
             .into_iter()
+            .flatten()
             .chain(receiver)
             .chain(args)
             .collect::<Vec<_>>();

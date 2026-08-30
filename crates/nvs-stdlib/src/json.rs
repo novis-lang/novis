@@ -81,7 +81,7 @@
 //!    two default-bearing rows are unimplemented: an absent key is always
 //!    *required field missing*, and a `#[Json\Field(skip: true)]` property
 //!    that is also a constructor parameter leaves a position nothing fills,
-//!    which [`decode_as`] reports as an engine fault rather than passing
+//!    which [`decode_object`] reports as an engine fault rather than passing
 //!    `null`. `nvs_types::defaults` evaluates a default into a constant the
 //!    *call site* emits, and a native decoder is not a call site — closing
 //!    this means carrying the constant onto `nvs_runtime::CodecField`.
@@ -96,10 +96,11 @@
 //!    reflection and nothing per object either way — the difference is one
 //!    bounded loop and one `String` compare per field, against a table that is
 //!    O(derived classes) in the artifact.
-//! 6. **An issue's `path` is a field's own wire key, never a dotted path.**
-//!    ADR 0071 § 5 asks for `"address.city"` so a nested class's issues arrive
-//!    at the top-level `catch` already located; nesting is gap 2's, so there
-//!    is nothing to prefix yet.
+//! 6. **An issue's `path` is a field's own wire key, prefixed only by a list
+//!    element's position.** A `decodeAs<array<C>>` reports `2.name`
+//!    ([`path_of`]), which is ADR 0071 § 5's dotted path over the one nesting
+//!    that exists. The § 5 example is `"address.city"` — a nested *class* — and
+//!    that is gap 2's, so there is nothing further to prefix yet.
 //! 7. **`isValid` decodes and discards.** It answers exactly what [`nvs_core_json_decode`]
 //!    would accept, which is the property that matters, but it allocates the
 //!    document to do it. A second `()`-producing visitor would avoid that; it
@@ -260,11 +261,13 @@ const DECODE_DOC: MethodDoc = MethodDoc {
 const DECODE_AS_DOC: MethodDoc = MethodDoc {
     short: "Parses the JSON object `$json` into an instance of `T`, a class carrying \
             `#[Json\\Derive]`, reading every declared field and running the constructor only \
-            when all of them matched; it replaces hand-written hydration.",
+            when all of them matched; write `array<T>` to read a JSON array as one instance \
+            per element instead. It replaces hand-written hydration.",
     params: &[
         ParamDoc {
             name: "json",
-            desc: "The JSON text to parse, whose top level must be an object.",
+            desc: "The JSON text to parse, whose top level must be an object — or an array, \
+                   where `T` is written `array<C>`.",
             shape: &[],
         },
         ParamDoc {
@@ -274,14 +277,17 @@ const DECODE_AS_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "A new `T` built from the document's fields.",
+    ret: "A new `T` built from the document's fields, or — for an `array<C>` — one new `C` per \
+          element, in the document's own order.",
     errors: &[
         ErrorDoc {
             error: "ParseError",
             desc: "`$json` is not a valid JSON document, nests deeper than `maxDepth`, holds an \
-                   integer literal too large for `int`, is not an object at the top level, or has \
-                   fields that are missing or of the wrong type — every failed field is one issue \
-                   on the error, at its own path, and the message counts them.",
+                   integer literal too large for `int`, is not an object at the top level (an \
+                   array, for an `array<C>`), or has fields that are missing or of the wrong \
+                   type — every failed field is one issue on the error, at its own path, and the \
+                   message counts them. A list stops at its first bad element, and each of its \
+                   paths carries that element's position.",
         },
         ErrorDoc {
             error: "LogicError",
@@ -853,22 +859,30 @@ nvs_runtime::nvs_helper! {
     /// `Core\Json::decodeAs<T>(string $json, {maxDepth?: uint}): T` — replacing
     /// hand-written hydration.
     ///
-    /// **Argument 0 is the class written at the call site**, not a value:
+    /// **Arguments 0 and 1 are the class written at the call site and whether
+    /// it was written as `array<...>` of one**, not values:
     /// `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS` puts this member on the
-    /// roster whose helper is handed a `nvs_runtime::ClassDesc` ahead of its
-    /// declared parameters, and that roster's docs own why. So the arity here
-    /// is one more than the registry row's.
-    fn nvs_core_json_decode_as(ctx, args: [3]) {
-        // Unreachable from source, because argument 0 is not a program's value:
-        // `crate::registry::WRITTEN_CLASS_MEMBERS` is what puts the resolved
-        // `ClassDesc` in slot 0, and `nvs_ir::lower` writes it out of the type
-        // argument at the call site. A call naming none is `E0442` — `takes 1
-        // type argument(s)` — before any of this runs.
+    /// roster whose helper is handed a `nvs_runtime::ClassDesc` and that flag
+    /// ahead of its declared parameters, and that roster's docs own why. So the
+    /// arity here is two more than the registry row's.
+    fn nvs_core_json_decode_as(ctx, args: [4]) {
+        // Unreachable from source, because arguments 0 and 1 are not a
+        // program's values: `crate::registry::WRITTEN_CLASS_MEMBERS` is what
+        // puts the resolved `ClassDesc` in slot 0 and the list flag in slot 1,
+        // and `nvs_ir::lower` writes both out of the type argument at the call
+        // site. A call naming none is `E0442` — `takes 1 type argument(s)` —
+        // before any of this runs.
         let class = args[0].as_class_desc().ok_or_else(|| Fault::fatal(
             "internal error: `Core\\Json::decodeAs` was called with no class in argument 0",
         ))?;
-        let text = text_of(&args[1], "decodeAs")?;
-        let max = max_depth(&args[2])?;
+        // Unreachable from source for the same reason and refused by the same
+        // `E0442`: slot 1 is the `ConstBool` the lowering emits beside the
+        // descriptor, so a call that has one has the other.
+        let list = args[1].as_bool().ok_or_else(|| Fault::fatal(
+            "internal error: `Core\\Json::decodeAs` was called with no list flag in argument 1",
+        ))?;
+        let text = text_of(&args[2], "decodeAs")?;
+        let max = max_depth(&args[3])?;
         #[expect(
             unsafe_code,
             reason = "the descriptor came out of a `ClassDescConst` the compiled \
@@ -876,14 +890,18 @@ nvs_runtime::nvs_helper! {
                       from it"
         )]
         unsafe {
-            decode_as(ctx, class, text, max)
+            decode_as(ctx, class, text, max, list)
         }
     }
 }
 
-/// [ADR 0071](../../../../docs/adr/0071-derived-codecs.md) § 5's decode: every
-/// field read into a local, **every** failure accumulated, and the constructor
-/// run only if none was.
+/// [ADR 0071](../../../../docs/adr/0071-derived-codecs.md) § 2's decode: the
+/// class's codec checked once, the document read once, and then one instance —
+/// or, for `list`, one per element of a JSON array.
+///
+/// The two shapes share this frame because the codec questions are the class's
+/// and not the document's: an `Opaque` field is a decoder this crate has not
+/// written, whether it is asked for once or a thousand times.
 ///
 /// # Safety
 ///
@@ -898,6 +916,7 @@ unsafe fn decode_as(
     class: *const nvs_runtime::ClassDesc,
     text: &str,
     max: u32,
+    list: bool,
 ) -> Result<Value, Fault> {
     #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
     let desc = unsafe { &*class };
@@ -931,19 +950,129 @@ unsafe fn decode_as(
         let issues = crate::issue::list([("", message.as_str())]);
         Fault::thrown_with_issues(ThrownClass::Parse, message, issues)
     })?;
-    let Some(ptr) = document.array_ptr() else {
-        #[expect(
-            unsafe_code,
-            reason = "this frame holds the only reference `read` handed back"
-        )]
-        unsafe {
-            document.release();
+    #[expect(
+        unsafe_code,
+        reason = "the same live descriptor the caller vouched for"
+    )]
+    let decoded = unsafe {
+        if list {
+            decode_each(ctx, class, desc, document)
+        } else {
+            decode_object(ctx, class, desc, document, None)
         }
+    };
+    // Released here whichever branch ran and whether or not it failed: every
+    // value either half kept out of the document was retained on its way past,
+    // so this frees exactly what nothing else holds.
+    #[expect(
+        unsafe_code,
+        reason = "this frame holds the only reference `read` handed back"
+    )]
+    unsafe {
+        document.release();
+    }
+    decoded
+}
+
+/// ADR 0071 § 2's decode run once per element: a JSON array in, one instance of
+/// `class` per element out, in the document's own order.
+///
+/// An element that is not an object, or a field that does not match, refuses
+/// the **whole** list rather than the element — a partial `array<T>` would be
+/// a shorter list than the document held, which is a lie no caller can see.
+///
+/// **The refusal stops at the first bad element**, so the issue list is one
+/// element's fields with that element's position on each path. ADR 0071 § 5
+/// accumulates *within* an object because a class's field count is a bound the
+/// program wrote; a list's length is a bound the document wrote, and a decode
+/// of untrusted input that reported an issue per element would do work in
+/// proportion to what an attacker sent.
+///
+/// # Safety
+///
+/// As [`decode_as`]'s, and `document` must be a reference this frame's caller
+/// keeps alive across the call.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+unsafe fn decode_each(
+    ctx: &mut nvs_runtime::Ctx,
+    class: *const nvs_runtime::ClassDesc,
+    desc: &nvs_runtime::ClassDesc,
+    document: Value,
+) -> Result<Value, Fault> {
+    let refusal = || {
         let message = format!(
-            "Core\\Json::decodeAs(): a `{}` decodes from a JSON object",
+            "Core\\Json::decodeAs(): an `array<{}>` decodes from a JSON array",
             desc.name()
         );
         let issues = crate::issue::list([("", message.as_str())]);
+        Fault::thrown_with_issues(ThrownClass::Parse, message, issues)
+    };
+    let Some(ptr) = document.array_ptr() else {
+        return Err(refusal());
+    };
+    let source = crate::arr::borrowed(ptr);
+    let mut decoded = NvsArray::new();
+    for index in 0..source.count() {
+        // A JSON array reads back as a *packed* array, so a position that is
+        // not there is a JSON object arriving at a list decode: `{"a": 1}` has
+        // a count of one and no index 0. This is the only place the two are
+        // told apart, since both are one `NvsArray`.
+        let element = i64::try_from(index)
+            .ok()
+            .and_then(|position| source.get_index(position))
+            .ok_or_else(refusal)?;
+        // Dropping `decoded` on the way out releases every instance already
+        // built, which is what the early return owes.
+        #[expect(
+            unsafe_code,
+            reason = "the same live descriptor, and the document's own element"
+        )]
+        let value = unsafe { decode_object(ctx, class, desc, element, Some(index))? };
+        decoded.append(value);
+    }
+    Ok(Value::array(decoded))
+}
+
+/// [ADR 0071](../../../../docs/adr/0071-derived-codecs.md) § 5's decode of one
+/// object: every field read into a local, **every** failure accumulated, and
+/// the constructor run only if none was.
+///
+/// `at` is the element's position when this object came out of a list, and is
+/// the whole of what a list adds to § 5's issue paths — `2.name` rather than
+/// `name`.
+///
+/// # Safety
+///
+/// As [`decode_as`]'s, and `document` must be a reference this frame's caller
+/// keeps alive across the call.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+unsafe fn decode_object(
+    ctx: &mut nvs_runtime::Ctx,
+    class: *const nvs_runtime::ClassDesc,
+    desc: &nvs_runtime::ClassDesc,
+    document: Value,
+    at: Option<usize>,
+) -> Result<Value, Fault> {
+    let fields = desc.codec();
+    let Some(ptr) = document.array_ptr() else {
+        let message = match at {
+            None => format!(
+                "Core\\Json::decodeAs(): a `{}` decodes from a JSON object",
+                desc.name()
+            ),
+            Some(index) => format!(
+                "Core\\Json::decodeAs(): element {index} is not a JSON object, and a `{}` \
+                 decodes from one",
+                desc.name()
+            ),
+        };
+        let issues = crate::issue::list([(path_of(at, None).as_str(), message.as_str())]);
         return Err(Fault::thrown_with_issues(
             ThrownClass::Parse,
             message,
@@ -971,7 +1100,6 @@ unsafe fn decode_as(
                     )]
                     unsafe {
                         value.release();
-                        document.release();
                     }
                     // Unreachable from source with no diagnostic to name:
                     // `field.param` and `desc.ctor_arity()` are two readings of
@@ -988,16 +1116,8 @@ unsafe fn decode_as(
                     )));
                 }
             },
-            Err(why) => issues.push((field.key.clone(), why)),
+            Err(why) => issues.push((path_of(at, Some(&field.key)), why)),
         }
-    }
-    #[expect(
-        unsafe_code,
-        reason = "every value kept out of the document was retained above, so \
-                  releasing it now frees exactly what nothing else holds"
-    )]
-    unsafe {
-        document.release();
     }
 
     if !issues.is_empty() {
@@ -1097,6 +1217,21 @@ fn decode_field(field: &nvs_runtime::CodecField, source: &NvsArray) -> Result<Va
         value.retain();
     }
     Ok(value)
+}
+
+/// ADR 0071 § 5's issue path for a field, rooted at the element it belongs to
+/// when the decode was a list's: `name` alone, or `2.name`.
+///
+/// The dotted spelling is the one the § 5 example already uses for a nested
+/// field, so a caller walking a list's issues reads the same path grammar it
+/// reads for `address.city`.
+fn path_of(at: Option<usize>, field: Option<&str>) -> String {
+    match (at, field) {
+        (None, None) => String::new(),
+        (None, Some(key)) => key.to_owned(),
+        (Some(index), None) => index.to_string(),
+        (Some(index), Some(key)) => format!("{index}.{key}"),
+    }
 }
 
 /// What a [`CodecTy`] is called in an issue message — the Novis type name, since
