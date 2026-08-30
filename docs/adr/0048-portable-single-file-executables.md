@@ -7,6 +7,7 @@
   `require` graph into a single, self-contained, runnable executable — the Bun/`pkg`/`deno compile` shape —
   and the small addition to `nvs-host`'s startup path needed to run one. CLI programs only; `nvs serve` is
   explicitly out of scope (see *Decision* §1).
+- **Validated by:** [crates/nvs-cli/tests/bundle.rs](../../crates/nvs-cli/tests/bundle.rs)
 
 > **In short:** `nvs build --compile entry.nvs -o app` appends the entry file's statically-resolved source
 > tree, as plain bytes with a small footer, after the host `nvs` binary's own sections — the standard
@@ -117,7 +118,8 @@ executable is not contingent on anything, which is why the rule lives here now.
 The build command appends, after the host binary's own last section, the flat file list from §2 followed by
 a fixed-size footer: `magic ("NVSB") | format_version: u16 | manifest_offset: u64 | manifest_len: u64`. This
 is the standard self-extracting-executable technique — appended bytes are invisible to the PE and ELF loaders
-because neither reads past the sections its own headers describe. `nvs-host`, at process start, reads its own
+because neither reads past the sections its own headers describe. The `nvs` binary, at process start and
+before it parses a single argument — a bundle's `argv` belongs to the program it carries — reads its own
 executable's last `sizeof(footer)` bytes; if the magic matches, it resolves the entry point and every
 `require` against the embedded file list instead of the real filesystem, and hands each file's bytes to
 [0042](0042-on-disk-artifact-cache-format.md)'s existing content-hash-then-cache-lookup path exactly as it

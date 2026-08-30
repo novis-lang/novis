@@ -59,9 +59,9 @@
 > caches. Stage 5 has ADR 0042 §§ 1-6,  in `crates/nvs-cli/src/cache.rs`, whose *Known gaps* decides
 > a payload. **Stage 8 is closed at both counts**: conformance is 1011, differential is 206 over its
 > 205 floor , and `isolation.rs` measures `nvs_host::Isolate` itself with a guard beside it. Stage
-> 5's bench reports the CLI's floor at 6.7 ms against its 10 ms budget. Stage 6 is closed: an empty
-> allowlist under the closure test, ADR 0073's six `E0611` refusals, ADR 0074's two `E0612` in
-> `crates/nvs-config/src/http.rs`, and the adversarial suite's three cases.
+> 5's bench reports the CLI's floor at 6.7 ms against its 10 ms budget. Stage 6 is closed at its
+> three checks. **Stage 7 is closed**: `nvs build --compile` appends ADR 0048 §§ 2-5's source
+> payload, and `nvs_diagnostics::embedded` is the byte source a bundle resolves against.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

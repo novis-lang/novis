@@ -3980,6 +3980,16 @@ sibling in the same namespace unqualified.
   line to `unsafe_code = "deny"`, and say in a comment above it which call needs it. Copy both
   tables or the crate silently loses every clippy lint the workspace sets. `nvs-cli` did this
   for ADR 0042 § 3's one `Mmap::map`.
+- **A source path is read off the filesystem in more places than the front end, and the
+  configuration snapshot is the one that bites.** ADR 0048's bundled executable resolves its entry
+  and its whole `require` graph out of an appended payload, so the path handed to `nvs run` is
+  synthetic — and `nvs_config::Snapshot::build` canonicalizes that same path through
+  `trust::canonical` to key ADR 0104's `[[app]]` blocks, which refused the run with `E0605` long
+  after the program had compiled cleanly. The fix is not to widen `trust::canonical`: a bundle is
+  ADR 0048 § 1's single trust domain, and the only path an `[[app]]` block could legitimately key
+  on there is the executable itself, which `run_run` now substitutes. Before changing a byte
+  source, `grep -n 'canonicalize\|read_to_string' crates/` for the *other* readers — there were
+  three, in three crates, and only one of them was in `nvs-hir`.
 
 ## Divergences and refusals already pinned
 
