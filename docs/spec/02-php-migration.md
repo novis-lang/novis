@@ -548,6 +548,52 @@ almost every predicate below a question the checker has already answered.
 | `settype` | dropped | a variable's type never changes ([ADR 0007](../adr/0007-explicit-type-system.md)) |
 | `strval` | language | `$x as string` |
 
+## Runtime configuration, the environment and the process
+
+A directive is set in `nvs.toml` and read through `Core\Config`; the request-local overlay is the only part
+of it a program may write, and `[limits.hard]` is the ceiling that overlay cannot raise
+([ADR 0005](../adr/0005-config-changeability.md), [ADR 0064](../adr/0064-configuration-file-format.md)).
+Most of PHP's runtime knobs are gone rather than renamed, because the thing each of them tuned — a shared
+engine's INI file, a deferred cycle collector, a per-process opcode cache a request could reset — is not
+how this runtime is built.
+
+| PHP | Outcome | Novis |
+|---|---|---|
+| `ini_get` | member | `Core\Config::get` — the snapshot's value with this request's own overlay applied |
+| `ini_set` | member | `Core\Config::set`, which returns `false` where the directive is `System`-class or above the `[limits.hard]` ceiling, leaving the previous value intact ([ADR 0005](../adr/0005-config-changeability.md)) |
+| `ini_alter` | member | `Core\Config::set` — `ini_alter` is PHP's own alias for `ini_set` |
+| `ini_restore` | member | `Core\Config::restore` |
+| `ini_get_all` | member | `Core\Config::all`, string keys to string values, never PHP's per-directive `global_value`/`local_value`/`access` array (R11) |
+| `ini_parse_quantity` | dropped | a size or a duration is its own literal ([ADR 0070](../adr/0070-duration-literals.md)), so there is no quantity string for a program to parse; a directive's value string is read by `Core\Config::set` itself, with the parser the boot path uses ([ADR 0064](../adr/0064-configuration-file-format.md) § 5) |
+| `get_cfg_var` | member | `Core\Config::get`. PHP's split between the file's value and the active one does not exist — the snapshot is the value ([ADR 0078](../adr/0078-config-reload-and-control-socket.md) § 1) |
+| `php_ini_loaded_file` | dropped | there is no INI file. The configuration is a tree of TOML files, and which one set a directive is what `nvs config dump --origin` reports ([ADR 0103](../adr/0103-configuration-is-a-tree-of-files.md) § 9) rather than something a request reads |
+| `php_ini_scanned_files` | dropped | same — the tree's shape is the operator's to audit, not a request's to introspect |
+| `set_time_limit` | member | `Core\Config::set` on the wall-time directive, bounded by `[limits.hard]` like every other; a breach is a `FATAL` and never reaches a `catch` ([ADR 0020](../adr/0020-error-escalation-ladder.md)) |
+| `memory_get_usage` | member | `Core\Os::memoryUsage` |
+| `memory_get_peak_usage` | dropped | `Core\Os::memoryUsage` is the current figure; a peak is only meaningful against the request's budget, which ADR 0020's limit report already carries when one is breached |
+| `memory_reset_peak_usage` | dropped | nothing tracks a resettable peak — a budget is per request and dies with it ([ADR 0020](../adr/0020-error-escalation-ladder.md) § 1) |
+| `gc_enable` | dropped | memory is refcounted and released deterministically ([ADR 0116](../adr/0116-an-isolates-arena-is-an-ownership-root.md)); there is no collector to turn on |
+| `gc_disable` | dropped | same, in the other direction |
+| `gc_enabled` | dropped | same — the answer would be a constant |
+| `gc_collect_cycles` | dropped | nothing is deferred to collect. A cycle inside an isolate is retained until that isolate ends, which is the bound ADR 0116 states in place of a collector's schedule |
+| `gc_mem_caches` | dropped | the allocator's per-thread caches belong to the runtime, and no program empties them |
+| `gc_status` | dropped | there is no collector to report on; a request's held bytes are `Core\Os::memoryUsage` |
+| `opcache_reset` | dropped | the compiled-unit cache is the runtime's, keyed on `env_hash` ([ADR 0078](../adr/0078-config-reload-and-control-socket.md) § 4) and revalidated by `opcache.validate` ([ADR 0017](../adr/0017-hot-reload-without-restart.md)). An operator clears it with `nvs cache clear`; a request may not invalidate what other requests are still running against |
+| `opcache_invalidate` | dropped | same, one path at a time — `opcache.validate` is `System`-class for the reason [ADR 0017](../adr/0017-hot-reload-without-restart.md) gives, and a per-path reset is that directive reached sideways |
+| `opcache_compile_file` | dropped | compilation happens on first use, and its artifact is verified before a single page becomes executable ([ADR 0042](../adr/0042-on-disk-artifact-cache-format.md) § 3); a program does not schedule it |
+| `opcache_is_script_cached` | dropped | a cache hit is invisible by design — a bad entry is exactly as invisible as a cold one ([ADR 0042](../adr/0042-on-disk-artifact-cache-format.md) § 3) — so there is no observable state to answer with |
+| `opcache_is_script_cached_in_file_cache` | dropped | same |
+| `opcache_get_status` | dropped | the cache is the operator's: `nvs cache gc` and `nvs cache clear` act on it ([ADR 0042](../adr/0042-on-disk-artifact-cache-format.md) § 6), and `nvs config dump` reports the `[opcache]` block it runs under |
+| `opcache_get_configuration` | dropped | `nvs config dump` is that report, and `Core\Config::get` answers for one directive |
+| `opcache_jit_blacklist` | dropped | the JIT is not steerable per function: what gets compiled, and when, is the runtime's decision and no call or directive changes it for one name |
+| `getenv` | member | `Core\Env::get`, or `Core\Env::all` for the no-argument form; both answer with `tainted` values |
+| `putenv` | dropped | the environment is read-only, because a process-global mutation is unsound across cores (01 § 15). What PHP reached for it to change is a directive, and that is `Core\Config::set` — request-local, and gone when the request ends |
+| `extension_loaded` | dropped | an extension is an `[[extension]]` entry pinned in the configuration and resolved while compiling ([ADR 0078](../adr/0078-config-reload-and-control-socket.md) § 2); a program naming a member it does not have fails to compile, so nothing is left to test at run time |
+| `dl` | dropped | nothing is loaded into the process at run time ([ADR 0052](../adr/0052-closed-doors.md)) |
+| `php_uname` | member | `Core\Os::hostname` and the rest of `Core\Os`'s host facts — one member per fact, never one string to take apart (R11) |
+| `php_sapi_name` | dropped | there is one runtime and one execution model; `nvs run` and the server differ in what they are handed, not in an engine to name |
+| `zend_version` | dropped | there is no Zend engine. `Core\Env::VERSION` is the runtime's own version |
+
 ---
 
 ## Not yet classified
@@ -556,4 +602,4 @@ Everything else the inventory lists. `python tools/check-migration.py --report` 
 it is not duplicated here, because a copy would go stale the moment a row lands. The domains still to do,
 each roughly one pass: files and streams, output and buffering, sessions and requests, reflection and the
 class API, hashing and passwords, XML, compression, the four database extensions, processes, networking,
-INI and runtime configuration, and PHP's own introspection.
+and PHP's own introspection.
