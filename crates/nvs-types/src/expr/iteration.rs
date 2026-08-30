@@ -198,29 +198,11 @@ pub(crate) fn classify_foreach_source(
 
 /// The element type an `implements` clause named, with the *subject's* own
 /// type arguments substituted in — the receiver-driven binding
-/// [`crate::generics`] describes, at the one site that is not a call.
-///
-/// A user class fixes its interface at a concrete type (ADR 0053 § 2), so this
-/// is the identity for every subject a program declares. `Core`'s § 9
-/// collections are what need it: `Core\ObjectMap<K, V>` implements
-/// `Iterable<K>` for whatever `K` the subject was constructed at, so the
-/// element comes back as that variable and the receiver is the only thing that
-/// can say what it is. Anything the receiver leaves unbound substitutes to
-/// `mixed`, which is [`crate::generics`]' standing answer and keeps the "a type
-/// variable never survives" property this crate relies on.
+/// [`crate::generics::with_class_args`] owns, at the one site that is not a
+/// call. That function's own docs are why it exists and what it answers for a
+/// class a program declared.
 fn with_subject_args(qname: &QName, args: &[TypeId], element: TypeId, env: &mut Env<'_>) -> TypeId {
-    if args.is_empty() {
-        return element;
-    }
-    let Some(params) = nvs_stdlib::registry::class_type_params(&qname.to_string()) else {
-        return element;
-    };
-    let bindings: crate::generics::Bindings = params
-        .iter()
-        .map(|name| (*name).to_owned())
-        .zip(args.iter().copied())
-        .collect();
-    crate::generics::substitute(element, &bindings, env.interner)
+    crate::generics::with_class_args(qname, args, element, env.interner)
 }
 
 pub(crate) fn report_not_iterable(subject_ty: TypeId, span: Span, env: &mut Env<'_>) {

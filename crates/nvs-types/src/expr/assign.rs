@@ -139,9 +139,14 @@ pub(crate) fn is_assignable(
     {
         return true;
     }
-    if let (Ty::Class(from_q, _), Ty::Class(to_q, to_args)) = (interner.get(from), interner.get(to))
+    if let (Ty::Class(from_q, from_args), Ty::Class(to_q, to_args)) =
+        (interner.get(from), interner.get(to))
     {
-        return class_satisfied(from_q, to_q, to_args, graph, signatures);
+        let (from_q, from_args) = (from_q.clone(), from_args.clone());
+        let (to_q, to_args) = (to_q.clone(), to_args.clone());
+        return class_satisfied(
+            &from_q, &from_args, &to_q, &to_args, interner, graph, signatures,
+        );
     }
     if let Ty::Shape(to_fields) = interner.get(to) {
         let to_fields = to_fields.clone();
@@ -203,19 +208,37 @@ pub(crate) fn is_assignable(
 /// one that would be expensive to take back.
 pub(crate) fn class_satisfied(
     from_q: &QName,
+    from_args: &[TypeId],
     to_q: &QName,
     to_args: &[TypeId],
+    interner: &mut TypeInterner,
     graph: &ClassGraph,
     signatures: &SignatureTable,
 ) -> bool {
-    if !nvs_hir::hierarchy::implements_interface(from_q, to_q, graph) {
+    // **Two rosters answer "does this class implement that interface", and a
+    // `Core` class is only in the second.** `nvs_hir`'s graph holds what a
+    // *program* declared; the one thing a `Core` class says about a hierarchy
+    // is seeded straight into the signature table (`crate::core_lib`'s `seed`,
+    // off `nvs_stdlib::registry::ITERABLES`), so it reaches `implements` and
+    // never the graph. Gating on the graph alone is what made
+    // `Core\Arr::from($set)` an `E0401` for a set `foreach` walks.
+    let fixed = crate::signatures::resolve_interface_args(from_q, to_q, signatures, graph);
+    if !nvs_hir::hierarchy::implements_interface(from_q, to_q, graph) && fixed.is_none() {
         return false;
     }
     if to_args.is_empty() {
         return true;
     }
-    crate::signatures::resolve_interface_args(from_q, to_q, signatures, graph)
-        .is_some_and(|args| args == to_args)
+    // Invariant in the argument, as ever — but the arguments compared are the
+    // ones the *receiver* fixed, since what a class wrote for an interface is
+    // written in its own type variables. `crate::generics::with_class_args`
+    // owns that step and its two other callers.
+    fixed.is_some_and(|fixed| {
+        fixed.len() == to_args.len()
+            && fixed.into_iter().zip(to_args).all(|(arg, want)| {
+                crate::generics::with_class_args(from_q, from_args, arg, interner) == *want
+            })
+    })
 }
 
 /// ADR 0036 § 3's structural check for a shape target: `from` must have at

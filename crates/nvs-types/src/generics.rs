@@ -79,7 +79,7 @@
 //! that needs `callable` to carry a signature in the type grammar — a typed
 //! `callable` is its own decision, and ADR 0027 § 2 is where it would be taken.
 
-use nvs_hir::ClassGraph;
+use nvs_hir::{ClassGraph, QName};
 use rustc_hash::FxHashMap;
 
 use crate::signatures::SignatureTable;
@@ -141,32 +141,75 @@ pub(crate) fn callable_shape_var(id: TypeId, interner: &TypeInterner) -> Option<
     }
 }
 
+/// A type an `implements` clause wrote in terms of `qname`'s own type
+/// variables, with the *receiver's* type arguments — `args` — put in.
+///
+/// A user class fixes its interface at a concrete type (ADR 0053 § 2), so this
+/// is the identity for every class a program declares. `Core`'s
+/// docs/spec/01-core-library.md § 9 collections are what need it: a
+/// `Core\ObjectMap<K, V>` implements `Iterable<K>` for whatever `K` its
+/// receiver was constructed at, so [`crate::signatures::resolve_interface_args`]
+/// hands the variable back and the receiver is the only thing that can say what
+/// it stands for. Anything the receiver leaves unbound becomes `mixed`, which
+/// is [`substitute`]'s standing answer and keeps this module's "a type variable
+/// never survives a call site" property.
+///
+/// **Three callers, one rule** — `foreach`'s element type
+/// (`crate::expr::iteration`), the nominal assignability check
+/// (`crate::expr::assign`'s `class_satisfied`) and [`bind`] below all ask the
+/// same question of the same roster, and answering it three ways is how
+/// `Core\Arr::from($set)` came to be refused for a set `foreach` walks happily.
+pub(crate) fn with_class_args(
+    qname: &QName,
+    args: &[TypeId],
+    id: TypeId,
+    interner: &mut TypeInterner,
+) -> TypeId {
+    if args.is_empty() {
+        return id;
+    }
+    let Some(params) = nvs_stdlib::registry::class_type_params(&qname.to_string()) else {
+        return id;
+    };
+    let bindings: Bindings = params
+        .iter()
+        .map(|name| (*name).to_owned())
+        .zip(args.iter().copied())
+        .collect();
+    substitute(id, &bindings, interner)
+}
+
 /// Binds every variable `declared` mentions against the matching position in
 /// `actual`, recording into `out`. See this module's own docs for the
 /// first-binding-wins rule and why there is no failure case: a shape the two
 /// sides do not share simply binds nothing, and the unbound variable becomes
 /// `mixed` in [`substitute`].
+///
+/// **Every arm answers with the pairs to walk into, and the walk runs after the
+/// `match` rather than inside it.** One arm has to substitute, which needs the
+/// interner mutably, and a scrutinee's borrow lasts the whole match. The arms
+/// are mutually exclusive, so a call has exactly one group of pairs and
+/// first-binding-wins is unaffected by where the recursion sits.
 pub(crate) fn bind(
     declared: TypeId,
     actual: TypeId,
-    interner: &TypeInterner,
+    interner: &mut TypeInterner,
     graph: &ClassGraph,
     signatures: &SignatureTable,
     out: &mut Bindings,
 ) {
-    match (interner.get(declared), interner.get(actual)) {
+    // The one arm whose pairs cannot be read straight off the two types: what
+    // a class fixed for an interface is written in the class's own variables,
+    // so the pairs exist only once `with_class_args` has put the receiver's
+    // arguments in.
+    let mut through_interface: Option<(QName, Vec<TypeId>, QName, Vec<TypeId>)> = None;
+    let pairs: Vec<(TypeId, TypeId)> = match (interner.get(declared), interner.get(actual)) {
         (Ty::TypeVar(name), _) => {
             out.entry(name.clone()).or_insert(actual);
+            Vec::new()
         }
         (Ty::Array(declared_elem), Ty::Array(actual_elem)) => {
-            bind(
-                *declared_elem,
-                *actual_elem,
-                interner,
-                graph,
-                signatures,
-                out,
-            );
+            vec![(*declared_elem, *actual_elem)]
         }
         // `Iterator<T>` against `Iterator<int>` — ADR 0053 § 2's generic
         // interfaces, the only class-shaped type that carries arguments at
@@ -176,14 +219,11 @@ pub(crate) fn bind(
         (Ty::Class(declared_q, declared_args), Ty::Class(actual_q, actual_args))
             if declared_q == actual_q && declared_args.len() == actual_args.len() =>
         {
-            let pairs: Vec<(TypeId, TypeId)> = declared_args
+            declared_args
                 .iter()
                 .copied()
                 .zip(actual_args.iter().copied())
-                .collect();
-            for (declared_arg, actual_arg) in pairs {
-                bind(declared_arg, actual_arg, interner, graph, signatures, out);
-            }
+                .collect()
         }
         // The same pair reached through `implements` rather than by name:
         // `Iterable<T>` against a `class Counter implements Iterable<int>`,
@@ -195,25 +235,21 @@ pub(crate) fn bind(
         // `nvs_stdlib::registry::CoreTy::Iterated` is what needs it: without
         // it `Core\Arr::from($counter)` would bind nothing and answer
         // `array<mixed>` for a sequence whose element type is written down.
-        (Ty::Class(declared_q, declared_args), Ty::Class(actual_q, _))
+        // What that lookup answers with is written in *`actual_q`'s* own
+        // variables, which is why [`with_class_args`] stands between it and
+        // the recursion: a `Core\ObjectMap<Tag, int>` fixes `Iterable<K>`, and
+        // binding `T` to a bare `K` is how `Core\Arr::from` came to answer
+        // `array<K>`.
+        (Ty::Class(declared_q, declared_args), Ty::Class(actual_q, actual_args))
             if !declared_args.is_empty() && declared_q != actual_q =>
         {
-            let Some(actual_args) =
-                crate::signatures::resolve_interface_args(actual_q, declared_q, signatures, graph)
-            else {
-                return;
-            };
-            if declared_args.len() != actual_args.len() {
-                return;
-            }
-            let pairs: Vec<(TypeId, TypeId)> = declared_args
-                .iter()
-                .copied()
-                .zip(actual_args.iter().copied())
-                .collect();
-            for (declared_arg, actual_arg) in pairs {
-                bind(declared_arg, actual_arg, interner, graph, signatures, out);
-            }
+            through_interface = Some((
+                declared_q.clone(),
+                declared_args.clone(),
+                actual_q.clone(),
+                actual_args.clone(),
+            ));
+            Vec::new()
         }
         // A declared **union**, which is where a registry row's
         // `array<T>|Iterable<T>|Iterator<T>` and its `?T` both arrive: bind
@@ -221,12 +257,7 @@ pub(crate) fn bind(
         // one member can match a given argument structurally — an array is not
         // a class, and `null` binds nothing — so the interner's canonical
         // member order does not decide the answer.
-        (Ty::Union(members), _) => {
-            let members = members.clone();
-            for member in members {
-                bind(member, actual, interner, graph, signatures, out);
-            }
-        }
+        (Ty::Union(members), _) => members.iter().map(|member| (*member, actual)).collect(),
         // A bag never appears on the `actual` side — a call site writes an
         // object literal, which infers to a `Ty::Shape` — so the pair below
         // covers both, and binding a bag's option types against a matching
@@ -234,28 +265,29 @@ pub(crate) fn bind(
         (
             Ty::Shape(declared_fields) | Ty::Options(declared_fields),
             Ty::Shape(actual_fields) | Ty::Options(actual_fields),
-        ) => {
-            let pairs: Vec<(TypeId, TypeId)> = declared_fields
-                .iter()
-                .filter_map(|(name, declared_field)| {
-                    actual_fields
-                        .iter()
-                        .find(|(n, _)| n == name)
-                        .map(|(_, actual_field)| (*declared_field, *actual_field))
-                })
-                .collect();
-            for (declared_field, actual_field) in pairs {
-                bind(
-                    declared_field,
-                    actual_field,
-                    interner,
-                    graph,
-                    signatures,
-                    out,
-                );
-            }
+        ) => declared_fields
+            .iter()
+            .filter_map(|(name, declared_field)| {
+                actual_fields
+                    .iter()
+                    .find(|(n, _)| n == name)
+                    .map(|(_, actual_field)| (*declared_field, *actual_field))
+            })
+            .collect(),
+        _ => Vec::new(),
+    };
+    if let Some((declared_q, declared_args, actual_q, actual_args)) = through_interface
+        && let Some(fixed) =
+            crate::signatures::resolve_interface_args(&actual_q, &declared_q, signatures, graph)
+        && fixed.len() == declared_args.len()
+    {
+        for (declared_arg, fixed_arg) in declared_args.into_iter().zip(fixed) {
+            let actual_arg = with_class_args(&actual_q, &actual_args, fixed_arg, interner);
+            bind(declared_arg, actual_arg, interner, graph, signatures, out);
         }
-        _ => {}
+    }
+    for (declared, actual) in pairs {
+        bind(declared, actual, interner, graph, signatures, out);
     }
 }
 
@@ -344,7 +376,7 @@ mod tests {
     /// `crate::core_lib`'s own tests, where a seeded table exists. A local
     /// item shadows a glob-imported name, so each call site below reads
     /// exactly as it did before that arm.
-    fn bind(declared: TypeId, actual: TypeId, interner: &TypeInterner, out: &mut Bindings) {
+    fn bind(declared: TypeId, actual: TypeId, interner: &mut TypeInterner, out: &mut Bindings) {
         super::bind(
             declared,
             actual,
@@ -361,7 +393,7 @@ mod tests {
         let t = interner.type_var("T");
         let int = interner.int();
         let mut bindings = Bindings::default();
-        bind(t, int, &interner, &mut bindings);
+        bind(t, int, &mut interner, &mut bindings);
         assert_eq!(bindings.get("T"), Some(&int));
     }
 
@@ -374,7 +406,7 @@ mod tests {
         let int = interner.int();
         let actual = interner.array(int);
         let mut bindings = Bindings::default();
-        bind(declared, actual, &interner, &mut bindings);
+        bind(declared, actual, &mut interner, &mut bindings);
         assert_eq!(bindings.get("T"), Some(&int));
         assert_eq!(substitute(declared, &bindings, &mut interner), actual);
     }
@@ -386,8 +418,8 @@ mod tests {
         let int = interner.int();
         let string = interner.string();
         let mut bindings = Bindings::default();
-        bind(t, int, &interner, &mut bindings);
-        bind(t, string, &interner, &mut bindings);
+        bind(t, int, &mut interner, &mut bindings);
+        bind(t, string, &mut interner, &mut bindings);
         assert_eq!(bindings.get("T"), Some(&int));
     }
 
@@ -411,7 +443,7 @@ mod tests {
         let declared = interner.array(t);
         let int = interner.int();
         let mut bindings = Bindings::default();
-        bind(declared, int, &interner, &mut bindings);
+        bind(declared, int, &mut interner, &mut bindings);
         assert!(bindings.is_empty());
     }
 
@@ -429,7 +461,7 @@ mod tests {
         assert_eq!(callback_result_var(callable, &interner), None);
 
         let mut bindings = Bindings::default();
-        bind(declared, callable, &interner, &mut bindings);
+        bind(declared, callable, &mut interner, &mut bindings);
         assert!(bindings.is_empty());
     }
 

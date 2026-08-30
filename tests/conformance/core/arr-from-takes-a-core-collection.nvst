@@ -1,0 +1,83 @@
+--TEST--
+`Core\Arr::from` accepts every § 9 collection `foreach` walks, and agrees with it element for element — docs/spec/01-core-library.md §§ 2 and 9, ADR 0053 § 3
+--FILE--
+<?nvs
+final class Tag {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+Tag $red = new Tag("red");
+Tag $blue = new Tag("blue");
+Tag $green = new Tag("green");
+
+Core\ObjectSet<Tag> $set = new Core\ObjectSet<Tag>();
+$set->add($red);
+$set->add($blue);
+$set->add($green);
+
+Core\ObjectMap<Tag, int> $map = new Core\ObjectMap<Tag, int>();
+$map->set($red, 1);
+$map->set($blue, 2);
+$map->set($green, 3);
+
+Core\Heap<Tag> $heap = new Core\Heap<Tag>(fn (Tag $a, Tag $b): int => Core\Str::compare($a->name, $b->name));
+$heap->push($red);
+$heap->push($blue);
+$heap->push($green);
+
+// The declared type is the assertion: `Core\Arr::from`'s parameter is
+// `CoreTy::Iterated`, ADR 0053 § 3's three shapes at once, and a § 9
+// collection satisfies it through the `Iterable<T>` its own class fixes —
+// with the *receiver's* argument put in, so this is an `array<Tag>` and not
+// an `array<T>` or (for the map, which yields its keys) an `array<K>`.
+array<Tag> $fromSet = Core\Arr::from($set);
+array<Tag> $fromMap = Core\Arr::from($map);
+array<Tag> $fromHeap = Core\Arr::from($heap);
+
+// One question asked of all three: what `from` builds is what `foreach`
+// yields, in that order. Asserted as agreement rather than as three frozen
+// orders, so a collection that grew its own traversal fails here while still
+// looking right on its own line.
+string $built = "";
+foreach ($fromSet as Tag $tag) {
+    $built .= $tag->name . ",";
+}
+string $walked = "";
+foreach ($set as Tag $tag) {
+    $walked .= $tag->name . ",";
+}
+echo $built == $walked ? "agree" : "differ", " ", $built, "\n";
+
+$built = "";
+foreach ($fromMap as Tag $tag) {
+    $built .= $tag->name . ",";
+}
+$walked = "";
+foreach ($map as Tag $tag) {
+    $walked .= $tag->name . ",";
+}
+echo $built == $walked ? "agree" : "differ", " ", $built, "\n";
+
+$built = "";
+foreach ($fromHeap as Tag $tag) {
+    $built .= $tag->name . ",";
+}
+$walked = "";
+foreach ($heap as Tag $tag) {
+    $walked .= $tag->name . ",";
+}
+echo $built == $walked ? "agree" : "differ", " ", $built, "\n";
+
+// A plain `array<T>` is one of the three shapes, and an empty collection is
+// the boundary the walk stops at — both go through the same parameter.
+echo Core\Arr::count(Core\Arr::from([$red, $blue])), " ",
+     Core\Arr::count(Core\Arr::from(new Core\ObjectSet<Tag>())), "\n";
+--EXPECT--
+agree red,blue,green,
+agree red,blue,green,
+agree blue,green,red,
+2 0
