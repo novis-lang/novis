@@ -1,0 +1,74 @@
+--TEST--
+Forty values through a `Core\Task\Channel` at seven capacities — including the two on either side of a bound the producer never reaches — deliver one identical stream, counted rather than read off a line — ADR 0072 § 4's "nothing still running" over `nvs_stdlib::channel`
+--FILE--
+<?nvs
+// Invariance over a sweep, and the sweep is the point: capacity is the one
+// thing a channel is constructed with, and every case beside this one fixes it
+// at a single number. A `send` that miscounted the bound by one, a `close`
+// that raced the last value out, or a queue whose key wrapped would each still
+// look right at some capacity and wrong at another — so what is asserted here
+// is that *no* capacity disagrees, not what any one of them answered.
+class Runs {
+    public static int $agreed = 0;
+    public static int $disagreed = 0;
+    public static int $count = 0;
+    public static int $sum = 0;
+    public static int $last = 0;
+    public static bool $ordered = true;
+}
+
+// 1 makes every send after the first suspend; 40 and 41 sit on either side of
+// the bound the producer never reaches, so at those two `send` returns forty
+// times without ever parking and the whole wait is the consumer's. A channel
+// that only worked when it filled fails at 41, and one that only worked when
+// it did not fails at 1.
+array<uint> $caps = [1, 2, 3, 5, 13, 40, 41];
+
+foreach ($caps as uint $capacity) {
+    var $chan = new Core\Task\Channel<int>($capacity);
+    Runs::$count = 0;
+    Runs::$sum = 0;
+    Runs::$last = 0;
+    Runs::$ordered = true;
+
+    // Both halves are children of this call, so ADR 0072 § 4's promise is what
+    // makes the counters final by the time the `if` below reads them: `all`
+    // does not return with the producer or the consumer still running.
+    Core\Task::all({
+        produce: fn(): int => {
+            foreach (Core\Arr::range(1, 40) as int $n) {
+                $chan->send($n);
+            }
+            // The only end-of-stream signal there is; without it the
+            // consumer's `foreach` waits forever and the group never returns.
+            $chan->close();
+            return 40;
+        },
+        consume: fn(): int => {
+            foreach ($chan as int $n) {
+                if ($n != Runs::$last + 1) {
+                    Runs::$ordered = false;
+                }
+                Runs::$last = $n;
+                Runs::$count += 1;
+                Runs::$sum += $n;
+            }
+            return Runs::$count;
+        },
+    });
+
+    // 40 values and 1+2+…+40 = 820. A dropped value moves both counters one
+    // way and a duplicate moves them the other, so the pair pins the multiset
+    // and `$ordered` pins the sequence.
+    if (Runs::$count == 40 && Runs::$sum == 820 && Runs::$ordered) {
+        Runs::$agreed += 1;
+    } else {
+        Runs::$disagreed += 1;
+    }
+}
+
+// Counted, not printed per capacity: a line per run would pass on six of seven
+// and still read plausibly.
+echo Runs::$agreed, " capacities agree, ", Runs::$disagreed, " do not", "\n";
+--EXPECT--
+7 capacities agree, 0 do not

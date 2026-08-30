@@ -1,0 +1,47 @@
+--TEST--
+`Core\Task\Channel::close` is the boundary `send` is asserted on from both sides: the send that fills the bound before it returns and is delivered, and the first send after it is a fatal no `catch` sees — ADR 0072 § 4 over `nvs_stdlib::channel`, ADR 0020 § 0's uncatchable tier
+--FILE--
+<?nvs
+// The neighbouring cases pin what `close` does to values already queued and
+// what the *capacity* does to a sender. Neither asks what happens to a `send`
+// that arrives after the close, which is the one boundary of this class that
+// has an answer a program cannot recover from.
+//
+// No tasks here on purpose: nothing below reaches the bound while the channel
+// is open, so nothing below waits, and a case that needed a scheduler to
+// observe a refusal would be pinning the scheduler as well.
+var $chan = new Core\Task\Channel<int>(2);
+
+// The accepting side. Two sends into a channel of two is the last value the
+// bound takes without suspending — a third would wait for a consumer that does
+// not exist here, so this is the bound reached exactly and not crossed.
+$chan->send(1);
+$chan->send(2);
+$chan->close();
+
+// Both of them really landed, rather than the sends having been accepted and
+// dropped: the refusal below means nothing unless the accepted side is
+// observed rather than assumed.
+foreach ($chan as int $queued) {
+    echo "delivered ", $queued, "\n";
+}
+
+// The refusing side. `send` is `void` and has no failure a caller could read,
+// so a closed channel cannot answer "no" — and it must not answer "yes"
+// either, because the value would be queued behind a stream that has already
+// ended and no consumer will ever take it. That leaves the tier
+// ADR 0020 § 0 reserves for a state with nothing true to report: a fatal,
+// which is not a `Throwable` and which this `catch` therefore never sees.
+try {
+    $chan->send(3);
+    echo "a closed channel accepted a send", "\n";
+} catch (Throwable $never) {
+    echo "unreachable: the refusal was caught", "\n";
+}
+
+echo "unreachable", "\n";
+--EXPECT--
+delivered 1
+delivered 2
+--EXPECT-ERROR--
+FATAL: Core\Task\Channel::send was called on a closed channel
