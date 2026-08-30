@@ -1180,6 +1180,17 @@ pub mod code {
     /// it so that no assignment in a root-owned file is ever silently shadowed;
     /// across an `[[include]]` the same key is an override instead (ADR 0103 § 3).
     pub const E_DUPLICATE_DIRECTIVE: Code = Code::new("E0604");
+    /// A file the configuration tree names cannot be read: a `--config` that does
+    /// not exist, a non-`optional` `[[include]]` that does not, or an I/O failure
+    /// on one that does. ADR 0103 § 6 makes every one of these a hard refusal —
+    /// `optional` covers absence and nothing else, because otherwise a stray
+    /// `chmod` silently drops half a configuration and the server comes up
+    /// looking healthy.
+    pub const E_UNREADABLE_CONFIG: Code = Code::new("E0605");
+    /// An `[[include]]` reached a file already on the chain that pulled it in, or
+    /// nested deeper than ADR 0103 § 2's cap of eight. The refusal names the whole
+    /// chain, because the cycle is a property of the path and not of its last file.
+    pub const E_INCLUDE_CYCLE: Code = Code::new("E0606");
 
     // --- E07xx types, continued --------------------------------------------
     //

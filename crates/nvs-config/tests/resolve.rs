@@ -1,0 +1,445 @@
+//! ADR 0103's tree: which file is the root, which files it reaches, and what the one ordered stream
+//! they flatten to says.
+//!
+//! Every case runs against an in-memory [`Files`], not a temporary directory. That is not a
+//! convenience: § 2 **mandates** the order a `dir` include is read in rather than inheriting
+//! `readdir`'s, so a case that got its order from a real filesystem would pass by accident on the
+//! host that happens to return entries sorted and prove nothing.
+
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+
+use nvs_config::resolve::{Files, MAX_INCLUDE_DEPTH, Resolved, Roots, resolve, roots};
+use nvs_config::{Setting, tree};
+use nvs_diagnostics::{Diagnostic, SourceMap, code};
+
+/// A path written the way an ADR writes one, as a path the host spells its own way.
+fn p(path: &str) -> PathBuf {
+    path.split('/').collect()
+}
+
+/// The filesystem the cases describe: a name-to-text map, with directories implied by it.
+#[derive(Default)]
+struct Fake {
+    files: BTreeMap<PathBuf, String>,
+}
+
+impl Fake {
+    fn with(entries: &[(&str, &str)]) -> Self {
+        Self {
+            files: entries
+                .iter()
+                .map(|(path, text)| (p(path), (*text).to_string()))
+                .collect(),
+        }
+    }
+}
+
+impl Files for Fake {
+    fn read(&self, path: &Path) -> Result<String, String> {
+        self.files
+            .get(path)
+            .cloned()
+            .ok_or_else(|| "no such file".to_string())
+    }
+
+    /// Deliberately **reverse** sorted, so a case that passes is one where the resolver did the
+    /// ordering § 2 mandates rather than one where the reader happened to.
+    fn list(&self, dir: &Path) -> Result<Vec<PathBuf>, String> {
+        let mut entries: Vec<PathBuf> = self
+            .files
+            .keys()
+            .filter(|path| path.parent() == Some(dir))
+            .cloned()
+            .collect();
+        entries.reverse();
+        Ok(entries)
+    }
+
+    /// A directory exists when the map holds anything under it, which is every directory a case has
+    /// a reason to name.
+    fn exists(&self, path: &Path) -> bool {
+        self.files.contains_key(path) || self.files.keys().any(|file| file.starts_with(path))
+    }
+}
+
+/// Resolves `root` in `fs`, panicking with the refusal when it does not.
+fn tree_of(fs: &Fake, root: &str) -> Resolved {
+    let mut sources = SourceMap::new();
+    resolve(&Roots::Files(vec![p(root)]), &mut sources, fs)
+        .unwrap_or_else(|err| panic!("refused: {} [{:?}]", err.message, err.notes))
+}
+
+/// The refusal resolving `root` produces, panicking when it is accepted instead.
+fn refusal(fs: &Fake, root: &str) -> Diagnostic {
+    let mut sources = SourceMap::new();
+    resolve(&Roots::Files(vec![p(root)]), &mut sources, fs)
+        .expect_err("this tree should have been refused")
+}
+
+/// `[limits] memory` out of a resolved tree, which is the value most cases assert on.
+fn memory(resolved: &Resolved) -> Option<&Setting> {
+    resolved.config.limits.as_ref()?.memory.as_ref()
+}
+
+/// § 1 steps 1 and 2: `--config` is repeatable and ordered, and **any** explicit `--config` disables
+/// the `./nvs.toml` step entirely — an operator naming files never gets a surprise merge with
+/// whatever is in the working directory.
+#[test]
+fn the_root_is_every_config_flag_in_order_else_the_local_file() {
+    let fs = Fake::with(&[("app/nvs.toml", ""), ("etc/base.toml", "")]);
+
+    assert_eq!(
+        roots(&[p("etc/base.toml"), p("app/nvs.toml")], Path::new(""), &fs),
+        Roots::Files(vec![p("etc/base.toml"), p("app/nvs.toml")]),
+        "the flags are the list, in the order given",
+    );
+    assert_eq!(
+        roots(&[], &p("app"), &fs),
+        Roots::Files(vec![p("app/nvs.toml")]),
+        "with no flag, exactly this directory's file",
+    );
+    assert_eq!(
+        roots(&[p("etc/base.toml")], &p("app"), &fs),
+        Roots::Files(vec![p("app/etc/base.toml")]),
+        "a flag disables step 2 even though `app/nvs.toml` is right there — and the flag itself \
+         resolves against the working directory, because that is what a shell argument means (§ 5)",
+    );
+}
+
+/// § 1 steps 2 and 3: `./nvs.toml` is **exactly one directory, never a walk upward**, so a nested
+/// directory falls through to the shipped defaults rather than finding its parent's file.
+#[test]
+fn the_local_file_is_not_searched_for_upward() {
+    let fs = Fake::with(&[("app/nvs.toml", "")]);
+
+    assert_eq!(roots(&[], &p("app/sub"), &fs), Roots::Defaults);
+}
+
+/// § 1 step 3: nothing found is a complete and valid configuration, not a failure.
+#[test]
+fn the_shipped_defaults_resolve_to_the_default_tree() {
+    let mut sources = SourceMap::new();
+    let resolved = resolve(&Roots::Defaults, &mut sources, &Fake::default())
+        .expect("the shipped defaults are a configuration");
+
+    assert_eq!(resolved.config, nvs_config::Config::default());
+    assert!(resolved.files.is_empty());
+    assert!(resolved.overrides.is_empty());
+}
+
+/// § 3: an include overrides the file that pulled it in — the base-plus-local shape, with the
+/// include line at the point the operator wants overridden — and **both origins are recorded**.
+/// That record is the whole of what makes later-wins acceptable here, so it is asserted, not the
+/// winning value alone.
+#[test]
+fn a_later_file_wins_and_the_override_names_both_origins() {
+    let fs = Fake::with(&[
+        (
+            "etc/nvs.toml",
+            "[[include]]\npath = \"local.toml\"\n\n[limits]\nmemory = \"128M\"\n",
+        ),
+        ("etc/local.toml", "[limits]\nmemory = \"512M\"\n"),
+    ]);
+    let resolved = tree_of(&fs, "etc/nvs.toml");
+
+    assert_eq!(memory(&resolved), Some(&Setting::Text("512M".to_string())));
+    assert_eq!(resolved.files, vec![p("etc/nvs.toml"), p("etc/local.toml")]);
+
+    let record = resolved
+        .overrides
+        .first()
+        .expect("§ 3 requires the override to be recorded");
+    assert_eq!(record.key, "limits.memory");
+    assert_eq!(record.replaced.path, p("etc/nvs.toml"));
+    assert_eq!(record.winner.path, p("etc/local.toml"));
+    assert_eq!(
+        resolved.overrides.len(),
+        1,
+        "a key written once in each of two files is one override, not two",
+    );
+}
+
+/// § 3: the stream is the root's own keys, *then* its includes depth-first in list order. Asserted
+/// on the file list rather than on a value, because a resolver that read the right files in the
+/// wrong order still answers plausibly for any single key.
+#[test]
+fn includes_are_depth_first_in_list_order_after_the_files_own_keys() {
+    let fs = Fake::with(&[
+        (
+            "etc/nvs.toml",
+            "[[include]]\npath = \"a.toml\"\n\n[[include]]\npath = \"c.toml\"\n",
+        ),
+        ("etc/a.toml", "[[include]]\npath = \"b.toml\"\n"),
+        ("etc/b.toml", ""),
+        ("etc/c.toml", ""),
+    ]);
+
+    assert_eq!(
+        tree_of(&fs, "etc/nvs.toml").files,
+        vec![
+            p("etc/nvs.toml"),
+            p("etc/a.toml"),
+            p("etc/b.toml"),
+            p("etc/c.toml"),
+        ],
+    );
+}
+
+/// § 2: a `dir` include reads every `*.toml` **directly** inside, ascending by filename, without
+/// recursing and without touching anything that is not a `.toml`. The fake reader hands them back
+/// reversed on purpose.
+#[test]
+fn a_dir_include_is_sorted_shallow_and_toml_only() {
+    let fs = Fake::with(&[
+        ("etc/nvs.toml", "[[include]]\ndir = \"conf.d\"\n"),
+        ("etc/conf.d/20-db.toml", ""),
+        ("etc/conf.d/10-limits.toml", ""),
+        ("etc/conf.d/README.md", "not toml"),
+        ("etc/conf.d/nested/30-more.toml", ""),
+    ]);
+
+    assert_eq!(
+        tree_of(&fs, "etc/nvs.toml").files,
+        vec![
+            p("etc/nvs.toml"),
+            p("etc/conf.d/10-limits.toml"),
+            p("etc/conf.d/20-db.toml"),
+        ],
+    );
+}
+
+/// § 4, both sides of the split named together: `key = [...]` is one value and is replaced
+/// wholesale, so the last file that mentions a grant states the whole grant; `[[table]]` entries
+/// accumulate, because two of them in one file already mean two.
+#[test]
+fn a_value_array_replaces_where_an_array_of_tables_appends() {
+    let fs = Fake::with(&[
+        (
+            "etc/nvs.toml",
+            "[[include]]\npath = \"local.toml\"\n\n[capabilities]\nscript.spawn = [\"/srv/a\", \"/srv/b\"]\n\n[[schedule]]\nname = \"one\"\n",
+        ),
+        (
+            "etc/local.toml",
+            "[capabilities]\nscript.spawn = [\"/srv/c\"]\n\n[[schedule]]\nname = \"two\"\n",
+        ),
+    ]);
+    let resolved = tree_of(&fs, "etc/nvs.toml");
+
+    assert_eq!(
+        resolved
+            .config
+            .capabilities
+            .and_then(|caps| caps.script)
+            .and_then(|script| script.spawn),
+        Some(Setting::List(vec!["/srv/c".to_string()])),
+        "no reader should have to assemble an effective root list out of four files",
+    );
+    assert_eq!(
+        resolved
+            .config
+            .schedule
+            .iter()
+            .filter_map(|entry| entry.name.as_deref())
+            .collect::<Vec<_>>(),
+        vec!["one", "two"],
+    );
+}
+
+/// § 5: a relative path resolves against the directory of the file it is written in, which is the
+/// only rule under which a config directory survives being copied or relocated whole.
+#[test]
+fn a_relative_include_resolves_against_the_file_it_is_written_in() {
+    let fs = Fake::with(&[
+        ("etc/nvs.toml", "[[include]]\npath = \"conf.d/db.toml\"\n"),
+        (
+            "etc/conf.d/db.toml",
+            "[[include]]\npath = \"deeper/more.toml\"\n",
+        ),
+        (
+            "etc/conf.d/deeper/more.toml",
+            "[limits]\nmemory = \"64M\"\n",
+        ),
+    ]);
+    let resolved = tree_of(&fs, "etc/nvs.toml");
+
+    assert_eq!(memory(&resolved), Some(&Setting::Text("64M".to_string())));
+    assert_eq!(resolved.files.len(), 3);
+}
+
+/// § 2: a cycle is refused with the chain named. The chain and not merely the repeated file, because
+/// an operator shown only the file that repeated has to rediscover how it was reached.
+#[test]
+fn an_include_cycle_is_refused_with_the_chain_named() {
+    let fs = Fake::with(&[
+        ("etc/nvs.toml", "[[include]]\npath = \"a.toml\"\n"),
+        ("etc/a.toml", "[[include]]\npath = \"b.toml\"\n"),
+        ("etc/b.toml", "[[include]]\npath = \"a.toml\"\n"),
+    ]);
+    let diagnostic = refusal(&fs, "etc/nvs.toml");
+
+    assert_eq!(diagnostic.code, Some(code::E_INCLUDE_CYCLE));
+    let chain = diagnostic.notes.join(" ");
+    for file in ["a.toml", "b.toml"] {
+        assert!(
+            chain.contains(file),
+            "the chain should name {file}: {chain}"
+        );
+    }
+}
+
+/// § 2's depth cap, which is also the backstop for a cycle a symlink hid — the case a lexical path
+/// comparison cannot see.
+#[test]
+fn nesting_past_the_cap_is_refused() {
+    let mut entries: Vec<(String, String)> = Vec::new();
+    for depth in 0..=MAX_INCLUDE_DEPTH + 2 {
+        entries.push((
+            format!("etc/{depth}.toml"),
+            format!("[[include]]\npath = \"{}.toml\"\n", depth + 1),
+        ));
+    }
+    entries.push((format!("etc/{}.toml", MAX_INCLUDE_DEPTH + 3), String::new()));
+    let borrowed: Vec<(&str, &str)> = entries
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_str()))
+        .collect();
+
+    let diagnostic = refusal(&Fake::with(&borrowed), "etc/0.toml");
+    assert_eq!(diagnostic.code, Some(code::E_INCLUDE_CYCLE));
+    assert!(
+        diagnostic.message.contains(&MAX_INCLUDE_DEPTH.to_string()),
+        "the refusal should say what the cap is: {}",
+        diagnostic.message,
+    );
+}
+
+/// § 6: `optional = true` covers **absence and nothing else**, and the two halves are asserted
+/// together — a resolver that skipped every failing include would pass on the first half alone.
+#[test]
+fn optional_covers_absence_and_a_missing_include_otherwise_refuses() {
+    let present = Fake::with(&[(
+        "etc/nvs.toml",
+        "[[include]]\npath = \"gone.toml\"\noptional = true\n\n[limits]\nmemory = \"1M\"\n",
+    )]);
+    let resolved = tree_of(&present, "etc/nvs.toml");
+    assert_eq!(memory(&resolved), Some(&Setting::Text("1M".to_string())));
+    assert_eq!(resolved.files, vec![p("etc/nvs.toml")]);
+
+    let absent = Fake::with(&[("etc/nvs.toml", "[[include]]\npath = \"gone.toml\"\n")]);
+    let diagnostic = refusal(&absent, "etc/nvs.toml");
+    assert_eq!(diagnostic.code, Some(code::E_UNREADABLE_CONFIG));
+    assert!(
+        diagnostic.message.contains("gone.toml"),
+        "the refusal names the path: {}",
+        diagnostic.message,
+    );
+}
+
+/// § 1: a `--config` naming a file that does not exist is **always** a hard refusal. Optionality is
+/// a property a file declares about its own includes, never something argv can assert.
+#[test]
+fn a_config_flag_naming_a_missing_file_is_a_hard_refusal() {
+    let diagnostic = refusal(&Fake::default(), "etc/nvs.toml");
+
+    assert_eq!(diagnostic.code, Some(code::E_UNREADABLE_CONFIG));
+}
+
+/// § 2: an entry carries `path` **or** `dir`, never both and never neither. A shape TOML cannot
+/// express, so it is a refusal rather than a type.
+#[test]
+fn an_include_entry_carrying_both_or_neither_is_refused() {
+    for entry in [
+        "[[include]]\npath = \"a.toml\"\ndir = \"conf.d\"\n",
+        "[[include]]\noptional = true\n",
+    ] {
+        let fs = Fake::with(&[("etc/nvs.toml", entry)]);
+        let diagnostic = refusal(&fs, "etc/nvs.toml");
+        assert_eq!(
+            diagnostic.code,
+            Some(code::E_BAD_DIRECTIVE),
+            "for {entry:?}"
+        );
+    }
+}
+
+/// ADR 0064 § 3's refusals stay **per file** across an include: the same key in two files is an
+/// override, and twice in one file is still an error — asserted as one pair, because a resolver that
+/// merged first and typed afterwards would get the first half right and lose the second entirely.
+#[test]
+fn the_per_file_refusals_survive_the_merge() {
+    let across = Fake::with(&[
+        (
+            "etc/nvs.toml",
+            "[[include]]\npath = \"local.toml\"\n\n[limits]\nmemory = \"128M\"\n",
+        ),
+        ("etc/local.toml", "[limits]\nmemory = \"256M\"\n"),
+    ]);
+    assert_eq!(
+        memory(&tree_of(&across, "etc/nvs.toml")),
+        Some(&Setting::Text("256M".to_string())),
+    );
+
+    let within = Fake::with(&[
+        ("etc/nvs.toml", "[[include]]\npath = \"local.toml\"\n"),
+        (
+            "etc/local.toml",
+            "[limits]\nmemory = \"128M\"\nmemory = \"256M\"\n",
+        ),
+    ]);
+    let diagnostic = refusal(&within, "etc/nvs.toml");
+    assert_eq!(diagnostic.code, Some(code::E_DUPLICATE_DIRECTIVE));
+}
+
+/// An unknown key inside an *included* file is refused against that file's own text, so the line and
+/// the block named belong to the file the operator has to edit.
+#[test]
+fn an_unknown_key_in_an_included_file_names_that_file() {
+    let fs = Fake::with(&[
+        ("etc/nvs.toml", "[[include]]\npath = \"local.toml\"\n"),
+        ("etc/local.toml", "[limits]\nmemry = \"128M\"\n"),
+    ]);
+    let mut sources = SourceMap::new();
+    let diagnostic = resolve(&Roots::Files(vec![p("etc/nvs.toml")]), &mut sources, &fs)
+        .expect_err("an unknown key is refused wherever it is written");
+
+    assert_eq!(diagnostic.code, Some(code::E_BAD_DIRECTIVE));
+    assert!(
+        diagnostic
+            .notes
+            .iter()
+            .any(|note| note.contains("[limits]")),
+        "the block travels with the refusal: {:?}",
+        diagnostic.notes,
+    );
+    let span = diagnostic
+        .primary_span()
+        .expect("and so does the line it was written on");
+    assert_eq!(
+        sources.file(span.file).name(),
+        p("etc/local.toml").display().to_string(),
+        "the span points into the included file, not the root",
+    );
+}
+
+/// A block written in one file and extended in another merges rather than replacing: two files each
+/// setting a different key of `[limits]` leave both set.
+#[test]
+fn two_files_setting_different_keys_of_one_block_both_survive() {
+    let fs = Fake::with(&[
+        (
+            "etc/nvs.toml",
+            "[[include]]\npath = \"local.toml\"\n\n[limits]\nmemory = \"128M\"\n",
+        ),
+        ("etc/local.toml", "[limits]\ncpu_time = \"5s\"\n"),
+    ]);
+    let resolved = tree_of(&fs, "etc/nvs.toml");
+    let limits: tree::Limits = resolved.config.limits.expect("the block survives");
+
+    assert_eq!(limits.memory, Some(Setting::Text("128M".to_string())));
+    assert_eq!(limits.cpu_time, Some(Setting::Text("5s".to_string())));
+    assert!(
+        resolved.overrides.is_empty(),
+        "neither key replaced the other, so there is nothing to report",
+    );
+}
