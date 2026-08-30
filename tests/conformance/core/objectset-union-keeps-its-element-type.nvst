@@ -1,0 +1,59 @@
+--TEST--
+`Core\ObjectSet<T>`'s `union`, `intersect` and `diff` each answer at the receiver's own element type, so the three compose — docs/spec/01-core-library.md § 9
+--FILE--
+<?nvs
+final class Tag {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+Tag $red = new Tag("red");
+Tag $blue = new Tag("blue");
+Tag $green = new Tag("green");
+
+Core\ObjectSet<Tag> $left = new Core\ObjectSet<Tag>();
+$left->add($red);
+$left->add($blue);
+
+Core\ObjectSet<Tag> $right = new Core\ObjectSet<Tag>();
+$right->add($blue);
+$right->add($green);
+
+// The declared type is half the assertion: a member answering the bare
+// `Core\ObjectSet` the registry row spells would not satisfy any of these
+// three, since a written argument is invariant.
+Core\ObjectSet<Tag> $union = $left->union($right);
+Core\ObjectSet<Tag> $common = $left->intersect($right);
+Core\ObjectSet<Tag> $only = $left->diff($right);
+
+// The other half is the binding: `foreach … as Tag $tag` over a set whose
+// element stayed the class's own `T` is `expected Tag, found T`. One question
+// asked of all three, so a member that grew its own answer fails here while
+// still counting right on its own line.
+string $names = "";
+foreach ($union as Tag $tag) {
+    $names .= $tag->name . ",";
+}
+foreach ($common as Tag $tag) {
+    $names .= $tag->name . ",";
+}
+foreach ($only as Tag $tag) {
+    $names .= $tag->name . ",";
+}
+echo $names, "\n";
+
+// Composing is what the element type buys, and it is writable only because
+// each answer is the same type its receiver was.
+echo $left->union($right)->diff($left->intersect($right))->count(), "\n";
+
+// And out again through `Core\Arr::from`, whose `CoreTy::Iterated` parameter
+// reads the element off the very same `Iterable<T>`.
+array<Tag> $flat = Core\Arr::from($left->diff($right));
+echo Core\Arr::count($flat), " ", $flat[0]->name, "\n";
+--EXPECT--
+red,blue,green,blue,red,
+2
+1 red

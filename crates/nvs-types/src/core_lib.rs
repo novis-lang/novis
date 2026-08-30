@@ -410,7 +410,29 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // already put the class in this very table, so `resolve_method` finds
         // `$match->text()` through the machinery `$animal->name()` goes
         // through, and `nvs-ir` lowers the value to `Ty::Object`.
-        CoreTy::Instance(name) => interner.class(QName::parse(name)),
+        //
+        // **A generic one is interned at its own type variables**, never bare.
+        // `Core\ObjectSet::union` answers `CoreTy::Instance(NAME)`, and what an
+        // instance of a generic class *is* is that class at some arguments —
+        // so writing none of them is what made `$set->union($other)` answer a
+        // bare `Core\ObjectSet` and lose the element the receiver was built at.
+        // Every site that reaches one then fixes the variable the way it fixes
+        // any other: an instance member through
+        // `crate::expr::args::substitute_receiver_args`, a written
+        // `new Core\ObjectSet<Tag>()` through the type arguments themselves.
+        CoreTy::Instance(name) => {
+            let qname = QName::parse(name);
+            match nvs_stdlib::registry::class_type_params(name) {
+                Some(params) => {
+                    let args: Vec<TypeId> = params
+                        .iter()
+                        .map(|param| interner.type_var(*param))
+                        .collect();
+                    interner.generic_class(qname, args)
+                }
+                None => interner.class(qname),
+            }
+        }
         // ADR 0053 § 3's three iterable shapes, interned as the union of all
         // three — [`CoreTy::Iterated`] owns why an `array<T>` is one of them
         // and how a helper reads the argument back. The two interface members
