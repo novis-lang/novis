@@ -450,6 +450,7 @@ pub(crate) fn infer_new(
     let sig = resolved.map(|(_, sig)| sig);
     let (arg_types, slots, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
     if let Some(qname) = &target_qname {
+        reject_abstract_instantiation(target, qname, expr.span, env);
         reject_secret_throwable_message(qname, arg_types.first().copied(), expr.span, env);
         // A `Core`-owned class has no constructor and never will: its instances
         // come from the member that produces one, and its slots are
@@ -485,6 +486,55 @@ pub(crate) fn infer_new(
         );
     }
     target_ty
+}
+
+/// Refuses `new` on a declaration that has no instances — an `abstract`
+/// class or an interface (`E_ABSTRACT_INSTANTIATED`).
+///
+/// The question is [`nvs_hir::ClassLinks::concrete`], asked of the class
+/// graph rather than answered from a table of this crate's own: that field
+/// exists because `implementors` already needed it, and its own doc comment
+/// says why a second table consulted per candidate would only be a second
+/// place for the two to disagree. One lookup covers both shapes, which are
+/// one mistake — a target whose members are not all filled in — and the
+/// message names which of the two was written.
+///
+/// **`new static()` is exempt, and must stay so.** Late static binding
+/// resolves it to the concrete subclass the call arrived through, so an
+/// `abstract` class calling `new static()` in a factory method is the idiom
+/// rather than the error; `new self()` and `new parent()` do name their
+/// class and are refused like any other written name. Reported here rather
+/// than left to `nvs-ir`, which lowers an allocation of a class whose
+/// methods have no compiled function behind them and fails at run time with
+/// `FATAL: internal error: a method with no body was called`.
+fn reject_abstract_instantiation(target: &NewTarget, qname: &QName, span: Span, env: &mut Env<'_>) {
+    if matches!(target, NewTarget::StaticTy) {
+        return;
+    }
+    if env.graph.get(qname).map(|links| links.concrete) != Some(false) {
+        return;
+    }
+    let is_interface =
+        env.symbols.get(qname).map(|symbol| symbol.kind) == Some(nvs_hir::SymbolKind::Interface);
+    let (what, fix) = if is_interface {
+        (
+            format!("`{qname}` is an interface, so it has no instances"),
+            format!("`new` a class that implements `{qname}`"),
+        )
+    } else {
+        (
+            format!("`{qname}` is `abstract`, so it has no instances"),
+            format!(
+                "`new` a subclass that gives every open member a body, or drop `abstract` from \
+                 `{qname}`'s own declaration"
+            ),
+        )
+    };
+    env.diags.report(
+        Diagnostic::error(code::E_ABSTRACT_INSTANTIATED, what)
+            .with_primary(span, "allocated here")
+            .with_help(fix),
+    );
 }
 
 /// Refuses `new C(...)` — the first-class callable sentinel written on `new`

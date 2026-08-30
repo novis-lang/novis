@@ -176,6 +176,54 @@ pub(crate) fn check_class_finality(decl: &ClassDecl, qname: &QName, env: &mut En
     }
 }
 
+/// Reports one `E0786` per method of `decl` written without a body, when
+/// `decl` itself is not `abstract`.
+///
+/// The other half of the rule `expr::calls`' `reject_abstract_instantiation`
+/// enforces at `new`, and here rather than there because this is where the
+/// declaration is: a class that leaves a member open must say so, and a
+/// reader fixing this one is editing the class body rather than a call site.
+///
+/// **The question is the body and not the modifier.** `abstract` is what an
+/// author writes, but what breaks is the missing body: `nvs-ir` skips a
+/// bodiless method (`lower/mod.rs`), so codegen substitutes
+/// `nvs_runtime::nvs_abstract_method` and the call is a run-time `FATAL`
+/// naming no source at all. Both spellings therefore report, and only the
+/// wording differs.
+///
+/// An interface never reaches this — its bodiless members are the contract
+/// [`check_class_conformance`] holds implementors to — and neither does an
+/// `abstract` class, where leaving a member to a subclass is what the
+/// modifier means.
+pub(crate) fn check_abstract_members(decl: &ClassDecl, qname: &QName, env: &mut Env<'_>) {
+    if decl.modifiers.contains(&Modifier::Abstract) {
+        return;
+    }
+    for member in &decl.members {
+        let ClassMemberKind::Method(m) = &member.kind else {
+            continue;
+        };
+        if m.body.is_some() {
+            continue;
+        }
+        let name = span_text(env.src, m.name).to_owned();
+        let written_abstract = m.modifiers.contains(&Modifier::Abstract);
+        let message = if written_abstract {
+            format!("`{qname}::{name}` is `abstract`, but `{qname}` is not")
+        } else {
+            format!("`{qname}::{name}` has no body, but `{qname}` is not `abstract`")
+        };
+        env.diags.report(
+            Diagnostic::error(code::E_ABSTRACT_METHOD_IN_CONCRETE_CLASS, message)
+                .with_primary(m.name, "declared here, with nothing to call")
+                .with_help(format!(
+                    "give it a body, or declare `{qname}` itself `abstract` and instantiate a \
+                     subclass that fills this member in"
+                )),
+        );
+    }
+}
+
 /// Every `(declaring interface, method)` pair `qname` inherits without a
 /// body, in a deterministic order: each ancestor's own methods sorted by
 /// name, ancestors in `extends`-then-`implements` order.

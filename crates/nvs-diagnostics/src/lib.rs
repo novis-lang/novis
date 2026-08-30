@@ -2459,6 +2459,24 @@ pub mod code {
     /// may not be replaced — and a reader fixing one is not fixing the other.
     pub const E_FINAL_METHOD_OVERRIDDEN: Code = Code::new("E0784");
 
+    /// `new` names a declaration that has no instances — an `abstract` class
+    /// or an interface. Both leave members without a body, so the object it
+    /// would allocate could not answer every call its own type admits.
+    pub const E_ABSTRACT_INSTANTIATED: Code = Code::new("E0785");
+
+    /// A class that is not `abstract` declares a method with no body.
+    ///
+    /// Separate from [`E_ABSTRACT_INSTANTIATED`] because it is the other
+    /// direction of the same rule — that one refuses the instance, this one
+    /// refuses the hole — and a class whose declaration is fixed here has no
+    /// `new` to fix.
+    pub const E_ABSTRACT_METHOD_IN_CONCRETE_CLASS: Code = Code::new("E0786");
+
+    /// A write to a property that declares a `get` hook and no `set` hook.
+    /// The accessor pair is the whole of what such a property answers with,
+    /// so a write has nothing to commit through.
+    pub const E_GET_ONLY_HOOK_WRITE: Code = Code::new("E0787");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

@@ -1,0 +1,52 @@
+--TEST--
+An `abstract` class has no instances, and a class that is not `abstract` declares no bodiless method
+--FILE--
+<?nvs
+// `abstract` says a class leaves members open for a subclass to fill in, so
+// there is no object of it to allocate: `new` on one is refused where it is
+// written, which is where PHP refuses it too.
+abstract class Shape {
+    public abstract function area(): int;
+
+    public function describe(): string {
+        return "area=" . $this->area();
+    }
+
+    // `new static()` is *not* refused here: late static binding resolves it
+    // to whichever concrete subclass the call arrived through, which is what
+    // an abstract factory method is for.
+    public static function make(): static {
+        return new static();
+    }
+}
+
+class Square extends Shape {
+    public function constructor(public int $side) {}
+
+    public function area(): int {
+        return $this->side * $this->side;
+    }
+}
+
+// Legal — the subclass gives every open member a body.
+Shape $ok = new Square(3);
+echo $ok->describe(), "\n";
+
+// Refused: `Shape::area` has nothing behind it, so an instance of `Shape`
+// could not answer a call its own type admits.
+Shape $bad = new Shape();
+
+// The other direction of the same rule, refused at the declaration: a class
+// that is not `abstract` may not leave a method without a body, because a
+// call to one names no compiled function and dies as a `FATAL` at run time.
+class Counter {
+    public abstract function reset(): void;
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0785]: `Shape` is `abstract`, so it has no instances
+%A
+error[E0786]: `Counter::reset` is `abstract`, but `Counter` is not
+%A
+error: aborting due to 2 errors
