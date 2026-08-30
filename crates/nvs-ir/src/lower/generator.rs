@@ -5,6 +5,14 @@
 //! moved here unchanged; the methods are `pub(crate)` so they reach across
 //! these modules and no further, which is the reach they had when `lower` was
 //! a single file.
+//!
+//! **`current()` outside the protocol throws spec § 10's `LogicError`** — ADR
+//! 0053 § 1 says it throws and does not say what, so this is where that is
+//! decided. Driving a cursor is the calling code's own control flow, so
+//! reading an element it never advanced to is a bug in that code rather than a
+//! condition the run produced, which is the whole of the `LogicError` /
+//! `RuntimeError` split. [`lower_generator_current`] is the guard and owns why
+//! one comparison on [`GEN_STATE`] is exactly the two points § 1 names.
 
 use super::*;
 
@@ -498,7 +506,7 @@ pub(crate) fn lower_generator(
         enums,
     );
     let (mut advance, fields, owed) = advance;
-    let current = lower_generator_current(&class, elem, src);
+    let current = lower_generator_current(&class, m, elem, src, exprs, checked_types, enums);
 
     let mut functions = vec![factory, advance.function, current];
     // A generator no suspension of which sits inside a `finally`-owning region
@@ -814,66 +822,153 @@ pub(crate) fn lower_generator_advance(
     )
 }
 
-/// The one-line accessor half: hand back the element the last `yield`
-/// parked, retained, since the field keeps owning its own reference.
+/// The accessor half: ADR 0053 § 1's protocol guard, and behind it the element
+/// the last `yield` parked, retained, since the field keeps owning its own
+/// reference.
 ///
-/// ADR 0053 § 1 says `current()` called before the first `advance()` or after
-/// one returned `false` throws. **It does not yet**: the slot is `null` at
-/// both points and this reads it as a `T`, which is a known gap rather than a
-/// decision — a `foreach`, the only thing that drives a cursor today, never
-/// calls `current()` at either point.
-pub(crate) fn lower_generator_current(class: &str, elem: Ty, src: &SourceFile) -> Function {
-    let mut ids = IdGen::default();
-    let block = ids.next_block();
-    let gen_v = ids.next_value();
-    let value = ids.next_value();
+/// **The guard is `gen#state >= 1`, and that one comparison is exactly § 1's
+/// two out-of-protocol points.** [`GEN_STATE`] is `0` from
+/// [`generator_factory`] until the first [`GEN_ADVANCE`] returns; every
+/// suspension parks its own resume index, which is `index + 1` and therefore
+/// never `0`; and [`Lowering::finish_generator`] parks [`GEN_DONE`] — `-1` —
+/// when the body runs off the end. So "before the first `advance()`" and
+/// "after one returned `false`" are the only two states below `1`, and the
+/// guard needs no flag of its own: it reads the field the entry switch
+/// already reads, and the state object grows by nothing.
+///
+/// **It throws `LogicError`**, spec § 10's class for a caller that broke a
+/// contract it could have checked, rather than a `RuntimeError` under it.
+/// Which element a cursor is on is a fact of the calling code's own control
+/// flow rather than of the run — the caller either drove `advance()` or did
+/// not — so this is the same kind of failure a null receiver is, and never a
+/// condition the program has to be prepared for. Both points share one
+/// message: telling them apart would cost a second branch on the one path
+/// that is about to unwind anyway, and the fix a reader needs is the same.
+///
+/// **Cost:** one integer compare and one branch per `current()` call, on the
+/// arm that is always taken in a well-formed loop. `foreach` drives
+/// `advance()`/`current()` in lockstep and so never reaches the throw, which
+/// makes this the same price ADR 0002's status check pays after every call —
+/// AGENTS.md's priority 3, bought for its priority 2.
+pub(crate) fn lower_generator_current(
+    class: &str,
+    m: &MethodMember,
+    elem: Ty,
+    src: &SourceFile,
+    exprs: &ExprTypeTable,
+    checked_types: &TypeInterner,
+    enums: &EnumTable,
+) -> Function {
+    let label = format!("{class}::{GEN_CURRENT_METHOD}");
+    let mut low = Lowering::new(&label, src, elem, exprs, checked_types, enums);
+    // The generator's declaration is the nearest real source a body nobody
+    // wrote has, so it is what `$e->location` and the backtrace frame name.
+    low.cur_stmt_span = m.name;
+    let entry = low.new_block();
+    low.emit_safepoint(entry);
+    let (gen_v, _) = low.emit(entry, Ty::Object, InstKind::Param(0));
+    let (state_v, _) = low.emit(
+        entry,
+        Ty::Int,
+        InstKind::FieldGet {
+            object: gen_v,
+            class: class.to_owned(),
+            field: GEN_STATE.to_owned(),
+        },
+    );
+    let (first, _) = low.emit(entry, Ty::Int, InstKind::ConstInt(1));
+    let (inside, _) = low.emit(
+        entry,
+        Ty::Bool,
+        InstKind::BinOp {
+            op: BinOp::GtEq,
+            lhs: state_v,
+            rhs: first,
+        },
+    );
+    let read = low.new_block();
+    let outside = low.new_block();
+    let read_edge = low.ids.next_edge(m.name);
+    let outside_edge = low.ids.next_edge(m.name);
+    low.seal(
+        entry,
+        Terminator::Branch {
+            cond: inside,
+            then_block: read,
+            then_edge: read_edge,
+            else_block: outside,
+            else_edge: outside_edge,
+        },
+    );
 
-    let plain = |kind: InstKind| Inst {
-        result: None,
-        ty: None,
-        kind,
-        on_error: None,
-    };
-    let mut insts = vec![
-        plain(InstKind::Safepoint),
-        Inst {
-            result: Some(gen_v),
-            ty: Some(Ty::Object),
-            kind: InstKind::Param(0),
-            on_error: None,
+    let (value, _) = low.emit(
+        read,
+        elem,
+        InstKind::FieldGet {
+            object: gen_v,
+            class: class.to_owned(),
+            field: GEN_CURRENT.to_owned(),
         },
-        Inst {
-            result: Some(value),
-            ty: Some(elem),
-            kind: InstKind::FieldGet {
-                object: gen_v,
-                class: class.to_owned(),
-                field: GEN_CURRENT.to_owned(),
-            },
-            on_error: None,
-        },
-    ];
+    );
     if elem.is_refcounted() {
-        insts.push(plain(InstKind::Retain { operand: value }));
+        low.emit_retain(read, value);
     }
-    insts.push(plain(InstKind::Release { operand: gen_v }));
+    low.emit_release(read, gen_v);
+    low.seal(read, Terminator::Return(Some(value)));
 
-    let _ = src;
-    let (stmt_spans, edge_spans) = ids.into_spans();
+    // The receiver goes back *before* the exception is built, not after: this
+    // arm has no further use for it, and the `New` below carries an error edge
+    // of its own that would otherwise need a release of its own too.
+    low.emit_release(outside, gen_v);
+    let (message, _) = low.emit(
+        outside,
+        Ty::Str,
+        InstKind::ConstStr(OUTSIDE_THE_PROTOCOL.to_owned()),
+    );
+    // Tagged rather than bare, because spec § 10 types the `previous` option
+    // `Throwable|null` and the constructor reads parameter 2 as one `Value`.
+    // Nothing to retain: a `Ty::Null` holds no reference to take.
+    let (absent, _) = low.emit(outside, Ty::Null, InstKind::ConstNull);
+    let (previous, _) = low.emit(outside, Ty::Tagged, InstKind::Tag { operand: absent });
+    // Over an empty `Env` for `generator_factory`'s reason: this body binds no
+    // local, so a failing status has nothing left to release and only
+    // propagates.
+    let (thrown, _) = low.emit_fallible(
+        outside,
+        Ty::Object,
+        InstKind::New {
+            class: LOGIC_ERROR.to_owned(),
+            ctor: Some(THROWABLE_CTOR.to_owned()),
+            args: vec![message, previous],
+        },
+        &Env::default(),
+    );
+    low.write_throw_location(outside, thrown);
+    let landing = low.landing_block(&Env::default());
+    low.seal(
+        outside,
+        Terminator::Throw {
+            value: thrown,
+            landing,
+        },
+    );
+
+    let (blocks, stmt_spans, edge_spans) = low.finish();
     Function {
-        name: format!("{class}::{GEN_CURRENT_METHOD}"),
+        name: label,
         params: vec![Ty::Object],
         ret: elem,
-        blocks: vec![BasicBlock {
-            id: block,
-            insts,
-            term: Terminator::Return(Some(value)),
-        }],
-        entry: block,
+        blocks,
+        entry,
         stmt_spans,
         edge_spans,
     }
 }
+
+/// The message [`lower_generator_current`]'s guard raises, at both of ADR 0053
+/// § 1's two points.
+const OUTSIDE_THE_PROTOCOL: &str =
+    "current() outside the iteration protocol: it answers only after advance() returned true";
 
 /// The resume-to-unwind entry point: `{class}::unwind`, which the release
 /// path calls on a generator that is being dropped.

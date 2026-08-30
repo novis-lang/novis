@@ -463,6 +463,12 @@ pub(crate) const LOCATION_FIELD: &str = "location";
 /// both resolve to.
 pub(crate) const THROWABLE_CTOR: &str = "Throwable::constructor";
 
+/// `LogicError`, spec § 10's class for a caller that broke a contract it could
+/// have checked — the one exception this crate raises out of a body it
+/// synthesized itself, from [`lower_generator_current`]'s protocol guard.
+/// Restated here for [`PARSE_ERROR`]'s reason.
+pub(crate) const LOGIC_ERROR: &str = "LogicError";
+
 /// `ParseError`, the one class below the root that declares a property —
 /// [ADR 0071](../../../../docs/adr/0071-derived-codecs.md) § 5's `issues`.
 /// `nvs_hir::errors::OWN_PROPERTIES` is that roster's home; this crate depends

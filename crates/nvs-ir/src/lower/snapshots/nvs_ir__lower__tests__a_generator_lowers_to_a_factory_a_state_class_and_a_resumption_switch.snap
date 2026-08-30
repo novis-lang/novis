@@ -72,9 +72,29 @@ fn G::upTo$gen::current(object) -> int {
   bb0:
     safepoint
     v0 = param 0  ; object
-    v1 = field.get v0, G::upTo$gen::gen#current  ; int
+    v1 = field.get v0, G::upTo$gen::gen#state  ; int
+    v2 = const.int 1  ; int
+    v3 = ge v1, v2  ; bool
+    branch v3 -> bb1 (e0), bb2 (e1)
+  bb1:
+    v4 = field.get v0, G::upTo$gen::gen#current  ; int
     release v0
-    return v1
+    return v4
+  bb2:
+    release v0
+    v5 = const.str "current() outside the iteration protocol: it answers only after advance() returned true"  ; string
+    v6 = const.null  ; null
+    v7 = tag v6  ; tagged
+    v8 = new LogicError via Throwable::constructor(v5, v7) ! bb3  ; object
+    v9 = field.get v8, Throwable::location  ; string
+    release v9
+    v10 = const.str "t.nvs:3"  ; string
+    field.set v8, Throwable::location, v10
+    throw v8 -> bb4
+  bb3:
+    propagate "G::upTo$gen::current() at t.nvs:3"
+  bb4:
+    propagate "G::upTo$gen::current() at t.nvs:3"
 }
 
 fn <script>() -> tagged {
