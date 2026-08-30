@@ -1,0 +1,78 @@
+--TEST--
+`Core\Bytes::pack` and `Core\Bytes::unpack` share one format grammar and one sink, so a tainted format is refused where the call is written by every route it can arrive by, while the same grammar written plain packs and unpacks — ADR 0088 §§ 1-2, ADR 0063 R11
+--FILE--
+<?nvs
+// ADR 0063 R11 names a `Core\Bytes::pack` format one of four grammars, and
+// ADR 0088 § 1's corollary makes each of them a `Qual::Sink` wherever it is
+// declared: these bytes become the instruction deciding how many octets are
+// read and how they are widened, so a caller who chooses them chooses the
+// read. Both rows spell the parameter `CoreTy::Text(Qual::Sink)`
+// (`crates/nvs-stdlib/src/bytes.rs:289` and `:298`), which makes every refusal
+// below an ordinary assignability failure at the call site rather than a rule
+// either member checks for itself — and that is the point being pinned: there
+// is no launderer in front of this sink, so nothing a caller can write in the
+// format position gets past it.
+//
+// The agreement shape (`docs/agent/conventions.md`): one question asked of the
+// writer and the reader together, over the routes a taint arrives by, so a
+// member that grew its own opinion of the format fails here while still
+// looking right on its own line.
+class Wire {
+    public static function format(): tainted string {
+        return "N";
+    }
+}
+
+tainted string $t = "N";
+secret tainted string $st = "N";
+array<tainted string> $bag = [$t];
+
+// The accepted side first, so this is a bound with both sides named rather
+// than a pair of members that refuse everything: the same grammar, written
+// plain, both writes and reads.
+string $plain = "N";
+bytes $written = Core\Bytes::pack($plain, 1);
+array<mixed> $read = Core\Bytes::unpack($written, $plain);
+echo Core\Arr::count($read);
+
+// Directly, on each member, because the sink is declared twice and a hole in
+// one row says nothing about the other.
+bytes $a = Core\Bytes::pack($t, 1);
+echo Core\Bytes::length($a);
+array<mixed> $b = Core\Bytes::unpack($written, $t);
+echo Core\Arr::count($b);
+
+// Composed: taint travels through concatenation on its own axis, so a format
+// assembled around a tainted fragment is tainted whatever the fragments were.
+bytes $c = Core\Bytes::pack("N" . $t, 1, 2);
+echo Core\Bytes::length($c);
+
+// Declared one frame away. The call site reads the member's return type, which
+// is where a sink that only looked at variables would miss it.
+array<mixed> $d = Core\Bytes::unpack($written, Wire::format());
+echo Core\Arr::count($d);
+
+// Out of a container, where the qualifier is on the element type.
+bytes $e = Core\Bytes::pack($bag[0], 1);
+echo Core\Bytes::length($e);
+
+// Composed with `secret`. Two axes, and neither launders the other: this one
+// is refused for its taint, and the message says so by naming both.
+array<mixed> $f = Core\Bytes::unpack($written, $st);
+echo Core\Arr::count($f);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+%A
+error[E0401]: expected `string`, found `tainted string`
+%A
+error[E0401]: expected `string`, found `tainted string`
+%A
+error[E0401]: expected `string`, found `tainted string`
+%A
+error[E0401]: expected `string`, found `tainted string`
+%A
+error[E0401]: expected `string`, found `secret tainted string`
+%A
+error: aborting due to 6 errors
