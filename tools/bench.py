@@ -8,6 +8,7 @@
     python tools/bench.py --engines nvs,php    # narrow the roster; the default is all four
     python tools/bench.py --php-mode default   # PHP as installed, instead of with opcache+JIT
     python tools/bench.py --json docs/perf/userland.ndjson   # append one record per case
+    python tools/bench.py --warm-start --max-ms 10   # the CLI's start floor, against a budget
 
 The cases live in `benches/userland/` as twins -- `NN-slug.nvs`, `.php`, `.py` and `.ts` -- and
 [its README](../benches/userland/README.md) owns what a case is and how to add one. This file
@@ -74,6 +75,15 @@ this script unless `--python` names another, and no flag is passed: there is no 
 mode the way there is a second PHP one. Bun runs the `.ts` file directly -- it transpiles
 TypeScript on the way in, which is part of what a Bun user pays at start-up and so is deliberately
 inside the measurement rather than pre-compiled away.
+
+## The warm-start figure
+
+`--warm-start` answers a different question from the table: not "how fast is the language" but
+"what does the CLI cost me before it has done anything", which is M6's own acceptance figure and
+the one `--max-ms` puts a budget on. It is one engine, one script -- the baseline case -- and no
+comparison, so it runs whether or not PHP, Python or Bun is installed. What makes it *warm* is the
+process `measure()` already discards: by the timed reps the binary, its libraries and the script
+are in the OS page cache. `warm_start()` owns why that is the whole of "warm" today.
 
 ## Adding a measure later
 
@@ -275,6 +285,41 @@ def measure(argv: list[str], reps: int) -> dict:
     }
 
 
+def warm_start(binary: Path, reps: int, max_ms: float | None) -> int:
+    """The CLI's start floor: what a *second* `nvs run` of the empty program costs.
+
+    `measure()` throws its first process away, and that discarded run is the whole of what "warm"
+    means here: every timed rep starts with the binary, its libraries and the script already in
+    the OS page cache. It is deliberately not more than that. The compile pipeline stores no
+    artifact yet -- `crates/nvs-cli/src/cache.rs`'s *Known gaps* owns why -- so no rep reaches
+    `Cache::load` and this figure does not measure
+    [ADR 0042](../docs/adr/0042-on-disk-artifact-cache-format.md) § 3's read path at all. It is the
+    floor that path has to beat, measured now so the number the cache is judged against exists
+    before the cache has a caller, and it is the honest reading of M6's "warm-cache CLI startup
+    under 10 ms" until a stored artifact is on disk to make it warmer.
+    """
+    source = CASE_DIR / f"{BASELINE}.nvs"
+    if not source.exists():
+        sys.exit(f"no {source}: the warm-start figure is measured on the baseline case")
+
+    print(f"nvs  {binary}  ({version(binary, ['--version'])})")
+    result = measure([str(binary), "run", str(source)], reps)
+    if result["failed"]:
+        print(f"warm start FAILED: exit {result['code']}")
+        print(result["stderr"].rstrip() or result["stdout"].rstrip(), file=sys.stderr)
+        return 1
+
+    label = source.relative_to(ROOT).as_posix()
+    print(f"warm start  nvs run {label}  ({reps} rep(s), one discarded warm-up)")
+    print(f"  min {fmt(result['min_ms'])} ms   median {fmt(result['median_ms'])} ms")
+    print("  the CLI's floor: no rep reaches Cache::load, since nothing stores an artifact yet")
+    if max_ms is None:
+        return 0
+    within = result["min_ms"] <= max_ms
+    print(f"  budget {fmt(max_ms)} ms -- {'within' if within else 'EXCEEDED'}")
+    return 0 if within else 1
+
+
 def columns_for(engines: list[Engine]) -> list[tuple[str, int, object]]:
     """header, width, how to read one row's value out of the joined record.
 
@@ -351,6 +396,17 @@ def main() -> int:
         help="`jit` (default) runs PHP with opcache+tracing JIT; `default` runs it as installed",
     )
     parser.add_argument("--allow-debug", action="store_true", help="permit a debug Novis binary")
+    parser.add_argument(
+        "--warm-start",
+        action="store_true",
+        help="measure the CLI's start floor on the baseline case instead of running the suite",
+    )
+    parser.add_argument(
+        "--max-ms",
+        type=float,
+        metavar="MS",
+        help="with --warm-start: exit non-zero if the min exceeds this budget, in ms",
+    )
     parser.add_argument("--json", metavar="PATH", help="append one NDJSON record per case")
     args = parser.parse_args()
 
@@ -360,6 +416,13 @@ def main() -> int:
 
     binary = find_nvs(args.nvs, args.allow_debug)
     warn_if_stale(binary)
+    if args.warm_start:
+        # Before the roster, because a start figure is one engine's and must not need PHP or Bun
+        # installed to be measured. `--reps` rather than `reps`: `--check` narrows the suite to
+        # agreement, and there is nothing here to agree with.
+        return warm_start(binary, args.reps, args.max_ms)
+    if args.max_ms is not None:
+        sys.exit("--max-ms is a budget on the warm-start figure, and needs --warm-start")
     selected = [name.strip() for name in args.engines.split(",") if name.strip()]
     engines = build_engines(selected, binary, args.php, args.php_mode, args.python, args.bun)
     cases = discover(args.patterns, engines)
