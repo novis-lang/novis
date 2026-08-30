@@ -4,45 +4,48 @@
 
 **Goal 3, Stage 2 is part-landed and the driver is measuring again.** `crates/nvs-config` holds the
 directive registry (`directive.rs`) and one file's parse with ADR 0064 § 3's duplicate refusal
-(`file.rs`), seven tests green.
+(`file.rs`), seven tests green. `file.rs:38`'s `parse` is already generic over the tree type with
+`toml::Table` as the stand-in, so the typed tree lands under it without touching anything above.
 
-**The acceptance check had been aborting before any check ran.** Three of `loop-goal.toml`'s `files`
-were missing, and `tools/loop.py:1779` returns on the first one — see the playbook bullet. All three
-now exist: `examples/{config,limits,capability}.nvs`, plus `examples/capability/greeting.txt`, and
-`nvs.toml` carries the `[limits] memory = "256M"` / `[limits.hard] memory = "512M"` pair that
-`config.nvs`'s frozen output is derived from. All three call APIs Stages 3–4 have not written, so they
-fail their own checks — that is the ordinary open-item state, and what changed is that every Stage 0–2
-check now runs at all.
+**`[app]` now has one spelling across the tree, and the contradiction the last handoff recorded is
+closed.** ADR 0104 § 1 owns `origin` as a key sitting directly on an `[[app]]` block beside `mode`, with
+the TOML argument in its own paragraph — one file cannot spell `app` as both a table and an array of
+tables, so a global `[app] origin` is unspellable wherever a per-app block exists. ADR 0097 § 3's
+fallback names that key, 0104's `Amends:` carries the clause, `nvs.toml` is `[[app]] root = "."`, and
+`configured_origin` (`crates/nvs-cli/src/main.rs:551`) reads the array-of-tables header while every
+ordinary header — `[app.limits]` included — ends the block. `examples/routes.nvs` still prints
+`absolute=https://example.test/users/7`, and the four `tests/conformance/core/router-url-absolute-*`
+cases moved with it: they write their own `nvs.toml`, and one pins the diagnostic naming the key. Two
+doc comments followed (`nvs-runtime/src/ctx.rs`, `nvs-stdlib/src/router.rs`'s `urlAbsolute` card).
+`verify.py` is 7 of 7 green — conformance 1000, differential 206.
 
-**Item 1 of the old group is blocked on a three-ADR contradiction, and resolving it is now slice 1.**
-The typed block tree cannot be written until `[app]` has one spelling: ADR 0064 § 2a's table
-(`docs/adr/0064-configuration-file-format.md:129`) lists only `[[app]]`, owned by ADR 0104, which gives
-it no `origin` key; ADR 0097 § 6 (`docs/adr/0097-development-server-and-proxied-origin.md:169`) makes a
-mount's `origin` fall back to `[app] origin`; and this repository's own `nvs.toml:18` writes `[app]
-origin`, read by `configured_origin` (`crates/nvs-cli/src/main.rs:551`), with `examples/routes.nvs`'s
-frozen output depending on it. **TOML forbids one file defining `app` as both a table and an array of
-tables**, so the tree must pick one. Recommended: `origin` becomes an `[[app]]` field — 0104's unit is
-exactly "an application" and 0097 § 6 wants a per-application fallback — with 0097 § 6 amended to name
-it, `nvs.toml` migrated to `[[app]] root = "."`, and `configured_origin` following.
+**Two anchors in the last handoff were wrong, and cost a grep each**: the origin fallback is ADR 0097
+**§ 3**, not § 6 (§ 6 is the proxy-trust section; the `§ 6` in the code's comments is *0102*'s), and
+0064 § 2a needed nothing, as recorded.
 
-Nothing is blocked on the user. Goals 1 and 2 and M4 remain the floor.
+The acceptance check still fails on `examples/config.nvs` — `Core\Config` has no `get`. That is Stage 3's
+snapshot and Stage 4's members, unwritten, not a regression. Nothing is blocked on the user; goals 1 and
+2 and M4 remain the floor.
 
 ## Next group
 
-**`[app]` gets one spelling, then the typed tree over it.** One file set: `docs/adr/{0064,0097,0104}`,
-`nvs.toml`, `crates/nvs-cli/src/main.rs`, `crates/nvs-config/src/`.
+**The typed block tree, then the tree that resolves.** One file set: `crates/nvs-config/src/`,
+`Cargo.toml`, `docs/adr/0103`.
 
-- [ ] **`[app]` resolves to `[[app]]`, carrying `origin`.** ADR 0104 gains the key and the `Amends:`
-      pair with ADR 0097 § 6 (`docs/adr/0097-development-server-and-proxied-origin.md:169`); 0064 § 2a's
-      table (`docs/adr/0064-configuration-file-format.md:129`) already says `[[app]]` and needs nothing.
-      Then `nvs.toml:18` and `configured_origin` (`crates/nvs-cli/src/main.rs:551`), whose naive
-      line-scanner tracks `[table]` headers and must learn `[[app]]`. `examples/routes.nvs`'s frozen
-      output must not move.
-- [ ] **The typed block tree, and an unknown key refused naming its block.** ADR 0064 §§ 2a, 3 — § 2a's
-      table names the owning ADR of all sixteen blocks and each block's fields come from that ADR rather
-      than being invented, which is this slice's whole cost. `crates/nvs-config/src/file.rs:38`'s
-      `parse` is already generic over the tree type with `toml::Table` as the stand-in, so nothing above
-      it changes. Needs `derive` on the workspace `serde` (`Cargo.toml:199`, currently featureless).
+- [ ] **The typed block tree, and an unknown key refused naming its block.** ADR 0064 §§ 2a
+      (`docs/adr/0064-configuration-file-format.md:129`), 3 (`:150`). Each block's fields come from its
+      owning ADR rather than being invented, which is the slice's whole cost — **these are the anchors,
+      already resolved, so do not re-derive them**: `[[include]]` 0103:115; `[[app]]` 0104:68 (`root`,
+      `entry`, `mode`, `origin`, and the `[app.limits]`/`[app.limits.hard]`/`[app.capabilities]`
+      sub-tables); `[limits]`/`[limits.hard]` 0005:68,75; `[mode]` 0005:109 and 0091:103;
+      `[capabilities]` 0006:183, with more rows at 0018:103 and 0067:114; `[[extension]]` 0003:118;
+      `[debug]` 0018:100; `[log]` 0020:134,168 (`handler`, `handler_reserve_memory`,
+      `handler_reserve_time`, `target`) plus `format`/`level` at 0092:114,187; `[http.errors]` 0020:227
+      (`detail`); `[db.<name>]` 0103:175; `[deferred]` 0072:213; `[[schedule]]` 0073:62;
+      `[http.headers]` 0074:72, `[http.cors]` :106, `[http.cookies]` :129, `[http.client]` :171;
+      `[metrics]` 0076:190, `[trace]` :196; `[server]` 0097:212, `[[server.mount]]` 0097:131 (no `mode`
+      — 0104 § 4 took it). Needs `derive` on the workspace `serde` (`Cargo.toml:199`, featureless
+      today). The unknown-key refusal is a new `E06xx` (next free E0605) naming the block.
 - [ ] **The tree resolves.** ADR 0103 §§ 1–5: a root named by repeatable `--config`, else the search
       order; includes depth-first in list order; later wins with both origins recorded.
 - [ ] **Ownership is the trust boundary.** ADR 0103 § 6 — owner-or-root, not group- or world-writable,
@@ -50,12 +53,11 @@ Nothing is blocked on the user. Goals 1 and 2 and M4 remain the floor.
 
 ## Backlog
 
-- `loop-goal.toml`'s `[context] modules` names `crates/nvs-host/src/budget.rs`, which matches nothing;
-  `orient.py` warns every session. Fix or drop the selector.
-- `examples/capability.nvs` catches `Throwable`; narrow it once Stage 4's ADR slot decides what class a
-  capability denial throws.
-- `examples/capability.nvs` needs an `[[app]]` grant block in `nvs.toml` — an `fs.read` root, no
-  `fs.write`, no `script.spawn` — which is Stage 4's (ADR 0104).
-- `Core\File::read`/`::write` are goal 4's and are what `capability.nvs` calls; it cannot compile first.
-- The three known gaps, each recorded where its code is: `Core\Secret::reveal()`, `Live::admit`'s
-  same-class check, `Core\Script`'s members.
+- `examples/config.nvs` needs `Core\Config::get`/`set` over Stage 3's snapshot — the standing acceptance
+  failure; `docs/plan/m6.md` § *Verify* is the list.
+- `examples/capability.nvs` needs an `[[app]]` grant block in `nvs.toml` — an `fs.read` root, no more.
+- `configured_origin` retires the moment M6's reader resolves a tree; its doc comment says so.
+- Item 18's `Core\Secret::reveal()` is not in the registry (`crates/nvs-stdlib/src/`).
+- Item 22's `Core\Script` members are unwritten (`crates/nvs-stdlib/src/script.rs`).
+- `orient.py` warns that `[context] modules` names `crates/nvs-host/src/budget.rs`, which matches no
+  module — the glob in `docs/agent/loop-goal.toml` is stale.

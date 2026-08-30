@@ -2831,6 +2831,14 @@ is why" — is this file.
   once a case rounds a container of *objects* through something answering `mixed`, which
   `Core\Serialize::decode` is. The spellings that compile are `... as array<mixed>` and then `$copy[0] as
   Cell`, and a nested one parenthesizes: `($outer[0] as array<mixed>)[0] as Cell`.
+- **A `.nvst` case can carry its own `nvs.toml`, so a change to a configuration spelling breaks tests
+  that no `grep` over `crates/` will show you.** `--FILE nvs.toml--` writes one into the case's working
+  directory, and four `router-url-absolute-*.nvst` cases do exactly that — one of them pinning the
+  diagnostic text that names the key, in `--EXPECT--`. Renaming `[app]` to `[[app]]` was green in
+  `cargo build` and `cargo test` and cost a whole `verify.py` cycle at the `conformance` step. When you
+  move a spelling that appears in a config file or in a diagnostic, `grep -rl` over `tests/` and
+  `examples/` in the same call as `crates/`, and remember the message text is pinned in two places: the
+  `Fault` in the crate and the `--EXPECT--` of the case that catches it.
 
 ## Splitting a file that got too big
 
