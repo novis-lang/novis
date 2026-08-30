@@ -1,0 +1,349 @@
+# ADR 0120 — The image component is a pipeline that crosses the boundary once, and gd is not inherited
+
+- **Status:** Accepted
+- **Date:** 2026-08-30
+- **Scope:** the shape of the first-party image component [0051](0051-standard-library-tiers.md) § 3
+  places at Tier 1 — its package, its namespace, the split between a Novis builder and the wasm
+  component; the builder's surface and the component's closed set of entry points; the format roster and
+  what implements each format; the pixel cap; the orientation, colour and metadata defaults; comparison,
+  hashing and placeholders; text, QR codes and SVG; and which of `gd`'s behaviours are not inherited,
+  with the replacement for each. Not in scope: the sandbox contract, its limits and how a `.nvsx` is
+  loaded ([0003](0003-extension-system.md)); the tier placement and the two-component first-party
+  roster ([0051](0051-standard-library-tiers.md) § 3, which this ADR details and does not reopen); what
+  a manifest may say about qualifiers ([0055](0055-extension-qualifier-declarations.md)); how a package
+  is named, fetched, pinned and granted ([0081](0081-packages-are-digests-resolution-is-a-maximum.md));
+  how an upload reaches the builder ([0105](0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md));
+  and the authoring of the `nvs:ext@1.0.0` world, which is M9's first slice ([docs/plan/m9.md](../plan/m9.md)).
+- **Depends on:** [0003](0003-extension-system.md) — the boundary whose cost model decides the shape;
+  [0051](0051-standard-library-tiers.md) — the placement this ADR fills in.
+- **Amends:** [0051](0051-standard-library-tiers.md) § 3 — the image component's job, stated there as
+  "decode/resize/convert", is now §§ 2–9 below, and the `imagick` closure names this ADR as the
+  replacement. [0081](0081-packages-are-digests-resolution-is-a-maximum.md) § 1 — an extension package
+  may carry Novis source beside its `.nvsx`; the "only the payload differs" bullet is reworded.
+  [0064](0064-configuration-file-format.md) § 2a — `[image]` joins the block roster.
+  [docs/plan/m9.md](../plan/m9.md) — the verification names this ADR's fixtures, and "built from Rust
+  and from a second language" is read as one component linking a C codec compiled to wasm.
+
+> **In short:** `Novis\Image::open($bytes)->resize({fit: Fit::Cover, width: 800, height: 600})
+> ->format(Format::Webp)->encode()` is the whole shape. `open` reads the header and decodes nothing; every
+> operation appends to a **plan**; a terminal — `encode`, `variants`, `raw` — hands the encoded input and
+> the plan to the sandboxed component in **one call** and gets bytes back. The component exports a
+> handful of coarse entry points and no per-pixel accessor, because [0003](0003-extension-system.md)'s
+> cost model rewards few calls over whole buffers and a pixel buffer is the largest thing in a request.
+> The package `nvs/image` carries both the `.nvsx` and the Novis builder, under one namespace,
+> `Novis\Image`. There is **one pixel model** (RGBA8), one member per job, and none of gd's palette mode,
+> mode flags, drawing primitives or 1990s formats. Decoding is correct by default — EXIF orientation
+> applied, an embedded ICC profile converted to sRGB — and encoding **strips metadata** unless asked not
+> to, because GPS in a re-encoded upload is a privacy bug fixed by a default. A **pixel cap**
+> (`[image] max_pixels`, default 24 MP) is read from the header and refuses a bomb before a buffer is
+> allocated: the sandbox is the backstop, the cap is the policy. Formats: JPEG, PNG/APNG, WebP, GIF and
+> AVIF both ways, JPEG XL decode only, lossy WebP via libwebp compiled to wasm — which is also M9's
+> second-language proof. Comparison, perceptual hashing, placeholders, text and QR codes are in; SVG
+> rasterising is the second wave. `gd`'s hundred-odd functions map onto this surface in § 11, one row per
+> concept, and the per-name rows move to [02-php-migration.md](../spec/02-php-migration.md) when the
+> inventory has the names.
+
+## Context
+
+- **What is already settled, and where.** The component is Tier 1 by test 5 — it parses hostile bytes —
+  and it carries `exif` rather than leaving it a second `.nvsx`
+  ([0051](0051-standard-library-tiers.md) § 3). It runs under [0003](0003-extension-system.md)'s
+  contract: a fresh instance per request, a memory cap, an epoch deadline, no ambient authority, values
+  crossing as handles with bulk copies for bytes. Its manifest may only tighten qualifiers
+  ([0055](0055-extension-qualifier-declarations.md)). It is distributed as an extension package
+  ([0081](0081-packages-are-digests-resolution-is-a-maximum.md)) and its input arrives as a streamed
+  upload part ([0105](0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)). What
+  none of those decides is the API: 0051 leaves each library's surface to the milestone that builds it,
+  and M9 had one clause to go on — "decode/resize/convert".
+- **`gd` is the wrong template, and 0051 already says PHP's partition is not inherited.** Its API is
+  per-pixel — `imagesetpixel`, `imagecolorat`, `imageline` — which is the exact call shape 0003 tells
+  extension authors not to design, since each is a boundary crossing. It has two pixel models
+  (palette and truecolor) and four process-wide mode flags (`imagealphablending`, `imagesavealpha`,
+  `imageantialias`, `imageinterlace`) whose interaction is folklore. Its format list is the 1990s' —
+  WBMP, XBM, XPM, its own GD/GD2 — while lossy WebP arrived in 7.0 and AVIF in 8.1. It ignores ICC
+  profiles, so a CMYK JPEG comes out inverted; it ignores EXIF orientation, so a phone photo comes out
+  sideways; and it drops metadata as a side effect of re-encoding rather than as a stated policy.
+  `getimagesize` returns a positional array. None of this is worth carrying across, and
+  [0080](0080-the-audience-nvs-is-built-for.md)'s audience is not migrating a gd-heavy codebase but
+  building a web application that resizes an upload.
+- **What a web application actually does with an image** is a short list: validate an upload (is it
+  really an image, of which format, how big), thumbnail and resize it with a fit mode, crop it, convert
+  it to the formats it serves, produce a `srcset`'s worth of variants from one source, read its
+  orientation and strip its metadata, overlay a watermark, render a social card or a QR code, produce a
+  blurred placeholder, and — in a test — ask whether two images are the same. Everything else is a
+  long tail a third-party `.nvsx` may serve.
+- **The cost model decides the shape.** In 0003's measured table a call is a fixed cost and a bulk copy
+  is memcpy-bound, so the design that wins moves whole buffers a few times rather than words many times.
+  A pixel buffer is the largest allocation a request holds — a 24-megapixel frame is 96 MB of RGBA8 — and
+  moving one across the boundary per operation is a latency question (priority 3) long before it is a
+  footprint one.
+- **Pure-Rust codecs exist** for decoding every format that matters and encoding most of them, and they
+  compile to wasm with SIMD. The one gap is lossy WebP encoding, for which only Google's C library
+  exists; 0051 § 4 already names compiling C to wasm as the standing answer when the pure-Rust test
+  fails, and M9 needs a second-language build regardless.
+
+## Decision
+
+### 1. One package, two payloads, one namespace
+
+The component ships as the first-party package **`nvs/image`**, and everything a program names is under
+**`Novis\Image`**. The package carries two payloads: the `.nvsx` wasm component, and the Novis source of
+the builder in § 2. The component's manifest registers exactly one class, **`Novis\Image\Codec`**, whose
+static methods are § 3's closed set of entry points; every other class under `Novis\Image` is Novis source
+that calls them. Loading is unchanged — the `.nvsx` is pinned by 0003's `[[extension]]` entry and resolved
+by 0081 — and 0081 § 1 is amended so an extension package may carry source beside its component.
+
+The split is the point rather than a packaging convenience. Building a plan is data manipulation, and it
+costs nothing to do in Novis; decoding, resampling and encoding are the codecs, and they belong inside the
+sandbox. A builder that lived in the guest would spend a boundary crossing per method to append to an
+array, and would hold plan state across calls in an instance whose whole design premise is that state
+does not outlive a request.
+
+### 2. The builder: `open` reads the header, operations append to a plan, a terminal runs it
+
+```nvs
+use Novis\Image\{Image, Fit, Format};
+
+$source = $part->readAll();                      // ADR 0105: bounded by request_body
+$img = Image::open($source)                      // header only — nothing is decoded yet
+    ->resize({fit: Fit::Cover, width: 800, height: 600})
+    ->sharpen()
+    ->format(Format::Webp, {quality: 80});
+
+$bytes = $img->encode();                         // one component call
+$set   = $img->variants([                        // one component call, three outputs
+    {width: 400}, {width: 800}, {width: 1600},
+]);
+```
+
+An `Image` is an immutable value: the source bytes plus a plan. Every operation returns a new value that
+shares the bytes and extends the plan, so branching a pipeline costs an array, never a frame. Nothing is
+decoded until a terminal runs. The plan executes **in the order written**, and the component may fuse
+steps — crop before resize, decode a JPEG at reduced scale when the target is small, skip a no-op — only
+where the result differs from sequential application by resampling rounding alone.
+
+| Member | Signature | Replaces |
+|---|---|---|
+| `open` | `open(bytes $data, {autoOrient?: bool, toSrgb?: bool, maxPixels?: uint}): Image` — reads the header, applies § 6's cap; `autoOrient` and `toSrgb` default `true` (§ 7) | `imagecreatefrom*`, `imagecreatefromstring` |
+| `create` | `create(uint $width, uint $height, Color $fill = Color::TRANSPARENT): Image` — a blank canvas, for cards and QR codes | `imagecreatetruecolor` |
+| `info` | `info(bytes $data): Info` — header only, never a pixel: `{format: Format, width: uint, height: uint, hasAlpha: bool, frames: uint, orientation: uint, exif: ?Exif, hasIcc: bool}` | `getimagesize`, `getimagesizefromstring`, `imagesx`, `imagesy`, `exif_read_data`, `exif_imagetype` |
+| `$img->resize` | `resize({width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}): Image` — `Fit` is `Cover`, `Contain`, `Fill`, `Inside`, `Outside`; one dimension alone keeps the aspect; `Filter` defaults to `Lanczos3`; `upscale` defaults `false` | `imagecopyresampled`, `imagecopyresized`, `imagescale` |
+| `$img->crop` | `crop({x: uint, y: uint, width: uint, height: uint}): Image` | `imagecrop` |
+| `$img->trim` | `trim({threshold?: float}): Image` — removes a uniform border | `imagecropauto` |
+| `$img->rotate` | `rotate(float $degrees, {background?: Color}): Image` — a multiple of 90 is lossless | `imagerotate` |
+| `$img->flip` | `flip(Axis $axis): Image` | `imageflip` |
+| `$img->composite` | `composite(Image $overlay, {gravity?: Gravity, x?: int, y?: int, opacity?: float, blend?: Blend}): Image` — the overlay is a whole pipeline of its own | `imagecopy`, `imagecopymerge` |
+| `$img->flatten` | `flatten(Color $background): Image` — removes alpha | `imagesavealpha(false)` |
+| adjustments | `sharpen({sigma?})`, `blur(float $sigma)`, `grayscale()`, `brightness(float)`, `contrast(float)`, `gamma(float)`, `tint(Color)` — each `(): Image` | `imagefilter`, `imageconvolution`, `imagegammacorrect` |
+| `$img->text` | `text(string $text, Font $font, {size: float, color: Color, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align}): Image`, with `Font::fromBytes(bytes)` and `Image::measureText(...)` — § 9 | `imagettftext`, `imagefttext`, `imagestring`, `imagettfbbox` |
+| `$img->format` | `format(Format $format, {quality?: uint, progressive?: bool, lossless?: bool, effort?: uint}): Image` — absent, the output format is the input's | the choice of `imagejpeg`/`imagepng`/… |
+| `$img->metadata` | `metadata({keep: bool}): Image` — § 7's default is `keep: false` | — |
+| `$img->encode` | `encode(): bytes` — terminal | `imagejpeg`, `imagepng`, `imagegif`, `imagewebp`, `imageavif` |
+| `$img->variants` | `variants(array<{width?, height?, fit?, format?, quality?}> $set): array<bytes>` — terminal; one decode, N outputs, in order | — |
+| `$img->raw` | `raw(): Raw` — terminal; `{width: uint, height: uint, pixels: bytes}` as RGBA8 rows; `Image::fromRaw(Raw)` is the way back in | `imagecolorat` over every pixel |
+| `Image::compare` | § 8 | — |
+| `Image::hash`, `::placeholder`, `::palette` | § 8 | — |
+
+`Color` is `Novis\Image\Color` — `Color::rgba(uint, uint, uint, float $alpha = 1.0)`, `Color::hex(string)`
+and the named constants. `Gravity` is the nine compass points plus `Center`. Every options shape follows
+[0063](0063-core-api-conventions.md) R2, and every signature is versioned like a `Core` one.
+
+### 3. The component's entry points are few, coarse, and closed
+
+`Novis\Image\Codec` exports: `info(bytes): Info`; `run(Source, Plan): bytes`; `variants(Source,
+list<Plan>): list<bytes>`; `compare(bytes, bytes, CompareOptions): Diff`; `hash(bytes, HashKind): bytes`;
+`placeholder(bytes, PlaceholderKind): string`; `palette(bytes, uint): list<Color>`; and `qr(string,
+QrOptions): bytes`. A `Source` is either encoded bytes or a blank canvas; a `Plan` is the list § 2 built.
+Each is one host-to-guest call carrying its whole input and returning its whole output.
+
+**There is no per-pixel, per-row or per-frame member, and none is added later.** `raw()` exports the whole
+buffer once for the caller that genuinely needs pixels. The rule for any future entry point is the one
+0003 gives extension authors, made a refusal: a member that would be called in a loop over the image's
+own contents is not admitted, because its cost is the boundary rather than the work.
+
+### 4. One pixel model, and what is not inherited
+
+Pixels are **RGBA8**, straight alpha at the API, premultiplied where the maths needs it and never
+visible to the caller. That single model retires the following gd concepts outright, each with its Novis
+answer:
+
+| gd | Novis |
+|---|---|
+| palette images — `imagecreate`, `imagecolorallocate*`, `imagecolorresolve*`, `imagecolorexact*`, `imagecolorclosest*`, `imagecolorset`, `imagecolorsforindex`, `imagecolorstotal`, `imagecolortransparent`, `imagepalettecopy`, `imagepalettetotruecolor`, `imagetruecolortopalette`, `imagecolormatch`, `imagecolordeallocate` | one truecolor model; a GIF is quantised on encode, and `Color` values are values, not palette indices |
+| mode flags — `imagealphablending`, `imagesavealpha`, `imageantialias`, `imageinterlace`, `imagelayereffect`, `imagesetthickness`, `imagesetbrush`, `imagesettile`, `imagesetstyle`, `imagesetinterpolation`, `imagesetclip` | no ambient state: alpha always composites, always saves, `flatten` removes it, `progressive` is a `format` option, the filter is a `resize` option |
+| per-pixel access — `imagesetpixel`, `imagecolorat` | `raw()` / `fromRaw()` once, whole buffer |
+| drawing primitives — `imageline`, `imagedashedline`, `imagerectangle`, `imagefilledrectangle`, `imageellipse`, `imagefilledellipse`, `imagearc`, `imagefilledarc`, `imagepolygon`, `imagefilledpolygon`, `imageopenpolygon`, `imagefill`, `imagefilltoborder`, `imagechar`, `imagecharup`, `imagestring`, `imagestringup`, `imageloadfont`, `imagefontwidth`, `imagefontheight` | none. A rectangle is `create` + `composite`; text is § 9's `text` with a real font; charts and diagrams are SVG on the client. A shape layer is not planned, and a third-party `.nvsx` may carry one |
+| `imageaffine`, `imageaffinematrixconcat`, `imageaffinematrixget` | `resize`, `rotate`, `flip`, `crop` — the four affine cases a web application reaches for, named |
+| `imagecopyresized` beside `imagecopyresampled`; `imagecopymerge` beside `imagecopymergegray` | one `resize` with a `filter` option; one `composite` with an `opacity` option, and `grayscale()` on the overlay pipeline |
+| `imagegrabscreen`, `imagegrabwindow` | none — a screen is not a request's business |
+| `imagegd`, `imagegd2`, `imagecreatefromgd*`, `imagewbmp`, `imagexbm`, `imagecreatefromxbm`, `imagecreatefromxpm`, `imagecreatefromwbmp`, `imagebmp`, `imagecreatefrombmp`, `imagecreatefromtga` | none — § 5's roster |
+| `getimagesize`'s positional array, `IMAGETYPE_*`, `image_type_to_mime_type`, `image_type_to_extension` | `info()`'s shape and the `Format` enum, which carries `->mime()` and `->extension()`; detection by magic bytes is `Core\Mime`'s |
+| `imagedestroy`, `gd_info`, `imagetypes`, `imageistruecolor`, `imageresolution`, `imagegetclip`, `imagegetinterpolation` | values are values; `Format::cases()` is the roster |
+
+### 5. The format roster, and what implements it
+
+| Format | Decode | Encode | Implementation |
+|---|---|---|---|
+| JPEG | yes, at reduced scale when the plan allows | yes; `progressive` | `zune-jpeg`, `jpeg-encoder` |
+| PNG, APNG | yes | yes | `png` |
+| WebP | yes, lossy and lossless | yes — lossless in Rust, **lossy via libwebp compiled to wasm** | `image-webp`; libwebp (BSD-3) inside the component |
+| GIF | yes, all frames | yes, quantised | `gif`, `color_quant` |
+| AVIF | yes | yes — seconds of CPU per image, documented as a `Core\Queue` job rather than a request-path call | `rav1d`, `ravif` |
+| JPEG XL | yes | **no** — no Rust encoder exists, and libjxl is not admitted | `jxl-oxide` |
+| SVG | yes, rasterised — second wave (§ 9) | no | `resvg` |
+| TIFF, BMP, TGA, ICO, PNM, HEIC/HEIF, and gd's own formats | no | no | — |
+
+The container is the `image` crate; resampling is `fast_image_resize`, chosen for its SIMD paths and its
+`wasm32` `simd128` support, and the guest is built with `simd128` enabled. Every crate is pure Rust and on
+[deny.toml](../../deny.toml)'s licence allowlist; libwebp is the one C library, admitted under 0051 § 4's
+second question because it runs only inside the sandbox — and its presence is what M9's "built from a
+second language" proves, with one component rather than two implementations. HEIC is absent because HEVC
+is patent-encumbered and has no Rust decoder; iOS browsers upload JPEG by default, and the Tier 1 channel
+exists for whoever needs the rest.
+
+### 6. Hostile input: the pixel cap is policy, and it is read from the header
+
+**`[image] max_pixels`**, default `"24M"`, is a per-request limit argued here and classed by
+[0005](0005-config-changeability.md) like `[limits]`'s other per-request caps. Before any pixel buffer is
+allocated the component reads the declared dimensions — width × height × frames for an animated input,
+the declared canvas for an SVG — and refuses an image over the cap with a thrown `RuntimeError` naming
+the cap and the declared size. It is a throw rather than an [0020](0020-error-escalation-ladder.md)
+limit report because a rejected upload is an ordinary outcome the application answers with a status
+code. A call may pass `{maxPixels}` to `open` only to **lower** the cap — the same monotone rule
+[0055](0055-extension-qualifier-declarations.md) § 4 applies to manifests. Bytes that are not an image
+the roster decodes throw `ParseError`; a codec fault beyond that is a trap the sandbox contains, and the
+malformed-IFD fixture in [m9.md](../plan/m9.md) is the model for turning one into a throw.
+
+Twenty-four megapixels covers every phone camera and most DSLR output. **What it spends**, per request
+that calls the component: the encoded input, at most two frames at the cap — source and result, 192 MB
+worst case at RGBA8 — and the encoded output, all inside the extension's `StoreLimits` cap, which is sized
+from `max_pixels` at load and nothing of which outlives the request. CPU is the request's epoch deadline;
+there are no threads in a guest, so a bulk import parallelises across coroutines and cores with
+`Core\Task::map` or `Core\Queue`, never inside one call.
+
+### 7. Correct by default: orientation, colour, metadata
+
+- `open` applies the EXIF orientation, so a phone photo is upright without the caller knowing the tag
+  exists; `{autoOrient: false}` keeps the stored orientation for the caller that wants the raw frame.
+- `open` converts an embedded ICC profile to sRGB, so a CMYK or wide-gamut JPEG resizes to the colours the
+  photographer saw; `{toSrgb: false}` keeps the raw channels. Every pipeline is sRGB after `open`, and
+  every encoder writes sRGB without embedding a profile.
+- **`encode` strips metadata** — EXIF, XMP, IPTC, ICC — unless the plan carries `metadata({keep: true})`.
+  Location data in a re-encoded upload is the leak this default closes; a program that wants the tags
+  reads them with `info()` and stores them where it chooses.
+
+### 8. Comparison, hashing and placeholders
+
+`Image::compare(bytes|Image $a, bytes|Image $b, {tolerance?: uint, render?: bool}): Diff` decodes both,
+refuses a size mismatch as a `LogicError`, and returns readonly `identical: bool`, `differingPixels: uint`,
+`maxDelta: uint`, `ssim: float`, and — with `render` — `diff: ?bytes`, a PNG with the differing pixels
+highlighted for a test report. SSIM is implemented in the component; `dssim` is AGPL and outside
+deny.toml. There is no assertion member: [0079](0079-testing-is-a-language-feature.md) § 5 makes a
+composite assertion an ordinary method, so a test writes
+`Core\Test::assertTrue(Image::compare($a, $b)->ssim >= 0.99, {message: "…"})` and the ledger records it.
+
+`Image::hash(bytes $data, HashKind $kind): bytes` — `Perceptual`, `Difference`, `Average` — and
+`Image::hashDistance(bytes, bytes): uint` serve near-duplicate detection. `Image::placeholder(bytes $data,
+PlaceholderKind $kind): string` — `BlurHash`, `ThumbHash` — and `Image::palette(bytes $data, uint $count
+= 5): array<Color>` serve the front end's placeholder and theming needs. Each is one entry point because
+each is one job.
+
+### 9. Text, QR codes and SVG
+
+**Text** is `text(...)` in § 2, over a font supplied as bytes — a TrueType or OpenType file the
+application ships — with no system font lookup, since the guest has no filesystem. The first wave
+shapes Latin script; complex shaping (`rustybuzz`) follows, and until it does the reference card says
+so. **QR codes** are `Novis\Image\QrCode::render(string $data, {size?: uint, margin?: uint, level?:
+QrLevel, format?: Format}): bytes`, one entry point, because a QR code is an image a web application
+produces daily. **SVG** is an input format the second wave adds via `resvg`: the declared canvas counts
+against § 6's cap, `<script>` and `foreignObject` are ignored, and **no external reference is ever
+resolved** — there is nothing in the guest to resolve it with, and that is the design rather than a
+limitation. Rasterising is how an uploaded SVG is displayed safely; sanitising one is the repair
+[0095](0095-ambiguous-input-is-refused-never-repaired.md) refuses.
+
+### 10. Qualifiers and capabilities: it declares nothing and needs nothing
+
+The manifest declares no qualifier deviation. [0055](0055-extension-qualifier-declarations.md) § 1's
+contagion is exactly right: a thumbnail of a `tainted` upload is `tainted`, and reaches HTML output
+through `Core\Response`'s existing sinks like any other value, while an image decoded from a trusted file
+comes back plain. `secret` never crosses, per 0055 § 3. The component requests no capability: it reads
+no file and opens no socket, and a program feeds it bytes it obtained under its own grants.
+
+### 11. What became of gd
+
+The oracle build [02-php-migration.md](../spec/02-php-migration.md) is audited against does not load
+`gd` or `exif`, so their names are absent from the inventory and a row there would fail
+`tools/check-migration.py`. Until the inventory is regenerated against a build that has them, this table
+is the home of the answer, one row per concept rather than per name; §§ 2 and 4 carry the names.
+
+| gd / exif | Outcome |
+|---|---|
+| `imagecreatefromjpeg`, `…png`, `…gif`, `…webp`, `…avif`, `imagecreatefromstring` | `Image::open` — one entry, the format detected from the bytes |
+| `imagejpeg`, `imagepng`, `imagegif`, `imagewebp`, `imageavif` | `format(...)` then `encode()`; writing to a path is `Core\IO::write` on the result |
+| `imagecopyresampled`, `imagecopyresized`, `imagescale`, `imagecrop`, `imagecropauto`, `imagerotate`, `imageflip`, `imagecopy`, `imagecopymerge` | `resize`, `crop`, `trim`, `rotate`, `flip`, `composite` |
+| `imagefilter`, `imageconvolution`, `imagegammacorrect` | the named adjustments in § 2 |
+| `imagettftext`, `imagefttext`, `imagettfbbox`, `imageftbbox` | `text`, `measureText` |
+| `getimagesize`, `getimagesizefromstring`, `imagesx`, `imagesy`, `exif_read_data`, `exif_imagetype`, `exif_thumbnail`, `exif_tagname` | `Image::info`, whose `exif` is a typed shape; a thumbnail is `resize` |
+| `image_type_to_mime_type`, `image_type_to_extension` | `Format::mime()`, `Format::extension()` |
+| everything in § 4's table, and `imagecreatefromgd2part`, `read_exif_data` | dropped, with § 4's replacement where one exists |
+
+## Consequences
+
+- **The component surface is small enough to freeze with the `nvs:ext@1.0.0` world**: eight entry
+  points, each whole-input-in, whole-output-out. The builder can grow a member without touching the ABI,
+  because a new operation is a new plan step, not a new export.
+- **A request pays one instance and one crossing per terminal**, and the pixel buffer never leaves the
+  guest. That is the fastest shape available under 0003 short of moving the kernel to Tier 2, which
+  would put a JPEG decoder in-process with every request and is the outcome 0051 exists to prevent.
+- **Output differs from gd's on purpose** — upright, colour-correct, metadata-free — and
+  [divergences.md](divergences.md) carries no row for it because gd's behaviour is not a language
+  semantic. `nvs convert` cannot rename a gd call to a member that is not always present, so every gd row
+  is a `dropped` row whose cell names the rewrite, when the inventory gains the names.
+- **A cost this ADR accepts:** a C library in the build. libwebp is compiled by a `wasi-sdk` toolchain
+  the component's build needs and nothing else in the tree does. It runs only inside the sandbox, which is
+  the whole reason 0051 § 4 allows it.
+- **A cost this ADR does not hide:** in-guest throughput is unmeasured until M9 commits the numbers. A
+  resize is the benchmark, and the *Revisiting* trigger below is the exit if the numbers are bad.
+
+## Alternatives rejected
+
+- **A gd-shaped handle with a call per operation.** Familiar to a PHP developer, and the simplest
+  mapping for `nvs convert`. Rejected: it materialises every intermediate, prevents fusion, and either
+  mutates in place — a `GdImage` semantics no other Novis value has — or copies a frame per operation.
+- **The resampling kernel at Tier 2, only the codecs in the sandbox.** Native speed for the one
+  hot loop. Rejected: it moves the pixel buffer across the boundary twice per pipeline, which costs more
+  than the wasm penalty saves, and it splits one job across two tiers.
+- **ImageMagick or libvips compiled to wasm wholesale.** Every feature at once. Rejected by 0051's test 6
+  and its `imagick` closure: a surface that large is the long tail this ADR declines to own, and a C
+  codebase that size in the sandbox is still a C codebase to build and audit.
+- **Keep metadata by default, strip on request.** ImageMagick's default, and the least surprising to
+  someone who expects a resize to be lossless in every other respect. Rejected: the surprising outcome is
+  a public thumbnail carrying a home address, and a default is the only place that outcome is prevented
+  for every program rather than the careful ones.
+- **Sanitise uploaded SVG rather than rasterise it.** Keeps vectors crisp. Rejected by 0095: an SVG
+  sanitiser is a repair of ambiguous input, and every one shipped has been bypassed.
+- **HEIC, TIFF and the legacy formats.** HEIC lacks a Rust decoder and carries patents; TIFF is a large,
+  historically CVE-rich reader for a format web browsers do not display; the rest are gd's own. A
+  third-party `.nvsx` may carry any of them, which is what Tier 1's channel is for.
+
+## Revisiting
+
+Reopen § 3's placement if M9's committed benchmark puts in-guest resampling far below native for a real
+workload — 0003's *Revisiting* already names the exit, and it is Tier 2 for that kernel, never `dlopen`.
+Reopen § 5's C leg when a pure-Rust lossy WebP encoder exists: the libwebp build is a cost carried for one
+feature, and it should be dropped the day it is not needed.
+
+## Verification
+
+- **M9**, in the component's own fixtures, each asserting inside the guest: an image whose header declares
+  more than `max_pixels` is refused before a buffer is allocated, as a `RuntimeError`, and the same bytes
+  pass when the cap is raised; a JPEG with orientation 6 opens upright, and `{autoOrient: false}` does not;
+  a CMYK JPEG with an embedded profile resizes to the reference colours, not inverted; a JPEG with GPS tags
+  re-encodes without them, and `metadata({keep: true})` keeps them; `variants` with three entries costs one
+  host-to-guest call, counted; `compare` of an image with itself is `identical` with `ssim` 1.0, and of two
+  images differing in one pixel reports `differingPixels: 1`; a malformed IFD is a thrown `ParseError`,
+  not a trap; an SVG referencing an external file rasterises with that reference unresolved.
+- **M9**, the benchmark [m9.md](../plan/m9.md) already owes: resize and JPEG decode in the guest against
+  the same crates native, numbers committed.
+- **M9**, the toolchain: the `.nvsx` containing libwebp builds on all three platforms and runs from one
+  binary, which is the second-language proof.

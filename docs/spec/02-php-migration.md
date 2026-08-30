@@ -49,7 +49,10 @@ layer is generated, so a spelling this file gets wrong fails a build instead of 
 already uses as its differential oracle. It lists that build's **1,151 internal functions and 253 internal
 types**. Extensions the oracle build does not load are named in `tools/check-migration.py` and are a
 **known hole, not an empty one** — `mbstring`, `curl`, `openssl`, `sockets`, `intl`, `gd`, `zip`, `posix`,
-`pcntl` and the rest are unaudited until the inventory is regenerated against a build that has them. The
+`pcntl` and the rest are unaudited until the inventory is regenerated against a build that has them; `gd`
+and `exif` have their answer drafted per concept in
+[ADR 0120 § 11](../adr/0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md), which
+becomes one row per name here the day the inventory lists them. The
 three database extensions came off that list when the build gained them: `mysqli`, `pgsql` and `sqlite3`
 are 236 named functions [ADR 0067](../adr/0067-core-db.md) now owes an audited row each, rather than one
 prose claim about four APIs. Most of the rest are already covered wholesale by a `Replaces` cell in

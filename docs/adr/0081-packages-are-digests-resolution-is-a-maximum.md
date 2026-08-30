@@ -22,7 +22,7 @@
   discipline for Novis packages, which is what makes § 3's major-version rule affordable.
   [docs/plan/design.md](../plan/design.md) — the *Tooling* row's "package manager" gains a
   milestone.
-- **Amended by:** 0112
+- **Amended by:** 0112, 0120
 
 > **In short:** a package's **identity is its BLAKE3 digest**; a name is only a way to find one. Two kinds
 > of source produce that digest — the **registry** (a name, `acme/http`) and a **git URL** — and the second
@@ -82,9 +82,13 @@
 - **The archive holds Novis source and data files only.** No compiled artifacts, no shared objects, no
   binaries — with exactly one exception: an **extension package**, whose payload is a `.nvsx` wasm component
   and which is sandboxed by [ADR 0003](0003-extension-system.md) with qualifier declarations by
-  [0055](0055-extension-qualifier-declarations.md). Both kinds are named, resolved, pinned, granted, logged
-  and vendored identically; only the payload differs. There is no third kind, and a Tier 2 native subsystem
-  is never a package ([0051](0051-standard-library-tiers.md) § 1).
+  [0055](0055-extension-qualifier-declarations.md). An extension package **may also carry Novis source**
+  beside its component — a builder that composes calls into it, as `nvs/image` does
+  ([0120](0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md) § 1) — and that
+  source is resolved exactly as a source package's is, while the `.nvsx` alone is what 0003's
+  `[[extension]]` pin governs. Both kinds are named, resolved, pinned, granted, logged and vendored
+  identically. There is no third kind, and a Tier 2 native subsystem is never a package
+  ([0051](0051-standard-library-tiers.md) § 1).
 - **A package may not contain an `nvs.toml`.** Server configuration is root-owned and deployment-scoped
   ([0064](0064-configuration-file-format.md)); a package that shipped one would be asking to configure the
   host it lands on. Fetching an archive containing one is an error naming the file.

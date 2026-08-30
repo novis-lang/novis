@@ -100,6 +100,7 @@ so you never have to open this file to route a topic.
 | PHP's `(int)$x` legacy cast syntax, why it doesn't parse | [0034](0034-legacy-cast-syntax-rejected.md) |
 | A conversion that shouldn't throw, `as ?int`, `tryParse`, validating untrusted input without `try`/`catch` | [0066](0066-nullable-conversion-operator.md) |
 | A one-line `try`/`catch`, the expression form `expr catch (Class $e) => value`, a fallback value for a call that throws, why an arm may `throw` but not `return`, `catch (Throwable) => …` warning, Swift's `try?`, Zig's `catch`, Go's comma-ok | [0119](0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md) |
+| Images — `gd`, `exif`, `imagick`, `imagecreatefromjpeg`, `imagecopyresampled`, `getimagesize`, `Novis\Image`, `nvs/image`, resizing, cropping, thumbnails, `srcset` variants, WebP/AVIF/JPEG XL, a pixel bomb and `[image] max_pixels`, EXIF orientation, ICC profiles, stripping GPS, comparing two images in a test, perceptual hashes, BlurHash, text on an image, QR codes, rasterising an SVG | [0120](0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md) |
 | Whether an `if`/`while`/`?:`/`&&`/`!` condition needs an explicit `as bool`, PHP truthiness | [0035](0035-truthy-boolean-context.md) |
 | PHP's `and`/`or`/`xor` keyword operators, why they don't parse | [0045](0045-and-or-xor-keyword-operators-rejected.md) |
 | `<?php` as an open tag, PHP's `die` keyword | [0049](0049-single-open-tag-and-single-exit-keyword.md) |
@@ -337,6 +338,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0117](0117-an-implemented-core-member-documents-itself-in-the-registry.md) | An implemented Core member documents itself in the registry | Accepted |
 | [0118](0118-a-capability-is-checked-at-the-door-to-the-effect.md) | A capability is checked at the door to the effect, and declared in one table | Accepted |
 | [0119](0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md) | An expression-level `catch` is a typed arm on one guarded expression, and it lowers to the block form | Accepted |
+| [0120](0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md) | The image component is a pipeline that crosses the boundary once, and gd is not inherited | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

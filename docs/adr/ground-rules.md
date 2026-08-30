@@ -361,3 +361,7 @@ spellings rejected, and the reasoning.
 - **An isolate's arena is an ownership root, not an address range: entering one maps nothing, releasing one
   wholesale is a drain of the refcount worklist that runs native teardown, its statics base is its own, and
   a crossing at refcount 1 is a pointer handoff** ([0116](0116-an-isolates-arena-is-an-ownership-root.md)).
+- **The image component is a Novis builder over a handful of coarse sandboxed entry points, one crossing
+  per terminal, with one pixel model, a header-read pixel cap, upright colour-correct decoding and
+  metadata stripped on encode — and none of gd's palette mode, mode flags, drawing primitives or formats**
+  ([0120](0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md)).

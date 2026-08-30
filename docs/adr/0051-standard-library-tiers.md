@@ -9,7 +9,7 @@
   *how to choose between them*; § 2 below is the missing procedure. Its "fine-grained primitives" rule for
   Tier 0 survives unchanged as test 4. [0011](0011-functions-and-constants-are-class-members.md) — the
   domain-class roster is extended, and § 5 adds a rule about what may claim the `Core` prefix at all.
-- **Amended by:** 0060, 0063, 0067, 0072, 0074, 0075, 0076, 0077, 0081, 0082, 0083, 0084, 0086, 0097
+- **Amended by:** 0060, 0063, 0067, 0072, 0074, 0075, 0076, 0077, 0081, 0082, 0083, 0084, 0086, 0097, 0120
 
 > **In short:** Novis does not inherit PHP's extension partition. That partition tracks 1997 C build
 > engineering — separate `.so` files, `dl()`, ini load order, per-module globals — not any property worth
@@ -160,7 +160,9 @@ sorting 10,000 strings through a per-comparison boundary would be roughly 130,00
 Locale-independent Unicode algorithms — case mapping, NFC/NFD normalization, grapheme segmentation — stay
 in `Core\Str`. And an **image component** (`gd`), test 5's headline case, which **carries `exif` rather
 than leaving it a separate `.nvsx`**: orientation and the rest of the tag set are read by the decoder
-already holding the file, so a second component would buy a second boundary crossing for one field.
+already holding the file, so a second component would buy a second boundary crossing for one field. Its
+shape — a Novis builder over a handful of coarse entry points, under `Novis\Image` — is
+[0120](0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md).
 
 **Deferred indefinitely — Ext when and if demand appears, and not otherwise:** `bz2`, `xsl`, `yaml`, and
 the binary serialization formats `msgpack`, `cbor`, `igbinary`, `protobuf`. Every one is the pure codec
@@ -189,8 +191,9 @@ C, LGPL GMP.
 
 Eleven more are closed here rather than left on a maybe-list, because an entry nobody will build is more
 useful named than pending. By **test 6**, each has a replacement already in the roster: `imagick`, whose
-ImageMagick surface would be imported wholesale for a long tail the first-party image component's
-decode/resize/convert already covers; `memcached`, against `Core\Cache`'s Redis backend, which is a
+ImageMagick surface would be imported wholesale for a long tail the first-party image component
+([0120](0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md)) already covers;
+`memcached`, against `Core\Cache`'s Redis backend, which is a
 superset in practice; `dba`, against the SQLite that § 4 already admits to the default binary, and which
 has eaten every embedded key-value use case dba was built for; `tidy`, against `Core\Html`'s sanitizer —
 and repair is in any case the wrong direction, since [ADR 0095](0095-ambiguous-input-is-refused-never-repaired.md)
