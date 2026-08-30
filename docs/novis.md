@@ -6136,7 +6136,7 @@ id    |003.1|ff
 Core\Str::length(string $s): uint
 ```
 
-Counts the graphemes in `$s` — user-perceived characters, ADR 0009's default unit — so a combining sequence counts once and this is never a byte count.
+Counts the graphemes in `$s` — user-perceived characters, the unit every `Core\Str` member counts in — so a combining sequence counts once and this is never a byte count.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -6151,7 +6151,7 @@ Counts the graphemes in `$s` — user-perceived characters, ADR 0009's default u
 Core\Str::at(string $s, int $index): string
 ```
 
-Answers the one character at `$index`, as `$s[$i]` and `mb_substr($s, $i, 1)` do — counted in graphemes, ADR 0009's default unit, and never a byte.
+Answers the one character at `$index`, as `$s[$i]` and `mb_substr($s, $i, 1)` do — counted in graphemes, the unit every `Core\Str` member counts in, and never a byte.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -6912,7 +6912,7 @@ Keeps the entries `$predicate` answers truthily for, as `array_filter` does — 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$a` | `array<T>` | The array to filter. |
-| `$predicate` | `callable` | Called as `($value, $key)` per entry; a truthy answer, on ADR 0035's table, keeps the entry. |
+| `$predicate` | `callable` | Called as `($value, $key)` per entry; a truthy answer keeps the entry, on the same truthiness table `if` reads. |
 
 **Returns** `array<T>` — The kept entries under their own keys, never renumbered; an empty array when nothing passes.
 
@@ -7794,7 +7794,7 @@ The entries' mean — `array_sum($a) / count($a)` with the empty case answered.
 
 **Returns** `?float|decimal` — A `decimal` when the total is one — exact, rounded half to even at the widest scale the quotient admits — and a `float` otherwise; `null` for the empty array.
 
-**Throws** `RuntimeError` — The running total leaves its type's range or meets a `float` and a `decimal` in one array, as `sum` throws; or a `decimal` quotient falls outside ADR 0054 § 1's range.
+**Throws** `RuntimeError` — The running total leaves its type's range or meets a `float` and a `decimal` in one array, as `sum` throws; or a `decimal` quotient falls outside what a `decimal` can hold.
 
 <a id="core-core-attributes"></a>
 ### `Core\Attributes`
@@ -8684,7 +8684,7 @@ Compiles `$pattern` under the four flags into a `Pattern` handle every other mem
 
 **Returns** `Core\Regex\Pattern` — The `Pattern`, compiled eagerly so a malformed pattern fails here rather than at its first use.
 
-**Throws** `RuntimeError` — `$pattern` does not compile under either of ADR 0056's two engines.
+**Throws** `RuntimeError` — `$pattern` compiles under neither the linear engine nor the backtracking one.
 
 <a id="core-core-regex-matches"></a>
 #### `Core\Regex::matches`
@@ -8698,11 +8698,11 @@ Answers whether `$pattern` matches anywhere in `$subject` — `preg_match` used 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$subject` | `string` (neutral) | The text to search. |
-| `$pattern` | `Core\Regex\Pattern\|string` | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink. |
+| `$pattern` | `Core\Regex\Pattern\|string` | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink, so a `tainted` string is refused at the call. |
 
 **Returns** `bool` — `true` when the subject contains at least one match, `false` otherwise.
 
-**Throws** `RuntimeError` — `$pattern` does not compile under either of ADR 0056's two engines, or the backtracking engine exhausted its step budget against this subject.
+**Throws** `RuntimeError` — `$pattern` compiles under neither the linear engine nor the backtracking one, or the backtracking engine exhausted its step budget against this subject.
 
 <a id="core-core-regex-match"></a>
 #### `Core\Regex::match`
@@ -8716,12 +8716,12 @@ Finds the first match of `$pattern` in `$subject` at or after `from`, as a `Matc
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$subject` | `string` | The text to search. |
-| `$pattern` | `Core\Regex\Pattern\|string` | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink. |
+| `$pattern` | `Core\Regex\Pattern\|string` | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink, so a `tainted` string is refused at the call. |
 | `{from: …}` | `int` (default `0`) | The grapheme index the search starts at; negative counts from the end, and an index past the end starts at the end. |
 
 **Returns** `?Core\Regex\Match` — The first `Match`, or `null` when the pattern matches nowhere at or after `from`.
 
-**Throws** `RuntimeError` — `$pattern` does not compile under either of ADR 0056's two engines, or the backtracking engine exhausted its step budget against this subject.
+**Throws** `RuntimeError` — `$pattern` compiles under neither the linear engine nor the backtracking one, or the backtracking engine exhausted its step budget against this subject.
 
 <a id="core-core-regex-matchall"></a>
 #### `Core\Regex::matchAll`
@@ -8735,11 +8735,11 @@ Finds every non-overlapping match of `$pattern` in `$subject`, one `Match` each 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$subject` | `string` | The text to search. |
-| `$pattern` | `Core\Regex\Pattern\|string` | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink. |
+| `$pattern` | `Core\Regex\Pattern\|string` | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink, so a `tainted` string is refused at the call. |
 
 **Returns** `array<Core\Regex\Match>` — The matches in subject order; an empty array when the pattern matches nowhere.
 
-**Throws** `RuntimeError` — `$pattern` does not compile under either of ADR 0056's two engines, or the backtracking engine exhausted its step budget against this subject.
+**Throws** `RuntimeError` — `$pattern` compiles under neither the linear engine nor the backtracking one, or the backtracking engine exhausted its step budget against this subject.
 
 <a id="core-core-regex-replace"></a>
 #### `Core\Regex::replace`
@@ -8753,13 +8753,13 @@ Replaces up to `limit` matches of `$pattern` in `$subject` with `$replacement`, 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$subject` | `string` | The text to search. |
-| `$pattern` | `Core\Regex\Pattern\|string` | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink. |
+| `$pattern` | `Core\Regex\Pattern\|string` | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink, so a `tainted` string is refused at the call. |
 | `$replacement` | `string` | The template each match becomes; a reference to a group the pattern does not declare expands to the empty string, and PHP's `\1` spelling is not a reference. |
 | `{limit: …}` | `uint` (default `18446744073709551615`) | How many matches to replace, counted from the start of the subject; the default is every one, and `0` replaces nothing. |
 
 **Returns** `string` — The subject with its matches replaced — unchanged when the pattern matches nowhere or `limit` is `0`.
 
-**Throws** `RuntimeError` — `$pattern` does not compile under either of ADR 0056's two engines, or the backtracking engine exhausted its step budget against this subject.
+**Throws** `RuntimeError` — `$pattern` compiles under neither the linear engine nor the backtracking one, or the backtracking engine exhausted its step budget against this subject.
 
 <a id="core-core-regex-replacewith"></a>
 #### `Core\Regex::replaceWith`
@@ -8773,13 +8773,13 @@ Replaces up to `limit` matches of `$pattern` in `$subject` with what `$fn` answe
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$subject` | `string` | The text to search. |
-| `$pattern` | `Core\Regex\Pattern\|string` | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink. |
+| `$pattern` | `Core\Regex\Pattern\|string` | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink, so a `tainted` string is refused at the call. |
 | `$fn` | `callable` | A `callable(Match): string` called once per replaced match, in subject order, after every match has been found. |
 | `{limit: …}` | `uint` (default `18446744073709551615`) | How many matches to replace, counted from the start of the subject; the default is every one, `0` replaces nothing, and `$fn` is never called for a match beyond it. |
 
 **Returns** `string` — The subject with its matches replaced — unchanged when the pattern matches nowhere or `limit` is `0`.
 
-**Throws** `RuntimeError` — `$pattern` does not compile under either of ADR 0056's two engines, or the backtracking engine exhausted its step budget against this subject.
+**Throws** `RuntimeError` — `$pattern` compiles under neither the linear engine nor the backtracking one, or the backtracking engine exhausted its step budget against this subject.
 
 <a id="core-core-regex-split"></a>
 #### `Core\Regex::split`
@@ -8793,13 +8793,13 @@ Splits `$subject` at every match of `$pattern`, as `preg_split` does, under `Cor
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$subject` | `string` | The text to split. |
-| `$pattern` | `Core\Regex\Pattern\|string` | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink. |
+| `$pattern` | `Core\Regex\Pattern\|string` | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink, so a `tainted` string is refused at the call. |
 | `{limit: …}` | `int` (default `9223372036854775807`) | `Core\Str::split`'s three-sign rule: positive is at most that many pieces with the last holding the remainder, negative drops that many pieces off the end, and `0` yields the subject unsplit — not `preg_split`'s reading of `0` and `-1` as no limit. |
 | `{keepEmpty: …}` | `bool` (default `true`) | Whether empty pieces are kept; `false` is `PREG_SPLIT_NO_EMPTY`, and drops them after `limit` has been applied. |
 
 **Returns** `array<string>` — The pieces in order; the whole subject as one piece when the pattern matches nowhere.
 
-**Throws** `RuntimeError` — `$pattern` does not compile under either of ADR 0056's two engines, or the backtracking engine exhausted its step budget against this subject.
+**Throws** `RuntimeError` — `$pattern` compiles under neither the linear engine nor the backtracking one, or the backtracking engine exhausted its step budget against this subject.
 
 <a id="core-core-regex-quote"></a>
 #### `Core\Regex::quote`
@@ -8808,7 +8808,7 @@ Splits `$subject` at every match of `$pattern`, as `preg_split` does, under `Cor
 Core\Regex::quote(string $literal): string
 ```
 
-Escapes every character either engine gives a meaning to in `$literal`, as `preg_quote` does, so the result is a pattern matching that literal and nothing else — the launder for the pattern sink.
+Escapes every character either engine gives a meaning to in `$literal`, as `preg_quote` does, so the result is a pattern matching that literal and nothing else — the launder for the pattern sink, so its result is accepted where a `tainted` string is not.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -10010,7 +10010,7 @@ Reads an ISO-8601 / RFC 3339 timestamp that carries its own offset — `2024-03-
 Core\Time::parse(string $text, string $format, Core\Time\Zone $zone): Core\Time\DateTime
 ```
 
-Reads a civil date and time through a CLDR pattern and places it in `$zone`, replacing `DateTime::createFromFormat` and `strptime`; a literal pattern is validated and planned at compile time. A field the pattern does not name is left at the start of its range.
+Reads a civil date and time through a CLDR pattern and places it in `$zone`, replacing `DateTime::createFromFormat` and `strptime`; a literal pattern is validated and planned at compile time, so a malformed one is a compile error rather than a throw. A field the pattern does not name is left at the start of its range.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -10966,7 +10966,7 @@ not a duration literal
 Core\Time\Duration::nanoseconds(int $n): Core\Time\Duration
 ```
 
-Builds a `Duration` of exactly `$n` nanoseconds — the computed-count form of ADR 0070's duration literal, and the member a literal such as `30s` itself reaches a value through.
+Builds a `Duration` of exactly `$n` nanoseconds — the computed-count form of the duration literal, and the member a literal such as `30s` itself reaches a value through.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11015,7 +11015,7 @@ Builds a `Duration` of `$n` milliseconds, for a count computed at run time; a co
 Core\Time\Duration::seconds(int $n): Core\Time\Duration
 ```
 
-Builds a `Duration` of `$n` seconds, for a count computed at run time; a constant one is ADR 0070's literal, `30s`.
+Builds a `Duration` of `$n` seconds, for a count computed at run time; a constant one is written as the literal `30s`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11100,7 +11100,7 @@ Builds a `Duration` of `$n` weeks of exactly seven 24-hour days each — never a
 Core\Time\Duration::parse(string $text): Core\Time\Duration
 ```
 
-Reads ADR 0070's duration literal grammar — `30s`, `1h30m`, `7d` — at run time, through the one implementation the lexer uses for the source literal: the typed form of `strtotime` for an exact offset arriving in a config value or a flag. It accepts nothing else, so a `tainted` value comes out laundered.
+Reads the duration literal grammar — `30s`, `1h30m`, `7d` — at run time, through the one implementation the lexer uses for the source literal: the typed form of `strtotime` for an exact offset arriving in a config value or a flag. It accepts nothing else, so a `tainted` value comes out laundered.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12746,7 +12746,7 @@ https://example.test/users/7
 Core\Router::url(string $name, array<mixed> $params): string
 ```
 
-Builds the URL path of the route named `$name`, substituting `$params` into its `{captures}` and writing what is left over as a query string — ADR 0077 § 4's launderer for the URL-path sink, every value percent-encoded into its own segment.
+Builds the URL path of the route named `$name`, substituting `$params` into its `{captures}` and writing what is left over as a query string — the launderer for the URL-path sink, every value percent-encoded into its own segment.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12764,7 +12764,7 @@ Builds the URL path of the route named `$name`, substituting `$params` into its 
 Core\Router::urlAbsolute(string $name, array<mixed> $params): string
 ```
 
-`url` with the mount's configured origin in front — ADR 0102 § 6's `[[app]] origin`, resolved before the request ran and never derived from a `Host` or `X-Forwarded-Host` header.
+`url` with the mount's configured origin in front — the `[[app]] origin` setting, resolved before the request ran and never derived from a `Host` or `X-Forwarded-Host` header.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12773,7 +12773,7 @@ Core\Router::urlAbsolute(string $name, array<mixed> $params): string
 
 **Returns** `string` — The absolute URL, `https://example.test/users/42?page=2`.
 
-**Throws** `RuntimeError` — For everything `url` throws for, and when no origin is configured for the unit, since ADR 0102 § 6 refuses to derive one from a request header.
+**Throws** `RuntimeError` — For everything `url` throws for, and when no origin is configured for the unit, since an origin is never derived from a request header.
 
 <a id="core-core-csv"></a>
 ### `Core\Csv`
@@ -13213,7 +13213,7 @@ Writes one rendered node per argument to the diagnostic channel — stderr in a 
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `...$values` | `mixed` | Any number of values, each rendered as ADR 0092's record: control bytes and bidi made visible, a deep or long structure elided, a cycle marked, and a `secret` property redacted. |
+| `...$values` | `mixed` | Any number of values, each rendered as a debug record: control bytes and bidi made visible, a deep or long structure elided, a cycle marked, and a `secret` property redacted. |
 
 **Returns** `void` — Nothing; a call with no arguments writes nothing at all, and a dump is never captured by `Core\Out::capture`.
 
@@ -13312,7 +13312,7 @@ final class CartTest {
 Core\Test::assertSame(T $actual, T $expected, {message?: string}): void
 ```
 
-Asserts `$actual` is identical to `$expected` under ADR 0090 § 3's identity — two objects are the same object and nothing else is — as PHPUnit's `assertSame` does, subject first.
+Asserts `$actual` is identical to `$expected` — two objects are the same object and nothing else is — as PHPUnit's `assertSame` does, subject first.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -13478,7 +13478,7 @@ Runs `$body` and asserts that an assertion inside it failed, then discharges tho
 Core\Test::advance(Core\Time\Duration $by): void
 ```
 
-Moves the fixed clock a `#[Test(at: ...)]` declared forward by `$by`, so a test of something that expires can reach the far side of the expiry without waiting — the mutator ADR 0079 § 12 declares beside the clock itself.
+Moves the fixed clock a `#[Test(at: ...)]` declared forward by `$by`, so a test of something that expires can reach the far side of the expiry without waiting — the one mutator that clock has.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -13546,7 +13546,7 @@ deadline hit
 Core\Task::all({name: callable, ...} $tasks, {limit?: uint, deadline?: Core\Time\Duration}): S
 ```
 
-Runs every closure of the `$tasks` shape literal as a concurrent child task and answers a shape with the same field names, each carrying that closure's own declared return type — ADR 0072's fixed, heterogeneous set.
+Runs every closure of the `$tasks` shape literal as a concurrent child task and answers a shape with the same field names, each carrying that closure's own declared return type — a fixed, heterogeneous set decided where the call is written.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -14079,7 +14079,7 @@ Bearer hunter2
 Core\Secret::reveal(string $value, string $reason): string
 ```
 
-Answers `$value` with the `secret` qualifier dropped, at the one call site where handing the secret over is the point — ADR 0033 § 3's named escape hatch, and the only way a `secret string` reaches a sink that refuses one.
+Answers `$value` with the `secret` qualifier dropped, at the one call site where handing the secret over is the point — the one named escape hatch, and the only way a `secret string` reaches a sink that refuses one.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -14224,7 +14224,7 @@ The algorithm a `Core\Hash` member computes — every one PHP's `hash()` names t
 <a id="enum-core-http-method"></a>
 #### `Core\Http\Method`
 
-The closed set of HTTP verbs a `#[Route]` may be declared under and a request may carry — ADR 0074's eight, safe ones first so that the four ADR 0096 § 4's CSRF check covers are the contiguous tail from `Post` on; `CONNECT` is deliberately absent.
+The closed set of HTTP verbs a `#[Route]` may be declared under and a request may carry — eight of them, safe ones first so that the four the CSRF check covers are the contiguous tail from `Post` on; `CONNECT` is deliberately absent.
 
 | Case | Meaning |
 |---|---|
@@ -14240,7 +14240,7 @@ The closed set of HTTP verbs a `#[Route]` may be declared under and a request ma
 <a id="enum-core-audience"></a>
 #### `Core\Audience`
 
-The one access decision `Core` names for `#[Access(allow: …)]`: a route open to everyone is a name that resolves rather than a magic string, and the enum will not grow a second case, because a roster of access levels is the interpretation ADR 0096 refuses to hold.
+The one access decision `Core` names for `#[Access(allow: …)]`: a route open to everyone is a name that resolves rather than a magic string, and the enum will not grow a second case, because a roster of access levels is an interpretation `Core` does not hold.
 
 | Case | Meaning |
 |---|---|

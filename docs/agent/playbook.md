@@ -4202,6 +4202,17 @@ sibling in the same namespace unqualified.
   needed touching. This is the *doc* twin of the `loop-goal.toml` traps above: a `Known gaps`
   bullet is status, an ADR is a decision, and status goes stale silently. One scratch `.nvs` under
   `.agent-tmp/` proving the gap is still there costs one call and is the whole check.
+- **Rewording a `Core` reference card breaks a golden in another crate, and adding a `Fault::fatal`
+  whose message starts `internal error:` fails a gate in a third.** Neither shows up in
+  `-p nvs-stdlib`. `crates/nvs-cli/tests/meta.rs`'s `the_golden_for_str_length_matches_the_contract`
+  pins `Core\Str::length`'s whole card — it is the one card `nvs meta --json`'s § 2 golden froze, so
+  it is a `nvs-cli` test failure with no hint that a `str.rs` card was what moved. And
+  `crates/nvs-stdlib/tests/conformance_coverage.rs`'s
+  `every_error_path_is_asserted_or_declared_unreachable` wants the phrase *unreachable from source*
+  in a comment **within eight lines above** the fatal, not further up and not in the function's doc
+  comment — the message it fails with says so, but only after a full `verify.py`. Both are cheap to
+  pre-empt: `grep -rn "<the card's first clause>" crates/nvs-cli/tests/` before rewording, and copy
+  the comment shape from the twin site you are modelling the new fatal on.
 
 ## Divergences and refusals already pinned
 

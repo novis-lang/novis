@@ -46,21 +46,21 @@
 > acceptance**: `crates/nvs-host` is on disk whole with every `cargo-named` name green, `spawn
 > script`/`await` lower, and each decision lives in its file's module doc or in ADRs 0115–0117. Goal
 > 3 on disk: `crates/nvs-config` holds the directive registry, 0064 § 2a's block roster as a typed
-> tree with § 3's two per-file refusals, ADR 0103 §§ 1-7's resolver — later-wins recorded, every
-> file trusted, every secret read — ADR 0104 §§ 1-3's `[[app]]` blocks on a canonical key and under
-> the host's ceiling, ADR 0064 § 5's value parser, and ADR 0078 §§ 1-2's snapshot, which `nvs run`
-> now resolves the tree for and a request reads under `Core\Config`.  Stage 4 has its first doors:
-> 0118's check sits inside `Core\File::read`/`::write` and inside a `spawn script` target's
-> resolution, `registry::CAPABILITIES` names the two, and `nvs.toml` grants the examples. ADR 0020 §
-> 1's memory, output and wall-time caps are enforced: `budget` counts held and written bytes, a
-> breach is a `FATAL`, `max_script_depth` refuses the spawn past it, and one store expires a whole
-> tree; § 1's tier 1 is handed the limit's name, and fires once inside the reserve; ADR 0078 § 4
-> keys both caches. Stage 5 has ADR 0042 §§ 1-6,  in `crates/nvs-cli/src/cache.rs`, whose *Known
-> gaps* decides a payload. **Stage 0c — the reference findings — is open and runs ahead of
-> everything else, stage 9 included**: `docs/reference/findings.md` § *Triage* holds the verdicts
-> and items 31–35 the work; items 31–33 are closed, and 34 has fifteen of seventeen, D7 and D10
-> left. **Stage 8 is open**: conformance 1075, differential 206 of 210, six of eight written.
-> **Stage 7 is closed**: `nvs build --compile` appends ADR 0048 §§ 2-5's source payload, and
+> tree with § 3's two per-file refusals, ADR 0103 §§ 1-7's resolver, ADR 0104 §§ 1-3's `[[app]]`
+> blocks on a canonical key and under the host's ceiling, ADR 0064 § 5's value parser, and ADR 0078
+> §§ 1-2's snapshot, which `nvs run` now resolves the tree for and a request reads under
+> `Core\Config`.  Stage 4 has its first doors: 0118's check sits inside `Core\File::read`/`::write`
+> and inside a `spawn script` target's resolution, `registry::CAPABILITIES` names the two, and
+> `nvs.toml` grants the examples. ADR 0020 § 1's memory, output and wall-time caps are enforced:
+> `budget` counts held and written bytes, a breach is a `FATAL`, `max_script_depth` refuses the
+> spawn past it, and one store expires a whole tree; § 1's tier 1 is handed the limit's name, and
+> fires once inside the reserve; ADR 0078 § 4 keys both caches. Stage 5 has ADR 0042 §§ 1-6,  in
+> `crates/nvs-cli/src/cache.rs`, whose *Known gaps* decides a payload. **Stage 0c — the reference
+> findings — is open and runs ahead of everything else, stage 9 included**:
+> `docs/reference/findings.md` § *Triage* holds the verdicts and items 31–35 the work; items 31–33
+> are closed, 34 has fifteen of seventeen with D7's enum half and D10 left, and 35's cards cite no
+> ADR. **Stage 8 is open**: conformance 1076, differential 206 of 210, six of eight written. **Stage
+> 7 is closed**: `nvs build --compile` appends ADR 0048 §§ 2-5's source payload, and
 > `nvs_diagnostics::embedded` is the byte source a bundle resolves against.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
