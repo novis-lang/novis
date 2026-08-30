@@ -1,0 +1,23 @@
+--TEST--
+a `Core` member whose capability the configuration does not grant throws a catchable `RuntimeError` naming that capability — ADR 0118 § 1, ADR 0103 § 1
+--FILE--
+<?nvs
+// The file exists and is readable by the account running this case; what is
+// missing is the grant, and the refusal has to say so rather than report an
+// I/O failure — a program that cannot tell the two apart cannot be fixed by
+// its operator.
+try {
+    echo Core\File::read('./data/note.txt');
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+--FILE nvs.toml--
+# A configuration that grants a *different* capability, so what the refusal
+# names is the one the member needed and not the absence of a file: the tree
+# resolves, `fs.write` is granted, and `fs.read` still is not.
+[capabilities.fs]
+write = ["./out"]
+--FILE data/note.txt--
+note
+--EXPECT--
+Core\File::read needs the capability `fs.read` for ./data/note.txt, which is not granted
