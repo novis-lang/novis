@@ -259,8 +259,9 @@ in that goal. An item's owner is the row it sits in.
       `nullable_default_int`, `nullable_default_class`*
 - [x] **D26** `continue` (level 1) inside a `switch` inside a loop continues the enclosing loop — the
       documented Novis choice, but PHP acts as `break`; noted so the crosswalk row stays deliberate.
-- [ ] **D27** A shebang `#!` first line is **not** recognized: the line is HTML-mode text and is
-      copied to the output. ADR 0100 says a file opening `#!` starts in code mode. *php-diff probes*
+- [x] **D27** A shebang `#!` first line opens code mode, per ADR 0100 § 3, and is trivia rather than
+      output. `nvs_syntax::lexer`'s `Lexer::new` owns why it is lexed as the `#` comment it already is
+      instead of skipped before lexing, and `E0009` names an `<?nvs` in such a file. *php-diff probes*
 - [ ] **D28** The on-disk compile cache is unwired: `cache.rs` and `[cache] dir` exist, nothing in
       `nvs-cli/src` outside `cache.rs` references it, and `nvs run` compiles fresh every time.
 - [ ] **D29** `await`'s result renders as `Core\Script\Result#1` in `Core\Debug::render`, while

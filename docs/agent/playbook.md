@@ -3073,6 +3073,13 @@ is why" — is this file.
   about what the case is for: declare the surrounding position `mixed` so the recovery satisfies it
   (what `this-is-not-read-in-a-static-method.nvst` does, in a comment saying why), or pin both
   errors deliberately. Writing the case against one error and discovering the second costs a build.
+- **A `--FILE--` body starts at byte 0 of the file the runner writes, with no leading newline — which
+  is the only reason an offset-0 case can be written at all.** `crates/nvs-test/src/case.rs`'s section
+  reader takes the lines *after* the header as the body verbatim, so
+  `a-shebang-line-opens-code.nvst` really does hand the lexer `#!` at offset 0. Worth knowing before
+  writing any case whose subject is the first bytes of a file: if the harness had kept the separator's
+  newline, the case would have passed while testing nothing, because the rule it pins (ADR 0100 § 3)
+  is exact about the offset and every other position is ordinary text.
 
 ## Splitting a file that got too big
 
