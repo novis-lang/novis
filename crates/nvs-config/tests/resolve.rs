@@ -24,6 +24,7 @@ fn p(path: &str) -> PathBuf {
 struct Fake {
     files: BTreeMap<PathBuf, String>,
     untrusted: BTreeSet<PathBuf>,
+    links: BTreeMap<PathBuf, PathBuf>,
 }
 
 impl Fake {
@@ -34,6 +35,7 @@ impl Fake {
                 .map(|(path, text)| (p(path), (*text).to_string()))
                 .collect(),
             untrusted: BTreeSet::new(),
+            links: BTreeMap::new(),
         }
     }
 
@@ -42,6 +44,22 @@ impl Fake {
         self.untrusted = paths.iter().map(|path| p(path)).collect();
         self
     }
+
+    /// `link` is another name for `target`, the way a symlink is.
+    fn linking(mut self, link: &str, target: &str) -> Self {
+        self.links.insert(p(link), p(target));
+        self
+    }
+
+    /// What a name resolves to, which is the only thing the resolver ever compares: the real
+    /// [`Files::trust`] hands back a canonical path, so a fake that skipped this would make every
+    /// case here a statement about paths no symlink was involved in.
+    fn target(&self, path: &Path) -> PathBuf {
+        self.links
+            .get(path)
+            .cloned()
+            .unwrap_or_else(|| path.to_path_buf())
+    }
 }
 
 impl Files for Fake {
@@ -49,16 +67,28 @@ impl Files for Fake {
     /// containing directory too, so a fake that inferred it would leave a case unable to say which
     /// of the two it meant.
     fn trust(&self, path: &Path) -> Result<PathBuf, Untrusted> {
-        if self.untrusted.contains(path) {
+        let path = self.target(path);
+        if self.untrusted.contains(&path) {
             return Err(Untrusted::Breach(format!(
                 "`{}` is group-writable (mode 0775, gid 1000)",
                 path.display()
             )));
         }
-        if !self.exists(path) {
+        if !self.exists(&path) {
             return Err(Untrusted::Unreadable("no such file".to_string()));
         }
-        Ok(path.to_path_buf())
+        Ok(path)
+    }
+
+    /// A link followed, and nothing else: a case here writes paths with no `..` in them, and
+    /// `tests/app.rs` is where the whole resolving walk is exercised.
+    fn canonical(&self, path: &Path) -> Result<PathBuf, String> {
+        let path = self.target(path);
+        if self.exists(&path) {
+            Ok(path)
+        } else {
+            Err("no such file".to_string())
+        }
     }
 
     fn read(&self, path: &Path) -> Result<String, String> {
@@ -93,9 +123,11 @@ impl Files for Fake {
     }
 
     /// A directory exists when the map holds anything under it, which is every directory a case has
-    /// a reason to name.
+    /// a reason to name — and a link exists when its target does, the way `Path::exists` is: it
+    /// `stat`s rather than `lstat`s.
     fn exists(&self, path: &Path) -> bool {
-        self.files.contains_key(path) || self.files.keys().any(|file| file.starts_with(path))
+        let path = self.target(path);
+        self.files.contains_key(&path) || self.files.keys().any(|file| file.starts_with(&path))
     }
 }
 
@@ -324,8 +356,35 @@ fn an_include_cycle_is_refused_with_the_chain_named() {
     }
 }
 
-/// § 2's depth cap, which is also the backstop for a cycle a symlink hid — the case a lexical path
-/// comparison cannot see.
+/// The same refusal when the ring is built out of a **symlink**, which is the case a lexical path
+/// comparison cannot see: `link.toml` and `a.toml` share no spelling, so nothing here closes unless
+/// the name compared is the one [`Files::trust`] handed back. That is why `same_file` is allowed to
+/// be lexical — the canonicalization happened at the boundary, one file earlier.
+#[test]
+fn a_cycle_built_out_of_a_symlink_is_refused_with_the_chain_named() {
+    let fs = Fake::with(&[
+        ("etc/nvs.toml", "[[include]]\npath = \"a.toml\"\n"),
+        ("etc/a.toml", "[[include]]\npath = \"link.toml\"\n"),
+    ])
+    .linking("etc/link.toml", "etc/a.toml");
+    let diagnostic = refusal(&fs, "etc/nvs.toml");
+
+    assert_eq!(diagnostic.code, Some(code::E_INCLUDE_CYCLE));
+    let chain = diagnostic.notes.join(" ");
+    assert!(
+        chain.contains("a.toml"),
+        "the chain names the file the link resolved to, which is the one that repeated: {chain}",
+    );
+    assert!(
+        !diagnostic.message.contains(&MAX_INCLUDE_DEPTH.to_string()),
+        "a symlinked ring is caught by name and not by the depth cap: {}",
+        diagnostic.message,
+    );
+}
+
+/// § 2's depth cap: an include tree too deep to read, whether or not it ever closes. A ring is not
+/// what this catches — the case above is — so a tree that nests past the cap without repeating a
+/// file is the one shape left for it.
 #[test]
 fn nesting_past_the_cap_is_refused() {
     let mut entries: Vec<(String, String)> = Vec::new();
