@@ -1,0 +1,51 @@
+--TEST--
+A method declared `: never` lowers whether or not it is called, and a call to one does not come back: the statement after it is never reached and the frame leaves through the enclosing `catch` — ADR 0007 § 3, ADR 0002
+--FILE--
+<?nvs
+// ADR 0007 § 3 makes `never` a return-only atom, and it is the one atom whose
+// value question has no value in it: a frame that cannot come back hands its
+// caller nothing. `nvs_ir::lower::erase_checked_ty` gives it `void`'s
+// representation for that reason, and that arm owns the rest of the decision.
+class Fail {
+    // Never called anywhere below. The *declaration* is what reached the
+    // lowerer, and it had no arm for this type — findings.md § Panics P4.
+    public static function unused(): never {
+        throw new RuntimeError("unused");
+    }
+
+    public static function with(string $why): never {
+        throw new RuntimeError($why);
+    }
+}
+
+class Work {
+    public static function run(bool $ok): void {
+        echo "entered\n";
+        if (!$ok) {
+            // The terminator is the callee's own, not a mark on this site: the
+            // `throw` inside `with` leaves the frame, and ADR 0002's unwind
+            // edge carries it past `run` to the `catch` below. So the `echo`
+            // after this call is lowered like any other statement and is
+            // reached by nothing.
+            Fail::with("refused");
+        }
+        echo "finished\n";
+    }
+}
+
+echo "compiled\n";
+
+Work::run(true);
+
+try {
+    Work::run(false);
+    echo "the call came back\n";
+} catch (RuntimeError $e) {
+    echo "caught: ", $e->message, "\n";
+}
+--EXPECT--
+compiled
+entered
+finished
+entered
+caught: refused

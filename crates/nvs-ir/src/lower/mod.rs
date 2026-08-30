@@ -2860,12 +2860,13 @@ pub(crate) fn shape_class_label(sorted_fields: &[String]) -> String {
 /// Panics naming the unsupported shape for anything outside this slice's
 /// scope. `object` is **not** among them — it erases to [`Ty::Object`] with
 /// [`CheckedTy::Class`], [`CheckedTy::Callable`] and [`CheckedTy::Shape`], and
-/// the panic message says so. What is left is [`CheckedTy::Never`],
-/// [`CheckedTy::Iterable`], an intersection, and the two the checker
-/// substitutes away before this boundary ever sees them
+/// the panic message says so. Nor is [`CheckedTy::Never`] — it erases to
+/// [`Ty::Void`], the representation of "the caller receives nothing", and that
+/// arm owns why the call site keeps its ordinary fall-through. What is left is
+/// the two the checker substitutes away before this boundary ever sees them
 /// ([`CheckedTy::TypeVar`] and [`CheckedTy::CallableTo`], both rewritten by
-/// `nvs_types::generics::substitute`), so meeting one of those last two here
-/// is a checker bug rather than a missing representation. `mixed` erases to
+/// `nvs_types::generics::substitute`), so meeting one here is a checker bug
+/// rather than a missing representation. `mixed` erases to
 /// [`Ty::Tagged`] — see that variant's own doc comment for exactly how much
 /// this boundary does and doesn't do with one yet. A **union** never panics:
 /// it is [`Ty::Tagged`] unless every member erases to one and the same
@@ -2996,6 +2997,34 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Opti
         // assignable here. Nothing is assignable to `iterable` today, so this
         // arm is likewise the declaration's, not any value's.
         CheckedTy::Iterable => Ty::Tagged,
+        // `never` is the one atom whose *value* question has no value in it:
+        // ADR 0007 § 3 makes it return-only, and a frame that cannot come back
+        // hands its caller nothing. That is the representation `void` already
+        // is, so `never` erases to it — the caller of a `never` member reads no
+        // slot, exactly as the caller of a `void` one does.
+        //
+        // **The difference between the two is control flow, and it is not
+        // encoded here.** A `never` callee leaves its frame by throwing or by
+        // exiting, and *that* is the terminator: the call site takes ADR 0002's
+        // unwind edge to its landing pad, which the lowering already emits for
+        // every call. The alternative — sealing the call site's fall-through
+        // with an unreachable on the strength of the annotation — was rejected
+        // rather than merely not written. It encodes the same fact a second
+        // time, and it converts any hole in the checker's "this body leaves the
+        // frame" analysis from a missed refusal into unreachable code that
+        // executes. Erasing to `void` is wrong for no program: a `never` member
+        // that did return would fall through to the caller's next instruction,
+        // which is the safe answer rather than the undefined one.
+        //
+        // That hole is not hypothetical, which is what settled the choice.
+        // `nvs_types::check::check_every_path_returns` exempts `never`
+        // alongside `void`, so a body declaring `never` that simply falls off
+        // its end compiles today and comes back; and `nvs_types::returns`
+        // walks statements syntactically, so a *call* to a `never` member does
+        // not yet count as leaving the frame the way a `throw` does. Both are
+        // refusals the checker owes and neither is a representation question,
+        // so both are open there rather than worked around here.
+        CheckedTy::Never => Ty::Void,
         _ => return None,
     })
 }

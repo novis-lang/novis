@@ -584,29 +584,6 @@
 //!     non-throwing form) runs no membership test either: its yield-`null`
 //!     miss arm has no shared representation with its hit arm, so it needs a
 //!     merge the throwing form does not.
-//! 21. **`never`, `iterable` and an intersection have no representation arm.**
-//!     `object` is no longer among them: `erase_checked_ty` maps
-//!     `CheckedTy::Object` to [`ty::Ty::Object`] beside `Class`, `Callable`
-//!     and `Shape`, and a program that declares one, passes one and returns
-//!     one runs. What still reaches that function's `_ => None`, and through
-//!     it `lower_checked_ty`'s panic, is three shapes ADR 0007 § 3's grammar
-//!     spells. Two of the three closed together and in opposite directions,
-//!     which is worth keeping: `iterable` and an intersection got arms —
-//!     `Ty::Tagged` for the former, since `array|Traversable` is two runtime
-//!     shapes and an object erasure would be a trap, and the union arm's own
-//!     member fold for the latter — while `never` and `void` in a *parameter*
-//!     closed with a rule instead. § 3 makes both return-only, so
-//!     `nvs_types::signatures` refuses them at the declaration (`E0742`),
-//!     which also took `void` out of `nvs-codegen`'s "reading a value of
-//!     representation `void`", a second internal error the same declaration
-//!     reached.
-//!
-//!     Neither arm makes its type *usable*: nothing is assignable to
-//!     `iterable` or to an intersection in `nvs_types::expr::assign` — not an
-//!     `array<int>`, not a class implementing every member — so both are types
-//!     no value can inhabit today, and the arms are the declaration's rather
-//!     than any value's. What is left is one row in `tests/type_atoms.rs`'s
-//!     `KNOWN_ICE`: `never` in a return position.
 
 pub mod ids;
 pub mod ir;

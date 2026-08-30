@@ -107,21 +107,22 @@ const ATOMS: &[&str] = &[
 /// **This may never grow.** Every entry is an open item in
 /// `docs/agent/loop-goal.md`, and the test fails just as loudly on an entry
 /// that has *stopped* panicking — the ratchet only turns one way.
-const KNOWN_ICE: &[(&str, Position)] = &[
-    // Item 25's one remaining row. It reaches `erase_checked_ty`'s
-    // `_ => None` and then `lower_checked_ty`'s panic.
-    //
-    // `never` had a **parameter** row as well, which is the finding this table
-    // exists for: ADR 0007 § 3 says `void` and `never` are return-only, and
-    // neither was refused there — `never` panicked here and `void` lowered and
-    // died one crate further down. `E0742` refuses both at the declaration now
-    // (`nvs_types::signatures`). `iterable` and an intersection went the other
-    // way in the same slice and have representations (`Ty::Tagged` and the
-    // member fold), so what is left is `never` in a *return*, where the
-    // representation is the open question: a function that cannot return has
-    // no value to give one to.
-    ("never", Position::Return),
-];
+///
+/// **It is empty, and that is this table's finished state**: every atom ADR
+/// 0007 § 3 spells reaches a diagnostic or an IR in both positions. The list
+/// stays because the ratchet needs somewhere to name a row and because
+/// emptying it is what closed the last one, not what retires the test.
+///
+/// The last two rows, for the reader who wonders what it was for. `never` in a
+/// **parameter** is the finding it exists for — ADR 0007 § 3 says `void` and
+/// `never` are return-only and neither was refused there, so `never` panicked
+/// here while `void` lowered and died one crate further down; `E0742` refuses
+/// both at the declaration now (`nvs_types::signatures`). `never` in a
+/// **return** was item 34's P4: it erases to `Ty::Void`, the representation of
+/// a caller that receives nothing, and `nvs_ir::lower::erase_checked_ty`'s own
+/// arm owns why the call site keeps its ordinary fall-through rather than
+/// gaining a terminator of its own.
+const KNOWN_ICE: &[(&str, Position)] = &[];
 
 /// Where in a declaration the atom is written.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
