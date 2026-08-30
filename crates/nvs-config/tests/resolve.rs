@@ -220,7 +220,7 @@ fn the_shipped_defaults_resolve_to_the_default_tree() {
 /// That record is the whole of what makes later-wins acceptable here, so it is asserted, not the
 /// winning value alone.
 #[test]
-fn a_later_file_wins_and_the_override_names_both_origins() {
+fn a_key_set_in_two_files_resolves_to_the_later_one_with_both_origins_reported() {
     let fs = Fake::with(&[
         (
             "etc/nvs.toml",
