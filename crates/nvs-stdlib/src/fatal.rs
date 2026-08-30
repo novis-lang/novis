@@ -52,7 +52,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// `Core\Fatal::onLimit`'s reference card — ADR 0117.
 const ON_LIMIT_DOC: MethodDoc = MethodDoc {
     short: "Registers the closure this request runs when a resource limit stops it — memory, CPU \
-            time, wall time, script depth or call-stack depth. It runs out of a slice of the \
+            time, output, wall time, script depth or call-stack depth. It runs out of a slice of the \
             request's budget reserved for it, once and never twice, and it is the only thing that \
             observes a `FATAL` a `catch` never sees.",
     params: &[ParamDoc {

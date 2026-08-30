@@ -95,6 +95,14 @@
 //! that observes it one batch late is inside the amortisation window the batch
 //! already grants.
 //!
+//! **One word per request *tree*, not per context.** The field is a shared
+//! handle rather than the word itself, so a `spawn script` child polls the same
+//! word its root does:
+//! [ADR 0006](../../../docs/adr/0006-isolated-script-execution.md) gives a tree
+//! one ceiling to divide and charges a child's CPU to the root, and the timer
+//! that expires a request only ever holds the root to fire at. [`Ctx::isolate`]
+//! owns what the sharing costs.
+//!
 //! **Who reads it is not a member's decision.** ADR 0106 § 5's first constraint
 //! puts the poll in a combinator rather than in every helper that remembers to
 //! ask, and that combinator is [`crate::bounded_loop`] — it owns the batch
@@ -258,7 +266,24 @@ pub struct Ctx {
     /// the timer that expires it. `Relaxed` on both sides, because nothing is
     /// published behind the flag and a poll that observes it one batch late is
     /// already inside the amortisation window.
-    deadline: std::sync::atomic::AtomicU64,
+    ///
+    /// **Shared with every context in the request tree, which is why it is a
+    /// handle and not the word.**
+    /// [ADR 0006](../../../docs/adr/0006-isolated-script-execution.md) gives a
+    /// tree "one ceiling to divide" and charges a child's CPU to the root. A
+    /// copied flag satisfied that only in one direction — a child built *after*
+    /// the timer fired was born expired, while one built a microsecond before
+    /// it ran on with a zero of its own, and nothing would ever have set that
+    /// zero, because the timer holds the root and no registry of live children
+    /// exists for it to walk. So [`Self::child`] and [`Self::isolate`] clone the
+    /// handle, and the tree stops on the one store.
+    ///
+    /// **What it spends:** one allocation per request *tree* — the children
+    /// share the root's — and one pointer hop on a poll already amortised over
+    /// [`crate::bounded_loop`]'s batch. The handle is in the hot line the stack
+    /// check loads; the word it names is not, so the hop is a second cache line
+    /// and the batch is what makes it affordable.
+    deadline: std::sync::Arc<std::sync::atomic::AtomicU64>,
     /// Hot. Read inline by every non-leaf function entry; see the module docs'
     /// call-stack-limit section. The **soft** address: below it, a
     /// [`ThrownClass::Recursion`] throws.
@@ -295,6 +320,11 @@ pub struct Ctx {
     /// this crate's tests pin by offset, so a field added among them moves
     /// `statics` and fails them. Nothing below `statics` has that constraint.
     memory_base: isize,
+    /// The thread's output-byte count when this context was made — the zero
+    /// point [`Self::output_used`] measures this request's own writing from.
+    /// [`Self::memory_base`]'s twin in every respect, the reason it sits below
+    /// `statics` included.
+    output_base: usize,
     /// `[limits] memory` as a byte count, or `0` for a request under no cap —
     /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's
     /// first resource limit.
@@ -306,6 +336,22 @@ pub struct Ctx {
     /// [`Self::refresh_limits`] after `Core\Config::set` or `::restore` moves
     /// the overlay — and read as a bare integer everywhere else.
     memory_limit: usize,
+    /// `[limits] max_output` as a byte count, or `0` for a request under no cap
+    /// — the response-size ceiling beside the memory one, cached for
+    /// [`Self::memory_limit`]'s reason.
+    ///
+    /// **No reserved slice, unlike its two siblings.**
+    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1 carves
+    /// one out of `memory` and one out of `cpu_time` because a tier-1 handler
+    /// cannot run without allocating and cannot run without taking time. It can
+    /// run without writing, and nothing refuses a write in the first place —
+    /// this ceiling is *noticed* at the safepoint poll and never enforced at
+    /// [`Self::write_output`]. So there is no `fatal_reserve_output` for
+    /// [`Self::refresh_limits`] to carve, and this one field is the whole of
+    /// what the directive becomes.
+    ///
+    /// **What it spends:** one word per request.
+    output_limit: usize,
     /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's
     /// tier-1 handler: the closure `Core\Fatal::onLimit` registered, owned, or
     /// `null` for a request that registered none.
@@ -860,8 +906,9 @@ pub const DEBUG_FLAGS_OFFSET: usize = std::mem::offset_of!(Ctx, debug);
 /// docs.
 pub const STACK_LIMIT_OFFSET: usize = std::mem::offset_of!(Ctx, stack_limit);
 
-/// Byte offset of the deadline flag within [`Ctx`] — see the module docs'
-/// *The request's deadline* section.
+/// Byte offset of the deadline handle within [`Ctx`] — see the module docs'
+/// *The request's deadline* section, which owns why the word itself is the
+/// tree's and this line holds only the way to it.
 pub const DEADLINE_OFFSET: usize = std::mem::offset_of!(Ctx, deadline);
 
 /// The bytes an x86-64 or AArch64 cache line holds, which is what
@@ -908,7 +955,7 @@ pub const STACK_RESERVE: usize = 256 << 10;
 /// written. What it spends is two allocations out of § 1's reserved slice, once
 /// per request that both registers a handler and is stopped.
 ///
-/// **Three variants, because three limits are enforced.** § 1 lists five; wall
+/// **Four variants, because four limits are enforced.** § 1 lists six; wall
 /// time and call-stack depth each gain a variant in the slice that gives them a
 /// breach to report, since a variant nothing can produce is a word in this
 /// report's vocabulary that no handler could see.
@@ -919,6 +966,10 @@ pub enum Limit {
     Memory,
     /// `[limits] cpu_time`, reached at the safepoint poll.
     CpuTime,
+    /// `[limits] max_output`, reached at the safepoint poll — the one place it
+    /// is reached, since [`Ctx::output_limit`]'s field doc has the write itself
+    /// refusing nothing.
+    Output,
     /// `[limits] max_script_depth`, reached where a `spawn script` would build
     /// a child past the ceiling — the one limit in this list that is not
     /// reached in flight, since nothing is over it until an isolate is asked
@@ -938,6 +989,7 @@ impl Limit {
         match self {
             Self::Memory => "memory",
             Self::CpuTime => "cpu_time",
+            Self::Output => "max_output",
             Self::ScriptDepth => "max_script_depth",
         }
     }
@@ -958,13 +1010,15 @@ impl Ctx {
         let mut ctx = Self {
             safepoint: SafepointFlags::empty(),
             debug: DebugFlags::empty(),
-            deadline: std::sync::atomic::AtomicU64::new(0),
+            deadline: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
             stack_limit: 0,
             stack_floor: 0,
             statics: std::ptr::null_mut(),
             exit_code: 0,
             memory_base: crate::budget::live_bytes(),
+            output_base: crate::budget::written_bytes(),
             memory_limit: 0,
+            output_limit: 0,
             limit_handler: Value::null(),
             fatal_reserve: 0,
             cpu_limit: 0,
@@ -1110,6 +1164,47 @@ impl Ctx {
     #[must_use]
     pub fn over_memory_limit(&self) -> bool {
         self.memory_limit != 0 && self.memory_used() > self.memory_limit
+    }
+
+    /// How many bytes this request has written to its response, in the sense
+    /// `[limits] max_output` means.
+    ///
+    /// This request's share of the thread's count, taken against
+    /// [`Self::output_base`] — so a root's reading holds every isolate spawned
+    /// beneath it and each isolate's holds only its own, which is
+    /// [ADR 0006](../../../docs/adr/0006-isolated-script-execution.md)'s
+    /// "child output against the root's `max_output`" and the same arrangement
+    /// [`Self::memory_used`] already has.
+    #[must_use]
+    pub fn output_used(&self) -> usize {
+        crate::budget::written_bytes().saturating_sub(self.output_base)
+    }
+
+    /// The response-size ceiling this request is held to, in bytes, `0` for no
+    /// cap.
+    ///
+    /// `[limits] max_output` as written, with nothing carved out of it — see
+    /// the field doc for why this ceiling has no reserved slice where the
+    /// memory one does.
+    #[must_use]
+    pub fn output_limit(&self) -> usize {
+        self.output_limit
+    }
+
+    /// Sets the response ceiling directly, for a caller holding no
+    /// configuration — [`Self::set_memory_limit`] exists for the same callers
+    /// and with the same division of labour.
+    pub fn set_output_limit(&mut self, bytes: usize) {
+        self.output_limit = bytes;
+    }
+
+    /// Whether this request has written past its response ceiling.
+    ///
+    /// [`Self::over_memory_limit`]'s shape exactly: an uncapped request answers
+    /// `false` on the first compare without reading the counter at all.
+    #[must_use]
+    pub fn over_output_limit(&self) -> bool {
+        self.output_limit != 0 && self.output_used() > self.output_limit
     }
 
     /// Takes ownership of the closure `Core\Fatal::onLimit` registered —
@@ -1311,6 +1406,31 @@ impl Ctx {
         )))
     }
 
+    /// The [`crate::Fault`] a request past its response ceiling owes, or `None`
+    /// while it is inside it.
+    ///
+    /// A `FATAL` for [`Self::memory_breach`]'s reason, and it names both
+    /// numbers for that method's reason too — except that there is no reserve
+    /// to subtract here, so the ceiling named is the one the operator wrote
+    /// with nothing to explain about it.
+    ///
+    /// **What it reports is the tree's reading, not this context's writing.**
+    /// A root stopped here may have written nothing itself and be over because
+    /// its isolates were: that is what the directive bounds, so the message
+    /// says "the request and everything it spawned" rather than implying a
+    /// single `echo` went too far.
+    #[must_use]
+    pub fn output_breach(&self) -> Option<crate::Fault> {
+        if !self.over_output_limit() {
+            return None;
+        }
+        Some(crate::Fault::fatal(format!(
+            "the request exceeded its output limit — {} bytes written by the request and everything it spawned, against a ceiling of {}",
+            self.output_used(),
+            self.output_limit,
+        )))
+    }
+
     /// The `FATAL` a `spawn script` from this context owes, or `None` where the
     /// child it is about to build is still under the ceiling.
     ///
@@ -1374,6 +1494,10 @@ impl Ctx {
         // to carve out of it: a request's ceilings are one reading of one
         // configuration.
         self.max_script_depth = self.configured_max_script_depth();
+        // The response ceiling, in the same pass and for the same reason.
+        // Nothing is carved out of it — [`Self::output_limit`]'s field doc owns
+        // why a ceiling on writing needs no slice reserved from it.
+        self.output_limit = self.configured_output_limit();
     }
 
     /// `[limits] cpu_time` in nanoseconds, or `0` for a request under no cap.
@@ -1607,11 +1731,32 @@ impl Ctx {
     /// § 3), and a second refusal from inside a running request could only be
     /// a worse-worded copy of it.
     fn configured_memory_limit(&self) -> usize {
-        let Some(written) = self.config.as_ref().and_then(|config| config.get("memory")) else {
+        self.configured_bytes("memory")
+    }
+
+    /// `[limits] max_output` as bytes, or `0` when there is no configuration,
+    /// no such directive, or a value that is not a size.
+    ///
+    /// Read the same way and answering "no cap" on a malformed value for the
+    /// same reason its sibling above does.
+    fn configured_output_limit(&self) -> usize {
+        self.configured_bytes("max_output")
+    }
+
+    /// One `[limits]` directive read as a byte count — the arithmetic the two
+    /// readers above share.
+    ///
+    /// Written once rather than per ceiling because a second size directive
+    /// growing its own parse is how the two would come to disagree about what
+    /// `"32M"` means, and `nvs_config::Quantity` is the one place that question
+    /// is answered ([ADR 0064](../../../docs/adr/0064-configuration-file-format.md)
+    /// § 5).
+    fn configured_bytes(&self, key: &str) -> usize {
+        let Some(written) = self.config.as_ref().and_then(|config| config.get(key)) else {
             return 0;
         };
         let setting = nvs_config::Setting::Text(written);
-        match nvs_config::Quantity::parse("memory", nvs_config::Unit::Bytes, &setting) {
+        match nvs_config::Quantity::parse(key, nvs_config::Unit::Bytes, &setting) {
             Ok(nvs_config::Quantity::Bytes(bytes)) => usize::try_from(bytes).unwrap_or(usize::MAX),
             _ => 0,
         }
@@ -1752,9 +1897,9 @@ impl Ctx {
         child.debug = self.debug;
         child.origin = self.origin.clone();
         child.runtime_error_class = self.runtime_error_class.clone();
-        child.deadline = std::sync::atomic::AtomicU64::new(
-            self.deadline.load(std::sync::atomic::Ordering::Relaxed),
-        );
+        // The word, not its value: a task of this request is bounded by this
+        // request's wall time and by no clock of its own. See the field doc.
+        child.deadline = std::sync::Arc::clone(&self.deadline);
         child
     }
 
@@ -1780,8 +1925,21 @@ impl Ctx {
     /// the debug flags, the origin, the runtime error class table (compiled
     /// code, shared by design) and the deadline word, since a budget is
     /// accounted at the root of the request tree and never per isolate. The
-    /// output sink is the caller's, because `output: 'capture'` and
+    /// deadline crosses as the *word* and not as its value — one store expires
+    /// the whole tree, whenever in the child's life the timer fires — and
+    /// [`Self::deadline`]'s field doc owns why a copy was the wrong half of
+    /// that. The output sink is the caller's, because `output: 'capture'` and
     /// `output: 'inherit'` differ in nothing else.
+    ///
+    /// **No ceiling crosses, and that is what makes the budget the tree's.**
+    /// ADR 0006's table charges a child's memory and a child's output to the
+    /// root, and both counters are the thread's ([`crate::budget`]) with the
+    /// child's own zero point taken here by [`Self::new`]: a child reads back
+    /// its own share, the root's base predates every child so its reading holds
+    /// all of them at once, and the ceiling that stops the tree is the root's.
+    /// A child handed a ceiling of its own — [`Self::set_memory_limit`],
+    /// [`Self::set_output_limit`] — narrows itself further and can never widen
+    /// the tree.
     ///
     /// **What it spends:** one `Ctx` per in-flight isolate plus its own statics
     /// store once armed, both freed when that isolate ends. O(in-flight), per
@@ -1811,9 +1969,7 @@ impl Ctx {
         isolate.script_depth = self.script_depth.saturating_add(1);
         isolate.max_script_depth = self.max_script_depth;
         isolate.runtime_error_class = self.runtime_error_class.clone();
-        isolate.deadline = std::sync::atomic::AtomicU64::new(
-            self.deadline.load(std::sync::atomic::Ordering::Relaxed),
-        );
+        isolate.deadline = std::sync::Arc::clone(&self.deadline);
         isolate
     }
 
@@ -1961,8 +2117,10 @@ impl Ctx {
     /// § 5's poll, and the module docs' *The request's deadline* section owns
     /// what it costs and who may call it.
     ///
-    /// One relaxed load from a line the stack check has already brought in,
-    /// which is the whole reason a bounded loop can afford to ask.
+    /// One relaxed load, through a handle in the line the stack check has
+    /// already brought in. The word itself is the request tree's and lives
+    /// elsewhere, which is the one cache line this poll costs and the reason
+    /// [`crate::bounded_loop`]'s batch is what makes it affordable.
     #[must_use]
     pub fn deadline_expired(&self) -> bool {
         self.deadline.load(std::sync::atomic::Ordering::Relaxed) != 0
@@ -1974,6 +2132,10 @@ impl Ctx {
     /// Takes `&self` rather than `&mut self` deliberately: the caller is the
     /// timer, and the thread running the request holds the `&mut` already —
     /// which is exactly the case a `&mut` writer could not serve.
+    ///
+    /// **It expires the whole tree**, this context's isolates and tasks
+    /// included, whether they were spawned before this call or after it — see
+    /// [`Self::deadline`]'s field doc.
     pub fn expire_deadline(&self) {
         self.deadline.store(1, std::sync::atomic::Ordering::Relaxed);
     }
@@ -2488,6 +2650,18 @@ impl Ctx {
             capture.extend_from_slice(bytes);
             return Ok(());
         }
+        // `[limits] max_output` is bytes written to the *response*, so the
+        // charge is here: below the capture, above the sink. What a capture
+        // swallowed is not a response yet and is already bounded by
+        // `[limits] memory`, the capture buffer being heap `crate::budget`
+        // counts; it is charged when the program writes the captured text back
+        // out, and charging it here as well would bill the same bytes twice.
+        //
+        // Charged whether or not *this* context has a ceiling, because the
+        // counter is the thread's and the context holding the ceiling may be a
+        // parent two levels up. The compare is `Ctx::over_output_limit`'s and
+        // happens at the safepoint poll.
+        crate::budget::wrote(bytes.len());
         write_to(&mut self.output, bytes)
     }
 
@@ -2747,6 +2921,19 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
         ctx.set_pending(message);
         return crate::FATAL;
     }
+    // ADR 0020 § 1's response ceiling, asked here and nowhere else. A program
+    // writes through `Ctx::write_output` and reaches this poll between two
+    // statements, so a loop that echoes is stopped at its next back edge.
+    // Deliberately *not* asked at `crate::run_helper` the way memory is: that
+    // seam exists to refuse in front of an allocation the frame would otherwise
+    // have to release, and a write leaves no such value behind to protect.
+    if let Some(crate::Fault::Fatal(message)) = ctx.output_breach() {
+        // The same two lines and the same order as the branch above, including
+        // why the handler runs before the breach becomes the message.
+        ctx.run_limit_handler(Limit::Output);
+        ctx.set_pending(message);
+        return crate::FATAL;
+    }
     if ctx.safepoint.contains(SafepointFlags::CANCEL) {
         ctx.set_pending("the request was cancelled");
         return crate::FATAL;
@@ -2975,6 +3162,52 @@ mod tests {
         let ctx = Ctx::buffered();
         assert_eq!(ctx.memory_limit(), 0);
         assert!(!ctx.over_memory_limit());
+        assert_eq!(ctx.output_limit(), 0);
+        assert!(!ctx.over_output_limit());
+    }
+
+    /// ADR 0006's "child output against the root's `max_output`", as the two
+    /// readings that sentence implies: a child re-bases at `Ctx::new` and so
+    /// reads back only its own bytes, while the root's base predates the child
+    /// and its reading holds both. The ceiling that stops the tree is the
+    /// root's, and no child was given one.
+    #[test]
+    fn an_isolates_output_is_charged_to_it_and_to_the_root_at_once() {
+        let mut root = Ctx::buffered();
+        root.set_output_limit(16);
+        root.write_output(b"1234").expect("a buffer");
+        assert_eq!(root.output_used(), 4);
+        assert!(!root.over_output_limit());
+
+        let mut child = root.isolate(OutputSink::Buffer(Vec::new()));
+        child.write_output(b"567890").expect("a buffer");
+        assert_eq!(child.output_used(), 6, "its own share, and only that");
+        assert_eq!(root.output_used(), 10, "the child's bytes are the root's");
+        assert!(!root.over_output_limit());
+
+        child.write_output(b"1234567").expect("a buffer");
+        assert_eq!(child.output_limit(), 0, "no ceiling crossed to the child");
+        assert!(!child.over_output_limit());
+        assert!(
+            root.over_output_limit(),
+            "17 bytes written beneath a ceiling of 16"
+        );
+        assert!(root.output_breach().is_some());
+    }
+
+    /// `[limits] max_output` bounds the *response*: what a capture swallowed is
+    /// not one yet, and is charged when the program writes it back out rather
+    /// than at both points.
+    #[test]
+    fn captured_bytes_are_charged_when_they_reach_the_sink_and_not_before() {
+        let mut ctx = Ctx::buffered();
+        ctx.begin_capture();
+        ctx.write_output(b"inside").expect("a buffer");
+        let taken = ctx.end_capture().expect("a capture was open");
+        assert_eq!(ctx.output_used(), 0);
+
+        ctx.write_output(&taken).expect("a buffer");
+        assert_eq!(ctx.output_used(), 6);
     }
 
     /// ADR 0088 § 5's "always swallows": while a capture is open the sink below
@@ -3088,6 +3321,24 @@ mod tests {
         let timer: &Ctx = &ctx;
         timer.expire_deadline();
         assert!(ctx.deadline_expired());
+    }
+
+    /// ADR 0006's "one ceiling to divide": the flag is the tree's own word, so
+    /// the store reaches a child built before the timer fired. A copy answered
+    /// the other order correctly and this one not at all, which is why the
+    /// child here is spawned first.
+    #[test]
+    fn expiring_a_deadline_reaches_a_child_spawned_before_the_timer_fired() {
+        let root = Ctx::buffered();
+        let early = root.isolate(OutputSink::Sink);
+        assert!(!early.deadline_expired());
+
+        root.expire_deadline();
+        assert!(early.deadline_expired(), "the child stops with the tree");
+        assert!(
+            root.isolate(OutputSink::Sink).deadline_expired(),
+            "and so does one spawned afterwards",
+        );
     }
 
     #[test]

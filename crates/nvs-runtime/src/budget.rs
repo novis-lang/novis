@@ -1,6 +1,6 @@
-//! The per-request memory budget: a live-byte counter the runtime keeps in
-//! every build, and the `[limits] memory` ceiling a request is measured
-//! against.
+//! The per-request resource budget: a live-byte counter and an output-byte
+//! counter the runtime keeps in every build, and the `[limits] memory` and
+//! `[limits] max_output` ceilings a request is measured against.
 //!
 //! [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1 names
 //! memory as the first of the five resource limits whose breach is a `FATAL`,
@@ -39,6 +39,17 @@
 //! thread's balance go negative, which is why the counter is signed: it stays a
 //! readable number rather than a huge one, and a request's *used* figure
 //! saturates at zero rather than wrapping.
+//!
+//! [`written_bytes`] is that same arrangement for `[limits] max_output`, and it
+//! is here rather than as a field on [`Ctx`](crate::Ctx) for the one property a
+//! per-context field could not have. An isolate writes on the thread that
+//! spawned it, so a thread-local count puts a child's bytes on the root's
+//! reading as well as on the child's own — which is what
+//! [ADR 0006](../../../docs/adr/0006-isolated-script-execution.md) already says
+//! the directive means, and what makes the tree's output budget a budget for
+//! the tree rather than one per isolate. Monotonic where [`live_bytes`] is a
+//! balance, because bytes written to a response are never given back, so it
+//! needs no sign.
 //!
 //! # Where the breach is noticed — and the one shape it does not reach yet
 //!
@@ -100,6 +111,9 @@ thread_local! {
     static REQUESTS: Cell<usize> = const { Cell::new(0) };
     /// Monotonic: how many bytes those requests asked for.
     static TOTAL: Cell<usize> = const { Cell::new(0) };
+    /// Monotonic: how many bytes this thread has written to a request's output
+    /// sink — the module doc's second counter.
+    static WRITTEN: Cell<usize> = const { Cell::new(0) };
 }
 
 /// How many bytes this thread has allocated and not yet freed.
@@ -130,6 +144,30 @@ pub fn allocations() -> usize {
 #[must_use]
 pub fn allocated_bytes() -> usize {
     TOTAL.with(Cell::get)
+}
+
+/// How many bytes this thread has written to a request's output, never
+/// decreasing.
+///
+/// The absolute count, not a request's share:
+/// [`Ctx::output_used`](crate::Ctx::output_used) is the per-request reading and
+/// relates to this exactly as [`Ctx::memory_used`](crate::Ctx::memory_used)
+/// relates to [`live_bytes`]. The module doc says why the counter is per
+/// *thread* and what that buys an isolate.
+#[must_use]
+pub fn written_bytes() -> usize {
+    WRITTEN.with(Cell::get)
+}
+
+/// Charges `bytes` to this thread's output count.
+///
+/// One caller — [`Ctx::write_output`](crate::Ctx::write_output), at the point
+/// the bytes reach the sink rather than at the point a program hands them over,
+/// which is the distinction that doc comment owns. Saturating, because a count
+/// that wrapped would answer "under the ceiling" for the one request that most
+/// certainly is not.
+pub(crate) fn wrote(bytes: usize) {
+    WRITTEN.with(|written| written.set(written.get().saturating_add(bytes)));
 }
 
 /// Charges `bytes` to this thread's counters — negative for a release.

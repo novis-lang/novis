@@ -65,8 +65,8 @@ guarantee ADR 0002 already tested from depending on every future `catch` site ge
 
 ### 1. `Core\Fatal::onLimit(closure(LimitReport): void $handler): void`
 
-Fires **only** for a resource-limit `FATAL` — memory, CPU time, wall time, `max_script_depth`, and
-**call-stack depth**. Request-local
+Fires **only** for a resource-limit `FATAL` — memory, CPU time, `max_output`, wall time,
+`max_script_depth`, and **call-stack depth**. Request-local
 registration, living next to the pending-error slot already in `Ctx` per [ADR 0002](0002-error-propagation.md) —
 not global, not ambient, dies with the request like every other per-request slot
 ([ADR 0008](0008-static-and-global.md), [ADR 0012](0012-no-superglobals.md)).
@@ -76,6 +76,12 @@ to ordinary execution — new `System`-class `nvs.toml` directives, illustrative
 `[limits] fatal_reserve_memory` / `fatal_reserve_time`. `System`, not `Runtime`: this is the request's own
 safety net, and a script choosing its own net's size is exactly the case where the choice most needs to be
 made by someone other than the code that might be about to need it.
+
+**Two reserves, and not one per limit.** Those are the two resources a handler cannot run without
+spending. Every other limit on the list above leaves it as able to run as it already was — a breach of
+`max_output` refuses the handler nothing, because that ceiling is noticed at the safepoint poll and no
+write is refused anywhere — so a slice reserved against one of them would be a slice nothing could
+spend.
 
 **`LimitReport` is an array, not a class.** The handler is handed one array whose `limit` key names the
 limit in the `nvs.toml` directive's own spelling — `memory`, `cpu_time` — because the report is built
@@ -89,7 +95,7 @@ immediately — no second call, straight to tier 3.
 
 Internal-runtime-panic `FATAL`s **never reach this tier**, per the split below.
 
-**Call-stack depth is the fifth limit, and it is the one that would otherwise not reach the ladder at
+**Call-stack depth is the last of those, and it is the one that would otherwise not reach the ladder at
 all.** Novis compiles natively, so every user call is a real machine frame — unlike PHP, whose VM does not
 recurse the C stack for userland calls and whose recursion is therefore bounded by `memory_limit` and
 routinely runs 100k+ deep. Exhausting a native stack is a `SIGSEGV`, not a panic, so
