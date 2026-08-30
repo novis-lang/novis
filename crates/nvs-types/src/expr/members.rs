@@ -304,12 +304,23 @@ pub(crate) fn infer_instanceof(
         );
     }
     let ExprKind::ConstFetch(name) = &class.kind else {
-        check_expr(class, None, live, scope, ctx, env);
-        reject_dynamic_class_name(
-            "the right-hand side of `instanceof` must be a written class name",
-            class.span,
-            env,
-        );
+        // ADR 0125 § 4's third site. A `class<T>` operand carries the
+        // descriptor the test walks, so this is the one of the three that
+        // consults nothing about `T`: a class reference over any base answers
+        // the same question, and the answer is `bool` either way.
+        //
+        // Nothing is recorded for it. `ExprInfo::InstanceOf` names a *written*
+        // class, which is what `nvs-codegen` bakes an address in for; § 4's
+        // descriptor-valued form is a different entry and arrives with the
+        // lowering that reads it.
+        let operand = check_expr(class, None, live, scope, ctx, env);
+        if class_ref_argument(operand, env.interner).is_none() {
+            reject_dynamic_class_name(
+                "the right-hand side of `instanceof` must be a written class name",
+                class.span,
+                env,
+            );
+        }
         return env.interner.bool_ty();
     };
     let text = span_text(env.src, name.span);
@@ -473,6 +484,24 @@ pub(crate) fn class_qname_of(ty: TypeId, interner: &TypeInterner) -> Option<QNam
     }
 }
 
+/// The class a `class<T>` value names, or `None` for every other type — the
+/// question [ADR 0125](../../../../docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
+/// § 4's three sites ask before they fall through to
+/// [`reject_dynamic_class_name`].
+///
+/// The answer is the argument's own [`TypeId`] rather than a [`QName`] because
+/// each site wants something different from it: `new $cls()` types itself as
+/// `T`, `$cls::f()` resolves a member on `T`'s name, and `$x instanceof $cls`
+/// wants neither — the descriptor is the whole test. `T` is a class or an
+/// interface by construction, since `crate::lower`'s `lower_class_ref` refuses
+/// anything else as `E0795`, so [`class_qname_of`] answers for it.
+pub(crate) fn class_ref_argument(ty: TypeId, interner: &TypeInterner) -> Option<TypeId> {
+    match interner.get(ty) {
+        Ty::ClassRef(inner) => Some(*inner),
+        _ => None,
+    }
+}
+
 /// Whether `object` is exactly the `$this` variable — the one receiver shape
 /// `nvs_hir::members` already diagnoses a missing property on, so
 /// [`infer`]'s `PropertyAccess` arm must not diagnose it a second time.
@@ -523,6 +552,12 @@ pub(crate) fn is_written_class_side(class_expr: &Expr) -> bool {
 /// `new $c()` and `$c::f()` ([`super::calls`]). The headline names the
 /// spelling; the label and the help are the rule, which does not vary by site.
 ///
+/// **A `class<T>` operand is not this mistake.** ADR 0125 § 4 gives all three
+/// sites a checked dynamic form, and each asks [`class_ref_argument`] before
+/// reaching here. What is left is a value the checker can resolve to no class
+/// at all, so the help names the conversion that turns one into a value it
+/// can — the fix an author can take, rather than only the written-out form.
+///
 /// Nothing below the checker could resolve such a name either — `nvs-codegen`
 /// bakes a descriptor's address in as a constant — so this is the last place
 /// the mistake can be reported as one. Left unreported, each of the three
@@ -535,7 +570,9 @@ pub(crate) fn reject_dynamic_class_name(headline: &str, span: Span, env: &mut En
             .with_primary(span, "not a class name")
             .with_help(
                 "Novis has no dynamic class names (ADR 0007 § 2, the rule that rejects `$$var` \
-                 and `eval`) — write the class, or branch on the names you accept",
+                 and `eval`) — write the class, or convert the name once and carry the result: \
+                 `$name as class<Base>` yields a class reference this site accepts, checked \
+                 against `Base`'s hierarchy where the conversion stands (ADR 0125 § 4)",
             ),
     );
 }

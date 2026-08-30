@@ -220,64 +220,76 @@ pub(crate) fn infer_static_call(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> TypeId {
-    check_expr(class, None, live, scope, ctx, env);
+    let class_ty = check_expr(class, None, live, scope, ctx, env);
     check_member_name(method, live, scope, ctx, env);
-    // A class side that is not a written name is the same mistake `new $c()`
-    // and `$x instanceof $c` make, and gets the same report — see
+    // ADR 0125 § 4's second site: a `class<T>` class side resolves the member
+    // on `T`'s roster, the only one this site can see. The value may hold any
+    // implementor, so what is checked here is `T`'s declaration and what finds
+    // the override at run time is § 4's `InstKind::CallVirtual`.
+    let class_ref_arg = class_ref_argument(class_ty, env.interner);
+    let class_ref = class_ref_arg.and_then(|inner| class_qname_of(inner, env.interner));
+    // Any other class side that is not a written name is the same mistake
+    // `new $c()` and `$x instanceof $c` make, and gets the same report — see
     // [`super::members::reject_dynamic_class_name`]. Everything below resolves
     // to nothing for such a side, so it would otherwise reach `nvs-ir` as a
     // static call with no target recorded, which panics.
-    if !is_written_class_side(class) {
+    if !is_written_class_side(class) && class_ref.is_none() {
         reject_dynamic_class_name(
             "the class side of a `::` call must be a written class name",
             class.span,
             env,
         );
     }
-    let resolved = match method {
-        MemberName::Ident(name_span) => resolve_class_expr(class, ctx, env).and_then(|qname| {
-            let name = span_text(env.src, *name_span).to_owned();
-            let found =
-                resolve_method(&qname, &name, env.signatures, env.graph).map(|(owner, sig)| {
-                    check_method_visibility(&owner, &name, &sig, *name_span, ctx, env);
-                    // The declaring class — see [`infer_method_call`] for why
-                    // the receiver's own is the wrong label.
-                    (owner, name.clone(), sig)
-                });
-            // The same narrowing of `Core`'s blanket trust
-            // [`super::members::infer_class_const`] explains: `nvs_hir` waves
-            // every `Core\…::anything` through because nothing declares it, but
-            // `nvs_stdlib::registry` states every member `Core` has, so a name
-            // that is not one is knowably wrong *here*. Without this a typo
-            // reaches `nvs-ir` as a static call with no resolved target
-            // recorded, which panics.
-            if found.is_none() && qname.is_core() {
-                report_unknown_member(expr.span, &qname, &name, "member", env);
-            }
-            // ADR 0063 R20's one genuinely reachable two-spellings case — see
-            // `report_core_instance_member`. Its user-class sibling asks the
-            // narrower question `report_instance_method_called_statically`
-            // owns: `self::f()`/`parent::f()` from an instance method forward
-            // that frame's `$this` and are the ordinary spelling, so what is
-            // refused is a non-static target reached where no receiver is in
-            // scope — the frame `nvs_ir::lower::expr` would panic on. ADR
-            // 0027's `Class::method(...)` is not that frame and not a call:
-            // it names the method, and `Core\Attributes::get<T>(C::m(...))`
-            // folds it at check time without ever needing a receiver
-            // (`docs/reference/lang/90-attributes.md`).
-            if let Some((owner, _, sig)) = &found
-                && !sig.is_static
-            {
-                if owner.is_core() {
-                    report_core_instance_member(expr.span, owner, &name, env);
-                } else if !scope.holds_receiver() && !matches!(args, CallArgs::FirstClassCallable) {
-                    report_instance_method_called_statically(expr.span, owner, &name, env);
-                }
-            }
-            found
-        }),
-        _ => None,
-    };
+    let resolved =
+        match method {
+            MemberName::Ident(name_span) => resolve_class_expr(class, ctx, env)
+                .or(class_ref)
+                .and_then(|qname| {
+                    let name = span_text(env.src, *name_span).to_owned();
+                    let found = resolve_method(&qname, &name, env.signatures, env.graph).map(
+                        |(owner, sig)| {
+                            check_method_visibility(&owner, &name, &sig, *name_span, ctx, env);
+                            // The declaring class — see [`infer_method_call`] for why
+                            // the receiver's own is the wrong label.
+                            (owner, name.clone(), sig)
+                        },
+                    );
+                    // The same narrowing of `Core`'s blanket trust
+                    // [`super::members::infer_class_const`] explains: `nvs_hir` waves
+                    // every `Core\…::anything` through because nothing declares it, but
+                    // `nvs_stdlib::registry` states every member `Core` has, so a name
+                    // that is not one is knowably wrong *here*. Without this a typo
+                    // reaches `nvs-ir` as a static call with no resolved target
+                    // recorded, which panics.
+                    if found.is_none() && qname.is_core() {
+                        report_unknown_member(expr.span, &qname, &name, "member", env);
+                    }
+                    // ADR 0063 R20's one genuinely reachable two-spellings case — see
+                    // `report_core_instance_member`. Its user-class sibling asks the
+                    // narrower question `report_instance_method_called_statically`
+                    // owns: `self::f()`/`parent::f()` from an instance method forward
+                    // that frame's `$this` and are the ordinary spelling, so what is
+                    // refused is a non-static target reached where no receiver is in
+                    // scope — the frame `nvs_ir::lower::expr` would panic on. ADR
+                    // 0027's `Class::method(...)` is not that frame and not a call:
+                    // it names the method, and `Core\Attributes::get<T>(C::m(...))`
+                    // folds it at check time without ever needing a receiver
+                    // (`docs/reference/lang/90-attributes.md`).
+                    if let Some((owner, _, sig)) = &found
+                        && !sig.is_static
+                    {
+                        if owner.is_core() {
+                            report_core_instance_member(expr.span, owner, &name, env);
+                        } else if !scope.holds_receiver()
+                            && !matches!(args, CallArgs::FirstClassCallable)
+                        {
+                            report_instance_method_called_statically(expr.span, owner, &name, env);
+                        }
+                    }
+                    found
+                }),
+            _ => None,
+        };
     let sig = resolved.as_ref().map(|(_, _, sig)| sig.clone());
     let label = resolved
         .as_ref()
@@ -351,7 +363,15 @@ pub(crate) fn infer_static_call(
     }
     // See [`infer_method_call`]: persisted for `nvs-ir` to read back a resolved
     // static call's target, always as the *substituted* signature.
-    if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig) {
+    //
+    // Not for ADR 0125 § 4's class-reference side, for the reason [`infer_new`]
+    // gives at its own record: `T` is what the member was *checked* against,
+    // and lowering a direct call to `T::f` would call the base's body rather
+    // than the implementor's. § 4's `InstKind::CallVirtual` entry arrives with
+    // the lowering that reads it.
+    if is_written_class_side(class)
+        && let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig)
+    {
         let mut call = resolved_call(qname.clone(), name.clone(), sig, slots, env.signatures);
         // Late static binding: an explicitly named class *sets* the called
         // class, while `self`/`static`/`parent` forward the caller's. See
@@ -461,6 +481,22 @@ pub(crate) fn infer_new(
     }
     let ctor_owner = resolved.as_ref().map(|(owner, _)| owner.clone());
     let sig = resolved.map(|(_, sig)| sig);
+    // ADR 0125 § 5, asked only of the dynamic form and against the signature
+    // *before* [`check_args_typed`] substitutes: `T`'s constructor is what this
+    // site checks against, so every implementor of `T` has to accept what it
+    // accepts. Ahead of the argument check because a divergent implementor
+    // makes that check's verdict meaningless either way it lands.
+    if matches!(target, NewTarget::Expr(_))
+        && let Some(base) = &target_qname
+    {
+        reject_divergent_implementor_constructor(
+            base,
+            ctor_owner.as_ref(),
+            sig.as_ref(),
+            expr.span,
+            env,
+        );
+    }
     let (arg_types, slots, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
     if let Some(qname) = &target_qname {
         reject_abstract_instantiation(target, qname, expr.span, env);
@@ -486,17 +522,29 @@ pub(crate) fn infer_new(
         reject_arguments_to_implicit_constructor(args, qname, sig.as_ref(), expr.span, env);
         // `nvs-ir` needs the constructed class and its resolved constructor (if
         // any) to lower `new` — see `crate::expr_table`'s own module docs.
-        let ctor = sig.as_ref().zip(ctor_owner).map(|(s, owner)| {
-            resolved_call(owner, "constructor".to_owned(), s, slots, env.signatures)
-        });
-        env.exprs.record(
-            expr.span,
-            ExprInfo::New {
-                class: qname.clone(),
-                ctor,
-                ty: target_ty,
-            },
-        );
+        //
+        // Not for ADR 0125 § 4's dynamic form, where `T` is the class this
+        // *checks* against and never the one allocated: `ExprInfo::New` names
+        // the class a layout comes from, and here that is whichever implementor
+        // the descriptor holds. Recording `T` would lower an allocation of the
+        // base. The entry § 4's `InstKind::NewDynamic` reads is a different
+        // shape and arrives with the lowering, so until then this span is one
+        // `nvs-ir` finds nothing for — the loud failure rather than the silent
+        // one, and unreachable meanwhile because `lower_decl_type` refuses the
+        // atom first.
+        if !matches!(target, NewTarget::Expr(_)) {
+            let ctor = sig.as_ref().zip(ctor_owner).map(|(s, owner)| {
+                resolved_call(owner, "constructor".to_owned(), s, slots, env.signatures)
+            });
+            env.exprs.record(
+                expr.span,
+                ExprInfo::New {
+                    class: qname.clone(),
+                    ctor,
+                    ty: target_ty,
+                },
+            );
+        }
     }
     target_ty
 }
@@ -520,8 +568,15 @@ pub(crate) fn infer_new(
 /// than left to `nvs-ir`, which lowers an allocation of a class whose
 /// methods have no compiled function behind them and fails at run time with
 /// `FATAL: internal error: a method with no body was called`.
+///
+/// **`new $cls()` over a `class<T>` is exempt for the same reason**, and the
+/// exemption is the point rather than a corner: ADR 0125 § 4 types that site
+/// as `T`, and a class reference exists to hold a concrete implementor of an
+/// `abstract` base or an interface. The descriptor is checked to be one where
+/// the conversion stands (§ 2), which is the only place the question has an
+/// answer.
 fn reject_abstract_instantiation(target: &NewTarget, qname: &QName, span: Span, env: &mut Env<'_>) {
-    if matches!(target, NewTarget::StaticTy) {
+    if matches!(target, NewTarget::StaticTy | NewTarget::Expr(_)) {
         return;
     }
     if env.graph.get(qname).map(|links| links.concrete) != Some(false) {
@@ -548,6 +603,99 @@ fn reject_abstract_instantiation(target: &NewTarget, qname: &QName, span: Span, 
             .with_primary(span, "allocated here")
             .with_help(fix),
     );
+}
+
+/// [ADR 0125](../../../../docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
+/// § 5, at `new $cls(...)` over a `class<T>`: the site checks its arguments
+/// against **`T`**'s constructor, and the value may hold any implementor of
+/// `T`, so an implementor whose constructor is not compatible with `T`'s makes
+/// that check a promise the program cannot keep (`E0794`).
+///
+/// **Refused at the `new` and never at the declaration**, which is § 5's own
+/// argument: a subclass nothing ever instantiates through a class reference is
+/// nobody's problem, and refusing it where it is written would make an
+/// unrelated file's `new` the reason a class cannot be written.
+///
+/// The comparison is ordinary substitutability, asked in the direction a call
+/// needs — [`constructor_accepts_everything`] owns it. Only a subclass that
+/// declares a constructor of *its own* is compared: one that inherits `T`'s
+/// resolves to the very signature the site already checked against, which is
+/// the overwhelmingly common case and costs one lookup per implementor. This
+/// is stricter than PHP and never different from it: every program it accepts,
+/// PHP runs the same way.
+fn reject_divergent_implementor_constructor(
+    base: &QName,
+    base_ctor_owner: Option<&QName>,
+    base_ctor: Option<&MethodSig>,
+    span: Span,
+    env: &mut Env<'_>,
+) {
+    for class in nvs_hir::implementors(base, env.graph) {
+        let Some((owner, sub)) = resolve_method(&class, "constructor", env.signatures, env.graph)
+        else {
+            continue;
+        };
+        if Some(&owner) == base_ctor_owner || constructor_accepts_everything(base_ctor, &sub, env) {
+            continue;
+        }
+        let declared = base_ctor_owner.map_or_else(
+            || format!("`{base}`, which declares no constructor at all"),
+            |owner| format!("`{owner}::constructor`"),
+        );
+        env.diags.report(
+            Diagnostic::error(
+                code::E_DYNAMIC_NEW_DIVERGENT_CONSTRUCTOR,
+                format!("`new` over `class<{base}>` cannot check its arguments"),
+            )
+            .with_primary(
+                span,
+                format!("`{owner}::constructor` is not compatible with {declared}"),
+            )
+            .with_help(format!(
+                "a class reference may hold any implementor, so every one of them has to \
+                 accept the arguments written here — give `{class}` a constructor compatible \
+                 with `{base}`'s, or narrow this to `as class<{class}>` and instantiate that",
+            )),
+        );
+        // One report per site. `nvs_hir::implementors` is sorted by name, so
+        // which subclass is named does not depend on the order files were
+        // read — and a second entry is the same mistake in another file, which
+        // this author fixes by fixing the first.
+        return;
+    }
+}
+
+/// Whether `sub` accepts every call `base` accepts — the one question
+/// [`reject_divergent_implementor_constructor`] asks of a constructor pair.
+///
+/// Three conditions, and each is a way a call typed against `base` reaches
+/// `sub` with arguments it cannot take: `sub` may not *demand* more than
+/// `base` does, may not *hold* fewer than `base` does unless a variadic tail
+/// absorbs the rest, and each of its parameters must admit everything `base`'s
+/// admits. The last is the usual contravariance, asked with [`is_assignable`]
+/// so a widened parameter passes and a narrowed one does not.
+///
+/// A `base` with no constructor is the empty signature rather than a special
+/// case: it accepts a bare `new $cls()` and nothing else, which is exactly what
+/// zero parameters say.
+fn constructor_accepts_everything(
+    base: Option<&MethodSig>,
+    sub: &MethodSig,
+    env: &mut Env<'_>,
+) -> bool {
+    let base_required = base.map_or(0, MethodSig::required);
+    let base_params: &[TypeId] = base.map_or(&[], |s| &s.params);
+    if sub.required() > base_required {
+        return false;
+    }
+    if !sub.variadic && sub.params.len() < base_params.len() {
+        return false;
+    }
+    base_params.iter().enumerate().all(|(index, declared)| {
+        sub.param_at(index).is_some_and(|accepted| {
+            is_assignable(*declared, accepted, env.interner, env.graph, env.signatures)
+        })
+    })
 }
 
 /// Refuses `new C(...)` — the first-class callable sentinel written on `new`
@@ -1193,17 +1341,30 @@ pub(crate) fn check_new_target(
         }
         NewTarget::Expr(e) => {
             // The parser produces this arm only for a target that is not a
-            // written name, so it *is* the dynamic form — see
+            // written name, so it *is* the dynamic form. ADR 0125 § 4 makes one
+            // operand type legal here: a `class<T>` answers with `T`, so
+            // [`infer_new`] above resolves `T`'s constructor, types the
+            // arguments against that signature and yields a `T`. That is what
+            // `new static(...)` already does with the current class, and for
+            // the same reason — `T` is the only signature this site can see,
+            // and the value may hold any implementor of it.
+            //
+            // Every other operand is still the dynamic-name mistake — see
             // [`super::members::reject_dynamic_class_name`] for why the three
-            // spellings of that mistake share one report, and why `nvs-ir` is
-            // the wrong place to find out.
-            check_expr(e, None, live, scope, ctx, env);
-            reject_dynamic_class_name(
-                "the target of `new` must be a written class name",
-                e.span,
-                env,
-            );
-            env.interner.mixed()
+            // spellings share one report, and why `nvs-ir` is the wrong place
+            // to find out.
+            let operand = check_expr(e, None, live, scope, ctx, env);
+            match class_ref_argument(operand, env.interner) {
+                Some(inner) => inner,
+                None => {
+                    reject_dynamic_class_name(
+                        "the target of `new` must be a written class name",
+                        e.span,
+                        env,
+                    );
+                    env.interner.mixed()
+                }
+            }
         }
         NewTarget::AnonClass(_) => env.interner.mixed(),
         _ => env.interner.mixed(),

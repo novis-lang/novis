@@ -597,6 +597,157 @@ class Limits {
     );
 }
 
+/// ADR 0125 § 5: a `new` over a `class<T>` checks its arguments against `T`'s
+/// constructor, and the value may hold any implementor of `T` -- so one whose
+/// constructor is incompatible makes that check a promise the program cannot
+/// keep. Refused at the `new`, naming the subclass, and never at the subclass's
+/// own declaration.
+#[test]
+fn a_dynamic_new_is_refused_naming_the_subclass_whose_constructor_differs() {
+    let divergent = check_src(
+        "<?nvs\n\
+         abstract class Animal {\n\
+         \x20 public function constructor(string $name) {}\n\
+         }\n\
+         class Dog extends Animal {\n\
+         \x20 public function constructor(string $name, int $age) {\n\
+         \x20   parent::constructor($name);\n\
+         \x20 }\n\
+         }\n\
+         class T {\n\
+         \x20 function m(class<Animal> $c): void { new $c(\"Rex\"); }\n\
+         }\n",
+    );
+    assert!(
+        divergent
+            .iter()
+            .any(|d| d.code == Some(code::E_DYNAMIC_NEW_DIVERGENT_CONSTRUCTOR)),
+        "{divergent:?}"
+    );
+    // The subclass is named, because its file is the one the author edits.
+    assert!(
+        divergent
+            .iter()
+            .any(|d| d.notes.iter().any(|n| n.contains("`Dog`"))),
+        "{divergent:?}"
+    );
+
+    // The very same declarations, instantiated by name: § 5 refuses the `new`
+    // over the class reference and leaves `Dog` alone everywhere else.
+    let written_out = check_src(
+        "<?nvs\n\
+         abstract class Animal {\n\
+         \x20 public function constructor(string $name) {}\n\
+         }\n\
+         class Dog extends Animal {\n\
+         \x20 public function constructor(string $name, int $age) {\n\
+         \x20   parent::constructor($name);\n\
+         \x20 }\n\
+         }\n\
+         class T {\n\
+         \x20 function m(): void { Animal $a = new Dog(\"Rex\", 3); }\n\
+         }\n",
+    );
+    assert!(!written_out.has_errors(), "{written_out:?}");
+
+    // An inherited constructor is the common case and a widened one is still
+    // substitutable: neither is a divergence.
+    let compatible = check_src(
+        "<?nvs\n\
+         abstract class Animal {\n\
+         \x20 public function constructor(string $name) {}\n\
+         }\n\
+         class Dog extends Animal {}\n\
+         class Cat extends Animal {\n\
+         \x20 public function constructor(string $name, int $age = 1) {\n\
+         \x20   parent::constructor($name);\n\
+         \x20 }\n\
+         }\n\
+         class T {\n\
+         \x20 function m(class<Animal> $c): void { new $c(\"Rex\"); }\n\
+         }\n",
+    );
+    assert!(!compatible.has_errors(), "{compatible:?}");
+}
+
+/// ADR 0125 § 4: the three spellings that reach a class through a *value* take
+/// a `class<T>` and nothing else. `new $cls()` types its arguments against
+/// `T`'s constructor and yields a `T` -- including where `T` is `abstract`,
+/// which is the case the feature exists for -- `$cls::f()` resolves the member
+/// on `T`'s roster, and `$x instanceof $cls` asks the descriptor. Everything
+/// else keeps `E0496` at all three, with a help that names the conversion.
+#[test]
+fn a_class_reference_carries_the_three_dynamic_sites() {
+    let accepted = check_src(
+        "<?nvs\n\
+         abstract class Animal {\n\
+         \x20 public function constructor(string $name) {}\n\
+         \x20 public static function kind(): string { return \"animal\"; }\n\
+         }\n\
+         class Dog extends Animal {}\n\
+         class T {\n\
+         \x20 function m(class<Animal> $c, mixed $v): void {\n\
+         \x20   Animal $a = new $c(\"Rex\");\n\
+         \x20   string $k = $c::kind();\n\
+         \x20   bool $b = $v instanceof $c;\n\
+         \x20 }\n\
+         }\n",
+    );
+    assert!(!accepted.has_errors(), "{accepted:?}");
+
+    // The constructor really is the one consulted: with no signature resolved
+    // the extra argument would go unreported, as it did before § 4.
+    let arity = check_src(
+        "<?nvs\n\
+         abstract class Animal {\n\
+         \x20 public function constructor(string $name) {}\n\
+         }\n\
+         class T {\n\
+         \x20 function m(class<Animal> $c): void { new $c(\"Rex\", \"extra\"); }\n\
+         }\n",
+    );
+    assert!(arity.has_errors(), "{arity:?}");
+
+    // And the site is typed as `T`, not as `mixed`.
+    let typed = check_src(
+        "<?nvs\n\
+         class Animal {\n\
+         \x20 public function constructor(string $name) {}\n\
+         }\n\
+         class Rock {}\n\
+         class T {\n\
+         \x20 function m(class<Animal> $c): void { Rock $r = new $c(\"Rex\"); }\n\
+         }\n",
+    );
+    assert!(
+        typed.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{typed:?}"
+    );
+
+    let refused = check_src(
+        "<?nvs\n\
+         class Animal {}\n\
+         class T {\n\
+         \x20 function m(string $s, mixed $v): void {\n\
+         \x20   new $s();\n\
+         \x20   $s::kind();\n\
+         \x20   $v instanceof $s;\n\
+         \x20 }\n\
+         }\n",
+    );
+    let dynamic: Vec<_> = refused
+        .iter()
+        .filter(|d| d.code == Some(code::E_INSTANCEOF_NOT_A_CLASS))
+        .collect();
+    assert_eq!(dynamic.len(), 3, "{refused:?}");
+    assert!(
+        dynamic
+            .iter()
+            .all(|d| d.notes.iter().any(|n| n.contains("as class<Base>"))),
+        "{refused:?}"
+    );
+}
+
 /// ADR 0125 § 2: `as` is a class reference's only source. A bare `string` does
 /// not reach a `class<T>` position, the conversion does, and a written-out
 /// `Foo::class` operand is decided where it stands rather than at run time --
