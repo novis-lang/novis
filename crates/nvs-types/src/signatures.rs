@@ -35,6 +35,7 @@
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use nvs_hir::{ClassGraph, QName, SymbolKind};
+use nvs_stdlib::registry::Qual;
 use nvs_syntax::ast::{
     ClassMember, ClassMemberKind, Modifier, NamespaceDecl, PropertyMember, Stmt, StmtKind, Type,
     TypeAtom, TypeKind, Visibility,
@@ -91,6 +92,24 @@ pub struct MethodSig {
     /// A parallel `Vec` for [`Self::inout`]'s reason, and read through
     /// [`Self::required`] rather than scanned at each call site.
     pub defaults: Vec<Option<crate::defaults::ConstArg>>,
+    /// What the member does with each parameter's qualifier — ADR 0088 § 2's
+    /// classification, positionally, and **empty** for a signature that is not
+    /// a `Core` row.
+    ///
+    /// Empty rather than a vector of some default, because "unclassified" and
+    /// "`Contagious`" are different answers: the judgement belongs to the
+    /// registry row that wrote it ([`nvs_stdlib::registry::Qual`] holds the
+    /// rule a class is classified by), and a user-declared method's parameters
+    /// have never been classified at all. A `Core` row fills one entry per
+    /// [`Self::params`] entry, `None` where the parameter's type has no cell to
+    /// write one in — every `CoreTy` but `Text` and `Blob`.
+    ///
+    /// A parallel `Vec` for [`Self::inout`]'s reason, and read through
+    /// [`Self::qual_at`] so the variadic rule stays in one place. A
+    /// classification nested inside an `array<…>` element or an options bag is
+    /// deliberately not carried: no registry row writes one there, and the
+    /// checker asks this question of a whole argument.
+    pub param_quals: Vec<Option<Qual>>,
     /// The type parameters a **call site** must write, in the order its
     /// `<...>` list binds them — `["T"]` for `Core\Json::decodeAs<T>`, and
     /// empty for everything else.
@@ -250,6 +269,21 @@ impl MethodSig {
             return self.inout.last().copied().unwrap_or(false);
         }
         self.inout.get(index).copied().unwrap_or(false)
+    }
+
+    /// ADR 0088 § 2's classification of the parameter an argument at `index`
+    /// fills — `None` where this signature is not a `Core` row, or where that
+    /// parameter's type carries no classification.
+    ///
+    /// The variadic rule is [`Self::is_inout`]'s: every argument from the
+    /// tail's position onward fills the tail, so it answers the tail's own
+    /// classification rather than nothing at all.
+    #[must_use]
+    pub fn qual_at(&self, index: usize) -> Option<Qual> {
+        if self.variadic && index >= self.param_quals.len().saturating_sub(1) {
+            return self.param_quals.last().copied().flatten();
+        }
+        self.param_quals.get(index).copied().flatten()
     }
 
     /// Whether any parameter is declared `inout $x` — the cheap test a call site
@@ -931,6 +965,10 @@ fn collect_members(
                         inout,
                         variadic,
                         defaults,
+                        // ADR 0088 § 2 classifies a registry row's parameters,
+                        // and nothing classifies a user-declared one — see
+                        // `MethodSig::param_quals`.
+                        param_quals: Vec::new(),
                         // ADR 0007 § 1: a user-declared method
                         // has no type parameters to write.
                         type_params: Vec::new(),

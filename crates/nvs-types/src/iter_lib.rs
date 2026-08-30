@@ -169,6 +169,9 @@ fn bodiless(names: &[&str], params: Vec<TypeId>, return_ty: TypeId) -> MethodSig
     );
     MethodSig {
         inout: vec![false; params.len()],
+        // A reserved interface is declared by its own ADR, not by a registry
+        // row, so nothing classified it — see `MethodSig::param_quals`.
+        param_quals: Vec::new(),
         defaults: vec![None; params.len()],
         param_names: names.iter().map(|name| (*name).to_owned()).collect(),
         params,

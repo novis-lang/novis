@@ -25,7 +25,7 @@
 
 use nvs_hir::QName;
 use nvs_hir::interfaces::{ITERABLE, ITERATOR};
-use nvs_stdlib::registry::{CLASSES, Const, CoreTy, OPTIONS_NAME};
+use nvs_stdlib::registry::{CLASSES, Const, CoreTy, OPTIONS_NAME, Qual};
 use rustc_hash::FxHashMap;
 
 use crate::defaults::ConstArg;
@@ -101,6 +101,12 @@ fn method_sig(
         // for a trailing bag, so `param_names` re-aligns them to `params`
         // — see its own docs for why the bag's entry is made there.
         param_names: param_names(method),
+        // ADR 0088 § 2's classification, carried rather than dropped.
+        // `lower` interns a `Text`/`Blob` parameter at its plain type
+        // on purpose — what a member *does* with a qualifier is not
+        // what the argument *is* — so this is the one place the row's
+        // judgement reaches the checker. See `MethodSig::param_quals`.
+        param_quals: method.params.iter().map(qual_of).collect(),
         // ADR 0063 R7: nothing in `Core` mutates its subject, so
         // no `Core` parameter is ever by-reference. Not a gap in
         // the registry — a property of the convention.
@@ -304,6 +310,23 @@ fn lower_const(value: &Const) -> ConstArg {
     }
 }
 
+/// The classification a registry parameter carries, or `None` for a parameter
+/// whose type has no cell to write one in.
+///
+/// A variadic tail answers its element's, for [`lower`]'s reason: the tail is
+/// an arity rule rather than a type of its own, so every argument from that
+/// position onward is checked against — and classified by — the element.
+fn qual_of(ty: &CoreTy) -> Option<Qual> {
+    match ty {
+        CoreTy::Text(qual) | CoreTy::Blob(qual) => Some(*qual),
+        CoreTy::Variadic(elem) => qual_of(elem),
+        // Every other spelling has no classification of its own, including an
+        // `array<text>` element and an options bag's members: no registry row
+        // writes one nested, and `MethodSig::param_quals` owns that limit.
+        _ => None,
+    }
+}
+
 /// One registry type into an interned one. The registry's enum is
 /// deliberately smaller than [`crate::ty::Ty`] — see its own docs — so this
 /// is a total match with no failure case.
@@ -319,24 +342,27 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // interner's own `tainted`/`secret` are different questions, and these
         // two lower to exactly what their unclassified spellings lower to.
         //
-        // **Known gap: nothing downstream reads the classification back.** This
-        // arm is the only place `Qual` is looked at in this crate, and it drops
-        // it, so a parameter marked `Contagious` or `Neutral` refuses a
-        // qualified argument exactly as an unclassified one does —
-        // `Core\Bytes::length($taintedBytes)` is `E0401: expected bytes, found
-        // tainted bytes`. That is ADR 0088 § 2's *default*, applied to rows
-        // whose author wrote something else: § 2 gives `Contagious` a qualified
-        // result and `Neutral` a plain one, and both are meant to *accept*.
-        // Only `Sink`'s refusal is what the tree actually does, and it is right
-        // for the wrong reason. Being over-strict is safe — a tainted value
-        // cannot launder through a member it cannot reach — so the cost is that
-        // `tainted` is unusable with `Core` rather than that it leaks. Closing
-        // it is a checker slice, not a registry one: `MethodSig` has to carry
-        // the per-parameter classification, the call check has to admit a
-        // qualified argument on the two accepting marks, and a `Contagious`
-        // call's *result* has to gain the union of its arguments' qualifiers.
-        // `Neutral` dropping `secret` is a laundering decision, so that half is
-        // ADR 0088's to answer before it is written.
+        // The classification is not dropped: `method_sig` puts the row's
+        // `Qual` on `MethodSig::param_quals`, and `qual_of` next to it is what
+        // reads it out. This arm interns the *type*, and the two are separate
+        // questions on purpose.
+        //
+        // **Known gap: nothing reads it back at the call yet.**
+        // `crate::expr::calls` does not consult `param_quals`, so a parameter
+        // marked `Contagious` or `Neutral` still refuses a qualified argument
+        // exactly as an unclassified one does — `Core\Bytes::length($tainted)`
+        // is `E0401: expected bytes, found tainted bytes`. That is ADR 0088
+        // § 2's *default* applied to rows whose author wrote something else:
+        // § 2 gives `Contagious` a qualified result and `Neutral` a plain one,
+        // and both are meant to *accept*. Only `Sink`'s refusal is what the
+        // tree actually does, and it is right for the wrong reason. Being
+        // over-strict is safe — a tainted value cannot launder through a
+        // member it cannot reach — so the cost is that `tainted` is unusable
+        // with `Core` rather than that it leaks. What is left is the call
+        // check admitting a qualified argument on the two accepting marks, and
+        // a `Contagious` call's *result* gaining the union of its arguments'
+        // qualifiers. `Neutral` dropping `secret` is a laundering decision, so
+        // that half is ADR 0088's to answer before it is written.
         CoreTy::Str | CoreTy::Text(_) => interner.string(),
         CoreTy::Bytes | CoreTy::Blob(_) => interner.bytes(),
         CoreTy::Void => interner.void(),
@@ -458,6 +484,79 @@ mod tests {
         assert_eq!(sig.params.len(), 1);
         assert_eq!(interner.describe(sig.params[0]), "array<T>");
         assert_eq!(interner.describe(sig.return_ty), "uint");
+    }
+
+    /// ADR 0088 § 2's classification is the row's own judgement, so the
+    /// signature the checker resolves has to *carry* it — `lower` interns a
+    /// `Text`/`Blob` parameter at its plain type, and dropping the mark there
+    /// is what left the whole surface refusing an argument it is meant to
+    /// accept. Counted over every registered member rather than read off one
+    /// row, so a fill that collapsed every parameter to one answer fails here
+    /// while still looking right on any single line.
+    #[test]
+    fn every_registered_parameter_carries_its_classification_into_its_signature() {
+        let mut interner = TypeInterner::new();
+        let (mut contagious, mut sink, mut neutral) = (0_usize, 0_usize, 0_usize);
+        for class in CLASSES {
+            for method in class.members() {
+                let sig = method_sig(method, true, &mut interner);
+                assert_eq!(
+                    sig.param_quals.len(),
+                    sig.params.len(),
+                    "{}::{} carries one classification slot per parameter",
+                    class.name,
+                    method.name
+                );
+                for (slot, param) in method.params.iter().enumerate() {
+                    assert_eq!(
+                        sig.param_quals[slot],
+                        qual_of(param),
+                        "{}::{} parameter {slot}",
+                        class.name,
+                        method.name
+                    );
+                    match sig.param_quals[slot] {
+                        Some(Qual::Contagious) => contagious += 1,
+                        Some(Qual::Sink) => sink += 1,
+                        Some(Qual::Neutral) => neutral += 1,
+                        _ => {}
+                    }
+                }
+            }
+        }
+        assert!(
+            contagious > 0 && sink > 0 && neutral > 0,
+            "all three of the marks a row can write reach a signature \
+             (contagious {contagious}, sink {sink}, neutral {neutral})"
+        );
+    }
+
+    /// The same classification, read the way a call site reads it: through the
+    /// seeded table and [`MethodSig::qual_at`], which is the only accessor a
+    /// consumer may use.
+    #[test]
+    fn a_resolved_member_answers_its_parameters_classification() {
+        let mut interner = TypeInterner::new();
+        let mut table = SignatureTable::new();
+        seed(&mut table, &mut interner);
+
+        let (_, sig) = resolve_method(
+            &QName::parse(r"Core\Str"),
+            "join",
+            &table,
+            &ClassGraph::default(),
+        )
+        .expect("Core\\Str::join is registered");
+        assert_eq!(
+            sig.qual_at(0),
+            None,
+            "an array parameter has no cell to classify"
+        );
+        assert_eq!(
+            sig.qual_at(1),
+            Some(Qual::Contagious),
+            "the separator decides which bytes come back, so it is contagious"
+        );
     }
 
     /// § 9's three collections are the only `Core` classes that say anything

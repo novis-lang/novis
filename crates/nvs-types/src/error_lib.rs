@@ -201,6 +201,9 @@ fn constructor(interner: &mut TypeInterner) -> FxHashMap<String, MethodSig> {
                 nvs_stdlib::registry::OPTIONS_NAME.to_owned(),
             ],
             inout: vec![false, false],
+            // Synthesized here rather than registered, so there is no row to
+            // carry a classification — see `MethodSig::param_quals`.
+            param_quals: Vec::new(),
             variadic: false,
             defaults: vec![
                 None,
