@@ -2,67 +2,74 @@
 
 ## State
 
-**Stage 9 is closed — ADR 0119 is on disk end to end.** `Lowering::lower_catch`
-(`crates/nvs-ir/src/lower/exception.rs:446`) is § 6: `lower_try`'s region push, handler block,
-`TakeThrown` and `instanceof` dispatch, with the guard and every completing arm carried into one phi
-through the `join_representations` a `match` joins its arms with. Its doc comment owns the three ways
-the expression form differs from the block form.
+**Stage 10 item 36 is on disk — ADR 0125 and the front end.** `class<T>` is `TypeAtom::ClassRef(Box<Type>)`
+(`crates/nvs-syntax/src/ast.rs:153`), parsed in `parse_type_atom` the way the `array<` arm is and closed
+through the same `expect_type_close_angle`, so `array<class<Animal>>` splits its `>>`. ADR 0125 is the
+decision in full — the type, `as` as its only source, covariance, the three sites, the constructor rule at
+a dynamic `new` (`E0794`, which item 37 declares) and what it costs. ADR 0007 gained the `atom` production
+line in § 3 and the `string`/`class<U>` → `class<T>` row in § 2's grid, with `0125` in its `Amended by:`.
 
-**A `throw` arm goes through `lower_throw` directly rather than lowering as an expression.**
-`ExprKind::Throw` in expression position hands back a placeholder out of a fresh dead block
-(`crates/nvs-ir/src/lower/expr.rs:339`), and letting that block into the phi would feed the
-placeholder's representation to `join_representations` — a `string` guard beside a `throw` arm would
-join at `Ty::Tagged`, which is not what the checker typed. `lower_throw` seals the arm's own block and
-opens no successor, so the arm has no edge, which is exactly what § 4's union already does with a
-`never` arm. `lower_ternary` has the same shape and does *not* do this, so `$c ? "a" : throw …` still
-joins at `Ty::Tagged`; that is a latent inefficiency, not a wrong answer, and it is in `## Backlog`.
+**`class` is recognised by two tokens, in two places.** `Parser::at_class_reference`
+(`crates/nvs-syntax/src/parser/ty.rs:78`) asks for a `<` immediately after the keyword; it is called from
+`can_start_type` *and* as a guard on `parse_statement`'s class-declaration arm, because that arm sits above
+the `can_start_type` fallthrough. The playbook bullet under *Writing Novis itself* owns the trap.
 
-**The driver's standing failure was a name, not a claim** — the behaviour was pinned as
-`a_following_catch_is_the_next_arm_of_the_same_guard`, which is now the check's own
-`an_expression_catch_is_arms_on_one_guarded_expression`, and `a_statement_keyword_in_a_catch_arm_is_e0126`
-is new beside it. `tests/conformance/reject/a-catch-arm-holds-an-expression-so-return-is-refused.nvst`
-was renamed the same way. The playbook bullet at `docs/agent/playbook.md:907` already owns this trap;
-what it does not say is that an `nvs-suite` check's `cases` list names **paths**, so the rename is a
-`git mv` rather than an edit.
+**Below the parser, nothing knows the atom yet, and that is item 37/38's whole content.**
+`nvs_types::lower::lower_atom` (`crates/nvs-types/src/lower.rs:102`) has a `_ => mixed()` arm, so
+`class<Animal> $x` type-checks as `mixed` today; `nvs_ir`'s `lower_decl_type` fallback panics on it exactly
+as it already does for a shape or a literal atom used as a declared annotation. Only `nvs-hir`'s two type
+walks were taught the arm (`aliases.rs`'s `record_names`/`substitute`, `requires.rs`'s `walk_type`), so the
+argument's class name is harvested like `array<T>`'s.
 
-**Valgrind is clean** over `.agent-tmp/catch-expr.nvs` and `catch-expr2.nvs`, which exercise a
-refcounted guard, a bound arm, an unbound arm, a rethrow past every arm and a `throw` arm under an
-enclosing `finally`.
-
-**`orient.py`'s `[context]` gaps.** New: the pack prints the goal item but never the `[[check]]` it is
-graded by, so a session closing a check re-reads `docs/agent/loop-goal.toml` for its `tests`/`cases`
-list — that stage's check block belongs in the manifest. Standing, each proven again or earlier: no
-field selects `docs/reference/lang/*.md` (this session wrote two of them) or `docs/reference/core/*.md`;
-`docs/adr/divergences.md`; `docs/reference/README.md` § *Examples: the fence grammar*;
-`docs/spec/01-core-library.md`'s Part II class table; and in `modules` `crates/nvs-stdlib/src/arr.rs`.
-In `adrs`: **0007 §§ 2-4**, **0079 §§ 4 and 24**, **0072 §§ 6-7**, **0012 § 6**, **0013 §§ 2-4**,
-**0046 §§ 2, 5**, **0053 §§ 1-3**, **0027 § 1**, **0031 § 3**, **0033 §§ 3-4**, **0047 § 2**, **0011**,
-**0086 § 6**, **0090 § 3**, **0057 § 1**, **0096 §§ 1-1a**, **0117 § 1**. `orient.py` still warns that
-`crates/nvs-host/src/budget.rs` matches nothing, the forward anchor its own comment describes.
+**`orient.py`'s `[context]` gaps.** Standing, proven again: the pack prints the goal item but not the
+`[[check]]` grading it, so this session re-read `loop-goal.toml` for the stage 10 check block. No field
+selects `docs/reference/lang/*.md` (item 39 needs it) or `docs/reference/core/*.md`; `docs/adr/README.md`
+and `docs/adr/ground-rules.md` are not in `modules` either, and every ADR-writing item edits both. In
+`adrs`: **0007 §§ 2-3** — an item that amends 0007 pays for the slice every time. `orient.py` still warns
+that `crates/nvs-host/src/budget.rs` matches nothing.
 
 ## Next group
 
-**Stage 8's differential floor — four oracle cases, over `tests/differential/`.** It is the one red
-check left in the goal (`min_passing = 210`, 206 on disk); `python tools/gaps.py --differential` ranks
-the candidates and names the anchor for each. An oracle case never goes in `tests/conformance/`
-(conventions.md), and PHP is on `PATH` on both legs, so the expectation is computed rather than frozen.
+**Item 37, the checker — one file set, `crates/nvs-types/src/`, four slices in this order.** Each rests on
+the one before it, and the acceptance check
+(`nvs-types (the class reference)`) grades the last three.
 
-- [ ] **`Core\Math::fdiv` against `fdiv`.** The one arithmetic twin with no oracle case: `±INF`, `NAN`,
-      and division by both signed zeros, which is the whole reason the member exists.
-      `crates/nvs-stdlib/src/math.rs:1821`.
-- [ ] **Two `Core\Str` or `Core\Arr` edges against their twins.** Both classes are 200+ cases deep in
-      conformance and thin in oracle cases, so the value is in PHP's own boundary answers rather than in
-      another row: `crates/nvs-stdlib/src/str.rs:1`, `crates/nvs-stdlib/src/arr.rs:1`.
-- [ ] **`Core\Task::afterResponse` against `fastcgi_finish_request`.** Take it last and drop it if the
-      oracle needs a server the differential runner cannot start — say so in the handoff rather than
-      freezing an expectation. `crates/nvs-stdlib/src/task.rs:561`.
+- [ ] **`Ty::ClassRef(TypeId)` and its widening.** The variant beside `Ty::Array`
+      (`crates/nvs-types/src/ty.rs:64`), lowered from the atom in `lower_atom`
+      (`crates/nvs-types/src/lower.rs:102`, replacing the `_ => mixed()` it falls into now) — the argument
+      names a class or an interface and anything else is refused where it is written. `class<Dog>` widens
+      to `class<Animal>` wherever `Dog` widens to `Animal`, never back (ADR 0125 § 3). Test:
+      `a_class_reference_widens_to_its_supertype_and_not_back`.
+- [ ] **The two conversion rows and the compile-time fold.** `string → class<T>` and the `class<U> →
+      class<T>` narrowing in `conversion_row_exists` (`crates/nvs-types/src/expr/operators.rs:1747`),
+      checked in `infer_conversion` (`crates/nvs-types/src/expr/operators.rs:78`); a `Foo::class` operand
+      (`ExprKind::ClassNameConst`, `crates/nvs-types/src/expr/mod.rs:479`) is decided at compile time and
+      is a refusal when `Foo` is not a `T`; the qualifier strips through
+      `apply_qualifier_conversion_rule` (`crates/nvs-types/src/expr/quals.rs:220`), unchanged. ADR 0125
+      § 2. Test: `a_string_becomes_a_class_reference_only_through_as`.
+- [ ] **The three sites, and `E0496`'s help.** `NewTarget::Expr` (`crates/nvs-types/src/expr/calls.rs:1088`)
+      types its arguments against `T`'s constructor as `NewTarget::StaticTy` does
+      (`crates/nvs-types/src/expr/calls.rs:1076`); the `::` class side
+      (`crates/nvs-types/src/expr/calls.rs:231`) resolves the member on `T`; `instanceof`
+      (`crates/nvs-types/src/expr/members.rs:250`) takes the operand.
+      `reject_dynamic_class_name` (`crates/nvs-types/src/expr/members.rs:532`) keeps `E0496` for every
+      other operand, its help now naming `as class<T>`. ADR 0125 § 4.
+- [ ] **The constructor rule, `E0794`.** At a `new` over `class<T>`, every implementor of `T`
+      (`implementors`, `crates/nvs-hir/src/hierarchy.rs:530`) whose constructor fails
+      `check_class_conformance` (`crates/nvs-types/src/conformance.rs:57`) is a refusal at the `new` site
+      naming that subclass; the code is declared beside `E0784`
+      (`crates/nvs-diagnostics/src/lib.rs:2460`). ADR 0125 § 5 has the wording. Test:
+      `a_dynamic_new_is_refused_naming_the_subclass_whose_constructor_differs`. Fixtures in
+      `crates/nvs-types/tests/classes.rs`.
 
 ## Backlog
 
-- Stage 10 — the class reference, `class<T>`, item 36's ADR first; it runs last (`docs/agent/loop-goal.md`).
-- `lower_ternary` joins a `throw` branch at `Ty::Tagged` where `lower_catch` now drops it
-  (`crates/nvs-ir/src/lower/expr.rs:1475`); the same treatment would suit `lower_match`'s arms.
-- `caught_class_label`'s known gap: a class named inside a `namespace` block is not resolved
-  (`crates/nvs-ir/src/lower/exception.rs:597`).
-- Item 18's adversarial suite, m6.md's *Verify* list (`docs/plan/m6.md`).
-- `docs/agent/doc-cleanup.md`'s pass is user-fired, never automatic.
+- Stage 8's differential floor: four oracle cases under `tests/differential/`, `min_passing = 210` against
+  206 on disk; `python tools/gaps.py --differential` ranks them. `Core\Math::fdiv` against `fdiv`
+  (`crates/nvs-stdlib/src/math.rs:1821`) is the ranked first.
+- Item 38, the lowering and the runtime lookup; item 39, the corpus and the reference tables. Both named
+  in `docs/agent/loop-goal.md` § *Stage 10*.
+- `lower_ternary` does not seal a `throw` arm's block the way `lower_catch` does, so
+  `$c ? "a" : throw …` joins at `Ty::Tagged` — a latent inefficiency, `crates/nvs-ir/src/lower/expr.rs`.
+- `docs/reference/lang/20-types.md:185` needs the `class<T>` atom beside `callable`, and `:511` the `as`
+  row — item 39 owns both.

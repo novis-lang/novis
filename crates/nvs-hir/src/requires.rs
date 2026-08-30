@@ -650,7 +650,9 @@ fn walk_type(ty: &Type, src: &SourceFile, out: &mut Harvest) {
             }
         }
         TypeKind::Atom(atom) => match atom {
-            TypeAtom::Array(Some(inner)) => walk_type(inner, src, out),
+            TypeAtom::Array(Some(inner)) | TypeAtom::ClassRef(inner) => {
+                walk_type(inner, src, out);
+            }
             TypeAtom::Shape(fields) => {
                 for field in fields {
                     walk_type(&field.ty, src, out);

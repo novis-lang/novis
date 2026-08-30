@@ -201,7 +201,9 @@ fn record_names(ty: &Type, src: &SourceFile, out: &mut FxHashMap<Span, String>) 
                 record_names(item, src, out);
             }
         }
-        TypeKind::Atom(TypeAtom::Array(Some(inner))) => record_names(inner, src, out),
+        TypeKind::Atom(TypeAtom::Array(Some(inner)) | TypeAtom::ClassRef(inner)) => {
+            record_names(inner, src, out);
+        }
         TypeKind::Atom(TypeAtom::Name(name, args)) => {
             out.insert(name.span, name_text(src, name).to_owned());
             for arg in args {
@@ -336,6 +338,15 @@ fn substitute(
             kind: TypeKind::Atom(TypeAtom::Array(Some(Box::new(substitute(
                 inner, namespace, imports, ctx,
             ))))),
+            span: ty.span,
+        },
+        // ADR 0125 § 1's class reference, whose argument is a name like any
+        // other argument position's: an alias standing for a class expands
+        // inside it exactly as it does inside `array<T>`.
+        TypeKind::Atom(TypeAtom::ClassRef(inner)) => Type {
+            kind: TypeKind::Atom(TypeAtom::ClassRef(Box::new(substitute(
+                inner, namespace, imports, ctx,
+            )))),
             span: ty.span,
         },
         TypeKind::Atom(TypeAtom::Name(name, args)) => {

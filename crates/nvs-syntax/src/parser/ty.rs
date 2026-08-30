@@ -64,7 +64,19 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// decide, without committing, whether a mandatory type was actually
     /// omitted (e.g. a parameter written without one).
     pub(super) fn can_start_type(&mut self) -> bool {
-        Self::token_starts_type(self.peek().kind) || self.at_negative_int_literal()
+        Self::token_starts_type(self.peek().kind)
+            || self.at_negative_int_literal()
+            || self.at_class_reference()
+    }
+
+    /// `class<` — ADR 0125 § 1's class reference, the second type atom that
+    /// takes two tokens to recognise and so is asked here rather than in
+    /// [`Self::token_starts_type`]. The lookahead is not an optimisation: a
+    /// bare `class` is the *declaration* keyword, and answering `true` for it
+    /// on its own would route every `class Foo {}` in the program through
+    /// [`Self::parse_stmt_maybe_local_decl`]'s trial parse.
+    pub(super) fn at_class_reference(&mut self) -> bool {
+        self.at_keyword(Keyword::Class) && matches!(self.peek_at(1).kind, TokenKind::Lt)
     }
 
     /// `-1` — ADR 0047 § 1's one type atom that needs two tokens to
@@ -396,6 +408,20 @@ impl<'src, 'd> Parser<'src, 'd> {
             TokenKind::Keyword(Keyword::SelfKw) => atom!(SelfTy),
             TokenKind::Keyword(Keyword::Static) => atom!(StaticTy),
             TokenKind::Keyword(Keyword::Parent) => atom!(Parent),
+            // ADR 0125 § 1's class reference. `class` is already the
+            // declaration keyword, so this arm is only reached through
+            // `at_class_reference` (a `<` immediately after it) and the two
+            // spellings never compete: a declaration is `class Name`.
+            TokenKind::Keyword(Keyword::Class) if self.at_class_reference() => {
+                self.bump();
+                self.bump();
+                let inner = self.parse_type_union();
+                let close = self.expect_type_close_angle();
+                Type {
+                    kind: TypeKind::Atom(TypeAtom::ClassRef(Box::new(inner))),
+                    span: start.to(close),
+                }
+            }
             TokenKind::Keyword(Keyword::Array) => {
                 self.bump();
                 if self.eat(TokenKind::Lt).is_some() {

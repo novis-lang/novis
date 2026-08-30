@@ -192,7 +192,14 @@ impl<'src, 'd> Parser<'src, 'd> {
             TokenKind::Keyword(Keyword::Var) => self.parse_var_local_decl(start),
             TokenKind::LBracket => self.parse_stmt_maybe_destructure(start),
             TokenKind::AttributeOpen => self.parse_attributed_decl_stmt(start),
-            TokenKind::Keyword(Keyword::Abstract | Keyword::Final | Keyword::Class) => {
+            // ADR 0125 § 1: `class<` at statement start is a typed local
+            // holding a class reference, not a declaration — the one place the
+            // two spellings meet, and one token of lookahead separates them
+            // (`Parser::at_class_reference`). `abstract`/`final` never precede
+            // a type, so only the bare-`class` half of this arm needs asking.
+            TokenKind::Keyword(Keyword::Abstract | Keyword::Final | Keyword::Class)
+                if !self.at_class_reference() =>
+            {
                 self.parse_class_decl(start)
             }
             TokenKind::Keyword(Keyword::Interface) => self.parse_interface_decl(start),

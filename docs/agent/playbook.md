@@ -4279,6 +4279,17 @@ sibling in the same namespace unqualified.
   ADR states is a claim to check against that file, not a fact to copy; when it is wrong, fold the
   ADR body in the same commit, because the body is the rule. Anything else naming the old code
   (`loop-goal.md`, the `[[check]]` test name in `loop-goal.toml`) moves with it.
+- **A type atom whose first token is already a statement keyword needs the *statement* arm guarded too,
+  not just `can_start_type`.** ADR 0125 § 1's `class<T>` is recognised by two tokens, so
+  `Parser::at_class_reference` went beside `at_negative_int_literal` in `can_start_type` — which is the
+  right place and is not enough: `parse_statement`'s dispatch matches
+  `TokenKind::Keyword(Keyword::Abstract | Keyword::Final | Keyword::Class)` at
+  `crates/nvs-syntax/src/parser/stmt.rs:195`, *above* the `_ if self.can_start_type()` arm, so
+  `class<Animal> $cls = …;` was parsed as a class declaration and produced twelve E0101s about a missing
+  class name. The general shape: `can_start_type` only decides the fallthrough, and every keyword arm
+  earlier in that match is a second door the new atom has to be let through. The conversion slot
+  (`$x as class<Animal>`) passes with no such edit, so a test that only exercises `as` reports green on
+  half a feature.
 
 ## Divergences and refusals already pinned
 

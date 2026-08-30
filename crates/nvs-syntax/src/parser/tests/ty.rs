@@ -22,6 +22,54 @@ fn nested_array_generic_closes_through_a_split_shift_token() {
     ));
 }
 
+/// ADR 0125 § 1: `class<T>` is one atom holding one argument, in the
+/// conversion slot that is its only source and in the local slot that holds
+/// the result.
+#[test]
+fn a_class_reference_is_a_type_atom_with_one_class_argument() {
+    let e = parse_ok("$name as class<Animal>");
+    let ExprKind::Conversion { ty, .. } = e.kind else {
+        panic!("expected a conversion: {e:?}");
+    };
+    let TypeKind::Atom(TypeAtom::ClassRef(inner)) = ty.kind else {
+        panic!("expected `class<...>`: {ty:?}");
+    };
+    let TypeKind::Atom(TypeAtom::Name(_, args)) = inner.kind else {
+        panic!("expected a name argument: {inner:?}");
+    };
+    assert!(args.is_empty());
+
+    // The declaration slot, which is what `can_start_type` has to answer for.
+    let s = parse_stmt_ok("class<Animal> $cls = $name as class<Animal>;");
+    let StmtKind::LocalDecl { ty: Some(ty), .. } = s.kind else {
+        panic!("expected a typed local: {s:?}");
+    };
+    assert!(matches!(ty.kind, TypeKind::Atom(TypeAtom::ClassRef(_))));
+
+    // Nested, so the argument's `>` closes through the same split the
+    // `array<array<T>>` case above goes through.
+    let s = parse_stmt_ok("type Fleet = array<class<Animal>>;");
+    let StmtKind::TypeAliasDecl(alias) = s.kind else {
+        panic!("expected a type alias: {s:?}");
+    };
+    let TypeKind::Atom(TypeAtom::Array(Some(inner))) = alias.ty.kind else {
+        panic!("expected an array type: {alias:?}");
+    };
+    assert!(matches!(inner.kind, TypeKind::Atom(TypeAtom::ClassRef(_))));
+}
+
+/// The two-token rule `Parser::at_class_reference` exists for: a bare `class`
+/// is the declaration keyword and never a type, so `class Foo {}` must not
+/// reach the local-declaration trial parse.
+#[test]
+fn a_bare_class_keyword_is_still_a_declaration_and_not_a_type() {
+    let s = parse_stmt_ok("class Animal { public string $name = \"\"; }");
+    assert!(
+        matches!(s.kind, StmtKind::ClassDecl(_)),
+        "expected a class declaration: {s:?}"
+    );
+}
+
 #[test]
 fn a_name_in_type_position_carries_its_type_arguments() {
     let e = parse_ok("$m as Iterator<int>");

@@ -136,6 +136,21 @@ pub enum TypeAtom {
     SecretTaintedBytes,
     /// `array`, or `array<T>` when a type argument is given.
     Array(Option<Box<Type>>),
+    /// `class<T>` — ADR 0125 § 1's class reference, whose value is the
+    /// run-time class descriptor of a class that is a `T`.
+    ///
+    /// The argument is held as a whole [`Type`] rather than as a [`Name`],
+    /// even though ADR 0007 § 3's production admits only a `Name` there: an
+    /// argument that is not a class or interface name is refused by the
+    /// checker, where the name has been resolved and the refusal can say what
+    /// it resolved *to*. The parser refusing it would have to report on the
+    /// spelling alone, and `class<int>` and `class<Undeclared>` are two
+    /// different mistakes.
+    ///
+    /// There is no argument-less form: `class` alone is the declaration
+    /// keyword, and a reference to "some class" with no bound is what
+    /// [`Self::Object`] already is.
+    ClassRef(Box<Type>),
     /// `object`
     Object,
     /// `{name: T, ...}` — ADR 0036 § 3: an inline structural shape type,
