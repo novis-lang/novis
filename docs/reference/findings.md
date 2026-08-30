@@ -344,8 +344,23 @@ in that goal. An item's owner is the row it sits in.
       own drain, both of which need a host that holds more than one tree.
 - [ ] **M2** `Core\Fatal::onUncaughtThrow` (ADR 0020 § 2) — only `onLimit` exists.
 - [ ] **M3** ADR 0079's wider assertion roster (`assertStartsWith`, …) — `Core\Test` holds ten members.
-- [ ] **M4** `Core\Test\Failure` and `RecursionError` appear in no member card's `errors` list, only
-      in the exception tree (behaviour verified by probe).
+      Triaged, and it is one member wide rather than a roster: the roster's one home is
+      [docs/spec/01-core-library.md](../spec/01-core-library.md)'s Part II class table, and
+      `assertStartsWith` is on it nowhere — ADR 0079 § 4 names it once as an example of what `nvs-lsp`
+      ranks by subject type. Against the spec's row, `Core\Test` is missing **`assertContains`**, which
+      is the only absent member ADR 0079 § 24 places in the milestone already landed (§§ 4-6, the M4S
+      tail); `double<T>`/`partial<T>`, `assertCalled`/`assertNeverCalled`, `assertCompletes`,
+      `assertMatchesInline` and `request` are that table's M5-to-M8 rows and are absent on schedule.
+      What is left is one `Core` member's five edits, not a documentation fix.
+- [x] **M4** `Core\Test\Failure` and `RecursionError` appear in no member card's `errors` list, only
+      in the exception tree (behaviour verified by probe). Closed, one half stale and the other *no
+      card owes it*: nine of `Core\Test`'s cards name `Core\Test\Failure` in `errors`
+      (`crates/nvs-stdlib/src/test.rs:314` is the first), so that half was true only before the
+      assertion roster carried cards at all. `RecursionError` has exactly one raise site —
+      `nvs_runtime::ctx::nvs_stack_check`, the depth guard every non-leaf function entry runs — and no
+      member body reaches it. A card's `errors` is what that body throws, so a class raised *by the
+      call* rather than by a member belongs to every card equally, which is to say to none of them; the
+      exception tree is its one home.
 - [x] **M5** `Core\Uuid` has no `version()`; the cards' `errors` never name it. (Calling it is P12.)
       Closed as *the member is not in the spec's roster*: calling it is now E0405 rather than a panic,
       and adding a member is a spec question rather than a finding.
