@@ -441,3 +441,62 @@ fn an_api_attribute_contradicting_its_own_signature_is_a_diagnostic() {
         "and the operation it annotates is in the document:\n{doc}"
     );
 }
+
+/// § 2's four values in the document, read back off the operation they annotate
+/// — and absent from the operation beside it that declares no `#[Api]`.
+///
+/// One test over one fixture holding both rows, rather than four tests over
+/// four values: § 2's promise is that the annotation reaches the document *as
+/// written*, and a per-value test passes just as well against an emitter that
+/// writes each value into a member of its own choosing. The `#[Api]`-less row
+/// is the half that catches the opposite mistake — a `tags: []` or a `security:
+/// []` written for every operation reads as an answer where the code gave none.
+#[test]
+fn an_apis_four_values_reach_the_operation_and_nothing_else() {
+    let (doc, err, ok) = build(&fixture("api-that-agrees"));
+    assert!(ok, "the fixture compiles: {err}");
+    let document: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
+    let annotated = document["paths"]["/items/{id}"]["get"].clone();
+    let bare = document["paths"]["/items"]["get"].clone();
+
+    assert_eq!(
+        annotated["tags"],
+        serde_json::json!(["Items"]),
+        "`tags` as written:\n{annotated}"
+    );
+    assert_eq!(
+        annotated["security"],
+        serde_json::json!([{"bearer": []}]),
+        "one 3.1 security requirement per scheme name, each with no scopes:\n{annotated}"
+    );
+    assert_eq!(
+        annotated["responses"]["500"]["description"], "RuntimeError",
+        "the `errors` entry is a response of its own, described by its class:\n{annotated}"
+    );
+    assert!(
+        annotated["responses"]["500"]["content"].is_null(),
+        "and with no schema, which is the class-body gap this module records:\n{annotated}"
+    );
+    assert_eq!(
+        annotated["responses"]["200"]["content"]["application/json"]["example"],
+        serde_json::json!({"name": "a thing", "count": 3}),
+        "the example sits beside the schema it is an example of:\n{annotated}"
+    );
+
+    assert!(
+        bare["tags"].is_null() && bare["security"].is_null(),
+        "a route with no `#[Api]` carries neither member:\n{bare}"
+    );
+    let responses = bare["responses"]
+        .as_object()
+        .unwrap_or_else(|| panic!("every operation answers something:\n{bare}"));
+    assert_eq!(
+        responses.keys().collect::<Vec<_>>(),
+        ["200"],
+        "and answers § 1's declared return type alone:\n{bare}"
+    );
+    assert!(
+        bare["responses"]["200"]["content"]["application/json"]["example"].is_null(),
+        "with no example, since nothing wrote one:\n{bare}"
+    );
+}

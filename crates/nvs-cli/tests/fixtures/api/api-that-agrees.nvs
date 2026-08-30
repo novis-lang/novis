@@ -27,6 +27,18 @@ class Items
     {
         return new Item();
     }
+
+    // The other side of the same bound: a route with no `#[Api]` at all. § 2's
+    // four are additions, so this operation carries none of the four members
+    // rather than empty ones — and the two rows sit in one document so a reader
+    // of the emitter's output sees both answers at once.
+    #[Core\Route(path: "/items", method: Core\Http\Method::Get, name: "Items::index")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function index(): uint
+    {
+        return 0;
+    }
 }
 
 echo "GET /items/{id} -> Items::show", "\n";
+echo "GET /items -> Items::index", "\n";
