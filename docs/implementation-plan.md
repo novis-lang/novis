@@ -57,11 +57,11 @@
 > fires once inside the reserve; ADR 0078 § 4 keys both caches. Stage 5 has ADR 0042 §§ 1-6,  in
 > `crates/nvs-cli/src/cache.rs`, whose *Known gaps* decides a payload. **Stage 0c has no
 > implementable slice left**: `docs/reference/findings.md` § *Triage* holds the verdicts, items
-> 31–34 are closed and 35's remainder is absent on time. **Stage 9 has ADR 0119 §§ 1-3's front
-> end**; § 6's lowering is still a `panic!`. **Stage 8 is open**: conformance 1084, differential 206
-> of 210, eight of eight written. **Stage 7 is closed**: `nvs build --compile` appends ADR 0048 §§
-> 2-5's source payload, and `nvs_diagnostics::embedded` is the byte source a bundle resolves
-> against.
+> 31–34 are closed and 35's remainder is absent on time. **Stage 9 has ADR 0119 §§ 1-5's front end
+> and checker**; § 6's lowering is still a `panic!`. **Stage 8 is open**: conformance 1084,
+> differential 206 of 210, migration 37% over its 36% floor. **Stage 7 is closed**: `nvs build
+> --compile` appends ADR 0048 §§ 2-5's source payload, and `nvs_diagnostics::embedded` is the byte
+> source a bundle resolves against.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

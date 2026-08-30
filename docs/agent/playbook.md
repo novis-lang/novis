@@ -4271,6 +4271,14 @@ sibling in the same namespace unqualified.
   `parse_catch`, and only for the *else* branch — the `then` branch is delimited by its own `:` and
   cannot trail. Any future level added above the ternary owes the same check, and a unit test in
   `crates/nvs-syntax/src/parser/tests/expr.rs` is what caught it, not a `.nvst`.
+- **An ADR can specify a diagnostic code that is already taken, and the orientation pack's
+  next-free-number list does not print the `W1xxx` band at all.** ADR 0119 § 5 said its unbound-arm
+  advisory was `E0778`; `E0778` has been `E_INSTANCE_METHOD_CALLED_STATICALLY` since well before it,
+  and a *warning* belongs in `W1xxx` regardless — the band exists, at the foot of
+  `crates/nvs-diagnostics/src/lib.rs`, and the pack's band list stops at `E09xx`. So the number an
+  ADR states is a claim to check against that file, not a fact to copy; when it is wrong, fold the
+  ADR body in the same commit, because the body is the rule. Anything else naming the old code
+  (`loop-goal.md`, the `[[check]]` test name in `loop-goal.toml`) moves with it.
 
 ## Divergences and refusals already pinned
 
