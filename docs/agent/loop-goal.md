@@ -281,6 +281,74 @@ whole design and this file does not restate it; each item names the ADR section 
     `python tools/reference.py` runs (`verify.py` regenerates `docs/novis.md` from it). Different
     file set from items 21–22.
 
+## Stage 10 — the class reference
+
+Added on 2026-08-30 by the user's decision, and **it runs last** — after stage 9 and after the rest of
+stage 8, where it sits. The design is decided under *Standing decisions* below and the ADR is item 36's
+first slice; it does not exist yet, so an item here names the ADR 0007 section it amends rather than a
+section of its own. What changes: a class name may be **checked** as well as written. `class<T>` is a
+type whose value is the run-time class descriptor `new static(...)` already allocates from
+(`crates/nvs-ir/src/ir.rs:547`, `InstKind::NewDynamic`), obtained only through `as`, and accepted at
+the three sites where `E0496` refuses a bare string today. Nothing reaches code from an unchecked
+string: ADR 0007 § 2's rejected list (`$$var`, `eval`, `settype()`) is untouched, and so is `E0235`.
+
+36. **The ADR and the front end.** The ADR — the next free number `brief.py` prints, claimed by
+    creating the file — records the *Standing decision* below: the type, its one source, the widening,
+    the constructor rule, what a dynamic `new` costs against a static one (the name-keyed constructor
+    lookup `new static` already pays, and nothing at all on `new Dog()`), and why a
+    `tainted string as class<T>` may strip the qualifier. Then the atom: `TypeAtom::ClassRef(Box<Type>)`
+    beside `Array` (`crates/nvs-syntax/src/ast.rs:138`), parsed in `parse_type_atom` the way the
+    `array<` arm is (`crates/nvs-syntax/src/parser/ty.rs:361`) — `class` is already a keyword, so the
+    arm is `Keyword::Class` followed by `<`, closed by the same `>`-splitting close (`:197`) — and the
+    grammar line of ADR 0007 § 3 (`docs/adr/0007-explicit-type-system.md:133`) gains
+    `'class' '<' Name '>'`. Parser tests in `crates/nvs-syntax/src/parser/tests/ty.rs`. Different file
+    set from item 37.
+37. **The checker — the type, its widening, the conversion, the three sites, and the constructor
+    rule.** `Ty::ClassRef(TypeId)` beside `Ty::Array` (`crates/nvs-types/src/ty.rs:64`), lowered by
+    `lower_type` (`crates/nvs-types/src/lower.rs:38`) — the argument names a class or an interface, and
+    anything else is refused where it is written; `class<Dog>` widens to `class<Animal>` wherever `Dog`
+    widens to `Animal`, and never back. The conversion: a `string → class<T>` row in
+    `conversion_row_exists` (`crates/nvs-types/src/expr/operators.rs:1732`) and a `class<U> → class<T>`
+    narrowing one, checked in `infer_conversion` (`:78`); an operand that is `Foo::class`
+    (`ExprKind::ClassNameConst`, `crates/nvs-types/src/expr/mod.rs:479`) is decided at compile time and
+    is a refusal when `Foo` is not a `T`; the qualifier rule is `apply_qualifier_conversion_rule`
+    (`crates/nvs-types/src/expr/quals.rs:220`), unchanged. The three sites: `NewTarget::Expr`
+    (`crates/nvs-types/src/expr/calls.rs:1088`) with a `class<T>` operand types the arguments against
+    `T`'s constructor exactly as `NewTarget::StaticTy` does (`:1076`) and records an `ExprInfo` that
+    `nvs-ir` can lower; the `::` class side (`:229`) resolves the member on `T` and records the virtual
+    call; `instanceof` (`crates/nvs-types/src/expr/members.rs:250`) takes the operand.
+    `reject_dynamic_class_name` (`:474`) keeps `E0496` for every other operand type, its help now naming
+    `as class<T>`. The constructor rule: at a `new` over `class<T>`, every implementor of `T`
+    (`implementors`, `crates/nvs-hir/src/hierarchy.rs:530`) whose `constructor` is not compatible with
+    `T`'s is a refusal at the `new` site naming that subclass — a new code in the E07xx band, declared
+    beside `E0784` (`crates/nvs-diagnostics/src/lib.rs:2460`); the compatibility test is the one the
+    override check already makes (`check_class_conformance`, `crates/nvs-types/src/conformance.rs:57`).
+    Fixtures in `crates/nvs-types/tests/classes.rs`.
+38. **The lowering, the runtime lookup and codegen.** `lower_conversion`
+    (`crates/nvs-ir/src/lower/convert.rs:629`): a folded `Foo::class` operand is
+    `InstKind::ClassDescConst` (`crates/nvs-ir/src/ir.rs:487`; the emission at
+    `crates/nvs-ir/src/lower/expr.rs:2912` is the shape), and a run-time string is a new runtime helper
+    beside `nvs_class_method` (`crates/nvs-runtime/src/object.rs:1840`) — `ClassTable::id_of` (`:999`)
+    then `ClassDesc::conforms_to` (`:618`) — throwing what every failed `as` throws
+    (`conversion_can_fail`, `convert.rs:1580`). The table must be reachable from a helper by name; if it
+    is not today, the unit registers it the way it registers descriptors and `object.rs`'s module doc
+    says so. `new` over the value is `InstKind::NewDynamic` (the `new static` arm at
+    `lower/expr.rs:2413`), `$cls::f()` is `InstKind::CallVirtual` (`ir.rs:520`, `lower/expr.rs:2824`),
+    and `InstanceOf` (`ir.rs:750`) gains a descriptor-valued form beside its `class: String` — the
+    `lower/expr.rs:3944` site and `nvs-codegen`'s emit (`crates/nvs-codegen/src/emit.rs:571`) carry it;
+    `NewDynamic` and `ClassDescConst` need nothing new there. Lowering tests in
+    `crates/nvs-ir/src/lower/tests.rs`. Its own file set.
+39. **The corpus, the reference and the tables.** The `.nvst` cases the acceptance check names, under
+    `tests/conformance/class/` and `reject/`. The reference: the atom in
+    `docs/reference/lang/20-types.md:185` beside `callable` and the class names, the `as` row at `:511`,
+    `instanceof`'s operand in `50-classes.md:476` and a `new` paragraph beside it, all run by
+    `python tools/reference.py`. The tables: the differences row
+    (`docs/reference/tools/30-php-differences.md:31`) now names the conversion,
+    `docs/reference/findings.md:61` likewise, ADR 0007 § 2's `as` table gains the row, § 7 row 14's tail
+    (`docs/adr/0007-explicit-type-system.md:396`, "has no Novis spelling") is rewritten, and ADR 0019's
+    DI-container sentence (`docs/adr/0019-reflection-and-ast-parsing-are-core-features.md:120`) names
+    the mechanism it now has. Different file set from items 36–38.
+
 ## The harness this goal owes
 
 Two acceptance checks name a tool flag that does not exist yet, and writing it is part of the item
@@ -302,11 +370,25 @@ rather than a follow-up to it. Neither is a new tool:
   arm, the union result type and the `Throwable` warning are decided; a session that finds the
   lowering wants a different shape records that in `nvs-ir`'s module doc and puts the redesign in
   `## Backlog`.
-- **One ADR slot: the capability enforcement points** (Stage 4, item 10), and it is the first slice of
-  that stage. What a capability *is* at the point of a call, where the check sits so that no member can
+- **Two ADR slots, each the first slice of its stage.** The first is **the capability enforcement
+  points** (Stage 4, item 10). What a capability *is* at the point of a call, where the check sits so
+  that no member can
   route around it, what it costs on a hot path, and how the closure test in item 16 knows a member needs
   one. ADRs 0051 and 0024 name capabilities constantly and none of them says where the check is; that gap
-  is why this slot exists. Anything else is decided-and-recorded.
+  is why this slot exists. The second is **the class reference** (Stage 10, item 36), the next bullet.
+  Anything else is decided-and-recorded.
+- **The class reference is ADR 0007 § 2 with one more `as` row, and item 36 writes it down.** `class<T>`
+  is a type; its value is the run-time class descriptor; **`as` is its only source** —
+  `$name as class<Animal>` throws unless `$name` names `Animal` or a class that is one,
+  `Dog::class as class<Animal>` is decided at compile time, and `Foo::class` itself stays a `string`.
+  `class<Dog>` widens to `class<Animal>`. `new $cls(...)`, `$cls::f()` and `$x instanceof $cls` accept
+  the value and nothing else: a bare string is `E0496` as before, `$obj->$name` is `E0235` as before.
+  `new` over `class<T>` checks its arguments against `T`'s constructor and is refused, at the `new`
+  site, when an implementor of `T` declares an incompatible one — stricter than PHP, never different
+  from it. A `tainted string as class<T>` strips the qualifier as every checked conversion does,
+  because the value can select among the declared subclasses of `T` and nothing else. A session that
+  finds the lowering wants a different shape records that in `nvs-ir`'s module doc and puts the
+  redesign in `## Backlog`.
 - **A path comparison is canonicalise-then-prefix, in one implementation.** Items 6, 10 and 12 all need
   it. Writing it three times is how one of them ends up accepting a symlink.
 - **`Core\Config::set` above the hard ceiling returns `false`; it does not throw.** m6.md's *Verify* says

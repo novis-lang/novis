@@ -100,6 +100,19 @@ modules = [
   "crates/nvs-types/src/core_lib.rs",
   "crates/nvs-types/src/signatures.rs",
   "crates/nvs-syntax/src/lexer.rs",
+  # Stage 10 -- the class reference, items 36-39. The type atom's parser (36); the checker's type
+  # table, conversion rows, qualifier rule and the instanceof site (37); the conversion lowering, the
+  # instruction set, the descriptor table and the class graph's implementor query (38).
+  "crates/nvs-syntax/src/parser/ty.rs",
+  "crates/nvs-types/src/ty.rs",
+  "crates/nvs-types/src/lower.rs",
+  "crates/nvs-types/src/expr/operators.rs",
+  "crates/nvs-types/src/expr/quals.rs",
+  "crates/nvs-types/src/expr/members.rs",
+  "crates/nvs-ir/src/ir.rs",
+  "crates/nvs-ir/src/lower/convert.rs",
+  "crates/nvs-runtime/src/object.rs",
+  "crates/nvs-hir/src/hierarchy.rs",
 ]
 
 rules = ["0005", "0064", "0103", "0104", "0078", "0042", "0020", "0048", "0073", "0074", "0024", "0051", "0119"]
@@ -2123,4 +2136,51 @@ cases = [
   "tests/conformance/lang/catch-arms-are-tried-in-order-and-the-rest-is-rethrown.nvst",
   "tests/conformance/lang/a-throw-arm-leaves-through-the-enclosing-finally.nvst",
   "tests/conformance/reject/a-return-in-a-catch-arm-is-refused-naming-the-block-form.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 10 -- the class reference, `class<T>`. Added 2026-08-30 by the user's decision; it runs last,
+# where it sits. Four checks, one per item: the parser, the checker, the lowering, the corpus.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "10 class reference"
+name = "nvs-syntax (the class reference type)"
+args = ["test", "-p", "nvs-syntax"]
+tests = [
+  "a_class_reference_is_a_type_atom_with_one_class_argument",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "10 class reference"
+name = "nvs-types (the class reference)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "a_class_reference_widens_to_its_supertype_and_not_back",
+  "a_string_becomes_a_class_reference_only_through_as",
+  "a_dynamic_new_is_refused_naming_the_subclass_whose_constructor_differs",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "10 class reference"
+name = "nvs-ir (the class reference)"
+args = ["test", "-p", "nvs-ir"]
+tests = [
+  "a_new_through_a_class_reference_lowers_to_new_dynamic",
+  "a_folded_class_constant_lowers_to_a_descriptor_constant",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "10 class reference"
+name = "conformance (the class reference)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/class/a-class-reference-instantiates-the-subclass-it-names.nvst",
+  "tests/conformance/class/a-class-reference-carries-a-static-call-and-an-instanceof.nvst",
+  "tests/conformance/class/a-name-outside-the-hierarchy-throws-at-the-conversion.nvst",
+  "tests/conformance/reject/a-subclass-with-another-constructor-refuses-a-dynamic-new.nvst",
 ]
