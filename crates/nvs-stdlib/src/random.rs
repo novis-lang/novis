@@ -18,10 +18,12 @@
 //! audit. It is pure Rust with no build script and no C, which is the wider
 //! default it also meets.
 //!
-//! Every member runs on `rand::rng()`, the thread-local `ThreadRng`: ChaCha12,
-//! seeded from the operating system's own generator and reseeded from it every
-//! 64 KiB of output. Two properties are why this rather than reading the OS
-//! generator directly at each call:
+//! Every member outside a test runs on `rand::rng()`, the thread-local
+//! `ThreadRng`: ChaCha12, seeded from the operating system's own generator and
+//! reseeded from it every 64 KiB of output. (Inside one, a declared seed
+//! selects the generator the last section describes, and nothing else can.)
+//! Two properties are why this rather than reading the OS generator directly at
+//! each call:
 //!
 //! * **It is a userspace generator.** `Core\Random::float()` in a loop is a
 //!   ChaCha block every 64 draws rather than a syscall every one, which is
@@ -59,11 +61,25 @@
 //!    unbuilt — but a child process that inherits a parent's ChaCha state would
 //!    reproduce the parent's stream, so whatever lands there owes
 //!    `ThreadRng::reseed` in the child.
+//!
+//! # The one exception, and no program outside a test can select it
+//!
+//! A `#[Test(seed: …)]` isolate draws from [`SplitMix`] instead, so the test's
+//! sequence reproduces
+//! ([ADR 0079](../../../../docs/adr/0079-testing-is-a-language-feature.md)
+//! § 12). Every member reaches its generator through [`draw`], and that is what
+//! makes the seed all-or-nothing: one that fixed `int` but not `shuffle` would
+//! make a test's reproducibility depend on which members it happened to call.
+//!
+//! The selection is a field on `nvs_runtime::Ctx` that only the test runner
+//! writes, so there is no spelling outside a `#[Test]` that reaches it — see
+//! [`nvs_runtime::Ctx::random_state`], which owns that argument, and § 12's own
+//! reason for keeping `Core\Random\Seeded` a separate *type* in production.
 
 use rand::seq::SliceRandom;
 use rand::{Rng, RngExt};
 
-use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, Value};
+use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, Tag, Value};
 
 use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc};
 
@@ -381,6 +397,117 @@ fn drawn(subject: &NvsArray, slots: &[usize]) -> Value {
     Value::array(out)
 }
 
+/// [ADR 0079](../../../../docs/adr/0079-testing-is-a-language-feature.md)
+/// § 12's seeded generator: SplitMix64, over the single `u64` of state
+/// `nvs_runtime::Ctx` holds.
+///
+/// **Written here rather than reached for** because the requirement is unusual
+/// and small: the whole state has to round-trip through one word of the
+/// context, so that a draw is a pure function of "which draw is this" and a
+/// test's sequence reproduces exactly. Every seedable generator in `rand` keeps
+/// more state than that — `SmallRng` and `ChaCha12Rng` both — so storing one
+/// would mean either a boxed generator in the crate every compiled unit links
+/// or re-seeding and skipping `n` draws, which is quadratic. SplitMix64 is four
+/// operations, is the standard seeding step for exactly this reason, and passes
+/// the statistical batteries a test's dice rolls could possibly care about.
+///
+/// It is **not** a CSPRNG, and it does not need to be: see
+/// [`nvs_runtime::Ctx::random_state`] for why nothing outside a `#[Test]` can
+/// select it.
+struct SplitMix(u64);
+
+impl SplitMix {
+    /// One SplitMix64 step: advance the state, then avalanche a copy of it.
+    ///
+    /// The state advances by an odd constant unconditionally, so the period is
+    /// the full 2⁶⁴ and the output is a bijection of the counter — which is why
+    /// this generator can be a single word and still be worth drawing from.
+    fn step(&mut self) -> u64 {
+        self.0 = self.0.wrapping_add(0x9e37_79b9_7f4a_7c15);
+        let mut z = self.0;
+        z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+        z ^ (z >> 31)
+    }
+}
+
+/// `rand_core` 0.10 makes [`rand::Rng`] the infallible half of
+/// [`rand::TryRng`], with a blanket impl over every `TryRng<Error =
+/// Infallible>` — so an implementor writes the **fallible** three and gets
+/// `Rng`, and with it [`rand::RngExt`]'s drawing methods, for free. Writing
+/// `Rng` by hand instead collides with that blanket.
+impl rand::TryRng for SplitMix {
+    type Error = core::convert::Infallible;
+
+    fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
+        Ok(self.step())
+    }
+
+    fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
+        // The high half, which is the better-mixed one in SplitMix64's final
+        // avalanche and is what every 32-bit truncation of it takes. The shift
+        // is what makes the cast lossless rather than merely intended, which is
+        // why there is no `cast_possible_truncation` expectation here.
+        Ok((self.step() >> 32) as u32)
+    }
+
+    fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Self::Error> {
+        for chunk in dst.chunks_mut(8) {
+            let drawn = self.step().to_le_bytes();
+            chunk.copy_from_slice(&drawn[..chunk.len()]);
+        }
+        Ok(())
+    }
+}
+
+/// Runs `with` against the generator this context draws from: ADR 0079 § 12's
+/// seeded one where a `#[Test(seed: …)]` armed it, and the thread's CSPRNG
+/// otherwise.
+///
+/// **Every draw in `Core` goes through here** — this module's members and
+/// `Core\Uuid`'s two — because a seed that reproduced some of a test's draws
+/// and not others would be worse than no seed at all: the sequence would depend
+/// on which members the test happened to call. The advanced state is written
+/// back before the value is handed on, so two draws in one test are two
+/// different numbers and the *sequence* is what the seed fixes.
+pub(crate) fn draw<T>(ctx: &mut Ctx, with: impl FnOnce(&mut Generator<'_>) -> T) -> T {
+    let Some(state) = ctx.random_state() else {
+        return with(&mut Generator(&mut rand::rng()));
+    };
+    let mut seeded = SplitMix(state);
+    let drawn = with(&mut Generator(&mut seeded));
+    ctx.set_random_state(seeded.0);
+    drawn
+}
+
+/// The generator [`draw`] hands its closure — whichever of the two the context
+/// selected, behind **one concrete type**.
+///
+/// The alternative that does not work is making [`draw`] generic over the
+/// generator, which would need a generic *closure* — Rust has no spelling for
+/// one. A trait object is the shape that does, and this newtype is what gives
+/// it a `Sized` outside: [`rand::RngExt`]'s drawing methods are declared on a
+/// sized receiver, so `dyn Rng` on its own would offer `next_u64` and nothing
+/// a member here actually calls. One pointer indirection per draw.
+pub(crate) struct Generator<'a>(&'a mut dyn rand::Rng);
+
+impl rand::TryRng for Generator<'_> {
+    type Error = core::convert::Infallible;
+
+    fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
+        Ok(self.0.next_u32())
+    }
+
+    fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
+        Ok(self.0.next_u64())
+    }
+
+    fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Self::Error> {
+        self.0.fill_bytes(dst);
+        Ok(())
+    }
+}
+
 // ============================================================================
 // The members
 // ============================================================================
@@ -394,7 +521,7 @@ nvs_runtime::nvs_helper! {
     /// `$n`. `$min > $max` names an empty range, which has no answer to invent,
     /// so it throws (ADR 0063 R4) rather than swapping the bounds — a swap
     /// would turn a computed-bounds bug into a plausible-looking result.
-    fn nvs_core_random_int(_ctx, args: [2]) {
+    fn nvs_core_random_int(ctx, args: [2]) {
         let min = integer(&args[0], "int", "the lower bound")?;
         let max = integer(&args[1], "int", "the upper bound")?;
 
@@ -404,7 +531,7 @@ nvs_runtime::nvs_helper! {
                  upper bound {max}, and both ends are inclusive"
             )));
         }
-        Ok(Value::int(rand::rng().random_range(min..=max)))
+        Ok(Value::int(draw(ctx, |rng| rng.random_range(min..=max))))
     }
 }
 
@@ -416,9 +543,9 @@ nvs_runtime::nvs_helper! {
     /// half-open interval every "scale it into my own range" use expects, and
     /// the one the spec row writes. 53 random bits, the whole significand of an
     /// `f64`.
-    fn nvs_core_random_float(_ctx, args: [0]) {
+    fn nvs_core_random_float(ctx, args: [0]) {
         let _ = args;
-        Ok(Value::float(rand::rng().random::<f64>()))
+        Ok(Value::float(draw(ctx, |rng| rng.random::<f64>())))
     }
 }
 
@@ -447,7 +574,7 @@ nvs_runtime::nvs_helper! {
     /// does, so the only question left is whether the allocator has the buffer,
     /// and asking it is both exact and the difference between a throw and an
     /// abort.
-    fn nvs_core_random_bytes(_ctx, args: [1]) {
+    fn nvs_core_random_bytes(ctx, args: [1]) {
         let count = count(&args[0], "bytes", "the byte count")?;
 
         if count == 0 {
@@ -471,7 +598,7 @@ nvs_runtime::nvs_helper! {
             )
         })?;
         drawn.resize(count, 0);
-        rand::rng().fill_bytes(&mut drawn);
+        draw(ctx, |rng| rng.fill_bytes(&mut drawn));
 
         Ok(Value::bytes(NvsStr::new(&drawn)))
     }
@@ -505,7 +632,7 @@ nvs_runtime::nvs_helper! {
     /// which in a server is every in-flight request paying for one argument,
     /// so both buffers are reserved fallibly and report the same refusal
     /// `bytes` reports.
-    fn nvs_core_random_token(_ctx, args: [1]) {
+    fn nvs_core_random_token(ctx, args: [1]) {
         let bytes = count(&args[0], "token", "the byte count")?;
 
         if bytes == 0 {
@@ -535,7 +662,7 @@ nvs_runtime::nvs_helper! {
                 )
             })?;
         drawn.resize(bytes, 0);
-        rand::rng().fill_bytes(&mut drawn);
+        draw(ctx, |rng| rng.fill_bytes(&mut drawn));
 
         for byte in drawn {
             token.push(HEX_DIGITS[usize::from(byte >> 4)]);
@@ -559,13 +686,16 @@ nvs_runtime::nvs_helper! {
     /// which is the shape that makes `$a[array_rand($a)]` the idiom. ADR 0007
     /// § 5 stores every key as a string, so answering with one would hand back
     /// a `string` for an `array<T>` and lose the type the caller had.
-    fn nvs_core_random_pick(_ctx, args: [1]) {
+    fn nvs_core_random_pick(ctx, args: [1]) {
         let subject = subject(args, "pick")?;
 
         let slots = slots(&subject);
         Ok(match slots.len() {
             0 => Value::null(),
-            len => owned_value_at(&subject, slots[rand::rng().random_range(0..len)]),
+            len => {
+                let at = draw(ctx, |rng| rng.random_range(0..len));
+                owned_value_at(&subject, slots[at])
+            }
         })
     }
 }
@@ -587,7 +717,7 @@ nvs_runtime::nvs_helper! {
     /// that many distinct entries to draw, so the alternatives are inventing a
     /// duplicate or silently answering short — a failure either way, and only
     /// the throw says so.
-    fn nvs_core_random_sample(_ctx, args: [2]) {
+    fn nvs_core_random_sample(ctx, args: [2]) {
         let subject = subject(args, "sample")?;
         let count = count(&args[1], "sample", "the sample size")?;
 
@@ -599,8 +729,12 @@ nvs_runtime::nvs_helper! {
                  holds {held}"
             )));
         }
-        let (sampled, _) = slots.partial_shuffle(&mut rand::rng(), count);
-        Ok(drawn(&subject, sampled))
+        // Copied out of the closure rather than borrowed through it: the
+        // shuffled half is a slice *into* `slots`, and a reference cannot leave
+        // a closure whose return type is `draw`'s own type variable. One `Vec`
+        // of indices on a path that is already building an array.
+        let sampled = draw(ctx, |rng| slots.partial_shuffle(rng, count).0.to_vec());
+        Ok(drawn(&subject, &sampled))
     }
 }
 
@@ -616,11 +750,11 @@ nvs_runtime::nvs_helper! {
     /// **Keys are discarded**, exactly as PHP's own `shuffle` renumbers: a
     /// shuffle is about position, and a key that survived it would name an
     /// entry that is no longer where the caller left it.
-    fn nvs_core_random_shuffle(_ctx, args: [1]) {
+    fn nvs_core_random_shuffle(ctx, args: [1]) {
         let subject = subject(args, "shuffle")?;
 
         let mut slots = slots(&subject);
-        slots.shuffle(&mut rand::rng());
+        draw(ctx, |rng| slots.shuffle(rng));
         Ok(drawn(&subject, &slots))
     }
 }

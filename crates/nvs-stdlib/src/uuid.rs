@@ -352,10 +352,10 @@ nvs_runtime::nvs_helper! {
     ///
     /// Never fails: there is no argument to reject, and the generator is
     /// infallible once seeded.
-    fn nvs_core_uuid_v4(_ctx, args: [0]) {
+    fn nvs_core_uuid_v4(ctx, args: [0]) {
         let _ = args;
         let mut bytes = [0_u8; 16];
-        rand::rng().fill_bytes(&mut bytes);
+        crate::random::draw(ctx, |rng| rng.fill_bytes(&mut bytes));
         Ok(built(Builder::from_random_bytes(bytes).into_uuid()))
     }
 }
@@ -379,11 +379,19 @@ nvs_runtime::nvs_helper! {
     /// wrong place to surface a misconfigured host clock.
     ///
     /// Ordering inside one millisecond is random — gap 3.
-    fn nvs_core_uuid_v7(_ctx, args: [0]) {
+    fn nvs_core_uuid_v7(ctx, args: [0]) {
         let _ = args;
-        let millis = u64::try_from(jiff::Timestamp::now().as_millisecond()).unwrap_or(0);
+        // ADR 0079 § 12 names this member beside `Core\Time::now` and
+        // `Core\Random::int` as one a test makes deterministic, and it is the
+        // only one that needs *both* halves: its timestamp comes from the fixed
+        // clock through `crate::time::wall_clock`, and its 74 random bits from
+        // the seeded generator through `crate::random::draw`. Outside a test
+        // both answer exactly what they answered before.
+        let millis = crate::time::wall_clock(ctx)
+            .and_then(|at| u64::try_from(at.as_millisecond()).ok())
+            .unwrap_or(0);
         let mut bytes = [0_u8; 10];
-        rand::rng().fill_bytes(&mut bytes);
+        crate::random::draw(ctx, |rng| rng.fill_bytes(&mut bytes));
         Ok(built(
             Builder::from_unix_timestamp_millis(millis, &bytes).into_uuid(),
         ))

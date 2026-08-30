@@ -1,0 +1,55 @@
+<?nvs
+// ADR 0079 § 12, from the language surface: a seed is per test. Two tests
+// declare the *same* seed and must draw the same sequence, a third declares a
+// different one and must not, and a fourth declares none at all and draws from
+// the CSPRNG -- which is what makes the seed a property of the isolate rather
+// than of the process.
+//
+// `crates/nvs-cli/src/runner.rs`'s own tests are the only reader of this file.
+use Core\Test;
+use Core\Random;
+
+final class SeededTest {
+    // Three draws folded into one integer, because the promise is about the
+    // *sequence*: a seed that fixed only the first draw would still pass a
+    // one-draw assertion. `int` stands for every member here because they all
+    // reach the generator through one seam (`nvs_stdlib::random::draw`), which
+    // is where that is a property rather than a gap.
+    public static function drawn(): int {
+        int $a = Random::int(0, 999);
+        int $b = Random::int(0, 999);
+        int $c = Random::int(0, 999);
+        return $a * 1000000 + $b * 1000 + $c;
+    }
+
+    // The frozen answer for seed 42, written once so the two tests that assert
+    // it and the one that asserts against it cannot drift apart. It is a guard
+    // on the generator as much as on the plumbing: changing SplitMix64's step
+    // is meant to fail here.
+    public static function atSeed42(): int {
+        return 741159278;
+    }
+
+    #[Test(seed: 42)]
+    public function itDrawsTheSequenceItsSeedNames(): void {
+        Test::assertSame(SeededTest::drawn(), SeededTest::atSeed42());
+    }
+
+    #[Test(seed: 42)]
+    public function itDrawsThatSameSequenceAgain(): void {
+        Test::assertSame(SeededTest::drawn(), SeededTest::atSeed42());
+    }
+
+    #[Test(seed: 43)]
+    public function itDrawsADifferentSequenceUnderADifferentSeed(): void {
+        Test::assertTrue(SeededTest::drawn() != SeededTest::atSeed42());
+    }
+
+    #[Test]
+    public function itDrawsFromTheCsprngWithoutASeed(): void {
+        // Not a claim about which sequence -- there is none to name -- but that
+        // a test declaring no seed is not quietly handed one. Two independent
+        // draws agreeing here would be the CSPRNG failing, not this.
+        Test::assertTrue(SeededTest::drawn() != SeededTest::drawn());
+    }
+}
