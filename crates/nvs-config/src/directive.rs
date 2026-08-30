@@ -21,7 +21,7 @@
 //! thread-per-core count", and no ADR spells that as a key, so it has no row here yet.
 //!
 //! Cost: one `&'static` slice, no allocation and nothing per request. A lookup is a linear scan of
-//! eighteen rows, run at boot and on each reload and never on the request path.
+//! nineteen rows, run at boot and on each reload and never on the request path.
 
 /// Who may set a directive — ADR 0005's changeability class.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -93,6 +93,10 @@ pub const DIRECTIVES: &[Directive] = &[
     // is keyed on the whole dotted path and not on the last segment.
     Directive { key: "limits", class: Class::Runtime, apply: Apply::Reload },
     Directive { key: "limits.hard", class: Class::System, apply: Apply::Reload },
+    // The one key in `[limits]` that is not `Runtime`: ADR 0020 § 1 makes the tier-1 handler's
+    // reserved slice `System` on the grounds that a script choosing the size of its own safety net
+    // is the case where the choice most needs to be made by someone else.
+    Directive { key: "limits.fatal_reserve_memory", class: Class::System, apply: Apply::Reload },
     // `[mode]` is the second and last block with that same two-halves shape (ADR 0005, ADR 0091).
     Directive { key: "mode.default", class: Class::Runtime, apply: Apply::Reload },
     Directive { key: "mode.ceiling", class: Class::System, apply: Apply::Reload },

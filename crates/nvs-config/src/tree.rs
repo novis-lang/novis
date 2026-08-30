@@ -164,6 +164,12 @@ pub struct Limits {
     pub max_tasks: Option<Setting>,
     /// `Runtime` — bytes written to the response.
     pub max_output: Option<Setting>,
+    /// `System` — ADR 0020 § 1's reserved slice: the bytes carved out of [`memory`](Self::memory)
+    /// at request start and left for the tier-1 handler, which is the one thing that may still
+    /// allocate once the rest of the ceiling is gone. `System` rather than `Runtime` because it is
+    /// the request's own safety net, and it is not under `[limits.hard]` for the same reason —
+    /// there is no request-set value for a ceiling to bound.
+    pub fatal_reserve_memory: Option<Setting>,
     /// `[limits.hard]` — the same five keys, `System`-class, and `false` removes a ceiling.
     pub hard: Option<LimitSet>,
 }
