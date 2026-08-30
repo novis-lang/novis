@@ -74,7 +74,11 @@ fn the_golden_for_str_length_matches_the_contract() {
         member(&document, r"Core\Str", "length"),
         serde_json::json!({
             "name": "length",
+            "kind": "static",
             "names": ["s"],
+            "signature": "length(string $s): uint",
+            "params": [ { "name": "s", "type": "string", "qualifier": "neutral" } ],
+            "returns": "uint",
             "doc": {
                 "short": "Counts the graphemes in `$s` — user-perceived characters, ADR 0009's \
                           default unit — so a combining sequence counts once and this is never \
@@ -179,6 +183,8 @@ fn the_golden_for_math_pi_matches_the_contract() {
         constant(&document, r"Core\Math", "PI"),
         serde_json::json!({
             "name": "PI",
+            "type": "float",
+            "value": "3.141592653589793",
             "doc": "The ratio of a circle's circumference to its diameter, `3.14159…` as the \
                     nearest `float` — PHP's `M_PI`."
         })

@@ -89,7 +89,12 @@ carries only its non-empty fields, and no array is ever emitted empty.
 
 The command owns the contract; consumers ignore fields they do not know. The website's consumer is
 `website/scripts/lib/meta.mjs`, and it fails soft: a toolchain without the subcommand means "no registry
-docs yet", never an error.
+docs yet", never an error. Since 2026-08-30 a member also carries its **signature half** — `kind`,
+`signature` in the spec's own spelling, `params` with types, qualifiers and defaults, `options`, `returns` —
+a class its `typeParams` and `constructor`, a constant its `type` and `value`, and four rosters sit beside
+`classes` and `enums`: `exceptions`, `interfaces`, `attributes`, `directives`. That is what lets
+`docs/novis.md`, the generated one-file reference ([docs/reference/README.md](../reference/README.md)),
+be built from the binary alone; `crates/nvs-cli/src/meta.rs`'s module doc is the field-by-field home.
 
 ### 3. Field-wise precedence
 

@@ -30,6 +30,24 @@
 //! explanation. The website's `scripts/lib/meta.mjs` is the consumer this was
 //! built against.
 //!
+//! ## The signature half, and the four tables beside the registry
+//!
+//! A row is **signature** as well as documentation, and `docs/novis.md` —
+//! the one-file reference `tools/reference.py` generates — is built from this
+//! command alone, so that a member's types never have to be scraped out of
+//! the spec a second time. Every member therefore also carries `kind`
+//! (`static` or `instance`), `signature` (the spec's own spelling,
+//! `length(string $s): uint`), `params` with each positional parameter's
+//! type, qualifier and default, `options` for a trailing bag, and `returns`;
+//! a class carries `typeParams` and `constructor` when it has them, a
+//! constant its `type` and `value`. Beside `classes` and `enums` sit the four
+//! rosters the compiler declares outside the registry and a program can
+//! reach: `exceptions` ([`nvs_hir::errors::TREE`]), `interfaces`
+//! ([`nvs_hir::interfaces::RESERVED`]), `attributes`
+//! ([`nvs_types::derive::ATTRIBUTES`]) and `directives`
+//! ([`nvs_config::DIRECTIVES`]). Each is a table already, so this is one
+//! `map` per roster and no second home for any of them.
+//!
 //! Built and written as JSON rather than as text through the `serde_json`
 //! this crate already carries for ADR 0085's document; the workspace manifest
 //! owns why this crate and not another.
@@ -37,8 +55,8 @@
 use std::process::ExitCode;
 
 use nvs_stdlib::registry::{
-    CLASSES, CoreClass, CoreConst, CoreEnum, CoreMethod, ENUMS, EnumDoc, ErrorDoc, MethodDoc,
-    ParamDoc,
+    CLASSES, Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy, ENUMS, EnumDoc,
+    ErrorDoc, MethodDoc, ParamDoc, Qual, class_type_params, constructor_of,
 };
 use serde_json::{Map, Value, json};
 
@@ -59,28 +77,85 @@ fn document() -> Value {
     json!({
         "classes": CLASSES.iter().map(class_json).collect::<Vec<_>>(),
         "enums": ENUMS.iter().map(enum_json).collect::<Vec<_>>(),
+        "exceptions": nvs_hir::errors::TREE.iter().map(exception_json).collect::<Vec<_>>(),
+        "interfaces": nvs_hir::interfaces::RESERVED.iter().map(interface_json).collect::<Vec<_>>(),
+        "attributes": nvs_types::derive::ATTRIBUTES.iter().map(|name| Value::from(*name)).collect::<Vec<_>>(),
+        "directives": nvs_config::DIRECTIVES.iter().map(directive_json).collect::<Vec<_>>(),
     })
 }
 
-/// One class: its name, its members — methods before instance members, each
-/// roster in the spec's own order — and its constants, when it has any.
+/// One class: its name, its type parameters and constructor when it has
+/// them, its members — methods before instance members, each roster in the
+/// spec's own order — and its constants, when it has any.
 fn class_json(class: &CoreClass) -> Value {
     let members: Vec<Value> = class
         .methods
         .iter()
-        .chain(class.instance)
-        .map(member_json)
+        .map(|member| member_json(member, "static"))
+        .chain(
+            class
+                .instance
+                .iter()
+                .map(|member| member_json(member, "instance")),
+        )
         .collect();
     let mut out = Map::new();
     out.insert("name".into(), Value::from(class.name));
+    if let Some(params) = class_type_params(class.name) {
+        put_list(&mut out, "typeParams", params, |name| Value::from(*name));
+    }
+    if let Some(constructor) = constructor_of(class.name) {
+        out.insert(
+            "constructor".into(),
+            member_json(constructor, "constructor"),
+        );
+    }
     out.insert("members".into(), Value::Array(members));
     put_list(&mut out, "constants", class.constants, constant_json);
     Value::Object(out)
 }
 
-/// One member: its name, the `$name` each positional parameter is callable by
-/// ([ADR 0063](../../../docs/adr/0063-core-api-conventions.md) R2), and its
-/// `doc` only when the row carries one.
+/// One exception class of the compiler-declared tree: its name, its parent
+/// when it has one, and the properties it declares of its own.
+fn exception_json(row: &(&str, Option<&str>)) -> Value {
+    let (name, parent) = *row;
+    let own: &[&str] = nvs_hir::errors::OWN_PROPERTIES
+        .iter()
+        .find(|(owner, _)| *owner == name)
+        .map_or(&[], |(_, properties)| *properties);
+    let mut out = Map::new();
+    out.insert("name".into(), Value::from(name));
+    if let Some(parent) = parent {
+        out.insert("parent".into(), Value::from(parent));
+    }
+    put_list(&mut out, "properties", own, |property| {
+        Value::from(*property)
+    });
+    Value::Object(out)
+}
+
+/// One compiler-declared global interface: its name and its type parameters.
+fn interface_json(row: &(&str, &[&str])) -> Value {
+    let (name, params) = *row;
+    let mut out = Map::new();
+    out.insert("name".into(), Value::from(name));
+    put_list(&mut out, "typeParams", params, |param| Value::from(*param));
+    Value::Object(out)
+}
+
+/// One `nvs.toml` directive: its key, its class and when a change applies.
+fn directive_json(directive: &nvs_config::Directive) -> Value {
+    json!({
+        "key": directive.key,
+        "class": format!("{:?}", directive.class),
+        "apply": format!("{:?}", directive.apply),
+    })
+}
+
+/// One member: its name, its `kind`, the `$name` each positional parameter is
+/// callable by ([ADR 0063](../../../docs/adr/0063-core-api-conventions.md)
+/// R2), its signature half — `signature`, `params`, `options`, `returns` —
+/// and its `doc` only when the row carries one.
 ///
 /// `names` is the row's own `CoreMethod::names`, so a member with no
 /// positional parameter has no `names` key — and a trailing options bag has no
@@ -88,15 +163,215 @@ fn class_json(class: &CoreClass) -> Value {
 /// `nvs_stdlib::registry::OPTIONS_NAME` for every member that has one. It is
 /// emitted for **every** row, documented or not, because it is signature and
 /// not documentation: a consumer building a call needs it where a reference
-/// card is optional.
-fn member_json(member: &CoreMethod) -> Value {
+/// card is optional. The same holds of every field the module doc's
+/// *signature half* names.
+fn member_json(member: &CoreMethod, kind: &str) -> Value {
     let mut out = Map::new();
     out.insert("name".into(), Value::from(member.name));
+    out.insert("kind".into(), Value::from(kind));
     put_list(&mut out, "names", member.names, |name| Value::from(*name));
+    out.insert("signature".into(), Value::from(signature(member)));
+    let params: Vec<Value> = positional_json(member);
+    if !params.is_empty() {
+        out.insert("params".into(), Value::Array(params));
+    }
+    if let Some(options) = member.options() {
+        put_list(&mut out, "options", options, option_json);
+    }
+    out.insert("returns".into(), Value::from(ty_string(&member.return_ty)));
     if let Some(doc) = member.doc {
         out.insert("doc".into(), doc_json(doc));
     }
     Value::Object(out)
+}
+
+/// Every positional parameter of `member` — the row's `params` without a
+/// trailing options bag — as `{name, type, qualifier?, default?, variadic?}`.
+///
+/// `defaults` aligns to the *end* of the positional list, exactly as a
+/// user-declared method's trailing defaults do, so the first `n - d`
+/// parameters are required. A variadic tail carries no default and says
+/// `variadic` instead. A parameter whose type carries an ADR 0088 § 2
+/// classification names it as `qualifier`; one that carries none — every
+/// non-text type, and the unclassified `string`/`bytes` spellings, which
+/// refuse a tainted argument — has no key.
+fn positional_json(member: &CoreMethod) -> Vec<Value> {
+    let positional = member.positional();
+    let required = positional.len().saturating_sub(member.defaults.len());
+    positional
+        .iter()
+        .enumerate()
+        .map(|(index, ty)| {
+            let mut out = Map::new();
+            out.insert(
+                "name".into(),
+                Value::from(member.names.get(index).copied().unwrap_or("")),
+            );
+            match ty {
+                CoreTy::Variadic(elem) => {
+                    out.insert("type".into(), Value::from(ty_string(elem)));
+                    out.insert("variadic".into(), Value::Bool(true));
+                }
+                _ => {
+                    out.insert("type".into(), Value::from(ty_string(ty)));
+                    if index >= required
+                        && let Some(default) = member.defaults.get(index - required)
+                    {
+                        out.insert("default".into(), Value::from(const_string(default)));
+                    }
+                }
+            }
+            if let Some(qual) = ty.classification() {
+                out.insert("qualifier".into(), Value::from(qual_string(qual)));
+            }
+            Value::Object(out)
+        })
+        .collect()
+}
+
+/// One option of a trailing bag: its name, type and the value an omitted one
+/// takes.
+fn option_json(option: &CoreOption) -> Value {
+    let mut out = Map::new();
+    out.insert("name".into(), Value::from(option.name));
+    out.insert("type".into(), Value::from(ty_string(&option.ty)));
+    out.insert("default".into(), Value::from(const_string(&option.default)));
+    if let Some(qual) = option.ty.classification() {
+        out.insert("qualifier".into(), Value::from(qual_string(qual)));
+    }
+    Value::Object(out)
+}
+
+/// The spec's own spelling of a row — `name(type $a, type $b = 1, {opt?: T}): ret`,
+/// with a variadic tail as `type ...$rest` and a written type-argument list
+/// as `name<T>(…)`. Never the class or the `$receiver->`: the consumer knows
+/// which class it is reading and `kind` says the rest.
+fn signature(member: &CoreMethod) -> String {
+    let positional = member.positional();
+    let required = positional.len().saturating_sub(member.defaults.len());
+    let mut parts: Vec<String> = positional
+        .iter()
+        .enumerate()
+        .map(|(index, ty)| {
+            let name = member.names.get(index).copied().unwrap_or("");
+            match ty {
+                CoreTy::Variadic(elem) => format!("{} ...${name}", ty_string(elem)),
+                _ if index >= required => match member.defaults.get(index - required) {
+                    Some(default) => {
+                        format!("{} ${name} = {}", ty_string(ty), const_string(default))
+                    }
+                    None => format!("{} ${name}", ty_string(ty)),
+                },
+                _ => format!("{} ${name}", ty_string(ty)),
+            }
+        })
+        .collect();
+    if let Some(options) = member.options() {
+        parts.push(ty_string(&CoreTy::Options(options)));
+    }
+    let written = member.written();
+    let type_args = if written.is_empty() {
+        String::new()
+    } else {
+        format!("<{}>", written.join(", "))
+    };
+    format!(
+        "{}{type_args}({}): {}",
+        member.name,
+        parts.join(", "),
+        ty_string(&member.return_ty)
+    )
+}
+
+/// A [`CoreTy`] in the spelling a program writes it — the spec's column, so
+/// `Text(Sink)` is `string` and `Iterated(T)` is the three shapes `foreach`
+/// accepts. The wildcard arm is the one `#[non_exhaustive]` requires, and it
+/// is where a variant this crate has not learned to spell would show up.
+fn ty_string(ty: &CoreTy) -> String {
+    match ty {
+        CoreTy::Bool => "bool".into(),
+        CoreTy::Int => "int".into(),
+        CoreTy::Uint => "uint".into(),
+        CoreTy::Float => "float".into(),
+        CoreTy::Decimal => "decimal".into(),
+        CoreTy::Str | CoreTy::Text(_) => "string".into(),
+        CoreTy::Bytes | CoreTy::Blob(_) => "bytes".into(),
+        CoreTy::Void => "void".into(),
+        CoreTy::Mixed => "mixed".into(),
+        CoreTy::Array(elem) => format!("array<{}>", ty_string(elem)),
+        CoreTy::Callable | CoreTy::CallableTo(_) => "callable".into(),
+        CoreTy::CallableShapeTo(_) => "{name: callable, ...}".into(),
+        CoreTy::Var(name) | CoreTy::Written(name) => (*name).into(),
+        CoreTy::Union(members) => members.iter().map(ty_string).collect::<Vec<_>>().join("|"),
+        CoreTy::IntLiteral(value) => value.to_string(),
+        CoreTy::Nullable(inner) => format!("?{}", ty_string(inner)),
+        CoreTy::Enum(name) | CoreTy::Instance(name) => (*name).into(),
+        CoreTy::EnumCase(owner, case) => format!("{owner}::{case}"),
+        CoreTy::Iterated(elem) => {
+            let elem = ty_string(elem);
+            format!("array<{elem}>|Iterable<{elem}>|Iterator<{elem}>")
+        }
+        CoreTy::Variadic(elem) => format!("{} ...", ty_string(elem)),
+        CoreTy::Options(options) => {
+            let fields: Vec<String> = options
+                .iter()
+                .map(|option| format!("{}?: {}", option.name, ty_string(&option.ty)))
+                .collect();
+            format!("{{{}}}", fields.join(", "))
+        }
+        _ => "?".into(),
+    }
+}
+
+/// A [`Const`] as a program would write it: a scalar as its literal, a
+/// string JSON-quoted, an enum case by its qualified spelling, and a built
+/// instance as the call that builds it.
+fn const_string(value: &Const) -> String {
+    match value {
+        Const::Null => "null".into(),
+        Const::Bool(b) => b.to_string(),
+        Const::Int(i) => i.to_string(),
+        Const::Uint(u) => u.to_string(),
+        Const::Float(f) => format!("{f:?}"),
+        Const::Str(s) => serde_json::to_string(s).unwrap_or_default(),
+        Const::Bytes(bytes) => format!(
+            "bytes({})",
+            bytes.iter().map(|b| format!("{b:02x}")).collect::<String>()
+        ),
+        Const::EmptyArray => "[]".into(),
+        Const::EnumCase(owner, case) => format!("{owner}::{case}"),
+        Const::Built { symbol, args } => {
+            // The call that builds it, spelled as a program would write it —
+            // the symbol names a member of some registered class, so the
+            // class and member are looked up rather than the helper's name
+            // printed.
+            let call = CLASSES
+                .iter()
+                .find_map(|class| {
+                    class
+                        .members()
+                        .find(|member| member.symbol == *symbol)
+                        .map(|member| format!("{}::{}", class.name, member.name))
+                })
+                .unwrap_or_else(|| (*symbol).to_owned());
+            format!(
+                "{call}({})",
+                args.iter().map(const_string).collect::<Vec<_>>().join(", ")
+            )
+        }
+        _ => "?".into(),
+    }
+}
+
+/// A [`Qual`] as the spec's *Qualifier* column spells it.
+fn qual_string(qual: Qual) -> &'static str {
+    match qual {
+        Qual::Contagious => "contagious",
+        Qual::Sink => "sink",
+        Qual::Neutral => "neutral",
+        Qual::Launder => "launder",
+        Qual::Reveal => "reveal",
+    }
 }
 
 /// One reference card, with every empty field left out — see the module doc.
@@ -128,12 +403,14 @@ fn error_json(error: &ErrorDoc) -> Value {
     json!({ "error": error.error, "desc": error.desc })
 }
 
-/// One constant: its name, and its one-sentence card as `doc` only when
-/// written — a constant's whole card is one string, so there is no object to
-/// leave empty.
+/// One constant: its name, its type and value, and its one-sentence card as
+/// `doc` only when written — a constant's whole card is one string, so there
+/// is no object to leave empty.
 fn constant_json(constant: &CoreConst) -> Value {
     let mut out = Map::new();
     out.insert("name".into(), Value::from(constant.name));
+    out.insert("type".into(), Value::from(ty_string(&constant.ty)));
+    out.insert("value".into(), Value::from(const_string(&constant.value)));
     put_str(&mut out, "doc", constant.desc);
     Value::Object(out)
 }
@@ -275,15 +552,64 @@ mod tests {
             value: nvs_stdlib::registry::Const::Int(1),
             desc: "",
         };
-        assert_eq!(constant_json(&unwritten), json!({ "name": "X" }));
+        assert_eq!(
+            constant_json(&unwritten),
+            json!({ "name": "X", "type": "int", "value": "1" })
+        );
         let written = CoreConst {
             desc: "One.",
             ..unwritten
         };
         assert_eq!(
             constant_json(&written),
-            json!({ "name": "X", "doc": "One." })
+            json!({ "name": "X", "type": "int", "value": "1", "doc": "One." })
         );
+    }
+
+    /// The signature half spells a row the way the spec's column does:
+    /// defaults aligned to the end, a bag last, a written type argument on
+    /// the name — read off three rows the registry ships.
+    #[test]
+    fn a_signature_is_the_specs_own_spelling() {
+        let find = |class: &str, member: &str| -> &'static CoreMethod {
+            nvs_stdlib::registry::class(class)
+                .expect("a registered class")
+                .members()
+                .find(|row| row.name == member)
+                .expect("a registered member")
+        };
+        assert_eq!(
+            signature(find(r"Core\Str", "length")),
+            "length(string $s): uint"
+        );
+        assert_eq!(
+            signature(find(r"Core\Str", "format")),
+            "format(string $template, mixed ...$arguments): string"
+        );
+        assert!(signature(find(r"Core\Arr", "sort")).starts_with("sort(array<T> $a, {"));
+        assert!(signature(find(r"Core\Json", "decodeAs")).starts_with("decodeAs<T>("));
+    }
+
+    /// Every member of every class carries the four signature keys, and the
+    /// four rosters beside the registry are non-empty tables.
+    #[test]
+    fn every_member_carries_its_signature_half_and_every_roster_is_present() {
+        let document = document();
+        for class in document["classes"].as_array().expect("an array") {
+            for member in class["members"].as_array().expect("an array") {
+                assert!(member["kind"].is_string(), "{member}");
+                assert!(member["signature"].is_string(), "{member}");
+                assert!(member["returns"].is_string(), "{member}");
+            }
+        }
+        for roster in ["exceptions", "interfaces", "attributes", "directives"] {
+            assert!(
+                !document[roster].as_array().expect("an array").is_empty(),
+                "{roster} is empty"
+            );
+        }
+        assert_eq!(document["exceptions"][0]["name"], "Throwable");
+        assert!(document["exceptions"][0]["properties"].is_array());
     }
 
     /// Every class in the registry appears, and every one of its members —
