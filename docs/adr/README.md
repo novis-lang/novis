@@ -669,6 +669,17 @@ shared by two classes is written as two clauses or as one clause on their common
 [0119](0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md) § 4 already requires of
 an expression arm. Both are parse-time refusals in the rejected-PHP band, and each names its rewrite.
 
+**A class or interface constant writes its type.** PHP 8.3's untyped `public const LIMIT = 9;` parsed
+here and took the type of the value it folded to. That reading is a guess the declaration never made,
+and it is not available everywhere the form is: an interface constant records no value for `nvs-ir` to
+inline and panicked the lowerer at the first use, and a value with no constant form at all (`[1, 2]`)
+has nothing to read a type from either. Every other binding
+[0007](0007-explicit-type-system.md) § 1 governs — property, parameter, return, local, `foreach`,
+`catch` — already writes one, so the omission was the single hole in that rule, and closing it removes
+both panics by construction rather than one shape at a time. It is `E0246` at the `const` keyword, in
+the rejected-PHP band, and the rewrite is the type the value already has. What it costs is one word
+per constant in a migrated file; what the inference did is now a check against what was written.
+
 **`namespace X;` is the only namespace statement — once per file, before any declaration.** The braced form
 `namespace X { … }`, and with it a file holding two namespaces, is refused at parse time.
 [0112](0112-authority-is-keyed-on-the-enclosing-namespace.md) keys authority on the namespace enclosing the

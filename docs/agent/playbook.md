@@ -4677,3 +4677,12 @@ every session. Nothing below was reworded on the way.
   third, so the sweep looks complete, the workspace builds, and one test in one crate fails on a
   fixture nothing else touches. Sweep for the single-byte form *after* the escaped one and check the
   hits are only doc comments before believing you are done.
+- **A refusal of a shape the language used to accept has five homes, and two of them are tables.**
+  The code in `crates/nvs-diagnostics/src/lib.rs`, the report site, a `tests/conformance/reject/`
+  case, a row in `docs/reference/tools/30-php-differences.md` **and** a row in
+  `docs/adr/divergences.md` — then `python tools/reference.py`, which regenerates `docs/novis.md`
+  (it carries both tables) and proves its 265 examples, so a chapter example written in the old
+  spelling fails there rather than in `verify.py`. And a shape that *worked* has a test pinning the
+  old rule: `parser::tests::stmt::try_multi_catch_and_finally` and
+  `an_unannotated_class_constant_reads_at_its_values_type` were each the only thing that failed
+  after the parser changed, and each had to be rewritten to the new rule rather than deleted.

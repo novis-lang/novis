@@ -45,8 +45,10 @@ in that goal. An item's owner is the row it sits in.
       lowers a resolved call's … return type — got Never"). *types-probes; ref30 `never`*
 - [ ] **P5** An `array<T>`-typed class constant panics at use: `public const array<int> XS = [1, 2];
       Core\Arr::count(K::XS)` (`lower/expr.rs:286`, "no value recorded"). *types-probes*
-- [ ] **P6** An **untyped interface constant** panics at use: `interface I { public const LIMIT = 9; }
-      echo I::LIMIT;` — the typed form works, an untyped *class* constant works. *probes q31*
+- [x] **P6** An **untyped interface constant** panics at use: `interface I { public const LIMIT = 9; }
+      echo I::LIMIT;` — the typed form works, an untyped *class* constant works. *probes q31* — the
+      untyped form is now `E0246` where it is written, for a class as much as an interface, so neither
+      reaches the lowerer; the class form's inference is retired with it.
 - [ ] **P7** `throw "x";` / `throw 1;` panic ("nvs-ir lowers `throw` only for an exception object")
       instead of a diagnostic. *ref30 `throw_string`*
 - [ ] **P8** `clone` of an array — `array<int> $b = clone $a;` — panics ("lowers `clone` only for an
@@ -61,11 +63,14 @@ in that goal. An item's owner is the row it sits in.
       panics (`lower/expr.rs:2681`, "instance method call … has no resolved target") instead of the
       E0405 a static miss gets. *coretime-probes `u_version`* — the instance path now asks the
       registry exactly as the static one does (`nvs_types::expr::calls::infer_method_call`).
-- [ ] **P13** Reading a `catch` binding after its clause panics ("undeclared local `$e`") rather than
-      being refused by the checker. *ref-errors `catch_scope`*
-- [ ] **P14** `catch (LogicError | IOError $e)` parses and checks, then fails in codegen ("does not
+- [x] **P13** Reading a `catch` binding after its clause panics ("undeclared local `$e`") rather than
+      being refused by the checker. *ref-errors `catch_scope`* — the clause's binding no longer joins
+      what is live after the `try`, so the read is `E0301`; a name assigned before the `try` and reused
+      by the clause is untouched.
+- [x] **P14** `catch (LogicError | IOError $e)` parses and checks, then fails in codegen ("does not
       lower `instanceof LogicError | IOError`", exit 1); a property read through the union is E0495.
-      *ref-errors; ref30*
+      *ref-errors; ref30* — `E0245` refuses the clause at parse time, where the type grammar's union
+      shows up; the clause is still built from its first class, so the block behind it is checked.
 - [ ] **P15** A memory-limit breach inside `try { … } finally { … }` aborts the process with a Rust
       panic in `nvs_array_release` ("attempt to subtract with overflow", exit 127) instead of the
       clean `FATAL`. Without the `finally` it is clean. *refp/fatal/main.nvs*

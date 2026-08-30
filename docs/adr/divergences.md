@@ -76,6 +76,8 @@ carries one row per PHP built-in and is the home for those.
 | `list($a, $b) = $p;` | does not parse; `[...]` is the only destructuring spelling | [0050](0050-list-destructuring-spelling-rejected.md) |
 | `new class { … }` declares an anonymous class | refused; a named class in the same file, or a closure | [README](README.md) § *Decisions taken at project start* |
 | `catch (A \| B $e)` handles two classes in one clause | refused; two clauses, or one on the common ancestor | [README](README.md) § *Decisions taken at project start* |
+| `$e` outlives its `catch` clause and is readable after the `try` | the binding ends with its clause; only the thrown value ever assigns it | [0007](0007-explicit-type-system.md) § 1's `catch` row |
+| `public const X = 1;` takes the type of its value | a constant writes its type, as every other binding does | [README](README.md) § *Decisions taken at project start* |
 | `namespace X { … }` and several namespaces per file | refused; `namespace X;` once, before any declaration | [README](README.md) § *Decisions taken at project start* |
 | an `inout` (`&`) argument may be an element or a property | a local only; read it into one, pass it, store it back | [0107](0107-by-reference-parameters-are-spelled-inout-at-both-ends.md) § 5 |
 | `<?php` opens code; `die` terminates | `<?nvs` and `exit` are the only spellings — and a `#!` first line opens code with no tag | [0049](0049-single-open-tag-and-single-exit-keyword.md), [0100](0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md) § 3 |

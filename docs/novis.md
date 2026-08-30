@@ -1081,15 +1081,15 @@ echo Core\Json::encode($xs), "\n";
 
 A property is `visibility [static] T $name [= default];` — the default is a scalar literal, `[]`,
 an enum case or a class constant, and a `?T` property takes no `null` default (assign it in the
-constructor). A class constant is `visibility const T NAME = literal;`; the type may be omitted and
-is then the literal's own. Constants are read at their declared type — `const uint WIDTH = 5` is
+constructor). A class constant is `visibility const T NAME = literal;`, and the type is written there as it is
+everywhere else (`E0246`). Constants are read at their declared type — `const uint WIDTH = 5` is
 a `uint`. The classes chapter owns everything else about members.
 
 ```nvs
 <?nvs
 class Limits {
     public const uint WIDTH = 5;
-    public const LABEL = "limits";
+    public const string LABEL = "limits";
     public int $n = 1;
     public ?string $label;
     private static uint $made = 0;
@@ -2618,15 +2618,15 @@ echo $f(3) as int, "\n";
 
 ### Constants and `::class`
 
-A class constant is `public const int NAME = …;` — the type may be omitted on a class constant.
-It is reached as `self::NAME` inside the class and `Class::NAME` anywhere. `Class::class` is the
+A class constant is `public const int NAME = …;`, and like every other binding it writes its type
+(`E0246`). It is reached as `self::NAME` inside the class and `Class::NAME` anywhere. `Class::class` is the
 class's name as a string.
 
 ```nvs
 <?nvs
 class Limits {
     public const int MAX = 3;
-    public const NAME = "limits";
+    public const string NAME = "limits";
 
     public static function twice(): int {
         return self::MAX * 2;
@@ -14878,7 +14878,7 @@ in and nothing the host populates.
 | PHP | Novis | Code |
 |---|---|---|
 | `function f() { … }` at the top level (or nested) | `class X { public static function f(): T { … } }` | `E0215` |
-| `const X = 1;` at the top level | `public const int X = 1;` on a class (the type may be omitted) | `E0216` |
+| `const X = 1;` at the top level | `public const int X = 1;` on a class | `E0216` |
 | `define("X", 1)` | the same class constant | `E0320` |
 | `global $x;` | pass it as a parameter, or use a `static` property or a constant | `E0204` |
 | `static $n = 0;` inside a function | a `private static` property | `E0209` |
@@ -14890,7 +14890,7 @@ in and nothing the host populates.
 | `$_GET`, `$_POST`, `$_SERVER`, `$_COOKIE`, `$_FILES`, `$_ENV`, `$GLOBALS`, `$argv` | no variable is ever populated by the host; a request's data comes through `Core` classes | `E0211` |
 | `$x = 1;` with no declaration | `int $x = 1;` or `var $x = 1;` — a local is declared once, with a type | `E0301` |
 | `unset($x)` on a local or `unset($o->prop)` | none; `unset` removes an array entry only. Assign `null` where the type is `?T` | `E0234`, `E0413` |
-| `class A { const X = 1; }`, `interface I { const X = 1; }` | `public const X = 1;` — a constant, like every member, writes its visibility | `E0122` |
+| `class A { const X = 1; }`, `interface I { const X = 1; }` | `public const int X = 1;` — a constant writes its visibility like every member, and its type like every binding | `E0122`, `E0246` |
 
 ### Types and conversions
 
@@ -14942,7 +14942,8 @@ as in PHP.
 | `yield $k => $v;` | `yield $v;` — an iterator has no key half | `E0448` |
 | `yield from $gen;` | `foreach ($gen as T $v) { yield $v; }` | `E0448` |
 | `try { … }` with no clause | add `catch (Throwable $e) { … }` or `finally { … }` — PHP refuses this too, and this parser accepted it only by omission | `E0242` |
-| `catch (A \| B $e)` | two `catch` clauses, each with its **own** variable name | not lowered in this build; a reused `$e` is `E0406` |
+| `catch (A \| B $e)` | two `catch` clauses, each with its **own** variable name, or one naming a class they both extend — the binding carries one static type | `E0245`; a reused `$e` is `E0406` |
+| `$e` still readable after `catch (E $e) { … }` | the binding ends with its clause — only the thrown value assigns it; declare your own variable before the `try` to carry something out | `E0301` |
 | `catch (Exception $e)`, `new Exception("x")` | the tree is `Throwable` → `LogicError`, `RuntimeError`, `ArithmeticError`; extend `RuntimeError` | `E0303` |
 | `$e->getMessage()` | `$e->message`; also `previous`, `backtrace`, `location` | `E0405` |
 | `print "a", "b";` | `print` takes one expression; `echo` takes a list | `E0101` |
