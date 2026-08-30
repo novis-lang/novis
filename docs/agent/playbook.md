@@ -2926,6 +2926,12 @@ is why" — is this file.
   that a case stating an error expectation exits nonzero, so one case can pin the stdout printed before
   a `FATAL` and the `FATAL` line itself — which is what makes a refused ceiling provable in the runtime
   and not only in `Core\Config::get`.
+- **A closure captures by value, so a `.nvst` case cannot count anything by incrementing a captured
+  variable.** `var $seen = 0; var $f = fn (): void => { $seen = $seen + 1; };` compiles, runs, and
+  leaves `$seen` at `0` however many times `$f()` is called — the case fails on a line that looks
+  like a bug in the member under test rather than in the fixture. Whatever the closure has to report,
+  it has to `echo` from inside itself, or the case has to count on the outside. The counting shape
+  conventions.md recommends still works; it just cannot run its counter through a capture.
 
 ## Splitting a file that got too big
 
