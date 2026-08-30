@@ -84,7 +84,7 @@ pub(crate) use self::{
     literals::{check_array_key_type, check_object_literal, int_literal_digits},
     members::{can_hold_an_object, check_unset_target, is_this_receiver, resolve_class_expr},
     operators::{reject_disjoint_equality, require_stringable},
-    quals::reject_secret_attribute_constant,
+    quals::{reject_secret_attribute_constant, reject_secret_output},
 };
 
 /// Whether `ty` carries [ADR 0033](../../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
@@ -689,7 +689,13 @@ pub(crate) fn infer(
         ExprKind::YieldFrom(inner) => infer_yield_from(expr, inner, live, scope, ctx, env),
         ExprKind::Print(inner) => {
             let ty = check_expr(inner, None, live, scope, ctx, env);
-            require_stringable(ty, inner.span, env);
+            // The same sink `echo` reaches, and refused on the same terms —
+            // see [`quals::reject_secret_output`]. `print` differs from `echo`
+            // only in being an expression with a value, which is nothing the
+            // qualifier cares about.
+            if !reject_secret_output(ty, inner.span, "print", env) {
+                require_stringable(ty, inner.span, env);
+            }
             env.interner.int()
         }
         // `never` whatever the operand is — the expression does not complete,

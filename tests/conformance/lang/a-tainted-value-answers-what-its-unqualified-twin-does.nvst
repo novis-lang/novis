@@ -64,7 +64,12 @@ string $plain = "p";
 tainted string $widenedTainted = $plain;
 secret string $widenedSecret = $plain;
 secret tainted string $widenedBoth = $widenedTainted;
-echo "widened=", $widenedBoth, "\n";
+// The witness is a comparison rather than the value itself, as the two below
+// it are: ADR 0033 § 4 refuses a `secret` operand at `echo` (E0790), and a
+// conversion to `string` keeps both qualifiers, so there is no spelling that
+// prints one. What the comparison still shows is the whole claim -- widening
+// changed the type and nothing else.
+if ($widenedBoth == "p") { echo "widened=p\n"; } else { echo "BAD\n"; }
 
 tainted string $onlyTainted = "t";
 secret string $onlySecret = "s";

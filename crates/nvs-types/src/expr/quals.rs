@@ -20,7 +20,7 @@
 //! safe over-approximation of "may be tainted"/"may be secret," the same
 //! direction `mixed` never gets — but never narrows through assignment.
 //!
-//! The sinks reachable here are six, and the three below are the ones a
+//! The sinks reachable here are seven, and the three below are the ones a
 //! conversion reaches. [`reject_non_literal_markup_conversion`]
 //! is ADR 0024 § 5's one M2-scoped rule: `as Core\Html\Markup` accepts only a
 //! literal string token, `tainted` or not — the rest of § 5 (auto-escaping,
@@ -40,6 +40,12 @@
 //! [`reject_secret_debug_argument`], [`reject_secret_attribute_constant`], and
 //! [`reject_secret_boundary_argument`] — ADR 0033 § 4's `serialize()`-and-
 //! `spawn` bullet, which is one check for both of ADR 0023 § 2's carriers.
+//!
+//! The seventh has no member behind it at all: [`reject_secret_output`] is
+//! § 4's terminal-output bullet, asked at `echo` and `print`, where the
+//! operand is a statement's rather than a call's — and where the qualifier
+//! has usually arrived by the spreading described above rather than being
+//! written on the operand itself.
 //!
 //! Part of [`super`]'s one expression checker, split across this directory so
 //! a session editing one rule does not carry the rest in context. Every item
@@ -432,6 +438,139 @@ pub(crate) fn reject_secret_debug_argument(
             ),
         );
     }
+}
+
+/// Whether `ty` carries ADR 0033 § 1's `secret` anywhere a serialiser would
+/// walk to: on the type itself, or on an element, a field or a member of the
+/// composites a written value takes. [`is_secret`] answers the atom; this
+/// answers the whole value, which is what ADR 0033 § 4's serialiser bullet
+/// asks for — "a `secret` anywhere in the value it walks".
+///
+/// It stops at a class, deliberately: a `secret`-typed *property* of an
+/// object being encoded is the run-time walk's question, the same split
+/// [`reject_secret_boundary_argument`] documents, and a static rule reaching
+/// into it would answer half of it twice.
+pub(crate) fn contains_secret(ty: TypeId, interner: &TypeInterner) -> bool {
+    if is_secret(ty, interner) {
+        return true;
+    }
+    match interner.get(ty) {
+        Ty::Array(elem) => contains_secret(*elem, interner),
+        Ty::Shape(fields) | Ty::Options(fields) => {
+            fields.iter().any(|(_, f)| contains_secret(*f, interner))
+        }
+        Ty::Union(members) | Ty::Intersection(members) => {
+            members.iter().any(|&m| contains_secret(m, interner))
+        }
+        _ => false,
+    }
+}
+
+/// ADR 0033 § 4's serialiser sink: `Core\Json::encode` refuses a `secret`
+/// anywhere in the value it is handed.
+///
+/// A call-site rule rather than a parameter type, exactly as
+/// [`reject_secret_debug_argument`] is — `encode` declares `mixed`, which a
+/// `secret string` satisfies. What it adds over that one is [`contains_secret`]
+/// rather than [`is_secret`]: an encoded document is written *through* its
+/// composites, so the array literal holding one credential beside four public
+/// fields is the shape this exists for, and refusing only a bare `secret`
+/// argument would leave the common spelling open.
+///
+/// **What it does not reach is the written array literal**, and that is the
+/// container axis rather than this rule: an `["token" => $s]` with no
+/// expectation on it infers `array<mixed>`
+/// ([`check_array_literal`](super::literals::check_array_literal) joins
+/// nothing), so the qualifier is gone before the call is looked at, and it is
+/// equally gone one statement later through a variable — which no call-site
+/// rule could recover. ADR 0033 names that gap as its own; the fix is an
+/// element type for a literal, not a second walk here.
+///
+/// The way out is written at the field rather than at the call —
+/// `Core\Secret::reveal(..., "reason")` on the one value that must travel — so
+/// the rest of the document stays covered by the rule. That is § 4's own
+/// sentence, and it is why this help does not read like
+/// [`reject_secret_debug_argument`]'s.
+pub(crate) fn reject_secret_encoded_argument(
+    qname: &QName,
+    member: &str,
+    args: &CallArgs,
+    arg_types: &[TypeId],
+    env: &mut Env<'_>,
+) {
+    if qname.to_string() != r"Core\Json" || member != "encode" {
+        return;
+    }
+    let CallArgs::List(list) = args else {
+        return;
+    };
+    for (arg, &ty) in list.iter().zip(arg_types) {
+        if !contains_secret(ty, env.interner) {
+            continue;
+        }
+        env.diags.report(
+            Diagnostic::error(
+                code::E_SECRET_ENCODED,
+                "a `secret`-qualified value cannot be passed to `Core\\Json::encode`; an \
+                 encoded document is on its way to a response, a log or a queue, and none \
+                 of those is the credential being used",
+            )
+            .with_primary(arg.value.span, "secret value encoded here")
+            .with_help(
+                "reveal the one field that must travel with \
+                 `Core\\Secret::reveal(..., \"reason\")`, written at that field rather than \
+                 at the call, so the rest of the value stays covered",
+            ),
+        );
+    }
+}
+
+/// ADR 0033 § 4's terminal-output sink: `echo` and `print` refuse a
+/// `secret`-qualified operand, with **no `Core\Cli\Text` bypass**. Returns
+/// whether it refused, so a caller can leave [`require_stringable`] unasked —
+/// `secret bytes` is the one operand both would answer, and confidentiality
+/// is the half to act on.
+///
+/// This is the one sink of § 4's list that is reached by a *statement* rather
+/// than by a member, which is why it is checked here instead of falling out
+/// of a parameter type: `Core\Cli::write` declares plain `string` and is
+/// already refused by the assignability rule, and there is no signature
+/// anywhere behind an `echo`.
+///
+/// **The operand is usually not the secret binding**, and the help is written
+/// for that: interpolation and `.` spread the qualifier to their result (see
+/// this module's own head), so `echo "Bearer $token"` arrives here as a
+/// `secret string` whose span is the whole literal. That spreading is what
+/// makes one check at the sink cover ADR 0033 § 4's *"`echo` and
+/// interpolation"* both, rather than needing a rule per composition form.
+///
+/// The reach is wider than the word "terminal": ADR 0088 § 3 sends a
+/// scheduled script's, a job worker's, a `#[Test]` method's and a
+/// `spawn script` isolate's output through this same sink, so what this
+/// refuses is as often a credential landing in a CI log as one printed to a
+/// tty. A tty-dependent version of the rule is not available — ADR 0086 § 1
+/// rejects tty-dependent behaviour outright.
+pub(crate) fn reject_secret_output(ty: TypeId, span: Span, form: &str, env: &mut Env<'_>) -> bool {
+    if !is_secret(ty, env.interner) {
+        return false;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_SECRET_OUTPUT,
+            format!(
+                "a `secret`-qualified value cannot be written by `{form}`; output is read \
+                 by a person or captured into a log, so the value would be disclosed \
+                 rather than used"
+            ),
+        )
+        .with_primary(span, "secret value written here")
+        .with_help(
+            "reveal it explicitly first with `Core\\Secret::reveal(..., \"reason\")`; \
+             interpolating or concatenating it into a larger string does not help — the \
+             qualifier spreads to the result",
+        ),
+    );
+    true
 }
 
 /// ADR 0033 § 4's cross-boundary sink: a `secret`-qualified value handed to

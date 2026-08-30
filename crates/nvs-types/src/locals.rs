@@ -101,8 +101,8 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::expr::{
     can_hold_an_object, check_array_key_type, check_condition, check_expr, check_expr_stmt,
-    check_return, check_unset_target, int_literal_digits, is_assignable, report_mismatch,
-    require_stringable,
+    check_return, check_unset_target, int_literal_digits, is_assignable, reject_secret_output,
+    report_mismatch, require_stringable,
 };
 use crate::expr_table::ExprInfo;
 use crate::lower::{lower_optional_type, lower_type};
@@ -1190,7 +1190,13 @@ pub(crate) fn check_stmt(
         StmtKind::Echo(xs) => {
             for x in xs {
                 let ty = check_expr(x, None, live, scope, ctx, env);
-                require_stringable(ty, x.span, env);
+                // ADR 0033 § 4's terminal-output sink, which this statement
+                // reaches with no member in between — see
+                // [`crate::expr::reject_secret_output`], including for why a
+                // refused operand is not then asked the stringable question.
+                if !reject_secret_output(ty, x.span, "echo", env) {
+                    require_stringable(ty, x.span, env);
+                }
             }
         }
         StmtKind::Unset(xs) => {

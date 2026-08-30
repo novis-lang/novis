@@ -301,6 +301,10 @@ pub(crate) fn infer_static_call(
         // [`reject_secret_boundary_argument`], which the `spawn` forms will
         // reach rather than growing a second rule.
         reject_secret_boundary_argument(owner, name, args, &arg_types, env);
+        // ADR 0033 § 4's serialiser sink, the third member of the same shape:
+        // `Core\Json::encode` declares `mixed` too, and what it walks is the
+        // whole value. See [`reject_secret_encoded_argument`].
+        reject_secret_encoded_argument(owner, name, args, &arg_types, env);
         // ADR 0057 § 1's closed list — [`infer_method_call`]'s arm of the same
         // hook, for the `Core\Str::format(…)` / `Core\Regex::compile(…)` half
         // of the roster. See [`crate::intrinsics`].

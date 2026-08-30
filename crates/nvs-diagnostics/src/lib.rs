@@ -2498,6 +2498,41 @@ pub mod code {
     /// author fixing either is editing the same line.
     pub const E_COMMAND_METHOD_SHAPE: Code = Code::new("E0789");
 
+    /// A `secret`-qualified value written by `echo` or `print`.
+    ///
+    /// ADR 0033 § 4's terminal-output sink, at the two statements that reach
+    /// it without a member in between. It is refused **with no carrier
+    /// bypass** — the value is being displayed to a person rather than used,
+    /// and neutralizing a control byte does nothing for confidentiality —
+    /// and the name understates the reach: ADR 0088 § 3 routes a scheduled
+    /// script, a job worker, a `#[Test]` method and a `spawn script` isolate
+    /// through this same sink, so the destination is as often a CI log or a
+    /// test report as a terminal.
+    ///
+    /// A separate code from [`E_SECRET_DEBUG_ARGUMENT`] because the way in is
+    /// different: a dump is an argument to a member that declares `mixed`,
+    /// while this one is an operand of a statement, and the operand is
+    /// commonly an interpolation the qualifier spread to rather than the
+    /// secret binding itself. The help says so, because that is the half an
+    /// author does not expect.
+    pub const E_SECRET_OUTPUT: Code = Code::new("E0790");
+
+    /// A `secret`-qualified value reaching `Core\Json::encode`.
+    ///
+    /// ADR 0033 § 4's serialiser bullet: an encoded document is on its way to
+    /// a response, a log or a queue, and none of those is the credential
+    /// being *used*. Refused at the call site for
+    /// [`E_SECRET_DEBUG_ARGUMENT`]'s reason — `encode` declares `mixed`, so
+    /// the written argument is the last place the qualifier is visible.
+    ///
+    /// A separate code from [`E_SECRET_CROSSES_A_BOUNDARY`], which is the
+    /// same shape at a different destination: that one refuses a graph copy
+    /// on its way to an isolate or to `serialize()`'s bytes, where the value
+    /// is still the program's own. This one refuses a document written for
+    /// something outside it, and the way out differs to match — `reveal` at
+    /// the one field that must travel, rather than at the call.
+    pub const E_SECRET_ENCODED: Code = Code::new("E0791");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");
