@@ -2,57 +2,58 @@
 
 ## State
 
-**The driver's failing check is closed.** ADR 0078 § 4's `env_hash` and both cache keys are
-`crates/nvs-config/src/cache.rs` — one `EnvHash` over the sorted `[[extension]]` pins, the on-disk
-`artifact_key(source, env)` and the in-memory `UnitKey { path, content_hash, env }`, whose fields are
-private so the pre-§ 4 key cannot be spelled. Both keys live in one crate on purpose; that module doc
-is the only home of why, and of the known gap that `compiler_version_hash` is the release version, so
-two builds of one version share it.
+**ADR 0020 § 1's reserved slice now has both halves.** `[limits] fatal_reserve_time` is a
+directive (`crates/nvs-config/src/tree.rs`, `crates/nvs-config/src/directive.rs` — `System`, like
+its memory sibling) and `Ctx::fatal_reserve_time` is its reader: nanoseconds, defaulting to 50 ms
+and clamped to a quarter of the ceiling, carved out of `cpu_limit` in the same `refresh_limits`
+pass the memory half is carved in. `Ctx::reserve_time_within`'s doc comment is the only home of
+both numbers and of why the CPU slice is not sized by the memory half's proportion.
 
-**`[limits] cpu_time` has a reader.** `Ctx::cpu_limit` (`crates/nvs-runtime/src/ctx.rs:1281`) is
-nanoseconds, `0` for no cap, resolved by `refresh_limits` like the memory pair. The decision the item
-asked for is recorded in the field doc at `crates/nvs-runtime/src/ctx.rs:342`: **the request thread's
-own CPU clock, sampled by whatever timer watches the request, and never the wall clock `deadline` is
-written from** — per-thread because a thread-per-core host runs many requests in one process, and
-off-thread because `nvs-runtime` has no platform dependency to read a clock with. Nothing samples one
-yet, so `SafepointFlags::CPU_LIMIT` is still raised by tests alone and the CPU branch's time slice is
-still zero wide.
+**The CPU branch's slice is no longer zero wide.** `Ctx::run_limit_handler` widens `cpu_limit` by
+the reserve *and* lowers `SafepointFlags::CPU_LIMIT` for the length of the call, restoring only
+what it lowered; that function's comment owns why the flag edit is the half that matters — a
+ceiling alone buys a handler nothing while the flag that stopped it is still up. What is still
+missing is the **clock**: nothing samples the request thread's CPU time, so the flag is raised by
+tests alone and nothing re-raises it when a handler overruns. `Ctx::cpu_limit`'s field doc owns why
+that sampling is the host's and not this crate's.
 
-Still unfixed: `orient.py`'s `[context] modules` names `crates/nvs-host/src/budget.rs`, which never
-existed — the accounting is `crates/nvs-runtime/src/budget.rs`. The pack warns every session.
+**The driver's failing check is item 12, unstarted — not a regression.**
+`a_recursive_spawn_is_reported_as_max_script_depth_and_not_as_memory` is one of three names
+`nvs-host (limits at a safepoint)` lists for it; none of the three exists, and `max_script_depth`
+exists nowhere in the tree — not on `nvs_config::Limits`, not in the directive registry, and
+`nvs_host::Isolate` carries no depth and no per-tree accounting at all. It is the next group.
+
+`orient.py`'s `[context] modules` still names `crates/nvs-host/src/budget.rs`, which never existed
+— the accounting is `crates/nvs-runtime/src/budget.rs`. The pack warns every session.
 
 ## Next group
 
-**The rest of the CPU-time limit.** File set: `crates/nvs-runtime/src/ctx.rs` (the limit cache at
-`:1236`, the two readers at `:1258` and `:1291`, `run_limit_handler` at `:1145`, the CPU branch
-inside `nvs_safepoint` at `:2411`) and `crates/nvs-runtime/tests/configured_limits.rs`, which is the
-reader's own suite and already builds a snapshot from a TOML string.
+**Item 12's first third — `max_script_depth`, which closes one of the failing check's three
+names.** File set: `crates/nvs-config/src/tree.rs`, `crates/nvs-config/src/directive.rs`,
+`crates/nvs-host/src/isolate.rs` and `crates/nvs-host/tests/limits.rs`.
 
-- [ ] **`fatal_reserve_time` gets a reader** — ADR 0020 § 1 names it beside `fatal_reserve_memory`,
-      and `reserve_within` (`crates/nvs-runtime/src/ctx.rs:1318`) is the shape to copy: a default, a
-      clamp against the ceiling, and the number stated here rather than in the ADR. It carves out of
-      `Ctx::cpu_limit` (`crates/nvs-runtime/src/ctx.rs:1281`) exactly as the memory one carves out of
-      `memory_limit`, so `refresh_limits` (`crates/nvs-runtime/src/ctx.rs:1236`) sets both in one
-      pass. A case joins `crates/nvs-runtime/tests/configured_limits.rs:41`.
-- [ ] **The CPU branch's slice stops being zero wide** — `nvs_safepoint`
-      (`crates/nvs-runtime/src/ctx.rs:2411`) enters the handler under the flag that stopped the
-      request, so the handler is stopped again at its first back edge. With a reserve to spend, the
-      branch clears `CPU_LIMIT` for the handler's own run the way the memory branch spends its
-      reserve, and `run_limit_handler` (`crates/nvs-runtime/src/ctx.rs:1145`) owns the zero-retry
-      rule that keeps that from being a second chance at the request.
-- [ ] **A `.nvst` case over the whole ladder** — every case that reaches `onLimit` today is a Rust
-      one (`crates/nvs-host/tests/limits.rs:263`), so nothing pins what a *program* sees: a handler
-      registered, a limit breached, the report's `limit` key read, and no `catch` entered.
+- [ ] **`[limits] max_script_depth` gets a directive and a reader** — the `cpu_time`/
+      `fatal_reserve_time` pair that just landed is the shape to copy end to end: a field on
+      `Limits` (`crates/nvs-config/src/tree.rs:156`), a row (`crates/nvs-config/src/directive.rs:90`)
+      that is `System` for the reason the reserve is — a script choosing its own recursion ceiling
+      is the case the class exists for — and a reader beside `configured_cpu_time`
+      (`crates/nvs-runtime/src/ctx.rs:1258`). A case joins
+      `crates/nvs-runtime/tests/configured_limits.rs:41`.
+- [ ] **An isolate carries its depth, and a child is one deeper than its parent** — goal item 12
+      (`docs/agent/loop-goal.md:90`) names the whole shape; this slice is the counter and its
+      inheritance only. `crates/nvs-host/src/isolate.rs:90` is the struct, `:111` is `new`, `:153`
+      is `start`.
+- [ ] **A spawn past the ceiling is stopped as `max_script_depth` and never as an out-of-memory** —
+      `crates/nvs-host/src/isolate.rs:133` (`run`), plus the `Limit` variant
+      `crates/nvs-runtime/src/ctx.rs:868`'s comment already anticipates, so § 1's report names it.
+      The test `a_recursive_spawn_is_reported_as_max_script_depth_and_not_as_memory` joins
+      `crates/nvs-host/tests/limits.rs:346`, beside the reserved-slice pair.
 
 ## Backlog
 
-- The timer that raises `SafepointFlags::CPU_LIMIT` from a real clock — `crates/nvs-host`, per
-  `crates/nvs-runtime/src/ctx.rs:342`'s field doc.
-- `compiler_version_hash` is the release version, so a rebuilt compiler reuses artifacts —
-  `crates/nvs-config/src/cache.rs`'s module doc.
-- Nothing constructs a `UnitKey` or an `artifact_key` yet; the caches themselves are ADRs 0017 and
-  0042, unstarted.
-- Item 18's `Core\Secret::reveal()` is not in the registry — `docs/implementation-plan.md`.
-- `Live::admit`'s same-class check is asked of the answer, not the argument —
-  `crates/nvs-runtime/src/graph.rs` § *Known gaps*.
-- Item 22's `Core\Script` members are unwritten — `crates/nvs-stdlib/src/script.rs`.
+- A `.nvst` case over the whole `onLimit` ladder — every case reaching it today is a Rust test
+  (goal item 11, `docs/agent/loop-goal.md:86`).
+- `n_concurrent_isolates_cannot_together_exceed_the_trees_budget` — item 12's per-tree accounting.
+- `a_child_cannot_widen_a_capability_its_parent_narrowed` — item 12's overlay derivation.
+- Nothing samples a CPU clock against `Ctx::cpu_limit`; that field doc owns the split.
+- `orient.py` `[context] modules` names a `crates/nvs-host/src/budget.rs` that never existed.

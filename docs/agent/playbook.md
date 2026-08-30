@@ -3889,6 +3889,16 @@ sibling in the same namespace unqualified.
   rather than a type error you can read past: Novis keeps exactly one equality operator, `==`, which
   never converts either operand, so there is nothing for a second one to distinguish. A null test is
   `$x == null`.
+- **A new `[limits]` key needs a row in `nvs_config::value::unit_of`, and without one the reader
+  answers its *default* rather than failing.** `fatal_reserve_time` had a field on the typed
+  `Limits` tree, a `DIRECTIVES` row and a `Ctx` reader, and a case asking for `"300ms"` still read
+  50 ms. `Ctx` asks for a limit by its **bare** name, and `request::canonical` only prefixes
+  `limits.` onto a name `unit_of` knows — so a key missing from that one `match` resolves as a
+  top-level key, finds nothing, and every reader falls through to whatever it does when the
+  directive is unstated. Nothing refuses: the tree accepted the value, the registry classed it, and
+  only the number was wrong. The full roster a new `[limits]` key owes is the `Limits` field, the
+  `DIRECTIVES` row, the `unit_of` arm and the `Ctx` reader; `unit_of`'s own doc calls itself the one
+  table, which is the sentence to trust over the three files that look complete without it.
 
 ## Divergences and refusals already pinned
 
