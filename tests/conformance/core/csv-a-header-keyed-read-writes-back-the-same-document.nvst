@@ -1,0 +1,66 @@
+--TEST--
+`Core\Csv::format($rows, {header: $names})` over a `{header: true}` read is the identity on the document, because a row is written by its values in order and its keys are ignored — spec § 12's second table
+--FILE--
+<?nvs
+// `crates/nvs-stdlib/src/csv.rs`'s module doc states the composition rather
+// than either half: `format(parse($t, {header: true}), {header: $names})` is a
+// **round trip and not a rekeying**. Neither existing case can see it —
+// `csv-format-then-parse-is-the-identity-over-awkward-records.nvst` runs the
+// unkeyed pair, and `csv-keys-a-ragged-record-by-what-it-has.nvst` asks what
+// `{header: […]}` writes without composing it back. The claim only bites once
+// the two are put together: the rows going into `format` are keyed by *name*,
+// so a writer that took a row's keys for anything at all would answer a
+// different document here while satisfying both of those cases.
+array<string> $docs = [
+    "name,qty,note\nfig,2,ripe\nplum,10,\"a, b\"\n",
+    "a,b\n1,2\n3,4\n",
+    "x,y\n\"p\nq\",r\n",
+    "k\nv1\nv2\n",
+];
+
+int $n = 0;
+int $identical = 0;
+int $keyedByName = 0;
+
+foreach ($docs as string $doc) {
+    $n = $n + 1;
+    var $rows = Core\Csv::parse($doc, {header: true});
+    // The names come back off the read itself, which is what makes this the
+    // composition the doc names rather than a document written from a table
+    // that happened to match.
+    array<string> $names = Core\Arr::keys($rows["0"]);
+    if (Core\Csv::format($rows, {header: $names}) == $doc) {
+        $identical = $identical + 1;
+    }
+    // And the rows really are keyed by name on the way in — a `"0"` key here
+    // would mean the header option had been ignored on the read and the round
+    // trip above would hold for the wrong reason.
+    if (!Core\Arr::hasKey($rows["0"], "0")) {
+        $keyedByName = $keyedByName + 1;
+    }
+}
+
+echo "documents ", $n, "\n";
+echo "identical ", $identical, "\n";
+echo "keyed by name ", $keyedByName, "\n";
+
+// The rekeying the round trip is *not*: the same rows under different names
+// write the same data records under a different first record. A writer
+// consulting a row's keys could not do this at all.
+var $table = Core\Csv::parse("name,qty\nfig,2\nplum,10\n", {header: true});
+echo Core\Csv::format($table, {header: ["item", "count"]});
+
+// And the header option is doing the work rather than being decoration:
+// without it the same rows write no first record, so the document is one
+// record shorter and its first record is data.
+var $bare = Core\Csv::format($table);
+echo "bare records ", Core\Arr::count(Core\Csv::parse($bare)),
+    " first ", Core\Csv::parse($bare)["0"]["0"], "\n";
+--EXPECT--
+documents 4
+identical 4
+keyed by name 4
+item,count
+fig,2
+plum,10
+bare records 2 first fig
