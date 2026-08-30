@@ -5241,8 +5241,10 @@ payload, so nothing is reflected on at run time.
 - Matching is width subtyping, so a literal with extra fields satisfies a narrower shape, and the
   empty shape `{}` is satisfied by **every** attached literal — a bare marker `#[Audited]` is
   therefore not distinguishable from any other attribute by retrieval; give a marker a field.
-- A payload holding a class constant or an enum case can be declared but not retrieved: `get`/`all`
-  over it is refused, because the value has no inline form at the call site.
+- A payload may hold a class constant, an enum case or a `Foo::class`, and each is retrieved as the
+  value a read of that same name inlines — folded in the scope the attribute was *written* in, not
+  the one it is read from. A constant whose own declaration folds to nothing is the one refusal
+  left.
 - PHP's `ReflectionClass::getAttributes()` and `ReflectionAttribute::newInstance()` do not exist; a
   retrieved payload is a plain shape value, read with `->`.
 
@@ -7864,7 +7866,7 @@ Answers the one attribute attached to `$target` — or to its member `$member` �
 | `$target` | `callable` | The declaration whose attributes are read — a class or function reference. |
 | `$member` | `string` (default `""`, neutral) | The name of a member of `$target` to read instead of `$target` itself; the empty string, which is the default, means the target. |
 
-**Returns** `?T` — The matching attribute's payload literal as `T`, or `null` when none satisfies `T`; more than one is a compile error naming `all<T>` as the fix.
+**Returns** `?T` — The matching attribute's payload literal as `T`, or `null` when none satisfies `T`; more than one is a compile error naming `all<T>` as the fix. Matching is width subtyping, so the empty shape `{}` is satisfied by every attached literal: a marker type with no fields asks for any attribute at all, and beside a second attribute it is that compile error rather than the marker.
 
 <a id="core-core-attributes-all"></a>
 #### `Core\Attributes::all`
@@ -7880,7 +7882,7 @@ Answers every attribute attached to `$target` — or to its member `$member` —
 | `$target` | `callable` | The declaration whose attributes are read — a class or function reference. |
 | `$member` | `string` (default `""`, neutral) | The name of a member of `$target` to read instead of `$target` itself; the empty string, which is the default, means the target. |
 
-**Returns** `array<T>` — An `array<T>` of the matching payload literals in declaration order, empty when none satisfies `T`.
+**Returns** `array<T>` — An `array<T>` of the matching payload literals in declaration order, empty when none satisfies `T`. Matching is width subtyping, so the empty shape `{}` answers every attached literal rather than the markers among them.
 
 <a id="core-core-math"></a>
 ### `Core\Math`
@@ -8947,11 +8949,11 @@ as JSON: a list becomes a JSON array, any other array a JSON object with its ins
 and an instance of a class without the attribute is refused. `decode` answers `mixed` — an object
 as a string-keyed array — and throws `ParseError` on a malformed or too-deep document, so there is
 no `json_last_error`. `decodeAs<T>` reads a document straight into a class that carries
-`#[Core\Json\Derive]`, checking every declared field against its type — `?T` is the only way a
-field admits `null` — and reporting every failure at once in one `ParseError`'s `issues`.
-`#[Core\Json\Field(name: "…")]` gives one field its wire name. `decodeAs<T>` names a class and
-nothing else: a document whose top level is a JSON *array* of objects has no typed decode — read it
-with `decode` as `array<mixed>` and convert each element yourself.
+`#[Core\Json\Derive]`, checking every declared field — private ones included — against its type
+(`?T` is the only way a field admits `null`) and reporting every failure at once in one
+`ParseError`'s `issues`. `#[Core\Json\Field(name: "…")]` gives one field its wire name. `T` is that
+class or an `array<T>` of it, and nothing else: `decodeAs<array<User>>` reads a document whose top
+level is a JSON array as one `User` per element, reporting a bad element under its index.
 
 ```nvs
 <?nvs
